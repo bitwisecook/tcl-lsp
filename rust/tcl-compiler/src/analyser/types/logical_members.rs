@@ -31,6 +31,7 @@ pub struct LogicalSourceClassDeclaration {
     input: ResolvedAnalysisInput,
     class: Arc<ClassDef>,
     body_word: Option<tcl_lexer::NativeWord>,
+    candidate_coordinate: Option<tcl_core_types::ByteCommandSlot>,
 }
 
 /// One exact side and declaration in the retained Logical class snapshot.
@@ -79,6 +80,7 @@ impl LogicalSourceClassDeclaration {
             input,
             class: Arc::new(class.clone()),
             body_word: None,
+            candidate_coordinate: None,
         })
     }
 
@@ -113,6 +115,14 @@ impl LogicalSourceClassDeclaration {
         let word = self.body_word.as_ref()?;
         (word.image() == image && word.config().nested() == input.lexer_config().nested())
             .then_some(word)
+    }
+
+    /// Exact selected original factory Name coordinate for readonly candidates.
+    /// Missing body/factory correspondence supplies no coordinate or class identity.
+    #[must_use]
+    pub fn source_candidate_coordinate(&self) -> Option<&tcl_core_types::ByteCommandSlot> {
+        self.body_word.as_ref()?;
+        self.candidate_coordinate.as_ref()
     }
 
     /// Exact retained member metadata on the selected source side.
@@ -156,11 +166,41 @@ impl AnalysisResult {
                 let source = module.original_class_definition_body_source(class, registry)?;
                 source
                     .matches_source_input(&declaration.image, &declaration.input)
-                    .then(|| source.body_word().clone())
+                    .then_some(())?;
+                let body = source.body_word().clone();
+                let source_text = declaration.image.try_text().ok()?;
+                let offset = source.body_word().span().start();
+                let coordinate = self.command_invocations.iter().find_map(|invocation| {
+                    if invocation.range.start() >= offset {
+                        return None;
+                    }
+                    let factory =
+                        crate::registry_invocation::source_structure::source_class_declaration_at(
+                            source_text,
+                            self,
+                            invocation.range.start(),
+                        )?;
+                    std::ptr::eq(factory.logical_source_class(self)?, class).then_some(())?;
+                    let original = factory.name_input().logical_input()?;
+                    (tcl_syntax::word_rules::original_static_word_unicode_value(
+                        original.original_word(),
+                    )
+                    .as_deref()
+                        == Some(original.bytes()))
+                    .then_some(())?;
+                    Some(factory.source_slot().clone())
+                });
+                Some((body, coordinate))
             })
             .collect::<Vec<_>>();
         for (declaration, source) in self.logical_class_declarations.iter_mut().zip(sources) {
-            declaration.body_word = source;
+            if let Some((body, coordinate)) = source {
+                declaration.body_word = Some(body);
+                declaration.candidate_coordinate = coordinate;
+            } else {
+                declaration.body_word = None;
+                declaration.candidate_coordinate = None;
+            }
         }
     }
 

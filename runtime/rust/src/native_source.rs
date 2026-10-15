@@ -143,6 +143,23 @@ impl NativeJimObjectContext {
     pub(crate) fn is_live(&self) -> bool {
         self.live.get()
     }
+    /// Borrow the interpreter's original unknown header without another native reference.
+    pub(crate) fn unknown_object(&self) -> Result<std::cell::Ref<'_, Owned>, ValueError> {
+        let unavailable =
+            || ValueError::CommandProtocolUnavailable("original Jim unknown object role");
+        if !self.is_live() {
+            return Err(unavailable());
+        }
+        let original = std::cell::Ref::filter_map(
+            self.objects
+                [tcl_runtime_api::jim_interpreter::JimInterpreterObjectRole::Unknown as usize]
+                .borrow(),
+            Option::as_ref,
+        )
+        .map_err(|_| unavailable())?;
+        obj::check_native_liveness(original.as_ptr())?;
+        Ok(original)
+    }
     pub(crate) fn defer_object(&self) -> std::cell::Ref<'_, Owned> {
         self.object(tcl_runtime_api::jim_interpreter::JimInterpreterObjectRole::Defer)
     }

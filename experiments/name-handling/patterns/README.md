@@ -88,6 +88,15 @@ computed original index syntax remains a separate input. These seeded source
 observations grant no current element, Native read or edit permission. Rust/LSP
 acceptance remains independent and F5 is untested.
 
+Original Jim pending tailcall cancellation gives actual selected commands and
+original argument Lists distinct pending and consumed-evaluation lifetimes.
+[Two original SDK cases/16rows](../results/original-jim-tailcall-cancellation-sdk-20261015/README.md)
+observe native deletion, the current frame pending List and genuine payload
+pointer before result getters. The uninvoked pending case retains its List
+during selected-command deletion; the consumed case has no frame pending List
+then. Argument final-free order, public Runtime defer/trace and full lifecycle
+agreement remain unproved.
+
 ## Source evidence
 
 The [maintained corpus manifest](../../../scripts/perf/MANIFEST.toml) pins all

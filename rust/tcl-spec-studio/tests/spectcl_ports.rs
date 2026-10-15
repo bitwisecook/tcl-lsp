@@ -1073,7 +1073,6 @@ fn implicit_receiver_roles_round_trip_without_becoming_all_implicit_variables() 
         ..tcl_registry::CommandSpec::DEFAULT
     };
     let seeded = draft::from_command_spec(&spec);
-    let seeded = seeded.as_object().unwrap().clone();
     let rust = tcl_spec_studio::render_rs::render(&seeded);
     assert!(rust.contains("implicit_receiver_vars:"));
     let text = tcl_spec_studio::render_spectcl::render_pack(&[seeded], "receiver_roles");

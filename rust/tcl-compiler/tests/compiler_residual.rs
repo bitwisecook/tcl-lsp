@@ -1111,22 +1111,52 @@ fn reg_static() -> &'static CommandRegistry {
 }
 
 /// CFG/SSA (codegen frame-analysis) summaries, interprocedural on.
-fn escape_cu(src: &str) -> HashMap<String, ProcEscapeSummary> {
+struct EscapeSummaries {
+    module: tcl_compiler::Module,
+    by_body: HashMap<tcl_core_types::BodyFrameId, ProcEscapeSummary>,
+}
+
+impl EscapeSummaries {
+    fn fixture_body(&self, label: &str) -> tcl_core_types::BodyFrameId {
+        if label == tcl_compiler::var_escape::TOP_LEVEL_QNAME {
+            return tcl_core_types::BodyFrameId::Top(self.module.procedure_ids.module_id());
+        }
+        let mut bodies = self
+            .module
+            .procedures
+            .iter()
+            .filter(|(_, body)| body.qualified_name == label);
+        let (id, _) = bodies.next().expect("original authored fixture body");
+        assert!(
+            bodies.next().is_none(),
+            "ambiguous authored fixture body {label}"
+        );
+        assert!(self.module.procedure_ids.owns(*id));
+        tcl_core_types::BodyFrameId::Body(*id)
+    }
+}
+
+fn escape_cu(src: &str) -> EscapeSummaries {
     let cu = CompilationUnit::build_for(src, reg_static(), false);
-    analyse_var_escape_cu(&cu, true)
+    let by_body = analyse_var_escape_cu(&cu, true);
+    EscapeSummaries {
+        module: cu.ir_module,
+        by_body,
+    }
 }
 
 /// IR-walk (inliner path) summaries, interprocedural on.
-fn escape_ir(src: &str) -> HashMap<String, ProcEscapeSummary> {
+fn escape_ir(src: &str) -> EscapeSummaries {
     let module = lower_to_ir(src, reg_static());
-    analyse_var_escape(&module, true)
+    let by_body = analyse_var_escape(&module, true);
+    EscapeSummaries { module, by_body }
 }
 
-fn summary<'a>(m: &'a HashMap<String, ProcEscapeSummary>, q: &str) -> &'a ProcEscapeSummary {
-    m.get(q).unwrap_or_else(|| {
+fn summary<'a>(m: &'a EscapeSummaries, q: &str) -> &'a ProcEscapeSummary {
+    m.by_body.get(&m.fixture_body(q)).unwrap_or_else(|| {
         panic!(
             "summary {q} missing; keys = {:?}",
-            m.keys().collect::<Vec<_>>()
+            m.by_body.keys().collect::<Vec<_>>()
         )
     })
 }

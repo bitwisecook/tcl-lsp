@@ -101,7 +101,7 @@ use tcl_lexer::Span;
 use tcl_registry::CommandRegistry;
 
 use crate::cfg::{BlockId, Function as CfgFunction};
-use crate::def_use::{DefUseResult, UseKind, UseSite};
+use crate::def_use::{DefUseFacts, UseKind, UseSite};
 use crate::ir::Statement;
 use crate::sccp::cfg_order;
 use crate::ssa::{SsaFunction, Symbol, Version};
@@ -139,7 +139,7 @@ struct SharingCtx<'a> {
     context: super::ShimmerContext<'a>,
     cfg: &'a CfgFunction,
     ssa: &'a SsaFunction,
-    def_use: &'a DefUseResult,
+    def_use: &'a DefUseFacts,
     executable_blocks: &'a HashSet<BlockId>,
     /// Name-keyed CFG successor map ([`build_successors`]).
     succs: HashMap<String, Vec<String>>,
@@ -178,7 +178,7 @@ impl SharingCtx<'_> {
 pub(crate) fn find_sharing_warnings<S: std::hash::BuildHasher>(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
-    def_use: &DefUseResult,
+    def_use: &DefUseFacts,
     executable_blocks: &HashSet<BlockId>,
     registry: &CommandRegistry,
     extra_scope_aliases: Option<&HashSet<String, S>>,
@@ -196,7 +196,7 @@ pub(crate) fn find_sharing_warnings<S: std::hash::BuildHasher>(
 pub(crate) fn find_sharing_warnings_with_context<S: std::hash::BuildHasher>(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
-    def_use: &DefUseResult,
+    def_use: &DefUseFacts,
     executable_blocks: &HashSet<BlockId>,
     context: super::ShimmerContext<'_>,
     extra_scope_aliases: Option<&HashSet<String, S>>,
@@ -417,8 +417,8 @@ fn partner_read_after(
     stmt_idx: usize,
     partner: (Symbol, Version),
 ) -> Option<LiveRead> {
-    let partner_key = ctx.ssa.cell_key(partner.0).clone();
-    let uses: &[UseSite] = ctx.def_use.uses_of(&partner_key, partner.1);
+    let partner_symbol = ctx.def_use.symbol(ctx.ssa, partner.0)?;
+    let uses: &[UseSite] = ctx.def_use.uses_of(partner_symbol, partner.1);
     let mut verdict: Option<LiveRead> = None;
     for u in uses {
         if u.class == crate::ssa::UseClass::Quoted {

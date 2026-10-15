@@ -8748,7 +8748,7 @@ mod tests {
             );
             let chains =
                 crate::def_use::build_def_use_chains(&ssa, None, tcl_lexer::LexerConfig::default());
-            let uses = chains.uses_of("x", 1);
+            let uses = chains.uses_of(ssa.var_symbol("x").unwrap(), 1);
             assert_eq!(uses.len(), 1);
             assert_eq!(
                 uses[0].class,
@@ -11184,7 +11184,7 @@ mod tests {
 
         let def_use = crate::def_use::build_def_use_chains(&ssa, Some(&func), jim);
         let chain = def_use
-            .chain_for("a", phi.version)
+            .chain_for(ssa.var_symbol("a").unwrap(), phi.version)
             .expect("the phi definition has a chain");
         assert!(
             chain

@@ -208,7 +208,24 @@ const VENDOR_PACK: &str = "speclib vendor 2.0 {\n    \
 /// what defines it, so it is there if and only if the unit resolved the
 /// pack's command.
 fn defined_by_the_pack(unit: &CompilationUnit) -> Option<LatticeValue> {
-    let p = unit.procedures.get("::p").expect("::p");
+    let mut bodies = unit
+        .ir_module
+        .procedures
+        .keys()
+        .chain(unit.ir_module.body_units.keys())
+        .filter_map(|id| Some((*id, unit.original_procedure_for_body(*id)?)))
+        .filter(|(_, procedure)| {
+            procedure.declaration_site.as_ref().is_some_and(|site| {
+                site.offset == 0 && site.source.source_image() == &unit.ir_module.source
+            })
+        });
+    let (id, _) = bodies
+        .next()
+        .expect("original fixture declaration at offset zero");
+    assert!(bodies.next().is_none(), "unique fixture declaration body");
+    let p = unit
+        .function_for_body(Some(id))
+        .expect("current fixture body");
     let symbol = p.ssa.var_symbol("a").expect("`return $a` names it");
     p.sccp.values.get(&(symbol, 1)).cloned()
 }

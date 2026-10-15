@@ -973,6 +973,9 @@ fn emit_dead_stores_and_unused(
     let mut entries: Vec<DseEntry> = Vec::new();
 
     for chain in fu.def_use.chains.values() {
+        let Some(physical_key) = fu.def_use.physical_value_key(&fu.ssa, chain.key) else {
+            continue;
+        };
         let Some((def_block, idx, stmt)) = live_dead_chain_statement(fu, chain, &unreachable)
         else {
             continue;
@@ -1004,7 +1007,7 @@ fn emit_dead_stores_and_unused(
             source_tokens: fu.cfg.source_tokens_at(def_block, idx),
         };
         if !assignment_safe_to_delete_with_effect(stmt, effect)
-            || !raise_proof.value_cannot_raise(def_block, idx, stmt, &chain.key)
+            || !raise_proof.value_cannot_raise(def_block, idx, stmt, &physical_key)
         {
             continue;
         }
@@ -1021,9 +1024,10 @@ fn emit_dead_stores_and_unused(
         // *base* names, so an element symbol (`a(k)`) checks its base too.
 
         let (cell_name, _) = &chain.key;
-        let Some(symbol) = fu.ssa.cell_symbol(cell_name) else {
+        let Some(symbol) = fu.def_use.symbol(&fu.ssa, *cell_name) else {
             continue;
         };
+        let cell_name = fu.ssa.cell_key(symbol);
         let var = fu.ssa.var_name(symbol);
         // A synthetic may-def (base refresh / element fan) is not a write
         // the user made — never an O109/O126 candidate.
@@ -1058,7 +1062,7 @@ fn emit_dead_stores_and_unused(
             ),
             code,
             msg,
-            key: chain.key.clone(),
+            key: physical_key,
             block: chain.definition.block.clone(),
             statement_index: chain.definition.statement_index,
         });
@@ -1182,7 +1186,7 @@ pub(super) fn store_is_seen_elsewhere(
     scope_aliases: &HashSet<String>,
 ) -> bool {
     let (cell, version) = &chain.key;
-    let Some(symbol) = fu.ssa.cell_symbol(cell) else {
+    let Some(symbol) = fu.def_use.symbol(&fu.ssa, *cell) else {
         return true;
     };
     let var = fu.ssa.var_name(symbol);
@@ -1190,7 +1194,7 @@ pub(super) fn store_is_seen_elsewhere(
     fu.ssa.is_synthetic_def(
         &chain.definition.block,
         chain.definition.statement_index,
-        cell,
+        fu.ssa.cell_key(symbol),
     ) || scope_aliases.contains(var)
         || scope_aliases.contains(var_base)
         || fu.ssa.is_observed_by_unseen_call(symbol, *version)
@@ -1219,7 +1223,7 @@ fn has_running_use(fu: &FunctionUnit, chain: &crate::def_use::DefUseChain) -> bo
 /// in a `try` body and in `[catch {…}]` alike, so `set c old` before it is
 /// what a later read of `c` sees.
 fn preserved_and_read(fu: &FunctionUnit, chain: &crate::def_use::DefUseChain) -> bool {
-    let Some(symbol) = fu.ssa.cell_symbol(&chain.key.0) else {
+    let Some(symbol) = fu.def_use.symbol(&fu.ssa, chain.key.0) else {
         return false;
     };
     fu.sccp.preserved.iter().any(|(&(var, version), &prior)| {
@@ -1227,7 +1231,7 @@ fn preserved_and_read(fu: &FunctionUnit, chain: &crate::def_use::DefUseChain) ->
             && prior == chain.key.1
             && fu
                 .def_use
-                .chain_for(&chain.key.0, version)
+                .chain_for(chain.key.0, version)
                 .is_some_and(|keeper| !keeper.is_dead())
     })
 }
@@ -1239,7 +1243,7 @@ fn preserved_and_read(fu: &FunctionUnit, chain: &crate::def_use::DefUseChain) ->
 fn over_a_closed_entry(fu: &FunctionUnit, site: &crate::def_use::UseSite) -> bool {
     let (Some(pred), Some(symbol)) = (
         fu.cfg.block_id(&site.block),
-        fu.ssa.cell_symbol(&site.variable),
+        fu.def_use.symbol(&fu.ssa, site.variable),
     ) else {
         return false;
     };
@@ -1277,7 +1281,7 @@ fn dead_chain_code(
     let var = &chain.key.0;
     // A scalar-fact invalidation does not overwrite the executable cell.
     // Reads of its fresh version still observe the earlier store.
-    if let Some(symbol) = fu.ssa.cell_symbol(var)
+    if let Some(symbol) = fu.def_use.symbol(&fu.ssa, *var)
         && fu.def_use.chains.iter().any(|(key, consumer)| {
             key.0 == *var
                 && key.1 != chain.key.1
@@ -1308,8 +1312,8 @@ fn dead_chain_code(
     // referenced anywhere in the source text suppresses spurious O126 for
     // legitimately-consumed variables.
     if fu
-        .ssa
-        .cell_symbol(var)
+        .def_use
+        .symbol(&fu.ssa, *var)
         .is_some_and(|symbol| textually_referenced.contains(fu.ssa.var_name(symbol)))
     {
         return None;
@@ -1423,7 +1427,7 @@ fn observed_store_definitions(
                 contexts.before_statement(block, index),
                 registry,
             );
-            let symbol = fu.ssa.cell_symbol(&chain.key.0)?;
+            let symbol = fu.def_use.symbol(&fu.ssa, chain.key.0)?;
             (dead_store_writes_observed(fu, block, index, &writes, contexts, registry)
                 || dead_store_name_observed(
                     ctx,
@@ -1432,7 +1436,8 @@ fn observed_store_definitions(
                     top_level,
                     &writes,
                 ))
-            .then(|| chain.key.clone())
+            .then(|| fu.def_use.physical_value_key(&fu.ssa, chain.key))
+            .flatten()
         })
         .collect()
 }
@@ -1452,7 +1457,9 @@ fn build_adce_consumers(
         if chain.definition.kind != DefKind::Statement {
             continue;
         }
-        let mut key = chain.key.clone();
+        let Some(mut key) = fu.def_use.physical_value_key(&fu.ssa, chain.key) else {
+            continue;
+        };
         if let Some(symbol) = fu.ssa.cell_symbol(&key.0) {
             key.1 = fu.ssa.binding_version(symbol, key.1);
         }
@@ -1487,10 +1494,12 @@ fn build_stmt_to_defs(fu: &FunctionUnit) -> StmtDefsMap {
         if chain.definition.kind != DefKind::Statement {
             continue;
         }
-        if let Ok(idx) = usize::try_from(chain.definition.statement_index) {
+        if let Ok(idx) = usize::try_from(chain.definition.statement_index)
+            && let Some(key) = fu.def_use.physical_value_key(&fu.ssa, chain.key)
+        {
             out.entry((chain.definition.block.clone(), idx))
                 .or_default()
-                .push(chain.key.clone());
+                .push(key);
         }
     }
     out
@@ -1513,7 +1522,10 @@ fn run_adce_fixpoint(
             if chain.definition.kind != DefKind::Statement {
                 continue;
             }
-            let key = &chain.key;
+            let Some(physical_key) = fu.def_use.physical_value_key(&fu.ssa, chain.key) else {
+                continue;
+            };
+            let key = &physical_key;
             if removed.contains(key) || keep_forever.contains(key) {
                 continue;
             }
@@ -1583,7 +1595,7 @@ fn emit_adce_reports(
 ) {
     let mut new_reports: Vec<tcl_lexer::Span> = Vec::new();
     for key in removed.difference(baseline) {
-        if let Some(chain) = fu.def_use.chains.get(key) {
+        if let Some(chain) = fu.def_use.chain_for_cell(&fu.ssa, &key.0, key.1) {
             let Ok(idx) = usize::try_from(chain.definition.statement_index) else {
                 continue;
             };

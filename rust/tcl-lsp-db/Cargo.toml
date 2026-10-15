@@ -46,6 +46,7 @@ tcl-registry = { path = "../tcl-registry" }
 tcl-lsp-core = { path = "../tcl-lsp-core" }
 
 [dev-dependencies]
+serde_json = "1"
 tcl-vm = { path = "../tcl-vm" }
 tcl-runtime-api = { path = "../tcl-runtime-api" }
 rayon = "1"

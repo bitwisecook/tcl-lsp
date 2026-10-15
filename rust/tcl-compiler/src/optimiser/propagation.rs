@@ -358,9 +358,10 @@ fn run_load_forwarding(
             continue;
         }
         let cell_name = &chain.key.0;
-        let Some(symbol) = fu.ssa.cell_symbol(cell_name) else {
+        let Some(symbol) = fu.def_use.symbol(&fu.ssa, *cell_name) else {
             continue;
         };
+        let cell_name = fu.ssa.cell_key(symbol);
         let (Some(block_id), Ok(idx)) = (
             fu.cfg.block_id(&chain.definition.block),
             usize::try_from(chain.definition.statement_index),
@@ -842,7 +843,7 @@ fn forward_candidate(
     else {
         return None;
     };
-    let symbol = fu.ssa.cell_symbol(&chain.key.0)?;
+    let symbol = fu.def_use.symbol(&fu.ssa, chain.key.0)?;
     let use_source = crate::ssa::SsaSourceView::at_statement(&fu.ssa, def_block, use_idx);
     let (var_span, has_earlier_effect) = locate_use_var(
         tokens,
@@ -870,10 +871,9 @@ fn forward_candidate(
         return None;
     }
 
-    let def_key = chain.key.clone();
-    // Skip SCCP constants (O100 owns those). The def-use chain keys on the
-    // variable name; resolve it to the SSA symbol to index the SCCP lattice.
-    if let Some(sym) = fu.ssa.cell_symbol(&def_key.0)
+    let def_key = chain.key;
+    // SCCP constants belong to O100.
+    if let Some(sym) = fu.def_use.symbol(&fu.ssa, def_key.0)
         && matches!(
             fu.sccp.values.get(&(sym, def_key.1)),
             Some(LatticeValue::Const(_))
@@ -882,10 +882,11 @@ fn forward_candidate(
     {
         return None;
     }
-    // Skip statements another pass already rewrote / consumed. The
-    // def-use chain keys on the variable name; resolve it to the SSA symbol
-    // to test the `(Symbol, Version)`-keyed branch-use set.
-    let def_key_sym = fu.ssa.cell_symbol(&def_key.0).map(|s| (s, def_key.1));
+    // Skip statements another pass already rewrote or consumed.
+    let def_key_sym = fu
+        .def_use
+        .symbol(&fu.ssa, def_key.0)
+        .map(|s| (s, def_key.1));
     if ctx
         .propagated_expr_stmts
         .contains(&(def.block.clone(), def_idx))

@@ -112,7 +112,8 @@ fn proc_fu<'a>(cu: &'a CompilationUnit, qname: &str) -> &'a FunctionUnit {
 /// Look up the def-use chain for `(name, version)` in a unit.
 fn chain<'a>(fu: &'a FunctionUnit, name: &str, version: Version) -> Option<&'a DefUseChain> {
     let symbol = fu.ssa.var_symbol(name)?;
-    fu.def_use.chain_for(fu.ssa.cell_key(symbol), version)
+    fu.def_use.symbol(&fu.ssa, symbol)?;
+    fu.def_use.chain_for(symbol, version)
 }
 
 /// All SSA versions defined for `name` in a unit.
@@ -121,16 +122,12 @@ fn reaching_defs(fu: &FunctionUnit, name: &str) -> Vec<(String, Version)> {
         return Vec::new();
     };
     fu.def_use
-        .reaching_defs(fu.ssa.cell_key(symbol))
+        .reaching_defs(symbol)
         .into_iter()
-        .map(|(key, version)| {
-            (
-                fu.ssa.cell_symbol(&key).map_or_else(
-                    || key.compatibility_name(),
-                    |symbol| fu.ssa.var_name(symbol).to_owned(),
-                ),
-                version,
-            )
+        .filter_map(|(key, version)| {
+            fu.def_use
+                .symbol(&fu.ssa, key)
+                .map(|symbol| (fu.ssa.var_name(symbol).to_owned(), version))
         })
         .collect()
 }
@@ -309,8 +306,14 @@ fn def_use_proc_parameters() {
     // tclsh: foo 3 4 ⇒ 7 (each param read once).
     let cu = build_cu("proc foo {x y} { set z [expr {$x + $y}]\n return $z }");
     let fu = proc_fu(&cu, "::foo");
-    assert_eq!(fu.def_use.uses_of("x", 0).len(), 1);
-    assert_eq!(fu.def_use.uses_of("y", 0).len(), 1);
+    assert_eq!(
+        fu.def_use.uses_of(fu.ssa.var_symbol("x").unwrap(), 0).len(),
+        1
+    );
+    assert_eq!(
+        fu.def_use.uses_of(fu.ssa.var_symbol("y").unwrap(), 0).len(),
+        1
+    );
     // Both are genuine parameter defs (version 0, read-before-set).
     assert_eq!(
         chain(fu, "x", 0).unwrap().definition.kind,
@@ -325,11 +328,11 @@ fn def_use_proc_parameters() {
 #[test]
 fn def_use_is_dead_method() {
     // `set x 1\nset y $x` — x read (not dead), y never read (dead). Uses the
-    // `DefUseResult::is_dead(name, version)` method.
+    // `DefUseResult::is_dead(symbol, version)` method.
     let cu = build_cu("set x 1\nset y $x");
     let fu = top_fu(&cu);
-    assert!(!fu.def_use.is_dead("x", 1));
-    assert!(fu.def_use.is_dead("y", 1));
+    assert!(!fu.def_use.is_dead(fu.ssa.var_symbol("x").unwrap(), 1));
+    assert!(fu.def_use.is_dead(fu.ssa.var_symbol("y").unwrap(), 1));
 }
 
 #[test]
@@ -337,7 +340,7 @@ fn def_use_is_dead_nonexistent_key() {
     // A missing key is reported dead (the `is_none_or(is_dead)` contract).
     let cu = build_cu("set x 1");
     let fu = top_fu(&cu);
-    assert!(fu.def_use.is_dead("nonexistent", 99));
+    assert!(fu.def_use.is_dead(fu.ssa.var_symbol("x").unwrap(), 99));
 }
 
 #[test]

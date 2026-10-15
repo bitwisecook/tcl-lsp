@@ -32,10 +32,12 @@
 //! blocks).
 
 use std::collections::HashMap;
+use std::ops::Deref;
+use std::sync::Arc;
 
 use crate::cfg::{Function as CfgFunction, Terminator};
-use crate::ssa::{SsaFunction, UseClass, Version};
-use crate::var_resolve::{VariableCellKey, VariableCellKeyQuery};
+use crate::ssa::{SsaFunction, Symbol, UseClass, Version};
+use crate::var_resolve::VariableCellKey;
 
 /// How a variable definition was produced.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -90,8 +92,8 @@ pub struct UseSite {
     pub kind: UseKind,
     /// Statement index within the block (`-1` for phi-incoming / terminator).
     pub statement_index: i32,
-    /// For `PhiIncoming`: the phi variable name.
-    pub variable: VariableCellKey,
+    /// The current SSA symbol; for phi input, the receiving phi symbol.
+    pub variable: Symbol,
     /// For `PhiIncoming`: the phi's defined version.
     pub phi_version: Version,
     /// Whether the name is carried only by a brace-quoted word this statement
@@ -101,8 +103,11 @@ pub struct UseSite {
     pub class: UseClass,
 }
 
-/// SSA value key: `(canonical storage identity, version)`.
-pub type SsaValueKey = (VariableCellKey, Version);
+/// Function-local SSA value coordinate, independent of physical storage.
+pub type SsaValueKey = crate::ssa::ValueKey;
+
+/// Current canonical storage identity and its represented SSA version.
+pub type StorageValueKey = (VariableCellKey, Version);
 
 /// A single def-use chain: one definition and all its uses.
 #[derive(Debug, Clone, PartialEq)]
@@ -140,96 +145,36 @@ impl DefUseChain {
 pub struct DefUseResult {
     /// All chains keyed by `(variable, version)`.
     pub chains: HashMap<SsaValueKey, DefUseChain>,
-    source_keys: HashMap<String, VariableCellKey>,
 }
 
 impl DefUseResult {
-    /// Preserve shared chains when every referenced storage key is unchanged.
-    pub(crate) fn variable_proofs_need_relocation(
-        &self,
-        relocation: &crate::var_resolve::VariableProofRelocation,
-    ) -> bool {
-        self.chains.iter().any(|((key, _), chain)| {
-            relocation.storage_key(key) != *key
-                || relocation.storage_key(&chain.key.0) != chain.key.0
-                || chain.uses.iter().any(|site| {
-                    site.kind == UseKind::PhiIncoming
-                        && relocation.storage_key(&site.variable) != site.variable
-                })
-        }) || self
-            .source_keys
-            .values()
-            .any(|key| relocation.storage_key(key) != *key)
-    }
-
-    /// Relocate canonical storage identities without changing definitions or SSA versions.
-    pub fn relocate_variable_proofs(
-        &mut self,
-        relocation: &crate::var_resolve::VariableProofRelocation,
-    ) {
-        self.chains = self
-            .chains
-            .drain()
-            .map(|((name, version), mut chain)| {
-                let name = relocation.storage_key(&name);
-                chain.key = (name.clone(), version);
-                for site in &mut chain.uses {
-                    if site.kind == UseKind::PhiIncoming {
-                        site.variable = relocation.storage_key(&site.variable);
-                    }
-                }
-                ((name, version), chain)
-            })
-            .collect();
-        for name in self.source_keys.values_mut() {
-            *name = relocation.storage_key(name);
-        }
-    }
-
-    /// Look up the chain for a specific SSA value.
+    /// Look up one actual function-local SSA value.
     #[must_use]
-    pub fn chain_for<Q: VariableCellKeyQuery + ?Sized>(
-        &self,
-        name: &Q,
-        version: Version,
-    ) -> Option<&DefUseChain> {
-        self.chains.get(&(self.resolved_key(name), version))
+    pub fn chain_for(&self, symbol: Symbol, version: Version) -> Option<&DefUseChain> {
+        self.chains.get(&(symbol, version))
     }
 
-    fn resolved_key<Q: VariableCellKeyQuery + ?Sized>(&self, name: &Q) -> VariableCellKey {
-        let key = name.variable_cell_key();
-        key.authored_spelling()
-            .and_then(|name| self.source_keys.get(name))
-            .cloned()
-            .unwrap_or_else(|| key.into_owned())
-    }
-
-    /// Return all use sites for a given SSA value.
+    /// All consumers of one function-local SSA value.
     #[must_use]
-    pub fn uses_of<Q: VariableCellKeyQuery + ?Sized>(
-        &self,
-        name: &Q,
-        version: Version,
-    ) -> &[UseSite] {
-        self.chain_for(name, version)
+    pub fn uses_of(&self, symbol: Symbol, version: Version) -> &[UseSite] {
+        self.chain_for(symbol, version)
             .map_or(&[], |chain| chain.uses.as_slice())
     }
 
-    /// True when the given SSA value has no uses.
+    /// Whether a function-local SSA value has no consumers.
     #[must_use]
-    pub fn is_dead<Q: VariableCellKeyQuery + ?Sized>(&self, name: &Q, version: Version) -> bool {
-        self.chain_for(name, version)
+    pub fn is_dead(&self, symbol: Symbol, version: Version) -> bool {
+        self.chain_for(symbol, version)
             .is_none_or(DefUseChain::is_dead)
     }
 
-    /// All SSA definitions of `name` across the function.
+    /// Every represented definition of this function-local symbol.
     #[must_use]
-    pub fn reaching_defs<Q: VariableCellKeyQuery + ?Sized>(&self, name: &Q) -> Vec<SsaValueKey> {
-        let key = self.resolved_key(name);
+    pub fn reaching_defs(&self, symbol: Symbol) -> Vec<SsaValueKey> {
         self.chains
             .keys()
-            .filter(|(n, _)| n == &key)
-            .cloned()
+            .filter(|(candidate, _)| *candidate == symbol)
+            .copied()
             .collect()
     }
 
@@ -252,6 +197,76 @@ impl DefUseResult {
     }
 }
 
+/// Shared SSA graph with a separate interpretation of current storage identities.
+/// Physical consumers must join symbols to the current SSA through this owner.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct DefUseFacts {
+    result: Arc<DefUseResult>,
+    cells: Arc<[VariableCellKey]>,
+}
+
+impl Deref for DefUseFacts {
+    type Target = Arc<DefUseResult>;
+    fn deref(&self) -> &Self::Target {
+        &self.result
+    }
+}
+
+impl DefUseFacts {
+    /// Interpret one graph symbol only when its retained storage key is current.
+    #[must_use]
+    pub fn cell_key<'a>(
+        &self,
+        ssa: &'a SsaFunction,
+        symbol: Symbol,
+    ) -> Option<&'a VariableCellKey> {
+        let index = symbol.0 as usize;
+        let current = ssa.cell_keys().get(index)?;
+        (self.cells.get(index) == Some(current)).then_some(current)
+    }
+
+    /// Reborrow an actual graph symbol under its current storage interpretation.
+    #[must_use]
+    pub fn symbol(&self, ssa: &SsaFunction, symbol: Symbol) -> Option<Symbol> {
+        self.cell_key(ssa, symbol).map(|_| symbol)
+    }
+
+    /// Reborrow a complete current storage/version key from a graph coordinate.
+    #[must_use]
+    pub fn physical_value_key(
+        &self,
+        ssa: &SsaFunction,
+        key: SsaValueKey,
+    ) -> Option<StorageValueKey> {
+        Some((self.cell_key(ssa, key.0)?.clone(), key.1))
+    }
+
+    /// Query a current exact cell without interpreting a name or display label.
+    #[must_use]
+    pub fn chain_for_cell(
+        &self,
+        ssa: &SsaFunction,
+        cell: &VariableCellKey,
+        version: Version,
+    ) -> Option<&DefUseChain> {
+        let symbol = ssa.cell_symbol(cell)?;
+        (self.cell_key(ssa, symbol)? == cell).then_some(())?;
+        self.result.chain_for(symbol, version)
+    }
+
+    /// Rebind current storage keys while retaining the same immutable SSA graph.
+    pub(crate) fn relocate_variable_proofs(
+        &mut self,
+        relocation: &crate::var_resolve::VariableProofRelocation,
+    ) {
+        self.cells = self
+            .cells
+            .iter()
+            .map(|key| relocation.storage_key(key))
+            .collect();
+    }
+}
+
 // Builder
 
 /// Build def-use chains from an SSA function in two passes.
@@ -266,15 +281,15 @@ pub fn build_def_use_chains(
     ssa: &SsaFunction,
     cfg: Option<&CfgFunction>,
     config: tcl_lexer::LexerConfig,
-) -> DefUseResult {
+) -> DefUseFacts {
     let mut chains: HashMap<SsaValueKey, DefUseChain> = HashMap::new();
 
     // Pass 1: definitions
     for block in ssa.blocks.values() {
         // Phi definitions.
         for phi in &block.phis {
-            let key = (ssa.cell_key(phi.name).to_owned(), phi.version);
-            chains.entry(key.clone()).or_insert_with(|| DefUseChain {
+            let key = (phi.name, phi.version);
+            chains.entry(key).or_insert_with(|| DefUseChain {
                 key,
                 definition: DefSite {
                     block: block.name.clone(),
@@ -287,8 +302,8 @@ pub fn build_def_use_chains(
         // Statement definitions.
         for (idx, stmt) in block.statements.iter().enumerate() {
             for (sym, ver) in &stmt.defs {
-                let key = (ssa.cell_key(*sym).to_owned(), *ver);
-                chains.entry(key.clone()).or_insert_with(|| DefUseChain {
+                let key = (*sym, *ver);
+                chains.entry(key).or_insert_with(|| DefUseChain {
                     key,
                     definition: DefSite {
                         block: block.name.clone(),
@@ -306,9 +321,9 @@ pub fn build_def_use_chains(
     for (bn, block) in &ssa.blocks {
         // Phi incoming edges are uses of the incoming versions.
         for phi in &block.phis {
-            let phi_var = ssa.cell_key(phi.name).to_owned();
+            let phi_var = phi.name;
             for (pred_block, incoming_ver) in &phi.incoming {
-                let key = (phi_var.clone(), *incoming_ver);
+                let key = (phi_var, *incoming_ver);
                 add_use(
                     &mut chains,
                     entry_name,
@@ -317,7 +332,7 @@ pub fn build_def_use_chains(
                         block: ssa.block_name(*pred_block).to_owned(),
                         kind: UseKind::PhiIncoming,
                         statement_index: -1,
-                        variable: phi_var.clone(),
+                        variable: phi_var,
                         phi_version: phi.version,
                         class: UseClass::Substituted,
                     },
@@ -328,7 +343,7 @@ pub fn build_def_use_chains(
         // Statement operand uses.
         for (idx, stmt) in block.statements.iter().enumerate() {
             for (sym, ver) in &stmt.uses {
-                let key = (ssa.cell_key(*sym).to_owned(), *ver);
+                let key = (*sym, *ver);
                 let class = if stmt.quoted_uses.contains(sym) {
                     UseClass::Quoted
                 } else if stmt.name_only_uses.contains(sym) {
@@ -349,7 +364,7 @@ pub fn build_def_use_chains(
                         block: block.name.clone(),
                         kind,
                         statement_index: i32::try_from(idx).unwrap_or(i32::MAX),
-                        variable: VariableCellKey::Authored(String::new()),
+                        variable: *sym,
                         phi_version: 0,
                         class,
                     },
@@ -365,17 +380,9 @@ pub fn build_def_use_chains(
         }
     }
 
-    let source_keys = ssa
-        .var_names()
-        .iter()
-        .filter_map(|display| {
-            ssa.var_symbol(display)
-                .map(|symbol| (display.clone(), ssa.cell_key(symbol).to_owned()))
-        })
-        .collect();
-    DefUseResult {
-        chains,
-        source_keys,
+    DefUseFacts {
+        result: Arc::new(DefUseResult { chains }),
+        cells: Arc::from(ssa.cell_keys()),
     }
 }
 
@@ -460,7 +467,7 @@ fn add_use(
         DefKind::Statement
     };
     let chain = DefUseChain {
-        key: key.clone(),
+        key,
         definition: DefSite {
             block: entry.to_owned(),
             kind,
@@ -503,7 +510,7 @@ fn add_terminator_uses(
             let Some(read) = view.read_reference(&access.source, &access.original_spelling) else {
                 continue;
             };
-            let name = ssa.cell_key(read.symbol).to_owned();
+            let name = read.symbol;
             let keys = if let Some(version) = read.version {
                 vec![(name, version)]
             } else {
@@ -512,7 +519,7 @@ fn add_terminator_uses(
                 chains
                     .keys()
                     .filter(|(cell, _)| cell == &name)
-                    .cloned()
+                    .copied()
                     .collect::<Vec<_>>()
             };
             for key in keys {
@@ -524,7 +531,7 @@ fn add_terminator_uses(
                         block: block.name.clone(),
                         kind: UseKind::Terminator,
                         statement_index: -1,
-                        variable: VariableCellKey::Authored(String::new()),
+                        variable: key.0,
                         phi_version: 0,
                         class: UseClass::Substituted,
                     },
@@ -552,7 +559,10 @@ fn add_terminator_uses(
                 .and_then(|s| block.exit_versions.get(&s))
                 .copied()
                 .unwrap_or(0);
-            let key = (name, version);
+            let Some(symbol) = ssa.cell_symbol(&name) else {
+                continue;
+            };
+            let key = (symbol, version);
             add_use(
                 chains,
                 entry_name,
@@ -561,7 +571,7 @@ fn add_terminator_uses(
                     block: block.name.clone(),
                     kind: UseKind::Terminator,
                     statement_index: -1,
-                    variable: VariableCellKey::Authored(String::new()),
+                    variable: symbol,
                     phi_version: 0,
                     class,
                 },
@@ -582,7 +592,7 @@ mod tests {
     use tcl_lexer::Span;
 
     #[test]
-    fn typed_chains_cannot_be_queried_by_native_presentation_text() {
+    fn distinct_native_key_data_does_not_become_a_presentation_lookup() {
         use crate::command_binding::SourceNamespaceKey;
         use tcl_runtime_api::native_compilation::{
             NativeInterpreterIdentity, NativeNamespaceContext,
@@ -601,15 +611,22 @@ mod tests {
         };
         let original = key(1);
         let replacement = key(2);
+        assert_ne!(original, replacement);
+        assert_ne!(
+            original.compatibility_name(),
+            replacement.compatibility_name()
+        );
+        let mut ssa = empty_ssa("f", "entry");
+        let first = ssa.intern_var("written_x");
+        let second = ssa.intern_var("written_y");
         let mut result = DefUseResult::default();
-        for cell in [&original, &replacement] {
-            let key = (cell.clone(), 1);
+        for symbol in [first, second] {
             result.chains.insert(
-                key.clone(),
+                (symbol, 1),
                 DefUseChain {
-                    key,
+                    key: (symbol, 1),
                     definition: DefSite {
-                        block: "entry".to_owned(),
+                        block: "entry".into(),
                         kind: DefKind::Statement,
                         statement_index: 0,
                     },
@@ -617,19 +634,49 @@ mod tests {
                 },
             );
         }
-        assert_eq!(result.chains.len(), 2);
-        assert!(result.chain_for(&original, 1).is_some());
-        assert!(result.chain_for(&replacement, 1).is_some());
+        let facts = DefUseFacts {
+            result: Arc::new(result),
+            cells: vec![original, replacement].into(),
+        };
+        assert_eq!(facts.chains.len(), 2);
+        assert!(facts.chain_for(first, 1).is_some());
+        assert!(facts.chain_for(second, 1).is_some());
+        assert!(facts.cell_key(&ssa, first).is_none());
+        assert!(facts.cell_key(&ssa, second).is_none());
+        assert!(facts.chain_for_cell(&ssa, ssa.cell_key(first), 1).is_none());
+    }
+
+    #[test]
+    fn typed_chains_cannot_be_queried_by_native_presentation_text() {
+        let mut ssa = empty_ssa("f", "entry");
+        let entry = bid(&ssa, "entry");
+        let statement = assign_stmt(&mut ssa, "written_x", "1", 1);
+        ssa.blocks
+            .get_mut(&entry)
+            .unwrap()
+            .statements
+            .push(statement);
+        let symbol = ssa.var_symbol("written_x").unwrap();
+        let facts = build_def_use_chains(&ssa, None, tcl_lexer::LexerConfig::default());
+        assert_eq!(facts.chain_for(symbol, 1).unwrap().key, (symbol, 1));
         assert!(
-            result
-                .chain_for(&original.compatibility_name(), 1)
+            facts
+                .chain_for_cell(&ssa, ssa.cell_key(symbol), 1)
+                .is_some()
+        );
+
+        let mut foreign = empty_ssa("g", "entry");
+        let foreign_symbol = foreign.intern_var("::same::x");
+        assert_eq!(symbol, foreign_symbol);
+        assert!(facts.cell_key(&foreign, foreign_symbol).is_none());
+        assert!(
+            facts
+                .chain_for_cell(&foreign, foreign.cell_key(foreign_symbol), 1)
                 .is_none()
         );
-        assert!(result.chain_for("::same::x", 1).is_none());
-        result
-            .source_keys
-            .insert("written_x".to_owned(), original.clone());
-        assert_eq!(result.chain_for("written_x", 1).unwrap().key.0, original);
+        let copied = facts.clone();
+        assert!(Arc::ptr_eq(&facts, &copied));
+        assert_eq!(copied.cell_key(&ssa, symbol), Some(ssa.cell_key(symbol)));
     }
 
     #[test]
@@ -771,7 +818,7 @@ mod tests {
         ssa.blocks.get_mut(&entry).unwrap().statements.push(s);
         let r = build_def_use_chains(&ssa, None, tcl_lexer::LexerConfig::default());
         assert_eq!(r.total_defs(), 1);
-        assert!(r.is_dead("x", 1));
+        assert!(r.is_dead(ssa.var_symbol("x").unwrap(), 1));
         assert_eq!(r.dead_chains().len(), 1);
     }
 
@@ -785,10 +832,13 @@ mod tests {
         blk.statements.push(s1);
         blk.statements.push(s2);
         let r = build_def_use_chains(&ssa, None, tcl_lexer::LexerConfig::default());
-        assert!(!r.is_dead("x", 1));
-        assert_eq!(r.uses_of("x", 1).len(), 1);
-        assert_eq!(r.uses_of("x", 1)[0].kind, UseKind::Operand);
-        assert!(r.is_dead("y", 1));
+        assert!(!r.is_dead(ssa.var_symbol("x").unwrap(), 1));
+        assert_eq!(r.uses_of(ssa.var_symbol("x").unwrap(), 1).len(), 1);
+        assert_eq!(
+            r.uses_of(ssa.var_symbol("x").unwrap(), 1)[0].kind,
+            UseKind::Operand
+        );
+        assert!(r.is_dead(ssa.var_symbol("y").unwrap(), 1));
     }
 
     #[test]
@@ -841,13 +891,25 @@ mod tests {
         );
         let r = build_def_use_chains(&ssa, None, tcl_lexer::LexerConfig::default());
         // x@3 is the phi def.
-        let phi_chain = r.chain_for("x", 3).expect("phi def chain");
+        let phi_chain = r
+            .chain_for(ssa.var_symbol("x").unwrap(), 3)
+            .expect("phi def chain");
         assert_eq!(phi_chain.definition.kind, DefKind::Phi);
         // x@1 and x@2 each have one phi-incoming use.
-        assert_eq!(r.uses_of("x", 1).len(), 1);
-        assert_eq!(r.uses_of("x", 1)[0].kind, UseKind::PhiIncoming);
-        assert_eq!(r.uses_of("x", 2)[0].kind, UseKind::PhiIncoming);
-        assert!(r.chain_for("x", 1).unwrap().has_phi_use());
+        assert_eq!(r.uses_of(ssa.var_symbol("x").unwrap(), 1).len(), 1);
+        assert_eq!(
+            r.uses_of(ssa.var_symbol("x").unwrap(), 1)[0].kind,
+            UseKind::PhiIncoming
+        );
+        assert_eq!(
+            r.uses_of(ssa.var_symbol("x").unwrap(), 2)[0].kind,
+            UseKind::PhiIncoming
+        );
+        assert!(
+            r.chain_for(ssa.var_symbol("x").unwrap(), 1)
+                .unwrap()
+                .has_phi_use()
+        );
     }
 
     #[test]
@@ -862,11 +924,15 @@ mod tests {
         blk.statements.push(s2);
         blk.statements.push(s3);
         let r = build_def_use_chains(&ssa, None, tcl_lexer::LexerConfig::default());
-        let mut defs = r.reaching_defs("x");
+        let mut defs = r.reaching_defs(ssa.var_symbol("x").unwrap());
         defs.sort_by_key(|(_, v)| *v);
         assert_eq!(
             defs,
-            vec![("x".into(), 1), ("x".into(), 2), ("x".into(), 3),]
+            vec![
+                (ssa.var_symbol("x").unwrap(), 1),
+                (ssa.var_symbol("x").unwrap(), 2),
+                (ssa.var_symbol("x").unwrap(), 3)
+            ]
         );
     }
 
@@ -879,7 +945,9 @@ mod tests {
         let s = assign_uses_stmt(&mut ssa, "y", 1, &[("x", 0)]);
         ssa.blocks.get_mut(&entry).unwrap().statements.push(s);
         let r = build_def_use_chains(&ssa, None, tcl_lexer::LexerConfig::default());
-        let chain = r.chain_for("x", 0).expect("synthesised param chain");
+        let chain = r
+            .chain_for(ssa.var_symbol("x").unwrap(), 0)
+            .expect("synthesised param chain");
         assert_eq!(chain.definition.kind, DefKind::Parameter);
         assert_eq!(chain.uses.len(), 1);
     }

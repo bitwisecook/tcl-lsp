@@ -339,8 +339,7 @@ fn value_read_binding(
     }
     let chain = function
         .def_use
-        .chains
-        .get(&(definition.cell().clone(), version))?;
+        .chain_for_cell(&function.ssa, definition.cell(), version)?;
     let [use_site] = chain.uses.as_slice() else {
         return None;
     };

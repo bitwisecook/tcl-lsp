@@ -1,0 +1,66 @@
+{
+  "checked_at": "2026-10-15T01:55:41.830239+00:00",
+  "records": [
+    {
+      "kind": "upstream",
+      "started_at": "2026-10-15T01:55:41.812364+00:00",
+      "finished_at": "2026-10-15T01:55:41.825287+00:00",
+      "command": [
+        "git",
+        "ls-remote",
+        "https://github.com/msteveb/jimtcl.git",
+        "HEAD"
+      ],
+      "exit": 128,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "7be26966083c8d0d34217c35736b6027540bcb279082f418416f5c4cf0a5f49a"
+    },
+    {
+      "kind": "local-commit",
+      "started_at": "2026-10-15T01:55:41.825321+00:00",
+      "finished_at": "2026-10-15T01:55:41.828674+00:00",
+      "command": [
+        "git",
+        "-C",
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle",
+        "rev-parse",
+        "HEAD"
+      ],
+      "exit": 0,
+      "stdout_sha256": "d6871c3697d0a50df0677833206c147f4873986bb59a4317c8509cb433365243",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "previous_head": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+  "upstream_head": null,
+  "local_actual_commit": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+  "matches_previous": false,
+  "matches_local": false,
+  "provider_snapshots": [
+    {
+      "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/libjim.a",
+      "sha256": "2e75f1e259dc7896fa6996ebe2ad0fb5de2864770a772a0d102b2b6306280c61"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim.h",
+      "sha256": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim.c",
+      "sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim-namespace.c",
+      "sha256": "22bb6fb5fcea8ce8ec7e3eecbfe5ebd5ee290b9b725101ff4e4a1c0e9abed7f3"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim-config.h",
+      "sha256": "d092046fe07c2ec14b77da74304135da24725d766e1c9fd74ee32eeb07702221"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/Makefile",
+      "sha256": "1cfb962be629942512ee101d010f6c273fe9e2593fcf3f08a2565422fcf7d29c"
+    }
+  ],
+  "scope": "Live upstream HEAD receipt and independent existing local SDK commit/source/library snapshots; does not rebuild SDK or assert binaries from network HEAD."
+}

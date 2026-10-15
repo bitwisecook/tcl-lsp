@@ -276,7 +276,16 @@ fn proved_under(dialect: &str, definition: &str, arity: usize, call: &str) -> Op
     let source = format!("proc ::p {{}} {{\n    set known [{call}]\n    return $known\n}}\n");
     let unit = CompilationUnit::build_for_dialect(&source, &registry, false, dialect);
     pack_hooks::clear_host();
-    let function = unit.procedures.get("::p")?;
+    let mut candidates = unit
+        .ir_module
+        .procedures
+        .iter()
+        .filter(|(_, body)| body.qualified_name == "::p");
+    let (id, _) = candidates.next()?;
+    assert!(candidates.next().is_none(), "ambiguous original fixture p");
+    assert!(unit.ir_module.procedure_ids.owns(*id));
+    let function = unit.procedures.get(id)?;
+    assert_eq!(function.body_id, Some(*id));
     let symbol = function.ssa.var_symbol("known")?;
     match function.sccp.values.get(&(symbol, 1)) {
         Some(LatticeValue::Const(value)) => Some(match value {

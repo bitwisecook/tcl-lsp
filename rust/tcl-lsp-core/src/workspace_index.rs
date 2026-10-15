@@ -86,6 +86,54 @@ use tcl_lexer::Span;
 use tcl_registry::definer::DeclaredMemberVisibility;
 use tcl_syntax::naming::{key_holder_and_tail, root_unrooted_key, unroot_rooted_key};
 
+/// Readonly location of a conditional Logical workspace declaration candidate.
+/// Reporting fields cannot recreate the source request that selected it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LogicalWorkspaceCommandCandidate {
+    revision: u64,
+    image: tcl_lexer::SourceImage,
+    /// Independently indexed declaring document.
+    uri: String,
+    /// Presentation name from the selected declaration.
+    qualified_name: String,
+    /// Original declaration Name span in that document.
+    name_span: Span,
+    /// Optional descriptive signature summary.
+    detail: Option<String>,
+}
+
+impl LogicalWorkspaceCommandCandidate {
+    /// Independently indexed declaring document; display names cannot replace it.
+    #[must_use]
+    pub fn uri(&self) -> &str {
+        &self.uri
+    }
+
+    /// Presentation name from the selected declaration.
+    #[must_use]
+    pub fn qualified_name(&self) -> &str {
+        &self.qualified_name
+    }
+
+    /// Immutable original selected Name geometry in the declaring document.
+    #[must_use]
+    pub const fn name_span(&self) -> Span {
+        self.name_span
+    }
+
+    /// Optional descriptive signature summary.
+    #[must_use]
+    pub fn detail(&self) -> Option<&str> {
+        self.detail.as_deref()
+    }
+
+    /// Current declaring bytes must still match before converting the original span.
+    #[must_use]
+    pub fn matches_source(&self, source: &str) -> bool {
+        self.image.bytes() == source.as_bytes()
+    }
+}
+
 /// One proc definition recorded in the workspace index.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkspaceProc {
@@ -5341,6 +5389,81 @@ impl WorkspaceIndex {
                     || p.qualified_name.starts_with(prefix)
             })
             .collect()
+    }
+
+    /// Conditional Logical declarations at the first matching original source coordinate.
+    /// Every duplicate remains a candidate; source cards grant no loaded command,
+    /// reached implementation or writable reference. Native query owners are separate.
+    #[must_use]
+    pub fn logical_command_candidates(
+        &self,
+        request: &tcl_compiler::command_binding::OriginalLogicalCommandCandidates,
+        exclude_uri: &str,
+    ) -> Vec<LogicalWorkspaceCommandCandidate> {
+        for coordinate in request.coordinates() {
+            let mut candidates = Vec::new();
+            for (uri, declaration) in self.logical_procedure_source_candidates() {
+                if uri != exclude_uri
+                    && declaration.source_candidate_coordinate().as_ref() == Some(coordinate)
+                {
+                    let Some(context) = self.diagnostic_source_context(uri) else {
+                        continue;
+                    };
+                    let metadata = declaration.metadata();
+                    candidates.push(LogicalWorkspaceCommandCandidate {
+                        revision: self
+                            .document_revision(uri)
+                            .expect("indexed declaration revision"),
+                        image: context.image().clone(),
+                        uri: uri.to_owned(),
+                        qualified_name: metadata.qualified_name.clone(),
+                        name_span: metadata.name_span,
+                        detail: Some(format!("({} params)", metadata.params.len())),
+                    });
+                }
+            }
+            for class in self
+                .classes()
+                .filter(|class| class.uri != exclude_uri && !class.via_define)
+            {
+                if class
+                    .logical_declaration
+                    .as_ref()
+                    .and_then(|declaration| declaration.source_candidate_coordinate())
+                    == Some(coordinate)
+                {
+                    let Some(context) = self.diagnostic_source_context(&class.uri) else {
+                        continue;
+                    };
+                    candidates.push(LogicalWorkspaceCommandCandidate {
+                        revision: self
+                            .document_revision(&class.uri)
+                            .expect("indexed declaration revision"),
+                        image: context.image().clone(),
+                        uri: class.uri.clone(),
+                        qualified_name: class.qualified_name.clone(),
+                        name_span: class.name_span,
+                        detail: None,
+                    });
+                }
+            }
+            if !candidates.is_empty() {
+                return candidates;
+            }
+        }
+        Vec::new()
+    }
+
+    /// The independently selected declaring revision still owns this candidate.
+    #[must_use]
+    pub fn logical_command_candidate_is_current(
+        &self,
+        candidate: &LogicalWorkspaceCommandCandidate,
+    ) -> bool {
+        self.document_revision(&candidate.uri) == Some(candidate.revision)
+            && self
+                .diagnostic_source_context(&candidate.uri)
+                .is_some_and(|context| context.image() == &candidate.image)
     }
 
     /// Proc definitions matching `name` (simple, qualified, or
@@ -14255,5 +14378,72 @@ mod retained_store_consumer_tests {
         index.add_document("file:///reused.tcl", &AnalysisResult::default());
         assert!(index.registry_for("file:///reused.tcl").is_none());
         assert!(index.registry_for(uri).is_none());
+    }
+}
+
+#[cfg(test)]
+mod logical_navigation_candidate_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn logical_workspace_navigation_matches_original_coordinates_and_retains_ambiguity() {
+        let caller = "namespace eval A {proc caller {} {helper}}";
+        let analysis = Analyser::new().analyse(caller, "tcl");
+        let request = tcl_compiler::registry_invocation::source_structure::source_logical_command_candidates_at(
+            caller, &analysis, u32::try_from(caller.find("helper").unwrap()).unwrap(),
+        ).unwrap();
+        let a = Analyser::new().analyse("namespace eval A {proc helper {} {}}", "tcl");
+        let b = Analyser::new().analyse("namespace eval B {proc helper {} {}}", "tcl");
+        let root = Analyser::new().analyse("proc helper {} {}", "tcl");
+        let duplicate = Analyser::new().analyse("namespace eval A {proc helper {arg} {}}", "tcl");
+        let mut index = WorkspaceIndex::from_documents([("a", &a), ("b", &b), ("root", &root)]);
+        let candidates = index.logical_command_candidates(&request, "caller");
+        assert_eq!(candidates.len(), 1, "{candidates:?}");
+        assert_eq!(candidates[0].uri, "a");
+        assert!(candidates[0].matches_source("namespace eval A {proc helper {} {}}"));
+        assert!(!candidates[0].matches_source("namespace eval A {proc other {} {}}"));
+        assert!(index.logical_command_candidate_is_current(&candidates[0]));
+        index.replace_document("a", &a);
+        assert!(!index.logical_command_candidate_is_current(&candidates[0]));
+        index.add_document("duplicate", &duplicate);
+        assert_eq!(
+            index.logical_command_candidates(&request, "caller").len(),
+            2
+        );
+        assert_eq!(index.logical_command_candidates(&request, "a").len(), 1);
+        index.remove_document("a");
+        index.remove_document("duplicate");
+        let candidates = index.logical_command_candidates(&request, "caller");
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].uri, "root");
+    }
+}
+
+#[cfg(test)]
+mod logical_class_navigation_candidate_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn logical_class_navigation_candidate_requires_the_selected_original_factory() {
+        let caller = "proc caller {} {helper}";
+        let analysis = Analyser::new().analyse(caller, "tcl");
+        let request = tcl_compiler::registry_invocation::source_structure::source_logical_command_candidates_at(
+            caller, &analysis, u32::try_from(caller.find("helper").unwrap()).unwrap(),
+        ).unwrap();
+        let class = Analyser::new().analyse("oo::class create helper {method run {} {}}", "tcl");
+        let native =
+            Analyser::new().analyse("oo::class create helper {method run {} {}}", "tcl8.6");
+        let dynamic =
+            Analyser::new().analyse("oo::class create $unknown {method run {} {}}", "tcl");
+        let index = WorkspaceIndex::from_documents([
+            ("class", &class),
+            ("native", &native),
+            ("dynamic", &dynamic),
+        ]);
+        let candidates = index.logical_command_candidates(&request, "caller");
+        assert_eq!(candidates.len(), 1, "{candidates:?}");
+        assert_eq!(candidates[0].uri, "class");
     }
 }

@@ -1953,8 +1953,9 @@ mod original_source_tests {
         assert_eq!(foreign_unit.ir_module.procedures.len(), 1);
         let foreign = *foreign_unit.ir_module.procedures.keys().next().unwrap();
         let mut replaced = unit.ir_module.clone();
-        let body = replaced.procedures.remove(id).unwrap();
-        replaced.procedures.insert(foreign, body);
+        replaced.procedure_ids = foreign_unit.ir_module.procedure_ids.clone();
+        assert!(replaced.procedure_ids.owns(foreign));
+        assert!(!replaced.procedure_ids.owns(*id));
         assert!(
             tcl_compiler::source_graph::procedure_body_for_original_call(
                 source, &analysis, &replaced, tokens, registry
@@ -1962,9 +1963,7 @@ mod original_source_tests {
             .is_none()
         );
         let mut ambiguous = unit.ir_module.clone();
-        ambiguous
-            .procedures
-            .insert(foreign, ambiguous.procedures.get(id).unwrap().clone());
+        ambiguous.retain_procedure(ambiguous.procedures.get(id).unwrap().clone());
         assert!(
             tcl_compiler::source_graph::procedure_body_for_original_call(
                 source, &analysis, &ambiguous, tokens, registry

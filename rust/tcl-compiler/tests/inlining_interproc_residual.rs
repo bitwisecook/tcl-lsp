@@ -245,7 +245,7 @@ fn count_statements_block_recurses() {
     let m = module_for("proc f {} {\n eval { set a 1\nset b 2 }\n}\n");
     assert_eq!(
         count_statements(
-            m.procedures
+            &m.procedures
                 .get(&fixture_id(&m.procedures, "::f"))
                 .expect("authored fixture body")
                 .body
@@ -262,7 +262,7 @@ fn count_statements_upframe_recurses() {
     let m = module_for("proc f {} {\n uplevel 1 { set a 1 }\n}\n");
     assert_eq!(
         count_statements(
-            m.procedures
+            &m.procedures
                 .get(&fixture_id(&m.procedures, "::f"))
                 .expect("authored fixture body")
                 .body
@@ -279,7 +279,7 @@ fn count_statements_for_counts_all_subscripts() {
     let m = module_for("proc f {} {\n for {set i 0} {$i < 2} {incr i} { set a 1 }\n}\n");
     assert_eq!(
         count_statements(
-            m.procedures
+            &m.procedures
                 .get(&fixture_id(&m.procedures, "::f"))
                 .expect("authored fixture body")
                 .body
@@ -295,7 +295,7 @@ fn count_statements_while_counts_construct_plus_body() {
     let m = module_for("proc f {} {\n while {1} { set a 1 }\n}\n");
     assert_eq!(
         count_statements(
-            m.procedures
+            &m.procedures
                 .get(&fixture_id(&m.procedures, "::f"))
                 .expect("authored fixture body")
                 .body
@@ -312,7 +312,7 @@ fn count_statements_if_with_else_counts_both_arms() {
     let m = module_for("proc f {} {\n if {1} { set a 1 } else { set b 2 }\n}\n");
     assert_eq!(
         count_statements(
-            m.procedures
+            &m.procedures
                 .get(&fixture_id(&m.procedures, "::f"))
                 .expect("authored fixture body")
                 .body
@@ -328,7 +328,7 @@ fn count_statements_bare_call_is_one() {
     let m = module_for("proc f {} { puts hi }\n");
     assert_eq!(
         count_statements(
-            m.procedures
+            &m.procedures
                 .get(&fixture_id(&m.procedures, "::f"))
                 .expect("authored fixture body")
                 .body

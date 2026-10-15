@@ -502,7 +502,7 @@ pub(crate) fn find_thunking_warnings_with_context<S: std::hash::BuildHasher>(
 pub(crate) fn find_sharing_warnings_with_context<S: std::hash::BuildHasher>(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
-    def_use: &crate::def_use::DefUseResult,
+    def_use: &crate::def_use::DefUseFacts,
     executable_blocks: &HashSet<BlockId>,
     context: ShimmerContext<'_>,
     extra_scope_aliases: Option<&HashSet<String, S>>,

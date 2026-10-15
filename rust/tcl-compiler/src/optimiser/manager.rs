@@ -520,7 +520,7 @@ fn couple_const_dead_stores_in_function(
     let mut def_count: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
     for chain in fu.def_use.chains.values() {
         if chain.definition.kind == DefKind::Statement
-            && let Some(symbol) = fu.ssa.cell_symbol(&chain.key.0)
+            && let Some(symbol) = fu.def_use.symbol(&fu.ssa, chain.key.0)
         {
             *def_count.entry(fu.ssa.var_name(symbol)).or_insert(0) += 1;
         }
@@ -574,7 +574,7 @@ fn couple_const_dead_store_chain(
     if chain.definition.kind != DefKind::Statement {
         return None;
     }
-    let symbol = fu.ssa.cell_symbol(&chain.key.0)?;
+    let symbol = fu.def_use.symbol(&fu.ssa, chain.key.0)?;
     let var = fu.ssa.var_name(symbol);
     // Single constant scalar def, never aliased / global / RMW-hidden /
     // traced. The whole-module trace fact stores the canonical
@@ -624,10 +624,7 @@ fn couple_const_dead_store_chain(
     // A statement the solver proved raises keeps its raise, and a definition
     // a raise preserved holds the value before it, not one the statement
     // computed: neither is a constant store to remove.
-    let preserved = fu
-        .ssa
-        .var_symbol(var)
-        .is_some_and(|symbol| fu.sccp.preserved.contains_key(&(symbol, chain.key.1)));
+    let preserved = fu.sccp.preserved.contains_key(&(symbol, chain.key.1));
     if preserved || fu.sccp.raised.contains(&(def_block_id, def_idx)) {
         return None;
     }

@@ -2160,7 +2160,7 @@ pub(super) fn original_array_scalar_read_at_span(
 pub(super) fn original_read_occurrence_at_span(
     fu: &crate::compilation_unit::FunctionUnit,
     span: tcl_lexer::Span,
-) -> Option<crate::def_use::SsaValueKey> {
+) -> Option<crate::def_use::StorageValueKey> {
     let mut selected = None;
     for (&block, body) in &fu.ssa.blocks {
         for index in (0..body.statements.len()).chain(std::iter::once(usize::MAX)) {

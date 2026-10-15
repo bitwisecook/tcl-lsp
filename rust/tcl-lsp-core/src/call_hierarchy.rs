@@ -667,9 +667,21 @@ pub struct UnresolvedOutgoingCall {
     /// Scope-resolved qualified name when the analyser inferred
     /// one for the call site, else `None`.
     pub resolved_qualified_name: Option<String>,
+    /// Independent current original source recipes and ranges for every occurrence.
+    /// Missing recipes remain unavailable; grouped head labels cannot replace them.
+    pub logical_occurrences: Vec<LogicalOutgoingCallOccurrence>,
     /// Ranges (in the *current* document) of each call site,
     /// grouped under this callee head.
     pub from_ranges: Vec<LspRange>,
+}
+
+/// One original Logical call occurrence with its independent source recipe.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LogicalOutgoingCallOccurrence {
+    /// Missing body/name/path ownership remains unavailable.
+    pub candidates: Option<tcl_compiler::command_binding::OriginalLogicalCommandCandidates>,
+    /// Actual occurrence range, independently of other same-head calls.
+    pub range: LspRange,
 }
 
 /// Collect the call sites inside the queried item's body whose
@@ -730,7 +742,7 @@ pub fn unresolved_outgoing_calls_in_program(
         ..
     } = target.declaration()
     {
-        let mut by_head: std::collections::BTreeMap<String, (Option<String>, Vec<LspRange>)> =
+        let mut by_head: std::collections::BTreeMap<String, UnresolvedOutgoingCall> =
             std::collections::BTreeMap::new();
         for inv in &analysis.command_invocations {
             if !inv.lookup.is_execution_site() || !span_contains(source_proc.body_span, inv.range) {
@@ -747,19 +759,19 @@ pub fn unresolved_outgoing_calls_in_program(
             let range = span_to_range(source, &line_index, inv.range);
             let entry = by_head
                 .entry(inv.name.clone())
-                .or_insert_with(|| (inv.resolved_qualified_name.clone(), Vec::new()));
-            entry.1.push(range);
+                .or_insert_with(|| UnresolvedOutgoingCall {
+                    name: inv.name.clone(),
+                    resolved_qualified_name: inv.resolved_qualified_name.clone(),
+                    logical_occurrences: Vec::new(),
+                    from_ranges: Vec::new(),
+                });
+            entry.logical_occurrences.push(LogicalOutgoingCallOccurrence {
+                candidates: tcl_compiler::registry_invocation::source_structure::source_logical_command_candidates_at(source, analysis, inv.range.start()),
+                range,
+            });
+            entry.from_ranges.push(range);
         }
-        return by_head
-            .into_iter()
-            .map(
-                |(name, (resolved_qualified_name, from_ranges))| UnresolvedOutgoingCall {
-                    name,
-                    resolved_qualified_name,
-                    from_ranges,
-                },
-            )
-            .collect();
+        return by_head.into_values().collect();
     }
     unresolved_method_outgoing_calls(source, dialect, &target, analysis, &line_index, resolution)
 }
@@ -789,7 +801,7 @@ fn unresolved_method_outgoing_calls(
     else {
         return Vec::new();
     };
-    let mut by_head: std::collections::BTreeMap<String, Vec<LspRange>> =
+    let mut by_head: std::collections::BTreeMap<String, UnresolvedOutgoingCall> =
         std::collections::BTreeMap::new();
     for (head, span) in segment_body_calls(source, analysis, source_method.body_span) {
         // Local top-level proc?  Resolved from the class's namespace (a
@@ -808,19 +820,22 @@ fn unresolved_method_outgoing_calls(
         {
             continue;
         }
-        by_head
-            .entry(head)
-            .or_default()
-            .push(span_to_range(source, line_index, span));
+        let range = span_to_range(source, line_index, span);
+        let entry = by_head
+            .entry(head.clone())
+            .or_insert_with(|| UnresolvedOutgoingCall {
+                name: head,
+                resolved_qualified_name: None,
+                logical_occurrences: Vec::new(),
+                from_ranges: Vec::new(),
+            });
+        entry.from_ranges.push(range);
+        entry.logical_occurrences.push(LogicalOutgoingCallOccurrence {
+            candidates: tcl_compiler::registry_invocation::source_structure::source_logical_command_candidates_at(source, analysis, span.start()),
+            range,
+        });
     }
-    by_head
-        .into_iter()
-        .map(|(name, from_ranges)| UnresolvedOutgoingCall {
-            name,
-            resolved_qualified_name: None,
-            from_ranges,
-        })
-        .collect()
+    by_head.into_values().collect()
 }
 
 /// Enumerate incoming calls for the actual selected declaration. Walks
@@ -2988,5 +3003,30 @@ mod logical_call_target_tests {
             assert_eq!(calls[0].from.name, expected);
             assert_eq!(calls[0].from_ranges.len(), 1);
         }
+    }
+}
+
+#[cfg(test)]
+mod logical_workspace_occurrence_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn logical_outgoing_inventory_keeps_separate_scope_recipes_for_repeated_heads() {
+        let source = "proc caller {} {namespace eval A {helper}; namespace eval B {helper}}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let item = prepare(source, 0, 6, &analysis).remove(0);
+        let calls = unresolved_outgoing_calls(
+            source,
+            tcl_dialect::DialectProfile::plain_tcl(),
+            &item,
+            &analysis,
+        );
+        let helper = calls.iter().find(|call| call.name == "helper").unwrap();
+        assert_eq!(helper.from_ranges.len(), 2);
+        assert_eq!(helper.logical_occurrences.len(), 2);
+        let first = helper.logical_occurrences[0].candidates.as_ref().unwrap();
+        let second = helper.logical_occurrences[1].candidates.as_ref().unwrap();
+        assert_ne!(first.coordinates(), second.coordinates());
     }
 }

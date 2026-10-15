@@ -2253,37 +2253,17 @@ fn harvest_dict_with_constants(
     }
 }
 
-/// The variable named by a single `$var` / `${var}` substitution, or `None`.
-///
-/// The text must be exactly one bare or braced variable reference whose name
-/// is made of word / namespace characters.  Anything else (literals, command
-/// subs, composite words) yields `None`.
-fn extract_dollar_var(value: &str) -> Option<String> {
-    let v = value.trim();
-    let rest = v.strip_prefix('$')?;
-    let is_name = |s: &str| {
-        !s.is_empty()
-            && s.bytes()
-                .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b':')
-    };
-    if let Some(inner) = rest.strip_prefix('{').and_then(|r| r.strip_suffix('}')) {
-        // Braced `${name}` — reject nested braces.
-        if !inner.contains('{') && is_name(inner) {
-            return Some(inner.to_string());
-        }
-        return None;
-    }
-    is_name(rest).then(|| rest.to_string())
+/// Retained scalar source syntax used by conditional return advice.
+fn returned_scalar_reference_name(
+    word: &crate::ir::WordExpr,
+    config: tcl_lexer::LexerConfig,
+) -> Option<String> {
+    let (reference, source) = word.sole_variable_substitution()?;
+    (source.provenance == crate::ir::Provenance::Source).then_some(())?;
+    tcl_syntax::naming::whole_scalar_variable_reference_name(reference, config).map(str::to_owned)
 }
 
-/// The variable returned by a proc's **last** `return $var`, or `None`.
-///
-/// Walks every block's statements and terminator (returns can lower to either
-/// a `Statement::Return` or a `Terminator::Return`) and keeps the last whose
-/// value is a single `$var`.  Used by the object-returning-proc inference:
-/// a proc returning `$X` where `X` was assigned from a factory is itself an
-/// object factory.
-/// Per-scope tainted variable names (`::top` for the top-level scope): any
+/// Per-body tainted variable names: any
 /// tainted SSA version of a name disqualifies it from W307 dispatcher
 /// suppression.
 fn build_tainted_by_scope(
@@ -2380,11 +2360,9 @@ struct FactoryMaps {
     returned_callees: FxHashMap<BodyFrameId, FxHashSet<BodyFrameId>>,
 }
 
-/// Populate [`FactoryMaps`] for one analysable unit (`qname` / `fu`): record
-/// every `set X [head …]` assignment, mark `X` a factory local when `head` is
-/// object-returning and not a user proc, capture the last returned var, and
-/// retain possible factory returns independently of completion and dispatch
-/// closure. Unknown return paths never become strict result-type evidence.
+/// Retain possible assignments and unanimous returned scalar names for one
+/// actual body. Source return advice remains independent of completion and
+/// dispatch closure.
 fn seed_factory_maps(
     qname: BodyFrameId,
     fu: &crate::compilation_unit::FunctionUnit,
@@ -2432,10 +2410,10 @@ fn seed_factory_maps(
             for word in stmt.tokens().into_iter().flat_map(|tokens| {
                 crate::registry_invocation::advisory_return_values_in_context(context, tokens)
             }) {
-                returned_variables.push(match &word {
-                    crate::ir::WordExpr::Variable { spelling, .. } => extract_dollar_var(spelling),
-                    _ => None,
-                });
+                returned_variables.push(returned_scalar_reference_name(
+                    &word,
+                    fu.source_lexer_config(),
+                ));
                 let (object, callee) = nominal_result(&word, stmt.tokens());
                 returns.push(object);
                 if let Some(callee) = callee {
@@ -2459,6 +2437,12 @@ fn seed_factory_maps(
             value_word, tokens, ..
         }) = &block.terminator
         {
+            if let Some(word) = value_word {
+                returned_variables.push(returned_scalar_reference_name(
+                    word,
+                    fu.source_lexer_config(),
+                ));
+            }
             let (object, callee) = value_word.as_ref().map_or((false, None), |word| {
                 nominal_result(word, tokens.as_deref())
             });
@@ -2484,24 +2468,14 @@ fn seed_factory_maps(
                 .iter()
                 .all(|candidate| candidate.as_ref() == Some(first))
         });
-    maps.return_var.insert(
-        qname,
-        advisory_variable.or_else(|| last_return_var_of(&fu.cfg)),
-    );
+    maps.return_var.insert(qname, advisory_variable);
     if returns.iter().any(|value| *value) {
         maps.object_returning.insert(qname);
     }
 }
 
-/// Fixpoint over the factory-object analysis maps for
-/// [`Analyser::compute_factory_object_ranges`].
-///
-/// First propagates `object_returning`: a proc whose returned var is assigned
-/// `[other]` where `other` is a proven object-returning user proc is itself
-/// object-returning — iterated to a fixpoint.  Then extends `factory_locals`:
-/// a `set X [user_proc]` whose proc is now proven object-returning makes `X` a
-/// factory local too.  `bare_to_qnames` resolves relative call heads to the
-/// qualified names the analysis is keyed on.
+/// Propagate possible object returns through actual body-ID edges and each
+/// body's own returned-variable assignment map.
 fn propagate_object_returning(
     return_var: &FxHashMap<BodyFrameId, Option<String>>,
     returned_callees: &FxHashMap<BodyFrameId, FxHashSet<BodyFrameId>>,
@@ -2539,27 +2513,6 @@ fn propagate_object_returning(
             .map(|(name, _)| name.clone());
         factory_locals.entry(*owner).or_default().extend(names);
     }
-}
-
-fn last_return_var_of(cfg: &crate::cfg::Function) -> Option<String> {
-    use crate::cfg::Terminator;
-    use crate::ir::Statement;
-    let mut last = None;
-    for block in cfg.blocks.values() {
-        for stmt in &block.statements {
-            if let Statement::Return { value: Some(v), .. } = stmt
-                && let Some(name) = extract_dollar_var(v)
-            {
-                last = Some(name);
-            }
-        }
-        if let Some(Terminator::Return { value: Some(v), .. }) = &block.terminator
-            && let Some(name) = extract_dollar_var(v)
-        {
-            last = Some(name);
-        }
-    }
-    last
 }
 
 /// External OO base classes that aren't in the per-document
@@ -2814,6 +2767,38 @@ mod original_callback_slot_name_tests {
 mod factory_metadata_context_tests {
     use super::*;
     use std::sync::Arc;
+
+    #[test]
+    fn factory_return_scalar_names_use_whole_original_words() {
+        for (value, expected) in [
+            ("${$literal}", Some("$literal")),
+            ("${[literal]}", Some("[literal]")),
+            ("${ with space }", Some(" with space ")),
+            ("\"${ with space }\"", Some(" with space ")),
+            ("{${$literal}}", None),
+            ("\"${$literal} tail\"", None),
+            ("$array(key)", None),
+        ] {
+            let source = format!("proc source_return {{}} {{return {value}}}");
+            let fixture = crate::provider_fixtures::original_native_module(&source, "tcl8.6");
+            let (_, module) = &*fixture;
+            let mut procedures = module.procedures.values();
+            let procedure = procedures.next().expect("actual source return body");
+            assert!(procedures.next().is_none());
+            let crate::ir::Statement::Return {
+                value_word: Some(word),
+                ..
+            } = &procedure.body.statements[0]
+            else {
+                panic!("actual retained simple return word")
+            };
+            assert_eq!(
+                returned_scalar_reference_name(word, module.native_lexer_config()).as_deref(),
+                expected,
+                "{source}"
+            );
+        }
+    }
 
     #[test]
     fn factory_may_advice_uses_actual_availability_and_exact_supplied_source() {

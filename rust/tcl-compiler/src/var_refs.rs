@@ -739,17 +739,32 @@ pub fn vars_in_expr(
     expr.vars_with_grammar(grammar).into_iter().collect()
 }
 
-/// De-sigil a `VAR`-token's source text, keeping any array-index suffix.
-///
-/// `$a(k)` → `a(k)`, `${a(k)}` → `a(k)`, `${a}` → `a`, `$a` → `a`.  Unlike
-/// [`normalise_var_name`], the `(idx)` suffix is preserved so the form can be
-/// classified as a scalar vs an array element by `var_resolve::resolve_place`.
-fn deref_form(text: &str) -> &str {
-    if let Some(inner) = text.strip_prefix("${") {
-        inner.strip_suffix('}').unwrap_or(inner)
-    } else {
-        text.strip_prefix('$').unwrap_or(text)
+/// Exact original variable token and complete configured reference spelling.
+/// The shared scanner owns the closer and original name range. This geometry
+/// supplies no variable cell, lookup, read permission or standalone source owner.
+pub(crate) fn original_variable_reference_form(
+    source: &str,
+    token: Token,
+    config: LexerConfig,
+) -> Option<(&str, bool)> {
+    if token.kind != TokenType::Var {
+        return None;
     }
+    let start = usize::try_from(token.span.start()).ok()?;
+    let reference =
+        tcl_lexer::word_parts::scan_var_ref(source.as_bytes(), start, config).ok()??;
+    if reference.source_span(source.as_bytes(), start, 0)? != token.span
+        || reference.name_range_in(source.as_bytes())?.start
+            != start.checked_add(usize::from(token.content_offset))?
+    {
+        return None;
+    }
+    let spelling = source.get(start..reference.next)?;
+    tcl_syntax::naming::is_whole_variable_reference(spelling, config).then_some(())?;
+    Some((
+        tcl_syntax::naming::var_reference_for_style(spelling, config.braced_var),
+        token.content_offset == 2,
+    ))
 }
 
 fn collect_ref_forms(text: &str, out: &mut Vec<(String, bool)>, config: LexerConfig) {
@@ -763,17 +778,7 @@ fn collect_ref_forms(text: &str, out: &mut Vec<(String, bool)>, config: LexerCon
     for tok in &tokens {
         match tok.kind {
             TokenType::Var => {
-                // `token_text` already drops the `$` / `${` decoration, so the
-                // remainder *is* the form.  Re-running `deref_form` over it
-                // would strip a second sigil that belongs to the name itself:
-                // `${$n}` reads the variable literally called `$n`,
-                // whose de-decorated text is `$n`, not `n`.  The
-                // `${…}` form's content is literal, which the flag carries so
-                // consumers do not re-normalise it either.
-                let braced = source_map.text(tok.span).starts_with("${");
-                let form = source_map.token_text(*tok);
-                let form = if braced { form } else { deref_form(form) };
-                if !form.is_empty() {
+                if let Some((form, braced)) = original_variable_reference_form(text, *tok, config) {
                     out.push((form.to_owned(), braced));
                 }
             }
@@ -1283,5 +1288,49 @@ mod tests {
         };
         let vars = vars_in_expr(&expr, tcl_dialect::LexerGrammar::default());
         assert!(vars.contains("x"));
+    }
+}
+
+#[cfg(test)]
+mod original_reference_form_tests {
+    use super::*;
+
+    #[test]
+    fn original_reference_forms_preserve_selected_closers_arrays_empty_and_literal_names() {
+        for (dialect, spelling, expected) in [
+            ("tcl8.4", "${a{b}c}", "a{b"),
+            ("tcl9.0", "${a{b}c}", "a{b}c"),
+            ("tcl9.0", "${a{b}}", "a{b}"),
+            ("tcl8.6", "${$n}", "$n"),
+            ("tcl8.6", "${}", ""),
+            ("tcl8.6", "$array($index)", "array($index)"),
+        ] {
+            let config = LexerConfig::for_dialect(dialect);
+            let token = Lexer::with_config(spelling, config)
+                .tokenise_all()
+                .unwrap()
+                .into_iter()
+                .find(|token| token.kind == TokenType::Var)
+                .unwrap();
+            let (form, _) = original_variable_reference_form(spelling, token, config).unwrap();
+            assert_eq!(form, expected, "{dialect}: {spelling}");
+            assert_eq!(
+                scan_var_ref_forms_braced_with_config(spelling, config)[0].0,
+                expected
+            );
+            let mut changed = token;
+            changed.content_offset = 0;
+            assert!(original_variable_reference_form(spelling, changed, config).is_none());
+            changed = token;
+            changed.span = Span::new(token.span.start(), token.span.end() - 1);
+            assert!(original_variable_reference_form(spelling, changed, config).is_none());
+        }
+        let source = "${a{b}c}";
+        let old = LexerConfig::for_dialect("tcl8.4");
+        let token = Lexer::with_config(source, old).tokenise_all().unwrap()[0];
+        assert!(
+            original_variable_reference_form(source, token, LexerConfig::for_dialect("tcl9.0"))
+                .is_none()
+        );
     }
 }

@@ -1189,7 +1189,7 @@ fn uplevel_running_twice_is_noop() {
         .expect("authored fixture body")
         .body;
     assert_eq!(first.statements.len(), second.statements.len());
-    assert_eq!(&first, second, "second pass is structurally a no-op");
+    assert_eq!(&first, &second, "second pass is structurally a no-op");
 }
 
 // Param-body passthrough.

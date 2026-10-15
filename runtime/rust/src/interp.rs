@@ -82,6 +82,8 @@ mod native_execution_constants;
 mod native_hidden_invocation;
 mod native_index_lookup;
 mod native_jim_increment;
+#[cfg(test)]
+mod native_jim_invocation_tests;
 mod native_jim_links;
 mod native_jim_lookup;
 mod native_jim_namespace;
@@ -14372,12 +14374,16 @@ impl Interp {
         if !self.evaluation_is_live() {
             return Code::Error;
         }
-        // TclEvalObjvInternal resets the interpreter result before execution
-        // traces and command dispatch. This is the central entry used by parsed
-        // commands, canonical-list eval, aliases/ensembles, callbacks and the
-        // native ABI. `argv` owns/borrows its objects independently, so dropping
-        // the prior result here cannot invalidate an argument.
-        self.set_result_bytes(b"");
+        // C resets before lookup and traces. Jim's selected worker resets only
+        // after retaining the actual command; its Script entry owns a separate
+        // source reset. The caller independently owns the original argv.
+        if self
+            .native_invocation_dialect()
+            .native_jim_lookup_protocol()
+            .is_none()
+        {
+            self.set_result_bytes(b"");
+        }
         if self.check_entered_native_operation().is_err() {
             return Code::Error;
         }
@@ -14788,35 +14794,63 @@ impl Interp {
         else {
             return Err(self.invalid_original_command(argv[0]));
         };
-        let selected = match policy.namespace_handler {
-            Some(UnknownHandlerNamespace::Caller) => caller,
-            Some(UnknownHandlerNamespace::Lookup) => lookup,
-            None => GLOBAL,
-        };
-        let root = if policy.namespace_handler.is_some() {
-            self.namespace_unknown_root(selected, selected == GLOBAL)
-                .or_else(|| self.namespace_unknown_root(GLOBAL, true))
-                .expect("the native global default is installed")
+        let (owned, selected) = if self
+            .native_invocation_dialect()
+            .native_jim_lookup_protocol()
+            .is_some()
+        {
+            let context = match self.native_jim_object_context() {
+                Ok(context) => context,
+                Err(error) => return Err(self.report_cmd_error(error.into())),
+            };
+            let head = match crate::native_source::NativeJimObjectContext::unknown_object(&context)
+            {
+                Ok(original) => original.as_ptr(),
+                Err(error) => return Err(self.report_cmd_error(error.into())),
+            };
+            let _allocation = obj::NativeObjectLifetime::retain(head);
+            let selected = match self.resolve_original_command_at(lookup, head) {
+                Ok(Some(selected)) => selected,
+                Ok(None) => return Err(Code::Error),
+                Err(error) => return Err(self.report_cmd_error(error.into())),
+            };
+            let owned = std::iter::once(&head)
+                .chain(argv)
+                .map(|original| obj::Owned::retain(*original))
+                .collect::<Vec<_>>();
+            (owned, selected)
         } else {
-            obj::Owned::fresh(new_string(policy.default_handler.as_bytes()))
-        };
-        let prefix = match self.list_elements(&root.as_ptr()) {
-            Ok(prefix) => prefix,
-            Err(error) => return Err(self.report_cmd_error(error.into())),
-        };
-        let owned: Vec<_> = prefix
-            .iter()
-            .chain(argv)
-            .map(|word| obj::Owned::retain(*word))
-            .collect();
-        drop(root);
-        let Some(head) = owned.first() else {
-            return Err(self.invalid_original_command(argv[0]));
-        };
-        let selected = match self.resolve_original_command_at(lookup, head.as_ptr()) {
-            Ok(Some(selected)) => selected,
-            Ok(None) => return Err(self.invalid_original_command(argv[0])),
-            Err(error) => return Err(self.report_cmd_error(error.into())),
+            let selected = match policy.namespace_handler {
+                Some(UnknownHandlerNamespace::Caller) => caller,
+                Some(UnknownHandlerNamespace::Lookup) => lookup,
+                None => GLOBAL,
+            };
+            let root = if policy.namespace_handler.is_some() {
+                self.namespace_unknown_root(selected, selected == GLOBAL)
+                    .or_else(|| self.namespace_unknown_root(GLOBAL, true))
+                    .expect("the native global default is installed")
+            } else {
+                obj::Owned::fresh(new_string(policy.default_handler.as_bytes()))
+            };
+            let prefix = match self.list_elements(&root.as_ptr()) {
+                Ok(prefix) => prefix,
+                Err(error) => return Err(self.report_cmd_error(error.into())),
+            };
+            let owned: Vec<_> = prefix
+                .iter()
+                .chain(argv)
+                .map(|word| obj::Owned::retain(*word))
+                .collect();
+            drop(root);
+            let Some(head) = owned.first() else {
+                return Err(self.invalid_original_command(argv[0]));
+            };
+            let selected = match self.resolve_original_command_at(lookup, head.as_ptr()) {
+                Ok(Some(selected)) => selected,
+                Ok(None) => return Err(self.invalid_original_command(argv[0])),
+                Err(error) => return Err(self.report_cmd_error(error.into())),
+            };
+            (owned, selected)
         };
         self.reset_native_ensemble_rewrite(
             tcl_registry::native_ensemble_rewrite::EnsembleRewriteResetEvent::AfterSuccessfulOrdinaryLookup,
@@ -14843,6 +14877,33 @@ impl Interp {
         caller: NsId,
         origin: tcl_registry::command_lookup::CommandLookupOrigin,
     ) -> Code {
+        if self
+            .native_invocation_dialect()
+            .native_jim_lookup_protocol()
+            .is_some()
+        {
+            let arguments = match native_arguments::OriginalArguments::enter(self, argv) {
+                Ok(arguments) => arguments,
+                Err(error) => return self.report_cmd_error(error),
+            };
+            let frame = native_arguments::OriginalArgumentFrame::capture(self);
+            let namespace = self.current_ns();
+            let _ = self.invalid_original_command(argv[0]);
+            if let Err(error) = frame.check(self, &arguments) {
+                return self.report_cmd_error(error);
+            }
+            if self.current_ns() != namespace {
+                return self.report_cmd_error(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "Jim missing-command original namespace changed",
+                    )
+                    .into(),
+                );
+            }
+            if arguments.finish(Code::Ok) != Code::Ok {
+                return Code::Error;
+            }
+        }
         let mut prepared = match self.prepare_missing_command(argv, lookup, caller, origin) {
             Ok(prepared) => prepared,
             Err(code) => return code,

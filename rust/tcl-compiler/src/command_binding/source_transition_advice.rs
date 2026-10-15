@@ -12,6 +12,8 @@ pub use interpreter_path::OriginalSourceInterpreterPathBinding;
 mod c_namespace;
 mod logical_body;
 mod logical_declaration;
+mod logical_navigation;
+pub use logical_navigation::OriginalLogicalCommandCandidates;
 mod native_baseline;
 mod produced_prefix;
 mod registered_instance;
@@ -680,6 +682,7 @@ pub(crate) struct OriginalSourceTransitionAdviceTape {
         BTreeMap<u32, Option<native_declared_body::OriginalNativeSourceMayCommand>>,
     logical_procedure_bodies: BTreeMap<u32, Option<Arc<OriginalLogicalProcedureBody>>>,
     logical_summary_scopes: BTreeMap<u32, Option<OriginalLogicalSummaryScope>>,
+    logical_navigation: BTreeMap<u32, Option<OriginalLogicalCommandCandidates>>,
     class_publications: Option<OriginalSourceClassPublications>,
     scanned_procedure_declarations: BTreeSet<u32>,
     class_instance_calls: BTreeMap<u32, Option<OriginalSourceClassInstanceWords>>,
@@ -861,6 +864,9 @@ impl OriginalSourceTransitionAdviceTape {
     fn extend_inventory(&mut self, other: Self) {
         for (offset, receipt) in other.native_procedure_may_commands {
             source_class::merge_receipt(&mut self.native_procedure_may_commands, offset, receipt);
+        }
+        for (offset, candidate) in other.logical_navigation {
+            source_class::merge_receipt(&mut self.logical_navigation, offset, candidate);
         }
         for (offset, scope) in other.logical_summary_scopes {
             source_class::merge_receipt(&mut self.logical_summary_scopes, offset, scope);

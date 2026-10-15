@@ -1331,9 +1331,10 @@ impl Value {
         Rc::strong_count(&self.0).saturating_sub(self.0.lifetime_pins.get()) > 1
     }
 
-    /// Native ownership references, excluding lifetime-only bridge pins.
+    /// Modelled ownership references, excluding lifetime-only bridge pins.
+    /// This observation supplies no object-liveness or invocation authority.
     #[must_use]
-    pub(crate) fn native_object_reference_count(&self) -> usize {
+    pub fn native_object_reference_count(&self) -> usize {
         Rc::strong_count(&self.0).saturating_sub(self.0.lifetime_pins.get())
     }
 

@@ -144,6 +144,7 @@ fn large_literals(sizes: &[usize]) {
         let engine = tcl_compiler::const_subst::ConstSubstCtx {
             registry: &registry,
             resolution_namespace: "::",
+            namespace_context: None,
             version: profile.and_then(tcl_dialect::DialectProfile::const_fold_version),
             defining_class: None,
             trusts: &trusts,

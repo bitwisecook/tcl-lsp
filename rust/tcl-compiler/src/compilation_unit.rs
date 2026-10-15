@@ -39,7 +39,7 @@ use crate::cfg::{CfgModule, Function as CfgFunction};
 use crate::cfg_builder::{
     PreparedCfgContext, build_cfg_with_registry_and_context, prepare_cfg_context_bundle,
 };
-use crate::def_use::{DefUseResult, build_def_use_chains};
+use crate::def_use::{DefUseFacts, build_def_use_chains};
 use crate::interprocedural::InterproceduralAnalysis;
 use crate::ir::{Module as IrModule, Statement};
 use crate::memory_ssa::MemorySsaFunction;
@@ -485,14 +485,9 @@ pub struct FunctionUnit {
     pub cfg: CfgFunction,
     /// SSA form.
     pub ssa: SsaFunction,
-    /// Def-use chains.
-    ///
-    /// Shared behind an `Arc` (like `types` / `taints` / `rendered_props`)
-    /// because it is **span-free**: [`crate::lattice_rebase::rebase_function_unit`]
-    /// never touches it, so a memoised unit taken from the salsa
-    /// `function_lattice` cache and rebased to a new offset keeps the very same
-    /// lattice, so it need not be deep-copied per procedure per read.
-    pub def_use: Arc<DefUseResult>,
+    /// Shared symbol/version graph with its current exact storage-key interpretation.
+    /// Source relocation retains the graph; storage relocation rebinds its interpretation.
+    pub def_use: DefUseFacts,
     /// SCCP result: lattice values, executable blocks, constant
     /// branches.
     pub sccp: SccpResult,
@@ -1254,9 +1249,7 @@ impl FunctionUnit {
         if keys.len() != unit.ssa.cell_keys().len() {
             return None;
         }
-        if unit.def_use.variable_proofs_need_relocation(relocation) {
-            Arc::make_mut(&mut unit.def_use).relocate_variable_proofs(relocation);
-        }
+        unit.def_use.relocate_variable_proofs(relocation);
         if let Some(memory) = &mut unit.memory_ssa {
             memory.relocate_variable_proofs(relocation).ok()?;
         }
@@ -2034,7 +2027,7 @@ impl FunctionUnit {
             body_id: None,
             cfg,
             ssa,
-            def_use: Arc::new(def_use),
+            def_use,
             sccp,
             retained_semantic_value_owner: Some(Arc::clone(&semantic_value_projection)),
             semantic_value_projection,
@@ -2068,7 +2061,7 @@ impl FunctionUnit {
             body_id: None,
             cfg,
             ssa,
-            def_use: Arc::default(),
+            def_use: DefUseFacts::default(),
             sccp: SccpResult::default(),
             semantic_value_projection: Arc::default(),
             retained_semantic_value_owner: None,
@@ -6588,8 +6581,8 @@ namespace eval ::b { proc x {p2 extra} { set q $p2 } }
         );
         let fu = cu.function("::p").expect("proc ::p should exist");
         let col_live = fu.def_use.chains.iter().any(|(key, chain)| {
-            fu.ssa
-                .cell_symbol(&key.0)
+            fu.def_use
+                .symbol(&fu.ssa, key.0)
                 .is_some_and(|symbol| fu.ssa.var_name(symbol) == "col")
                 && !chain.is_dead()
         });
@@ -6612,8 +6605,8 @@ namespace eval ::b { proc x {p2 extra} { set q $p2 } }
             let cu = CompilationUnit::build_for(&src, &registry(), false);
             let fu = cu.function("::p").expect("proc ::p should exist");
             let val_live = fu.def_use.chains.iter().any(|(key, chain)| {
-                fu.ssa
-                    .cell_symbol(&key.0)
+                fu.def_use
+                    .symbol(&fu.ssa, key.0)
                     .is_some_and(|symbol| fu.ssa.var_name(symbol) == "val")
                     && !chain.is_dead()
             });

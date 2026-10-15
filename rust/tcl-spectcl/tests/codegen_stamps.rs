@@ -53,6 +53,35 @@ use tcl_runtime_api::{
 use tcl_spectcl::PackSet;
 use tcl_vm::{Code, CompileService, Vm};
 
+// Select one original compiled fixture body through its retained provenance.
+fn fixture_procedure<'a>(
+    module: &'a ModuleAsm,
+    label: &str,
+) -> &'a tcl_compiler::codegen::FunctionAsm {
+    let mut candidates = module
+        .procedure_provenance
+        .iter()
+        .filter(|(_, source)| source.name == label);
+    let (id, provenance) = candidates
+        .next()
+        .expect("original compiled fixture procedure");
+    assert!(
+        candidates.next().is_none(),
+        "ambiguous compiled fixture {label}"
+    );
+    let body = module
+        .procedures
+        .get(id)
+        .expect("same retained compiled body ID");
+    assert_eq!(body.name, provenance.name);
+    let rules = tcl_syntax::word_rules::WordValueRules::from_grammar(&module.profile.grammar);
+    assert_eq!(
+        body.proc_body_src.as_deref(),
+        Some(rules.collapse_braced_word(&provenance.body).as_ref())
+    );
+    body
+}
+
 /// The default compile service, counting the plain-dispatch compiles the VM
 /// asks of it.
 struct PlainCounting {
@@ -186,7 +215,7 @@ impl CompileService for PlainCounting {
         &self,
         src: &str,
         profile: &'static DialectProfile,
-    ) -> ScriptCommandPlan {
+    ) -> Result<ScriptCommandPlan, CompileError> {
         self.inner.script_command_plan_for_profile(src, profile)
     }
 
@@ -609,8 +638,9 @@ fn a_service_for_the_packs_overlay_compiles_against_the_generation_they_installe
     let refused = service
         .compile_for_profile(USE, older)
         .expect_err("no generation for 8.6 under this overlay");
+    let refused_text = refused.to_string();
     assert!(
-        refused.0.contains("tcl8.6") && refused.0.contains("not installed"),
+        refused_text.contains("tcl8.6") && refused_text.contains("not installed"),
         "{refused:?}"
     );
 }
@@ -723,7 +753,7 @@ fn a_tcl_body_backed_command_is_inlined_and_admitted() {
     let module = service_for(&set)
         .compile_for_profile(CALLER, tcl9())
         .expect("compiles");
-    let caller = &module.procedures["::caller"];
+    let caller = fixture_procedure(&module, "::caller");
     assert_eq!(caller.procedure_bindings, vec![double_binding()]);
     assert_eq!(
         caller.site_claims,
@@ -779,7 +809,7 @@ fn a_host_native_backing_never_defines_a_proc() {
     let module = service_for(&native)
         .compile_for_profile(CALLER, tcl9())
         .expect("compiles");
-    let caller = &module.procedures["::caller"];
+    let caller = fixture_procedure(&module, "::caller");
     assert!(caller.procedure_bindings.is_empty());
     assert!(caller.site_claims.is_empty());
     assert!(calls_a_command(caller), "{:#?}", caller.instructions);
@@ -922,7 +952,7 @@ fn a_package_source_body_is_read_at_load_through_the_store() {
     let module = service_for(&set)
         .compile_for_profile(CALLER, tcl9())
         .expect("compiles");
-    let caller = &module.procedures["::caller"];
+    let caller = fixture_procedure(&module, "::caller");
     assert_eq!(caller.procedure_bindings, vec![double_binding()]);
     assert!(!calls_a_command(caller));
 
@@ -944,7 +974,7 @@ fn a_package_source_body_is_read_at_load_through_the_store() {
         .compile_for_profile(CALLER, tcl9())
         .expect("compiles");
     assert_eq!(
-        module.procedures["::caller"].procedure_bindings,
+        fixture_procedure(&module, "::caller").procedure_bindings,
         vec![ProcedureBindingIdentity::new(
             "vdouble",
             "::vdouble",
@@ -1000,7 +1030,9 @@ fn a_package_source_that_cannot_be_read_is_said_and_not_inlined() {
             .compile_for_profile(CALLER, tcl9())
             .expect("compiles");
         assert!(
-            module.procedures["::caller"].procedure_bindings.is_empty(),
+            fixture_procedure(&module, "::caller")
+                .procedure_bindings
+                .is_empty(),
             "{name}"
         );
     }
@@ -1107,7 +1139,9 @@ fn a_direct_dependencys_reference_body_is_dropped_at_load() {
         let module = service_for(&set)
             .compile_for_profile(CALLER, tcl9())
             .expect("compiles");
-        let inlined = !module.procedures["::caller"].procedure_bindings.is_empty();
+        let inlined = !fixture_procedure(&module, "::caller")
+            .procedure_bindings
+            .is_empty();
         let refusal = warnings(&set)
             .into_iter()
             .find(|message| message.contains("may not declare a reference body"));
@@ -1243,12 +1277,10 @@ impl Spliced {
     /// How many pack commands `source` compiled with a definition spliced in:
     /// the procedure bindings of the procedure `name`.
     fn bindings(&self, source: &str, name: &str) -> usize {
-        service_for(&self.set)
+        let module = service_for(&self.set)
             .compile_for_profile(source, tcl9())
-            .expect("compiles")
-            .procedures[name]
-            .procedure_bindings
-            .len()
+            .expect("compiles");
+        fixture_procedure(&module, name).procedure_bindings.len()
     }
 }
 
@@ -1570,7 +1602,7 @@ fn a_function_claims_a_splice_only_where_it_emits_it() {
             let module = service_for(&pack.set)
                 .compile_for_profile(&source, tcl9())
                 .expect("compiles");
-            let caller = &module.procedures["::caller"];
+            let caller = fixture_procedure(&module, "::caller");
             assert_eq!(
                 !caller.procedure_bindings.is_empty(),
                 !calls_a_command(caller),

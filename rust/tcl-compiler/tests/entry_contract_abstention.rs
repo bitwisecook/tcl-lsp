@@ -58,7 +58,11 @@ fn assert_production_entry_contract(unit: &CompilationUnit, phase: &str) {
     assert_eq!(
         unit.body_units
             .keys()
-            .filter(|name| name.contains("apply#"))
+            .filter(|id| {
+                unit.ir_module.body_units.get(*id).is_some_and(|body| {
+                    body.body_kind == tcl_compiler::ir::ProcedureBodyKind::Lambda
+                })
+            })
             .count(),
         1,
         "{phase}: expected one apply lambda body unit",
@@ -66,7 +70,11 @@ fn assert_production_entry_contract(unit: &CompilationUnit, phase: &str) {
     assert_eq!(
         unit.body_units
             .keys()
-            .filter(|name| name.contains("namespace-eval#"))
+            .filter(|id| {
+                unit.ir_module.body_units.get(*id).is_some_and(|body| {
+                    body.body_kind == tcl_compiler::ir::ProcedureBodyKind::NamespaceScript
+                })
+            })
             .count(),
         1,
         "{phase}: expected one namespace-eval body unit",
@@ -90,7 +98,7 @@ fn assert_production_entry_contract(unit: &CompilationUnit, phase: &str) {
         assert_eq!(
             function.semantic_facts.dispatch_entry_assumption(),
             DispatchEntryAssumption::UnknownWorld,
-            "{phase}: deferred body {name} received an unproved entry world",
+            "{phase}: deferred body {name:?} received an unproved entry world",
         );
     }
 }
@@ -195,7 +203,11 @@ fn assert_deep_body_families(unit: &CompilationUnit, phase: &str) {
     assert_eq!(
         unit.body_units
             .keys()
-            .filter(|name| name.contains("apply#"))
+            .filter(|id| {
+                unit.ir_module.body_units.get(*id).is_some_and(|body| {
+                    body.body_kind == tcl_compiler::ir::ProcedureBodyKind::Lambda
+                })
+            })
             .count(),
         1,
         "{phase}: expected one apply body for deep evidence",
@@ -203,7 +215,11 @@ fn assert_deep_body_families(unit: &CompilationUnit, phase: &str) {
     assert_eq!(
         unit.body_units
             .keys()
-            .filter(|name| name.contains("namespace-eval#"))
+            .filter(|id| {
+                unit.ir_module.body_units.get(*id).is_some_and(|body| {
+                    body.body_kind == tcl_compiler::ir::ProcedureBodyKind::NamespaceScript
+                })
+            })
             .count(),
         1,
         "{phase}: expected one namespace-eval body for deep evidence",
@@ -232,7 +248,7 @@ fn assert_deep_body_families(unit: &CompilationUnit, phase: &str) {
             .ir_module
             .body_units
             .get(name)
-            .unwrap_or_else(|| panic!("{phase}: body unit {name} missing from retained IR"))
+            .unwrap_or_else(|| panic!("{phase}: body unit {name:?} missing from retained IR"))
             .body;
         assert_deep_body_evidence(&function.name, function, source, phase);
     }

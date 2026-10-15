@@ -979,18 +979,24 @@ fn rebased_units(base: &str, shifted: &str) -> (CompilationUnit, CompilationUnit
                 if let Some(fu) = cache.get(&key) {
                     return fu.clone();
                 }
-                let cfg = tcl_compiler::cfg_builder::build_cfg_function_with_upvars_and_config(
-                    req.qname,
-                    req.body,
-                    true,
-                    registry,
-                    req.plain_command_dispatch,
+                let prepared = tcl_compiler::cfg_builder::PreparedCfgContext::from_source_input(
                     (
                         req.upvar_procs.clone(),
                         req.proc_params.clone(),
                         req.global_write_procs.clone(),
                         req.command_bindings.clone(),
+                        req.procedure_summary_owners.clone(),
                     ),
+                    registry,
+                    req.source_metadata_input,
+                );
+                let cfg = tcl_compiler::cfg_builder::build_cfg_function_with_prepared_context(
+                    req.qname,
+                    req.body,
+                    true,
+                    registry,
+                    req.plain_command_dispatch,
+                    &prepared,
                     req.lexer_config,
                 );
                 let pc =
@@ -1247,7 +1253,7 @@ fn inline_count_statements_try_and_switch() {
         "proc ::f {} {\n try { set a 1 } on error {e} { set b 2 } finally { set c 3 }\n switch -- $a { 1 { set d 4 } default { set e 5 } }\n}\n",
     );
     let n = count_statements(
-        module
+        &module
             .procedures
             .get(&fixture_id(&module.procedures, "::f"))
             .expect("authored fixture body")
@@ -1262,7 +1268,7 @@ fn inline_count_statements_foreach_and_catch() {
     // foreach / catch each contribute 1 (the construct) + their body count.
     let module = module_for("proc ::f {} {\n foreach x {1 2} { set a 1 }\n catch { set b 2 }\n}\n");
     let n = count_statements(
-        module
+        &module
             .procedures
             .get(&fixture_id(&module.procedures, "::f"))
             .expect("authored fixture body")
@@ -1571,19 +1577,25 @@ fn memoised_unit(
         &mut |req: &tcl_compiler::compilation_unit::LatticeRequest<'_>| -> FunctionUnit {
             hits += 1;
             contexts.push(req.analysis_context.clone());
-            let cfg = tcl_compiler::cfg_builder::build_cfg_function_with_upvars_and_config(
-                req.qname,
-                req.body,
-                true,
-                &registry,
-                req.plain_command_dispatch,
+            let prepared = tcl_compiler::cfg_builder::PreparedCfgContext::from_source_input(
                 (
                     req.upvar_procs.clone(),
                     req.proc_params.clone(),
                     req.global_write_procs.clone(),
                     req.command_bindings.clone(),
+                    req.procedure_summary_owners.clone(),
                 ),
-                tcl_lexer::LexerConfig::default(),
+                &registry,
+                req.source_metadata_input,
+            );
+            let cfg = tcl_compiler::cfg_builder::build_cfg_function_with_prepared_context(
+                req.qname,
+                req.body,
+                true,
+                &registry,
+                req.plain_command_dispatch,
+                &prepared,
+                req.lexer_config,
             );
             let pc = tcl_compiler::compilation_unit::decode_param_constants(req.param_constants);
             let traced: std::collections::BTreeSet<String> =
@@ -1595,7 +1607,7 @@ fn memoised_unit(
                 req.params,
                 tcl_compiler::compilation_unit::UnitDialect {
                     registry: &registry,
-                    config: tcl_lexer::LexerConfig::default(),
+                    config: req.lexer_config,
                     source_metadata_input: req.source_metadata_input,
                 },
                 pc.as_ref(),

@@ -7128,7 +7128,7 @@ fn a_stub_that_states_its_frame_effect_is_a_named_head() {
         );
         let mut reasons = Vec::new();
         tcl_compiler::ir::for_each_statement(
-            module
+            &module
                 .procedures
                 .get(&fixture_id(&module.procedures, "::p"))
                 .expect("authored fixture body")

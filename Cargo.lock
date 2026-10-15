@@ -4516,6 +4516,7 @@ version = "0.1.0"
 dependencies = [
  "rayon",
  "salsa",
+ "serde_json",
  "tcl-compiler",
  "tcl-core-types",
  "tcl-dialect",

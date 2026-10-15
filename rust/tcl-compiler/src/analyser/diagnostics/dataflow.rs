@@ -459,7 +459,7 @@ fn unused_variable_definition_span(
 struct PhiUndefIndex<'a> {
     phi_def: &'a super::helpers::PhiDefMap,
     phi_block: &'a super::helpers::PhiBlockMap,
-    killed: &'a FxHashSet<crate::def_use::SsaValueKey>,
+    killed: &'a FxHashSet<crate::def_use::StorageValueKey>,
     may_defs: &'a super::helpers::MayDefMap,
 }
 
@@ -799,9 +799,10 @@ is renamed or deleted in this file."
                 continue;
             }
             let (cell_name, version) = &chain.key;
-            let Some(symbol) = fu.ssa.cell_symbol(cell_name) else {
+            let Some(symbol) = fu.def_use.symbol(&fu.ssa, *cell_name) else {
                 continue;
             };
+            let cell_name = fu.ssa.cell_key(symbol);
             if super::helpers::definition_has_cell_fact(
                 fu,
                 &chain.definition,
@@ -1118,9 +1119,10 @@ is renamed or deleted in this file."
                 continue;
             }
             let (cell_name, version) = &chain.key;
-            let Some(symbol) = fu.ssa.cell_symbol(cell_name) else {
+            let Some(symbol) = fu.def_use.symbol(&fu.ssa, *cell_name) else {
                 continue;
             };
+            let cell_name = fu.ssa.cell_key(symbol);
             if super::helpers::definition_has_cell_fact(
                 fu,
                 &chain.definition,
@@ -1186,7 +1188,7 @@ is renamed or deleted in this file."
                 .def_use
                 .chains
                 .iter()
-                .any(|(k, c)| k.0 == *cell_name && k.1 != *version && !c.is_dead());
+                .any(|(k, c)| k.0 == symbol && k.1 != *version && !c.is_dead());
             if any_other_live {
                 continue;
             }
@@ -1270,7 +1272,10 @@ is renamed or deleted in this file."
         // chain in def_use, bucket by block.
         let mut dead_idx: FxHashMap<&str, FxHashSet<usize>> = FxHashMap::default();
         for chain in fu.def_use.chains.values() {
-            if !chain.is_dead() || chain.definition.kind != DefKind::Statement {
+            if !chain.is_dead()
+                || chain.definition.kind != DefKind::Statement
+                || fu.def_use.symbol(&fu.ssa, chain.key.0).is_none()
+            {
                 continue;
             }
             let Ok(idx) = usize::try_from(chain.definition.statement_index) else {
@@ -1419,7 +1424,7 @@ is renamed or deleted in this file."
             let any_live = fu.def_use.chains.iter().any(|(key, chain)| {
                 fu.ssa
                     .var_symbol(param)
-                    .is_some_and(|symbol| fu.ssa.cell_key(symbol) == &key.0)
+                    .is_some_and(|symbol| fu.def_use.symbol(&fu.ssa, key.0) == Some(symbol))
                     && !chain.is_dead()
             });
             if any_live {
@@ -1750,21 +1755,25 @@ is renamed or deleted in this file."
         // per variable here and emit after the walk (W213, a distinct code,
         // stays inline).
         for chain in fu.def_use.chains.values() {
+            let Some(physical_key) = fu.def_use.physical_value_key(&fu.ssa, chain.key) else {
+                continue;
+            };
             // Version-0 synthetic defs are the undef origin; an
             // `unset`-killed real version, and a phi version that can reach
             // an undef origin (one-branch `set` / try-handler merge), are
             // undef at their reads too — all flow through the same
             // suppression + emission logic below.
             if chain.definition.kind != DefKind::Parameter
-                && !ctx.supp.killed.contains(&chain.key)
-                && !ctx.supp.can_undef.contains(&chain.key)
+                && !ctx.supp.killed.contains(&physical_key)
+                && !ctx.supp.can_undef.contains(&physical_key)
             {
                 continue;
             }
             let (cell_name, version) = &chain.key;
-            let Some(symbol) = fu.ssa.cell_symbol(cell_name) else {
+            let Some(symbol) = fu.def_use.symbol(&fu.ssa, *cell_name) else {
                 continue;
             };
+            let cell_name = fu.ssa.cell_key(symbol);
             let var = fu.ssa.var_name(symbol);
             if params.contains(var) {
                 continue;
@@ -1775,13 +1784,13 @@ is renamed or deleted in this file."
             let startup = startup_read_facts(
                 cell_name,
                 *version,
-                ctx.supp.killed.contains(&chain.key),
+                ctx.supp.killed.contains(&physical_key),
                 ctx.initial_global,
                 ctx.global_aliases,
                 Some(self.analysis_context().context().authoring_query()),
                 &self.profile_registry(),
             );
-            if startup.lazy_read && ctx.supp.killed.contains(&chain.key) {
+            if startup.lazy_read && ctx.supp.killed.contains(&physical_key) {
                 continue;
             }
             // `SPECIAL_VARS` distinguishes recognised runtime-sensitive names
@@ -1797,20 +1806,21 @@ is renamed or deleted in this file."
             // are base-keyed, so the base is checked for those too.
             let (base, element) = crate::naming::split_array_name_braced(var, true);
             if element.is_some() {
-                let base_defined = fu
-                    .def_use
-                    .chains
-                    .keys()
-                    .any(|(key, version)| *version > 0 && cell_name.is_member_of(key))
-                    || fu.ssa.blocks.values().any(|block| {
-                        block.statements.iter().any(|statement| {
-                            statement
-                                .defs
-                                .keys()
-                                .any(|symbol| cell_name.is_member_of(fu.ssa.cell_key(*symbol)))
-                        })
-                    });
-                if !ctx.supp.killed.contains(&chain.key)
+                let base_defined = fu.def_use.chains.keys().any(|(key, version)| {
+                    *version > 0
+                        && fu
+                            .def_use
+                            .cell_key(&fu.ssa, *key)
+                            .is_some_and(|key| cell_name.is_member_of(key))
+                }) || fu.ssa.blocks.values().any(|block| {
+                    block.statements.iter().any(|statement| {
+                        statement
+                            .defs
+                            .keys()
+                            .any(|symbol| cell_name.is_member_of(fu.ssa.cell_key(*symbol)))
+                    })
+                });
+                if !ctx.supp.killed.contains(&physical_key)
                     && (base_defined
                         || params.contains(base)
                         || ctx.scope_aliases.contains(base)
@@ -1828,7 +1838,7 @@ is renamed or deleted in this file."
             // qualified read is conservatively exempt. A same-unit `unset`
             // records a killed chain, however, so it must still be reported.
             if cell_name.namespace_membership_for_advice().is_some()
-                && !ctx.supp.killed.contains(&chain.key)
+                && !ctx.supp.killed.contains(&physical_key)
             {
                 continue;
             }
@@ -1843,7 +1853,7 @@ is renamed or deleted in this file."
             // the loop / cross-event passes already take). A known `unset` of
             // the alias wins over that conservative assumption; a genuinely
             // unrelated local is absent from `scope_aliases` and still fires.
-            if ctx.scope_aliases.contains(var) && !ctx.supp.killed.contains(&chain.key) {
+            if ctx.scope_aliases.contains(var) && !ctx.supp.killed.contains(&physical_key) {
                 continue;
             }
             if ctx.extra_known_defined.contains(var) {
@@ -1856,7 +1866,7 @@ is renamed or deleted in this file."
             // CONST("") (keys = ∅, not unknown), so the blanket variant fires
             // on a genuine missing-key read while still suppressing an
             // unknown-shape (mixed-caller / no-caller) dict.
-            if ctx.supp.suppresses_read(var, &chain.key) {
+            if ctx.supp.suppresses_read(var, &physical_key) {
                 continue;
             }
             self.record_chain_w210_uses(
@@ -2108,10 +2118,14 @@ is renamed or deleted in this file."
         use crate::def_use::UseKind;
         use crate::ir::Statement;
 
-        let (cell_name, version) = &chain.key;
-        let Some(symbol) = fu.ssa.cell_symbol(cell_name) else {
+        let Some(physical_key) = fu.def_use.physical_value_key(&fu.ssa, chain.key) else {
             return;
         };
+        let (cell_name, version) = &chain.key;
+        let Some(symbol) = fu.def_use.symbol(&fu.ssa, *cell_name) else {
+            return;
+        };
+        let cell_name = fu.ssa.cell_key(symbol);
         let var = fu.ssa.var_name(symbol);
         for use_site in &chain.uses {
             if matches!(use_site.kind, UseKind::PhiIncoming) {
@@ -2129,7 +2143,7 @@ is renamed or deleted in this file."
             // version on the paths the solver's outcome runs, and only there:
             // a read in a block that outcome makes unreachable — the match
             // arm of a `regexp` that never matches — reads a written value.
-            if ctx.supp.preserved_undef.contains(&chain.key)
+            if ctx.supp.preserved_undef.contains(&physical_key)
                 && fu
                     .cfg
                     .block_id(&use_site.block)
@@ -2142,7 +2156,7 @@ is renamed or deleted in this file."
             // `UndefSuppression::loop_entry_only_undef`): we assume a may-run
             // loop runs, matching C Tcl. A read *inside* the loop body still
             // fires.
-            if ctx.supp.after_loop_defined(&chain.key, &use_site.block) {
+            if ctx.supp.after_loop_defined(&physical_key, &use_site.block) {
                 continue;
             }
             // A read at or after an `expr` substitution's write of the name.
@@ -3447,8 +3461,10 @@ is renamed or deleted in this file."
         seen_offsets: &mut FxHashSet<u32>,
     ) {
         let (sym, version) = key;
-        let var_name = fu.ssa.var_name(sym);
-        let Some(chain) = fu.def_use.chain_for(var_name, version) else {
+        if fu.def_use.symbol(&fu.ssa, sym).is_none() {
+            return;
+        }
+        let Some(chain) = fu.def_use.chain_for(sym, version) else {
             return;
         };
         let Some(block) = fu.cfg.block_by_name(&chain.definition.block) else {
@@ -4076,7 +4092,7 @@ fn names_observed_by_unseen_calls(fu: &crate::compilation_unit::FunctionUnit) ->
         .chains
         .keys()
         .filter_map(|(cell, held)| {
-            let symbol = fu.ssa.cell_symbol(cell)?;
+            let symbol = fu.def_use.symbol(&fu.ssa, *cell)?;
             fu.ssa
                 .is_observed_by_unseen_call(symbol, *held)
                 .then(|| fu.ssa.var_name(symbol))
@@ -4286,8 +4302,8 @@ fn original_unrepresented_use_advice(
             .chains
             .values()
             .filter(|chain| {
-                fu.ssa
-                    .cell_symbol(&chain.key.0)
+                fu.def_use
+                    .symbol(&fu.ssa, chain.key.0)
                     .is_some_and(|symbol| fu.ssa.var_name(symbol) == variable)
             })
             .flat_map(|chain| &chain.uses)
@@ -4359,7 +4375,7 @@ pub(crate) fn report_original_store_diagnostic_gates(
         if chain.definition.kind != crate::def_use::DefKind::Statement {
             continue;
         }
-        let Some(symbol) = fu.ssa.cell_symbol(&chain.key.0) else {
+        let Some(symbol) = fu.def_use.symbol(&fu.ssa, chain.key.0) else {
             continue;
         };
         let variable = fu.ssa.var_name(symbol);
@@ -4379,7 +4395,7 @@ pub(crate) fn report_original_store_diagnostic_gates(
             fu.ssa.is_synthetic_def(
                 &chain.definition.block,
                 chain.definition.statement_index,
-                &chain.key.0
+                fu.ssa.cell_key(symbol)
             ),
             reportable_dead_assignment(
                 statement,

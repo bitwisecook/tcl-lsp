@@ -78,6 +78,30 @@ impl LogicalSourceProcedureDeclaration {
         std::str::from_utf8(self.body.summary_coordinate().simple.as_bytes()).ok()
     }
 
+    /// Original Logical header coordinate for readonly declaration candidates.
+    /// This rechecks the selected Name word and retained namespace; it supplies
+    /// no publication, call binding or availability of the procedure.
+    #[must_use]
+    pub fn source_candidate_coordinate(&self) -> Option<tcl_core_types::ByteCommandSlot> {
+        self.matches_source(&self.image, &self.input)
+            .then_some(())?;
+        let scope = self.body.scope();
+        let name = scope.scope_name_input();
+        if tcl_syntax::word_rules::original_static_word_unicode_value(name.original_word())
+            .as_deref()
+            != Some(name.bytes())
+        {
+            return None;
+        }
+        let simple = tcl_syntax::naming::written_command_tail(name.bytes());
+        std::str::from_utf8(simple).ok()?;
+        (!simple.contains(&0)).then_some(())?;
+        Some(tcl_core_types::ByteCommandSlot::new(
+            scope.namespace_recipe().clone(),
+            tcl_core_types::NameBytes::from(simple),
+        ))
+    }
+
     /// Quoted insertion data from the retained source namespace and header.
     #[must_use]
     pub fn source_word(&self, config: LexerConfig) -> Option<String> {

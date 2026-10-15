@@ -1304,6 +1304,20 @@ pub fn source_handle_construction_at(
     super::source_publication::OriginalSourceHandleConstruction::capture(words, &context)
 }
 
+/// Ordered readonly Logical candidates at this exact original source command.
+/// Caller scope, path and name bytes remain source recipes; candidates prove no
+/// installed command, reached declaration, body entry or edit permission.
+#[must_use]
+pub fn source_logical_command_candidates_at(
+    source: &str,
+    analysis: &AnalysisResult,
+    offset: u32,
+) -> Option<crate::command_binding::OriginalLogicalCommandCandidates> {
+    analysis.allows_lexical_declaration_advice().then_some(())?;
+    let (input, realm, native) = registered_original_words_at(source, analysis, offset)?;
+    realm.original_logical_navigation_candidates(input, &native)
+}
+
 /// Original setter and exact factory substitution for source handle-class advice.
 /// This supplies no stored handle, variable cell or successful allocation.
 #[must_use]

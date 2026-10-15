@@ -89,21 +89,55 @@ fn registry() -> &'static CommandRegistry {
 
 /// Flow-sensitive CFG/SSA escape summaries (codegen's frame-analysis path),
 /// interprocedural fixpoint folded in.
-fn escape_cu(src: &str) -> HashMap<String, ProcEscapeSummary> {
+struct EscapeSummaries {
+    module: tcl_compiler::Module,
+    by_body: HashMap<tcl_core_types::BodyFrameId, ProcEscapeSummary>,
+}
+
+impl EscapeSummaries {
+    fn fixture_body(&self, label: &str) -> tcl_core_types::BodyFrameId {
+        if label == tcl_compiler::var_escape::TOP_LEVEL_QNAME {
+            return tcl_core_types::BodyFrameId::Top(self.module.procedure_ids.module_id());
+        }
+        let mut bodies = self
+            .module
+            .procedures
+            .iter()
+            .filter(|(_, body)| body.qualified_name == label);
+        let (id, _) = bodies.next().expect("original authored fixture body");
+        assert!(
+            bodies.next().is_none(),
+            "ambiguous authored fixture body {label}"
+        );
+        assert!(self.module.procedure_ids.owns(*id));
+        tcl_core_types::BodyFrameId::Body(*id)
+    }
+}
+
+fn escape_cu(src: &str) -> EscapeSummaries {
     let cu = CompilationUnit::build_for(src, registry(), false);
-    analyse_var_escape_cu(&cu, true)
+    let by_body = analyse_var_escape_cu(&cu, true);
+    EscapeSummaries {
+        module: cu.ir_module,
+        by_body,
+    }
 }
 
 /// CFG/SSA summaries with the interprocedural pass *off* — raw per-proc result.
-fn escape_cu_raw(src: &str) -> HashMap<String, ProcEscapeSummary> {
+fn escape_cu_raw(src: &str) -> EscapeSummaries {
     let cu = CompilationUnit::build_for(src, registry(), false);
-    analyse_var_escape_cu(&cu, false)
+    let by_body = analyse_var_escape_cu(&cu, false);
+    EscapeSummaries {
+        module: cu.ir_module,
+        by_body,
+    }
 }
 
 /// IR-walk escape summaries (the inliner's path), interprocedural on.
-fn escape_ir(src: &str) -> HashMap<String, ProcEscapeSummary> {
+fn escape_ir(src: &str) -> EscapeSummaries {
     let module = lower_to_ir(src, registry());
-    analyse_var_escape(&module, true)
+    let by_body = analyse_var_escape(&module, true);
+    EscapeSummaries { module, by_body }
 }
 
 /// Drive the low-level [`analyse_cfg_function`] directly on a top-level script and
@@ -116,13 +150,15 @@ fn cfg_result(src: &str) -> CfgEscapeResult {
     analyse_cfg_function(&cfg, &ssa, std::iter::empty::<String>())
 }
 
-fn summary<'a>(map: &'a HashMap<String, ProcEscapeSummary>, qname: &str) -> &'a ProcEscapeSummary {
-    map.get(qname).unwrap_or_else(|| {
-        panic!(
-            "summary for {qname} not found; keys = {:?}",
-            map.keys().collect::<Vec<_>>()
-        )
-    })
+fn summary<'a>(map: &'a EscapeSummaries, qname: &str) -> &'a ProcEscapeSummary {
+    map.by_body
+        .get(&map.fixture_body(qname))
+        .unwrap_or_else(|| {
+            panic!(
+                "summary for {qname} not found; keys = {:?}",
+                map.by_body.keys().collect::<Vec<_>>()
+            )
+        })
 }
 
 /// True if `(name, version)` is tagged `Frame` in the per-SSA-version map.
@@ -1022,7 +1058,10 @@ fn cu_top_level_eval_body_escapes_via_cu_map() {
     let s = escape_cu(
         "eval {if 1 {global tg\n incr tg}}\nproc ::p {} { eval {if 1 {global pg\n incr pg}} }",
     );
-    assert!(s.contains_key(TOP_LEVEL_QNAME), "top-level key present");
+    assert!(
+        s.by_body.contains_key(&s.fixture_body(TOP_LEVEL_QNAME)),
+        "top-level key present"
+    );
     assert!(
         summary(&s, TOP_LEVEL_QNAME).is_frame("tg"),
         "top-level eval global escapes"

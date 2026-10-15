@@ -3199,12 +3199,14 @@ mod snapshot_identity_tests {
         changed.leading_zero_is_octal = Ternary::Yes;
         assert_ne!(profile.cache_key(), changed.cache_key());
         changed = profile.clone();
-        changed.surface_packages = &[PackageFloor::named("Example")];
+        const EXAMPLE: &[PackageFloor<'static>] = &[PackageFloor::named("Example")];
+        changed.surface_packages = EXAMPLE;
         assert_ne!(profile.cache_key(), changed.cache_key());
         assert!(std::ptr::eq(profile.intern(), profile.clone().intern()));
         assert!(!std::ptr::eq(profile.intern(), changed.intern()));
         let without_floor = changed.cache_key();
-        changed.surface_packages = &[PackageFloor::at("Example", "2.0")];
+        const EXAMPLE_2: &[PackageFloor<'static>] = &[PackageFloor::at("Example", "2.0")];
+        changed.surface_packages = EXAMPLE_2;
         assert_ne!(without_floor, changed.cache_key());
         changed = profile.clone();
         changed.evaluation_evidence = EvaluationEvidence::MeasuredFork {

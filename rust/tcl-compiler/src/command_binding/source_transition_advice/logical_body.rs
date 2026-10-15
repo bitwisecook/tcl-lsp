@@ -501,6 +501,7 @@ impl LogicalBodyWalk<'_, '_> {
         let native = &command.words;
         tape.represented.insert(native.first()?.span().start());
         tape.retain_logical_summary_scope(native, scope);
+        tape.retain_logical_navigation(graph, native, scope);
         let Some(written) = original_words(native, self.context.policy) else {
             graph.widen(native);
             return Some(());

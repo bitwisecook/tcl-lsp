@@ -821,7 +821,7 @@ fn require_result_def_use(
     context
         .function_unit
         .def_use
-        .chain_for(cell, result.1)
+        .chain_for_cell(&context.function_unit.ssa, cell, result.1)
         .map(|_| ())
         .ok_or(NativeIntegerDeclineReason::MissingDefUseEvidence)
 }
@@ -1003,7 +1003,7 @@ fn require_operand_use(
     let chain = context
         .function_unit
         .def_use
-        .chain_for(cell, version)
+        .chain_for_cell(&context.function_unit.ssa, cell, version)
         .ok_or(NativeIntegerDeclineReason::MissingDefUseEvidence)?;
     chain
         .uses
@@ -1240,6 +1240,32 @@ mod tests {
             NativeIntegerPolicy::default(),
         );
         assert_eq!(proof, NativeIntegerProof::Disabled);
+    }
+
+    #[test]
+    fn def_use_physical_queries_use_the_actual_native_function_inventory() {
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
+        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
+        let unit = native_unit(&format!("{ADD_BODY}add 2 4\n"), profile, registry);
+        assert!(unit.ir_module.source_entry.native_entry.is_some());
+        let id = fixture_id(&unit.procedures, "::add");
+        let function = unit.function_for_body(Some(id)).unwrap();
+        let symbol = function.ssa.var_symbol("b").unwrap();
+        let cell = function.ssa.cell_key(symbol);
+        let graph_chain = function.def_use.chain_for(symbol, 0).unwrap();
+        let physical_chain = function
+            .def_use
+            .chain_for_cell(&function.ssa, cell, 0)
+            .unwrap();
+        assert!(std::ptr::eq(graph_chain, physical_chain));
+        assert_eq!(function.def_use.cell_key(&function.ssa, symbol), Some(cell));
+        let shared = function.def_use.clone();
+        assert!(std::sync::Arc::ptr_eq(&function.def_use, &shared));
+        assert_eq!(
+            shared.physical_value_key(&function.ssa, graph_chain.key),
+            Some((cell.clone(), 0))
+        );
     }
 
     #[test]

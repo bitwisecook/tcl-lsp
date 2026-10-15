@@ -89,9 +89,10 @@ pub fn liveness_dead_stores(fu: &FunctionUnit, registry: &CommandRegistry) -> Ve
             continue;
         }
         let (key, version) = &chain.key;
-        let Some(symbol) = fu.ssa.cell_symbol(key) else {
+        let Some(symbol) = fu.def_use.symbol(&fu.ssa, *key) else {
             continue;
         };
+        let key = fu.ssa.cell_key(symbol);
         let var = fu.ssa.var_name(symbol);
         // A name read in a position the version-precise `used` set can't see
         // keeps every write of it alive.

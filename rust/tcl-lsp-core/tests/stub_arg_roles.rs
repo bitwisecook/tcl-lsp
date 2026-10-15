@@ -626,11 +626,19 @@ fn optimisation_codes(source: &str) -> Vec<String> {
 
 /// Whether the interprocedural summary of `source` takes `label` as pure.
 fn label_is_pure(source: &str) -> bool {
-    summarised_unit(source).interproc.is_some_and(|summaries| {
+    let unit = summarised_unit(source);
+    let mut labels = unit
+        .ir_module
+        .procedures
+        .iter()
+        .filter(|(_, procedure)| procedure.qualified_name == "::label");
+    let label = *labels.next().expect("fixture retains its label body").0;
+    assert!(labels.next().is_none(), "fixture label body is unique");
+    unit.interproc.is_some_and(|summaries| {
         summaries
             .procedures
-            .get("::label")
-            .is_some_and(|label| label.pure)
+            .get(&label)
+            .is_some_and(|summary| summary.pure)
     })
 }
 

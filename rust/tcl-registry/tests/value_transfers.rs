@@ -4564,10 +4564,10 @@ fn typed_targets(answer: &EvalAnswer) -> Vec<usize> {
         .collect()
 }
 
-/// `append` and `lappend` are the runtime adapters' value computations —
-/// `var::append_bytes` and `var::lappend_value` — with the lattice write as
-/// the store: byte-exact, list-rendered canonically, and a list append over
-/// a value that is not a list is the program's error, never a value.
+/// Source-value `append` and `lappend` use `var::logical_append_value` and
+/// `var::lappend_value` with the lattice write as the store. List rendering is
+/// canonical; appending to a non-list is an error rather than a value. Native
+/// object representation, publication and observers have their own owner.
 #[test]
 fn append_and_list_append_run_the_shared_cores() {
     let reg = CommandRegistry::build_default();
@@ -5032,7 +5032,7 @@ fn the_cores_the_routes_call_read_only_admitted_axes() {
 
     let mut budget = Budget::evaluation();
     let mut ops = ConstOps::admit(&context, &mut budget, Needs::NONE).expect("admits");
-    let _ = tcl_cmd_core::var::append_bytes(
+    let _ = tcl_cmd_core::var::logical_append_value(
         &mut ops,
         Some(ConstValue::text("a")),
         &[ConstValue::text("b")],

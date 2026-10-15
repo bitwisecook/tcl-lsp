@@ -471,8 +471,7 @@ fn collect_assign_kinds<S: std::hash::BuildHasher + Clone>(
                     )
                     && invocation.facts.analyser_hook
                         == Some(tcl_registry::hooks::AnalyserHookId::OoObjdefine)
-                    && let Some(recv) = invocation.arguments.first().and_then(Option::as_deref)
-                    && let Some(v) = strip_dollar(recv)
+                    && let Some(v) = original_objdefine_receiver(stmt, &invocation)
                 {
                     out.entry(v).or_default().push(AssignKind::PerObject);
                 }
@@ -559,7 +558,28 @@ fn classify_bound_rhs<S: std::hash::BuildHasher + Clone>(
     }
 }
 
-/// Bare `$name` → `Some(name)`.
+/// Original written receiver syntax, independent of entered object identity.
+fn original_objdefine_receiver(
+    statement: &crate::ir::Statement,
+    invocation: &crate::registry_invocation::ResolvedStatementInvocation,
+) -> Option<String> {
+    let tokens = statement.tokens()?;
+    let written = invocation.effective.written_argument(0)?;
+    let word = tokens.words().get(written.checked_add(1)?)?;
+    if invocation.arguments.first()?.as_deref()? != word.legacy_text().as_str() {
+        return None;
+    }
+    let config = tokens
+        .source_binding
+        .as_ref()?
+        .original_lexer_config_for_tokens(tokens)?;
+    let (reference, source) = word.sole_variable_substitution()?;
+    (source.provenance == crate::ir::Provenance::Source).then_some(())?;
+    tcl_syntax::naming::whole_scalar_variable_reference_name(reference, config).map(str::to_owned)
+}
+
+/// Authored-fixture reference selector.
+#[cfg(test)]
 fn strip_dollar(text: &str) -> Option<String> {
     let t = text.trim();
     let rest = t.strip_prefix('$')?;
@@ -1443,6 +1463,55 @@ mod tests {
         assert!((s.top_rate() - 0.5).abs() < 1e-9);
         assert_eq!(s.top_by_reason["unknown"], 1);
     }
+    #[test]
+    fn per_object_receiver_uses_original_written_scalar_word() {
+        for (source, expected) in [
+            (
+                "oo::objdefine ${$receiver} method inspect {} {}",
+                Some("$receiver"),
+            ),
+            (
+                "oo::objdefine \"${ with space }\" method inspect {} {}",
+                Some(" with space "),
+            ),
+            (
+                "interp alias {} defineCaptured {} oo::objdefine {$receiver}; defineCaptured method inspect {} {}",
+                None,
+            ),
+        ] {
+            let fixture = crate::provider_fixtures::original_native_module(source, "tcl8.6");
+            let (context, module) = &*fixture;
+            let statement = module.top_level.statements.last().unwrap();
+            let metadata = crate::registry_invocation::InvocationMetadataContext::for_module(
+                context.commands(),
+                module,
+            );
+            let invocation =
+                crate::registry_invocation::resolved_statement_invocation_with_metadata_context(
+                    context.commands(),
+                    metadata,
+                    statement,
+                )
+                .expect("actual selected original objdefine invocation");
+            assert_eq!(
+                invocation.facts.analyser_hook,
+                Some(tcl_registry::hooks::AnalyserHookId::OoObjdefine)
+            );
+            assert_eq!(
+                original_objdefine_receiver(statement, &invocation).as_deref(),
+                expected,
+                "{source}"
+            );
+            if expected.is_none() {
+                assert!(invocation.effective.written_argument(0).is_none());
+            } else {
+                let mut changed = invocation.clone();
+                changed.arguments[0] = Some("${different}".to_owned());
+                assert!(original_objdefine_receiver(statement, &changed).is_none());
+            }
+        }
+    }
+
     #[test]
     fn assignment_kind_metadata_keeps_effective_alias_words_and_supplied_availability() {
         // naming.compiler.original-analysis-metadata-context

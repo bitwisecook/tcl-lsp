@@ -30,7 +30,7 @@
 use std::collections::{BTreeSet, HashMap};
 
 use crate::analyses::{ConstValue, LatticeValue};
-use crate::def_use::{DefKind, DefUseResult, UseKind};
+use crate::def_use::{DefKind, DefUseFacts, UseKind};
 use crate::memory_ssa::{MemoryLocation, MemorySsaFunction};
 use crate::sccp::SccpResult;
 use crate::ssa::{SsaFunction, ValueKey};
@@ -315,7 +315,7 @@ fn def_kind_name(k: DefKind) -> &'static str {
 pub fn extract_function_dataflow<S: std::hash::BuildHasher>(
     name: &str,
     ssa: &SsaFunction,
-    du: &DefUseResult,
+    du: &DefUseFacts,
     sccp: Option<&SccpResult>,
     mem: Option<&MemorySsaFunction>,
     types: Option<&HashMap<ValueKey, TypeLattice, S>>,
@@ -329,19 +329,18 @@ pub fn extract_function_dataflow<S: std::hash::BuildHasher>(
     // Order diagnostic output by the actual SSA symbol and version. Display
     // strings are presentation only and cannot replace typed chain identity.
     let mut keys: Vec<&crate::def_use::SsaValueKey> = du.chains.keys().collect();
-    keys.sort_by_key(|(cell, version)| (ssa.cell_symbol(cell), *version));
+    keys.sort_by_key(|(symbol, version)| (du.symbol(ssa, *symbol), *version));
 
     for key in keys {
         let chain = &du.chains[key];
         let (cell, version) = key;
-        // The SCCP / type maps are keyed by the interned-`Symbol` `ValueKey`;
-        // resolve this chain's canonical cell to its symbol to query them. A cell
-        // with no SSA symbol yields `None` (an empty display column, same as a
-        // map miss).
-        let symbol = ssa.cell_symbol(cell);
-        let cell_display = cell.compatibility_name();
-        let var_name = symbol.map_or(cell_display.as_str(), |symbol| ssa.var_name(symbol));
-        let ssa_key: Option<ValueKey> = symbol.map(|sym| (sym, *version));
+        let Some(current_cell) = du.cell_key(ssa, *cell) else {
+            continue;
+        };
+        let symbol = *cell;
+        let cell_display = current_cell.compatibility_name();
+        let var_name = ssa.var_name(symbol);
+        let ssa_key = Some((symbol, *version));
         nodes.push(DataFlowNode {
             cell: cell_display.clone(),
             name: var_name.to_owned(),
@@ -357,16 +356,18 @@ pub fn extract_function_dataflow<S: std::hash::BuildHasher>(
 
         for use_site in &chain.uses {
             let mut edge = if use_site.kind == UseKind::PhiIncoming {
-                DataFlowEdge::phi(
+                let Some(receiving_cell) = du.cell_key(ssa, use_site.variable) else {
+                    continue;
+                };
+                let mut edge = DataFlowEdge::phi(
                     var_name.to_owned(),
                     *version,
                     use_site.block.clone(),
-                    ssa.cell_symbol(&use_site.variable).map_or_else(
-                        || use_site.variable.compatibility_name(),
-                        |symbol| ssa.var_name(symbol).to_owned(),
-                    ),
+                    ssa.var_name(use_site.variable).to_owned(),
                     use_site.phi_version,
-                )
+                );
+                edge.to_cell = receiving_cell.compatibility_name();
+                edge
             } else {
                 DataFlowEdge::direct(
                     var_name.to_owned(),
@@ -376,9 +377,6 @@ pub fn extract_function_dataflow<S: std::hash::BuildHasher>(
                 )
             };
             edge.from_cell.clone_from(&cell_display);
-            if use_site.kind == UseKind::PhiIncoming {
-                edge.to_cell = use_site.variable.compatibility_name();
-            }
             edges.push(edge);
         }
     }
@@ -448,7 +446,7 @@ pub struct FunctionInputs<'a, S = std::collections::hash_map::RandomState> {
     /// SSA form.
     pub ssa: &'a SsaFunction,
     /// Def-use chains.
-    pub du: &'a DefUseResult,
+    pub du: &'a DefUseFacts,
     /// Optional SCCP result for lattice rendering.
     pub sccp: Option<&'a SccpResult>,
     /// Optional memory-SSA for alias-info extraction.
@@ -729,7 +727,7 @@ mod tests {
             alias_sets: vec![AliasSet::new(locs, "global")],
             ..MemorySsaFunction::default()
         };
-        let du = DefUseResult::default();
+        let du = DefUseFacts::default();
         let ssa = SsaFunction::trivial("::top", BlockId(0), vec!["entry".into()]);
         let g = extract_function_dataflow::<std::collections::hash_map::RandomState>(
             "::top",
@@ -812,7 +810,7 @@ mod tests {
 
     #[test]
     fn extract_empty_when_no_chains() {
-        let du = DefUseResult::default();
+        let du = DefUseFacts::default();
         let ssa = SsaFunction::trivial("::top", BlockId(0), vec!["entry".into()]);
         let g = extract_function_dataflow::<std::collections::hash_map::RandomState>(
             "::top", &ssa, &du, None, None, None,

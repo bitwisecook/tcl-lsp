@@ -2193,12 +2193,14 @@ pub fn serialise_liveness(result: &ExplorerResult) -> Value {
             .iter()
             .map(|snap| {
                 let mut chains: Vec<_> = snap.unit.def_use.chains.values().collect();
-                chains.sort_by_key(|chain| (chain.key.0.compatibility_name(), chain.key.1));
+                let cell_label = |symbol| snap.unit.def_use.cell_key(&snap.unit.ssa, symbol)
+                    .map(tcl_compiler::var_resolve::VariableCellKey::compatibility_name);
+                chains.sort_by_key(|chain| (cell_label(chain.key.0), chain.key.1));
                 let chains: Vec<Value> = chains
                     .iter()
                     .map(|chain| {
                         json!({
-                            "variable": chain.key.0.compatibility_name(),
+                            "variable": cell_label(chain.key.0),
                             "version": chain.key.1,
                             "definition": {
                                 "block": chain.definition.block,
@@ -5651,7 +5653,9 @@ mod retained_explorer_source_tests {
         assert_eq!(rows[0]["event"], "HTTP_REQUEST");
         assert_eq!(rows[0]["range"]["startOffset"], "\u{feff}when ".len());
 
-        let mut commands = context.commands().as_ref().clone();
+        let commands = context.commands();
+        let mut commands =
+            commands.project_for_profile(commands.profile().expect("environment registry profile"));
         let mut when = commands.get("when").unwrap().clone();
         when.traits.remove(tcl_registry::Traits::IS_EVENT_HANDLER);
         commands.insert(when);

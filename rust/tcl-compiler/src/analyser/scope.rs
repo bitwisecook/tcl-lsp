@@ -1308,11 +1308,9 @@ impl Analyser {
     /// `VarDef.references` would carry only the registry `VarRead`-role
     /// name words (`set x`, `info exists x`) collected at its end.
     ///
-    /// The token-text helper uses [`tcl_lexer::SourceMap`] to
-    /// recover each `$name` token's textual content from the
-    /// source bytes — `Var` tokens carry only their span, not
-    /// the inner name.  The `$` prefix is stripped; `${name}`
-    /// braced forms are decoded down to `name`.
+    /// The shared configured reference scanner verifies the
+    /// original token extent and owns the full form, including literal
+    /// brace-quoted names and separate array-index syntax.
     pub fn record_arg_var_reads(
         &mut self,
         cmd: &crate::segmenter::SegmentedCommand,
@@ -1342,13 +1340,13 @@ impl Analyser {
             if tok.span.end() > source_len {
                 continue;
             }
-            let Some(name) = var_name_from_span(&self.source, tok.span) else {
+            let Some((name, braced)) = crate::var_refs::original_variable_reference_form(
+                &self.source,
+                *tok,
+                self.file_lexer_config(),
+            ) else {
                 continue;
             };
-            let braced = self
-                .source
-                .get(tok.span.start() as usize..tok.span.end() as usize)
-                .is_some_and(|t| t.starts_with("${"));
             reads.push((name.to_string(), tok.span, braced));
         }
         for (name, span, braced) in reads {
@@ -3765,37 +3763,6 @@ fn walk_scopes_helper(scope: &Scope, path: &[usize], out: &mut Vec<Vec<usize>>, 
 
 // Substituted / expr `$var` read collection
 
-/// Extract the base variable name from a `Var` token's source span:
-/// `$name` / `${name}` → `name`, and `$arr(idx)` → `arr` (the array
-/// index is dropped so element reads attribute to the base array
-/// variable).
-///
-/// Handles the lexer's `Var`-token span convention, which excludes
-/// the closing `}` of a braced reference (`${x}` spans `${x`), so the
-/// trailing brace is stripped only when present.  The array-index
-/// suffix is dropped for the unbraced form only — inside `${…}` the
-/// parentheses are part of a literal name.  The recorded base name is
-/// re-normalised by [`normalise_var_name`] in `record_var_read`; this
-/// helper keeps that contract so reads attribute to the right slot.
-fn var_name_from_span(source: &str, span: Span) -> Option<&str> {
-    let (s, e) = (span.start() as usize, span.end() as usize);
-    if s > e || e > source.len() {
-        return None;
-    }
-    let text = &source[s..e];
-    let rest = text.strip_prefix('$')?;
-    let name = if let Some(inner) = rest.strip_prefix('{') {
-        // Braced `${name}` — the span may omit the closing brace.
-        inner.strip_suffix('}').unwrap_or(inner)
-    } else {
-        // Unbraced `$arr(idx)` — keep the index too, so `record_var_read`
-        // (via `split_array_name`) can record the element on the array var
-        // (it normalises to the base name for the reference itself).
-        rest
-    };
-    if name.is_empty() { None } else { Some(name) }
-}
-
 /// Inner content text + base offset of a wrapper token (`[…]` /
 /// `{…}`): the delimiter is normally a single leading byte, skipped via
 /// `content_offset` — not hardcoded, since a synthetic recovery token
@@ -3824,11 +3791,11 @@ pub(super) struct VarReadSite {
 impl VarReadSite {
     /// A read written as an ordinary `$`-substitution or expression term,
     /// whose text is already the bare name.
-    fn substituted(name: &str, span: Span) -> Self {
+    fn substituted(name: &str, span: Span, braced_literal: bool) -> Self {
         Self {
             name: name.to_owned(),
             span,
-            braced_literal: false,
+            braced_literal,
             substitution: true,
         }
     }
@@ -3903,8 +3870,10 @@ fn collect_script_command_reads(
     let head_span = cmd.argv.first().map(|t| t.span);
     for tok in &cmd.all_tokens {
         if tok.kind == tcl_lexer::TokenType::Var && Some(tok.span) != head_span {
-            if let Some(name) = var_name_from_span(source, tok.span) {
-                out.push(VarReadSite::substituted(name, tok.span));
+            if let Some((name, braced)) =
+                crate::var_refs::original_variable_reference_form(source, *tok, lexer_config)
+            {
+                out.push(VarReadSite::substituted(name, tok.span, braced));
             }
         } else if tok.kind == tcl_lexer::TokenType::Cmd {
             collect_cmd_subst_reads(source, analysis, *tok, registry, lexer_config, out);
@@ -3986,8 +3955,12 @@ fn collect_expr_reads(
         let abs = Span::new(tok.span.start() + base, tok.span.end() + base);
         match tok.kind {
             tcl_lexer::TokenType::Var => {
-                if let Some(name) = var_name_from_span(source, abs) {
-                    out.push(VarReadSite::substituted(name, abs));
+                if let Some((name, braced)) = crate::var_refs::original_variable_reference_form(
+                    source,
+                    Token { span: abs, ..tok },
+                    lexer_config,
+                ) {
+                    out.push(VarReadSite::substituted(name, abs, braced));
                 }
             }
             tcl_lexer::TokenType::Cmd => {
@@ -6468,5 +6441,37 @@ mod original_parent_purpose_tests {
                 assert_eq!(analysis.resolved_input.as_ref(), Some(&supplied));
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod original_reference_form_scope_tests {
+    use super::*;
+
+    #[test]
+    fn scope_reference_forms_keep_literal_closing_braces_and_nested_sigil_names() {
+        let source = "set {a{b}} VALUE\nputs ${a{b}}";
+        let analysis = Analyser::new().analyse(source, "tcl9.0");
+        let at = u32::try_from(source.find("${a{b}}").unwrap()).unwrap();
+        assert!(
+            analysis.global_scope.variables["a{b}"]
+                .references
+                .iter()
+                .any(|span| span.start() == at)
+        );
+
+        let source = "puts [list ${$n}]; expr {${$n} eq {VALUE}}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let config = analysis.body_lexer_config.unwrap();
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let registry = input.borrowed_context_registry().commands();
+        let mut reads = Vec::new();
+        for command in crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+        {
+            collect_script_command_reads(source, &analysis, &command, registry, config, &mut reads);
+        }
+        let sigils: Vec<_> = reads.iter().filter(|read| read.name == "$n").collect();
+        assert_eq!(sigils.len(), 2);
+        assert!(sigils.iter().all(|read| read.braced_literal));
     }
 }

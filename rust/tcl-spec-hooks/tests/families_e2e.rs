@@ -271,9 +271,9 @@ on_both_engines! {
              reject {only the bare form is allowed in an event body}\n}\n",
         ));
         let gate = pack_hooks::context_gate_fn(slot).expect("a gate thunk");
-        assert_eq!(gate(&["value"], false), None, "silence allows the call");
+        assert_eq!(gate(InvocationArguments::Literals(&["value"]), false), None, "silence allows the call");
         assert_eq!(
-            gate(&["value"], true),
+            gate(InvocationArguments::Literals(&["value"]), true),
             Some("only the bare form is allowed in an event body")
         );
         pack_hooks::clear_host();
@@ -700,7 +700,7 @@ on_both_engines! {
     fn a_state_transition_body_emits_alias_facts_only(host) {
         use tcl_registry::state_transition::{
             AliasWords, CallerFrameSelection, StateTransition, TransitionSubject, VariableAliasTarget,
-            VariableCellAliasTransition,
+            VariableAliasDestination, VariableCellAliasTransition,
         };
         let literal = |word: &str| TransitionSubject::Literal(word.to_owned());
         let slot = one_hook(host, HookProgram::new(
@@ -726,6 +726,7 @@ on_both_engines! {
         assert_eq!(
             facts[0],
             &StateTransition::VariableCellAlias(VariableCellAliasTransition {
+                destination: VariableAliasDestination::CurrentNamespaceOrLocal,
                 local: literal("sum"),
                 target: VariableAliasTarget::CallerSelectedFrame {
                     frame: CallerFrameSelection::Explicit(literal("#0")),
@@ -741,6 +742,7 @@ on_both_engines! {
         assert_eq!(
             facts[1],
             &StateTransition::VariableCellAlias(VariableCellAliasTransition {
+                destination: VariableAliasDestination::CurrentNamespaceOrLocal,
                 local: literal("count"),
                 target: VariableAliasTarget::CurrentNamespace {
                     variable: literal("::app::count"),

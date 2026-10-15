@@ -18997,38 +18997,29 @@ impl Backend {
             .await
             .unwrap_or_default()
         };
-        let mut out = Vec::new();
-        for call in unresolved {
-            // Resolve the callee head against the index, preferring
-            // the analyser's resolved qualified name when present.
-            let Some((target_uri, qualified, name_span, detail)) = ({
-                let index = self.workspace_index.read().await;
-                let mut found = None;
-                for key in [
-                    call.resolved_qualified_name.as_deref(),
-                    Some(call.name.as_str()),
-                ]
-                .into_iter()
-                .flatten()
-                {
-                    if let Some(p) = index.proc_definitions(key, current_uri.as_str()).first() {
-                        found = Some((
-                            p.uri.clone(),
-                            p.qualified_name.clone(),
-                            p.name_span,
-                            Some(format!("({} params)", p.param_count)),
-                        ));
-                        break;
-                    }
-                    if let Some(c) = index.class_definitions(key, current_uri.as_str()).first() {
-                        found = Some((c.uri.clone(), c.qualified_name.clone(), c.name_span, None));
-                        break;
-                    }
-                }
-                found
-            }) else {
+        let mut out: Vec<CallHierarchyOutgoingCall> = Vec::new();
+        for occurrence in unresolved
+            .into_iter()
+            .flat_map(|call| call.logical_occurrences)
+        {
+            let Some(request) = occurrence.candidates else {
                 continue;
             };
+            let selected = {
+                let index = self.workspace_index.read().await;
+                let candidates = index.logical_command_candidates(&request, current_uri.as_str());
+                let [candidate] = candidates.as_slice() else {
+                    continue;
+                };
+                candidate.clone()
+            };
+            let target_image = selected.clone();
+            let (target_uri, qualified, name_span, detail) = (
+                selected.uri().to_owned(),
+                selected.qualified_name().to_owned(),
+                selected.name_span(),
+                selected.detail().map(str::to_owned),
+            );
             // Convert the sibling definition's name span to a range
             // against that document's source.
             let Ok(parsed) = Uri::from_str(&target_uri) else {
@@ -19037,6 +19028,15 @@ impl Backend {
             let Some(target_doc) = self.read_document(&parsed).await else {
                 continue;
             };
+            if !target_image.matches_source(&target_doc.text)
+                || !self
+                    .workspace_index
+                    .read()
+                    .await
+                    .logical_command_candidate_is_current(&target_image)
+            {
+                continue;
+            }
             let line_index = target_doc.line_index.clone();
             let start = line_index.position_at_utf16(name_span.start(), &target_doc.text);
             let end = line_index.position_at_utf16(name_span.end(), &target_doc.text);
@@ -19050,7 +19050,7 @@ impl Backend {
                     character: end.character.get(),
                 },
             };
-            out.push(CallHierarchyOutgoingCall {
+            let outgoing = CallHierarchyOutgoingCall {
                 to: CallHierarchyItem {
                     name: qualified,
                     kind: SymbolKind::FUNCTION,
@@ -19061,8 +19061,16 @@ impl Backend {
                     selection_range: name_range,
                     data: None,
                 },
-                from_ranges: call.from_ranges.into_iter().map(lift_lsp_range).collect(),
-            });
+                from_ranges: vec![lift_lsp_range(occurrence.range)],
+            };
+            if let Some(previous) = out.iter_mut().find(|previous| {
+                previous.to.uri == outgoing.to.uri
+                    && previous.to.selection_range == outgoing.to.selection_range
+            }) {
+                previous.from_ranges.extend(outgoing.from_ranges);
+            } else {
+                out.push(outgoing);
+            }
         }
         out
     }
