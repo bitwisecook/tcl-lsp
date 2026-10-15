@@ -728,6 +728,7 @@ impl Frame {
         }
     }
 
+    #[cfg(test)]
     fn namespace_stale_message(
         &self,
         current_namespace: &tcl_core_types::ByteNamespacePath,
@@ -2426,6 +2427,7 @@ impl Vm {
 
     /// Validate every frozen activation before a coroutine is resumed or
     /// parked. A current handler/finally frame must not hide a stale ancestor.
+    #[cfg(test)]
     pub(crate) fn activation_stack_stale_message(
         &self,
         acts: &[Frame],
@@ -3358,7 +3360,13 @@ impl Vm {
         }
         if c.code == Code::Return && self.uses_jim_error_stack() {
             c.code = self.jim_errors.pending_return.settle_procedure(c.code);
-            c.options = self.jim_return_options(c.code);
+            c.options = match self.jim_return_options(c.code) {
+                Ok(options) => options,
+                Err(error) => {
+                    *c = crate::command::completion_from_cmd_error(self, error);
+                    return;
+                }
+            };
         } else if c.code == Code::Return
             && matches!(
                 c.option_origin,
@@ -7994,17 +8002,6 @@ impl Vm {
     ) -> Result<Option<Tick>, Completion<Value>> {
         let context = self.current_namespace_execution_context();
         self.dispatch_words_entry_in_context(f, words, entered, &context, usage, false)
-    }
-
-    fn dispatch_words_selected_at(
-        &mut self,
-        f: &mut Frame,
-        words: &crate::NativeListItems,
-        entered: Option<&EnteredCommand>,
-        context: tcl_core_types::NsId,
-        usage: &[crate::command::NativeArgumentUsageRewrite],
-    ) -> Result<Option<Tick>, Completion<Value>> {
-        self.dispatch_words_entry_at(f, words, entered, context, usage, false)
     }
 
     fn dispatch_words_entry_at(

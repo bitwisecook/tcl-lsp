@@ -22542,40 +22542,99 @@ impl Vm {
 
     /// Capture live private state independently of the latest command's options.
     pub(crate) fn jim_return_receipt(
-        &self,
-    ) -> tcl_runtime_api::jim_return_state::JimReturnReceipt<Value> {
-        tcl_runtime_api::jim_return_state::JimReturnReceipt {
-            pending: self.jim_errors.pending_return,
-            error_code: self.get_var_bytes(b"::errorCode"),
-            stack_trace: self.jim_stacktrace(),
+        &mut self,
+    ) -> Result<tcl_runtime_api::jim_return_state::JimReturnReceipt<Value>, tcl_cmd_core::CmdError>
+    {
+        let operation = native_operation_currency::NativeOperationScope::enter(self)?;
+        let error_code = self.read_original_jim_global_error_code().map_err(|_| {
+            self.execution_refusal.clone().map_or_else(
+                || {
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "original Jim global error-code receipt",
+                    )
+                    .into()
+                },
+                tcl_cmd_core::CmdError::from_execution_refusal,
+            )
+        })?;
+        operation.check(self)?;
+        if let Some(value) = &error_code {
+            native_numeric_ops::OriginalNumericOps::in_original_scope(self, &operation)?
+                .current_for_value(value)?;
         }
+        let error_code = error_code.map(Value::into_native_reference);
+        operation.check(self)?;
+        if let Some(value) = &error_code {
+            native_numeric_ops::OriginalNumericOps::in_original_scope(self, &operation)?
+                .current_for_value(value)?;
+        }
+        operation.check(self)?;
+        self.jim_return_receipt_with_captured_error_code(error_code, &operation)
+    }
+
+    /// An earlier reached catch/try getter already selected this exact value.
+    /// Building its options must not perform another global-name lookup.
+    fn jim_return_receipt_with_captured_error_code(
+        &mut self,
+        error_code: Option<Value>,
+        operation: &native_operation_currency::NativeOperationScope,
+    ) -> Result<tcl_runtime_api::jim_return_state::JimReturnReceipt<Value>, tcl_cmd_core::CmdError>
+    {
+        operation.check(self)?;
+        let stack_trace = self.jim_stacktrace();
+        {
+            let objects =
+                native_numeric_ops::OriginalNumericOps::in_original_scope(self, operation)?;
+            if let Some(value) = &error_code {
+                objects.current_for_value(value)?;
+            }
+            objects.current_for_value(&stack_trace)?;
+        }
+        operation.check(self)?;
+        Ok(tcl_runtime_api::jim_return_state::JimReturnReceipt {
+            pending: self.jim_errors.pending_return,
+            error_code,
+            stack_trace,
+        })
     }
 
     /// Jim catch/try options observe live private state for this raw exit code.
     pub(crate) fn current_jim_options_for_exit_code(
-        &self,
+        &mut self,
         exit: Code,
-    ) -> Result<Value, tcl_syntax::value::ValueError> {
+    ) -> Result<Value, tcl_cmd_core::CmdError> {
         if !self.uses_jim_error_stack() {
             return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                 "Jim return state",
-            ));
+            )
+            .into());
         }
-        Ok(self.jim_return_options(exit))
+        self.jim_return_options(exit)
     }
 
     pub(crate) fn current_jim_options_for_exit_code_with_error_code(
-        &self,
+        &mut self,
         exit: Code,
-        captured: Option<Value>,
-    ) -> Result<Value, tcl_syntax::value::ValueError> {
+        captured: &native_jim_lookup::OriginalJimErrorCodeCapture,
+    ) -> Result<Value, tcl_cmd_core::CmdError> {
         if !self.uses_jim_error_stack() {
             return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                 "Jim return state",
-            ));
+            )
+            .into());
         }
-        let mut receipt = self.jim_return_receipt();
-        receipt.error_code = captured;
+        let operation = native_operation_currency::NativeOperationScope::enter(self)?;
+        captured.check(self)?;
+        if !tcl_runtime_api::jim_return_state::JimReturnReceipt::<Value>::uses_error_metadata(exit)
+        {
+            let pairs = self.jim_errors.pending_return.option_pairs::<Value>(exit);
+            operation.check(self)?;
+            captured.check(self)?;
+            return Ok(Self::jim_option_pairs(pairs));
+        }
+        let original = captured.original(self)?;
+        let receipt = self.jim_return_receipt_with_captured_error_code(original, &operation)?;
+        captured.check(self)?;
         Ok(Self::jim_receipt_options(&receipt, exit))
     }
 
@@ -22583,10 +22642,18 @@ impl Vm {
         receipt: &tcl_runtime_api::jim_return_state::JimReturnReceipt<Value>,
         exit: Code,
     ) -> Value {
+        Self::jim_option_pairs(receipt.option_pairs(exit))
+    }
+
+    fn jim_option_pairs(
+        pairs: Vec<(
+            &'static [u8],
+            tcl_runtime_api::completion_options::OptionValue<Value>,
+        )>,
+    ) -> Value {
         use tcl_runtime_api::completion_options::OptionValue;
         Value::list(
-            receipt
-                .option_pairs(exit)
+            pairs
                 .into_iter()
                 .flat_map(|(key, value)| {
                     [
@@ -22601,8 +22668,11 @@ impl Vm {
         )
     }
 
-    pub(crate) fn jim_return_options(&self, exit: Code) -> Value {
-        Self::jim_receipt_options(&self.jim_return_receipt(), exit)
+    pub(crate) fn jim_return_options(
+        &mut self,
+        exit: Code,
+    ) -> Result<Value, tcl_cmd_core::CmdError> {
+        Ok(Self::jim_receipt_options(&self.jim_return_receipt()?, exit))
     }
 
     pub(crate) fn uses_jim_error_stack(&self) -> bool {
@@ -23699,7 +23769,7 @@ impl Vm {
             return Err(TclError::from_completion(Completion::new(
                 Code::Error,
                 context.result_object(),
-                options?,
+                options.map_err(|error| crate::command::completion_option_failure(self, error))?,
             )));
         }
         let materialized = if let Some(scope) = scope {
@@ -24006,7 +24076,7 @@ impl Vm {
         let options = if self.uses_jim_error_stack() {
             match self.current_jim_options_for_exit_code(Code::Error) {
                 Ok(options) => options,
-                Err(error) => return error.into(),
+                Err(error) => return crate::command::completion_option_failure(self, error),
             }
         } else {
             let code = self.apply_primitive_error_code(update);

@@ -87,7 +87,7 @@ struct TryPlan {
     deferred_clauses: Option<Vec<Value>>,
     ignored_codes: Vec<i64>,
     ignored_body: bool,
-    body_error_code: Option<Value>,
+    body_error_code: Option<Rc<crate::interp::native_jim_lookup::OriginalJimErrorCodeCapture>>,
 }
 
 /// Which phase of a `try` an explicit-stack activation is running, and the
@@ -183,7 +183,7 @@ fn bind_handler_vars(
     result: &Value,
     opts: &Value,
     body_code: Code,
-    captured_error_code: Option<Value>,
+    captured_error_code: Option<&crate::interp::native_jim_lookup::OriginalJimErrorCodeCapture>,
 ) -> Result<(), Completion<Value>> {
     let names = ValueOps::list_elements(vm, vars)
         .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
@@ -195,25 +195,52 @@ fn bind_handler_vars(
     // base `x` is a scalar (`can't set "x(y)": variable isn't array`), which C's
     // `handlerFailed` turns into the handler outcome, skipping the body.
     if let Some(rv) = names.first() {
-        let name = ValueOps::native_string_bytes(vm, rv)
-            .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
+        let name = if policy.recipe().is_jim084() {
+            let captured = captured_error_code.ok_or_else(|| {
+                vm.refuse_host_command("original Jim error-code capture is unavailable".into())
+            })?;
+            vm.native_name_operand_bytes_checked_using(rv, &|vm| captured.check(vm))
+                .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?
+        } else {
+            ValueOps::native_string_bytes(vm, rv)
+                .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?
+        };
         if !(policy.recipe().is_jim084() && name.is_empty())
-            && let Err(e) = vm.set_var_bytes(&name, result.clone())
+            && let Err(e) = if policy.recipe().is_jim084() {
+                vm.store_original_named_variable(rv, result.clone())
+            } else {
+                vm.set_var_bytes(&name, result.clone())
+            }
         {
             return Err(e);
         }
     }
     if let Some(ov) = names.get(1) {
-        let name = ValueOps::native_string_bytes(vm, ov)
-            .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
+        let name = if policy.recipe().is_jim084() {
+            let captured = captured_error_code.ok_or_else(|| {
+                vm.refuse_host_command("original Jim error-code capture is unavailable".into())
+            })?;
+            vm.native_name_operand_bytes_checked_using(ov, &|vm| captured.check(vm))
+                .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?
+        } else {
+            ValueOps::native_string_bytes(vm, ov)
+                .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?
+        };
         if !(policy.recipe().is_jim084() && name.is_empty()) {
             let options = if policy.recipe().is_jim084() {
-                vm.current_jim_options_for_exit_code_with_error_code(body_code, captured_error_code)
-                    .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?
+                let captured = captured_error_code.ok_or_else(|| {
+                    vm.refuse_host_command("original Jim error-code capture is unavailable".into())
+                })?;
+                vm.current_jim_options_for_exit_code_with_error_code(body_code, captured)
+                    .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?
             } else {
                 opts.clone()
             };
-            vm.set_var_bytes(&name, options)?;
+            if policy.recipe().is_jim084() {
+                vm.store_original_named_variable(ov, options)?;
+            } else {
+                vm.set_var_bytes(&name, options)?;
+            }
         }
     }
     Ok(())
@@ -577,7 +604,9 @@ fn cmd_try(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return crate::command::native_wrong_arguments_message(vm, USAGE);
     };
     let (handlers, finally, deferred_clauses) = if jim {
-        if let Err(error) = vm.set_var_bytes(b"::errorCode", Value::string("NONE")) {
+        if let Err(error) = vm.reset_original_jim_global_error_code()
+            && vm.refused_completion().is_some()
+        {
             return error;
         }
         (Vec::new(), None, Some(rest.to_vec()))
@@ -658,12 +687,33 @@ pub(crate) fn advance_try(vm: &mut Vm, state: TryState, c: Completion<Value>) ->
 /// The body just completed as `body_comp`: match a handler (if any), bind its
 /// variables, and either push it as the next phase or fall through to
 /// [`finish_body_or_handler`].
-fn advance_after_body(vm: &mut Vm, plan: &Rc<TryPlan>, body_comp: Completion<Value>) -> TryOutcome {
+fn advance_after_body(
+    vm: &mut Vm,
+    plan: &Rc<TryPlan>,
+    mut body_comp: Completion<Value>,
+) -> TryOutcome {
     if let Some(refusal) = vm.refused_completion() {
         return TryOutcome::Deliver(refusal);
     }
     if let Some(clauses) = &plan.deferred_clauses {
-        let captured_error_code = vm.get_var_bytes(b"::errorCode");
+        let captured_error_code = match vm.capture_original_jim_error_code() {
+            Ok(value) => Rc::new(value),
+            Err(error) => {
+                return TryOutcome::Deliver(crate::command::completion_from_cmd_error(vm, error));
+            }
+        };
+        // The reached quiet getter can publish its own dictionary diagnostic.
+        // Jim binds the message from the actual result after that getter.
+        body_comp.result =
+            match vm.with_native_interp_result(|result| result.native_lifetime_lease()) {
+                Ok(value) => value.into_value(),
+                Err(error) => {
+                    return TryOutcome::Deliver(crate::command::completion_from_cmd_error(
+                        vm,
+                        error.into(),
+                    ));
+                }
+            };
         let (handlers, finally) = match parse_clauses(vm, clauses, Some(body_comp.code)) {
             Ok(parsed) => parsed,
             Err(error) => return TryOutcome::Deliver(error),
@@ -675,7 +725,7 @@ fn advance_after_body(vm: &mut Vm, plan: &Rc<TryPlan>, body_comp: Completion<Val
             deferred_clauses: None,
             ignored_codes: plan.ignored_codes.clone(),
             ignored_body: plan.ignored_codes.contains(&body_comp.code.as_int()),
-            body_error_code: captured_error_code,
+            body_error_code: Some(captured_error_code),
         });
         return advance_after_body(vm, &parsed, body_comp);
     }
@@ -687,9 +737,19 @@ fn advance_after_body(vm: &mut Vm, plan: &Rc<TryPlan>, body_comp: Completion<Val
     if vm.exit_pending() {
         return TryOutcome::Deliver(body_comp);
     }
-    let errorcode = if plan.jim {
-        plan.body_error_code.clone().unwrap_or_else(Value::empty)
-    } else if body_comp.code == Code::Error {
+    let errorcode = if plan.jim && plan.handlers.iter().any(|handler| handler.is_trap) {
+        let Some(captured) = &plan.body_error_code else {
+            return TryOutcome::Deliver(
+                vm.refuse_host_command("original Jim error-code capture is unavailable".into()),
+            );
+        };
+        match captured.original(vm) {
+            Ok(value) => value.unwrap_or_else(Value::empty),
+            Err(error) => {
+                return TryOutcome::Deliver(crate::command::completion_from_cmd_error(vm, error));
+            }
+        }
+    } else if body_comp.code == Code::Error && !plan.jim {
         match crate::command::resolved_error_code(vm, &body_comp) {
             Ok(value) => value,
             Err(error) => {
@@ -702,18 +762,8 @@ fn advance_after_body(vm: &mut Vm, plan: &Rc<TryPlan>, body_comp: Completion<Val
     // The body's options dict (bound to a handler's optionsVar and reused as the
     // `-during` chain link if a handler/finally throws over the body's exception).
     let body_opts = if plan.jim {
-        match vm.current_jim_options_for_exit_code_with_error_code(
-            body_comp.code,
-            plan.body_error_code.clone(),
-        ) {
-            Ok(options) => options,
-            Err(error) => {
-                return TryOutcome::Deliver(crate::command::completion_from_cmd_error(
-                    vm,
-                    error.into(),
-                ));
-            }
-        }
+        // Original Jim constructs options only at a reached options-variable bind.
+        Value::empty()
     } else {
         match vm.completion_options_snapshot(&body_comp) {
             Ok(value) => value,
@@ -726,7 +776,11 @@ fn advance_after_body(vm: &mut Vm, plan: &Rc<TryPlan>, body_comp: Completion<Val
     for (index, handler) in plan.handlers.iter().enumerate() {
         let applies = if handler.is_trap
             && (plan.jim || body_comp.code == Code::Error)
-            && (!plan.jim || plan.body_error_code.is_some())
+            && (!plan.jim
+                || plan
+                    .body_error_code
+                    .as_ref()
+                    .is_some_and(|capture| capture.has_original()))
         {
             match errorcode_prefix_match(vm, &handler.pattern, &errorcode) {
                 Ok(applies) => applies,
@@ -765,7 +819,7 @@ fn enter_matched_handler(
         &body_comp.result,
         &body_opts,
         body_comp.code,
-        plan.body_error_code.clone(),
+        plan.body_error_code.as_deref(),
     ) {
         Ok(()) => {
             // The body's exception is now handled: publish `errorInfo`/
@@ -820,16 +874,7 @@ fn enter_matched_handler(
         // A failed var bind also chains to the body (C's `handlerFailed`).
         Err(mut e) => {
             if plan.jim {
-                let options = match vm.current_jim_options_for_exit_code(body_comp.code) {
-                    Ok(options) => options,
-                    Err(error) => {
-                        return TryOutcome::Deliver(crate::command::completion_from_cmd_error(
-                            vm,
-                            error.into(),
-                        ));
-                    }
-                };
-                e = Completion::new(body_comp.code, e.result, options);
+                e.code = body_comp.code;
             }
             if e.code == Code::Error && !plan.jim {
                 let options = match vm.completion_options_snapshot(&e) {
@@ -889,17 +934,7 @@ fn finish_body_or_handler(
     if let Some(refusal) = vm.refused_completion() {
         return TryOutcome::Deliver(refusal);
     }
-    if plan.jim {
-        outcome.options = match vm.current_jim_options_for_exit_code(outcome.code) {
-            Ok(options) => options,
-            Err(error) => {
-                return TryOutcome::Deliver(crate::command::completion_from_cmd_error(
-                    vm,
-                    error.into(),
-                ));
-            }
-        };
-    } else if outcome.code == Code::Error {
+    if outcome.code == Code::Error && !plan.jim {
         outcome.options = match vm.completion_options_snapshot(&outcome) {
             Ok(value) => value,
             Err(error) => {
@@ -967,14 +1002,10 @@ fn advance_after_finally(
         } else {
             fc.result
         };
-        let options = match vm.current_jim_options_for_exit_code(raw) {
-            Ok(options) => options,
-            Err(error) => {
-                return TryOutcome::Deliver(crate::command::completion_from_cmd_error(
-                    vm,
-                    error.into(),
-                ));
-            }
+        let options = if !plan.ignored_body && fc.code == Code::Ok {
+            outcome.options
+        } else {
+            fc.options
         };
         return TryOutcome::Deliver(Completion::new(raw, result, options));
     }

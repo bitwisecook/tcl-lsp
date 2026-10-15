@@ -366,6 +366,30 @@ impl OriginalNameConsumerScope {
 }
 
 impl ParkedOriginalNameConsumerScope {
+    /// Observe saved currency and caller state without entering or resuming work.
+    pub(crate) fn check(&self, vm: &mut Vm) -> Result<(), CmdError> {
+        self.currency.check(vm)?;
+        self.state.check_using(vm, false, |vm, current, purpose| {
+            self.currency.check(vm)?;
+            if !current {
+                let cause = NativeExecutionError::ValueAccessRefusal(
+                    NativeValueAccessRefusal::CommandProtocolUnavailable(purpose),
+                );
+                vm.retain_tcl_host_failure(TclHostFailure::Execution(cause));
+            }
+            self.currency.check(vm)
+        })
+    }
+
+    pub(crate) fn current_for_value(&self, vm: &mut Vm, value: &Value) -> Result<(), CmdError> {
+        self.check(vm)?;
+        if let Err(refusal) = value.original_native_header_currentness() {
+            return Err(CmdError::from_execution_refusal(
+                vm.retain_tcl_host_failure(TclHostFailure::ValueAccess(refusal)),
+            ));
+        }
+        self.check(vm)
+    }
     pub(crate) fn currency(&self) -> &NativeOperationCurrency {
         &self.currency
     }

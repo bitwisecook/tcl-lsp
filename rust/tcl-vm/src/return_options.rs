@@ -459,7 +459,7 @@ mod tests {
             ReturnOptionsPurpose::User,
         );
         assert_eq!(result.code, Code::Return);
-        let receipt = vm.jim_return_receipt();
+        let receipt = vm.jim_return_receipt().unwrap();
         assert_eq!(receipt.pending.level, 3);
         assert!(receipt.stack_trace.is_same_object(&trace));
         assert!(receipt.error_code.unwrap().is_same_object(&error_code));

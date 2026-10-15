@@ -217,7 +217,7 @@ impl Vm {
         match result {
             Ok((code, result)) => match self.current_jim_options_for_exit_code(code) {
                 Ok(options) => Completion::new(code, result.publish(), options),
-                Err(error) => crate::command::completion_from_cmd_error(self, error.into()),
+                Err(error) => crate::command::completion_from_cmd_error(self, error),
             },
             Err(error) => crate::command::completion_from_cmd_error(self, error),
         }
@@ -317,7 +317,7 @@ impl Vm {
         match result {
             Ok((code, result)) => match self.current_jim_options_for_exit_code(code) {
                 Ok(options) => Completion::new(code, result.publish(), options),
-                Err(error) => crate::command::completion_from_cmd_error(self, error.into()),
+                Err(error) => crate::command::completion_from_cmd_error(self, error),
             },
             Err(error) => crate::command::completion_from_cmd_error(self, error),
         }

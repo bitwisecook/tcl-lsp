@@ -280,10 +280,27 @@ impl Vm {
         key: &crate::Value,
         names: &crate::interp::native_name_consumers::OriginalNameConsumerScope,
     ) -> Result<crate::Value, Completion<crate::Value>> {
+        self.read_native_jim_dictionary_member_reported(
+            name,
+            key,
+            names,
+            crate::interp::native_jim_lookup::OriginalJimVariableReport::Missing,
+            crate::interp::native_jim_lookup::OriginalJimVariableResult::Retained,
+        )
+    }
+
+    pub(crate) fn read_native_jim_dictionary_member_reported(
+        &mut self,
+        name: &crate::Value,
+        key: &crate::Value,
+        names: &crate::interp::native_name_consumers::OriginalNameConsumerScope,
+        report: crate::interp::native_jim_lookup::OriginalJimVariableReport,
+        result: crate::interp::native_jim_lookup::OriginalJimVariableResult,
+    ) -> Result<crate::Value, Completion<crate::Value>> {
         let reached = (|| -> Result<Result<crate::Value, Completion<crate::Value>>, tcl_cmd_core::CmdError> {
             names.current_for_value(self, name)?;
             names.current_for_value(self, key)?;
-            let read = self.read_original_named_variable(name);
+            let read = self.read_original_named_variable_using(name, report, result);
             names.current_for_value(self, name)?;
             let root = match read {
                 Ok(root) => root,
@@ -304,7 +321,9 @@ impl Vm {
             names.current_for_value(self, root)?;
             if converted.is_err() {
                 drop(converted);
-                return Ok(Err(self.native_jim_dictionary_read_error(name, key, true, names, root)));
+                let completion = self.native_jim_dictionary_read_error(name, key, true, names, root);
+                self.publish_quiet_jim_dictionary_read_error(&completion, report, names)?;
+                return Ok(Err(completion));
             }
             // Match the old temporary projection's native role retirement stage.
             drop(converted);
@@ -318,7 +337,9 @@ impl Vm {
             loop {
                 names.current_for_value(self, root)?;
                 let Some((candidate, value)) = self.original_jim_dictionary_stage(table.member(root, index))? else {
-                    return Ok(Err(self.native_jim_dictionary_read_error(name, key, false, names, root)));
+                    let completion = self.native_jim_dictionary_read_error(name, key, false, names, root);
+                    self.publish_quiet_jim_dictionary_read_error(&completion, report, names)?;
+                    return Ok(Err(completion));
                 };
                 let reached = names.read(self, candidate.value());
                 if let Err(error) = &reached { self.retain_original_jim_tuple_failure(error); }
@@ -327,7 +348,10 @@ impl Vm {
                 let bytes = reached?;
                 if bytes.as_ref() == key_bytes.as_ref() {
                     names.current_for_value(self, value.value())?;
-                    let retained = value.into_value().into_native_reference();
+                    let retained = match result {
+                        crate::interp::native_jim_lookup::OriginalJimVariableResult::Retained => value.into_value().into_native_reference(),
+                        crate::interp::native_jim_lookup::OriginalJimVariableResult::Borrowed => value.into_value(),
+                    };
                     self.original_jim_dictionary_stage(table.check(root))?;
                     return Ok(Ok(retained));
                 }
@@ -352,6 +376,22 @@ impl Vm {
                 Err(error) => Err(crate::command::completion_from_cmd_error(self, error)),
             },
         }
+    }
+
+    fn publish_quiet_jim_dictionary_read_error(
+        &mut self,
+        completion: &Completion<crate::Value>,
+        report: crate::interp::native_jim_lookup::OriginalJimVariableReport,
+        names: &crate::interp::native_name_consumers::OriginalNameConsumerScope,
+    ) -> Result<(), tcl_cmd_core::CmdError> {
+        if report == crate::interp::native_jim_lookup::OriginalJimVariableReport::Silent {
+            names.current_for_value(self, &completion.result)?;
+            self.adopt_native_interp_result(
+                completion.result.native_lifetime_lease().into_value(),
+            )?;
+            names.current_for_value(self, &completion.result)?;
+        }
+        Ok(())
     }
 
     fn native_jim_dictionary_read_error(

@@ -1,5 +1,9 @@
 # Current centralised naming work
 
+## VM quiet globals and original captured options
+
+The reviewed VM uses the existing original-variable owner for actual root-frame bare errorCode reads, distinct Silent diagnostics and Borrowed/Retained result purposes, strict alias/dictionary/currentness transport and neutral captured headers. Catch/Try preserve the original early capture and reached original result/options stores; nonError uses lazy shared base pairs, while generic full-state keeps its prior Native hold before stacktrace. All new Rust controls remain unexecuted. Original successful capture03 retains15cases/30rows, fresh5bac match,247unchanged inputs and original79suite; capture01 network setup and capture02 signal11 remain excluded failed captures. Complete Native/callback/reference stages, compiled parity, old unset compatibility and remaining direct setters remain unfinished.
+
 ## Generated POSIX source and shared rendering
 
 Reviewed generated-source consumers now share the single Syntax POSIX literal renderer with existing query @sh output. Package executable/path/prompt source separately checks actual selected Path, generation cwd, Unicode/NUL and PATH-component admissibility. Complete supported source is staged before create/update writes. Static POSIX activation TCLLIBPATH uses the independent list constructor before shell literal construction; jq descriptive NUL behaviour remains unchanged. Original @sh test body is byte-exact; four new Rust controls are unexecuted. Actual shell recipe evidence retains12checks and unchanged original shell identity/hash, verified36original/39outer entries; it does not execute the Rust implementation. Runtime-derived wrapper VENV/pwd newline behaviour and Tcl-list prefix, Fish/Docker, config-line encoding and empty/unset restoration remain unfinished.

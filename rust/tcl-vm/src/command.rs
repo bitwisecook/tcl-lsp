@@ -3142,9 +3142,10 @@ fn cmd_continue(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// `catch script ?resultVarName? ?optionsVarName?`.
 fn cmd_catch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     if vm.uses_jim_error_stack() {
-        let _ = vm.set_var_bytes(b"::errorCode", Value::string("NONE"));
-        if let Some(refusal) = vm.refused_completion() {
-            return refusal;
+        if let Err(error) = vm.reset_original_jim_global_error_code()
+            && vm.refused_completion().is_some()
+        {
+            return error;
         }
     }
     let dialect = vm.native_invocation_dialect();
@@ -3242,7 +3243,9 @@ impl Vm {
             return self.merged_completion_options_snapshot(comp, &options, code, level);
         }
         if self.uses_jim_error_stack() {
-            return Ok(self.jim_return_options(comp.code));
+            return self
+                .jim_return_options(comp.code)
+                .map_err(|error| completion_option_failure(self, error));
         }
         let mut carried = Vec::new();
         for (key, value) in completion_option_rows_checked(self, &comp.options)? {
@@ -3457,6 +3460,9 @@ impl Vm {
         if let Some(refused) = self.refused_completion() {
             return refused;
         }
+        if self.uses_jim_error_stack() {
+            return self.finish_original_jim_catch(comp, resvar, optvar, ignored_codes);
+        }
         let code = u32::try_from(comp.code.as_int()).ok();
         if code.is_some_and(|code| code < 64 && ignored_codes & (1_u64 << code) != 0) {
             return comp;
@@ -3492,6 +3498,80 @@ impl Vm {
         // status integer (JimCatchTryHelper's Jim_SetResultInt). A deferred
         // Script invocation reads that actual result owner after this returns;
         // the completion carries only a lifetime view of the same object.
+        match self.publish_native_interp_completion(ok(Value::int(comp.code.as_int()))) {
+            Ok(completion) => completion,
+            Err(error) => completion_from_tcl_error(self, error.into()),
+        }
+    }
+
+    fn finish_original_jim_catch(
+        &mut self,
+        mut comp: Completion<Value>,
+        resvar: Option<&Value>,
+        optvar: Option<&Value>,
+        ignored_codes: u64,
+    ) -> Completion<Value> {
+        let captured = match self.capture_original_jim_error_code() {
+            Ok(captured) => captured,
+            Err(error) => return completion_from_cmd_error(self, error),
+        };
+        comp.result = match self.with_native_interp_result(|result| result.native_lifetime_lease())
+        {
+            Ok(result) => result.into_value(),
+            Err(error) => return completion_from_cmd_error(self, error.into()),
+        };
+        let code = u32::try_from(comp.code.as_int()).ok();
+        if code.is_some_and(|code| code < 64 && ignored_codes & (1_u64 << code) != 0) {
+            return comp;
+        }
+        if self.exit_pending() {
+            if comp.code == Code::from_int(6) {
+                let _ = self.take_exit();
+            } else {
+                return comp;
+            }
+        }
+        let mut bindings_ok = true;
+        if let Some(name) = resvar {
+            let bytes = match self
+                .native_name_operand_bytes_checked_using(name, &|vm| captured.check(vm))
+            {
+                Ok(bytes) => bytes,
+                Err(error) => return completion_from_cmd_error(self, error),
+            };
+            if !bytes.is_empty()
+                && let Err(error) = self.store_original_named_variable(name, comp.result.clone())
+            {
+                if self.refused_completion().is_some() {
+                    return error;
+                }
+                bindings_ok = false;
+            }
+        }
+        if bindings_ok && let Some(name) = optvar {
+            let bytes = match self
+                .native_name_operand_bytes_checked_using(name, &|vm| captured.check(vm))
+            {
+                Ok(bytes) => bytes,
+                Err(error) => return completion_from_cmd_error(self, error),
+            };
+            if !bytes.is_empty() {
+                let options = match self
+                    .current_jim_options_for_exit_code_with_error_code(comp.code, &captured)
+                {
+                    Ok(options) => options,
+                    Err(error) => return completion_from_cmd_error(self, error),
+                };
+                if let Err(error) = self.store_original_named_variable(name, options)
+                    && self.refused_completion().is_some()
+                {
+                    return error;
+                }
+            }
+        }
+        if let Err(error) = captured.check(self) {
+            return completion_from_cmd_error(self, error);
+        }
         match self.publish_native_interp_completion(ok(Value::int(comp.code.as_int()))) {
             Ok(completion) => completion,
             Err(error) => completion_from_tcl_error(self, error.into()),

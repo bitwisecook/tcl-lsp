@@ -235,16 +235,43 @@ impl Vm {
         &self,
         original: &Value,
     ) -> Option<(crate::value::NativeObjectLifetimeLease, usize)> {
-        let raw = self.current_jim_variable_cell(original).ok()??;
-        let Local::NameLink(link) = self.var_arena.get(raw)?.state() else {
-            return None;
+        self.original_jim_alias_target_checked(original)
+            .ok()
+            .flatten()
+    }
+
+    pub(super) fn original_jim_alias_target_checked(
+        &self,
+        original: &Value,
+    ) -> Result<
+        Option<(crate::value::NativeObjectLifetimeLease, usize)>,
+        tcl_syntax::value::ValueError,
+    > {
+        let Some(raw) = self.current_jim_variable_cell(original)? else {
+            return Ok(None);
         };
-        let target = link.original_target.as_ref()?;
+        let Some(cell) = self.var_arena.get(raw) else {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "original Jim alias cell",
+            ));
+        };
+        let Local::NameLink(link) = cell.state() else {
+            return Ok(None);
+        };
+        let target = link.original_target.as_ref().ok_or(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "original Jim alias target object",
+            ),
+        )?;
         let level = self
             .frames
             .iter()
-            .position(|frame| frame.jim_storage.matches(&target.frame))?;
-        Some((target.name.native_lifetime_lease(), level))
+            .position(|frame| frame.jim_storage.matches(&target.frame))
+            .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "original Jim alias target frame",
+            ))?;
+        target.name.check_native_header()?;
+        Ok(Some((target.name.native_lifetime_lease(), level)))
     }
     pub(crate) fn unset_original_named_variable(
         &mut self,
@@ -296,16 +323,25 @@ impl Vm {
         original: &Value,
         target: &Value,
         level: usize,
+        report: super::native_jim_lookup::OriginalJimVariableReport,
+        result: super::native_jim_lookup::OriginalJimVariableResult,
     ) -> Result<Value, Completion<Value>> {
         let original_names =
             crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(self)
                 .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
         let reached = (|| {
-            let frame = self.select_execution_frame(level).map_err(super::err)?;
-            let result = self.read_original_named_variable(target);
+            let frame = self
+                .select_execution_frame_checked(level)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+            let result = self.read_original_named_variable_using(target, report, result);
             self.restore_execution_frame(frame);
             match result {
                 Err(error) if self.refused_completion().is_some() => Err(error),
+                Err(error)
+                    if report == super::native_jim_lookup::OriginalJimVariableReport::Silent =>
+                {
+                    Err(error)
+                }
                 Err(_) => {
                     let bytes = original_names
                         .read(self, original)
@@ -335,9 +371,19 @@ impl Vm {
         level: usize,
         value: Value,
     ) -> Result<Value, Completion<Value>> {
-        let frame = self.select_execution_frame(level).map_err(super::err)?;
+        let caller = super::native_name_consumers::OriginalNameConsumerScope::enter(self)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        caller
+            .current_for_value(self, target)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        let frame = self
+            .select_execution_frame_checked(level)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error.into()))?;
         let result = self.store_original_named_variable(target, value);
         self.restore_execution_frame(frame);
+        caller
+            .check(self)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
         result
     }
 }
