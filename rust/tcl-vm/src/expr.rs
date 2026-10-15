@@ -1104,7 +1104,7 @@ impl ExprOps for ExprEval<'_> {
             // `invalid command name "tcl::mathfunc::frobnicate"`).
             let message = format!("invalid command name \"{name}\"");
             return Err(
-                if self.vm.runtime_version().has_command_lookup_error_codes() {
+                if self.vm.runtime_version().has_lookup_error_code("COMMAND") {
                     TclError::with_error_code(message, format!("TCL LOOKUP COMMAND {name}"))
                 } else {
                     TclError::new(message)

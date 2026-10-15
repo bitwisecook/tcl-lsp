@@ -697,28 +697,6 @@ impl TclVersion {
         !matches!(self, Self::V8_4 | Self::V8_5)
     }
 
-    /// Whether builtins set any errorCode of the `TCL` family. 8.4's sources
-    /// set none (`Tcl_SetErrorCode(interp, "TCL", …)` first appears in 8.5).
-    #[must_use]
-    pub const fn has_tcl_error_codes(self) -> bool {
-        !matches!(self, Self::V8_4)
-    }
-
-    /// Whether `wrong # args` carries `TCL WRONGARGS` (8.6). Measured:
-    /// `catch set; set errorCode` is `NONE` on tclsh 8.4.20 and 8.5.19.
-    #[must_use]
-    pub const fn has_wrong_args_error_codes(self) -> bool {
-        !matches!(self, Self::V8_4 | Self::V8_5)
-    }
-
-    /// Whether a value refused for its form carries a `TCL VALUE` code other
-    /// than `TCL VALUE NUMBER` (`TCL VALUE INDEX`, `TCL VALUE INTEGER`, …),
-    /// which 8.6 adds. Measured: `lindex {a} x` leaves `NONE` on 8.5.19.
-    #[must_use]
-    pub const fn has_value_error_codes(self) -> bool {
-        !matches!(self, Self::V8_4 | Self::V8_5)
-    }
-
     /// How a math function called with too few arguments says so: `too
     /// few` through 8.5, `not enough` from 8.6.
     #[must_use]
@@ -738,11 +716,54 @@ impl TclVersion {
         matches!(self, Self::V8_4 | Self::V8_5 | Self::V8_6)
     }
 
-    /// Whether a missing dictionary key carries `TCL LOOKUP DICT <key>`
-    /// (8.6). Measured: `dict get {a 1} b` leaves `NONE` on tclsh 8.5.19.
+    /// Whether builtins set the errorCode `TCL <family> <detail> …`. 8.4's
+    /// sources set no `TCL` code; 8.5's set `TCL LOOKUP` for the kinds
+    /// [`Self::has_lookup_error_code`] lists, `TCL VALUE NUMBER`, `TCL
+    /// IDELETE` and `TCL API_ABUSE`, and none of `TCL WRONGARGS`, `TCL PARSE`,
+    /// `TCL UPVAR` or the other `TCL VALUE` codes, which 8.6 adds. Measured:
+    /// `catch set`, `expr {1 +}`, `lindex {a} x` and an `upvar` onto an
+    /// existing local leave `NONE` on tclsh 8.4.20 and 8.5.19.
     #[must_use]
-    pub const fn has_dict_lookup_error_codes(self) -> bool {
-        !matches!(self, Self::V8_4 | Self::V8_5)
+    pub fn has_tcl_error_code(self, family: &str, detail: Option<&str>) -> bool {
+        match self {
+            Self::V8_4 => false,
+            Self::V8_5 => match (family, detail) {
+                ("LOOKUP", Some(kind)) => self.has_lookup_error_code(kind),
+                ("VALUE", Some("NUMBER")) | ("IDELETE" | "API_ABUSE", _) => true,
+                _ => false,
+            },
+            Self::V8_6 | Self::V9_0 | Self::V9_1 => true,
+        }
+    }
+
+    /// Whether a failed lookup of `kind` carries `TCL LOOKUP <kind> …`. 8.5
+    /// sets it for an ensemble, index, namespace, alias, package, channel,
+    /// interpreter, encoding, array search or variable lookup, and not for a
+    /// command, dictionary key or variable name, which 8.6 adds. Measured:
+    /// `dict get {a 1} b` and `upvar 0 nosuch::x y` leave `NONE` on tclsh
+    /// 8.5.19 and set `TCL LOOKUP DICT b` and `TCL LOOKUP VARNAME
+    /// nosuch::x` on 8.6.18.
+    #[must_use]
+    pub fn has_lookup_error_code(self, kind: &str) -> bool {
+        match self {
+            Self::V8_4 => false,
+            Self::V8_5 => matches!(
+                kind,
+                "SUBCOMMAND"
+                    | "INDEX"
+                    | "NAMESPACE"
+                    | "ALIAS"
+                    | "PACKAGE"
+                    | "ENSEMBLE"
+                    | "CHANNEL"
+                    | "VARIABLE"
+                    | "INTERP"
+                    | "ENCODING"
+                    | "ELEMENT"
+                    | "ARRAYSEARCH"
+            ),
+            Self::V8_6 | Self::V9_0 | Self::V9_1 => true,
+        }
     }
 
     /// Whether any builtin dispatches its subcommands as an ensemble
@@ -762,22 +783,6 @@ impl TclVersion {
         } else {
             "?arg ...?"
         }
-    }
-
-    /// Whether `invalid command name` carries `TCL LOOKUP COMMAND <name>`
-    /// (8.6). Measured: `catch nosuch; set errorCode` is `NONE` on tclsh
-    /// 8.4.20 and 8.5.19.
-    #[must_use]
-    pub const fn has_command_lookup_error_codes(self) -> bool {
-        !matches!(self, Self::V8_4 | Self::V8_5)
-    }
-
-    /// Whether an `expr` syntax error carries `TCL PARSE EXPR <detail>`
-    /// (8.6). Measured: `expr {1 +}` leaves `NONE` on tclsh 8.4.20 and
-    /// 8.5.19.
-    #[must_use]
-    pub const fn has_expr_parse_error_codes(self) -> bool {
-        !matches!(self, Self::V8_4 | Self::V8_5)
     }
 
     /// Whether an operand `expr` cannot use carries `ARITH DOMAIN <desc>`

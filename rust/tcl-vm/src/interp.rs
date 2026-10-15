@@ -2692,7 +2692,7 @@ impl Vm {
     /// name`, matching C's miss. Requires a compiler (uses `eval_source`); call
     /// after [`Self::set_compiler`]. Returns the bootstrap's completion.
     pub fn init_auto_load(&mut self) -> Completion<Value> {
-        let errorcode = if self.runtime_version.has_command_lookup_error_codes() {
+        let errorcode = if self.runtime_version.has_lookup_error_code("COMMAND") {
             "-errorcode [list TCL LOOKUP COMMAND $cmd]"
         } else {
             ""
@@ -13071,7 +13071,11 @@ impl Vm {
         if self.runtime_version.parses_expressions_classically()
             && let Some(error) = tcl_syntax::expr::classic::check(src)
         {
-            return Err(TclError::with_error_code(error.message, error.error_code));
+            return Err(if error.error_code == "NONE" {
+                TclError::new(error.message)
+            } else {
+                TclError::with_error_code(error.message, error.error_code)
+            });
         }
         let node = parse_expr(src, Some(self.runtime_version.dialect_name()));
         if matches!(node, tcl_syntax::expr::ExprNode::Raw { .. }) {
@@ -13121,7 +13125,10 @@ impl Vm {
     /// An `expr` syntax error, with its `TCL PARSE EXPR` errorCode on the
     /// releases that set one.
     fn expr_parse_error(&self, message: String, code: String) -> TclError {
-        if self.runtime_version.has_expr_parse_error_codes() {
+        if self
+            .runtime_version
+            .has_tcl_error_code("PARSE", Some("EXPR"))
+        {
             TclError::with_error_code(message, code)
         } else {
             TclError::new(message)

@@ -887,7 +887,10 @@ pub fn parse(s: &str, flags: ParseFlags) -> Option<Parsed> {
     // overflowing — e.g. magnitudes in `(i64::MAX, u64::MAX]`).
     let number = match (scan.overflow, to_i64(scan.magnitude, negative)) {
         (false, Some(v)) => Number::Int(v),
-        (false, None) if flags.syntax.wraps_wide_integers() => {
+        // Only an interpreter wraps: 8.4's reading depends on its host's
+        // `long`, so a static reader with no runtime installed keeps the
+        // value and lets its consumer decline (`runtime_release`).
+        (false, None) if flags.syntax.wraps_wide_integers() && ambient::release().is_some() => {
             let wrapped = scan.magnitude.cast_signed();
             Number::Int(if negative {
                 wrapped.wrapping_neg()

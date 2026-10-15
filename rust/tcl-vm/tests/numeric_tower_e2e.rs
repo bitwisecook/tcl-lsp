@@ -359,16 +359,22 @@ fn the_145th_draw_after_srand_1_matches_the_oracle() {
 }
 
 /// C refuses a double `srand` operand rather than truncating it; the VM used
-/// to truncate (`srand(1.5)` seeded 1) while the runtime errored.
+/// to truncate (`srand(1.5)` seeded 1) while the runtime errored. 9.0's
+/// `ExprSrandFunc` converts with a NULL interpreter, so its refusal is empty
+/// with errorCode `NONE` (tclsh 9.0.4); 8.6.18 words it.
 #[test]
 fn srand_refuses_a_non_integer_operand() {
-    both(
+    both("srand(1.5)", "err {} NONE");
+    both("srand(\"abc\")", "err {} NONE");
+    both_at_raw(
         "srand(1.5)",
         "err {expected integer but got \"1.5\"} {TCL VALUE INTEGER}",
+        tcl_dialect::TclVersion::V8_6,
     );
-    both(
+    both_at_raw(
         "srand(\"abc\")",
         "err {expected integer but got \"abc\"} {TCL VALUE NUMBER}",
+        tcl_dialect::TclVersion::V8_6,
     );
 }
 

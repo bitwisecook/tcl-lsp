@@ -63,9 +63,12 @@ fn boolean_word_prefixes_are_literals_in_every_release() {
         let ambiguous = vm
             .eval_expr("o")
             .expect_err("the shared on/off prefix remains ambiguous");
+        // `TCL PARSE EXPR` starts in 8.6; 8.4 and 8.5 leave `NONE`.
         assert_eq!(
             ambiguous.error_code.as_deref(),
-            Some("TCL PARSE EXPR BAREWORD"),
+            version
+                .has_tcl_error_code("PARSE", Some("EXPR"))
+                .then_some("TCL PARSE EXPR BAREWORD"),
             "{version:?}"
         );
     }

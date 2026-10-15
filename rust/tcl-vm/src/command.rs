@@ -1651,9 +1651,8 @@ pub(crate) fn resolved_error_code(comp: &Completion<Value>) -> Value {
     Value::string(default_error_code(&comp.result.to_str()))
 }
 
-/// Whether the emulated release's builtins set errorCode `code`: 8.4 sets
-/// no `TCL` code, and 8.5 none of `TCL WRONGARGS`, `TCL LOOKUP DICT`,
-/// `TCL LOOKUP COMMAND` or a `TCL VALUE` code but `TCL VALUE NUMBER`.
+/// Whether the emulated release's builtins set errorCode `code`
+/// ([`tcl_dialect::TclVersion::has_tcl_error_code`]).
 fn release_sets_error_code(code: &str) -> bool {
     let Some(release) = tcl_syntax::number::runtime_release() else {
         return true;
@@ -1662,14 +1661,9 @@ fn release_sets_error_code(code: &str) -> bool {
     if words.next() != Some("TCL") {
         return true;
     }
-    match (words.next(), words.next()) {
-        _ if !release.has_tcl_error_codes() => false,
-        (Some("WRONGARGS"), _) => release.has_wrong_args_error_codes(),
-        (Some("LOOKUP"), Some("DICT")) => release.has_dict_lookup_error_codes(),
-        (Some("LOOKUP"), Some("COMMAND")) => release.has_command_lookup_error_codes(),
-        (Some("VALUE"), Some("NUMBER")) => true,
-        (Some("VALUE"), _) => release.has_value_error_codes(),
-        _ => true,
+    match words.next() {
+        Some(family) => release.has_tcl_error_code(family, words.next()),
+        None => true,
     }
 }
 
