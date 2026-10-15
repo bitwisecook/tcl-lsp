@@ -12,6 +12,10 @@ use crate::{
 };
 use tcl_syntax::value::{ValueError, ValueOps};
 
+#[cfg(test)]
+#[path = "native_jim_lookup/inventory_key_tests.rs"]
+mod inventory_key_tests;
+
 #[derive(Clone, Copy)]
 pub(super) enum OriginalJimVariableReport {
     Missing,
@@ -122,6 +126,139 @@ impl Drop for JimActiveCommandScope {
     }
 }
 impl Interp {
+    pub(crate) fn original_jim_command_inventory_object(
+        &mut self,
+        root: tcl_runtime_api::NsId,
+        pattern: Option<&[u8]>,
+        include_spaces: bool,
+        kind: tcl_runtime_api::NativeJimCommandInventoryKind,
+    ) -> Result<*mut TclObj, ValueError> {
+        let scope =
+            super::native_operation_currency::NativeOperationScope::enter(self).map_err(|_| {
+                ValueError::CommandProtocolUnavailable("original Jim inventory operation")
+            })?;
+        if tcl_runtime_api::Namespaces::root_command_context_checked(self)? != Some(root)
+            || root != tcl_runtime_api::ROOT_NS
+        {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "original Jim inventory selected table",
+            ));
+        }
+        let namespace = OriginalJimLookupNamespace::capture(self, crate::namespace::GLOBAL)?;
+        let caller_namespace = self.current_ns();
+        let revision = self
+            .namespaces()
+            .guard_lookup_environment_revision()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "original Jim inventory table revision",
+            ))?;
+        let check = || -> Result<(), ValueError> {
+            scope.currency().ensure_current_or_refuse().map_err(|_| {
+                ValueError::CommandProtocolUnavailable("original Jim inventory operation")
+            })?;
+            namespace.check(self)?;
+            if self.current_ns() != caller_namespace {
+                return Err(ValueError::CommandProtocolUnavailable(
+                    "original Jim inventory caller namespace",
+                ));
+            }
+            if self.namespaces().guard_lookup_environment_revision() != Some(revision) {
+                return Err(ValueError::CommandProtocolUnavailable(
+                    "original Jim inventory changed table",
+                ));
+            }
+            Ok(())
+        };
+        check()?;
+        let keys = self
+            .namespaces()
+            .original_jim_command_inventory_keys(kind, &|command, generation| {
+                self.command_visible_for_surface_at(command, Some(generation))
+            })?;
+        let policy = self
+            .name_policy_protocol()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "original Jim inventory naming issuer",
+            ))?;
+        let reports = keys
+            .iter()
+            .map(|key| key.report.clone())
+            .collect::<Vec<_>>();
+        let reached = policy
+            .recipe()
+            .jim_core_command_reached_ordinals(pattern, &reports)
+            .map_err(|_| {
+                ValueError::CommandProtocolUnavailable("original Jim inventory table selection")
+            })?;
+        let keys = reached
+            .into_iter()
+            .map(|index| &keys[index])
+            .collect::<Vec<_>>();
+        let mut candidates = Vec::with_capacity(keys.len());
+        for key in &keys {
+            let current = || {
+                check()?;
+                self.namespaces()
+                    .check_original_jim_command_inventory_key(key)
+            };
+            if include_spaces {
+                if pattern.is_none() {
+                    current()?;
+                    candidates.push(key.report.clone());
+                } else {
+                    let held = Owned::retain(key.original()?);
+                    let reached =
+                        self.native_object_string_bytes_using(held.as_ptr(), &current, &|error| {
+                            error
+                        });
+                    drop(held);
+                    current()?;
+                    candidates.push(reached?.to_vec());
+                }
+                continue;
+            }
+            let bytes =
+                self.native_object_string_bytes_using(key.original()?, &current, &|error| error)?;
+            current()?;
+            let admitted = policy
+                .recipe()
+                .jim_core_command_candidate_admitted(&bytes, include_spaces)
+                .map_err(|_| {
+                    ValueError::CommandProtocolUnavailable("original Jim inventory key admission")
+                })?;
+            if pattern.is_some() && admitted {
+                let held = Owned::retain(key.original()?);
+                let reached =
+                    self.native_object_string_bytes_using(held.as_ptr(), &current, &|error| error);
+                drop(held);
+                current()?;
+                candidates.push(reached?.to_vec());
+                continue;
+            }
+            candidates.push(bytes.to_vec());
+        }
+        let selected = policy
+            .recipe()
+            .jim_core_command_ordinals(pattern, &candidates, include_spaces)
+            .map_err(|_| {
+                ValueError::CommandProtocolUnavailable("original Jim inventory native match")
+            })?;
+        check()?;
+        let mut members = Vec::with_capacity(selected.len());
+        for index in selected {
+            let key = &keys[index];
+            self.namespaces()
+                .check_original_jim_command_inventory_key(key)?;
+            members.push(key.original()?);
+        }
+        let result = self.new_list_object(&members);
+        if let Err(error) = check() {
+            super::drop_fresh(result);
+            return Err(error);
+        }
+        Ok(result)
+    }
+
     /// Preserve the selected original variable-inventory namespace, frame and
     /// key-object stages rather than reconstructing keys from their reports.
     pub(crate) fn original_jim_variable_inventory(

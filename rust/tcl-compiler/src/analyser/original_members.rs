@@ -352,6 +352,7 @@ impl Analyser {
             caller_scope,
             readonly_names: Vec::new(),
             source_installer: None,
+            class_relation_body: self.original_class_definition_body.as_deref(),
         };
         let mut delta = ClassDef::default();
         let inline = words
@@ -445,6 +446,7 @@ impl Analyser {
             caller_scope: self.declaration_namespace_scope(scope_path),
             readonly_names: Vec::new(),
             source_installer: None,
+            class_relation_body: self.original_class_definition_body.as_deref(),
         };
         if producer
             .member(
@@ -535,6 +537,7 @@ impl Analyser {
             caller_scope: self.declaration_namespace_scope(scope_path),
             readonly_names: Vec::new(),
             source_installer: None,
+            class_relation_body: self.original_class_definition_body.as_deref(),
         };
         if producer
             .member(
@@ -582,6 +585,7 @@ struct Producer<'a> {
     readonly_names: Vec<(tcl_lexer::Span, SignatureSourceNameInput)>,
     source_installer: Option<Arc<crate::command_binding::OriginalCatalogueSourceCandidate>>,
     registry: Option<&'a tcl_registry::CommandRegistry>,
+    class_relation_body: Option<&'a crate::registry_invocation::OriginalSourceScriptBody>,
 }
 
 struct LiteralInstaller {
@@ -888,7 +892,7 @@ impl Producer<'_> {
                 depth,
             );
         }
-        if self.relation_member(member, arg_words, &allocation_site, side, class)? {
+        if self.relation_member(member, words, arg_words, &allocation_site, side, class)? {
             return Some(());
         }
         if member.retraction.is_some() {
@@ -969,6 +973,7 @@ impl Producer<'_> {
     fn relation_member(
         &self,
         member: &MemberSpec,
+        original: &[NativeWord],
         arg_words: &[NativeWord],
         allocation_site: &CommandAllocationSite,
         side: MemberSide,
@@ -1015,7 +1020,16 @@ impl Producer<'_> {
                             self.caller_scope.clone()?
                         };
                         let lookup = SignatureSourceLookup::from_input(scope, &input)?;
-                        OriginalSourceClassRelation::new(input, lookup)
+                        let provider = self.class_relation_body.and_then(|body| {
+                            self.bindings.original_class_relation_provider(
+                                body,
+                                original,
+                                &input,
+                                &lookup,
+                                self.registry?,
+                            )
+                        });
+                        OriginalSourceClassRelation::new(input, lookup)?.with_provider(provider)
                     })
                     .collect::<Option<Vec<_>>>();
                 class

@@ -26,6 +26,8 @@ mod source_class;
 mod source_class_publications;
 mod source_class_reference;
 mod source_configured_class;
+mod source_publication_proposal;
+pub use source_publication_proposal::OriginalSourcePublicationProposal;
 mod source_relation_provider;
 pub use source_relation_provider::OriginalSourceClassRelationProvider;
 mod source_namespace;
@@ -1851,13 +1853,19 @@ struct AdviceTapeInputs<'a> {
     plan: tcl_lexer::NativeScriptWordsPlan,
 }
 
+#[derive(Clone, Copy)]
+enum SourceAdviceQuery<'a> {
+    ClassRelation(source_relation_provider::ClassRelationQuery<'a>),
+    Publication(source_publication_proposal::PublicationProposalQuery<'a>),
+}
+
 struct AdviceInvocationContext<'a> {
     origin: &'a Arc<super::SourceOriginId>,
     context: &'a ContextRegistry,
     config: LexerConfig,
     dialect: InvocationDialect,
     policy: &'a AdviceNamingPolicy,
-    class_relation_query: Option<source_relation_provider::ClassRelationQuery<'a>>,
+    query: Option<SourceAdviceQuery<'a>>,
 }
 #[derive(Clone, Copy)]
 struct AdviceInvocation<'a> {
@@ -2109,7 +2117,47 @@ impl AdviceInvocationContext<'_> {
         false
     }
 
+    fn observe_publication_proposal(&self, graph: &AdviceGraph) {
+        if let Some(SourceAdviceQuery::Publication(query)) = self.query {
+            query.observe(graph);
+        }
+    }
+
+    fn withdraw_missing_publication_phase(
+        &self,
+        schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+    ) {
+        let Some(SourceAdviceQuery::Publication(query)) = self.query else {
+            return;
+        };
+        let (roles, complete) = self.authored_roles(schema);
+        let relevant = !complete
+            || roles
+                .iter()
+                .any(|(_, role)| *role == tcl_registry::ArgRole::Expr)
+            || schema
+                .authored_source_script_arguments()
+                .is_none_or(|arguments| !arguments.is_empty());
+        if relevant {
+            query.withdraw();
+        }
+    }
+
     fn retain_original_invocation(
+        &self,
+        graph: &mut AdviceGraph,
+        tape: &mut OriginalSourceTransitionAdviceTape,
+        invocation: &tcl_lexer::NativeScriptCommandWords,
+        callback_scope: logical_navigation::LogicalCallbackScope<'_>,
+    ) -> Option<()> {
+        self.observe_publication_proposal(graph);
+        let retained =
+            self.retain_original_invocation_inner(graph, tape, invocation, callback_scope);
+        self.observe_publication_proposal(graph);
+        retained
+    }
+
+    fn retain_original_invocation_inner(
         &self,
         graph: &mut AdviceGraph,
         tape: &mut OriginalSourceTransitionAdviceTape,
@@ -2473,14 +2521,14 @@ impl OriginalSourceTransitionSeed {
         context: &ContextRegistry,
         purpose: OriginalSourceCataloguePurpose,
     ) -> Option<OriginalSourceTransitionAdviceTape> {
-        self.prepare_for_class_relation(context, purpose, None)
+        self.prepare_for_query(context, purpose, None)
     }
 
-    fn prepare_for_class_relation(
+    fn prepare_for_query(
         &self,
         context: &ContextRegistry,
         purpose: OriginalSourceCataloguePurpose,
-        class_relation_query: Option<source_relation_provider::ClassRelationQuery<'_>>,
+        query: Option<SourceAdviceQuery<'_>>,
     ) -> Option<OriginalSourceTransitionAdviceTape> {
         let AdviceTapeInputs {
             origin,
@@ -2497,8 +2545,9 @@ impl OriginalSourceTransitionSeed {
             config,
             dialect,
             policy: &policy,
-            class_relation_query,
+            query,
         };
+        advice_context.observe_publication_proposal(&graph);
         for invocation in plan.commands {
             if let AdviceNamingPolicy::Logical(input) = &policy
                 && self.baseline.metadata_context.source_analysis_input() == Some(input)

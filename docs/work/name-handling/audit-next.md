@@ -1108,3 +1108,265 @@ would not establish both grammars.
 | `rust/tcl-compiler/src/command_binding/source_transition_advice.rs` | `13558d2db2e87c6b08883772de1fbd73f1666ab5ded145ac26d49023f9badde5` |
 | `rust/tcl-pkg/src/venv.rs` | `aa377595924f930860a15ea6af58452eda6bdd8ff6f514cff6e7eef581145909` |
 | `rust/tcl-pkg/src/docker.rs` | `d519cf8766aa1513c72226d55249b1877e74950d6b0587a1a2c461659ffbd192` |
+
+Additional bounded Runtime inventory peer: the shared Namespaces purpose now
+requests a genuine Jim inventory List, with default refusal for hosts lacking
+physical key/result owners. The Runtime namespace owner issues original
+current key/generation/report metadata; its producer retains real root holder,
+frame/caller namespace and table revision through reached native getters and
+List construction. Shared Jim naming APIs select reached ordinals, space
+admission and final candidate positions, avoiding report-name reconstruction.
+The physical repeated-pattern-getter/hash-iterator limitation of the current
+bytes-pattern API remains explicit; this is not universal native parity,
+Source execution or Import traversal acceptance. Source peer passes; builds
+and replay are root-owned.
+
+The bounded Runtime bootstrap key producer repair also passes source peer.
+Actual selected `NativeBootstrapProtocol` permits only AutoPath, Interactive
+and Platform on Jim; the fixed original name object is constructed before
+its root birth. Existing first-key/cache owners adopt it immediately after
+successful scalar publication or Platform array creation, before Platform
+member stores. It does not reconstruct a key from a later inventory or relax
+missing-key/currentness guards. The new physical table count/cache, overwrite,
+unset retirement and stale replacement control remains unexecuted by this
+auditor. Runtime174's separately reported frozen result is root execution
+evidence, not an audit execution claim.
+
+| Further Runtime peer path | SHA-256 at source review |
+| --- | --- |
+| `rust/tcl-syntax/src/naming/jim_enumeration.rs` | `654cf446105044c192d7897ec094b698e88620e08ca65f7633ac2fbb3da89a51` |
+| `rust/tcl-runtime-api/src/lib.rs` | `8a0c92a094ea6d54d6878a49dbbcd6b18771dbd26105d830554e69b23e56d56f` |
+| `rust/tcl-cmd-core/src/info.rs` | `729b88597236962c8d556dd68dac3aaea7c424e6c3e56c03bda034fae27aa2c0` |
+| `runtime/rust/src/namespace.rs` | `42615eaf950a6122f22874cf2b74fee7727fc56e31c883fdea08b374bc144e9f` |
+| `runtime/rust/src/state_traits.rs` | `c4f36eb70e222da915ce97b2c531f813c8cd799a69fa43fea0b0ea50427425ae` |
+| `runtime/rust/src/interp/native_jim_lookup.rs` | `536f50ae6b7408b173db1fd4c754159bce8416d3530eae2864ecd205a0e605c9` |
+| `runtime/rust/src/interp.rs` | `283ca4dfc508cba74760833bf6187b48bfce4b5577a0121cce9f89b210d44858` |
+| `runtime/rust/src/cmd_info/native_jim/variable_inventory_tests.rs` | `dd349e6e0c99bc93cd59c304631b957184b787da8c97838fbf42b6acbc0331f6` |
+
+Further source-peer outcomes:
+
+* The compiler analyser now transports an authentic selected definition-body
+  owner only during member inventory, clears it before initializer/method/
+  accessor walks, and restores the enclosing transient state. The metaclass
+  kernel consumes closed original relation effects, exact relation input/lookup
+  and fresh class definition correspondence, follows actual retained SourceClass
+  metadata with visiting/completed borrowed-node guards, and admits a Registry
+  root only through the context-bound parent-horizon provider. Configured-parent
+  joins, factory override maps and completion summaries remain separate or
+  unavailable. Bounded source peer passes; execution remains pending.
+* The Logical helper publication proposal uses a separate generated template
+  and call image with genuine original input/configuration. It observes baseline
+  and before/after every root and nested source command, so a transient nested
+  publication followed by deletion cannot disappear from collision advice.
+  The first review found nested BodyWalk commands bypassed the root observer;
+  the implementer added an actual nested command wrapper before final peer.
+  Actual selected procedure layout/typed Define/current body interpreter and
+  body geometry own the generated declaration; only one root procedure with a
+  flat body is currently represented. Core retains its independent diagnostic/
+  read/edit proofs and RequiresReview action. Hosted, namespace-constructor and
+  regex helper cases still refuse; their original positives remain unfulfilled
+  regression obligations. This is conditional generation advice, without
+  physical vacancy, Native/Normal or general edit authority.
+* Runtime command inventory's final kind/visibility filter now precedes actual
+  key/report extraction and no longer snapshots cloned Command payloads. New
+  original Jim capture metadata/inputs were independently hash-reviewed only:
+  `jim-command-inventory-key-objects/capture01` records a fresh upstream check at
+  12:17 UTC matching clean local `5bac7c99ad65864c87da513e22e2f01703fa4e03`,
+  247 before/after provider input hashes unchanged, successful original C API
+  probe with 24 rows and original namespace suite 79/79. Source, driver, probe
+  executable and captured upstream/compile/execution/suite streams match their
+  manifest hashes; the retained Runtime TSV is byte-identical to probe stdout.
+  This auditor did not execute the provider, suite or Rust tests. Full original
+  SDK roster count and repeated physical pattern getter/iterator parity stay
+  separate from the selected key identity/header/refcount conformance cells.
+
+Additional F5 partition consumer review found four copies of the same readonly
+first-component projection: `tcl-bigip::object_names` owner partition policy,
+`tcl-bigip::stats`, `tcl-bigip-query::ObjectRef::partition` and F5 split. Root
+introduced `object_path_partition` in the existing object-name owner and
+migrated those paths, preserving empty components and caller-specific no-
+partition/default/report handling without trimming or new validation. One exact
+internal copy in `owner_partition_reference_paths` was flagged separately for
+root to migrate. A wider slash-leaf roster contains IP, filesystem and display
+purposes and is not cleared by this small projection migration. Split's output
+filename/collision policy also remains independently unfinished; object-path
+partition advice is not filesystem publication permission.
+
+| Latest bounded review path | SHA-256 at source review |
+| --- | --- |
+| `rust/tcl-compiler/src/analyser/class_hierarchy/original_metadata.rs` | `eaea5b742c9b9a35d674e69a0baadb98f75a90e26344782eb5a31fb5c93ba0fb` |
+| `rust/tcl-compiler/src/analyser/handlers.rs` | `edb22b02b8c601631dfc0e24e485863d071e2871e8c0733c247735c052da1fb4` |
+| `rust/tcl-compiler/src/analyser/original_members.rs` | `62712ade19eb7054c66af6e67faf51bdaf7d5821695db14197aa05040003ca07` |
+| `rust/tcl-compiler/src/analyser/types/original_relations.rs` | `9456a5457f19304deb174adb22a438aeca1fb32a1f424541feae56feb06c2ed9` |
+| `rust/tcl-compiler/src/command_binding/source_transition_advice/source_publication_proposal.rs` | `adff83001bb1ae83ed6bb69af10df6380bd7516523e99c2ab7333015752f8366` |
+| `rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs` | `6a3c394167f6ed9237dab310c889015fb125da8ca81d8913db3c00eff8d98d7e` |
+| `rust/tcl-compiler/src/source_graph.rs` | `545997f7982194379cfa3294e148a39a45917e12bd845a8feb505e164a9539cb` |
+| `rust/tcl-lsp-core/src/code_actions.rs` | `8ad8929f179e87505c7cd80b8b24686e006f53b10c617f1d47233b0dfcacfef4` |
+| `rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs` | `4b7d6cc357ca3c196f48bc30c2145026bdd309cf20d460be4d3fe7527e7489de` |
+| `runtime/rust/src/namespace.rs` | `032e7e453c9d4c1504efbb17411c580867d97d5933c63daae3aa044bfbfa5643` |
+| `runtime/rust/src/interp/native_jim_lookup/inventory_key_tests.rs` | `859921c6c89970472e7d46e492e7db72518a35c6998b30b277d3ff6444696df1` |
+| `experiments/name-handling/results/jim-command-inventory-key-objects/capture01/manifest.json` | `cba9ab80bd0a46d2b0e02644a809cc5efdf9a9b31f65e62a2a78f234cf253a1d` |
+| `rust/tcl-bigip/src/object_names.rs` | `4daca4b96e83fa0434b58fdf6823f82cde00b140914efb8030978ae6d95fcb50` |
+| `rust/tcl-bigip/src/stats.rs` | `27d9e9f1f4b7afd7ba9f92692e02ca2dab39f6b6b63e8ead63f5bfbd879bef37` |
+| `rust/tcl-bigip-query/src/value.rs` | `ea0bf346d43b451a21333cce544d8ca82514b4ce5eb3bf7ccf090517523143f4` |
+| `rust/f5-cli/src/commands/split.rs` | `e41c73109399dee864e4612c057f08840d191bbb7b1d9cb58bf198ae2e21354e` |
+
+Publication coverage correction: the prior bounded source peer covers only
+represented immediate root/nested walk states. A later source review identified
+that Logical deferred procedure bodies can bypass the existing future-body
+walk, just as Hosted deferred event bodies currently lack an issuer. For
+example, `proc later {} {proc ::helper {} {}}` can publish a helper before a
+wrapped call in another procedure. A conditional root-publication DATA receipt
+therefore cannot be consumed by Core as complete collision advice without
+independent genuine deferred-phase coverage. Source-only/RequiresReview does
+not discharge missing mutation inventory. Extend the existing authentic
+Logical declaration/body-card source owner to cover those potential phases
+with proper namespace/frame recipes and unknown effects; unavailable phases
+must refuse. Preserve the unrelated namespaced return-only positive as an
+implementation/regression obligation rather than manufacturing absence or
+weakening its assertion. Root and LSP received this blocker; execution acceptance remains unfinished.
+
+Further bounded source peers, without execution acceptance:
+
+- Class relation provider consumption now additionally requires
+  `matches_analysis`: whole current source image/configuration, authentic
+  retained seed allocation, exact Logical input facet and parent source/context.
+  The kernel checks this before relation/class-definition matching. The new
+  foreign-analysis negative preserves this boundary. H compilation API repairs
+  only update tests to borrow the current configuration and derive target input
+  from the genuine retained original alias operand; assertions remain intact.
+- `interprocedural::scan_positioned_registry_facts` now consumes the actual
+  selected resolved traits and original tokens/current metadata context for the
+  existing possible-normal MAY effect-region query. Missing metadata remains
+  unknown. The positioned procedure/callback owner is unchanged. Advisory
+  parameter text, standalone legacy scanning, lifted-collector completeness and
+  independently selected expression/body phases remain unfinished. PURE traits
+  do not establish normal completion.
+- Runtime actual Jim frame observation retains a weak actual procedure owner
+  after existing real parameter/body/namespace roles are installed; it rechecks
+  the live original procedure body. The query selects the actual variable frame,
+  including uplevel selection, rather than universally asserting the top execution
+  frame. Fresh Rest List construction is captured before the setter and installed
+  only after successful binding. `OriginalJimVariadic` combines exact neutral
+  header lifetime with actual List primary/backing/window/generation validation.
+  The backing checker alone is a correspondence check: C intentionally shared
+  backing headers are not universally distinct through this API. No additional
+  native reference is introduced, C-only observation is unchanged, and Import
+  traversal remains refused. Software controls retain original member headers
+  and refuse equal copies, shimmer/reparse and mutation; they remain unexecuted
+  by this auditor.
+
+A fresh live interprocedural place consumer remains **migration required**:
+`interprocedural/transfer.rs::in_namespace` and `outer_places` manually turn
+String names into qualified places through `starts_with("::")` and formatting.
+`linked_locals` consumes authentic alias declarations, then uses this local
+construction for Global/CurrentNamespace/Namespace/absolute-root caller targets.
+`outer_call_arguments` uses `contains("::")` and `outer_places` for Name-parameter
+arguments; `component_outer_writes` obtains namespace `advisory_key()` text and
+joins it back to written outer names. These results feed SCCP caller places,
+normal-exit outcomes and outer-write summaries, so they are not merely display
+text. Migrate through actual retained source namespace/variable-place ownership
+and preserve conditional MAY unions/currentness; a generic rendering wrapper
+would not discharge that obligation. Root received the exact bounded call sites.
+
+Publication follow-up found nested coverage gaps after the first deferred-body
+fix: `LogicalBodyWalk::children` silently accepted failed nested `parent_scope`,
+unsupported body kinds and unavailable/noncurrent/nonroot selected-frame layouts.
+Observing only the outer graph does not cover these missing source phases. LSP
+received the requirement to withdraw publication advice for every unsupported
+relevant phase, while preserving genuinely established empty/reference-only
+source arguments. The current top-scope withdrawal and command observers alone
+are not accepted as complete collision inventory.
+
+| Follow-up source review path | SHA-256 at source review |
+| --- | --- |
+| `rust/tcl-compiler/src/command_binding/source_transition_advice/source_relation_provider.rs` | `fa6df8acbbd9aafc7c0883191b8cac9d4cde4c1a57c0ef56d81d214b7264f2e2` |
+| `rust/tcl-compiler/src/interprocedural.rs` | `e0b404f40d0be78633672659f6fd019def91acd2a32dc35af3e49f34a5f6180d` |
+| `rust/tcl-compiler/src/interprocedural/transfer.rs` | `f1368051b475ccf7c70d956b80aedecc0824d661877d010322906dfb04137df6` |
+| `runtime/rust/src/frame.rs` | `95ff68d675f9b18472ba9f6857133be29c8f9c5809e9068d7cc2b2a0ff4a7924` |
+| `runtime/rust/src/list.rs` | `ffcf5f2e0313154b193cb1938fde6e4fc4abe423f9771c5243d2a72a41d524e9` |
+| `runtime/rust/src/interp/native_compilation.rs` | `f65dd9a5139fbd14b3386df82361bd6b073f56c1932738fc75a270f4d2c8cb6c` |
+| `runtime/rust/src/interp/native_compilation/jim_frame_tests.rs` | `2eff06f042deb3376674d17feed4e114ce71ca17473b046b577753227587a64d` |
+
+The specific Logical missing-phase holes above now have a source-reviewed
+correction: one query-purpose withdrawal owner covers top and nested failed
+scope inventory, unsupported body kinds and unavailable/noncurrent/nonroot
+selected-frame layouts. It uses complete authored source phase metadata to
+preserve genuine empty/reference-only cases, uses the existing mutation-coverage
+script-body owner for query inventory, and refuses unrepresented expression
+phases. Before/after observers cover actual Logical commands including early
+returns. This closes the identified silent bypasses in source; it does not
+establish all Hosted phases or semantic transformation acceptance. Existing
+positive assertions remain required and may expose conservative availability
+gaps; no execution acceptance is recorded here.
+
+The eBPF audit now extends beyond the previous backend entry review:
+
+| Live DSL consumer | Current ownership and remaining obligation |
+| --- | --- |
+| `bpf-tcl-ir/src/source.rs::source_command_spec` | Fixed BPF registry surface, authored literal head, explicit expansion refusal; synthetic operations obtain their spelling from `registry.bpf_command_for`. The closed static DSL rejects replacement/factory semantics, so it does not require Tcl live command dispatch. |
+| `source.rs::conditional_statement` | Existing original-literal source/byte-geometry checks for each operand, actual registry profile/full lexer configuration, and deliberate removal of unrelated Tcl execution proofs provide a useful existing source owner pattern. |
+| `template.rs::parse_template` | Private `split_whitespace` interprets parameter names, and reported body String is reparsed by `lower_bpf_source`. Authentic selected list/body-word source ownership and the DSL's precise list grammar remain to be established. |
+| `unroll.rs::expand_loop` | Reported loop body String is lowered again; macro variable and body geometry are not retained through a typed original operand here. Migration remains required, separately from the bounded-loop cap. |
+| `frontend.rs::lower_when_decl` | Reported body String is reparsed and diagnostic base assumes original body span starts at an opening brace (`+1`). Actual selected body-word representation/source geometry must establish that mapping; the priority/event policy is a separate DSL contract. |
+| `profile.rs::parse_user_profile` | Profile body String is reparsed, field names then live in the closed profile schema. Preserve the fixed DSL namespace and actual source-body owner rather than introducing a Tcl namespace resolver. |
+| `lower.rs::lower_variable_reference` | Existing configured original expression reference owner supplies the complete scalar name; array roots are rejected with shared `split_element_ref`. The local dense slot table is an explicit BPF variable domain. |
+
+No semantic discrepancy is claimed from unexecuted examples. These are exact
+live source/name ownership obligations, not a completed eBPF census; template
+binding/deployment/field expansion and deeper ELF/BTF artifact-name rules remain
+independently unexamined.
+
+| Additional source review path | SHA-256 at source review |
+| --- | --- |
+| `rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs` | `9f5ebe94293c172311c3a70740bf1121d2cd059d41a4b4a2172ad12baf4ab405` |
+| `rust/tcl-compiler/src/command_binding/source_transition_advice.rs` | `f7e6d28e9a9a06b70ca22debab667bdf913d087e1678d5f75469f97b4b1648d5` |
+| `rust/bpf-tcl-ir/src/source.rs` | `cbe63f14d480059ba1c7a2ce8703681af9038e2341f27f9195ee2e301f64cef1` |
+| `rust/bpf-tcl-ir/src/template.rs` | `71be98cf22817c001eb1b9b3caf13448c505aa31ded0d3ee5187f21447b03566` |
+| `rust/bpf-tcl-ir/src/unroll.rs` | `78dd6a9040b08abfa8fc05efb7deddb8659a36345ecc557ea6add2b4299b738a` |
+| `rust/bpf-tcl-ir/src/frontend.rs` | `89405e375c6e89114f489e679fce1227e98af9435273d920b1a46dc7258ceae9` |
+| `rust/bpf-tcl-ir/src/profile.rs` | `6b3a9f94b2c7e7a2c9611d2f521c21164d7107c353ef0bdf82675747a7a5e1d6` |
+
+Two further source transport boundaries remain explicit:
+
+- The Registry metaclass provider currently becomes `UserMetaclass` metadata,
+  then `ClassFactory.root_metaclass: String`; later `definition_grammar`
+  relookup loses independently selected context/grammar provenance. This is a
+  canonical metadata label, not necessarily a rendered-name inverse, but the
+  factory/member consumer must retain its actual selected grammar/context or
+  root receipt. The bounded root-kernel migration does not close this transfer.
+- Editor `scaffold.ts::packageDirectoryName` and `packageFileStem` retain local
+  lossy authoring regex policies, and `extension.ts` further removes leading
+  hyphens from the directory suggestion. The generated namespace policy owns
+  Tcl namespace suggestions only, not these filesystem directory/file-stem
+  policies or collision handling. Extend the existing scaffold owner with
+  distinct artifact-name outputs/contracts; do not reuse a Tcl namespace
+  normalizer as filesystem publication authority.
+
+A proposed typed uncertainty-reason facet for helper source publication remains
+**design only**. Genuine Logical formal/frame/header source ownership can
+separate a scalar-formal read from an unknown head/body or explicit trace effect
+for descriptive source inventory. It cannot clear existing graph uncertainty or
+silently discharge earlier unknown effects. Any conditional source proposal
+must preserve its read-observer applicability premise, and Core requires an
+independent owner contract for that reviewed-publication purpose rather than
+using a RequiresReview label as permission. `eval $formal`, formal-as-command,
+actual trace/callback world effects and missing formal topology/frame/carrier
+remain terminal. No physical read, trace absence, quiet world, helper-slot
+absence or transformation guarantee is established by this proposed facet.
+
+Interprocedural place design correction: DB verified that
+`OriginalVariableInvocation::input`/name-input currentness and
+`resolve_evaluated_variable_input` deliberately require an execution-policy
+Native recipe. `SourceSummaryContext` deliberately admits Logical source only.
+Exposing the Native alias-target resolver or manufacturing a Native recipe would
+violate that boundary. Existing genuine source variable symbols/slots retain
+conditional source geometry, not physical cell incarnations.
+`OriginalSsaDefinitionName::original_definition_name_with_metadata_context`
+independently requires actual normal-transfer invocation and point-owned written
+places before its cell join; the authored analysis-definition path remains only
+source geometry. A summary-domain source-place owner may retain those actual
+source recipes, but applying summary effects to SCCP needs an independent valid
+application seam and currentness/Normal guards. Authored namespace/cell keys and
+`compatibility_name`/`advisory_key` text cannot supply that seam. This migration
+remains design-only; no String inverse or weakened guard was accepted.

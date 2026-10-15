@@ -16,6 +16,52 @@ fn matches(pattern: &[u8], candidate: &[u8]) -> Result<bool, NativeGlobUnavailab
 }
 
 impl NativeNameProtocol {
+    /// Apply the original CString space exclusion after its reached key getter.
+    ///
+    /// # Errors
+    /// Refuses a non-Jim recipe; bytes grant no physical key/getter authority.
+    pub fn jim_core_command_candidate_admitted(
+        self,
+        candidate: &[u8],
+        include_spaces: bool,
+    ) -> Result<bool, NativeGlobUnavailable> {
+        if !self.is_jim084() {
+            return Err(NativeGlobUnavailable::PurposeUnavailable);
+        }
+        Ok(include_spaces || !c_string_extent(candidate).contains(&b' '))
+    }
+
+    /// Candidate positions reached by the original flat-table hash shortcut
+    /// or scan. The CString triviality test and counted key equality differ.
+    ///
+    /// # Errors
+    /// Refuses a non-Jim recipe. This supplies no actual table or getter role.
+    pub fn jim_core_command_reached_ordinals(
+        self,
+        original_pattern: Option<&[u8]>,
+        candidates: &[Vec<u8>],
+    ) -> Result<Vec<usize>, NativeGlobUnavailable> {
+        if !self.is_jim084() {
+            return Err(NativeGlobUnavailable::PurposeUnavailable);
+        }
+        if let Some(pattern) = original_pattern.filter(|pattern| {
+            crate::native_glob::name_pattern_uses_exact_lookup(
+                self,
+                NativeNameGlobPurpose::InfoCommandsSearch,
+                c_string_extent(pattern),
+            )
+        }) {
+            let comparison = super::native::strip_jim_root(pattern);
+            Ok(candidates
+                .iter()
+                .position(|candidate| super::native::strip_jim_root(candidate) == comparison)
+                .into_iter()
+                .collect())
+        } else {
+            Ok((0..candidates.len()).collect())
+        }
+    }
+
     /// Enumerate retained original Jim table-key spellings through the core handler.
     /// The selected comparison/match strips root qualifiers; the result keeps the
     /// original key bytes. Kind and live availability are supplied by the owner.
@@ -28,19 +74,37 @@ impl NativeNameProtocol {
         candidates: &[Vec<u8>],
         include_spaces: bool,
     ) -> Result<Vec<Vec<u8>>, NativeGlobUnavailable> {
+        Ok(self
+            .jim_core_command_ordinals(original_pattern, candidates, include_spaces)?
+            .into_iter()
+            .map(|index| candidates[index].clone())
+            .collect())
+    }
+
+    /// Select original candidate positions without reconstructing table-key
+    /// identity from a report. The owner retains the same candidate vector.
+    ///
+    /// # Errors
+    /// Refuses a non-Jim recipe or an unavailable original native match operation.
+    pub fn jim_core_command_ordinals(
+        self,
+        original_pattern: Option<&[u8]>,
+        candidates: &[Vec<u8>],
+        include_spaces: bool,
+    ) -> Result<Vec<usize>, NativeGlobUnavailable> {
         if !self.is_jim084() {
             return Err(NativeGlobUnavailable::PurposeUnavailable);
         }
-        let mut names = std::collections::BTreeSet::new();
-        for candidate in candidates {
-            if !include_spaces && c_string_extent(candidate).contains(&b' ') {
+        let mut names = std::collections::BTreeMap::new();
+        for (index, candidate) in candidates.iter().enumerate() {
+            if !self.jim_core_command_candidate_admitted(candidate, include_spaces)? {
                 continue;
             }
             if original_pattern.map_or(Ok(true), |pattern| matches(pattern, candidate))? {
-                names.insert(candidate.clone());
+                names.entry(candidate).or_insert(index);
             }
         }
-        Ok(names.into_iter().collect())
+        Ok(names.into_values().collect())
     }
 
     /// Enumerate Jim's actual flat table through its namespace-aware `info` helper.

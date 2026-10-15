@@ -313,6 +313,32 @@ pub(crate) struct NativeListBacking {
 }
 
 impl NativeListBacking {
+    /// Check backing correspondence with a live original header. Callers
+    /// separately retain its allocation identity; C copies can share backing.
+    pub(crate) fn check_original_header(
+        &self,
+        original: *mut TclObj,
+    ) -> Result<(), tcl_syntax::value::ValueError> {
+        obj::check_native_liveness(original)?;
+        self.check_generation()?;
+        if obj::obj_type_ptr(original) != &TCL_LIST_TYPE {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "original native List primary",
+            ));
+        }
+        // SAFETY: the exact live List descriptor owns this backing.
+        let current = unsafe { list_ref(original) };
+        if !Rc::ptr_eq(&self.elements.backing, &current.elems.backing)
+            || self.elements.window != current.elems.window
+            || self.elements.generation != current.elems.generation
+        {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "original native List backing",
+            ));
+        }
+        Ok(())
+    }
+
     /// Check the retained original backing incarnation without adding a header
     /// or scanning unrelated members. Each accessed member still needs its own
     /// checked original getter and liveness check.

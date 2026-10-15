@@ -388,28 +388,15 @@ pub(super) fn selected_read(
     (candidates.len() == 1).then(|| candidates[0])
 }
 
-pub(super) fn helper_name_is_free(analysis: &AnalysisResult, helper: &str) -> bool {
-    if analysis.has_original_vendor_source_names() {
-        let expected = tcl_syntax::naming::root_unrooted_key(helper);
-        for row in analysis.original_vendor_procedure_declarations() {
-            let Some(name) = row.name_input().root_procedure_coordinate() else {
-                return false;
-            };
-            if name.as_bytes() == expected.as_bytes() {
-                return false;
-            }
-        }
-        true
-    } else if analysis.allows_retained_logical_declaration_advice() {
-        // The emitted helper and its call are explicitly rooted. This
-        // independently selected lexical branch asks that exact publication,
-        // without borrowing an unrelated namespace's reporting tail.
-        let qualified = tcl_syntax::naming::root_unrooted_key(helper);
-        !analysis.all_procs.contains_key(&qualified)
-            && !analysis.all_classes.contains_key(&qualified)
-    } else {
-        false
-    }
+pub(super) fn helper_publication_proposal(
+    source: &str,
+    analysis: &AnalysisResult,
+    template: &str,
+    call: &str,
+) -> Option<tcl_compiler::command_binding::OriginalSourcePublicationProposal> {
+    tcl_compiler::source_graph::original_logical_publication_proposal(
+        source, analysis, template, call,
+    )
 }
 
 #[cfg(test)]
@@ -962,20 +949,29 @@ mod tests {
                 .with_resolved_input(input.clone())
                 .analyse(source, profile.name)
         };
+        let helper_proposal = |source: &str, analysis: &AnalysisResult| {
+            super::helper_publication_proposal(
+                source,
+                analysis,
+                super::super::HTML_ENCODE_PROC,
+                "[::html_encode $value]",
+            )
+            .is_some()
+        };
         let source = "namespace eval N {proc html_encode {value} {return $value}}";
         let analysis = analyse(source);
         assert!(analysis.allows_retained_logical_declaration_advice());
-        assert!(super::helper_name_is_free(&analysis, "html_encode"));
+        assert!(helper_proposal(source, &analysis));
         let mut missing_input = analysis.clone();
         missing_input.resolved_input = None;
         assert!(!missing_input.allows_lexical_declaration_advice());
         assert!(!missing_input.allows_retained_logical_declaration_advice());
-        assert!(!super::helper_name_is_free(&missing_input, "html_encode"));
+        assert!(!helper_proposal(source, &missing_input));
         assert!(current_commands(source, &missing_input, registry).is_none());
         let source = "proc html_encode {value} {return $value}";
         let analysis = analyse(source);
-        assert!(!super::helper_name_is_free(&analysis, "html_encode"));
+        assert!(!helper_proposal(source, &analysis));
         let native = tcl_compiler::analyser::Analyser::new().analyse("", "tcl8.6");
-        assert!(!super::helper_name_is_free(&native, "html_encode"));
+        assert!(!helper_proposal("", &native));
     }
 }

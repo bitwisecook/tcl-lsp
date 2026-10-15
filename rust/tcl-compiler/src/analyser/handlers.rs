@@ -6965,8 +6965,8 @@ impl Analyser {
     /// parameter list, and that override is read rather than guessed: Tk's
     /// `self method create {name superclasses body}` puts the body at
     /// argument 3, not 2, and splices a superclass the caller never wrote.
-    fn class_factory_of(&self, qualified: &str, class: &ClassDef) -> Option<ClassFactory> {
-        let meta = self.user_metaclass_of_class(qualified, class)?;
+    fn class_factory_of(&self, class: &ClassDef) -> Option<ClassFactory> {
+        let meta = self.user_metaclass_of_class(class)?;
         let overrides = class
             .class_methods
             .iter()
@@ -8237,7 +8237,7 @@ impl Analyser {
             (observed, true)
         };
         if compatible {
-            class.factory = self.class_factory_of(resolved, &class);
+            class.factory = self.class_factory_of(&class);
         }
 
         let simple = class.name.clone();
@@ -10216,70 +10216,21 @@ impl Analyser {
     /// Chain walking is depth-bounded and visited-checked, so a cyclic
     /// `superclass` declaration (rejected by real Tcl, but writable in a
     /// half-edited buffer) terminates.
-    fn user_metaclass_of_class(&self, qualified: &str, seed: &ClassDef) -> Option<UserMetaclass> {
-        let registry = self.registry.as_ref()?;
-        let seed_key = qualified.to_string();
-        let mut classes = self.result.all_classes.clone();
-        classes.insert(seed_key.clone(), seed.clone());
-        let mut visited: std::collections::HashSet<String> = std::collections::HashSet::new();
-        let mut queue: Vec<String> = vec![seed_key.clone()];
-        // Bounded by the recorded class count — every class is visited once.
-        while let Some(class_qname) = queue.pop() {
-            if !visited.insert(class_qname.clone()) {
-                continue;
-            }
-            // The seed is the class being recorded, which is not in
-            // `all_classes` until the walk that is asking finishes.
-            let class = if class_qname == qualified {
-                seed
-            } else {
-                let Some(class) = self.result.all_classes.get(&class_qname) else {
-                    continue;
-                };
-                class
-            };
-            for parent in &class.superclasses {
-                let Some(lookup) = class.relation_lookups.get(parent).and_then(Option::as_ref)
-                else {
-                    continue;
-                };
-                if let Some(next) = super::class_hierarchy::resolve_class_lookup(lookup, &classes) {
-                    queue.push(next);
-                    continue;
-                }
-                for candidate in lookup.candidates().unwrap_or_default() {
-                    if self.result.all_procs.values().any(|proc| {
-                        proc.source_name.as_ref().is_some_and(|source| {
-                            source.policy() == lookup.policy() && source.slot() == &candidate
-                        })
-                    }) {
-                        break;
-                    }
-                    let Some(written) = tcl_syntax::naming::native_command_source_spelling(
-                        lookup.policy().recipe(),
-                        &candidate,
-                    ) else {
-                        continue;
-                    };
-                    let Some(bare) = crate::naming::unroot_rooted_key(&written) else {
-                        continue;
-                    };
-                    if let Some(spec) = registry.get(bare)
-                        && spec.traits.contains(tcl_registry::Traits::IS_OO_METACLASS)
-                        && let Some(grammar) = spec.definition_body
-                        && grammar.family == tcl_registry::definer::DefinerFamily::TclOo
-                    {
-                        return Some(UserMetaclass {
-                            root_command: bare.to_owned(),
-                            root_policy: lookup.policy(),
-                            root_slot: candidate.clone(),
-                            grammar,
-                        });
-                    }
-                }
-            }
-        }
-        None
+    fn user_metaclass_of_class(&self, seed: &ClassDef) -> Option<UserMetaclass> {
+        let context = self.analysis_context();
+        let provider =
+            super::class_hierarchy::original_metadata::original_registry_metaclass_provider(
+                &self.result,
+                seed,
+                &context,
+            )?;
+        let descriptor = provider.registry_descriptor(&context)?;
+        Some(UserMetaclass {
+            root_command: descriptor.name.to_owned(),
+            root_policy: provider.policy(),
+            root_slot: provider.source_slot().clone(),
+            grammar: descriptor.definition_body?,
+        })
     }
 
     /// Add one `oo::objdefine` site's per-object methods under `key`,
@@ -10516,7 +10467,7 @@ impl Analyser {
         // via the workspace factory index, in another — reads a derived fact
         // instead of re-walking the superclass chain and re-segmenting the
         // manufacturer override per call site.
-        class.factory = self.class_factory_of(&qualified, &class);
+        class.factory = self.class_factory_of(&class);
         // …and does the *manufacturer* let this class be constructed by a
         // bare word (Tk's `::tk::IconList .il`)?  Settled here too, for the
         // same reason: the proof lives on the metaclass, which a consuming
@@ -10554,6 +10505,10 @@ impl Analyser {
         self.apply_manufactured_class_members(grammar, &layout.injected, class);
         if let (Some(body_text), Some(body_tok)) = (call.args.get(layout.body_arg), body_token) {
             let disabled = self.command_dialect_disabled(call.cmd_name);
+            let body = call.cmd_tok.zip(grammar).and_then(|(head, grammar)| {
+                self.original_class_definition_body_at(head.span.start(), body_tok, grammar)
+            });
+            let enclosing = std::mem::replace(&mut self.original_class_definition_body, body);
             self.parse_oo_definition_body(
                 body_text,
                 body_tok,
@@ -10562,7 +10517,34 @@ impl Analyser {
                 grammar,
                 disabled,
             );
+            self.original_class_definition_body = enclosing;
         }
+    }
+
+    fn original_class_definition_body_at(
+        &self,
+        offset: u32,
+        token: Token,
+        grammar: &'static tcl_registry::definer::DefinitionBodyGrammar,
+    ) -> Option<std::sync::Arc<crate::registry_invocation::OriginalSourceScriptBody>> {
+        let words = crate::registry_invocation::source_structure::source_registry_words_at(
+            &self.source,
+            &self.result,
+            offset,
+        )?;
+        let context = self.result.resolved_input.as_ref()?.context_registry();
+        (words.with_source_schema(&context, |schema| {
+            schema
+                .authored_source_definition_body_grammar()
+                .is_some_and(|selected| std::ptr::eq(selected, grammar))
+        }) == Some(true))
+        .then_some(())?;
+        let mut bodies = words
+            .source_script_bodies(&context)
+            .into_iter()
+            .filter(|body| body.original_container().tokens().first() == Some(&token));
+        let body = bodies.next()?;
+        bodies.next().is_none().then(|| std::sync::Arc::new(body))
     }
 
     /// Class definition advice from the selected definition grammar.
@@ -10578,7 +10560,11 @@ impl Analyser {
         arg_single: &[bool],
         scope_path: &[usize],
     ) -> bool {
-        self.handle_oo_define_with_source(cmd_name, args, arg_tokens, arg_single, scope_path, None)
+        let enclosing = self.original_class_definition_body.take();
+        let result = self
+            .handle_oo_define_with_source(cmd_name, args, arg_tokens, arg_single, scope_path, None);
+        self.original_class_definition_body = enclosing;
+        result
     }
 
     pub(super) fn handle_oo_define_source(
@@ -10586,14 +10572,33 @@ impl Analyser {
         original: &super::original_definer::OriginalClassConfigurationSource,
         scope_path: &[usize],
     ) -> bool {
-        self.handle_oo_define_with_source(
+        let body = original
+            .tokens
+            .get(1)
+            .zip(
+                original
+                    .target
+                    .class_declaration()
+                    .grammar(&self.analysis_context()),
+            )
+            .and_then(|(token, grammar)| {
+                self.original_class_definition_body_at(
+                    original.target.consumer().site().offset,
+                    *token,
+                    grammar,
+                )
+            });
+        let enclosing = std::mem::replace(&mut self.original_class_definition_body, body);
+        let result = self.handle_oo_define_with_source(
             original.target.consumer().command(),
             &original.arguments,
             &original.tokens,
             &original.single,
             scope_path,
             Some(original),
-        )
+        );
+        self.original_class_definition_body = enclosing;
+        result
     }
 
     fn handle_oo_define_with_source(
@@ -10673,7 +10678,7 @@ impl Analyser {
         // a factory, and `self method create …` changes the shape of the
         // classes it makes, so the derived factory record is recomputed here
         // exactly as it is on the creation path.
-        class_def.factory = self.class_factory_of(&qualified, &class_def);
+        class_def.factory = self.class_factory_of(&class_def);
         if let Some(original) = &original_class {
             self.retain_original_source_class_update(original, &class_def);
         }

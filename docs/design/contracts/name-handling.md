@@ -1218,3 +1218,51 @@ and selected source class or Registry descriptor. Consumers must independently
 prove closed member-body relations and the actual class association before using
 that parent answer as class metadata. The receipt supplies neither body execution
 nor a substitute for later effects.
+
+## Physical command inventories and entered Jim frames
+
+`Namespaces::native_jim_command_inventory_result` constructs an actual Jim
+result List from retained live table keys. Shared `NativeNameProtocol` candidate
+admission and ordinal selection govern which actual holders are consumed;
+rendered command names never reselect key identity. The receiving Runtime or
+VM checks namespace, table and header currentness through reached getters.
+The bytes-only pattern policy does not replace an original repeated pattern
+getter or iterator lifetime. Original SDK key/refcount/cache evidence remains
+scoped independently of Rust execution.
+
+Constructor-created Jim variables retain their actual original name object at
+successful root birth through the existing first-key and variable-cache owners.
+Array roots publish that key before member stores. Overwrite preserves the
+first key; actual retirement withdraws it.
+
+The FrameStack Jim procedure observation is separate from its C procedure
+observation. It retains a weak actual procedure/body association for the
+selected variable frame. A variadic receipt starts at the actual fresh Rest
+List constructor before the setter, is observed only after successful binding,
+and retains exact header allocation plus List backing/window/generation.
+`NativeListBacking::check_original_header` checks backing correspondence; it
+does not establish unique C-header identity by itself. Neither observation
+grants Import traversal or Normal completion.
+
+## Conditional source publication data
+
+`original_logical_publication_proposal` retains current source/input and the
+actual generated template and call images. Its source-advice walk observes
+baseline, immediate, nested and represented deferred states. Occupied slots,
+unknown effects, unsupported generated forms and missing source phases withdraw
+the proposal. Read-observer uncertainty remains an obligation; a review label
+does not discharge it. Hosted and other unsupported source purposes do not
+borrow a Logical or Native policy. Original diagnostic/read/span and source
+authoring authority remain independent consumer requirements.
+
+Positioned interprocedural Registry summaries consume the actual selected
+`ResolvedStatementInvocation` traits and existing original-token MAY effect
+owner. Procedure/callback targets come from positioned reachability, rather
+than re-looking up a canonical report label. Missing effect transport remains
+unknown; advisory parameter text and standalone legacy scans have separate
+purposes. Purity metadata grants no Normal completion.
+
+`object_path_partition` projects the first slash component of an absolute F5
+authored object path. Empty components stay empty and each consumer owns its
+display/default behaviour. Filesystem artifact names require independent
+platform-safe construction and collision handling.

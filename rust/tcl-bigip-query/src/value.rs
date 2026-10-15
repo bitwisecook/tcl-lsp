@@ -140,11 +140,7 @@ impl ObjectRef {
     /// path, or empty.
     #[must_use]
     pub fn partition(&self) -> &str {
-        if let Some(rest) = self.full_path.strip_prefix('/') {
-            // Equivalent to `full_path.split("/", 2)[1]`.
-            return rest.split('/').next().unwrap_or("");
-        }
-        ""
+        tcl_bigip::object_names::object_path_partition(&self.full_path).unwrap_or("")
     }
 }
 

@@ -16,6 +16,10 @@ use tcl_runtime_api::{
     NativeCompilationAdmissionError, NativeCompilationError, NativeCompilationErrorCommand,
 };
 
+#[cfg(test)]
+#[path = "native_compilation/jim_frame_tests.rs"]
+mod jim_frame_tests;
+
 #[derive(Clone)]
 pub(super) struct SelectedInvocation {
     identity: Vec<u8>,
@@ -1059,6 +1063,18 @@ impl Interp {
                 meta.jim_body.map(obj::Owned::retain),
                 namespace,
             );
+            if let Some(procedure) = meta.c_procedure {
+                let observed = self
+                    .frames
+                    .borrow_mut()
+                    .observe_original_jim_procedure(procedure);
+                if let Err(error) = observed {
+                    let popped = self.pop_native_call_frame();
+                    self.leave_namespace_activation(popped);
+                    self.recursion_depth.set(self.recursion_depth.get() - 1);
+                    return Err(self.report_cmd_error(error.into()));
+                }
+            }
         }
         if let Some(statics) = meta.statics.take() {
             let activation_level = self.current_level();
@@ -1237,6 +1253,24 @@ impl Interp {
                     len,
                 } => {
                     let value = self.new_list_object(&call_args[start..start + len]);
+                    let original = if self.native_invocation_dialect().native_string_protocol()
+                        == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
+                    {
+                        match crate::frame::OriginalJimVariadic::capture(value) {
+                            Ok(original) => Some(original),
+                            Err(error) => {
+                                self.report_cmd_error(error.into());
+                                drop_fresh(value);
+                                let popped = self.pop_native_call_frame();
+                                self.current_ns.set(saved_ns);
+                                self.leave_namespace_activation(popped);
+                                self.recursion_depth.set(self.recursion_depth.get() - 1);
+                                return Err(Code::Error);
+                            }
+                        }
+                    } else {
+                        None
+                    };
                     let result = if indexed.is_some() {
                         self.store_native_formal_cell_checked(parameter, value)
                     } else {
@@ -1244,6 +1278,19 @@ impl Interp {
                     };
                     if result.is_err() {
                         drop_fresh(value);
+                    } else if let Some(original) = original {
+                        let observed = self
+                            .frames
+                            .borrow_mut()
+                            .observe_original_jim_variadic(original);
+                        if let Err(error) = observed {
+                            self.report_cmd_error(error.into());
+                            let popped = self.pop_native_call_frame();
+                            self.current_ns.set(saved_ns);
+                            self.leave_namespace_activation(popped);
+                            self.recursion_depth.set(self.recursion_depth.get() - 1);
+                            return Err(Code::Error);
+                        }
                     }
                     result.map_err(|_| {
                         if self.native_execution_refusal().is_none() {

@@ -27422,6 +27422,21 @@ impl tcl_runtime_api::Aliases for Vm {
 }
 
 impl Namespaces for Vm {
+    fn native_jim_command_inventory_result(
+        &mut self,
+        root: NsId,
+        pattern: Option<&[u8]>,
+        include_spaces: bool,
+        kind: tcl_runtime_api::NativeJimCommandInventoryKind,
+    ) -> Result<Value, tcl_syntax::value::ValueError> {
+        self.original_jim_command_inventory_result(root, pattern, include_spaces, kind)
+            .map_err(|error| {
+                oo_cleanup::retain_error(self, &error);
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original Jim command inventory result",
+                )
+            })
+    }
     type OriginalNameError = tcl_cmd_core::CmdError;
     fn namespace_import_binding(&self) -> Option<tcl_dialect::NamespaceImportBinding> {
         self.dialect_profile().namespace_import_binding()

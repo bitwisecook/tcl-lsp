@@ -424,6 +424,9 @@ pub struct Analyser {
     /// Last seen comment text, for proc / class doc-comment
     /// harvesting.
     pub last_comment: String,
+    /// Genuine lexical definition parent during its member inventory only.
+    pub(super) original_class_definition_body:
+        Option<Arc<crate::registry_invocation::OriginalSourceScriptBody>>,
     /// Source-file path (for the LSP `Diagnostic.uri` field), or
     /// `None` when analysing in-memory text.
     pub file_path: Option<String>,
@@ -1539,6 +1542,7 @@ impl Analyser {
             disabled_diagnostics: disabled,
             extra_commands: Arc::new(HashSet::new()),
             last_comment: String::new(),
+            original_class_definition_body: None,
             file_path: None,
             const_strings: HashMap::new(),
             logical_const_string_provenance: HashMap::new(),
@@ -2168,6 +2172,7 @@ impl Analyser {
         // emitters) can re-slice it.
         self.source = source.to_string();
         self.original_static_source_names.clear();
+        self.original_class_definition_body = None;
         let tk_ambient = self.resolve_walk_environment(dialect);
         if let Some(result) = self.unavailable_analysis_result(dialect) {
             return result;

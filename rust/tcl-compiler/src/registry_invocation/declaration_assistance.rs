@@ -514,6 +514,29 @@ fn alias_target_is_literal(target: &tcl_registry::VariableAliasTarget) -> bool {
 
 #[cfg(test)]
 mod original_alias_source_schema_tests {
+    fn original_target_input(
+        aliases: &super::OriginalSourceVariableAliasOperands,
+        target: tcl_lexer::Span,
+        purpose: crate::signature_scan::original_name::OriginalSourceNamePurpose,
+    ) -> crate::signature_scan::scope::SignatureSourceNameInput {
+        let word = aliases
+            .words
+            .operands()
+            .iter()
+            .flatten()
+            .filter_map(|operand| operand.word())
+            .find(|word| word.span() == target)
+            .expect("authentic retained target operand");
+        crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(
+            purpose
+                .key(
+                    word,
+                    tcl_syntax::word_rules::WordValueRules::from_config(&word.config()),
+                )
+                .expect("original literal target naming input"),
+        )
+    }
+
     #[test]
     fn original_namespace_alias_target_uses_written_namespace_and_current_scope() {
         let source = "namespace eval outer {namespace upvar child value local}";
@@ -545,8 +568,16 @@ mod original_alias_source_schema_tests {
         .collect::<Vec<_>>();
         assert_eq!(aliases.len(), 1);
         let (local, target, _) = aliases[0].operands()[0];
+        let target_input = original_target_input(&aliases[0], target, purpose);
         let selected = aliases[0]
-            .namespace_target_scope(source, &analysis, (local, target), current, purpose)
+            .target_namespace_scope(
+                source,
+                &analysis,
+                (local, target),
+                &target_input,
+                current,
+                purpose,
+            )
             .expect("actual selected written namespace operand");
         let crate::signature_scan::scope::SignatureNamespaceScope::C(path) = &selected else {
             panic!("selected C source namespace geometry");
@@ -574,10 +605,11 @@ mod original_alias_source_schema_tests {
         assert_eq!(simple.as_bytes(), b"value");
         assert!(
             aliases[0]
-                .namespace_target_scope(
+                .target_namespace_scope(
                     &source.replace("child", "other"),
                     &analysis,
                     (local, target),
+                    &target_input,
                     current,
                     purpose,
                 )
@@ -585,14 +617,28 @@ mod original_alias_source_schema_tests {
         );
         assert!(
             aliases[0]
-                .namespace_target_scope(source, &analysis, (target, local), current, purpose,)
+                .target_namespace_scope(
+                    source,
+                    &analysis,
+                    (target, local),
+                    &target_input,
+                    current,
+                    purpose,
+                )
                 .is_none()
         );
         let mut missing = analysis.clone();
         missing.resolved_input = None;
         assert!(
             aliases[0]
-                .namespace_target_scope(source, &missing, (local, target), current, purpose,)
+                .target_namespace_scope(
+                    source,
+                    &missing,
+                    (local, target),
+                    &target_input,
+                    current,
+                    purpose,
+                )
                 .is_none()
         );
     }
@@ -636,12 +682,14 @@ mod original_alias_source_schema_tests {
             });
             if let Some(aliases) = aliases {
                 for &(local, target, _) in aliases.operands() {
+                    let target_input = original_target_input(&aliases, target, purpose);
                     assert!(
                         aliases
-                            .namespace_target_scope(
+                            .target_namespace_scope(
                                 source,
                                 &analysis,
                                 (local, target),
+                                &target_input,
                                 current,
                                 purpose,
                             )

@@ -66,7 +66,7 @@ impl OriginalSourceInvocation {
         let Some(root) = backing.source_origin() else {
             return Ok(None);
         };
-        let procedure = actual.frames.borrow().current_c_procedure().cloned();
+        let procedure = actual.frames.borrow().current_original_jim_procedure()?;
         let Some(procedure) = procedure else {
             return Ok(None);
         };
@@ -101,7 +101,7 @@ impl OriginalSourceInvocation {
         argv: &[*mut crate::obj::TclObj],
     ) -> Result<(), ValueError> {
         self.frame.check_frame(actual)?;
-        let procedure = actual.frames.borrow().current_c_procedure().cloned();
+        let procedure = actual.frames.borrow().current_original_jim_procedure()?;
         let Some((owner, current)) = self.procedure.upgrade().zip(procedure) else {
             return Err(ValueError::CommandProtocolUnavailable(
                 "original Import source invocation frame",

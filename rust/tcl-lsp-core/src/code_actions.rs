@@ -2604,20 +2604,16 @@ fn taint_subject_actions(
                 "IRULE3002" => ("URI::encode", None),
                 _ => ("regex::quote", Some(REGEX_QUOTE_PROC)),
             };
+            let call = format!("[::{encoder} {matched}]");
             let mut edits = Vec::new();
             if let Some(template) = template {
-                if !diagnostic_context::helper_name_is_free(analysis, encoder)
-                    || source_action_spec(analysis, registry, "proc").is_none()
-                    || source_action_spec(
-                        analysis,
-                        registry,
-                        if encoder == "html_encode" {
-                            "string"
-                        } else {
-                            "regsub"
-                        },
-                    )
-                    .is_none()
+                let Some(proposal) = diagnostic_context::helper_publication_proposal(
+                    source, analysis, template, &call,
+                ) else {
+                    return Vec::new();
+                };
+                if proposal.template().bytes() != template.as_bytes()
+                    || proposal.call().bytes() != call.as_bytes()
                 {
                     return Vec::new();
                 }
@@ -2629,11 +2625,7 @@ fn taint_subject_actions(
             } else if source_action_spec(analysis, registry, encoder).is_none() {
                 return Vec::new();
             }
-            edits.push(source_edit(
-                source,
-                read,
-                format!("[::{encoder} {matched}]"),
-            ));
+            edits.push(source_edit(source, read, call));
             vec![context_action(
                 format!("Wrap ${variable} with [{encoder}]"),
                 edits,

@@ -1858,6 +1858,27 @@ pub trait Namespaces {
     fn root_command_context_checked(&self) -> Result<Option<NsId>, tcl_syntax::value::ValueError> {
         self.find_namespace_bytes_checked(self.current(), b"::")
     }
+
+    /// Construct Jim's actual inventory List from retained current table keys.
+    /// The owner selects original candidate positions with the shared naming
+    /// policy and preserves their actual headers and command generations.
+    ///
+    /// # Errors
+    /// The default supplies no native table/key/result constructor and refuses.
+    fn native_jim_command_inventory_result(
+        &mut self,
+        _root: NsId,
+        _pattern: Option<&[u8]>,
+        _include_spaces: bool,
+        _kind: NativeJimCommandInventoryKind,
+    ) -> Result<<Self as tcl_syntax::value::ValueOps>::Value, tcl_syntax::value::ValueError>
+    where
+        Self: tcl_syntax::value::ValueOps,
+    {
+        Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "original Jim command inventory table keys",
+        ))
+    }
     /// The fully-qualified name of namespace `ns` (`"::"` for the global root) —
     /// what `namespace current` reports.
     fn name(&self, ns: NsId) -> String;

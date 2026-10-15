@@ -52,6 +52,30 @@ impl OriginalSourceClassRelationProvider {
         &self.input == input && &self.lookup == lookup
     }
 
+    /// Current whole analysis input and retained source allocation agree.
+    /// This does not establish a class object or entered definition worker.
+    #[must_use]
+    pub fn matches_analysis(&self, analysis: &crate::analyser::AnalysisResult) -> bool {
+        let Some(input) = analysis.resolved_input.as_ref() else {
+            return false;
+        };
+        let Some(seed) = analysis.retained_command_realm().and_then(|realm| {
+            realm
+                .source_bindings_ref()
+                .original_source_transition_seed()
+        }) else {
+            return false;
+        };
+        let image = self.body.original_container().image();
+        seed.origin == self.parent.site().source
+            && seed.config == input.lexer_config()
+            && seed.logical_input.as_ref() == self.parent.logical_source_input()
+            && self.body.matches_source(image, input.lexer_config())
+            && self.parent.matches_source(image, input.lexer_config())
+            && self.parent.matches_context(&input.context_registry())
+            && analysis.matches_original_source_image(image, input.lexer_config())
+    }
+
     /// Actual selected source declaration; aliases cannot supply a class object.
     #[must_use]
     pub fn source_class(&self) -> Option<&OriginalSourceClassDeclaration> {
@@ -97,7 +121,9 @@ impl OriginalSourceClassRelationProvider {
         let Some(receiver) = &self.receiver else {
             return false;
         };
-        receiver.factory().site() == self.parent.site()
+        !class.source_name_ambiguous.is_observed()
+            && class.metaclass_provenance == crate::analyser::MetaclassProvenance::Observed
+            && receiver.factory().site() == self.parent.site()
             && receiver
                 .name_input()
                 .original_word()
@@ -202,13 +228,15 @@ impl super::super::SourceCommandBindings {
             return None;
         }
         let reply = RefCell::new(None);
-        seed.prepare_for_class_relation(
+        seed.prepare_for_query(
             &context,
             OriginalSourceCataloguePurpose::CompletePrefix,
-            Some(ClassRelationQuery {
-                request: &request,
-                reply: &reply,
-            }),
+            Some(super::SourceAdviceQuery::ClassRelation(
+                ClassRelationQuery {
+                    request: &request,
+                    reply: &reply,
+                },
+            )),
         )?;
         reply.into_inner().flatten()
     }
@@ -221,7 +249,7 @@ impl AdviceInvocationContext<'_> {
         graph: &AdviceGraph,
         schema: &tcl_registry::ResolvedInvocation<'_, '_>,
     ) {
-        let Some(query) = self.class_relation_query else {
+        let Some(super::SourceAdviceQuery::ClassRelation(query)) = self.query else {
             return;
         };
         if invocation
@@ -334,7 +362,7 @@ mod tests {
         let name = SignatureSourceNameInput::OriginalWord(
             SignatureSourceNameKey::from_original_native_word(
                 reference.original_word(),
-                tcl_syntax::word_rules::WordValueRules::from_config(input.lexer_config()),
+                tcl_syntax::word_rules::WordValueRules::from_config(&input.lexer_config()),
                 policy,
             )?,
         );

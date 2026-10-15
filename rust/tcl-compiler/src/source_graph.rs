@@ -21,6 +21,28 @@ pub fn current_analysis(
         .then_some((image, config))
 }
 
+/// Conditional new-source publication proposal under the actual whole document
+/// and its source-transition owner. This supplies source collision advice only;
+/// diagnostic applicability, review and editing remain independent obligations.
+#[must_use]
+pub fn original_logical_publication_proposal(
+    source: &str,
+    analysis: &AnalysisResult,
+    template: &str,
+    call: &str,
+) -> Option<crate::command_binding::OriginalSourcePublicationProposal> {
+    let (image, config) = current_analysis(source, analysis)?;
+    let input = analysis.resolved_input.as_ref()?;
+    if !input.has_logical_source_name_context() || input.lexer_config() != config {
+        return None;
+    }
+    let proposal = analysis
+        .retained_command_realm()?
+        .source_bindings_ref()
+        .original_logical_publication_proposal(input, template, call)?;
+    proposal.matches_source(&image, input).then_some(proposal)
+}
+
 /// Match current consumer and declaration sources against the retained original
 /// invocation and actual command reference. Independent URI ownership remains
 /// the caller's responsibility; links follow only already retained allocations.

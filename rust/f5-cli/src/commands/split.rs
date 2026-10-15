@@ -104,15 +104,8 @@ pub fn run_split(input: &Path, output: &Path, format: &FormatArgs) -> anyhow::Re
 
 /// Return the `/Common/` etc. partition prefix of an identifier, or `""`.
 fn partition_of(identifier: &str) -> String {
-    if identifier.is_empty() || !identifier.starts_with('/') {
-        return String::new();
-    }
-    let parts: Vec<&str> = identifier.splitn(3, '/').collect();
-    if parts.len() >= 2 {
-        format!("/{}/", parts[1])
-    } else {
-        String::new()
-    }
+    tcl_bigip::object_names::object_path_partition(identifier)
+        .map_or_else(String::new, |partition| format!("/{partition}/"))
 }
 
 /// Full text of a stanza including its header line: walk back from the opening

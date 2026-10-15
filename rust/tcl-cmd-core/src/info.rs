@@ -305,25 +305,11 @@ where
     let root = ops.root_command_context_checked()?.ok_or(
         tcl_syntax::value::ValueError::CommandProtocolUnavailable("Jim core inventory root table"),
     )?;
-    let candidates = match kind {
-        tcl_runtime_api::NativeJimCommandInventoryKind::Commands => ops.commands_in_bytes(root),
-        tcl_runtime_api::NativeJimCommandInventoryKind::Procs => ops.procs_in_bytes(root),
-        tcl_runtime_api::NativeJimCommandInventoryKind::Aliases => {
-            ops.aliases_in_bytes_checked(root)?
-        }
-    };
     let pattern = pattern
         .map(|value| ops.native_string_bytes(value))
         .transpose()?;
-    let names = policy
-        .recipe()
-        .jim_core_command_names(pattern.as_deref(), &candidates, include_spaces)
-        .map_err(|_| {
-            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                "Jim core inventory native match",
-            )
-        })?;
-    Ok(build_name_list_bytes(ops, names))
+    ops.native_jim_command_inventory_result(root, pattern.as_deref(), include_spaces, kind)
+        .map_err(Into::into)
 }
 
 /// Jim `info alias` returns the actual retained prefix object. Only a reached

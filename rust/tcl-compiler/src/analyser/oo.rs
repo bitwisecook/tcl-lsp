@@ -1234,6 +1234,7 @@ impl Analyser {
             scope_path,
             definer_disabled,
         );
+        self.original_class_definition_body = None;
         // The display inventory is separate from original source link authority.
         self.collect_oo_links(&method_bodies, class_def);
 

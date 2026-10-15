@@ -23,6 +23,7 @@ pub enum OriginalSourceClassRelationKind {
 pub struct OriginalSourceClassRelation {
     input: SignatureSourceNameInput,
     lookup: SignatureSourceLookup,
+    provider: Option<crate::command_binding::OriginalSourceClassRelationProvider>,
 }
 
 impl OriginalSourceClassRelation {
@@ -30,7 +31,31 @@ impl OriginalSourceClassRelation {
         input: SignatureSourceNameInput,
         lookup: SignatureSourceLookup,
     ) -> Option<Self> {
-        (lookup.original_name_input() == Some(&input)).then_some(Self { input, lookup })
+        (lookup.original_name_input() == Some(&input)).then_some(Self {
+            input,
+            lookup,
+            provider: None,
+        })
+    }
+    pub(crate) fn with_provider(
+        mut self,
+        provider: Option<crate::command_binding::OriginalSourceClassRelationProvider>,
+    ) -> Option<Self> {
+        if provider
+            .as_ref()
+            .is_some_and(|provider| !provider.matches_relation(&self.input, &self.lookup))
+        {
+            return None;
+        }
+        self.provider = provider;
+        Some(self)
+    }
+    /// Original parent-horizon provider, separate from entered relation effects.
+    #[must_use]
+    pub fn source_provider(
+        &self,
+    ) -> Option<&crate::command_binding::OriginalSourceClassRelationProvider> {
+        self.provider.as_ref()
     }
     /// Exact original operand producer, independent of a reporting name.
     #[must_use]

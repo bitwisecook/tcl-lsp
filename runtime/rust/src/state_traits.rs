@@ -1114,6 +1114,16 @@ impl tcl_runtime_api::Aliases for Interp {
 
 impl Namespaces for Interp {
     type OriginalNameError = tcl_cmd_core::CmdError;
+
+    fn native_jim_command_inventory_result(
+        &mut self,
+        root: NsId,
+        pattern: Option<&[u8]>,
+        include_spaces: bool,
+        kind: tcl_runtime_api::NativeJimCommandInventoryKind,
+    ) -> Result<*mut TclObj, tcl_syntax::value::ValueError> {
+        self.original_jim_command_inventory_object(root, pattern, include_spaces, kind)
+    }
     fn namespace_import_binding(&self) -> Option<tcl_dialect::NamespaceImportBinding> {
         self.dialect_profile().namespace_import_binding()
     }

@@ -3081,6 +3081,56 @@ fn scan_positioned_reachability(
     }
 }
 
+fn scan_positioned_registry_facts(
+    resolved: &crate::registry_invocation::ResolvedStatementInvocation,
+    tokens: &crate::ir::CommandTokens,
+    args: &[String],
+    ctx: ScanCtx<'_>,
+    facts: &mut LocalFacts,
+) {
+    let Some(context) = ctx.metadata_context() else {
+        scan_unproved_invocation(args, ctx, facts);
+        return;
+    };
+    let Some((reads, writes)) =
+        crate::registry_invocation::possible_normal_handler_effect_regions_with_metadata_context(
+            ctx.registry,
+            Some(context.as_ref().into()),
+            tokens,
+        )
+    else {
+        scan_unproved_invocation(args, ctx, facts);
+        return;
+    };
+    facts.effect_reads |= reads;
+    facts.effect_writes |= writes;
+    facts.writes_global |= writes.intersects(EffectRegion::GLOBAL_STATE);
+    let traits = resolved.facts.traits;
+    if traits
+        .intersects(tcl_registry::Traits::EVALUATES_CODE | tcl_registry::Traits::CREATES_BARRIER)
+    {
+        scan_unproved_invocation(args, ctx, facts);
+        return;
+    }
+    if !traits.intersects(tcl_registry::Traits::PURE | tcl_registry::Traits::PURE_EVALUATION)
+        || !writes.is_empty()
+    {
+        facts.mark_impure();
+    }
+    // Targets come from positioned reachability; parameter observations remain advisory.
+    for arg in args {
+        for param in ctx.params {
+            if text_references_name(arg, param) {
+                facts
+                    .param_trait_flags
+                    .entry(param.clone())
+                    .or_default()
+                    .insert(ProcArgTrait::Passthrough);
+            }
+        }
+    }
+}
+
 /// Consume positioned implementation facts before assistance projections.
 fn scan_positioned_invocation(
     stmt: &crate::ir::Statement,
@@ -3148,12 +3198,7 @@ fn scan_positioned_invocation(
             .cloned()
             .collect::<Option<Vec<_>>>()
         {
-            scan_call_facts(
-                &resolved.facts.canonical_command,
-                &presented,
-                positioned,
-                facts,
-            );
+            scan_positioned_registry_facts(&resolved, tokens, &presented, positioned, facts);
         } else {
             // The target is proved, but a legacy textual effect/callback
             // query cannot invent bytes for a captured unmaterialised value.

@@ -21,6 +21,14 @@
 //! Paths remain literal F5 slash-domain keys. Policies describe local tooling
 //! contracts; they do not establish appliance or Tcl interpreter resolution.
 
+/// Read the first component of an absolute authored F5 object path.
+/// Empty components remain empty; this neither validates nor resolves a path.
+#[must_use]
+pub fn object_path_partition(path: &str) -> Option<&str> {
+    path.strip_prefix('/')
+        .and_then(|rest| rest.split('/').next())
+}
+
 /// Matching precedence within a caller-supplied object domain.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ObjectNamePolicy<'a> {
@@ -61,9 +69,7 @@ impl ObjectNamePolicy<'_> {
             Self::Exact => None,
             Self::ExactThenOwnerPartitionOrReferenceLeaf { owner } => {
                 if !reference.starts_with('/')
-                    && let Some(partition) = owner
-                        .strip_prefix('/')
-                        .and_then(|path| path.split('/').next())
+                    && let Some(partition) = object_path_partition(owner)
                     && qualified_path_equals(path, partition, reference)
                 {
                     return Some(1);
@@ -228,9 +234,7 @@ pub fn owner_partition_reference_paths(
     if reference.starts_with('/') {
         return vec![reference.to_owned()];
     }
-    let partition = owner
-        .strip_prefix('/')
-        .and_then(|path| path.split('/').next())
+    let partition = object_path_partition(owner)
         .filter(|partition| !partition.is_empty())
         .unwrap_or(default_partition.trim_matches('/'));
     let mut candidates = vec![format!("/{partition}/{reference}")];

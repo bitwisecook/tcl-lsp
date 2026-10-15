@@ -6503,6 +6503,10 @@ impl Interp {
                 .ensure_current_or_refuse()
                 .map_err(|first| self.refuse_native_execution(first))?;
             let name = variable.name().as_bytes();
+            // Jim_SetVariableStr creates the original name before the table entry.
+            let original_jim_root = (protocol.names().string_protocol()
+                == tcl_syntax::native_string::NativeStringProtocol::Jim084)
+                .then(|| obj::Owned::fresh(new_string(name)));
             match variable {
                 V::ErrorInfo | V::ErrorCode | V::Precision => {
                     let allocated = self.ensure_trace_variable(name);
@@ -6523,6 +6527,20 @@ impl Interp {
                     let allocated =
                         allocated.map_err(|error| crate::builtins::var_error(self, name, error));
                     self.checked_bootstrap_outcome(scope.currency(), allocated)?;
+                    if let Some(original) = &original_jim_root {
+                        crate::vars::retain_original_jim_variable_key(
+                            &self.frames.borrow(),
+                            &self.namespaces.borrow(),
+                            crate::namespace::GLOBAL,
+                            name,
+                            original.as_ptr(),
+                        );
+                        let installed =
+                            self.install_original_jim_variable(original.as_ptr(), name);
+                        let installed =
+                            installed.map_err(|error| self.report_cmd_error(error.into()));
+                        self.checked_bootstrap_outcome(scope.currency(), installed)?;
+                    }
                     let entries: Vec<(&str, &str)> = if variable == V::Environment {
                         snapshot
                             .environment()
@@ -6622,6 +6640,21 @@ impl Interp {
                             "native constructor main-argument allocation",
                         ),
                     ));
+                }
+            }
+            if !matches!(variable, V::Environment | V::Platform) {
+                if let Some(original) = &original_jim_root {
+                    crate::vars::retain_original_jim_variable_key(
+                        &self.frames.borrow(),
+                        &self.namespaces.borrow(),
+                        crate::namespace::GLOBAL,
+                        name,
+                        original.as_ptr(),
+                    );
+                    let installed = self.install_original_jim_variable(original.as_ptr(), name);
+                    let installed =
+                        installed.map_err(|error| self.report_cmd_error(error.into()));
+                    self.checked_bootstrap_outcome(scope.currency(), installed)?;
                 }
             }
             scope

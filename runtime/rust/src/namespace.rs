@@ -131,6 +131,21 @@ struct CommandSlot {
     binding: Option<CommandBinding>,
 }
 
+/// An actual current root-table entry, independent of its displayed name.
+pub(crate) struct OriginalJimCommandInventoryKey {
+    pub(crate) generation: u64,
+    pub(crate) report: Vec<u8>,
+    original: crate::obj::NativeObjectLifetime,
+}
+
+impl OriginalJimCommandInventoryKey {
+    pub(crate) fn original(
+        &self,
+    ) -> Result<*mut crate::obj::TclObj, tcl_syntax::value::ValueError> {
+        self.original.checked_ptr()
+    }
+}
+
 /// Extracted original owners, released after the namespace borrow. Jim releases
 /// the key before the value on deletion; replacement contains only the value.
 pub(crate) struct RetiredCommandSlot {
@@ -685,6 +700,87 @@ impl Namespaces {
                 Ok(crate::obj::NativeObjectLifetime::retain(key.as_ptr()))
             })
             .collect()
+    }
+
+    pub(crate) fn original_jim_command_inventory_keys(
+        &self,
+        kind: tcl_runtime_api::NativeJimCommandInventoryKind,
+        visible: &impl Fn(&Command, u64) -> bool,
+    ) -> Result<Vec<OriginalJimCommandInventoryKey>, tcl_syntax::value::ValueError> {
+        use tcl_syntax::value::ValueError;
+        if self.variable_name_protocol != Some(tcl_syntax::naming::NativeNameProtocol::Jim084) {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "original Jim command inventory table",
+            ));
+        }
+        self.arena[GLOBAL]
+            .commands
+            .entries
+            .iter()
+            .filter_map(|(slot, entry)| {
+                entry.binding.as_ref().map(|binding| (slot, entry, binding))
+            })
+            .filter(|(_, _, binding)| {
+                visible(&binding.command, binding.generation)
+                    && match kind {
+                        tcl_runtime_api::NativeJimCommandInventoryKind::Commands => true,
+                        tcl_runtime_api::NativeJimCommandInventoryKind::Procs => {
+                            matches!(&binding.command, Command::Proc(_))
+                        }
+                        tcl_runtime_api::NativeJimCommandInventoryKind::Aliases => matches!(
+                            &binding.command,
+                            Command::Alias { .. } | Command::ParentAlias { .. }
+                        ),
+                    }
+            })
+            .map(|(slot, entry, binding)| {
+                if !self.original_publication_is_current(GLOBAL, slot, binding.generation) {
+                    return Err(ValueError::CommandProtocolUnavailable(
+                        "original Jim inventory current binding",
+                    ));
+                }
+                let key = entry.original_jim_key.as_ref().ok_or(
+                    ValueError::CommandProtocolUnavailable("original Jim inventory actual key"),
+                )?;
+                let table_key = binding.jim_table_key.as_ref().ok_or(
+                    ValueError::CommandProtocolUnavailable("original Jim inventory table geometry"),
+                )?;
+                if table_key.comparison_bytes() != slot.as_slice() {
+                    return Err(ValueError::CommandProtocolUnavailable(
+                        "original Jim inventory key geometry",
+                    ));
+                }
+                crate::obj::check_native_liveness(key.as_ptr())?;
+                Ok(OriginalJimCommandInventoryKey {
+                    generation: binding.generation,
+                    report: table_key.report_bytes().to_vec(),
+                    original: crate::obj::NativeObjectLifetime::retain(key.as_ptr()),
+                })
+            })
+            .collect()
+    }
+
+    pub(crate) fn check_original_jim_command_inventory_key(
+        &self,
+        key: &OriginalJimCommandInventoryKey,
+    ) -> Result<(), tcl_syntax::value::ValueError> {
+        use tcl_syntax::value::ValueError;
+        let original = key.original()?;
+        let (namespace, slot) = self.native_command_slot_at_node(key.generation).ok_or(
+            ValueError::CommandProtocolUnavailable("retired original Jim inventory binding"),
+        )?;
+        let current = self.arena[namespace]
+            .commands
+            .entries
+            .get(&slot)
+            .filter(|_| namespace == GLOBAL)
+            .and_then(|entry| entry.original_jim_key.as_ref());
+        if !current.is_some_and(|current| current.as_ptr() == original) {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "replaced original Jim inventory key",
+            ));
+        }
+        Ok(())
     }
 
     /// Cold lookup observes one allocator/header slot. Selected readers check

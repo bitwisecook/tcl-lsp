@@ -1589,6 +1589,8 @@ struct Frame {
     jim_link_birth: Rc<()>,
     jim_storage: tcl_runtime_api::jim_call_frame::JimCallFrameStorageSlot,
     c_procedure: Option<Rc<crate::interp::ProcDef>>,
+    original_jim_procedure: Option<std::rc::Weak<crate::interp::ProcDef>>,
+    original_jim_variadic: Option<OriginalJimVariadic>,
     oo_variable_resolver: Option<crate::cmd_oo::native_variables::NativeOoVariableResolver>,
     native_procedure_execution: Option<
         tcl_runtime_api::native_procedure_roles::NativeProcedureReference<crate::interp::ProcDef>,
@@ -1629,6 +1631,34 @@ struct Frame {
     saved_active: usize,
 }
 
+pub(crate) struct OriginalJimVariadic {
+    original: obj::NativeObjectLifetime,
+    backing: crate::list::NativeListBacking,
+}
+
+impl OriginalJimVariadic {
+    pub(crate) fn capture(
+        original: *mut obj::TclObj,
+    ) -> Result<Self, tcl_syntax::value::ValueError> {
+        obj::check_native_liveness(original)?;
+        let backing = crate::list::native_list_backing(original).ok_or(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "actual Jim variadic List constructor",
+            ),
+        )?;
+        Ok(Self {
+            original: obj::NativeObjectLifetime::retain(original),
+            backing,
+        })
+    }
+
+    fn original(&self) -> Result<*mut obj::TclObj, tcl_syntax::value::ValueError> {
+        let original = self.original.checked_ptr()?;
+        self.backing.check_original_header(original)?;
+        Ok(original)
+    }
+}
+
 impl Drop for Frame {
     fn drop(&mut self) {
         drop(self.native_procedure_execution.take());
@@ -1646,6 +1676,8 @@ impl Frame {
             jim_link_birth: Rc::new(()),
             jim_storage: tcl_runtime_api::jim_call_frame::JimCallFrameStorageSlot::default(),
             c_procedure: None,
+            original_jim_procedure: None,
+            original_jim_variadic: None,
             oo_variable_resolver: None,
             native_procedure_execution: None,
             native_local_names: None,
@@ -1767,6 +1799,91 @@ impl FrameStack {
             .get(self.current_frame_index())?
             .c_procedure
             .as_ref()
+    }
+
+    pub(crate) fn observe_original_jim_procedure(
+        &mut self,
+        procedure: &Rc<crate::interp::ProcDef>,
+    ) -> Result<(), tcl_syntax::value::ValueError> {
+        use tcl_syntax::value::ValueError;
+        let frame = self
+            .frames
+            .last_mut()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "actual Jim procedure activation",
+            ))?;
+        let body = frame
+            .jim_body
+            .as_ref()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "actual Jim procedure body role",
+            ))?;
+        obj::check_native_liveness(body.as_ptr())?;
+        if procedure.body.checked_ptr()? != body.as_ptr() {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "actual Jim procedure body owner",
+            ));
+        }
+        frame.original_jim_procedure = Some(Rc::downgrade(procedure));
+        Ok(())
+    }
+
+    pub(crate) fn current_original_jim_procedure(
+        &self,
+    ) -> Result<Option<Rc<crate::interp::ProcDef>>, tcl_syntax::value::ValueError> {
+        use tcl_syntax::value::ValueError;
+        let Some(frame) = self.frames.get(self.current_frame_index()) else {
+            return Ok(None);
+        };
+        let Some(owner) = frame.original_jim_procedure.as_ref() else {
+            return Ok(None);
+        };
+        let owner = owner
+            .upgrade()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "retired actual Jim procedure owner",
+            ))?;
+        let body = frame
+            .jim_body
+            .as_ref()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "actual Jim procedure body role",
+            ))?;
+        obj::check_native_liveness(body.as_ptr())?;
+        if owner.body.checked_ptr()? != body.as_ptr() {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "actual Jim procedure body owner",
+            ));
+        }
+        Ok(Some(owner))
+    }
+
+    pub(crate) fn observe_original_jim_variadic(
+        &mut self,
+        original: OriginalJimVariadic,
+    ) -> Result<(), tcl_syntax::value::ValueError> {
+        original.original()?;
+        let frame = self
+            .frames
+            .last_mut()
+            .expect("actual Jim formal binding frame");
+        if frame.original_jim_procedure.is_some() {
+            frame.original_jim_variadic = Some(original);
+        }
+        Ok(())
+    }
+
+    pub(crate) fn current_original_jim_variadic(
+        &self,
+    ) -> Result<Option<*mut obj::TclObj>, tcl_syntax::value::ValueError> {
+        if self.current_original_jim_procedure()?.is_none() {
+            return Ok(None);
+        }
+        self.frames
+            .get(self.current_frame_index())
+            .and_then(|frame| frame.original_jim_variadic.as_ref())
+            .map(OriginalJimVariadic::original)
+            .transpose()
     }
 
     #[cfg(test)]

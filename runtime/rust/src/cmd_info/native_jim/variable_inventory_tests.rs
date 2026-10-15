@@ -213,6 +213,43 @@ fn original_jim_variable_inventories_keep_raw_and_helper_namespace_frame_stages(
     }
 }
 #[test]
+fn original_jim_bootstrap_keys_have_first_native_owners_and_retire_with_their_entries() {
+    use tcl_syntax::native_jim_lookup::NativeJimVariableInventoryLookup;
+    let mut interp = native_jim();
+    assert!(interp.native_execution_refusal().is_none());
+    for name in [b"auto_path".as_slice(), b"tcl_interactive", b"tcl_platform"] {
+        let inventory = interp
+            .namespaces()
+            .var_table(crate::namespace::GLOBAL)
+            .capture_original_jim_inventory(true, NativeJimVariableInventoryLookup::Exact(name))
+            .unwrap();
+        assert_eq!(inventory.keys().len(), 1);
+        let original = inventory.keys()[0].original().unwrap();
+        // SAFETY: the actual native table owns the original live key.
+        assert_eq!(unsafe { (*original).ref_count }, 1);
+        assert!(obj::with_jim_variable_cache(original, |_| ()).is_some());
+        let value = interp.get_obj_result();
+        assert_eq!(interp.assign_original_named_variable(original, value), Ok(()));
+        assert_eq!(inventory.keys()[0].original().unwrap(), original);
+        assert!(interp.var_unset(name));
+        assert!(inventory.check().is_err());
+        assert!(inventory.keys()[0].original().is_err());
+        assert!(obj::check_native_liveness(original).is_err());
+        let replacement = Owned::fresh(obj::new_string_bytes(name));
+        let value = Owned::fresh(obj::new_wide_int_obj(7));
+        interp
+            .store_original_named_variable(replacement.as_ptr(), value.as_ptr())
+            .unwrap();
+        assert!(inventory.keys()[0].original().is_err());
+        assert!(interp
+            .namespaces()
+            .var_table(crate::namespace::GLOBAL)
+            .original_native_key_is(name, replacement.as_ptr()));
+    }
+    assert!(interp.native_execution_refusal().is_none());
+}
+
+#[test]
 fn original_jim_variable_inventory_returns_same_keys_and_preserves_top_locals_empty() {
     use crate::interp::native_operation_currency::NativeOperationScope;
     let evidence = include_str!(

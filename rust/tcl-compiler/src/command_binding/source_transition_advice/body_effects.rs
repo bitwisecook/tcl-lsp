@@ -1128,6 +1128,18 @@ impl BodyWalk<'_, '_> {
         native: &NativeScriptCommandWords,
         depth: usize,
     ) -> Option<()> {
+        self.context.observe_publication_proposal(graph);
+        let retained = self.command_inner(graph, native, depth);
+        self.context.observe_publication_proposal(graph);
+        retained
+    }
+
+    fn command_inner(
+        &mut self,
+        graph: &mut AdviceGraph,
+        native: &NativeScriptCommandWords,
+        depth: usize,
+    ) -> Option<()> {
         self.mark_child_header(native)?;
         let syntax_body = self
             .member_catalogue_body
@@ -1774,7 +1786,7 @@ mod original_empty_coverage_tests {
             config,
             dialect,
             policy: &policy,
-            class_relation_query: None,
+            query: None,
         };
         let advice = owner.schema_advice(selected, &graph, &schema).unwrap();
         assert_eq!(advice.logical_source_input(), Some(&input));
@@ -1954,7 +1966,7 @@ mod original_expression_purpose_frontier_tests {
             config,
             dialect,
             policy: &policy,
-            class_relation_query: None,
+            query: None,
         };
         let advice = owner
             .schema_advice(
@@ -2003,7 +2015,7 @@ mod original_expression_purpose_frontier_tests {
             config,
             dialect,
             policy: &native_policy,
-            class_relation_query: None,
+            query: None,
         };
         let mut native = BodyWalk {
             context: &native_owner,

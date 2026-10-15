@@ -118,6 +118,72 @@ pub fn original_instance_metadata_order_for_inventory(
     tcl_syntax::mro::tcloo_linearise(&root_index, &supers, &mixins).ok()
 }
 
+/// Registry metaclass metadata reached through closed original superclass
+/// effects and actual parent-horizon providers. This does not select methods,
+/// execute a constructor or prove normal completion.
+#[must_use]
+pub(crate) fn original_registry_metaclass_provider(
+    analysis: &AnalysisResult,
+    root: &ClassDef,
+    context: &tcl_registry::model::ContextRegistry,
+) -> Option<crate::command_binding::OriginalSourceClassRelationProvider> {
+    let mut pending = vec![(root, false)];
+    let mut visited: Vec<(&ClassDef, bool)> = Vec::new();
+    let mut selected = None;
+    while let Some((class, finished)) = pending.pop() {
+        if let Some((_, complete)) = visited
+            .iter_mut()
+            .find(|(previous, _)| std::ptr::eq(*previous, class))
+        {
+            if finished {
+                *complete = true;
+            } else if !*complete {
+                return None;
+            }
+            continue;
+        }
+        visited.push((class, false));
+        pending.push((class, true));
+        let parents = class.original_relations.resolve(
+            MemberSide::Instance,
+            OriginalSourceClassRelationKind::Superclass,
+            |relation| {
+                let provider = relation.source_provider()?;
+                (provider.matches_analysis(analysis)
+                    && provider.matches_relation(relation.name_input(), relation.lookup())
+                    && provider.matches_class_definition(class))
+                .then(|| provider.clone())
+            },
+        )?;
+        for provider in parents {
+            if provider.registry_descriptor(context).is_some() {
+                if selected.as_ref().is_some_and(
+                    |prior: &crate::command_binding::OriginalSourceClassRelationProvider| {
+                        prior.policy() != provider.policy()
+                            || prior.source_slot() != provider.source_slot()
+                            || !prior
+                                .registry_descriptor(context)
+                                .zip(provider.registry_descriptor(context))
+                                .is_some_and(|(left, right)| std::ptr::eq(left, right))
+                    },
+                ) {
+                    return None;
+                }
+                selected = Some(provider);
+            } else {
+                let declaration = provider.source_class()?;
+                let parent = if analysis.allows_retained_logical_declaration_advice() {
+                    declaration.logical_source_class(analysis)?
+                } else {
+                    declaration.source_class(analysis)?.metadata()
+                };
+                pending.push((parent, false));
+            }
+        }
+    }
+    selected
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -213,5 +279,84 @@ mod record_owner_tests {
         assert!(
             original_instance_metadata_order_for_records(&[base, duplicate, child], 2).is_none()
         );
+    }
+}
+
+#[cfg(test)]
+mod registry_provider_tests {
+    use super::*;
+    use crate::analyser::{Analyser, MetaclassProvenance};
+
+    #[test]
+    fn original_registry_metaclass_uses_current_relation_and_definition_owners() {
+        let analysis = Analyser::new()
+            .analyse("oo::class create Meta {superclass ::oo::class}", "tcl8.6")
+            .clone();
+        let context = analysis.resolved_input.as_ref().unwrap().context_registry();
+        let class = analysis
+            .all_classes
+            .values()
+            .find(|class| class.name == "Meta")
+            .unwrap();
+        let provider = original_registry_metaclass_provider(&analysis, class, &context).unwrap();
+        assert_eq!(
+            provider.registry_descriptor(&context).unwrap().name,
+            "oo::class"
+        );
+
+        let mut reporting_only = class.clone();
+        reporting_only.name = "unrelated label".to_owned();
+        reporting_only.qualified_name = "::unrelated label".to_owned();
+        reporting_only.superclasses.clear();
+        reporting_only.relation_lookups.clear();
+        assert!(
+            original_registry_metaclass_provider(&analysis, &reporting_only, &context).is_some()
+        );
+
+        let foreign = Analyser::new()
+            .analyse("oo::class create Other {superclass ::oo::class}", "tcl8.6")
+            .clone();
+        assert!(original_registry_metaclass_provider(&foreign, class, &context).is_none());
+
+        let mut missing_owner = class.clone();
+        missing_owner.original_relations = Default::default();
+        assert!(
+            original_registry_metaclass_provider(&analysis, &missing_owner, &context).is_none()
+        );
+        let mut changed_definition = class.clone();
+        changed_definition.body_span = tcl_lexer::Span::new(0, 0);
+        assert!(
+            original_registry_metaclass_provider(&analysis, &changed_definition, &context)
+                .is_none()
+        );
+        let mut ambiguous = class.clone();
+        ambiguous.source_name_ambiguous.observe_if(true);
+        assert!(original_registry_metaclass_provider(&analysis, &ambiguous, &context).is_none());
+        let mut stand_in = class.clone();
+        stand_in.metaclass_provenance = MetaclassProvenance::StandIn;
+        assert!(original_registry_metaclass_provider(&analysis, &stand_in, &context).is_none());
+    }
+
+    #[test]
+    fn original_registry_metaclass_does_not_bypass_unknown_member_effects() {
+        for source in [
+            "oo::class create Meta {mystery; superclass ::oo::class}",
+            "oo::class create Meta {superclass ::oo::class; mystery}",
+            "oo::class create Meta {superclass $unknown}",
+            "oo::class create Meta {superclass Missing}",
+            "oo::class create Meta {}",
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl8.6").clone();
+            let context = analysis.resolved_input.as_ref().unwrap().context_registry();
+            let class = analysis
+                .all_classes
+                .values()
+                .find(|class| class.name == "Meta")
+                .unwrap();
+            assert!(
+                original_registry_metaclass_provider(&analysis, class, &context).is_none(),
+                "{source}"
+            );
+        }
     }
 }

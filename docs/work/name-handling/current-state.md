@@ -139,3 +139,9 @@ Ready source now includes actual Runtime invocation/frame/foreach Source transpo
 ## Fresh G build feedback
 
 The isolated `cb0ebe63e` ordinary build failed101 in82.754041288s with E0599 at `analyser/original_definer.rs:245`: the new actual source-value projection used nonexistent `Vec<u8>::as_bytes`. It produced0testELFs and ran0tests; complete source drift{}. The typed borrow repair preserves the same original byte vector and all source/argument checks. The successor must build afresh before any replay; exact G channels and target retirement record are in `handoff/successor-g-build-feedback.tar.gz`.
+
+## H feedback and next reviewed source
+
+Frozenef204bfc7 H built production dependencies but failed lib-test compilation101 in365.470356465s:3testELFs/0tests/source{}. Its six diagnostics are a missing config borrow in a new class-provider test and five old alias tests still calling a retired API. The repair reborrows actual retained target operands through the current purpose-specific alias API; original selectors/assertions remain. H replay plans were prepared but no H tests executed.
+
+Next source captures actual Runtime/VM command inventory key result construction, original24-cell Jim oracle fixture, constructor variable keys, distinct actual Jim frame/Rest receipts, current-analysis/closed-ledger class Registry-root metadata, partial fail-closed Logical publication data, positioned interprocedural metadata and shared F5 partition projection. Every source tranche passed bounded peer review. New inventory/frame/class/helper positives remain unexecuted. Import traversal is still refused. Formal-read/helper authoring, Hosted/namespace helper forms, OO override/completion, typed conditional interprocedural SSA places, eBPF DSL/ELF naming and unexamined surfaces remain unfinished.

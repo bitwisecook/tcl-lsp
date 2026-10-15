@@ -344,6 +344,8 @@ impl AdviceInvocationContext<'_> {
             .is_some()
         {
             tape.extend_inventory(retained);
+        } else {
+            self.withdraw_missing_publication_phase(schema);
         }
     }
 }
@@ -569,7 +571,14 @@ impl LogicalBodyWalk<'_, '_> {
         advice: &OriginalSourceCommandTransitionAdvice,
     ) -> Option<Vec<OriginalSourceScriptBody>> {
         let words = boxed_region_words(self.context, advice)?;
-        let bodies = words.source_script_bodies(self.context.context);
+        let bodies = if matches!(
+            self.context.query,
+            Some(super::SourceAdviceQuery::Publication(_))
+        ) {
+            words.source_script_bodies_for_mutation_coverage(self.context.context)?
+        } else {
+            words.source_script_bodies(self.context.context)
+        };
         if bodies.iter().any(|body| {
             let container = body.original_container();
             let content = container.content_span().ok();
@@ -631,6 +640,20 @@ impl LogicalBodyWalk<'_, '_> {
     }
 
     fn command(
+        &mut self,
+        tape: &mut OriginalSourceTransitionAdviceTape,
+        graph: &mut AdviceGraph,
+        command: &NativeScriptCommandWords,
+        scope: &Arc<OriginalDeclaredLogicalBodyContext>,
+        depth: usize,
+    ) -> Option<()> {
+        self.context.observe_publication_proposal(graph);
+        let retained = self.command_inner(tape, graph, command, scope, depth);
+        self.context.observe_publication_proposal(graph);
+        retained
+    }
+
+    fn command_inner(
         &mut self,
         tape: &mut OriginalSourceTransitionAdviceTape,
         graph: &mut AdviceGraph,
@@ -942,6 +965,8 @@ impl LogicalBodyWalk<'_, '_> {
                 .is_some()
             {
                 Self::retain_inventory(tape, retained);
+            } else {
+                self.context.withdraw_missing_publication_phase(schema);
             }
             return Some(());
         }
@@ -949,21 +974,35 @@ impl LogicalBodyWalk<'_, '_> {
             frame.layout == tcl_registry::FrameArgLayout::ScriptInSelectedFrame
         });
         if schema.semantics.body_kind != tcl_registry::BodyKind::Plain && !selected_frame {
+            self.context.withdraw_missing_publication_phase(schema);
             return Some(());
         }
         let frame_level = if selected_frame {
             let Some(tcl_registry::frame_effect::FrameArgumentResolution::Valid { level, .. }) =
                 schema.authored_logical_source_frame_argument_layout()
             else {
+                self.context.withdraw_missing_publication_phase(schema);
                 return Some(());
             };
             if !level.is_current_frame() && !level.is_global_frame() {
+                self.context.withdraw_missing_publication_phase(schema);
                 return Some(());
             }
             Some(level)
         } else {
             None
         };
+        if matches!(
+            self.context.query,
+            Some(super::SourceAdviceQuery::Publication(_))
+        ) && schema
+            .authored_logical_source_argument_roles()
+            .0
+            .iter()
+            .any(|(_, role)| *role == tcl_registry::ArgRole::Expr)
+        {
+            self.context.withdraw_missing_publication_phase(schema);
+        }
         for body in self.bodies(advice)? {
             let mut prepared = Self::prepare_child_body(graph, scope, body, frame_level)?;
             self.script(
