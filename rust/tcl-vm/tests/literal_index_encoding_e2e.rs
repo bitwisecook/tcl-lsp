@@ -477,7 +477,46 @@ const ERROR_CODES_TAGGED: &str = "top: TCL WRONGARGS / TCL WRONGARGS / TCL WRONG
 TCL VALUE LIST QUOTE / TCL VALUE LIST JUNK\n\
 proc: {TCL WRONGARGS} {TCL WRONGARGS} {TCL WRONGARGS} {TCL VALUE LIST BRACE}\n";
 
+/// A command with one literal index word and one read at run time follows
+/// its compile procedure's own rule: `TclCompileLreplaceCmd`,
+/// `TclCompileLrangeCmd` and `TclCompileStringReplaceCmd` need both literal
+/// and read both as the command runs otherwise, while
+/// `TclCompileStringRangeCmd` settles a literal `first` after the end alone.
+const MIXED: &str = r#"proc p {} {
+    set l {a b c}; set s abcdef; set i 1
+    lappend o [lreplace $l end-2147483649 $i X] [lreplace $l $i end-2147483649 X] [lreplace $l 0 end-2147483649 X]
+    lappend o [string range abcdef end-2147483649 $i] [string range $s $i end-2147483649] [string range $s 0 end-2147483649]
+    lappend o [lrange $l end-2147483649 $i] [lrange $l $i end-2147483649] [linsert $l end-2147483649 X]
+    lappend o [string replace $s end-2147483649 $i X] [string replace $s $i end-2147483649 X] [string replace $s $i end-2147483649]
+    set r1 [lreplace $l end-2147483649 $i X]; set r2 [string range abcdef end-2147483649 $i]
+    lappend o $r1 $r2
+}
+puts "proc: [p]"
+set l {a b c}; set s abcdef; set i 1
+puts "top: [list [lreplace $l end-2147483649 $i X] [string range abcdef end-2147483649 $i] [lrange $l $i end-2147483649] [string replace $s $i end-2147483649]]"
+"#;
+
+const MIXED_READ: &str = "proc: {X c} {a X b c} {X a b c} ab {} {} {a b} {} {X a b c} Xcdef abcdef \
+abcdef {X c} ab\ntop: {X c} ab {} abcdef\n";
+
+const MIXED_86_FILE: &str = "proc: {X c} {a X b c} X {} {} abcdef {a b} {} {a b c X} Xcdef abcdef \
+abcdef {X c} {}\ntop: {X c} ab {} abcdef\n";
+
+const MIXED_86_STDIN: &str = "proc: {X c} {a X b c} X {} {} abcdef {a b} {} {a b c X} Xcdef abcdef \
+abcdef {X c} {}\ntop: {X c} {} {} abcdef\n";
+
 const VECTORS: &[Vector] = &[
+    Vector {
+        name: "a literal index beside one read at run time",
+        script: MIXED,
+        want: &[
+            (TclVersion::V8_4, MIXED_READ, MIXED_READ),
+            (TclVersion::V8_5, MIXED_READ, MIXED_READ),
+            (TclVersion::V8_6, MIXED_86_FILE, MIXED_86_STDIN),
+            (TclVersion::V9_0, MIXED_READ, MIXED_READ),
+            (TclVersion::V9_1, MIXED_READ, MIXED_READ),
+        ],
+    },
     Vector {
         name: "usage and list error codes",
         script: ERROR_CODES,

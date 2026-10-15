@@ -23,6 +23,7 @@
 //! common Tcl commands (expr, incr, string, list, dict, etc.).
 
 use tcl_bytecode::EnteredCommandSite;
+use tcl_cmd_core::index::IndexCompiler;
 use tcl_registry::hooks::InlineCodegenHookId;
 
 use crate::ir::CommandTokens;
@@ -52,12 +53,6 @@ impl CodegenCtx<'_> {
         }
     }
 
-    /// Whether the release compiles the literal index word `word` apart from
-    /// the reading its command makes as it runs (8.6's `TclIndexEncode`).
-    fn literal_index_reads_apart(&self, word: &str) -> bool {
-        !self.in_direct_command() && tcl_cmd_core::index::encodes_apart(word, self.vm_release())
-    }
-
     /// The release the VM runs this compile under.
     pub(super) fn vm_release(&self) -> tcl_dialect::TclVersion {
         self.dialect
@@ -66,25 +61,43 @@ impl CodegenCtx<'_> {
             })
     }
 
-    /// The literal index word `word` respelt as the release compiles it,
-    /// where that reading is apart from the one its command makes as it runs:
-    /// `2147483647` after the end and `-1` before the first element, which
-    /// every release's command reads so whatever the length.
-    pub(super) fn compiled_index_word(&self, word: &str) -> Option<String> {
-        self.literal_index_reads_apart(word)
-            .then(|| self.literal_index_imm(word))
-            .flatten()
-            .map(|index| index.to_string())
+    /// The index words of a command `compiler` compiles, each respelt where
+    /// the release compiles it to a reading apart from its command's
+    /// ([`tcl_cmd_core::index::compiled_index_words`]), `None` where it is
+    /// pushed as written. A command the release evaluates without compiling
+    /// it reads every word as written.
+    pub(super) fn compiled_index_words(
+        &self,
+        compiler: IndexCompiler,
+        words: &[&str],
+    ) -> Vec<Option<&'static str>> {
+        if self.in_direct_command() {
+            return vec![None; words.len()];
+        }
+        let words: Vec<Option<&str>> = words.iter().copied().map(Some).collect();
+        tcl_cmd_core::index::compiled_index_words(compiler, &words, self.vm_release())
     }
 
-    /// Push the index word `word` of a command whose opcode reads it at run
-    /// time, respelt where the release compiles it apart
-    /// ([`Self::compiled_index_word`]).
-    pub(super) fn emit_index_word(&mut self, word: &str, braced: bool) {
-        match self.compiled_index_word(word) {
-            Some(compiled) => self.push_lit_exact(&compiled),
-            None => self.emit_cmd_subst_arg(word, braced),
+    /// Push the index words of a command whose opcode reads them at run time,
+    /// as the release compiles them ([`Self::compiled_index_words`]).
+    fn emit_index_words(&mut self, compiler: IndexCompiler, words: &[(String, bool)]) {
+        let texts: Vec<&str> = words.iter().map(|(word, _)| word.as_str()).collect();
+        let respelt = self.compiled_index_words(compiler, &texts);
+        for ((word, braced), respelt) in words.iter().zip(respelt) {
+            match respelt {
+                Some(spelling) => self.push_lit_exact(spelling),
+                None => self.emit_cmd_subst_arg(word, *braced),
+            }
         }
+    }
+
+    /// Whether any of `words`, the index words of a command `compiler`
+    /// compiles, is respelt ([`Self::compiled_index_words`]).
+    fn respells_index_words(&self, compiler: IndexCompiler, words: &[(String, bool)]) -> bool {
+        let texts: Vec<&str> = words.iter().map(|(word, _)| word.as_str()).collect();
+        self.compiled_index_words(compiler, &texts)
+            .iter()
+            .any(Option::is_some)
     }
 
     /// Emit `string range`, `string replace`, `lrange`, `linsert` or
@@ -98,9 +111,10 @@ impl CodegenCtx<'_> {
         args: &[(String, bool)],
     ) -> bool {
         let apart = |ctx: &Self, words: &[(String, bool)]| {
-            words
-                .iter()
-                .any(|(word, _)| ctx.literal_index_reads_apart(word))
+            !ctx.in_direct_command()
+                && words
+                    .iter()
+                    .any(|(word, _)| tcl_cmd_core::index::encodes_apart(word, ctx.vm_release()))
         };
         let emitted = match (self.inline_cmd_subst_hook_candidate(cmd, args), args) {
             (Some(InlineCodegenHookId::String), [_, _, indices @ ..]) if apart(self, indices) => {
@@ -115,13 +129,14 @@ impl CodegenCtx<'_> {
                 self.try_emit_lrange_imm(args)
             }
             (Some(InlineCodegenHookId::Linsert), [_, index, _, ..])
-                if apart(self, std::slice::from_ref(index)) =>
+                if self
+                    .respells_index_words(IndexCompiler::Linsert, std::slice::from_ref(index)) =>
             {
                 self.emit_inline_linsert(args);
                 true
             }
-            (Some(InlineCodegenHookId::Lreplace), [_, indices @ ..])
-                if indices.len() >= 2 && apart(self, &indices[..2]) =>
+            (Some(InlineCodegenHookId::Lreplace), [_, _, _, ..])
+                if self.respells_index_words(IndexCompiler::Lreplace, &args[1..3]) =>
             {
                 self.emit_inline_lreplace(args);
                 true
@@ -135,34 +150,24 @@ impl CodegenCtx<'_> {
     }
 
     /// Emit `string replace s first last ?new?` as `STR_REPLACE` over its
-    /// indices respelt as the release compiles them, where one reads apart
-    /// and 8.6's `TclCompileStringReplaceCmd` settles the command on its
-    /// encoded indices. Where it does not (a replacement string, `first` not
-    /// before the first element and `last` not after the end), it emits
-    /// `INST_STR_REPLACE` over the words as written, which read as at run time.
+    /// indices respelt as the release compiles them, where 8.6's
+    /// `TclCompileStringReplaceCmd` settles the command on its encoded
+    /// indices and one of them reads apart. Where it does not (a replacement
+    /// string, `first` not before the first element and `last` not after the
+    /// end), it emits `INST_STR_REPLACE` over the words as written, which read
+    /// as at run time.
     fn try_emit_compiled_string_replace(&mut self, sargs: &[(String, bool)]) -> bool {
         if !(3..=4).contains(&sargs.len()) {
             return false;
         }
-        let (first, last) = (&sargs[1], &sargs[2]);
-        if !(self.literal_index_reads_apart(&first.0) || self.literal_index_reads_apart(&last.0)) {
-            return false;
-        }
-        let release = self.vm_release();
-        let encoded = |word: &str| tcl_cmd_core::index::encode(word, release, true);
-        let (Some(first_at), Some(last_at)) = (encoded(&first.0), encoded(&last.0)) else {
-            return false;
+        let compiler = IndexCompiler::StringReplace {
+            replacing: sargs.len() == 4,
         };
-        if !tcl_cmd_core::index::string_replace_compiles_encoded(
-            first_at,
-            last_at,
-            sargs.len() == 4,
-        ) {
+        if !self.respells_index_words(compiler, &sargs[1..3]) {
             return false;
         }
         self.emit_cmd_subst_arg(&sargs[0].0, sargs[0].1);
-        self.emit_index_word(&first.0, first.1);
-        self.emit_index_word(&last.0, last.1);
+        self.emit_index_words(compiler, &sargs[1..3]);
         match sargs.get(3) {
             Some((new, braced)) => self.emit_cmd_subst_arg(new, *braced),
             None => self.push_lit_exact(""),
@@ -1904,8 +1909,7 @@ impl CodegenCtx<'_> {
             "range" if sargs.len() == 3 => {
                 if !self.try_emit_string_range_imm(sargs) {
                     self.emit_cmd_subst_arg(&sargs[0].0, sargs[0].1);
-                    self.emit_cmd_subst_arg(&sargs[1].0, sargs[1].1);
-                    self.emit_cmd_subst_arg(&sargs[2].0, sargs[2].1);
+                    self.emit_index_words(IndexCompiler::StringRange, &sargs[1..]);
                     self.emit(Op::STR_RANGE, vec![]);
                 }
             }
@@ -2159,12 +2163,10 @@ impl CodegenCtx<'_> {
     fn emit_inline_lreplace(&mut self, args: &[(String, bool)]) {
         self.used_inline_cmd_subst = true;
         self.emit_cmd_subst_arg(&args[0].0, args[0].1);
-        for (i, a) in args.iter().enumerate().skip(1) {
-            if i <= 2 && args.len() >= 3 {
-                self.emit_index_word(&a.0, a.1);
-            } else {
-                self.emit_cmd_subst_arg(&a.0, a.1);
-            }
+        let indices = args.len().min(3);
+        self.emit_index_words(IndexCompiler::Lreplace, &args[1..indices]);
+        for a in &args[indices..] {
+            self.emit_cmd_subst_arg(&a.0, a.1);
         }
         self.emit(
             Op::LREPLACE4,
@@ -2175,12 +2177,10 @@ impl CodegenCtx<'_> {
     fn emit_inline_linsert(&mut self, args: &[(String, bool)]) {
         self.used_inline_cmd_subst = true;
         self.emit_cmd_subst_arg(&args[0].0, args[0].1);
-        for (i, a) in args.iter().enumerate().skip(1) {
-            if i == 1 {
-                self.emit_index_word(&a.0, a.1);
-            } else {
-                self.emit_cmd_subst_arg(&a.0, a.1);
-            }
+        let indices = args.len().min(2);
+        self.emit_index_words(IndexCompiler::Linsert, &args[1..indices]);
+        for a in &args[indices..] {
+            self.emit_cmd_subst_arg(&a.0, a.1);
         }
         self.emit(
             Op::LREPLACE4,

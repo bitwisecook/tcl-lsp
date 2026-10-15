@@ -254,9 +254,13 @@ fn linsert(ctx: &mut CodegenCtx, args: &[String]) -> bool {
     if args.len() < 2 {
         return false;
     }
+    let respelt = ctx.compiled_index_words(
+        tcl_cmd_core::index::IndexCompiler::Linsert,
+        &[args[1].as_str()],
+    );
     for (i, a) in args.iter().enumerate() {
-        match ctx.compiled_index_word(a).filter(|_| i == 1) {
-            Some(compiled) => ctx.push_lit_exact(&compiled),
+        match respelt[0].filter(|_| i == 1) {
+            Some(compiled) => ctx.push_lit_exact(compiled),
             None => ctx.emit_word_arg(i, a),
         }
     }
