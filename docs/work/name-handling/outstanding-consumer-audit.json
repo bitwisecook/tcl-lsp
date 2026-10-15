@@ -13305,8 +13305,8 @@
       "scope": "Finite source/caller review, not migration count or entire codebase coverage"
     },
     "priority": "Finish every naming consumer through central APIs in parallel; audits continue in parallel",
-    "hourly_last_delivered_utc": "2026-10-15T08:15:00Z",
-    "hourly_next_utc": "2026-10-15T09:15:00Z",
+    "hourly_last_delivered_utc": "2026-10-15T09:15:00Z",
+    "hourly_next_utc": "2026-10-15T10:15:00Z",
     "measured_remaining_work": [
       "Actual Installed row FU/prepared-CFG/source owner for readonly Authored inventory; keep declaration-only API exclusion",
       "Logical variable scope/occurrence projection and positive DB source catalogue/selected occupancy",
