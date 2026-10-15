@@ -337,6 +337,7 @@ impl CodegenCtx<'_> {
                 name_braced,
                 expr,
                 command_binding,
+                fallback_value,
                 ..
             } => {
                 // The fused command retains the exact source binding it
@@ -357,10 +358,12 @@ impl CodegenCtx<'_> {
                     vec![Operand::Label(inner_end.clone()), Operand::Imm(1)],
                     "",
                 );
+                let expr_start = self.instructions.len();
                 let guaranteed_numeric = self.emit_expr(expr);
                 if !guaranteed_numeric {
                     self.emit(Op::TRY_CVT_TO_NUMERIC, vec![]);
                 }
+                self.stamp_substitution_error_info(expr_start, fallback_value.trim());
                 self.place_label(&inner_end);
                 self.store_var(name);
                 self.emit(Op::POP, vec![]);

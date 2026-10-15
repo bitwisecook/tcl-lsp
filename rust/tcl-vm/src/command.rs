@@ -192,7 +192,7 @@ pub(crate) fn register_builtins(vm: &mut Vm) {
     vm.register("incr", cmd_incr);
     vm.register("expr", cmd_expr);
     vm.register("proc", cmd_proc);
-    vm.register("return", cmd_return);
+    vm.register("return", cmd_return_command);
     vm.register("const", cmd_const);
     vm.register("tailcall", cmd_tailcall);
     vm.register("time", cmd_time);
@@ -1455,7 +1455,7 @@ fn cmd_proc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 
 /// Read a `return -code` word as `TclGetCompletionCodeFromObj` does: a named
 /// code (`ok`/`error`/`return`/`break`/`continue`) or a C `int`.
-fn parse_code(word: &Value) -> Result<Code, Completion<Value>> {
+fn parse_code(word: &Value, release: tcl_dialect::TclVersion) -> Result<Code, Completion<Value>> {
     match &*word.to_str() {
         "ok" => return Ok(Code::Ok),
         "error" => return Ok(Code::Error),
@@ -1465,7 +1465,8 @@ fn parse_code(word: &Value) -> Result<Code, Completion<Value>> {
         _ => {}
     }
     word.as_c_int().map(Code::from_int).map_err(|_| {
-        err_with_code(
+        return_option_error(
+            release,
             format!(
                 "bad completion code \"{}\": must be ok, error, return, break, continue, \
                  or an integer",
@@ -1476,21 +1477,40 @@ fn parse_code(word: &Value) -> Result<Code, Completion<Value>> {
     })
 }
 
+/// One of `return`'s own option errors, with its `TCL RESULT …` errorCode
+/// from the release that sets one.
+fn return_option_error(
+    release: tcl_dialect::TclVersion,
+    message: String,
+    code: &str,
+) -> Completion<Value> {
+    if release.has_return_option_error_codes() {
+        err_with_code(message, code)
+    } else {
+        err(message)
+    }
+}
+
 /// The merged `-code` and `-level` words, each validated as C does.
 fn return_code_and_level(
     code_word: Option<&Value>,
     level_word: Option<&Value>,
+    release: tcl_dialect::TclVersion,
 ) -> Result<(Code, i64), Completion<Value>> {
-    let code = code_word.map_or(Ok(Code::Ok), parse_code)?;
-    let level = level_word.map_or(Ok(1), parse_return_level)?;
+    let code = code_word.map_or(Ok(Code::Ok), |word| parse_code(word, release))?;
+    let level = level_word.map_or(Ok(1), |word| parse_return_level(word, release))?;
     Ok((code, level))
 }
 
 /// Read a `return -level` word: a C `int` that is not negative.
-fn parse_return_level(word: &Value) -> Result<i64, Completion<Value>> {
+fn parse_return_level(
+    word: &Value,
+    release: tcl_dialect::TclVersion,
+) -> Result<i64, Completion<Value>> {
     match word.as_c_int() {
         Ok(level) if level >= 0 => Ok(i64::from(level)),
-        _ => Err(err_with_code(
+        _ => Err(return_option_error(
+            release,
             format!(
                 "bad -level value: expected non-negative integer but got \"{}\"",
                 word.to_str()
@@ -1728,6 +1748,26 @@ pub(crate) fn opt_get(options: &Value, key: &str) -> Option<Value> {
 /// Shared with the `returnStk` opcode (C `INST_RETURN_STK` →
 /// `Tcl_SetReturnOptions`), which behaves exactly like
 /// `return -options $opts $result`.
+/// `return` as a command. Before TIP 90 (8.4) the words are read as
+/// `-code`/`-errorinfo`/`-errorcode` pairs while two remain, any other name
+/// is rejected, and a last word alone is the result; those options then
+/// mean what they do from 8.5.
+pub(crate) fn cmd_return_command(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    if !vm.runtime_version().has_return_options_dictionary() {
+        for pair in args.chunks_exact(2) {
+            let name = pair[0].to_str();
+            if !matches!(&*name, "-code" | "-errorinfo" | "-errorcode") {
+                return err(format!(
+                    "bad option \"{name}\": must be -code, -errorcode, or -errorinfo"
+                ));
+            }
+        }
+    }
+    cmd_return(vm, args)
+}
+
+/// `return`'s completion from option words — also how the `returnImm` and
+/// `returnStk` opcodes build theirs from an options dictionary.
 pub(crate) fn cmd_return(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // Apply one option pair, from a direct argument or an expanded `-options`
     // dict. `-code`/`-level` drive the completion and are validated once
@@ -1761,10 +1801,18 @@ pub(crate) fn cmd_return(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         if &*a == "-options" && i + 1 < args.len() {
             // Merge a return-options dict (TIP 90); a later explicit option
             // overrides it, and an odd-sized list is not a dict.
+            // 8.5 merges an odd list's complete pairs; 8.6 rejects it.
             let dict = &args[i + 1];
+            let release = vm.runtime_version();
             let pairs = match dict.as_list() {
-                Ok(p) if p.len() % 2 == 0 => p,
-                _ => return err(format!("expected dict but got \"{}\"", dict.to_str())),
+                Ok(p) if p.len() % 2 == 0 || !release.rejects_odd_return_options() => p,
+                _ => {
+                    return return_option_error(
+                        release,
+                        format!("expected dict but got \"{}\"", dict.to_str()),
+                        "TCL RESULT ILLEGAL_OPTIONS",
+                    );
+                }
             };
             let mut j = 0;
             while j + 1 < pairs.len() {
@@ -1778,7 +1826,9 @@ pub(crate) fn cmd_return(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 j += 2;
             }
             i += 2;
-        } else if a.starts_with('-') && a.len() > 1 && i + 1 < args.len() {
+        } else if i + 1 < args.len() {
+            // While two words remain they are an option and its value, the
+            // name any word (C's `TclMergeReturnOptions`).
             apply(
                 &a,
                 &args[i + 1],
@@ -1794,10 +1844,12 @@ pub(crate) fn cmd_return(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             return err(format!("bad option \"{a}\""));
         }
     }
-    let (ret_code, level) = match return_code_and_level(code_word.as_ref(), level_word.as_ref()) {
-        Ok(merged) => merged,
-        Err(bad) => return bad,
-    };
+    let release = vm.runtime_version();
+    let (ret_code, level) =
+        match return_code_and_level(code_word.as_ref(), level_word.as_ref(), release) {
+            Ok(merged) => merged,
+            Err(bad) => return bad,
+        };
     let extra_refs: Vec<(&str, Value)> =
         extra.iter().map(|(k, v)| (k.as_str(), v.clone())).collect();
     if vm.supports_error_stack()

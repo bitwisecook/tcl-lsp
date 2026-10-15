@@ -12244,6 +12244,14 @@ impl Vm {
         self.append_callable_frame("procedure", name, line);
     }
 
+    /// Start the `errorInfo` trace from `message` unless one is under way, so
+    /// the next logged command reads `invoked from within`.
+    pub(crate) fn seed_error_info_if_unset(&mut self, message: &str) {
+        if self.error_info.is_none() && !self.error_logged {
+            self.error_info = Some(message.to_owned());
+        }
+    }
+
     /// Append a `(lambda term "<lambda>" line N)` frame — the frame an `apply`
     /// lambda body adds in place of a procedure's (C's `MakeLambdaError`).
     pub(crate) fn append_lambda_frame(&mut self, lambda: &str, line: u32) {

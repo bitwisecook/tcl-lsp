@@ -1222,6 +1222,10 @@ pub struct Instruction {
     /// The command `errorInfo` names for this instruction where C's differs
     /// from [`Self::source_cmd_text`], which stays the replayable statement.
     pub error_info_command: Option<ErrorInfoCommand>,
+    /// An operation of a constant `expr` subexpression C folds at compile
+    /// time: an error it raises is the fold's failure, so `errorInfo` already
+    /// holds the message when the command is logged.
+    pub folded_expr: bool,
     /// Canonical unrooted constructed namespace in which
     /// [`Self::source_cmd_text`] resolves when this instruction is an
     /// executable command boundary. Empty denotes the global namespace.
@@ -1327,6 +1331,7 @@ impl Instruction {
             source_cmd_text: String::new(),
             error_stack_context: None,
             error_info_command: None,
+            folded_expr: false,
             source_command_namespace: String::new(),
             source_command_boundary: SourceCommandBoundary::None,
             completion_option_scope: None,

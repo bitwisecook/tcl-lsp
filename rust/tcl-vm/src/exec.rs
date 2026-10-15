@@ -1758,6 +1758,7 @@ impl Vm {
     /// Log an error completion against the command `frame` just dispatched
     /// (C's `TclLogCommandInfo`).
     fn log_failed_command(&mut self, frame: Option<&Frame>, c: &Completion<Value>) {
+        let mut fold_failure = false;
         if c.code == Code::Error
             && let Some((text, line, context)) = frame.and_then(|frame| {
                 frame
@@ -1771,6 +1772,9 @@ impl Vm {
                             }
                             None => Value::string(instruction.source_cmd_text.as_str()),
                         };
+                        if instruction.folded_expr {
+                            fold_failure = true;
+                        }
                         let (source_text, line) = instruction.error_info_text();
                         let text = match instruction.error_stack_context.as_ref() {
                             Some(ErrorStackContext::CommandResult {
@@ -1783,6 +1787,11 @@ impl Vm {
             })
         {
             let message = c.result.to_str().to_string();
+            // C reports a constant subexpression's error as its compile-time
+            // fold's failure, whose errorInfo already holds the message.
+            if fold_failure {
+                self.seed_error_info_if_unset(&message);
+            }
             self.log_command_info_with_context(&text, context, &message, line);
         }
     }
