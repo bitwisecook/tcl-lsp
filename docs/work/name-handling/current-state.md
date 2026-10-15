@@ -1,5 +1,9 @@
 # Current centralised naming work
 
+## Actual archive path consumers
+
+Tar and zip extraction now pass actual library-owned Path values directly through the existing component guard into filesystem targets, removing a lossy local String conversion. Original traversal/link/limit/order checks remain. The new GNUtar opaque-name versus genuine U+FFFD sibling control is unexecuted; original test bodies remain unchanged. Zip initial provider decoding and CAS canonical-hash names are separate unfinished consumers.
+
 ## TCLLIBPATH source producers
 
 Both direct CLI environment producers now use the shared pkg::venv constructor over actual Path/var_os inputs, preserve original inherited list source and verify each supported grammar retains its own original suffix interpretation. Opaque, NUL and malformed inputs refuse explicitly instead of lossily becoming empty. The dependency lock adds only the existing workspace syntax crate. Original paired C5 evidence records30completed invocations:20constructor checks and10actual invalid-list errors, no setup failure/provider drift, exact utf-8 system contexts. Portable original126-entry and outer129-entry hash inventories verify. New Rust helper/CLI controls are unexecuted. External encoding, current-executable transport and generated shell/fish/Docker consumers remain unfinished.

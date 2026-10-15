@@ -156,11 +156,12 @@ pub fn fetch_bytes(
 }
 
 /// Validate that `name` resolves inside `dest_root`, returning the safe target.
-fn safe_join(dest_root: &Path, name: &str) -> Result<PathBuf, TclPkgError> {
-    let candidate = Path::new(name);
+fn safe_join(dest_root: &Path, name: impl AsRef<Path>) -> Result<PathBuf, TclPkgError> {
+    let candidate = name.as_ref();
     if candidate.is_absolute() {
         return Err(fetch_error(format!(
-            "archive member has absolute path: {name}"
+            "archive member has absolute path: {}",
+            candidate.display()
         )));
     }
     if candidate
@@ -168,7 +169,8 @@ fn safe_join(dest_root: &Path, name: &str) -> Result<PathBuf, TclPkgError> {
         .any(|c| matches!(c, std::path::Component::ParentDir))
     {
         return Err(fetch_error(format!(
-            "archive member escapes target directory: {name}"
+            "archive member escapes target directory: {}",
+            candidate.display()
         )));
     }
     Ok(dest_root.join(candidate))
@@ -201,9 +203,7 @@ fn extract_tar(bytes: &[u8], dest: &Path, lower: &str) -> Result<(), TclPkgError
         }
         let path = entry
             .path()
-            .map_err(|e| fetch_error(format!("invalid tar path: {e}")))?
-            .to_string_lossy()
-            .into_owned();
+            .map_err(|e| fetch_error(format!("invalid tar path: {e}")))?;
         let target = safe_join(dest, &path)?;
         if entry_type.is_dir() {
             std::fs::create_dir_all(&target)
@@ -242,8 +242,7 @@ fn extract_zip(bytes: &[u8], dest: &Path) -> Result<(), TclPkgError> {
                 file.name()
             )));
         };
-        let name_str = name.to_string_lossy().into_owned();
-        let target = safe_join(dest, &name_str)?;
+        let target = safe_join(dest, name)?;
         // Skip symlinks (Unix mode S_IFLNK in the upper bits).
         if let Some(mode) = file.unix_mode()
             && mode & 0o170_000 == 0o120_000
@@ -498,6 +497,51 @@ mod tests {
             );
             assert!(!destination.join(".git").exists());
         }
+        std::fs::remove_dir_all(base).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn archive_members_keep_distinct_original_os_names() {
+        use std::os::unix::ffi::OsStringExt;
+        let opaque = PathBuf::from(OsString::from_vec(b"original-\xff.tcl".to_vec()));
+        let unicode = PathBuf::from("original-\u{fffd}.tcl");
+        let base = std::env::temp_dir().join(format!(
+            "tclpkg-original-archive-names-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir(&base).unwrap();
+        assert_eq!(safe_join(&base, &opaque).unwrap(), base.join(&opaque));
+        assert_ne!(
+            safe_join(&base, &opaque).unwrap(),
+            safe_join(&base, &unicode).unwrap()
+        );
+        let mut bytes = Vec::new();
+        {
+            let mut builder = tar::Builder::new(&mut bytes);
+            for (name, content) in [
+                (&opaque, b"opaque".as_slice()),
+                (&unicode, b"unicode".as_slice()),
+            ] {
+                let mut header = tar::Header::new_gnu();
+                header.set_path(name).unwrap();
+                header.set_size(u64::try_from(content.len()).unwrap());
+                header.set_mode(0o644);
+                header.set_cksum();
+                builder.append(&header, content).unwrap();
+            }
+            builder.finish().unwrap();
+        }
+        extract_tar(&bytes, &base, ".tar").unwrap();
+        assert_eq!(std::fs::read(base.join(&opaque)).unwrap(), b"opaque");
+        assert_eq!(std::fs::read(base.join(&unicode)).unwrap(), b"unicode");
+        assert_eq!(std::fs::read_dir(&base).unwrap().count(), 2);
+        let traversal = PathBuf::from(OsString::from_vec(b"../original-\xff".to_vec()));
+        assert!(safe_join(&base, traversal).is_err());
         std::fs::remove_dir_all(base).unwrap();
     }
 
