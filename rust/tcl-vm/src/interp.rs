@@ -720,6 +720,12 @@ impl CommandSidecarHandle {
         self.0.borrow().clone()
     }
 
+    /// A handle that belongs to no command binding, for an invocation of a
+    /// command the table no longer holds.
+    pub(crate) fn detached() -> Self {
+        Self(Rc::new(RefCell::new(None)))
+    }
+
     /// Whether this in-flight operation still belongs to a command binding.
     /// Deletion clears the cell before Tcl callbacks run; trace iteration must
     /// re-check this after every re-entrant callback rather than continuing a
@@ -824,6 +830,14 @@ pub(crate) struct PendingControl {
     pub(crate) each_loop: Option<crate::exec::EachLoopReq>,
     /// Next body, handler, or `finally` phase of a `try`.
     pub(crate) try_phase: Option<crate::cmd_try::TryReq>,
+    /// The running unit of the invocation being dispatched, where the release
+    /// compiled the invoked command into it: an activation the command runs
+    /// its body in, synchronously or deferred, runs in that unit
+    /// ([`crate::release_units`]).
+    pub(crate) release_dispatch: Option<crate::release_units::InheritedUnit>,
+    /// The same unit, for the activation the dispatched invocation deferred
+    /// to the explicit stack.
+    pub(crate) release_unit: Option<crate::release_units::InheritedUnit>,
     /// How the emulated release compiles the command the invoke dispatching
     /// now runs ([`tcl_bytecode::Instruction::release_compiled`]); a control
     /// builtin that reads its words as that compiled command does takes it
@@ -1514,6 +1528,11 @@ struct CommandIdentityIndex {
     generations: HashMap<String, u64>,
     next_generation: u64,
     handles: RefCell<CmdArena>,
+    /// Under a release that keeps the commands running bytecode compiled, the
+    /// builtins command-table changes removed from their keys, which an
+    /// invocation the release compiled into a unit entered before the change
+    /// still runs.
+    replaced_builtins: crate::release_units::ReplacedBuiltins,
 }
 
 /// External command handles intern one exact command-token generation. Names
@@ -4940,11 +4959,20 @@ impl Vm {
             .command_bindings
             .iter()
             .all(|binding| self.command_binding_matches(binding));
-        commands
-            && asm
-                .procedure_bindings
-                .iter()
-                .all(|binding| self.procedure_binding_matches(binding))
+        commands && self.function_inlined_facts_hold(asm, manifest)
+    }
+
+    /// [`Self::function_command_bindings_match`] but for the command bindings:
+    /// the procedures `asm` inlined, the spec-pack claims its sites make, and
+    /// its manifest's admission.
+    pub(crate) fn function_inlined_facts_hold(
+        &self,
+        asm: &FunctionAsm,
+        manifest: Option<&ArtefactIdentityManifest>,
+    ) -> bool {
+        asm.procedure_bindings
+            .iter()
+            .all(|binding| self.procedure_binding_matches(binding))
             && self.site_claims_hold(asm)
             && self.manifest_admits(asm, manifest)
     }
@@ -6207,8 +6235,26 @@ impl Vm {
     /// Artifacts carry the exact bindings they assume, so a later entry can
     /// remain optimised when those identities still match (including after a
     /// rename is reversed) and deoptimise only when they do not.
-    fn invalidate_compiled_command_semantics_for_key(&mut self, _key: &str) {
+    fn invalidate_compiled_command_semantics_for_key(&mut self, key: &str) {
+        if !self.runtime_version.revalidates_running_bytecode()
+            && self.command_semantics.get() == CommandSemantics::Tracking
+            && let Some(&Command::Builtin(builtin)) = self.commands.get(key)
+        {
+            let epoch = self.trace_deopt_epoch();
+            self.command_identity
+                .replaced_builtins
+                .record(epoch, key, builtin);
+        }
         self.invalidate_compiled_command_semantics();
+    }
+
+    /// The builtin `key` held when a unit was entered at `entered`, where a
+    /// command-table change since has removed it
+    /// ([`crate::release_units::ReplacedBuiltins::at_entry`]).
+    pub(crate) fn builtin_at_unit_entry(&self, key: &str, entered: u64) -> Option<BuiltinFn> {
+        self.command_identity
+            .replaced_builtins
+            .at_entry(key, entered)
     }
 
     /// Advance the compilation generation after a non-table mutation changes
@@ -12999,6 +13045,26 @@ impl Vm {
             self.publish_error(&info, &code);
         }
         completion
+    }
+
+    /// How the emulated release evaluates the script `words` make for an
+    /// invocation of `command`: directly where it evaluates that command's
+    /// script without compiling it
+    /// ([`tcl_registry::release_compilation::evaluates_script_directly`]),
+    /// otherwise as [`crate::value::script_evaluation`] says.
+    pub(crate) fn script_evaluation_for(
+        &self,
+        command: &str,
+        words: &[Value],
+    ) -> CommandEvaluation {
+        if tcl_registry::release_compilation::evaluates_script_directly(
+            self.runtime_version,
+            command,
+        ) {
+            CommandEvaluation::Direct
+        } else {
+            crate::value::script_evaluation(words)
+        }
     }
 
     /// Compile and run a Tcl source string via the injected [`CompileService`]

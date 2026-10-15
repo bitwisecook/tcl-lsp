@@ -241,6 +241,25 @@ pub struct CatchEnd {
     pub call: Statement,
 }
 
+/// A script body a structured command evaluates.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BodyScript {
+    /// The command that owns the body.
+    pub owner: CommandBindingSite,
+    /// The block the body starts in.
+    pub entry: BlockId,
+    /// The blocks created while lowering the body, which run nothing else.
+    pub nested: std::ops::Range<u32>,
+}
+
+impl BodyScript {
+    /// Whether `block` runs part of this body.
+    #[must_use]
+    pub fn contains(&self, block: BlockId) -> bool {
+        block == self.entry || self.nested.contains(&block.0)
+    }
+}
+
 /// A complete control-flow graph for a single procedure or top-level script.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Function {
@@ -300,6 +319,11 @@ pub struct Function {
     /// replayable `START_CMD` before the head's first test and ends it at the
     /// join's result pop, as Tcl's bytecode does.
     pub branch_command_joins: HashMap<BlockId, BlockId>,
+    /// The script bodies structured commands evaluate (a loop body or `for`
+    /// step, an `if`/`switch` arm, a `catch` body), each with the command that
+    /// owns it and the blocks that run it. A release that does not compile the
+    /// owner into the enclosing unit compiles the body as a unit of its own.
+    pub body_scripts: Vec<BodyScript>,
     /// Caller-frame injection this function is *subject to*: a callee whose
     /// [frame-effect summary](crate::cfg_builder::upvar_info::UpvarInfo)
     /// says it writes or reads names in **this** frame that no static
@@ -357,6 +381,7 @@ impl Function {
             command_boundary_sites: HashMap::new(),
             command_boundary_continuations: HashMap::new(),
             branch_command_joins: HashMap::new(),
+            body_scripts: Vec::new(),
             caller_frame_barrier: crate::dynamic_names::DynamicNameBarrier::default(),
             declared_frame_effects: std::sync::Arc::default(),
             alias_observed_vars: std::collections::BTreeSet::new(),

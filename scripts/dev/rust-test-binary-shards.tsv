@@ -133,6 +133,7 @@
 3	tcl-compiler::optimiser	test	tcl-compiler	optimiser
 3	tcl-compiler::optimiser_codegen_residual	test	tcl-compiler	optimiser_codegen_residual
 3	tcl-compiler::optimiser_depth	test	tcl-compiler	optimiser_depth
+3	tcl-compiler::release_units	test	tcl-compiler	release_units
 3	tcl-compiler::side_effects_binding	test	tcl-compiler	side_effects_binding
 3	tcl-compiler::signature_scan	test	tcl-compiler	signature_scan
 3	tcl-compiler::taint	test	tcl-compiler	taint
@@ -188,6 +189,7 @@
 3	tcl-vm::literal_index_encoding_e2e	test	tcl-vm	literal_index_encoding_e2e
 3	tcl-vm::mathfunc_derivation_e2e	test	tcl-vm	mathfunc_derivation_e2e
 3	tcl-vm::namespace_surface_e2e	test	tcl-vm	namespace_surface_e2e
+3	tcl-vm::release_running_bytecode_e2e	test	tcl-vm	release_running_bytecode_e2e
 3	tcl-vm::run_script	test	tcl-vm	run_script
 3	tcl-vm::tricky_resolution_e2e	test	tcl-vm	tricky_resolution_e2e
 3	tcl-vm::uplevel_coro_e2e	test	tcl-vm	uplevel_coro_e2e

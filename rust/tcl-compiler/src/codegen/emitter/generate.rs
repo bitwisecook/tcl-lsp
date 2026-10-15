@@ -1032,6 +1032,8 @@ fn finalize_function(
         }
     }
 
+    stamp_release_units(ctx, cfg, block_order);
+
     // Loop-target table: each loop-body instruction → its loop's break/continue
     // byte offsets, so the executor can catch a command-returned break/continue
     // (`if {…} $z`, `eval break`). Built post-layout from the (innermost-first)
@@ -1108,7 +1110,7 @@ fn finalize_function(
 pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedure]) -> FunctionAsm {
     if !ctx.plain_command_dispatch {
         for site in &cfg.command_binding_sites {
-            ctx.require_command_binding(&site.binding);
+            ctx.require_command_site(site);
         }
     }
     let block_order = linearise(cfg);
@@ -1143,12 +1145,147 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
 
     pre_emit_proc_defs(ctx, cfg, &mut state);
 
+    let bodies = BodyTree::new(cfg);
     for i in 0..block_order.len() {
+        ctx.direct_body = cfg
+            .block_id(&block_order[i])
+            .is_some_and(|block| bodies.block_evaluated_directly(ctx, block));
         emit_block(ctx, cfg, &mut state, &fe, &loop_ctx, &block_order, i);
     }
+    ctx.direct_body = false;
 
     emit_function_tail(ctx, cfg, &mut state);
     finalize_function(ctx, cfg, &block_order, &loop_ctx)
+}
+
+/// Stamp what a release that keeps the commands running bytecode compiled
+/// needs to run this function as it would: each command's
+/// [`release_hold`](tcl_bytecode::Instruction::release_hold), and the script
+/// body each instruction runs part of
+/// ([`release_body`](tcl_bytecode::Instruction::release_body)) with where each
+/// body starts. Whether the release compiles a body into the unit enclosing it
+/// depends on whether that unit is a procedure body, which for a script
+/// compiled at run time only the activation running it knows.
+fn stamp_release_units(ctx: &mut CodegenCtx, cfg: &CfgFunction, block_order: &[String]) {
+    if ctx.vm_release().revalidates_running_bytecode() {
+        return;
+    }
+    for index in 0..ctx.instructions.len() {
+        let instruction = &ctx.instructions[index];
+        if instruction.source_command_boundary != SourceCommandBoundary::None
+            || (instruction.op == Op::START_CMD && !instruction.source_cmd_text.is_empty())
+        {
+            let hold = ctx.release_hold(instruction.source_span);
+            ctx.instructions[index].release_hold = hold;
+        }
+    }
+
+    let tree = BodyTree::new(cfg);
+    let mut starts: Vec<(usize, crate::cfg::BlockId)> = block_order
+        .iter()
+        .filter_map(|name| Some((*ctx.label_positions.get(name)?, cfg.block_id(name)?)))
+        .collect();
+    starts.sort_by_key(|&(position, _)| position);
+    for (k, &(start, block)) in starts.iter().enumerate() {
+        let end = starts
+            .get(k + 1)
+            .map_or(ctx.instructions.len(), |&(position, _)| position);
+        if let Some(body) = tree.innermost(block) {
+            for instruction in &mut ctx.instructions[start.min(end)..end] {
+                instruction.release_body = BodyTree::id(body);
+            }
+        }
+    }
+    // A body starts where control reaches its first block, whichever block
+    // its first instruction was emitted in.
+    for (index, body) in cfg.body_scripts.iter().enumerate() {
+        let Some(position) = ctx
+            .label_positions
+            .get(cfg.block_name(body.entry))
+            .copied()
+            .filter(|&position| {
+                ctx.instructions
+                    .get(position)
+                    .is_some_and(|instruction| instruction.release_body == BodyTree::id(index))
+            })
+        else {
+            continue;
+        };
+        let parent = tree.parent(index);
+        let owner_direct = ctx.direct_commands.contains(&body.owner.span)
+            || parent.is_some_and(|parent| tree.evaluated_directly(ctx, parent));
+        let owner = if owner_direct {
+            tcl_runtime_api::ReleaseBinding::Invoked
+        } else {
+            ctx.release_binding_of(&body.owner.binding.name, &body.owner.shape)
+                .unwrap_or(tcl_runtime_api::ReleaseBinding::Invoked)
+        };
+        ctx.instructions[position].release_body_entry = Some(tcl_bytecode::ReleaseBodyEntry {
+            parent: parent.map_or(0, BodyTree::id),
+            owner,
+        });
+    }
+}
+
+/// The script bodies of a CFG function ([`CfgFunction::body_scripts`]) as
+/// they nest.
+struct BodyTree<'c> {
+    bodies: &'c [crate::cfg::BodyScript],
+    /// How many other bodies enclose each body.
+    depths: Vec<usize>,
+}
+
+impl<'c> BodyTree<'c> {
+    fn new(cfg: &'c CfgFunction) -> Self {
+        let bodies = cfg.body_scripts.as_slice();
+        let depths = (0..bodies.len())
+            .map(|inner| {
+                (0..bodies.len())
+                    .filter(|&outer| Self::encloses(bodies, outer, inner))
+                    .count()
+            })
+            .collect();
+        Self { bodies, depths }
+    }
+
+    fn encloses(bodies: &[crate::cfg::BodyScript], outer: usize, inner: usize) -> bool {
+        outer != inner && bodies[outer].contains(bodies[inner].entry)
+    }
+
+    /// The [`tcl_bytecode::Instruction::release_body`] of body `index`.
+    fn id(index: usize) -> u32 {
+        u32::try_from(index + 1).expect("body count fits in u32")
+    }
+
+    /// The innermost body `block` runs part of.
+    fn innermost(&self, block: crate::cfg::BlockId) -> Option<usize> {
+        (0..self.bodies.len())
+            .filter(|&index| self.bodies[index].contains(block))
+            .max_by_key(|&index| self.depths[index])
+    }
+
+    /// The body enclosing body `index`.
+    fn parent(&self, index: usize) -> Option<usize> {
+        (0..self.bodies.len())
+            .filter(|&outer| Self::encloses(self.bodies, outer, index))
+            .max_by_key(|&outer| self.depths[outer])
+    }
+
+    /// Whether the release evaluates body `index` directly, as its owner's
+    /// script ([`tcl_registry::release_compilation::evaluates_script_directly`]).
+    fn evaluated_directly(&self, ctx: &CodegenCtx, index: usize) -> bool {
+        tcl_registry::release_compilation::evaluates_script_directly(
+            ctx.vm_release(),
+            &self.bodies[index].owner.binding.name,
+        )
+    }
+
+    /// Whether the release evaluates the commands of `block` directly: the
+    /// innermost body it runs part of is one it evaluates directly.
+    fn block_evaluated_directly(&self, ctx: &CodegenCtx, block: crate::cfg::BlockId) -> bool {
+        self.innermost(block)
+            .is_some_and(|index| self.evaluated_directly(ctx, index))
+    }
 }
 
 /// Build the per-instruction loop-target table (see `FunctionAsm::loop_targets`).

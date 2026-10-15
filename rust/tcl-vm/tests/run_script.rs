@@ -2439,7 +2439,7 @@ fn a_top_level_completion_settles_as_tclsh_reports_it() {
         let mut vm = Vm::new();
         vm.set_compiler(Box::new(BytecodeCompileService::default()));
         vm.set_runtime_version(version);
-        let mut settle = |vm: &mut Vm, src: &str| {
+        let settle = |vm: &mut Vm, src: &str| {
             let completion = vm.eval_source(src).expect("compiles");
             let settled = vm.settle_top_level(completion);
             (settled.code, settled.result.to_str().to_string())

@@ -66,7 +66,10 @@ pub fn try_bytecoded_with_tokens(
     if let Some((hook, site)) = resolved_codegen_hook(ctx, cmd, args) {
         let emitted = dispatch_codegen_hook(hook, ctx, args, used_generic_invoke);
         if emitted {
-            ctx.require_site_binding(&site);
+            let shape = CodegenCtx::invocation_shape(args, |index| {
+                ctx.cmd_arg_braced.get(index).copied().unwrap_or(false)
+            });
+            ctx.require_site_binding(&site, &shape);
             return true;
         }
     }
