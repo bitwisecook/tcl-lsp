@@ -610,45 +610,12 @@ fn parse_braces(src: &[u8], open: usize) -> Result<usize, String> {
 /// The nested commands of a command substitution, from just after the `[`:
 /// the byte after its closing `]`, recording the script.
 fn parse_bracketed(src: &[u8], at: usize, commands: &mut Vec<String>) -> Result<usize, String> {
-    let close = command_substitution_end(src, at)?;
-    commands.push(String::from_utf8_lossy(&src[at..close]).into_owned());
-    Ok(close + 1)
-}
-
-/// The `]` closing the command substitution whose script starts at `at`:
-/// the nested commands parsed as `Tcl_ParseCommand` reads them, a brace or
-/// quote opening a word holding its bytes until it closes.
-fn command_substitution_end(src: &[u8], mut at: usize) -> Result<usize, String> {
-    let mut word_start = true;
-    while at < src.len() {
-        match src[at] {
-            b']' => return Ok(at),
-            b'\\' => {
-                at += backslash_length(&src[at..]);
-                word_start = false;
-                continue;
-            }
-            b'{' if word_start => {
-                at = parse_braces(src, at)?;
-                word_start = false;
-                continue;
-            }
-            b'"' if word_start => {
-                at = parse_quoted(src, at + 1, &mut Vec::new())?;
-                word_start = false;
-                continue;
-            }
-            b'[' => {
-                at = command_substitution_end(src, at + 1)? + 1;
-                word_start = false;
-                continue;
-            }
-            b' ' | b'\t' | b'\n' | b';' | b'\r' => word_start = true,
-            _ => word_start = false,
-        }
-        at += 1;
-    }
-    Err("missing close-bracket".to_owned())
+    let after = std::str::from_utf8(src)
+        .ok()
+        .and_then(|text| tcl_lexer::command_substitution_end(text, at - 1))
+        .ok_or_else(|| "missing close-bracket".to_owned())?;
+    commands.push(String::from_utf8_lossy(&src[at..after - 1]).into_owned());
+    Ok(after)
 }
 
 #[cfg(test)]
