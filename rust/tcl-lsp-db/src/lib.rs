@@ -197,6 +197,9 @@
 //! The full contract is written up in
 //! `docs/design/rust/salsa-interned-gc.md`.
 
+// Retained analysis receipts require deeper auto-trait evaluation.
+#![recursion_limit = "256"]
+
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 use std::sync::{Arc, Mutex};
 
