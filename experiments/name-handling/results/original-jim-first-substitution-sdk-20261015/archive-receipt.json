@@ -1,0 +1,97 @@
+{
+  "schema": 1,
+  "scope": "Exact nonbinary archival transport; original ten-case Jim observation only, no implementation acceptance or complete SDK closure.",
+  "original_capture_manifest_sha256": "e7b39c6dacc478495cc4bea7fadd7aec668395283ca15fb9b3a6d6d061010035",
+  "retained_files": [
+    {
+      "path": "capture.py",
+      "original": "/tmp/name-jim-first-substitution-sdk-20261015/capture.py",
+      "bytes": 2415,
+      "sha256": "0734a0f80678d0c8b28595e18ad0c7e6e91b8e4f1081b1d12aab9788e7b0c540"
+    },
+    {
+      "path": "compile.stderr",
+      "original": "/tmp/name-jim-first-substitution-sdk-20261015/compile.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "compile.stdout",
+      "original": "/tmp/name-jim-first-substitution-sdk-20261015/compile.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "manifest.json",
+      "original": "/tmp/name-jim-first-substitution-sdk-20261015/manifest.json",
+      "bytes": 3164,
+      "sha256": "e7b39c6dacc478495cc4bea7fadd7aec668395283ca15fb9b3a6d6d061010035"
+    },
+    {
+      "path": "probe.c",
+      "original": "/tmp/name-jim-first-substitution-sdk-20261015/probe.c",
+      "bytes": 2808,
+      "sha256": "fc4a4d94824ad78d07320fe68b4b90ce576f73151bfeecbfc500f28c608abc2c"
+    },
+    {
+      "path": "stderr",
+      "original": "/tmp/name-jim-first-substitution-sdk-20261015/stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "stdout.tsv",
+      "original": "/tmp/name-jim-first-substitution-sdk-20261015/stdout.tsv",
+      "bytes": 1747,
+      "sha256": "bc4152608250e0619001ecf4104ebaab902ad8c028ca84cc69e3c0a43b46cfbd"
+    },
+    {
+      "path": "README.md",
+      "bytes": 2582,
+      "sha256": "07d24c69a992b2fb8824e4a90fc76469d70996853199f2e7e87af937d9ea8442",
+      "derived": true
+    },
+    {
+      "path": "verify.py",
+      "bytes": 1265,
+      "sha256": "14bcff2f539a33029bb528438de8d90938eeb8f363a4b528da4c51a679a78718",
+      "derived": true
+    }
+  ],
+  "referenced_provider_snapshots": [
+    {
+      "repository_path": "experiments/name-handling/results/original-jim-lambda-context-sdk-20261014/captures/lambda-deferred-namespace/provider-sources/jim.h",
+      "relative_path": "../original-jim-lambda-context-sdk-20261014/captures/lambda-deferred-namespace/provider-sources/jim.h",
+      "sha256": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+      "bytes": 56502
+    },
+    {
+      "repository_path": "experiments/name-handling/results/original-jim-lambda-context-sdk-20261014/captures/lambda-deferred-namespace/provider-sources/jim.c",
+      "relative_path": "../original-jim-lambda-context-sdk-20261014/captures/lambda-deferred-namespace/provider-sources/jim.c",
+      "sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "bytes": 546686
+    },
+    {
+      "repository_path": "experiments/name-handling/results/original-jim-lambda-context-sdk-20261014/captures/lambda-deferred-namespace/provider-sources/jim-namespace.c",
+      "relative_path": "../original-jim-lambda-context-sdk-20261014/captures/lambda-deferred-namespace/provider-sources/jim-namespace.c",
+      "sha256": "22bb6fb5fcea8ce8ec7e3eecbfe5ebd5ee290b9b725101ff4e4a1c0e9abed7f3",
+      "bytes": 11686
+    },
+    {
+      "repository_path": "experiments/name-handling/results/original-jim-lambda-context-sdk-20261014/captures/lambda-deferred-namespace/provider-sources/jim-config.h",
+      "relative_path": "../original-jim-lambda-context-sdk-20261014/captures/lambda-deferred-namespace/provider-sources/jim-config.h",
+      "sha256": "d092046fe07c2ec14b77da74304135da24725d766e1c9fd74ee32eeb07702221",
+      "bytes": 200
+    },
+    {
+      "repository_path": "experiments/name-handling/results/original-jim-lambda-context-sdk-20261014/captures/lambda-deferred-namespace/provider-sources/Makefile",
+      "relative_path": "../original-jim-lambda-context-sdk-20261014/captures/lambda-deferred-namespace/provider-sources/Makefile",
+      "sha256": "1cfb962be629942512ee101d010f6c273fe9e2593fcf3f08a2565422fcf7d29c",
+      "bytes": 6153
+    }
+  ],
+  "excluded_binaries": {
+    "probe": "6f628e068f1a48135d3de70233e10334a9591931e49d00fd7105e38e37305b7d",
+    "library": "2e75f1e259dc7896fa6996ebe2ad0fb5de2864770a772a0d102b2b6306280c61"
+  }
+}

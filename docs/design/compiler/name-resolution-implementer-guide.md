@@ -7179,6 +7179,16 @@ final whole-document spans are known and checks the emitting Module's command
 generation. The standalone warning API retains its explicit caller contract
 and cannot replace unavailable actual unit context.
 
+Module-bearing interprocedural taint replay uses
+`CompilationUnit::original_interproc_taints_for_body` with the actual issued body
+ID, or `None` for its original top level. Its `TaintSourceContext::for_module_function` requires the complete current
+Module/FunctionUnit input, Registry, profile and lexer configuration, plus the
+same interprocedural global-receiver source owner and input. A foreign or absent
+owner returns no Module replay: DB retains the original baseline taints, and the
+function-only projection cannot reconstruct Module-owned procedure or global
+receiver facts from reporting labels. These conditional source facts grant no
+Native object, entered callback/frame or sanitiser certainty.
+
 `context_diagnostic_actions_in_analysis` independently checks the diagnostic
 code and range, complete source/configuration, and both current Registry owners.
 It selects the actual source sink and read geometry before considering an
@@ -9753,6 +9763,13 @@ uses the actual retained ContextRegistry command store. Missing current context
 cannot borrow a stashed default store. Already-selected schema roles are pure
 Registry projections; handler selection and reached effects remain independent.
 Package callback receipts also require actual selected package availability.
+Command-store identity, package availability and original source ownership are
+independent checks. A Closed environment can still expose ordinary library
+descriptors; an unavailable-package premise must be established through the
+selected context rather than inferred from that policy label. Local callback
+headers require the supplied Analysis input, retained command realm and whole
+original source to agree even when a descriptor remains available. Descriptor
+presence cannot validate foreign source receipts or establish callback execution.
 
 For list-built source assistance use `original_list_built_script_command` with
 the complete actual input/realm and selected parent/builder/target schemas. It retains the sealed selected builder and its original producing spans. Captured alias values
