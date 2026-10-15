@@ -1,0 +1,147 @@
+{
+  "utc": "2026-10-15T19:45:04.083200+00:00",
+  "source_file": "rust/tcl-syntax/src/naming/script_namespace_snapshot.rs",
+  "source_sha256_before": "c8b939ab79ba776973b8c60a9a8fb2dd087d7d4bac128167b55abe53fc60de84",
+  "source_sha256_after": "c8b939ab79ba776973b8c60a9a8fb2dd087d7d4bac128167b55abe53fc60de84",
+  "probe_sha256": "4f68c258b56f51b9a179b6e71104cee611a9f72b76b9ff0ef967d9f71ac6bb46",
+  "providers": [
+    {
+      "version": "8.4.20",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/patterns/namespace-array-snapshot/capture03/probe.tcl",
+        "/workspace/tcl-lsp/experiments/name-handling/patterns/namespace-array-snapshot/capture03/8.4.20.actual-init.tcl"
+      ],
+      "exit_code": 0,
+      "actual_provider_line": "provider 8.4.20 /workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "actual_library": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "actual_init_file": "8.4.20.actual-init.tcl",
+      "actual_init_sha256": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b",
+      "pinned_original_init": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/init.tcl",
+      "pinned_original_init_sha256": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b",
+      "checks": {
+        "actual_version": true,
+        "exit_zero": true,
+        "empty_stderr": true,
+        "actual_original_init_bytes": true,
+        "same_eight_observations": true,
+        "binary_unchanged": true,
+        "pinned_init_unchanged": true
+      },
+      "stdout": "8.4.20.stdout",
+      "stderr": "8.4.20.stderr"
+    },
+    {
+      "version": "8.5.19",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/patterns/namespace-array-snapshot/capture03/probe.tcl",
+        "/workspace/tcl-lsp/experiments/name-handling/patterns/namespace-array-snapshot/capture03/8.5.19.actual-init.tcl"
+      ],
+      "exit_code": 0,
+      "actual_provider_line": "provider 8.5.19 /workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "actual_library": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "binary_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "actual_init_file": "8.5.19.actual-init.tcl",
+      "actual_init_sha256": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1",
+      "pinned_original_init": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/init.tcl",
+      "pinned_original_init_sha256": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1",
+      "checks": {
+        "actual_version": true,
+        "exit_zero": true,
+        "empty_stderr": true,
+        "actual_original_init_bytes": true,
+        "same_eight_observations": true,
+        "binary_unchanged": true,
+        "pinned_init_unchanged": true
+      },
+      "stdout": "8.5.19.stdout",
+      "stderr": "8.5.19.stderr"
+    },
+    {
+      "version": "8.6.18",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/patterns/namespace-array-snapshot/capture03/probe.tcl",
+        "/workspace/tcl-lsp/experiments/name-handling/patterns/namespace-array-snapshot/capture03/8.6.18.actual-init.tcl"
+      ],
+      "exit_code": 0,
+      "actual_provider_line": "provider 8.6.18 /workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "actual_library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "binary_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "actual_init_file": "8.6.18.actual-init.tcl",
+      "actual_init_sha256": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35",
+      "pinned_original_init": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl",
+      "pinned_original_init_sha256": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35",
+      "checks": {
+        "actual_version": true,
+        "exit_zero": true,
+        "empty_stderr": true,
+        "actual_original_init_bytes": true,
+        "same_eight_observations": true,
+        "binary_unchanged": true,
+        "pinned_init_unchanged": true
+      },
+      "stdout": "8.6.18.stdout",
+      "stderr": "8.6.18.stderr"
+    },
+    {
+      "version": "9.0.4",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/patterns/namespace-array-snapshot/capture03/probe.tcl",
+        "/workspace/tcl-lsp/experiments/name-handling/patterns/namespace-array-snapshot/capture03/9.0.4.actual-init.tcl"
+      ],
+      "exit_code": 0,
+      "actual_provider_line": "provider 9.0.4 //zipfs:/app/tcl_library",
+      "actual_library": "//zipfs:/app/tcl_library",
+      "binary_sha256": "56c3c4561cf3675a5fed0943b4157d9cfe9c646ab2d94cb504fa02fbd34ef322",
+      "actual_init_file": "9.0.4.actual-init.tcl",
+      "actual_init_sha256": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a",
+      "pinned_original_init": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/init.tcl",
+      "pinned_original_init_sha256": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a",
+      "checks": {
+        "actual_version": true,
+        "exit_zero": true,
+        "empty_stderr": true,
+        "actual_original_init_bytes": true,
+        "same_eight_observations": true,
+        "binary_unchanged": true,
+        "pinned_init_unchanged": true
+      },
+      "stdout": "9.0.4.stdout",
+      "stderr": "9.0.4.stderr"
+    },
+    {
+      "version": "9.1.0",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/patterns/namespace-array-snapshot/capture03/probe.tcl",
+        "/workspace/tcl-lsp/experiments/name-handling/patterns/namespace-array-snapshot/capture03/9.1.0.actual-init.tcl"
+      ],
+      "exit_code": 0,
+      "actual_provider_line": "provider 9.1.0 //zipfs:/app/tcl_library",
+      "actual_library": "//zipfs:/app/tcl_library",
+      "binary_sha256": "3c5cc3c4a5acbe7e8acd832043d6884e41dcdfefe89da13b50e5c56d1a607835",
+      "actual_init_file": "9.1.0.actual-init.tcl",
+      "actual_init_sha256": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f",
+      "pinned_original_init": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/init.tcl",
+      "pinned_original_init_sha256": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f",
+      "checks": {
+        "actual_version": true,
+        "exit_zero": true,
+        "empty_stderr": true,
+        "actual_original_init_bytes": true,
+        "same_eight_observations": true,
+        "binary_unchanged": true,
+        "pinned_init_unchanged": true
+      },
+      "stdout": "9.1.0.stdout",
+      "stderr": "9.1.0.stderr"
+    }
+  ],
+  "harness": "Exact standalone script under original pinned C interpreters; no tcltest. Actual loaded init bytes retained and compared against each exact pinned original library source.",
+  "observations": "40 reached original snapshot operation observations, five provider/library records. Ordinary read returns PLAIN; unusual actual root a( contains ROOT_WITH_OPEN_PAREN, but helper reads OTHER_ARRAY from different combined-name receiver.",
+  "limits": "No Jim/TMM/F5 observation, physical identity/cell certificate, full purity snapshot semantics or Rust implementation/test acceptance."
+}

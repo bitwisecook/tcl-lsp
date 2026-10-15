@@ -1,0 +1,14 @@
+{
+  "status": "Capture02 pairing guard failed at C9.0.4; incomplete, no complete provider/capture acceptance",
+  "reason": "Actual [info library] is embedded //zipfs:/app/tcl_library, not assumed on-disk SDK library. First3 provider path checks matched. Original stdout channels preserved, including9.0.4 actual provider line. Capture03 verifies actual loaded init bytes instead of assuming a physical path.",
+  "channels": [
+    "8.4.20.stdout",
+    "8.5.19.stdout",
+    "8.6.18.stdout",
+    "9.0.4.stdout",
+    "8.4.20.stderr",
+    "8.5.19.stderr",
+    "8.6.18.stderr",
+    "9.0.4.stderr"
+  ]
+}

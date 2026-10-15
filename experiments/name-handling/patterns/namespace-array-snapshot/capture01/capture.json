@@ -1,0 +1,84 @@
+{
+  "utc": "2026-10-15T19:42:10.292319+00:00",
+  "source_file": "rust/tcl-syntax/src/naming/script_namespace_snapshot.rs",
+  "source_sha256": "c8b939ab79ba776973b8c60a9a8fb2dd087d7d4bac128167b55abe53fc60de84",
+  "probe_sha256": "6448b73f4093d9126f9064539e860243f6a0b0fa28eab57cdf510d75525bb1ad",
+  "providers": [
+    {
+      "version": "8.4.20",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/patterns/namespace-array-snapshot/capture01/probe.tcl"
+      ],
+      "exit_code": 0,
+      "completion": "normal interpreter exit",
+      "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "original_library": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "original_init_sha256": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b",
+      "stdout": "8.4.20.stdout",
+      "stderr": "8.4.20.stderr",
+      "harness": "Standalone exact probe; no tcltest/substituted harness"
+    },
+    {
+      "version": "8.5.19",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/patterns/namespace-array-snapshot/capture01/probe.tcl"
+      ],
+      "exit_code": 0,
+      "completion": "normal interpreter exit",
+      "binary_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "original_library": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "original_init_sha256": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1",
+      "stdout": "8.5.19.stdout",
+      "stderr": "8.5.19.stderr",
+      "harness": "Standalone exact probe; no tcltest/substituted harness"
+    },
+    {
+      "version": "8.6.18",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/patterns/namespace-array-snapshot/capture01/probe.tcl"
+      ],
+      "exit_code": 0,
+      "completion": "normal interpreter exit",
+      "binary_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "original_library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "original_init_sha256": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35",
+      "stdout": "8.6.18.stdout",
+      "stderr": "8.6.18.stderr",
+      "harness": "Standalone exact probe; no tcltest/substituted harness"
+    },
+    {
+      "version": "9.0.4",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/patterns/namespace-array-snapshot/capture01/probe.tcl"
+      ],
+      "exit_code": 0,
+      "completion": "normal interpreter exit",
+      "binary_sha256": "56c3c4561cf3675a5fed0943b4157d9cfe9c646ab2d94cb504fa02fbd34ef322",
+      "original_library": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "original_init_sha256": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a",
+      "stdout": "9.0.4.stdout",
+      "stderr": "9.0.4.stderr",
+      "harness": "Standalone exact probe; no tcltest/substituted harness"
+    },
+    {
+      "version": "9.1.0",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/patterns/namespace-array-snapshot/capture01/probe.tcl"
+      ],
+      "exit_code": 0,
+      "completion": "normal interpreter exit",
+      "binary_sha256": "3c5cc3c4a5acbe7e8acd832043d6884e41dcdfefe89da13b50e5c56d1a607835",
+      "original_library": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "original_init_sha256": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f",
+      "stdout": "9.1.0.stdout",
+      "stderr": "9.1.0.stderr",
+      "harness": "Standalone exact probe; no tcltest/substituted harness"
+    }
+  ],
+  "limits": "Only original pinned C interpreters and these reached script-coordinate queries; no Jim, TMM, actual Native cell receipt, concurrency/lifecycle or whole purity-test acceptance."
+}

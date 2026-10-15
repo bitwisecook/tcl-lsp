@@ -1,0 +1,9 @@
+provider 8.6.18 /workspace/tcl-lsp/tmp/tcl8.6.18/library
+ordinary_array_exists 0 1
+ordinary_actual_array 0 {k PLAIN}
+ordinary_helper_value 0 PLAIN
+unusual_simple_operand 0 a(
+unusual_array_exists 0 1
+unusual_actual_array 0 {k ROOT_WITH_OPEN_PAREN}
+competing_actual_array 0 {(k OTHER_ARRAY}
+unusual_helper_value 0 OTHER_ARRAY
