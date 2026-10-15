@@ -11,6 +11,16 @@ The user requests an accurate audit of every remaining migration site. All six a
 
 M12 frozen c9e complete1546 latest1133PASS410FAIL1TIMEOUT2NOT_ACCEPTED_RUN_COUNT after seven exact separate EPERM repairs; all1491 predecessors retained,4gains0regressions0drops;55new53PASS2FAIL. Original2286FIRSTPASS71.841791191s/180. All23ELFs built/source unchanged; complete portable raw capture in handoff. Native plans and required gates remain unfinished. Development pushes remain authorised while red.
 
+Latest portable audit checkpoint21:16 has4995 provisional purpose rows/399 verified
+members, NOT remaining consumers. Root344 source scope read;323provisional purposes,
+bounded independent8group peer with14still unreviewed.13Compiler production peer
+files read, first5admitted/latest8pending primary admission at capture time. All
+omitted test operations stay separate. Source interpretation, evaluated data,
+source construction and actual erasure eligibility remain independent purposes.
+Only inactive .rmeta caches retired (509106408bytes); all55ELFs unchanged. Fresh
+Cargo regenerates metadata. All original providers/source/drafts and VSCode cache
+retained. Inspect source and exact current artifact guards before replay.
+
 ## Establish the current branch and obligations
 
 Read AGENTS.md, docs/work/name-handling/README.md, current-state.md,

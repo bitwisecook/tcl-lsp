@@ -1,5 +1,13 @@
 # Naming migration handoff
 
+Latest repository audit capture: `repository-audit-progress-20261015T211642Z.tar.gz`,
+4,995 provisional purpose rows and 399 verified members. This is an incomplete
+source/operational census, never a remaining-consumer total or acceptance. It
+retains primary source bindings plus individually hash-bound independent semantic
+corrections, Compiler peers, operational extents and unchanged-ELF cache retirement.
+Read [current-state.md](../current-state.md) before interpreting older packets.
+
+
 Complete migration of every naming consumer to the centralised APIs remains the
 first priority. Use parallel implementation agents for audited consumers while an
 independent agent finishes the outstanding audits. The canonical instructions are

@@ -28,7 +28,7 @@ Each remaining site will record its file, symbol, source hash, purpose and conte
 
 The working file roster, partition check, reviewer coverage and consumer rows are retained under `/workspace/name-session/full-consumer-audit/`; a portable reconciled ledger will replace this in-progress snapshot. The named baseline remains fixed while subsequent source changes receive separate invalidation/review records. Required repository gates remain unfinished.
 
-The latest portable checkpoint (21:00 UTC) contains **4,590 provisional purpose rows**, including shared owners, display-only sites and exclusions. Its 355 archive members are hash-verified. The frozen primary checkpoint inputs were independently reconciled: all recorded source SHA256 values match actual baseline Git blobs, coverage partitions reconcile, and no same-key duplicates were found. Auxiliary source-review receipts are individually hash-bound; that does not reconcile their semantics automatically. This is **not** a remaining-consumer count: unexamined production, multi-symbol groups and independent purpose reconciliation remain unfinished. Exact per-area coverage and provenance classifications are retained in the checkpoint indexed by [handoff/packets.json](handoff/packets.json).
+The latest portable checkpoint (21:16 UTC) contains **4,995 provisional purpose rows**, including shared owners, display-only sites and exclusions. Its 399 archive members are hash-verified. The frozen primary checkpoint inputs were independently reconciled: all recorded source SHA256 values match actual baseline Git blobs, coverage partitions reconcile, and no same-key duplicates were found. Auxiliary source-review receipts are individually hash-bound; that does not reconcile their semantics automatically. This is **not** a remaining-consumer count: unexamined production, multi-symbol groups and independent purpose reconciliation remain unfinished. Exact per-area coverage and provenance classifications are retained in the checkpoint indexed by [handoff/packets.json](handoff/packets.json).
 
 Source review has confirmed remaining integrations in registry/generation transport, compiler variable and recursive source geometry, database positive occupancy, LSP edit-purpose transport, runtime original-object selection, VM lifecycle owners, code generation and host/tooling boundaries. These are specific recorded purposes, not a fixed exhaustive family count. A valid final total requires completing the unexamined roster and reconciling consumer migrations separately from shared-owner extensions and validation-only work.
 
@@ -42,7 +42,7 @@ generated owner traces and one decoded fixed PNG asset. The 468 known inline
 test/source regions were actually read, with the composite Unix test module
 separately reconciled. This does not count migrations or close generator drift,
 external provider execution, successor review or semantic-unit reconciliation.
-Root also completed four reserved Compiler production reads; the Compiler reviewer independently verified their original/aide hashes and admitted the findings. Their omitted inline tests remain unfinished.
+Root also completed four reserved Compiler production reads; the Compiler reviewer independently verified their original/aid hashes and admitted the findings. Their omitted inline tests remain unfinished.
 Other owners retain unfinished production, operational tests, generators and
 authored guidance; generated markers alone never exempt operational code.
 
@@ -55,3 +55,14 @@ neither purpose rows nor physical-site counts are the remaining-consumer total.
 The new Compiler peer receipt preserves existing original formal/argument, actual
 SSA entry, source-purpose and unknown-effect guards. No whole-file test coverage,
 Native bypass, original-provider outcome or green repository gate is inferred.
+
+The 21:16 checkpoint additionally retains Root extent reconciliation, exact cache-only
+retirement/unchanged-ELF receipts, five admitted Compiler peer files and eight
+additional production reads awaiting primary admission. Root now has 323 provisional
+purposes after separating source interpretation from evaluated manifest-data
+admission and withdrawing the Mermaid target-label allegation against the actual
+constrained event producer. Fourteen previously grouped purposes still lack this
+bounded independent peer review; it was never a whole-catalogue reconciliation.
+The separate Mermaid evt-ID/navigation association remains unfinished. Worker and
+main publication retain distinct sites linked to one repair contract. Physical
+sites, consumer purposes, shared repair contracts and defects are separate units.

@@ -1,5 +1,17 @@
 # Remaining name-handling obligations
 
+Current audit checkpoint — 2026-10-15 21:18 UTC: portable 21:16 retains 4,995
+provisional purposes and 399 verified members, not a remaining-consumer total.
+Root applied a bounded eight-group independent peer, separated mixed source/data
+purposes, linked worker/main currentness repair and withdrew Mermaid arbitrary-label
+source debt after tracing actual producer admission. Fourteen grouped purposes and
+all unexamined external scopes remain unfinished. Thirteen Compiler production
+peer files are read; five admitted and eight pending primary admission. The actual
+CFG memory path remains typed; no String-only debt invented. Cache retirement
+retains all 55 ELF hashes unchanged and requires regenerated metadata for fresh
+Cargo gates. No new test/provider execution or implementation acceptance.
+
+
 Current audit checkpoint — 2026-10-15 21:02 UTC: the portable 21:00 audit retains
 4,590 provisional purpose rows and 355 hash-verified members. This is not a
 remaining-consumer count or implementation acceptance. Root's source scope is
