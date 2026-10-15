@@ -43,6 +43,7 @@
 
 use bpf_tcl_ir::MapConcurrency;
 use bpf_tcl_ir::ir::{MapDef, MapKind};
+use tcl_core_types::{ArtifactStringError, ArtifactStringTable};
 
 /// Bytes occupied by one map's struct variable in the `.maps` section (four
 /// 8-byte pointer members).
@@ -80,24 +81,6 @@ fn map_type_number(def: &MapDef) -> u32 {
         (MapKind::Array, MapConcurrency::Shared) => MAP_TYPE_ARRAY,
         (MapKind::Hash, MapConcurrency::PerCpu) => MAP_TYPE_PERCPU_HASH,
         (MapKind::Array, MapConcurrency::PerCpu) => MAP_TYPE_PERCPU_ARRAY,
-    }
-}
-
-/// A growable BTF string table (NUL-led, NUL-terminated entries).
-struct BtfStrings {
-    buf: Vec<u8>,
-}
-
-impl BtfStrings {
-    fn new() -> Self {
-        Self { buf: vec![0] }
-    }
-
-    fn add(&mut self, s: &str) -> u32 {
-        let off = u32::try_from(self.buf.len()).unwrap_or(0);
-        self.buf.extend_from_slice(s.as_bytes());
-        self.buf.push(0);
-        off
     }
 }
 
@@ -202,21 +185,24 @@ impl BtfTypes {
 ///
 /// Returns an empty vector when there are no maps (no BTF section is emitted in
 /// that case).
-#[must_use]
-pub fn build_btf(maps: &[MapDef]) -> Vec<u8> {
+///
+/// # Errors
+/// Returns [`ArtifactStringError`] if an exact name contains NUL or the
+/// serialized string table exceeds 32-bit offsets and length.
+pub fn build_btf(maps: &[MapDef]) -> Result<Vec<u8>, ArtifactStringError> {
     if maps.is_empty() {
-        return Vec::new();
+        return Ok(Vec::new());
     }
 
-    let mut strings = BtfStrings::new();
+    let mut strings = ArtifactStringTable::new();
     let mut types = BtfTypes::new();
 
-    let int_name = strings.add("int");
-    let type_name = strings.add("type");
-    let key_size_name = strings.add("key_size");
-    let value_size_name = strings.add("value_size");
-    let max_entries_name = strings.add("max_entries");
-    let maps_sec_name = strings.add(".maps");
+    let int_name = strings.add("int")?;
+    let type_name = strings.add("type")?;
+    let key_size_name = strings.add("key_size")?;
+    let value_size_name = strings.add("value_size")?;
+    let max_entries_name = strings.add("max_entries")?;
+    let maps_sec_name = strings.add(".maps")?;
 
     let int_id = types.int(int_name);
 
@@ -242,7 +228,7 @@ pub fn build_btf(maps: &[MapDef]) -> Vec<u8> {
             (value_size_name, value_ptr),
             (max_entries_name, max_ptr),
         ]);
-        let var_name = strings.add(&def.name);
+        let var_name = strings.add(&def.name)?;
         let var_id = types.var(var_name, struct_id);
         let offset = u32::try_from(i).unwrap_or(0) * MAP_STRUCT_SIZE;
         var_infos.push((var_id, offset, MAP_STRUCT_SIZE));
@@ -251,13 +237,13 @@ pub fn build_btf(maps: &[MapDef]) -> Vec<u8> {
     let total = u32::try_from(maps.len()).unwrap_or(0) * MAP_STRUCT_SIZE;
     types.datasec(maps_sec_name, total, &var_infos);
 
-    encode_btf(&types.buf, &strings.buf)
+    Ok(encode_btf(&types.buf, strings.as_bytes()))
 }
 
 /// Prepend the BTF header to the type and string sections.
 fn encode_btf(type_bytes: &[u8], str_bytes: &[u8]) -> Vec<u8> {
     let type_len = u32::try_from(type_bytes.len()).unwrap_or(0);
-    let str_len = u32::try_from(str_bytes.len()).unwrap_or(0);
+    let str_len = u32::try_from(str_bytes.len()).expect("checked artifact string table length");
     let mut out = Vec::with_capacity(BTF_HDR_LEN as usize + type_bytes.len() + str_bytes.len());
     out.extend_from_slice(&BTF_MAGIC.to_le_bytes());
     out.push(BTF_VERSION);
@@ -286,13 +272,24 @@ mod tests {
 
     #[test]
     fn empty_maps_produce_no_btf() {
-        assert!(build_btf(&[]).is_empty());
+        assert!(build_btf(&[]).unwrap().is_empty());
+    }
+
+    #[test]
+    fn direct_map_ingress_refuses_nul_without_collapsing_to_the_valid_prefix() {
+        let mut maps = maps_of("when XDP { map m hash 8 8 16\n pass }\n");
+        assert!(build_btf(&maps).is_ok());
+        maps[0].name = "m\0suffix".into();
+        assert_eq!(
+            build_btf(&maps),
+            Err(ArtifactStringError::InteriorNul { position: 1 })
+        );
     }
 
     #[test]
     fn btf_header_is_well_formed() {
         let maps = maps_of("when XDP { map m hash 8 8 16\n pass }\n");
-        let btf = build_btf(&maps);
+        let btf = build_btf(&maps).unwrap();
         assert!(btf.len() > BTF_HDR_LEN as usize);
         assert_eq!(u16::from_le_bytes([btf[0], btf[1]]), BTF_MAGIC);
         assert_eq!(btf[2], BTF_VERSION);
@@ -309,7 +306,7 @@ mod tests {
     #[test]
     fn btf_encodes_type_and_str_lengths_consistently() {
         let maps = maps_of("when XDP { map a array 4 8 4\n map b hash 2 4 8\n pass }\n");
-        let btf = build_btf(&maps);
+        let btf = build_btf(&maps).unwrap();
         let type_len = u32::from_le_bytes(btf[12..16].try_into().unwrap()) as usize;
         let str_off = u32::from_le_bytes(btf[16..20].try_into().unwrap()) as usize;
         let str_len = u32::from_le_bytes(btf[20..24].try_into().unwrap()) as usize;

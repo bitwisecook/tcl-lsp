@@ -28,6 +28,7 @@ repository.workspace = true
 authors.workspace = true
 
 [dependencies]
+tcl-core-types = { path = "../tcl-core-types" }
 bpf-tcl-ir = { path = "../bpf-tcl-ir" }
 tcl-lexer = { path = "../tcl-lexer" }
 

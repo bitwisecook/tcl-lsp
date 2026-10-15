@@ -37,6 +37,9 @@
 
 extern crate alloc;
 
+mod artifact_string;
+pub use artifact_string::{ArtifactCString, ArtifactStringError, ArtifactStringTable};
+
 mod body_identity;
 pub use body_identity::{BodyFrameId, ProcedureId, ProcedureIdIssuer, ProcedureModuleId};
 
