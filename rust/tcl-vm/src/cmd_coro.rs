@@ -41,7 +41,7 @@
 
 use std::{collections::HashMap, rc::Rc};
 
-use tcl_runtime_api::Completion;
+use tcl_runtime_api::{Code, Completion};
 
 use crate::command::{Command, NativeCommand};
 use crate::exec::{Frame, RunExit, YieldReq};
@@ -361,6 +361,9 @@ fn resume(
     // coroutine starts at pc 0, so it takes no delivered value. Any `coroinject`
     // commands run first, in the coroutine's context, each transforming the
     // delivered value (called with the suspend kind + current value appended).
+    // One that fails is raised at the suspend point instead, where the
+    // coroutine's own `catch` can take it, as C does.
+    let mut injected = None;
     if !was_fresh && stale_message.is_none() {
         // A `yield` returns the single resume value (or `""`); a `yieldto`
         // returns the whole resume-argument list.
@@ -374,24 +377,14 @@ fn resume(
                     top.push_operand(delivered);
                 }
             }
-            Err(r) => {
-                // An injected command failed: the coroutine is torn down (C
-                // unwinds it, so its command becomes invalid), the caller's flow
-                // is restored, and the error propagates.
-                vm.coro.stack.pop();
-                vm.swap_flow(&mut parked);
-                vm.retire_parked_coroutine(&mut acts, &mut parked);
-                if let Some(key) = active_key.key() {
-                    teardown_coro(vm, &key);
-                }
-                return r;
-            }
+            Err(r) => injected = Some(r),
         }
     }
 
-    let exit = match stale_message {
-        Some(message) => vm.unwind_stale_coroutine(&mut acts, message),
-        None => vm.drive_coro(&mut acts),
+    let exit = match (stale_message, injected) {
+        (Some(message), _) => vm.unwind_stale_coroutine(&mut acts, message),
+        (None, Some(r)) => vm.raise_in_coroutine(&mut acts, r),
+        (None, None) => vm.drive_coro(&mut acts),
     };
 
     if matches!(exit, RunExit::Done(_)) {
@@ -433,6 +426,7 @@ fn resume(
             }
         }
         RunExit::Done(c) => {
+            vm.adopt_flow_error_trace(c.code, &mut parked);
             // The body finished: remove the command + state (unless `exit` is
             // propagating, in which case leave teardown to the unwinding caller).
             if let Some(key) = key {
@@ -448,7 +442,7 @@ fn resume(
 /// `cmd args… <kind> <delivered>` — the suspend kind (`yield`/`yieldto`) and the
 /// value the parked `yield` is about to return — and its result becomes the new
 /// delivered value threaded into the next injection. A non-`ok` completion
-/// aborts the chain; [`resume`] then unwinds the coroutine.
+/// aborts the chain; [`resume`] then raises it at the suspend point.
 fn run_injections(
     vm: &mut Vm,
     injections: Vec<Vec<Value>>,
@@ -470,6 +464,15 @@ fn run_injections(
         if c.code.is_ok() {
             delivered = c.result;
         } else {
+            if c.code == Code::Error {
+                let mut words = vec![prefix[0].clone()];
+                words.extend(call);
+                let text = tcl_syntax::list::join_list(words.iter().map(Value::to_str));
+                // The injected command and the parked `yield` it ran under
+                // are separate command frames, so the `yield` logs next.
+                vm.log_command_info(&text, &c.result.to_str(), 0);
+                vm.clear_error_logged();
+            }
             return Err(c);
         }
     }

@@ -300,6 +300,10 @@ pub(crate) struct EvalReq {
     /// The parse error to raise once the body's clean prefix has run, for a
     /// body whose later commands do not parse (see [`Frame::fatal_tail`]).
     pub(crate) fatal_tail: Option<FatalTail>,
+    /// The existing call-frame level the body runs at (`uplevel N`), the
+    /// frames above it set aside until it completes; `None` runs it in the
+    /// current frame.
+    pub(crate) level: Option<usize>,
 }
 
 /// A `catch` body deferred to the explicit stack: the compiled body plus the
@@ -663,6 +667,9 @@ enum Tick {
 enum ScriptNamespace {
     Inherit,
     CommandBoundary(String),
+    /// Run at the existing call-frame level `N` (`uplevel N`), in that
+    /// frame's namespace, carrying the frames above it on the activation.
+    Level(usize),
 }
 
 /// A coroutine suspend request, produced by the `yield`/`yieldto` builtins and
@@ -1444,17 +1451,23 @@ impl Vm {
                 let mut frame = Frame::new_script(script, label);
                 frame.cleanup_proc = cleanup_proc;
                 frame.fatal_tail = fatal_tail;
-                if let ScriptNamespace::CommandBoundary(namespace) = namespace {
-                    match self.enter_replay_namespace(namespace) {
-                        Ok(previous) => frame.replay_namespace_restore = previous,
-                        Err(message) => {
-                            if let Some(name) = frame.cleanup_proc.take() {
-                                self.take_command_unchecked(&name);
+                match namespace {
+                    ScriptNamespace::Inherit => {}
+                    ScriptNamespace::CommandBoundary(namespace) => {
+                        match self.enter_replay_namespace(namespace) {
+                            Ok(previous) => frame.replay_namespace_restore = previous,
+                            Err(message) => {
+                                if let Some(name) = frame.cleanup_proc.take() {
+                                    self.take_command_unchecked(&name);
+                                }
+                                return TickAction::Complete(
+                                    self.settle_pending_exec_leave(err(message)),
+                                );
                             }
-                            return TickAction::Complete(
-                                self.settle_pending_exec_leave(err(message)),
-                            );
                         }
+                    }
+                    ScriptNamespace::Level(target) => {
+                        frame.level_restore = Some(Box::new(self.enter_level(target)));
                     }
                 }
                 self.push_frame(acts, frame);
@@ -1666,6 +1679,21 @@ impl Vm {
         match self.settle_stale_activation(acts, message) {
             Some(done) => RunExit::Done(done),
             None => self.drive(acts, DriveMode::Plain),
+        }
+    }
+
+    /// Raise `c` at a resumed coroutine's suspend point, as if its `yield`
+    /// had completed with it (a failed `coroinject` command): the coroutine's
+    /// own catch ranges see it, and it keeps running, or suspends again,
+    /// from there.
+    pub(crate) fn raise_in_coroutine(
+        &mut self,
+        acts: &mut Vec<Frame>,
+        c: Completion<Value>,
+    ) -> RunExit {
+        match self.settle_completion(acts, c) {
+            Some(done) => RunExit::Done(done),
+            None => self.drive(acts, DriveMode::CoroDriver),
         }
     }
 
@@ -1950,6 +1978,12 @@ impl Vm {
             {
                 c = self.raise_fatal_tail(tail);
             }
+            // Back at the caller's level before its command is logged, so
+            // TIP 348 records the redirect's `UP` once, for the commands that
+            // ran at the target level.
+            if let Some(shift) = act.level_restore.take() {
+                self.leave_level(*shift);
+            }
             // An error unwinding through an inlined command body (`eval {…}`)
             // adds the body frames the uncompiled command would, before this
             // activation's own proc frame (innermost first) — the compiled
@@ -1961,9 +1995,6 @@ impl Vm {
                 self.unwind_proc_frame(&act, acts, &mut c);
             } else if let Some(previous) = act.replay_namespace_restore.take() {
                 self.leave_replay_namespace(previous);
-            }
-            if let Some(shift) = act.level_restore.take() {
-                self.leave_level(*shift);
             }
             // `catch`, `try` and `package require` still have command-owned
             // completion work below: catch absorbs its body's completion, while
@@ -5378,7 +5409,9 @@ impl Vm {
                 label: req.label,
                 cleanup_proc: req.cleanup_proc,
                 fatal_tail: req.fatal_tail,
-                namespace: ScriptNamespace::Inherit,
+                namespace: req
+                    .level
+                    .map_or(ScriptNamespace::Inherit, ScriptNamespace::Level),
             }));
         }
         // A `catch` defers its body the same way, but into a catch frame
@@ -5742,6 +5775,9 @@ impl Vm {
             // trampoline's `PushScript`.
             let mut frame = Frame::new_script(req.script, req.label);
             frame.fatal_tail = req.fatal_tail;
+            if let Some(target) = req.level {
+                frame.level_restore = Some(Box::new(self.enter_level(target)));
+            }
             let comp = self.run_activation(frame);
             if let Some(name) = req.cleanup_proc {
                 self.take_command_unchecked(&name);
@@ -5949,8 +5985,14 @@ impl Vm {
             let c = err("tailcall can only be called from a proc, lambda or method");
             return self.unwind(acts, c).map(RunExit::Done);
         };
+        // A body redirected to another level (`uplevel N`) is not transparent:
+        // its tailcall would replace the proc at the target level, which the
+        // trampoline does not model, so it stays the error it was when such a
+        // body ran on a nested drive.
         if acts[proc_index + 1..].iter().any(|frame| {
-            !frame.is_script || (frame.body_label.is_none() && frame.cleanup_proc.is_none())
+            !frame.is_script
+                || frame.level_restore.is_some()
+                || (frame.body_label.is_none() && frame.cleanup_proc.is_none())
         }) {
             let c = err("tailcall can only be called from a proc, lambda or method");
             return self.unwind(acts, c).map(RunExit::Done);

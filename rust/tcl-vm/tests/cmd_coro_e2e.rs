@@ -26,7 +26,8 @@
 //! `cmd [yield]` argument position both stay on the explicit stack (a whole-word
 //! `[…]` compiles to an inline `INVOKE`, not a runtime `subst_word` re-entry).
 //!
-//! `yield` also crosses `eval`, `uplevel 0`, `catch`, a straight-line `lmap`,
+//! `yield` also crosses `eval`, `uplevel` (at any level: `uplevel_coro_e2e.rs`),
+//! `catch`, a straight-line `lmap`,
 //! `subst`, `try` (body/handler/`finally`, each its own explicit-stack
 //! phase), a value-consuming `lmap`/`foreach` runtime fallback (the
 //! `each_loop` activation), and a bare `apply` call (bound to a temporary
