@@ -2714,18 +2714,16 @@ fn catch_reports_structured_error_stack() {
 }
 
 /// A specialised catch body still logs the failing command, not the enclosing
-/// catch instruction. Its `errorInfo` must be byte-identical to the dynamic
-/// body that reaches the generic evaluator.
+/// catch instruction. A body the compiled `catch` evaluates as a word logs the
+/// `catch` command after it too, as the error leaves the script (tclsh 8.5.19
+/// through 9.1.0).
 #[test]
-fn inline_and_generic_catch_bodies_report_the_same_errorinfo() {
+fn inline_and_word_catch_bodies_report_the_c_errorinfo() {
     out_eq(
         "proc inline {} {catch {error boom} m o; dict get $o -errorinfo}\n\
          proc generic {} {set body {error boom}; catch $body m o; dict get $o -errorinfo}\n\
-         set inlineInfo [inline]\n\
-         set genericInfo [generic]\n\
-         puts [list [expr {$inlineInfo eq $genericInfo}] \
-                    [string match {*while executing*\\\"error boom\\\"*} $inlineInfo]]\n",
-        "1 1\n",
+         puts [list [inline] [generic]]\n",
+        "{boom\n    while executing\n\"error boom\"} {boom\n    while executing\n\"error boom\"\n    invoked from within\n\"catch $body m o\"}\n",
     );
 }
 

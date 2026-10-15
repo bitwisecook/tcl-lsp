@@ -102,6 +102,13 @@ fn read_var(vm: &mut Vm, name: &str) -> Result<Value, TclError> {
 /// as an error rather than silently using the error message as the value.
 fn eval_subst(vm: &mut Vm, inner: &str, evaluation: CommandEvaluation) -> Result<Value, TclError> {
     let c = vm.eval_source_as(inner, evaluation)?;
+    // A compiled command substitutes its words inline: the error's command is
+    // logged, and the command around it is not logged again. Evaluated
+    // directly, the substitution is a script of its own (C's nested
+    // `TclEvalEx`), whose caller logs its command too.
+    if c.code == tcl_runtime_api::Code::Error && evaluation == CommandEvaluation::Compiled {
+        vm.mark_error_logged();
+    }
     match c.code {
         tcl_runtime_api::Code::Ok => Ok(c.result),
         tcl_runtime_api::Code::Error => Err(TclError::new(c.result.to_str().to_string())),

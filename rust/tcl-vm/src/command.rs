@@ -348,18 +348,8 @@ fn cmd_source(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // Track the path so `info script` (and callers like `[file dirname [info
     // script]]`) resolve relative to the file being sourced.
     vm.push_script(path.to_string());
-    let mut result = match vm.eval_source(&contents) {
-        Ok(c) => c,
-        Err(e) => err(e.message),
-    };
+    let result = vm.eval_file(&path, &contents, false);
     vm.pop_script();
-    // A top-level `return` in the sourced file ends the *file*, not the caller:
-    // `source` absorbs the `TCL_RETURN` and returns its value normally (like C
-    // Tcl's `Tcl_FSEvalFileEx`). Without this a `return` — e.g. the early-out at
-    // the top of a compatibility shim — unwinds the script that called `source`.
-    if result.code == Code::Return {
-        result.code = Code::Ok;
-    }
     result
 }
 
@@ -2155,13 +2145,31 @@ fn cmd_continue(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 
 /// `catch script ?resultVarName? ?optionsVarName?`.
 fn cmd_catch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    // A compiled `catch` whose script is not a literal evaluates it as a
+    // word inside its catch range (C's `INST_EVAL_STK`).
+    let evaluates_word = vm
+        .pending
+        .release_compiled
+        .take()
+        .is_some_and(|compiled| compiled.script_word.is_some());
+    // The release's synopsis says how many variables follow the script:
+    // 8.4's `catch command ?varName?` has no options variable.
+    let profile =
+        crate::environment::gate_profile(vm.command_surface_profile(), vm.runtime_version());
+    let dialect = Some(crate::environment::surface_point(profile));
+    let variables = tcl_registry::default_registry()
+        .get_for_surface("catch", dialect)
+        .map_or(2, |spec| {
+            spec.optional_trailing_arg_names(dialect, None).len()
+        });
     let (script, resvar, optvar) = match args {
         [s] => (s, None, None),
         [s, r] => (s, Some(r), None),
-        [s, r, o] => (s, Some(r), Some(o)),
-        _ => {
+        [s, r, o] if variables > 1 => (s, Some(r), Some(o)),
+        _ if variables > 1 => {
             return err("wrong # args: should be \"catch script ?resultVarName? ?optionVarName?\"");
         }
+        _ => return err("wrong # args: should be \"catch command ?varName?\""),
     };
     // Defer the body to the *explicit* stack so a `yield` inside it stays
     // yieldable: compile it and hand it to the trampoline via
@@ -2177,6 +2185,7 @@ fn cmd_catch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 resvar: resvar.map(|v| (*v).clone()),
                 optvar: optvar.map(|v| (*v).clone()),
                 fatal_tail: prepared.fatal_tail,
+                evaluates_word,
             });
             ok(Value::empty())
         }

@@ -253,6 +253,8 @@ impl CodegenCtx<'_> {
                 matches!(words.as_slice(), [_, test, next, body]
                     if test.simple() && next.simple() && body.simple())
             }
+            // `TclCompileWhileCmd` compiles a braced test with any body.
+            LoweringHookId::While => matches!(words.as_slice(), [test, _] if test.simple()),
             _ => false,
         };
         if !compiled {

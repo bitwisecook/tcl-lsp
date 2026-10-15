@@ -1508,7 +1508,9 @@ impl CodegenCtx<'_> {
     ) {
         let start = self.instructions.len();
         self.emit_inline_cmd_subst_with_tokens_unstamped(text, tokens);
-        if !has_command_separator(text) {
+        if has_command_separator(text) {
+            self.stamp_substitution_script(start);
+        } else {
             self.stamp_substitution_error_info(start, text);
         }
     }

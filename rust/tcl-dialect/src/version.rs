@@ -679,6 +679,23 @@ impl TclVersion {
         !matches!(self, Self::V8_4)
     }
 
+    /// Whether the error a completion code becomes where it cannot be taken
+    /// (`invoked "break" outside of a loop`, `command returned bad code`)
+    /// sets an errorCode: `TCL RESULT UNEXPECTED` at a procedure boundary,
+    /// `TCL UNEXPECTED_RESULT_CODE n` at top level. Measured on tclsh 8.5.19
+    /// (`NONE`) and 8.6.18.
+    #[must_use]
+    pub const fn has_unexpected_result_error_codes(self) -> bool {
+        !matches!(self, Self::V8_4 | Self::V8_5)
+    }
+
+    /// Whether an error's `(file "…" line N)` frame marks a path cut at 150
+    /// bytes with `...`. 8.4 cuts it silently (`%.150s`, `tclIOUtil.c`).
+    #[must_use]
+    pub const fn marks_truncated_file_path(self) -> bool {
+        !matches!(self, Self::V8_4)
+    }
+
     /// Whether `return`'s own option errors (`bad completion code`, `bad -level
     /// value`, an `-options` value that is not a dictionary) set `TCL RESULT
     /// ILLEGAL_…` errorCode words. Measured on tclsh 8.5.19 and 8.6.18: they

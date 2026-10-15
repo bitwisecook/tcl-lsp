@@ -89,6 +89,7 @@
 2	tcl-vm	lib	tcl-vm	tcl_vm
 2	tcl-vm-cli::channel_output	test	tcl-vm-cli	channel_output
 2	tcl-vm-cli::static_extensions	test	tcl-vm-cli	static_extensions
+2	tcl-vm-cli::top_level_e2e	test	tcl-vm-cli	top_level_e2e
 2	tcl-vm::cmd_collections_e2e	test	tcl-vm	cmd_collections_e2e
 2	tcl-vm::cmd_coro_e2e	test	tcl-vm	cmd_coro_e2e
 2	tcl-vm::cmd_info_prefix_e2e	test	tcl-vm	cmd_info_prefix_e2e
@@ -174,6 +175,7 @@
 3	tcl-sslictcl::config_adapters	test	tcl-sslictcl	config_adapters
 3	tcl-syntax	lib	tcl-syntax	tcl_syntax
 3	tcl-test-support	lib	tcl-test-support	tcl_test_support
+3	tcl-vm::c_error_paths_e2e	test	tcl-vm	c_error_paths_e2e
 3	tcl-vm::cmd_control_e2e	test	tcl-vm	cmd_control_e2e
 3	tcl-vm::cmd_math_expr_e2e	test	tcl-vm	cmd_math_expr_e2e
 3	tcl-vm::cmd_oo_e2e	test	tcl-vm	cmd_oo_e2e

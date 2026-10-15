@@ -12340,6 +12340,17 @@ impl Vm {
         self.error_logged = false;
     }
 
+    /// Mark the current error's command logged (C's `ERR_ALREADY_LOGGED`).
+    pub(crate) fn mark_error_logged(&mut self) {
+        self.error_logged = true;
+    }
+
+    /// Whether the current error's command is already logged (C's
+    /// `ERR_ALREADY_LOGGED`).
+    pub(crate) fn error_logged(&self) -> bool {
+        self.error_logged
+    }
+
     /// Seed the `errorInfo` trace with an explicit value and mark it logged —
     /// C's `error msg info` / `return -errorinfo`, which set the trace directly
     /// and suppress the command's own `while executing` frame.
@@ -12740,12 +12751,82 @@ impl Vm {
         self.eval_source_as(src, CommandEvaluation::Direct)
     }
 
+    /// Evaluate a command `tclsh` reads from its input, with no command
+    /// active: a completion leaving it is settled as C settles one at
+    /// `numLevels == 0`.
+    pub fn eval_interactive(&mut self, src: &str) -> Completion<Value> {
+        self.eval_source_in_role(
+            src,
+            CommandEvaluation::Compiled,
+            crate::exec::ActivationRole::TopLevel,
+        )
+        .unwrap_or_else(|e| err(e.message))
+    }
+
+    /// Run a script file's contents as C's `Tcl_FSEvalFileEx` does: a
+    /// `return` reaching the file is settled as at a procedure boundary, and
+    /// an error adds the `(file "…" line N)` frame. `top_level` runs the file
+    /// `tclsh` is given, with no command active: its own commands are
+    /// evaluated as [`Self::eval_source_directly`] does, and a completion
+    /// leaving one is settled as C settles one at `numLevels == 0`.
+    pub fn eval_file(&mut self, path: &str, src: &str, top_level: bool) -> Completion<Value> {
+        let (evaluation, role) = if top_level {
+            (
+                CommandEvaluation::Direct,
+                crate::exec::ActivationRole::TopLevel,
+            )
+        } else {
+            (
+                CommandEvaluation::Compiled,
+                crate::exec::ActivationRole::Plain,
+            )
+        };
+        let mut c = self
+            .eval_source_in_role(src, evaluation, role)
+            .unwrap_or_else(|e| err(e.message));
+        // An error the `return` settles to names no file, as C's `else if`.
+        if c.code == Code::Return {
+            self.update_return_info(&mut c);
+        } else if c.code == Code::Error {
+            const LIMIT: usize = 150;
+            let mut shown = path;
+            let mut marker = "";
+            if path.len() > LIMIT {
+                let mut end = LIMIT;
+                while !path.is_char_boundary(end) {
+                    end -= 1;
+                }
+                shown = &path[..end];
+                if self.runtime_version().marks_truncated_file_path() {
+                    marker = "...";
+                }
+            }
+            let line = self.error_line();
+            let message = c.result.to_str().to_string();
+            self.seed_error_info_frame(
+                &message,
+                &format!("\n    (file \"{shown}{marker}\" line {line})"),
+            );
+        }
+        c
+    }
+
     /// [`Self::eval_source`], the script's own commands evaluated as
     /// `evaluation` says.
     pub(crate) fn eval_source_as(
         &mut self,
         src: &str,
         evaluation: CommandEvaluation,
+    ) -> Result<Completion<Value>, TclError> {
+        self.eval_source_in_role(src, evaluation, crate::exec::ActivationRole::Plain)
+    }
+
+    /// [`Self::eval_source_as`], the script's activation standing for `role`.
+    fn eval_source_in_role(
+        &mut self,
+        src: &str,
+        evaluation: CommandEvaluation,
+        role: crate::exec::ActivationRole,
     ) -> Result<Completion<Value>, TclError> {
         self.claim_number_grammar();
         self.reset_error_state_for_eval();
@@ -12772,7 +12853,7 @@ impl Vm {
             return Err(TclError::new(tail.message));
         }
         let module = self.compile_cached(prefix, evaluation)?;
-        let mut comp = self.run_current_module(&module);
+        let mut comp = self.run_current_module_as(&module, role);
         // Only a prefix that ran to completion reaches the parse error: an
         // error (or any non-`ok` completion) in an earlier command is what C
         // reports, the malformed tail never being parsed at all.

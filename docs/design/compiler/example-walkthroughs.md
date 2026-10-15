@@ -554,7 +554,10 @@ pub struct Instruction {
     pub source_cmd_text: String,   // the statement's text, for replay
     pub error_info_command: Option<ErrorInfoCommand>, // what errorInfo names, where C's
                                    // differs: through trailing separators, or the
-                                   // command inside a substitution
+                                   // command inside a substitution, with the
+                                   // commands a directly evaluated statement
+                                   // logs after it
+    pub error_origin: ErrorOrigin, // a constant `expr` fold's failure in C
     pub source_span: Option<Span>, // byte span this was lowered from
     // …plus the per-opcode emitter hints (jump_table, foreach_vars, dict_vars,
     //   no_fold, foreach_collect, push_verbatim)

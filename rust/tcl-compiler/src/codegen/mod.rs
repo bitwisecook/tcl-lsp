@@ -656,6 +656,20 @@ impl<'r> CodegenCtx<'r> {
                 // boundary of the enclosing IR/source command used to locate
                 // that outer command's continuation.
                 instruction.source_command_boundary = SourceCommandBoundary::InlineReplay;
+            } else if instruction.source_cmd_text == enclosing_text
+                && instruction
+                    .error_info_command
+                    .as_ref()
+                    .is_none_or(|command| !command.nested)
+            {
+                // errorInfo names the body command, which an enclosing
+                // substitution's stamp then keeps.
+                instruction.error_info_command = Some(tcl_bytecode::ErrorInfoCommand {
+                    text: text.to_owned(),
+                    line,
+                    nested: true,
+                    enclosing: Vec::new(),
+                });
             }
         }
     }
@@ -723,6 +737,7 @@ impl<'r> CodegenCtx<'r> {
             text: format!("{text}{trailing}"),
             line: self.span_line(),
             nested: false,
+            enclosing: Vec::new(),
         })
     }
 
@@ -768,16 +783,67 @@ impl<'r> CodegenCtx<'r> {
             .map_or(0, |at| statement[..at].matches('\n').count())
             + inner[..inner.len() - text.len()].matches('\n').count();
         let line = self.span_line() + u32::try_from(before).unwrap_or(0);
-        for instruction in self.instructions.iter_mut().skip(start) {
+        // Evaluated directly, each substitution is a script of its own that
+        // the enclosing one logs again as the error leaves it.
+        let direct = self.direct_statement_error_info();
+        // An inlined body inside the substitution names its own commands.
+        for instruction in self
+            .instructions
+            .iter_mut()
+            .skip(start)
+            .filter(|instruction| instruction.source_cmd_text == statement)
+        {
+            match instruction.error_info_command.as_mut() {
+                Some(command) if command.nested => {
+                    if direct.is_some() {
+                        let at = command.enclosing.len().saturating_sub(1);
+                        command.enclosing.insert(at, (text.to_owned(), line));
+                    }
+                }
+                _ => {
+                    instruction.error_info_command = Some(tcl_bytecode::ErrorInfoCommand {
+                        text: text.to_owned(),
+                        line,
+                        nested: true,
+                        enclosing: direct.iter().cloned().collect(),
+                    });
+                }
+            }
+        }
+    }
+
+    /// The command `errorInfo` names for the statement being emitted when
+    /// the release evaluates it without compiling it.
+    fn direct_statement_error_info(&self) -> Option<(String, u32)> {
+        self.current_span
+            .filter(|span| self.current_span_is_command && self.direct_commands.contains(span))
+            .map(|span| (self.error_info_source_text(span), self.span_line()))
+    }
+
+    /// A substitution of several commands runs as a script of its own: in a
+    /// directly evaluated statement, the statement logs its error again.
+    pub(crate) fn stamp_substitution_script(&mut self, start: usize) {
+        let Some(statement) = self.direct_statement_error_info() else {
+            return;
+        };
+        let text = self.command_span_text();
+        for instruction in self
+            .instructions
+            .iter_mut()
+            .skip(start)
+            .filter(|instruction| instruction.source_cmd_text == text)
+        {
             if instruction
                 .error_info_command
                 .as_ref()
                 .is_none_or(|command| !command.nested)
             {
+                let (text, line) = instruction.error_info_text();
                 instruction.error_info_command = Some(tcl_bytecode::ErrorInfoCommand {
                     text: text.to_owned(),
                     line,
                     nested: true,
+                    enclosing: vec![statement.clone()],
                 });
             }
         }

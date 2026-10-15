@@ -1143,6 +1143,11 @@ pub struct ErrorInfoCommand {
     /// Names a command inside a substitution, so an enclosing substitution
     /// keeps it.
     pub nested: bool,
+    /// For a substitution in a statement the release evaluates without
+    /// compiling it, the commands C's `TclEvalEx` logs after this one as the
+    /// error leaves each enclosing substitution: innermost first, ending with
+    /// the statement. Empty for compiled code, which logs only the innermost.
+    pub enclosing: Vec<(String, u32)>,
 }
 
 /// Where an error an instruction raises comes from.
@@ -1164,6 +1169,15 @@ impl Instruction {
             (self.source_cmd_text.as_str(), self.source_line),
             |command| (command.text.as_str(), command.line),
         )
+    }
+
+    /// The commands logged after [`Self::error_info_text`]'s
+    /// ([`ErrorInfoCommand::enclosing`]).
+    #[must_use]
+    pub fn error_info_enclosing(&self) -> &[(String, u32)] {
+        self.error_info_command
+            .as_ref()
+            .map_or(&[], |command| command.enclosing.as_slice())
     }
 }
 

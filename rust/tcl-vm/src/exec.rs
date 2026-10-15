@@ -195,9 +195,8 @@ pub(crate) struct Frame {
     body_label: Option<&'static str>,
     /// Entered invocation retained when a tailcall removes its issuing frame.
     body_invocation: Option<(String, u32)>,
-    /// Runs a scheduled `tailcall` in place of a completed procedure, so an
-    /// error leaving it is logged at the procedure's own call site too.
-    replaces_procedure: bool,
+    /// What this activation stands for beyond its own commands.
+    role: ActivationRole,
     /// A scheduled `tailcall`'s namespace and words, dispatched on this
     /// instruction-less activation's first tick.
     deferred_tailcall: Option<(String, Vec<Value>)>,
@@ -289,6 +288,7 @@ pub(crate) struct CatchCtx {
     resvar: Option<Value>,
     optvar: Option<Value>,
     fatal_tail: Option<FatalTail>,
+    evaluates_word: bool,
 }
 
 /// An `eval`/`uplevel`/`apply`-style body deferred to the explicit stack.
@@ -320,6 +320,9 @@ pub(crate) struct CatchReq {
     pub(crate) resvar: Option<Value>,
     pub(crate) optvar: Option<Value>,
     pub(crate) fatal_tail: Option<FatalTail>,
+    /// The release compiles this `catch` and evaluates its script word inside
+    /// the catch range of the code that holds it.
+    pub(crate) evaluates_word: bool,
 }
 
 /// A `subst` deferred to the explicit stack: the template plus its three
@@ -437,7 +440,7 @@ impl Frame {
             replay_namespace_restore: None,
             body_label: None,
             body_invocation: None,
-            replaces_procedure: false,
+            role: ActivationRole::Plain,
             deferred_tailcall: None,
             catch: None,
             subst: None,
@@ -507,6 +510,7 @@ impl Frame {
             resvar: req.resvar,
             optvar: req.optvar,
             fatal_tail: req.fatal_tail,
+            evaluates_word: req.evaluates_word,
         }));
         f
     }
@@ -700,6 +704,22 @@ pub(crate) enum YieldReq {
 enum DriveMode {
     Plain,
     CoroDriver,
+}
+
+/// A command's errorInfo text and line, and the commands logged after it.
+type LoggedCommand = (String, u32, Vec<(String, u32)>);
+
+/// What an activation stands for beyond its own commands.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ActivationRole {
+    Plain,
+    /// Runs a scheduled `tailcall` in place of a completed procedure, so an
+    /// error leaving it is logged at the procedure's own call site too.
+    TailcallReplacement,
+    /// The script `tclsh` runs, evaluated with no command active (C's
+    /// `numLevels == 0`): a completion leaving it is settled as `TclEvalEx`
+    /// settles one there.
+    TopLevel,
 }
 
 /// The common result of consuming one [`Tick`]. Activation-bearing ticks have
@@ -1293,6 +1313,15 @@ impl Vm {
 
     /// Run a module just returned by this VM's current compile service.
     pub(crate) fn run_current_module(&mut self, module: &ModuleAsm) -> Completion<Value> {
+        self.run_current_module_as(module, ActivationRole::Plain)
+    }
+
+    /// [`Self::run_current_module`], its activation standing for `role`.
+    pub(crate) fn run_current_module_as(
+        &mut self,
+        module: &ModuleAsm,
+        role: ActivationRole,
+    ) -> Completion<Value> {
         if let Err(error) = self.validate_module_profile(module) {
             return crate::command::completion_from_tcl_error(error);
         }
@@ -1307,7 +1336,9 @@ impl Vm {
                 module.source_namespace.clone(),
             )
             .with_manifest(module.manifest.clone());
-        self.run_compiled_unit(unit)
+        let mut initial = Frame::new(unit, false);
+        initial.role = role;
+        self.run_activation(initial)
     }
 
     /// Run one profile-less bytecode function to completion via the NRE
@@ -1768,7 +1799,7 @@ impl Vm {
     fn log_failed_command(&mut self, frame: Option<&Frame>, c: &Completion<Value>) {
         let mut fold_failure = false;
         if c.code == Code::Error
-            && let Some((text, line, context)) = frame.and_then(|frame| {
+            && let Some((text, line, context, enclosing)) = frame.and_then(|frame| {
                 frame
                     .asm
                     .instructions
@@ -1790,7 +1821,12 @@ impl Vm {
                             }) => error_info_command.clone(),
                             None => source_text.to_owned(),
                         };
-                        (text, line, context)
+                        (
+                            text,
+                            line,
+                            context,
+                            instruction.error_info_enclosing().to_vec(),
+                        )
                     })
             })
         {
@@ -1800,7 +1836,7 @@ impl Vm {
             if fold_failure {
                 self.seed_error_info_if_unset(&message);
             }
-            self.log_command_info_with_context(&text, context, &message, line);
+            self.log_command_with_enclosing(&text, context, &enclosing, &message, line);
         }
     }
 
@@ -1946,11 +1982,19 @@ impl Vm {
     /// bodies the same single error-context path as every other activation.
     fn apply_activation_error_context(&mut self, act: &Frame, acts: &[Frame], message: &str) {
         self.apply_error_regions(act);
-        if act.replaces_procedure {
+        if act.role == ActivationRole::TailcallReplacement {
             self.clear_error_logged();
         } else if let Some(label) = act.body_label {
             self.append_body_frame(label);
         } else {
+            // A command substitution's script in a directly evaluated
+            // statement is logged again by the commands enclosing it.
+            if act.is_script
+                && act.cleanup_proc.is_none()
+                && let Some((_, _, enclosing)) = acts.last().and_then(Self::current_command_text)
+            {
+                self.log_enclosing_commands(&enclosing, "", message);
+            }
             return;
         }
         if let Some((cmd, line)) = &act.body_invocation {
@@ -1960,17 +2004,83 @@ impl Vm {
             // procedure activation between them.
             self.clear_error_logged();
         }
-        if let Some((cmd, line)) = acts.last().and_then(|parent| {
-            parent
-                .asm
-                .instructions
-                .get(parent.pc.saturating_sub(1))
-                .map(|instruction| {
-                    let (text, line) = instruction.error_info_text();
-                    (text.to_owned(), line)
-                })
-        }) {
-            self.log_command_info(&cmd, message, line);
+        if let Some((cmd, line, enclosing)) = acts.last().and_then(Self::current_command_text) {
+            self.log_command_with_enclosing(
+                &cmd,
+                Value::string(cmd.as_str()),
+                &enclosing,
+                message,
+                line,
+            );
+        }
+    }
+
+    /// The command `errorInfo` names for the instruction `frame` last ran,
+    /// and the commands logged after it.
+    fn current_command_text(frame: &Frame) -> Option<LoggedCommand> {
+        frame
+            .asm
+            .instructions
+            .get(frame.pc.saturating_sub(1))
+            .map(|instruction| {
+                let (text, line) = instruction.error_info_text();
+                (
+                    text.to_owned(),
+                    line,
+                    instruction.error_info_enclosing().to_vec(),
+                )
+            })
+    }
+
+    /// Log an instruction's command and, when that logs it, the commands
+    /// enclosing it ([`Self::log_enclosing_commands`]).
+    fn log_command_with_enclosing(
+        &mut self,
+        text: &str,
+        context: Value,
+        enclosing: &[(String, u32)],
+        message: &str,
+        line: u32,
+    ) {
+        // An instruction outside any command (a condition word's runtime
+        // substitution) names none: C never logs an empty command.
+        if self.error_logged() || text.is_empty() {
+            return;
+        }
+        self.log_command_info_with_context(text, context, message, line);
+        self.log_enclosing_commands(enclosing, text, message);
+    }
+
+    /// A compiled `catch` evaluating its script word inside its catch range:
+    /// C logs the `catch` command as an error leaves the script, before
+    /// catching it.
+    fn log_compiled_catch(&mut self, acts: &[Frame], c: &Completion<Value>) {
+        if c.code == Code::Error
+            && let Some((text, line, enclosing)) = acts.last().and_then(Self::current_command_text)
+        {
+            let message = c.result.to_str().to_string();
+            self.clear_error_logged();
+            self.log_command_with_enclosing(
+                &text,
+                Value::string(text.as_str()),
+                &enclosing,
+                &message,
+                line,
+            );
+        }
+    }
+
+    /// Log the commands enclosing a directly evaluated substitution, as each
+    /// of C's nested `TclEvalEx` calls logs its own as the error leaves it,
+    /// after `logged`, the command just logged.
+    fn log_enclosing_commands(&mut self, enclosing: &[(String, u32)], logged: &str, message: &str) {
+        let mut previous = logged;
+        for (text, line) in enclosing {
+            if text != previous {
+                self.clear_error_logged();
+                self.log_command_info_only(text, message, *line);
+            }
+            previous = text;
         }
     }
 
@@ -2058,6 +2168,9 @@ impl Vm {
                 {
                     c = self.raise_fatal_tail(tail);
                 }
+                if ctx.evaluates_word {
+                    self.log_compiled_catch(acts, &c);
+                }
                 c = self.finish_catch(c, ctx.resvar.as_ref(), ctx.optvar.as_ref());
             }
             // A try or package phase pushes its next phase here, directly —
@@ -2117,6 +2230,9 @@ impl Vm {
                 }
             }
             match acts.last_mut() {
+                None if act.role == ActivationRole::TopLevel && !c.code.is_ok() => {
+                    return Some(self.settle_top_level(&act, c));
+                }
                 None => return Some(c),
                 Some(parent) => {
                     if c.code.is_ok() {
@@ -2239,10 +2355,12 @@ impl Vm {
             {
                 self.set_error_line(line);
             }
-            *c = crate::command::err_with_code(
-                format!("invoked \"{word}\" outside of a loop"),
-                "TCL RESULT UNEXPECTED",
-            );
+            let message = format!("invoked \"{word}\" outside of a loop");
+            *c = if self.runtime_version().has_unexpected_result_error_codes() {
+                crate::command::err_with_code(message, "TCL RESULT UNEXPECTED")
+            } else {
+                err(message)
+            };
             self.seed_error_info(format!("invoked \"{word}\" outside of a loop"));
         }
         // The `(procedure … line N)` frame reports the body-relative line of the
@@ -2279,42 +2397,7 @@ impl Vm {
         self.pop_call_frame();
         self.pop_ns();
         if c.code == Code::Return {
-            // While the carried return level stays positive the TCL_RETURN keeps
-            // unwinding one proc level at a time; when it reaches 0 the carried
-            // `-code` takes effect. `Code::from_int` (never a 0..=4-only map):
-            // `return -code N` for a non-standard N must surface `Code::Other(N)`,
-            // not collapse to `Ok` (coroutine-2.4).
-            let level = crate::command::opt_get(&c.options, "-level")
-                .and_then(|v| v.as_int().ok())
-                .unwrap_or(1);
-            if level > 1 {
-                c.options = crate::command::with_return_level(&c.options, level - 1);
-            } else {
-                let code = crate::command::opt_get(&c.options, "-code")
-                    .and_then(|v| v.as_int().ok())
-                    .and_then(|n| i32::try_from(n).ok())
-                    .map_or(Code::Ok, Code::from_int);
-                // C's `TclUpdateReturnInfo` resets the carried options once
-                // the level is spent: a `-code return` reaching its level is a
-                // plain `return` (`-code 0 -level 1`) one level further out,
-                // which the next procedure boundary absorbs.
-                c.options = if code == Code::Return {
-                    crate::command::with_return_option(
-                        &crate::command::with_return_level(&c.options, 1),
-                        "-code",
-                        Value::int(0),
-                    )
-                } else {
-                    crate::command::with_return_level(&c.options, 0)
-                };
-                c.code = code;
-                if code == Code::Error {
-                    // A carried `-errorinfo` suppresses the `return` command's
-                    // own frame, but the call site that receives the settled
-                    // error must still be appended.
-                    self.clear_error_logged();
-                }
-            }
+            self.update_return_info(c);
         }
         self.error_stack_push_proc_call(body_code, c.code, &call_words);
         if c.code == Code::Error {
@@ -2335,6 +2418,93 @@ impl Vm {
             self.log_procedure_invocation(acts, lambda_call.as_deref(), &call_words, &message);
         }
         scheduled_tailcall.filter(|_| c.code == Code::Ok)
+    }
+
+    /// Settle a completion leaving a command run with no command active, as
+    /// C's `TclEvalEx` does at `numLevels == 0`: a `return` is settled, any
+    /// other code but `ok` or `error` becomes an error
+    /// (`ProcessUnexpectedResult`), and an error not yet logged logs the
+    /// command.
+    fn settle_top_level(&mut self, act: &Frame, mut c: Completion<Value>) -> Completion<Value> {
+        if c.code == Code::Return {
+            self.update_return_info(&mut c);
+        }
+        if !matches!(c.code, Code::Ok | Code::Error) {
+            c = self.unexpected_result(c.code);
+        }
+        if c.code == Code::Error
+            && !self.error_logged()
+            && let Some((text, line, enclosing)) = Self::current_command_text(act)
+        {
+            let message = c.result.to_str().to_string();
+            self.log_command_with_enclosing(
+                &text,
+                Value::string(text.as_str()),
+                &enclosing,
+                &message,
+                line,
+            );
+        }
+        c
+    }
+
+    /// The error C's `ProcessUnexpectedResult` makes of a completion code a
+    /// context cannot take.
+    pub(crate) fn unexpected_result(&mut self, code: Code) -> Completion<Value> {
+        let message = match code {
+            Code::Break => "invoked \"break\" outside of a loop".to_owned(),
+            Code::Continue => "invoked \"continue\" outside of a loop".to_owned(),
+            other => format!("command returned bad code: {}", other.as_int()),
+        };
+        if self.runtime_version().has_unexpected_result_error_codes() {
+            crate::command::err_with_code(
+                message,
+                &format!("TCL UNEXPECTED_RESULT_CODE {}", code.as_int()),
+            )
+        } else {
+            err(message)
+        }
+    }
+
+    /// C's `TclUpdateReturnInfo`, run where a `return` completion reaches a
+    /// procedure boundary or the end of a sourced file.
+    pub(crate) fn update_return_info(&mut self, c: &mut Completion<Value>) {
+        // While the carried return level stays positive the TCL_RETURN keeps
+        // unwinding one proc level at a time; when it reaches 0 the carried
+        // `-code` takes effect. `Code::from_int` (never a 0..=4-only map):
+        // `return -code N` for a non-standard N must surface `Code::Other(N)`,
+        // not collapse to `Ok` (coroutine-2.4).
+        let level = crate::command::opt_get(&c.options, "-level")
+            .and_then(|v| v.as_int().ok())
+            .unwrap_or(1);
+        if level > 1 {
+            c.options = crate::command::with_return_level(&c.options, level - 1);
+        } else {
+            let code = crate::command::opt_get(&c.options, "-code")
+                .and_then(|v| v.as_int().ok())
+                .and_then(|n| i32::try_from(n).ok())
+                .map_or(Code::Ok, Code::from_int);
+            // C's `TclUpdateReturnInfo` resets the carried options once
+            // the level is spent: a `-code return` reaching its level is a
+            // plain `return` (`-code 0 -level 1`) one level further out,
+            // which the next procedure boundary absorbs.
+            c.options = if code == Code::Return {
+                crate::command::with_return_option(
+                    &crate::command::with_return_level(&c.options, 1),
+                    "-code",
+                    Value::int(0),
+                )
+            } else {
+                crate::command::with_return_level(&c.options, 0)
+            };
+            c.code = code;
+            if code == Code::Error {
+                // A carried `-errorinfo` suppresses the `return` command's
+                // own frame, but the call site that receives the settled
+                // error must still be appended.
+                self.clear_error_logged();
+            }
+        }
     }
 
     /// Log the command that invoked a procedure an error unwound out of: the
@@ -2358,17 +2528,12 @@ impl Vm {
         } else {
             acts.last()
         };
-        let logged = invoker.and_then(|parent| {
-            parent
-                .asm
-                .instructions
-                .get(parent.pc.saturating_sub(1))
-                .map(|i| {
-                    let (text, line) = i.error_info_text();
-                    (text.to_owned(), line)
-                })
-        });
+        let (logged, enclosing) = match invoker.and_then(Self::current_command_text) {
+            Some((text, line, enclosing)) => (Some((text, line)), enclosing),
+            None => (None, Vec::new()),
+        };
         let invocation = || Value::list(call_words.to_vec()).to_str().to_string();
+        let fresh = !self.error_logged();
         match (logged, lambda_key) {
             (Some((cmd, line)), Some(key))
                 if cmd
@@ -2381,6 +2546,9 @@ impl Vm {
             (Some((cmd, line)), _) => self.log_command_info(&cmd, message, line),
             (None, Some(_)) => self.log_command_info(&invocation(), message, 0),
             (None, None) => {}
+        }
+        if fresh {
+            self.log_enclosing_commands(&enclosing, "", message);
         }
     }
 
@@ -2814,7 +2982,13 @@ impl Vm {
                             let (cmd_text, line) = instr.error_info_text();
                             let cmd_text = cmd_text.to_owned();
                             let msg = c.result.to_str().to_string();
-                            self.log_command_info(&cmd_text, &msg, line);
+                            self.log_command_with_enclosing(
+                                &cmd_text,
+                                Value::string(cmd_text.as_str()),
+                                instr.error_info_enclosing(),
+                                &msg,
+                                line,
+                            );
                         }
                         return Tick::Return(c);
                     }
@@ -4379,9 +4553,10 @@ impl Vm {
                             let (cmd_text, line) = instr.error_info_text();
                             let cmd_text = cmd_text.to_owned();
                             let msg = c.result.to_str().to_string();
-                            self.log_command_info_with_context(
+                            self.log_command_with_enclosing(
                                 &cmd_text,
                                 Value::list(words),
+                                instr.error_info_enclosing(),
                                 &msg,
                                 line,
                             );
@@ -4443,9 +4618,10 @@ impl Vm {
                                 let (cmd_text, line) = instr.error_info_text();
                                 let cmd_text = cmd_text.to_owned();
                                 let msg = c.result.to_str().to_string();
-                                self.log_command_info_with_context(
+                                self.log_command_with_enclosing(
                                     &cmd_text,
                                     Value::list(words),
+                                    instr.error_info_enclosing(),
                                     &msg,
                                     line,
                                 );
@@ -4493,9 +4669,10 @@ impl Vm {
                             let (cmd_text, line) = instr.error_info_text();
                             let cmd_text = cmd_text.to_owned();
                             let msg = c.result.to_str().to_string();
-                            self.log_command_info_with_context(
+                            self.log_command_with_enclosing(
                                 &cmd_text,
                                 Value::list(rewritten),
+                                instr.error_info_enclosing(),
                                 &msg,
                                 line,
                             );
@@ -6192,14 +6369,16 @@ impl Vm {
         let target = self.tailcall_entered(&namespace, &words[0]);
         let dispatched = {
             let parent = acts.last_mut().expect("tailcall parent present");
-            if parent.replaces_procedure {
+            if parent.role == ActivationRole::TailcallReplacement {
                 // The procedure ran as a scheduled tailcall: its own
                 // replacement replaces that command too.
                 parent.body_invocation = Some((invocation.clone(), 1));
             }
             self.dispatch_words_with_entered(parent, words, target.as_ref())
         };
-        let replaces_parent = acts.last().is_some_and(|parent| parent.replaces_procedure);
+        let replaces_parent = acts
+            .last()
+            .is_some_and(|parent| parent.role == ActivationRole::TailcallReplacement);
         let depth = acts.len();
         match dispatched {
             Ok(Some(mut tick)) => {
@@ -6253,21 +6432,19 @@ impl Vm {
         let Some(parent) = acts.last_mut() else {
             return;
         };
-        if parent.replaces_procedure {
+        if parent.role == ActivationRole::TailcallReplacement {
             parent.body_invocation = None;
             return;
         }
-        let call = parent
-            .asm
-            .instructions
-            .get(parent.pc.saturating_sub(1))
-            .map(|i| {
-                let (text, line) = i.error_info_text();
-                (text.to_owned(), line)
-            });
-        if let Some((text, line)) = call {
+        if let Some((text, line, enclosing)) = Self::current_command_text(parent) {
             self.clear_error_logged();
-            self.log_command_info(&text, &message, line);
+            self.log_command_with_enclosing(
+                &text,
+                Value::string(text.as_str()),
+                &enclosing,
+                &message,
+                line,
+            );
         }
     }
 
@@ -6301,7 +6478,7 @@ impl Vm {
         let invocation = Value::list(words.clone()).to_str().to_string();
         let unit = self.compiled_unit(Rc::new(FunctionAsm::default()), self.current_ns());
         let mut frame = Frame::new_script(unit, None);
-        frame.replaces_procedure = true;
+        frame.role = ActivationRole::TailcallReplacement;
         frame.body_invocation = Some((invocation, 1));
         frame.deferred_tailcall = Some((namespace, words));
         frame
