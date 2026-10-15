@@ -18248,7 +18248,7 @@ pub(crate) fn constructed_script_words_with_metadata_context(
     word: &str,
     registry: &CommandRegistry,
     bindings: &ModuleCommandBindings,
-    namespace: &str,
+    namespace: &(impl NamespaceKeyQuery + ?Sized),
     metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
 ) -> Option<Vec<String>> {
     let metadata = metadata.filter(|metadata| metadata.matches_registry(registry))?;
@@ -18265,7 +18265,7 @@ fn constructed_script_words_with_optional_metadata(
     word: &str,
     registry: &CommandRegistry,
     bindings: &ModuleCommandBindings,
-    namespace: &str,
+    namespace: &(impl NamespaceKeyQuery + ?Sized),
     metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
 ) -> Option<Vec<String>> {
     let inner = word

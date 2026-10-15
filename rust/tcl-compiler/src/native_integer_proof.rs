@@ -1130,7 +1130,17 @@ mod tests {
             },
             ..crate::command_binding::SourceAnalysisEntry::default()
         };
-        let unit = CompilationUnit::build_with_source_entry(
+        let context = std::sync::Arc::new(
+            tcl_registry::model::ingress::static_context_for_profile(dialect)
+                .with_command_store(registry.snapshot().shared_registry()),
+        );
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            dialect,
+            dialect,
+            context,
+            tcl_lexer::LexerConfig::from_grammar(dialect.grammar),
+        );
+        let unit = CompilationUnit::build_with_analysis_input(
             source,
             crate::compilation_unit::UnitBuildOptions {
                 registry,
@@ -1140,7 +1150,8 @@ mod tests {
                 external_call_sites: None,
                 declared_commands: None,
             },
-            &entry,
+            Some(&entry),
+            &input,
         );
         crate::environment_ingress::RetainedNativeUnit::new(unit, owner)
     }

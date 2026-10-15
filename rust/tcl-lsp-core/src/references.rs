@@ -372,18 +372,16 @@ pub(crate) fn invocation_references_named(
         inv.range.start(),
         &analysis.namespace_overrides,
     );
-    // A user proc installed directly into `::oo::Helpers` (the documented
-    // "TclOO Tricks" idiom — `proc ::oo::Helpers::classvar {...} {...}`,
-    // real corpus usage: nico-robert/ticklecharts) is bare-callable from
-    // every method body in the program via TclOO's own fixed runtime
-    // namespace path — a search member `call_ns` alone can't represent,
-    // since it's a single accumulated namespace string, not a path.
+    // Readonly compatibility follows the shared implicit path for this scope.
     let call_reaches_target = call_ns == target_ns
-        || (target_ns == "oo::Helpers"
-            && tcl_compiler::analyser::innermost_scope_reaches_oo_helpers(
-                &analysis.global_scope,
-                inv.range.start(),
-            ));
+        || tcl_compiler::analyser::scope::implicit_command_namespace_path_at(
+            &analysis.global_scope,
+            inv.range.start(),
+        )
+        .iter()
+        .any(|namespace| {
+            tcl_syntax::naming::unroot_rooted_key(namespace).unwrap_or(namespace) == target_ns
+        });
     let simple_ok = inv.name == def_name
         && resolved_norm.is_none_or(|r| r == target_q || r == def_name)
         && call_reaches_target;
@@ -747,6 +745,9 @@ pub fn references_in_program(
     include_declaration: bool,
     program: Option<crate::definition::ProgramExports<'_>>,
 ) -> Vec<LspRange> {
+    if crate::original_context::CurrentSourceContext::capture(source, analysis).is_none() {
+        return Vec::new();
+    }
     let line_index = LineIndex::new(source);
     let cursor = crate::definition::byte_offset_at(&line_index, source, line, character);
     if let std::ops::ControlFlow::Break(selected) =
@@ -4163,6 +4164,9 @@ pub fn document_highlights_in_program(
     analysis: &AnalysisResult,
     resolution: crate::definition::CallResolution<'_>,
 ) -> Vec<(LspRange, HighlightKind)> {
+    if crate::original_context::CurrentSourceContext::capture(source, analysis).is_none() {
+        return Vec::new();
+    }
     let line_index = LineIndex::new(source);
     if let std::ops::ControlFlow::Break(selected) =
         crate::variable_symbol::select(source, analysis, line, character)

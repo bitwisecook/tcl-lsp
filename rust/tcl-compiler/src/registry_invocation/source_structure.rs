@@ -2284,6 +2284,29 @@ pub(crate) fn original_registry_words_for_supplied_tokens(
     Some(selected)
 }
 
+/// Conditional original Registry words under the retained complete Module.
+/// Current source attachments and supplied input remain independent of Normal
+/// completion, entered handlers, native arguments and executable body topology.
+pub(crate) fn original_registry_words_for_module(
+    module: &crate::ir::Module,
+    registry: &CommandRegistry,
+    tokens: &crate::ir::CommandTokens,
+) -> Option<OriginalRegistryWords> {
+    let input =
+        super::InvocationMetadataContext::for_module(registry, module)?.source_analysis_input()?;
+    let retained = module.retained_source_bindings.as_deref()?;
+    retained.positioned_for_module(module, registry)?;
+    if tokens.synthetic.is_some()
+        || !tokens.original_words_match_argv_text()
+        || !retained.owns_original_analysis_attachment(tokens)
+        || module.native_lexer_config() != input.lexer_config()
+    {
+        return None;
+    }
+    let realm = crate::realm::document_realm_bindings_for_module(module, registry)?;
+    original_registry_words_for_supplied_tokens(&realm, input, tokens)
+}
+
 /// Conditional source argv under the complete current Logical Module.
 /// The retained tape owns deferred child syntax independently of dispatch.
 pub(crate) fn original_logical_registry_words_for_module(

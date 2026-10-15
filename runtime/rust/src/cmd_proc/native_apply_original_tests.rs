@@ -334,7 +334,8 @@ fn original_lambda_missing_namespaces_match_native_result_and_error_code() {
                 assert_eq!(code.as_int(), apply[2].parse::<i64>().unwrap(), "{engine}/{label}");
                 assert_eq!(interp.result_bytes(), unhex(apply[3]), "{engine}/{label}");
                 if code == Code::Error {
-                    let tuple = interp.var_get(b"::errorCode").unwrap();
+                    // The original SDK uses Tcl_GetVar2Ex, including its native read trace.
+                    let tuple = interp.read_named_variable(b"::errorCode").unwrap_or_else(|code| panic!("{engine}/{label}: actual errorCode read {code:?}; execution {:?}, access {:?}", interp.native_execution_refusal(), interp.native_access_refusal()));
                     assert_eq!(interp.native_object_string_bytes(tuple).unwrap().as_ref(), unhex(oracle("ERROR_CODE")[3]), "{engine}/{label}/errorCode");
                 }
                 assert_eq!(interp.native_object_string_bytes(namespace.as_ptr()).unwrap().as_ref(), unhex(oracle("GETTER")[3]), "{engine}/{label}/getter");

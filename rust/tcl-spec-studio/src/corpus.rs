@@ -239,9 +239,10 @@ fn option_row(option: &OptionShape) -> Value {
 
 // Reading the body
 
-/// One statement of the body, flattened to its word texts.
+/// One statement's presentation words and original whole-scalar reads.
 struct Stmt {
     words: Vec<String>,
+    scalar_reads: Vec<Option<String>>,
 }
 
 impl Stmt {
@@ -250,6 +251,9 @@ impl Stmt {
     }
     fn word(&self, index: usize) -> &str {
         self.words.get(index).map_or("", String::as_str)
+    }
+    fn scalar_read(&self, index: usize) -> Option<&str> {
+        self.scalar_reads.get(index)?.as_deref()
     }
 }
 
@@ -266,10 +270,8 @@ fn statements(
         return;
     }
     let source_map = SourceMap::new(source);
-    let (document, _warnings) = build_document(
-        source,
-        SourceSegmentationPurpose::NestedScript.config(config),
-    );
+    let config = SourceSegmentationPurpose::NestedScript.config(config);
+    let (document, _warnings) = build_document(source, config);
     for segment in segments_from_document(document, &source_map) {
         let words = segment.texts.clone();
         let head = words.first().cloned().unwrap_or_default();
@@ -279,7 +281,23 @@ fn statements(
                 statements(registry, config, body, depth + 1, out);
             }
         }
-        out.push(Stmt { words });
+        let tokens = tcl_compiler::ir::CommandTokens::from_segmented(&source_map, config, &segment);
+        let scalar_reads = tokens
+            .words()
+            .iter()
+            .map(|word| {
+                let (spelling, site) = word.sole_variable_substitution()?;
+                (site.provenance == tcl_compiler::ir::Provenance::Source
+                    && source.get(site.span.as_range()) == Some(spelling))
+                .then_some(())?;
+                tcl_syntax::naming::whole_scalar_variable_reference_name(spelling, config)
+                    .map(str::to_owned)
+            })
+            .collect();
+        out.push(Stmt {
+            words,
+            scalar_reads,
+        });
     }
 }
 
@@ -327,26 +345,11 @@ fn arms(body: &str, config: LexerConfig) -> Vec<Arm> {
 ///
 /// `switch $x { … }`, `switch -- $x { … }`, `switch -exact -- $x { … }` — in
 /// every form the string word is the second to last.
-fn switched_variable(stmt: &Stmt) -> Option<String> {
+fn switched_variable(stmt: &Stmt) -> Option<&str> {
     if stmt.head() != "switch" || stmt.words.len() < 3 {
         return None;
     }
-    let word = stmt.word(stmt.words.len() - 2);
-    variable_name(word)
-}
-
-/// `$name` / `${name}` → `name`; anything else → `None`.
-fn variable_name(word: &str) -> Option<String> {
-    let rest = word.strip_prefix('$')?;
-    let name = rest
-        .strip_prefix('{')
-        .and_then(|r| r.strip_suffix('}'))
-        .unwrap_or(rest);
-    if !name.is_empty() && name.chars().all(|c| c.is_alphanumeric() || c == '_') {
-        Some(name.to_owned())
-    } else {
-        None
-    }
+    stmt.scalar_read(stmt.words.len() - 2)
 }
 
 /// Whether a pattern is a literal word rather than a glob.
@@ -519,7 +522,7 @@ fn values_from_dispatch(
         let Some(variable) = switched_variable(stmt) else {
             continue;
         };
-        let Some(&index) = positions.get(variable.as_str()) else {
+        let Some(&index) = positions.get(variable) else {
             continue;
         };
         let Some(last) = stmt.words.last() else {
@@ -578,10 +581,10 @@ fn callbacks(stmts: &[Stmt], params: &[ParamDef], shape: &mut Shape) {
     // parameter index → every observed appended count.
     let mut seen: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
     for stmt in stmts {
-        let Some(name) = variable_name(stmt.head()) else {
+        let Some(name) = stmt.scalar_read(0) else {
             continue;
         };
-        let Some(&index) = positions.get(name.as_str()) else {
+        let Some(&index) = positions.get(name) else {
             continue;
         };
         seen.entry(index).or_default().push(stmt.words.len() - 1);
@@ -870,5 +873,62 @@ mod tests {
             &mut body,
         );
         assert_eq!(body[0].head(), "\u{feff}return");
+    }
+
+    #[test]
+    fn corpus_parameter_reads_use_original_whole_scalar_words_and_selected_grammar() {
+        for name in ["a b", "a$b", "", "::qualified"] {
+            let body = format!("\"${{{name}}}\" first second");
+            let shape = scan(&body, &[param(name)], "tcl9.0");
+            assert_eq!(
+                shape.callbacks,
+                vec![Callback {
+                    index: 0,
+                    appended: Appended::Exactly(2)
+                }],
+                "{body}"
+            );
+            let body = format!("switch -- \"${{{name}}}\" {{one {{}} two {{}}}}");
+            let shape = scan(&body, &[param(name)], "tcl9.0");
+            assert_eq!(
+                shape.closed,
+                Some(ClosedValues {
+                    index: 0,
+                    values: vec!["one".into(), "two".into()]
+                }),
+                "{body}"
+            );
+        }
+        for word in [
+            "{$cb}",
+            "{${cb}}",
+            "pre-$cb",
+            "$cb-post",
+            "$cb(index)",
+            "${cb(index)}",
+            "{*}$cb",
+            "\\$cb",
+        ] {
+            let shape = scan(&format!("{word} payload"), &[param("cb")], "tcl9.0");
+            assert!(shape.callbacks.is_empty(), "{word}");
+            let shape = scan(
+                &format!("switch -- {word} {{one {{}} two {{}}}}"),
+                &[param("cb")],
+                "tcl9.0",
+            );
+            assert!(shape.closed.is_none(), "{word}");
+        }
+        assert!(
+            scan("$café payload", &[param("café")], "tcl9.0")
+                .callbacks
+                .is_empty()
+        );
+        assert_eq!(
+            scan("$café payload", &[param("café")], "jim0.79").callbacks,
+            vec![Callback {
+                index: 0,
+                appended: Appended::Exactly(1)
+            }]
+        );
     }
 }

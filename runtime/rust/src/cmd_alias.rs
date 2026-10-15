@@ -2016,9 +2016,11 @@ mod tests {
             let code = interp.eval_str(source);
             assert!(
                 !interp.host_refusal_pending(),
-                "{engine}: admission {:?}, native access {:?}",
+                "{engine}: admission {:?}, native access {:?}, execution {:?}, completed original rows {:?}",
                 interp.native_compilation_admission_error(),
-                interp.native_access_refusal()
+                interp.native_access_refusal(),
+                interp.native_execution_refusal(),
+                stdout.borrow().as_slice()
             );
             assert_eq!(code, Code::Ok, "{engine}: {:?}", interp.result_bytes());
             assert!(stderr.borrow().is_empty(), "{engine}: guest stderr");

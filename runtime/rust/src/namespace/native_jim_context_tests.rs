@@ -132,7 +132,7 @@ fn qualified_displays_follow_the_actual_namespace_kind_across_policy_changes() {
     assert_eq!(
         interp
             .materialize_jim_namespace(jim_namespace)
-            .unwrap()
+            .unwrap_or_else(|error| panic!("reached actual Jim namespace getter: {error:?}; original first cause {:?}, access {:?}", interp.native_execution_refusal(), interp.native_access_refusal()))
             .as_ref(),
         b"42"
     );

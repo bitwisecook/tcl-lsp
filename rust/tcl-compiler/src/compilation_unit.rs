@@ -2637,9 +2637,15 @@ fn lower_and_build_cfg(
     let mut lower_trace = SourcePipelineTrace::new("lower-cfg", source.len());
     #[cfg(any(test, debug_assertions))]
     lower_trace.phase("initial");
-    let mut lowerer = crate::lowering::Lowerer::with_config(registry, options.config)
-        .with_dialect(options.dialect)
-        .with_declared_commands(options.declared_commands);
+    let mut lowerer = if source_entry.is_none() && context.is_none() && input.is_none() {
+        // The default build API selects authoring. Explicit supplied or driver
+        // ingress keeps its own purpose even when source metadata is missing.
+        crate::lowering::Lowerer::for_standalone_source(registry, options.config, options.dialect)
+    } else {
+        crate::lowering::Lowerer::with_config(registry, options.config)
+            .with_dialect(options.dialect)
+    }
+    .with_declared_commands(options.declared_commands);
     let context_input = context
         .as_ref()
         .zip(options.dialect)
@@ -5964,6 +5970,112 @@ mod tests {
         assert_eq!(
             native_unit.ir_module.source_metadata_input.as_ref(),
             Some(&native)
+        );
+    }
+
+    #[test]
+    fn default_unit_source_profile_keeps_explicit_standalone_authoring_purpose() {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = context.commands().profile().unwrap();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let options = UnitBuildOptions {
+            registry: context.commands(),
+            config,
+            dialect: Some(profile),
+            defer_top_level: false,
+            external_call_sites: None,
+            declared_commands: None,
+        };
+        let source = "proc local {value} {set result $value; return $result}";
+        let unit = CompilationUnit::build_with_options(source, options);
+        let module = &unit.ir_module;
+        assert!(module.source_entry.metadata_context.is_standalone());
+        assert!(module.source_metadata_input.is_none());
+        assert!(module.source_entry.native_entry.is_none());
+        assert_eq!(module.original_authored_declaration_body_units.len(), 1);
+        assert!(module.original_native_declaration_body_units.is_empty());
+        let (id, card) = module
+            .original_authored_declaration_body_units
+            .iter()
+            .next()
+            .unwrap();
+        let procedure = module.body_units.get(id).unwrap();
+        assert!(card.matches_procedure(module, procedure));
+        assert!(procedure.publication.is_none());
+        assert!(procedure.body.executed_source.is_none());
+        assert!(procedure.body.native_compilation_admission.is_none());
+        let header = module
+            .top_level
+            .retained_source_tokens_for_statement(&module.top_level.statements[0])
+            .unwrap();
+        assert!(
+            crate::registry_invocation::admitted_native_compiler_invocation(
+                context.commands(),
+                None,
+                header
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn default_source_purpose_does_not_replace_supplied_input_or_unknown_driver_entry() {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = context.commands().profile().unwrap();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let options = UnitBuildOptions {
+            registry: context.commands(),
+            config,
+            dialect: Some(profile),
+            defer_top_level: false,
+            external_call_sites: None,
+            declared_commands: None,
+        };
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&context),
+            config,
+        );
+        let source = "proc original {value} {return $value}";
+        let supplied = CompilationUnit::build_with_analysis_input(source, options, None, &input);
+        assert_eq!(
+            supplied.ir_module.source_metadata_input.as_ref(),
+            Some(&input)
+        );
+        assert!(
+            !supplied
+                .ir_module
+                .source_entry
+                .metadata_context
+                .is_standalone()
+        );
+        assert!(
+            supplied
+                .ir_module
+                .original_authored_declaration_body_units
+                .is_empty()
+        );
+        assert_eq!(
+            supplied
+                .ir_module
+                .original_native_declaration_body_units
+                .len(),
+            1
+        );
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            unknown_entry: true,
+            ..Default::default()
+        };
+        let unknown = CompilationUnit::build_with_source_entry(source, options, &entry);
+        assert!(unknown.ir_module.source_entry.unknown_entry);
+        assert!(
+            unknown
+                .ir_module
+                .original_authored_declaration_body_units
+                .is_empty()
         );
     }
 

@@ -184,7 +184,8 @@ fn original_missing_descendant_has_the_dying_ancestor_and_is_destroyed_with_it()
                         interpreter.eval_str(
                             b"namespace eval retiring {trace variable sentinel u ::during}"
                         ),
-                        Code::Ok
+                        Code::Ok,
+                        "{version:?}/{target:?}: trace setup result {:?}, execution {:?}, access {:?}", interpreter.result_bytes(), interpreter.native_execution_refusal(), interpreter.native_access_refusal()
                     );
                 }
                 assert_eq!(interpreter.eval_str(FINISH), Code::Ok);

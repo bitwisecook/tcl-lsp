@@ -143,6 +143,7 @@ pub fn prepare_rename_in_program(
     analysis: &AnalysisResult,
     resolution: crate::definition::CallResolution<'_>,
 ) -> Option<PrepareRename> {
+    crate::original_context::CurrentSourceContext::capture(source, analysis)?;
     let line_index = LineIndex::new(source);
     let cursor = crate::definition::byte_offset_at(&line_index, source, line, character);
     if let std::ops::ControlFlow::Break(selected) =
@@ -422,6 +423,12 @@ pub fn rename_in_program(
     analysis: &AnalysisResult,
     resolution: crate::definition::CallResolution<'_>,
 ) -> Result<Vec<TextEdit>, crate::rename_safety::RenameRefusal> {
+    if crate::original_context::CurrentSourceContext::capture(source, analysis).is_none() {
+        return Err(crate::rename_safety::RenameRefusal {
+            reason: "source analysis does not match the current document and input".to_owned(),
+            range: None,
+        });
+    }
     let line_index = LineIndex::new(source);
     let cursor = crate::definition::byte_offset_at(&line_index, source, line, character);
     if let std::ops::ControlFlow::Break(selected) =
@@ -1233,6 +1240,7 @@ pub fn method_target_with_access_in_workspace(
     index: Option<(&crate::workspace_index::WorkspaceIndex, &str)>,
 ) -> Option<(String, String, bool, crate::workspace_index::MethodAccess)> {
     use crate::workspace_index::MethodAccess;
+    crate::original_context::CurrentSourceContext::capture(source, analysis)?;
     let line_index = LineIndex::new(source);
     let (word, _s, _e) = find_word_span_at_position(source, line, character)?;
     let cursor = crate::definition::byte_offset_at(&line_index, source, line, character);
@@ -1896,11 +1904,7 @@ fn rename_method(
 /// in a namespace, short at the top level).  Shared by the
 /// proc and class rename paths.
 fn qualified_and_decl_text(namespace_prefix: &str, new_name: &str) -> (String, String) {
-    let new_qualified = if namespace_prefix.is_empty() {
-        format!("::{new_name}")
-    } else {
-        format!("{namespace_prefix}::{new_name}")
-    };
+    let new_qualified = tcl_syntax::naming::qualify(namespace_prefix, new_name);
     let new_decl_text = if namespace_prefix.is_empty() {
         new_name.to_owned()
     } else {
@@ -1958,7 +1962,7 @@ pub fn cross_document_symbol_edits(
     index: &crate::workspace_index::WorkspaceIndex,
     current_uri: &str,
 ) -> Vec<WorkspaceTextEdit> {
-    if !index.allows_lexical_rename_advice() {
+    if !index.allows_lexical_rename_advice() || !is_safe_symbol_name(new_name) {
         return Vec::new();
     }
     let namespace_prefix = namespace_prefix_of(qualified_name);
@@ -2038,7 +2042,7 @@ pub fn workspace_symbol_rename_edits(
     new_name: &str,
     index: &crate::workspace_index::WorkspaceIndex,
 ) -> Option<Vec<WorkspaceTextEdit>> {
-    if !index.allows_lexical_rename_advice() {
+    if !index.allows_lexical_rename_advice() || !is_safe_symbol_name(new_name) {
         return None;
     }
     let namespace_prefix = namespace_prefix_of(qualified_name);
@@ -5686,5 +5690,37 @@ mod tests {
             build_var_replacement_in_analysis("set 茶:::箱(槽) OTHER", &analysis, span, "total")
                 .is_none()
         );
+    }
+}
+
+#[cfg(test)]
+mod selected_replacement_qualification_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn logical_rename_proposals_share_qualification_and_reject_unsafe_public_inputs() {
+        for (prefix, qualified, declaration) in [
+            ("", "::replacement", "replacement"),
+            ("::A", "::A::replacement", "::A::replacement"),
+            (":::", ":::::replacement", ":::::replacement"),
+        ] {
+            assert_eq!(
+                qualified_and_decl_text(prefix, "replacement"),
+                (qualified.to_owned(), declaration.to_owned())
+            );
+        }
+        let source = "proc original {} {}; original";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let index =
+            crate::workspace_index::WorkspaceIndex::from_documents([("provider", &analysis)]);
+        assert!(index.allows_lexical_rename_advice());
+        for replacement in ["", "::escape", "nested::escape", "has space", "$computed"] {
+            assert!(
+                cross_document_symbol_edits("::original", replacement, &index, "caller").is_empty()
+            );
+            assert!(workspace_symbol_rename_edits("::original", replacement, &index).is_none());
+        }
+        assert!(workspace_symbol_rename_edits("::original", "replacement", &index).is_some());
     }
 }

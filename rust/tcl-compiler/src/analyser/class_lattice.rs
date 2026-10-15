@@ -457,7 +457,6 @@ fn collect_assign_kinds<S: std::hash::BuildHasher + Clone>(
     else {
         return out;
     };
-    let metadata = Some(context.as_ref().into());
     let units = std::iter::once(&cu.top_level)
         .chain(cu.procedures.values())
         .chain(cu.methods.values());
@@ -465,12 +464,15 @@ fn collect_assign_kinds<S: std::hash::BuildHasher + Clone>(
         for block in fu.cfg.blocks.values() {
             for stmt in &block.statements {
                 // `oo::objdefine $var …` — per-object mutation of the receiver.
-                if let Some(invocation) =
-                    crate::registry_invocation::resolved_statement_invocation_with_metadata_context(
-                        registry, metadata, stmt,
+                if let Some(invocation) = stmt.tokens().and_then(|tokens| {
+                    crate::registry_invocation::source_structure::original_registry_words_for_module(
+                        &cu.ir_module, registry, tokens,
                     )
-                    && invocation.facts.analyser_hook
-                        == Some(tcl_registry::hooks::AnalyserHookId::OoObjdefine)
+                })
+                    && invocation.with_source_schema(&context, |schema| {
+                        schema.facts().analyser_hook
+                            == Some(tcl_registry::hooks::AnalyserHookId::OoObjdefine)
+                    }) == Some(true)
                     && let Some(v) = original_objdefine_receiver(stmt, &invocation)
                 {
                     out.entry(v).or_default().push(AssignKind::PerObject);
@@ -561,12 +563,22 @@ fn classify_bound_rhs<S: std::hash::BuildHasher + Clone>(
 /// Original written receiver syntax, independent of entered object identity.
 fn original_objdefine_receiver(
     statement: &crate::ir::Statement,
-    invocation: &crate::registry_invocation::ResolvedStatementInvocation,
+    invocation: &crate::registry_invocation::source_structure::OriginalRegistryWords,
 ) -> Option<String> {
     let tokens = statement.tokens()?;
-    let written = invocation.effective.written_argument(0)?;
-    let word = tokens.words().get(written.checked_add(1)?)?;
-    if invocation.arguments.first()?.as_deref()? != word.legacy_text().as_str() {
+    let crate::registry_invocation::InvocationWordOrigin::Written(written) =
+        invocation.origins().get(1)?
+    else {
+        return None;
+    };
+    let written_argument = written.checked_sub(1)?;
+    let word = tokens.words().get(*written)?;
+    let (crate::ir::Statement::Call { args, .. } | crate::ir::Statement::Barrier { args, .. }) =
+        statement
+    else {
+        return None;
+    };
+    if args.get(written_argument)? != &word.legacy_text() {
         return None;
     }
     let config = tokens
@@ -1482,20 +1494,45 @@ mod tests {
             let fixture = crate::provider_fixtures::original_native_module(source, "tcl8.6");
             let (context, module) = &*fixture;
             let statement = module.top_level.statements.last().unwrap();
-            let metadata = crate::registry_invocation::InvocationMetadataContext::for_module(
-                context.commands(),
-                module,
-            );
             let invocation =
-                crate::registry_invocation::resolved_statement_invocation_with_metadata_context(
+                crate::registry_invocation::source_structure::original_registry_words_for_module(
+                    module,
                     context.commands(),
-                    metadata,
-                    statement,
+                    statement.tokens().unwrap(),
                 )
-                .expect("actual selected original objdefine invocation");
+                .expect("actual conditional original objdefine source schema");
+            let mut missing = module.clone();
+            missing.source_metadata_input = None;
+            assert!(
+                crate::registry_invocation::source_structure::original_registry_words_for_module(
+                    &missing,
+                    context.commands(),
+                    statement.tokens().unwrap(),
+                )
+                .is_none()
+            );
+            let foreign = tcl_registry::CommandRegistry::build_default();
+            assert!(
+                crate::registry_invocation::source_structure::original_registry_words_for_module(
+                    module,
+                    &foreign,
+                    statement.tokens().unwrap(),
+                )
+                .is_none()
+            );
+            let mut detached = statement.tokens().unwrap().clone();
+            detached.source_binding = None;
+            assert!(
+                crate::registry_invocation::source_structure::original_registry_words_for_module(
+                    module,
+                    context.commands(),
+                    &detached,
+                )
+                .is_none()
+            );
             assert_eq!(
-                invocation.facts.analyser_hook,
-                Some(tcl_registry::hooks::AnalyserHookId::OoObjdefine)
+                invocation.with_source_schema(context, |schema| schema.facts().analyser_hook),
+                Some(Some(tcl_registry::hooks::AnalyserHookId::OoObjdefine))
             );
             assert_eq!(
                 original_objdefine_receiver(statement, &invocation).as_deref(),
@@ -1503,11 +1540,19 @@ mod tests {
                 "{source}"
             );
             if expected.is_none() {
-                assert!(invocation.effective.written_argument(0).is_none());
+                assert!(!matches!(
+                    invocation.origins().get(1),
+                    Some(crate::registry_invocation::InvocationWordOrigin::Written(_))
+                ));
             } else {
-                let mut changed = invocation.clone();
-                changed.arguments[0] = Some("${different}".to_owned());
-                assert!(original_objdefine_receiver(statement, &changed).is_none());
+                let mut changed = statement.clone();
+                let (crate::ir::Statement::Call { args, .. }
+                | crate::ir::Statement::Barrier { args, .. }) = &mut changed
+                else {
+                    panic!("actual original invocation")
+                };
+                args[0] = "${different}".to_owned();
+                assert!(original_objdefine_receiver(&changed, &invocation).is_none());
             }
         }
     }

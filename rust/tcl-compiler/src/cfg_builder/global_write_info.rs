@@ -757,7 +757,7 @@ fn record_global_upframe_body(
     // lattice so an alias prefix such as `interp alias {} put {} set x`
     // contributes `x` even when the source call's lower-time `defs` is empty.
     // The body runs at #0, so bare command heads resolve in the global namespace.
-    let projection = project_script_writes(body, semantics, "::");
+    let projection = project_script_writes(body, semantics, &ExecutionNamespace::exact("::"));
     for name in projection.literal_names {
         record_global_frame_write(&name, info);
     }
@@ -790,7 +790,11 @@ fn record_literal_global_body(
     // the freshly lowered body through the original module's closed bindings:
     // a later `interp alias {} put {} set x` must be just as visible here as
     // it is for a directly lowered `Statement::UpFrame`.
-    let projection = project_script_writes(&module.top_level, semantics, "::");
+    let projection = project_script_writes(
+        &module.top_level,
+        semantics,
+        &ExecutionNamespace::exact("::"),
+    );
     for name in projection.literal_names {
         record_global_frame_write(&name, info);
     }
@@ -1271,7 +1275,7 @@ pub(super) fn script_value_write_projection_with_metadata_context(
     script: &Script,
     registry: &tcl_registry::CommandRegistry,
     aliases: &ModuleCommandBindings,
-    namespace: &str,
+    namespace: &(impl crate::command_binding::NamespaceKeyQuery + ?Sized),
     metadata: Option<InvocationMetadataContext<'_>>,
     config: tcl_lexer::LexerConfig,
 ) -> tcl_registry::VariableWriteProjection {
@@ -1296,19 +1300,19 @@ pub(super) fn script_value_write_projection_with_metadata_context(
             config,
             input: metadata.source_analysis_input(),
         },
-        namespace,
+        &ExecutionNamespace::SourceContext(namespace.namespace_key().into_owned()),
     )
 }
 
 fn project_script_writes(
     script: &Script,
     semantics: &GlobalWriteSemantics<'_>,
-    namespace: &str,
+    namespace: &ExecutionNamespace,
 ) -> tcl_registry::VariableWriteProjection {
     fn walk(
         script: &Script,
         semantics: &GlobalWriteSemantics<'_>,
-        namespace: &str,
+        namespace: &ExecutionNamespace,
         names: &mut BTreeSet<String>,
         opaque: &mut bool,
         depth: u32,
@@ -1318,12 +1322,7 @@ fn project_script_writes(
             return;
         }
         for stmt in &script.statements {
-            let (targets, stmt_opaque) = own_write_targets(
-                script,
-                stmt,
-                semantics,
-                &ExecutionNamespace::exact(namespace),
-            );
+            let (targets, stmt_opaque) = own_write_targets(script, stmt, semantics, namespace);
             names.extend(targets);
             *opaque |= stmt_opaque;
             // A nested UpFrame explicitly selects a different variable
@@ -1333,12 +1332,11 @@ fn project_script_writes(
             if matches!(stmt, Statement::UpFrame { .. }) {
                 continue;
             }
-            let execution_namespace = crate::ir_helpers::ExecutionNamespace::exact(namespace);
+            let execution_namespace = namespace;
             for (body, body_namespace) in
-                crate::ir_helpers::nested_execution_bodies(stmt, &execution_namespace)
+                crate::ir_helpers::nested_execution_bodies(stmt, execution_namespace)
             {
-                let crate::ir_helpers::ExecutionNamespace::Exact(body_namespace) = body_namespace
-                else {
+                if matches!(body_namespace, ExecutionNamespace::RuntimeSelected) {
                     *opaque = true;
                     continue;
                 };

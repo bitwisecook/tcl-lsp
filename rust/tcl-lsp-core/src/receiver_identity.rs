@@ -426,6 +426,7 @@ pub(crate) fn method_at_cursor<'a>(
     source: &str,
     offset: u32,
 ) -> Option<RetainedReceiverMethod<'a>> {
+    crate::original_context::CurrentSourceContext::capture(source, analysis)?;
     if let Some(reference) = definition_reference_at_cursor(analysis, source, offset) {
         return original_definition_reference(analysis, source, reference);
     }
@@ -1247,5 +1248,97 @@ mod tests {
             config,
         ));
         assert!(captured_methods_at_command(&availability, source, &command).is_empty());
+    }
+}
+
+#[cfg(test)]
+mod current_method_cursor_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn original_definition_method_cursor_requires_current_complete_editor_input() {
+        let source = "oo::class create C {method Ping {} {return ORIGINAL}; export Ping}; C create obj; obj Ping";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let cursor = u32::try_from(source.find("export Ping").unwrap() + 7).unwrap();
+        assert!(definition_reference_at_cursor(&analysis, source, cursor).is_some());
+        assert!(method_at_cursor(&analysis, source, cursor).is_some());
+        assert!(crate::rename::prepare_rename(source, 0, cursor, &analysis).is_some());
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        let mut changed_config = analysis.clone();
+        let config = changed_config.body_lexer_config.as_mut().unwrap();
+        config.strict_quoting = !config.strict_quoting;
+        let mut foreign = analysis.clone();
+        let mut commands = tcl_registry::CommandRegistry::build_default();
+        let mut added = commands.get("puts").unwrap().clone();
+        added.name = "foreign_added_command";
+        commands.insert(added);
+        let context = std::sync::Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.6")
+                .with_command_store(commands.snapshot().shared_registry()),
+        );
+        foreign.resolved_input = Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            analysis.resolved_profile().unwrap(),
+            analysis.resolved_profile().unwrap(),
+            context,
+            analysis.body_lexer_config.unwrap(),
+        ));
+        assert_eq!(
+            foreign.body_lexer_config,
+            Some(foreign.resolved_input.as_ref().unwrap().lexer_config())
+        );
+        for stale in [missing, changed_config, foreign] {
+            assert!(
+                definition_reference_at_cursor(&stale, source, cursor).is_some(),
+                "the original authored ledger still exists"
+            );
+            assert!(method_at_cursor(&stale, source, cursor).is_none());
+            assert!(crate::rename::prepare_rename(source, 0, cursor, &stale).is_none());
+            assert!(
+                crate::references::references_in_program(
+                    source,
+                    analysis.resolved_profile().unwrap(),
+                    0,
+                    cursor,
+                    &stale,
+                    true,
+                    None
+                )
+                .is_empty()
+            );
+            assert!(
+                crate::references::document_highlights_in_program(
+                    source,
+                    analysis.resolved_profile().unwrap(),
+                    0,
+                    cursor,
+                    &stale,
+                    crate::definition::CallResolution::document_only()
+                )
+                .is_empty()
+            );
+            assert!(
+                crate::rename::method_target_with_access_in_workspace(
+                    source, 0, cursor, &stale, None
+                )
+                .is_none()
+            );
+            assert!(
+                crate::rename::rename_in_program(
+                    source,
+                    analysis.resolved_profile().unwrap(),
+                    0,
+                    cursor,
+                    "Pong",
+                    &stale,
+                    crate::definition::CallResolution::document_only()
+                )
+                .is_err()
+            );
+        }
+        let changed = source.replace("ORIGINAL", "REPLACED");
+        assert!(method_at_cursor(&analysis, &changed, cursor).is_none());
+        assert!(crate::rename::prepare_rename(&changed, 0, cursor, &analysis).is_none());
     }
 }

@@ -3289,11 +3289,7 @@ pub(crate) fn detect_upvar_bodies_with_registry(
     let mut summaries: HashMap<_, _> = module
         .original_source_procedure_bodies()
         .map(|(id, procedure)| {
-            let namespace = procedure
-                .body
-                .namespace_context
-                .as_deref()
-                .and_then(crate::command_binding::SourceNamespaceKey::advisory_key);
+            let namespace = procedure.body.namespace_context.as_deref();
             let mut info = if let Some(namespace) = namespace.filter(|_| {
                 module.procedure_ids.owns(*id)
                     && owner.is_some_and(|owner| {
@@ -3305,7 +3301,7 @@ pub(crate) fn detect_upvar_bodies_with_registry(
                     &procedure.params,
                     registry,
                     &bindings,
-                    &namespace,
+                    namespace,
                     module,
                 )
             } else {

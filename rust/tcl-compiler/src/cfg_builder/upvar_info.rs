@@ -563,10 +563,12 @@ pub(crate) fn method_reaches_caller_frame(
             .body
             .namespace_context
             .as_deref()
-            .and_then(crate::command_binding::SourceNamespaceKey::advisory_key)
+            .cloned()
             .or_else(|| match &method.execution_namespace {
-                ExecutionNamespace::Exact(namespace) => Some(namespace.clone()),
-                ExecutionNamespace::SourceContext(context) => context.advisory_key(),
+                ExecutionNamespace::Exact(namespace) => Some(
+                    crate::command_binding::SourceNamespaceKey::authored(namespace),
+                ),
+                ExecutionNamespace::SourceContext(context) => Some(context.clone()),
                 ExecutionNamespace::RuntimeSelected => None,
             });
         let Some(namespace) = namespace else {
@@ -604,7 +606,13 @@ pub(crate) fn collect_upvar_targets_with_registry(
     params: &[String],
     registry: &CommandRegistry,
 ) -> UpvarInfo {
-    collect_upvar_targets_inner(body, params, registry, None, "::")
+    collect_upvar_targets_inner(
+        body,
+        params,
+        registry,
+        None,
+        &crate::command_binding::SourceNamespaceKey::authored("::"),
+    )
 }
 
 /// Whole-module counterpart which can prove the live binding of a
@@ -614,7 +622,7 @@ pub(super) fn collect_upvar_targets_with_bindings(
     params: &[String],
     registry: &CommandRegistry,
     bindings: &ModuleCommandBindings,
-    namespace: &str,
+    namespace: &crate::command_binding::SourceNamespaceKey,
     module: &crate::ir::Module,
 ) -> UpvarInfo {
     let Some((input, metadata)) =
@@ -678,8 +686,12 @@ impl UpvarBindings<'_> {
             namespace,
         )
     }
-    fn for_each_resolved_invocation<F>(self, statement: &Statement, namespace: &str, visit: F)
-    where
+    fn for_each_resolved_invocation<F>(
+        self,
+        statement: &Statement,
+        namespace: &crate::command_binding::SourceNamespaceKey,
+        visit: F,
+    ) where
         F: for<'w> FnMut(
             &'w crate::command_binding::ResolvedCommandTarget,
             tcl_registry::InvocationWords<'w>,
@@ -688,7 +700,11 @@ impl UpvarBindings<'_> {
         self.source
             .for_each_resolved_invocation(statement, namespace, visit);
     }
-    fn target_resolution_may_be_unknown(self, command: &str, namespace: &str) -> bool {
+    fn target_resolution_may_be_unknown(
+        self,
+        command: &str,
+        namespace: &crate::command_binding::SourceNamespaceKey,
+    ) -> bool {
         self.source
             .target_resolution_may_be_unknown(command, namespace)
     }
@@ -699,7 +715,7 @@ fn collect_upvar_targets_inner(
     params: &[String],
     registry: &CommandRegistry,
     bindings: Option<UpvarBindings<'_>>,
-    namespace: &str,
+    namespace: &crate::command_binding::SourceNamespaceKey,
 ) -> UpvarInfo {
     let mut info = UpvarInfo::default();
     walk_script(body, params, registry, bindings, namespace, &mut info);
@@ -711,7 +727,7 @@ fn walk_script(
     params: &[String],
     registry: &CommandRegistry,
     bindings: Option<UpvarBindings<'_>>,
-    namespace: &str,
+    namespace: &crate::command_binding::SourceNamespaceKey,
     info: &mut UpvarInfo,
 ) {
     for stmt in &script.statements {
@@ -740,7 +756,7 @@ fn record_original_child_frame_effects(
     params: &[String],
     registry: &CommandRegistry,
     bindings: UpvarBindings<'_>,
-    namespace: &str,
+    namespace: &crate::command_binding::SourceNamespaceKey,
     info: &mut UpvarInfo,
 ) {
     let mut pending = vec![(tokens.clone(), 0_u32)];
@@ -828,7 +844,7 @@ fn walk_stmt(
     params: &[String],
     registry: &CommandRegistry,
     bindings: Option<UpvarBindings<'_>>,
-    namespace: &str,
+    namespace: &crate::command_binding::SourceNamespaceKey,
     info: &mut UpvarInfo,
 ) {
     if let Some(bindings) = bindings
@@ -936,7 +952,7 @@ fn walk_stmt(
                                 registry,
                                 bindings,
                                 namespace,
-                                &ExecutionNamespace::exact(namespace),
+                                &ExecutionNamespace::SourceContext(namespace.clone()),
                                 info,
                                 0,
                             );
@@ -1036,7 +1052,23 @@ fn walk_stmt(
             body,
             namespace: body_namespace,
             ..
-        } => walk_script(&body, params, registry, bindings, body_namespace, info),
+        } => {
+            if let Some(context) = body.namespace_context.as_deref() {
+                walk_script(&body, params, registry, bindings, context, info);
+            } else if bindings.is_none() {
+                walk_script(
+                    &body,
+                    params,
+                    registry,
+                    bindings,
+                    &crate::command_binding::SourceNamespaceKey::authored(body_namespace),
+                    info,
+                );
+            } else {
+                info.caller_frame_opaque_writes = true;
+                info.caller_frame_opaque_reads = true;
+            }
+        }
         Statement::Switch {
             arms, default_body, ..
         } => {
@@ -1102,7 +1134,7 @@ struct LogicalFrameScan<'a> {
     params: &'a [String],
     registry: &'a CommandRegistry,
     bindings: UpvarBindings<'a>,
-    namespace: &'a str,
+    namespace: &'a crate::command_binding::SourceNamespaceKey,
     depth: u32,
 }
 
@@ -1274,7 +1306,7 @@ fn record_resolved_frame_body(
     params: &[String],
     registry: &CommandRegistry,
     bindings: UpvarBindings<'_>,
-    namespace: &str,
+    namespace: &crate::command_binding::SourceNamespaceKey,
     execution_namespace: &ExecutionNamespace,
     info: &mut UpvarInfo,
     depth: u32,
@@ -1323,7 +1355,7 @@ fn record_readable_frame_body(
     params: &[String],
     registry: &CommandRegistry,
     bindings: UpvarBindings<'_>,
-    namespace: &str,
+    namespace: &crate::command_binding::SourceNamespaceKey,
     info: &mut UpvarInfo,
     depth: u32,
 ) {
@@ -1384,7 +1416,7 @@ fn record_frame_effect(
     params: &[String],
     registry: &CommandRegistry,
     context: FrameCommandContext<'_>,
-    namespace: &str,
+    namespace: &crate::command_binding::SourceNamespaceKey,
     info: &mut UpvarInfo,
 ) {
     match spec.layout {
@@ -1603,7 +1635,7 @@ fn record_uplevel_call(
     args: &[String],
     registry: &CommandRegistry,
     context: FrameCommandContext<'_>,
-    namespace: &str,
+    namespace: &crate::command_binding::SourceNamespaceKey,
     info: &mut UpvarInfo,
 ) {
     let (level, rest) = resolve_frame_args(spec, args, registry, context.dialect, context.tokens);
@@ -1641,7 +1673,7 @@ fn record_upframe_body(
     source_body_is_braced: bool,
     registry: &CommandRegistry,
     bindings: Option<UpvarBindings<'_>>,
-    namespace: &str,
+    namespace: &crate::command_binding::SourceNamespaceKey,
     info: &mut UpvarInfo,
 ) {
     record_upframe_body_at_depth(
@@ -1680,7 +1712,7 @@ fn record_upframe_body_at_depth(
     source_body_is_braced: bool,
     registry: &CommandRegistry,
     bindings: Option<UpvarBindings<'_>>,
-    namespace: &str,
+    namespace: &crate::command_binding::SourceNamespaceKey,
     info: &mut UpvarInfo,
     depth: u32,
 ) {
@@ -2020,7 +2052,7 @@ fn record_nested_upframe_effects(
     script: &Script,
     registry: &CommandRegistry,
     bindings: Option<UpvarBindings<'_>>,
-    namespace: &str,
+    namespace: &crate::command_binding::SourceNamespaceKey,
     info: &mut UpvarInfo,
     depth: u32,
 ) {
@@ -2145,7 +2177,7 @@ fn record_constructed_body(
     word: &str,
     registry: &CommandRegistry,
     bindings: Option<UpvarBindings<'_>>,
-    namespace: &str,
+    namespace: &crate::command_binding::SourceNamespaceKey,
     info: &mut UpvarInfo,
 ) -> bool {
     let Some(bindings) = bindings else {
@@ -2267,8 +2299,11 @@ mod tests {
                 qname,
             ))
             .expect("procedure");
-        let (holder, _) = tcl_syntax::naming::key_holder_and_tail(qname);
-        let namespace = if holder.is_empty() { "::" } else { holder };
+        let namespace = procedure
+            .body
+            .namespace_context
+            .as_deref()
+            .expect("actual original body namespace");
         collect_upvar_targets_with_bindings(
             &procedure.body,
             &procedure.params,

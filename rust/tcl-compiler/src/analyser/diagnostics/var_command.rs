@@ -624,11 +624,11 @@ impl Analyser {
         let Some(input) = self.result.resolved_input.as_ref() else {
             return FactoryObjectAdvice::default();
         };
-        let Some(context) =
-            crate::registry_invocation::retained_module_metadata_context(registry, &cu.ir_module)
-        else {
+        if crate::registry_invocation::retained_module_metadata_context(registry, &cu.ir_module)
+            .is_none()
+        {
             return FactoryObjectAdvice::default();
-        };
+        }
         if cu.ir_module.source_metadata_input.as_ref() != Some(input)
             || cu.source != self.source
             || !self.result.matches_original_source_image(
@@ -665,7 +665,7 @@ impl Analyser {
             seed_factory_maps(
                 *qname,
                 fu,
-                &context,
+                &cu.ir_module,
                 &|word, parent| self.nominal_object_result(word, parent, registry, &cu.ir_module),
                 &mut maps,
                 self.lexer_config(),
@@ -2360,13 +2360,43 @@ struct FactoryMaps {
     returned_callees: FxHashMap<BodyFrameId, FxHashSet<BodyFrameId>>,
 }
 
+/// Conditional original return syntax supplies no completion or returned value.
+fn original_source_return_operand<'a>(
+    module: &crate::ir::Module,
+    registry: &tcl_registry::CommandRegistry,
+    tokens: &'a crate::ir::CommandTokens,
+) -> Option<&'a crate::ir::WordExpr> {
+    let source = crate::registry_invocation::source_structure::original_registry_words_for_module(
+        module, registry, tokens,
+    )?;
+    let input =
+        crate::registry_invocation::InvocationMetadataContext::for_module(registry, module)?
+            .source_analysis_input()?;
+    if source.arguments().len() != 1
+        || source.with_source_schema(input.borrowed_context_registry(), |schema| {
+            schema.facts().operation
+                == tcl_registry::SemanticOperationId::StructuredLowering(
+                    tcl_registry::hooks::LoweringHookId::Return,
+                )
+        }) != Some(true)
+    {
+        return None;
+    }
+    let crate::registry_invocation::InvocationWordOrigin::Written(written) =
+        source.origins().get(1)?
+    else {
+        return None;
+    };
+    tokens.words().get(*written)
+}
+
 /// Retain possible assignments and unanimous returned scalar names for one
 /// actual body. Source return advice remains independent of completion and
 /// dispatch closure.
 fn seed_factory_maps(
     qname: BodyFrameId,
     fu: &crate::compilation_unit::FunctionUnit,
-    context: &tcl_registry::model::ContextRegistry,
+    module: &crate::ir::Module,
     nominal_result: &impl Fn(
         &crate::ir::WordExpr,
         Option<&crate::ir::CommandTokens>,
@@ -2374,6 +2404,10 @@ fn seed_factory_maps(
     maps: &mut FactoryMaps,
     config: tcl_lexer::LexerConfig,
 ) {
+    let Some(input) = module.source_metadata_input.as_ref() else {
+        return;
+    };
+    let context = input.borrowed_context_registry();
     let mut names = HashSet::new();
     let mut amap = FxHashMap::default();
     let mut returns = Vec::new();
@@ -2408,7 +2442,14 @@ fn seed_factory_maps(
                     .unwrap_or_default(),
             };
             for word in stmt.tokens().into_iter().flat_map(|tokens| {
-                crate::registry_invocation::advisory_return_values_in_context(context, tokens)
+                original_source_return_operand(module, context.commands(), tokens)
+                    .cloned()
+                    .into_iter()
+                    .chain(
+                        crate::registry_invocation::advisory_return_values_in_context(
+                            context, tokens,
+                        ),
+                    )
             }) {
                 returned_variables.push(returned_scalar_reference_name(
                     &word,
@@ -2785,13 +2826,12 @@ mod factory_metadata_context_tests {
             let mut procedures = module.procedures.values();
             let procedure = procedures.next().expect("actual source return body");
             assert!(procedures.next().is_none());
-            let crate::ir::Statement::Return {
-                value_word: Some(word),
-                ..
-            } = &procedure.body.statements[0]
-            else {
-                panic!("actual retained simple return word")
-            };
+            let tokens = procedure
+                .body
+                .retained_source_tokens_for_statement(&procedure.body.statements[0])
+                .expect("actual retained return source words");
+            let word = original_source_return_operand(module, module.resolved_registry(), tokens)
+                .expect("actual selected original return operand");
             assert_eq!(
                 returned_scalar_reference_name(word, module.native_lexer_config()).as_deref(),
                 expected,

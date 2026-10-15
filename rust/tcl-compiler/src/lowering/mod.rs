@@ -1400,15 +1400,7 @@ impl<'r> Lowerer<'r> {
     /// [`crate::compilation_unit::UnitBuildOptions::dialect`].
     #[must_use]
     pub fn with_dialect(mut self, dialect: Option<&'static tcl_dialect::DialectProfile>) -> Self {
-        self.dialect = dialect;
-        if self.source_entry_origin == SourceEntryOrigin::Authoring {
-            self.invocation_dialect =
-                Some(crate::environment_ingress::authoring_invocation_dialect(
-                    self.registry,
-                    dialect,
-                    self.config,
-                ));
-        }
+        self.retain_authoring_dialect(dialect);
         if self.source_entry_origin == SourceEntryOrigin::Authoring
             && self.metadata_origin == LoweringMetadataOrigin::Standalone
         {
@@ -1426,6 +1418,30 @@ impl<'r> Lowerer<'r> {
             });
         }
         self
+    }
+
+    fn retain_authoring_dialect(&mut self, dialect: Option<&'static tcl_dialect::DialectProfile>) {
+        self.dialect = dialect;
+        if self.source_entry_origin == SourceEntryOrigin::Authoring {
+            self.invocation_dialect =
+                Some(crate::environment_ingress::authoring_invocation_dialect(
+                    self.registry,
+                    dialect,
+                    self.config,
+                ));
+        }
+    }
+
+    /// Explicit authoring ingress: a profile supplies grammar and metadata
+    /// recipes, independently of any supplied availability or runtime entry.
+    pub(crate) fn for_standalone_source(
+        registry: &'r CommandRegistry,
+        config: tcl_lexer::LexerConfig,
+        dialect: Option<&'static tcl_dialect::DialectProfile>,
+    ) -> Self {
+        let mut lowerer = Self::with_config(registry, config);
+        lowerer.retain_authoring_dialect(dialect);
+        lowerer
     }
 
     /// Use the caller's complete availability context for conditional source
