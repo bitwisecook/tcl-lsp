@@ -118,8 +118,12 @@ impl Vm {
         let original = if self.uses_c84_global_error_info() {
             // Tcl_SetObjErrorCode stores the SAME global header before setting
             // ERROR_CODE_SET; C8.4 has no separate private error-code object.
-            let _ =
-                self.set_var_bytes_reporting(b"::errorCode", original.clone(), Some(b"errorCode"));
+            let _ = self.store_original_c84_global_error_code(
+                original.native_lifetime_lease().into_value(),
+            );
+            if self.execution_refusal.is_some() {
+                return;
+            }
             self.native_errors.c84_global_code_set = true;
             let metadata = original.native_lifetime_lease();
             drop(original);
@@ -967,6 +971,131 @@ mod tests {
                 ),
             ],
         );
+    }
+
+    thread_local! {
+        static C84_STRING_SETTER_MODE: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    }
+
+    fn c84_string_setter_probe(vm: &mut Vm, _args: &[Value]) -> Completion<Value> {
+        let mode = C84_STRING_SETTER_MODE.with(std::cell::Cell::get);
+        let rows = include_str!(
+            "../../../../experiments/name-handling/results/c84-original-global-string-error-code/capture01/execution.stdout"
+        );
+        let row = rows
+            .lines()
+            .find(|row| row.starts_with(&format!("OBS|{mode}|")))
+            .unwrap();
+        let fields = row.split('|').collect::<Vec<_>>();
+        let level = vm.current_level();
+        let namespace = vm.current_namespace_token();
+        let local = vm
+            .get_var_bytes(b"errorCode")
+            .unwrap()
+            .native_lifetime_lease();
+        let supplied = Value::int(777);
+        let marker = Value::new_native_string_bytes(b"MARKER".as_slice());
+        vm.adopt_native_interp_result(marker).unwrap();
+        assert_eq!(vm.native_errors.c84_global_code_set, fields[3] == "1");
+        vm.restore_guest_error_code(supplied.clone());
+        assert_eq!(vm.native_errors.c84_global_code_set, fields[4] == "1");
+        assert_eq!(vm.current_level() == level, fields[5] == "1");
+        assert_eq!(vm.current_namespace_token() == namespace, fields[6] == "1");
+        assert_eq!(
+            vm.get_var_bytes(b"errorCode")
+                .unwrap()
+                .is_same_object(local.value()),
+            fields[7] == "1"
+        );
+        assert_eq!(
+            vm.get_var_bytes(b"::errorCode")
+                .is_some_and(|global| global.is_same_object(&supplied)),
+            fields[8] == "1"
+        );
+        assert_eq!(
+            supplied.resident_string_bytes().is_some(),
+            fields[10] == "1"
+        );
+        let result = vm
+            .with_native_interp_result(|result| {
+                result
+                    .resident_string_bytes()
+                    .unwrap()
+                    .iter()
+                    .map(|byte| format!("{byte:02x}"))
+                    .collect::<String>()
+            })
+            .unwrap();
+        assert_eq!(result, fields[11]);
+        assert!(vm.execution_refusal.is_none());
+        super::super::ok(Value::empty())
+    }
+
+    #[test]
+    fn c84_string_global_error_code_setter_matches_original_scope_and_quiet_failure() {
+        for mode in [0, 3] {
+            C84_STRING_SETTER_MODE.with(|selected| selected.set(mode));
+            let mut vm = native_vm("tcl8.4");
+            vm.register_command(
+                "probe",
+                crate::command::Command::Builtin(c84_string_setter_probe),
+            );
+            assert_eq!(vm.eval_source("unset -nocomplain ::errorCode; namespace eval N {variable errorCode NAMESPACE; proc p {} {set errorCode LOCAL; probe; return $errorCode}}").unwrap().code, Code::Ok);
+            if mode == 3 {
+                assert_eq!(
+                    vm.eval_source("array set ::errorCode {key VALUE}")
+                        .unwrap()
+                        .code,
+                    Code::Ok
+                );
+            }
+            let completion = vm.eval_source("N::p").unwrap();
+            let rows = include_str!(
+                "../../../../experiments/name-handling/results/c84-original-global-string-error-code/capture01/execution.stdout"
+            );
+            let row = rows
+                .lines()
+                .find(|row| row.starts_with(&format!("CALL|{mode}|")))
+                .unwrap();
+            let fields = row.split('|').collect::<Vec<_>>();
+            assert_eq!(completion.code.as_int().to_string(), fields[2]);
+            let hex = |bytes: &[u8]| {
+                bytes
+                    .iter()
+                    .map(|byte| format!("{byte:02x}"))
+                    .collect::<String>()
+            };
+            assert_eq!(
+                hex(&vm.native_string_bytes(&completion.result).unwrap()),
+                fields[3]
+            );
+            let namespace_value = vm.get_var_bytes(b"::N::errorCode").unwrap();
+            assert_eq!(
+                hex(&vm.native_string_bytes(&namespace_value).unwrap()),
+                fields[4]
+            );
+            assert!(vm.execution_refusal.is_none());
+        }
+    }
+
+    #[test]
+    fn c84_string_global_error_code_setter_refuses_foreign_provider_and_retired_header() {
+        let mut vm = native_vm("tcl8.5");
+        assert!(
+            vm.store_original_c84_global_error_code(Value::int(777))
+                .is_err()
+        );
+        assert!(vm.execution_refusal.is_some());
+        let mut vm = native_vm("tcl8.4");
+        let supplied = Value::int(777);
+        let retired = supplied.native_lifetime_lease();
+        drop(supplied);
+        assert!(
+            vm.store_original_c84_global_error_code(retired.into_value())
+                .is_err()
+        );
+        assert!(vm.execution_refusal.is_some());
+        assert!(vm.get_var_bytes(b"::errorCode").is_none());
     }
 
     #[test]

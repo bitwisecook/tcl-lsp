@@ -1,0 +1,5 @@
+result.test:	Total	21	Passed	1	Skipped	20	Failed	0
+Number of tests skipped for each constraint:
+	11	testsaveresult
+	4	testseterrorcode
+	5	testsetobjerrorcode

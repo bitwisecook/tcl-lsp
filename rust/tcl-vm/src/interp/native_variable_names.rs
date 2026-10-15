@@ -57,6 +57,69 @@ impl Vm {
         .then_some(protocol)
     }
 
+    /// Tcl 8.4's Tcl_SetObjErrorCode uses a bare CString with GLOBAL_ONLY,
+    /// without an object-name getter or TCL_LEAVE_ERR_MSG.
+    pub(super) fn store_original_c84_global_error_code(
+        &mut self,
+        value: Value,
+    ) -> Result<(), Completion<Value>> {
+        if !self.uses_c84_global_error_info()
+            || !self
+                .native_c_variable_name_protocol()
+                .is_some_and(|protocol| protocol.version() == tcl_dialect::TclVersion::V8_4)
+        {
+            return Err(self.refuse_host_command(
+                "actual C8.4 CString global error-code setter unavailable".into(),
+            ));
+        }
+        let original_names =
+            super::native_name_consumers::OriginalNameConsumerScope::enter_for_namespace(
+                self,
+                Some(tcl_core_types::ROOT_NS),
+            )
+            .map_err(|error| completion_from_cmd_error(self, error))?;
+        let reached = (|| {
+            original_names
+                .current_for_value(self, &value)
+                .map_err(|error| completion_from_cmd_error(self, error))?;
+            let name = tcl_registry::special_vars::NativeBootstrapVariable::ErrorCode
+                .name()
+                .as_bytes();
+            let binding = self
+                .namespace_var_binding_from_token_bytes(tcl_core_types::ROOT_NS, name)
+                .ok_or_else(|| {
+                    self.refuse_host_command("actual C8.4 global error-code binding".into())
+                })?;
+            let resolved = self
+                .resolve_binding_var(binding, None, &mut HashSet::new())
+                .ok_or_else(|| {
+                    self.refuse_host_command("actual C8.4 global error-code receiver".into())
+                })?;
+            let purpose = NativeVariableNameLookupPurpose::QuietWrite;
+            let captured = self.capture_selected_update_with_errors(
+                name,
+                None,
+                &resolved,
+                purpose.leaves_error_message(),
+            )?;
+            self.with_variable_operation(&captured.cell, |vm| {
+                vm.store_captured_update_with_original_and_errors(
+                    name,
+                    None,
+                    &captured,
+                    value,
+                    None,
+                    purpose.leaves_error_message(),
+                )
+                .map(|_| ())
+            })
+        })();
+        original_names
+            .finish(self)
+            .map_err(|error| completion_from_cmd_error(self, error))?;
+        reached
+    }
+
     pub(crate) fn install_native_variable_name_owners(
         &mut self,
         procedure: &Rc<crate::command::ProcDef>,
