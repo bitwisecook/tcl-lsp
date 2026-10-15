@@ -460,10 +460,10 @@ fn original_handler_type(
     jim: bool,
 ) -> Result<&'static str, Completion<Value>> {
     let selected = if jim {
-        const JIM_HANDLERS: &[&str] = &["on", "trap", "finally"];
-        let table = tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend(
-            JIM_HANDLERS,
-        );
+        let dialect = vm.actual_native_invocation_dialect();
+        let Some(table) = dialect.native_jim_try_handler_table() else {
+            return Err(vm.refuse_host_command("original Jim try handler table".into()));
+        };
         let index = vm
             .native_jim_enum_from_original_checked(
                 original,
@@ -482,7 +482,10 @@ fn original_handler_type(
                     tcl_cmd_core::CmdError::from_byte_details(details),
                 )
             })?;
-        JIM_HANDLERS[index]
+        let Some(kind) = dialect.native_jim_try_handler(index) else {
+            return Err(vm.refuse_host_command("original Jim try handler ordinal".into()));
+        };
+        kind.name()
     } else {
         let index = vm
             .native_static_option_index_checked(

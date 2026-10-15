@@ -158,9 +158,10 @@ fn clauses(
     let mut at = 0;
     let (_, protocol) = crate::return_options::NativeReturnOps::selected(interp)?;
     while at < rest.len() {
-        const HANDLERS: &[&str] = &["on", "trap", "finally"];
-        let table =
-            tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend(HANDLERS);
+        let dialect = interp.native_invocation_dialect();
+        let table = dialect.native_jim_try_handler_table().ok_or(
+            ValueError::CommandProtocolUnavailable("original Jim try handler table"),
+        )?;
         let index = interp
             .native_jim_enum_from_original(
                 rest[at].as_ptr(),
@@ -174,20 +175,26 @@ fn clauses(
                 details.error_code = tcl_cmd_core::CmdErrorCodeUpdate::Unchanged;
                 CmdError::from_byte_details(details)
             })?;
-        let name = HANDLERS[index].as_bytes();
-        match name {
-            b"finally" => {
+        let kind =
+            dialect
+                .native_jim_try_handler(index)
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "original Jim try handler ordinal",
+                ))?;
+        match kind {
+            tcl_registry::NativeTryClauseArgument::Finally => {
                 if at + 2 != rest.len() {
                     return Err(CmdError::wrong_args_bytes(USAGE));
                 }
                 finally = Some(rest[at + 1].clone());
                 at += 2;
             }
-            b"on" | b"trap" => {
+            tcl_registry::NativeTryClauseArgument::On
+            | tcl_registry::NativeTryClauseArgument::Trap => {
                 if at + 4 > rest.len() {
                     return Err(CmdError::wrong_args_bytes(USAGE));
                 }
-                let matches = if name == b"trap" {
+                let matches = if kind == tcl_registry::NativeTryClauseArgument::Trap {
                     trap_matches(interp, ops, &rest[at + 1], error_code)?
                 } else {
                     let mut matched = false;
@@ -213,14 +220,6 @@ fn clauses(
                     });
                 }
                 at += 4;
-            }
-            _ => {
-                let mut message = b"bad handler \"".to_vec();
-                message.extend_from_slice(name);
-                message.extend_from_slice(b"\": must be on, trap or finally");
-                let mut details = CmdError::new_bytes(message).into_byte_details();
-                details.error_code = tcl_cmd_core::CmdErrorCodeUpdate::Unchanged;
-                return Err(CmdError::from_byte_details(details));
             }
         }
     }
