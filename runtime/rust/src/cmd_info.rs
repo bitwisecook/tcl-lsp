@@ -64,15 +64,9 @@ fn representation_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         } else if core::ptr::eq(obj.type_ptr, &crate::obj::TCL_DOUBLE_TYPE) {
             Internal::Double(f64::from_bits(obj.internal_rep))
         } else {
-            // The 8-byte internal rep is `twoPtrValue` on wasm32 and its
-            // first word on a 64-bit host.
-            let low = obj.internal_rep as usize;
-            let high = if usize::BITS == 32 {
-                (obj.internal_rep >> 32) as usize
-            } else {
-                0
-            };
-            Internal::Words(low, high)
+            // The 8-byte internal rep: `twoPtrValue` on wasm32, its first
+            // word on a 64-bit host.
+            Internal::Bits(obj.internal_rep)
         };
         let string = (!obj.bytes.is_null())
             .then(|| core::slice::from_raw_parts(obj.bytes as *const u8, obj.length as usize));

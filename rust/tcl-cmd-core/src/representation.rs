@@ -50,8 +50,22 @@ pub enum Internal {
     None,
     /// A double (`tclDoubleType`).
     Double(f64),
+    /// A 64-bit value laid over `twoPtrValue` (a wide integer): one word on a
+    /// 64-bit host, the low and high words on a 32-bit one.
+    Bits(u64),
     /// Any other type, as `twoPtrValue`'s two words.
     Words(usize, usize),
+}
+
+/// `bits` as the two `twoPtrValue` words it occupies on this target.
+fn bit_words(bits: u64) -> (usize, usize) {
+    if usize::BITS >= 64 {
+        (usize::try_from(bits).unwrap_or(usize::MAX), 0)
+    } else {
+        let low = usize::try_from(bits & 0xFFFF_FFFF).unwrap_or(usize::MAX);
+        let high = usize::try_from(bits >> 32).unwrap_or(usize::MAX);
+        (low, high)
+    }
 }
 
 /// The command's result, as `release` writes it.
@@ -90,8 +104,12 @@ pub fn describe(value: &Representation<'_>, release: TclVersion) -> Vec<u8> {
                 }
             }
             Internal::Double(x) => {
-                let bits = usize::try_from(x.to_bits()).unwrap_or(usize::MAX);
-                let _ = write!(out, ", internal representation {}:{}", word(bits), word(0));
+                let (a, b) = bit_words(x.to_bits());
+                let _ = write!(out, ", internal representation {}:{}", word(a), word(b));
+            }
+            Internal::Bits(bits) => {
+                let (a, b) = bit_words(bits);
+                let _ = write!(out, ", internal representation {}:{}", word(a), word(b));
             }
             Internal::Words(a, b) => {
                 let _ = write!(out, ", internal representation {}:{}", word(a), word(b));
@@ -178,6 +196,24 @@ mod tests {
                 text.ends_with(&format!("string representation \"{kept}\"")),
                 "{input:?}: {text}"
             );
+        }
+    }
+
+    /// A 64-bit rep fills both words on a 32-bit target (wasm32) and one on
+    /// a 64-bit host, as C's union overlays `twoPtrValue`.
+    #[test]
+    fn a_wide_rep_is_split_across_the_target_s_words() {
+        let (low, high) = bit_words(3.0f64.to_bits());
+        if usize::BITS >= 64 {
+            assert_eq!((low, high), (0x4008_0000_0000_0000, 0));
+        } else {
+            assert_eq!((low, high), (0, 0x4008_0000));
+        }
+        let (low, high) = bit_words((-1i64).cast_unsigned());
+        if usize::BITS >= 64 {
+            assert_eq!((low, high), (usize::MAX, 0));
+        } else {
+            assert_eq!((low, high), (usize::MAX, usize::MAX));
         }
     }
 
