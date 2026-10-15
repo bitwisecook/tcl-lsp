@@ -233,7 +233,8 @@ fn operand_type_err(desc: OperandDesc, value: &[u8], side: OperandSide, op: &[u8
         &String::from_utf8_lossy(op),
         release,
     );
-    let code = tcl_syntax::expr::errors::illegal_operand_error_code(desc, release);
+    let code = tcl_syntax::expr::errors::illegal_operand_error_code(desc, release)
+        .unwrap_or_else(|| "NONE".to_owned());
     ExprError::from_parts(message.into_bytes(), code.into_bytes())
 }
 
