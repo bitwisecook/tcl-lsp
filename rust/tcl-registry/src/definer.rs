@@ -3355,6 +3355,30 @@ impl DefinitionBodyGrammar {
         self.member_indices_where(keyword, args, dialect, &|candidate| candidate == role)
     }
 
+    /// Source operands carrying one role in this independently selected
+    /// definition vocabulary. Dynamic selectors and expanded argv remain
+    /// unavailable; operand values keep their original byte/dynamic state.
+    #[must_use]
+    pub fn source_member_arg_indices_for_role_in(
+        &self,
+        keyword: &[u8],
+        args: crate::InvocationArguments<'_>,
+        dialect: Option<SurfaceQuery<'_>>,
+        role: ArgRole,
+    ) -> Option<Vec<usize>> {
+        Some(
+            self.source_member_indices_where(
+                std::str::from_utf8(keyword).ok()?,
+                args,
+                dialect,
+                &|candidate| candidate == role,
+            )?
+            .into_iter()
+            .map(SourceDefinitionMemberScriptArgument::argument)
+            .collect(),
+        )
+    }
+
     /// Reference-list arguments and their entity kind, with wrapper operands
     /// and the leading slot operation mapped by this grammar.
     #[must_use]

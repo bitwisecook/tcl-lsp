@@ -711,6 +711,41 @@ impl OriginalSourceDefinitionMemberRegion {
             .map(|command| command.words.as_slice())
     }
 
+    /// Whole original variable-name operands under the selected member role.
+    /// These words supply source display geometry, not accepted member names,
+    /// variable cells or an entered definition frame.
+    #[must_use]
+    pub fn variable_argument_words(&self, original: &[NativeWord]) -> Option<Vec<&NativeWord>> {
+        let values = self.member_values(original)?;
+        let keyword = values.first()?.as_deref()?;
+        let arguments = original
+            .iter()
+            .zip(&values)
+            .skip(1)
+            .map(|(word, value)| {
+                if word.group().expand {
+                    tcl_registry::InvocationWord::Expanded
+                } else {
+                    value.as_deref().map_or(
+                        tcl_registry::InvocationWord::Dynamic,
+                        tcl_registry::InvocationWord::KnownBytes,
+                    )
+                }
+            })
+            .collect::<Vec<_>>();
+        let indices = self.grammar.source_member_arg_indices_for_role_in(
+            keyword,
+            tcl_registry::InvocationArguments::structured(&arguments),
+            Some(self.context.authoring_query()),
+            ArgRole::VarWrite,
+        )?;
+        let retained = self.original_command_words_at(original.first()?.span().start())?;
+        indices
+            .into_iter()
+            .map(|index| retained.get(index.checked_add(1)?))
+            .collect()
+    }
+
     /// Readonly reference operands under this genuine parent vocabulary.
     /// Complete command membership and actual availability remain mandatory;
     /// dynamic operands retain no static reference-name or writable geometry.
@@ -1756,6 +1791,42 @@ mod script_purpose_tests {
             .unwrap()
             .source_script_bodies(&context)
             .remove(0)
+    }
+
+    #[test]
+    fn original_member_variable_words_retain_roles_and_whole_source_geometry() {
+        let source = r"oo::class create C {variable a\ b arr($index); self variable wrapped\ name; method run {} {}}";
+        for dialect in ["tcl", "tcl8.6"] {
+            let (analysis, parent) = original_definition_parent(source, dialect);
+            let context = analysis.resolved_input.as_ref().unwrap().context_registry();
+            let region = parent
+                .definition_member_region(&context, parent.content_span())
+                .unwrap();
+            let commands = region.original_commands().collect::<Vec<_>>();
+            let variables = region.variable_argument_words(commands[0]).unwrap();
+            assert_eq!(variables, vec![&commands[0][1], &commands[0][2]]);
+            assert_eq!(
+                region.variable_argument_words(commands[1]).unwrap(),
+                vec![&commands[1][2]]
+            );
+            assert!(
+                region
+                    .variable_argument_words(commands[2])
+                    .unwrap()
+                    .is_empty()
+            );
+            assert!(region.variable_argument_words(&commands[0][..2]).is_none());
+            let other = source.replace("a\\ b", "different");
+            let (_, other_parent) = original_definition_parent(&other, dialect);
+            let other_region = other_parent
+                .definition_member_region(&context, other_parent.content_span())
+                .unwrap();
+            assert!(
+                region
+                    .variable_argument_words(other_region.original_commands().next().unwrap())
+                    .is_none()
+            );
+        }
     }
 
     #[test]

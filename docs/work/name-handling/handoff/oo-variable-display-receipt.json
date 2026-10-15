@@ -1,0 +1,56 @@
+{
+  "base_commit": "22f53d1a1",
+  "kind": "original-source-geometry-and-role-consumer-migration",
+  "cargo_or_test_execution": false,
+  "files": [
+    {
+      "path": "rust/tcl-registry/src/definer.rs",
+      "before_sha256": "53abaf143a0f35c40a0c7cc781dcb43c05f301076a7722160e91486fcb31d4bf",
+      "after_sha256": "89c80bcda6fc49918d41421e62dac62417d126cb7279ebd106e6a0ae158a3e06",
+      "retained_test_functions": 45,
+      "missing_tests": [],
+      "changed_original_test_bodies": [],
+      "new_test_functions": []
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs",
+      "before_sha256": "40aa1407e3fcdb1c235734ff226311d2d6cd6000abbc72d817d2c3e139509e9f",
+      "after_sha256": "639be6bfbfa37a207771c86ac5f18945dc397b4ee44a18e290e4f8847ad3db19",
+      "retained_test_functions": 15,
+      "missing_tests": [],
+      "changed_original_test_bodies": [],
+      "new_test_functions": [
+        "original_member_variable_words_retain_roles_and_whole_source_geometry#0"
+      ]
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/semantic_tokens.rs",
+      "before_sha256": "0a44ab41a87190dc0f6d9f70faeb8b6b19b9f110750fafac986f20ae41367aac",
+      "after_sha256": "316aeeda72cf277301bb98244c23854d24371129b5755b854fd17f6f331a135b",
+      "retained_test_functions": 189,
+      "missing_tests": [],
+      "changed_original_test_bodies": [],
+      "new_test_functions": [
+        "member_variable_colours_require_genuine_parent_roles_and_original_words#0"
+      ]
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/semantic_tokens/original.rs",
+      "before_sha256": "c11a5dd145e39d872ab6b94d101a9d1053a6fe181a61304730579725f9396219",
+      "after_sha256": "f5e281449fdaccd362d9f958c4f0f4da2ff425dce80528684161915f697276d6",
+      "retained_test_functions": 28,
+      "missing_tests": [],
+      "changed_original_test_bodies": [],
+      "new_test_functions": []
+    }
+  ],
+  "ingress_changes": [
+    "No existing test body or test helper ingress changed.",
+    "Whole OO member operands retain genuine original definition parent, complete command vectors and selected VarWrite schema; the existing shared source-only display geometry owns spans."
+  ],
+  "limitations": [
+    "Static test-body equality is not execution acceptance.",
+    "List children, parameter and loop-variable fields retain separate source issuers and are outside this whole-word tranche.",
+    "Display colour grants no member validity, Native frame, cell, read, dispatch, completion or edit authority."
+  ]
+}

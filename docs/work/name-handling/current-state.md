@@ -1,5 +1,9 @@
 # Current centralised naming work
 
+## Actual OO source display consumers
+
+The reviewed source checkpoint also transports actual definition parent/member/body source carriers in Logical and Native domains. Direct VarWrite words are selected by the existing structured Registry member-role owner and held whole original operands, then consume the shared display geometry. The raw member variable-name/punctuation filter is removed. This is source display, not accepted OO member validity, an entered frame/cell or editing authority. All277 prior test bodies remain byte-exact; two new controls are unexecuted. Other member/list/formal/body consumers remain unfinished.
+
 ## Reviewed C catch name consumers
 
 The next checkpoint also routes selected C catch message/options output names through the existing original-variable assignment owner, preserving actual name headers and reached conversion/cache/publication order. It does not force a name String before that owner, change Jim/C failure behaviour or weaken original currentness checks. Two original paired SDK captures on each pinned C8.4.20/8.5.19/8.6.18/9.0.4/9.1.0 retain65primary rows, actual static header/library/source/compiler/executable pairing and unchanged provider inputs. Core-only Tcl_CreateInterp was used; no Tcl_Init or tcltest harness is claimed. Initial inline-driver limits are recorded separately. New Rust controls and broader compiled-catch/reference-count equivalence remain unexecuted.

@@ -552,6 +552,22 @@ pub(super) fn definition_member_bodies(
         .script_bodies(original_definition_member_words(ctx, command)?)
 }
 
+pub(super) fn insert_definition_member_variable_overrides(
+    ctx: ScriptCtx<'_>,
+    command: &SegmentedCommand,
+    overrides: &mut FxHashMap<u32, ArgOverride>,
+) {
+    let Some(words) = original_definition_member_words(ctx, command).and_then(|original| {
+        ctx.original_definition_members?
+            .variable_argument_words(original)
+    }) else {
+        return;
+    };
+    for word in words {
+        super::retag_original_variable_argument(command, word, ArgOverride::VarDecl, overrides);
+    }
+}
+
 /// Ordinary source roles preserve the actual effective argv and each operand's
 /// own original word. Conditional schemas keep their obligations in `words`;
 /// these colours claim source syntax only, never an executed variable or call.
@@ -970,6 +986,26 @@ fn insert_logical_inline_member_overrides(
     overrides
         .entry(token.span.start())
         .or_insert(ArgOverride::Kind(TokenKind::Keyword));
+    if let Some(indices) = grammar.source_member_arg_indices_for_role_in(
+        member.as_bytes(),
+        schema.words.arguments().slice_from(2),
+        Some(ctx.context.authoring_query()),
+        tcl_registry::ArgRole::VarWrite,
+    ) {
+        for index in indices {
+            if let Some(word) = index
+                .checked_add(2)
+                .and_then(|ordinal| words.operands.get(ordinal)?.as_ref()?.word.as_ref())
+            {
+                super::retag_original_variable_argument(
+                    command,
+                    word,
+                    ArgOverride::VarDecl,
+                    overrides,
+                );
+            }
+        }
+    }
     let count = schema.words.arguments().exact_argv_len().unwrap_or(0);
     let Some(arguments) = (2..count)
         .map(|index| schema.words.arguments().literal_at(index))

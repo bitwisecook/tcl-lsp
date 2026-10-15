@@ -1641,19 +1641,6 @@ fn insert_oo_member_overrides(
             }
         }
     }
-    // Declared variable / component names (`variable a b c`, `typevariable v`,
-    // `component c`, `onconfigure -opt valueVar …`).
-    for idx in crate::oo_body::member_var_indices_in(grammar, head, arg_texts, dialect) {
-        if let Some(tok) = seg.argv.get(base + idx + 1)
-            && matches!(tok.kind, TokenType::Esc)
-            && !tok.in_quote
-            && is_plain_var_name(&seg.texts[base + idx + 1])
-        {
-            overrides
-                .entry(tok.span.start())
-                .or_insert(ArgOverride::VarDecl);
-        }
-    }
     // Closed grammar options and namespace references retain their ordinary
     // token kinds even though definition members have no standalone command
     // specs. The positions come from the same generic member-role walker as
@@ -2294,15 +2281,6 @@ fn retag_original_variable_argument(
             overrides.entry(token.span.start()).or_insert(kind);
         }
     }
-}
-
-/// `true` when `text` is a plain (non-array, non-substituted) variable name
-/// — the safe case to retag as a whole-word `Variable` declaration token.
-fn is_plain_var_name(text: &str) -> bool {
-    // Excludes array elements (`arr(x)`), substitutions (`$`/`[`), quoted /
-    // braced words, and the stray `}` / `)` the degenerate empty-brace (`{}`)
-    // span clamp can leave in sub-tokenised list content.
-    !text.is_empty() && !text.contains(['(', ')', '$', '[', ']', '{', '}', '"', ' '])
 }
 
 /// Sub-tokenise a `binary format`/`scan` field string into its
@@ -3365,13 +3343,10 @@ fn collect_script(
         return;
     }
     let full_source = ctx.full_source;
-    let definition_members = (!ctx.lexical)
-        .then(|| {
-            let parent = ctx.original_definition_parent?;
-            let end = base_offset.checked_add(u32::try_from(text.len()).ok()?)?;
-            parent.definition_member_region(ctx.generation, Span::new(base_offset, end))
-        })
-        .flatten();
+    let definition_members = ctx.original_definition_parent.and_then(|parent| {
+        let end = base_offset.checked_add(u32::try_from(text.len()).ok()?)?;
+        parent.definition_member_region(ctx.generation, Span::new(base_offset, end))
+    });
     let ctx = ScriptCtx {
         original_definition_members: definition_members.as_ref(),
         ..ctx
@@ -3457,9 +3432,7 @@ fn collect_script(
         // hot path to a single bridging allocation per command.
         let arg_texts: Vec<&str> = seg.texts[1..].iter().map(String::as_str).collect();
 
-        let member_bodies = (!ctx.lexical)
-            .then(|| original::definition_member_bodies(ctx, &seg))
-            .flatten();
+        let member_bodies = original::definition_member_bodies(ctx, &seg);
         let original_bodies = original
             .as_ref()
             .map_or_else(Vec::new, |words| words.source_script_bodies(ctx.generation));
@@ -3474,6 +3447,7 @@ fn collect_script(
         if ctx.lexical {
             insert_lexical_user_overrides(ctx, &seg, &arg_texts, &mut overrides);
         }
+        original::insert_definition_member_variable_overrides(ctx, &seg, &mut overrides);
         let declared = ctx.analysis.and_then(|analysis| {
             tcl_compiler::registry_invocation::source_structure::source_declared_command_words(
                 full_source,
@@ -3632,14 +3606,13 @@ fn collect_script(
                 declared_words: declared.as_ref(),
                 ..ctx
             };
-            let definition_parent = if ctx.lexical {
-                None
-            } else if let Some(member_body) = member_bodies.iter().flatten().find(|body| {
-                body.original_container()
-                    .tokens()
-                    .iter()
-                    .any(|part| part.span == tok.span)
-            }) {
+            let definition_parent = if let Some(member_body) =
+                member_bodies.iter().flatten().find(|body| {
+                    body.original_container()
+                        .tokens()
+                        .iter()
+                        .any(|part| part.span == tok.span)
+                }) {
                 member_body.definition_parent().cloned()
             } else if let Some(body) = original_bodies.iter().find(|body| {
                 body.original_container()
@@ -10392,6 +10365,49 @@ mod original_variable_argument_geometry_colour_tests {
                 && kind == TokenKind::Variable as u32
                 && modifiers == MOD_DECLARATION
         })
+    }
+
+    #[test]
+    fn member_variable_colours_require_genuine_parent_roles_and_original_words() {
+        for profile in ["tcl", "tcl8.6"] {
+            for (source, spelling) in [
+                (r"oo::class create C {variable a\ b}", r"a\ b"),
+                ("oo::class create C {variable {a b}}", "{a b}"),
+                ("oo::class create C {variable arr($index)}", "arr("),
+                (
+                    r"oo::class create C {self variable wrapped\ name}",
+                    r"wrapped\ name",
+                ),
+                (
+                    r"oo::class create C {}; oo::define C variable inline\ name",
+                    r"inline\ name",
+                ),
+            ] {
+                let analysis = Analyser::new().analyse(source, profile);
+                assert!(
+                    declarations_at(source, &analysis, spelling),
+                    "{profile}: {source}"
+                );
+                let mut missing = analysis.clone();
+                missing.body_lexer_config = None;
+                assert!(!declarations_at(source, &missing, spelling));
+            }
+            for (source, spelling) in [
+                (r"puts {variable a\ b}", r"a\ b"),
+                (
+                    r"proc oo::class args {}; oo::class create C {variable a\ b}",
+                    r"a\ b",
+                ),
+                ("oo::class create C {variable a${root}(index)}", "a${root}"),
+                ("oo::class create C {variable arr($index)tail}", "arr("),
+            ] {
+                let analysis = Analyser::new().analyse(source, profile);
+                assert!(
+                    !declarations_at(source, &analysis, spelling),
+                    "{profile}: {source}"
+                );
+            }
+        }
     }
 
     #[test]

@@ -198,5 +198,10 @@
     "file": "logical-procedure-role-source-review.tar.gz",
     "sha256": "01778659ed5906836c5881bacc6cccde53c3194ef52780394f28899c9e93ce79",
     "status": "Static source/API/test-ingress receipt only; original measured assertions retained; no Rust execution or semantic acceptance."
+  },
+  {
+    "file": "oo-variable-display-receipt.json",
+    "sha256": "a699f893ae343d39bdba5e08683b49057eca32a6a3b26f299e0044b180054905",
+    "status": "Static277 original test-body equality for actual OO direct-word source-role/display ingress; no Rust execution, accepted-member/frame/Native or edit authority."
   }
 ]
