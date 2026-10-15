@@ -84,6 +84,11 @@ impl SourceReceiverMethodEntry {
         receiver: SourceMethodReceiver,
         input: &SignatureSourceNameInput,
     ) -> Option<&'a Self> {
+        match input {
+            SignatureSourceNameInput::OriginalWord(_)
+            | SignatureSourceNameInput::OriginalValue(_) => {}
+            SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+        }
         input
             .policy()
             .recipe()

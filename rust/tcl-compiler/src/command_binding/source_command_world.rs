@@ -785,6 +785,11 @@ impl OriginalClassInstanceMethodRoster {
         &self,
         input: &SignatureSourceNameInput,
     ) -> Option<&super::SourceReceiverMethodEntry> {
+        match input {
+            SignatureSourceNameInput::OriginalWord(_)
+            | SignatureSourceNameInput::OriginalValue(_) => {}
+            SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+        }
         if input.policy() != self.policy {
             return None;
         }
@@ -1485,7 +1490,7 @@ impl SourceWorldCapture<'_> {
             NamespaceTransitionTarget::Current => self.selected_scope.clone(),
             NamespaceTransitionTarget::Named(subject) => {
                 let input = self.original(subject)?;
-                child_scope(&self.scope_for(&input)?, &input)
+                self.scope_for(&input)?.child_from_input(&input)
             }
         }
     }
@@ -1784,32 +1789,15 @@ pub(super) fn capture(
     })
 }
 
-fn child_scope(
-    parent: &SignatureNamespaceScope,
-    input: &SignatureSourceNameInput,
-) -> Option<SignatureNamespaceScope> {
-    let recipe = input.policy().recipe();
-    match recipe {
-        NativeNameProtocol::C(_) => Some(SignatureNamespaceScope::C(
-            recipe
-                .namespace_address_path(parent.context()?, input.bytes())
-                .ok()?,
-        )),
-        NativeNameProtocol::Jim084 => Some(SignatureNamespaceScope::Jim(
-            recipe
-                .jim_namespace_canonical_input(parent.context()?, input.bytes())
-                .ok()?
-                .selected()
-                .into(),
-        )),
-    }
-}
-
 pub(super) fn publication_slot(
     scope: &SignatureNamespaceScope,
     input: &SignatureSourceNameInput,
     kind: CommandBindingDefinitionKind,
 ) -> Option<ByteCommandSlot> {
+    match input {
+        SignatureSourceNameInput::OriginalWord(_) | SignatureSourceNameInput::OriginalValue(_) => {}
+        SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+    }
     let recipe = input.policy().recipe();
     let context = scope.context()?;
     let slot = if kind == CommandBindingDefinitionKind::Object {
@@ -2204,6 +2192,11 @@ impl OriginalSourceCommandWorld {
     ) -> Option<()> {
         let policy = self.policy?;
         for input in inputs {
+            match input {
+                SignatureSourceNameInput::OriginalWord(_)
+                | SignatureSourceNameInput::OriginalValue(_) => {}
+                SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+            }
             let parts = policy
                 .recipe()
                 .namespace_pattern_parts(
@@ -2294,6 +2287,11 @@ impl OriginalSourceCommandWorld {
     ) -> Option<()> {
         let policy = self.policy?;
         for input in inputs {
+            match input {
+                SignatureSourceNameInput::OriginalWord(_)
+                | SignatureSourceNameInput::OriginalValue(_) => {}
+                SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+            }
             let parts = policy
                 .recipe()
                 .namespace_pattern_parts(
@@ -2423,6 +2421,90 @@ mod tests {
             namespace: ByteNamespacePath::from_segments(namespace.iter().copied()),
             simple: NameBytes::from(simple),
         }
+    }
+
+    #[test]
+    fn evaluated_method_and_publication_operands_refuse_lexical_variable_roots() {
+        let bindings = analyse(
+            "oo::class create C {method ping {} {}}",
+            tcl_dialect::TclVersion::V8_6,
+        );
+        let world = bindings.original_completed_command_world().unwrap();
+        let policy = NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_6);
+        let publication = world.declaration_at(&slot(&[], b"C"), policy).unwrap();
+        let roster = world
+            .class_instance_method_roster(publication.definition().unwrap())
+            .unwrap();
+        let entry = roster.entries.values().next().unwrap();
+        let input = entry.original_name_input();
+        let word = input.original_word_key().unwrap().original_word();
+        let value = SignatureSourceNameInput::OriginalValue(
+            crate::signature_scan::name_value::SignatureSourceNameValue::from_original_static_word(
+                word,
+                tcl_syntax::word_rules::WordValueRules::from_config(&word.config()),
+                policy,
+            )
+            .unwrap(),
+        );
+        let root_scope = SignatureNamespaceScope::root(Some(policy));
+        for operand in [input, &value] {
+            assert_eq!(roster.source_method_for_input(operand), Some(entry));
+            assert_eq!(
+                publication_slot(
+                    &root_scope,
+                    operand,
+                    CommandBindingDefinitionKind::Procedure
+                ),
+                Some(slot(&[], b"ping")),
+            );
+            assert!(root_scope.child_from_input(operand).is_some());
+        }
+        let plan = tcl_lexer::native_script_words_in(
+            tcl_lexer::SourceImage::document("$ping"),
+            tcl_lexer::Span::new(0, 5),
+            word.config(),
+        )
+        .unwrap();
+        let variable = &plan.commands[0].words[0];
+        let root =
+            crate::signature_scan::variable_name::SignatureSourceVariableRoot::from_original_word(
+                variable,
+                variable.span(),
+                tcl_syntax::word_rules::WordValueRules::from_config(&variable.config()),
+                policy,
+            )
+            .unwrap();
+        let root = SignatureSourceNameInput::OriginalVariableRoot(root);
+        assert_eq!(root.bytes(), input.bytes());
+        assert_eq!(root.policy(), input.policy());
+        assert!(roster.source_method_for_input(&root).is_none());
+        assert!(
+            super::super::SourceReceiverMethodEntry::for_original_input(
+                &roster.entries,
+                super::super::SourceMethodReceiver::Instance,
+                &root,
+            )
+            .is_none()
+        );
+        assert!(
+            publication_slot(&root_scope, &root, CommandBindingDefinitionKind::Procedure,)
+                .is_none()
+        );
+        assert!(root_scope.child_from_input(&root).is_none());
+        let mut transfer = (*world.state.original_command_world).clone();
+        let before = transfer.clone();
+        assert!(
+            transfer
+                .import(&root_scope, false, std::slice::from_ref(&root))
+                .is_none()
+        );
+        assert_eq!(transfer, before);
+        assert!(
+            transfer
+                .forget(&root_scope, std::slice::from_ref(&root))
+                .is_none()
+        );
+        assert_eq!(transfer, before);
     }
 
     #[test]
