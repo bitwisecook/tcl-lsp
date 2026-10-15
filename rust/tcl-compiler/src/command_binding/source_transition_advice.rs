@@ -676,6 +676,7 @@ pub(crate) struct OriginalSourceTransitionAdviceTape {
     registered_factories: BTreeMap<u32, Option<Arc<OriginalSourceRegisteredInstance>>>,
     registered_handles: BTreeMap<u32, Option<Arc<OriginalSourceRegisteredHandleBinding>>>,
     class_declarations: BTreeMap<u32, Option<Arc<OriginalSourceClassDeclaration>>>,
+    class_declaration_facets: BTreeMap<u32, Vec<source_class::SourceClassDeclarationFacet>>,
     constructor_calls: BTreeMap<u32, Option<OriginalSourceConstructorCall>>,
     class_references: BTreeMap<
         u32,
@@ -933,6 +934,11 @@ impl OriginalSourceTransitionAdviceTape {
         self.interpreter_bodies.extend(other.interpreter_bodies);
         self.interpreter_paths.extend(other.interpreter_paths);
         self.extend_class_inventory(other.class_declarations, other.constructor_calls);
+        for (_, facets) in other.class_declaration_facets {
+            for facet in facets {
+                self.retain_class_declaration_facet(facet);
+            }
+        }
         for (offset, receipt) in other.registered_factories {
             source_class::merge_receipt(&mut self.registered_factories, offset, receipt);
         }
@@ -2254,7 +2260,7 @@ impl AdviceInvocationContext<'_> {
         )?;
         self.retain_interpreter_paths(tape, selected, graph, &schema);
         let factory = self.registered_factory(graph, selected, &schema);
-        let class = self.source_class_declaration(graph, selected, &schema);
+        let class = self.retain_source_class_declaration(tape, graph, selected, &schema);
         self.retain_source_configured_class(tape, graph, selected, &schema);
         self.retain_source_class_operand_references(
             tape,

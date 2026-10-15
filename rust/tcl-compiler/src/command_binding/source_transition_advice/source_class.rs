@@ -28,6 +28,12 @@ pub struct OriginalSourceClassDeclaration {
     slot: ByteCommandSlot,
     lineage: Vec<Arc<OriginalSourceCommandTransition>>,
 }
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct SourceClassDeclarationFacet {
+    factory: Arc<OriginalSourceCommandTransitionAdvice>,
+    class: Option<Arc<OriginalSourceClassDeclaration>>,
+}
+
 impl OriginalSourceClassDeclaration {
     /// Whole actual original definer argv and applicability.
     #[must_use]
@@ -625,6 +631,46 @@ impl OriginalSourceTransitionAdviceTape {
     pub(crate) fn source_class(&self, offset: u32) -> Option<&OriginalSourceClassDeclaration> {
         self.class_declarations.get(&offset)?.as_deref()
     }
+    pub(crate) fn source_class_for_advice(
+        &self,
+        advice: &OriginalSourceCommandTransitionAdvice,
+    ) -> Option<&OriginalSourceClassDeclaration> {
+        advice.logical_source_input()?;
+        if advice
+            .obligations
+            .contains(&SourceCommandTransitionObligation::RegisteredFactoryApplicability)
+        {
+            return None;
+        }
+        let mut factory = advice.clone();
+        factory
+            .obligations
+            .push(SourceCommandTransitionObligation::RegisteredFactoryApplicability);
+        let mut matching = self
+            .class_declaration_facets
+            .get(&advice.site.offset)?
+            .iter()
+            .filter(|facet| facet.factory.as_ref() == &factory);
+        let first = matching.next()?.class.as_deref()?;
+        matching
+            .all(|other| other.class.as_deref() == Some(first))
+            .then_some(first)
+    }
+
+    pub(super) fn retain_class_declaration_facet(&mut self, facet: SourceClassDeclarationFacet) {
+        let facets = self
+            .class_declaration_facets
+            .entry(facet.factory.site.offset)
+            .or_default();
+        if let Some(previous) = facets.iter_mut().find(|held| held.factory == facet.factory) {
+            if previous.class != facet.class {
+                previous.class = None;
+            }
+        } else {
+            facets.push(facet);
+        }
+    }
+
     pub(crate) fn constructor_call(&self, offset: u32) -> Option<&OriginalSourceConstructorCall> {
         self.constructor_calls.get(&offset)?.as_ref()
     }
@@ -662,6 +708,44 @@ impl AdviceInvocationContext<'_> {
         invocation: AdviceInvocation<'_>,
         schema: &tcl_registry::ResolvedInvocation<'_, '_>,
     ) -> Option<Arc<OriginalSourceClassDeclaration>> {
+        self.source_class_declaration_attempt(graph, invocation, schema, None)?
+            .class
+    }
+
+    pub(super) fn retain_source_class_declaration(
+        &self,
+        tape: &mut OriginalSourceTransitionAdviceTape,
+        graph: &AdviceGraph,
+        invocation: AdviceInvocation<'_>,
+        schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+    ) -> Option<Arc<OriginalSourceClassDeclaration>> {
+        Self::retain_class_declaration_attempt(
+            tape,
+            self.source_class_declaration_attempt(graph, invocation, schema, None),
+        )
+    }
+
+    fn retain_class_declaration_attempt(
+        tape: &mut OriginalSourceTransitionAdviceTape,
+        attempt: Option<SourceClassDeclarationFacet>,
+    ) -> Option<Arc<OriginalSourceClassDeclaration>> {
+        let attempt = attempt?;
+        let class = attempt.class.clone();
+        tape.retain_class_declaration_facet(attempt);
+        class
+    }
+
+    fn source_class_declaration_attempt(
+        &self,
+        graph: &AdviceGraph,
+        invocation: AdviceInvocation<'_>,
+        schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+        owner: Option<(
+            &Arc<crate::registry_invocation::OriginalSourceScriptBody>,
+            SourceCommandTransitionObligation,
+            Option<&Arc<crate::command_binding::OriginalDeclaredLogicalBodyContext>>,
+        )>,
+    ) -> Option<SourceClassDeclarationFacet> {
         // naming.source.original-class-constructor-call
         // docs/design/analysis/name-resolution-proofs/source-original-class-constructor-call.md
         let selected = schema.authored_source_descriptors().command;
@@ -683,41 +767,62 @@ impl AdviceInvocationContext<'_> {
         } else {
             return None;
         };
-        let name = invocation.arguments.get(name_at)?.input.as_ref()?.clone();
-        if name.bytes().is_empty() || name.bytes().contains(&0) {
-            return None;
-        }
-        let slot = if grammar.family == DefinerFamily::TclOo {
-            match self.policy {
-                AdviceNamingPolicy::Native(policy) => policy
-                    .recipe()
-                    .oo_object_publication_slot(graph.native_source_context()?, name.bytes())
-                    .ok()?,
-                AdviceNamingPolicy::Logical(_) => {
-                    graph.publication_key(name.bytes(), AdvicePublicationPurpose::Define)?
-                }
-            }
-        } else {
-            graph.publication_key(name.bytes(), AdvicePublicationPurpose::Define)?
-        };
-        if !graph.namespaces.contains(&slot.namespace)
-            || graph
-                .cells
-                .get(&slot)
-                .is_some_and(|cell| !matches!(cell, AdviceCell::Deleted))
-        {
-            return None;
-        }
         let mut factory = self.schema_advice(invocation, graph, schema)?;
+        if let Some((body, obligation, scope)) = owner {
+            let AdviceNamingPolicy::Logical(input) = self.policy else {
+                return None;
+            };
+            body.matches_source(self.origin.source_image(), self.config)
+                .then_some(())?;
+            body.matches_context(self.context).then_some(())?;
+            if let Some(scope) = scope {
+                (scope.matches_input(input)
+                    && scope.body_arc() == body
+                    && scope.owns_words(invocation.native))
+                .then_some(())?;
+            }
+            factory.logical_body = Some(Arc::clone(body));
+            factory.logical_scope = scope.cloned();
+            factory.obligations.push(obligation);
+        }
         factory
             .obligations
             .push(SourceCommandTransitionObligation::RegisteredFactoryApplicability);
-        Some(Arc::new(OriginalSourceClassDeclaration {
-            factory: Arc::new(factory),
-            name,
-            slot,
-            lineage: Vec::new(),
-        }))
+        let factory = Arc::new(factory);
+        let class = (|| {
+            let name = invocation.arguments.get(name_at)?.input.as_ref()?.clone();
+            if name.bytes().is_empty() || name.bytes().contains(&0) {
+                return None;
+            }
+            let slot = if grammar.family == DefinerFamily::TclOo {
+                match self.policy {
+                    AdviceNamingPolicy::Native(policy) => policy
+                        .recipe()
+                        .oo_object_publication_slot(graph.native_source_context()?, name.bytes())
+                        .ok()?,
+                    AdviceNamingPolicy::Logical(_) => {
+                        graph.publication_key(name.bytes(), AdvicePublicationPurpose::Define)?
+                    }
+                }
+            } else {
+                graph.publication_key(name.bytes(), AdvicePublicationPurpose::Define)?
+            };
+            if !graph.namespaces.contains(&slot.namespace)
+                || graph
+                    .cells
+                    .get(&slot)
+                    .is_some_and(|cell| !matches!(cell, AdviceCell::Deleted))
+            {
+                return None;
+            }
+            Some(Arc::new(OriginalSourceClassDeclaration {
+                factory: Arc::clone(&factory),
+                name,
+                slot,
+                lineage: Vec::new(),
+            }))
+        })();
+        Some(SourceClassDeclarationFacet { factory, class })
     }
     pub(super) fn install_source_class(
         tape: &mut OriginalSourceTransitionAdviceTape,
@@ -811,25 +916,20 @@ impl AdviceInvocationContext<'_> {
     }
     pub(super) fn source_class_declaration_in_body(
         &self,
+        tape: &mut OriginalSourceTransitionAdviceTape,
         graph: &AdviceGraph,
         invocation: AdviceInvocation<'_>,
         schema: &tcl_registry::ResolvedInvocation<'_, '_>,
         owner: (
             &Arc<crate::registry_invocation::OriginalSourceScriptBody>,
             SourceCommandTransitionObligation,
+            Option<&Arc<crate::command_binding::OriginalDeclaredLogicalBodyContext>>,
         ),
     ) -> Option<Arc<OriginalSourceClassDeclaration>> {
-        owner
-            .0
-            .matches_source(self.origin.source_image(), self.config)
-            .then_some(())?;
-        owner.0.matches_context(self.context).then_some(())?;
-        let mut class = self.source_class_declaration(graph, invocation, schema)?;
-        let class_mut = Arc::make_mut(&mut class);
-        let factory = Arc::make_mut(&mut class_mut.factory);
-        factory.logical_body = Some(Arc::clone(owner.0));
-        factory.obligations.push(owner.1);
-        Some(class)
+        Self::retain_class_declaration_attempt(
+            tape,
+            self.source_class_declaration_attempt(graph, invocation, schema, Some(owner)),
+        )
     }
     pub(super) fn retain_constructor_body_owner(
         tape: &mut OriginalSourceTransitionAdviceTape,
@@ -912,6 +1012,131 @@ impl AdviceInvocationContext<'_> {
 mod tests {
     use crate::analyser::Analyser;
     use crate::registry_invocation::source_structure::source_constructor_call_at;
+
+    #[test]
+    fn logical_class_facet_retains_a_same_purpose_occupied_target_refusal() {
+        use super::*;
+        use crate::registry_invocation::source_structure::{
+            OriginalRegistrySource, source_registry_words_at,
+        };
+        let source = "oo::class create C {}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let words = source_registry_words_at(source, &analysis, 0).unwrap();
+        let OriginalRegistrySource::SourceTransitions(advice) = words.source() else {
+            panic!("actual Logical schema");
+        };
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let context = input.context_registry();
+        let policy = AdviceNamingPolicy::Logical(input.clone());
+        let owner = AdviceInvocationContext {
+            origin: &advice.site.source,
+            context: &context,
+            config: advice.config,
+            dialect: advice.dialect,
+            policy: &policy,
+            query: None,
+        };
+        let mut graph = AdviceGraph::new(&context, &policy, advice.dialect).unwrap();
+        let mut tape = OriginalSourceTransitionAdviceTape::default();
+        let invocation = AdviceInvocation {
+            native: advice.original_words(),
+            head: &advice.head,
+            arguments: &advice.arguments,
+            lineage: &advice.lineage,
+        };
+        words
+            .with_source_schema(&context, |schema| {
+                let first = owner
+                    .retain_source_class_declaration(&mut tape, &graph, invocation, schema)
+                    .unwrap();
+                let slot = first.source_slot().clone();
+                assert_eq!(tape.source_class_for_advice(advice), Some(first.as_ref()));
+                AdviceInvocationContext::install_source_class(&mut tape, &mut graph, Some(first));
+                assert!(
+                    owner
+                        .retain_source_class_declaration(&mut tape, &graph, invocation, schema)
+                        .is_none()
+                );
+                assert!(
+                    tape.source_class_for_advice(advice).is_none(),
+                    "the same real facet cannot erase occupied-target refusal"
+                );
+                graph.cells.remove(&slot);
+                assert!(
+                    owner
+                        .retain_source_class_declaration(&mut tape, &graph, invocation, schema)
+                        .is_some()
+                );
+                assert!(
+                    tape.source_class_for_advice(advice).is_none(),
+                    "same-facet refusal remains terminal"
+                );
+                Some(())
+            })
+            .unwrap();
+    }
+
+    #[test]
+    fn logical_class_declarations_reborrow_the_exact_source_purpose_facet() {
+        use super::*;
+        use crate::registry_invocation::source_structure::{
+            OriginalRegistrySource, source_class_declaration_at, source_registry_words_at,
+        };
+        let source = "namespace eval left {oo::class create Widget {}}\nnamespace eval right {oo::class create Widget {}}\n";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        assert_eq!(analysis.all_classes.len(), 2);
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let context = input.context_registry();
+        let realm = analysis.retained_command_realm().unwrap();
+        for (offset, _) in source.match_indices("oo::class create") {
+            let offset = u32::try_from(offset).unwrap();
+            let words = source_registry_words_at(source, &analysis, offset).unwrap();
+            let OriginalRegistrySource::SourceTransitions(advice) = words.source() else {
+                panic!("the authentic original Logical source schema");
+            };
+            let declaration = source_class_declaration_at(source, &analysis, offset)
+                .expect("the actual source class issuer facet");
+            assert!(declaration.logical_source_class(&analysis).is_some());
+            assert!(declaration.source_class(&analysis).is_none());
+            let mut tape = realm
+                .source_bindings_ref()
+                .original_source_transition_advice_tape(&context)
+                .unwrap();
+            assert_eq!(tape.source_class_for_advice(advice), Some(&declaration));
+            // A generic purpose conflict cannot manufacture or erase the
+            // independently retained exact source facet.
+            tape.class_declarations.insert(offset, None);
+            assert!(tape.source_class(offset).is_none());
+            assert_eq!(tape.source_class_for_advice(advice), Some(&declaration));
+            let mut changed = advice.as_ref().clone();
+            changed
+                .uncertain_operations
+                .push(Arc::from(advice.original_words()));
+            assert!(tape.source_class_for_advice(&changed).is_none());
+            let mut conflicting = declaration.clone();
+            conflicting.slot.simple = tcl_core_types::NameBytes::from(b"Other".as_slice());
+            tape.retain_class_declaration_facet(SourceClassDeclarationFacet {
+                factory: Arc::clone(&declaration.factory),
+                class: Some(Arc::new(conflicting)),
+            });
+            assert!(tape.source_class_for_advice(advice).is_none());
+            let mut tape = realm
+                .source_bindings_ref()
+                .original_source_transition_advice_tape(&context)
+                .unwrap();
+            tape.retain_class_declaration_facet(SourceClassDeclarationFacet {
+                factory: Arc::clone(&declaration.factory),
+                class: None,
+            });
+            assert!(tape.source_class_for_advice(advice).is_none());
+            tape.class_declaration_facets.clear();
+            assert!(tape.source_class_for_advice(advice).is_none());
+            assert!(
+                source_class_declaration_at(&source.replace("Widget", "Other"), &analysis, offset)
+                    .is_none()
+            );
+        }
+    }
 
     #[test]
     fn original_abstract_constructor_defaults_and_exports_keep_selected_native_source_grammar() {

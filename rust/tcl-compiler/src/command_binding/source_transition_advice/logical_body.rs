@@ -825,12 +825,14 @@ impl LogicalBodyWalk<'_, '_> {
         let native = invocation.native;
         let factory = self.context.registered_factory(graph, invocation, schema);
         let class = self.context.source_class_declaration_in_body(
+            tape,
             graph,
             invocation,
             schema,
             (
                 scope.body_arc(),
                 SourceCommandTransitionObligation::DeferredLogicalBodyApplicability,
+                Some(scope),
             ),
         );
         let (roles, complete) = self.context.authored_roles(schema);

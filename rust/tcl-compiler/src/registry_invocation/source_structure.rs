@@ -1560,6 +1560,13 @@ pub fn source_class_declaration_at(
     offset: u32,
 ) -> Option<crate::command_binding::OriginalSourceClassDeclaration> {
     let (input, realm, native) = registered_original_words_at(source, analysis, offset)?;
+    if input.has_logical_source_name_context() {
+        let words = source_registry_words_at(source, analysis, offset)?;
+        let OriginalRegistrySource::SourceTransitions(advice) = words.source() else {
+            return None;
+        };
+        return realm.original_source_class_declaration_for_advice(input, &native, advice);
+    }
     realm.original_source_class_declaration(input, &native)
 }
 

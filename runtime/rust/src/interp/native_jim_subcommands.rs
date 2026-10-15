@@ -171,13 +171,24 @@ impl Interp {
             .iter()
             .map(|entry| obj::new_string_bytes(entry.name().as_bytes()))
             .collect();
-        let list = obj::Owned::fresh(self.new_list_object(&names));
-        let head = obj::Owned::fresh(obj::new_string_bytes(table.diagnostic_sort_head()));
-        for original in [head.as_ptr(), list.as_ptr()] {
+        let list = OriginalParserCommandList {
+            original: obj::NativeObjectLifetime::retain(self.new_list_object(&names)),
+            fresh: true,
+        };
+        let head = OriginalParserCommandList {
+            original: obj::NativeObjectLifetime::retain(obj::new_string_bytes(
+                table.diagnostic_sort_head(),
+            )),
+            fresh: true,
+        };
+        for original in [head.original.checked_ptr()?, list.original.checked_ptr()?] {
             crate::native_source::bind_context(original, &context)?;
             current()?;
         }
-        let code = self.dispatch(&[head.as_ptr(), list.as_ptr()]);
+        let code = self.eval_original_object_vector(&[
+            head.original.checked_ptr()?,
+            list.original.checked_ptr()?,
+        ]);
         drop(head);
         drop(list);
         current()?;

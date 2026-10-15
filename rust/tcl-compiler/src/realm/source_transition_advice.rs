@@ -444,6 +444,38 @@ impl super::CommandBindingRealm {
             .then(|| receipt.clone())
     }
 
+    /// One authentic Logical declaration facet under its actual source schema.
+    /// Generic inventory conflicts and Native occupation remain independent.
+    pub(crate) fn original_source_class_declaration_for_advice(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        original: &[tcl_lexer::NativeWord],
+        advice: &crate::command_binding::OriginalSourceCommandTransitionAdvice,
+    ) -> Option<crate::command_binding::OriginalSourceClassDeclaration> {
+        self.matches_resolved_analysis_input(input).then_some(())?;
+        let image = self.original_source_image()?;
+        let config = input.lexer_config();
+        self.matches_original_source_image(image, config)
+            .then_some(())?;
+        let context = input.context_registry();
+        if advice.logical_source_input() != Some(input)
+            || !advice.matches_source(image, config)
+            || !advice.matches_context(&context)
+            || advice.original_words() != original
+        {
+            return None;
+        }
+        let prepared = self.source_advice.get_or_prepare(&context, || {
+            self.bindings
+                .original_source_transition_advice_tape(&context)
+        });
+        let receipt = prepared
+            .as_ref()
+            .as_ref()?
+            .source_class_for_advice(advice)?;
+        Some(receipt.clone())
+    }
+
     /// Conditional original list-child class reference at its actual consumer.
     pub(crate) fn original_source_class_reference(
         &self,

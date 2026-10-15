@@ -1300,19 +1300,21 @@ impl BodyWalk<'_, '_> {
     ) {
         let class = self
             .inventory
-            .as_ref()
-            .and(self.source_body.as_ref())
-            .and_then(|body| {
+            .as_mut()
+            .zip(self.source_body.as_ref())
+            .and_then(|(tape, body)| {
                 if !matches!(self.context.policy, AdviceNamingPolicy::Logical(_)) {
                     return None;
                 }
                 self.context.source_class_declaration_in_body(
+                    tape,
                     graph,
                     invocation,
                     schema,
                     (
                         body,
                         SourceCommandTransitionObligation::ConditionalLogicalBodyApplicability,
+                        self.logical_scope.as_ref(),
                     ),
                 )
             });

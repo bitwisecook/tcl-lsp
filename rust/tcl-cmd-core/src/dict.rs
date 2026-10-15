@@ -311,8 +311,10 @@ pub fn keys<O: ValueOps>(
     let pairs = ops.dict_pairs(dict)?;
     let mut out = Vec::new();
     for (k, _) in &pairs {
-        let ks = ops.as_bytes(k);
-        if pat.as_deref().is_none_or(|p| string_match_bytes(p, &ks)) {
+        if pat
+            .as_deref()
+            .is_none_or(|p| string_match_bytes(p, &ops.as_bytes(k)))
+        {
             out.push(k.clone());
         }
     }
