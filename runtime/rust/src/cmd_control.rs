@@ -520,16 +520,39 @@ fn while_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     let cond = argv[1];
     let body = argv[2];
+    let import = match interp.original_import_while(argv) {
+        Ok(scope) => scope,
+        Err(error) => return interp.report_cmd_error(error.into()),
+    };
     loop {
         if let Some(code) = interp.limit_check_tick() {
             return code;
         }
+        if let Some(import) = &import {
+            if let Err(error) = import.condition_start(interp) {
+                return interp.report_cmd_error(error.into());
+            }
+        }
         match crate::builtins::eval_bool_expr(interp, cond) {
-            Ok(true) => {}
-            Ok(false) => break,
+            Ok(value) => {
+                if let Some(import) = &import {
+                    if let Err(error) = import.condition_completed(interp, value) {
+                        return interp.report_cmd_error(error.into());
+                    }
+                }
+                if !value {
+                    break;
+                }
+            }
             Err(code) => return code,
         }
-        match interp.eval_control_body(body) {
+        let code = interp.eval_control_body(body);
+        if let Some(import) = &import {
+            if let Err(error) = import.body_completed(interp, code) {
+                return interp.report_cmd_error(error.into());
+            }
+        }
+        match code {
             Code::Ok | Code::Continue => {}
             Code::Break => break,
             Code::Error => {
@@ -817,6 +840,7 @@ fn refresh_each_loop_group(
     recipe: tcl_runtime_api::native_each_loop::NativeEachLoopRecipe,
     strings: tcl_syntax::native_string::NativeStringProtocol,
     arguments: &OriginalArguments,
+    import: Option<&crate::interp::OriginalJimImportEachLoop>,
 ) -> Result<(), Code> {
     use tcl_cmd_core::native_each_loop::EachLoopAction;
     match action {
@@ -829,7 +853,12 @@ fn refresh_each_loop_group(
             };
             if let Some(source) = &group.source_return {
                 source
-                    .check(interp, group.values)
+                    .check_inventory(interp, group.values)
+                    .map_err(|error| interp.report_cmd_error(error.into()))?;
+            }
+            if let Some(import) = import {
+                import
+                    .check_values(interp, group.values)
                     .map_err(|error| interp.report_cmd_error(error.into()))?;
             }
             cursor.set_value_length(index, items.len());
@@ -899,6 +928,8 @@ fn assign_each_loop_variable(
     protocol: tcl_registry::native_each_loop::NativeEachLoopProtocol,
     padding: Option<*mut TclObj>,
     arguments: &OriginalArguments,
+    import: Option<&crate::interp::OriginalJimImportEachLoop>,
+    group_index: usize,
 ) -> Result<(), Code> {
     let recipe = protocol.recipe();
     let kind = protocol.kind();
@@ -969,6 +1000,11 @@ fn assign_each_loop_variable(
             }
         }
     }
+    if let Some(import) = import {
+        import
+            .assigned(interp, group_index, variable, value.map(|_| assigned))
+            .map_err(|error| interp.report_cmd_error(error.into()))?;
+    }
     Ok(())
 }
 
@@ -1026,6 +1062,14 @@ fn each_loop_with_original(
             Ok(prepared) => prepared,
             Err(code) => return code,
         };
+    let import = match interp.original_import_each_loop(
+        argv,
+        collect,
+        &lengths.iter().map(|length| length.0).collect::<Vec<_>>(),
+    ) {
+        Ok(scope) => scope,
+        Err(error) => return interp.report_cmd_error(error.into()),
+    };
     let jim_empty = if recipe.live_iterators() {
         match interp.native_jim_object_context() {
             Ok(context) => {
@@ -1067,6 +1111,7 @@ fn each_loop_with_original(
                     recipe,
                     strings,
                     arguments,
+                    import.as_ref(),
                 ) {
                     return code;
                 }
@@ -1084,6 +1129,8 @@ fn each_loop_with_original(
                     protocol,
                     padding,
                     arguments,
+                    import.as_ref(),
+                    group,
                 ) {
                     return code;
                 }
@@ -1095,6 +1142,11 @@ fn each_loop_with_original(
                 let code = interp.eval_generic_control_body(argv[argv.len() - 1]);
                 if let Err(error) = arguments.check_for(interp) {
                     return interp.report_cmd_error(error);
+                }
+                if let Some(import) = &import {
+                    if let Err(error) = import.body_completed(interp, code) {
+                        return interp.report_cmd_error(error.into());
+                    }
                 }
                 match cursor.body_completion(tcl_core_types::Code::from_int(
                     i32::try_from(code.as_int()).expect("runtime completion code is a C int"),
@@ -1112,6 +1164,11 @@ fn each_loop_with_original(
                 }
             }
             EachLoopAction::Finish => {
+                if let Some(import) = &import {
+                    if let Err(error) = import.finish(interp) {
+                        return interp.report_cmd_error(error.into());
+                    }
+                }
                 if collect && (cursor.entered_body() || recipe.empty_lmap_publishes_list()) {
                     let values = collected
                         .iter()

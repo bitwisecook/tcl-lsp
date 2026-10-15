@@ -129,3 +129,54 @@ fn original_jim_command_inventory_keeps_key_identity_lazy_headers_and_native_ref
         assert!(interp.native_execution_refusal().is_none(), "{row}");
     }
 }
+
+#[test]
+fn completed_inventory_receipts_keep_original_list_correspondence_without_native_roles() {
+    let mut interpreter = Interp::with_native_core(
+        super::super::default_host(),
+        crate::environment::profile_for_dialect("jimtcl"),
+        tcl_registry::special_vars::NativeBootstrapInputs::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        interpreter.eval_str(b"proc snapshot_member {} {}"),
+        Code::Ok
+    );
+    let operation =
+        super::super::native_operation_currency::NativeOperationScope::enter(&interpreter).unwrap();
+    let keys = interpreter
+        .namespaces()
+        .original_jim_command_inventory_keys(
+            tcl_runtime_api::NativeJimCommandInventoryKind::Commands,
+            &|_, _| true,
+        )
+        .unwrap();
+    let key = keys
+        .into_iter()
+        .find(|key| key.report == b"snapshot_member")
+        .unwrap();
+    let original = key.original().unwrap();
+    let result = Owned::fresh(interpreter.new_list_object(&[original]));
+    let count = references(original);
+    let receipt =
+        OriginalJimCommandInventoryReturn::capture(&interpreter, result.as_ptr(), vec![key])
+            .unwrap();
+    assert_eq!(references(original), count);
+    receipt.check(&interpreter, result.as_ptr()).unwrap();
+    let copy = Owned::fresh(obj::duplicate(result.as_ptr()));
+    assert!(receipt.check(&interpreter, copy.as_ptr()).is_err());
+    assert_eq!(references(original), count + 1);
+    drop(copy);
+    assert_eq!(references(original), count);
+    crate::list::append_prepared_native_elements(
+        result.as_ptr(),
+        &[original],
+        tcl_syntax::native_string::NativeStringProtocol::Jim084,
+    )
+    .unwrap();
+    assert!(receipt.check(&interpreter, result.as_ptr()).is_err());
+    drop(receipt);
+    assert_eq!(references(original), count + 1);
+    operation.currency().ensure_current_or_refuse().unwrap();
+    assert!(interpreter.native_execution_refusal().is_none());
+}

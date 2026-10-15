@@ -1591,6 +1591,7 @@ struct Frame {
     c_procedure: Option<Rc<crate::interp::ProcDef>>,
     original_jim_procedure: Option<std::rc::Weak<crate::interp::ProcDef>>,
     original_jim_variadic: Option<OriginalJimVariadic>,
+    original_jim_import: Option<Rc<crate::interp::OriginalJimImportTraversal>>,
     oo_variable_resolver: Option<crate::cmd_oo::native_variables::NativeOoVariableResolver>,
     native_procedure_execution: Option<
         tcl_runtime_api::native_procedure_roles::NativeProcedureReference<crate::interp::ProcDef>,
@@ -1678,6 +1679,7 @@ impl Frame {
             c_procedure: None,
             original_jim_procedure: None,
             original_jim_variadic: None,
+            original_jim_import: None,
             oo_variable_resolver: None,
             native_procedure_execution: None,
             native_local_names: None,
@@ -1884,6 +1886,33 @@ impl FrameStack {
             .and_then(|frame| frame.original_jim_variadic.as_ref())
             .map(OriginalJimVariadic::original)
             .transpose()
+    }
+
+    pub(crate) fn observe_original_jim_import_traversal(
+        &mut self,
+        traversal: Rc<crate::interp::OriginalJimImportTraversal>,
+    ) {
+        self.frames
+            .last_mut()
+            .expect("actual Jim activation")
+            .original_jim_import = Some(traversal);
+    }
+
+    pub(crate) fn current_original_jim_import_traversal(
+        &self,
+    ) -> Result<Option<Rc<crate::interp::OriginalJimImportTraversal>>, tcl_syntax::value::ValueError>
+    {
+        let traversal = self
+            .frames
+            .get(self.current_frame_index())
+            .and_then(|frame| frame.original_jim_import.as_ref())
+            .cloned();
+        if traversal.is_some() && self.current_original_jim_procedure()?.is_none() {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "original Import selected procedure frame",
+            ));
+        }
+        Ok(traversal)
     }
 
     #[cfg(test)]

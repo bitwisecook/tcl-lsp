@@ -258,6 +258,12 @@ impl NativeJimSourceOrigin {
     pub(crate) fn belongs_to(&self, original: *mut TclObj) -> bool {
         self.original == original
     }
+
+    pub(crate) fn is_child_of(&self, parent: &Rc<Self>) -> bool {
+        self.parent
+            .as_ref()
+            .is_some_and(|actual| Rc::ptr_eq(actual, parent))
+    }
 }
 
 /// Capture a real Source birth before its selected declaration is published.

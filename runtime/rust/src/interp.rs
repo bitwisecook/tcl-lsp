@@ -81,7 +81,9 @@ mod native_error_variables;
 mod native_execution_constants;
 mod native_hidden_invocation;
 mod native_index_lookup;
+mod native_jim_import;
 mod native_jim_increment;
+pub(crate) use native_jim_import::{OriginalJimImportEachLoop, OriginalJimImportTraversal};
 #[cfg(test)]
 mod native_jim_invocation_tests;
 mod native_jim_links;
@@ -4304,9 +4306,11 @@ impl Interp {
             Command::Alias {
                 original_prefix: original,
                 ..
-            } => Ok(tcl_runtime_api::AliasPrefixLookup::Prefix(
-                original.checked_ptr()?,
-            )),
+            } => {
+                let prefix = original.checked_ptr()?;
+                self.original_import_alias_prefix(original_name, prefix)?;
+                Ok(tcl_runtime_api::AliasPrefixLookup::Prefix(prefix))
+            }
             _ => Ok(tcl_runtime_api::AliasPrefixLookup::NotAlias),
         }
     }
@@ -13967,6 +13971,15 @@ impl Interp {
     }
 
     pub(crate) fn eval_body_obj(&mut self, obj: *mut TclObj) -> Code {
+        self.eval_body_obj_with_inventory(obj, &mut None)
+    }
+
+    fn eval_body_obj_with_inventory(
+        &mut self,
+        obj: *mut TclObj,
+        inventory: &mut Option<Rc<native_jim_lookup::OriginalJimCommandInventoryReturn>>,
+    ) -> Code {
+        *inventory = None;
         if let Err(first) = self.clear_return_options_checked() {
             return self.refuse_native_execution(first);
         }
@@ -13986,10 +13999,11 @@ impl Interp {
                 frame.line_base = 0;
             }
         }
-        self.eval_original_body_framed(
+        self.eval_original_body_framed_with_inventory(
             tcl_registry::native_eval_object::EvalObjectPurpose::Eval,
             obj,
             frame,
+            inventory,
         )
     }
 
@@ -14000,6 +14014,17 @@ impl Interp {
         original: *mut TclObj,
         frame: CmdFrame,
     ) -> Code {
+        self.eval_original_body_framed_with_inventory(purpose, original, frame, &mut None)
+    }
+
+    fn eval_original_body_framed_with_inventory(
+        &mut self,
+        purpose: tcl_registry::native_eval_object::EvalObjectPurpose,
+        original: *mut TclObj,
+        frame: CmdFrame,
+        inventory: &mut Option<Rc<native_jim_lookup::OriginalJimCommandInventoryReturn>>,
+    ) -> Code {
+        *inventory = None;
         let owner = obj::Owned::retain(original);
         let Some(protocol) = self.eval_object_protocol() else {
             return self.report_cmd_error(
@@ -14026,7 +14051,7 @@ impl Interp {
             let code = if list_dispatch {
                 self.dispatch_list_obj(owner.as_ptr(), frame)
             } else {
-                self.eval_native_jim_script(owner, frame)
+                self.eval_native_jim_script_with_inventory(owner, frame, inventory)
             };
             self.codegen_activation_leave(code);
             return code;
@@ -17609,6 +17634,21 @@ impl Interp {
         let native = meta
             .native
             .filter(|_| self.traces.borrow().step_active.is_empty());
+        let import_traversal = self
+            .frames
+            .borrow()
+            .current_original_jim_procedure()
+            .and_then(|procedure| match procedure {
+                Some(procedure) => {
+                    native_jim_import::OriginalJimImportTraversal::capture(self, &procedure)
+                }
+                None => Ok(None),
+            });
+        if let Ok(Some(traversal)) = &import_traversal {
+            self.frames
+                .borrow_mut()
+                .observe_original_jim_import_traversal(Rc::clone(traversal));
+        }
         let body_options = self.clear_return_options_checked();
         native_admission.activate();
         let jim_level = self.jim_procedure_level.get();
@@ -17618,7 +17658,13 @@ impl Interp {
         let execution: Result<(), tcl_cmd_core::CmdError> = match body_options {
             Ok(()) => self
                 .acquire_native_procedure_execution(meta.c_procedure)
-                .map_err(tcl_cmd_core::CmdError::from),
+                .map_err(tcl_cmd_core::CmdError::from)
+                .and_then(|()| {
+                    import_traversal
+                        .as_ref()
+                        .map(|_| ())
+                        .map_err(|error| error.clone().into())
+                }),
             Err(first) => Err(first.into()),
         };
         let code = match execution {
@@ -17641,6 +17687,11 @@ impl Interp {
                 ),
             },
         };
+        let import_completion = import_traversal
+            .as_ref()
+            .ok()
+            .and_then(Option::as_ref)
+            .map(|traversal| traversal.normal_completion(self));
         self.release_native_procedure_execution();
         self.jim_procedure_level.set(jim_level);
         // The frame's local variables (and any traces on them) die with it.
@@ -17681,6 +17732,9 @@ impl Interp {
         if let Some(tailcall) = tailcall.filter(|_| {
             code == Code::Ok || code == Code::Return || Some(code.as_int()) == tailcall_code
         }) {
+            if let Some(Err(error)) = import_completion {
+                return self.report_cmd_error(error.into());
+            }
             if let Err(first) = self.clear_return_options_checked() {
                 return self.refuse_native_execution(first);
             }
@@ -17699,6 +17753,14 @@ impl Interp {
                 self.error(b"invoked \"continue\" outside of a loop")
             }
             other => other,
+        };
+        let settled = if settled == Code::Ok {
+            match import_completion {
+                Some(Err(error)) => self.report_cmd_error(error.into()),
+                _ => settled,
+            }
+        } else {
+            settled
         };
         // On error, append the `(procedure "name" line N)` / `(lambda term ...)`
         // frame and clear `already_logged` so the proc-call command logs next.

@@ -28,6 +28,60 @@ enum OriginalJimCachedStore {
     Unavailable,
 }
 
+/// The actual List and original keys produced by one completed inventory.
+/// A retained generation records production; this grants no later callable.
+pub(super) struct OriginalJimCommandInventoryReturn {
+    original: obj::NativeObjectLifetime,
+    backing: crate::list::NativeListBacking,
+    keys: Vec<crate::namespace::OriginalJimCommandInventoryKey>,
+    namespace: OriginalJimLookupNamespace,
+}
+
+impl OriginalJimCommandInventoryReturn {
+    pub(super) fn capture(
+        actual: &Interp,
+        original: *mut TclObj,
+        keys: Vec<crate::namespace::OriginalJimCommandInventoryKey>,
+    ) -> Result<Self, ValueError> {
+        obj::check_native_liveness(original)?;
+        let backing = crate::list::native_list_backing(original).ok_or(
+            ValueError::CommandProtocolUnavailable("original Jim inventory result List"),
+        )?;
+        let result = Self {
+            original: obj::NativeObjectLifetime::retain(original),
+            backing,
+            keys,
+            namespace: OriginalJimLookupNamespace::capture(actual, crate::namespace::GLOBAL)?,
+        };
+        result.check(actual, original)?;
+        Ok(result)
+    }
+
+    pub(super) fn check(&self, actual: &Interp, original: *mut TclObj) -> Result<(), ValueError> {
+        self.namespace.check(actual)?;
+        if self.original.checked_ptr()? != original {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "original Jim inventory result header",
+            ));
+        }
+        self.backing.check_original_header(original)?;
+        let members = self.backing.elements()?;
+        if members.len() != self.keys.len() {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "original Jim inventory result members",
+            ));
+        }
+        for (&member, key) in members.iter().zip(&self.keys) {
+            if key.original()? != member {
+                return Err(ValueError::CommandProtocolUnavailable(
+                    "original Jim inventory original member",
+                ));
+            }
+        }
+        Ok(())
+    }
+}
+
 /// The genuine current namespace holder and frame, before any reached getter.
 /// A weak owner observation and allocation lease preserve actual native retirement.
 pub(crate) struct OriginalJimLookupNamespace {
@@ -245,14 +299,20 @@ impl Interp {
             })?;
         check()?;
         let mut members = Vec::with_capacity(selected.len());
+        let mut originals = Vec::with_capacity(selected.len());
         for index in selected {
             let key = &keys[index];
             self.namespaces()
                 .check_original_jim_command_inventory_key(key)?;
             members.push(key.original()?);
+            originals.push((**key).clone());
         }
         let result = self.new_list_object(&members);
         if let Err(error) = check() {
+            super::drop_fresh(result);
+            return Err(error);
+        }
+        if let Err(error) = self.record_original_source_inventory_return(result, originals) {
             super::drop_fresh(result);
             return Err(error);
         }

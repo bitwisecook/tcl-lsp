@@ -17,14 +17,18 @@ use tcl_syntax::{
 pub(super) struct OriginalSourceInvocation {
     frame: super::native_arguments::OriginalArgumentFrame,
     procedure: std::rc::Weak<super::ProcDef>,
-    root: std::rc::Rc<crate::native_source::NativeJimSourceOrigin>,
+    pub(super) root: std::rc::Rc<crate::native_source::NativeJimSourceOrigin>,
     argv: Vec<crate::obj::NativeObjectLifetime>,
-    operands: Vec<Option<OriginalSourceOperand>>,
+    pub(super) operands: Vec<Option<OriginalSourceOperand>>,
+    inventory_return: std::cell::RefCell<
+        Option<std::rc::Rc<super::native_jim_lookup::OriginalJimCommandInventoryReturn>>,
+    >,
 }
 
 pub(super) struct OriginalSourceOperand {
-    source: std::rc::Rc<crate::native_source::NativeJimSourceOrigin>,
-    returned: bool,
+    pub(super) source: std::rc::Rc<crate::native_source::NativeJimSourceOrigin>,
+    pub(super) returned: bool,
+    inventory: Option<std::rc::Rc<super::native_jim_lookup::OriginalJimCommandInventoryReturn>>,
 }
 
 /// The exact object returned by one reached Command token. This does not
@@ -54,9 +58,33 @@ impl OriginalSourceCommandReturn {
         }
         Ok(())
     }
+
+    pub(crate) fn check_inventory(
+        &self,
+        actual: &Interp,
+        original: *mut crate::obj::TclObj,
+    ) -> Result<(), ValueError> {
+        self.check(actual, original)?;
+        let inventory = self.invocation.operands[self.index]
+            .as_ref()
+            .and_then(|operand| operand.inventory.as_ref())
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "original Import inventory return producer",
+            ))?;
+        inventory.check(actual, original)
+    }
 }
 
 impl OriginalSourceInvocation {
+    pub(super) fn check_retained(&self, actual: &Interp) -> Result<(), ValueError> {
+        let argv = self
+            .argv
+            .iter()
+            .map(crate::obj::NativeObjectLifetime::checked_ptr)
+            .collect::<Result<Vec<_>, _>>()?;
+        self.check(actual, &argv)
+    }
+
     fn capture(
         actual: &Interp,
         backing: &crate::native_script::NativeJimScript,
@@ -92,6 +120,7 @@ impl OriginalSourceInvocation {
                 .map(|&original| crate::obj::NativeObjectLifetime::retain(original))
                 .collect(),
             operands,
+            inventory_return: std::cell::RefCell::new(None),
         })))
     }
 
@@ -129,6 +158,43 @@ impl OriginalSourceInvocation {
 }
 
 impl Interp {
+    pub(super) fn current_original_source_invocation(
+        &self,
+    ) -> Result<Option<std::rc::Rc<OriginalSourceInvocation>>, ValueError> {
+        let invocations = self.jim_invocation_borrows.borrow();
+        let Some(invocation) = invocations.last() else {
+            return Ok(None);
+        };
+        let Some(source) = invocation.source.as_ref() else {
+            return Ok(None);
+        };
+        source.check(self, &invocation.argv)?;
+        Ok(Some(std::rc::Rc::clone(source)))
+    }
+
+    pub(super) fn record_original_source_inventory_return(
+        &self,
+        original: *mut crate::obj::TclObj,
+        keys: Vec<crate::namespace::OriginalJimCommandInventoryKey>,
+    ) -> Result<(), ValueError> {
+        let source = {
+            let borrows = self.jim_invocation_borrows.borrow();
+            let Some(invocation) = borrows.last() else {
+                return Ok(());
+            };
+            let Some(source) = invocation.source.as_ref() else {
+                return Ok(());
+            };
+            source.check(self, &invocation.argv)?;
+            std::rc::Rc::clone(source)
+        };
+        let inventory = super::native_jim_lookup::OriginalJimCommandInventoryReturn::capture(
+            self, original, keys,
+        )?;
+        *source.inventory_return.borrow_mut() = Some(std::rc::Rc::new(inventory));
+        Ok(())
+    }
+
     pub(crate) fn original_source_command_return(
         &self,
         index: usize,
@@ -192,6 +258,18 @@ impl Interp {
     }
 
     pub(super) fn eval_native_jim_script(&mut self, original: Owned, frame: CmdFrame) -> Code {
+        self.eval_native_jim_script_with_inventory(original, frame, &mut None)
+    }
+
+    pub(super) fn eval_native_jim_script_with_inventory(
+        &mut self,
+        original: Owned,
+        frame: CmdFrame,
+        inventory: &mut Option<
+            std::rc::Rc<super::native_jim_lookup::OriginalJimCommandInventoryReturn>,
+        >,
+    ) -> Code {
+        *inventory = None;
         let scope = match super::native_operation_currency::NativeOperationScope::enter(self) {
             Ok(scope) => scope,
             Err(first) => return self.refuse_native_execution(first),
@@ -266,7 +344,8 @@ impl Interp {
                 if let Some(frame) = self.cmd_frames.borrow_mut().last_mut() {
                     frame.line = u32::from_ne_bytes(line.to_ne_bytes());
                 }
-                let code = self.eval_native_jim_words(&backing, &script.objects, command.words);
+                let code =
+                    self.eval_native_jim_words(&backing, &script.objects, command.words, inventory);
                 if code == Code::Error {
                     // Capture while the actual Script frame and procedure level are
                     // live. Failed lookup has no selected invocation argv.
@@ -310,16 +389,25 @@ impl Interp {
         backing: &std::rc::Rc<crate::native_script::NativeJimScript>,
         objects: &JimScriptObjects<Owned>,
         words: Vec<JimScriptWord>,
+        inventory: &mut Option<
+            std::rc::Rc<super::native_jim_lookup::OriginalJimCommandInventoryReturn>,
+        >,
     ) -> Code {
+        *inventory = None;
         let mut argv = Vec::<Owned>::with_capacity(words.len());
         let mut origins = Vec::with_capacity(words.len());
         for word in words {
+            let mut returned_inventory = None;
             let source = (word.tokens.len() == 1 && !word.expand)
                 .then(|| backing.token_origin(word.tokens.start).cloned())
                 .flatten();
             let mut parts = Vec::with_capacity(word.tokens.len());
             for token in &objects.tokens()[word.tokens.clone()] {
-                let value = match self.eval_native_jim_token(token.kind, &token.value) {
+                let value = match self.eval_native_jim_token_with_inventory(
+                    token.kind,
+                    &token.value,
+                    &mut returned_inventory,
+                ) {
                     Ok(value) => value,
                     Err(Code::Return) if word.tokens.len() > 1 => Owned::retain(self.result_obj()),
                     Err(code @ (Code::Break | Code::Continue)) if word.tokens.len() > 1 => {
@@ -369,6 +457,7 @@ impl Interp {
                             tcl_lexer::JimScriptTokenKind::Command,
                         )),
                     source,
+                    inventory: returned_inventory,
                 }));
                 argv.push(value);
             }
@@ -382,7 +471,19 @@ impl Interp {
                 Ok(origin) => origin,
                 Err(error) => return self.report_cmd_error(error.into()),
             };
-            self.dispatch_original_source(&pointers, origin.as_ref())
+            let code = self.dispatch_original_source(&pointers, origin.as_ref());
+            if code == Code::Ok {
+                if let Some(receipt) = origin
+                    .as_ref()
+                    .and_then(|source| source.inventory_return.borrow_mut().take())
+                {
+                    if let Err(error) = receipt.check(self, self.result_obj()) {
+                        return self.report_cmd_error(error.into());
+                    }
+                    *inventory = Some(receipt);
+                }
+            }
+            code
         }
     }
 
@@ -391,6 +492,18 @@ impl Interp {
         kind: JimScriptObjectKind,
         original: &Owned,
     ) -> Result<Owned, Code> {
+        self.eval_native_jim_token_with_inventory(kind, original, &mut None)
+    }
+
+    fn eval_native_jim_token_with_inventory(
+        &mut self,
+        kind: JimScriptObjectKind,
+        original: &Owned,
+        inventory: &mut Option<
+            std::rc::Rc<super::native_jim_lookup::OriginalJimCommandInventoryReturn>,
+        >,
+    ) -> Result<Owned, Code> {
+        *inventory = None;
         match kind {
             JimScriptObjectKind::Source(
                 tcl_lexer::JimScriptTokenKind::String | tcl_lexer::JimScriptTokenKind::Escaped,
@@ -399,7 +512,7 @@ impl Interp {
                 .read_original_named_variable(original.as_ptr())
                 .map(Owned::retain),
             JimScriptObjectKind::Source(tcl_lexer::JimScriptTokenKind::Command) => {
-                let code = self.eval_body_obj(original.as_ptr());
+                let code = self.eval_body_obj_with_inventory(original.as_ptr(), inventory);
                 if code == Code::Ok {
                     Ok(Owned::retain(self.result_obj()))
                 } else {

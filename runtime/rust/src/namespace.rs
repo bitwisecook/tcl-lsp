@@ -132,6 +132,7 @@ struct CommandSlot {
 }
 
 /// An actual current root-table entry, independent of its displayed name.
+#[derive(Clone)]
 pub(crate) struct OriginalJimCommandInventoryKey {
     pub(crate) generation: u64,
     pub(crate) report: Vec<u8>,

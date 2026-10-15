@@ -72,6 +72,9 @@ fn jim_alias(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Ok(arguments) => arguments,
         Err(error) => return interp.report_cmd_error(error),
     };
+    if let Err(error) = interp.original_import_alias_publication(argv, false) {
+        return interp.report_cmd_error(error.into());
+    }
     let original_prefix = std::rc::Rc::new(crate::interp::NativeAliasHeader::new(
         obj::Owned::fresh(interp.new_list_object(&argv[2..])),
     ));
@@ -107,7 +110,13 @@ fn jim_alias(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         },
         Err(error) => interp.report_cmd_error(error),
     };
-    arguments.finish(code)
+    let code = arguments.finish(code);
+    if code == Code::Ok {
+        if let Err(error) = interp.original_import_alias_publication(argv, true) {
+            return interp.report_cmd_error(error.into());
+        }
+    }
+    code
 }
 
 // rename

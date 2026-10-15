@@ -127,6 +127,11 @@ fn exists_original(
     }
     match reached {
         Ok(exists) => {
+            if kind == NativeJimExistsKind::Alias {
+                if let Err(error) = interpreter.original_import_alias_exists(original, exists) {
+                    return interpreter.report_cmd_error(error.into());
+                }
+            }
             interpreter.set_result(crate::obj::new_boolean_obj(i32::from(exists)));
             Code::Ok
         }
