@@ -398,7 +398,7 @@ impl Vm {
             .into());
         }
         let scope = OriginalNameConsumerScope::enter_for_namespace(self, Some(root))?;
-        let revision = self.cmd_epoch.get();
+        let revision = self.compilation_epochs.cmd_epoch.get();
         let keys = self.original_jim_inventory_keys(kind)?;
         let reports: Vec<_> = keys.iter().map(|key| key.report.clone()).collect();
         let policy = self
@@ -416,7 +416,7 @@ impl Vm {
         let mut candidates = Vec::with_capacity(keys.len());
         for key in &keys {
             let current = |vm: &mut Vm| {
-                let unchanged = vm.cmd_epoch.get() == revision;
+                let unchanged = vm.compilation_epochs.cmd_epoch.get() == revision;
                 scope.require(vm, unchanged, "original Jim inventory table revision")?;
                 key.check(vm, &scope)
             };
@@ -453,7 +453,7 @@ impl Vm {
                     "original Jim command inventory native match",
                 )
             })?;
-        let unchanged = self.cmd_epoch.get() == revision;
+        let unchanged = self.compilation_epochs.cmd_epoch.get() == revision;
         scope.require(self, unchanged, "original Jim inventory table revision")?;
         let mut members = Vec::with_capacity(selected.len());
         for &index in &selected {
@@ -464,7 +464,7 @@ impl Vm {
         let result = tcl_syntax::value::ValueOps::new_list(self, members);
         result.bind_native_jim_context(&self.native_jim_object_context()?)?;
         scope.current_for_value(self, &result)?;
-        let unchanged = self.cmd_epoch.get() == revision;
+        let unchanged = self.compilation_epochs.cmd_epoch.get() == revision;
         scope.require(self, unchanged, "original Jim inventory table revision")?;
         for index in selected {
             keys[index].check(self, &scope)?;
