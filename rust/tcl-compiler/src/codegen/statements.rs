@@ -337,6 +337,7 @@ impl CodegenCtx<'_> {
                 name_braced,
                 expr,
                 command_binding,
+                fallback_value,
                 ..
             } => {
                 // The fused command retains the exact source binding it
@@ -357,10 +358,12 @@ impl CodegenCtx<'_> {
                     vec![Operand::Label(inner_end.clone()), Operand::Imm(1)],
                     "",
                 );
+                let expr_start = self.instructions.len();
                 let guaranteed_numeric = self.emit_expr(expr);
                 if !guaranteed_numeric {
                     self.emit(Op::TRY_CVT_TO_NUMERIC, vec![]);
                 }
+                self.stamp_substitution_error_info(expr_start, fallback_value.trim(), None);
                 self.place_label(&inner_end);
                 self.store_var(name);
                 self.emit(Op::POP, vec![]);
@@ -870,6 +873,19 @@ impl CodegenCtx<'_> {
     }
 
     fn try_emit_whole_cmd_subst_with_tokens(
+        &mut self,
+        value: &str,
+        tokens: Option<&crate::ir::CommandTokens>,
+    ) -> bool {
+        let start = self.instructions.len();
+        let emitted = self.try_emit_whole_cmd_subst_with_tokens_unstamped(value, tokens);
+        if emitted {
+            self.stamp_substitution_error_info(start, value.trim(), tokens);
+        }
+        emitted
+    }
+
+    fn try_emit_whole_cmd_subst_with_tokens_unstamped(
         &mut self,
         value: &str,
         tokens: Option<&crate::ir::CommandTokens>,

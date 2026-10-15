@@ -314,7 +314,9 @@ pub fn decode_return<'w>(
     let numbers = target.numerals.map_or(Numbers::Unknown, Numbers::Target);
     // Whether the release keeps any pair in a dictionary (8.5 on) or reads
     // three options and rejects the rest (8.4); `None` where it is unnamed.
-    let dictionary = target.release.map(|release| release >= TclVersion::V8_5);
+    let dictionary = target
+        .release
+        .map(TclVersion::has_return_options_dictionary);
     let result = (count % 2 == 1).then(|| count - 1);
     let mut completion = ReturnCompletion {
         code: CompletionCode::Ok,

@@ -164,6 +164,7 @@ impl Vm {
             body_src: Value::string(body),
             usage_name: None,
             call_identity: None,
+            lambda_term: None,
         });
         Ok(())
     }
@@ -333,6 +334,13 @@ impl Vm {
         );
         let _ = self.take_error_info();
         self.publish_error(&info, &resolved_error_code(completion));
+    }
+
+    /// The return options of `completion`, as C's `Tcl_GetReturnOptions`
+    /// reports them: an error's carry `-errorinfo` and `-errorcode`.
+    #[must_use]
+    pub fn return_options(&self, completion: &Completion<Value>) -> Value {
+        self.completion_options_snapshot(completion)
     }
 
     /// Every command name currently registered, sorted.

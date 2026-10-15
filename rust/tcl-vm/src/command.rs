@@ -102,6 +102,9 @@ pub struct ProcDef {
     /// is an implementation detail (`apply` lambdas and `TclOO` method bodies).
     /// Ordinary procs derive them from the dispatched head and arguments.
     pub(crate) call_identity: Option<Vec<Value>>,
+    /// For an `apply` lambda, the lambda expression C names in the
+    /// `(lambda term "…" line N)` errorInfo frame in place of a procedure's.
+    pub(crate) lambda_term: Option<Value>,
 }
 
 /// A registered command.
@@ -189,7 +192,7 @@ pub(crate) fn register_builtins(vm: &mut Vm) {
     vm.register("incr", cmd_incr);
     vm.register("expr", cmd_expr);
     vm.register("proc", cmd_proc);
-    vm.register("return", cmd_return);
+    vm.register("return", cmd_return_command);
     vm.register("const", cmd_const);
     vm.register("tailcall", cmd_tailcall);
     vm.register("time", cmd_time);
@@ -345,16 +348,9 @@ fn cmd_source(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // Track the path so `info script` (and callers like `[file dirname [info
     // script]]`) resolve relative to the file being sourced.
     vm.push_script(path.to_string());
-    let result = match vm.eval_source(&contents) {
-        Ok(c) => c,
-        Err(e) => err(e.message),
-    };
+    let result = vm.eval_file(&path, &contents, false);
     vm.pop_script();
-    // A top-level `return` in the sourced file ends the *file*, not the caller:
-    // `source` settles the `TCL_RETURN` as C Tcl's `Tcl_FSEvalFileEx` does.
-    // Without this a `return` — e.g. the early-out at the top of a
-    // compatibility shim — unwinds the script that called `source`.
-    vm.settle_sourced_script(&path, result)
+    result
 }
 
 /// `tcl::build-info ?option?` — report build-time configuration. With no
@@ -507,6 +503,7 @@ pub(crate) fn build_lambda_proc(
         body_src: body,
         usage_name: Some("apply lambdaExpr".to_string()),
         call_identity: Some(call_identity),
+        lambda_term: Some(lambda.clone()),
     });
     Ok(name)
 }
@@ -1449,13 +1446,14 @@ fn cmd_proc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         body_src: body_text.clone(),
         usage_name: None,
         call_identity: None,
+        lambda_term: None,
     });
     ok(Value::empty())
 }
 
 /// Read a `return -code` word as `TclGetCompletionCodeFromObj` does: a named
 /// code (`ok`/`error`/`return`/`break`/`continue`) or a C `int`.
-fn parse_code(word: &Value) -> Result<Code, Completion<Value>> {
+fn parse_code(word: &Value, release: tcl_dialect::TclVersion) -> Result<Code, Completion<Value>> {
     match &*word.to_str() {
         "ok" => return Ok(Code::Ok),
         "error" => return Ok(Code::Error),
@@ -1465,7 +1463,8 @@ fn parse_code(word: &Value) -> Result<Code, Completion<Value>> {
         _ => {}
     }
     word.as_c_int().map(Code::from_int).map_err(|_| {
-        err_with_code(
+        return_option_error(
+            release,
             format!(
                 "bad completion code \"{}\": must be ok, error, return, break, continue, \
                  or an integer",
@@ -1476,21 +1475,40 @@ fn parse_code(word: &Value) -> Result<Code, Completion<Value>> {
     })
 }
 
+/// One of `return`'s own option errors, with its `TCL RESULT …` errorCode
+/// from the release that sets one.
+fn return_option_error(
+    release: tcl_dialect::TclVersion,
+    message: String,
+    code: &str,
+) -> Completion<Value> {
+    if release.has_return_option_error_codes() {
+        err_with_code(message, code)
+    } else {
+        err(message)
+    }
+}
+
 /// The merged `-code` and `-level` words, each validated as C does.
 fn return_code_and_level(
     code_word: Option<&Value>,
     level_word: Option<&Value>,
+    release: tcl_dialect::TclVersion,
 ) -> Result<(Code, i64), Completion<Value>> {
-    let code = code_word.map_or(Ok(Code::Ok), parse_code)?;
-    let level = level_word.map_or(Ok(1), parse_return_level)?;
+    let code = code_word.map_or(Ok(Code::Ok), |word| parse_code(word, release))?;
+    let level = level_word.map_or(Ok(1), |word| parse_return_level(word, release))?;
     Ok((code, level))
 }
 
 /// Read a `return -level` word: a C `int` that is not negative.
-fn parse_return_level(word: &Value) -> Result<i64, Completion<Value>> {
+fn parse_return_level(
+    word: &Value,
+    release: tcl_dialect::TclVersion,
+) -> Result<i64, Completion<Value>> {
     match word.as_c_int() {
         Ok(level) if level >= 0 => Ok(i64::from(level)),
-        _ => Err(err_with_code(
+        _ => Err(return_option_error(
+            release,
             format!(
                 "bad -level value: expected non-negative integer but got \"{}\"",
                 word.to_str()
@@ -1728,134 +1746,106 @@ pub(crate) fn opt_get(options: &Value, key: &str) -> Option<Value> {
 /// Shared with the `returnStk` opcode (C `INST_RETURN_STK` →
 /// `Tcl_SetReturnOptions`), which behaves exactly like
 /// `return -options $opts $result`.
-pub(crate) fn cmd_return(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    if vm.runtime_version() == tcl_dialect::TclVersion::V8_4 {
-        return return_without_options_dict(vm, args);
-    }
-    return_with_options(vm, args)
-}
-
-/// Tcl 8.4's `return` (`Tcl_ReturnObjCmd`): option and value pairs ahead of
-/// the result, the option one of `-code`, `-errorcode` and `-errorinfo`, and
-/// `-code` a code name spelt in full or an integer. TIP 90's `-level` and
-/// `-options` arrived at 8.5.
-fn return_without_options_dict(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    let mut merged = Vec::new();
-    let mut i = 0;
-    while args.len() - i > 1 {
-        let option = args[i].to_str();
-        let arg = &args[i + 1];
-        match &*option {
-            "-code" => {
-                let code = match &*arg.to_str() {
-                    "ok" => 0,
-                    "error" => 1,
-                    "return" => 2,
-                    "break" => 3,
-                    "continue" => 4,
-                    _ => match arg.as_int() {
-                        Ok(code) => code,
-                        Err(_) => {
-                            return err(format!(
-                                "bad completion code \"{}\": must be ok, error, return, break, \
-                                 continue, or an integer",
-                                arg.to_str()
-                            ));
-                        }
-                    },
-                };
-                merged.push(Value::string("-code"));
-                merged.push(Value::int(code));
-            }
-            "-errorcode" | "-errorinfo" => {
-                merged.push(args[i].clone());
-                merged.push(arg.clone());
-            }
-            _ => {
+/// `return` as a command. Before TIP 90 (8.4) the words are read as
+/// `-code`/`-errorinfo`/`-errorcode` pairs while two remain, any other name
+/// is rejected, and a last word alone is the result; those options then
+/// mean what they do from 8.5.
+pub(crate) fn cmd_return_command(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    if !vm.runtime_version().has_return_options_dictionary() {
+        for pair in args.as_chunks::<2>().0 {
+            let name = pair[0].to_str();
+            if !matches!(&*name, "-code" | "-errorinfo" | "-errorcode") {
                 return err(format!(
-                    "bad option \"{option}\": must be -code, -errorcode, or -errorinfo"
+                    "bad option \"{name}\": must be -code, -errorcode, or -errorinfo"
                 ));
             }
         }
-        i += 2;
     }
-    merged.push(args.get(i).cloned().unwrap_or_else(Value::empty));
-    return_with_options(vm, &merged)
+    cmd_return(vm, args)
 }
 
-/// `return` as TIP 90 reads it (8.5 onwards): option and value pairs ahead of
-/// the result, any word an option, `-options` a dict of them, and `-code` and
-/// `-level` driving the completion. The VM's return opcodes reach it directly.
-pub(crate) fn return_with_options(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    // Apply one option pair, from a direct argument or an expanded `-options`
-    // dict. `-code`/`-level` drive the completion and are validated once
-    // merged; every other key (`-errorcode`, `-errorinfo`, or a user option
-    // like `-foo`) is preserved in the options dict, later occurrences
-    // overriding earlier ones (C's `TclMergeReturnOptions`).
-    fn apply(
-        key: &str,
-        val: &Value,
-        code_word: &mut Option<Value>,
-        level_word: &mut Option<Value>,
-        extra: &mut Vec<(String, Value)>,
-    ) {
+/// `return`'s words: option pairs merged as C's `TclMergeReturnOptions` does,
+/// and the result.
+struct ReturnWords {
+    value: Value,
+    code_word: Option<Value>,
+    level_word: Option<Value>,
+    extra: Vec<(String, Value)>,
+}
+
+impl ReturnWords {
+    /// Read the words: while two remain they are an option, named by any word,
+    /// and its value; a last word alone is the result.
+    fn parse(release: tcl_dialect::TclVersion, args: &[Value]) -> Result<Self, Completion<Value>> {
+        let mut words = Self {
+            value: Value::empty(),
+            code_word: None,
+            level_word: None,
+            extra: Vec::new(),
+        };
+        let (pairs, rest) = args.as_chunks::<2>();
+        for pair in pairs {
+            let key = pair[0].to_str();
+            if &*key == "-options" {
+                // A later explicit option overrides the merged dict. 8.5
+                // merges an odd list's complete pairs; 8.6 rejects it.
+                let dict = &pair[1];
+                let options = match dict.as_list() {
+                    Ok(p) if p.len() % 2 == 0 || !release.rejects_odd_return_options() => p,
+                    _ => {
+                        return Err(return_option_error(
+                            release,
+                            format!("expected dict but got \"{}\"", dict.to_str()),
+                            "TCL RESULT ILLEGAL_OPTIONS",
+                        ));
+                    }
+                };
+                for option in options.as_chunks::<2>().0 {
+                    words.apply(&option[0].to_str(), &option[1]);
+                }
+            } else {
+                words.apply(&key, &pair[1]);
+            }
+        }
+        if let [value] = rest {
+            words.value = value.clone();
+        }
+        Ok(words)
+    }
+
+    /// `-code`/`-level` drive the completion and are validated once merged;
+    /// every other key is kept in the options dict, a later occurrence
+    /// overriding an earlier one.
+    fn apply(&mut self, key: &str, val: &Value) {
         match key {
-            "-code" => *code_word = Some(val.clone()),
-            "-level" => *level_word = Some(val.clone()),
-            _ => match extra.iter_mut().find(|(k, _)| k == key) {
+            "-code" => self.code_word = Some(val.clone()),
+            "-level" => self.level_word = Some(val.clone()),
+            _ => match self.extra.iter_mut().find(|(k, _)| k == key) {
                 Some(slot) => slot.1 = val.clone(),
-                None => extra.push((key.to_string(), val.clone())),
+                None => self.extra.push((key.to_string(), val.clone())),
             },
         }
     }
+}
 
-    let mut value = Value::empty();
-    let mut code_word = None;
-    let mut level_word = None;
-    let mut extra: Vec<(String, Value)> = Vec::new();
-    let mut i = 0;
-    while i < args.len() {
-        let a = args[i].to_str();
-        if &*a == "-options" && i + 1 < args.len() {
-            // Merge a return-options dict (TIP 90); a later explicit option
-            // overrides it, and an odd-sized list is not a dict.
-            let dict = &args[i + 1];
-            let pairs = match dict.as_list() {
-                Ok(p) if p.len() % 2 == 0 => p,
-                _ => return err(format!("expected dict but got \"{}\"", dict.to_str())),
-            };
-            let mut j = 0;
-            while j + 1 < pairs.len() {
-                apply(
-                    &pairs[j].to_str(),
-                    &pairs[j + 1],
-                    &mut code_word,
-                    &mut level_word,
-                    &mut extra,
-                );
-                j += 2;
-            }
-            i += 2;
-        } else if i + 1 < args.len() {
-            // C's `TclMergeReturnOptions` reads every pair ahead of the
-            // result as an option, whatever its spelling.
-            apply(
-                &a,
-                &args[i + 1],
-                &mut code_word,
-                &mut level_word,
-                &mut extra,
-            );
-            i += 2;
-        } else {
-            value = args[i].clone();
-            i += 1;
-        }
-    }
-    let (ret_code, level) = match return_code_and_level(code_word.as_ref(), level_word.as_ref()) {
-        Ok(merged) => merged,
+/// `return`'s completion from option words — also how the `returnImm` and
+/// `returnStk` opcodes build theirs from an options dictionary.
+pub(crate) fn cmd_return(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let ReturnWords {
+        value,
+        code_word,
+        level_word,
+        extra,
+    } = match ReturnWords::parse(vm.runtime_version(), args) {
+        Ok(words) => words,
         Err(bad) => return bad,
     };
+    let release = vm.runtime_version();
+    let (ret_code, level) =
+        match return_code_and_level(code_word.as_ref(), level_word.as_ref(), release) {
+            Ok(merged) => merged,
+            Err(bad) => return bad,
+        };
     let extra_refs: Vec<(&str, Value)> =
         extra.iter().map(|(k, v)| (k.as_str(), v.clone())).collect();
     if vm.supports_error_stack()
@@ -1944,23 +1934,20 @@ pub(crate) fn cmd_const(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 }
 
 /// `tailcall ?command ?arg …??` — the runtime fallback for forms the codegen
-/// does not specialise into the `TAILCALL` opcode (an empty `tailcall`, or a
-/// dynamically-built one reached via the generic invoke). No command terminates
-/// the proc with an empty result (C: `tailcall` is a no-op return). For a
-/// dynamic command the call runs now and its result becomes the proc's,
-/// terminating it — a close approximation of the true caller-frame tail call the
-/// opcode performs (this fallback runs in the proc's own frame).
+/// does not specialise into the `TAILCALL` opcode (an empty `tailcall`, one in
+/// a `catch` body, or a dynamically-built one reached via the generic invoke).
+/// As C's `TclNRTailcallObjCmd`, the command is scheduled on the current
+/// procedure frame and `TCL_RETURN` returned; it runs in that procedure's place
+/// once the procedure completes `ok`. No command cancels one already scheduled.
 fn cmd_tailcall(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    if args.is_empty() {
-        return Completion::new(Code::Return, Value::empty(), Value::empty());
+    if !vm.current_frame_is_proc() {
+        return err("tailcall can only be called from a proc, lambda or method");
     }
-    let name = args[0].to_str().to_string();
-    let res = vm.invoke_command(&name, &args[1..]);
-    if res.code.is_ok() {
-        Completion::new(Code::Return, res.result, Value::empty())
-    } else {
-        res
+    let namespace = vm.current_ns().to_owned();
+    if let Some(scheduled) = vm.current_frame_tailcall() {
+        *scheduled = (!args.is_empty()).then(|| (namespace, args.to_vec()));
     }
+    Completion::new(Code::Return, Value::empty(), Value::empty())
 }
 
 /// `time command ?count?` — evaluate `command` (in the current frame) `count`
@@ -2166,13 +2153,31 @@ fn cmd_continue(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 
 /// `catch script ?resultVarName? ?optionsVarName?`.
 fn cmd_catch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    // A compiled `catch` whose script is not a literal evaluates it as a
+    // word inside its catch range (C's `INST_EVAL_STK`).
+    let evaluates_word = vm
+        .pending
+        .release_compiled
+        .take()
+        .is_some_and(|compiled| compiled.script_word.is_some());
+    // The release's synopsis says how many variables follow the script:
+    // 8.4's `catch command ?varName?` has no options variable.
+    let profile =
+        crate::environment::gate_profile(vm.command_surface_profile(), vm.runtime_version());
+    let dialect = Some(crate::environment::surface_point(profile));
+    let variables = tcl_registry::default_registry()
+        .get_for_surface("catch", dialect)
+        .map_or(2, |spec| {
+            spec.optional_trailing_arg_names(dialect, None).len()
+        });
     let (script, resvar, optvar) = match args {
         [s] => (s, None, None),
         [s, r] => (s, Some(r), None),
-        [s, r, o] => (s, Some(r), Some(o)),
-        _ => {
+        [s, r, o] if variables > 1 => (s, Some(r), Some(o)),
+        _ if variables > 1 => {
             return err("wrong # args: should be \"catch script ?resultVarName? ?optionVarName?\"");
         }
+        _ => return err("wrong # args: should be \"catch command ?varName?\""),
     };
     // Defer the body to the *explicit* stack so a `yield` inside it stays
     // yieldable: compile it and hand it to the trampoline via
@@ -2188,6 +2193,7 @@ fn cmd_catch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 resvar: resvar.map(|v| (*v).clone()),
                 optvar: optvar.map(|v| (*v).clone()),
                 fatal_tail: prepared.fatal_tail,
+                evaluates_word,
             });
             ok(Value::empty())
         }

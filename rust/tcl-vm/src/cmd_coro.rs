@@ -200,6 +200,9 @@ pub(crate) fn on_command_exposed(vm: &mut Vm, token: &str, new_fqn: &str) {
 /// `command arg…`, register `name` as its resume command, and run it to the
 /// first `yield` (or completion), returning that value.
 fn cmd_coroutine(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    // Created with no other command active, the coroutine's body completes
+    // as a top-level command does, on every resume (C's `auxNumLevels`).
+    let top_level = std::mem::take(&mut vm.pending.top_level_command);
     if args.len() < 2 {
         return err("wrong # args: should be \"coroutine name command ?arg ...?\"");
     }
@@ -269,7 +272,7 @@ fn cmd_coroutine(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     vm.coro.live.insert(
         CommandSidecarKey::visible(&fqn),
         CoroState {
-            acts: vec![Frame::new(body, false)],
+            acts: vec![Frame::coroutine_base(body, top_level)],
             parked: ParkedFlow::default(),
             status: CoroStatus::Fresh,
             last_suspend: SuspendKind::Yield,

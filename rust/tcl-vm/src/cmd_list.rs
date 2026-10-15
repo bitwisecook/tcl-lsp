@@ -312,6 +312,13 @@ fn vm_compare(
     argv.push(b.clone());
     let comp = vm.dispatch(&name.to_str(), &argv);
     if !comp.code.is_ok() {
+        if comp.code == tcl_runtime_api::Code::Error {
+            let mut words = vec![name.clone()];
+            words.extend(argv);
+            let message = comp.result.to_str();
+            vm.log_callback_command(&words, &message);
+            vm.seed_error_info_frame(&message, "\n    (-compare command)");
+        }
         return Err(comp);
     }
     // C reads the comparator's result as a C `int`.

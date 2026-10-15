@@ -1040,6 +1040,7 @@ fn finalize_function(
                 .is_some_and(|span| direct_commands.contains(&span));
     }
     ctx.direct_commands = direct_commands;
+
     stamp_release_units(ctx, cfg, block_order);
 
     // Loop-target table: each loop-body instruction → its loop's break/continue
@@ -1064,7 +1065,7 @@ fn finalize_function(
         .iter()
         .filter_map(|site| {
             let span = site.span;
-            let cmd_text = ctx.source_text(span);
+            let cmd_text = ctx.error_info_source_text(span);
             if cmd_text.is_empty() {
                 return None;
             }
