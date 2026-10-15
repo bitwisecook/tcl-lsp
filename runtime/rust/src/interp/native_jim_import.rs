@@ -17,8 +17,7 @@ use std::{
     collections::BTreeSet,
     rc::{Rc, Weak},
 };
-use tcl_runtime_api::ValueOps;
-use tcl_syntax::value::ValueError;
+use tcl_syntax::value::{ValueError, ValueOps};
 
 type Origin = Rc<NativeJimSourceOrigin>;
 fn unavailable(stage: &'static str) -> ValueError {

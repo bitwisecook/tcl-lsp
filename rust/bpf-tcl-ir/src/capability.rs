@@ -40,7 +40,7 @@ use tcl_registry::CanonicalCommandDescriptorKey;
 use tcl_registry::registry::CommandRegistry;
 
 use crate::diag::{BpfDiag, BpfError};
-use crate::source::{OriginalBpfSource, source_command_spec, source_declaration_kind};
+use crate::source::{OriginalBpfSource, source_command_spec};
 
 /// Is `cmd` something `allow`/`deny` may name (a gated verb or a verdict)?
 fn is_governable(cmd: &str, registry: &CommandRegistry) -> bool {
@@ -93,8 +93,10 @@ pub fn collect_policy(
     registry: &CommandRegistry,
     source: &OriginalBpfSource,
 ) -> Result<CapabilityPolicy, BpfError> {
+    source.validate_script(top_level, registry, BpfDiag::CapabilityDenied)?;
     let mut policy = CapabilityPolicy::default();
     for stmt in &top_level.statements {
+        let declaration = source.declaration_kind(stmt, registry, BpfDiag::CapabilityDenied)?;
         let Statement::Call {
             command,
             args,
@@ -106,7 +108,7 @@ pub fn collect_policy(
             continue;
         };
         let cmd = command;
-        let kind = match source_declaration_kind(stmt, registry) {
+        let kind = match declaration {
             Some(tcl_registry::bpf_op::BpfDeclKind::Allow) => true,
             Some(tcl_registry::bpf_op::BpfDeclKind::Deny) => false,
             _ => continue,

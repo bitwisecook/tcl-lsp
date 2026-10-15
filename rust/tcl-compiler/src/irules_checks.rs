@@ -524,8 +524,279 @@ impl<'a> IrulesSourceQuery<'a> {
         }
     }
 
+    fn original_argv(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+    ) -> Option<Vec<tcl_lexer::NativeWord>> {
+        let metadata = self.metadata?;
+        let binding = tokens.source_binding.as_ref()?;
+        binding.original_argument_metadata_for_input(
+            tokens,
+            metadata.source_analysis_input()?,
+            self.registry,
+        )?;
+        let config = binding.original_argument_lexer_config(tokens)?;
+        let image = binding.original_argument_source_image(tokens)?;
+        crate::registry_invocation::original_native_compiler_words(
+            image,
+            tokens.words(),
+            tokens.words().first()?.source().span.start(),
+            config,
+        )
+    }
+
+    fn conditional_pairing_advice<'query>(
+        &'query self,
+        state: &'query CollectFlowState,
+    ) -> Option<ConditionalSourcePairingAdvice<'query, 'a>> {
+        let metadata = self.metadata?;
+        let input = metadata.source_analysis_input()?;
+        input.has_hosted_source_name_context().then_some(())?;
+        let context = input.borrowed_context_registry();
+        let module = &self.unit.ir_module;
+        let root = tcl_lexer::native_script_words_in(
+            module.source.clone(),
+            Span::new(0, u32::try_from(module.source.len()).ok()?),
+            module.lexer_config,
+        )
+        .ok()?;
+        if root.fatal_tail.is_some() || root.commands.len() != module.irules_event_bodies.len() {
+            return None;
+        }
+        let mut declarations_seen = Vec::new();
+        let mut handlers = Vec::new();
+        let mut schemas = Vec::new();
+        for id in module.irules_event_bodies.keys() {
+            let function = self.unit.procedures.get(id)?;
+            let event = self.event(function)??;
+            let mut declarations = module
+                .top_level
+                .statements
+                .iter()
+                .filter(|statement| statement.span() == event.procedure.span);
+            let declaration = declarations.next()?;
+            if declarations.next().is_some() {
+                return None;
+            }
+            let declaration = module
+                .top_level
+                .retained_source_tokens_for_statement(declaration)?;
+            let declaration_vector = self.original_argv(declaration)?;
+            if !root
+                .commands
+                .iter()
+                .any(|command| command.words == declaration_vector)
+                || declarations_seen.contains(&declaration_vector)
+            {
+                return None;
+            }
+            declarations_seen.push(declaration_vector.clone());
+            let declaration_metadata =
+                crate::registry_invocation::original_hosted_source_registry_metadata(
+                    self.registry,
+                    metadata,
+                    declaration,
+                )?;
+            let event_word =
+                event
+                    .body
+                    .event_word(&module.source, module.lexer_config, self.registry)?;
+            if !declaration_metadata
+                .shape()
+                .possible_traits()
+                .contains(Traits::IS_EVENT_HANDLER)
+                || !declaration_metadata
+                    .shape()
+                    .original_words()
+                    .contains(event_word)
+                || declaration_metadata
+                    .authored_barriers()
+                    .has_nominal_command_name_hazard()
+            {
+                return None;
+            }
+            let words =
+                crate::registry_invocation::source_structure::original_vendor_registry_words(
+                    context,
+                    declaration,
+                    declaration_metadata,
+                )?;
+            let mut bodies = words.source_script_bodies_for_mutation_coverage(context)?;
+            if bodies.len() != 1 {
+                return None;
+            }
+            let body = bodies.pop()?;
+            for word in &declaration_vector {
+                if word != body.original_container() {
+                    tcl_syntax::word_rules::original_static_word_unicode_value(word)?;
+                }
+            }
+            let commands = body.original_commands(context)?;
+            let mut original = Vec::new();
+            for statement in &event.procedure.body.statements {
+                if matches!(
+                    statement.original_argv_inventory_disposition(),
+                    crate::ir::OriginalArgvInventoryDisposition::EffectOnly(_)
+                ) {
+                    continue;
+                }
+                if !statement.child_scripts().is_empty() {
+                    return None;
+                }
+                let tokens = event
+                    .procedure
+                    .body
+                    .retained_source_tokens_for_statement(statement)?;
+                let vector = self.original_argv(tokens)?;
+                if !commands.iter().any(|command| command.words == vector)
+                    || !state
+                        .source_argv
+                        .iter()
+                        .any(|(owner, words)| owner == id && words == &vector)
+                {
+                    return None;
+                }
+                original.push(vector);
+                let children = self.argument_calls(tokens, self.function_config(function)?)?;
+                for token in std::iter::once(tokens).chain(
+                    children
+                        .iter()
+                        .map(|child| child.tokens.as_ref())
+                        .collect::<Option<Vec<_>>>()?,
+                ) {
+                    let vector = self.original_argv(token)?;
+                    if !state
+                        .source_argv
+                        .iter()
+                        .any(|(owner, words)| owner == id && words == &vector)
+                    {
+                        return None;
+                    }
+                    let possible = crate::registry_invocation::original_registry_invocation_assistance_with_metadata_context(self.registry, Some(metadata), token)?;
+                    if possible.candidates.is_empty() {
+                        return None;
+                    }
+                    for candidate in &possible.candidates {
+                        candidate.with_source_schema(self.registry, metadata, token, |schema| {
+                            let scripts = schema.authored_source_script_arguments()?;
+                            let prefixes = schema.authored_source_command_prefix_arguments()?;
+                            let expressions = schema.authored_source_expression_arguments()?;
+                            (scripts.is_empty()
+                                && prefixes.is_empty()
+                                && expressions.arguments.is_empty())
+                            .then_some(())
+                        })?;
+                        schemas.push(candidate.clone());
+                    }
+                }
+            }
+            if commands.len() != original.len()
+                || commands
+                    .iter()
+                    .any(|command| !original.contains(&command.words))
+            {
+                return None;
+            }
+            handlers.push((*id, body));
+        }
+        if root
+            .commands
+            .iter()
+            .any(|command| !declarations_seen.contains(&command.words))
+        {
+            return None;
+        }
+        (!handlers.is_empty()).then_some(ConditionalSourcePairingAdvice {
+            _source: self,
+            _handlers: handlers,
+            _schemas: schemas,
+            _obligations: &state.obligations,
+        })
+    }
+
     fn metadata(&self) -> Option<crate::registry_invocation::InvocationMetadataContext<'_>> {
         self.metadata
+    }
+}
+
+/// Closed leaf-source census under its original handler and schema premises.
+/// Runtime lookup, observers, activation and completion remain obligations.
+struct ConditionalSourcePairingAdvice<'query, 'unit> {
+    _source: &'query IrulesSourceQuery<'unit>,
+    _handlers: Vec<(
+        crate::ir::ProcedureId,
+        crate::registry_invocation::OriginalSourceScriptBody,
+    )>,
+    _schemas: Vec<crate::registry_invocation::RegistryInvocationShape>,
+    _obligations: &'query HashSet<CollectionSourceObligationKind>,
+}
+
+impl ConditionalSourcePairingAdvice<'_, '_> {
+    fn message(&self, source_pairing: String) -> String {
+        format!("Conditional source pairing (runtime applicability unproved): {source_pairing}")
+    }
+}
+
+/// Conditional pairing under a closed retained handler-source census.
+/// Its immutable owners and unresolved runtime premises remain separate from
+/// actual collection, absence, handler completion and edit authority.
+pub struct ConditionalCollectionSourcePairingAdvice<'unit> {
+    _unit: &'unit CompilationUnit,
+    _registry: &'unit CommandRegistry,
+    _handlers: Vec<(
+        crate::ir::ProcedureId,
+        crate::registry_invocation::OriginalSourceScriptBody,
+    )>,
+    _schemas: Vec<crate::registry_invocation::RegistryInvocationShape>,
+    obligations: HashSet<CollectionSourceObligationKind>,
+    pairings: Vec<ConditionalCollectionSourcePairing>,
+}
+
+impl ConditionalCollectionSourcePairingAdvice<'_> {
+    /// Source-only pairing candidates; these supply no runtime outcome or fix.
+    #[must_use]
+    pub fn pairings(&self) -> &[ConditionalCollectionSourcePairing] {
+        &self.pairings
+    }
+
+    pub(crate) fn diagnostic_source_owner_for(
+        &self,
+        pairing: &ConditionalCollectionSourcePairing,
+    ) -> Option<(&CompilationUnit, &CommandRegistry)> {
+        self.pairings
+            .iter()
+            .any(|current| std::ptr::eq(current, pairing))
+            .then_some((self._unit, self._registry))
+    }
+
+    /// Independent premises that every conditional source pairing retains.
+    pub fn obligations(&self) -> impl Iterator<Item = &CollectionSourceObligationKind> {
+        self.obligations.iter()
+    }
+}
+
+/// One possible source-pairing hazard, without an observed runtime outcome.
+pub struct ConditionalCollectionSourcePairing {
+    warning: IrulesCheckWarning,
+}
+
+impl ConditionalCollectionSourcePairing {
+    /// Original source advice anchor, not an evaluated operation.
+    #[must_use]
+    pub fn span(&self) -> Span {
+        self.warning.span
+    }
+
+    /// Diagnostic family for this conditional source advice.
+    #[must_use]
+    pub fn code(&self) -> DiagCode {
+        self.warning.code
+    }
+
+    /// The explicit source scope and unresolved runtime applicability.
+    #[must_use]
+    pub fn message(&self) -> &str {
+        &self.warning.message
     }
 }
 
@@ -831,6 +1102,7 @@ pub fn find_unguarded_drop_warnings(
 struct CollectFlowState {
     /// Runtime lookup and widening remain independent of positive source calls.
     obligations: HashSet<CollectionSourceObligationKind>,
+    source_argv: Vec<(crate::ir::ProcedureId, Vec<tcl_lexer::NativeWord>)>,
     /// `protocol -> {side, ...}` for each protocol with a collect call.
     collected: std::collections::HashMap<String, std::collections::HashSet<String>>,
     /// Same shape for release calls.
@@ -843,11 +1115,19 @@ struct CollectFlowState {
     payload_calls: Vec<PayloadCall>,
 }
 
+/// Unresolved runtime premises retained independently of source pairings.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-enum CollectionSourceObligationKind {
+pub enum CollectionSourceObligationKind {
+    /// A genuine no-own-argv widening phase retains unknown effects.
     EffectOnly(crate::ir::SyntheticMarker),
+    /// Runtime command selection retains an unknown alternative.
     UnknownTarget,
+    /// Runtime lookup may select no command.
     MayBeAbsent,
+    /// A retained event declaration does not establish activation.
+    EventActivation,
+    /// Authored source descriptors do not establish their actual handlers.
+    SourceSchemaApplicability,
 }
 
 /// One collect or release operation observed in a `when` body.
@@ -1004,7 +1284,16 @@ fn classify_stmt_for_collect_flow(
             .source_binding
             .as_ref()?
             .original_lexer_config_for_tokens(tokens)?;
-        scan_nested_collection_words(tokens, event, side, state, source, config, base_offset)?;
+        scan_nested_collection_words(
+            tokens,
+            event,
+            side,
+            state,
+            source,
+            original_function.body_id,
+            config,
+            base_offset,
+        )?;
     }
     let abs = |sp: Span| -> Span {
         if base_offset == 0 {
@@ -1113,11 +1402,23 @@ fn scan_nested_collection_words(
     side: &str,
     state: &mut CollectFlowState,
     source: &IrulesSourceQuery<'_>,
+    body: Option<crate::ir::ProcedureId>,
     parent_config: tcl_lexer::LexerConfig,
     base_offset: i64,
 ) -> Option<()> {
-    for call in source.argument_calls(parent, parent_config)? {
+    let children = source.argument_calls(parent, parent_config)?;
+    if !source.standalone {
+        state
+            .source_argv
+            .push((body?, source.original_argv(parent)?));
+    }
+    for call in children {
         let tokens = call.tokens.as_ref()?;
+        if !source.standalone {
+            state
+                .source_argv
+                .push((body?, source.original_argv(tokens)?));
+        }
         let possible =
             crate::registry_invocation::original_registry_invocation_assistance_with_metadata_context(
                 source.registry,
@@ -1234,7 +1535,8 @@ fn scan_secondary_collection_body(
     Some(())
 }
 
-/// Collect/release/payload pairing across all `when` events.
+/// Definite collect/release diagnostics require an independent runtime lifecycle owner.
+/// Retained source inventories alone cannot supply that absence proof.
 #[must_use]
 pub fn find_collect_flow_warnings(
     cu: &CompilationUnit,
@@ -1244,24 +1546,61 @@ pub fn find_collect_flow_warnings(
     if !is_irules(dialect) {
         return Vec::new();
     }
-    // naming.source.original-collection-body-owner
-    // docs/design/analysis/name-resolution-proofs/original-collection-body-owner.md
     let Some(source) = IrulesSourceQuery::capture(cu, registry) else {
         return Vec::new();
     };
-    let Some((state, events_seen)) = collect_flow_state(&source) else {
+    let Some((state, _)) = collect_flow_state(&source) else {
         return Vec::new();
     };
     if !state.obligations.is_empty() {
         return Vec::new();
     }
+    // This source-only interface has no complete runtime collection owner.
+    Vec::new()
+}
+
+/// Conditional source pairing under genuine full input and handler-body owners.
+/// Missing lexical phases or unsupported Body/Expr/callback inventories decline.
+#[must_use]
+pub fn find_conditional_collection_source_pairing_advice<'unit>(
+    cu: &'unit CompilationUnit,
+    registry: &'unit CommandRegistry,
+    dialect: Option<SurfaceQuery<'_>>,
+) -> Option<ConditionalCollectionSourcePairingAdvice<'unit>> {
+    if !is_irules(dialect) {
+        return None;
+    }
+    let source = IrulesSourceQuery::capture(cu, registry)?;
+    let (state, events_seen) = collect_flow_state(&source)?;
+    let advice = source.conditional_pairing_advice(&state)?;
     let events = EventRegistry::build();
     let mut out = Vec::new();
-    emit_missing_data_collect_warnings(cu, registry, &events, &events_seen, &state, &mut out);
-    emit_payload_without_collect_warnings(&state, &mut out);
-    emit_collect_without_release_warnings(&events, &events_seen, &state, &mut out);
-    emit_release_without_collect_warnings(&state, &mut out);
-    out
+    emit_missing_data_collect_warnings(
+        cu,
+        registry,
+        &events,
+        &events_seen,
+        &state,
+        &advice,
+        &mut out,
+    );
+    emit_payload_without_collect_warnings(&state, &advice, &mut out);
+    emit_collect_without_release_warnings(&events, &events_seen, &state, &advice, &mut out);
+    emit_release_without_collect_warnings(&state, &advice, &mut out);
+    let mut obligations = state.obligations.clone();
+    obligations.insert(CollectionSourceObligationKind::EventActivation);
+    obligations.insert(CollectionSourceObligationKind::SourceSchemaApplicability);
+    Some(ConditionalCollectionSourcePairingAdvice {
+        _unit: cu,
+        _registry: registry,
+        _handlers: advice._handlers,
+        _schemas: advice._schemas,
+        obligations,
+        pairings: out
+            .into_iter()
+            .map(|warning| ConditionalCollectionSourcePairing { warning })
+            .collect(),
+    })
 }
 
 /// Existing event-table side selection remains independent of body admission.
@@ -1291,13 +1630,14 @@ fn collect_flow_state(source: &IrulesSourceQuery<'_>) -> Option<(CollectFlowStat
     Some((state, events_seen))
 }
 
-/// Emit IRULE1005 for data-event protocols that are certainly not collected.
+/// Project missing source collection candidates within the certified handler census.
 fn emit_missing_data_collect_warnings(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
     events: &EventRegistry,
     events_seen: &[String],
     state: &CollectFlowState,
+    advice: &ConditionalSourcePairingAdvice<'_, '_>,
     out: &mut Vec<IrulesCheckWarning>,
 ) {
     // The event table owns protocol/side requirements; the retained declaration
@@ -1342,10 +1682,10 @@ fn emit_missing_data_collect_warnings(
         out.push(IrulesCheckWarning {
             span,
             code: DiagCode::Irule1005,
-            message: format!(
-                "'{event}' will never fire without a {required_side} {} call in another event.",
+            message: advice.message(format!(
+                "'{event}' has no matching source {required_side} {} candidate in the retained handlers.",
                 proto_hint.join(" or "),
-            ),
+            )),
             replacement: None,
             fixes: Vec::new(),
         });
@@ -1376,6 +1716,7 @@ fn event_anchor_span(
 /// Emit IRULE1006 for payload commands that explicitly require collection.
 fn emit_payload_without_collect_warnings(
     state: &CollectFlowState,
+    advice: &ConditionalSourcePairingAdvice<'_, '_>,
     out: &mut Vec<IrulesCheckWarning>,
 ) {
     for payload in &state.payload_calls {
@@ -1389,10 +1730,10 @@ fn emit_payload_without_collect_warnings(
             out.push(IrulesCheckWarning {
                 span: payload.span,
                 code: DiagCode::Irule1006,
-                message: format!(
-                    "'{}::payload' without a {} {}::collect call. The payload buffer will be empty.",
+                message: advice.message(format!(
+                    "Possible '{}::payload' without a matching source {} {}::collect candidate.",
                     payload.protocol, payload.side, payload.protocol,
-                ),
+                )),
                 replacement: None,
                 fixes: Vec::new(),
             });
@@ -1405,6 +1746,7 @@ fn emit_collect_without_release_warnings(
     events: &EventRegistry,
     events_seen: &[String],
     state: &CollectFlowState,
+    advice: &ConditionalSourcePairingAdvice<'_, '_>,
     out: &mut Vec<IrulesCheckWarning>,
 ) {
     for collect in &state.collect_calls {
@@ -1433,10 +1775,10 @@ fn emit_collect_without_release_warnings(
             out.push(IrulesCheckWarning {
                 span: collect.span,
                 code: DiagCode::Irule1007,
-                message: format!(
-                    "{}::collect without matching {}::release on the {} side; collected data is never released",
+                message: advice.message(format!(
+                    "Possible {}::collect without a matching source {}::release candidate on the {} side.",
                     collect.protocol, collect.protocol, collect.side,
-                ),
+                )),
                 replacement: None,
                 fixes: Vec::new(),
             });
@@ -1444,9 +1786,10 @@ fn emit_collect_without_release_warnings(
     }
 }
 
-/// Emit IRULE1008 for a release whose registered protocol was never collected.
+/// Project source release candidates without a matching source collection.
 fn emit_release_without_collect_warnings(
     state: &CollectFlowState,
+    advice: &ConditionalSourcePairingAdvice<'_, '_>,
     out: &mut Vec<IrulesCheckWarning>,
 ) {
     for release in &state.release_calls {
@@ -1458,10 +1801,10 @@ fn emit_release_without_collect_warnings(
             out.push(IrulesCheckWarning {
                 span: release.span,
                 code: DiagCode::Irule1008,
-                message: format!(
-                    "{}::release without matching {}::collect on the {} side; no data was collected",
+                message: advice.message(format!(
+                    "Possible {}::release without a matching source {}::collect candidate on the {} side.",
                     release.protocol, release.protocol, release.side,
-                ),
+                )),
                 replacement: None,
                 fixes: Vec::new(),
             });
@@ -2784,9 +3127,40 @@ mod tests {
     // IRULE1005 / 1006 / 1007 / 1008
 
     fn flow_warnings(source: &str) -> Vec<IrulesCheckWarning> {
-        let reg = registry();
-        let cu = CompilationUnit::build_for(source, &reg, false);
-        find_collect_flow_warnings(&cu, &reg, Some(SurfaceQuery::any_release(Family::F5Irules)))
+        let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
+        let context = environment.default_context_registry();
+        let config = tcl_lexer::LexerConfig::from_grammar(environment.grammar());
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            environment.analyser_profile(),
+            environment.unit_profile(),
+            context.clone(),
+            config,
+        );
+        let cu = CompilationUnit::build_with_analysis_input(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config,
+                dialect: Some(environment.unit_profile()),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        );
+        find_conditional_collection_source_pairing_advice(
+            &cu,
+            context.commands(),
+            Some(environment.unit_profile().surface_query()),
+        )
+        .map_or_else(Vec::new, |advice| {
+            advice
+                .pairings
+                .iter()
+                .map(|pairing| pairing.warning.clone())
+                .collect()
+        })
     }
 
     #[test]
@@ -4173,6 +4547,97 @@ mod original_collection_source_tests {
     use super::*;
     use crate::compilation_unit::UnitBuildOptions;
     use std::sync::Arc;
+
+    #[test]
+    fn conditional_collection_pairings_require_a_closed_source_census() {
+        let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
+        let config = tcl_lexer::LexerConfig::from_grammar(environment.grammar());
+        let source = "when HTTP_REQUEST {HTTP::release}";
+        let (unit, context) = supplied(source, config);
+        {
+            let advice = find_conditional_collection_source_pairing_advice(
+                &unit,
+                context.commands(),
+                Some(environment.unit_profile().surface_query()),
+            )
+            .expect("the complete original leaf handler has conditional source advice");
+            assert!(
+                advice
+                    .pairings()
+                    .iter()
+                    .any(|pairing| pairing.code() == DiagCode::Irule1008)
+            );
+            assert!(
+                advice
+                    .pairings()
+                    .iter()
+                    .all(|pairing| pairing.message().contains("Conditional source pairing"))
+            );
+            assert!(
+                advice
+                    .obligations()
+                    .any(|obligation| *obligation == CollectionSourceObligationKind::UnknownTarget)
+            );
+            assert!(
+                advice.obligations().any(
+                    |obligation| *obligation == CollectionSourceObligationKind::EventActivation
+                )
+            );
+            assert!(advice.obligations().any(|obligation| *obligation
+                == CollectionSourceObligationKind::SourceSchemaApplicability));
+        }
+        for source in [
+            "when HTTP_REQUEST {HTTP::release}\nwhen $event {HTTP::collect}",
+            "when HTTP_REQUEST priority [unknown_header] {HTTP::release}",
+            "when HTTP_REQUEST priority [eval {when HTTP_RESPONSE {HTTP::collect}}] {HTTP::release}",
+            "when HTTP_REQUEST {eval {HTTP::collect}; HTTP::release}",
+            "when HTTP_REQUEST {expr {[HTTP::collect]}; HTTP::release}",
+            "when HTTP_REQUEST {after 0 {HTTP::collect}; HTTP::release}",
+            "unknown_constructor\nwhen HTTP_REQUEST {HTTP::release}",
+            "when HTTP_REQUEST {HTTP::release}\nwhen HTTP_RESPONSE {",
+            "when HTTP_REQUEST {HTTP::release; return; HTTP::collect}",
+        ] {
+            let (unit, context) = supplied(source, config);
+            assert!(
+                find_conditional_collection_source_pairing_advice(
+                    &unit,
+                    context.commands(),
+                    Some(environment.unit_profile().surface_query()),
+                )
+                .is_none(),
+                "{source}"
+            );
+        }
+        for axis in 0..3 {
+            let mut stale = unit.clone();
+            match axis {
+                0 => stale.ir_module.source = tcl_lexer::SourceImage::document("foreign source"),
+                1 => stale.ir_module.lexer_config.leading_bom = tcl_lexer::LeadingBom::Skip,
+                _ => {
+                    for function in stale.procedures.values_mut() {
+                        for block in function.cfg.blocks.values_mut() {
+                            for statement in &mut block.statements {
+                                if let Some(tokens) = statement.tokens_mut() {
+                                    if tokens.synthetic.is_none() {
+                                        tokens.source_binding = None;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            assert!(
+                find_conditional_collection_source_pairing_advice(
+                    &stale,
+                    context.commands(),
+                    Some(environment.unit_profile().surface_query()),
+                )
+                .is_none(),
+                "axis {axis}"
+            );
+        }
+    }
 
     #[test]
     fn unknown_collection_effects_keep_source_calls_without_certifying_absence() {

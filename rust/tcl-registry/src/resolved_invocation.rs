@@ -3525,6 +3525,107 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
             .prefix_arguments(self, &roles, complete)
     }
 
+    /// Structural control semantics for one effective original body ordinal.
+    /// Complete source roles and the selected clause grammar are mandatory;
+    /// this proves no test value, body entry, dispatch or Normal completion.
+    #[must_use]
+    pub fn authored_source_control_arm_semantics(
+        &self,
+        argument: usize,
+    ) -> Option<crate::registry::ControlArmSemantics> {
+        self.source_control_arm_semantics(argument, false)
+    }
+
+    /// Structural body semantics under an independently retained Logical
+    /// source model. This supplies no Native frame or execution authority.
+    #[must_use]
+    pub fn authored_logical_source_control_arm_semantics(
+        &self,
+        argument: usize,
+    ) -> Option<crate::registry::ControlArmSemantics> {
+        self.source_control_arm_semantics(argument, true)
+    }
+
+    fn source_control_arm_semantics(
+        &self,
+        argument: usize,
+        logical: bool,
+    ) -> Option<crate::registry::ControlArmSemantics> {
+        use crate::registry::ControlArmSemantics;
+        if !matches!(
+            self.subcommand,
+            SubcommandResolution::NotApplicable
+                | SubcommandResolution::Exact(_)
+                | SubcommandResolution::UniquePrefix(_)
+        ) {
+            return None;
+        }
+        let arguments = self.words.arguments();
+        let count = arguments.exact_argv_len()?;
+        if argument >= count
+            || !self
+                .semantics
+                .arity
+                .accepts(self.argument_count_for_arity()?)
+        {
+            return None;
+        }
+        let roles = if logical {
+            let projection = self.authored_logical_source_role_projection()?;
+            if projection.selection_unknown() {
+                return None;
+            }
+            projection.argument_roles
+        } else {
+            let (roles, complete) = self.authored_source_argument_roles();
+            if !complete {
+                return None;
+            }
+            roles
+                .into_iter()
+                .map(|(ordinal, role)| {
+                    let ordinal = self
+                        .semantics
+                        .argument_offset
+                        .checked_add(usize::from(ordinal))?;
+                    (ordinal < count).then_some((ordinal, role))
+                })
+                .collect::<Option<Vec<_>>>()?
+        };
+        let hook = self.semantics.lowering_hook?;
+        let role = if hook == LoweringHookId::Apply {
+            ArgRole::LambdaLiteral
+        } else {
+            ArgRole::Body
+        };
+        roles.contains(&(argument, role)).then_some(())?;
+        match hook {
+            LoweringHookId::If => self
+                .clause_plan()?
+                .defect
+                .is_none()
+                .then_some(ControlArmSemantics::Selected),
+            LoweringHookId::Apply => Some(ControlArmSemantics::FrameBoundary),
+            LoweringHookId::Switch => {
+                self.authored_source_case_invocation()?;
+                crate::registry::control_arm_semantics_for_hook(hook)
+            }
+            LoweringHookId::Try => {
+                let dialect = arguments.dialect()?;
+                let values = arguments.literal_values()?;
+                crate::registry::try_control_arms_for_grammar(
+                    &self.clause_plan()?,
+                    &values,
+                    tcl_syntax::number::Numbers::Target(dialect.numbers),
+                    dialect.completion_code_policy(),
+                )?
+                .into_iter()
+                .find_map(|(ordinal, semantics)| (ordinal == argument).then_some(semantics))
+            }
+            hook => crate::registry::control_arm_semantics_for_hook(hook),
+        }
+    }
+
     /// Conditional list element ordinals of this selected source constructor.
     /// Actual values, result creation, completion and future invocation remain
     /// unknown; expansion or a different result descriptor withdraws the layout.
@@ -5420,6 +5521,91 @@ mod tests {
             .resolved()
             .unwrap();
         assert!(selected.authored_source_list_arguments().is_none());
+    }
+
+    #[test]
+    fn selected_source_control_arms_require_actual_roles_and_complete_grammar() {
+        use crate::InvocationWord::{Dynamic, Expanded, Literal};
+        use crate::registry::ControlArmSemantics as Arm;
+        let registry = crate::CommandRegistry::build_default();
+        let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+        for (command, arguments, ordinal, expected) in [
+            (
+                "if",
+                vec![Dynamic, Literal("set x 1")],
+                1,
+                Some(Arm::Selected),
+            ),
+            ("if", vec![Literal("1")], 0, None),
+            (
+                "if",
+                vec![Literal("1"), Literal("body"), Literal("garbage")],
+                1,
+                None,
+            ),
+            ("if", vec![Expanded, Literal("body")], 1, None),
+            (
+                "catch",
+                vec![Literal("body")],
+                0,
+                Some(Arm::CompletionBoundary),
+            ),
+            (
+                "while",
+                vec![Dynamic, Literal("body")],
+                1,
+                Some(Arm::Uncertain),
+            ),
+            (
+                "foreach",
+                vec![Literal("x"), Dynamic, Literal("body")],
+                2,
+                Some(Arm::BoundedIteration),
+            ),
+            (
+                "apply",
+                vec![Literal("{} {body}")],
+                0,
+                Some(Arm::FrameBoundary),
+            ),
+            ("list", vec![Literal("body")], 0, None),
+            (
+                "try",
+                vec![Literal("body"), Literal("finally"), Literal("cleanup")],
+                0,
+                Some(Arm::Always),
+            ),
+            (
+                "try",
+                vec![Literal("body"), Literal("finally"), Literal("cleanup")],
+                2,
+                Some(Arm::Always),
+            ),
+        ] {
+            let selected = registry
+                .resolve_structured_invocation(
+                    crate::InvocationWords::structured(Literal(command), &arguments)
+                        .with_dialect(dialect),
+                    dialect.authoring_query(),
+                )
+                .resolved()
+                .unwrap();
+            assert_eq!(
+                selected.authored_source_control_arm_semantics(ordinal),
+                expected,
+                "{command} {arguments:?}"
+            );
+            assert_eq!(
+                selected.authored_logical_source_control_arm_semantics(ordinal),
+                expected,
+                "Logical {command} {arguments:?}"
+            );
+            assert!(
+                selected
+                    .authored_source_control_arm_semantics(arguments.len())
+                    .is_none()
+            );
+        }
     }
 
     #[test]

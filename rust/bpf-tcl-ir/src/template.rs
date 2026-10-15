@@ -67,13 +67,14 @@ pub fn collect_templates(
     registry: &CommandRegistry,
     source: &OriginalBpfSource,
 ) -> Result<Vec<TemplateDef>, BpfError> {
+    source.validate_script(top_level, registry, BpfDiag::BadTemplate)?;
     let mut out: Vec<TemplateDef> = Vec::new();
     for stmt in &top_level.statements {
+        let kind = source.declaration_kind(stmt, registry, BpfDiag::BadTemplate)?;
         if let Statement::Call {
             args, span, tokens, ..
         } = stmt
-            && source_declaration_kind(stmt, registry)
-                == Some(tcl_registry::bpf_op::BpfDeclKind::Template)
+            && kind == Some(tcl_registry::bpf_op::BpfDeclKind::Template)
         {
             let def = parse_template(args, tokens.as_ref(), *span, registry, source)?;
             if out.iter().any(|t| t.name == def.name) {

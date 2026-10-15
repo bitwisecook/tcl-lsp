@@ -502,6 +502,26 @@ impl ProcDef {
         Ok(())
     }
 
+    /// Select the retained Script path when actual token/operation receipts are required.
+    pub(super) fn requires_original_namespace_helper_source_execution(
+        &self,
+        actual: &Interp,
+        selected: Option<*mut obj::TclObj>,
+    ) -> Result<bool, tcl_syntax::value::ValueError> {
+        let Some(_) = self.original_jim_namespace_helper_origin(actual)? else {
+            return Ok(false);
+        };
+        if selected != Some(self.body.checked_ptr()?)
+            || actual.native_invocation_dialect().native_string_protocol()
+                != Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
+        {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "original namespace helper Source body selection",
+            ));
+        }
+        Ok(true)
+    }
+
     pub(super) fn original_jim_import_origin(
         &self,
         actual: &Interp,

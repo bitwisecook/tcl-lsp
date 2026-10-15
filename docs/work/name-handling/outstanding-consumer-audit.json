@@ -13150,9 +13150,9 @@
     "Parent-authorized bounded original C5/Jim snapshot-pattern and sixteen original source-form snapshot controls were added; compiled Rust controls remain unexecuted. No Native allocation/cell identity, F5 result, new GitHub read or proof/census digest renewal follows."
   ],
   "current_refresh": {
-    "checkpoint_utc": "2026-10-15T14:23:46.062932+00:00",
-    "checkpoint_basis": "acc556f01 published; ready-only successor source checkpoint preparing; inspect actual HEAD",
-    "current_status": "Frozen c448 ordinary1027=696PASS330FAIL1TIMEOUT; original2286 first PASS73.301624588s/180; Runtime174=173PASS1FAIL; repaired VM133=133PASS0FAIL; all selected source/provider/artifact guards retained. Current successor source reviewed, build/tests pending.",
+    "checkpoint_utc": "2026-10-15T15:01:58.891781+00:00",
+    "checkpoint_basis": "2e5bdaadd plus frozen ready71-file reviewed checkpoint; inspect actual HEAD",
+    "current_status": "K ordinary1027=696PASS330FAIL1TIMEOUT; original2286 first PASS73.301624588s/180; K Runtime174=173PASS1FAIL; repaired VM133=133PASS0FAIL. L/L2/L3 failed before tests with source drift{}; reviewed successor and canonical ValueOps import repair require fresh build.",
     "canonical_status": "current-state.md",
     "live_independent_audit": "audit-next.md",
     "portable_work": "handoff/README.md",

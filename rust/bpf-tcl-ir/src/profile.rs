@@ -47,9 +47,7 @@ use tcl_registry::registry::CommandRegistry;
 
 use crate::diag::{BpfDiag, BpfError};
 use crate::lower::parse_int;
-use crate::source::{
-    OriginalBpfSource, source_command_head, source_declaration_kind, synthetic_operation_call,
-};
+use crate::source::{OriginalBpfSource, source_command_head, synthetic_operation_call};
 use crate::ty::ByteOrder;
 
 /// A named header field at a fixed packet offset.
@@ -143,13 +141,14 @@ pub fn collect_profile(
     registry: &CommandRegistry,
     source: &OriginalBpfSource,
 ) -> Result<Option<BpfProfileSpec>, BpfError> {
+    source.validate_script(top_level, registry, BpfDiag::BadProfile)?;
     let mut found: Option<BpfProfileSpec> = None;
     for stmt in &top_level.statements {
+        let kind = source.declaration_kind(stmt, registry, BpfDiag::BadProfile)?;
         if let Statement::Call {
             args, span, tokens, ..
         } = stmt
-            && source_declaration_kind(stmt, registry)
-                == Some(tcl_registry::bpf_op::BpfDeclKind::Profile)
+            && kind == Some(tcl_registry::bpf_op::BpfDeclKind::Profile)
         {
             if found.is_some() {
                 return Err(BpfError::new(
@@ -220,6 +219,7 @@ fn parse_user_profile(
     registry: &CommandRegistry,
 ) -> Result<BpfProfileSpec, BpfError> {
     let module = body.lower(registry);
+    body.validate_script(&module.top_level, registry, BpfDiag::BadProfile)?;
     let mut fields = Vec::new();
     for stmt in &module.top_level.statements {
         let Statement::Call {
@@ -239,7 +239,8 @@ fn parse_user_profile(
             ));
         };
         let cmd = source_command_head(stmt).unwrap_or(command);
-        if source_declaration_kind(stmt, registry) != Some(tcl_registry::bpf_op::BpfDeclKind::Field)
+        if body.declaration_kind(stmt, registry, BpfDiag::BadProfile)?
+            != Some(tcl_registry::bpf_op::BpfDeclKind::Field)
         {
             return Err(BpfError::new(
                 BpfDiag::BadProfile,

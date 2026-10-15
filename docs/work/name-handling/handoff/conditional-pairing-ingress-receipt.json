@@ -1,0 +1,59 @@
+{
+  "base_commit": "f96c16676ef34b272254a541120c35368e599ad4",
+  "kind": "mechanical-source-advice-consumer-ingress",
+  "cargo_or_test_execution": false,
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/irules_checks.rs",
+      "before_sha256": "f95348f89fda6681331af657ec000c20ad5106486c44bcd1dfde43dede28ce8a",
+      "after_sha256": "87976949db556cf5fde500797a3b9b694e9100a037a235b8ceefa1c9adb7664e",
+      "retained_test_functions": 113,
+      "missing_tests": [],
+      "changed_original_test_bodies": [],
+      "new_test_functions": [
+        "conditional_collection_pairings_require_a_closed_source_census#0"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/compiler_checks.rs",
+      "before_sha256": "14ff3c3e51477119e71bbf34c861221854b0b96b55d46c05cbe2f5bbac90fb01",
+      "after_sha256": "8c16ffd4c970abbf20e3ef775c0c96b87f86e8df8265bce37ee0f2477eed1085",
+      "retained_test_functions": 17,
+      "missing_tests": [],
+      "changed_original_test_bodies": [],
+      "new_test_functions": [
+        "conditional_pairing_authoring_withdrawal_survives_currency_refresh#0"
+      ]
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "before_sha256": "d8cb2e6e74ef75ac919ccf47f987f458cfb8b8a27774f54121511452008b3a44",
+      "after_sha256": "51064205a0168d954fbbcd410b42c11f8f3c78bc474efa982c57367b9419ab9c",
+      "retained_test_functions": 77,
+      "missing_tests": [],
+      "changed_original_test_bodies": [],
+      "new_test_functions": []
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs",
+      "before_sha256": "4b7d6cc357ca3c196f48bc30c2145026bdd309cf20d460be4d3fe7527e7489de",
+      "after_sha256": "2740495c4047086320b38127be3292d2ddb9b8f3ccd9b401f8624df59fb6bd54",
+      "retained_test_functions": 12,
+      "missing_tests": [],
+      "changed_original_test_bodies": [],
+      "new_test_functions": [
+        "conditional_collection_advice_cannot_mint_a_bootstrap_action_subject#0"
+      ]
+    }
+  ],
+  "ingress_changes": [
+    "Existing irules_checks::tests::flow_warnings keeps each original Tcl program and test assertions; constructs the full actual resolved F5 source input and consumes the new typed conditional pairing API instead of legacy definite-absence API.",
+    "Production compiler/Explorer sinks explicitly consume typed conditional advice; source pairings grant no fix, replacement or authoring subject.",
+    "Captured unknown_collection_effects_keep_source_calls_without_certifying_absence remains byte-exact and calls the strict legacy API."
+  ],
+  "limitations": [
+    "Static original test-body equality is not execution acceptance.",
+    "Unsupported/nonleaf handler phases remain unavailable; existing expected positive controls are preserved even when the stronger owner cannot issue them.",
+    "No expected semantic answers were generated from the implementation."
+  ]
+}

@@ -11203,3 +11203,24 @@ foreign or stale graph. Graph consumers join `(bodyKey, symbol, version)` and ke
 cell/name strings as display data. Source-only effects widen contents to unknown;
 physical proofs, transformations and source relocation decline when their required
 location or rebinding owner is absent.
+
+### Structural roles and conditional source diagnostics
+
+`ResolvedInvocation::authored_source_control_arm_semantics` and
+`authored_logical_source_control_arm_semantics` select structural arm roles from
+the actual complete invocation and dialect. The effective body ordinal must
+select a genuine retained body. These roles establish neither expression truth
+nor body entry or successful completion.
+
+`find_conditional_collection_source_pairing_advice` requires the actual unit,
+Registry and a closed retained Hosted leaf-source census. Its typed pairings
+retain runtime, activation, event and schema obligations. Compiler and Explorer
+consumers explicitly select this conditional purpose; the strict runtime
+collection API remains separate. `DiagnosticSourceContext` retains NoAction
+eligibility through currency refresh, so a conditional finding cannot issue a
+context-authoring subject. This is not an edit or runtime absence proof.
+
+BPF original-source collectors require complete configured command vectors and
+region census before selected metadata or defaults. Actual Registry context and
+transform provenance remain independent requirements; a rendered head or a
+missing declaration cannot supply them.

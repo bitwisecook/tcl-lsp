@@ -1,0 +1,1 @@
+namespace eval ReceiptImportSrc {proc p {} {return P}}; alias ReceiptImportSrc::a ReceiptImportSrc::p; alias ReceiptImportSrc::b ReceiptImportSrc::a

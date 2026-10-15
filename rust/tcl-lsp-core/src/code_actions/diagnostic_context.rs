@@ -35,6 +35,9 @@ impl ContextDiagnosticData {
     #[must_use]
     pub fn from_compiler_diagnostic(diagnostic: &Diagnostic) -> Option<Self> {
         let context = diagnostic.source_context.as_ref()?;
+        if !context.allows_context_action_subject() {
+            return None;
+        }
         if diagnostic.span.start() > diagnostic.span.end()
             || diagnostic.span.end() as usize > context.image().len()
         {
@@ -401,6 +404,69 @@ pub(super) fn helper_publication_proposal(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn conditional_collection_advice_cannot_mint_a_bootstrap_action_subject() {
+        let source = "when HTTP_REQUEST {HTTP::payload}";
+        let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
+        let context = environment.default_context_registry();
+        let config = tcl_lexer::LexerConfig::from_grammar(environment.grammar());
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            environment.analyser_profile(),
+            environment.unit_profile(),
+            context.clone(),
+            config,
+        );
+        let unit = std::sync::Arc::new(
+            tcl_compiler::compilation_unit::CompilationUnit::build_with_analysis_input(
+                source,
+                tcl_compiler::compilation_unit::UnitBuildOptions {
+                    registry: context.commands(),
+                    defer_top_level: false,
+                    config,
+                    dialect: Some(environment.unit_profile()),
+                    external_call_sites: None,
+                    declared_commands: None,
+                },
+                None,
+                &input,
+            ),
+        );
+        let mut analyser = tcl_compiler::analyser::Analyser::new().with_resolved_input(input);
+        analyser.set_cu_override(unit.clone());
+        let analysis = analyser.analyse(source, environment.analyser_profile().name);
+        let diagnostics = tcl_compiler::compiler_checks::run_all_checks(
+            &unit,
+            context.commands(),
+            Some(environment.unit_profile()),
+        );
+        let mut diagnostic = diagnostics
+            .into_iter()
+            .find(|row| row.code == tcl_core_types::DiagCode::Irule1006)
+            .unwrap();
+        let foreign = tcl_registry::model::resolve_known_environment("tcl8.6")
+            .unwrap()
+            .default_context_registry();
+        for registry in [context.commands(), foreign.commands(), context.commands()] {
+            tcl_compiler::compiler_checks::retain_diagnostic_source_context(
+                &unit,
+                registry,
+                std::slice::from_mut(&mut diagnostic),
+            );
+            assert!(super::ContextDiagnosticData::from_compiler_diagnostic(&diagnostic).is_none());
+            let projected = super::super::ContextDiagnostic {
+                code: diagnostic.code.as_str().to_owned(),
+                message: diagnostic.message.clone(),
+                data: None,
+                range: crate::definition::span_to_range(
+                    source,
+                    &tcl_lexer::LineIndex::new(source),
+                    diagnostic.span,
+                ),
+            };
+            assert!(actions(source, &analysis, &projected).is_empty());
+        }
+    }
+
     use super::super::{
         ContextDiagnostic, context_diagnostic_actions_in_analysis, profiles_action,
     };

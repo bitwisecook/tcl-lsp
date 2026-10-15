@@ -69,12 +69,11 @@ impl OriginalBpfSource {
         std::str::from_utf8(self.image.bytes().get(self.region.as_range())?).ok()
     }
 
-    pub(crate) fn argument(
+    fn command_words(
         &self,
         tokens: Option<&tcl_compiler::ir::CommandTokens>,
         args: &[String],
-        index: usize,
-    ) -> Option<NativeWord> {
+    ) -> Option<Vec<NativeWord>> {
         let tokens = tokens?;
         if tokens.synthetic.is_some()
             || !tokens.original_words_match_argv_text()
@@ -139,7 +138,135 @@ impl OriginalBpfSource {
                 return None;
             }
         }
-        command.words.into_iter().nth(index.checked_add(1)?)
+        Some(command.words)
+    }
+
+    pub(crate) fn argument(
+        &self,
+        tokens: Option<&tcl_compiler::ir::CommandTokens>,
+        args: &[String],
+        index: usize,
+    ) -> Option<NativeWord> {
+        self.command_words(tokens, args)?
+            .into_iter()
+            .nth(index.checked_add(1)?)
+    }
+
+    /// Select closed DSL metadata only after authenticating the entire original
+    /// command. Unavailable source is an error, independently of whether its
+    /// reported head would select any descriptor.
+    pub(crate) fn command_spec(
+        &self,
+        statement: &Statement,
+        registry: &CommandRegistry,
+        missing: crate::diag::BpfDiag,
+    ) -> Result<Option<&'static tcl_registry::CommandSpec>, crate::diag::BpfError> {
+        let (args, tokens) = match statement {
+            Statement::Call { args, tokens, .. } | Statement::Barrier { args, tokens, .. } => {
+                (args, tokens)
+            }
+            _ => return Ok(None),
+        };
+        let words = self.command_words(tokens.as_ref(), args).ok_or_else(|| {
+            crate::diag::BpfError::new(
+                missing,
+                statement.span(),
+                "DSL command requires unchanged original words",
+            )
+        })?;
+        let head = words
+            .first()
+            .and_then(tcl_syntax::word_rules::original_static_word_unicode_value)
+            .and_then(|value| String::from_utf8(value).ok())
+            .ok_or_else(|| {
+                crate::diag::BpfError::new(
+                    crate::diag::BpfDiag::OutOfSubset,
+                    statement.span(),
+                    "DSL command head must be an original static scalar",
+                )
+            })?;
+        Ok(registry.get_for_surface(&head, registry.own_surface_query()))
+    }
+
+    pub(crate) fn declaration_kind(
+        &self,
+        statement: &Statement,
+        registry: &CommandRegistry,
+        missing: crate::diag::BpfDiag,
+    ) -> Result<Option<tcl_registry::bpf_op::BpfDeclKind>, crate::diag::BpfError> {
+        Ok(
+            match self
+                .command_spec(statement, registry, missing)?
+                .and_then(|spec| spec.bpf_op)
+                .map(|op| op.kind)
+            {
+                Some(tcl_registry::bpf_op::BpfOpKind::Framework(kind)) => Some(kind),
+                _ => None,
+            },
+        )
+    }
+
+    /// Prove that a complete original region is represented before deriving a
+    /// default or absence. Structural fields retain their separate lowering
+    /// obligations; this witness only covers command inventory and source shape.
+    pub(crate) fn validate_script(
+        &self,
+        script: &Script,
+        registry: &CommandRegistry,
+        missing: crate::diag::BpfDiag,
+    ) -> Result<(), crate::diag::BpfError> {
+        let failure = || {
+            crate::diag::BpfError::new(
+                missing,
+                script
+                    .statements
+                    .first()
+                    .map_or(Span::empty(0), Statement::span),
+                "DSL script requires its complete original command inventory",
+            )
+        };
+        let plan = tcl_lexer::native_script_words_in_with_purpose(
+            self.image.clone(),
+            self.region,
+            self.config,
+            self.purpose,
+        )
+        .map_err(|_| failure())?;
+        if plan.fatal_tail.is_some() {
+            return Err(failure());
+        }
+        let original = self.lower(registry).top_level;
+        if original.statements.len() != plan.commands.len()
+            || script.statements.len() != original.statements.len()
+        {
+            return Err(failure());
+        }
+        for ((statement, expected), command) in script
+            .statements
+            .iter()
+            .zip(&original.statements)
+            .zip(&plan.commands)
+        {
+            if statement.span() != expected.span()
+                || std::mem::discriminant(statement) != std::mem::discriminant(expected)
+                || self.base().checked_add(expected.span().start()) != Some(command.span.start())
+            {
+                return Err(failure());
+            }
+            command
+                .words
+                .first()
+                .and_then(tcl_syntax::word_rules::original_static_word_unicode_value)
+                .ok_or_else(|| {
+                    crate::diag::BpfError::new(
+                        crate::diag::BpfDiag::OutOfSubset,
+                        statement.span(),
+                        "DSL command head must be an original static scalar",
+                    )
+                })?;
+            self.command_spec(statement, registry, missing)?;
+        }
+        Ok(())
     }
 
     /// A closed DSL scalar from the authenticated whole command's actual word.
@@ -437,6 +564,197 @@ fn discard_execution_proofs(script: &mut Script) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn complete_original_inventory_is_required_before_collector_defaults() {
+        let registry = tcl_registry::model::ingress::static_context_for("bpf").commands();
+        let module = lower_bpf_source("deny drop\nattach xdp eth0\n", registry);
+        let source = OriginalBpfSource::from_module(&module);
+        source
+            .validate_script(
+                &module.top_level,
+                registry,
+                crate::diag::BpfDiag::OutOfSubset,
+            )
+            .unwrap();
+        for count in [0, 1] {
+            let mut partial = module.top_level.clone();
+            partial.statements.truncate(count);
+            assert!(crate::capability::collect_policy(&partial, registry, &source).is_err());
+            assert!(crate::deploy::collect_attach(&partial, registry, &source).is_err());
+            assert!(crate::profile::collect_profile(&partial, registry, &source).is_err());
+            assert!(crate::template::collect_templates(&partial, registry, &source).is_err());
+        }
+        let mut changed = module.top_level.clone();
+        let mut replacement = lower_bpf_source("return", registry)
+            .top_level
+            .statements
+            .remove(0);
+        let Statement::Return { span, .. } = &mut replacement else {
+            panic!("original return node");
+        };
+        *span = changed.statements[0].span();
+        changed.statements[0] = replacement;
+        assert!(
+            source
+                .validate_script(&changed, registry, crate::diag::BpfDiag::OutOfSubset)
+                .is_err()
+        );
+        assert!(crate::capability::collect_policy(&changed, registry, &source).is_err());
+        assert!(crate::deploy::collect_attach(&changed, registry, &source).is_err());
+        assert!(crate::profile::collect_profile(&changed, registry, &source).is_err());
+        assert!(crate::template::collect_templates(&changed, registry, &source).is_err());
+
+        let foreign = lower_bpf_source("deny pass\nattach xdp eth0\n", registry);
+        let foreign_source = OriginalBpfSource::from_module(&foreign);
+        assert!(
+            foreign_source
+                .validate_script(
+                    &module.top_level,
+                    registry,
+                    crate::diag::BpfDiag::OutOfSubset
+                )
+                .is_err()
+        );
+        let lenient = lower_bpf_source_with_config(
+            "deny {drop}tail",
+            registry,
+            LexerConfig {
+                strict_quoting: false,
+                ..LexerConfig::for_profile(registry.profile())
+            },
+        );
+        let strict = lower_bpf_source_with_config(
+            "deny {drop}tail",
+            registry,
+            LexerConfig {
+                strict_quoting: true,
+                ..LexerConfig::for_profile(registry.profile())
+            },
+        );
+        let strict_source = OriginalBpfSource::from_module(&strict);
+        assert!(
+            strict_source
+                .validate_script(
+                    &lenient.top_level,
+                    registry,
+                    crate::diag::BpfDiag::OutOfSubset
+                )
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn original_head_selection_cannot_erase_declarations_or_claim_default_absence() {
+        let registry = tcl_registry::model::ingress::static_context_for("bpf").commands();
+        for text in [
+            "deny drop",
+            "attach xdp eth0",
+            "profile eth",
+            "template t {} {pass}",
+            "pass",
+        ] {
+            let mut module = lower_bpf_source(text, registry);
+            let source = OriginalBpfSource::from_module(&module);
+            source
+                .command_spec(
+                    &module.top_level.statements[0],
+                    registry,
+                    crate::diag::BpfDiag::OutOfSubset,
+                )
+                .unwrap();
+            let Statement::Call {
+                command,
+                tokens: Some(tokens),
+                ..
+            } = &mut module.top_level.statements[0]
+            else {
+                panic!("actual original DSL call");
+            };
+            let WordExpr::Literal { text, .. } = &mut tokens.word_exprs[0] else {
+                panic!("literal original head");
+            };
+            *text = "ignored".into();
+            tokens.argv_texts[0] = "ignored".into();
+            *command = "ignored".into();
+            assert!(
+                source
+                    .command_spec(
+                        &module.top_level.statements[0],
+                        registry,
+                        crate::diag::BpfDiag::OutOfSubset
+                    )
+                    .is_err()
+            );
+            assert!(
+                crate::capability::collect_policy(&module.top_level, registry, &source).is_err()
+            );
+            assert!(crate::deploy::collect_attach(&module.top_level, registry, &source).is_err());
+            assert!(crate::profile::collect_profile(&module.top_level, registry, &source).is_err());
+            assert!(
+                crate::template::collect_templates(&module.top_level, registry, &source).is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn original_head_selection_decodes_configured_words_and_distinguishes_dynamic_or_missing() {
+        let registry = tcl_registry::model::ingress::static_context_for("bpf").commands();
+        for text in [r"\x64eny drop", "{deny} drop", "\"deny\" drop"] {
+            let module = lower_bpf_source(text, registry);
+            let source = OriginalBpfSource::from_module(&module);
+            assert_eq!(
+                source
+                    .declaration_kind(
+                        &module.top_level.statements[0],
+                        registry,
+                        crate::diag::BpfDiag::OutOfSubset
+                    )
+                    .unwrap(),
+                Some(tcl_registry::bpf_op::BpfDeclKind::Deny)
+            );
+        }
+        let module = lower_bpf_source("not_bpf arg", registry);
+        let source = OriginalBpfSource::from_module(&module);
+        assert!(
+            source
+                .command_spec(
+                    &module.top_level.statements[0],
+                    registry,
+                    crate::diag::BpfDiag::OutOfSubset
+                )
+                .unwrap()
+                .is_none()
+        );
+        let mut module = lower_bpf_source("pass", registry);
+        let source = OriginalBpfSource::from_module(&module);
+        let Statement::Call { tokens, .. } = &mut module.top_level.statements[0] else {
+            panic!("actual original call");
+        };
+        *tokens = None;
+        assert!(
+            source
+                .command_spec(
+                    &module.top_level.statements[0],
+                    registry,
+                    crate::diag::BpfDiag::OutOfSubset
+                )
+                .is_err()
+        );
+        let module = lower_bpf_source("$head arg", registry);
+        let source = OriginalBpfSource::from_module(&module);
+        assert_eq!(
+            source
+                .command_spec(
+                    &module.top_level.statements[0],
+                    registry,
+                    crate::diag::BpfDiag::OutOfSubset
+                )
+                .unwrap_err()
+                .code,
+            crate::diag::BpfDiag::OutOfSubset
+        );
+    }
 
     #[test]
     fn body_owner_retains_configuration_and_rejects_invented_or_cooked_geometry() {

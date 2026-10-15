@@ -17546,6 +17546,16 @@ impl Interp {
         usage_called: &[u8],
         mut meta: CallMeta,
     ) -> Code {
+        let requires_source = match meta
+            .c_procedure
+            .map(|procedure| {
+                procedure.requires_original_namespace_helper_source_execution(self, meta.jim_body)
+            })
+            .transpose()
+        {
+            Ok(required) => required.unwrap_or(false),
+            Err(error) => return self.report_cmd_error(error.into()),
+        };
         if let Some(procedure) = meta.c_procedure {
             if let Err(error) = procedure.require_original_jim_import_traversal(self) {
                 return self.report_cmd_error(error.into());
@@ -17567,6 +17577,14 @@ impl Interp {
         } else {
             None
         };
+        if requires_source && original_artifact.is_some() {
+            return self.report_cmd_error(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original namespace helper Source execution transport",
+                )
+                .into(),
+            );
+        }
         let mut native_admission = match self.prepare_native_procedure(body, ns) {
             Ok(admission) => admission,
             Err(failure) => {
@@ -17627,7 +17645,7 @@ impl Interp {
         // level`'s words, the bound formals, `wrong # args` — was decided
         // above, and everything about its completion is decided below.
         //
-        // Two things force the source body even when a compiled one exists:
+        // Source execution is required in these cases:
         //
         // - a live step trace. `dispatch_traced` installs this proc's own
         //   `enterstep`/`leavestep` into `step_active` *before* dispatching, so
@@ -17639,9 +17657,11 @@ impl Interp {
         // - the entry declining, which it may only do before any observable
         //   effect, so falling through to the source body is not a partial
         //   re-run.
+        // - an actual installed Source owner requires token/operation receipts
+        //   that the compiled entry does not transport.
         let native = meta
             .native
-            .filter(|_| self.traces.borrow().step_active.is_empty());
+            .filter(|_| !requires_source && self.traces.borrow().step_active.is_empty());
         let import_traversal = self
             .frames
             .borrow()

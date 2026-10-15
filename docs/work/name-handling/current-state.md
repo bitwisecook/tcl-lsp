@@ -1,5 +1,14 @@
 # Current centralised naming work
 
+## Latest integration checkpoint
+
+The repaired-source successor of2e5bdaadd captures reviewed structural control-arm APIs, typed closed-source conditional collection advice and NoAction diagnostics, BPF original-head/complete-region census, installed Jim Source helper body selection and original Import controls. All remain unexecuted. BPF actual RegistrySnapshot/transform context and Import complete-iteration/catch original-key producer are separate unfinished work; no public Import entry is enabled.
+
+L227eb setup failed101 in9.7956s because the added BPF package selector was wrong. Corrected L2 failed101 in90.3475s with five production type errors; L3 frozen2e5bdaadd failed101 in198.7939s with two diagnostics from one wrong ValueOps import. Each produced0testELFs/0tests and complete source drift{}. All five L2 repairs and the canonical tcl_syntax::value::ValueOps import repair are source-reviewed. A new isolated ordinary build is required, retaining every original selector/assertion/budget and exact source/provider/artifact checks. No failed build accepts the later source.
+
+K Native Runtime173PASS/1FAIL and VM133PASS/0FAIL are sealed. K ordinary remains696PASS/330FAIL/1TIMEOUT; original#2286 passed first73.3016s/180. All33 portable K archives/parts, their concatenated Native hashes and original handoff packets verify. They retain the failed initial VM setup separately from its repaired successful run. Required gates and remaining annexes are not green/unrun; #2286 remains OPEN and no PR is ready.
+
+
 Latest build feedback: frozen227eb L stopped before compilation because Root used
 an incorrect added package name (exit101,0ELFs/0tests/source{}); corrected scoped
 package is bpf-tcl-codegen. L2 at the same source then fails101 with five actual

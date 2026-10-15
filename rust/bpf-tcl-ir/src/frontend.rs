@@ -40,7 +40,7 @@ use crate::event::{BpfEventId, event_id, known_event_names, prog_type_of};
 use crate::ir::{BpfModule, BpfProgramDecl, ProgType};
 use crate::lower::{lower_function_with_config, parse_int};
 use crate::profile::{BpfProfileSpec, collect_profile, expand_fields};
-use crate::source::{OriginalBpfSource, lower_bpf_source, source_declaration_kind};
+use crate::source::{OriginalBpfSource, lower_bpf_source};
 use crate::template::{TemplateDef, collect_templates, expand_uses};
 use crate::unroll::unroll_loops;
 
@@ -57,6 +57,7 @@ pub fn compile_module(source: &str) -> Result<BpfModule, BpfError> {
     let registry = bpf_registry();
     let module = lower_bpf_source(source, registry);
     let source = OriginalBpfSource::from_module(&module);
+    source.validate_script(&module.top_level, registry, BpfDiag::OutOfSubset)?;
 
     // The (optional) active profile — the top-layer config selected for the file.
     let profile = collect_profile(&module.top_level, registry, &source)?;
@@ -69,10 +70,11 @@ pub fn compile_module(source: &str) -> Result<BpfModule, BpfError> {
     let mut saw_when = false;
 
     for stmt in &module.top_level.statements {
+        let kind = source.declaration_kind(stmt, registry, BpfDiag::OutOfSubset)?;
         if let Statement::Call {
             args, tokens, span, ..
         } = stmt
-            && source_declaration_kind(stmt, registry) == Some(BpfDeclKind::When)
+            && kind == Some(BpfDeclKind::When)
         {
             saw_when = true;
             programs.push(lower_when_decl(
@@ -94,12 +96,9 @@ pub fn compile_module(source: &str) -> Result<BpfModule, BpfError> {
     // mishandle. Reject it instead.
     if saw_when {
         for stmt in &module.top_level.statements {
-            let is_when = matches!(
-                stmt,
-                Statement::Call { .. }
-                    if source_declaration_kind(stmt, registry) == Some(BpfDeclKind::When)
-            );
-            if !is_when && !is_decl(stmt, registry) {
+            let kind = source.declaration_kind(stmt, registry, BpfDiag::OutOfSubset)?;
+            let is_when = matches!(stmt, Statement::Call { .. }) && kind == Some(BpfDeclKind::When);
+            if !is_when && !is_decl(stmt, registry, &source)? {
                 let (name, span) = stray_stmt_info(stmt);
                 return Err(BpfError::new(
                     BpfDiag::StrayTopLevel,
@@ -116,7 +115,7 @@ pub fn compile_module(source: &str) -> Result<BpfModule, BpfError> {
     // No framework envelope: treat the top level (minus profile/field decls) as a
     // single anonymous SOCKET_FILTER program (the raw-DSL path, handy for tests).
     if !saw_when {
-        let body = strip_decls(&module.top_level, registry);
+        let body = strip_decls(&module.top_level, registry, &source)?;
         if !body.statements.is_empty() {
             let used = expand_uses(&body, &templates, registry)?;
             let unrolled = unroll_loops(&used, registry, &source)?;
@@ -356,14 +355,19 @@ fn resolve_event(event: &str, span: Span) -> Result<(BpfEventId, ProgType), BpfE
 /// (metadata, macro definitions, or policy — not executable code). A stray
 /// `field` outside a `profile` body is deliberately *not* stripped: it flows
 /// into lowering, which rejects it with a pointer to where fields belong.
-fn strip_decls(script: &Script, registry: &CommandRegistry) -> Script {
-    let kept = script
-        .statements
-        .iter()
-        .filter(|s| !is_decl(s, registry))
-        .cloned()
-        .collect();
-    Script::from_statements(kept)
+fn strip_decls(
+    script: &Script,
+    registry: &CommandRegistry,
+    source: &OriginalBpfSource,
+) -> Result<Script, BpfError> {
+    source.validate_script(script, registry, BpfDiag::OutOfSubset)?;
+    let mut kept = Vec::new();
+    for statement in &script.statements {
+        if !is_decl(statement, registry, source)? {
+            kept.push(statement.clone());
+        }
+    }
+    Ok(Script::from_statements(kept))
 }
 
 /// A display name and span for a stray top-level statement, for the
@@ -391,20 +395,23 @@ fn stray_stmt_info(stmt: &Statement) -> (String, Span) {
 /// so a top-level one is a stray that lowering rejects), `use` (an expansion
 /// site, spliced in place by `expand_uses`, not a stripped declaration), and
 /// `when` (handled separately).
-fn is_decl(stmt: &Statement, registry: &CommandRegistry) -> bool {
-    let Statement::Call { .. } = stmt else {
-        return false;
-    };
-    matches!(
-        source_declaration_kind(stmt, registry),
-        Some(
-            BpfDeclKind::Profile
-                | BpfDeclKind::Template
-                | BpfDeclKind::Allow
-                | BpfDeclKind::Deny
-                | BpfDeclKind::Attach
-        )
-    )
+fn is_decl(
+    stmt: &Statement,
+    registry: &CommandRegistry,
+    source: &OriginalBpfSource,
+) -> Result<bool, BpfError> {
+    let kind = source.declaration_kind(stmt, registry, BpfDiag::OutOfSubset)?;
+    Ok(matches!(stmt, Statement::Call { .. })
+        && matches!(
+            kind,
+            Some(
+                BpfDeclKind::Profile
+                    | BpfDeclKind::Template
+                    | BpfDeclKind::Allow
+                    | BpfDeclKind::Deny
+                    | BpfDeclKind::Attach
+            )
+        ))
 }
 
 #[cfg(test)]
@@ -548,11 +555,24 @@ when XDP {drop}",
             panic!("unknown original head remains a call");
         };
         *canonical_command = Some("when".into());
+        let source = OriginalBpfSource::from_module(&module);
         assert_eq!(
-            source_declaration_kind(&module.top_level.statements[0], registry),
+            source
+                .declaration_kind(
+                    &module.top_level.statements[0],
+                    registry,
+                    BpfDiag::OutOfSubset
+                )
+                .unwrap(),
             None
         );
-        assert_eq!(strip_decls(&module.top_level, registry).statements.len(), 1);
+        assert_eq!(
+            strip_decls(&module.top_level, registry, &source)
+                .unwrap()
+                .statements
+                .len(),
+            1
+        );
     }
 
     #[test]

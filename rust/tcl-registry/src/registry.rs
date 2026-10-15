@@ -663,17 +663,43 @@ fn control_chain_is_well_formed(
         .map(|check| check(InvocationArguments::literals(args)).is_none())
 }
 
+/// Structural meaning of an already selected control operation. Operand
+/// membership, grammar validity, body geometry and execution are separate.
+pub(crate) const fn control_arm_semantics_for_hook(
+    hook: LoweringHookId,
+) -> Option<ControlArmSemantics> {
+    match hook {
+        LoweringHookId::Switch => Some(ControlArmSemantics::Selected),
+        LoweringHookId::NamespaceEval => Some(ControlArmSemantics::FrameBoundary),
+        LoweringHookId::Catch => Some(ControlArmSemantics::CompletionBoundary),
+        LoweringHookId::Foreach | LoweringHookId::Lmap | LoweringHookId::ForeachLine => {
+            Some(ControlArmSemantics::BoundedIteration)
+        }
+        LoweringHookId::For | LoweringHookId::While => Some(ControlArmSemantics::Uncertain),
+        _ => None,
+    }
+}
+
 fn try_control_arms(
     plan: &crate::ClausePlan,
     args: &[&str],
     numbers: tcl_syntax::number::Numbers,
 ) -> Option<Vec<(usize, ControlArmSemantics)>> {
-    let invocation = parse_try_control_invocation(
+    try_control_arms_for_grammar(
         plan,
         args,
         numbers,
         crate::completion::CompletionCodePolicy::for_numbers(numbers),
-    )?;
+    )
+}
+
+pub(crate) fn try_control_arms_for_grammar(
+    plan: &crate::ClausePlan,
+    args: &[&str],
+    numbers: tcl_syntax::number::Numbers,
+    policy: crate::completion::CompletionCodePolicy,
+) -> Option<Vec<(usize, ControlArmSemantics)>> {
+    let invocation = parse_try_control_invocation(plan, args, numbers, policy)?;
     let mut arms = vec![(invocation.body_index, ControlArmSemantics::Always)];
     arms.extend(invocation.clauses.into_iter().filter_map(|clause| {
         (!clause.fallthrough).then_some((
@@ -5854,8 +5880,6 @@ impl CommandRegistry {
                     .contains(&body_index)
                     .then_some(ControlArmSemantics::Selected)
             }
-            LoweringHookId::Switch => Some(ControlArmSemantics::Selected),
-            LoweringHookId::NamespaceEval => Some(ControlArmSemantics::FrameBoundary),
             // `apply`'s lambda runs **now**, in a fresh procedure frame that
             // inherits none of the caller's locals — a frame boundary, and the
             // only [`ArgRole::LambdaLiteral`] position in the registry. The
@@ -5878,15 +5902,6 @@ impl CommandRegistry {
                 .arg_indices_for_role(name, args, ArgRole::LambdaLiteral)
                 .contains(&body_index)
                 .then_some(ControlArmSemantics::FrameBoundary),
-            LoweringHookId::Catch => Some(ControlArmSemantics::CompletionBoundary),
-            // A collection loop iterates a value the invocation itself
-            // supplies, so it runs a *finite* number of times: it terminates
-            // whenever its body does. A condition loop's trip count depends on
-            // state this descriptor cannot read, so it stays uncertain.
-            LoweringHookId::Foreach | LoweringHookId::Lmap | LoweringHookId::ForeachLine => {
-                Some(ControlArmSemantics::BoundedIteration)
-            }
-            LoweringHookId::For | LoweringHookId::While => Some(ControlArmSemantics::Uncertain),
             LoweringHookId::Try => try_control_arms(
                 &resolved.clause_plan(args, None)?,
                 args,
@@ -5894,7 +5909,7 @@ impl CommandRegistry {
             )?
             .into_iter()
             .find_map(|(idx, semantics)| (idx == body_index).then_some(semantics)),
-            _ => None,
+            hook => control_arm_semantics_for_hook(hook),
         }
     }
 

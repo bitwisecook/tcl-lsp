@@ -45,8 +45,8 @@ use tcl_compiler::interval_bounds::{
 use tcl_compiler::intervals::compute_intervals;
 use tcl_compiler::ir::{Module, Script, Statement};
 use tcl_compiler::irules_checks::{
-    find_collect_flow_warnings, find_hoistable_set_warnings, find_http_flow_warnings,
-    find_unguarded_drop_warnings, find_unnormalised_getter_warnings,
+    find_conditional_collection_source_pairing_advice, find_hoistable_set_warnings,
+    find_http_flow_warnings, find_unguarded_drop_warnings, find_unnormalised_getter_warnings,
 };
 use tcl_compiler::loops::{build_loop_forest, dominates};
 use tcl_compiler::memory_ssa::{MemoryLocationKind, MemoryOpKind, MemorySsaFunction};
@@ -2770,48 +2770,78 @@ pub fn serialise_irules_flow(result: &ExplorerResult, li: &LineIndex, source: &s
 
     let out: Vec<Value> = warnings
         .iter()
-        .map(|w| {
-            json!({
-                "code": w.code.as_str(),
-                "message": w.message,
-                "range": range_dict(w.span, li, source),
-                "severity": "warning",
-            })
+        .map(|report| match report {
+            IrulesFlowReport::Check(w) => json!({
+                "code": w.code.as_str(), "message": w.message,
+                "range": range_dict(w.span, li, source), "severity": "warning",
+            }),
+            IrulesFlowReport::ConditionalSourcePairing {
+                code,
+                message,
+                span,
+            } => json!({
+                "code": code.as_str(), "message": message,
+                "range": range_dict(*span, li, source), "severity": "warning",
+                "analysisKind": "conditional-source",
+            }),
         })
         .collect();
     Value::Array(out)
+}
+
+enum IrulesFlowReport {
+    Check(tcl_compiler::irules_checks::IrulesCheckWarning),
+    ConditionalSourcePairing {
+        code: tcl_compiler::compiler_checks::DiagCode,
+        message: String,
+        span: Span,
+    },
 }
 
 /// One actual-unit warning aggregation shared by the view and its count.
 fn irules_flow_warnings(
     result: &ExplorerResult,
     retained: &RetainedExplorerSource<'_>,
-) -> Vec<tcl_compiler::irules_checks::IrulesCheckWarning> {
+) -> Vec<IrulesFlowReport> {
     let registry = retained.registry;
     let dialect = retained.dialect;
     let cu = &result.unit;
-    let mut warnings = find_unnormalised_getter_warnings(
+    let mut warnings: Vec<_> = find_unnormalised_getter_warnings(
         cu,
         registry,
         dialect.map(tcl_dialect::DialectProfile::surface_query),
+    )
+    .into_iter()
+    .map(IrulesFlowReport::Check)
+    .collect();
+    warnings.extend(
+        find_unguarded_drop_warnings(cu, dialect.map(tcl_dialect::DialectProfile::surface_query))
+            .into_iter()
+            .map(IrulesFlowReport::Check),
     );
-    warnings.extend(find_unguarded_drop_warnings(
-        cu,
-        dialect.map(tcl_dialect::DialectProfile::surface_query),
-    ));
-    warnings.extend(find_collect_flow_warnings(
+    if let Some(advice) = find_conditional_collection_source_pairing_advice(
         cu,
         registry,
         dialect.map(tcl_dialect::DialectProfile::surface_query),
-    ));
-    warnings.extend(find_http_flow_warnings(
-        cu,
-        dialect.map(tcl_dialect::DialectProfile::surface_query),
-    ));
-    warnings.extend(find_hoistable_set_warnings(
-        cu,
-        dialect.map(tcl_dialect::DialectProfile::surface_query),
-    ));
+    ) {
+        warnings.extend(advice.pairings().iter().map(|pairing| {
+            IrulesFlowReport::ConditionalSourcePairing {
+                code: pairing.code(),
+                message: pairing.message().to_owned(),
+                span: pairing.span(),
+            }
+        }));
+    }
+    warnings.extend(
+        find_http_flow_warnings(cu, dialect.map(tcl_dialect::DialectProfile::surface_query))
+            .into_iter()
+            .map(IrulesFlowReport::Check),
+    );
+    warnings.extend(
+        find_hoistable_set_warnings(cu, dialect.map(tcl_dialect::DialectProfile::surface_query))
+            .into_iter()
+            .map(IrulesFlowReport::Check),
+    );
 
     warnings
 }

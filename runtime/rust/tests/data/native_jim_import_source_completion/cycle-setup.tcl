@@ -1,0 +1,1 @@
+namespace eval ReceiptCycle {}; alias ReceiptCycle::a ReceiptCycle::b; alias ReceiptCycle::b ReceiptCycle::a

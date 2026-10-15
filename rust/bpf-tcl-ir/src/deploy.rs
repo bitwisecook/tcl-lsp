@@ -28,7 +28,7 @@
 //! The result is pure metadata hung off [`crate::ir::BpfProgramDecl::attach`]
 //! for a future ELF/loader — codegen ignores it.
 
-use crate::source::{OriginalBpfSource, source_declaration_kind};
+use crate::source::OriginalBpfSource;
 use tcl_compiler::{Script, Statement};
 use tcl_lexer::Span;
 use tcl_registry::CommandRegistry;
@@ -102,17 +102,17 @@ fn find_attach(
     registry: &CommandRegistry,
     source: &OriginalBpfSource,
 ) -> Result<Option<(AttachSpec, Span)>, BpfError> {
+    source.validate_script(top_level, registry, BpfDiag::BadAttach)?;
     let mut found: Option<(AttachSpec, Span)> = None;
     for stmt in &top_level.statements {
+        let declaration = source.declaration_kind(stmt, registry, BpfDiag::BadAttach)?;
         let Statement::Call {
             args, span, tokens, ..
         } = stmt
         else {
             continue;
         };
-        if source_declaration_kind(stmt, registry)
-            != Some(tcl_registry::bpf_op::BpfDeclKind::Attach)
-        {
+        if declaration != Some(tcl_registry::bpf_op::BpfDeclKind::Attach) {
             continue;
         }
         if found.is_some() {

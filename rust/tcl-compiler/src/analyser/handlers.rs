@@ -7053,15 +7053,20 @@ impl Analyser {
         if depth > MAX_UNKNOWN_BODY_DEPTH {
             return None;
         }
-        let registry = self.registry.as_deref()?;
+        let context = self.retained_static_source_context()?;
         let mut proof = UnknownPathProof::default();
         for seg in self.direct_statements_in_span(body_span)? {
             if states.is_empty() {
                 break;
             }
-            if registry.get(seg.name()).and_then(|spec| spec.lowering_hook)
-                == Some(tcl_registry::hooks::LoweringHookId::If)
-            {
+            let words = crate::registry_invocation::source_structure::source_registry_words_at(
+                &self.source,
+                &self.result,
+                seg.argv.first()?.span.start(),
+            )?;
+            let hook =
+                words.with_source_schema(&context, |schema| schema.semantics.lowering_hook)?;
+            if hook == Some(tcl_registry::hooks::LoweringHookId::If) {
                 let (body_spans, has_fallthrough) =
                     self.possible_if_body_spans(&seg, word_param)?;
                 let mut next_states = Vec::new();
@@ -7086,17 +7091,13 @@ impl Analyser {
                 states = next_states;
                 continue;
             }
-            if registry
-                .get(seg.name())
-                .and_then(|spec| spec.lowering_hook)
-                .is_some_and(|hook| {
-                    matches!(
-                        hook,
-                        tcl_registry::hooks::LoweringHookId::Switch
-                            | tcl_registry::hooks::LoweringHookId::Try
-                    )
-                })
-            {
+            if hook.is_some_and(|hook| {
+                matches!(
+                    hook,
+                    tcl_registry::hooks::LoweringHookId::Switch
+                        | tcl_registry::hooks::LoweringHookId::Try
+                )
+            }) {
                 return None;
             }
             match self.unknown_body_evidence(meta, class, &seg, word_param) {
@@ -8336,11 +8337,49 @@ impl Analyser {
         &self,
         arm: &ControlArm,
     ) -> Option<tcl_registry::registry::ControlArmSemantics> {
+        let input = self.result.resolved_input.as_ref()?;
         let context = self.retained_static_source_context()?;
-        let registry = context.commands().as_ref();
-        let args: Vec<&str> = arm.controller.args().iter().map(String::as_str).collect();
-        let body_index = self.control_arm_body_index(arm)?;
-        registry.control_arm_semantics(arm.controller.name(), &args, body_index)
+        let words = crate::registry_invocation::source_structure::source_registry_words_at(
+            &self.source,
+            &self.result,
+            arm.controller.argv.first()?.span.start(),
+        )?;
+        if words.origins().len() != arm.controller.argv.len()
+            || words.origins().iter().enumerate().any(|(ordinal, origin)| {
+                *origin != crate::registry_invocation::InvocationWordOrigin::Written(ordinal)
+            })
+        {
+            return None;
+        }
+        let mut bodies = words
+            .source_script_bodies_for(
+                &context,
+                crate::registry_invocation::OriginalSourceScriptPurpose::PotentialEvaluation,
+            )
+            .into_iter()
+            .filter(|body| body.extent_span() == arm.body_span);
+        let body = bodies.next()?;
+        if bodies.next().is_some() {
+            return None;
+        }
+        let mut ordinals = words
+            .operands()
+            .iter()
+            .enumerate()
+            .filter_map(|(ordinal, operand)| {
+                (operand.as_ref()?.word()? == body.original_container()).then_some(ordinal)
+            });
+        let ordinal = ordinals.next()?;
+        if ordinals.next().is_some() {
+            return None;
+        }
+        words.with_source_schema(&context, |schema| {
+            if input.has_logical_source_name_context() {
+                schema.authored_logical_source_control_arm_semantics(ordinal)
+            } else {
+                schema.authored_source_control_arm_semantics(ordinal)
+            }
+        })?
     }
 
     /// Recover the owning argv position for a direct body, a case-list body,
@@ -12124,6 +12163,61 @@ mod tests {
                 })
                 .collect::<Vec<_>>();
             assert_eq!(labels, expected, "{source}");
+        }
+    }
+
+    #[test]
+    fn control_arm_metadata_requires_the_actual_selected_body_source() {
+        use tcl_registry::registry::ControlArmSemantics as Arm;
+        for (source, body_ordinal, expected) in [
+            ("if {1} {set x 1}", 1, Some(Arm::Selected)),
+            (
+                "interp alias {} choose {} if; choose {1} {set x 1}",
+                1,
+                Some(Arm::Selected),
+            ),
+            ("interp alias {} choose {} if 1; choose {set x 1}", 0, None),
+            ("proc if args {}; if {1} {set x 1}", 1, None),
+            ("namespace eval N {set x 1}", 2, Some(Arm::FrameBoundary)),
+            ("namespace eval N {set x 1;} {set y 2}", 2, None),
+            ("apply {{} {set x 1}}", 0, None),
+        ] {
+            let mut analyser = Analyser::new();
+            analyser.analyse_and_retain_result_for_test(source, "tcl8.6");
+            let controller = crate::segmenter::segment_commands_with_offset_and_config(
+                source,
+                0,
+                analyser.file_lexer_config(),
+            )
+            .pop()
+            .unwrap();
+            let mut arm = ControlArm {
+                body_span: controller.arg_tokens()[body_ordinal].span,
+                controller,
+            };
+            assert_eq!(
+                analyser.control_arm_semantics_for(&arm),
+                expected,
+                "{source}"
+            );
+            let supplied = analyser.resolved_input.clone();
+            let mut foreign = analyser.result.resolved_input.clone().unwrap();
+            foreign.config.strict_quoting = !foreign.config.strict_quoting;
+            analyser.resolved_input = Some(foreign);
+            assert!(
+                analyser.control_arm_semantics_for(&arm).is_none(),
+                "a changed current input cannot borrow old structural advice"
+            );
+            analyser.resolved_input = supplied;
+            let actual_span = arm.body_span;
+            arm.body_span = Span::new(arm.body_span.start(), arm.body_span.start());
+            assert!(
+                analyser.control_arm_semantics_for(&arm).is_none(),
+                "an arbitrary contained point is not an original body"
+            );
+            arm.body_span = actual_span;
+            analyser.source.push(' ');
+            assert!(analyser.control_arm_semantics_for(&arm).is_none());
         }
     }
 
