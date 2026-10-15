@@ -129,6 +129,31 @@ impl SignatureNamespaceScope {
         }
     }
 
+    /// Conditional C lambda namespace coordinates from a complete Logical list
+    /// roster. Only a genuine two-field list proves omission; an explicit third
+    /// field never falls back to root. No namespace existence or frame follows.
+    pub(crate) fn from_logical_lambda_list(
+        fields: &[super::name_value::LogicalSourceListNameInput],
+    ) -> Option<Self> {
+        super::name_value::LogicalSourceListNameInput::complete_unchanged_roster(fields)?;
+        let policy = fields.first()?.policy();
+        let recipe = policy.recipe();
+        if policy.authority() != tcl_syntax::naming::NamePolicyAuthority::AuthoredSimulation
+            || !matches!(recipe, NativeNameProtocol::C(_))
+        {
+            return None;
+        }
+        match fields {
+            [_, _] => Some(Self::C(ByteNamespacePath::root())),
+            [_, _, namespace] => Some(Self::C(
+                recipe
+                    .lambda_namespace_path(namespace.source_units())
+                    .ok()?,
+            )),
+            _ => None,
+        }
+    }
+
     /// Strict namespace ancestry from retained components. Unsupported Jim
     /// parents remain unknown; rendered labels never supply boundaries.
     #[must_use]

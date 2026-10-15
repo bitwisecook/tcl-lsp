@@ -3336,9 +3336,14 @@ impl Analyser {
             _ => "::".to_string(),
         };
         self.record_apply_namespace_reference(&elements, &body_ns, arg_tokens);
-        let original_namespace = original.and_then(|original| {
+        let original_namespace = original.as_ref().and_then(|original| {
             original.for_body_token(&self.source, &self.resolved_analysis_input(), body_tok)
         });
+        let logical_namespace_source = original
+            .filter(|original| {
+                original_namespace.is_some() && original.has_logical_source_namespace()
+            })
+            .map(std::sync::Arc::new);
         let body_ns = original_namespace
             .as_ref()
             .and_then(|(namespace, domain)| {
@@ -3383,6 +3388,7 @@ impl Analyser {
             if let Some((namespace, domain)) = original_namespace {
                 scope.naming_scope = Some(namespace);
                 scope.original_interpreter_source_domain = domain;
+                scope.original_logical_lambda_namespace = logical_namespace_source;
             }
         }
 

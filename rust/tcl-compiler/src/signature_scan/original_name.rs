@@ -76,6 +76,21 @@ impl OriginalSourceNamePurpose {
         }
     }
 
+    /// Complete Logical source list fields retain their own whole-word grammar
+    /// and Unicode naming units. Native list/value inputs remain separate.
+    pub(crate) fn logical_list_inputs(
+        self,
+        original: &NativeWord,
+        rules: WordValueRules,
+    ) -> Option<Vec<super::name_value::LogicalSourceListNameInput>> {
+        let Self::Logical(policy, logical) = self else {
+            return None;
+        };
+        super::name_value::LogicalSourceListNameInput::from_original_word(
+            original, rules, policy, logical,
+        )
+    }
+
     pub(crate) fn symbolic_word(
         self,
         original: &NativeWord,

@@ -451,6 +451,7 @@ impl OriginalInterpreterInvocation {
 /// A literal lambda's original source namespace under its child declaration.
 /// This retains source materialisation and future-entry assumptions; it is not
 /// an entered lambda, native frame or namespace allocation.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct OriginalInterpreterLambdaBody {
     input: ResolvedAnalysisInput,
     lambda: NativeWord,
@@ -458,8 +459,82 @@ pub(super) struct OriginalInterpreterLambdaBody {
     content: Span,
     namespace: SignatureNamespaceScope,
     domain: Option<Arc<OriginalInterpreterSourceDomain>>,
+    logical: Option<OriginalLogicalLambdaNamespace>,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct OriginalLogicalLambdaNamespace {
+    words: Arc<crate::registry_invocation::source_structure::OriginalRegistryWords>,
+    fields: Vec<crate::signature_scan::name_value::LogicalSourceListNameInput>,
+}
+
 impl OriginalInterpreterLambdaBody {
+    fn from_logical_source(
+        input: &ResolvedAnalysisInput,
+        words: crate::registry_invocation::source_structure::OriginalRegistryWords,
+        producer: &[NativeWord],
+        purpose: crate::signature_scan::original_name::OriginalSourceNamePurpose,
+    ) -> Option<Self> {
+        let context = input.context_registry();
+        let image = producer.first()?.image();
+        if !input.has_logical_source_name_context()
+            || producer
+                .iter()
+                .any(|word| word.image() != image || word.config() != input.lexer_config())
+            || !words.matches_source(image, input.lexer_config())
+            || !words.matches_registry(context.commands())
+            || words.context() != Some(context.context())
+            || words.origins().len() != producer.len()
+            || words.origins().iter().enumerate().any(|(ordinal, origin)| {
+                *origin != crate::registry_invocation::InvocationWordOrigin::Written(ordinal)
+            })
+        {
+            return None;
+        }
+        let crate::registry_invocation::source_structure::OriginalRegistrySource::SourceTransitions(
+            advice,
+        ) = words.source()
+        else {
+            return None;
+        };
+        if advice.logical_source_input() != Some(input) || advice.original_words() != producer {
+            return None;
+        }
+        let selected = words.with_source_schema(&context, |schema| {
+            (schema.semantics.analyser_hook == Some(tcl_registry::hooks::AnalyserHookId::Apply))
+                .then(|| schema.authored_source_lambda_call())
+                .flatten()
+        })??;
+        let lambda = words
+            .original_argument_word(selected.lambda_argument)?
+            .clone();
+        let body = words.original_lambda_body_geometry(&context)?;
+        if body.original_container() != &lambda {
+            return None;
+        }
+        let fields = purpose.logical_list_inputs(
+            &lambda,
+            tcl_syntax::word_rules::WordValueRules::from_config(&input.lexer_config()),
+        )?;
+        let namespace = SignatureNamespaceScope::from_logical_lambda_list(&fields)?;
+        Some(Self {
+            input: input.clone(),
+            lambda,
+            producer: producer.to_vec(),
+            content: body.content_span(),
+            namespace,
+            domain: None,
+            logical: Some(OriginalLogicalLambdaNamespace {
+                words: Arc::new(words),
+                fields,
+            }),
+        })
+    }
+
+    pub(super) fn has_logical_source_namespace(&self) -> bool {
+        self.logical.is_some()
+    }
+
     pub(super) fn for_body_token(
         &self,
         source: &str,
@@ -482,6 +557,21 @@ impl OriginalInterpreterLambdaBody {
             || token.span.end() != self.content.end()
         {
             return None;
+        }
+        if let Some(logical) = &self.logical {
+            let context = input.context_registry();
+            let body = logical.words.original_lambda_body_geometry(&context)?;
+            if !logical
+                .words
+                .matches_source(&SourceImage::document(source), input.lexer_config())
+                || !logical.words.matches_registry(context.commands())
+                || body.original_container() != &self.lambda
+                || body.content_span() != self.content
+                || SignatureNamespaceScope::from_logical_lambda_list(&logical.fields).as_ref()
+                    != Some(&self.namespace)
+            {
+                return None;
+            }
         }
         Some((self.namespace.clone(), self.domain.clone()))
     }
@@ -532,6 +622,7 @@ impl SourceInterpreterVisibilitySnapshot {
             content,
             namespace: SignatureNamespaceScope::C(path),
             domain,
+            logical: None,
         })
     }
 }
@@ -623,7 +714,9 @@ impl Analyser {
         arguments: &[Token],
         scope_path: &[usize],
     ) -> Option<OriginalInterpreterLambdaBody> {
-        let snapshot = self.safe_interp_stack.last()?;
+        let Some(snapshot) = self.safe_interp_stack.last() else {
+            return self.original_logical_apply_namespace(head, arguments, scope_path);
+        };
         snapshot
             .matches(
                 &SourceImage::document(&self.source),
@@ -638,6 +731,43 @@ impl Analyser {
             .original_interpreter_source_domain
             .clone();
         snapshot.literal_lambda_body(&native, &native, &namespace, domain)
+    }
+
+    fn original_logical_apply_namespace(
+        &self,
+        head: Token,
+        arguments: &[Token],
+        scope_path: &[usize],
+    ) -> Option<OriginalInterpreterLambdaBody> {
+        let input = self.resolved_analysis_input();
+        input.has_logical_source_name_context().then_some(())?;
+        let scope = super::scope::scope_at(&self.result.global_scope, scope_path)?;
+        if scope.original_interpreter_source_domain.is_some() || !self.safe_interp_stack.is_empty()
+        {
+            return None;
+        }
+        let mut argv = vec![head];
+        argv.extend_from_slice(arguments);
+        let native = self.original_visibility_words(&argv)?;
+        let tokens = self.retained_invocation_tokens(head.span.start(), &argv)?;
+        let context = input.context_registry();
+        let advice = self
+            .head_identities
+            .original_source_transition_advice(&context, &tokens)?;
+        let words =
+            crate::registry_invocation::source_structure::source_transition_words_from_advice(
+                &self.source,
+                input.lexer_config(),
+                &context,
+                advice,
+            )?;
+        let purpose =
+            crate::signature_scan::original_name::OriginalSourceNamePurpose::for_analysis_input(
+                &input,
+                self.source_analysis_entry.as_deref(),
+                self.declaration_name_policy()?,
+            );
+        OriginalInterpreterLambdaBody::from_logical_source(&input, words, &native, purpose)
     }
 
     /// A typed source path selects its original Create vector independently of
@@ -1927,6 +2057,108 @@ mod tests {
             .iter()
             .filter_map(super::super::Diagnostic::conditional_interpreter_visibility)
             .collect()
+    }
+
+    #[test]
+    fn logical_lambda_namespace_retains_original_fields_and_scope_applicability() {
+        fn retained(scope: &super::super::types::Scope) -> Option<&OriginalInterpreterLambdaBody> {
+            scope
+                .original_logical_lambda_namespace
+                .as_deref()
+                .or_else(|| scope.children.iter().find_map(retained))
+        }
+        for (source, expected) in [
+            ("apply {{} {set local 1}}", "::"),
+            ("apply {{} {set local 1} sub}", "::sub"),
+            ("apply {{} {set local 1} {$literal}}", "::$literal"),
+        ] {
+            let mut analyser = Analyser::new();
+            analyser.analyse_and_retain_result_for_test(source, "tcl");
+            let input = analyser.resolved_analysis_input();
+            let command = crate::segmenter::segment_commands_with_offset_and_config(
+                source,
+                0,
+                input.lexer_config(),
+            )
+            .remove(0);
+            let receipt = analyser
+                .original_interp_apply_body(command.argv[0], command.arg_tokens(), &[])
+                .expect("actual Logical call, source field roster and namespace recipe");
+            let elements = analyser
+                .parse_apply_lambda_elements(command.args(), command.arg_tokens())
+                .unwrap();
+            let token = elements[1].0;
+            let (namespace, domain) = receipt.for_body_token(source, &input, token).unwrap();
+            assert!(domain.is_none());
+            assert_eq!(
+                namespace
+                    .source_spelling(analyser.declaration_name_policy())
+                    .as_deref(),
+                Some(expected)
+            );
+            assert!(receipt.has_logical_source_namespace());
+            let logical = receipt.logical.as_ref().unwrap();
+            let crate::registry_invocation::source_structure::OriginalRegistrySource::SourceTransitions(advice) = logical.words.source() else { panic!("held original Logical applicability"); };
+            assert_eq!(advice.logical_source_input(), Some(&input));
+            assert!(advice.obligations().contains(&crate::command_binding::SourceCommandTransitionObligation::ExplicitLogicalSourceApplicability));
+            let scope_receipt = retained(&analyser.result.global_scope)
+                .expect("scope retains the full source owner");
+            assert_eq!(
+                scope_receipt
+                    .for_body_token(source, &input, token)
+                    .unwrap()
+                    .0,
+                namespace
+            );
+            assert!(
+                scope_receipt
+                    .logical
+                    .as_ref()
+                    .unwrap()
+                    .words
+                    .matches_source(&SourceImage::document(source), input.lexer_config(),)
+            );
+            let mut changed = input.clone();
+            changed.config.strict_quoting = !changed.config.strict_quoting;
+            assert!(receipt.for_body_token(source, &changed, token).is_none());
+            assert!(
+                receipt
+                    .for_body_token(&source.replace("local 1", "local 2"), &input, token)
+                    .is_none()
+            );
+            let mut foreign = token;
+            foreign.span = Span::new(0, 0);
+            assert!(receipt.for_body_token(source, &input, foreign).is_none());
+        }
+        let source = "namespace eval caller {apply {{} {set local 1}}}";
+        let result = Analyser::new().analyse(source, "tcl");
+        let receipt = retained(&result.global_scope)
+            .expect("namespace caller cannot donate lambda namespace");
+        assert!(receipt.namespace.is_root());
+        assert!(receipt.logical.is_some());
+        for source in [
+            "apply $lambda",
+            "apply {{} {return} sub extra}",
+            r"apply {{} {return} sub\ name}",
+            "proc apply args {}; apply {{} {return}}",
+        ] {
+            let mut analyser = Analyser::new();
+            analyser.analyse_and_retain_result_for_test(source, "tcl");
+            let input = analyser.resolved_analysis_input();
+            let command = crate::segmenter::segment_commands_with_offset_and_config(
+                source,
+                0,
+                input.lexer_config(),
+            )
+            .pop()
+            .unwrap();
+            assert!(
+                analyser
+                    .original_interp_apply_body(command.argv[0], command.arg_tokens(), &[])
+                    .is_none(),
+                "{source}"
+            );
+        }
     }
 
     #[test]

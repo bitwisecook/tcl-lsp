@@ -742,6 +742,79 @@ fn native_text_fragment(
     None
 }
 
+/// One Unicode source-name list field retains the complete original roster.
+/// This separate Logical purpose supplies no Native value, name key or cell.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct LogicalSourceListNameInput {
+    fields: std::sync::Arc<[tcl_syntax::word_rules::OriginalSourceListElement]>,
+    ordinal: usize,
+    policy: NamePolicyProtocol,
+}
+
+impl LogicalSourceListNameInput {
+    pub(super) fn from_original_word(
+        original: &NativeWord,
+        rules: WordValueRules,
+        policy: NamePolicyProtocol,
+        _purpose: super::original_name::LogicalSourceNamePurpose,
+    ) -> Option<Vec<Self>> {
+        if policy.authority() != tcl_syntax::naming::NamePolicyAuthority::AuthoredSimulation
+            || rules != WordValueRules::from_config(&original.config())
+        {
+            return None;
+        }
+        let fields: std::sync::Arc<[_]> =
+            tcl_syntax::word_rules::original_static_word_list_elements(original)?.into();
+        Some(
+            (0..fields.len())
+                .map(|ordinal| Self {
+                    fields: std::sync::Arc::clone(&fields),
+                    ordinal,
+                    policy,
+                })
+                .collect(),
+        )
+    }
+
+    /// Unicode source naming units under the retained field grammar. These
+    /// bytes never stand in for a Native object's encoding or fetched value.
+    pub(crate) fn source_units(&self) -> &[u8] {
+        self.fields[self.ordinal].value().as_bytes()
+    }
+
+    pub(crate) fn policy(&self) -> NamePolicyProtocol {
+        self.policy
+    }
+
+    pub(crate) fn original_field(&self) -> &tcl_syntax::word_rules::OriginalSourceListElement {
+        &self.fields[self.ordinal]
+    }
+
+    pub(super) fn complete_unchanged_roster(inputs: &[Self]) -> Option<()> {
+        let first = inputs.first()?;
+        if first.fields.len() != inputs.len() {
+            return None;
+        }
+        for (ordinal, input) in inputs.iter().enumerate() {
+            let field = input.original_field();
+            if input.ordinal != ordinal
+                || input.policy != first.policy
+                || !std::sync::Arc::ptr_eq(&input.fields, &first.fields)
+                || field.original_word() != first.original_field().original_word()
+                || field
+                    .original_word()
+                    .image()
+                    .bytes()
+                    .get(field.source_span()?.as_range())?
+                    != input.source_units()
+            {
+                return None;
+            }
+        }
+        Some(())
+    }
+}
+
 /// Complete-word and readonly produced-value inputs retain distinct authority.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum SignatureSourceNameInput {
@@ -1257,6 +1330,88 @@ mod variable_operand_root_tests {
                     .is_none()
                 );
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod logical_list_name_tests {
+    use super::*;
+    use crate::signature_scan::original_name::OriginalSourceNamePurpose;
+    use crate::signature_scan::scope::SignatureNamespaceScope;
+
+    fn inputs(source: &str) -> (Vec<LogicalSourceListNameInput>, NativeWord) {
+        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
+        let input = analysis.resolved_input.as_ref().unwrap();
+        assert!(input.has_logical_source_name_context());
+        let policy = tcl_registry::InvocationDialect::of_profile(input.unit_profile())
+            .authored_name_policy()
+            .unwrap();
+        let config = input.lexer_config();
+        let plan = tcl_lexer::native_script_words_in(
+            SourceImage::document(source),
+            Span::new(0, u32::try_from(source.len()).unwrap()),
+            config,
+        )
+        .unwrap();
+        let word = plan.commands[0].words[1].clone();
+        let purpose = OriginalSourceNamePurpose::for_analysis_input(input, None, policy);
+        let fields = purpose
+            .logical_list_inputs(&word, WordValueRules::from_config(&config))
+            .unwrap();
+        assert!(
+            OriginalSourceNamePurpose::Native(policy)
+                .logical_list_inputs(&word, WordValueRules::from_config(&config))
+                .is_none()
+        );
+        (fields, word)
+    }
+
+    #[test]
+    fn logical_lambda_namespace_requires_complete_original_field_roster() {
+        let (omitted, original) = inputs("apply {{} {return}}");
+        assert!(
+            SignatureNamespaceScope::from_logical_lambda_list(&omitted)
+                .unwrap()
+                .is_root()
+        );
+        assert!(
+            omitted
+                .iter()
+                .all(|field| field.original_field().original_word() == &original)
+        );
+        let (explicit, original) = inputs("apply {{} {return} sub}");
+        let namespace = SignatureNamespaceScope::from_logical_lambda_list(&explicit).unwrap();
+        assert!(!namespace.is_root());
+        assert_eq!(
+            namespace
+                .source_spelling(Some(explicit[0].policy()))
+                .as_deref(),
+            Some("::sub")
+        );
+        assert_eq!(explicit[2].source_units(), b"sub");
+        assert_eq!(
+            explicit[2].original_field().original_word().config(),
+            original.config()
+        );
+        assert!(SignatureNamespaceScope::from_logical_lambda_list(&explicit[..2]).is_none());
+        let mut reordered = explicit.clone();
+        reordered.swap(0, 1);
+        assert!(SignatureNamespaceScope::from_logical_lambda_list(&reordered).is_none());
+        let (foreign, _) = inputs("apply {{} {return} sub}");
+        let mut mixed = explicit.clone();
+        mixed[2] = foreign[2].clone();
+        assert!(SignatureNamespaceScope::from_logical_lambda_list(&mixed).is_none());
+        for source in [
+            "apply {{} {return} sub extra}",
+            "apply {{}}",
+            r"apply {{} {return} sub\ namespace}",
+        ] {
+            let (fields, _) = inputs(source);
+            assert!(
+                SignatureNamespaceScope::from_logical_lambda_list(&fields).is_none(),
+                "{source}"
+            );
         }
     }
 }

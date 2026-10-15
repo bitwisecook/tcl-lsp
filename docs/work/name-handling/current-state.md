@@ -1,5 +1,9 @@
 # Current centralised naming work
 
+## Logical Apply source namespace transport
+
+The reviewed Logical Apply producer now retains a distinct whole original list-field roster, exact two/three-field namespace recipe and full original call/input/configuration/body applicability. Scope retains the actual immutable receipt after namespace projection. Native snapshot purpose remains unchanged; no lambda activation/formal/frame/cell/normal grant or generic body-inventory coverage is inferred. Two new positive/adversarial controls are unexecuted. Existing raw parameter/display fallbacks and actual lambda frame/formal consumers remain separate unfinished work.
+
 ## Definition member source roles
 
 Reviewed OO consumers now obtain actual selected member heads and Name/ParamList/Option/Namespace/wrapper-keyword operands from the same shared source member owner in both domains. Full parent words/list-field carriers and genuine selected source body containers replace nominal member-head lookup and raw role loops. Obsolete private report-head/default-config package scanners are removed. All281 prior test bodies remain byte-exact; three new controls are unexecuted. Existing parameter empty/NUL filters and actual formal/frame binding remain separate unfinished obligations.
