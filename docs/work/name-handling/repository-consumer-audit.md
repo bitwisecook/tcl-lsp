@@ -1,5 +1,17 @@
 # Repository-wide remaining-consumer audit
 
+Paused at the user’s request — 2026-10-15 22:10 UTC. All six agent lanes have stopped. The final source-audit checkpoint retains **6,083 provisional purpose records**, not a remaining-migration count. The complete count is **unknown** because actual source/operational/guidance review, generated provenance, disposition interpretation and independent atomic-purpose reconciliation are unfinished. See [the pause status](audit-status.md) for exact area backlogs and portable evidence.
+
+| Area | Provisional records | Source-review status and remaining review |
+| --- | ---: | --- |
+| Compiler | 635 | 53 partial + 220 unread production files; 157 separate operational/helper files; 312 production files retain omitted inline bodies; two generated provider-parity obligations. |
+| Registry / DB / SpecTcl | 772 | 470 production paths read; 188 assigned paths unexamined. Inline operations remain in 282 production and 17 helper files; coarse body census is not a net backlog count. |
+| LSP / server / editors | 639 | Assigned first-party production read. 175 external files and 201 known inline regions remain unexamined; 1,028 file rows have review dispositions. |
+| Runtime / hosts | 834 | 254 product and 103 shared-owner production files read; 18 production files partial. 498 inline operational reviews and 287 harness/provider files remain pending. |
+| VM / codegen | 909 | 251 production files read among 275 whole-source dispositions. Interpreter lines 1–23,250 read; 23,251–33,348 unfinished. 197 external files and 144 known inline regions remain pending. |
+| CLI / debugger / MCP / AI | 329 | All 344 assigned paths have dispositions: 203 whole sources, 133 fixed-input manifests, seven generated traces and one decoded PNG. Independent atomic-purpose reconciliation remains unfinished. |
+| Independent cross-cutting audit | 1,965 | 229 manual + ten peer whole production reads. 50 Rust workspace source files remain, plus wider tooling/guidance/config/generated/provenance rosters and 66 inline operational groups. |
+
 The complete number of remaining naming consumers is **not yet established**. The earlier 27-function snapshot, 330-row audit and grouped work items are bounded records, not a repository-wide total.
 
 The current audit is bound to commit `cc24c394004fc187378ba0eefb6c2c5b2615fb00`. Its complete Git tree has **110,709 tracked paths**, each assigned exactly once; independent reconciliation found no missing paths, overlaps or extras. These include retained original providers, fixtures and archives; the file count does not measure migration work.
@@ -28,7 +40,7 @@ Each remaining site will record its file, symbol, source hash, purpose and conte
 
 The working file roster, partition check, reviewer coverage and consumer rows are retained under `/workspace/name-session/full-consumer-audit/`; a portable reconciled ledger will replace this in-progress snapshot. The named baseline remains fixed while subsequent source changes receive separate invalidation/review records. Required repository gates remain unfinished.
 
-The latest portable checkpoint (21:47 UTC) contains **5,717 provisional purpose rows**, including shared owners, display-only sites and exclusions. Its 484 archive members are hash-verified. The frozen primary checkpoint inputs were independently reconciled: all recorded source SHA256 values match actual baseline Git blobs, coverage partitions reconcile, and no same-key duplicates were found. Auxiliary source-review receipts are individually hash-bound; that does not reconcile their semantics automatically. This is **not** a remaining-consumer count: unexamined production, multi-symbol groups and independent purpose reconciliation remain unfinished. Exact per-area coverage and provenance classifications are retained in the checkpoint indexed by [handoff/packets.json](handoff/packets.json).
+Final primary packet: `repository-audit-progress-20261015T220942Z.tar.gz` (SHA256 `675d126622193871b11f63f704d518bbe499f03eb28c58be27063f1861b12e04`), **573 hash-verified members**. Nested audit receipts/source snapshots: `repository-audit-deep-progress-20261015T220906Z.tar.gz` (SHA256 `8813dc50abbc84c6c55a0ca2563df708c80ce8d8f8fcb7c60ad2bb092122d4fa`), **14,465 hash-verified members**. Both are indexed in [handoff/packets.json](handoff/packets.json); nested retention does not grant source-review completion. The frozen primary inputs reconcile with zero source-binding errors and zero same-key duplicate candidates; semantic uniqueness and complete coverage remain unproved.
 
 Source review has confirmed remaining integrations in registry/generation transport, compiler variable and recursive source geometry, database positive occupancy, LSP edit-purpose transport, runtime original-object selection, VM lifecycle owners, code generation and host/tooling boundaries. These are specific recorded purposes, not a fixed exhaustive family count. A valid final total requires completing the unexamined roster and reconciling consumer migrations separately from shared-owner extensions and validation-only work.
 

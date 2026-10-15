@@ -308,5 +308,20 @@
     "file": "repository-audit-progress-20261015T214711Z.tar.gz",
     "sha256": "f57514d8421e90c3af72d3f2240257d934954eb74a957cae948a97458a024153",
     "status": "INCOMPLETE cc24 source audit: 5717 provisional purpose rows; exact frozen primary partitions/source SHA/schema reconcile, no same-key duplicate candidates. Semantic aliases have independent reconciliation receipts but remaining work-kind/purpose/unit reconciliation and unexamined production/harness/guidance remain. Shared owners/display/metadata/exclusions included; NOT remaining-consumer total. No test/provider/generator/gate acceptance."
+  },
+  {
+    "file": "repository-audit-progress-20261015T220314Z.tar.gz",
+    "sha256": "6e91ea1a4b6a7a56edc9b159e996e538ce2117c2e1574cb06f02381cbc8b0486",
+    "status": "INCOMPLETE cc24 source audit: 6024 provisional purpose rows; exact frozen primary partitions/source SHA/schema reconcile, no same-key duplicate candidates. Semantic aliases have independent reconciliation receipts but remaining work-kind/purpose/unit reconciliation and unexamined production/harness/guidance remain. Shared owners/display/metadata/exclusions included; NOT remaining-consumer total. No test/provider/generator/gate acceptance."
+  },
+  {
+    "file": "repository-audit-deep-progress-20261015T220906Z.tar.gz",
+    "sha256": "8813dc50abbc84c6c55a0ca2563df708c80ce8d8f8fcb7c60ad2bb092122d4fa",
+    "status": "Exact nested audit snapshots/receipts, 14465 verified members; archive SHA256 8813dc50abbc84c6c55a0ca2563df708c80ce8d8f8fcb7c60ad2bb092122d4fa; concatenate ordered parts if split. Source/provenance retention only, no review or execution acceptance."
+  },
+  {
+    "file": "repository-audit-progress-20261015T220942Z.tar.gz",
+    "sha256": "675d126622193871b11f63f704d518bbe499f03eb28c58be27063f1861b12e04",
+    "status": "INCOMPLETE cc24 source audit: 6083 provisional purpose rows; exact frozen primary partitions/source SHA/schema reconcile, no same-key duplicate candidates. Semantic aliases have independent reconciliation receipts but remaining work-kind/purpose/unit reconciliation and unexamined production/harness/guidance remain. Shared owners/display/metadata/exclusions included; NOT remaining-consumer total. No test/provider/generator/gate acceptance."
   }
 ]

@@ -1,5 +1,7 @@
 # Outstanding naming-consumer audit
 
+Paused at the user’s request — 2026-10-15 22:10 UTC. All six agent lanes have stopped. The final source-audit checkpoint retains **6,083 provisional purpose records**, not a remaining-migration count. The complete count is **unknown** because actual source/operational/guidance review, generated provenance, disposition interpretation and independent atomic-purpose reconciliation are unfinished. See [the pause status](audit-status.md) for exact area backlogs and portable evidence.
+
 Current refresh — 2026-10-15 21:49 UTC: separate portable repository audit retains
 5,717 provisional purposes / 484 verified members, not remaining migrations.
 Recorded source bindings/partitions reconcile, while source/operational/guidance

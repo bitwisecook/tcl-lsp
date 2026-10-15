@@ -1,5 +1,9 @@
 # Bounded name-handling consumer inventory
 
+Paused at the user’s request — 2026-10-15 22:10 UTC. All six agent lanes have stopped. The final source-audit checkpoint retains **6,083 provisional purpose records**, not a remaining-migration count. The complete count is **unknown** because actual source/operational/guidance review, generated provenance, disposition interpretation and independent atomic-purpose reconciliation are unfinished. See [the pause status](audit-status.md) for exact area backlogs and portable evidence.
+
+The rows below are the historical bounded inventory; their source dates and original validation limits remain intact. The final repository audit supersedes them where exact source-purpose corrections exist. No bounded exclusion or older completion statement closes an unexamined surface.
+
 Current census: [repository-consumer-audit.md](repository-consumer-audit.md).
 This document retains historical bounded findings, not a complete current
 inventory or remaining-consumer total. The current audit covers host paths,

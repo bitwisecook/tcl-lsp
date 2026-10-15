@@ -1,5 +1,11 @@
 # Naming migration handoff
 
+**PAUSED at user request.** Paused at the user’s request — 2026-10-15 22:10 UTC. All six agent lanes have stopped. The final source-audit checkpoint retains **6,083 provisional purpose records**, not a remaining-migration count. The complete count is **unknown** because actual source/operational/guidance review, generated provenance, disposition interpretation and independent atomic-purpose reconciliation are unfinished. See [the pause status](../audit-status.md) for exact area backlogs and portable evidence.
+
+Final primary packet: `repository-audit-progress-20261015T220942Z.tar.gz` (SHA256 `675d126622193871b11f63f704d518bbe499f03eb28c58be27063f1861b12e04`), **573 hash-verified members**. Nested audit receipts/source snapshots: `repository-audit-deep-progress-20261015T220906Z.tar.gz` (SHA256 `8813dc50abbc84c6c55a0ca2563df708c80ce8d8f8fcb7c60ad2bb092122d4fa`), **14,465 hash-verified members**. Both are indexed in [packets.json](packets.json); nested retention does not grant source-review completion.
+
+Read [the exact pause status](../audit-status.md) first. Extract the deeper archive alongside the primary packet to restore source snapshots and nested review receipts. Preserve both SHA-bound manifests; recorded source reads do not establish runtime or migration acceptance. Resume only when asked.
+
 Latest audit packet: `repository-audit-progress-20261015T214711Z.tar.gz`
 (SHA256 `f57514d8421e90c3af72d3f2240257d934954eb74a957cae948a97458a024153`),
 5,717 provisional purpose rows / 484 verified members. NOT a remaining count.

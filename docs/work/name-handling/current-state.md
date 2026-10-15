@@ -1,5 +1,13 @@
 # Current centralised naming work
 
+## Paused audit checkpoint — 2026-10-15 22:10 UTC
+
+Paused at the user’s request — 2026-10-15 22:10 UTC. All six agent lanes have stopped. The final source-audit checkpoint retains **6,083 provisional purpose records**, not a remaining-migration count. The complete count is **unknown** because actual source/operational/guidance review, generated provenance, disposition interpretation and independent atomic-purpose reconciliation are unfinished. See [the pause status](audit-status.md) for exact area backlogs and portable evidence.
+
+Final primary packet: `repository-audit-progress-20261015T220942Z.tar.gz` (SHA256 `675d126622193871b11f63f704d518bbe499f03eb28c58be27063f1861b12e04`), **573 hash-verified members**. Nested audit receipts/source snapshots: `repository-audit-deep-progress-20261015T220906Z.tar.gz` (SHA256 `8813dc50abbc84c6c55a0ca2563df708c80ce8d8f8fcb7c60ad2bb092122d4fa`), **14,465 hash-verified members**. Both are indexed in [handoff/packets.json](handoff/packets.json); nested retention does not grant source-review completion.
+
+No production/test changes or new execution acceptance follow. Latest M12 remains 1,133 PASS / 410 FAIL / one TIMEOUT / two NOT_ACCEPTED_RUN_COUNT; required gates remain red/unrun. Pending-state corrections and exact unexamined extents are in [audit-status.md](audit-status.md). The dated snapshots below preserve earlier evidence.
+
 ## Current audit and validation snapshot — 2026-10-15 21:49 UTC
 
 The repository-wide audit is incomplete. The latest portable checkpoint (21:47 UTC) has 5,717 provisional purpose rows and 484 hash-verified members; it is **not a remaining-migration count**. All seven disjoint assignments continue against immutable cc24c3940. Unexamined operational harnesses, remaining production, generated/authored surfaces and independent atomic-purpose reconciliation remain unfinished. Source hashes and unique IDs do not prove semantic uniqueness. Purpose-specific work kinds now distinguish real consumer integration, owner extensions, metadata/schema, validation, existing owners and display/exclusions; unresolved owner requirements remain explicit.

@@ -1,5 +1,7 @@
 # Completion plan
 
+Paused at the user’s request — 2026-10-15 22:10 UTC. All six agent lanes have stopped. The final source-audit checkpoint retains **6,083 provisional purpose records**, not a remaining-migration count. The complete count is **unknown** because actual source/operational/guidance review, generated provenance, disposition interpretation and independent atomic-purpose reconciliation are unfinished. See [the pause status](audit-status.md) for exact area backlogs and portable evidence.
+
 The goal is one coherent set of name-handling tools: parsing at ingress,
 structured identity throughout semantic work, shared lookup policy over
 appropriate state adapters, common variable/frame and binding facts, and

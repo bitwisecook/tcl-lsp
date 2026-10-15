@@ -1,9 +1,11 @@
 # Centralised name handling on work
 
+Paused at the user’s request — 2026-10-15 22:10 UTC. All six agent lanes have stopped. The final source-audit checkpoint retains **6,083 provisional purpose records**, not a remaining-migration count. The complete count is **unknown** because actual source/operational/guidance review, generated provenance, disposition interpretation and independent atomic-purpose reconciliation are unfinished. See [the pause status](audit-status.md) for exact area backlogs and portable evidence.
+
 Repository-wide review is now tracked in [the complete-file audit](repository-consumer-audit.md). Its 110,709-path roster is complete; semantic consumer review and the remaining-consumer total are still unfinished. Earlier bounded counts must not be used as the repository total.
 
 
-Current continuation: frozen4faff L15 built23ELFs and retained1491 selected attempts/all1027K controls,8gains/2priorPASSarrayregressions/0drops. Combined after exact independent permission repairs:1076strictPASS412FAIL1TIMEOUT2NOT_ACCEPTED_RUN_COUNT. Original2286FIRSTPASS75.412753406s/180. Newer Main source remains unexecuted;47packet hashes verified, required gates unfinished. The timed [27-function lower bound](consumer-progress.json) is15implementation-needed/12reviewed-unverified with unexamined scope unbounded. Read the current [snapshot](current-state.md) before historical text below.
+Earlier measured development checkpoints below are historical; use [audit-status.md](audit-status.md) and [current-state.md](current-state.md) for the paused state.
 
 Complete one coherent set of name representations, lookup policies and
 purpose-specific queries across the entire codebase. The starting report is
