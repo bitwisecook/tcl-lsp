@@ -253,6 +253,13 @@ fn to_num(v: &Value) -> Result<Num, TclError> {
 /// is a domain error (a NaN is not a usable result, only `isnan`'s input); and
 /// anything non-numeric (`expr {1 ? "big" : "x"}`) passes through unchanged.
 pub(crate) fn cvt_to_numeric(v: Value) -> Result<Value, TclError> {
+    // 8.4's conversion fails on a double `strtod` reports out of range, so
+    // the value stays the string it was (`expr {"1e999"}` is `1e999`).
+    if wraps_wide_integers()
+        && number::is_out_of_range_double(&v.to_str(), number::runtime_syntax())
+    {
+        return Ok(v);
+    }
     if let Ok(n) = v.as_int() {
         return Ok(Value::int(n));
     }
@@ -321,11 +328,22 @@ fn operand_type_err(v: &Value, side: errors::OperandSide, op: &str) -> TclError 
             _ => errors::OperandDesc::NonNumericString,
         }
     };
+    operand_desc_err(&s, desc, side, op)
+}
+
+/// [`operand_type_err`] for an operand already classified as `desc`.
+fn operand_desc_err(
+    value: &str,
+    desc: errors::OperandDesc,
+    side: errors::OperandSide,
+    op: &str,
+) -> TclError {
     let release = errors::ambient_release();
-    TclError::with_error_code(
-        errors::illegal_operand_message(desc, &s, side, op, release),
-        errors::illegal_operand_error_code(desc, release),
-    )
+    let message = errors::illegal_operand_message(desc, value, side, op, release);
+    match errors::illegal_operand_error_code(desc, release) {
+        Some(code) => TclError::with_error_code(message, code),
+        None => TclError::new(message),
+    }
 }
 
 /// The boolean-context error C raises for a value that is neither a number
@@ -502,7 +520,10 @@ fn dbl_arith(op: BinOp, x: f64, y: f64) -> Result<Value, TclError> {
     // operand check is belt-and-braces. (The `ARITH DOMAIN` errorCode is not
     // threaded, as noted for the operand errors above.)
     if r.is_nan() && !x.is_nan() && !y.is_nan() {
-        return Err(TclError::new("domain error: argument not in valid range"));
+        return Err(TclError::with_error_code(
+            errors::DOMAIN_MESSAGE,
+            errors::DOMAIN_CODE,
+        ));
     }
     Ok(Value::double(r))
 }
@@ -515,16 +536,140 @@ fn is_int_only(op: BinOp) -> bool {
     matches!(op, BitAnd | BitOr | BitXor | LShift | RShift | Mod)
 }
 
-fn float_operand_err(v: &Value, side: &str, op: BinOp) -> TclError {
-    TclError::new(format!(
-        "cannot use floating-point value \"{}\" as {side} operand of \"{}\"",
-        v.to_str(),
-        op.as_str()
-    ))
+fn float_operand_err(v: &Value, side: errors::OperandSide, op: BinOp) -> TclError {
+    operand_desc_err(
+        &v.to_str(),
+        errors::OperandDesc::FloatingPointValue,
+        side,
+        op.as_str(),
+    )
+}
+
+/// Whether this runtime does 8.4's arithmetic: integers are 64-bit and wrap
+/// ([`tcl_dialect::NumberSyntax::wraps_wide_integers`]) and a double result
+/// that is infinite or NaN is an error.
+fn wraps_wide_integers() -> bool {
+    number::runtime_syntax().wraps_wide_integers()
+}
+
+/// An 8.4 `expr` operand (`tclExecute.c` 8.4): a 64-bit integer, a double
+/// `strtod` reads without `ERANGE`, or the operand error. An integer past
+/// 64 bits is "integer value too large to represent"; a double out of range
+/// is no number, except that a subnormal one is still described as a
+/// floating-point value.
+fn classic_operand(v: &Value, side: errors::OperandSide, op: &str) -> Result<Num, TclError> {
+    if let Ok(n) = v.as_int() {
+        return Ok(Num::Int(n));
+    }
+    let s = v.to_str();
+    let desc = match number::parse_whole(&s) {
+        Some(Number::Big { .. }) => {
+            return Err(TclError::with_error_code(
+                format!(
+                    "can't use {} as operand of \"{op}\"",
+                    errors::IOVERFLOW_MESSAGE
+                ),
+                errors::IOVERFLOW_CODE,
+            ));
+        }
+        Some(Number::Double(_))
+            if !number::is_out_of_range_double(&s, number::runtime_syntax()) =>
+        {
+            // The double itself: the string rep of a computed one is only
+            // `%.12g` of it.
+            return v.as_double().map(Num::Dbl);
+        }
+        Some(Number::Double(f)) if f != 0.0 && f.is_finite() => {
+            errors::OperandDesc::FloatingPointValue
+        }
+        _ => errors::OperandDesc::NonNumericString,
+    };
+    Err(operand_desc_err(&s, desc, side, op))
+}
+
+/// 8.4's check of a double result (`TclExprFloatError`): NaN is a domain
+/// error and an infinity an overflow.
+pub(crate) fn classic_double(r: f64) -> Result<Value, TclError> {
+    if r.is_nan() || r.is_infinite() {
+        let error = tcl_syntax::expr::classic::float_error(r);
+        return Err(TclError::with_error_code(error.message, error.error_code));
+    }
+    Ok(Value::double(r))
+}
+
+/// 8.4's binary arithmetic: 64-bit integers that wrap, shifts by C's rules
+/// (a count of 64 or more gives 0, a negative one is taken modulo 64), and
+/// a double divided by zero or overflowing as an error.
+fn classic_arith(op: BinOp, a: &Value, b: &Value) -> Result<Value, TclError> {
+    use BinOp::{Add, BitAnd, BitOr, BitXor, Div, LShift, Mod, Mul, RShift, Sub};
+    let x = classic_operand(a, errors::OperandSide::Left, op.as_str())?;
+    let y = classic_operand(b, errors::OperandSide::Right, op.as_str())?;
+    if let (Num::Int(x), Num::Int(y)) = (&x, &y) {
+        let (x, y) = (*x, *y);
+        let shift = |count: i64| u32::try_from(count & 63).unwrap_or(0);
+        let r = match op {
+            Add => x.wrapping_add(y),
+            Sub => x.wrapping_sub(y),
+            Mul => x.wrapping_mul(y),
+            Div | Mod if y == 0 => return Err(divzero()),
+            Div => {
+                let q = x.wrapping_div(y);
+                if x.wrapping_rem(y) != 0 && ((x < 0) != (y < 0)) {
+                    q.wrapping_sub(1)
+                } else {
+                    q
+                }
+            }
+            Mod => {
+                let r = x.wrapping_rem(y);
+                if r != 0 && ((r < 0) != (y < 0)) {
+                    r.wrapping_add(y)
+                } else {
+                    r
+                }
+            }
+            LShift if y >= 64 => 0,
+            LShift => x.wrapping_shl(shift(y)),
+            RShift if y >= 64 => {
+                if x < 0 {
+                    -1
+                } else {
+                    0
+                }
+            }
+            RShift => x.wrapping_shr(shift(y)),
+            BitAnd => x & y,
+            BitOr => x | y,
+            BitXor => x ^ y,
+            _ => return Err(TclError::new("unsupported integer operator")),
+        };
+        return Ok(Value::int(r));
+    }
+    if is_int_only(op) {
+        let (bad, side) = if matches!(x, Num::Dbl(_)) {
+            (a, errors::OperandSide::Left)
+        } else {
+            (b, errors::OperandSide::Right)
+        };
+        return Err(float_operand_err(bad, side, op));
+    }
+    let (x, y) = (num_f(&x), num_f(&y));
+    let r = match op {
+        Add => x + y,
+        Sub => x - y,
+        Mul => x * y,
+        Div if y == 0.0 => return Err(divzero()),
+        Div => x / y,
+        _ => return Err(TclError::new("unsupported floating-point operator")),
+    };
+    classic_double(r)
 }
 
 /// Apply an arithmetic / bitwise / shift binary operator to two values.
 pub fn arith(op: BinOp, a: &Value, b: &Value) -> Result<Value, TclError> {
+    if wraps_wide_integers() {
+        return classic_arith(op, a, b);
+    }
     let x = to_num_operand(a, errors::OperandSide::Left, op)?;
     let y = to_num_operand(b, errors::OperandSide::Right, op)?;
     // Fast integer path: both operands fit `i128` (promotes to bignum on overflow).
@@ -542,9 +687,9 @@ pub fn arith(op: BinOp, a: &Value, b: &Value) -> Result<Value, TclError> {
         // error (a huge-integer operand took the bignum path above). Name the
         // offending side (left wins if both are floats, matching C's order).
         if matches!(x, Num::Dbl(_)) {
-            Err(float_operand_err(a, "left", op))
+            Err(float_operand_err(a, errors::OperandSide::Left, op))
         } else {
-            Err(float_operand_err(b, "right", op))
+            Err(float_operand_err(b, errors::OperandSide::Right, op))
         }
     } else {
         // Float contagion: the integer operand — bignum included — converts to
@@ -682,6 +827,29 @@ pub fn compare(op: BinOp, a: &Value, b: &Value) -> Result<bool, TclError> {
 /// Apply a unary operator.
 pub fn unary(op: UnaryOp, v: &Value) -> Result<Value, TclError> {
     use UnaryOp::{BitNot, Neg, Not, Pos, WordNot};
+    if wraps_wide_integers() && matches!(op, Neg | Pos | BitNot) {
+        let spelling = match op {
+            Neg => "-",
+            Pos => "+",
+            _ => "~",
+        };
+        return match (
+            op,
+            classic_operand(v, errors::OperandSide::Unary, spelling)?,
+        ) {
+            (Neg, Num::Int(n)) => Ok(Value::int(n.wrapping_neg())),
+            (Neg, Num::Dbl(f)) => Ok(Value::double(-f)),
+            (BitNot, Num::Int(n)) => Ok(Value::int(!n)),
+            (BitNot, _) => Err(operand_desc_err(
+                &v.to_str(),
+                errors::OperandDesc::FloatingPointValue,
+                errors::OperandSide::Unary,
+                "~",
+            )),
+            (_, Num::Int(n)) => Ok(Value::int(n)),
+            (_, other) => Ok(Value::double(num_f(&other))),
+        };
+    }
     match op {
         // `to_num` promotes an out-of-wide literal to `Big` (then `Huge`), so
         // `-2^63` — and any magnitude beyond — negates exactly: `int_value` /
@@ -930,10 +1098,14 @@ impl ExprOps for ExprEval<'_> {
             // C reports the command miss, not a special math-function error
             // (tclsh 8.6.16 / 9.0.4: `expr {frobnicate(1)}` →
             // `invalid command name "tcl::mathfunc::frobnicate"`).
-            return Err(TclError::with_error_code(
-                format!("invalid command name \"{name}\""),
-                format!("TCL LOOKUP COMMAND {name}"),
-            ));
+            let message = format!("invalid command name \"{name}\"");
+            return Err(
+                if self.vm.runtime_version().has_command_lookup_error_codes() {
+                    TclError::with_error_code(message, format!("TCL LOOKUP COMMAND {name}"))
+                } else {
+                    TclError::new(message)
+                },
+            );
         }
         let c = self.vm.invoke_command(&name, &args);
         match c.code {

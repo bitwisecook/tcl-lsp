@@ -340,8 +340,7 @@ proc unknown {cmd args} {
     # `unknown` is bootstrap Tcl shared by every emulated release.  `throw`
     # did not exist in 8.4/8.5, so using it here recursively invokes `unknown`
     # precisely when an older profile rejects a newer command.
-    return -code error -errorcode [list TCL LOOKUP COMMAND $cmd] \
-        "invalid command name \"$cmd\""
+    return -code error @LOOKUP_ERRORCODE@ "invalid command name \"$cmd\""
 }
 if {![info exists ::auto_path]} { set ::auto_path {}; catch {lappend ::auto_path [info library]} }
 "#;
@@ -1809,7 +1808,7 @@ impl Vm {
     /// `a_second_interpreter_does_not_change_the_first_ones_grammar`.
     pub(crate) fn claim_number_grammar(&self) {
         let syntax = self.runtime_version.number_syntax();
-        tcl_syntax::number::set_runtime_syntax(syntax);
+        tcl_syntax::number::set_runtime_release(self.runtime_version);
         tcl_syntax::number::set_runtime_print(syntax.double_format(self.precision));
     }
 
@@ -2693,7 +2692,13 @@ impl Vm {
     /// name`, matching C's miss. Requires a compiler (uses `eval_source`); call
     /// after [`Self::set_compiler`]. Returns the bootstrap's completion.
     pub fn init_auto_load(&mut self) -> Completion<Value> {
-        match self.eval_source(AUTO_LOAD_BOOTSTRAP) {
+        let errorcode = if self.runtime_version.has_command_lookup_error_codes() {
+            "-errorcode [list TCL LOOKUP COMMAND $cmd]"
+        } else {
+            ""
+        };
+        let bootstrap = AUTO_LOAD_BOOTSTRAP.replace("@LOOKUP_ERRORCODE@", errorcode);
+        match self.eval_source(&bootstrap) {
             Ok(c) => c,
             Err(e) => err(e.message),
         }
@@ -13063,6 +13068,11 @@ impl Vm {
         // under that release's grammar rather than the permissive default: a
         // 8.6 interpreter must reject `1.0_2` and an expression `#` comment,
         // both of which are valid only from 9.0.
+        if self.runtime_version.parses_expressions_classically()
+            && let Some(error) = tcl_syntax::expr::classic::check(src)
+        {
+            return Err(TclError::with_error_code(error.message, error.error_code));
+        }
         let node = parse_expr(src, Some(self.runtime_version.dialect_name()));
         if matches!(node, tcl_syntax::expr::ExprNode::Raw { .. }) {
             return Err(self.expr_syntax_error(src));
@@ -13072,7 +13082,7 @@ impl Vm {
         if let Err(error) = surface.validate(&node) {
             let message = error.message(src);
             self.seed_parsing_expression_frame(src, &message);
-            return Err(TclError::with_error_code(message, error.error_code()));
+            return Err(self.expr_parse_error(message, error.error_code().to_owned()));
         }
         let mut ops = ExprEval { vm: self };
         eval(&node, &mut ops)
@@ -13105,7 +13115,17 @@ impl Vm {
         );
         let message = error.message(src);
         self.seed_parsing_expression_frame(src, &message);
-        TclError::with_error_code(message, error.error_code())
+        self.expr_parse_error(message, error.error_code())
+    }
+
+    /// An `expr` syntax error, with its `TCL PARSE EXPR` errorCode on the
+    /// releases that set one.
+    fn expr_parse_error(&self, message: String, code: String) -> TclError {
+        if self.runtime_version.has_expr_parse_error_codes() {
+            TclError::with_error_code(message, code)
+        } else {
+            TclError::new(message)
+        }
     }
 
     /// Add C's `(parsing expression "…")` `errorInfo` frame for a rejected

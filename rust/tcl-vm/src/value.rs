@@ -200,7 +200,7 @@ impl Value {
         }
         let (generated, past_cap): (Rc<str>, bool) = match &*self.0.intrep.borrow() {
             IntRep::Str => (Rc::from(""), false),
-            IntRep::Int(n) => (Rc::from(n.to_string().as_str()), false),
+            IntRep::Int(n) => (Rc::from(wide_string(*n).as_str()), false),
             IntRep::Double(f) => (Rc::from(number::print_double(*f).as_str()), false),
             IntRep::Bool(b) => (Rc::from(if *b { "1" } else { "0" }), false),
             IntRep::List(items) | IntRep::ParsedList(items) => {
@@ -580,6 +580,7 @@ impl Value {
         let total = match &*self.0.intrep.borrow() {
             IntRep::Str => return 0,
             IntRep::Bool(_) => return 1,
+            IntRep::Int(n) if *n == i64::MIN && garbles_wide_min() => 2,
             IntRep::Int(n) => {
                 u64::from(n.unsigned_abs().checked_ilog10().unwrap_or(0) + 1) + u64::from(*n < 0)
             }
@@ -649,6 +650,20 @@ impl Value {
         );
         String::from_utf8(text).expect("a cut at a character boundary keeps UTF-8")
     }
+}
+
+/// A wide's string rep. 8.4 and 8.5's `TclFormatInt` prints `INT64_MIN` as
+/// `-8` ([`tcl_dialect::TclVersion::garbles_wide_min`]).
+fn wide_string(n: i64) -> String {
+    if n == i64::MIN && garbles_wide_min() {
+        "-8".to_owned()
+    } else {
+        n.to_string()
+    }
+}
+
+fn garbles_wide_min() -> bool {
+    number::runtime_release().is_some_and(|release| release.garbles_wide_min())
 }
 
 /// The bytes `items` measure to with a separator between each, stopping once

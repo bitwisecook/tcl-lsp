@@ -134,6 +134,7 @@ pub struct ParseFlags {
 mod ambient {
     use super::{DoubleFormat, NumberSyntax};
     use std::cell::Cell;
+    use tcl_dialect::TclVersion;
 
     thread_local! {
         // Spelled out rather than `NumberSyntax::default()` because `Default` is
@@ -155,6 +156,18 @@ mod ambient {
 
     thread_local! {
         static PRINT: Cell<DoubleFormat> = const { Cell::new(DoubleFormat::Shortest) };
+        static RELEASE: Cell<Option<TclVersion>> = const { Cell::new(None) };
+    }
+
+    pub fn set_release(release: TclVersion) {
+        SYNTAX.with(|c| c.set(release.number_syntax()));
+        RELEASE.with(|c| c.set(Some(release)));
+    }
+
+    pub fn release() -> Option<TclVersion> {
+        RELEASE
+            .with(Cell::get)
+            .filter(|release| release.number_syntax() == get())
     }
 
     pub fn set_print(format: DoubleFormat) {
@@ -179,6 +192,20 @@ pub fn set_runtime_syntax(syntax: NumberSyntax) {
 #[must_use]
 pub fn runtime_syntax() -> NumberSyntax {
     ambient::get()
+}
+
+/// Install the release this thread's runtime emulates: its numeric grammar
+/// ([`set_runtime_syntax`]) and the release itself, for the facts that
+/// differ between releases sharing a grammar (8.5 and 8.6).
+pub fn set_runtime_release(release: tcl_dialect::TclVersion) {
+    ambient::set_release(release);
+}
+
+/// The release installed by [`set_runtime_release`], while the grammar is
+/// still its own.
+#[must_use]
+pub fn runtime_release() -> Option<tcl_dialect::TclVersion> {
+    ambient::release()
 }
 
 /// Install how this thread's runtime prints a double: C keeps
@@ -860,6 +887,14 @@ pub fn parse(s: &str, flags: ParseFlags) -> Option<Parsed> {
     // overflowing — e.g. magnitudes in `(i64::MAX, u64::MAX]`).
     let number = match (scan.overflow, to_i64(scan.magnitude, negative)) {
         (false, Some(v)) => Number::Int(v),
+        (false, None) if flags.syntax.wraps_wide_integers() => {
+            let wrapped = scan.magnitude.cast_signed();
+            Number::Int(if negative {
+                wrapped.wrapping_neg()
+            } else {
+                wrapped
+            })
+        }
         _ => Number::Big {
             negative,
             radix,

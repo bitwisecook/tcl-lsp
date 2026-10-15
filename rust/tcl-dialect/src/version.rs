@@ -697,6 +697,46 @@ impl TclVersion {
         !matches!(self, Self::V8_4 | Self::V8_5)
     }
 
+    /// Whether `invalid command name` carries `TCL LOOKUP COMMAND <name>`
+    /// (8.6). Measured: `catch nosuch; set errorCode` is `NONE` on tclsh
+    /// 8.4.20 and 8.5.19.
+    #[must_use]
+    pub const fn has_command_lookup_error_codes(self) -> bool {
+        !matches!(self, Self::V8_4 | Self::V8_5)
+    }
+
+    /// Whether an `expr` syntax error carries `TCL PARSE EXPR <detail>`
+    /// (8.6). Measured: `expr {1 +}` leaves `NONE` on tclsh 8.4.20 and
+    /// 8.5.19.
+    #[must_use]
+    pub const fn has_expr_parse_error_codes(self) -> bool {
+        !matches!(self, Self::V8_4 | Self::V8_5)
+    }
+
+    /// Whether an operand `expr` cannot use carries `ARITH DOMAIN <desc>`
+    /// (8.5). Measured: `expr {"x" + 1}` leaves `NONE` on tclsh 8.4.20.
+    #[must_use]
+    pub const fn has_illegal_operand_error_codes(self) -> bool {
+        !matches!(self, Self::V8_4)
+    }
+
+    /// Whether `expr` is parsed by 8.4's recursive-descent `tclParseExpr.c`,
+    /// whose errors read `syntax error in expression "…": …`.
+    #[must_use]
+    pub const fn parses_expressions_classically(self) -> bool {
+        matches!(self, Self::V8_4)
+    }
+
+    /// Whether a floating-point `expr` result that is infinite or NaN is an
+    /// error, as is a division by a zero double (8.4's
+    /// `TclExprFloatError`); later releases return `Inf`. Measured: `expr
+    /// {1e308 * 10}` is `floating-point value too large to represent` and
+    /// `expr {1.0 / 0}` `divide by zero` on tclsh 8.4.20, `Inf` from 8.5.19.
+    #[must_use]
+    pub const fn raises_float_range_errors(self) -> bool {
+        matches!(self, Self::V8_4)
+    }
+
     /// Whether a failed variable trace keeps its callback's errorInfo and
     /// adds a `(write trace on "x")` frame (`TclCallVarTraces`, 8.5). 8.4's
     /// `CallVarTraces` resets the result to `can't set "x": <message>`, so

@@ -75,6 +75,10 @@ fn num_or_nan(v: &Value) -> Result<f64, String> {
 const DOMAIN_MSG: &str = "domain error: argument not in valid range";
 const DOMAIN_CODE: &str = "ARITH DOMAIN {domain error: argument not in valid range}";
 
+/// The `-errorcode` of a math function's non-numeric argument
+/// (`expected number but got "x"`), from 8.5.
+const VALUE_NUMBER_CODE: &str = "TCL VALUE NUMBER";
+
 fn domain_err() -> Completion<Value> {
     err_with_code(DOMAIN_MSG, DOMAIN_CODE)
 }
@@ -103,6 +107,8 @@ fn num_err(message: String) -> Completion<Value> {
         err_with_code(message, errors::NAN_CODE)
     } else if message == errors::IOVERFLOW_MESSAGE {
         err_with_code(message, errors::IOVERFLOW_CODE)
+    } else if message.starts_with("expected ") {
+        err_with_code(message, VALUE_NUMBER_CODE)
     } else {
         err(message)
     }
@@ -147,7 +153,7 @@ fn shared_math(name: &str, args: &[Value], int_width: IntWidth) -> Completion<Va
             } else {
                 format!("expected number but got \"{}\"", v.to_str())
             };
-            Err(err(message))
+            Err(err_with_code(message, VALUE_NUMBER_CODE))
         })
         .collect();
     let nums = match nums {
@@ -189,6 +195,9 @@ fn m_mathfunc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let invoked = vm.invoked_name().unwrap_or_default();
     let name = invoked.rsplit("::").next().unwrap_or(invoked).to_owned();
     let int_width = IntWidth::for_tcl_version(vm.runtime_version());
+    if vm.runtime_version().raises_float_range_errors() {
+        return classic_mathfunc(vm, &name, args, int_width);
+    }
     match name.as_str() {
         "abs" => m_abs(args),
         "double" => m_double(args),
@@ -197,6 +206,123 @@ fn m_mathfunc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         "rand" => m_rand(vm, args),
         name => m_integer_conversion(name, args, int_width)
             .unwrap_or_else(|| shared_math(name, args, int_width)),
+    }
+}
+
+/// One argument of an 8.4 math function (`ExprUnaryFunc` and friends): a
+/// 64-bit integer or a double `strtod` reads in range, else `None`.
+fn classic_argument(v: &Value) -> Option<NumValue<BigInt>> {
+    if let Ok(i) = v.as_int() {
+        return Some(NumValue::Int(i));
+    }
+    let s = v.to_str();
+    match number::parse_whole(&s) {
+        Some(Number::Double(_))
+            if !number::is_out_of_range_double(&s, number::runtime_syntax()) =>
+        {
+            v.as_double().ok().map(NumValue::Float)
+        }
+        _ => None,
+    }
+}
+
+/// The math functions as 8.4's fixed table runs them (`tclExecute.c`
+/// 8.4): its argument and arity errors, integer conversions bounded to 64
+/// bits, and a double result checked as `TclExprFloatError` checks it.
+fn classic_mathfunc(
+    vm: &mut Vm,
+    name: &str,
+    args: &[Value],
+    int_width: IntWidth,
+) -> Completion<Value> {
+    const NOT_NUMERIC: &str = "argument to math function didn't have numeric value";
+    let arity = match name {
+        "rand" => 0,
+        "atan2" | "fmod" | "hypot" | "pow" => 2,
+        _ => 1,
+    };
+    if args.len() != arity {
+        return err(if args.len() < arity {
+            "too few arguments for math function"
+        } else {
+            "too many arguments for math function"
+        });
+    }
+    if name == "rand" {
+        return m_rand(vm, args);
+    }
+    let Some(nums) = args
+        .iter()
+        .map(classic_argument)
+        .collect::<Option<Vec<_>>>()
+    else {
+        return err(NOT_NUMERIC);
+    };
+    let overflow = || {
+        err_with_code(
+            tcl_syntax::expr::errors::IOVERFLOW_MESSAGE,
+            tcl_syntax::expr::errors::IOVERFLOW_CODE,
+        )
+    };
+    // 2^63, the `(double) LONG_MAX` C compares against.
+    const LIMIT: f64 = 9_223_372_036_854_775_808.0;
+    let to_long = |d: f64| {
+        if d < -LIMIT || d > LIMIT {
+            None
+        } else if d >= LIMIT {
+            Some(i64::MIN)
+        } else {
+            #[allow(clippy::cast_possible_truncation)]
+            Some(d as i64)
+        }
+    };
+    match (name, &nums[..]) {
+        ("srand", [NumValue::Int(_)]) => m_srand(vm, args),
+        ("srand", _) => err(format!("expected integer but got \"{}\"", args[0].to_str())),
+        ("abs", [NumValue::Int(i)]) => i
+            .checked_abs()
+            .map_or_else(overflow, |abs| ok(Value::int(abs))),
+        ("int" | "wide" | "round", [NumValue::Int(i)]) => ok(Value::int(*i)),
+        ("int" | "wide", [NumValue::Float(d)]) => {
+            to_long(d.trunc()).map_or_else(overflow, |i| ok(Value::int(i)))
+        }
+        ("round", [NumValue::Float(d)]) => {
+            let rounded = if *d < 0.0 { d - 0.5 } else { d + 0.5 };
+            if rounded <= -LIMIT - 1.0 || rounded >= LIMIT {
+                return overflow();
+            }
+            to_long(rounded.trunc()).map_or_else(overflow, |i| ok(Value::int(i)))
+        }
+        ("double", [NumValue::Int(i)]) =>
+        {
+            #[allow(clippy::cast_precision_loss)]
+            ok(Value::double(*i as f64))
+        }
+        ("double", [NumValue::Float(d)]) => ok(Value::double(*d)),
+        _ => {
+            let floats: Vec<NumValue<BigInt>> =
+                nums.iter().map(|n| NumValue::Float(n.as_f64())).collect();
+            let result = match try_dispatch_with_backend_int_width(name, &floats, int_width) {
+                Ok(NumValue::Float(f)) => f,
+                Ok(NumValue::Int(i)) => return ok(Value::int(i)),
+                Ok(NumValue::Big(b)) => return ok(crate::expr::big_value(&b)),
+                Err(e) => return math_func_err(e),
+            };
+            // `exp` and `pow` set `ERANGE` when the result underflows to zero.
+            let underflow = result == 0.0
+                && matches!(name, "exp" | "pow")
+                && floats
+                    .first()
+                    .is_some_and(|base| base.as_f64() != 0.0 || name == "exp");
+            if underflow {
+                let error = tcl_syntax::expr::classic::float_error(0.0);
+                return err_with_code(error.message, &error.error_code);
+            }
+            match crate::expr::classic_double(result) {
+                Ok(value) => ok(value),
+                Err(e) => crate::command::completion_from_tcl_error(e),
+            }
+        }
     }
 }
 
@@ -343,7 +469,7 @@ fn m_double(args: &[Value]) -> Completion<Value> {
             ) {
                 return num_err(tcl_syntax::expr::errors::NAN_MESSAGE.to_string());
             }
-            err(e.message)
+            err_with_code(e.message, VALUE_NUMBER_CODE)
         }
     }
 }

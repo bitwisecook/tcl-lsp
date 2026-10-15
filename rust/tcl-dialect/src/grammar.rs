@@ -737,6 +737,16 @@ impl NumberSyntax {
         }
     }
 
+    /// Whether an integer past 64 bits wraps modulo 2^64 as long as its
+    /// magnitude fits `u64`, as 8.4's `strtoull`-based reads do, rather than
+    /// becoming a bignum. Measured: `expr {18446744073709551615 + 0}` is -1
+    /// and `incr x` from 9223372036854775807 gives -9223372036854775808 on
+    /// tclsh 8.4.20.
+    #[must_use]
+    pub fn wraps_wide_integers(self) -> bool {
+        matches!(self, Self::Tcl84)
+    }
+
     /// How `Tcl_PrintDouble` lays a double out while the precision is
     /// `precision`.
     ///

@@ -129,6 +129,9 @@ impl OperandSide {
 // evidence; folding them together would lose that.
 #[allow(clippy::match_same_arms)]
 pub fn ambient_release() -> TclVersion {
+    if let Some(release) = crate::number::runtime_release() {
+        return release;
+    }
     match crate::number::runtime_syntax() {
         tcl_dialect::NumberSyntax::Tcl90 => TclVersion::V9_0,
         tcl_dialect::NumberSyntax::Tcl85 => TclVersion::V8_6,
@@ -179,17 +182,20 @@ pub fn illegal_operand_message(
     }
 }
 
-/// The `-errorcode` C stamps on an operand-type error, in every release:
-/// `ARITH DOMAIN <detail>`.
+/// The `-errorcode` C stamps on an operand-type error from 8.5
+/// (`ARITH DOMAIN <detail>`); 8.4 leaves `NONE`.
 #[must_use]
-pub fn illegal_operand_error_code(desc: OperandDesc, release: TclVersion) -> String {
+pub fn illegal_operand_error_code(desc: OperandDesc, release: TclVersion) -> Option<String> {
+    if !release.has_illegal_operand_error_codes() {
+        return None;
+    }
     let desc = desc.for_release(release);
     let detail = desc.error_code_detail();
-    if detail.contains(' ') {
+    Some(if detail.contains(' ') {
         format!("ARITH DOMAIN {{{detail}}}")
     } else {
         format!("ARITH DOMAIN {detail}")
-    }
+    })
 }
 
 /// The `-errorcode` for `expected boolean value but got "…"` — a value that
@@ -312,28 +318,32 @@ mod tests {
         );
     }
 
-    /// The `-errorcode` is release-invariant except that 8.6 has no list
-    /// branch to report.
+    /// The `-errorcode` is the same from 8.5 except that 8.6 has no list
+    /// branch to report; 8.4 sets none.
     #[test]
-    fn the_error_code_is_release_invariant_apart_from_the_list_branch() {
+    fn the_error_code_follows_the_release() {
         use OperandDesc::{FloatingPointValue, List, NonNumericString};
-        for release in [TclVersion::V8_6, TclVersion::V9_0] {
+        for release in [TclVersion::V8_5, TclVersion::V8_6, TclVersion::V9_0] {
             assert_eq!(
-                illegal_operand_error_code(NonNumericString, release),
-                "ARITH DOMAIN {non-numeric string}"
+                illegal_operand_error_code(NonNumericString, release).as_deref(),
+                Some("ARITH DOMAIN {non-numeric string}")
             );
             assert_eq!(
-                illegal_operand_error_code(FloatingPointValue, release),
-                "ARITH DOMAIN {floating-point value}"
+                illegal_operand_error_code(FloatingPointValue, release).as_deref(),
+                Some("ARITH DOMAIN {floating-point value}")
             );
         }
         assert_eq!(
-            illegal_operand_error_code(List, TclVersion::V9_0),
-            "ARITH DOMAIN list"
+            illegal_operand_error_code(List, TclVersion::V9_0).as_deref(),
+            Some("ARITH DOMAIN list")
         );
         assert_eq!(
-            illegal_operand_error_code(List, TclVersion::V8_6),
-            "ARITH DOMAIN {non-numeric string}"
+            illegal_operand_error_code(List, TclVersion::V8_6).as_deref(),
+            Some("ARITH DOMAIN {non-numeric string}")
+        );
+        assert_eq!(
+            illegal_operand_error_code(NonNumericString, TclVersion::V8_4),
+            None
         );
     }
 }
