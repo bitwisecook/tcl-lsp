@@ -10131,6 +10131,21 @@ impl Vm {
         self.drain_call_frames_to(1);
     }
 
+    /// Hand the error trace a coroutine's flow built up to its resumer, once
+    /// that flow has finished with `code` and the resumer's flow is back; only
+    /// an error carries one. C keeps one `errorInfo` per interp, so the trace
+    /// crosses the coroutine boundary like a proc boundary: the resume command
+    /// then logs its own `invoked from within` frame.
+    pub(crate) fn adopt_flow_error_trace(&mut self, code: Code, p: &mut ParkedFlow) {
+        if code != Code::Error {
+            return;
+        }
+        self.error_info = p.error_info.take();
+        self.error_line = p.error_line;
+        std::mem::swap(&mut self.error_stack, &mut p.error_stack);
+        self.error_logged = false;
+    }
+
     /// Fire `unset` variable traces on the current frame's genuine locals just
     /// before the frame is destroyed — C Tcl unsets a call frame's locals when
     /// the frame is deleted, firing their unset traces (coroutine-4.1/4.2, and
@@ -10252,28 +10267,13 @@ impl Vm {
         self.script_stack.last().map_or("", String::as_str)
     }
 
-    /// Evaluate `src` as if `target` were the current call frame (`uplevel`).
-    /// The frames above `target` are set aside for the duration and restored
-    /// afterwards, so the script's variable references and `info level` resolve
-    /// against the target activation. A `Return` completion is passed through to
-    /// the calling frame (as the reference `uplevel` does). The script's own
-    /// commands are evaluated as `evaluation` says.
-    pub(crate) fn eval_at_level_as(
-        &mut self,
-        target: usize,
-        src: &str,
-        evaluation: CommandEvaluation,
-    ) -> Completion<Value> {
-        if target >= self.frames.len() {
-            return err(format!("bad level \"{target}\""));
-        }
-        let shift = self.enter_level(target);
-        let result = self.eval_source_as(src, evaluation);
-        self.leave_level(shift);
-        match result {
-            Ok(c) => c,
-            Err(e) => err(e.message),
-        }
+    /// The namespace a script run at the existing frame `target` resolves
+    /// in: the one [`Self::enter_level`] leaves current.
+    pub(crate) fn namespace_at_level(&self, target: usize) -> String {
+        let ns_cut = (target + 1).min(self.ns_stack.len());
+        ns_cut
+            .checked_sub(1)
+            .map_or_else(String::new, |i| self.ns_stack[i].clone())
     }
 
     /// Make the existing frame `target` current by setting aside every frame
@@ -12831,7 +12831,7 @@ impl Vm {
         self.prepare_script_commands_in_namespace_as(src, namespace, CommandEvaluation::Compiled)
     }
 
-    fn prepare_script_commands_in_namespace_as(
+    pub(crate) fn prepare_script_commands_in_namespace_as(
         &mut self,
         src: &str,
         namespace: &str,

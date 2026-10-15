@@ -433,6 +433,7 @@ fn resume(
             }
         }
         RunExit::Done(c) => {
+            vm.adopt_flow_error_trace(c.code, &mut parked);
             // The body finished: remove the command + state (unless `exit` is
             // propagating, in which case leave teardown to the unwinding caller).
             if let Some(key) = key {

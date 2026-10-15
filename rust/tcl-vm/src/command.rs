@@ -411,6 +411,7 @@ fn cmd_eval(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                     label: Some("eval"),
                     cleanup_proc: None,
                     fatal_tail: prepared.fatal_tail,
+                    level: None,
                 });
                 ok(Value::empty())
             }
@@ -543,6 +544,7 @@ fn cmd_apply(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 label: None,
                 cleanup_proc: Some(name),
                 fatal_tail: None,
+                level: None,
             });
             ok(Value::empty())
         }
@@ -2551,27 +2553,31 @@ fn cmd_uplevel(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         .map(|v| v.to_str().to_string())
         .collect::<Vec<_>>()
         .join(" ");
-    // `uplevel 0` (and `uplevel #<current level>`) runs in the *current* frame —
-    // no frame swap — so defer it to the explicit stack (yieldable), like `eval`
-    // (coroutine-1.7/1.8/1.12). Every other level swaps to a
-    // different frame that must be restored afterwards, which a transparent
-    // script frame cannot carry, so those keep the nested-drive `eval_at_level_as`.
+    // The body runs on the explicit stack (yieldable), like `eval`
+    // (coroutine-1.7/1.8/1.12). Any other level than the current one runs in
+    // that frame's namespace, the frames above it carried on the activation
+    // until it completes. As with `eval`, the clean prefix of a body whose
+    // later commands do not parse runs before the parse error (#1603).
     let evaluation = crate::value::script_evaluation(rest);
-    if target == cur {
-        return match vm.compile_script_cached_as(&script, evaluation) {
-            Ok(script) => {
+    let namespace = vm.namespace_at_level(target);
+    match vm.prepare_script_commands_in_namespace_as(&script, &namespace, evaluation) {
+        Ok(prepared) => match prepared.prefix {
+            Some(unit) => {
                 vm.pending.eval = Some(crate::exec::EvalReq {
-                    script,
+                    script: unit,
                     label: Some("uplevel"),
                     cleanup_proc: None,
-                    fatal_tail: None,
+                    fatal_tail: prepared.fatal_tail,
+                    level: (target != cur).then_some(target),
                 });
                 ok(Value::empty())
             }
-            Err(e) => err(e.message),
-        };
+            None => prepared
+                .fatal_tail
+                .map_or_else(|| ok(Value::empty()), |tail| vm.raise_fatal_tail(tail)),
+        },
+        Err(e) => err(e.message),
     }
-    vm.eval_at_level_as(target, &script, evaluation)
 }
 
 /// `variable ?name value ...? name ?value?` — namespace variables (currently global).
