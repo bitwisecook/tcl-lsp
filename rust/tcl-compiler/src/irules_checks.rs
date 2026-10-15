@@ -43,7 +43,9 @@ use tcl_lexer::Span;
 use tcl_registry::events::{
     CollectionReleaseRequirement, DataCollectionAction, EventRegistry, PayloadCollectionRequirement,
 };
-use tcl_registry::side_effects::{ConnectionSide, SideEffectTarget};
+use tcl_registry::side_effects::ConnectionSide;
+#[cfg(test)]
+use tcl_registry::side_effects::SideEffectTarget;
 use tcl_registry::{CommandRegistry, Traits};
 
 use crate::cfg_builder::build_cfg_with_registry_and_config;

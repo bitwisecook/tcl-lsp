@@ -118,7 +118,8 @@ pub(crate) use source_scoped_body::{
 mod source_taint;
 pub use source_taint::HostedSourceTaintContext;
 pub(crate) use source_taint::{
-    NativeSourceTaintInvocation, hosted_source_taint_invocation, native_source_taint_invocation,
+    NativeSourceTaintInvocation, OriginalSourceTaintReadOperands, hosted_source_taint_invocation,
+    native_source_taint_invocation, original_source_taint_read_operands,
 };
 mod vendor_advice;
 mod vendor_source_barriers;

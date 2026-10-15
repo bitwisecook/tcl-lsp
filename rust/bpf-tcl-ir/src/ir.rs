@@ -452,6 +452,8 @@ pub struct AttachSpec {
 pub struct BpfProgramDecl {
     /// The (BPF-native) event name as written.
     pub event: String,
+    /// Actual selected catalogue event, independent of its written label.
+    pub event_id: crate::event::BpfEventId,
     /// Handler priority (F5-inspired; default 500). Ordering metadata in v1.
     pub priority: u32,
     /// The compiled program.

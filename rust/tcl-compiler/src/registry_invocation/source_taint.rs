@@ -23,6 +23,65 @@ use std::sync::Arc;
 use tcl_lexer::{LexerConfig, SourceImage};
 use tcl_registry::{CommandRegistry, model::ContextRegistry};
 
+/// Original operands selected at one SSA operation, without a read or value proof.
+pub(crate) struct OriginalSourceTaintReadOperands {
+    words: Vec<crate::ir::WordExpr>,
+    original: Vec<tcl_lexer::NativeWord>,
+    config: LexerConfig,
+}
+
+impl OriginalSourceTaintReadOperands {
+    pub(crate) const fn config(&self) -> LexerConfig {
+        self.config
+    }
+
+    pub(crate) fn owns_word(&self, word: &crate::ir::WordExpr) -> bool {
+        self.words
+            .iter()
+            .zip(&self.original)
+            .skip(1)
+            .any(|(actual, original)| actual == word && original.span() == word.source().span)
+    }
+}
+
+/// Join the current operation's own argv or an authentic lexical child to its
+/// original input. Same-offset words from another analysis cannot donate reads.
+pub(crate) fn original_source_taint_read_operands(
+    registry: &CommandRegistry,
+    context: super::InvocationMetadataContext<'_>,
+    point: crate::ssa::SsaSourceView<'_>,
+    tokens: &crate::ir::CommandTokens,
+) -> Option<OriginalSourceTaintReadOperands> {
+    let parent = point.source_tokens()?;
+    let actual = if parent == tokens {
+        parent.clone()
+    } else {
+        let mut children =
+            crate::word_subst::checked_original_argument_lifted_calls(parent, registry, context)?;
+        let index = children
+            .iter()
+            .position(|child| child.tokens.as_ref() == Some(tokens))?;
+        children.swap_remove(index).tokens?
+    };
+    let input = context.source_analysis_input()?;
+    context.matches_registry(registry).then_some(())?;
+    let binding = actual.source_binding.as_ref()?;
+    binding.original_argument_metadata_for_input(&actual, input, registry)?;
+    let config = binding.original_argument_lexer_config(&actual)?;
+    let image = binding.original_argument_source_image(&actual)?;
+    let original = super::original_native_compiler_words(
+        image,
+        actual.words(),
+        actual.argv.first()?.start(),
+        config,
+    )?;
+    Some(OriginalSourceTaintReadOperands {
+        words: actual.words().to_vec(),
+        original,
+        config,
+    })
+}
+
 /// Actual lowering source/context for conditional hosted advice.
 /// No constructor accepts a profile label or reconstructed native name.
 #[derive(Debug, Clone)]
@@ -289,6 +348,81 @@ pub(crate) fn native_source_taint_invocation(
 mod tests {
     use super::*;
     use crate::ir::CommandTokens;
+
+    #[test]
+    fn original_taint_operands_require_the_current_operation_and_original_child() {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = context.commands().profile().unwrap();
+        let build = || {
+            crate::compilation_unit::CompilationUnit::build_with_context_registry(
+                "set payload 1; puts [list $payload]",
+                crate::compilation_unit::UnitBuildOptions {
+                    registry: context.commands(),
+                    defer_top_level: false,
+                    config: LexerConfig::for_file_grammar(profile.grammar),
+                    dialect: Some(profile),
+                    external_call_sites: None,
+                    declared_commands: None,
+                },
+                None,
+                Arc::clone(&context),
+            )
+        };
+        let unit = build();
+        let registry = context.commands();
+        let metadata =
+            super::super::InvocationMetadataContext::for_module(registry, &unit.ir_module).unwrap();
+        let ssa = &unit.top_level.ssa;
+        let point = ssa
+            .blocks
+            .iter()
+            .flat_map(|(block, data)| {
+                (0..data.statements.len())
+                    .map(move |index| crate::ssa::SsaSourceView::at_statement(ssa, *block, index))
+            })
+            .find(|point| {
+                point.source_tokens().is_some_and(|tokens| {
+                    tokens.argv_texts.first().is_some_and(|head| head == "puts")
+                })
+            })
+            .expect("actual source operation");
+        let tokens = point.source_tokens().unwrap();
+        let owned = original_source_taint_read_operands(registry, metadata, point, tokens)
+            .expect("original operation operands");
+        assert!(owned.owns_word(&tokens.words()[1]));
+        let children =
+            crate::word_subst::checked_original_argument_lifted_calls(tokens, registry, metadata)
+                .expect("complete original argv children");
+        let child = children
+            .iter()
+            .find_map(|child| child.tokens.as_ref())
+            .expect("original list child");
+        let owned = original_source_taint_read_operands(registry, metadata, point, child)
+            .expect("original child operands");
+        assert!(owned.owns_word(&child.words()[1]));
+        assert!(!owned.owns_word(&tokens.words()[1]));
+        let mut changed = child.clone();
+        changed.argv_texts[1] = "$other".into();
+        assert!(original_source_taint_read_operands(registry, metadata, point, &changed).is_none());
+        let foreign = build();
+        let foreign_ssa = &foreign.top_level.ssa;
+        let foreign_child = foreign_ssa
+            .blocks
+            .iter()
+            .flat_map(|(block, data)| {
+                (0..data.statements.len()).filter_map(move |index| {
+                    crate::ssa::SsaSourceView::at_statement(foreign_ssa, *block, index)
+                        .source_tokens()
+                })
+            })
+            .find(|candidate| candidate.argv_texts == tokens.argv_texts)
+            .expect("equal text in an independent analysis");
+        assert!(
+            original_source_taint_read_operands(registry, metadata, point, foreign_child).is_none()
+        );
+    }
+
     fn native_fixture(source: &str) -> (crate::ir::Module, crate::analyser::ResolvedAnalysisInput) {
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();

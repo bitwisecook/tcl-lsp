@@ -33,7 +33,8 @@ use tcl_syntax::number::NumberSyntax;
 
 use crate::diag::{BpfDiag, BpfError};
 use crate::lower::parse_int;
-use crate::source::{lower_bpf_source, source_bpf_operation, synthetic_operation_call};
+pub use crate::source::OriginalBpfSource;
+use crate::source::{source_bpf_operation, synthetic_operation_call};
 
 /// Maximum iterations a single `loop` may unroll to.
 const MAX_UNROLL: i64 = 64;
@@ -43,14 +44,20 @@ const MAX_UNROLL: i64 = 64;
 /// # Errors
 /// Returns a [`BpfError`] for a malformed `loop` (bad arity, non-literal count,
 /// or a count exceeding the unroll cap).
-pub fn unroll_loops(script: &Script, registry: &CommandRegistry) -> Result<Script, BpfError> {
+pub fn unroll_loops(
+    script: &Script,
+    registry: &CommandRegistry,
+    source: &OriginalBpfSource,
+) -> Result<Script, BpfError> {
     let mut out = Vec::with_capacity(script.statements.len());
     for stmt in &script.statements {
-        if let Statement::Call { args, span, .. } = stmt
+        if let Statement::Call {
+            args, span, tokens, ..
+        } = stmt
             && source_bpf_operation(stmt, registry).map(|op| op.kind)
                 == Some(tcl_registry::bpf_op::BpfOpKind::LoopMacro)
         {
-            expand_loop(args, *span, registry, &mut out)?;
+            expand_loop(args, tokens.as_ref(), *span, registry, source, &mut out)?;
         } else {
             out.push(stmt.clone());
         }
@@ -60,8 +67,10 @@ pub fn unroll_loops(script: &Script, registry: &CommandRegistry) -> Result<Scrip
 
 fn expand_loop(
     args: &[String],
+    tokens: Option<&tcl_compiler::ir::CommandTokens>,
     span: Span,
     registry: &CommandRegistry,
+    source: &OriginalBpfSource,
     out: &mut Vec<Statement>,
 ) -> Result<(), BpfError> {
     // loop N VAR { body }
@@ -87,11 +96,27 @@ fn expand_loop(
         ));
     }
     let var = &args[1];
-    let body_text = &args[2];
-
-    // Lower the loop body, then recursively unroll any loops inside it.
-    let body_module = lower_bpf_source(body_text, registry);
-    let body = unroll_loops(&body_module.top_level, registry)?;
+    let body_source = source.body(tokens, args, 2).ok_or_else(|| {
+        BpfError::new(
+            BpfDiag::BadArity,
+            span,
+            "loop body requires unchanged original literal source",
+        )
+    })?;
+    let body_base = body_source
+        .base()
+        .checked_sub(source.base())
+        .ok_or_else(|| {
+            BpfError::new(
+                BpfDiag::Internal,
+                span,
+                "loop body is outside its original source owner",
+            )
+        })?;
+    let body_module = body_source.lower(registry);
+    let mut body = unroll_loops(&body_module.top_level, registry, &body_source)
+        .map_err(|error| error.offset(body_base))?;
+    tcl_compiler::rebase_script(&mut body, i64::from(body_base));
 
     for k in 0..count {
         out.push(synthetic_operation_call(

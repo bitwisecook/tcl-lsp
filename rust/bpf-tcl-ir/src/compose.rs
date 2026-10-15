@@ -116,8 +116,10 @@ pub fn compose(outcomes: &[Outcome]) -> ChainResult {
 /// One event's ordered handler chain, projected from a compiled [`BpfModule`].
 #[derive(Debug, Clone)]
 pub struct EventChain {
-    /// Canonical/declared event name shared by every handler in the chain.
+    /// Written display label of the first handler in this chain.
     pub event: String,
+    /// Actual catalogue event shared by every selected handler.
+    pub event_id: crate::event::BpfEventId,
     /// Indices into [`BpfModule::programs`] for this event's handlers, already
     /// in ascending-priority order (the module is pre-sorted).
     pub handler_indices: Vec<usize>,
@@ -152,12 +154,13 @@ impl EventChain {
 pub fn event_chains(module: &BpfModule) -> Vec<EventChain> {
     let mut chains: Vec<EventChain> = Vec::new();
     for (index, decl) in module.programs.iter().enumerate() {
-        if let Some(chain) = chains.iter_mut().find(|c| c.event == decl.event) {
+        if let Some(chain) = chains.iter_mut().find(|c| c.event_id == decl.event_id) {
             chain.handler_indices.push(index);
             chain.priorities.push(decl.priority);
         } else {
             chains.push(EventChain {
                 event: decl.event.clone(),
+                event_id: decl.event_id,
                 handler_indices: vec![index],
                 priorities: vec![decl.priority],
             });
@@ -179,13 +182,16 @@ pub fn ambiguous_priorities(module: &BpfModule) -> Vec<(String, u32)> {
             if pair[0] == pair[1]
                 && !clashes
                     .iter()
-                    .any(|(e, p)| e == &chain.event && *p == pair[0])
+                    .any(|(e, p)| *e == chain.event_id && *p == pair[0])
             {
-                clashes.push((chain.event.clone(), pair[0]));
+                clashes.push((chain.event_id, pair[0]));
             }
         }
     }
     clashes
+        .into_iter()
+        .map(|(id, priority)| (id.spec().name.to_owned(), priority))
+        .collect()
 }
 
 #[cfg(test)]

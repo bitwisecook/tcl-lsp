@@ -4783,6 +4783,33 @@ fn emit_statement_warnings<S: std::hash::BuildHasher, H: std::hash::BuildHasher>
     let dialect = context.dialect;
     let stmt = &ssa_stmt.statement;
 
+    if !context.source.allows_nominal_metadata() && matches!(stmt, Statement::AssignValue { .. }) {
+        let Some(parent) = source
+            .source_tokens()
+            .filter(|parent| stmt.tokens() == Some(*parent))
+        else {
+            return;
+        };
+        let Some(metadata) = context.source.metadata else {
+            return;
+        };
+        let Some(children) = crate::word_subst::checked_original_argument_lifted_calls(
+            parent,
+            context.registry,
+            metadata,
+        ) else {
+            return;
+        };
+        for child in children {
+            if let Some(tokens) = child.tokens {
+                emit_retained_invocation_warnings(
+                    &tokens, ssa_stmt, taints, warnings, source, context,
+                );
+            }
+        }
+        return;
+    }
+
     // Owned fallback for `AssignValue` — `parse_command_substitution`
     // returns an owned (String, Vec<String>) so we stash it in this
     // scope and borrow into the uniform `(command, call_args)` tuple
@@ -4992,8 +5019,7 @@ fn emit_retained_invocation_warnings<S: std::hash::BuildHasher, H: std::hash::Bu
         return;
     }
     let ssa = source.function();
-    let (Statement::Call { args, .. } | Statement::Barrier { args, .. }) = &statement.statement
-    else {
+    let Some(args) = tokens.argv_texts.get(1..) else {
         return;
     };
     let mut candidates = Vec::new();
@@ -5069,6 +5095,22 @@ fn emit_retained_invocation_warnings<S: std::hash::BuildHasher, H: std::hash::Bu
         ));
     }
     for (command, effective, source_metadata) in candidates {
+        let source_metadata = source_metadata.or_else(|| {
+            (!context.source.allows_nominal_metadata())
+                .then(|| {
+                    crate::registry_invocation::original_source_taint_read_operands(
+                        context.registry,
+                        context.source.metadata?,
+                        source,
+                        tokens,
+                    )
+                    .map(|operands| SourceWarningMetadata::Original(Box::new(operands)))
+                })
+                .flatten()
+        });
+        if !context.source.allows_nominal_metadata() && source_metadata.is_none() {
+            continue;
+        }
         #[cfg(debug_assertions)]
         if std::env::var_os("TCL_LSP_TRACE_HOSTED_TAINT").is_some() {
             eprintln!(
@@ -6258,6 +6300,7 @@ fn original_sink_argument<'a>(call: &SinkCall<'a>, index: usize) -> Option<&'a W
 enum SourceWarningMetadata {
     Hosted(Box<crate::registry_invocation::OriginalConditionalVendorRegistryMetadata>),
     Native(Box<crate::registry_invocation::NativeSourceTaintInvocation>),
+    Original(Box<crate::registry_invocation::OriginalSourceTaintReadOperands>),
 }
 
 /// Conditional original source reads retain exact positioned value authority.
@@ -6292,6 +6335,9 @@ impl SourceWarningRead<'_> {
                         .is_some_and(|word| word.span() == original.source().span)
                 }),
             ),
+            SourceWarningMetadata::Original(operands) => {
+                (operands.config(), operands.owns_word(original))
+            }
         };
         if reference_root_with_config(reference, config) != Some(name) || !owns_word {
             return None;
@@ -6301,7 +6347,7 @@ impl SourceWarningRead<'_> {
         // no SSA symbol, presence, effect or Normal receipt is created here.
         let read = self.point.read_reference(site, reference);
         let key = match self.metadata {
-            SourceWarningMetadata::Hosted(_) => {
+            SourceWarningMetadata::Hosted(_) | SourceWarningMetadata::Original(_) => {
                 read.and_then(|read| read.version.map(|version| (read.symbol, version)))
             }
             SourceWarningMetadata::Native(_) => {

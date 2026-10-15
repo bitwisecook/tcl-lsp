@@ -37,7 +37,8 @@ use tcl_syntax::number::NumberSyntax;
 
 use crate::diag::{BpfDiag, BpfError};
 use crate::lower::parse_int;
-use crate::source::{lower_bpf_source, source_declaration_kind, synthetic_operation_call};
+pub use crate::source::OriginalBpfSource;
+use crate::source::{source_declaration_kind, synthetic_operation_call};
 
 /// The deepest a `use` may nest (one template using another), a guard against
 /// mutually-recursive templates expanding forever.
@@ -53,6 +54,8 @@ pub struct TemplateDef {
     pub params: Vec<String>,
     /// The lowered template body.
     pub body: Script,
+    /// Original body source and full grammar, retained until a reached `use`.
+    pub source: OriginalBpfSource,
 }
 
 /// Collect every top-level `template NAME {params} {body}` declaration.
@@ -62,14 +65,17 @@ pub struct TemplateDef {
 pub fn collect_templates(
     top_level: &Script,
     registry: &CommandRegistry,
+    source: &OriginalBpfSource,
 ) -> Result<Vec<TemplateDef>, BpfError> {
     let mut out: Vec<TemplateDef> = Vec::new();
     for stmt in &top_level.statements {
-        if let Statement::Call { args, span, .. } = stmt
+        if let Statement::Call {
+            args, span, tokens, ..
+        } = stmt
             && source_declaration_kind(stmt, registry)
                 == Some(tcl_registry::bpf_op::BpfDeclKind::Template)
         {
-            let def = parse_template(args, *span, registry)?;
+            let def = parse_template(args, tokens.as_ref(), *span, registry, source)?;
             if out.iter().any(|t| t.name == def.name) {
                 return Err(BpfError::new(
                     BpfDiag::BadTemplate,
@@ -85,8 +91,10 @@ pub fn collect_templates(
 
 fn parse_template(
     args: &[String],
+    tokens: Option<&tcl_compiler::ir::CommandTokens>,
     span: Span,
     registry: &CommandRegistry,
+    source: &OriginalBpfSource,
 ) -> Result<TemplateDef, BpfError> {
     // template NAME {params} {body}
     if args.len() != 3 {
@@ -96,12 +104,32 @@ fn parse_template(
             "`template` expects: template NAME { params } { body }",
         ));
     }
-    let params = args[1].split_whitespace().map(str::to_owned).collect();
-    let body = lower_bpf_source(&args[2], registry).top_level;
+    let params = source
+        .argument(tokens, args, 1)
+        .and_then(|word| tcl_syntax::word_rules::original_static_word_list_elements(&word))
+        .ok_or_else(|| {
+            BpfError::new(
+                BpfDiag::BadTemplate,
+                span,
+                "template parameters require an original static list",
+            )
+        })?
+        .into_iter()
+        .map(|field| field.value().to_owned())
+        .collect();
+    let source = source.body(tokens, args, 2).ok_or_else(|| {
+        BpfError::new(
+            BpfDiag::BadTemplate,
+            span,
+            "template body requires unchanged original literal source",
+        )
+    })?;
+    let body = source.lower(registry).top_level;
     Ok(TemplateDef {
         name: args[0].clone(),
         params,
         body,
+        source,
     })
 }
 
@@ -245,7 +273,11 @@ fn expand_use(
     }
 
     // Splice the body, expanding any nested `use` one level deeper.
-    let expanded = expand_script(&tmpl.body, templates, registry, depth + 1)?;
+    let expanded = expand_script(&tmpl.body, templates, registry, depth + 1)
+        .and_then(|body| crate::unroll::unroll_loops(&body, registry, &tmpl.source))
+        // A reached expansion diagnostic belongs to this actual use site; the
+        // template body's independent coordinates cannot become handler offsets.
+        .map_err(|error| BpfError::new(error.code, span, error.msg))?;
     out.extend(expanded.statements);
     Ok(())
 }

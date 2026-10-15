@@ -36,11 +36,11 @@ use tcl_registry::model::ingress::static_context_for;
 use crate::capability::{CapabilityPolicy, check_policy, collect_policy};
 use crate::deploy::resolve_attach;
 use crate::diag::{BpfDiag, BpfError};
-use crate::event::{event_to_prog_type, known_event_names};
+use crate::event::{BpfEventId, event_id, known_event_names, prog_type_of};
 use crate::ir::{BpfModule, BpfProgramDecl, ProgType};
 use crate::lower::{lower_function_with_config, parse_int};
 use crate::profile::{BpfProfileSpec, collect_profile, expand_fields};
-use crate::source::{lower_bpf_source, source_declaration_kind};
+use crate::source::{OriginalBpfSource, lower_bpf_source, source_declaration_kind};
 use crate::template::{TemplateDef, collect_templates, expand_uses};
 use crate::unroll::unroll_loops;
 
@@ -56,11 +56,12 @@ pub fn compile_module(source: &str) -> Result<BpfModule, BpfError> {
     // re-lower ourselves — a separate event space from F5's `::when::`.
     let registry = bpf_registry();
     let module = lower_bpf_source(source, registry);
+    let source = OriginalBpfSource::from_module(&module);
 
     // The (optional) active profile — the top-layer config selected for the file.
-    let profile = collect_profile(&module.top_level, registry)?;
+    let profile = collect_profile(&module.top_level, registry, &source)?;
     // Reusable parameterised handlers a `use` site can splice in.
-    let templates = collect_templates(&module.top_level, registry)?;
+    let templates = collect_templates(&module.top_level, registry, &source)?;
     // The capability policy that sandboxes each handler's operations.
     let policy = collect_policy(&module.top_level, registry)?;
 
@@ -76,7 +77,7 @@ pub fn compile_module(source: &str) -> Result<BpfModule, BpfError> {
             saw_when = true;
             programs.push(lower_when_decl(
                 args,
-                tokens.as_ref(),
+                (tokens.as_ref(), &source),
                 *span,
                 registry,
                 profile.as_ref(),
@@ -118,7 +119,7 @@ pub fn compile_module(source: &str) -> Result<BpfModule, BpfError> {
         let body = strip_decls(&module.top_level, registry);
         if !body.statements.is_empty() {
             let used = expand_uses(&body, &templates, registry)?;
-            let unrolled = unroll_loops(&used, registry)?;
+            let unrolled = unroll_loops(&used, registry, &source)?;
             let expanded = match profile.as_ref() {
                 Some(p) => expand_fields(&unrolled, p, registry)?,
                 None => unrolled,
@@ -133,6 +134,15 @@ pub fn compile_module(source: &str) -> Result<BpfModule, BpfError> {
             )?;
             programs.push(BpfProgramDecl {
                 event: "SOCKET_FILTER".to_owned(),
+                event_id: crate::event::event_id_for_prog_type(ProgType::SocketFilter).ok_or_else(
+                    || {
+                        BpfError::new(
+                            BpfDiag::Internal,
+                            Span::empty(0),
+                            "implicit socket program has no unique registry event",
+                        )
+                    },
+                )?,
                 priority: 500,
                 program,
                 attach: None,
@@ -149,7 +159,7 @@ pub fn compile_module(source: &str) -> Result<BpfModule, BpfError> {
     programs.sort_by(|a, b| {
         a.priority
             .cmp(&b.priority)
-            .then_with(|| a.event.cmp(&b.event))
+            .then_with(|| a.event_id.spec().name.cmp(b.event_id.spec().name))
     });
 
     let module = BpfModule { programs };
@@ -188,13 +198,14 @@ const DEFAULT_PRIORITY: u32 = 500;
 
 fn lower_when_decl(
     args: &[String],
-    tokens: Option<&CommandTokens>,
+    original: (Option<&CommandTokens>, &OriginalBpfSource),
     call_span: Span,
     registry: &CommandRegistry,
     profile: Option<&BpfProfileSpec>,
     templates: &[TemplateDef],
     policy: &CapabilityPolicy,
 ) -> Result<BpfProgramDecl, BpfError> {
+    let (tokens, source) = original;
     // The span of header word `i`, falling back to the whole call.
     let word_span = |i: usize| {
         tokens
@@ -259,20 +270,22 @@ fn lower_when_decl(
             "the `when` event must be a literal name (no substitutions)",
         ));
     }
-    let prog_type = resolve_event_prog_type(&event, word_span(0))?;
+    let (event_id, prog_type) = resolve_event(&event, word_span(0))?;
 
     let body_idx = args.len() - 1;
-    let body_text = &args[body_idx];
-    // The body word's span starts at the opening brace; +1 skips it so
-    // body-relative diagnostic offsets map back into the original file.
-    let source_base = tokens
-        .and_then(|t| t.argv.get(body_idx).copied())
-        .map_or(0, |sp| sp.start() + 1);
-
-    let body_module = lower_bpf_source(body_text, registry);
+    let body_source = source.body(tokens, args, body_idx).ok_or_else(|| {
+        BpfError::new(
+            BpfDiag::BadArity,
+            word_span(body_idx),
+            "when body requires unchanged original literal source",
+        )
+    })?;
+    let source_base = body_source.base();
+    let body_module = body_source.lower(registry);
     let used = expand_uses(&body_module.top_level, templates, registry)
         .map_err(|e| e.offset(source_base))?;
-    let unrolled = unroll_loops(&used, registry).map_err(|e| e.offset(source_base))?;
+    let unrolled =
+        unroll_loops(&used, registry, &body_source).map_err(|e| e.offset(source_base))?;
     let expanded = match profile {
         Some(p) => expand_fields(&unrolled, p, registry).map_err(|e| e.offset(source_base))?,
         None => unrolled,
@@ -291,6 +304,7 @@ fn lower_when_decl(
 
     Ok(BpfProgramDecl {
         event,
+        event_id,
         priority,
         program,
         attach: None,
@@ -301,11 +315,15 @@ fn lower_when_decl(
 /// Resolve a `when` event name to a codegen-ready IR program type, or a precise
 /// diagnostic: a registry-described-but-not-yet-compilable event (TC, cgroup) is
 /// distinguished from a genuinely unknown one.
-fn resolve_event_prog_type(event: &str, span: Span) -> Result<ProgType, BpfError> {
-    if let Some(pt) = event_to_prog_type(event) {
-        return Ok(pt);
+fn resolve_event(event: &str, span: Span) -> Result<(BpfEventId, ProgType), BpfError> {
+    let selected = event_id(event);
+    if let Some(id) = selected
+        && id.spec().is_codegen_ready()
+        && let Some(prog_type) = prog_type_of(id.spec().prog_type)
+    {
+        return Ok((id, prog_type));
     }
-    if crate::event::event_is_described(event) {
+    if selected.is_some() {
         // A real event — say so precisely rather than claiming it is unknown —
         // but the compiler cannot lower it yet.
         return Err(BpfError::new(
@@ -397,6 +415,34 @@ mod tests {
     use tcl_dialect::model::{Family, PackageFloor, SurfaceQuery};
     use tcl_dialect::{NumberSyntax, TclVersion};
     use tcl_syntax::number::{runtime_syntax, set_runtime_syntax};
+
+    #[test]
+    fn literal_body_forms_keep_their_actual_content_base() {
+        for source in [
+            "when XDP pass\n",
+            "when XDP {pass}\n",
+            "when XDP \"pass\"\n",
+        ] {
+            let module = compile_module(source).expect("unchanged literal body");
+            assert_eq!(
+                module.programs[0].source_base as usize,
+                source.find("pass").unwrap()
+            );
+        }
+    }
+
+    #[test]
+    fn template_parameters_use_original_list_fields_and_defer_unused_loop_validation() {
+        let registry = bpf_registry();
+        let module = lower_bpf_source("template names {{a b} c\\ d} {pass}\n", registry);
+        let source = OriginalBpfSource::from_module(&module);
+        let templates = collect_templates(&module.top_level, registry, &source).unwrap();
+        assert_eq!(templates[0].params, ["a b", "c d"]);
+        compile_module("template unused {} {loop nope i {pass}}\nwhen XDP {pass}\n")
+            .expect("unused template count remains unevaluated");
+        compile_module("template used {} {loop 1 i {setint x 0}}\nwhen XDP {use used; pass}\n")
+            .expect("reached template loops use their own original body");
+    }
 
     /// Regression and mutation proof: loading the BPF command pack alone is
     /// intentionally profile-less. The front end must instead obtain
@@ -610,7 +656,7 @@ mod tests {
     #[test]
     fn every_registry_described_event_now_compiles() {
         // With TC and cgroup codegen implemented, every event the registry
-        // describes is codegen-ready — `resolve_event_prog_type`'s
+        // describes is codegen-ready — `resolve_event`'s
         // "described, but codegen not ready" branch
         // (`BpfDiag::BadEvent` naming the event precisely rather than
         // claiming it unknown) has no live event to fire on today. It stays
@@ -631,6 +677,60 @@ mod tests {
         let src = "when XDP { setbuf p ctx\n pktlen n p\n if {$n < 20} { next }\n pass }\n";
         let module = compile_module(src).expect("next compiles");
         assert_eq!(module.programs.len(), 1);
+    }
+
+    #[test]
+    fn event_aliases_cannot_split_a_chain_or_bypass_priority_conflicts() {
+        for (first, second) in [
+            ("xdp", "XDP"),
+            ("SOCKET", "SOCKET_FILTER"),
+            ("tc", "TC_INGRESS"),
+        ] {
+            let source =
+                format!("when {first} priority 10 {{next}}\nwhen {second} priority 10 {{drop}}\n");
+            let error = compile_module(&source).unwrap_err();
+            assert_eq!(error.code, BpfDiag::AmbiguousComposition, "{source}");
+            let source =
+                format!("when {first} priority 10 {{next}}\nwhen {second} priority 20 {{drop}}\n");
+            let module = compile_module(&source).unwrap();
+            assert_eq!(module.programs[0].event, first);
+            assert_eq!(module.programs[1].event, second);
+            assert_eq!(module.programs[0].event_id, module.programs[1].event_id);
+            let chains = crate::compose::event_chains(&module);
+            assert_eq!(chains.len(), 1);
+            assert_eq!(chains[0].handler_indices, [0, 1]);
+            assert_eq!(chains[0].priorities, [10, 20]);
+        }
+    }
+
+    #[test]
+    fn display_labels_do_not_reselect_chain_or_loader_event_metadata() {
+        let mut module =
+            compile_module("when xdp priority 10 {next}\nwhen XDP priority 20 {pass}\n").unwrap();
+        let selected = module.programs[0].event_id;
+        module.programs[0].event = "SOCKET_FILTER".into();
+        let chains = crate::compose::event_chains(&module);
+        assert_eq!(chains.len(), 1);
+        assert_eq!(chains[0].event_id, selected);
+        let plan = crate::loader::DeploymentPlan::from_module("owned", &module);
+        assert_eq!(plan.programs[0].event, "SOCKET_FILTER");
+        assert_eq!(plan.programs[0].event_id, selected);
+        assert_eq!(plan.programs[0].event_id.spec().name, "XDP");
+        assert_eq!(plan.programs[0].pin, "/sys/fs/bpf/bpftcl/owned/xdp_0");
+    }
+
+    #[test]
+    fn distinct_tc_events_keep_separate_identity_despite_the_shared_elf_section() {
+        let module = compile_module(
+            "when TC_INGRESS priority 10 {drop}\nwhen TC_EGRESS priority 10 {drop}\n",
+        )
+        .unwrap();
+        assert_ne!(module.programs[0].event_id, module.programs[1].event_id);
+        assert_eq!(
+            module.programs[0].event_id.spec().elf_section,
+            module.programs[1].event_id.spec().elf_section
+        );
+        assert_eq!(crate::compose::event_chains(&module).len(), 2);
     }
 
     #[test]

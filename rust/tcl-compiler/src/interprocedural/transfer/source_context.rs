@@ -84,6 +84,7 @@ pub(super) struct SourceSummaryContext<'a> {
     module: &'a Module,
     registry: &'a CommandRegistry,
     config: LexerConfig,
+    realm: crate::realm::CommandBindingRealm,
 }
 
 impl<'a> SourceSummaryContext<'a> {
@@ -110,6 +111,9 @@ impl<'a> SourceSummaryContext<'a> {
             module,
             registry,
             config,
+            realm: crate::realm::original_logical_realm_from_source_bindings(
+                module.retained_source_bindings.as_deref()?,
+            )?,
         })
     }
 
@@ -193,6 +197,245 @@ impl<'a> SourceSummaryContext<'a> {
             }
         }
         selected
+    }
+
+    fn original_argument_word(
+        &self,
+        tokens: &CommandTokens,
+        written: usize,
+    ) -> Option<tcl_lexer::NativeWord> {
+        self.metadata(tokens)?;
+        let input = self.module.source_metadata_input.as_ref()?;
+        let site = tokens.source_binding.as_ref()?.invocation_site()?;
+        let candidate = self
+            .realm
+            .original_logical_navigation_candidates(input, site.offset)?;
+        let original = candidate.original_words().get(written.checked_add(1)?)?;
+        if original.span() != tokens.words().get(written.checked_add(1)?)?.source().span {
+            return None;
+        }
+        Some(original.clone())
+    }
+
+    fn original_argument(
+        &self,
+        tokens: &CommandTokens,
+        written: usize,
+    ) -> Option<(
+        tcl_lexer::Span,
+        crate::signature_scan::scope::SignatureSourceNameInput,
+        crate::command_binding::OriginalLogicalVariableScope,
+    )> {
+        let original = self.original_argument_word(tokens, written)?;
+        let input = self.module.source_metadata_input.as_ref()?;
+        let policy = tcl_registry::InvocationDialect::of_profile(input.unit_profile())
+            .authored_name_policy()?;
+        let purpose =
+            crate::signature_scan::original_name::OriginalSourceNamePurpose::for_analysis_input(
+                input, None, policy,
+            );
+        let name =
+            crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(purpose.key(
+                &original,
+                tcl_syntax::word_rules::WordValueRules::from_config(&original.config()),
+            )?);
+        let scope = self.realm.original_logical_variable_scope_at(
+            input,
+            original.image(),
+            original.span(),
+            &name,
+        )?;
+        Some((original.span(), name, scope))
+    }
+
+    pub(super) fn argument_source_place(
+        &self,
+        tokens: &CommandTokens,
+        written: usize,
+        form: tcl_registry::resolved_invocation::VariableReceiverOperandForm,
+    ) -> Option<crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence> {
+        let (span, input, scope) = self.original_argument(tokens, written)?;
+        crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence::from_logical_source(
+            span,
+            input,
+            crate::signature_scan::variable_symbol::OriginalVariableSymbolReceiver::Operand(form),
+            false,
+            scope,
+            &[],
+        )
+    }
+
+    pub(super) fn alias_local(
+        &self,
+        tokens: &CommandTokens,
+        alias: &tcl_registry::VariableCellAliasTransition,
+    ) -> Option<tcl_core_types::NameBytes> {
+        let operation = self.operation(tokens)?;
+        let written = operation
+            .effective
+            .written_argument(alias.local.argument_index()?)?;
+        let (_, input, scope) = self.original_argument(tokens, written)?;
+        scope.local_frame()?;
+        use crate::registry_invocation::DeclarationVariableAliasPurpose as Purpose;
+        use tcl_registry::VariableAliasTarget as Target;
+        let purpose = match alias.target {
+            Target::Global { .. } => Purpose::Global,
+            Target::CurrentNamespace { .. } => Purpose::NamespaceVariable,
+            Target::Namespace { .. } => Purpose::NamespaceUpvar,
+            Target::CallerSelectedFrame { .. } => Purpose::Upvar,
+        };
+        crate::signature_scan::variable_symbol::original_variable_alias_local_name(&input, purpose)
+    }
+
+    pub(super) fn alias_source_place(
+        &self,
+        tokens: &CommandTokens,
+        alias: &tcl_registry::VariableCellAliasTransition,
+    ) -> Option<crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence> {
+        use tcl_registry::VariableAliasTarget as Target;
+        let variable = match &alias.target {
+            Target::Global { variable }
+            | Target::CurrentNamespace { variable }
+            | Target::Namespace { variable, .. }
+            | Target::CallerSelectedFrame { variable, .. } => variable,
+        };
+        let operation = self.operation(tokens)?;
+        let local = operation
+            .effective
+            .written_argument(alias.local.argument_index()?)?;
+        let target = operation
+            .effective
+            .written_argument(variable.argument_index()?)?;
+        let (local_span, _, local_scope) = self.original_argument(tokens, local)?;
+        let (span, input, scope) = self.original_argument(tokens, target)?;
+        if local_scope.local_frame()? != scope.local_frame()? {
+            return None;
+        }
+        let words = crate::registry_invocation::source_structure::original_logical_registry_words_for_module(
+            self.module, self.registry, tokens,
+        )?;
+        let analysis_input = self.module.source_metadata_input.as_ref()?;
+        let operands = crate::registry_invocation::OriginalSourceVariableAliasOperands::capture(
+            words.clone(),
+            analysis_input.borrowed_context_registry(),
+        )?;
+        let policy = input.policy();
+        let purpose =
+            crate::signature_scan::original_name::OriginalSourceNamePurpose::for_analysis_input(
+                analysis_input,
+                None,
+                policy,
+            );
+        let namespace = operands.target_namespace_scope_for_original_words(
+            &words,
+            analysis_input,
+            (local_span, span),
+            &input,
+            &scope.namespace(),
+            purpose,
+        )?;
+        crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence::from_logical_alias_target(
+            span, input, namespace,
+            crate::signature_scan::variable_symbol::OriginalVariableSymbolReceiver::NamespaceAlias,
+            scope,
+        )
+    }
+
+    pub(super) fn alias_receiver_for_local(
+        &self,
+        tokens: &CommandTokens,
+        local: &str,
+    ) -> Option<tcl_registry::resolved_invocation::VariableReceiverOperandForm> {
+        let operation = self.operation(tokens)?;
+        let words = crate::registry_invocation::source_structure::original_logical_registry_words_for_module(
+            self.module, self.registry, tokens,
+        )?;
+        let operands = crate::registry_invocation::OriginalSourceVariableAliasOperands::capture(
+            words,
+            self.module
+                .source_metadata_input
+                .as_ref()?
+                .borrowed_context_registry(),
+        )?;
+        let transitions = operation.facts.state_transitions.declared()?;
+        let mut found = None;
+        for fact in transitions.facts() {
+            let tcl_registry::StateTransition::VariableCellAlias(alias) = &fact.transition else {
+                continue;
+            };
+            if self.alias_local(tokens, alias)?.as_bytes() != local.as_bytes() {
+                continue;
+            }
+            let tcl_registry::VariableAliasTarget::CallerSelectedFrame { frame, variable } =
+                &alias.target
+            else {
+                return None;
+            };
+            let level = match frame {
+                tcl_registry::CallerFrameSelection::DefaultCaller => {
+                    Some(tcl_registry::FrameLevel::Relative(1))
+                }
+                tcl_registry::CallerFrameSelection::Explicit(level) => {
+                    level.literal().and_then(|level| {
+                        tcl_registry::FrameLevel::parse_for_dialect(level, operation.dialect?)
+                    })
+                }
+            };
+            if level != Some(tcl_registry::FrameLevel::Relative(1)) {
+                return None;
+            }
+            let local = operation
+                .effective
+                .written_argument(alias.local.argument_index()?)?;
+            let target = operation
+                .effective
+                .written_argument(variable.argument_index()?)?;
+            let local = self.original_argument_word(tokens, local)?;
+            let target = self.original_argument_word(tokens, target)?;
+            let form = operands.target_receiver_operand_form((local.span(), target.span()))?;
+            if found.is_some_and(|held| held != form) {
+                return None;
+            }
+            found = Some(form);
+        }
+        found
+    }
+
+    pub(super) fn write_arguments(
+        &self,
+        tokens: &CommandTokens,
+    ) -> Option<
+        Vec<(
+            usize,
+            tcl_registry::resolved_invocation::VariableReceiverOperandForm,
+        )>,
+    > {
+        self.with_operation(tokens, |operation, schema| {
+            let (roles, complete) = schema.authored_source_argument_roles();
+            if !complete {
+                return None;
+            }
+            let mut writes = Vec::new();
+            let aliases = schema.authored_logical_source_variable_aliases()?;
+            for (argument, role) in roles {
+                if role != tcl_registry::ArgRole::VarWrite {
+                    continue;
+                }
+                let argument = schema
+                    .semantics
+                    .argument_offset
+                    .checked_add(usize::from(argument))?;
+                if aliases
+                    .iter()
+                    .any(|alias| alias.local.argument_index() == Some(argument))
+                {
+                    continue;
+                }
+                let form = schema.authored_source_variable_receiver_operand_form(argument)?;
+                writes.push((operation.effective.written_argument(argument)?, form));
+            }
+            Some(writes)
+        })
     }
 
     pub(super) fn expression(
@@ -691,6 +934,48 @@ mod tests {
             .next()
             .unwrap();
         assert!(shadow.expression(&parent, &assembled, None).is_none());
+    }
+
+    #[test]
+    fn original_transfer_alias_targets_keep_source_symbols_and_refuse_foreign_words() {
+        let (context, unit) = crate::interprocedural::logical_completion_unit(
+            "proc p {} {global ::g; global ::::g; set g 1}",
+            "tcl8.6",
+        );
+        let module = &unit.ir_module;
+        let source =
+            SourceSummaryContext::for_module(module, context.commands(), module.lexer_config)
+                .unwrap();
+        let commands = source
+            .body_commands(&fixture_id(&module.procedures, "::p"))
+            .unwrap();
+        let mut places = Vec::new();
+        for tokens in &commands {
+            let (aliases, _) = super::super::alias_facts(tokens, &source).unwrap();
+            for alias in aliases {
+                assert_eq!(source.alias_local(tokens, &alias).unwrap().as_bytes(), b"g");
+                places.push(source.alias_source_place(tokens, &alias).unwrap());
+                let mut missing = tokens.clone();
+                missing.source_binding = None;
+                assert!(source.alias_source_place(&missing, &alias).is_none());
+            }
+        }
+        assert_eq!(places.len(), 2);
+        assert_eq!(places[0].symbol(), places[1].symbol());
+        assert_ne!(
+            places[0].original_name_input().bytes(),
+            places[1].original_name_input().bytes()
+        );
+        assert_eq!(
+            places[0].symbol().checked_c_namespace_key().as_deref(),
+            Some("::g")
+        );
+        let mut foreign = module.clone();
+        foreign.source.push(' ');
+        assert!(
+            SourceSummaryContext::for_module(&foreign, context.commands(), foreign.lexer_config)
+                .is_none()
+        );
     }
 
     #[test]

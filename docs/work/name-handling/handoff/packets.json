@@ -83,5 +83,10 @@
     "file": "successor-hi-build-feedback.tar.gz",
     "sha256": "1d22f1e50eba62e607b749e5f896ad91b34f4220760f0a3175a5baddc14f06fc",
     "status": "Actual isolated H ef204 build101/6test-errors/3ELFs and I1a78 build101/private-module/0ELFs; both0tests/source{}. H repairs captured1a78; I existing-public-reexport correction needs fresh rebuild. No new execution acceptance."
+  },
+  {
+    "file": "successor-j-build-feedback.tar.gz",
+    "sha256": "c5edba1d28c890e3ce9c667d85b36a81e1bb4df32933a274c12bfb0f1847af3c",
+    "status": "Actual isolated J0f634 build101/4VM epoch field errors/0ELFs/0tests/source{}. Narrow existing compilation_epochs owner repair capturedc448; K rebuild still running, no current execution acceptance."
   }
 ]

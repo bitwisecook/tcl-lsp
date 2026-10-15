@@ -1515,6 +1515,10 @@ impl<'a> LatticeDriver<'a> {
             return None;
         }
         let words = literal_words(&cooked);
+        let Some(outer) = module.outer_steps(&callee) else {
+            self.record_undecided();
+            return None;
+        };
         let places = match module.call_transfer(&callee, &words) {
             Some(crate::interprocedural::CallTransfer::Never) => {
                 return Some(self.never_completes(&defs));
@@ -1553,7 +1557,7 @@ impl<'a> LatticeDriver<'a> {
         }
         Some(DefValues::PerDef(place_answers(
             &defs,
-            (&places, &module.outer_steps(&callee)),
+            (&places, &outer),
             after.as_deref(),
         )))
     }
@@ -1721,6 +1725,10 @@ impl<'a> LatticeDriver<'a> {
             return None;
         }
         let words = literal_words(&cooked);
+        let Some(outer) = module.outer_steps(&callee) else {
+            self.record_undecided();
+            return declined(DeclineReason::Unsupported);
+        };
         let places = match module.call_transfer(&callee, &words) {
             Some(crate::interprocedural::CallTransfer::Places(places)) => places,
             Some(crate::interprocedural::CallTransfer::Never) if self.raises_end_paths() => {
@@ -1731,7 +1739,6 @@ impl<'a> LatticeDriver<'a> {
                 return None;
             }
         };
-        let outer = module.outer_steps(&callee);
         if policy == NestedPolicy::EffectFreeOnly && (!places.is_empty() || !outer.is_empty()) {
             self.record_undecided();
             return declined(DeclineReason::StatefulNested);

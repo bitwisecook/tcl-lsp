@@ -164,6 +164,18 @@ impl OriginalSourceVariableAliasOperands {
         &self.operands
     }
 
+    /// Receiver ingress of an actual direct-written alias target. This source
+    /// grammar card supplies no selected frame, installed alias or successful access.
+    pub(crate) fn target_receiver_operand_form(
+        &self,
+        operands: (tcl_lexer::Span, tcl_lexer::Span),
+    ) -> Option<tcl_registry::resolved_invocation::VariableReceiverOperandForm> {
+        self.operands
+            .iter()
+            .any(|&(local, target, _)| (local, target) == operands)
+            .then_some(tcl_registry::resolved_invocation::VariableReceiverOperandForm::Combined)
+    }
+
     /// Original namespace operand of this exact source alias relationship.
     /// Current source/Registry grammar and direct Written correspondence select
     /// naming geometry only, never an installed alias, frame or physical cell.
@@ -184,7 +196,30 @@ impl OriginalSourceVariableAliasOperands {
         if original != self.words {
             return None;
         }
-        let input = analysis.resolved_input.as_ref()?;
+        self.target_namespace_scope_for_original_words(
+            &original,
+            analysis.resolved_input.as_ref()?,
+            operands,
+            target_input,
+            current,
+            purpose,
+        )
+    }
+
+    /// The same alias operands under an independently validated Module source owner.
+    /// Exact original words and the complete input remain separate from cells.
+    pub(crate) fn target_namespace_scope_for_original_words(
+        &self,
+        original: &super::source_structure::OriginalRegistryWords,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        operands: (tcl_lexer::Span, tcl_lexer::Span),
+        target_input: &crate::signature_scan::scope::SignatureSourceNameInput,
+        current: &crate::signature_scan::scope::SignatureNamespaceScope,
+        purpose: crate::signature_scan::original_name::OriginalSourceNamePurpose,
+    ) -> Option<crate::signature_scan::scope::SignatureNamespaceScope> {
+        if original != &self.words {
+            return None;
+        }
         let context = input.borrowed_context_registry();
         let (transitions, global_frame) = self.words.with_source_schema(context, |schema| {
             let layout = if input.has_logical_source_name_context() {

@@ -33,7 +33,7 @@
 //! barrier.
 
 use std::cell::{Cell, RefCell};
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::hash::{Hash as _, Hasher as _};
 use std::rc::Rc;
 
@@ -66,6 +66,10 @@ use crate::ssa::SsaFunction;
 use crate::value_transfer::ExistenceStep;
 
 use super::ReturnKind;
+use crate::signature_scan::variable_symbol::{
+    SignatureSourceVariableOccurrence, SignatureSourceVariableSlot,
+};
+type OuterSourcePlace = SignatureSourceVariableOccurrence;
 
 /// What a call to one procedure does to its caller's places, from the
 /// procedure's own analysis: each parameter's role, the places outside its
@@ -78,6 +82,8 @@ pub(crate) struct TransferSummary {
     /// The places outside the procedure's frame it may write, each with its
     /// outcome, in order.
     pub(crate) globals: Vec<(PlaceRef, ExistenceOutcome)>,
+    /// Conditional original source coordinates, independent of physical cells.
+    global_sources: Vec<(OuterSourcePlace, ExistenceOutcome)>,
     /// The return shape the interprocedural analysis derives over the
     /// seedless lattice; a computed result until that analysis states one.
     pub(crate) result: ReturnKind,
@@ -697,20 +703,12 @@ impl<'a> ModuleProcedures<'a> {
     pub(crate) fn outer_steps(
         &self,
         callee: &crate::ir::ProcedureId,
-    ) -> Vec<(String, ExistenceStep)> {
+    ) -> Option<Vec<(String, ExistenceStep)>> {
         let summaries = self.summaries.borrow();
-        let Some(summary) = summaries.get(callee) else {
-            return Vec::new();
-        };
-        let mut steps: Vec<(String, ExistenceStep)> = Vec::new();
-        for (place, outcome) in &summary.globals {
-            let step = ExistenceStep::of(*outcome);
-            match steps.iter_mut().find(|(name, _)| *name == place.name) {
-                Some((_, held)) => *held = held.then(step),
-                None => steps.push((place.name.clone(), step)),
-            }
-        }
-        steps
+        let summary = summaries.get(callee)?;
+        // Source coordinates cannot select a current cell or grant Normal.
+        // Until that independent application owner exists, retain a barrier.
+        summary.global_sources.is_empty().then(Vec::new)
     }
 
     /// Whether a call to `callee` reaches no place outside its frame: it has
@@ -1200,13 +1198,7 @@ impl<'a> ModuleProcedures<'a> {
     ) -> Option<Vec<OuterArgument>> {
         let cfg = inputs.cfg.procedures.get(qname)?;
         let source = self.source.as_ref()?;
-        let namespace = source
-            .procedure(qname)?
-            .body
-            .namespace_context
-            .as_deref()?
-            .advisory_key()?;
-        let linked = linked_locals(cfg, &namespace, qname, source)?;
+        let linked = linked_locals(cfg, qname, source)?;
         let mut found = Vec::new();
         let mut blocks: Vec<_> = cfg.blocks.iter().collect();
         blocks.sort_unstable_by_key(|(id, _)| **id);
@@ -1222,7 +1214,7 @@ impl<'a> ModuleProcedures<'a> {
                         tokens: &parent,
                         site,
                     },
-                    (&linked, &namespace),
+                    &linked,
                     inputs,
                     &mut found,
                 )?;
@@ -1232,7 +1224,7 @@ impl<'a> ModuleProcedures<'a> {
                             tokens: &child,
                             site: None,
                         },
-                        (&linked, &namespace),
+                        &linked,
                         inputs,
                         &mut found,
                     )?;
@@ -1246,7 +1238,7 @@ impl<'a> ModuleProcedures<'a> {
     fn outer_call_arguments(
         &self,
         call: OuterCall<'_>,
-        (linked, namespace): (&HashMap<String, LinkedLocal>, &str),
+        linked: &HashMap<tcl_core_types::NameBytes, LinkedLocal>,
         inputs: &ModuleInputs<'_>,
         found: &mut Vec<OuterArgument>,
     ) -> Option<()> {
@@ -1271,40 +1263,53 @@ impl<'a> ModuleProcedures<'a> {
         let bindings =
             tcl_syntax::formal_params::bind_formal_arguments(&formals, words.len(), grammar)
                 .ok()?;
-        for (param, _) in links_of(callee, declared, &self.frame_facts) {
+        for (param, local) in links_of(callee, declared, &self.frame_facts) {
             let binding = bindings.iter().find(|binding| match binding {
                 FormalArgumentBinding::Value { parameter, .. }
                 | FormalArgumentBinding::Default { parameter }
                 | FormalArgumentBinding::Rest { parameter, .. }
                 | FormalArgumentBinding::CallerLink { parameter, .. } => *parameter == param,
             })?;
-            let word = match binding {
+            let argument = match binding {
                 FormalArgumentBinding::Value { argument, .. } => {
-                    match words.get(*argument)?.as_deref() {
-                        Some(value) => value,
-                        // The caller's lattice handles a computed local name; it cannot
-                        // contribute a particular outer-place claim here.
-                        None => continue,
+                    if words.get(*argument)?.is_none() {
+                        continue;
+                    }
+                    selected.arguments.written_argument(*argument)?
+                }
+                // Defaults need their own retained formal-value source owner.
+                FormalArgumentBinding::Default { .. }
+                | FormalArgumentBinding::Rest { .. }
+                | FormalArgumentBinding::CallerLink { .. } => return None,
+            };
+            let (cfg, ssa) = self.flow_of(callee)?;
+            if !linked_cleanly(cfg, &ssa, &local, &formals.get(param)?.name, callee, source) {
+                return None;
+            }
+            let mut receiver = None;
+            for statement in &cfg.blocks.get(&cfg.entry)?.statements {
+                if links_local(statement, &local, callee, source)? {
+                    let original = source.statement_tokens(Some(*callee), statement)?;
+                    let selected = source.alias_receiver_for_local(&original, &local)?;
+                    if receiver.replace(selected).is_some() {
+                        return None;
                     }
                 }
-                FormalArgumentBinding::Default { parameter } => {
-                    formals.get(*parameter)?.default.as_deref()?
-                }
-                FormalArgumentBinding::Rest { .. } | FormalArgumentBinding::CallerLink { .. } => {
-                    return None;
-                }
-            };
-            let (places, unconditional) = if word.contains("::") {
-                (outer_places(word, namespace), call.site.is_some())
-            } else {
-                match linked.get(word) {
+            }
+            let place = source.argument_source_place(call.tokens, argument, receiver?)?;
+            let (places, unconditional) = match place.symbol().slot() {
+                SignatureSourceVariableSlot::Local { simple, .. } => match linked.get(simple) {
                     None | Some(LinkedLocal::Caller) => continue,
                     Some(LinkedLocal::Unnameable) => return None,
                     Some(LinkedLocal::Outer(place, link)) => (
                         vec![place.clone()],
-                        call.site
-                            .is_some_and(|(block, index)| link.0 == block && link.1 < index),
+                        call.site.is_some_and(|(block, index)| {
+                            link.is_some_and(|link| link.0 == block && link.1 < index)
+                        }),
                     ),
+                },
+                SignatureSourceVariableSlot::C { .. } | SignatureSourceVariableSlot::Jim(_) => {
+                    (vec![place], call.site.is_some())
                 }
             };
             found.push(OuterArgument {
@@ -1385,6 +1390,18 @@ impl<'a> ModuleProcedures<'a> {
         let Some(outer) = self.component_outer_writes(component, calls, inputs) else {
             return;
         };
+        let Some(outer_report) = outer
+            .iter()
+            .map(|(place, outcome)| {
+                Some((
+                    PlaceRef::scalar(place.symbol().checked_c_namespace_key()?),
+                    *outcome,
+                ))
+            })
+            .collect::<Option<Vec<_>>>()
+        else {
+            return;
+        };
         for (index, qname) in component.iter().enumerate() {
             let Some(declared) = inputs.ir.procedures.get(qname) else {
                 continue;
@@ -1413,7 +1430,8 @@ impl<'a> ModuleProcedures<'a> {
             };
             let summary = TransferSummary {
                 params,
-                globals: outer.clone(),
+                globals: outer_report.clone(),
+                global_sources: outer.clone(),
                 result: ReturnKind::Other,
                 completion,
                 effects,
@@ -1515,35 +1533,32 @@ impl<'a> ModuleProcedures<'a> {
         component: &[crate::ir::ProcedureId],
         calls: &HashMap<crate::ir::ProcedureId, BTreeSet<crate::ir::ProcedureId>>,
         inputs: &ModuleInputs<'_>,
-    ) -> Option<Vec<(PlaceRef, ExistenceOutcome)>> {
-        let mut names: BTreeSet<String> = BTreeSet::new();
-        let mut precise: Vec<(String, Vec<ExistenceOutcome>)> = Vec::new();
+    ) -> Option<Vec<(OuterSourcePlace, ExistenceOutcome)>> {
+        let mut names: Vec<OuterSourcePlace> = Vec::new();
+        let mut precise: Vec<(OuterSourcePlace, Vec<ExistenceOutcome>)> = Vec::new();
         let mut destroys = false;
         let summaries = self.summaries.borrow();
+        let source = self.source.as_ref()?;
         for qname in component {
-            if let Some(writes) = self.outer_facts.get(qname) {
-                let namespace = self
-                    .source
-                    .as_ref()?
-                    .procedure(qname)?
-                    .body
-                    .namespace_context
-                    .as_deref()?
-                    .advisory_key()?;
-                for name in &writes.names {
-                    names.extend(outer_places(name, &namespace));
-                }
+            let cfg = inputs.cfg.procedures.get(qname)?;
+            for place in outer_source_writes(cfg, qname, source)? {
+                insert_outer_source(&mut names, place);
             }
-            destroys |= destroys_a_variable(self.source.as_ref()?, qname)?;
+            destroys |= destroys_a_variable(source, qname)?;
             for callee in &calls[qname] {
                 let Some(summary) = summaries.get(callee) else {
-                    continue;
+                    if component.contains(callee) {
+                        continue;
+                    }
+                    return None;
                 };
                 destroys |= summary
-                    .globals
+                    .global_sources
                     .iter()
                     .any(|(_, outcome)| *outcome == ExistenceOutcome::Unbind);
-                names.extend(summary.globals.iter().map(|(place, _)| place.name.clone()));
+                for (place, _) in &summary.global_sources {
+                    insert_outer_source(&mut names, place.clone());
+                }
             }
             for argument in self.outer_arguments(qname, inputs)? {
                 let outcomes = summaries.get(&argument.callee).and_then(|summary| {
@@ -1557,11 +1572,11 @@ impl<'a> ModuleProcedures<'a> {
                         precise.push((place.clone(), outcomes));
                     }
                     (_, _, outcomes) => {
-                        // A callee that may unbind the place destroys a
-                        // variable the set may write.
                         destroys |= outcomes
                             .is_none_or(|outcomes| outcomes.contains(&ExistenceOutcome::Unbind));
-                        names.extend(argument.places);
+                        for place in argument.places {
+                            insert_outer_source(&mut names, place);
+                        }
                     }
                 }
             }
@@ -1569,41 +1584,33 @@ impl<'a> ModuleProcedures<'a> {
         let shared: Vec<bool> = precise
             .iter()
             .map(|(place, _)| {
-                names.contains(place)
-                    || precise.iter().filter(|(other, _)| other == place).count() > 1
+                names.iter().any(|other| other.symbol() == place.symbol())
+                    || precise
+                        .iter()
+                        .filter(|(other, _)| other.symbol() == place.symbol())
+                        .count()
+                        > 1
             })
             .collect();
         destroys |= precise
             .iter()
             .zip(&shared)
             .any(|((_, outcomes), &shared)| shared && outcomes.contains(&ExistenceOutcome::Unbind));
-        let mut places: BTreeMap<String, Vec<ExistenceOutcome>> = BTreeMap::new();
+        let mut places = Vec::new();
         for ((place, outcomes), shared) in precise.into_iter().zip(shared) {
             if destroys || shared {
-                names.insert(place);
+                insert_outer_source(&mut names, place);
             } else {
-                places.insert(place, outcomes);
+                places.extend(outcomes.into_iter().map(|outcome| (place.clone(), outcome)));
             }
         }
-        for name in names {
-            let mut outcomes = Vec::new();
+        for place in names {
             if destroys {
-                outcomes.push(ExistenceOutcome::Unbind);
+                places.push((place.clone(), ExistenceOutcome::Unbind));
             }
-            outcomes.push(ExistenceOutcome::MayBind(BindingKind::Either));
-            places.insert(name, outcomes);
+            places.push((place, ExistenceOutcome::MayBind(BindingKind::Either)));
         }
-        Some(
-            places
-                .into_iter()
-                .flat_map(|(name, outcomes)| {
-                    let place = PlaceRef::scalar(name);
-                    outcomes
-                        .into_iter()
-                        .map(move |outcome| (place.clone(), outcome))
-                })
-                .collect(),
-        )
+        Some(places)
     }
 
     /// `qname`'s parameter roles under the summaries in hand: `None` when no
@@ -1770,7 +1777,7 @@ struct OuterArgument {
     param: usize,
     /// The places the argument may name: one, or for a relative name its
     /// namespace's and the global namespace's.
-    places: Vec<String>,
+    places: Vec<OuterSourcePlace>,
     /// Whether every normal completion of the procedure makes the call with
     /// the argument naming that place: a statement of the entry block, after
     /// the one link the argument reads.
@@ -1791,7 +1798,7 @@ struct OuterCall<'c> {
 enum LinkedLocal {
     /// A namespace's variable, by qualified name, linked by the statement at
     /// `(block, index)`.
-    Outer(String, (crate::cfg::BlockId, usize)),
+    Outer(OuterSourcePlace, Option<(crate::cfg::BlockId, usize)>),
     /// The place one frame up a `Name` parameter names, which the
     /// parameter's role states.
     Caller,
@@ -1804,110 +1811,91 @@ enum LinkedLocal {
 /// plans; a local linked twice, to two places, is unnameable.
 fn linked_locals(
     cfg: &CfgFunction,
-    namespace: &str,
     qname: &crate::ir::ProcedureId,
     source: &SourceSummaryContext<'_>,
-) -> Option<HashMap<String, LinkedLocal>> {
+) -> Option<HashMap<tcl_core_types::NameBytes, LinkedLocal>> {
     use tcl_registry::{CallerFrameSelection, VariableAliasTarget};
-    let mut linked: HashMap<String, LinkedLocal> = HashMap::new();
-    let mut record = |local: &str, place: LinkedLocal| {
-        let local = local.to_owned();
-        let same = |held: &LinkedLocal| match (held, &place) {
-            (LinkedLocal::Outer(held, _), LinkedLocal::Outer(new, _)) => held == new,
-            (held, new) => held == new,
-        };
-        match linked.get(&local) {
-            Some(held) if same(held) => {}
-            Some(_) => {
-                linked.insert(local, LinkedLocal::Unnameable);
+    let mut linked = HashMap::new();
+    for tokens in source.body_commands(qname)? {
+        let mut sites = Vec::new();
+        for (&block, body) in &cfg.blocks {
+            for (index, statement) in body.statements.iter().enumerate() {
+                if statement.synthetic_marker().is_none()
+                    && source.statement_tokens(Some(*qname), statement).as_ref() == Some(&tokens)
+                {
+                    sites.push((block, index));
+                }
             }
-            None => {
+        }
+        let at = (sites.len() == 1).then(|| sites[0]);
+        let (aliases, dialect) = alias_facts(&tokens, source)?;
+        for alias in aliases {
+            let local = source.alias_local(&tokens, &alias)?;
+            let place = match &alias.target {
+                VariableAliasTarget::CallerSelectedFrame { frame, variable } => {
+                    let level = match frame {
+                        CallerFrameSelection::DefaultCaller => Some(FrameLevel::Relative(1)),
+                        CallerFrameSelection::Explicit(level) => {
+                            level.literal().and_then(|level| {
+                                dialect.and_then(|dialect| {
+                                    FrameLevel::parse_for_dialect(level, dialect)
+                                })
+                            })
+                        }
+                    };
+                    match (level, variable.literal()) {
+                        (Some(FrameLevel::Relative(1)), None) => LinkedLocal::Caller,
+                        (Some(FrameLevel::Absolute(0)), Some(_)) => source
+                            .alias_source_place(&tokens, &alias)
+                            .map_or(LinkedLocal::Unnameable, |place| {
+                                LinkedLocal::Outer(place, at)
+                            }),
+                        _ => LinkedLocal::Unnameable,
+                    }
+                }
+                _ => source
+                    .alias_source_place(&tokens, &alias)
+                    .map_or(LinkedLocal::Unnameable, |place| {
+                        LinkedLocal::Outer(place, at)
+                    }),
+            };
+            let same = linked.get(&local).is_some_and(|held| match (held, &place) {
+                (LinkedLocal::Outer(held, _), LinkedLocal::Outer(new, _)) => {
+                    held.symbol() == new.symbol()
+                }
+                (held, new) => held == new,
+            });
+            if !same {
+                let place = if linked.contains_key(&local) {
+                    LinkedLocal::Unnameable
+                } else {
+                    place
+                };
                 linked.insert(local, place);
             }
         }
-    };
-    let mut blocks: Vec<_> = cfg.blocks.iter().collect();
-    blocks.sort_unstable_by_key(|(id, _)| **id);
-    for (&id, block) in blocks {
-        for (index, statement) in block.statements.iter().enumerate() {
-            if statement.synthetic_marker().is_some() {
-                continue;
-            }
-            let at = (id, index);
-            let tokens = source.statement_tokens(Some(*qname), statement)?;
-            let (aliases, dialect) = alias_facts(&tokens, source)?;
-            for alias in aliases {
-                let Some(local) = alias.local.literal() else {
-                    continue;
-                };
-                let place = match &alias.target {
-                    VariableAliasTarget::Global { variable } => variable
-                        .literal()
-                        .map_or(LinkedLocal::Unnameable, |variable| {
-                            LinkedLocal::Outer(in_namespace(variable, "::"), at)
-                        }),
-                    VariableAliasTarget::CurrentNamespace { variable } => variable
-                        .literal()
-                        .map_or(LinkedLocal::Unnameable, |variable| {
-                            LinkedLocal::Outer(in_namespace(variable, namespace), at)
-                        }),
-                    VariableAliasTarget::Namespace {
-                        namespace: named,
-                        variable,
-                    } => match (named.literal(), variable.literal()) {
-                        (Some(named), Some(variable)) if named.starts_with("::") => {
-                            LinkedLocal::Outer(in_namespace(variable, named), at)
-                        }
-                        _ => LinkedLocal::Unnameable,
-                    },
-                    VariableAliasTarget::CallerSelectedFrame { frame, variable } => {
-                        let level = match frame {
-                            CallerFrameSelection::DefaultCaller => Some(FrameLevel::Relative(1)),
-                            CallerFrameSelection::Explicit(level) => {
-                                level.literal().and_then(|level| {
-                                    dialect.and_then(|dialect| {
-                                        FrameLevel::parse_for_dialect(level, dialect)
-                                    })
-                                })
-                            }
-                        };
-                        match (level, variable.literal()) {
-                            (Some(FrameLevel::Absolute(0)), Some(variable)) => {
-                                LinkedLocal::Outer(in_namespace(variable, "::"), at)
-                            }
-                            (Some(FrameLevel::Relative(1)), None) => LinkedLocal::Caller,
-                            _ => LinkedLocal::Unnameable,
-                        }
-                    }
-                };
-                record(local, place);
-            }
-            if let Some(operation) = source.operation(&tokens) {
-                let metadata = source.metadata(&tokens)?;
-                let realm = tokens.source_binding.as_ref()?.invocation_realm()?;
-                let frame = operation.with_metadata_schema(
-                    source.registry(),
-                    metadata,
-                    realm,
-                    |schema| Some(schema.semantics.value.alias_frame()),
-                )?;
-                if matches!(
-                    frame,
-                    Some(
-                        tcl_registry::value_transfer::AliasFrame::Object
-                            | tcl_registry::value_transfer::AliasFrame::Connection
-                    )
-                ) {
-                    for &(index, role) in &operation.facts.arg_roles {
-                        if role == tcl_registry::ArgRole::VarWrite {
-                            let argument = operation
-                                .facts
-                                .argument_offset
-                                .checked_add(usize::from(index))?;
-                            let word = operation.argument_literal(argument)?;
-                            record(&word, LinkedLocal::Unnameable);
-                        }
-                    }
+        if let Some(operation) = source.operation(&tokens) {
+            let metadata = source.metadata(&tokens)?;
+            let realm = tokens.source_binding.as_ref()?.invocation_realm()?;
+            let frame =
+                operation.with_metadata_schema(source.registry(), metadata, realm, |schema| {
+                    Some(schema.semantics.value.alias_frame())
+                })?;
+            if matches!(
+                frame,
+                Some(
+                    tcl_registry::value_transfer::AliasFrame::Object
+                        | tcl_registry::value_transfer::AliasFrame::Connection
+                )
+            ) {
+                // An object/connection local is not a source namespace coordinate.
+                if operation
+                    .facts
+                    .arg_roles
+                    .iter()
+                    .any(|(_, role)| *role == tcl_registry::ArgRole::VarWrite)
+                {
+                    return None;
                 }
             }
         }
@@ -1915,16 +1903,44 @@ fn linked_locals(
     Some(linked)
 }
 
-/// `variable`'s qualified name as a variable of `namespace` names it: an
-/// absolute name is itself, and a relative one is in `namespace`.
-fn in_namespace(variable: &str, namespace: &str) -> String {
-    if variable.starts_with("::") {
-        variable.to_owned()
-    } else if namespace.is_empty() || namespace == "::" {
-        format!("::{variable}")
-    } else {
-        format!("{namespace}::{variable}")
+fn insert_outer_source(places: &mut Vec<OuterSourcePlace>, place: OuterSourcePlace) {
+    if !places.iter().any(|other| other.symbol() == place.symbol()) {
+        places.push(place);
     }
+}
+
+fn outer_source_writes(
+    cfg: &CfgFunction,
+    qname: &crate::ir::ProcedureId,
+    source: &SourceSummaryContext<'_>,
+) -> Option<Vec<OuterSourcePlace>> {
+    let linked = linked_locals(cfg, qname, source)?;
+    let mut writes = Vec::new();
+    for tokens in source.body_commands(qname)? {
+        if source.procedure_call(&tokens).is_some() {
+            continue;
+        }
+        let (aliases, _) = alias_facts(&tokens, source)?;
+        for alias in aliases.iter().filter(|alias| alias.writes_value) {
+            insert_outer_source(&mut writes, source.alias_source_place(&tokens, alias)?);
+        }
+        for (argument, form) in source.write_arguments(&tokens)? {
+            let place = source.argument_source_place(&tokens, argument, form)?;
+            match place.symbol().slot() {
+                SignatureSourceVariableSlot::Local { simple, .. } => match linked.get(simple) {
+                    Some(LinkedLocal::Outer(target, _)) => {
+                        insert_outer_source(&mut writes, target.clone())
+                    }
+                    Some(LinkedLocal::Unnameable) => return None,
+                    None | Some(LinkedLocal::Caller) => {}
+                },
+                SignatureSourceVariableSlot::C { .. } | SignatureSourceVariableSlot::Jim(_) => {
+                    insert_outer_source(&mut writes, place)
+                }
+            }
+        }
+    }
+    Some(writes)
 }
 
 /// The constant `local` holds at every one of a run's normal `exits`: the
@@ -2031,22 +2047,6 @@ fn frame_is_closed(frame: &UpvarInfo, params: &[String]) -> bool {
         && frame.uplevel_param_writes.is_empty()
         && frame.uplevel_forwarded_calls.is_empty()
         && frame.unnameable_local_aliases.is_empty()
-}
-
-/// The places an outer name a procedure in `namespace` writes may be: an
-/// absolute name is one place; a relative one is in the global namespace
-/// for a procedure there, and elsewhere either the procedure's namespace's
-/// (a `variable`) or the global one's (a `global`).
-fn outer_places(name: &str, namespace: &str) -> Vec<String> {
-    if name.starts_with("::") {
-        return vec![name.to_owned()];
-    }
-    let global = format!("::{name}");
-    if namespace.is_empty() || namespace == "::" {
-        vec![global]
-    } else {
-        vec![format!("{namespace}::{name}"), global]
-    }
 }
 
 /// Whether some statement of `cfg` may destroy a variable.
@@ -2703,6 +2703,27 @@ mod tests {
     /// local linked to one of two places names a place the summary cannot,
     /// so that caller has no summary. tclsh 8.4 to 9.1 print 2 for `puts
     /// [c]`.
+    #[test]
+    fn conditional_source_outer_places_do_not_issue_physical_steps() {
+        let (context, unit) = crate::interprocedural::logical_completion_unit(
+            "proc p {} {global g; set g 1}",
+            "tcl8.6",
+        );
+        let id = fixture_id(&unit.ir_module.procedures, "::p");
+        let summary = &unit.transfers.0[&id];
+        assert_eq!(summary.global_sources.len(), 1);
+        assert_eq!(
+            summary.global_sources[0]
+                .0
+                .symbol()
+                .checked_c_namespace_key()
+                .as_deref(),
+            Some("::g")
+        );
+        let procedures = ModuleProcedures::of_unit(&unit, context.commands());
+        assert!(procedures.outer_steps(&id).is_none());
+    }
+
     #[test]
     fn a_name_argument_naming_an_outer_place_is_a_global_write() {
         let source = "proc bump {name {by 1}} {upvar 1 $name v; incr v $by}\n\

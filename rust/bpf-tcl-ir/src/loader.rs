@@ -114,6 +114,8 @@ impl std::error::Error for LoaderError {}
 pub struct PlannedProgram {
     /// The event/handler name.
     pub event: String,
+    /// Actual selected registry event; the label does not recover identity.
+    pub event_id: crate::event::BpfEventId,
     /// Its program type.
     pub prog_type: ProgType,
     /// Handler priority (composition order).
@@ -142,9 +144,13 @@ impl DeploymentPlan {
         for (i, decl) in module.programs.iter().enumerate() {
             // The index disambiguates two handlers of the same event so pins
             // never collide within a deployment.
-            let pin = format!("{PIN_ROOT}/{name}/{}_{i}", decl.event.to_ascii_lowercase());
+            let pin = format!(
+                "{PIN_ROOT}/{name}/{}_{i}",
+                decl.event_id.spec().name.to_ascii_lowercase()
+            );
             programs.push(PlannedProgram {
                 event: decl.event.clone(),
+                event_id: decl.event_id,
                 prog_type: decl.program.prog_type,
                 priority: decl.priority,
                 attach: decl.attach.clone(),

@@ -21,8 +21,144 @@
 use tcl_compiler::ir::{IfClause, WordExpr};
 use tcl_compiler::lowering::{lower_to_ir_with_dialect, source_nesting_limit};
 use tcl_compiler::{Module, Script, Statement, parse_expr_for_profile, rebase_script};
-use tcl_lexer::{LexerConfig, Span};
+use tcl_lexer::{LexerConfig, NativeWord, SourceImage, Span};
 use tcl_registry::registry::CommandRegistry;
+
+/// Original Document source for one DSL script. Child regions retain the full
+/// image and configuration; their IR and diagnostics use region-local spans.
+#[derive(Debug, Clone)]
+pub struct OriginalBpfSource {
+    image: SourceImage,
+    config: LexerConfig,
+    region: Span,
+    purpose: tcl_lexer::SourceSegmentationPurpose,
+}
+
+impl OriginalBpfSource {
+    /// Retain the actual source and complete configuration of a lowered module.
+    #[must_use]
+    pub fn from_module(module: &Module) -> Self {
+        Self {
+            image: module.source.clone(),
+            config: module.native_lexer_config(),
+            purpose: tcl_lexer::SourceSegmentationPurpose::WholeInput,
+            region: Span::new(
+                0,
+                u32::try_from(module.source.bytes().len()).expect("source span fits"),
+            ),
+        }
+    }
+
+    fn from_body(word: &NativeWord) -> Option<Self> {
+        let value = tcl_syntax::word_rules::original_static_word_source_bytes(word)?;
+        let region = word.content_span().ok()?;
+        // A decoded or concatenated value cannot acquire affine source geometry.
+        (word.image().bytes().get(region.as_range())? == value.as_slice()).then_some(Self {
+            image: word.image().clone(),
+            config: word.config(),
+            region,
+            purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
+        })
+    }
+
+    pub(crate) fn base(&self) -> u32 {
+        self.region.start()
+    }
+
+    fn text(&self) -> Option<&str> {
+        std::str::from_utf8(self.image.bytes().get(self.region.as_range())?).ok()
+    }
+
+    pub(crate) fn argument(
+        &self,
+        tokens: Option<&tcl_compiler::ir::CommandTokens>,
+        args: &[String],
+        index: usize,
+    ) -> Option<NativeWord> {
+        let tokens = tokens?;
+        if tokens.synthetic.is_some()
+            || !tokens.original_words_match_argv_text()
+            || tokens.words().len() != args.len() + 1
+            || tokens.words()[1..]
+                .iter()
+                .zip(args)
+                .any(|(word, arg)| word.legacy_text() != *arg)
+            || tokens
+                .expand_word
+                .as_ref()
+                .is_some_and(|words| words.iter().any(|expanded| *expanded))
+        {
+            return None;
+        }
+        let text = self.text()?;
+        let first = tokens
+            .words()
+            .first()?
+            .original_written_span(text.as_bytes())?;
+        let expected_head = Span::new(
+            self.base().checked_add(first.start())?,
+            self.base().checked_add(first.end())?,
+        );
+        let plan = tcl_lexer::native_script_words_in_with_purpose(
+            self.image.clone(),
+            self.region,
+            self.config,
+            self.purpose,
+        )
+        .ok()?;
+        // A word inside another command cannot become a command head merely
+        // because a consumer supplies a shorter span.
+        let command = plan.commands.into_iter().find(|command| {
+            command
+                .words
+                .first()
+                .is_some_and(|word| word.span() == expected_head)
+        })?;
+        if command.words.len() != tokens.words().len() {
+            return None;
+        }
+        let map = tcl_lexer::SourceMap::new(self.image.try_text().ok()?);
+        for (actual, supplied) in command.words.iter().zip(tokens.words()) {
+            let local = supplied.original_written_span(text.as_bytes())?;
+            let expected = Span::new(
+                self.base().checked_add(local.start())?,
+                self.base().checked_add(local.end())?,
+            );
+            if actual.span() != expected {
+                return None;
+            }
+            let parsed = WordExpr::from_word(
+                &map,
+                self.config,
+                actual.tokens(),
+                &supplied.legacy_text(),
+                false,
+                None,
+            );
+            if parsed.legacy_text() != supplied.legacy_text() {
+                return None;
+            }
+        }
+        command.words.into_iter().nth(index.checked_add(1)?)
+    }
+
+    pub(crate) fn body(
+        &self,
+        tokens: Option<&tcl_compiler::ir::CommandTokens>,
+        args: &[String],
+        index: usize,
+    ) -> Option<Self> {
+        Self::from_body(&self.argument(tokens, args, index)?)
+    }
+
+    pub(crate) fn lower(&self, registry: &CommandRegistry) -> Module {
+        let text = self.text().expect("checked original Unicode body");
+        let mut module =
+            lower_bpf_source_with_config(text, registry, self.purpose.config(self.config));
+        discard_execution_proofs(&mut module.top_level);
+        module
+    }
+}
 
 /// The authored head is source syntax; canonical analysis labels cannot replace it.
 pub(crate) fn source_command_head(statement: &Statement) -> Option<&str> {
@@ -108,12 +244,24 @@ pub(crate) fn synthetic_operation_call(
 /// Lower BPF Tcl source under the BPF profile for every top-level and nested
 /// body re-segmentation.
 pub(crate) fn lower_bpf_source(source: &str, registry: &CommandRegistry) -> Module {
+    lower_bpf_source_with_config(
+        source,
+        registry,
+        LexerConfig::for_profile(registry.profile()),
+    )
+}
+
+fn lower_bpf_source_with_config(
+    source: &str,
+    registry: &CommandRegistry,
+    config: LexerConfig,
+) -> Module {
     let mut module = lower_to_ir_with_dialect(
         source,
         registry,
         // The same profile the lowering is given, so the re-segmentation
         // grammar and the dialect axis can never disagree.
-        LexerConfig::for_profile(registry.profile()),
+        config,
         // The BPF profile as the registry itself resolved it — this crate
         // deliberately has no compile-time path to `tcl-dialect`, and reaches a
         // profile only through `CommandRegistry::profile()`.
@@ -269,4 +417,77 @@ fn discard_execution_proofs(script: &mut Script) {
             }
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn body_owner_retains_configuration_and_rejects_invented_or_cooked_geometry() {
+        let registry = tcl_registry::model::ingress::static_context_for("bpf").commands();
+        let config = LexerConfig {
+            strict_quoting: true,
+            ..LexerConfig::for_profile(registry.profile())
+        };
+        let module = lower_bpf_source_with_config("when XDP {pass}\n", registry, config);
+        let source = OriginalBpfSource::from_module(&module);
+        let Statement::Call { args, tokens, .. } = &module.top_level.statements[0] else {
+            panic!("DSL declaration");
+        };
+        let body = source.body(tokens.as_ref(), args, 1).unwrap();
+        assert_eq!(body.config, config);
+        assert_eq!(body.text(), Some("pass"));
+        assert_eq!(body.base(), u32::try_from("when XDP {".len()).unwrap());
+        let lowered = body.lower(registry);
+        assert_eq!(lowered.native_lexer_config(), config.nested());
+        assert!(lowered.top_level.executed_source.is_none());
+        assert!(lowered.top_level.native_compilation_admission.is_none());
+        let mut changed = args.clone();
+        changed[1] = "drop".into();
+        assert!(source.body(tokens.as_ref(), &changed, 1).is_none());
+        assert!(source.body(None, args, 1).is_none());
+        let mut forged = tokens.clone().unwrap();
+        let WordExpr::Literal { text, .. } = &mut forged.word_exprs[0] else {
+            panic!("literal head");
+        };
+        *text = "loop".into();
+        forged.argv_texts[0] = "loop".into();
+        assert!(source.body(Some(&forged), args, 1).is_none());
+        let mut forged = tokens.clone().unwrap();
+        let WordExpr::Literal { text, .. } = &mut forged.word_exprs[1] else {
+            panic!("literal event");
+        };
+        *text = "TC".into();
+        forged.argv_texts[1] = "TC".into();
+        let mut changed = args.clone();
+        changed[0] = "TC".into();
+        assert!(source.body(Some(&forged), &changed, 1).is_none());
+
+        let parent = lower_bpf_source("not_bpf when XDP {pass}\n", registry);
+        let parent_source = OriginalBpfSource::from_module(&parent);
+        let Statement::Call {
+            args,
+            tokens: Some(tokens),
+            ..
+        } = &parent.top_level.statements[0]
+        else {
+            panic!("original call");
+        };
+        let mut shortened = tokens.clone();
+        shortened.word_exprs.remove(0);
+        shortened.argv_texts.remove(0);
+        assert!(
+            parent_source
+                .body(Some(&shortened), &args[1..], 1)
+                .is_none()
+        );
+
+        let cooked = lower_bpf_source("when XDP {pass\\\n }\n", registry);
+        let source = OriginalBpfSource::from_module(&cooked);
+        let Statement::Call { args, tokens, .. } = &cooked.top_level.statements[0] else {
+            panic!("DSL declaration");
+        };
+        assert!(source.body(tokens.as_ref(), args, 1).is_none());
+    }
 }

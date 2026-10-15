@@ -48,7 +48,7 @@ use tcl_registry::registry::CommandRegistry;
 use crate::diag::{BpfDiag, BpfError};
 use crate::lower::parse_int;
 use crate::source::{
-    lower_bpf_source, source_command_head, source_declaration_kind, synthetic_operation_call,
+    OriginalBpfSource, source_command_head, source_declaration_kind, synthetic_operation_call,
 };
 use crate::ty::ByteOrder;
 
@@ -141,10 +141,13 @@ pub fn builtin_names() -> &'static [&'static str] {
 pub fn collect_profile(
     top_level: &Script,
     registry: &CommandRegistry,
+    source: &OriginalBpfSource,
 ) -> Result<Option<BpfProfileSpec>, BpfError> {
     let mut found: Option<BpfProfileSpec> = None;
     for stmt in &top_level.statements {
-        if let Statement::Call { args, span, .. } = stmt
+        if let Statement::Call {
+            args, span, tokens, ..
+        } = stmt
             && source_declaration_kind(stmt, registry)
                 == Some(tcl_registry::bpf_op::BpfDeclKind::Profile)
         {
@@ -155,7 +158,13 @@ pub fn collect_profile(
                     "at most one `profile` per file (v1)",
                 ));
             }
-            found = Some(resolve_profile(args, *span, registry)?);
+            found = Some(resolve_profile(
+                args,
+                tokens.as_ref(),
+                *span,
+                registry,
+                source,
+            )?);
         }
     }
     Ok(found)
@@ -163,8 +172,10 @@ pub fn collect_profile(
 
 fn resolve_profile(
     args: &[String],
+    tokens: Option<&tcl_compiler::ir::CommandTokens>,
     span: Span,
     registry: &CommandRegistry,
+    source: &OriginalBpfSource,
 ) -> Result<BpfProfileSpec, BpfError> {
     match args.len() {
         // `profile NAME` — a built-in.
@@ -180,7 +191,16 @@ fn resolve_profile(
             )
         }),
         // `profile NAME { field … }` — user-defined.
-        2 => parse_user_profile(&args[0], &args[1], registry),
+        2 => {
+            let body = source.body(tokens, args, 1).ok_or_else(|| {
+                BpfError::new(
+                    BpfDiag::BadProfile,
+                    span,
+                    "profile body requires unchanged original literal source",
+                )
+            })?;
+            parse_user_profile(&args[0], &body, registry).map_err(|error| error.offset(body.base()))
+        }
         _ => Err(BpfError::new(
             BpfDiag::BadProfile,
             span,
@@ -191,10 +211,10 @@ fn resolve_profile(
 
 fn parse_user_profile(
     name: &str,
-    body: &str,
+    body: &OriginalBpfSource,
     registry: &CommandRegistry,
 ) -> Result<BpfProfileSpec, BpfError> {
-    let module = lower_bpf_source(body, registry);
+    let module = body.lower(registry);
     let mut fields = Vec::new();
     for stmt in &module.top_level.statements {
         let Statement::Call {

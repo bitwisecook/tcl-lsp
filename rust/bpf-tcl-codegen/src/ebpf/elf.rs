@@ -90,11 +90,16 @@ pub enum ElfError {
     /// ABI, which has no kernel map file descriptors. Emit maps with a kernel
     /// target (`--target kernel-xdp` / `kernel-socket`) instead.
     MapsNeedKernelTarget,
+    /// The actual registry rows do not supply one unambiguous section.
+    EventSectionUnavailable(ProgType),
 }
 
 impl std::fmt::Display for ElfError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            ElfError::EventSectionUnavailable(prog_type) => {
+                write!(f, "no unambiguous registry ELF section for {prog_type:?}")
+            }
             ElfError::MapsNeedKernelTarget => write!(
                 f,
                 "maps in an ELF object need a kernel target (use --target kernel-xdp or kernel-socket)"
@@ -144,33 +149,24 @@ impl Sym {
     }
 }
 
-/// The conventional `SEC(...)` name for a program type — mirrors each
-/// event's registry `elf_section` field
-/// ([`tcl_registry::bpf_op::BpfEventSpec::elf_section`]).
-fn section_name(prog_type: ProgType) -> &'static str {
-    match prog_type {
-        ProgType::Xdp => "xdp",
-        ProgType::SocketFilter => "socket",
-        ProgType::TcIngress | ProgType::TcEgress => "tc",
-        ProgType::CgroupInet4Connect => "cgroup/connect4",
-        ProgType::CgroupInet4Bind => "cgroup/bind4",
-    }
-}
-
 /// Write `obj` as an `EM_BPF` `ET_REL` ELF64 object, with the program entry
 /// exported as `prog_name`.
 ///
 /// # Errors
 /// [`ElfError::MapsNeedKernelTarget`] if a program declaring maps was emitted
 /// for the userspace `rbpf` simulator ABI (no kernel map fds exist there).
+/// Refuses unavailable or conflicting registry section metadata.
 pub fn write_object(obj: &EbpfObject, prog_name: &str) -> Result<Vec<u8>, ElfError> {
-    if obj.maps.is_empty() {
-        return Ok(write_map_free(obj, prog_name));
-    }
-    if !obj.target_abi.is_kernel() {
+    if !obj.maps.is_empty() && !obj.target_abi.is_kernel() {
         return Err(ElfError::MapsNeedKernelTarget);
     }
-    Ok(write_with_maps(obj, prog_name))
+    let section = bpf_tcl_ir::event::elf_section_for_prog_type(obj.prog_type)
+        .ok_or(ElfError::EventSectionUnavailable(obj.prog_type))?;
+    Ok(if obj.maps.is_empty() {
+        write_map_free(obj, prog_name, section)
+    } else {
+        write_with_maps(obj, prog_name, section)
+    })
 }
 
 /// The computed offset/size of one laid-out section (file offset, byte size).
@@ -187,10 +183,10 @@ struct Layout {
     shstrtab: SecLoc,
 }
 
-fn write_map_free(obj: &EbpfObject, prog_name: &str) -> Vec<u8> {
+fn write_map_free(obj: &EbpfObject, prog_name: &str, section: &str) -> Vec<u8> {
     let mut shstr = StrTab::new();
     let names = [
-        shstr.add(section_name(obj.prog_type)),
+        shstr.add(section),
         shstr.add("license"),
         shstr.add(".symtab"),
         shstr.add(".strtab"),
@@ -348,15 +344,15 @@ struct MapNames {
     shstrtab: u32,
 }
 
-fn write_with_maps(obj: &EbpfObject, prog_name: &str) -> Vec<u8> {
+fn write_with_maps(obj: &EbpfObject, prog_name: &str, section: &str) -> Vec<u8> {
     let n_maps = obj.maps.len();
     let maps_size = u32::try_from(n_maps).unwrap_or(0) * MAP_STRUCT_SIZE;
     let btf = build_btf(&obj.maps);
 
     let mut shstr = StrTab::new();
-    let rel_name = format!(".rel{}", section_name(obj.prog_type));
+    let rel_name = format!(".rel{}", section);
     let names = MapNames {
-        prog: shstr.add(section_name(obj.prog_type)),
+        prog: shstr.add(section),
         maps: shstr.add(".maps"),
         btf: shstr.add(".BTF"),
         rel: shstr.add(&rel_name),
