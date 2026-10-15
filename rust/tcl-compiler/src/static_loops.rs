@@ -38,9 +38,11 @@ use tcl_registry::value_transfer::{
 
 use crate::expr_ast::ExprNode;
 use crate::ir::{Script, Statement};
+#[cfg(test)]
 use crate::naming::normalise_var_name;
 use crate::tcl_expr_eval::FoldPolicy;
 use crate::value_transfer::{LatticeDriver, StateStep};
+#[cfg(test)]
 use tcl_syntax::naming::is_static_variable_source_word;
 
 mod original_simulation;
@@ -87,11 +89,9 @@ pub struct LoopSemantics<'a> {
     pub registry: &'a CommandRegistry,
 }
 
-/// Extract a simple variable reference. `$name` / `${name}` with
-/// no surrounding text → `Some(normalised_name)`; anything else
-/// → `None`.
-#[must_use]
-pub fn simple_var_ref(text: &str) -> Option<String> {
+/// Static authored-fixture selector; source consumers use the configured scanner.
+#[cfg(test)]
+fn simple_var_ref(text: &str) -> Option<String> {
     let stripped = text.trim();
     let name = if let Some(inner) = stripped
         .strip_prefix("${")

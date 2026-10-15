@@ -56,6 +56,19 @@ impl SimulatorMockName {
         &self.suffix
     }
 
+    /// Construct the mock command address beneath its authored publication namespace.
+    /// This supplies no registered worker, original name lookup or F5 identity.
+    #[must_use]
+    pub fn command_address(&self) -> String {
+        let namespace = tcl_core_types::ByteNamespacePath::from_segments(["itest", "cmd"]);
+        let slot = tcl_core_types::ByteCommandSlot::new(
+            namespace,
+            tcl_core_types::NameBytes::from(self.suffix.as_str()),
+        );
+        String::from_utf8(tcl_syntax::naming::constructed_command_address_bytes(&slot))
+            .expect("authored ASCII mock command address")
+    }
+
     /// Authored decision-log category.
     #[must_use]
     pub fn category(&self) -> &str {
@@ -76,6 +89,20 @@ fn safe_piece(piece: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::SimulatorMockName;
+
+    #[test]
+    fn authored_mock_addresses_keep_the_publication_namespace_and_literal_suffix() {
+        for (label, expected) in [
+            ("HTTP::header", "::itest::cmd::http_header"),
+            ("::NS::inner::cmd", "::itest::cmd::ns_cmd"),
+            ("traffic-group", "::itest::cmd::cmd_traffic_group"),
+            ("a:b", "::itest::cmd::cmd_a:b"),
+            ("$literal", "::itest::cmd::cmd_$literal"),
+        ] {
+            let publication = SimulatorMockName::for_label(label).unwrap();
+            assert_eq!(publication.command_address(), expected);
+        }
+    }
 
     #[test]
     fn authored_mock_labels_preserve_scope_and_explicit_collisions() {

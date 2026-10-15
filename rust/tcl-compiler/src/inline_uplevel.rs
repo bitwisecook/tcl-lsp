@@ -60,7 +60,7 @@ pub enum PassthroughShape {
 /// passthrough candidate, a param-body passthrough candidate, or
 /// not a passthrough at all.
 ///
-/// Returns `{qualified_name -> shape}` for every passthrough proc.
+/// Returns each actual retained procedure ID and its passthrough shape.
 #[must_use]
 pub fn detect_passthrough_candidates(
     module: &Module,
@@ -230,13 +230,19 @@ fn param_body_passthrough_param(
     if level != FrameLevel::Relative(1) {
         return None;
     }
-    // Body word must be a pure ``$param`` reference to the sole
-    // proc parameter.
-    let referenced = body_arg.strip_prefix('$')?;
-    let referenced = referenced
-        .strip_prefix('{')
-        .map_or(referenced, |s| s.strip_suffix('}').unwrap_or(referenced));
-    if referenced != *param {
+    let word = source_words.get(source_body_index.checked_add(1)?)?;
+    if word.legacy_text() != *body_arg {
+        return None;
+    }
+    let config = tokens
+        .source_binding
+        .as_ref()?
+        .original_lexer_config_for_tokens(tokens)?;
+    let (spelling, source) = word.sole_variable_substitution()?;
+    if source.provenance != crate::ir::Provenance::Source
+        || tcl_syntax::naming::whole_scalar_variable_reference_name(spelling, config)?
+            != param.as_str()
+    {
         return None;
     }
     let selector = words[..level_word_len]
@@ -1070,6 +1076,42 @@ mod tests {
             candidates.get(&fixture_id(&m, "::dispatcher")),
             Some(PassthroughShape::ParamBody { .. })
         ));
+    }
+
+    #[test]
+    fn param_body_passthrough_uses_original_whole_scalar_reference() {
+        for name in ["$literal", "[literal]", "with space", " with space "] {
+            let source = format!("proc dispatcher {{{{{name}}}}} {{uplevel 1 ${{{name}}}}}");
+            let fixture = crate::provider_fixtures::original_native_module(&source, "tcl8.6");
+            let (context, module) = &*fixture;
+            let candidates = detect_passthrough_candidates(module, context.commands());
+            assert!(
+                matches!(
+                    candidates.get(&fixture_id(module, "::dispatcher")),
+                    Some(PassthroughShape::ParamBody { param_name, .. }) if param_name == name
+                ),
+                "{source}"
+            );
+        }
+        let fixture = crate::provider_fixtures::original_native_module(
+            "proc dispatcher {body} {uplevel 1 $other}",
+            "tcl8.6",
+        );
+        let (context, module) = &*fixture;
+        let mut changed = module.procedures[&fixture_id(module, "::dispatcher")].clone();
+        let statement = changed.body.statements.first_mut().unwrap();
+        let (Statement::Call { args, .. } | Statement::Barrier { args, .. }) = statement else {
+            panic!("actual parameter-body dispatch call")
+        };
+        *args.last_mut().unwrap() = "${body}".to_owned();
+        assert!(
+            param_body_passthrough_param(
+                &changed,
+                context.commands(),
+                module.source_entry.invocation_dialect
+            )
+            .is_none()
+        );
     }
 
     #[test]

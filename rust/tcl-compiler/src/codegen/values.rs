@@ -1122,10 +1122,9 @@ impl CodegenCtx<'_> {
     }
 }
 
-/// Extract one whole braced variable reference under the caller's close rule.
-/// A trailing component remains source text, and names retain literal bytes.
-#[must_use]
-pub fn parse_simple_var_ref(value: &str, style: tcl_dialect::BracedVarStyle) -> Option<&str> {
+/// Fixture projection for the shared braced-reference boundary assertions.
+#[cfg(test)]
+fn parse_simple_var_ref(value: &str, style: tcl_dialect::BracedVarStyle) -> Option<&str> {
     let (name, remainder) = tcl_syntax::naming::split_braced_var_ref(value, style)?;
     remainder.is_empty().then_some(name)
 }

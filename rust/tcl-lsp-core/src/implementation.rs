@@ -55,6 +55,9 @@ pub fn implementation(
     character: u32,
     analysis: &AnalysisResult,
 ) -> Vec<LspRange> {
+    if crate::original_context::CurrentSourceContext::capture(source, analysis).is_none() {
+        return Vec::new();
+    }
     if !analysis.allows_lexical_declaration_advice() {
         return original_implementation(source, line, character, analysis);
     }
@@ -705,5 +708,34 @@ mod original_implementation_tests {
         let ranges = implementation(source, 0, cursor, &analysis);
         assert_eq!(ranges.len(), 1, "{ranges:?}");
         assert_eq!(ranges[0].start_line, 0);
+    }
+}
+
+#[cfg(test)]
+mod current_source_implementation_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn logical_method_implementation_requires_current_source_and_complete_input() {
+        let source = "oo::class create C {method run {} {}}\nrun";
+        let mut analysis = Analyser::new().analyse(source, "tcl");
+        assert!(analysis.allows_lexical_declaration_advice());
+        assert_eq!(implementation(source, 1, 1, &analysis).len(), 1);
+        assert!(implementation(&format!("{source}\n# changed"), 1, 1, &analysis).is_empty());
+        let config = analysis.body_lexer_config.unwrap();
+        analysis.body_lexer_config.as_mut().unwrap().strict_quoting = !config.strict_quoting;
+        assert!(implementation(source, 1, 1, &analysis).is_empty());
+        analysis.body_lexer_config = Some(config);
+        let input = analysis.resolved_input.take().unwrap();
+        analysis.resolved_input = Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            tcl_registry::model::resolve_environment("tcl8.4").default_context_registry(),
+            config,
+        ));
+        assert!(implementation(source, 1, 1, &analysis).is_empty());
+        analysis.resolved_input = None;
+        assert!(implementation(source, 1, 1, &analysis).is_empty());
     }
 }

@@ -705,7 +705,14 @@ mod tests {
             &explorer.unit.ir_module,
         )
         .unwrap();
-        assert_eq!(metadata.source_analysis_input(), Some(&input));
+        assert_eq!(
+            metadata.context(),
+            input.borrowed_context_registry().context()
+        );
+        assert_eq!(
+            explorer.unit.ir_module.source_metadata_input.as_ref(),
+            Some(&input)
+        );
         let index = LineIndex::new(source);
         assert_eq!(
             layer_payload("ir", &document, &registry, &index, config).unwrap(),

@@ -37366,6 +37366,7 @@ info exists ::N::v\uD800";
         assert!(registry.get("oo::configurable").is_some());
         assert!(
             context
+                .context()
                 .resolve_spec(&registry, "oo::configurable")
                 .is_none()
         );

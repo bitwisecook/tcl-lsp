@@ -186,7 +186,7 @@ fn render_mock_names(labels: &BTreeSet<String>) -> String {
         let Some(publication) = SimulatorMockName::for_label(label) else {
             continue;
         };
-        let mock = format!("::itest::cmd::{}", publication.suffix());
+        let mock = publication.command_address();
         let _ = writeln!(
             out,
             "        {} {}",

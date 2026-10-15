@@ -341,9 +341,18 @@ source diagnostics use shared written component extents and registry package
 exclusions, and decline Jim's absent C implementation namespace. The dialect
 scanner uses shared written-name geometry only to produce a bounded source hint.
 
+Parameter-body passthrough detection reads the actual retained original whole
+operand and complete lexer configuration. A sole scalar substitution selected
+by the shared reference grammar must match both the authored parameter and
+current IR argument; captured values, compound or changed words, arrays and
+missing source ownership decline. The actual execution target, Registry frame
+grammar and immediate caller checks remain independent.
+
 Simulator mock publication uses Registry's `SimulatorMockName`, an authored
 ASCII label convention independent of measured F5 lookup. The generator and
-pure-function registration share its suffix/category/action projection; Tcl
+pure-function registration share its suffix/category/action projection and
+constructed command address. The immutable authored publication namespace and
+literal suffix pass through the shared constructed-address owner; Tcl
 registration consumes the generated exact-label table. One optional root marker,
 first namespace and final action select the authored mock. Nested labels can
 share a mock suffix intentionally; original registration labels remain distinct.

@@ -169,11 +169,9 @@ pub struct CodegenCtx<'r> {
     /// ends the name at the first literal `}`, making it `a{b` followed by the
     /// ordinary word text `c}`.
     ///
-    /// Without it the two decoders hard-code *opposite* rules —
-    /// `values::parse_simple_var_ref` the 9.x one and
-    /// `helpers::parse_subst_template` the 8.x one — leaving the compiled-word
-    /// path wrong in both directions at once. Defaults to 9.0 for
-    /// the hand-built contexts in tests.
+    /// Original source references and templates use the complete selected
+    /// [`Self::lexer_config`]. The retained close rule defaults to 9.0 for
+    /// hand-built contexts.
     pub braced_var: tcl_dialect::BracedVarStyle,
     /// The resolved profile of the release being compiled *for*, from the
     /// name the lowering pass received (`IrModule::dialect`).  `None` means

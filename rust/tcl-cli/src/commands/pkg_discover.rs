@@ -725,7 +725,7 @@ mod tests {
         let mut registry = tcl_registry::CommandRegistry::build_default();
         let mut descriptor = registry.get("package").unwrap().clone();
         descriptor.name = "source_package";
-        descriptor.surface = Some(tcl_registry::model::SpecSurface::TCL86_PLUS);
+        descriptor.surface = Some(tcl_dialect::model::SpecSurface::TCL86_PLUS);
         registry.insert(descriptor);
         std::sync::Arc::new(registry)
     }

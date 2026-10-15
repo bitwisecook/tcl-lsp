@@ -134,7 +134,7 @@ pub(crate) fn register(vm: &mut Vm) {
             continue;
         };
         let mock = publication.suffix().to_owned();
-        let name = format!("::itest::cmd::{mock}");
+        let name = publication.command_address();
         vm.register_native_command(&name, Rc::new(PureFunction { command, mock }));
     }
 }

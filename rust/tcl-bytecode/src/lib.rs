@@ -3605,8 +3605,8 @@ mod tests {
         let issuer = tcl_runtime_api::ProcedureIdIssuer::default();
         let module = ModuleAsm {
             profile: tcl_dialect::DialectProfile::plain_tcl(),
-            source: String::new(),
-            source_namespace: String::new(),
+            source: tcl_lexer::SourceImage::document(""),
+            source_namespace: tcl_runtime_api::ByteNamespacePath::root(),
             plain_command_dispatch: false,
             top_level: claiming(&[("b", 2), ("a", 1)]),
             top_level_body: claiming(&[("d", 4), ("b", 2)]),
