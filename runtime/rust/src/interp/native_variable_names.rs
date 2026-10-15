@@ -3150,11 +3150,21 @@ impl Interp {
         original: *mut TclObj,
         value: *mut TclObj,
     ) -> Result<(), Code> {
-        self.assign_original_c_selection(
+        self.assign_original_c_variable_using(original, value, None)
+    }
+
+    pub(crate) fn assign_original_c_variable_using(
+        &mut self,
+        original: *mut TclObj,
+        value: *mut TclObj,
+        stage: OriginalCNameStage<'_>,
+    ) -> Result<(), Code> {
+        self.assign_original_c_selection_using(
             original,
             value,
             false,
             NativeVariableNameLookupPurpose::Write,
+            stage,
         )
     }
 }

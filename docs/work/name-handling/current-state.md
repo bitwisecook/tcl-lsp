@@ -1,5 +1,11 @@
 # Current centralised naming work
 
+## L8 feedback and original C Try consumers
+
+L8 frozen349022af9 failed101 in83.366040497s with one Compiler production temporary-owner borrow error,0testELFs/0tests and complete source drift{}. The exact two-line repair retains the actual source-bindings owner through original lexical-command construction. No assertions, purpose guards or budgets change. A fresh build remains required.
+
+The reviewed C Try consumer now retains original handler varList objects, validates them before the body and reborrows actual member headers before each reached write through the existing C assignment owner. Empty names, failed first writes and fall-through preserve original reached stages; before/after frame/list/member currency guards remain. Original direct C8.6.18/9.0.4/9.1.0 SDK evidence retains93rows with unchanged provider inputs and exact binary/library/source pairing, without Tcl_Init or tcltest. New Rust controls remain unexecuted. Result-value identity, compiled Try and broader callback semantics are separate unfinished obligations.
+
 ## Actual OO source display consumers
 
 The reviewed source checkpoint also transports actual definition parent/member/body source carriers in Logical and Native domains. Direct VarWrite words are selected by the existing structured Registry member-role owner and held whole original operands, then consume the shared display geometry. The raw member variable-name/punctuation filter is removed. This is source display, not accepted OO member validity, an entered frame/cell or editing authority. All277 prior test bodies remain byte-exact; two new controls are unexecuted. Other member/list/formal/body consumers remain unfinished.

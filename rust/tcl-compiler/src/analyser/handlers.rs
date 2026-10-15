@@ -8456,7 +8456,8 @@ impl Analyser {
             config,
             &arm.controller,
         );
-        let origin = self.head_identities.source_bindings().source_origin()?;
+        let bindings = self.head_identities.source_bindings();
+        let origin = bindings.source_origin()?;
         let original = origin.original_lexical_command(
             tokens.words(),
             arm.controller.argv.first()?.span.start(),

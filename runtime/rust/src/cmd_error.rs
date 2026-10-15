@@ -578,12 +578,9 @@ fn error_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 // try / throw
 
-/// A `try` handler clause. The handler `script` is kept as its argument object
-/// (not flattened to bytes) so it evaluates through `eval_control_body`, which
-/// A parsed `try` handler clause (`on code …` or `trap pattern …`). The
-/// completion code / errorcode prefix are resolved at parse time so a bad code
-/// word or trap prefix errors before the body runs; `is_dash` marks a `-`
-/// fall-through body (the next non-`-` clause's body runs instead).
+/// A parsed `try` clause. Original C variable lists and handler bodies remain
+/// objects through body execution and fall-through selection. Completion codes
+/// and trap prefixes are validated before the body runs.
 struct Handler {
     /// The completion code an `on` clause matches (a `trap` is always `1`).
     code: i64,
@@ -592,11 +589,60 @@ struct Handler {
     /// The `trap` errorcode prefix (a list); empty for `on`.
     pattern: Vec<u8>,
     /// The `[resultVar ?optionsVar?]` bind list.
-    vars: Vec<u8>,
+    vars: HandlerVariables,
     /// The handler body, or `-` (see `is_dash`).
     script: *mut TclObj,
     /// Whether the body is the fall-through marker `-`.
     is_dash: bool,
+}
+
+enum HandlerVariables {
+    Bytes(Vec<u8>),
+    OriginalC {
+        arguments: crate::interp::native_arguments::OriginalArguments,
+        frame: crate::interp::native_arguments::OriginalArgumentFrame,
+        protocol: tcl_syntax::native_string::NativeStringProtocol,
+    },
+}
+
+impl HandlerVariables {
+    fn parse(interp: &Interp, original: *mut TclObj) -> Result<Self, tcl_cmd_core::CmdError> {
+        let Some(protocol) = interp.native_c_variable_name_protocol() else {
+            return Ok(Self::Bytes(obj_bytes(original)));
+        };
+        let arguments =
+            crate::interp::native_arguments::OriginalArguments::enter(interp, &[original])?;
+        let frame = crate::interp::native_arguments::OriginalArgumentFrame::capture(interp);
+        let selected = Self::OriginalC {
+            arguments,
+            frame,
+            protocol: tcl_syntax::native_string::NativeStringProtocol::C(protocol.version()),
+        };
+        selected.current_c_members(interp)?;
+        Ok(selected)
+    }
+
+    fn current_c_members(
+        &self,
+        interp: &Interp,
+    ) -> Result<Vec<*mut TclObj>, tcl_cmd_core::CmdError> {
+        let Self::OriginalC {
+            arguments,
+            frame,
+            protocol,
+        } = self
+        else {
+            unreachable!("only the original C list owner reaches this worker");
+        };
+        let original = arguments.original(0)?;
+        let current = || {
+            frame.check(interp, arguments)?;
+            arguments.check_original_for(interp, 0, original)
+        };
+        crate::list::list_elements_native_using(original, *protocol, &current, &|error| {
+            arguments.retain_refusal(error.into())
+        })
+    }
 }
 
 /// Map a `try`/`on` completion-code word (`ok`/`error`/`return`/`break`/
@@ -707,11 +753,15 @@ fn try_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     None => return bad_completion_code(interp, &obj_bytes(argv[j + 1])),
                 };
                 let script = argv[j + 3];
+                let vars = match HandlerVariables::parse(interp, argv[j + 2]) {
+                    Ok(vars) => vars,
+                    Err(error) => return interp.report_cmd_error(error),
+                };
                 handlers.push(Handler {
                     code,
                     is_trap: false,
                     pattern: Vec::new(),
-                    vars: obj_bytes(argv[j + 2]),
+                    vars,
                     script,
                     is_dash: obj_bytes(script).as_slice() == b"-",
                 });
@@ -729,11 +779,15 @@ fn try_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     return interp.set_error(&m);
                 }
                 let script = argv[j + 3];
+                let vars = match HandlerVariables::parse(interp, argv[j + 2]) {
+                    Ok(vars) => vars,
+                    Err(error) => return interp.report_cmd_error(error),
+                };
                 handlers.push(Handler {
                     code: 1,
                     is_trap: true,
                     pattern,
-                    vars: obj_bytes(argv[j + 2]),
+                    vars,
                     script,
                     is_dash: obj_bytes(script).as_slice() == b"-",
                 });
@@ -892,10 +946,66 @@ fn bad_completion_code(interp: &mut Interp, word: &[u8]) -> Code {
 /// leaves the result variable assigned (error-19.11).
 fn bind_handler_vars(
     interp: &mut Interp,
-    vars: &[u8],
+    vars: &HandlerVariables,
     body_result: &[u8],
     body_opts: *mut TclObj,
 ) -> Result<(), ()> {
+    if let HandlerVariables::OriginalC {
+        arguments, frame, ..
+    } = vars
+    {
+        for index in 0..2 {
+            let members = vars.current_c_members(interp).map_err(|error| {
+                interp.report_cmd_error(error);
+            })?;
+            let Some(&name) = members.get(index) else {
+                break;
+            };
+            let original =
+                crate::interp::native_arguments::OriginalArguments::enter(interp, &[name])
+                    .map_err(|error| {
+                        interp.report_cmd_error(error);
+                    })?;
+            let current = |interp: &Interp| {
+                frame.check(interp, arguments)?;
+                arguments.original(0)?;
+                original.check_original_for(interp, 0, name)
+            };
+            current(interp).map_err(|error| {
+                interp.report_cmd_error(error);
+            })?;
+            let value = if index == 0 {
+                new_string(body_result)
+            } else {
+                body_opts
+            };
+            let fresh = (index == 0).then(|| obj::NativeObjectLifetime::retain(value));
+            let discard = || {
+                if let Some(fresh) = &fresh {
+                    // A write trace may already have retired the fresh value.
+                    if let Ok(original) = fresh.checked_ptr() {
+                        drop_fresh(original);
+                    }
+                }
+            };
+            let observed = interp.clone();
+            let assigned =
+                interp.assign_original_c_variable_using(name, value, Some(&|| current(&observed)));
+            if let Err(error) = current(interp) {
+                discard();
+                interp.report_cmd_error(error);
+                return Err(());
+            }
+            if assigned.is_err() {
+                discard();
+                return Err(());
+            }
+        }
+        return Ok(());
+    }
+    let HandlerVariables::Bytes(vars) = vars else {
+        unreachable!("original C binding returned above");
+    };
     let names = crate::parse::split_list(vars).unwrap_or_default();
     if let Some(rv) = names.first() {
         if !rv.is_empty() {
@@ -939,6 +1049,7 @@ fn throw_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 #[cfg(test)]
 mod tests {
     mod original_c_output_names;
+    mod original_c_try_output_names;
     mod original_jim_output_keys;
     #[test]
     fn dynamic_catch_resets_error_state_in_all_six_native_engines() {
