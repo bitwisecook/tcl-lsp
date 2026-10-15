@@ -1,5 +1,9 @@
 # Current centralised naming work
 
+Current build: frozen0a80c53a1 M10 running after M8 missing test type qualifier and M9 Server concrete trait-depth failures (bothzero tests/source{}). Compiler, DB and Server retain all original ownership and Sync bounds with measured compile-time256 budgets; no runtime recursion or source/provider guard changed. All51 portable packet hashes verify. Latest measured semantic acceptance stays the separate frozen4faff L15 replay below. The repository-wide consumer total remains UNKNOWN.
+
+Audit checkpoint: all110709coverage rows reconcile and583 recorded purpose rows bind to exact baseline blobs with0binding/schema/partition errors. These include owners/display and are NOT a remaining-consumer total. Unexamined scope remains unfinished. Main3c3f864e4 adds only required API docs and measured finite trait-budget repairs after cc24; M4/M5/M6/M7 eachstopped beforetests withsource{}, M7 is explicit unchanged-source repetition after a failed setup assertion. Fresh M8 on3c3f864e4 is running. No current-source Rust acceptance or green repository gates.
+
 Current source includes the public Logical formal input, genuine authored ProcHook declarations, VM retained C84 error headers/Jim prefix dispatch and FileOps source-action transport. Fresh M/M2/M3 builds stopped before tests (respectively production adapter typing, private test config access, finite concrete auto-trait depth); source drift{} in each. Minimal reviewed repairs are retained. Frozen333140c39 M4 build is running, with no execution acceptance yet. Recursive rustfmt check exposed inherited formatting differences; required gates remain red or unrun.49 portable packets verify.
 
 Repository-wide review is now tracked in [the complete-file audit](repository-consumer-audit.md). Its 110,709-path roster is complete; semantic consumer review and the remaining-consumer total are still unfinished. Earlier bounded counts must not be used as the repository total.

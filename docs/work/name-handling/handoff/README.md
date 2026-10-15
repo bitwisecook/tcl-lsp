@@ -105,3 +105,7 @@ Concatenate both `validation-4faff-l15-ordinary1491.tar.gz.part-*` files before 
 ## Complete-file audit baseline and subsequent source receipts
 
 `complete-file-audit-baseline-cc24.tar.gz` retains the exact110,709-path Git roster and independently verified seven disjoint assignments. It is an inventory, not completed source review or a remaining-consumer count. `reviewed-formal-fileops-runtime-and-m-build-feedback.tar.gz` retains bounded reviewed source manifests and actual failed M/M2/M3 zero-test builds. M4 is a separate current-source build in progress. All49 packet digests verify; semantic consumer audit, current Rust acceptance and required repository gates remain unfinished.
+
+`repository-audit-progress-20261015T185809Z.tar.gz` retains an incomplete source-bound audit checkpoint with every coverage row and583 provisional purpose rows. Binding/schema/partition checks pass; remaining-consumer total stays unknown until unexamined scope and independent reconciliation are complete. All50 packet digests verify.
+
+`ordinary-m4-m9-build-feedback.tar.gz` retains all six failed zero-test builds, including explicit unchanged-source M7 repetition. Required API docs/test setup and compile-time trait-budget repairs do not relax runtime/source/edit/provider guards. M10 is a fresh separate build in progress. All51 portable packet digests verify; current-source Rust acceptance and repository gates remain unfinished.

@@ -243,5 +243,15 @@
     "file": "reviewed-formal-fileops-runtime-and-m-build-feedback.tar.gz",
     "sha256": "2c961ee235bf9e5419985618d5bb64b0f1bea9374fc156f2085b9265ebfd1710",
     "status": "Exact reviewed source receipts for actual Logical formal inputs, VM C84 retained headers/Jim prefixes, authored ProcHook and FileOps action. M/M2/M3 failed builds each0tests with unchanged sources; partial ELF counts are not acceptance. M4 fresh333140c39 build currently running. FileOps987old bodies retained/7newunexecuted. All source peers bounded, no current Main Rust acceptance."
+  },
+  {
+    "file": "repository-audit-progress-20261015T185809Z.tar.gz",
+    "sha256": "9c7cb64582ecbb1c2f502010e26dd2aaf4631afb4951cfb14f75d9422d536fec",
+    "status": "INCOMPLETE fullrepositoryaudit at exactcc24baseline. All110709coverage rows assigned/reconciled;583provisional purpose rows from exact-source reviews have0binding/schema/partition errors and0same-key duplicates. This is NOT remaining-consumer total: unexamined scope and multi-symbol/purpose reconciliation remain. Source-only no execution/generator/gate acceptance; reviewed/fixturemanifest/unexamined remain distinct."
+  },
+  {
+    "file": "ordinary-m4-m9-build-feedback.tar.gz",
+    "sha256": "98ecb042c237c7752b020fa5edca0a86975732971d50304c329f72ca43c9d3b3",
+    "status": "Exact M4\u2013M9 failedordinarybuild channels/sourceinventories,zeroexecutedtests andsource{} each. M7explicitlyrepeatsunchangedM6sourceafterRootsetupassertionfailure,notarepair/acceptance. RequiredAPI docs/testtypequalificationand finite concrete compile-time trait budgets repaired; runtime/source/provider/ownership/SendSync guards/assertions/budgets unchanged. M10fresh0a80c53a1running,unaccepted. Recursiveformatgate has inheriteddifferences,notgreen."
   }
 ]

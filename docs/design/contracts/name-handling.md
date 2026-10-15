@@ -70,6 +70,17 @@ operand correspondence still govern the context; dynamic or captured operands
 cannot borrow a call-site declaration span. This supplies class-body source
 metadata without a created class, current receiver or Native method dispatch.
 
+`SignatureSourceNameInput::OriginalLogicalListField` represents a readonly
+formal-name field from an actual selected Logical lambda. The opaque
+`OriginalLogicalListField` retains the canonical call, complete input and lexer
+configuration, source allocation, original argument count and nested list-field
+path. A genuine lambda scope joins that declaration to body occurrences through
+its shared source symbol. Equal text from a different allocation cannot supply
+the join. Native currentness, native values and keys, evaluated command or
+namespace roles, cells and source edits remain separate purposes and refuse
+this source-only input. Positive declarations do not prove a complete occurrence
+inventory or grant rename authority.
+
 ## Source-read and body selection
 
 `OriginalDeclaredLogicalBodyContext` keeps original declaration ancestry separate

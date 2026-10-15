@@ -113,6 +113,14 @@ coverage and invalidation; publish scalar constants only for actual scalar names
 An element write withdraws that root's scalar value, and an opaque write clears
 constant knowledge. Literal empty and sigil names stay data throughout this path.
 
+A selected Logical lambda formal can arrive as
+`SignatureSourceNameInput::OriginalLogicalListField`. Keep this opaque field and
+its actual canonical lambda/source/input when joining the formal declaration to
+body occurrences. Do not turn its Unicode source units into a native key or a
+fresh standalone word. Native value/currentness, command/namespace operands,
+cell access and editing queries deliberately refuse this variant; source symbol
+admission does not establish rename completeness.
+
 ## Keep word representations distinct
 
 Use an original word and its retained lexer configuration for source values.
