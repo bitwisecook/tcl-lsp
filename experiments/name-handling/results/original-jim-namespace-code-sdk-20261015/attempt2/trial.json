@@ -1,0 +1,12 @@
+{
+  "accepted_semantic_evidence": false,
+  "reason": "invalidated the authoritative String bytes after string-first converted primary to String; process-success assertion failed, exact original process exit not retained; no accepted hot evidence",
+  "retained_files": {
+    "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout.tsv": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "compile.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "compile.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "capture.py": "255ed27c0e11e7bb0d72ce906e61dec6dd07c2fa363048307707dbadf4ea8aab",
+    "probe.c": "c2e687a42682386e0337b15068d9e353ab2b18884d1283375151f51f6f55adcf"
+  }
+}

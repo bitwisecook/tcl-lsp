@@ -1,0 +1,8 @@
+/tmp/name-jim-namespace-code-sdk-20261015/probe.c: In function ‘main’:
+/tmp/name-jim-namespace-code-sdk-20261015/probe.c:87:28: error: too many arguments to function ‘Jim_ListLength’
+   87 |                 int count; Jim_ListLength(interp, result, &count);
+      |                            ^~~~~~~~~~~~~~
+In file included from /tmp/name-jim-namespace-code-sdk-20261015/probe.c:3:
+/workspace/tcl-lsp/tmp/jimtcl-oracle/jim.h:1022:16: note: declared here
+ 1022 | JIM_EXPORT int Jim_ListLength (Jim_Interp *interp, Jim_Obj *objPtr);
+      |                ^~~~~~~~~~~~~~

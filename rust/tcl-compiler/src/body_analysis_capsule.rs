@@ -1895,7 +1895,7 @@ mod native_source_lattice_tests {
                 )
                 .is_none()
             );
-            let mut wrong_config = *request;
+            let mut wrong_config = LatticeRequest { ..*request };
             wrong_config.lexer_config.strict_quoting = !wrong_config.lexer_config.strict_quoting;
             assert!(BodyLatticeInputs::retain(&wrong_config, context.commands()).is_none());
             if request.qname == "::kept" {

@@ -45,20 +45,19 @@ no variable exists. Procedure namespace objects derive from the counted flat
 publication key. Jim command enumeration and imports use the shared native
 name/glob owners and do not require a C namespace node to exist.
 
-The public Jim `namespace which` adapter preserves its own native arity check,
-then dispatches a fresh original compound helper head and the untouched original
-operands through ordinary lookup. Registry owns the pinned helper declaration
-through `InvocationDialect::native_jim_namespace_which_helper`; its immutable
-name, formal and body bytes do not establish an installed callable. Runtime
-publishes actual procedure objects under the real global Jim installation
-context or preserves the existing helper and its replacement. Physical slot,
-generation and original procedure lifecycle remain independent. The selected
-helper can be called directly, renamed, replaced or deleted; its actual source
-owns reached lookup, uplevel, canonicalisation and cached literal operations.
-The public Namespace primitive supplies no helper compiler identity, and
-immutable namespace snapshots acquire no getter. Other scripted namespace
-helpers remain separate consumers. Original public/direct cold/hot observations
-and the direct canonical contract do not establish unexecuted Runtime parity.
+The public selected Jim `namespace which` and `namespace code` adapters check
+their original arity before ordinary fresh-helper-head lookup. Registry owns
+immutable source descriptors through `InvocationDialect::native_jim_namespace_helper`;
+these bytes supply no installed callable. Runtime installs real selected procedures
+under the actual global context or preserves the existing replacement and physical
+generation. Direct helpers retain their own frame, original argument and cache
+ownership. Code first reaches the original argument String operation: an already
+scoped argument returns the same object, including counted NUL bytes, while the
+plain branch reaches caller namespace current and constructs a genuine List with
+the original argument. Public lookup, direct cold lookup and direct hot literal
+cache have independent getter stages. Snapshots gain no getter, and other scripted
+namespace helpers remain separate. Original Code and Which observations establish
+their measured source scope; Runtime parity requires its own execution.
 
 Jim tailcall resolves the original target header in its actual current namespace before issuer teardown. The selected physical command reference and a new original argument List survive independently of the issuing variable frame. A valid same-pointer cache can leave the namespace String absent. After cleanup the invocation consumes that retained command rather than looking up its spelling again, and its raw completion is preserved. The weak observer index keeps no command or interpreter alive; actual active and pending references own their native ledger roles. Uninvoked pending cancellation retires the command before its List; an entered selected evaluation retires the List before the command. Both release paths attach the original saved operation for mandatory cleanup and cannot issue fresh work after withdrawal. C retains its own namespace-prefixed original List protocol. These owners supply no public Jim defer/trace implementation or full Native lifecycle acceptance; the original SDK executed/defer-error observations remain scoped evidence independent of software owner controls.
 

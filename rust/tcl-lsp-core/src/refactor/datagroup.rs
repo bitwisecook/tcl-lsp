@@ -301,10 +301,8 @@ fn extract_set_or_return_values(
     let mut use_return: Option<bool> = None;
     let mut values = Vec::new();
     for (_pattern, body) in pairs {
-        let mut text = body.trim();
-        if text.starts_with('{') && text.ends_with('}') && text.len() >= 2 {
-            text = text[1..text.len() - 1].trim();
-        }
+        // This is an already-decoded script value, not another source word.
+        let text = body.as_str();
         match parse_set_or_return(text, config) {
             Some(SetOrReturn::Set(var, val)) => {
                 match &target_var {
@@ -345,11 +343,7 @@ fn extract_single_value(
     target_var: &str,
     config: LexerConfig,
 ) -> Option<String> {
-    let mut text = body.trim();
-    if text.starts_with('{') && text.ends_with('}') && text.len() >= 2 {
-        text = text[1..text.len() - 1].trim();
-    }
-    match parse_set_or_return(text, config)? {
+    match parse_set_or_return(body, config)? {
         SetOrReturn::Return(val) if use_return => Some(val),
         SetOrReturn::Set(var, val) if !use_return && var == target_var => Some(val),
         _ => None,
@@ -1583,5 +1577,64 @@ mod original_arm_value_geometry_tests {
             assert_eq!(raw, value);
         }
         assert!(parse_set_or_return("return ${unterminated", config).is_none());
+    }
+}
+
+#[cfg(test)]
+mod decoded_arm_script_value_tests {
+    use super::*;
+
+    #[test]
+    fn data_group_mapping_does_not_unwrap_literal_command_name_data_twice() {
+        let source = "switch -exact -- {$x} {a {{return one}} b {return two}}";
+        let registry = crate::refactor::test_registry();
+        let analysis = crate::refactor::source_rewrite::lexical_analysis(source, &registry);
+        let original =
+            crate::refactor::original_exact_case_source_at_analysis(source, &analysis, 0).unwrap();
+        let config = analysis.body_lexer_config.unwrap();
+        assert_eq!(original.pairs()[0].1, "{return one}");
+        assert!(extract_set_or_return_values(original.pairs(), config).is_none());
+        assert!(extract_single_value(&original.pairs()[0].1, true, "unused", config).is_none());
+        let source = "switch -exact -- {$x} {a {return one} b {return two}}";
+        let analysis = crate::refactor::source_rewrite::lexical_analysis(source, &registry);
+        let original =
+            crate::refactor::original_exact_case_source_at_analysis(source, &analysis, 0).unwrap();
+        assert!(extract_set_or_return_values(original.pairs(), config).is_some());
+        assert_eq!(
+            extract_single_value(&original.pairs()[0].1, true, "unused", config).as_deref(),
+            Some("one")
+        );
+        let mut registry = CommandRegistry::build_default();
+        registry.load_surface(tcl_dialect::model::SurfaceLayer::Core(
+            tcl_dialect::model::Family::F5Irules,
+            "",
+        ));
+        let config = LexerConfig::from_grammar(
+            tcl_registry::model::resolve_environment("f5-irules").grammar(),
+        );
+        let source = "switch -exact -- $x {a {{return one}} b {return two} c {return three}}";
+        assert!(
+            extract_to_datagroup_from_switch(
+                source,
+                0,
+                "mapping",
+                &registry,
+                &LineIndex::new(source),
+                config
+            )
+            .is_none()
+        );
+        let source = "switch -exact -- $x {a {return one} b {return two} c {return three}}";
+        assert!(
+            extract_to_datagroup_from_switch(
+                source,
+                0,
+                "mapping",
+                &registry,
+                &LineIndex::new(source),
+                config
+            )
+            .is_some()
+        );
     }
 }

@@ -149,10 +149,8 @@ fn parse_arms(pairs: &[(String, String)], config: LexerConfig) -> Option<ParsedA
     let mut default_value: Option<String> = None;
 
     for (pattern, body) in pairs {
-        let mut body_text = body.trim();
-        if body_text.starts_with('{') && body_text.ends_with('}') && body_text.len() >= 2 {
-            body_text = body_text[1..body_text.len() - 1].trim();
-        }
+        // The shared case-value owner already decoded the arm's container.
+        let body_text = body.as_str();
         if body_text == "-" {
             return None; // fallthrough marker
         }
@@ -562,5 +560,25 @@ mod original_arm_value_geometry_tests {
             assert_eq!(raw, value);
         }
         assert!(parse_branch_assignment("return ${unterminated", config).is_none());
+    }
+}
+
+#[cfg(test)]
+mod decoded_arm_script_value_tests {
+    use super::*;
+
+    #[test]
+    fn dictionary_conversion_does_not_unwrap_literal_command_name_data_twice() {
+        let source = "switch -exact -- {$x} {a {{return one}} b {return two}}";
+        let registry = crate::refactor::test_registry();
+        let analysis = crate::refactor::source_rewrite::lexical_analysis(source, &registry);
+        let original =
+            crate::refactor::original_exact_case_source_at_analysis(source, &analysis, 0).unwrap();
+        assert_eq!(original.pairs()[0].1, "{return one}");
+        assert!(parse_arms(original.pairs(), analysis.body_lexer_config.unwrap()).is_none());
+        assert!(switch_to_dict(source, 0, &analysis, &LineIndex::new(source)).is_none());
+        let source = "switch -exact -- {$x} {a {return one} b {return two}}";
+        let analysis = crate::refactor::source_rewrite::lexical_analysis(source, &registry);
+        assert!(switch_to_dict(source, 0, &analysis, &LineIndex::new(source)).is_some());
     }
 }

@@ -5434,13 +5434,8 @@ mod tests {
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
         let registry = CommandRegistry::build_default().project_for_profile(profile);
         let cu = CompilationUnit::build_for_profile(source, &registry, false, profile);
-        // The document's own binding facts, exactly as
-        // `CompilationUnit::with_interprocedural` supplies them.
-        let identities = crate::realm::document_realm_bindings(
-            source,
-            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
-            &registry,
-        );
+        let identities = crate::realm::document_realm_bindings_for_module(&cu.ir_module, &registry)
+            .expect("fixture's retained Module source owner");
         build_interprocedural_analysis(
             &cu.ir_module,
             &registry,
@@ -5495,7 +5490,9 @@ mod tests {
             for (level, caller_write) in [("0x1", true), ("#0", false), ("0", false)] {
                 let source = format!("proc writer {{n}} {{upvar {level} $n local; set local NEW}}");
                 let unit = CompilationUnit::build_for_dialect(&source, registry, false, dialect);
-                let identities = crate::realm::document_realm_bindings(&source, profile, registry);
+                let identities =
+                    crate::realm::document_realm_bindings_for_module(&unit.ir_module, registry)
+                        .expect("fixture's retained Module source owner");
                 let analysis = build_interprocedural_analysis(
                     &unit.ir_module,
                     registry,

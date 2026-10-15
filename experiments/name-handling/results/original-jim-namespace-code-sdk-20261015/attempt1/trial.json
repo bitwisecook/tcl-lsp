@@ -1,0 +1,10 @@
+{
+  "accepted_semantic_evidence": false,
+  "reason": "compile-only rejected wrong Jim_ListLength signature; not executed",
+  "retained_files": {
+    "compile.stderr": "7a87159f2cbc9233853d9e125c5ce1aba2bdf672fae219295f2431e5d994e65c",
+    "compile.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "capture.py": "255ed27c0e11e7bb0d72ce906e61dec6dd07c2fa363048307707dbadf4ea8aab",
+    "probe.c": "7742db4c0d90cac636b9f1de9e522c002f0b929116682f2207a2ad85d21132b5"
+  }
+}

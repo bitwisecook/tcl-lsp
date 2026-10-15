@@ -11,6 +11,11 @@ Existing command/variable/namespace vectors live in
 
 | Path | Meaning |
 | --- | --- |
+| [patterns/w114-original-reference-atoms/README.md](patterns/w114-original-reference-atoms/README.md) | Original scalar reference atoms for expression advice; fixed C5/pinned Jim grammar observations preserve RequiresReview and independent lookup/Native scope. |
+| [patterns/w307-original-ensemble-heads/README.md](patterns/w307-original-ensemble-heads/README.md) | Original scalar and command-substitution namespace head components; exact source/configuration and independent value/command-slot eligibility remain required. |
+| [results/original-workspace-import-patterns-20261015/README.md](results/original-workspace-import-patterns-20261015/README.md) | Original C5/pinned Jim escaped import patterns and reached calls; shared literal-pattern classification supplies no lookup census or Native grant. |
+| [reference-tail-proposal-20261015/README.md](reference-tail-proposal-20261015/README.md) | Original reference-tail proposals retain initial Jim signal11 and separate controlled cases; no failure is replaced or inferred to be an LSP result. |
+| [decoded-arm-script-values-20261015/README.md](decoded-arm-script-values-20261015/README.md) | Original C5/pinned Jim distinguish literal command-name braces from Return script data; no F5, Rust or Native acceptance follows. |
 | [cases.tcl](cases.tcl) | Portable C Tcl 8.4-compatible observation suite; executable measurements, no manufactured expected answers |
 | [case-catalogue.md](case-catalogue.md) | Exact case IDs, semantic questions and consumer coverage |
 | [pattern-sources.md](pattern-sources.md) | Maintained corpus and Tcl Wiki discovery, provenance and held-out validation |

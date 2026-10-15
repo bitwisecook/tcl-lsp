@@ -1,0 +1,4 @@
+version 0 8.6.18
+double-braced-body code 1 result {invalid command name "return one"} errorCode {TCL LOOKUP COMMAND {return one}}
+builtin-return-body code 2 result one errorCode {}
+decoded-body {{return one}} body-list-length 1 first-command-word {return one}

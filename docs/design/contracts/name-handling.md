@@ -811,3 +811,36 @@ A default source build selects explicit Standalone authoring only when source en
 The original Jim existence worker retains its actual argument objects and shared enum option identity before delegating to the existing original command or variable owner. Procedure and alias answers use the selected command record; an unavailable channel flag is a refusal after genuine lookup. Silent variable queries reuse the original cached VarVal/link path without replacing it with byte-name lookup, while ordinary missing-variable reads retain their error-reporting mode. Handler registration and pinned source-invocation observations do not establish complete options, channels, traces or Runtime parity.
 
 Standalone package-index parsing selects its source-data purpose explicitly. Shared original words, list/value/key/path owners preserve filename data under the actual full configuration; the conventional Encoding layout and directory text do not create an AnalysisResult, supplied input or Native autoload grant. Analysis-backed index inputs keep their separate current-source guard. Exact declaration-body source words likewise supply content extents without unwrapping independently issued lambda content twice or donating a method/body frame. Logical navigation and callback queries use their immutable retained whole-vector tape at the original head, with complete input, image, tape-map and scope correspondence, rather than parsing a suffix through another nested closer.
+
+The original diagnostic consumers retain whole source words before recognising scalar
+references or a contiguous namespace suffix. Registry interpretation, current command
+slots and literal eligibility remain separate from reference grammar. Original
+absolute Logical command coordinates can come from authenticated pre-handler body
+syntax without borrowing a relative method namespace; earlier unknown mutations and
+unrepresented lookup occupants remain explicit. Method navigation rechecks original
+target headers and preserves duplicate occurrences and first occupied class cutoff.
+
+Variable-tail proposals splice only the shared original name extent, then reparse the
+complete proposal with the same configuration to verify its intended name, root and
+unchanged index shape. Refactor arm values similarly retain complete configured
+whole-word spans. Source currency, variable identity, collisions, original operation
+and edit eligibility remain independent of either representation operation.
+
+Authored readonly cache correspondence requires its actual issued source card,
+Module/body, complete original vector and closed declaration-scope dependencies
+before normalization. Restoring a cached answer restores the current owner and ID;
+it supplies no Native publication or execution. Authored corpus inference separately
+uses actual imported procedure body data and full nested configuration; failed
+supplied ownership yields no fallback body advice.
+
+Logical direct-call advice uses the original per-occurrence head, whole vector and
+syntactic argument count with a genuine Document-root or declared-body source
+recipe. Unknown earlier mutation and operand effects before lookup independently
+withdraw strict arity or unresolved-command suppression. The first occupied
+coordinate cuts off search even for an empty class/nonprocedure signature; an
+original Native owner remains terminal. Reporting tails supply no fallback.
+
+Case and clause script values have already passed their original container-value
+projection. Their selected configured parser receives that value directly;
+peeling literal command-name braces or trimming its data again changes the
+command being named. Original operation and edit eligibility remain separate.

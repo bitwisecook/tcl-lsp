@@ -97,6 +97,21 @@ during selected-command deletion; the consumed case has no frame pending List
 then. Argument final-free order, public Runtime defer/trace and full lifecycle
 agreement remain unproved.
 
+The fixed [expression reference atoms](w114-original-reference-atoms/README.md)
+and [namespaced head components](w307-original-ensemble-heads/README.md) preserve
+original C5/pinned Jim grammar differences, literal data and independent command
+value/slot obligations. Expression advice still requires review; source grammar
+supplies no current lookup, cell or Native execution.
+
+[Escaped workspace import patterns](../results/original-workspace-import-patterns-20261015/README.md)
+retain original imports and reached calls separately from escape-aware literal
+classification. [Reference-tail proposals](../reference-tail-proposal-20261015/README.md)
+retain the initial Jim signal11 and separate controlled provider observations.
+[Decoded arm script values](../decoded-arm-script-values-20261015/README.md)
+distinguish a literal command word `return one` from the Return script. These
+captures establish their measured original scopes, without LSP, F5, Native or
+edit acceptance.
+
 ## Source evidence
 
 The [maintained corpus manifest](../../../scripts/perf/MANIFEST.toml) pins all
@@ -429,3 +444,5 @@ Original all.tcl reaches orchestration but selects zero test files; no complete
 upstream-suite or F5 worker conformance is established.
 
 [Uplevel variable source scope](uplevel-variable-source-scope/README.md) retains exact root/current/unknown-caller and nested-body C oracle probes; source eligibility remains separate from entered frames and edits.
+
+Original Jim `namespace code` has separately measured public, direct-cold and direct-hot helper lookup frontiers. The [original217-row SDK capture](../results/original-jim-namespace-code-sdk-20261015/README.md) preserves actual argument-primary conversion, same-object scoped returns including NUL data, plain-branch original List child identity and replacement/deletion/arity effects. Its retained remote receipt bounds freshness to the capture time; these observations supply no Runtime/VM or other-helper acceptance.

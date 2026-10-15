@@ -11,6 +11,26 @@ use std::sync::Arc;
 use tcl_core_types::ByteCommandSlot;
 use tcl_lexer::NativeWord;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum LogicalNavigationScope {
+    Declared(Arc<OriginalDeclaredLogicalBodyContext>),
+    Document(Arc<crate::command_binding::SourceOriginId>),
+}
+impl LogicalNavigationScope {
+    fn owns_words(&self, original: &[NativeWord], input: &ResolvedAnalysisInput) -> bool {
+        match self {
+            Self::Declared(scope) => scope.matches_input(input) && scope.owns_words(original),
+            Self::Document(origin) => {
+                !original.is_empty()
+                    && original.iter().all(|word| {
+                        word.image() == origin.source_image()
+                            && word.config() == input.lexer_config()
+                    })
+            }
+        }
+    }
+}
+
 /// Ordered Logical source coordinates at one authentic original call occurrence.
 /// Unavailable actual lookup and unmodelled mutations remain applicability
 /// obligations; this is neither an installation nor a resolved call edge.
@@ -18,7 +38,7 @@ use tcl_lexer::NativeWord;
 pub struct OriginalLogicalCommandCandidates {
     input: ResolvedAnalysisInput,
     original: Arc<[NativeWord]>,
-    scope: Arc<OriginalDeclaredLogicalBodyContext>,
+    scope: LogicalNavigationScope,
     candidates: Vec<ByteCommandSlot>,
     earlier_unknown_mutations: bool,
 }
@@ -48,10 +68,53 @@ impl OriginalLogicalCommandCandidates {
         Some(Self {
             input: input.clone(),
             original: Arc::from(original),
-            scope: Arc::clone(scope),
+            scope: LogicalNavigationScope::Declared(Arc::clone(scope)),
             candidates,
             earlier_unknown_mutations: !graph.uncertain_operations.is_empty(),
         })
+    }
+
+    fn capture_document(
+        graph: &AdviceGraph,
+        original: &[NativeWord],
+        origin: &Arc<crate::command_binding::SourceOriginId>,
+    ) -> Option<Self> {
+        let AdviceNamingPolicy::Logical(input) = &graph.policy else {
+            return None;
+        };
+        let root = tcl_core_types::ByteNamespacePath::root();
+        let scope = LogicalNavigationScope::Document(Arc::clone(origin));
+        if graph.logical_namespace.as_ref() != Some(&root) || !scope.owns_words(original, input) {
+            return None;
+        }
+        let head = original.first()?;
+        if head.group().expand {
+            return None;
+        }
+        let written = tcl_syntax::word_rules::original_static_word_unicode_value(head)?;
+        Some(Self {
+            input: input.clone(),
+            original: Arc::from(original),
+            scope,
+            candidates: logical_coordinates(graph, &root, &written)?,
+            earlier_unknown_mutations: !graph.uncertain_operations.is_empty(),
+        })
+    }
+
+    /// Whole original head, independently of reporting labels and diagnostics.
+    #[must_use]
+    pub fn original_head(&self) -> Option<&NativeWord> {
+        self.original.first()
+    }
+
+    /// Original syntactic argv cardinality. Expansion keeps the count unknown;
+    /// no successful argument evaluation or runtime argv follows.
+    #[must_use]
+    pub fn argument_count(&self) -> Option<usize> {
+        if self.original.iter().any(|word| word.group().expand) {
+            return None;
+        }
+        self.original.len().checked_sub(1)
     }
 
     /// Ordered conditional coordinates, without existence or dispatch authority.
@@ -67,7 +130,14 @@ impl OriginalLogicalCommandCandidates {
         self.earlier_unknown_mutations
     }
 
-    /// Same complete Logical source/input and authentic retained body ancestry.
+    /// Current original argv contains executable or opaque operand effects
+    /// before command lookup. This is source applicability, not evaluated data.
+    #[must_use]
+    pub fn has_lookup_operand_effects(&self) -> bool {
+        !super::body_effects::original_operand_effects(&self.original).is_empty()
+    }
+
+    /// Same complete Logical source/input and genuine Document or body recipe.
     #[must_use]
     pub fn matches_source(
         &self,
@@ -80,8 +150,7 @@ impl OriginalLogicalCommandCandidates {
                 .original
                 .iter()
                 .all(|word| word.image() == image && word.config() == input.lexer_config())
-            && self.scope.matches_input(input)
-            && self.scope.owns_words(&self.original)
+            && self.scope.owns_words(&self.original, input)
     }
 }
 
@@ -140,6 +209,13 @@ impl OriginalLogicalAbsoluteCommandCandidate {
     pub const fn has_earlier_unknown_mutations(&self) -> bool {
         self.earlier_unknown_mutations
     }
+    /// Current original argv contains executable or opaque operand effects
+    /// before command lookup. This is source applicability, not evaluated data.
+    #[must_use]
+    pub fn has_lookup_operand_effects(&self) -> bool {
+        !super::body_effects::original_operand_effects(&self.original).is_empty()
+    }
+
     /// Exact complete input/image/grammar and retained original body purpose.
     #[must_use]
     pub fn matches_source(
@@ -415,6 +491,22 @@ impl OriginalSourceTransitionAdviceTape {
 }
 
 impl OriginalSourceTransitionAdviceTape {
+    pub(super) fn retain_logical_document_navigation(
+        &mut self,
+        graph: &AdviceGraph,
+        original: &[NativeWord],
+        origin: &Arc<crate::command_binding::SourceOriginId>,
+    ) {
+        let Some(head) = original.first() else {
+            return;
+        };
+        super::source_class::merge_receipt(
+            &mut self.logical_navigation,
+            head.span().start(),
+            OriginalLogicalCommandCandidates::capture_document(graph, original, origin),
+        );
+    }
+
     pub(super) fn retain_logical_navigation(
         &mut self,
         graph: &AdviceGraph,
@@ -514,6 +606,47 @@ mod tests {
         assert!(source_logical_absolute_command_candidate_at(source, &missing, offset).is_none());
         let native = Analyser::new().analyse(source, "tcl8.6");
         assert!(source_logical_absolute_command_candidate_at(source, &native, offset).is_none());
+    }
+
+    #[test]
+    fn logical_document_candidates_keep_root_source_recipe_and_original_cardinality() {
+        let source = "namespace eval N {}; namespace path ::N; helper ONE; other {*}$arguments; set inert {helper TWO}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let helper = query(source, &analysis, "helper ONE").expect("actual root source command");
+        let root = tcl_core_types::ByteNamespacePath::root();
+        let namespace = tcl_syntax::naming::authored_source_namespace_path(&root, b"N").unwrap();
+        assert_eq!(
+            helper.coordinates(),
+            tcl_syntax::naming::authored_source_command_candidates(&root, &[namespace], b"helper")
+                .unwrap()
+        );
+        assert_eq!(helper.argument_count(), Some(1));
+        assert!(!helper.has_lookup_operand_effects());
+        for source in ["helper [namespace path ::Changed]", "helper $value"] {
+            let analysis = Analyser::new().analyse(source, "tcl");
+            let candidate = query(source, &analysis, "helper").unwrap();
+            assert!(candidate.has_lookup_operand_effects());
+        }
+        let inert_source = "helper {[namespace path ::Changed]}";
+        let inert_analysis = Analyser::new().analyse(inert_source, "tcl");
+        assert!(
+            !query(inert_source, &inert_analysis, "helper")
+                .unwrap()
+                .has_lookup_operand_effects()
+        );
+        assert_eq!(
+            helper.original_head().unwrap().span().start(),
+            u32::try_from(source.find("helper ONE").unwrap()).unwrap()
+        );
+        let expanded = query(source, &analysis, "other").expect("actual expanded source argv");
+        assert_eq!(expanded.argument_count(), None);
+        assert!(query(source, &analysis, "helper TWO").is_none());
+        let native = Analyser::new().analyse(source, "tcl8.6");
+        assert!(query(source, &native, "helper ONE").is_none());
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        assert!(query(source, &missing, "helper ONE").is_none());
+        assert!(query(&format!("{source} "), &analysis, "helper ONE").is_none());
     }
 
     #[test]

@@ -2473,6 +2473,19 @@ impl OriginalSourceTransitionSeed {
             policy: &policy,
         };
         for invocation in plan.commands {
+            if let AdviceNamingPolicy::Logical(input) = &policy
+                && self.baseline.metadata_context.source_analysis_input() == Some(input)
+                && self.baseline.logical_source_input.as_ref() == Some(input)
+                && self.baseline.native_entry.is_none()
+                && self.baseline.hosted_execution_context.is_none()
+                && self.baseline.vendor_source_input.is_none()
+                && !self.baseline.unknown_entry
+            {
+                // Only the whole source seed's original root command traversal
+                // supplies this conditional Document recipe. Nested bodies keep
+                // their independent source scope, and no runtime frame follows.
+                tape.retain_logical_document_navigation(&graph, &invocation.words, origin);
+            }
             advice_context.retain_original_invocation(
                 &mut graph,
                 &mut tape,

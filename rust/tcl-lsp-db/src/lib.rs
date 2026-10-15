@@ -171,9 +171,10 @@
 //!    untracked code mints immortal slots holding whole `CompilationUnit`
 //!    lattices.
 //!
-//! [`LexerCfgKey`] and [`CommandTail`] have different churn boundaries from
-//! these per-body keys. Production lexer keys retain the resolved environment
-//! id; command keys retain an exact declaration or bare-tail assistance name.
+//! [`LexerCfgKey`], [`OriginalCommandSlot`] and [`LogicalSourceCommandSlot`]
+//! have different churn boundaries from these per-body keys. Production lexer
+//! keys retain the resolved environment id; command keys retain exact original
+//! source coordinates under their independently selected naming purpose.
 //! New environments or symbols can add entries, but body text and revision
 //! offsets do not enter these keys. They are not covered by the six-key growth
 //! control below; [`compilation_unit`]'s signature takes a lexer key interned
@@ -196,7 +197,7 @@
 //! The full contract is written up in
 //! `docs/design/rust/salsa-interned-gc.md`.
 
-use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 use std::sync::{Arc, Mutex};
 
 use tcl_compiler::body_analysis_capsule::{BodyLatticeCommandBindings, BodyLatticeInputs};
@@ -1414,6 +1415,7 @@ pub fn file_external_call_sites(
 
 /// Original unresolved source name retained by the diagnostic emitter.
 /// Missing semantic subjects stay unknown, independent of presentation.
+#[cfg(test)]
 fn w123_command(diagnostic: &tcl_compiler::analyser::Diagnostic) -> Option<&str> {
     diagnostic
         .unresolved_command()
@@ -1448,6 +1450,7 @@ fn proc_arity(
 ///
 /// Depends only on each file's `item_sigs` (the signature firewall), so a body
 /// edit anywhere recomputes nothing here.
+#[cfg(test)]
 #[salsa::tracked(returns(clone))]
 pub fn project_command_arities(
     db: &dyn TclDb,
@@ -1456,6 +1459,7 @@ pub fn project_command_arities(
     merge_command_arities(project.files(db).iter().map(|&file| item_sigs(db, file)))
 }
 
+#[cfg(test)]
 fn merge_command_arities(
     signatures: impl IntoIterator<Item = Arc<Vec<ItemSig>>>,
 ) -> Arc<HashMap<String, Vec<(usize, usize)>>> {
@@ -1820,6 +1824,7 @@ fn logical_source_command_arity<'db>(
 
 /// Interned declaration key or legacy bare-tail assistance key for the
 /// per-symbol cross-file accessor [`command_arity`].
+#[cfg(test)]
 #[salsa::interned]
 pub struct CommandTail<'db> {
     #[returns(ref)]
@@ -1846,6 +1851,7 @@ pub struct CommandTail<'db> {
 /// signature still re-checks exactly its callers (correct fan-out); changing a
 /// proc nobody in file B calls wakes nobody in B.  Proven by
 /// `project_diagnostics_per_symbol_cutoff`.
+#[cfg(test)]
 #[salsa::tracked(returns(clone))]
 pub fn command_arity<'db>(
     db: &'db dyn TclDb,
@@ -1962,6 +1968,7 @@ fn callback_exact_arity_diagnostic(
 /// synthesised arity code: the synthesised arity codes honour the same
 /// production skip as the analyser's own; whether they show is the policy
 /// step's decision.
+#[cfg(test)]
 #[must_use]
 pub fn apply_cross_file_resolution<S: std::hash::BuildHasher>(
     analysis: &AnalysisResult,
@@ -2233,26 +2240,11 @@ fn apply_original_callback_arity_with_mode<'a>(
     }
 }
 
-/// Legacy standalone analyser diagnostics for `file` resolved against the
-/// project:
-/// cross-file-resolvable W123 (unknown command) suppressed, plus a
-/// cross-file arity error (`E002`/`E003`) for calls to workspace procs with a bad
-/// arg count. Server diagnostics use the workspace index for direct calls;
-/// this query remains for the database corpus and incremental-resolution tests.
-///
-/// Deliberately a **separate query off the paramount [`file_analysis`] path**:
-/// `file_analysis` stays project-independent (so a signature change in another
-/// file cannot regress this file's time-to-first-tokens), and this
-/// debounced/non-paramount query layers cross-file resolution on top.  It depends
-/// only on `file_analysis(file, config)` + the firewalled [`project_command_arities`],
-/// so a **body** edit in any file recomputes nothing here; only a proc-decl /
-/// signature change (or this file's own edit) does — precise cross-file
-/// reverse-dependency invalidation, for free, from salsa.
-///
-/// Cross-file arity is **independent of the W123 toggle**: it keys off
-/// [`AnalysisResult::unresolved_command_sites`], which the analyser records even
-/// when W123 is disabled, so a wrong-arg cross-file call still reports `E002`/`E003`
-/// (matching local arity) regardless of the user's W123 setting.
+/// Project source-header advice for actual unresolved original occurrences.
+/// Native source lookups keep their independent retained policy/slot purpose;
+/// Logical calls require their genuine Document/body frame recipe and complete
+/// original argv. Missing ownership and earlier opaque mutations preserve the
+/// original diagnostics. Project headers supply no installed lookup or entry.
 #[salsa::tracked(returns(clone))]
 pub fn project_diagnostics(
     db: &dyn TclDb,
@@ -2269,14 +2261,8 @@ pub fn project_diagnostics(
     // `file` — a cache hit, not a second whole-file analysis.
     let analysis = file_analysis_incremental(db, file, config);
 
-    // Per-symbol demand (the precision lever): resolve only the command tails this
-    // file actually references — every unknown-command (W123) tail and every
-    // recorded unresolved call site — through the early-cutoff `command_arity`
-    // accessor, building the same `tail -> arities` map shape
-    // `apply_cross_file_resolution` reads.  Depending on *those symbols'*
-    // resolutions rather than the whole `project_command_arities` table is what
-    // stops an unrelated proc's signature edit from re-running this file's
-    // cross-file diagnostics (see `command_arity`).
+    // Each original coordinate is demanded independently so unrelated header
+    // changes keep the per-slot query's early cutoff.
     let unresolved = analysis
         .unresolved_command_sites
         .iter()
@@ -2299,53 +2285,46 @@ pub fn project_diagnostics(
             )
         })
         .collect::<HashMap<_, _>>();
-    let mut tails: BTreeSet<String> = BTreeSet::new();
-    for diag in &analysis.diagnostics {
-        if analysis.allows_retained_logical_declaration_advice()
-            && diag.code == DiagCode::W123
-            && !original_sites.contains_key(&(diag.span.start(), diag.span.end()))
-            && let Some(name) = w123_command(diag)
+    let mut logical_sites = BTreeMap::new();
+    for (span, _) in &analysis.unresolved_command_sites {
+        let key = (span.start(), span.end());
+        if original_sites.contains_key(&key) {
+            // A present original Native source owner is terminal even when it
+            // cannot supply a project signature.
+            continue;
+        }
+        let Some(candidate) = tcl_compiler::registry_invocation::source_structure::source_logical_command_candidates_at(
+            file.text(db), &analysis, span.start(),
+        ) else { continue; };
+        if candidate.has_earlier_unknown_mutations()
+            || candidate.has_lookup_operand_effects()
+            || candidate.original_head().map(tcl_lexer::NativeWord::span) != Some(*span)
         {
-            tails.insert(name.to_owned());
+            continue;
         }
+        let Some(arities) = candidate.coordinates().iter().find_map(|slot| {
+            logical_source_command_arity(
+                db,
+                project,
+                LogicalSourceCommandSlot::new(db, slot.clone()),
+                false,
+            )
+        }) else {
+            continue;
+        };
+        logical_sites.insert(key, (candidate, arities));
     }
-    for (span, name) in &analysis.unresolved_command_sites {
-        if analysis.allows_retained_logical_declaration_advice()
-            && !original_sites.contains_key(&(span.start(), span.end()))
-        {
-            tails.insert(name.clone());
-        }
-    }
-    let mut arities: HashMap<String, Vec<(usize, usize)>> = HashMap::new();
-    for tail in tails {
-        if let Some(resolved) = command_arity(db, project, CommandTail::new(db, tail.clone())) {
-            arities.insert(tail, (*resolved).clone());
-        }
-    }
-
-    let legacy_diagnostics = analysis
+    let mut diagnostics = analysis
         .diagnostics
         .iter()
         .filter(|diagnostic| {
             diagnostic.code != DiagCode::W123
-                || !original_sites.contains_key(&(diagnostic.span.start(), diagnostic.span.end()))
+                || (!original_sites.contains_key(&(diagnostic.span.start(), diagnostic.span.end()))
+                    && !logical_sites
+                        .contains_key(&(diagnostic.span.start(), diagnostic.span.end())))
         })
         .cloned()
         .collect::<Vec<_>>();
-    let legacy_sites = analysis
-        .unresolved_command_sites
-        .iter()
-        .filter(|(span, _)| !original_sites.contains_key(&(span.start(), span.end())))
-        .cloned()
-        .collect::<Vec<_>>();
-    let mut diagnostics = apply_cross_file_resolution(
-        &analysis,
-        &legacy_diagnostics,
-        &legacy_sites,
-        &analysis.command_invocations,
-        &arities,
-        |code| disabled.iter().any(|c| c == code),
-    );
     diagnostics.extend(
         analysis
             .diagnostics
@@ -2374,6 +2353,27 @@ pub fn project_diagnostics(
                 (argc, Some(argc)),
                 candidates,
             )
+            && !disabled.iter().any(|code| code == diagnostic.code.as_str())
+        {
+            diagnostics.push(diagnostic);
+        }
+    }
+    for (candidate, arities) in logical_sites.values() {
+        if arities.is_empty() {
+            continue;
+        }
+        let Some(argc) = candidate.argument_count() else {
+            continue;
+        };
+        let Some(head) = candidate.original_head() else {
+            continue;
+        };
+        let Some(name) = tcl_syntax::word_rules::original_static_word_unicode_value(head) else {
+            continue;
+        };
+        let name = String::from_utf8_lossy(&name);
+        if let Some(diagnostic) =
+            cross_file_arity_diagnostic(&name, head.span(), (argc, Some(argc)), arities)
             && !disabled.iter().any(|code| code == diagnostic.code.as_str())
         {
             diagnostics.push(diagnostic);
@@ -8833,14 +8833,127 @@ p\uD801 ordinary";
         );
     }
 
+    #[test]
+    fn project_direct_logical_calls_use_original_occurrences_and_namespace_slots() {
+        let mut db = TclDatabase::default();
+        let cfg = AnalyserConfig::new(
+            &db,
+            Vec::new(),
+            NonAsciiMode::Default,
+            Vec::new(),
+            None,
+            None,
+            0,
+            Vec::new(),
+            Vec::new(),
+        );
+        let definitions = SourceFile::new(
+            &db,
+            "namespace eval A {proc helper {x} {}}; namespace eval B {proc helper {x y} {}}"
+                .to_owned(),
+            "tcl".to_owned(),
+            None,
+        );
+        let source = "namespace eval A {helper ONE}; namespace eval B {helper ONE}";
+        let calls = SourceFile::new(&db, source.to_owned(), "tcl".to_owned(), None);
+        let project = Project::new(&db, vec![definitions, calls]);
+        let diagnostics = project_diagnostics(&db, calls, cfg, project);
+        assert!(
+            !diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == DiagCode::W123)
+        );
+        let arity = diagnostics
+            .iter()
+            .filter(|diagnostic| matches!(diagnostic.code, DiagCode::E002 | DiagCode::E003))
+            .collect::<Vec<_>>();
+        assert_eq!(arity.len(), 1);
+        assert_eq!(arity[0].code, DiagCode::E002);
+        assert_eq!(
+            arity[0].span.start(),
+            u32::try_from(source.rfind("helper").unwrap()).unwrap()
+        );
+    }
+
+    #[test]
+    fn project_direct_logical_calls_keep_operand_mutations_unresolved() {
+        let db = TclDatabase::default();
+        let cfg = AnalyserConfig::new(
+            &db,
+            Vec::new(),
+            NonAsciiMode::Default,
+            Vec::new(),
+            None,
+            None,
+            0,
+            Vec::new(),
+            Vec::new(),
+        );
+        let definitions = SourceFile::new(
+            &db,
+            "proc rooted {x y} {}".to_owned(),
+            "tcl".to_owned(),
+            None,
+        );
+        let source = "rooted [namespace path ::Changed]";
+        let calls = SourceFile::new(&db, source.to_owned(), "tcl".to_owned(), None);
+        let project = Project::new(&db, vec![definitions, calls]);
+        let diagnostics = project_diagnostics(&db, calls, cfg, project);
+        assert!(diagnostics.iter().any(|diagnostic| diagnostic.code == DiagCode::W123 && diagnostic.span.start() == 0));
+        assert!(
+            !diagnostics
+                .iter()
+                .any(|diagnostic| matches!(diagnostic.code, DiagCode::E002 | DiagCode::E003))
+        );
+    }
+
+    #[test]
+    fn project_direct_logical_calls_keep_root_recipe_and_missing_namespace_unknown() {
+        let mut db = TclDatabase::default();
+        let cfg = AnalyserConfig::new(
+            &db,
+            Vec::new(),
+            NonAsciiMode::Default,
+            Vec::new(),
+            None,
+            None,
+            0,
+            Vec::new(),
+            Vec::new(),
+        );
+        let definitions = SourceFile::new(
+            &db,
+            "proc rooted {x} {}; namespace eval A {proc helper {x} {}}".to_owned(),
+            "tcl".to_owned(),
+            None,
+        );
+        let source = "rooted ONE; namespace eval Missing {helper ONE}";
+        let calls = SourceFile::new(&db, source.to_owned(), "tcl".to_owned(), None);
+        let project = Project::new(&db, vec![definitions, calls]);
+        let diagnostics = project_diagnostics(&db, calls, cfg, project);
+        let unknown = diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == DiagCode::W123)
+            .collect::<Vec<_>>();
+        assert_eq!(unknown.len(), 1);
+        assert_eq!(
+            unknown[0].span.start(),
+            u32::try_from(source.find("helper").unwrap()).unwrap()
+        );
+        assert!(
+            !diagnostics
+                .iter()
+                .any(|diagnostic| matches!(diagnostic.code, DiagCode::E002 | DiagCode::E003))
+        );
+    }
+
     /// Per-symbol cross-file precision: editing an *unrelated* proc's signature in
     /// the defining file must **not** re-run a calling file's `project_diagnostics`.
     ///
     /// `b` calls only `foo` (defined in `a`); `a` also defines `bar`, which `b`
-    /// never calls.  Because `project_diagnostics(b)` demands `command_arity` only
-    /// for the tails `b` references (`foo`), a signature edit to `bar` recomputes
-    /// the whole-project arity table and the `command_arity(foo)` accessor, but the
-    /// accessor's projected output for `foo` is unchanged → salsa backdates it →
+    /// never calls. Each demanded original source slot has its own arity query.
+    /// A signature edit to `bar` changes the project header table while the
+    /// projected `foo` header is unchanged, so salsa backdates that result →
     /// `project_diagnostics(b)` does **not** re-execute (the per-symbol early-cutoff
     /// the whole-table dependency could not give).  Editing `foo` itself, by
     /// contrast, *must* re-run `b` and flow the new arity through.
@@ -8897,7 +9010,7 @@ p\uD801 ordinary";
         let _ = runs(&log);
 
         // Signature edit to the UNRELATED `bar` (add a param).  The arity table and
-        // `command_arity(bar)` recompute, but `command_arity(foo)` backdates → `b`'s
+        // The project table changes, but the `foo` slot backdates → `b`'s
         // cross-file diagnostics must NOT re-run.
         a.set_text(&mut db)
             .to("proc foo {x} {}\nproc bar {y z} {}\n".to_owned());
