@@ -28,8 +28,8 @@ use tcl_lexer::{LexerConfig, LineIndex};
 use tcl_registry::{ArgRole, CommandRegistry};
 
 use super::{
-    RefactorEdit, Refactoring, command_span_offsets, find_command_at, line_indent, reindent_body,
-    token_end_offset,
+    RefactorEdit, Refactoring, configured_command_span_offsets, find_command_at, line_indent,
+    reindent_body, token_end_offset,
 };
 use crate::code_actions::ActionKind;
 
@@ -389,25 +389,41 @@ pub fn extract_to_datagroup_from_if(
     let cmd = find_command_at(source, cursor, Some("if"), registry, config)?;
     let chain = parse_if_chain(&cmd.texts, registry, config)?;
     render_if_extraction(
-        source,
-        &cmd,
+        DataGroupRenderSource {
+            source,
+            command: &cmd,
+            extent: configured_command_span_offsets(source, &cmd, config)?,
+            config,
+        },
         chain,
         dg_name,
         line_index,
-        config,
         || Some(()),
     )
 }
 
+/// Rendering inputs; the analysis entry supplies independently checked
+/// original extents, while standalone convenience calls retain their own syntax.
+struct DataGroupRenderSource<'a> {
+    source: &'a str,
+    command: &'a SegmentedCommand,
+    extent: (u32, u32),
+    config: LexerConfig,
+}
+
 fn render_if_extraction(
-    source: &str,
-    cmd: &SegmentedCommand,
+    rendering: DataGroupRenderSource<'_>,
     chain: IfChain,
     dg_name: &str,
     line_index: &LineIndex,
-    config: LexerConfig,
     mapping_selected: impl FnOnce() -> Option<()>,
 ) -> Option<Refactoring> {
+    let DataGroupRenderSource {
+        source,
+        command: cmd,
+        extent,
+        config,
+    } = rendering;
     if chain.values.len() < 2 {
         return None;
     }
@@ -467,8 +483,7 @@ fn render_if_extraction(
 
     complete_single_command_source(&replacement, config)?;
     Some(build_result(
-        source,
-        cmd,
+        extent,
         &dg_name,
         value_type,
         replacement,
@@ -635,14 +650,13 @@ fn command_indent<'a>(
 
 /// Assemble the final [`Refactoring`] from the computed replacement.
 fn build_result(
-    source: &str,
-    cmd: &tcl_compiler::segmenter::SegmentedCommand,
+    extent: (u32, u32),
     dg_name: &str,
     value_type: &str,
     replacement: String,
     data_group: DataGroupDefinition,
 ) -> Refactoring {
-    let (start, end) = command_span_offsets(source, cmd);
+    let (start, end) = extent;
     Refactoring {
         title: format!("Extract to data-group '{dg_name}' ({value_type})"),
         edits: vec![RefactorEdit {
@@ -675,11 +689,14 @@ pub fn extract_to_datagroup_from_switch(
     let original = source_subject::standalone_exact_switch_source(source, &cmd, registry, config)?;
     let case_list = registry.get("switch").and_then(|spec| spec.case_list)?;
     render_switch_extraction(
-        source,
-        &cmd,
+        DataGroupRenderSource {
+            source,
+            command: &cmd,
+            extent: configured_command_span_offsets(source, &cmd, config)?,
+            config,
+        },
         dg_name,
         line_index,
-        config,
         SwitchExtraction {
             original,
             default_word: case_list
@@ -699,14 +716,18 @@ struct SwitchExtraction {
 }
 
 fn render_switch_extraction(
-    source: &str,
-    cmd: &SegmentedCommand,
+    rendering: DataGroupRenderSource<'_>,
     dg_name: &str,
     line_index: &LineIndex,
-    config: LexerConfig,
     selected: SwitchExtraction,
     mapping_selected: impl FnOnce() -> Option<()>,
 ) -> Option<Refactoring> {
+    let DataGroupRenderSource {
+        source,
+        command: cmd,
+        extent,
+        config,
+    } = rendering;
     let subject = selected.original.subject();
     let pairs = selected.original.pairs();
     if pairs.len() < 3 {
@@ -767,8 +788,7 @@ fn render_switch_extraction(
 
     complete_single_command_source(&replacement, config)?;
     Some(build_result(
-        source,
-        cmd,
+        extent,
         &dg_name,
         value_type,
         replacement,
@@ -863,20 +883,18 @@ pub fn extract_to_datagroup_with_analysis(
     let hook =
         words.with_source_schema(&current.context(), |schema| schema.semantics.lowering_hook)??;
     let mapping = || original_mapping_arms(&walk, source, &cmd);
+    let rendering = DataGroupRenderSource {
+        source,
+        command: &cmd,
+        extent: walk.command_span_offsets(source, &cmd)?,
+        config: current.config(),
+    };
     match hook {
         tcl_registry::hooks::LoweringHookId::If => {
             let plan =
                 words.with_source_schema(&current.context(), |schema| schema.clause_plan())??;
             let chain = if_chain_from_plan(&cmd.texts, &plan, current.config())?;
-            render_if_extraction(
-                source,
-                &cmd,
-                chain,
-                dg_name,
-                line_index,
-                current.config(),
-                mapping,
-            )
+            render_if_extraction(rendering, chain, dg_name, line_index, mapping)
         }
         tcl_registry::hooks::LoweringHookId::Switch => {
             let original =
@@ -893,11 +911,9 @@ pub fn extract_to_datagroup_with_analysis(
                     ))
                 })??;
             render_switch_extraction(
-                source,
-                &cmd,
+                rendering,
                 dg_name,
                 line_index,
-                current.config(),
                 SwitchExtraction {
                     original,
                     default_word,

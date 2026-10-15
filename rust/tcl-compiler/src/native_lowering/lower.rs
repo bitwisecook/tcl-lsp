@@ -72,6 +72,7 @@ use crate::intervals::Interval;
 use crate::ir::{CommandTokens, Module, NodeId, SourceSite, Statement, WordExpr, WordPart};
 use crate::registry_invocation::{
     InvocationMetadataContext, RegistryInvocationResolution, resolve_word_exprs,
+    resolved_tokens_invocation_with_metadata_context,
 };
 use crate::semantic_optimisation::{SemanticOptimisationConfig, SemanticOptimisationPassId};
 use crate::types::TypeShape;
@@ -219,6 +220,7 @@ fn native_boolean_dialect(input: &LoweringInput<'_>) -> Option<tcl_registry::Inv
 
 struct Lowerer<'a> {
     input: &'a LoweringInput<'a>,
+    original_invocations: Option<super::original_invocations::OriginalInvocations>,
     values: Vec<NativeValue>,
     exec_values: HashMap<ExecutableValueId, NativeValueId>,
     argvs: HashMap<ExecutableArgvId, Vec<NativeValueId>>,
@@ -314,6 +316,11 @@ impl<'a> Lowerer<'a> {
             });
         Self {
             input,
+            original_invocations: super::original_invocations::OriginalInvocations::for_module(
+                module,
+                input.registry,
+                input.source,
+            ),
             values: Vec::new(),
             exec_values: HashMap::new(),
             argvs: HashMap::new(),
@@ -926,7 +933,7 @@ impl<'a> Lowerer<'a> {
         };
         if invoke.registry_specialisation_arguments_exact()
             && let InvocationResolution::Resolved(facts) = &invoke.resolution
-            && let Some(spec) = self.input.registry.get(&facts.canonical_command)
+            && let Some(lowering) = self.invocation_native_lowering(invoke, facts)
         {
             // The site proof's operand-admissibility verdict is conservative
             // about command substitutions and variable reads in the operand
@@ -947,7 +954,7 @@ impl<'a> Lowerer<'a> {
                             .iter()
                             .all(|domain| site.covers.contains(domain))
                 });
-            match spec.native_lowering_at(self.input.registry.own_surface_query().as_ref()) {
+            match lowering {
                 NativeLowering::Intrinsic {
                     id: IntrinsicId::ChannelWrite,
                     arity,
@@ -979,6 +986,42 @@ impl<'a> Lowerer<'a> {
         self.emit(NativeOp::Invoke { argv });
         self.clobber_shadows();
         StatementOutcome::GenericInvoke
+    }
+
+    fn invocation_native_lowering(
+        &self,
+        invoke: &GenericInvoke,
+        facts: &tcl_registry::InvocationFacts,
+    ) -> Option<NativeLowering> {
+        if self.source_absent_model() {
+            return self.input.registry.native_lowering_for_descriptor(
+                facts.descriptor_key(),
+                self.input.registry.own_surface_query().as_ref(),
+            );
+        }
+        let tokens = self.original_invocations.as_ref()?.command(invoke)?;
+        let metadata = self.original_invocation_metadata(tokens)?;
+        let selected = resolved_tokens_invocation_with_metadata_context(
+            self.input.registry,
+            Some(metadata),
+            tokens,
+        )?;
+        (selected.facts.as_ref() == facts).then_some(())?;
+        self.input.registry.native_lowering_for_descriptor(
+            selected.facts.descriptor_key(),
+            Some(&metadata.context().authoring_query()),
+        )
+    }
+
+    fn original_invocation_metadata<'b>(
+        &self,
+        tokens: &'b crate::ir::CommandTokens,
+    ) -> Option<InvocationMetadataContext<'b>> {
+        let input = self.input.module.source_metadata_input.as_ref()?;
+        tokens
+            .source_binding
+            .as_ref()?
+            .original_invocation_metadata_for_input(tokens, input, self.input.registry)
     }
 
     /// A definition-time command (`proc`) whose body this module also
@@ -1135,6 +1178,13 @@ impl<'a> Lowerer<'a> {
             && self.input.module.retained_source_bindings.is_none()
             && self.input.module.source_metadata_input.is_none()
             && self.input.module.source_entry.native_entry.is_none()
+            && self
+                .input
+                .module
+                .source_entry
+                .metadata_context
+                .is_standalone()
+            && !self.input.module.source_entry.unknown_entry
     }
 
     fn lowered_name_place(
@@ -1591,14 +1641,9 @@ impl<'a> Lowerer<'a> {
         depth: u32,
     ) -> Result<NativeValueId, NativeLoweringDecline> {
         let inner = nested_words(spelling, source, self.lexer_config)?;
-        if let Ok(RegistryInvocationResolution::Resolved(facts)) =
-            resolve_word_exprs(self.input.registry, self.input.context, &inner)
-            && let Some(spec) = self.input.registry.get(&facts.canonical_command)
-            && spec.native_lowering_at(self.input.registry.own_surface_query().as_ref())
-                == NativeLowering::Structured(LoweringHookId::Expr)
+        if self.substitution_is_native_expression(&inner)
             && inner.len() == 2
             && let WordExpr::BracedLiteral { text, .. } = &inner[1]
-            && self.command_trusted(facts.descriptor_key())
         {
             let expr = tcl_syntax::expr::parser::parse_expr_for_profile(text, self.dialect);
             let value = self.lower_expression_text(&expr, text);
@@ -1614,6 +1659,43 @@ impl<'a> Lowerer<'a> {
         self.clobber_shadows();
         self.note_observation();
         Ok(dst)
+    }
+
+    fn substitution_is_native_expression(&self, inner: &[WordExpr]) -> bool {
+        if self.source_absent_model() {
+            let Ok(RegistryInvocationResolution::Resolved(facts)) =
+                resolve_word_exprs(self.input.registry, self.input.context, inner)
+            else {
+                return false;
+            };
+            return self.input.registry.native_lowering_for_descriptor(
+                facts.descriptor_key(),
+                self.input.registry.own_surface_query().as_ref(),
+            ) == Some(NativeLowering::Structured(LoweringHookId::Expr))
+                && self.command_trusted(facts.descriptor_key());
+        }
+        let Some(tokens) = self
+            .original_invocations
+            .as_ref()
+            .and_then(|inventory| inventory.substitution(inner))
+        else {
+            return false;
+        };
+        let Some(metadata) = self.original_invocation_metadata(tokens) else {
+            return false;
+        };
+        let Some(selected) = resolved_tokens_invocation_with_metadata_context(
+            self.input.registry,
+            Some(metadata),
+            tokens,
+        ) else {
+            return false;
+        };
+        self.input.registry.native_lowering_for_descriptor(
+            selected.facts.descriptor_key(),
+            Some(&metadata.context().authoring_query()),
+        ) == Some(NativeLowering::Structured(LoweringHookId::Expr))
+            && self.command_trusted(selected.facts.descriptor_key())
     }
 
     /// Whether the module keeps `name` bound to its registry builtin at every

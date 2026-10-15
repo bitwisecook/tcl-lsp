@@ -775,6 +775,43 @@ pub(crate) fn check_native_liveness(
     Ok(())
 }
 
+/// Allocation-only observation of a genuinely released result during its free callback.
+/// This cannot retain, mutate, convert or resurrect the retired object.
+pub(crate) struct RetiringResultHeader {
+    original: NativeObjectLifetime,
+    kind: *const TclObjType,
+}
+impl RetiringResultHeader {
+    pub(crate) fn capture(original: *mut TclObj) -> Result<Self, tcl_syntax::value::ValueError> {
+        check_native_liveness(original)?;
+        Ok(Self {
+            original: NativeObjectLifetime::retain(original),
+            kind: obj_type_ptr(original),
+        })
+    }
+    pub(crate) fn resident_bytes(&self) -> Result<Rc<[u8]>, tcl_syntax::value::ValueError> {
+        let value = self.original.as_ptr();
+        let state = auxiliary(value);
+        if state.live.get()
+            || !state.retiring.get()
+            || !self
+                .original
+                .incarnation
+                .same_as(&state.incarnation.borrow())
+            || obj_type_ptr(value) != self.kind
+            // SAFETY: this allocation-only receipt pins the exact retiring header.
+            || unsafe { (*value).ref_count } != 0
+            || !has_string_rep(value)
+        {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "actual retiring result resident String",
+            ));
+        }
+        // The actual free callback has not returned, so its resident String is intact.
+        Ok(Rc::from(bytes_of(value)))
+    }
+}
+
 /// Memory safety lease with no native object reference. A native decr-to-zero
 /// still retires the cache and its children immediately while this holds only
 /// the allocation. A retired object cannot be promoted back into a native owner.

@@ -196,12 +196,8 @@ pub(crate) fn class_completion_context<'a>(
             return ControlFlow::Continue(());
         }
     } else {
-        let gap = source
-            .get(span.end() as usize..cursor as usize)
-            .unwrap_or("");
-        if gap
-            .bytes()
-            .any(|byte| !matches!(byte, b' ' | b'\t' | b'\r'))
+        if cursor != span.end()
+            && !instance_completion::completion_gap(source, span.end(), cursor, config)
         {
             return ControlFlow::Continue(());
         }
@@ -277,8 +273,9 @@ pub(crate) fn method_selector_replacement(
         };
         return Some((edit.span(), edit.text().to_owned()));
     }
-    let gap = source.get(command.words.first()?.word_span().end() as usize..cursor as usize)?;
-    if !gap.bytes().all(|byte| matches!(byte, b' ' | b'\t' | b'\r')) {
+    let head_end = command.words.first()?.word_span().end();
+    if cursor != head_end && !instance_completion::completion_gap(source, head_end, cursor, config)
+    {
         return None;
     }
     Some((
@@ -584,6 +581,54 @@ mod tests {
             let emitted = tcl_compiler::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
                 &plan.commands[0].words[0], key.word_value_rules(), key.policy()).unwrap();
             assert_eq!(emitted.bytes(), method.original_name_input().bytes());
+        }
+    }
+}
+
+#[cfg(test)]
+mod selected_completion_gap_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn original_class_selector_gaps_use_configured_separators_and_continuations() {
+        for (gap, expected) in [
+            (" ", true),
+            ("\t\r", true),
+            (" \\\n\t", true),
+            ("\n", false),
+            ("; ", false),
+            (" # comment", false),
+        ] {
+            let source = format!("oo::class create C {{}}; C{gap}");
+            let analysis = Analyser::new().analyse(&source, "tcl8.6");
+            let cursor = u32::try_from(source.len()).unwrap();
+            assert_eq!(
+                matches!(
+                    class_completion_context(&analysis, &source, cursor),
+                    ControlFlow::Break(Some(_))
+                ),
+                expected,
+                "{gap:?}"
+            );
+            let invocation = analysis
+                .command_invocations
+                .iter()
+                .find(|invocation| {
+                    invocation
+                        .original_name_input
+                        .as_ref()
+                        .is_some_and(|input| input.bytes() == b"C")
+                })
+                .unwrap();
+            let policy = invocation.original_name_input.as_ref().unwrap().policy();
+            let replacement =
+                method_selector_replacement(&analysis, &source, cursor, b"create", policy);
+            assert_eq!(replacement.is_some(), expected, "{gap:?}");
+            if let Some((span, text)) = replacement {
+                assert_eq!(span, Span::empty(cursor));
+                assert_eq!(text, "create");
+            }
         }
     }
 }

@@ -837,7 +837,13 @@ impl BodyWalk<'_, '_> {
                         let selected = self
                             .context
                             .logical_namespace_scope(original, invocation, schema)?;
-                        branch.logical_namespace = Some(selected.namespace().clone());
+                        let child = selected.body_scope(
+                            Arc::new(region.clone()),
+                            input,
+                            self.logical_scope.clone(),
+                        )?;
+                        branch.logical_namespace = Some(child.namespace_recipe().clone());
+                        child_scope = Some(child);
                     }
                 }
                 AdviceNamingPolicy::Native(_) => {
@@ -1352,9 +1358,17 @@ impl BodyWalk<'_, '_> {
                     .insert(invocation.native.first()?.span().start());
                 return Some(());
             }
-            return self
-                .context
-                .retain_source_inventory(tape, invocation, graph, schema, None);
+            return self.context.retain_source_inventory(
+                tape,
+                invocation,
+                graph,
+                schema,
+                None,
+                self.logical_scope.as_ref().map_or(
+                    super::logical_navigation::LogicalCallbackScope::Unavailable,
+                    super::logical_navigation::LogicalCallbackScope::Declared,
+                ),
+            );
         }
         let retained_producer = if let Some(body) = &self.source_body {
             let mut advice = self.context.schema_advice(invocation, graph, schema)?;
@@ -1378,6 +1392,16 @@ impl BodyWalk<'_, '_> {
         };
         self.context
             .retain_source_callback_targets(tape, invocation, graph, schema);
+        self.context.retain_logical_callback_candidates(
+            tape,
+            invocation,
+            graph,
+            schema,
+            self.logical_scope.as_ref().map_or(
+                super::logical_navigation::LogicalCallbackScope::Unavailable,
+                super::logical_navigation::LogicalCallbackScope::Declared,
+            ),
+        );
         // naming.source.original-editor-body-structure
         // docs/design/analysis/name-resolution-proofs/original-editor-body-structure.md
         if graph.blocks_registry_source(invocation.head) {

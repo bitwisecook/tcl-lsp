@@ -109,7 +109,8 @@ pub fn switch_to_dict(
         return None;
     }
 
-    let (start, end) = super::command_span_offsets(source, &cmd);
+    let (start, end) =
+        super::FrameWalk::new(source, analysis)?.command_span_offsets(source, &cmd)?;
     let title = if arms.use_return {
         "Convert to dict lookup".to_owned()
     } else {

@@ -142,7 +142,8 @@ pub use source_catalogue_advice::{
 };
 pub(crate) use source_transition_advice::original_single_command_substitution_words;
 pub use source_transition_advice::{
-    OriginalLogicalCommandCandidates, OriginalLogicalProcedureBody, OriginalLogicalSourceNameInput,
+    OriginalLogicalCallbackCandidates, OriginalLogicalCommandCandidates,
+    OriginalLogicalProcedureBody, OriginalLogicalSourceNameInput,
     OriginalSourceAuthoredCommandPrefix, OriginalSourceCallbackProcedureLookup,
     OriginalSourceCallbackProcedureRefusal, OriginalSourceCallbackProcedureTarget,
     OriginalSourceCallbackProcedureTargetKind, OriginalSourceCallbackRegistration,

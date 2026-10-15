@@ -200,6 +200,9 @@ pub struct ItemSig {
     pub original_declaration: Option<SourceDeclarationSignature>,
     /// Retained authored command geometry; report keys supply no native identity.
     pub source_name: Option<crate::signature_scan::scope::SignatureSourceCommand>,
+    /// Independently checked Logical declaration coordinate for conditional
+    /// source candidates. This is neither a publication nor an installed target.
+    pub logical_source_coordinate: Option<tcl_core_types::ByteCommandSlot>,
     /// Stable identity.
     pub id: ItemId,
     /// Enclosing namespace (`"::"` for the global namespace), or the owning
@@ -339,6 +342,8 @@ impl ItemTree {
         for (qualified, proc, original_declaration) in original_procs.chain(advisory_procs) {
             items.push(Item {
                 sig: ItemSig {
+                    logical_source_coordinate: result.logical_source_procedure_declaration(proc)
+                        .and_then(super::types::LogicalSourceProcedureDeclaration::source_candidate_coordinate),
                     original_declaration,
                     source_name: proc.source_name.clone(),
                     id: ItemId::new(ItemKind::Proc, qualified.clone()),
@@ -357,6 +362,7 @@ impl ItemTree {
         for qualified in result.command_aliases.keys() {
             items.push(Item {
                 sig: ItemSig {
+                    logical_source_coordinate: None,
                     original_declaration: None,
                     source_name: None,
                     id: ItemId::new(ItemKind::Alias, qualified.clone()),
@@ -373,6 +379,7 @@ impl ItemTree {
         for ns in ensembles {
             items.push(Item {
                 sig: ItemSig {
+                    logical_source_coordinate: None,
                     original_declaration: None,
                     source_name: None,
                     id: ItemId::new(ItemKind::Ensemble, ns.clone()),
@@ -423,6 +430,8 @@ impl ItemTree {
         for (qualified, class, original_declaration) in original_classes.chain(advisory_classes) {
             items.push(Item {
                 sig: ItemSig {
+                    logical_source_coordinate: result.logical_source_class_declaration(class)
+                        .and_then(super::types::LogicalSourceClassDeclaration::source_candidate_coordinate).cloned(),
                     source_name: original_declaration
                         .as_ref()
                         .map(|header| header.name().clone()),
@@ -439,6 +448,7 @@ impl ItemTree {
             for method in result_methods(class) {
                 items.push(Item {
                     sig: ItemSig {
+                        logical_source_coordinate: None,
                         original_declaration: None,
                         source_name: None,
                         id: ItemId::new(ItemKind::Method, method.key),
@@ -460,6 +470,7 @@ impl ItemTree {
         for ns in &namespaces {
             items.push(Item {
                 sig: ItemSig {
+                    logical_source_coordinate: None,
                     original_declaration: None,
                     source_name: None,
                     id: ItemId::new(ItemKind::Namespace, ns.clone()),

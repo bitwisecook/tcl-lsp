@@ -42,6 +42,7 @@ pub struct RetainedSourceModuleBindings {
     observed: ModuleCommandBindings,
     positioned: Arc<SourceCommandBindings>,
     procedures: std::collections::BTreeMap<crate::ir::ProcedureId, OriginalProcedureSource>,
+    methods: std::collections::BTreeMap<crate::ir::ProcedureId, OriginalMethodSource>,
 }
 
 /// Original header and body coordinates retained by the real Module producer.
@@ -109,6 +110,45 @@ impl OriginalProcedureSource {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct OriginalMethodSource {
+    definition_scope: Option<crate::ir::ProcedureId>,
+    kind: crate::ir::MethodKind,
+    declaration: Option<tcl_lexer::Span>,
+    parameters: Vec<String>,
+    execution_namespace: crate::ir::ExecutionNamespace,
+    body: Arc<crate::ir::Script>,
+    receiver_context:
+        Option<Arc<super::original_receiver_body_context::OriginalReceiverBodyContext>>,
+    original_parameters: Option<Arc<super::formal_topology::OriginalFormalTopology>>,
+}
+
+impl OriginalMethodSource {
+    fn retain(method: &crate::ir::MethodDef) -> Self {
+        Self {
+            definition_scope: method.definition_scope,
+            kind: method.kind,
+            declaration: method.span,
+            parameters: method.params.clone(),
+            execution_namespace: method.execution_namespace.clone(),
+            body: Arc::new(method.body.clone()),
+            receiver_context: method.original_receiver_context.clone(),
+            original_parameters: method.original_parameters.clone(),
+        }
+    }
+
+    fn matches(&self, method: &crate::ir::MethodDef) -> bool {
+        self.definition_scope == method.definition_scope
+            && self.kind == method.kind
+            && self.declaration == method.span
+            && self.parameters == method.params
+            && self.execution_namespace == method.execution_namespace
+            && self.body.as_ref() == &method.body
+            && self.receiver_context == method.original_receiver_context
+            && self.original_parameters == method.original_parameters
+    }
+}
+
 impl RetainedSourceModuleBindings {
     pub(crate) fn retain(
         bindings: &SourceCommandBindings,
@@ -135,6 +175,12 @@ impl RetainedSourceModuleBindings {
             procedures: module
                 .original_source_procedure_bodies()
                 .map(|(name, procedure)| (name.clone(), OriginalProcedureSource::retain(procedure)))
+                .collect(),
+            methods: module
+                .methods
+                .iter()
+                .filter(|(id, _)| module.procedure_ids.owns(**id))
+                .map(|(id, method)| (*id, OriginalMethodSource::retain(method)))
                 .collect(),
         }))
     }
@@ -220,6 +266,17 @@ impl RetainedSourceModuleBindings {
         let mut current = OriginalProcedureSource::retain(procedure);
         current.qualified_name.clone_from(&original.qualified_name);
         current == *original
+    }
+
+    /// Original issued method header and body coordinates, without a receiver entry.
+    pub(crate) fn matches_original_method_summary(
+        &self,
+        id: crate::ir::ProcedureId,
+        method: &crate::ir::MethodDef,
+    ) -> bool {
+        self.methods
+            .get(&id)
+            .is_some_and(|original| original.matches(method))
     }
 
     /// Conditional Logical declaration coordinate under this exact issued body.

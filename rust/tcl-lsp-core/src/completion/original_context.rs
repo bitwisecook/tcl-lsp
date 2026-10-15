@@ -208,8 +208,13 @@ fn select(source: &str, analysis: &AnalysisResult, cursor: u32) -> Option<Select
             .find(|(_, word)| word.span().start() <= cursor && cursor <= word.span().end())
             .map(|(index, _)| index - 1)
             .or_else(|| {
-                only_trailing_space(source, shape.original_words().last()?.span().end(), cursor)
-                    .then_some(shape.original_words().len().checked_sub(1)?)
+                crate::original_oo::instance_completion::completion_gap(
+                    source,
+                    shape.original_words().last()?.span().end(),
+                    cursor,
+                    current.config(),
+                )
+                .then_some(shape.original_words().len().checked_sub(1)?)
             })?;
         let arguments = shape
             .original_words()
@@ -240,7 +245,12 @@ fn select(source: &str, analysis: &AnalysisResult, cursor: u32) -> Option<Select
         .filter(|(command, _)| {
             command.span.start() <= cursor
                 && (cursor <= command.span.end()
-                    || only_trailing_space(source, command.span.end(), cursor))
+                    || crate::original_oo::instance_completion::completion_gap(
+                        source,
+                        command.span.end(),
+                        cursor,
+                        current.config(),
+                    ))
         })
         .min_by_key(|(command, _)| command.span.end().saturating_sub(command.span.start()))?;
     let active = words
@@ -256,7 +266,13 @@ fn select(source: &str, analysis: &AnalysisResult, cursor: u32) -> Option<Select
             (span.start() <= cursor && cursor <= span.end()).then_some(index)
         })
         .or_else(|| {
-            only_trailing_space(source, command.span.end(), cursor).then_some(words.arguments.len())
+            crate::original_oo::instance_completion::completion_gap(
+                source,
+                command.span.end(),
+                cursor,
+                current.config(),
+            )
+            .then_some(words.arguments.len())
         })?;
     let arguments = words
         .arguments
@@ -275,12 +291,6 @@ fn select(source: &str, analysis: &AnalysisResult, cursor: u32) -> Option<Select
         arguments,
         active,
     })
-}
-fn only_trailing_space(source: &str, end: u32, cursor: u32) -> bool {
-    cursor > end
-        && source
-            .get(end as usize..cursor as usize)
-            .is_some_and(|text| !text.is_empty() && text.chars().all(|c| c == ' ' || c == '\t'))
 }
 
 #[cfg(test)]
@@ -450,5 +460,36 @@ mod tests {
             )
             .is_none()
         );
+    }
+}
+
+#[cfg(test)]
+mod selected_argument_gap_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn original_registry_argument_slots_use_selected_separator_and_continuation_grammar() {
+        for (gap, expected) in [
+            (" ", true),
+            ("\r", true),
+            (" \\\n\t", true),
+            ("\n", false),
+            ("; ", false),
+            (" # comment", false),
+        ] {
+            let source = format!("string is{gap}");
+            let analysis = Analyser::new().analyse(&source, "tcl8.6");
+            let cursor = u32::try_from(source.len()).unwrap();
+            let selected = select(&source, &analysis, cursor);
+            assert_eq!(selected.is_some(), expected, "{gap:?}");
+            if let Some(selected) = selected {
+                assert_eq!(selected.active, 1);
+                assert_eq!(
+                    selected.arguments.first().and_then(Option::as_deref),
+                    Some("is")
+                );
+            }
+        }
     }
 }

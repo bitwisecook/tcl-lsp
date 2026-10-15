@@ -2103,6 +2103,7 @@ mod tests {
     // docs/design/analysis/name-resolution-proofs/alias-original-child-interpreter-publication.md
     #[test]
     fn jim_child_alias_result_is_born_in_the_actual_parent_allocator() {
+        use crate::interp::native_arguments::OriginalArguments;
         use crate::interp::native_operation_currency::NativeOperationScope;
         let mut interp = Interp::with_native_core(
             crate::interp::default_host(),
@@ -2125,7 +2126,9 @@ mod tests {
             Code::Ok,
         );
         let parent = interp.native_jim_object_context().unwrap();
-        let receiver = interp.children.borrow().get(&child).unwrap().clone();
+        let receiver = interp
+            .with_child(&child, |receiver| receiver.clone())
+            .expect("actual entered child interpreter");
         let receiver_context = receiver.native_jim_object_context().unwrap();
         let result = interp.result_obj();
         crate::obj::validate_jim_allocator(result, &parent.allocation_pool()).unwrap();

@@ -13,7 +13,7 @@ mod c_namespace;
 mod logical_body;
 mod logical_declaration;
 mod logical_navigation;
-pub use logical_navigation::OriginalLogicalCommandCandidates;
+pub use logical_navigation::{OriginalLogicalCallbackCandidates, OriginalLogicalCommandCandidates};
 mod native_baseline;
 mod produced_prefix;
 mod registered_instance;
@@ -683,6 +683,8 @@ pub(crate) struct OriginalSourceTransitionAdviceTape {
     logical_procedure_bodies: BTreeMap<u32, Option<Arc<OriginalLogicalProcedureBody>>>,
     logical_summary_scopes: BTreeMap<u32, Option<OriginalLogicalSummaryScope>>,
     logical_navigation: BTreeMap<u32, Option<OriginalLogicalCommandCandidates>>,
+    logical_callbacks:
+        BTreeMap<u32, Option<(Arc<[NativeWord]>, Vec<OriginalLogicalCallbackCandidates>)>>,
     class_publications: Option<OriginalSourceClassPublications>,
     scanned_procedure_declarations: BTreeSet<u32>,
     class_instance_calls: BTreeMap<u32, Option<OriginalSourceClassInstanceWords>>,
@@ -864,6 +866,9 @@ impl OriginalSourceTransitionAdviceTape {
     fn extend_inventory(&mut self, other: Self) {
         for (offset, receipt) in other.native_procedure_may_commands {
             source_class::merge_receipt(&mut self.native_procedure_may_commands, offset, receipt);
+        }
+        for (offset, receipt) in other.logical_callbacks {
+            source_class::merge_receipt(&mut self.logical_callbacks, offset, receipt);
         }
         for (offset, candidate) in other.logical_navigation {
             source_class::merge_receipt(&mut self.logical_navigation, offset, candidate);
@@ -1908,6 +1913,7 @@ impl AdviceInvocationContext<'_> {
         graph: &AdviceGraph,
         schema: &tcl_registry::ResolvedInvocation<'_, '_>,
         procedure: Option<&source_procedure::OriginalSourceProcedureBody>,
+        callback_scope: logical_navigation::LogicalCallbackScope<'_>,
     ) -> Option<()> {
         self.retain_schema_advice(tape, invocation, graph, schema)?;
         self.retain_native_expression_syntax_inventory(tape, graph, invocation, schema);
@@ -1919,6 +1925,7 @@ impl AdviceInvocationContext<'_> {
             self.retain_original_body_catalogue(tape, graph, invocation, schema);
         }
         self.retain_source_callback_targets(tape, invocation, graph, schema);
+        self.retain_logical_callback_candidates(tape, invocation, graph, schema, callback_scope);
         self.retain_produced_command_prefixes(tape, invocation, graph, schema, None);
         self.retain_logical_procedure_body(tape, invocation, graph, schema);
         Some(())
@@ -2083,6 +2090,7 @@ impl AdviceInvocationContext<'_> {
         graph: &mut AdviceGraph,
         tape: &mut OriginalSourceTransitionAdviceTape,
         invocation: &tcl_lexer::NativeScriptCommandWords,
+        callback_scope: logical_navigation::LogicalCallbackScope<'_>,
     ) -> Option<()> {
         tape.represented
             .insert(invocation.words.first()?.span().start());
@@ -2164,7 +2172,14 @@ impl AdviceInvocationContext<'_> {
             lineage: &lineage,
         };
         let procedure = self.source_procedure_declaration(graph, selected, &schema);
-        self.retain_source_inventory(tape, selected, graph, &schema, procedure.as_deref())?;
+        self.retain_source_inventory(
+            tape,
+            selected,
+            graph,
+            &schema,
+            procedure.as_deref(),
+            callback_scope,
+        )?;
         self.retain_interpreter_paths(tape, selected, graph, &schema);
         let factory = self.registered_factory(graph, selected, &schema);
         let class = self.source_class_declaration(graph, selected, &schema);
@@ -2451,7 +2466,12 @@ impl OriginalSourceTransitionSeed {
             policy: &policy,
         };
         for invocation in plan.commands {
-            advice_context.retain_original_invocation(&mut graph, &mut tape, &invocation)?;
+            advice_context.retain_original_invocation(
+                &mut graph,
+                &mut tape,
+                &invocation,
+                logical_navigation::LogicalCallbackScope::Document,
+            )?;
         }
         advice_context.retain_future_original_procedure_bodies(&mut tape, &graph);
         advice_context.retain_final_original_procedure_publications(&mut tape, &graph);

@@ -87,6 +87,7 @@ mod native_jim_invocation_tests;
 mod native_jim_links;
 mod native_jim_lookup;
 mod native_jim_namespace;
+mod native_jim_result;
 pub(crate) mod native_jim_tailcall;
 pub(crate) mod native_literal_pool;
 mod native_namespace_names;
@@ -10993,8 +10994,20 @@ impl Interp {
         // SAFETY: `obj` live (caller); `old` is the interp's owned result.
         unsafe {
             obj::incr_ref_count(obj);
-            self.result.set(obj);
-            obj::decr_ref_count(old);
+            if self
+                .native_invocation_dialect()
+                .native_jim_lookup_protocol()
+                .is_some()
+            {
+                let retirement: native_jim_result::JimResultRetirement =
+                    native_jim_result::JimResultRetirement::enter(self, old);
+                obj::decr_ref_count(old);
+                self.result.set(obj);
+                drop(retirement);
+            } else {
+                self.result.set(obj);
+                obj::decr_ref_count(old);
+            }
         }
     }
 

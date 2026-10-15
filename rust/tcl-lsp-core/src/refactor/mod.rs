@@ -827,6 +827,29 @@ fn byte_len(source: &str) -> u32 {
     u32::try_from(source.len()).unwrap_or(u32::MAX)
 }
 
+/// Complete syntax extent of an unchanged standalone segmented command.
+/// The shared original-word projection checks the actual source and full lexer
+/// configuration; it supplies no analysis, lookup, Native or edit permission.
+#[must_use]
+pub(crate) fn configured_command_span_offsets(
+    source: &str,
+    command: &SegmentedCommand,
+    config: LexerConfig,
+) -> Option<(u32, u32)> {
+    let tokens = tcl_compiler::ir::CommandTokens::from_segmented(
+        &tcl_lexer::SourceMap::new(source),
+        config,
+        command,
+    );
+    let words = tcl_compiler::registry_invocation::original_native_compiler_words(
+        &tcl_lexer::SourceImage::document(source),
+        tokens.words(),
+        command.argv.first()?.span.start(),
+        config,
+    )?;
+    Some((words.first()?.span().start(), words.last()?.span().end()))
+}
+
 /// `(start, end)` byte offsets covering the full command text.
 ///
 /// The segmenter's `span` already widens for a
@@ -834,6 +857,7 @@ fn byte_len(source: &str) -> u32 {
 /// quote (the segmenter keeps the inner-end for `"…"` words), so widen
 /// the end here to the final argv word's [`token_end_offset`] — this
 /// covers the closing `"` of a command like `set name "hello"`.
+#[cfg(test)]
 #[must_use]
 pub fn command_span_offsets(source: &str, cmd: &SegmentedCommand) -> (u32, u32) {
     let len = byte_len(source);
@@ -959,7 +983,11 @@ fn find_command_at_inner(
         return None;
     }
     for cmd in segment_commands_with_offset_and_config(source, 0, config.at_depth(depth)) {
-        let (cmd_start, cmd_end) = command_span_offsets(source, &cmd);
+        if cursor < cmd.span.start() {
+            continue;
+        }
+        let (cmd_start, cmd_end) =
+            configured_command_span_offsets(source, &cmd, config.at_depth(depth))?;
         if cursor < cmd_start || cursor > cmd_end {
             continue;
         }
@@ -1498,5 +1526,42 @@ mod original_parse_purpose_tests {
                 .is_empty()
         );
         assert!(!walk.complete());
+    }
+}
+
+#[cfg(test)]
+mod standalone_original_command_extent_tests {
+    use super::*;
+
+    #[test]
+    fn standalone_command_extents_keep_complete_original_words_and_selected_config() {
+        for (source, expected) in [
+            ("puts ${held}; puts later", "puts ${held}"),
+            ("puts pre-${held}-post; puts later", "puts pre-${held}-post"),
+            ("puts \"${held}\"; puts later", "puts \"${held}\""),
+            ("puts {}; puts later", "puts {}"),
+            ("puts ${held}; puts {", "puts ${held}"),
+        ] {
+            let config = LexerConfig::default();
+            let command = segment_commands_with_offset_and_config(source, 0, config).remove(0);
+            let (start, end) = configured_command_span_offsets(source, &command, config).unwrap();
+            assert_eq!(&source[start as usize..end as usize], expected);
+        }
+        let source = "puts ${a{b}c}";
+        for style in [
+            tcl_dialect::BracedVarStyle::FirstClose,
+            tcl_dialect::BracedVarStyle::Tcl9Nesting,
+        ] {
+            let config = LexerConfig {
+                braced_var: style,
+                ..LexerConfig::default()
+            };
+            let command = segment_commands_with_offset_and_config(source, 0, config).remove(0);
+            assert_eq!(
+                configured_command_span_offsets(source, &command, config),
+                Some((0, u32::try_from(source.len()).unwrap()))
+            );
+            assert!(configured_command_span_offsets("puts ${changed}", &command, config).is_none());
+        }
     }
 }

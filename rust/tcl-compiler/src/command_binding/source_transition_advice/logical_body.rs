@@ -137,8 +137,21 @@ pub(super) struct LogicalNamespaceScope {
     receipt: Arc<super::OriginalSourceCommandTransition>,
 }
 impl LogicalNamespaceScope {
-    pub(super) fn namespace(&self) -> &tcl_core_types::ByteNamespacePath {
-        &self.namespace
+    pub(super) fn body_scope(
+        &self,
+        body: Arc<OriginalSourceScriptBody>,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        parent: Option<Arc<OriginalDeclaredLogicalBodyContext>>,
+    ) -> Option<Arc<OriginalDeclaredLogicalBodyContext>> {
+        OriginalDeclaredLogicalBodyContext::capture(
+            body,
+            self.name.clone(),
+            self.namespace.clone(),
+            OriginalDeclaredSourceBodyFrame::Namespace,
+            input,
+            parent,
+        )
+        .map(Arc::new)
     }
 }
 
@@ -412,14 +425,8 @@ impl LogicalBodyWalk<'_, '_> {
         let AdviceNamingPolicy::Logical(input) = self.context.policy else {
             return None;
         };
-        let scope = Arc::new(OriginalDeclaredLogicalBodyContext::capture(
-            Arc::new(bodies.into_iter().next()?),
-            selected.name,
-            selected.namespace.clone(),
-            OriginalDeclaredSourceBodyFrame::Namespace,
-            input,
-            parent.cloned(),
-        )?);
+        let scope =
+            selected.body_scope(Arc::new(bodies.into_iter().next()?), input, parent.cloned())?;
         let mut branch = graph.clone();
         branch.apply(&selected.receipt)?;
         branch.logical_namespace = Some(selected.namespace);
@@ -717,6 +724,13 @@ impl LogicalBodyWalk<'_, '_> {
         self.retain_advice(tape, &advice);
         self.context
             .retain_source_callback_targets(tape, invocation, graph, schema);
+        self.context.retain_logical_callback_candidates(
+            tape,
+            invocation,
+            graph,
+            schema,
+            super::logical_navigation::LogicalCallbackScope::Declared(scope),
+        );
         self.context.retain_produced_command_prefixes(
             tape,
             invocation,

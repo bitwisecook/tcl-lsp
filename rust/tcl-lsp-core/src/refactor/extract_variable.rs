@@ -95,6 +95,7 @@ pub fn extract_variable(
     if !crate::rename::is_safe_symbol_name(var_name) {
         return None;
     }
+    let proposed_reference = tcl_syntax::naming::scalar_source_reference(var_name, config, false)?;
     let setter = unique_logical_command(registry, analysis, LoweringHookId::Set)?;
     match analysis
         .retained_command_realm()?
@@ -127,7 +128,7 @@ pub fn extract_variable(
             RefactorEdit {
                 start,
                 end,
-                new_text: format!("${var_name}"),
+                new_text: proposed_reference,
             },
         ],
         kind: ActionKind::RefactorExtract,

@@ -832,14 +832,11 @@ fn minify_body(source: &str, env: MinifyEnv<'_>, depth: u32, local_config: Lexer
             .as_ref()
             .and_then(|plan| plan.commands.get(index))
             .and_then(|command| command.words.first());
-        rendered.push(render_command(
-            &sm,
-            cmd_args,
-            head_word,
-            env,
-            depth,
-            local_config,
-        ));
+        let Some(command) = render_command(&sm, cmd_args, head_word, env, depth, local_config)
+        else {
+            return source.to_owned();
+        };
+        rendered.push(command);
     }
 
     // NB: no template deduplication here.  The former `[subst $alias]`
@@ -2822,7 +2819,7 @@ fn render_command(
     env: MinifyEnv<'_>,
     depth: u32,
     local_config: LexerConfig,
-) -> Vec<String> {
+) -> Option<Vec<String>> {
     // naming.minifier.complete-lexical-head
     // docs/design/analysis/name-resolution-proofs/minifier-complete-lexical-head.md
     let cmd_name = cmd_args
@@ -2919,10 +2916,10 @@ fn render_command(
             let inner = sm.token_text(arg.tokens[0]);
             out.push(format!("{{{}}}", compress_expr(inner, env, depth + 1)));
         } else {
-            out.push(reconstruct_arg(sm, arg, env, depth));
+            out.push(reconstruct_arg(sm, arg, env, depth)?);
         }
     }
-    out
+    Some(out)
 }
 
 /// Original whole-command words under the actual complete body configuration.
@@ -3070,13 +3067,57 @@ fn token_text(sm: &SourceMap, arg: &Arg) -> String {
         .unwrap_or_default()
 }
 
-/// First character a token will render as.
-fn first_rendered_char(sm: &SourceMap, tok: Token) -> Option<char> {
+/// Literal component bytes, or a delimiter prefix fixing a nonliteral component.
+fn rendered_component_prefix<'s>(sm: &SourceMap<'s>, tok: Token, in_quotes: bool) -> &'s str {
     match tok.kind {
-        TokenType::Str | TokenType::Expand => Some('{'),
-        TokenType::Cmd => Some('['),
-        TokenType::Var => Some('$'),
-        _ => sm.token_text(tok).chars().next(),
+        TokenType::Str if in_quotes => sm.text(tok.span),
+        TokenType::Str | TokenType::Expand => "{",
+        TokenType::Cmd => "[",
+        TokenType::Var | TokenType::ExprSugar => "$",
+        _ => sm.token_text(tok),
+    }
+}
+
+/// One original reference, preserving arrays and checking scalar proposals against
+/// the next rendered component under the complete selected source grammar.
+fn reconstruct_variable_reference(
+    sm: &SourceMap,
+    tok: Token,
+    next: Option<Token>,
+    config: LexerConfig,
+    in_quotes: bool,
+) -> Option<String> {
+    let source = sm.source_bytes();
+    let at = tok.span.as_range().start;
+    let original = tcl_lexer::word_parts::scan_var_ref(source, at, config).ok()??;
+    if original.source_span(source, at, 0)? != tok.span
+        || original.name_range_in(source)?.start
+            != at.checked_add(usize::from(tok.content_offset))?
+    {
+        return None;
+    }
+    let spelling = std::str::from_utf8(source.get(at..original.next)?).ok()?;
+    let Some(name) = tcl_syntax::naming::whole_scalar_variable_reference_name(spelling, config)
+    else {
+        return Some(spelling.to_owned());
+    };
+    let candidate = tcl_syntax::naming::scalar_source_reference(name, config, false)?;
+    let extends_reference = next
+        .map(|next| rendered_component_prefix(sm, next, in_quotes))
+        .is_some_and(|fragment| {
+            let joined = format!("{candidate}{fragment}");
+            !tcl_lexer::word_parts::scan_var_ref(joined.as_bytes(), 0, config).is_ok_and(|parsed| {
+                parsed.is_some_and(|reference| {
+                    reference.next == candidate.len()
+                        && reference.name == name.as_bytes()
+                        && reference.index.is_none()
+                })
+            })
+        });
+    if extends_reference {
+        tcl_syntax::naming::scalar_source_reference(name, config, true)
+    } else {
+        Some(candidate)
     }
 }
 
@@ -3089,8 +3130,8 @@ fn reconstruct_raw(
     env: MinifyEnv<'_>,
     in_quotes: bool,
     depth: u32,
-) -> String {
-    match tok.kind {
+) -> Option<String> {
+    Some(match tok.kind {
         // Inside a double-quoted word the caller re-wraps the arg in `"…"`, so a
         // `Str` token (e.g. a lone `$` classified as literal) is string data —
         // emit it verbatim, not brace-wrapped as `{$}`.
@@ -3101,32 +3142,12 @@ fn reconstruct_raw(
             minify_body(sm.token_text(tok), env, depth + 1, env.config.nested())
         ),
         TokenType::Var => {
-            let name = sm.token_text(tok);
-            // A name that is not a bare `$name` word can only ever be written
-            // braced: `${a{b}c}` names the variable `a{b}c`, but `$a{b}c` is
-            // the variable `a` followed by the literal `{b}c`. The predicate
-            // is the shared one quick fixes use for exactly this `${x}` ↔
-            // `$x` equivalence.
-            if !tcl_syntax::naming::is_bare_var_name(name) {
-                return format!("${{{name}}}");
-            }
-            // Keep `${var}` when the next token would otherwise extend the
-            // variable name.  Beyond name characters, `(` (array index) and `:`
-            // (namespace separator) also extend a `$` reference, so dropping
-            // the braces before them changes the read (`${x}(k)` scalar-plus-
-            // literal vs `$x(k)` array element).
-            if let Some(next) = next_tok
-                && let Some(c) = first_rendered_char(sm, next)
-                && (c.is_alphanumeric() || c == '_' || c == '(' || c == ':')
-            {
-                return format!("${{{name}}}");
-            }
-            format!("${name}")
+            return reconstruct_variable_reference(sm, tok, next_tok, env.config, in_quotes);
         }
         TokenType::Expand => "{*}".to_owned(),
         TokenType::ExprSugar => format!("$({})", sm.token_text(tok)),
         _ => sm.token_text(tok).to_owned(),
-    }
+    })
 }
 
 /// Characters that would change semantics if they appear unquoted.
@@ -3196,7 +3217,7 @@ fn utf8_len(b: u8) -> usize {
 }
 
 /// Rebuild the source text of an argument from its tokens.
-fn reconstruct_arg(sm: &SourceMap, arg: &Arg, env: MinifyEnv<'_>, depth: u32) -> String {
+fn reconstruct_arg(sm: &SourceMap, arg: &Arg, env: MinifyEnv<'_>, depth: u32) -> Option<String> {
     let mut raw = String::new();
     for (idx, &tok) in arg.tokens.iter().enumerate() {
         // The next token within the *same* word can extend a preceding
@@ -3204,13 +3225,15 @@ fn reconstruct_arg(sm: &SourceMap, arg: &Arg, env: MinifyEnv<'_>, depth: u32) ->
         // (`"${a}jumps"` and bare `${a}jumps` both read `ajumps` if the braces
         // are dropped), so the name-extension guard must see it in both cases.
         let next = arg.tokens.get(idx + 1).copied();
-        raw.push_str(&reconstruct_raw(sm, tok, next, env, arg.is_quoted, depth));
+        raw.push_str(&reconstruct_raw(sm, tok, next, env, arg.is_quoted, depth)?);
     }
-    if arg.is_quoted && !can_strip_quotes(&raw, env.dialect.grammar.braced_var) {
-        format!("\"{raw}\"")
-    } else {
-        raw
-    }
+    Some(
+        if arg.is_quoted && !can_strip_quotes(&raw, env.config.braced_var) {
+            format!("\"{raw}\"")
+        } else {
+            raw
+        },
+    )
 }
 
 // case-list (clause list) handling
@@ -5265,5 +5288,66 @@ mod constructed_compatibility_tests {
         assert_eq!(result.symbol_map, SymbolMap::default());
         assert!(result.source.contains("proc publicName"));
         assert!(result.source.contains("publicName"));
+    }
+}
+
+#[cfg(test)]
+mod selected_scalar_reference_emission_tests {
+    use super::*;
+
+    #[test]
+    fn logical_scalar_emission_uses_selected_proposals_and_original_component_boundaries() {
+        for (dialect, source, expected) in [
+            ("tcl8.4", "${a{b}c}", "${a{b}"),
+            ("tcl9.0", "${a{b}c}", "${a{b}c}"),
+            ("tcl9.0", "${a{b}}", "${a{b}}"),
+            ("tcl8.6", "${$n}", "${$n}"),
+            ("tcl8.6", "${}", "${}"),
+            ("tcl8.6", "${x}tail", "${x}"),
+            ("tcl8.6", "${x}::tail", "${x}"),
+            ("tcl9.0", "${x}::tail", "${x}"),
+            ("tcl8.6", "${x}(k)", "${x}"),
+            ("tcl8.6", "$array($index)", "$array($index)"),
+            ("tcl8.6", "${array(key)}", "${array(key)}"),
+        ] {
+            let config = LexerConfig::for_dialect(dialect);
+            let tokens = Lexer::with_config(source, config).tokenise_all().unwrap();
+            let token = tokens
+                .iter()
+                .find(|token| token.kind == TokenType::Var)
+                .copied()
+                .unwrap();
+            let next = tokens
+                .iter()
+                .copied()
+                .find(|next| next.span.start() >= token.span.end() && next.span != token.span);
+            let result =
+                reconstruct_variable_reference(&SourceMap::new(source), token, next, config, false)
+                    .unwrap();
+            assert_eq!(result, expected, "{dialect}: {source}");
+        }
+        let source = "${a{b}c}";
+        let token = Lexer::with_config(source, LexerConfig::for_dialect("tcl8.4"))
+            .tokenise_all()
+            .unwrap()[0];
+        assert!(
+            reconstruct_variable_reference(
+                &SourceMap::new(source),
+                token,
+                None,
+                LexerConfig::for_dialect("tcl9.0"),
+                false
+            )
+            .is_none()
+        );
+
+        let source = "puts ${x}tail; puts ${x}(k); puts $array($index); puts ${x}::tail; puts \"${x}::tail\"";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
+        let config = analysis.body_lexer_config.unwrap();
+        let result = lexical_default(source, &analysis).unwrap();
+        assert_eq!(
+            tcl_compiler::var_refs::scan_var_ref_forms_braced_with_config(&result, config),
+            tcl_compiler::var_refs::scan_var_ref_forms_braced_with_config(source, config)
+        );
     }
 }

@@ -3499,15 +3499,24 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
             .prefix_arguments(self, &roles, complete)
     }
 
-    /// ASCII list value of a selected list-arguments descriptor for readonly
-    /// source grammar. Every element must retain an actual known ASCII value;
-    /// unknown, expanded or opaque elements and other dialects decline. The
-    /// shared Tcl list serializer owns quoting and separators. No native object,
-    /// result allocation, effect closure or successful handler entry follows.
+    /// Command-prefix positions under the independently retained Logical source
+    /// grammar. Complete roles, options and timing remain mandatory; this grants
+    /// no callback entry, physical frame, Native value or normal completion.
     #[must_use]
-    pub fn authored_source_ascii_list_result(&self) -> Option<Vec<u8>> {
-        // naming.source.original-structured-script-timing
-        // docs/design/analysis/name-resolution-proofs/original-structured-script-timing.md
+    pub fn authored_logical_source_command_prefix_arguments(
+        &self,
+    ) -> Option<Vec<(usize, crate::AppendedArity)>> {
+        let (roles, complete) = self.authored_logical_source_argument_roles();
+        self.semantics
+            .script_metadata
+            .prefix_arguments(self, &roles, complete)
+    }
+
+    /// Conditional list element ordinals of this selected source constructor.
+    /// Actual values, result creation, completion and future invocation remain
+    /// unknown; expansion or a different result descriptor withdraws the layout.
+    #[must_use]
+    pub fn authored_source_list_arguments(&self) -> Option<std::ops::Range<usize>> {
         let arguments = self.words.arguments();
         let dialect = arguments.dialect()?;
         if self.semantics.native_result
@@ -3519,9 +3528,22 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
         {
             return None;
         }
-        let count = arguments.exact_argv_len()?;
+        Some(0..arguments.exact_argv_len()?)
+    }
+
+    /// ASCII list value of a selected list-arguments descriptor for readonly
+    /// source grammar. Every element must retain an actual known ASCII value;
+    /// unknown, expanded or opaque elements and other dialects decline. The
+    /// shared Tcl list serializer owns quoting and separators. No native object,
+    /// result allocation, effect closure or successful handler entry follows.
+    #[must_use]
+    pub fn authored_source_ascii_list_result(&self) -> Option<Vec<u8>> {
+        // naming.source.original-structured-script-timing
+        // docs/design/analysis/name-resolution-proofs/original-structured-script-timing.md
+        let arguments = self.words.arguments();
+        let ordinals = self.authored_source_list_arguments()?;
         let mut result = Vec::new();
-        for ordinal in 0..count {
+        for ordinal in ordinals {
             let bytes = match arguments.get(ordinal)? {
                 crate::InvocationWord::KnownBytes(bytes) => bytes,
                 crate::InvocationWord::Literal(value) => value.as_bytes(),
@@ -5305,6 +5327,55 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn conditional_list_argument_layout_keeps_values_expansion_and_other_descriptors_distinct() {
+        let registry = crate::CommandRegistry::build_default();
+        let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+        let arguments = [
+            crate::InvocationWord::Literal("source"),
+            crate::InvocationWord::Dynamic,
+        ];
+        let selected = registry
+            .resolve_structured_invocation(
+                crate::InvocationWords::structured(
+                    crate::InvocationWord::Literal("list"),
+                    &arguments,
+                )
+                .with_dialect(dialect),
+                dialect.authoring_query(),
+            )
+            .resolved()
+            .unwrap();
+        assert_eq!(selected.authored_source_list_arguments(), Some(0..2));
+        assert!(selected.authored_source_ascii_list_result().is_none());
+        let arguments = [crate::InvocationWord::Expanded];
+        let selected = registry
+            .resolve_structured_invocation(
+                crate::InvocationWords::structured(
+                    crate::InvocationWord::Literal("list"),
+                    &arguments,
+                )
+                .with_dialect(dialect),
+                dialect.authoring_query(),
+            )
+            .resolved()
+            .unwrap();
+        assert!(selected.authored_source_list_arguments().is_none());
+        let arguments = [crate::InvocationWord::Literal("VALUE")];
+        let selected = registry
+            .resolve_structured_invocation(
+                crate::InvocationWords::structured(
+                    crate::InvocationWord::Literal("concat"),
+                    &arguments,
+                )
+                .with_dialect(dialect),
+                dialect.authoring_query(),
+            )
+            .resolved()
+            .unwrap();
+        assert!(selected.authored_source_list_arguments().is_none());
+    }
+
     use super::*;
     use crate::InvocationArguments;
     use crate::world_effect::{

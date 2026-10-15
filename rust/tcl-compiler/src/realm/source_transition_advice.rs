@@ -624,6 +624,61 @@ impl super::CommandBindingRealm {
             .logical_navigation_at(input, original)
     }
 
+    /// Reborrow actual Logical callback roles at one original installer from the immutable syntax catalogue.
+    /// The retained callback candidate coordinates cannot supply an installed target or call edge.
+    pub(crate) fn original_logical_callback_candidates(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        original: &[tcl_lexer::NativeWord],
+    ) -> Option<Vec<crate::command_binding::OriginalLogicalCallbackCandidates>> {
+        let image = self.original_source_image()?;
+        if !input.has_logical_source_name_context()
+            || self.bindings.original_logical_source_name_advice_input() != Some(input)
+            || !self.matches_resolved_analysis_input(input)
+            || !self.matches_original_source_image(image, input.lexer_config())
+        {
+            return None;
+        }
+        let context = input.borrowed_context_registry();
+        let purpose = crate::command_binding::OriginalSourceCataloguePurpose::CompletePrefix;
+        let prepared = self.source_advice.get_or_prepare_for(context, purpose, || {
+            self.bindings
+                .original_source_transition_advice_tape_for(context, purpose)
+        });
+        prepared
+            .as_ref()
+            .as_ref()?
+            .logical_callbacks_at(input, original)
+    }
+
+    /// Reborrow actual Logical callback roles at one original installer from the immutable syntax catalogue.
+    /// The retained callback candidate coordinates cannot supply an installed target or call edge.
+    pub(crate) fn original_logical_callback_inventory(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> Option<Vec<crate::command_binding::OriginalLogicalCallbackCandidates>> {
+        let image = self.original_source_image()?;
+        if !input.has_logical_source_name_context()
+            || self.bindings.original_logical_source_name_advice_input() != Some(input)
+            || !self.matches_resolved_analysis_input(input)
+            || !self.matches_original_source_image(image, input.lexer_config())
+        {
+            return None;
+        }
+        let context = input.borrowed_context_registry();
+        let purpose = crate::command_binding::OriginalSourceCataloguePurpose::CompletePrefix;
+        let prepared = self.source_advice.get_or_prepare_for(context, purpose, || {
+            self.bindings
+                .original_source_transition_advice_tape_for(context, purpose)
+        });
+        Some(
+            prepared
+                .as_ref()
+                .as_ref()?
+                .logical_callback_inventory(input, image),
+        )
+    }
+
     /// Reborrow genuine header cards from this realm's immutable source catalogue.
     /// Current complete source/input remain independent of each consumer's purpose.
     pub(crate) fn original_logical_procedure_body_cards(

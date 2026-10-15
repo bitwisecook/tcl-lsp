@@ -118,10 +118,10 @@ impl LogicalSourceClassDeclaration {
     }
 
     /// Exact selected original factory Name coordinate for readonly candidates.
-    /// Missing body/factory correspondence supplies no coordinate or class identity.
+    /// The factory's own original name/body correspondence is independent of
+    /// the Module-issued body syntax facet and supplies no class identity.
     #[must_use]
     pub fn source_candidate_coordinate(&self) -> Option<&tcl_core_types::ByteCommandSlot> {
-        self.body_word.as_ref()?;
         self.candidate_coordinate.as_ref()
     }
 
@@ -163,13 +163,14 @@ impl AnalysisResult {
                     .all_classes
                     .values()
                     .find(|class| declaration.matches(self, class))?;
-                let source = module.original_class_definition_body_source(class, registry)?;
-                source
-                    .matches_source_input(&declaration.image, &declaration.input)
-                    .then_some(())?;
-                let body = source.body_word().clone();
+                let body = module
+                    .original_class_definition_body_source(class, registry)
+                    .filter(|source| {
+                        source.matches_source_input(&declaration.image, &declaration.input)
+                    })
+                    .map(|source| source.body_word().clone());
                 let source_text = declaration.image.try_text().ok()?;
-                let offset = source.body_word().span().start();
+                let offset = class.body_span.start();
                 let coordinate = self.command_invocations.iter().find_map(|invocation| {
                     if invocation.range.start() >= offset {
                         return None;
@@ -195,7 +196,7 @@ impl AnalysisResult {
             .collect::<Vec<_>>();
         for (declaration, source) in self.logical_class_declarations.iter_mut().zip(sources) {
             if let Some((body, coordinate)) = source {
-                declaration.body_word = Some(body);
+                declaration.body_word = body;
                 declaration.candidate_coordinate = coordinate;
             } else {
                 declaration.body_word = None;
@@ -459,6 +460,62 @@ mod tests {
         assert!(
             native
                 .logical_source_class_declaration(&native.all_classes["::Base"])
+                .is_none()
+        );
+    }
+}
+
+#[cfg(test)]
+mod source_navigation_facet_tests {
+    use super::*;
+    use crate::analyser::Analyser;
+
+    #[test]
+    fn logical_class_navigation_keeps_the_selected_factory_independent_of_module_body_syntax() {
+        let source = "oo::class create helper {method run {} {}}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let class = &analysis.all_classes["::helper"];
+        let declaration = analysis.logical_source_class_declaration(class).unwrap();
+        let coordinate = declaration
+            .source_candidate_coordinate()
+            .expect("actual selected factory Name/body and current class correspondence");
+        assert_eq!(
+            coordinate.namespace,
+            tcl_core_types::ByteNamespacePath::root()
+        );
+        assert_eq!(coordinate.simple.as_bytes(), b"helper");
+        let mut without_module_body = declaration.clone();
+        without_module_body.body_word = None;
+        assert_eq!(
+            without_module_body.source_candidate_coordinate(),
+            Some(coordinate)
+        );
+        assert!(
+            without_module_body
+                .original_body_word(
+                    &SourceImage::document(source),
+                    analysis.resolved_input.as_ref().unwrap()
+                )
+                .is_none()
+        );
+        let detached = LogicalSourceClassDeclaration::capture(
+            SourceImage::document(source),
+            analysis.resolved_input.as_ref().unwrap().clone(),
+            class,
+        )
+        .unwrap();
+        assert!(detached.source_candidate_coordinate().is_none());
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        assert!(
+            missing
+                .logical_source_class_declaration(&missing.all_classes["::helper"])
+                .is_none()
+        );
+        let native = Analyser::new().analyse(source, "tcl8.6");
+        assert!(
+            native
+                .logical_source_class_declaration(&native.all_classes["::helper"])
                 .is_none()
         );
     }

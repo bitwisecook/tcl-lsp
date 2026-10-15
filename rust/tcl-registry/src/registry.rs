@@ -2682,6 +2682,19 @@ impl CommandRegistry {
         self.get_exact(key.label()).and_then(|spec| spec.bpf_op)
     }
 
+    /// Native lowering metadata for an independently selected exact descriptor.
+    /// The supplied availability selects stamp windows only; this provides no
+    /// original source, runtime binding or Native compilation admission.
+    #[must_use]
+    pub fn native_lowering_for_descriptor(
+        &self,
+        key: crate::CanonicalCommandDescriptorKey<'_>,
+        query: Option<&SurfaceQuery<'_>>,
+    ) -> Option<crate::NativeLowering> {
+        self.get_exact(key.label())
+            .map(|spec| spec.native_lowering_at(query))
+    }
+
     /// Validated condition/body positions for a closed BPF language command.
     /// The frontend must separately retain literal original words and reject
     /// expansions. This syntax projection provides no Tcl execution evidence.
@@ -11284,6 +11297,47 @@ mod tests {
             NativeLowering::Generic,
             "the plain accessor reads the plain field alone"
         );
+    }
+
+    #[test]
+    fn native_lowering_descriptor_metadata_keeps_exact_keys_and_supplied_stamp_windows() {
+        use crate::completion::CompletionCode;
+        use crate::lifecycle::Lifecycle;
+        use crate::native_lowering::NativeLowering;
+        use crate::stamp_window::StampWindow;
+
+        const BREAK_FROM_9: &[StampWindow<NativeLowering>] = &[StampWindow {
+            lifecycle: Lifecycle::introduced_in("9.0"),
+            value: NativeLowering::Completion(CompletionCode::Break),
+        }];
+        let selected = CommandSpec {
+            name: "stamp::native",
+            native_lowering_windows: BREAK_FROM_9,
+            ..CommandSpec::DEFAULT
+        };
+        let rooted = CommandSpec {
+            name: "::stamp::native",
+            native_lowering: Some(NativeLowering::Completion(CompletionCode::Continue)),
+            ..CommandSpec::DEFAULT
+        };
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(selected.clone());
+        assert_eq!(
+            registry.native_lowering_for_descriptor(rooted.descriptor_key(), None),
+            None,
+            "an exact descriptor cannot borrow the unrooted row",
+        );
+        registry.insert(rooted.clone());
+        for (_, query) in points() {
+            assert_eq!(
+                registry.native_lowering_for_descriptor(selected.descriptor_key(), query.as_ref()),
+                Some(selected.native_lowering_at(query.as_ref())),
+            );
+            assert_eq!(
+                registry.native_lowering_for_descriptor(rooted.descriptor_key(), query.as_ref()),
+                Some(rooted.native_lowering_at(query.as_ref())),
+            );
+        }
     }
 
     /// Every operation a windowed stamp could give a command counts when the

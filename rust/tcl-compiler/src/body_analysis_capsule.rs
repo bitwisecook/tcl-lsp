@@ -614,7 +614,12 @@ impl BodyLatticeInputs {
         {
             return None;
         }
-        if logical_card.is_some() {
+        if logical_card.is_some()
+            || (!module
+                .original_native_declaration_body_units
+                .contains_key(&request.body_id)
+                && procedure.publication.is_none())
+        {
             retained.original_logical_source_slot_for_body(module, request.body_id, registry)?;
             // Authentic conditional source does not imply neutral memo closure.
             return Some(Self::from(request.body.clone()));
@@ -1526,6 +1531,73 @@ mod native_source_lattice_tests {
         );
         drop(logical_memo);
         assert_eq!(logical_seen, 1);
+    }
+
+    #[test]
+    fn logical_named_source_retains_raw_lattice_without_native_publication() {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&context),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let mut visited = 0;
+        let mut memo = |request: &LatticeRequest<'_>| {
+            visited += 1;
+            let procedure = request.original_source_procedure().unwrap();
+            assert_eq!(procedure.body_kind, crate::ir::ProcedureBodyKind::Named);
+            assert!(procedure.publication.is_none());
+            assert!(
+                !request
+                    .module
+                    .original_logical_declaration_body_units
+                    .contains_key(&request.body_id)
+            );
+            let raw = BodyLatticeInputs::retain(request, context.commands()).unwrap();
+            assert!(raw.command_bindings().is_none());
+            assert!(raw.certified_native_source_body_id().is_none());
+            assert!(raw.certificate.is_none());
+            let missing = LatticeRequest {
+                source_metadata_input: None,
+                ..*request
+            };
+            assert!(BodyLatticeInputs::retain(&missing, context.commands()).is_none());
+            let mut changed = request.module.clone();
+            changed
+                .procedures
+                .get_mut(&request.body_id)
+                .unwrap()
+                .params
+                .push("foreign".to_owned());
+            let altered = LatticeRequest {
+                module: &changed,
+                ..*request
+            };
+            assert!(BodyLatticeInputs::retain(&altered, context.commands()).is_none());
+            build_current(request, context.commands())
+        };
+        let unavailable_body_cache =
+            |_: &str, _: &str| -> crate::ir::Script { panic!("source-only body cache") };
+        let _unit = CompilationUnit::build_memoized_with_analysis_input(
+            "proc logical {x} {return $x}\n",
+            crate::compilation_unit::UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config: input.lexer_config(),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            &mut memo,
+            &unavailable_body_cache,
+            None,
+            &input,
+        );
+        drop(memo);
+        assert_eq!(visited, 1);
     }
 
     #[test]

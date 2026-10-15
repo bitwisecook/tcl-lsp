@@ -1214,37 +1214,11 @@ impl tcl_cmd_core::native_cat::NativeCatObjects for RuntimeAppendObjects {
 }
 
 impl Interp {
-    /// Materialise the same original through the selected physical updater.
-    /// The returned byte owner supplies no variable/cache receiver authority.
-    pub(crate) fn native_object_string_bytes(
+    /// Validate original primary origin without reaching a String getter.
+    pub(crate) fn native_string_primary_admission(
         &self,
         value: *mut TclObj,
-    ) -> Result<Rc<[u8]>, ValueError> {
-        self.native_object_string_bytes_with_stage(value, None)
-    }
-
-    pub(crate) fn native_object_string_bytes_using<E>(
-        &self,
-        value: *mut TclObj,
-        check: &(impl Fn() -> Result<(), E> + ?Sized),
-        refuse: &impl Fn(ValueError) -> E,
-    ) -> Result<Rc<[u8]>, E> {
-        crate::list::with_native_conversion_check(check, refuse, |stage, _retain| {
-            self.native_object_string_bytes_with_stage(value, Some(stage))
-        })
-    }
-
-    fn native_object_string_bytes_with_stage(
-        &self,
-        value: *mut TclObj,
-        check: Option<&dyn Fn() -> Result<(), ValueError>>,
-    ) -> Result<Rc<[u8]>, ValueError> {
-        if let Some(check) = check {
-            check()?;
-        }
-        self.check_entered_native_operation().map_err(|_| {
-            ValueError::CommandProtocolUnavailable("entered original String getter")
-        })?;
+    ) -> Result<(), ValueError> {
         obj::check_native_liveness(value)?;
         obj::native_frame_level_cache_in(value, self.native_invocation_dialect())?;
         if obj::native_instruction_name::cache(value).is_some_and(|name| {
@@ -1277,6 +1251,47 @@ impl Interp {
                 "foreign property-name primary",
             ));
         }
+        Ok(())
+    }
+
+    /// Materialise the same original through the selected physical updater.
+    /// The returned byte owner supplies no variable/cache receiver authority.
+    pub(crate) fn native_object_string_bytes(
+        &self,
+        value: *mut TclObj,
+    ) -> Result<Rc<[u8]>, ValueError> {
+        self.native_object_string_bytes_with_stage(value, None)
+    }
+
+    pub(crate) fn native_object_string_bytes_using<E>(
+        &self,
+        value: *mut TclObj,
+        check: &(impl Fn() -> Result<(), E> + ?Sized),
+        refuse: &impl Fn(ValueError) -> E,
+    ) -> Result<Rc<[u8]>, E> {
+        crate::list::with_native_conversion_check(check, refuse, |stage, _retain| {
+            self.native_object_string_bytes_with_stage(value, Some(stage))
+        })
+    }
+
+    fn native_object_string_bytes_with_stage(
+        &self,
+        value: *mut TclObj,
+        check: Option<&dyn Fn() -> Result<(), ValueError>>,
+    ) -> Result<Rc<[u8]>, ValueError> {
+        if let Some(check) = check {
+            check()?;
+        }
+        self.check_entered_native_operation().map_err(|_| {
+            ValueError::CommandProtocolUnavailable("entered original String getter")
+        })?;
+        if let Some(bytes) = self.retiring_jim_result_bytes(value)? {
+            if let Some(check) = check {
+                check()?;
+            }
+            return Ok(bytes);
+        }
+        self.native_string_primary_admission(value)?;
         if obj::has_string_rep(value) {
             let bytes = obj::bytes_of(value);
             if let Some(check) = check {

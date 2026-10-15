@@ -1749,6 +1749,75 @@ pub fn original_lookup_command_arities(
     Some(Arc::new(arities))
 }
 
+/// A Logical source slot carries no Native lookup policy or publication.
+#[salsa::interned]
+struct LogicalSourceCommandSlot<'db> {
+    #[returns(ref)]
+    slot: tcl_core_types::ByteCommandSlot,
+}
+
+// Each entry is a body-free projection of independently checked source headers.
+// Missing command-like header ownership keeps the project inventory unavailable.
+fn merge_logical_source_arities(
+    signatures: impl IntoIterator<Item = Arc<Vec<ItemSig>>>,
+) -> Option<HashMap<tcl_core_types::ByteCommandSlot, Vec<(usize, usize)>>> {
+    use tcl_compiler::analyser::ItemKind;
+    let mut entries: HashMap<_, (Vec<_>, bool)> = HashMap::new();
+    for signatures in signatures {
+        for signature in signatures.iter().filter(|signature| {
+            matches!(
+                signature.id.kind,
+                ItemKind::Proc | ItemKind::Class | ItemKind::Alias | ItemKind::Ensemble
+            )
+        }) {
+            let slot = signature.logical_source_coordinate.as_ref()?;
+            let entry = entries.entry(slot.clone()).or_default();
+            if signature.id.kind == ItemKind::Proc {
+                entry.0.push(proc_arity(signature.formal_count));
+            } else {
+                entry.1 = true;
+            }
+        }
+    }
+    Some(
+        entries
+            .into_iter()
+            .map(|(slot, (arities, non_proc))| (slot, if non_proc { Vec::new() } else { arities }))
+            .collect(),
+    )
+}
+
+#[salsa::tracked(returns(clone))]
+fn project_logical_source_arities(
+    db: &dyn TclDb,
+    project: Project,
+    supplied: bool,
+) -> Option<Arc<HashMap<tcl_core_types::ByteCommandSlot, Vec<(usize, usize)>>>> {
+    let mut signatures = Vec::new();
+    for &file in project.files(db) {
+        signatures.push(if supplied {
+            let config = project_token_inputs::configuration_for_file(db, project, file)?;
+            project_source_inputs::item_sigs_for_config(db, file, config)
+        } else {
+            item_sigs(db, file)
+        });
+    }
+    merge_logical_source_arities(signatures).map(Arc::new)
+}
+
+#[salsa::tracked(returns(clone))]
+fn logical_source_command_arity<'db>(
+    db: &'db dyn TclDb,
+    project: Project,
+    key: LogicalSourceCommandSlot<'db>,
+    supplied: bool,
+) -> Option<Arc<Vec<(usize, usize)>>> {
+    project_logical_source_arities(db, project, supplied)?
+        .get(key.slot(db))
+        .cloned()
+        .map(Arc::new)
+}
+
 /// Interned declaration key or legacy bare-tail assistance key for the
 /// per-symbol cross-file accessor [`command_arity`].
 #[salsa::interned]
@@ -1934,7 +2003,6 @@ pub fn apply_cross_file_resolution<S: std::hash::BuildHasher>(
             out.push(diag);
         }
     }
-    apply_callback_arity(&mut out, invocations, arities, &is_disabled);
     out
 }
 
@@ -1950,8 +2018,9 @@ pub fn apply_cross_file_resolution<S: std::hash::BuildHasher>(
 /// `is_disabled` reads the analyser's `disabled_diagnostics`: the synthesised
 /// arity codes honour the same production skip as the analyser's own; whether
 /// they show is the policy step's decision.
+#[cfg(test)]
 #[must_use]
-pub fn apply_project_callback_arity<S: std::hash::BuildHasher>(
+fn apply_project_callback_arity<S: std::hash::BuildHasher>(
     analysis: &AnalysisResult,
     diags: &[tcl_compiler::analyser::types::Diagnostic],
     invocations: &[tcl_compiler::signature_scan::types::SignatureCommandInvocation],
@@ -1978,6 +2047,7 @@ pub fn apply_project_callback_arity<S: std::hash::BuildHasher>(
 /// resolves with a non-proc (empty candidate list).
 /// Same-file callbacks are covered too: `project_command_arities` aggregates
 /// every file, so a same-file proc's arity is in `arities`.
+#[cfg(test)]
 fn apply_callback_arity<S: std::hash::BuildHasher>(
     out: &mut Vec<tcl_compiler::analyser::types::Diagnostic>,
     invocations: &[tcl_compiler::signature_scan::types::SignatureCommandInvocation],
@@ -2009,6 +2079,7 @@ fn apply_callback_arity<S: std::hash::BuildHasher>(
     }
 }
 
+#[cfg(test)]
 fn callback_arity_diagnostic(
     invocation: &tcl_compiler::signature_scan::types::SignatureCommandInvocation,
     candidates: &[(usize, usize)],
@@ -2245,14 +2316,6 @@ pub fn project_diagnostics(
             tails.insert(name.clone());
         }
     }
-    // Command-prefix callback heads (`lsort -command myCompare`) resolve (they
-    // are not W123/unresolved), so their target proc's arity would not be
-    // loaded — pull each callback tail in so `apply_callback_arity` can check it.
-    for inv in &analysis.command_invocations {
-        if analysis.allows_retained_logical_declaration_advice() && inv.callback_arity.is_some() {
-            tails.extend(inv.logical_callback_candidate_keys());
-        }
-    }
     let mut arities: HashMap<String, Vec<(usize, usize)>> = HashMap::new();
     for tail in tails {
         if let Some(resolved) = command_arity(db, project, CommandTail::new(db, tail.clone())) {
@@ -2316,6 +2379,13 @@ pub fn project_diagnostics(
             diagnostics.push(diagnostic);
         }
     }
+    apply_logical_source_callback_arity(
+        (db, project, ProjectSourceInputMode::Standalone),
+        file.text(db),
+        &analysis,
+        &mut diagnostics,
+        |code| disabled.iter().any(|disabled| disabled == code),
+    );
     apply_original_callback_arity(
         db,
         project,
@@ -2351,7 +2421,9 @@ fn retained_callback_invocations(
 /// foreign or missing ownership preserves the supplied analyser diagnostics.
 /// Known source barriers and missing registration horizons never borrow tails.
 /// Local canonical headers and exact held external names share the original
-/// callback owner. Legacy scalar records require positive retained Logical input.
+/// callback owner. Logical prefixes require their independently selected source
+/// role, frame recipe and exact declaration coordinate; reported names and counts
+/// supply no lookup assistance.
 /// This supplies no installed callback, future entry or execution verdict.
 /// Project headers in this compatibility entry use the explicit standalone
 /// provider. Document callers use [`project_callback_diagnostics_for_analysis_with_inputs`].
@@ -2369,6 +2441,66 @@ pub fn project_callback_diagnostics_for_analysis(
         analysis,
         is_disabled,
     )
+}
+
+fn apply_logical_source_callback_arity(
+    source: (&dyn TclDb, Project, ProjectSourceInputMode),
+    text: &str,
+    analysis: &AnalysisResult,
+    out: &mut Vec<tcl_compiler::analyser::Diagnostic>,
+    is_disabled: impl Fn(&str) -> bool,
+) {
+    let (db, project, mode) = source;
+    let Some(callbacks) =
+        tcl_compiler::registry_invocation::source_structure::source_logical_callback_candidates(
+            text, analysis,
+        )
+    else {
+        return;
+    };
+    for callback in callbacks {
+        // Earlier opaque mutations retain their unresolved alternatives. A
+        // conditional source prefix is not permission to discard that risk.
+        if callback.registration().obligations().contains(
+            &tcl_compiler::command_binding::SourceCommandTransitionObligation::UnknownEarlierMutation,
+        ) { continue; }
+        let appended = callback.appended_arity();
+        if !appended.is_checkable() {
+            continue;
+        }
+        let Some(candidates) = callback.coordinates().iter().find_map(|slot| {
+            logical_source_command_arity(
+                db,
+                project,
+                LogicalSourceCommandSlot::new(db, slot.clone()),
+                matches!(mode, ProjectSourceInputMode::Supplied),
+            )
+        }) else {
+            continue;
+        };
+        if candidates.is_empty() {
+            continue;
+        }
+        let Some(span) = callback.head().source_span() else {
+            continue;
+        };
+        let baked = callback.baked_argument_count();
+        let name = callback.head().value();
+        let diagnostic = if let Some(counts) = appended.exact_counts() {
+            counts
+                .map(|count| baked + usize::from(count))
+                .find_map(|count| callback_exact_arity_diagnostic(name, span, count, &candidates))
+        } else {
+            let minimum = baked + appended.min() as usize;
+            let maximum = appended.max().map(|maximum| baked + maximum as usize);
+            cross_file_arity_diagnostic(name, span, (minimum, maximum), &candidates)
+        };
+        if let Some(diagnostic) = diagnostic
+            && !is_disabled(diagnostic.code.as_str())
+        {
+            out.push(diagnostic);
+        }
+    }
 }
 
 fn project_callback_diagnostics_with_mode(
@@ -2389,30 +2521,12 @@ fn project_callback_diagnostics_with_mode(
     ) {
         return analysis.diagnostics.clone();
     }
-    let mut arities = HashMap::new();
-    if analysis.allows_retained_logical_declaration_advice() {
-        let tails = analysis
-            .command_invocations
-            .iter()
-            .filter(|invocation| invocation.callback_arity.is_some())
-            .flat_map(tcl_compiler::signature_scan::types::SignatureCommandInvocation::logical_callback_candidate_keys)
-            .collect::<BTreeSet<_>>();
-        for tail in tails {
-            let key = CommandTail::new(db, tail.clone());
-            let resolved = match mode {
-                ProjectSourceInputMode::Standalone => command_arity(db, project, key),
-                ProjectSourceInputMode::Supplied => command_arity_for_inputs(db, project, key),
-            };
-            if let Some(resolved) = resolved {
-                arities.insert(tail, (*resolved).clone());
-            }
-        }
-    }
-    let mut diagnostics = apply_project_callback_arity(
+    let mut diagnostics = analysis.diagnostics.clone();
+    apply_logical_source_callback_arity(
+        (db, project, mode),
+        source,
         analysis,
-        &analysis.diagnostics,
-        &analysis.command_invocations,
-        &arities,
+        &mut diagnostics,
         &is_disabled,
     );
     apply_original_callback_arity_with_mode(
@@ -4590,14 +4704,15 @@ pub use project_call_inputs::{
     file_external_call_sites_for_inputs, file_source_targets_for_inputs,
 };
 mod project_source_inputs;
-use project_source_inputs::{
-    command_arity_for_inputs, original_command_signatures_for_inputs,
-    original_lookup_command_signatures_for_inputs,
-};
+#[cfg(test)]
+use project_source_inputs::command_arity_for_inputs;
 pub use project_source_inputs::{
     item_sigs_for_config, item_tree_for_config,
     project_callback_diagnostics_for_analysis_with_inputs, project_callback_diagnostics_for_inputs,
     project_class_factories_for_inputs, project_original_command_signatures_for_inputs,
+};
+use project_source_inputs::{
+    original_command_signatures_for_inputs, original_lookup_command_signatures_for_inputs,
 };
 
 mod project_token_inputs;
@@ -5046,6 +5161,105 @@ mod tests {
     }
 
     const SRC: &str = "proc greet {name} {\n    puts \"hi $name\"\n}\n# c\nset x 1\n";
+
+    #[test]
+    fn logical_callback_source_receipts_replace_reporting_count_and_tail_joins() {
+        use salsa::Setter as _;
+        let mut db = TclDatabase::default();
+        let provider = SourceFile::new(&db, "proc helper {} {}".to_owned(), "tcl".to_owned(), None);
+        let caller_source = "lsort -command {helper baked} {a b}";
+        let caller = SourceFile::new(&db, caller_source.to_owned(), "tcl".to_owned(), None);
+        let project = Project::new(&db, vec![provider, caller]);
+        let analysis = Analyser::new().analyse(caller_source, "tcl");
+        let diagnose = |db: &TclDatabase, analysis: &AnalysisResult| {
+            project_callback_diagnostics_for_analysis(db, project, caller_source, analysis, |_| {
+                false
+            })
+            .into_iter()
+            .filter(|diagnostic| diagnostic.code == DiagCode::E003)
+            .map(|diagnostic| (diagnostic.span, diagnostic.message))
+            .collect::<Vec<_>>()
+        };
+        let original = diagnose(&db, &analysis);
+        assert_eq!(original.len(), 1);
+        assert!(original[0].1.contains("got 3"));
+        let mut labels = analysis.clone();
+        for invocation in &mut labels.command_invocations {
+            invocation.name = "foreign_report".to_owned();
+            invocation.callback_arity = None;
+            invocation.callback_baked_args = 100;
+            invocation.resolution_candidates.clear();
+        }
+        assert_eq!(diagnose(&db, &labels), original);
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        assert!(diagnose(&db, &missing).is_empty());
+        provider
+            .set_text(&mut db)
+            .to("proc helper {first second third} {}".to_owned());
+        assert!(diagnose(&db, &analysis).is_empty());
+    }
+
+    #[test]
+    fn logical_callback_source_unknown_mutations_keep_unresolved_alternatives() {
+        let db = TclDatabase::default();
+        let provider = SourceFile::new(&db, "proc helper {} {}".to_owned(), "tcl".to_owned(), None);
+        let source = "unmodelled_registry_mutation; lsort -command {::helper baked} {a b}";
+        let caller = SourceFile::new(&db, source.to_owned(), "tcl".to_owned(), None);
+        let project = Project::new(&db, vec![provider, caller]);
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let callbacks = tcl_compiler::registry_invocation::source_structure::source_logical_callback_candidates(source, &analysis).unwrap();
+        assert_eq!(callbacks.len(), 1);
+        assert!(callbacks[0].registration().obligations().contains(
+            &tcl_compiler::command_binding::SourceCommandTransitionObligation::UnknownEarlierMutation));
+        let diagnostics =
+            project_callback_diagnostics_for_analysis(&db, project, source, &analysis, |_| false);
+        assert!(
+            !diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == DiagCode::E003)
+        );
+    }
+
+    #[test]
+    fn logical_callback_source_slots_preserve_namespace_order_and_missing_project_inputs() {
+        let db = TclDatabase::default();
+        let provider = SourceFile::new(&db,
+            "namespace eval A {proc helper {first second} {}}; namespace eval B {proc helper {} {}}".to_owned(),
+            "tcl".to_owned(), None);
+        let source = "namespace eval A {proc caller {} {lsort -command helper {a b}}}; namespace eval B {proc caller {} {lsort -command helper {a b}}}";
+        let caller = SourceFile::new(&db, source.to_owned(), "tcl".to_owned(), None);
+        let project = Project::new(&db, vec![provider, caller]);
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let diagnostics =
+            project_callback_diagnostics_for_analysis(&db, project, source, &analysis, |_| false);
+        let errors = diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == DiagCode::E003)
+            .collect::<Vec<_>>();
+        assert_eq!(errors.len(), 1);
+        assert!(
+            errors[0].span.start()
+                > u32::try_from(source.find("namespace eval B").unwrap()).unwrap()
+        );
+        let unavailable = Project::with_token_configurations(
+            &db,
+            vec![provider, caller],
+            Some(vec![(caller, cfg(&db))]),
+        );
+        let supplied = project_callback_diagnostics_for_analysis_with_inputs(
+            &db,
+            unavailable,
+            source,
+            &analysis,
+            |_| false,
+        );
+        assert!(
+            !supplied
+                .iter()
+                .any(|diagnostic| diagnostic.code == DiagCode::E003)
+        );
+    }
 
     #[test]
     fn original_callback_missing_future_lookup_declines_reporting_candidates() {

@@ -7976,6 +7976,38 @@ fn option_injection_arguments(
     call: &SinkCall<'_>,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Option<(String, Vec<usize>)> {
+    if let Some(SourceWarningRead {
+        metadata: SourceWarningMetadata::Native(selected),
+        ..
+    }) = call.source_read
+    {
+        let context = call.source.metadata?;
+        let input = context.source_analysis_input()?;
+        let tokens = call.tokens?;
+        if !context.matches_registry(call.registry)
+            || call.argument_offset != 0
+            || call.command != selected.words.command()
+            || call.effective != Some(&selected.effective)
+            || selected
+                .effective
+                .argument_spellings(tokens.argv_texts.get(1..)?)?
+                .as_slice()
+                != call.args
+        {
+            return None;
+        }
+        let options = selected
+            .words
+            .with_source_schema(input.borrowed_context_registry(), |schema| {
+                schema.authored_source_possible_option_arguments()
+            })??;
+        let mut label = selected.words.command().to_owned();
+        for selector in options.subcommands {
+            label.push(' ');
+            label.push_str(selector);
+        }
+        return Some((label, options.arguments));
+    }
     if let Some(context) = call.source.metadata {
         let tokens = call.tokens?;
         let (selected, options) =
@@ -12853,6 +12885,72 @@ mod tests {
             text, "$x",
             "expected the tight `$x` argument span, got {text:?} from {hit:?}",
         );
+    }
+
+    #[test]
+    fn native_source_option_warnings_keep_original_schema_and_terminator() {
+        let context =
+            crate::environment_ingress::resolve_environment("tcl8.6").default_context_registry();
+        let registry = context.commands();
+        let profile = registry.profile().unwrap();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        for (command, expected) in [
+            ("exec $value", true),
+            ("exec -- $value", false),
+            ("exec {$value}", false),
+            ("exec {*}$value", false),
+        ] {
+            let source = format!("proc run {{value}} {{{command}}}");
+            let unit = crate::compilation_unit::CompilationUnit::build_with_analysis_input(
+                &source,
+                crate::compilation_unit::UnitBuildOptions {
+                    registry,
+                    defer_top_level: false,
+                    config,
+                    dialect: Some(profile),
+                    external_call_sites: None,
+                    declared_commands: None,
+                },
+                None,
+                &input,
+            )
+            .with_interprocedural(registry, Some(profile));
+            assert!(unit.ir_module.source_entry.native_entry.is_none());
+            assert_eq!(
+                unit.ir_module.original_native_declaration_body_units.len(),
+                1
+            );
+            let warnings = find_taint_warnings_for_cu(&unit, registry, Some(profile));
+            assert_eq!(
+                warnings.iter().any(|warning| warning.code == DiagCode::T102
+                    && warning.variable == "value"
+                    && warning.sink_command == "exec"),
+                expected,
+                "{command}: {warnings:?}"
+            );
+            if expected {
+                let mut missing = unit.clone();
+                missing.ir_module.retained_source_bindings = None;
+                assert!(
+                    find_taint_warnings_for_cu(&missing, registry, Some(profile))
+                        .iter()
+                        .all(|warning| warning.code != DiagCode::T102)
+                );
+                let foreign = crate::environment_ingress::resolve_environment("tcl9.0")
+                    .default_context_registry();
+                assert!(
+                    find_taint_warnings_for_cu(&unit, foreign.commands(), Some(profile))
+                        .iter()
+                        .all(|warning| warning.code != DiagCode::T102)
+                );
+            }
+        }
     }
 
     /// The `${…}` closer comes from the shared owner, so the name taint is

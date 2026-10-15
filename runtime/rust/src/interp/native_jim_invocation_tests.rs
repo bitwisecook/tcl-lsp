@@ -31,6 +31,8 @@ thread_local! {
     static REBIND_NAME: Cell<&'static [u8]> = const { Cell::new(b"target") };
     static EXPECT_UNKNOWN_HEADER: Cell<bool> = const { Cell::new(false) };
     static EVENTS: RefCell<Vec<&'static str>> = const { RefCell::new(Vec::new()) };
+    static OBSERVE_RETIRING_RESULT: Cell<bool> = const { Cell::new(false) };
+    static RETIRING_RESULT_BYTES: RefCell<Vec<Vec<u8>>> = const { RefCell::new(Vec::new()) };
     static SELECTED_BEFORE_RESET: Cell<bool> = const { Cell::new(false) };
 }
 unsafe extern "C" fn old_worker(
@@ -70,10 +72,16 @@ unsafe extern "C" fn new_worker(
 unsafe extern "C" fn delete_old(_: *mut c_void) {
     EVENTS.with(|events| events.borrow_mut().push("OLD_DELETE"));
 }
-extern "C" fn previous_free(_: *mut TclObj) {
+extern "C" fn previous_free(original: *mut TclObj) {
     let mut actual = ACTUAL
         .with(|actual| actual.borrow().as_ref().and_then(WeakInterp::upgrade))
         .expect("actual native previous-result cleanup target");
+    if OBSERVE_RETIRING_RESULT.with(Cell::get) {
+        assert_eq!(actual.get_obj_result(), original);
+        assert!(obj::check_native_liveness(original).is_err());
+        let bytes = actual.native_object_string_bytes(original).unwrap();
+        RETIRING_RESULT_BYTES.with(|observations| observations.borrow_mut().push(bytes.to_vec()));
+    }
     EVENTS.with(|events| events.borrow_mut().push("PREVIOUS_FREE"));
     SELECTED_BEFORE_RESET.with(|observed| {
         observed.set(GENERATION.with(|generation| {
@@ -131,6 +139,7 @@ fn original_jim_vector_and_pure_list_select_before_reset_while_source_resets_bef
             GENERATION.with(|slot| slot.set(generation));
             REBIND_NAME.with(|name| name.set(b"target"));
             EXPECT_UNKNOWN_HEADER.with(|expected| expected.set(false));
+            OBSERVE_RETIRING_RESULT.with(|observe| observe.set(false));
             let head = word(&mut actual, b"target");
             let script = if surface == 2 {
                 word(&mut actual, b"target")
@@ -236,6 +245,8 @@ fn original_jim_missing_lookup_releases_previous_result_before_selecting_origina
         GENERATION.with(|slot| slot.set(generation));
         REBIND_NAME.with(|name| name.set(b"unknown"));
         EXPECT_UNKNOWN_HEADER.with(|expected| expected.set(true));
+        OBSERVE_RETIRING_RESULT.with(|observe| observe.set(true));
+        RETIRING_RESULT_BYTES.with(|observations| observations.borrow_mut().clear());
         let head = word(&mut actual, b"absent");
         let script = if surface == 2 {
             word(&mut actual, b"absent")
@@ -289,6 +300,32 @@ fn original_jim_missing_lookup_releases_previous_result_before_selecting_origina
         assert_eq!(actual.result_bytes(), b"NEW");
         assert!(actual.native_execution_refusal().is_none());
         assert!(actual.jim_active_command_workers.borrow().is_empty());
+        let expected_prior = evidence
+            .lines()
+            .filter_map(|line| {
+                let fields: Vec<_> = line.split('|').collect();
+                (fields.first() == Some(&"RESULT_AT_PREVIOUS_FREE")
+                    && fields.get(1) == Some(&label))
+                .then(|| fields[3].to_owned())
+            })
+            .collect::<Vec<_>>();
+        let observed_prior = RETIRING_RESULT_BYTES.with(|observations| {
+            observations
+                .borrow()
+                .iter()
+                .map(|bytes| {
+                    bytes
+                        .iter()
+                        .map(|byte| format!("{byte:02x}"))
+                        .collect::<String>()
+                })
+                .collect::<Vec<_>>()
+        });
+        assert_eq!(
+            observed_prior, expected_prior,
+            "{label}: original result at finalizer"
+        );
+        OBSERVE_RETIRING_RESULT.with(|observe| observe.set(false));
         ACTUAL.with(|slot| *slot.borrow_mut() = None);
     }
 }

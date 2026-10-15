@@ -69,6 +69,7 @@ pub fn project_original_command_signatures_for_inputs(
     merge_original_command_signatures(project_signatures(db, project))
 }
 
+#[cfg(test)]
 #[salsa::tracked(returns(clone))]
 fn project_command_arities_for_inputs(
     db: &dyn TclDb,
@@ -77,6 +78,7 @@ fn project_command_arities_for_inputs(
     merge_command_arities(project_signatures(db, project))
 }
 
+#[cfg(test)]
 #[salsa::tracked(returns(clone))]
 pub(super) fn command_arity_for_inputs<'db>(
     db: &'db dyn TclDb,

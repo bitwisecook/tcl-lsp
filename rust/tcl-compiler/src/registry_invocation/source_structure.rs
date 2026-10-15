@@ -1318,6 +1318,42 @@ pub fn source_logical_command_candidates_at(
     realm.original_logical_navigation_candidates(input, &native)
 }
 
+/// Ordered readonly Logical candidates for selected prefix roles at this exact original installer.
+/// Caller scope, path and name bytes remain source recipes; candidates prove no
+/// installed command, reached declaration, body entry or edit permission.
+#[must_use]
+pub fn source_logical_callback_candidates_at(
+    source: &str,
+    analysis: &AnalysisResult,
+    offset: u32,
+) -> Option<Vec<crate::command_binding::OriginalLogicalCallbackCandidates>> {
+    analysis.allows_lexical_declaration_advice().then_some(())?;
+    let (input, realm, native) = registered_original_words_at(source, analysis, offset)?;
+    realm.original_logical_callback_candidates(input, &native)
+}
+
+/// Genuine Logical callback prefix roles from the current complete source tape.
+/// Missing frames or grammar contribute no candidate. Empty results prove no
+/// complete callback census or absence. Native callbacks retain
+/// their independent source lookup and installation owners.
+#[must_use]
+pub fn source_logical_callback_candidates(
+    source: &str,
+    analysis: &AnalysisResult,
+) -> Option<Vec<crate::command_binding::OriginalLogicalCallbackCandidates>> {
+    analysis.allows_lexical_declaration_advice().then_some(())?;
+    let input = analysis.resolved_input.as_ref()?;
+    analysis
+        .matches_original_source_image(
+            &tcl_lexer::SourceImage::document(source),
+            input.lexer_config(),
+        )
+        .then_some(())?;
+    analysis
+        .retained_command_realm()?
+        .original_logical_callback_inventory(input)
+}
+
 /// Original setter and exact factory substitution for source handle-class advice.
 /// This supplies no stored handle, variable cell or successful allocation.
 #[must_use]

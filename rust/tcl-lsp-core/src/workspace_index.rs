@@ -5473,7 +5473,7 @@ impl WorkspaceIndex {
     /// resolves one defined elsewhere.
     #[must_use]
     pub fn proc_definitions<'a>(&'a self, name: &str, exclude_uri: &str) -> Vec<&'a WorkspaceProc> {
-        let qualified = format!("::{name}");
+        let qualified = root_unrooted_key(name);
         self.procs()
             .filter(|p| p.uri != exclude_uri)
             .filter(|p| p.name == name || p.qualified_name == name || p.qualified_name == qualified)
@@ -5488,7 +5488,7 @@ impl WorkspaceIndex {
         name: &str,
         exclude_uri: &str,
     ) -> Vec<&'a WorkspaceClass> {
-        let qualified = format!("::{name}");
+        let qualified = root_unrooted_key(name);
         self.classes()
             .filter(|c| c.uri != exclude_uri)
             .filter(|c| c.name == name || c.qualified_name == name || c.qualified_name == qualified)

@@ -19,6 +19,7 @@
 //! Inline variable — replace a single-use variable with its value.
 
 use tcl_compiler::analyser::AnalysisResult;
+#[cfg(test)]
 use tcl_compiler::analyser::types::{Scope, VarDef};
 use tcl_compiler::segmenter::SegmentedCommand;
 use tcl_lexer::{LexerConfig, LineIndex, Span};
@@ -39,23 +40,37 @@ pub fn inline_variable(
     cursor: u32,
     analysis: &AnalysisResult,
     _registry: &CommandRegistry,
-    line_index: &LineIndex,
+    _line_index: &LineIndex,
 ) -> Option<Refactoring> {
-    let _current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+    let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
     let walk = super::FrameWalk::new(source, analysis)?;
     let cmd = super::find_original_command_at(source, cursor, analysis)?;
     let (var_name, ref_span, value_index) = if analysis.allows_lexical_declaration_advice() {
         let (var_name, value_index) = logical_set_operands(source, analysis, &cmd)?;
-        let cmd_line = line_index.line_at(cmd.span.start());
-        let definition = walk_scopes(&analysis.global_scope)
-            .into_iter()
-            .find(|definition| {
-                definition.name == var_name
-                    && line_index.line_at(definition.definition_span.start()) == cmd_line
-            })?;
+        let words = walk.source_words(source, &cmd)?;
+        // Captured names have no declaration operand at this invocation.
+        let tcl_compiler::registry_invocation::InvocationWordOrigin::Written(_) =
+            words.origins().get(1)?
+        else {
+            return None;
+        };
+        let name = words.original_argument_word(0)?.tokens().first()?;
+        let image = tcl_lexer::SourceImage::document(source);
+        let definition = analysis
+            .logical_variable_scope_advice(&image, current.config(), name.span.start())?
+            .variable_definition(&var_name)?;
+        if definition.definition_span != name.span {
+            return None;
+        }
         let [reference] = definition.references.as_slice() else {
             return None;
         };
+        let read_definition = analysis
+            .logical_variable_scope_advice(&image, current.config(), reference.start())?
+            .variable_definition(&var_name)?;
+        if !std::ptr::eq(definition, read_definition) {
+            return None;
+        }
         (var_name, *reference, value_index)
     } else {
         original_inline_binding(source, analysis, &cmd)?
@@ -440,10 +455,12 @@ fn dequote(value: &str) -> &str {
 }
 
 /// Yield every `VarDef` in `scope` and its descendants.
+#[cfg(test)]
 fn walk_scopes(scope: &Scope) -> Vec<&VarDef> {
     walk_scopes_at_depth(scope, 0)
 }
 
+#[cfg(test)]
 fn walk_scopes_at_depth(scope: &Scope, depth: u32) -> Vec<&VarDef> {
     if crate::MAX_SCOPE_WALK_DEPTH.exceeded(depth) {
         return Vec::new();
@@ -728,5 +745,62 @@ mod tests {
     #[test]
     fn no_inline_non_set() {
         assert!(run("puts \"hello\"", 0).is_none());
+    }
+}
+
+#[cfg(test)]
+mod selected_declaration_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn logical_inline_selects_the_exact_name_operand_and_same_scope_reference() {
+        let source = "proc first {} {set held FIRST; puts $held}; proc second {} {set held SECOND; puts $held}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let registry = analysis.resolved_registry().unwrap();
+        let cursor = u32::try_from(source.find("set held SECOND").unwrap()).unwrap();
+        let action = inline_variable(source, cursor, &analysis, registry, &LineIndex::new(source))
+            .expect("the declaration in the selected procedure");
+        assert_eq!(
+            action.apply(source),
+            "proc first {} {set held FIRST; puts $held}; proc second {} {; puts SECOND}"
+        );
+
+        let repeated = "set held FIRST; set held SECOND; puts $held";
+        let analysis = Analyser::new().analyse(repeated, "tcl");
+        let cursor = u32::try_from(repeated.find("set held SECOND").unwrap()).unwrap();
+        assert!(
+            inline_variable(
+                repeated,
+                cursor,
+                &analysis,
+                analysis.resolved_registry().unwrap(),
+                &LineIndex::new(repeated)
+            )
+            .is_none()
+        );
+
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        assert!(
+            inline_variable(
+                repeated,
+                0,
+                &missing,
+                analysis.resolved_registry().unwrap(),
+                &LineIndex::new(repeated)
+            )
+            .is_none()
+        );
+        assert!(
+            inline_variable(
+                "# changed",
+                0,
+                &analysis,
+                analysis.resolved_registry().unwrap(),
+                &LineIndex::new("# changed")
+            )
+            .is_none()
+        );
     }
 }

@@ -43,7 +43,7 @@ pub(crate) struct MethodDispatchBarrier {
 }
 
 impl MethodDispatchBarrier {
-    /// Whether `method_qname`'s provably-local variables may propagate.
+    /// Whether this issued method's provably-local variables may propagate.
     pub(crate) fn allows_locals(&self, method: crate::ir::ProcedureId) -> bool {
         !self.bar_all && !self.barred.contains(&method)
     }
@@ -101,8 +101,8 @@ pub(crate) fn compute(ir: &IrModule, registry: &CommandRegistry) -> MethodDispat
         .iter()
         .map(String::as_str)
         .collect();
-    for m in ir.methods.values() {
-        if crate::cfg_builder::upvar_info::reaches_caller_frame(&m.body, &m.params) {
+    for (body_id, m) in &ir.methods {
+        if crate::cfg_builder::upvar_info::method_reaches_caller_frame(ir, *body_id, registry) {
             bad_classes.insert(m.class_name.as_str());
         }
     }

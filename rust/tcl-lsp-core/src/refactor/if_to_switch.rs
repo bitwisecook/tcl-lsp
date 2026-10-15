@@ -234,7 +234,8 @@ pub fn if_to_switch(
         .map_or("", |l| super::line_indent(l));
     let replacement = render_switch(&target_var, &branches, else_body.as_deref(), indent, config)?;
 
-    let (start, end) = super::command_span_offsets(source, &cmd);
+    let (start, end) =
+        super::FrameWalk::new(source, analysis)?.command_span_offsets(source, &cmd)?;
     Some(Refactoring {
         title: format!("Convert to switch on {}", target_var.reference()),
         edits: vec![RefactorEdit {

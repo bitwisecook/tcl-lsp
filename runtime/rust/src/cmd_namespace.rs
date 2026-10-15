@@ -2453,7 +2453,10 @@ mod tests {
             .resolve_cmd_token(b"namespace which")
             .expect("actual helper allocation");
         assert!(matches!(
-            interp.raw_command_by_generation(helper),
+            interp
+                .namespaces()
+                .command_by_generation(helper)
+                .map(|(_, command)| command),
             Some(Command::Proc(_))
         ));
         assert_eq!(

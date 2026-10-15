@@ -1596,3 +1596,207 @@ fn original_assignment_values_decode_actual_words_without_name_reinterpretation(
         }
     }
 }
+
+#[test]
+fn original_native_descriptor_queries_retain_child_bindings_and_current_module_input() {
+    use super::original_invocations::OriginalInvocations;
+    use crate::registry_invocation::{
+        InvocationMetadataContext, resolved_tokens_invocation_with_metadata_context,
+    };
+    let source = "puts [expr {1 + 2}]\n";
+    for environment in ["tcl8.6", "tcl9.0"] {
+        let (_owner, context, unit) = original_boolean_unit(source, environment);
+        let registry = context.commands();
+        let module = &unit.ir_module;
+        let inventory = OriginalInvocations::for_module(module, registry, source)
+            .expect("actual retained Module source inventory");
+        let statement = &module.top_level.statements[0];
+        let parent = module
+            .top_level
+            .retained_source_tokens_for_statement(statement)
+            .expect("actual original parent carrier");
+        let invoke = unit
+            .top_level
+            .semantic_facts
+            .executable()
+            .function()
+            .unwrap()
+            .blocks
+            .iter()
+            .flat_map(|block| &block.instructions)
+            .find_map(|instruction| match instruction {
+                crate::executable_ir::ExecutableInstruction::Invoke(invoke)
+                    if invoke.source.span == statement.span() =>
+                {
+                    Some(invoke)
+                }
+                _ => None,
+            })
+            .expect("actual original generic invocation");
+        assert_eq!(inventory.command(invoke), Some(parent));
+        let metadata = InvocationMetadataContext::for_module(registry, module).unwrap();
+        let calls =
+            crate::word_subst::checked_original_argument_lifted_calls(parent, registry, metadata)
+                .expect("complete original argument substitution inventory");
+        assert_eq!(calls.len(), 1);
+        let child = calls[0].tokens.as_ref().unwrap();
+        let retained = inventory
+            .substitution(child.words())
+            .expect("exact original child and binding");
+        assert_eq!(retained, child);
+        let child_metadata = retained
+            .source_binding
+            .as_ref()
+            .unwrap()
+            .original_invocation_metadata_for_input(
+                retained,
+                module.source_metadata_input.as_ref().unwrap(),
+                registry,
+            )
+            .expect("actual child source point and full input");
+        let selected = resolved_tokens_invocation_with_metadata_context(
+            registry,
+            Some(child_metadata),
+            retained,
+        )
+        .expect("independently selected original child binding");
+        assert_eq!(
+            registry.native_lowering_for_descriptor(
+                selected.facts.descriptor_key(),
+                Some(&child_metadata.context().authoring_query()),
+            ),
+            Some(tcl_registry::NativeLowering::Structured(
+                tcl_registry::hooks::LoweringHookId::Expr
+            ))
+        );
+        let (function, _) = lower_original_boolean_unit(&unit, registry, module).unwrap();
+        assert_eq!(
+            count(&function, |op| matches!(op, NativeOp::NestedInvoke { .. })),
+            0
+        );
+        assert!(
+            all_ops(&function).iter().any(|op| matches!(
+                op,
+                NativeOp::IntBinary { .. } | NativeOp::ConstInt { value: 3, .. }
+            )),
+            "{environment}: original expression recipe"
+        );
+        let mut changed_words = child.words().to_vec();
+        let crate::ir::WordExpr::Literal { text, .. } = &mut changed_words[0] else {
+            panic!("actual literal child head");
+        };
+        *text = "different".to_owned();
+        assert!(inventory.substitution(&changed_words).is_none());
+    }
+}
+
+#[test]
+fn original_native_descriptor_queries_refuse_changed_source_input_or_foreign_carriers() {
+    use super::original_invocations::OriginalInvocations;
+    let source = "puts [expr {1 + 2}]\n";
+    for environment in ["tcl8.6", "tcl9.0"] {
+        let (_owner, context, unit) = original_boolean_unit(source, environment);
+        let registry = context.commands();
+        let module = &unit.ir_module;
+        let inventory = OriginalInvocations::for_module(module, registry, source).unwrap();
+        let parent = module
+            .top_level
+            .retained_source_tokens_for_statement(&module.top_level.statements[0])
+            .unwrap();
+        let invoke = unit
+            .top_level
+            .semantic_facts
+            .executable()
+            .function()
+            .unwrap()
+            .blocks
+            .iter()
+            .flat_map(|block| &block.instructions)
+            .find_map(|instruction| {
+                if let crate::executable_ir::ExecutableInstruction::Invoke(invoke) = instruction {
+                    Some(invoke)
+                } else {
+                    None
+                }
+            })
+            .expect("actual original invocation");
+        let mut missing = module.clone();
+        missing.retained_source_bindings = None;
+        assert!(OriginalInvocations::for_module(&missing, registry, source).is_none());
+        let (function, _) = lower_original_boolean_unit(&unit, registry, &missing).unwrap();
+        assert_eq!(
+            count(&function, |op| matches!(op, NativeOp::NestedInvoke { .. })),
+            1
+        );
+        let mut changed = module.clone();
+        changed.source_metadata_input = None;
+        assert!(OriginalInvocations::for_module(&changed, registry, source).is_none());
+        let mut changed = module.clone();
+        changed.lexer_config.braced_var =
+            if changed.lexer_config.braced_var == tcl_lexer::BracedVarStyle::FirstClose {
+                tcl_lexer::BracedVarStyle::Tcl9Nesting
+            } else {
+                tcl_lexer::BracedVarStyle::FirstClose
+            };
+        assert!(OriginalInvocations::for_module(&changed, registry, source).is_none());
+        assert!(
+            OriginalInvocations::for_module(module, registry, "puts [expr {4 + 5}]\n").is_none()
+        );
+        let original = module.source_metadata_input.as_ref().unwrap();
+        let older = std::sync::Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(std::sync::Arc::clone(context.commands())),
+        );
+        let mut availability = module.clone();
+        availability.source_metadata_input = Some(crate::analyser::ResolvedAnalysisInput::new(
+            original.analyser_profile(),
+            original.unit_profile(),
+            older,
+            original.lexer_config(),
+        ));
+        assert_ne!(
+            availability.source_metadata_input,
+            module.source_metadata_input
+        );
+        assert!(OriginalInvocations::for_module(&availability, registry, source).is_none());
+        let (_foreign_owner, _foreign_context, foreign) =
+            original_boolean_unit(source, environment);
+        let foreign_tokens = foreign
+            .ir_module
+            .top_level
+            .retained_source_tokens_for_statement(&foreign.ir_module.top_level.statements[0])
+            .unwrap();
+        assert_ne!(parent.source_binding, foreign_tokens.source_binding);
+        let mut foreign_invoke = invoke.clone();
+        foreign_invoke
+            .source_binding
+            .clone_from(&foreign_tokens.source_binding);
+        assert!(inventory.command(&foreign_invoke).is_none());
+    }
+}
+
+#[test]
+fn empty_source_with_withdrawn_metadata_or_unknown_history_cannot_use_standalone_descriptors() {
+    let source = "puts [expr {1 + 2}]\n";
+    let (_owner, context, unit) = original_boolean_unit(source, "tcl8.6");
+    for unknown_entry in [false, true] {
+        let mut module = unit.ir_module.clone();
+        module.source = tcl_lexer::SourceImage::document("");
+        module.retained_source_bindings = None;
+        module.source_metadata_input = None;
+        module.source_entry.native_entry = None;
+        module.source_entry.metadata_context = if unknown_entry {
+            crate::registry_invocation::OwnedInvocationMetadataContext::Standalone
+        } else {
+            crate::registry_invocation::OwnedInvocationMetadataContext::Unavailable
+        };
+        module.source_entry.unknown_entry = unknown_entry;
+        let (function, _) = lower_original_boolean_unit(&unit, context.commands(), &module)
+            .expect("withdrawn source keeps the existing generic argv path");
+        assert_eq!(
+            count(&function, |op| matches!(op, NativeOp::NestedInvoke { .. })),
+            1,
+            "unknown_entry={unknown_entry}",
+        );
+    }
+}

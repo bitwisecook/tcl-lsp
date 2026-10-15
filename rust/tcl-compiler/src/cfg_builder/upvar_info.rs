@@ -171,7 +171,7 @@ pub struct UpvarInfo {
     ///
     /// Deliberately *not* part of [`Self::is_empty`]'s summary contract, and
     /// no caller-side resolver reads it: it exists for the strictly
-    /// structural question [`reaches_caller_frame`] asks — "can this body
+    /// structural caller-frame reachability question — "can this body
     /// reach its caller's frame at all?" — where an alias nobody can name
     /// counts every bit as much as a nameable one.  The *caller-side effect*
     /// of such a pair is carried separately: a literal source
@@ -459,25 +459,24 @@ impl UpvarInfo {
     }
 }
 
-/// True if *src* looks like a `$<param>` or `${<param>}` reference,
-/// returning the inner param name.  The IR lowerer normalises bare
-/// `$name` to `${name}` for some shapes, so we accept both.
-fn is_dollar_param_ref(raw_src: &str) -> Option<&str> {
-    let stripped = raw_src.strip_prefix('$')?;
-    let inner = if let Some(rest) = stripped.strip_prefix('{') {
-        // ${name}
-        let end = rest.strip_suffix('}')?;
-        if end.is_empty() {
-            return None;
-        }
-        end
-    } else {
-        stripped
-    };
-    if inner.is_empty() || !is_var_name(inner) {
+fn original_scalar_argument<'a>(
+    tokens: &'a CommandTokens,
+    args: &[String],
+    index: usize,
+) -> Option<&'a str> {
+    let config = tokens
+        .source_binding
+        .as_ref()?
+        .original_lexer_config_for_tokens(tokens)?;
+    let word = tokens.words().get(index.checked_add(1)?)?;
+    if word.legacy_text() != *args.get(index)? {
         return None;
     }
-    Some(inner)
+    let (spelling, source) = word.sole_variable_substitution()?;
+    if source.provenance != crate::ir::Provenance::Source {
+        return None;
+    }
+    tcl_syntax::naming::whole_scalar_variable_reference_name(spelling, config)
 }
 
 /// True if *name* is a plain literal name with no substitutions or
@@ -491,13 +490,6 @@ fn is_literal_name(name: &str) -> bool {
         && !name.contains(' ')
 }
 
-fn is_var_name(name: &str) -> bool {
-    !name.is_empty()
-        && name
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == ':')
-}
-
 /// Resolve a frame-crossing command's level word and its remaining
 /// arguments through the registry's [`FrameEffectSpec`].
 fn resolve_frame_args<'a>(
@@ -505,17 +497,19 @@ fn resolve_frame_args<'a>(
     args: &'a [String],
     registry: &tcl_registry::CommandRegistry,
     dialect: Option<tcl_registry::InvocationDialect>,
+    tokens: Option<&CommandTokens>,
 ) -> (FrameLevel, &'a [String]) {
-    let words: Vec<_> = args
+    let Some(tokens) = tokens.filter(|tokens| {
+        tokens.original_words_match_argv_text() && tokens.argv_texts.get(1..) == Some(args)
+    }) else {
+        return (FrameLevel::Dynamic, &[]);
+    };
+    let words = tokens
+        .words()
         .iter()
-        .map(|word| {
-            if word.contains('$') || word.contains('[') {
-                InvocationWord::Dynamic
-            } else {
-                InvocationWord::Literal(word)
-            }
-        })
-        .collect();
+        .skip(1)
+        .map(crate::registry_invocation::invocation_word)
+        .collect::<Vec<_>>();
     let mut arguments = InvocationArguments::Structured(&words).with_profile(registry.profile());
     if let Some(dialect) = dialect {
         arguments = arguments.with_dialect(dialect);
@@ -532,29 +526,62 @@ fn resolve_frame_args<'a>(
     }
 }
 
-/// True when `body` can reach the **caller's** frame — through an `upvar`
-/// alias (whatever the dynamism of either side of the pair), an `uplevel`
-/// script that runs there, or a level this analysis cannot place.
-///
-/// The strictly structural counterpart to [`collect_upvar_targets`], which
-/// answers the richer question "*which* caller-frame names, through which
-/// local?".  Every alias pair contributes to a bucket
-/// [`UpvarInfo::is_empty`] covers — a dynamic **source** lands in
-/// `param_targets` or sets `has_unresolvable_caller_target`, and a dynamic
-/// **local** (`upvar 1 x $dst`) files its caller-side name in the keyless
-/// write buckets (or widens).  [`UpvarInfo::unnameable_local_aliases`] is
-/// kept as the purely structural record of the dynamic-local pairs.
-///
-/// A dynamic name makes an alias *more* dangerous, never exempt, so this
-/// deliberately reads the whole summary rather than any one bucket.
-///
-/// Consumed by the optimiser's `TclOO` method-body propagation gate, which
-/// must decide whether a *sibling* body's private locals can survive a `my` /
-/// `next` dispatch to this one — a call the CFG's upvar-callee table cannot
-/// model, because the dispatch never names its target.
-#[must_use]
-pub fn reaches_caller_frame(body: &Script, params: &[String]) -> bool {
-    let info = collect_upvar_targets(body, params);
+/// Caller-frame reach under the exact issued method source and Registry.
+/// Missing source namespace or owner correspondence remains opaque.
+pub(crate) fn method_reaches_caller_frame(
+    module: &crate::ir::Module,
+    body_id: crate::ir::ProcedureId,
+    registry: &CommandRegistry,
+) -> bool {
+    let Some(method) = module
+        .methods
+        .get(&body_id)
+        .filter(|_| module.procedure_ids.owns(body_id))
+    else {
+        return true;
+    };
+    let Some(owner) = module.retained_source_bindings.as_deref().filter(|owner| {
+        owner.matches_module(module, registry)
+            && owner.matches_original_method_summary(body_id, method)
+    }) else {
+        return true;
+    };
+    if owner.positioned_for_module(module, registry).is_none() {
+        return true;
+    }
+    if method.body.statements.is_empty() {
+        return false;
+    }
+    let info = if module.source_metadata_input.is_none()
+        && module.source_entry.metadata_context.is_standalone()
+        && module.source_entry.native_entry.is_none()
+        && !module.source_entry.unknown_entry
+    {
+        collect_upvar_targets_with_registry(&method.body, &method.params, registry)
+    } else {
+        let namespace = method
+            .body
+            .namespace_context
+            .as_deref()
+            .and_then(crate::command_binding::SourceNamespaceKey::advisory_key)
+            .or_else(|| match &method.execution_namespace {
+                ExecutionNamespace::Exact(namespace) => Some(namespace.clone()),
+                ExecutionNamespace::SourceContext(context) => context.advisory_key(),
+                ExecutionNamespace::RuntimeSelected => None,
+            });
+        let Some(namespace) = namespace else {
+            return true;
+        };
+        let bindings = ModuleCommandBindings::analyse(module, registry);
+        collect_upvar_targets_with_bindings(
+            &method.body,
+            &method.params,
+            registry,
+            &bindings,
+            &namespace,
+            module,
+        )
+    };
     !info.is_empty() || !info.unnameable_local_aliases.is_empty()
 }
 
@@ -564,20 +591,15 @@ pub fn reaches_caller_frame(body: &Script, params: &[String]) -> bool {
 /// `param_targets`).  `body` is the lowered IR body.  Walks every
 /// statement for a registry-declared frame-crossing command
 /// ([`FrameEffectSpec`]) and accumulates the result in [`UpvarInfo`].
-#[must_use]
-pub fn collect_upvar_targets(body: &Script, params: &[String]) -> UpvarInfo {
+#[cfg(test)]
+fn collect_upvar_targets(body: &Script, params: &[String]) -> UpvarInfo {
     collect_upvar_targets_with_registry(body, params, tcl_registry::default_registry())
 }
 
-/// Collect a per-procedure frame-effect summary against the exact command
-/// registry that lowered `body`.
-///
-/// The default wrapper remains useful for standalone structural callers, but
-/// whole-module CFG construction uses this entry point so a custom command's
-/// registry-declared frame grammar is neither lost nor replaced by Tcl 8.6
-/// defaults.
+/// Explicit standalone structural summary under the supplied Registry.
+/// Supplied whole-source analysis uses the retained Module counterpart.
 #[must_use]
-pub fn collect_upvar_targets_with_registry(
+pub(crate) fn collect_upvar_targets_with_registry(
     body: &Script,
     params: &[String],
     registry: &CommandRegistry,
@@ -940,6 +962,7 @@ fn walk_stmt(
                     registry,
                     FrameCommandContext {
                         bindings: None,
+                        tokens,
                         dialect: stmt
                             .tokens()
                             .and_then(|tokens| tokens.source_binding.as_ref())
@@ -1348,6 +1371,7 @@ fn record_readable_frame_body(
 #[derive(Clone, Copy)]
 struct FrameCommandContext<'a> {
     bindings: Option<UpvarBindings<'a>>,
+    tokens: Option<&'a CommandTokens>,
     dialect: Option<tcl_registry::InvocationDialect>,
 }
 
@@ -1365,7 +1389,7 @@ fn record_frame_effect(
 ) {
     match spec.layout {
         FrameArgLayout::AliasPairs => {
-            record_upvar_call(spec, args, params, info, registry, context.dialect);
+            record_upvar_call(spec, args, params, info, registry, context);
         }
         FrameArgLayout::ScriptInSelectedFrame => {
             record_uplevel_call(spec, args, registry, context, namespace, info);
@@ -1476,9 +1500,9 @@ fn record_upvar_call(
     params: &[String],
     info: &mut UpvarInfo,
     registry: &CommandRegistry,
-    dialect: Option<tcl_registry::InvocationDialect>,
+    context: FrameCommandContext<'_>,
 ) {
-    let (level, rest) = resolve_frame_args(spec, args, registry, dialect);
+    let (level, rest) = resolve_frame_args(spec, args, registry, context.dialect, context.tokens);
     if !level.is_caller_frame() {
         // A level this summary cannot place at the direct caller. `#0` and
         // `0` genuinely miss the caller's frame (the global frame is
@@ -1492,8 +1516,13 @@ fn record_upvar_call(
         }
         return;
     }
+    let start = args.len().saturating_sub(rest.len());
     let mut i = 0;
     while i + 1 < rest.len() {
+        let parameter = context
+            .tokens
+            .and_then(|tokens| original_scalar_argument(tokens, args, start + i))
+            .filter(|name| params.iter().any(|parameter| parameter == name));
         let (src, dst) = (rest[i].as_str(), rest[i + 1].as_str());
         i += 2;
         let dst_is_literal = is_literal_name(dst);
@@ -1501,7 +1530,7 @@ fn record_upvar_call(
             // Dynamic destination (`upvar 1 x $dst`) — there is no local
             // key to file the alias under, so the per-local maps cannot
             // carry it.  The alias is still real: record the structural
-            // fact for [`reaches_caller_frame`], and classify the CALLER
+            // fact for caller-frame reachability, and classify the CALLER
             // side below so call sites still widen the right caller name
             // — otherwise such a proc reads as summary-empty and `p x` leaves
             // the caller's `x` foldable to a stale constant.
@@ -1520,7 +1549,7 @@ fn record_upvar_call(
                 // it lands in the keyless bucket.
                 info.uplevel_literal_writes.insert(src.to_string());
             }
-        } else if let Some(param) = is_dollar_param_ref(src) {
+        } else if let Some(param) = parameter {
             // `upvar 1 $param x` — substitution-driven, gated on
             // the param existing on the proc.
             if param == "args" {
@@ -1577,7 +1606,7 @@ fn record_uplevel_call(
     namespace: &str,
     info: &mut UpvarInfo,
 ) {
-    let (level, rest) = resolve_frame_args(spec, args, registry, context.dialect);
+    let (level, rest) = resolve_frame_args(spec, args, registry, context.dialect, context.tokens);
     if !level.is_caller_frame() {
         // Same reasoning as `record_upvar_call`: `uplevel 0` stays in the
         // callee's own frame and `uplevel #0` runs in the global one, so
@@ -2251,6 +2280,73 @@ mod tests {
     }
 
     #[test]
+    fn method_frame_summary_keeps_the_issued_header_and_actual_registry() {
+        let environment = crate::environment_ingress::resolve_environment("tcl9.0");
+        let context = environment.default_context_registry();
+        let registry = context.commands();
+        let profile = environment.unit_profile();
+        let (_owner, native) =
+            crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: crate::environment_ingress::authoring_native_compilation(),
+            native_entry: Some(std::sync::Arc::new(native)),
+            ..Default::default()
+        };
+        let build = || {
+            crate::compilation_unit::CompilationUnit::build_with_context_registry(
+                "oo::class create C {method empty {} {}}",
+                crate::compilation_unit::UnitBuildOptions {
+                    registry,
+                    defer_top_level: false,
+                    config: tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+                    dialect: Some(profile),
+                    external_call_sites: None,
+                    declared_commands: None,
+                },
+                Some(&entry),
+                std::sync::Arc::clone(&context),
+            )
+            .ir_module
+        };
+        let module = build();
+        assert_eq!(module.methods.len(), 1);
+        let (&id, method) = module.methods.iter().next().unwrap();
+        assert!(module.procedure_ids.owns(id));
+        assert!(
+            module
+                .retained_source_bindings
+                .as_ref()
+                .unwrap()
+                .matches_original_method_summary(id, method)
+        );
+        assert!(!method_reaches_caller_frame(&module, id, registry));
+        let mut changed = module.clone();
+        changed
+            .methods
+            .get_mut(&id)
+            .unwrap()
+            .params
+            .push("detached".into());
+        assert!(method_reaches_caller_frame(&changed, id, registry));
+        let mut changed_body = module.clone();
+        changed_body.methods.get_mut(&id).unwrap().body = lower("upvar 1 caller local");
+        assert!(method_reaches_caller_frame(&changed_body, id, registry));
+        let foreign = build();
+        let foreign_id = *foreign.methods.keys().next().unwrap();
+        assert_eq!(foreign_id.ordinal(), id.ordinal());
+        assert_ne!(foreign_id, id);
+        assert!(method_reaches_caller_frame(&module, foreign_id, registry));
+        let foreign_registry =
+            crate::environment_ingress::resolve_environment("tcl8.6").default_context_registry();
+        assert!(method_reaches_caller_frame(
+            &module,
+            id,
+            foreign_registry.commands(),
+        ));
+    }
+
+    #[test]
     fn native_frame_aliases_distinguish_written_scalar_reads_from_literal_values() {
         let environment = crate::environment_ingress::resolve_environment("tcl9.0");
         let context = environment.default_context_registry();
@@ -2337,6 +2433,35 @@ mod tests {
         let body = lower("");
         let info = collect_upvar_targets(&body, &[]);
         assert!(info.is_empty());
+    }
+
+    #[test]
+    fn standalone_alias_pairs_keep_original_reference_grammar_and_literal_data() {
+        for (source, parameter) in [
+            ("upvar 1 ${odd name} local", "odd name"),
+            ("upvar 1 \"$source\" local", "source"),
+        ] {
+            let body = lower(source);
+            let info = collect_upvar_targets(&body, &[parameter.to_owned()]);
+            assert_eq!(
+                info.param_targets.get("local").map(String::as_str),
+                Some(parameter)
+            );
+        }
+        let body = lower("upvar 1 {$source} local");
+        let info = collect_upvar_targets(&body, &["source".to_owned()]);
+        assert!(info.param_targets.is_empty());
+        assert!(info.has_unresolvable_caller_target);
+        let mut changed = lower("upvar 1 $source local");
+        let (Statement::Call { args, .. } | Statement::Barrier { args, .. }) =
+            &mut changed.statements[0]
+        else {
+            panic!("actual standalone upvar call");
+        };
+        args[1] = "$different".to_owned();
+        let info = collect_upvar_targets(&changed, &["different".to_owned()]);
+        assert!(info.param_targets.is_empty());
+        assert!(info.caller_frame_opaque_writes);
     }
 
     #[test]
@@ -2817,7 +2942,7 @@ mod tests {
             "got {info:?}"
         );
         assert!(!info.has_unresolvable_caller_target, "got {info:?}");
-        // The structural record survives for `reaches_caller_frame`.
+        // Structural caller-frame reach survives an unnameable local.
         assert!(info.unnameable_local_aliases.contains("caller_x"));
         // And the call-site resolver surfaces the caller-side name.
         assert_eq!(info.caller_side_defs(&[], &[]), vec!["caller_x"]);

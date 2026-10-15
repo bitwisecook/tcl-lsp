@@ -377,7 +377,12 @@ impl AdviceInvocationContext<'_> {
                 break;
             }
             if self
-                .retain_original_invocation(&mut branch, &mut inventory, &command)
+                .retain_original_invocation(
+                    &mut branch,
+                    &mut inventory,
+                    &command,
+                    super::logical_navigation::LogicalCallbackScope::Unavailable,
+                )
                 .is_none()
             {
                 return true;
