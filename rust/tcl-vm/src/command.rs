@@ -3148,72 +3148,119 @@ fn cmd_catch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             return error;
         }
     }
-    let dialect = vm.native_invocation_dialect();
-    let selection = match tcl_registry::catch_invocation::select_original_catch_invocation(
-        args.len(),
-        dialect,
-        |index| {
-            vm.native_name_operand_bytes_checked(&args[index])
-                .map(|bytes| bytes.to_vec())
-        },
-    ) {
-        Ok(selection) => selection,
-        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+    let jim = vm.uses_jim_error_stack();
+    let dialect = if jim {
+        vm.actual_native_invocation_dialect()
+    } else {
+        vm.native_invocation_dialect()
     };
-    let selected = match selection {
-        tcl_registry::catch_invocation::CatchInvocationSelection::Valid(selected) => selected,
-        _ if dialect.completion_options_policy()
-            == Some(tcl_registry::CompletionOptionsPolicy::Legacy) =>
-        {
-            return native_wrong_arguments_message(
-                vm,
-                "wrong # args: should be \"catch command ?varName?\"",
-            );
+    let original = if jim {
+        match crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(vm) {
+            Ok(original) => Some(original),
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
         }
-        _ => {
-            return native_wrong_arguments_message(
-                vm,
-                "wrong # args: should be \"catch script ?resultVarName? ?optionVarName?\"",
-            );
-        }
+    } else {
+        None
     };
-    let script = &args[selected.script_at];
-    let resvar = selected.result_var_at.map(|index| &args[index]);
-    let optvar = selected.options_var_at.map(|index| &args[index]);
-    // Defer the body to the *explicit* stack so a `yield` inside it stays
-    // yieldable: compile it and hand it to the trampoline via
-    // the pending catch request. A catch frame runs the body and its completion — of any
-    // code — is absorbed by `finish_catch` (which binds the result/options vars
-    // and yields the status code). Mirrors `cmd_eval`'s pending request, but
-    // catch's completion is caught rather than propagated.
-    match vm.prepare_script_commands_value(script) {
-        Ok(prepared) if prepared.prefix.is_some() => {
-            vm.pending.catch = Some(crate::exec::CatchReq {
-                script: prepared
-                    .prefix
-                    .expect("checked above")
-                    .with_source_location(script.source_location()),
-                resvar: resvar.map(|v| (*v).clone()),
-                optvar: optvar.map(|v| (*v).clone()),
-                fatal_tail: prepared.fatal_tail,
-                ignored_codes: selected.ignored_codes,
-            });
-            ok(Value::empty())
-        }
-        Ok(prepared) => {
-            let comp = prepared.fatal_tail.map_or_else(
-                || ok(Value::empty()),
-                |tail| vm.raise_script_parse_failure(tail, script.source_location()),
+    let reached = (|| {
+        let selection = if let Some(original) = &original {
+            let reached = tcl_registry::catch_invocation::select_native_jim_catch_invocation(
+                args.len(),
+                dialect,
+                |index| original.read(vm, &args[index]).map(|bytes| bytes.to_vec()),
             );
-            vm.finish_catch(comp, resvar, optvar, selected.ignored_codes)
+            if let Err(error) = original.check(vm) {
+                return crate::command::completion_from_cmd_error(vm, error);
+            }
+            match reached {
+                Ok(selection) => selection,
+                Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+            }
+        } else {
+            match tcl_registry::catch_invocation::select_original_catch_invocation(
+                args.len(),
+                dialect,
+                |index| {
+                    vm.native_name_operand_bytes_checked(&args[index])
+                        .map(|bytes| bytes.to_vec())
+                },
+            ) {
+                Ok(selection) => selection,
+                Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+            }
+        };
+        let selected = match selection {
+            tcl_registry::catch_invocation::CatchInvocationSelection::Valid(selected) => selected,
+            _ if dialect.completion_options_policy()
+                == Some(tcl_registry::CompletionOptionsPolicy::Legacy) =>
+            {
+                return native_wrong_arguments_message(
+                    vm,
+                    "wrong # args: should be \"catch command ?varName?\"",
+                );
+            }
+            _ => {
+                return native_wrong_arguments_message(
+                    vm,
+                    "wrong # args: should be \"catch script ?resultVarName? ?optionVarName?\"",
+                );
+            }
+        };
+        let script = &args[selected.script_at];
+        let resvar = selected.result_var_at.map(|index| &args[index]);
+        let optvar = selected.options_var_at.map(|index| &args[index]);
+        // Defer the body to the *explicit* stack so a `yield` inside it stays
+        // yieldable: compile it and hand it to the trampoline via
+        // the pending catch request. A catch frame runs the body and its completion — of any
+        // code — is absorbed by `finish_catch` (which binds the result/options vars
+        // and yields the status code). Mirrors `cmd_eval`'s pending request, but
+        // catch's completion is caught rather than propagated.
+        if let Some(original) = &original {
+            if let Err(error) = original.current_for_value(vm, script) {
+                return crate::command::completion_from_cmd_error(vm, error);
+            }
         }
-        // A body that fails to *parse* is itself a catchable error: run the
-        // epilogue directly with the parse-error completion (no body to execute).
-        Err(e) => {
-            let comp = completion_from_tcl_error(vm, e);
-            vm.finish_catch(comp, resvar, optvar, selected.ignored_codes)
+        let prepared = vm.prepare_script_commands_value(script);
+        if let Some(original) = &original {
+            if let Err(error) = original.check(vm) {
+                return crate::command::completion_from_cmd_error(vm, error);
+            }
+        }
+        match prepared {
+            Ok(prepared) if prepared.prefix.is_some() => {
+                vm.pending.catch = Some(crate::exec::CatchReq {
+                    script: prepared
+                        .prefix
+                        .expect("checked above")
+                        .with_source_location(script.source_location()),
+                    resvar: resvar.map(|v| (*v).clone()),
+                    optvar: optvar.map(|v| (*v).clone()),
+                    fatal_tail: prepared.fatal_tail,
+                    ignored_codes: selected.ignored_codes,
+                });
+                ok(Value::empty())
+            }
+            Ok(prepared) => {
+                let comp = prepared.fatal_tail.map_or_else(
+                    || ok(Value::empty()),
+                    |tail| vm.raise_script_parse_failure(tail, script.source_location()),
+                );
+                vm.finish_catch(comp, resvar, optvar, selected.ignored_codes)
+            }
+            // A body that fails to *parse* is itself a catchable error: run the
+            // epilogue directly with the parse-error completion (no body to execute).
+            Err(e) => {
+                let comp = completion_from_tcl_error(vm, e);
+                vm.finish_catch(comp, resvar, optvar, selected.ignored_codes)
+            }
+        }
+    })();
+    if let Some(original) = original {
+        if let Err(error) = original.finish(vm) {
+            return crate::command::completion_from_cmd_error(vm, error);
         }
     }
+    reached
 }
 
 impl Vm {

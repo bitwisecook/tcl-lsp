@@ -124,7 +124,11 @@ fn original_jim_try_prefix_cells_use_bounded_native_getters_and_refuse_unbound_s
         ACTUAL.with(|slot| *slot.borrow_mut() = None);
         if matches!(case, 2 | 3 | 4 | 5 | 15) {
             // These original-build positives remain unimplemented Native cases.
-            assert!(actual.native_execution_refusal().is_some(), "{row}");
+            assert_eq!(
+                actual.native_execution_refusal(),
+                Some(mask_refusal()),
+                "{row}"
+            );
             assert_eq!(BODIES.with(Cell::get), 0, "{row}");
             assert_eq!(HANDLERS.with(Cell::get), 0, "{row}");
             continue;
@@ -162,5 +166,13 @@ fn original_jim_catch_prefix_cannot_use_source_wrapping_as_native_execution() {
     let reached = actual.eval_original_object_vector(&words.each_ref().map(Owned::as_ptr));
     assert_eq!(reached, Code::Error);
     assert_eq!(BODIES.with(Cell::get), 0);
-    assert!(actual.native_execution_refusal().is_some());
+    assert_eq!(actual.native_execution_refusal(), Some(mask_refusal()));
+}
+
+fn mask_refusal() -> tcl_runtime_api::NativeExecutionError {
+    tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+        tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+            "original Jim capture mask shift outside supported Rust64 recipe",
+        ),
+    )
 }
