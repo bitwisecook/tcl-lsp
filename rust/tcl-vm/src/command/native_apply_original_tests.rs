@@ -467,7 +467,7 @@ fn original_lambda_missing_namespaces_match_native_result_and_error_code() {
                     "{engine}/{label}"
                 );
                 if completion.code == tcl_runtime_api::Code::Error {
-                    let tuple = vm.get_var_bytes(b"::errorCode").unwrap();
+                    let tuple = vm.read_variable_result_bytes(b"::errorCode", None).unwrap();
                     assert_eq!(
                         tuple.native_string_bytes(protocol).unwrap().as_ref(),
                         unhex(oracle("ERROR_CODE")[3]),
@@ -684,8 +684,7 @@ fn jim_lambda_temporary_publication_keeps_the_original_execution_namespace_separ
     );
     assert!(
         declaration
-            .native_jim_namespace
-            .as_ref()
+            .retained_jim_namespace()
             .unwrap()
             .is_same_object(&namespace)
     );

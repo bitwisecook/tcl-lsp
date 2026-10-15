@@ -97,12 +97,25 @@ pub fn extract_original_irules_source_object_references(
         };
         for operand in operands {
             let ordinal = operand.argument();
-            let Some(name) = command
-                .words()
-                .arguments()
-                .get(ordinal)
-                .and_then(|value| value.literal_bytes())
-                .and_then(|bytes| std::str::from_utf8(bytes).ok())
+            let words = command.words();
+            let origin = ordinal
+                .checked_add(1)
+                .and_then(|index| words.origins().get(index));
+            let value = match origin {
+                Some(tcl_compiler::registry_invocation::InvocationWordOrigin::Written(_)) => words
+                    .original_argument_word(ordinal)
+                    .and_then(tcl_syntax::word_rules::original_static_word_unicode_value),
+                Some(tcl_compiler::registry_invocation::InvocationWordOrigin::BindingPrefix(_)) => {
+                    words
+                        .arguments()
+                        .get(ordinal)
+                        .and_then(|value| value.literal_bytes())
+                        .map(<[u8]>::to_vec)
+                }
+                _ => None,
+            };
+            let Some(name) = value
+                .and_then(|bytes| String::from_utf8(bytes).ok())
                 .filter(|name| !name.contains('\0'))
             else {
                 continue;
@@ -110,7 +123,7 @@ pub fn extract_original_irules_source_object_references(
             let Some(range) = command.words().operands().get(ordinal).and_then(Option::as_ref).map(tcl_compiler::registry_invocation::source_structure::OriginalOperandSource::span) else { continue; };
             let label = command.words().command().to_owned();
             out.push(IrulesObjectReference {
-                name: name.to_owned(),
+                name,
                 kinds: operand.kinds().to_vec(),
                 command: label.clone(),
                 effective_command: label,
@@ -525,6 +538,51 @@ mod case_list_tests {
         assert!(
             extract_original_irules_source_object_references(
                 &format!("#changed\n{source}"),
+                &context,
+                None
+            )
+            .is_empty()
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_object_value_tests {
+    use super::*;
+
+    #[test]
+    fn object_candidates_decode_original_literal_values_and_refuse_live_components() {
+        let registry = tcl_registry::model::ingress::static_context_for_profile(
+            tcl_dialect::DialectProfile::irules(),
+        )
+        .commands();
+        let source = concat!(
+            "when HTTP_REQUEST {\n",
+            "pool \"a\\\"b\"\n",
+            "pool {p[set ::hint 1]}\n",
+            "pool \"\\x24literal\"\n",
+            "pool {茶}\n",
+            "pool $dynamic\n",
+            "pool [dynamic]\n",
+            "}\n",
+        );
+        let context = crate::OriginalIrulesSourceContext::capture(source, registry).unwrap();
+        let references = extract_original_irules_source_object_references(source, &context, None);
+        assert_eq!(
+            references
+                .iter()
+                .map(|reference| reference.name.as_str())
+                .collect::<Vec<_>>(),
+            ["a\"b", "p[set ::hint 1]", "$literal", "茶"]
+        );
+        assert!(
+            references
+                .iter()
+                .all(|reference| reference.category == IrulesObjectReferenceCategory::Pool)
+        );
+        assert!(
+            extract_original_irules_source_object_references(
+                &format!("# changed\n{source}"),
                 &context,
                 None
             )

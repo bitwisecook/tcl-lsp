@@ -113,3 +113,11 @@ Original [fresh dying-namespace operands](original-fresh-dying-namespace-2026101
 [Original inline-word and configured quoted-name values](../inline-word-source-values-20261015/README.md) retain all six original providers, matching Tcl libraries, source/capture provenance and exact output channels. Original substituted literal quotes remain data; raw source splicing fails on C Tcl or changes Jim values, and literal dollar data becomes a read in the raw proposal. Nested braced quote-name success on Tcl9 remains separate from C8/Jim refusals. The mixed C8.6/Tcl9-variable-axis Rust lexical control is not a C8.6 runtime observation; no Native read, cell, motion, frame, F5, Rust or whole-edit/evaluation equivalence is supplied.
 
 [Original Jim namespace-upvar helper](original-jim-namespace-upvar-sdk-20261015/README.md) retains 645 rows: sixteen public/direct observer cases over 32 COLD/REUSE phases measure selected caller/argument/header identity, reached getter order and genuine empty-object padding. Four separate fresh-interpreter scripts retain the original worker for real link/odd-link and arity outcomes. Observer replacement is not a link proof; no Runtime, full-link roster or final-free acceptance follows.
+
+Original [RHS source-word values](../expression-literal-word-values-20261015/README.md) retain the controlled six-provider
+file-driver capture and excluded initial inline-driver trial separately, including
+all twelve empty stderr channels and unchanged manifests linked by hash. Trailing
+dollars, escaped sigils/quotes and braced command-looking bytes remain literal
+data, while actual variable interpolation is distinct. These are original source
+word-value observations, without F5 operator or regex semantics, URI/path
+satisfaction, frame/cell/edit equivalence or Rust acceptance.

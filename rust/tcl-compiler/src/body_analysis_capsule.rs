@@ -12,6 +12,8 @@ use crate::ir::{Procedure, ProcedureId};
 use crate::optimiser::Optimisation;
 use tcl_registry::CommandRegistry;
 
+mod readonly_authored_coverage;
+
 /// One actual body and its complete immutable compilation inputs.
 #[derive(Debug, Clone)]
 pub struct BodyAnalysisCapsule {
@@ -436,17 +438,32 @@ fn analytical_closed_projection(
         .get(&body_id)
         .filter(|card| card.matches_procedure(module, procedure));
     let readonly_source = native_card.is_some() || authored_card.is_some();
+    let source_body_inventory = || {
+        if authored_card.is_some() {
+            readonly_authored_coverage::ReadonlyAuthoredCoverage::capture(unit, registry)
+                .is_some_and(|coverage| {
+                    unit.body_units.keys().all(|id| {
+                        module
+                            .original_authored_declaration_body_units
+                            .contains_key(id)
+                            || coverage.source_for(*id).is_some()
+                    })
+                })
+        } else {
+            unit.body_units.keys().all(|id| {
+                module
+                    .original_native_declaration_body_units
+                    .contains_key(id)
+                    || module
+                        .original_authored_declaration_body_units
+                        .contains_key(id)
+            })
+        }
+    };
     if (!readonly_source && procedure.body_kind != crate::ir::ProcedureBodyKind::Named)
         || !unit.methods.is_empty()
         || (!readonly_source && !unit.body_units.is_empty())
-        || unit.body_units.keys().any(|id| {
-            !module
-                .original_native_declaration_body_units
-                .contains_key(id)
-                && !module
-                    .original_authored_declaration_body_units
-                    .contains_key(id)
-        })
+        || !source_body_inventory()
         || unit.connection_scope.is_some()
         || !module.class_relations.is_empty()
         || !module.oo_unanalysed_classes.is_empty()

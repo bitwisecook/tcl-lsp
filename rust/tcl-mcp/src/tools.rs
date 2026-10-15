@@ -25,7 +25,7 @@
 use std::collections::HashSet;
 
 use serde_json::{Map, Value, json};
-use tcl_compiler::analyser::{Analyser, AnalysisResult, Diagnostic};
+use tcl_compiler::analyser::{Analyser, AnalysisResult};
 use tcl_dialect::DialectProfile;
 use tcl_lexer::{LexerConfig, LineIndex, SourceMap, Span, Utf16Col};
 use tcl_lsp_core::config_ini;

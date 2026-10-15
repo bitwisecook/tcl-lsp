@@ -143,6 +143,31 @@ impl OriginalAuthoredProcedureBody {
             .is_some_and(|original| scope.belongs_to_original_scope(original))
     }
 
+    pub(crate) fn covers_installed_analysis_source(
+        &self,
+        module: &Module,
+        procedure: &Procedure,
+        installed: &crate::command_binding::SourceInstalledProcedureBody,
+    ) -> bool {
+        self.matches_procedure(module, procedure)
+            && installed.allocation.incarnation
+                == crate::command_binding::AllocationIncarnation::First
+            && installed.allocation.site == self.site
+            && installed.namespace_key == self.namespace
+            && installed.parameters == self.parameters
+            && installed.source.origin == self.site.source
+            && installed.source.mapping
+                == crate::command_binding::ExecutedScriptMapping::Contiguous {
+                    base: self.body_span.start(),
+                }
+            && self
+                .body_word
+                .image()
+                .bytes()
+                .get(self.body_span.as_range())
+                == Some(installed.source.text.bytes())
+    }
+
     pub(crate) fn matches_procedure(&self, module: &Module, procedure: &Procedure) -> bool {
         if module.source_metadata_input.is_some()
             || module.source_entry.native_entry.is_some()

@@ -141,6 +141,11 @@ fn original_package_global_selection_restores_hidden_parent_and_preserves_callba
                     "package unknown leavePackageChild"
                 };
                 assert_eq!(vm.eval_source(setup).unwrap().code, Code::Ok);
+                // Keep an actual operation entered while inspecting its original
+                // first cause; public outer-boundary retirement is checked below.
+                let episode =
+                    crate::interp::native_operation_currency::NativeOperationScope::enter(&mut vm)
+                        .unwrap();
                 let reached = vm.eval_source("proc originalPackageCaller {} {set local PARENT; probePackageFrame}; originalPackageCaller");
                 assert!(reached.is_err());
                 assert_eq!(hits.get(), 1);
@@ -164,6 +169,9 @@ fn original_package_global_selection_restores_hidden_parent_and_preserves_callba
                         )
                     );
                 }
+                drop(episode);
+                assert_eq!(vm.take_host_boundary_refusal(), Some(retained));
+                assert!(vm.execution_refusal.is_none());
             }
         }
     }

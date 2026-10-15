@@ -1495,10 +1495,9 @@ fn standalone_procedure_body_recipe(
     advice: &super::OriginalCompilationLookupAdvice,
 ) -> Option<DeclaredProcedureBody> {
     if advice.has_unclosed_source_coverage()
-        || !matches!(
-            advice.original_declaration_metadata_context(registry, tokens),
-            Ok(None)
-        )
+        || !advice
+            .original_declaration_metadata_context(registry, tokens)
+            .is_ok_and(|metadata| metadata.is_none_or(|metadata| metadata.is_standalone()))
         || observation.config.list_parse != tcl_dialect::ListParse::Strict
         || !matches!(&observation.namespace, super::SourceNamespaceKey::Authored(current) if current == "::")
         || !observation.entry.owns_source(&site.source, site.offset)

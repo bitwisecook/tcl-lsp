@@ -775,6 +775,18 @@ mod tests {
         let analyse = |source: &str| {
             let mut analyser = Analyser::new();
             let result = analyser.analyse(source, "tcl");
+            let input = result.resolved_input.as_ref().unwrap();
+            assert!(input.has_logical_source_name_context());
+            for declaration in result.original_procedure_declarations() {
+                assert!(
+                    result
+                        .original_procedure_formals(
+                            declaration,
+                            input.borrowed_context_registry().commands(),
+                        )
+                        .is_none()
+                );
+            }
             ItemTree::from_analysis(&result, &analyser.ensemble_namespaces)
         };
         for (formals, expected) in [
@@ -792,7 +804,12 @@ mod tests {
             ));
             let signature = &before.items[0].sig;
             assert!(signature.logical_source_coordinate.is_some());
-            assert!(signature.original_declaration.is_none());
+            let header = signature.original_declaration.as_ref().unwrap();
+            assert_eq!(
+                header.formal_count_projection().origin(),
+                SourceFormalCountOrigin::Unknown,
+            );
+            assert_eq!(header.formal_count_projection().parameter_grammar(), None);
             assert_eq!(signature.formal_count.arity(), expected);
             assert_eq!(
                 signature.formal_count.origin(),

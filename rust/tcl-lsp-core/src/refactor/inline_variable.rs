@@ -78,8 +78,8 @@ pub fn inline_variable(
 
     // Complete original value geometry preserves every selected delimiter.
     let words = walk.native_words(source, &cmd)?;
-    let value = words.get(value_index)?.span();
-    let value_text = source.get(value.as_range())?;
+    let value_word = words.get(value_index)?;
+    let value_text = source.get(value_word.span().as_range())?;
 
     // Delete the `set` command, and with it the whole line when the
     // command is alone on one: the leading indentation belongs to the
@@ -109,29 +109,12 @@ pub fn inline_variable(
     let ref_start = ctx.reference.start();
     let ref_end = ctx.reference.end();
 
-    // A standalone word keeps the value verbatim (preserving quotes /
-    // braces so it stays one word).  Interpolated inside a larger word,
-    // splice the unquoted content instead — keeping the delimiters would
-    // yield `"hello "world""`.  A bare (unquoted) concatenation can only
-    // take a value with no whitespace.
+    // A standalone word keeps the complete value spelling. A fragment must
+    // preserve the actual enclosing word's substitution components.
     let new_text = if ctx.word_is_single {
         value_text.to_owned()
     } else {
-        let inner = dequote(value_text);
-        // Splicing a brace-quoted (literal) value into an interpolated context
-        // (a bare concatenation or inside `"…"`) would ACTIVATE any `$`/`[`/`\`
-        // that were literal inside the braces: `set x {a $b}` inlined into
-        // `puts "v: $x"` must not turn `$b` into a live substitution.
-        // Decline the refactor rather than change the value.
-        let was_braced = value_text.trim_start().starts_with('{');
-        if was_braced && inner.bytes().any(|b| matches!(b, b'$' | b'[' | b'\\')) {
-            return None;
-        }
-        let in_quoted_string = source.as_bytes().get(ctx.word_start as usize) == Some(&b'"');
-        if !in_quoted_string && inner.chars().any(char::is_whitespace) {
-            return None;
-        }
-        inner.to_owned()
+        interpolated_value_source(value_word, &ctx.word, ctx.reference)?
     };
 
     let replace = RefactorEdit {
@@ -388,7 +371,7 @@ fn value_read_binding(
 struct RefContext {
     reference: Span,
     word_is_single: bool,
-    word_start: u32,
+    word: tcl_lexer::NativeWord,
 }
 
 /// Reborrow the single original reference and containing whole word. Child
@@ -436,22 +419,109 @@ fn reference_context(
         reference: reference.span,
         word_is_single: command.single_token_word.get(index).copied()?
             && word.span() == reference.span,
-        word_start: word.span().start(),
+        word: word.clone(),
     })
 }
 
-/// Strip one layer of matching `"…"` or `{…}` delimiters.
-fn dequote(value: &str) -> &str {
-    let bytes = value.as_bytes();
-    if bytes.len() >= 2 {
-        if bytes[0] == b'"' && bytes[bytes.len() - 1] == b'"' {
-            return &value[1..value.len() - 1];
-        }
-        if bytes[0] == b'{' && bytes[bytes.len() - 1] == b'}' {
-            return &value[1..value.len() - 1];
+/// Propose a fragment from the actual value word, then check the complete
+/// enclosing word under its own configuration. Component equality is lexical;
+/// the caller retains the independent binding, read and movement permissions.
+fn interpolated_value_source(
+    value: &tcl_lexer::NativeWord,
+    receiver: &tcl_lexer::NativeWord,
+    reference: Span,
+) -> Option<String> {
+    use tcl_lexer::{WordKind, WordPart};
+    if value.group().expand || receiver.group().expand {
+        return None;
+    }
+    let content = value.content_span().ok()?;
+    let content = value.image().try_text().ok()?.get(content.as_range())?;
+    let fragment = if value.group().kind == WordKind::Braced {
+        // Literal content may not become substitutions in its new context.
+        // The whole-word comparison below detects that activation.
+        content.to_owned()
+    } else {
+        tcl_syntax::backslash::substituting_quoted_source_fragment(content, value.config())?
+    };
+    let replacement =
+        if let Some(bytes) = tcl_syntax::word_rules::original_static_word_unicode_value(value) {
+            vec![WordPart::Text(std::borrow::Cow::Owned(bytes))]
+        } else {
+            value
+                .parts()
+                .ok()?
+                .into_iter()
+                .map(|part| part.part)
+                .collect()
+        };
+    let mut expected = Vec::new();
+    let mut found = false;
+    for part in receiver.parts().ok()? {
+        if part.start == reference.start() as usize && part.end == reference.end() as usize {
+            if found
+                || !matches!(&part.part, WordPart::Variable(variable) if variable.index.is_none())
+            {
+                return None;
+            }
+            found = true;
+            expected.extend(replacement.iter().cloned());
+        } else {
+            expected.push(part.part);
         }
     }
-    value
+    if !found {
+        return None;
+    }
+    let original = std::str::from_utf8(receiver.written_bytes()).ok()?;
+    let from = usize::try_from(reference.start().checked_sub(receiver.span().start())?).ok()?;
+    let to = usize::try_from(reference.end().checked_sub(receiver.span().start())?).ok()?;
+    let mut proposal = original.to_owned();
+    proposal.get(from..to)?;
+    proposal.replace_range(from..to, &fragment);
+    let parsed = tcl_lexer::native_script_words_in(
+        tcl_lexer::SourceImage::document(&proposal),
+        Span::new(0, u32::try_from(proposal.len()).ok()?),
+        receiver.config(),
+    )
+    .ok()?;
+    let [command] = parsed.commands.as_slice() else {
+        return None;
+    };
+    let [word] = command.words.as_slice() else {
+        return None;
+    };
+    if parsed.fatal_tail.is_some()
+        || word.group().expand
+        || word.written_bytes() != proposal.as_bytes()
+    {
+        return None;
+    }
+    let actual = word.parts().ok()?.into_iter().map(|part| part.part);
+    (coalesced_source_parts(expected)? == coalesced_source_parts(actual)?).then_some(fragment)
+}
+
+/// Literal runs may join across a replaced substitution, without changing any
+/// variable, index, command or expression component.
+fn coalesced_source_parts<'a>(
+    parts: impl IntoIterator<Item = tcl_lexer::WordPart<'a>>,
+) -> Option<Vec<tcl_lexer::WordPart<'a>>> {
+    use tcl_lexer::WordPart;
+    let mut result = Vec::new();
+    for part in parts {
+        match part {
+            WordPart::ParseError(_) => return None,
+            WordPart::Text(bytes) => {
+                if let Some(WordPart::Text(prior)) = result.last_mut() {
+                    prior.to_mut().extend_from_slice(&bytes);
+                } else if !bytes.is_empty() {
+                    result.push(WordPart::Text(bytes));
+                }
+            }
+            other => result.push(other),
+        }
+    }
+    Some(result)
 }
 
 /// Yield every `VarDef` in `scope` and its descendants.
@@ -799,6 +869,91 @@ mod selected_declaration_tests {
                 &analysis,
                 analysis.resolved_registry().unwrap(),
                 &LineIndex::new("# changed")
+            )
+            .is_none()
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_interpolation_source_tests {
+    use super::*;
+
+    fn word(source: &str, config: LexerConfig) -> tcl_lexer::NativeWord {
+        let parsed = tcl_lexer::native_script_words_in(
+            tcl_lexer::SourceImage::document(source),
+            Span::new(0, u32::try_from(source.len()).unwrap()),
+            config,
+        )
+        .unwrap();
+        assert!(parsed.fatal_tail.is_none());
+        let [command] = parsed.commands.as_slice() else {
+            panic!("one original command required");
+        };
+        let [word] = command.words.as_slice() else {
+            panic!("one original word required");
+        };
+        assert_eq!(word.written_bytes(), source.as_bytes());
+        word.clone()
+    }
+
+    #[test]
+    fn original_inline_fragments_keep_components_and_complete_receiver_words() {
+        for dialect in ["tcl8.6", "tcl9.1", "jim"] {
+            let config = LexerConfig::for_dialect(dialect);
+            for (value, receiver, expected) in [
+                (r#""a\"b""#, r#""v:$held""#, Some(r#"a\"b"#)),
+                ("{a b}", r#""v:$held""#, Some("a b")),
+                ("{a $b}", r#""v:$held""#, None),
+                ("{a [cmd]}", r#""v:$held""#, None),
+                ("{a b}", "prefix${held}", None),
+                ("$other", r#""v:${held}""#, Some("$other")),
+                ("$other", r#""${held}suffix""#, None),
+                ("${other}", r#""${held}suffix""#, Some("${other}")),
+            ] {
+                let value = word(value, config);
+                let receiver = word(receiver, config);
+                let parts = receiver.parts().unwrap();
+                let reference = parts
+                    .iter()
+                    .find(|part| matches!(&part.part, tcl_lexer::WordPart::Variable(variable) if variable.name == b"held" && variable.index.is_none()))
+                    .unwrap();
+                let reference = Span::new(
+                    u32::try_from(reference.start).unwrap(),
+                    u32::try_from(reference.end).unwrap(),
+                );
+                assert_eq!(
+                    interpolated_value_source(&value, &receiver, reference).as_deref(),
+                    expected,
+                    "{dialect}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn logical_inline_quote_proposals_keep_the_current_binding_and_source_gates() {
+        let source = "set held \"a\\\"b\"\nputs \"v:$held\"";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
+        assert!(analysis.allows_lexical_declaration_advice());
+        let registry = analysis.resolved_registry().unwrap();
+        let lines = LineIndex::new(source);
+        assert_eq!(
+            inline_variable(source, 0, &analysis, registry, &lines)
+                .unwrap()
+                .apply(source),
+            "puts \"v:a\\\"b\""
+        );
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        assert!(inline_variable(source, 0, &missing, registry, &lines).is_none());
+        assert!(
+            inline_variable(
+                "set held CHANGED\nputs \"v:$held\"",
+                0,
+                &analysis,
+                registry,
+                &lines
             )
             .is_none()
         );

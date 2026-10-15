@@ -1,0 +1,11 @@
+# Original Jim namespace qualifier and tail result objects
+
+[probe.c](probe.c) retains 516 exact rows across twelve qualifier cases and twelve tail cases, each with COLD/REUSE phases (24 cases/48 phases total). Each pair retains the same original caller namespace integer and command head; only the caller String is invalidated for REUSE. Name/extra objects and the actual evaluation List are fresh each phase. Inputs cover integer, absent relative/absolute, plain, root/empty, embedded NUL, single/triple colon and zero/extra-argument errors.
+
+Qualifiers with no paired colon return the interpreter's exact shared empty object: this includes plain, counted-empty and unpaired-colon inputs. The paired root `::` instead produces a fresh counted empty String object, distinct from the interpreter empty object. Tail with an unpaired final colon or no colon returns the exact incoming original argument; paired-colon tails produce a fresh counted result. Namespace/name/extra AFTER headers and result primary/pointer observations all precede the result String getter. The custom name updater records caller namespace residency when the primitive reaches it; no namespace existence lookup is inferred.
+
+The accepted probe compiled and exited 0, with no excluded trial. All original nonbinary capture files are copied unchanged. Executable and selected library hashes were verified and are retained as provenance without binaries. COLD/REUSE labels describe retained inputs, without a universal cache-hit or lifecycle assertion.
+
+The [upstream receipt](upstream-check/receipt.json) records the exact UTC interval for the 2026-10-15 read-only HEAD check when upstream and local provider both matched 5bac7c99ad65864c87da513e22e2f01703fa4e03. Seven selected provider/source hashes remained unchanged. Freshness is confined to that recorded time. Six relative existing source snapshots are selected inputs, not a complete SDK/extensions/system-library build closure. Original absolute paths remain provenance.
+
+Run `python3 verify.py --repository-root /path/to/tcl-lsp`, optionally `--current-provider`, to verify retained bytes and referenced sources without executing providers. No Runtime/VM parity, C Tcl/F5, full namespace roster, callback traversal or final-free/lifecycle acceptance follows.

@@ -142,7 +142,10 @@ fn run_phase(interp: &mut Interp, case: Case<'_>, reuse: bool, originals: [&Owne
         obj::invalidate_string(caller.as_ptr());
     }
     let context = interp.native_jim_object_context().unwrap();
-    let first = Owned::fresh(obj::alloc_typed(&NAME, case.name));
+    let first = Owned::fresh(obj::alloc_typed(
+        &NAME,
+        u64::try_from(case.name).expect("fixed original deletion name payload"),
+    ));
     let second = Owned::fresh(obj::alloc_typed(&NAME, 1));
     for original in [first.as_ptr(), second.as_ptr()] {
         crate::native_source::bind_context(original, &context).unwrap();

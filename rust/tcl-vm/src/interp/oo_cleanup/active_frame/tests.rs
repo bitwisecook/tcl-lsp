@@ -246,6 +246,10 @@ fn original_forward_callback_cleanup_uses_the_real_pushed_context_and_original_n
                 calls: Rc::clone(&calls),
             })),
         );
+        // These assertions inspect retirement while its genuine operation is
+        // still entered; the outer host boundary transfers its cause afterward.
+        let episode =
+            crate::interp::native_operation_currency::NativeOperationScope::enter(&mut vm).unwrap();
         let reached = vm.try_invoke_command("activeCleanupObject", &[Value::string("fw")]);
         assert_eq!(calls.get(), 1);
         if mode == 0 {
@@ -282,6 +286,10 @@ fn original_forward_callback_cleanup_uses_the_real_pushed_context_and_original_n
         } else {
             assert_eq!(vm.resolution_stacks.ns_stack.len(), 1);
         }
+        let retained = vm.execution_refusal.clone();
+        drop(episode);
+        assert_eq!(vm.take_host_boundary_refusal(), retained);
+        assert!(vm.execution_refusal.is_none());
     }
 }
 
@@ -418,6 +426,10 @@ fn original_procedure_epilogue_and_abort_retire_only_the_entered_oo_frame_and_na
             activation: RefCell::new(None),
         });
         vm.register_command("active_proc_observer", Command::Native(observer.clone()));
+        // These assertions inspect retirement while its genuine operation is
+        // still entered; the outer host boundary transfers its cause afterward.
+        let episode =
+            crate::interp::native_operation_currency::NativeOperationScope::enter(&mut vm).unwrap();
         let result = vm.try_invoke_command("activeProcObject", &[Value::string("run")]);
         assert_eq!(calls.get(), 1);
         assert_eq!(
@@ -466,5 +478,9 @@ fn original_procedure_epilogue_and_abort_retire_only_the_entered_oo_frame_and_na
             assert_eq!(vm.frames.len(), 1);
             assert_eq!(vm.resolution_stacks.ns_stack.len(), 1);
         }
+        let retained = vm.execution_refusal.clone();
+        drop(episode);
+        assert_eq!(vm.take_host_boundary_refusal(), retained);
+        assert!(vm.execution_refusal.is_none());
     }
 }

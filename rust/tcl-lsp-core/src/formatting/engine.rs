@@ -111,6 +111,8 @@ struct CommandArg {
     formatted_body: Option<String>,
     /// Source-only layout of this genuine selected definition-member body.
     member_body_presentation: Option<tcl_registry::definer::SourceDefinitionMemberBodyPresentation>,
+    /// Original local lexical word, independently of analysis/value receipts.
+    lexical_word: tcl_lexer::NativeWord,
     original_word: Option<tcl_lexer::NativeWord>,
     original_input: Option<tcl_compiler::signature_scan::scope::SignatureSourceNameInput>,
 }
@@ -193,58 +195,140 @@ fn reconstruct_raw(
     sm: &SourceMap,
     tok: Token,
     in_quotes: bool,
-    config: &FormatterConfig,
-) -> String {
-    match tok.kind {
+    lexical_config: tcl_lexer::LexerConfig,
+) -> Option<String> {
+    Some(match tok.kind {
         TokenType::Str if in_quotes => sm.text(tok.span).to_owned(),
         TokenType::Str => format!("{{{}}}", sm.token_text(tok)),
         TokenType::Cmd => format!(
             "[{}]",
             super::source_layout::collapse_script_separator_continuations(
                 sm.token_text(tok),
-                config.lexer_config(),
+                lexical_config,
                 MAX_FORMAT_DEPTH,
             )
             .unwrap_or_else(|| sm.token_text(tok).to_owned())
         ),
         TokenType::Var => {
-            let raw = sm.text(tok.span);
-            if raw.starts_with("${") {
-                format!("${{{}}}", sm.token_text(tok))
-            } else {
-                format!("${}", sm.token_text(tok))
-            }
+            return original_variable_source(sm, tok, lexical_config)
+                .map(|(source, _)| source.to_owned());
         }
         TokenType::Expand => "{*}".to_owned(),
         // `JimTcl`'s `$(…)`: reconstruct the sugar around the expression
         // body, or formatting a Jim file rewrites `$($a*2)` to `$a*2`.
         TokenType::ExprSugar => format!("$({})", sm.token_text(tok)),
         _ => sm.token_text(tok).to_owned(),
-    }
+    })
 }
 
 /// Rebuild an argument's source text from its tokens, optionally
 /// rewriting `$var` → `${var}`.
-fn reconstruct_arg(
-    sm: &SourceMap,
-    arg: &CommandArg,
-    braced_vars: bool,
-    config: &FormatterConfig,
-) -> String {
-    use std::fmt::Write as _;
-    let mut raw = String::new();
+fn reconstruct_arg(sm: &SourceMap, arg: &CommandArg, braced_vars: bool) -> String {
+    let word = &arg.lexical_word;
+    let lexical_config = word.config();
+    let original = || sm.text(word.span()).to_owned();
+    let mut baseline = String::new();
+    let mut proposal = String::new();
     for &tok in &arg.tokens {
-        if braced_vars && tok.kind == TokenType::Var {
-            let _ = write!(raw, "${{{}}}", sm.token_text(tok));
+        let Some(raw) = reconstruct_raw(sm, tok, arg.is_quoted, lexical_config) else {
+            return original();
+        };
+        baseline.push_str(&raw);
+        let selected = if braced_vars && tok.kind == TokenType::Var {
+            original_variable_source(sm, tok, lexical_config).and_then(|(_, reference)| {
+                // A separately substituted index cannot become literal name data.
+                if reference.index.is_some() {
+                    return None;
+                }
+                let name = std::str::from_utf8(reference.name).ok()?;
+                tcl_syntax::naming::scalar_source_reference(name, lexical_config, true)
+            })
         } else {
-            raw.push_str(&reconstruct_raw(sm, tok, arg.is_quoted, config));
-        }
+            None
+        };
+        proposal.push_str(selected.as_deref().unwrap_or(&raw));
     }
     if arg.is_quoted {
-        format!("\"{raw}\"")
-    } else {
-        raw
+        baseline = format!("\"{baseline}\"");
+        proposal = format!("\"{proposal}\"");
     }
+    if baseline == proposal {
+        return baseline;
+    }
+    if same_variable_word_components(&baseline, &proposal, word) {
+        proposal
+    } else {
+        // Other independently selected layout remains available, while the
+        // unproved variable spelling stays exactly as it was written.
+        baseline
+    }
+}
+
+/// Reborrow the complete configured reference and authenticate the token's
+/// exact span/content offset. The scanner owns every original closing byte.
+fn original_variable_source<'a>(
+    map: &SourceMap<'a>,
+    token: Token,
+    config: tcl_lexer::LexerConfig,
+) -> Option<(&'a str, tcl_lexer::word_parts::RawVarRef<'a>)> {
+    if token.kind != TokenType::Var {
+        return None;
+    }
+    let source = map.source_bytes();
+    let at = usize::try_from(token.span.start().checked_sub(map.base_offset())?).ok()?;
+    (source.get(at) == Some(&b'$')).then_some(())?;
+    let reference = tcl_lexer::word_parts::scan_var_ref(source, at, config).ok()??;
+    if reference.source_span(source, at, map.base_offset())? != token.span
+        || reference.name_range_in(source)?.start
+            != at.checked_add(usize::from(token.content_offset))?
+    {
+        return None;
+    }
+    Some((
+        std::str::from_utf8(source.get(at..reference.next)?).ok()?,
+        reference,
+    ))
+}
+
+/// Compare full lexical components after proposing a reference style change.
+/// This supplies source syntax only, independently of Native formatting/edit
+/// eligibility, variable identity, cell ownership or evaluation equivalence.
+fn same_variable_word_components(
+    baseline: &str,
+    proposal: &str,
+    original: &tcl_lexer::NativeWord,
+) -> bool {
+    let capture = |source: &str| {
+        let parsed = tcl_lexer::native_script_words_in(
+            tcl_lexer::SourceImage::document(source),
+            tcl_lexer::Span::new(0, u32::try_from(source.len()).ok()?),
+            original.config(),
+        )
+        .ok()?;
+        let [command] = parsed.commands.as_slice() else {
+            return None;
+        };
+        let [word] = command.words.as_slice() else {
+            return None;
+        };
+        (parsed.fatal_tail.is_none()
+            && word.group().expand == original.group().expand
+            && word.written_bytes() == source.as_bytes())
+        .then(|| word.clone())
+    };
+    let Some(baseline) = capture(baseline) else {
+        return false;
+    };
+    let Some(proposal) = capture(proposal) else {
+        return false;
+    };
+    let (Ok(before), Ok(after)) = (baseline.parts(), proposal.parts()) else {
+        return false;
+    };
+    before
+        .iter()
+        .map(|part| &part.part)
+        .eq(after.iter().map(|part| &part.part))
 }
 
 /// Explicit Logical parameter-list spacing under the supplied word rules.
@@ -372,11 +456,11 @@ fn render_param_list_arg(
     // docs/design/analysis/name-resolution-proofs/original-native-formal-list-formatting.md
     match (&arg.original_word, &arg.original_input) {
         (Some(word), Some(input)) => normalise_original_param_list(word, input, config)
-            .unwrap_or_else(|| reconstruct_arg(sm, arg, false, config)),
+            .unwrap_or_else(|| reconstruct_arg(sm, arg, false)),
         (Some(word), None) if logical && word.config() == config.lexer_config() => {
             normalise_param_list(&arg.text, config.word_rules())
         }
-        _ => reconstruct_arg(sm, arg, false, config),
+        _ => reconstruct_arg(sm, arg, false),
     }
 }
 
@@ -434,7 +518,22 @@ fn parse_commands(
     source: &str,
     sm: &SourceMap,
     tokens: &[Token],
-) -> (Vec<ParsedCommand>, Vec<CommentLine>) {
+    config: tcl_lexer::LexerConfig,
+) -> Option<(Vec<ParsedCommand>, Vec<CommentLine>)> {
+    if sm.base_offset() != 0 || sm.source_bytes() != source.as_bytes() {
+        return None;
+    }
+    let image = tcl_lexer::SourceImage::document(source);
+    let mut words = std::collections::HashMap::new();
+    for command in tcl_lexer::group_commands(tokens, source, config) {
+        for group in command.words {
+            let word =
+                tcl_lexer::NativeWord::from_group(image.clone(), config, tokens, &group).ok()?;
+            if words.insert(word.span().start(), word).is_some() {
+                return None;
+            }
+        }
+    }
     let mut commands: Vec<ParsedCommand> = Vec::new();
     let mut pending_comments: Vec<CommentLine> = Vec::new();
     let mut pending_blank_lines = 0usize;
@@ -525,6 +624,7 @@ fn parse_commands(
                 is_quoted: detected_quoted,
                 formatted_body: None,
                 member_body_presentation: None,
+                lexical_word: words.get(&tok.span.start())?.clone(),
                 original_word: None,
                 original_input: None,
             });
@@ -543,7 +643,22 @@ fn parse_commands(
         false,
         &mut commands,
     );
-    (commands, pending_comments)
+    for arg in commands.iter().flat_map(|command| &command.args) {
+        if !arg
+            .tokens
+            .iter()
+            .filter(|token| token.kind != TokenType::Expand)
+            .eq(arg.lexical_word.tokens().iter())
+            || arg
+                .tokens
+                .iter()
+                .any(|token| token.kind == TokenType::Expand)
+                != arg.lexical_word.group().expand
+        {
+            return None;
+        }
+    }
+    Some((commands, pending_comments))
 }
 
 /// Current source grammar for authoring layout. This carries no execution or
@@ -1434,7 +1549,7 @@ fn render_lambda_literal_arg(
 ) -> String {
     // Implementation contract: naming.editor.original-native-formal-list-formatting
     // docs/design/analysis/name-resolution-proofs/original-native-formal-list-formatting.md
-    let fallback = || reconstruct_arg(sm, arg, false, config);
+    let fallback = || reconstruct_arg(sm, arg, false);
     let Some(elems) = decoded_lambda(arg, logical) else {
         return fallback();
     };
@@ -1521,7 +1636,7 @@ fn append_word_arg(ctx: &WordArgContext<'_>, parts: &mut Vec<String>) -> bool {
         parts.push(text.to_owned());
         return true;
     }
-    let mut raw = reconstruct_arg(sm, arg, config.enforce_braced_variables, config);
+    let mut raw = reconstruct_arg(sm, arg, config.enforce_braced_variables);
     if raw.contains('\n')
         && !arg.is_braced
         && !arg.tokens.iter().any(|token| {
@@ -1878,7 +1993,7 @@ fn concat_expr_parts(
     }
     let joined = args[1..]
         .iter()
-        .map(|a| reconstruct_arg(sm, a, config.enforce_braced_variables, config))
+        .map(|a| reconstruct_arg(sm, a, config.enforce_braced_variables))
         .collect::<Vec<_>>()
         .join(" ");
     Some(vec![
@@ -1914,7 +2029,7 @@ fn reconstruct_case_list(
                 parts.push(format!("\n{indent}}}"));
             }
         } else {
-            let raw = reconstruct_arg(sm, arg, config.enforce_braced_variables, config);
+            let raw = reconstruct_arg(sm, arg, config.enforce_braced_variables);
             if !parts.is_empty() {
                 parts.push(" ".to_owned());
             }
@@ -2105,7 +2220,7 @@ pub(crate) fn formatting_range_region(
             config.lexer_config().nested()
         };
         let tokens = Lexer::with_config(text, local_config).tokenise_all().ok()?;
-        let (mut commands, _) = parse_commands(text, &map, &tokens);
+        let (mut commands, _) = parse_commands(text, &map, &tokens, local_config)?;
         let mut children = Vec::new();
         for command in &mut commands {
             identify_body_args(command, registry, identities, region.start(), config, text);
@@ -2210,7 +2325,11 @@ pub(crate) fn format_body(
     else {
         return source.to_owned();
     };
-    let (mut commands, trailing_comments) = parse_commands(source, &sm, &tokens);
+    let Some((mut commands, trailing_comments)) =
+        parse_commands(source, &sm, &tokens, local_config)
+    else {
+        return source.to_owned();
+    };
 
     let indent = config.make_indent(indent_level);
     let inner_level = indent_level + 1;
@@ -3016,7 +3135,10 @@ mod tests {
         let tokens = Lexer::with_config(source, config.lexer_config())
             .tokenise_all()
             .unwrap();
-        let mut command = parse_commands(source, &map, &tokens).0.remove(0);
+        let mut command = parse_commands(source, &map, &tokens, config.lexer_config())
+            .unwrap()
+            .0
+            .remove(0);
         identify_body_args(&mut command, &registry, &identities, 0, &config, source);
         assert!(command.source_roles.is_none());
         assert!(command.logical_roles.is_some());
@@ -3045,7 +3167,10 @@ mod tests {
             strict_quoting: true,
             ..config.lexer_config()
         });
-        let mut command = parse_commands(source, &map, &tokens).0.remove(0);
+        let mut command = parse_commands(source, &map, &tokens, config.lexer_config())
+            .unwrap()
+            .0
+            .remove(0);
         identify_body_args(&mut command, &registry, &identities, 0, &foreign, source);
         assert_eq!(command.source_traits, Some(Traits::empty()));
         assert_eq!(command.source_roles, Some(Vec::new()));
@@ -3497,7 +3622,10 @@ mod tests {
         let tokens = Lexer::with_config(source, lexer_config)
             .tokenise_all()
             .unwrap();
-        let mut command = parse_commands(source, &map, &tokens).0.remove(0);
+        let mut command = parse_commands(source, &map, &tokens, lexer_config)
+            .unwrap()
+            .0
+            .remove(0);
         let mut arg = command.args.remove(0);
         arg.kind = ArgKind::ParamList;
         arg.original_word = Some(word.clone());
@@ -4096,5 +4224,66 @@ mod tests {
             );
         }
         assert_eq!(fmt(&formatted), formatted);
+    }
+}
+
+#[cfg(test)]
+mod original_variable_reconstruction_tests {
+    use super::*;
+
+    #[test]
+    fn variable_style_proposals_keep_original_array_indices_and_selected_name_grammar() {
+        let registry = CommandRegistry::build_default();
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let config = FormatterConfig {
+                enforce_braced_variables: true,
+                ..FormatterConfig::for_dialect(dialect)
+            };
+            for (source, expected) in [
+                ("puts $x\n", "puts ${x}\n"),
+                ("puts \"v:$x\"\n", "puts \"v:${x}\"\n"),
+                ("puts $a(k)\n", "puts $a(k)\n"),
+                ("puts $a($i)\n", "puts $a($i)\n"),
+                ("puts ${a($i)}\n", "puts ${a($i)}\n"),
+                ("puts \"v:$a($i)\"\n", "puts \"v:$a($i)\"\n"),
+                ("puts ${$n}\n", "puts ${$n}\n"),
+                ("puts ${}\n", "puts ${}\n"),
+                ("puts ${a{b}c}\n", "puts ${a{b}c}\n"),
+            ] {
+                assert_eq!(
+                    format_tcl(source, &config, &registry),
+                    expected,
+                    "{dialect}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn configured_variable_reconstruction_reborrows_whole_words_and_refuses_changed_tokens() {
+        for dialect in ["tcl8.6", "tcl9.1", "jim"] {
+            let config = FormatterConfig::for_dialect(dialect).lexer_config();
+            let source = "puts \"v:$a($i)\"";
+            let map = SourceMap::new(source);
+            let tokens = Lexer::with_config(source, config).tokenise_all().unwrap();
+            let (mut commands, _) = parse_commands(source, &map, &tokens, config).unwrap();
+            let arg = &mut commands[0].args[1];
+            assert_eq!(reconstruct_arg(&map, arg, true), "\"v:$a($i)\"");
+            assert!(!same_variable_word_components(
+                "\"v:$a($i)\"",
+                "\"v:${a($i)}\"",
+                &arg.lexical_word,
+            ));
+            let token = arg
+                .tokens
+                .iter_mut()
+                .find(|token| token.kind == TokenType::Var)
+                .unwrap();
+            token.content_offset = token.content_offset.saturating_add(1);
+            assert!(original_variable_source(&map, *token, config).is_none());
+            assert_eq!(reconstruct_arg(&map, arg, true), "\"v:$a($i)\"");
+            let foreign = SourceMap::new("puts other");
+            assert!(parse_commands(source, &foreign, &tokens, config).is_none());
+        }
     }
 }

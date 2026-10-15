@@ -11419,7 +11419,13 @@ mod readonly_source_optimisation_owner_tests {
             tcl_compiler::command_binding::ModuleCommandMutations::default()
         );
         assert!(module_has_trace_facts(&unit.ir_module));
-        let functions = unit.all_body_function_units().collect::<Vec<_>>();
+        assert!(unit.top_level.body_id.is_none());
+        let functions = unit
+            .ir_module
+            .original_native_declaration_body_units
+            .keys()
+            .map(|id| unit.function_for_body(Some(*id)).unwrap())
+            .collect::<Vec<_>>();
         assert_eq!(functions.len(), 2);
         for function in functions {
             let id = function.body_id.unwrap();
