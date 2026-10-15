@@ -23,15 +23,18 @@ use std::rc::Rc;
 use tcl_cmd_core::list as list_core;
 use tcl_runtime_api::Completion;
 
-use crate::command::{completion_from_cmd_error, err_with_code};
+use crate::command::err_with_code;
 use crate::interp::{Vm, err, err_wrong_args, ok};
 use crate::value::Value;
 
 /// Map a portable `tcl-cmd-core` result onto the VM's `Completion`.
-fn adapt(result: Result<Value, tcl_cmd_core::CmdError>) -> Completion<Value> {
-    match result {
+fn adapt(
+    vm: &mut Vm,
+    run: impl FnOnce(&mut Vm) -> Result<Value, tcl_cmd_core::CmdError>,
+) -> Completion<Value> {
+    match run(vm) {
         Ok(v) => ok(v),
-        Err(e) => completion_from_cmd_error(e),
+        Err(e) => vm.cmd_error(e),
     }
 }
 
@@ -66,7 +69,7 @@ fn cmd_list(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 
 fn cmd_llength(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     match args {
-        [l] => adapt(list_core::llength(vm, l)),
+        [l] => adapt(vm, |vm| list_core::llength(vm, l)),
         _ => err_wrong_args("llength list"),
     }
 }
@@ -75,14 +78,14 @@ fn cmd_lindex(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((list, idxs)) = args.split_first() else {
         return err_wrong_args("lindex list ?index ...?");
     };
-    adapt(list_core::lindex(vm, list, idxs))
+    adapt(vm, |vm| list_core::lindex(vm, list, idxs))
 }
 
 fn cmd_lrange(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let [list, from, to] = args else {
         return err_wrong_args("lrange list first last");
     };
-    adapt(list_core::lrange(vm, list, from, to))
+    adapt(vm, |vm| list_core::lrange(vm, list, from, to))
 }
 
 fn cmd_lappend(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
@@ -149,7 +152,7 @@ fn cmd_lassign(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 
 fn cmd_lreverse(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     match args {
-        [l] => adapt(list_core::lreverse(vm, l)),
+        [l] => adapt(vm, |vm| list_core::lreverse(vm, l)),
         _ => err_wrong_args("lreverse list"),
     }
 }
@@ -158,21 +161,21 @@ fn cmd_lrepeat(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((count, elems)) = args.split_first() else {
         return err_wrong_args("lrepeat count ?value ...?");
     };
-    adapt(list_core::lrepeat(vm, count, elems))
+    adapt(vm, |vm| list_core::lrepeat(vm, count, elems))
 }
 
 fn cmd_linsert(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let [list, index, elems @ ..] = args else {
         return err_wrong_args("linsert list index ?element ...?");
     };
-    adapt(list_core::linsert(vm, list, index, elems))
+    adapt(vm, |vm| list_core::linsert(vm, list, index, elems))
 }
 
 fn cmd_lreplace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let [list, from, to, rest @ ..] = args else {
         return err_wrong_args("lreplace list first last ?element ...?");
     };
-    adapt(list_core::lreplace(vm, list, from, to, rest))
+    adapt(vm, |vm| list_core::lreplace(vm, list, from, to, rest))
 }
 
 /// `ledit listVar first last ?element ...?` — the in-place `lreplace` (Tcl 9)
@@ -191,7 +194,7 @@ fn cmd_ledit(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let release = vm.runtime_version();
     let result = match list_core::ledit(vm, &cur, from, to, rest, release) {
         Ok(v) => v,
-        Err(e) => return completion_from_cmd_error(e),
+        Err(e) => return vm.cmd_error(e),
     };
     match vm.store_var_result(&n, result) {
         Ok(stored) => ok(stored),
@@ -218,7 +221,7 @@ fn cmd_lset(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let release = vm.runtime_version();
     let new = match list_core::lset(vm, &cur, indices, value.clone(), release) {
         Ok(r) => r,
-        Err(e) => return completion_from_cmd_error(e),
+        Err(e) => return vm.cmd_error(e),
     };
     match vm.store_var_result(&n, new) {
         Ok(stored) => ok(stored),
@@ -242,7 +245,7 @@ fn cmd_lpop(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let release = vm.runtime_version();
     let (removed, rest) = match list_core::lpop(vm, &cur, indices, release) {
         Ok(r) => r,
-        Err(e) => return completion_from_cmd_error(e),
+        Err(e) => return vm.cmd_error(e),
     };
     if let Err(e) = vm.var_set(&n, rest) {
         return e;
@@ -332,13 +335,13 @@ fn vm_compare(
 }
 
 fn cmd_concat(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    adapt(list_core::concat(vm, args))
+    adapt(vm, |vm| list_core::concat(vm, args))
 }
 
 fn cmd_join(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     match args {
-        [l] => adapt(list_core::join(vm, l, None)),
-        [l, s] => adapt(list_core::join(vm, l, Some(s))),
+        [l] => adapt(vm, |vm| list_core::join(vm, l, None)),
+        [l, s] => adapt(vm, |vm| list_core::join(vm, l, Some(s))),
         _ => err_wrong_args("join list ?joinString?"),
     }
 }

@@ -36,6 +36,7 @@
 //! thread last installed. `string range abcdefghijkl 010 end` is `ijkl` on
 //! tclsh 8.4.20 to 8.6.18 and `kl` from 9.0.4.
 
+use tcl_dialect::TclVersion;
 use tcl_syntax::number::NumberSyntax;
 use tcl_syntax::value::ValueOps;
 
@@ -47,6 +48,117 @@ use crate::value_size;
 pub fn length<O: ValueOps>(ops: &mut O, s: &O::Value) -> O::Value {
     let n = ops.char_len(s);
     ops.new_int(i64::try_from(n).unwrap_or(i64::MAX))
+}
+
+/// `string bytelength str` (8.4 to 8.6) — the bytes of the string's internal
+/// form, Tcl's modified UTF-8, which spells a NUL in two.
+pub fn bytelength<O: ValueOps>(ops: &mut O, s: &O::Value) -> O::Value {
+    let text = ops.as_chars(s);
+    let n: usize = text
+        .chars()
+        .map(|c| if c == '\0' { 2 } else { c.len_utf8() })
+        .sum();
+    ops.new_int(i64::try_from(n).unwrap_or(i64::MAX))
+}
+
+/// Every subcommand `string` has in some release, in the order the `string`
+/// ensemble lists them (8.5 on); a release's own are those its registry spec
+/// admits.
+pub const SUBCOMMANDS: &[&str] = &[
+    "bytelength",
+    "cat",
+    "compare",
+    "equal",
+    "first",
+    "index",
+    "insert",
+    "is",
+    "last",
+    "length",
+    "map",
+    "match",
+    "range",
+    "repeat",
+    "replace",
+    "reverse",
+    "tolower",
+    "totitle",
+    "toupper",
+    "trim",
+    "trimleft",
+    "trimright",
+    "wordend",
+    "wordstart",
+];
+
+/// Tcl 8.4's `string` options in `Tcl_StringObjCmd`'s table order, which its
+/// error lists them in.
+const OPTIONS_8_4: &[&str] = &[
+    "bytelength",
+    "compare",
+    "equal",
+    "first",
+    "index",
+    "is",
+    "last",
+    "length",
+    "map",
+    "match",
+    "range",
+    "repeat",
+    "replace",
+    "tolower",
+    "toupper",
+    "totitle",
+    "trim",
+    "trimleft",
+    "trimright",
+    "wordend",
+    "wordstart",
+];
+
+/// The usage error `string` alone raises under `release`: 8.4's
+/// `Tcl_StringObjCmd`, 8.5's ensemble, and 8.6's.
+#[must_use]
+pub fn usage_error(release: TclVersion) -> CmdError {
+    CmdError::wrong_args(match release {
+        TclVersion::V8_4 => "string option arg ?arg ...?",
+        TclVersion::V8_5 => "string subcommand ?argument ...?",
+        _ => "string subcommand ?arg ...?",
+    })
+}
+
+/// The index in `subs`, the release's `string` subcommands in
+/// [`SUBCOMMANDS`] order, of the one `word` selects, as `release`'s `string`
+/// selects it: 8.4's option table, whose miss is `bad option` or
+/// `ambiguous option` and sets no error code, or from 8.5 the ensemble's
+/// unique prefix, whose miss is `unknown or ambiguous subcommand` with
+/// `TCL LOOKUP SUBCOMMAND`.
+///
+/// # Errors
+/// The release's error for a word that selects no one subcommand.
+pub fn select_subcommand<T: AsRef<[u8]>>(
+    subs: &[T],
+    word: &[u8],
+    release: TclVersion,
+) -> Result<usize, CmdError> {
+    if release == TclVersion::V8_4 {
+        let table = crate::prefix::OptionTable::abbreviating("option", OPTIONS_8_4);
+        let name = table.index_of_in(word, release)?;
+        return subs
+            .iter()
+            .position(|sub| sub.as_ref() == OPTIONS_8_4[name].as_bytes())
+            .ok_or_else(|| CmdError::new(format!("bad option \"{}\"", OPTIONS_8_4[name])));
+    }
+    crate::ensemble::resolve_subcommand(subs, word, true).ok_or_else(|| {
+        let message =
+            crate::ensemble::unknown_subcommand_message(subs, word, true, b"::tcl::string");
+        let word = String::from_utf8_lossy(word);
+        CmdError::with_error_code(
+            String::from_utf8_lossy(&message).into_owned(),
+            tcl_syntax::list::join_list(["TCL", "LOOKUP", "SUBCOMMAND", word.as_ref()]),
+        )
+    })
 }
 
 /// `string index str charIndex` — the one-character string at `idx`, or empty
@@ -842,6 +954,9 @@ pub fn dispatch_canon<O: ValueOps>(
     };
     match sub {
         "length" => arity(1, "string length string").or_else(|| Some(Ok(length(ops, &rest[0])))),
+        "bytelength" => {
+            arity(1, "string bytelength string").or_else(|| Some(Ok(bytelength(ops, &rest[0]))))
+        }
         "index" => arity(2, "string index string charIndex")
             .or_else(|| Some(index(ops, &rest[0], &rest[1], numbers))),
         "range" => arity(3, "string range string first last")
@@ -1003,6 +1118,28 @@ fn is_connector_punct(c: char) -> bool {
             | '\u{FE4F}'
             | '\u{FF3F}'
     )
+}
+
+/// [`dispatch_canon`] as `release`'s `string` runs `sub`: its numerals, and
+/// the usage `first` and `last` give, whose words 8.4 names `subString
+/// string` and whose last index 9.0 names `lastIndex`.
+pub fn dispatch_canon_in<O: ValueOps>(
+    ops: &mut O,
+    sub: &str,
+    rest: &[O::Value],
+    release: TclVersion,
+) -> Option<Result<O::Value, CmdError>> {
+    if matches!(sub, "first" | "last") && !matches!(rest.len(), 2 | 3) {
+        let usage = match release {
+            TclVersion::V8_4 => format!("string {sub} subString string ?startIndex?"),
+            TclVersion::V9_0 | TclVersion::V9_1 if sub == "last" => {
+                "string last needleString haystackString ?lastIndex?".to_owned()
+            }
+            _ => format!("string {sub} needleString haystackString ?startIndex?"),
+        };
+        return Some(Err(CmdError::wrong_args(&usage)));
+    }
+    dispatch_canon(ops, sub, rest, release.number_syntax())
 }
 
 /// Dispatch a `string` subcommand from the raw argument vector (`args[0]` is the

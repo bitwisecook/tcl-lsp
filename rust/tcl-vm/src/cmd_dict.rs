@@ -21,7 +21,7 @@
 use tcl_runtime_api::completion_options::ControlOptionPolicy;
 use tcl_runtime_api::{Code, Completion};
 
-use crate::command::{BuiltinFn, completion_from_cmd_error, settle_control_options};
+use crate::command::{BuiltinFn, settle_control_options};
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
 
@@ -280,9 +280,7 @@ fn unset_path(vm: &mut Vm, cur: &Value, keys: &[Value]) -> Result<Value, Complet
             parent_was_copied = copied;
             i += 1;
         } else {
-            return Err(completion_from_cmd_error(
-                tcl_cmd_core::dict::key_not_known(&k),
-            ));
+            return Err(vm.cmd_error(tcl_cmd_core::dict::key_not_known(&k)));
         }
     }
     for (mut ps, k, bucket_count) in frames.into_iter().rev() {
@@ -311,9 +309,7 @@ fn get_path(vm: &mut Vm, cur: &Value, keys: &[Value]) -> Result<Value, Completio
         match lookup(&ps, &ks) {
             Some(found) => v = found.clone(),
             None => {
-                return Err(completion_from_cmd_error(
-                    tcl_cmd_core::dict::key_not_known(&ks),
-                ));
+                return Err(vm.cmd_error(tcl_cmd_core::dict::key_not_known(&ks)));
             }
         }
     }
@@ -337,7 +333,7 @@ fn dict_op(vm: &mut Vm, sub: &str, rest: &[Value], invoked: &str) -> Completion<
             // A *value-parse* failure is re-worded to C's dict spelling and
             // given its `TCL VALUE DICTIONARY …` code; anything else (wrong #
             // args, unknown key) passes through unchanged.
-            Err(e) if e.error_code().is_some() => crate::command::completion_from_cmd_error(e),
+            Err(e) if e.error_code().is_some() => vm.cmd_error(e),
             Err(e) => crate::exec::dict_parse_err(&e.into_message()),
         };
     }

@@ -116,9 +116,19 @@ pub(crate) fn append(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 // string ensemble
 
+/// Every release's `string` subcommands ([`tcl_cmd_core::string::SUBCOMMANDS`])
+/// as the bytes this runtime's words are.
+fn string_subcommands() -> Vec<&'static [u8]> {
+    tcl_cmd_core::string::SUBCOMMANDS
+        .iter()
+        .map(|sub| sub.as_bytes())
+        .collect()
+}
+
 fn string_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    let release = interp.runtime_version();
     if argv.len() < 2 {
-        return interp.wrong_args(b"string subcommand ?arg ...?");
+        return interp.report_cmd_error(tcl_cmd_core::string::usage_error(release));
     }
     // The `string` ensemble resolves its subcommand by unambiguous prefix
     // (`Tcl_GetIndexFromObj`): `string fir` → `first`, `string trim` wins over
@@ -127,22 +137,13 @@ fn string_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // `insert` arrives in Tcl 9, so under an earlier pin it must not resolve
     // and must not make `string in` ambiguous with `index`.
     let subs = crate::environment::release_subcommands(
-        interp.runtime_version().dialect_profile_name(),
+        release.dialect_profile_name(),
         "string",
-        STRING_SUBCOMMANDS,
+        &string_subcommands(),
     );
-    let canonical: &[u8] = match tcl_cmd_core::ensemble::resolve_subcommand(subs, &sub, true) {
-        Some(index) => subs[index],
-        // The whole sentence — including the ensemble's comma before `or` —
-        // belongs to the owner, not to a literal beside the table.
-        None => {
-            return interp.set_error(&tcl_cmd_core::ensemble::unknown_subcommand_message(
-                subs,
-                &sub,
-                true,
-                b"::tcl::string",
-            ));
-        }
+    let canonical: &[u8] = match tcl_cmd_core::string::select_subcommand(subs, &sub, release) {
+        Ok(index) => subs[index],
+        Err(error) => return interp.report_cmd_error(error),
     };
     // `string repeat` is the one subcommand that can allocate without bound in
     // one command, so it is charged against an embedder's value-size limit
@@ -184,9 +185,8 @@ fn string_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         compiler.and_then(|compiler| interp.compiled_index_argv(compiler, argv, &[3, 4]));
     let argv = compiled.as_ref().map_or(argv, |c| c.argv.as_slice());
     if let Ok(canon_str) = std::str::from_utf8(canonical) {
-        let numbers = interp.runtime_version().number_syntax();
         if let Some(result) =
-            tcl_cmd_core::string::dispatch_canon(interp, canon_str, &argv[2..], numbers)
+            tcl_cmd_core::string::dispatch_canon_in(interp, canon_str, &argv[2..], release)
         {
             return match result {
                 Ok(v) => {
@@ -243,10 +243,12 @@ fn compiled_string(
         // character (`INST_STR_CLASS`).
         InlineCodegenHookId::StringIs => {
             let compiles = argv.len() == 4 || (argv.len() == 5 && is_option(3, b"-strict"));
-            let class = literal[2]
+            let class = (compiles && literal[2])
                 .then(|| obj_bytes(argv[2]))
                 .and_then(|class| String::from_utf8(class).ok())
-                .and_then(|class| tcl_cmd_core::string_is::resolve_class(&class).ok());
+                .and_then(|class| {
+                    tcl_cmd_core::string_is::resolve_class(&class, interp.runtime_version()).ok()
+                });
             if compiles && class.is_some_and(tcl_cmd_core::string_is::is_character_class) {
                 crate::list::read_as_string(argv[argv.len() - 1]);
             }
@@ -361,34 +363,6 @@ fn compiled_string_replace(
     }
     Some(Code::Ok)
 }
-
-/// The `string` ensemble subcommands, in the order used by the
-/// "unknown or ambiguous subcommand" diagnostic.
-const STRING_SUBCOMMANDS: &[&[u8]] = &[
-    b"cat",
-    b"compare",
-    b"equal",
-    b"first",
-    b"index",
-    b"insert",
-    b"is",
-    b"last",
-    b"length",
-    b"map",
-    b"match",
-    b"range",
-    b"repeat",
-    b"replace",
-    b"reverse",
-    b"tolower",
-    b"totitle",
-    b"toupper",
-    b"trim",
-    b"trimleft",
-    b"trimright",
-    b"wordend",
-    b"wordstart",
-];
 
 fn str_length(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 3 {
@@ -1086,36 +1060,6 @@ fn str_map(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `StringIsCmd`'s `isClasses[]`). The order is significant: it drives the
 /// `bad class`/`ambiguous class` "must be …" diagnostic, and the class is
 /// resolved against this table by exact name or unambiguous prefix.
-const IS_CLASSES: tcl_cmd_core::prefix::OptionTable<'static, &[u8]> =
-    tcl_cmd_core::prefix::OptionTable::abbreviating("class", IS_CLASS_NAMES);
-
-const IS_CLASS_NAMES: &[&[u8]] = &[
-    b"alnum",
-    b"alpha",
-    b"ascii",
-    b"control",
-    b"boolean",
-    b"dict",
-    b"digit",
-    b"double",
-    b"entier",
-    b"false",
-    b"graph",
-    b"integer",
-    b"list",
-    b"lower",
-    b"print",
-    b"punct",
-    b"space",
-    b"true",
-    b"upper",
-    b"wideinteger",
-    b"wordchar",
-    b"xdigit",
-];
-
-/// `string is`'s own options (`Tcl_GetIndexFromObj(…, "option", 0)`), in C
-/// table order — the two-entry enumeration has no comma before `or`.
 const IS_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static, &[u8]> =
     tcl_cmd_core::prefix::OptionTable::abbreviating("option", &[b"-strict", b"-failindex"]);
 
@@ -1124,15 +1068,17 @@ const IS_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static, &[u8]> =
 /// when the result is 0** (`StringIsCmd`). Empty input is a class member unless
 /// `-strict` (except `list`/`dict`, which ignore `-strict`).
 fn str_is(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    const USAGE: &[u8] = b"string is class ?-strict? ?-failindex var? str";
-    if argv.len() < 4 || argv.len() > 7 {
-        return interp.wrong_args(USAGE);
+    let release = interp.runtime_version();
+    if let Some(error) = tcl_cmd_core::string_is::arity_error(argv.len() - 2) {
+        return interp.report_cmd_error(error);
     }
     let class_arg = obj_bytes(argv[2]);
-    let class: &[u8] = match IS_CLASSES.index_of(&class_arg) {
-        Ok(i) => IS_CLASSES.names()[i],
-        Err(m) => return interp.set_error(&m),
-    };
+    let class: &[u8] =
+        match tcl_cmd_core::string_is::resolve_class(&String::from_utf8_lossy(&class_arg), release)
+        {
+            Ok(class) => class.as_bytes(),
+            Err(error) => return interp.report_cmd_error(error),
+        };
 
     // The last argument is always the string under test; the args between the
     // class and it are options (`Tcl_GetIndexFromObj` over IS_OPTIONS).
@@ -1142,7 +1088,7 @@ fn str_is(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let mut k = 3;
     while k < last {
         let opt = obj_bytes(argv[k]);
-        match IS_OPTIONS.index_of(&opt) {
+        match IS_OPTIONS.index_of_in(&opt, release) {
             Ok(0) => {
                 strict = true;
                 k += 1;
@@ -1159,7 +1105,7 @@ fn str_is(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 failvar = Some(obj_bytes(argv[k + 1]));
                 k += 2;
             }
-            Err(m) => return interp.set_error(&m),
+            Err(error) => return interp.report_cmd_error(error),
         }
     }
 

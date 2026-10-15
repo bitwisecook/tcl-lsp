@@ -1225,7 +1225,7 @@ impl CodegenCtx<'_> {
         let spec = self
             .registry
             .get(body_cmd)
-            .filter(|s| s.name == body_cmd.as_str());
+            .filter(|s| super::cmd_subst::names_builtin(body_cmd, s.name));
 
         // Commands that need startCommand wrapping.
         let needs_start_cmd = spec.is_some_and(|s| s.traits.contains(Traits::NEEDS_START_CMD));
@@ -2514,19 +2514,22 @@ mod tests {
         );
     }
 
-    /// `::error` resolves in the registry (leading `::` falls back to
-    /// the bare spec), but the retired dispatch keyed on the raw word —
-    /// the qualified spelling must keep the generic invoke and no
-    /// startCommand wrap.
+    /// `::error` names the global builtin, which C compiles as it compiles
+    /// `error` (`TclCompileErrorCmd`).
     #[test]
-    fn catch_body_qualified_error_stays_generic() {
+    fn catch_body_qualified_error_compiles_as_error() {
         let registry = CommandRegistry::build_default();
-        let mut ctx = CodegenCtx::new(true, &[], &registry);
-        ctx.emit_catch_body("::error boom");
-        let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
-        assert!(!ops.contains(&Op::RETURN_IMM), "no inline throw: {ops:?}");
-        assert!(!ops.contains(&Op::START_CMD), "no startCommand: {ops:?}");
-        assert!(ops.contains(&Op::INVOKE_STK1), "generic invoke: {ops:?}");
+        let qualified = {
+            let mut ctx = CodegenCtx::new(true, &[], &registry);
+            ctx.emit_catch_body("::error boom");
+            ctx.instructions.iter().map(|i| i.op).collect::<Vec<Op>>()
+        };
+        let bare = {
+            let mut ctx = CodegenCtx::new(true, &[], &registry);
+            ctx.emit_catch_body("error boom");
+            ctx.instructions.iter().map(|i| i.op).collect::<Vec<Op>>()
+        };
+        assert_eq!(qualified, bare);
     }
 
     /// `throw` carries `CATCHABLE_THROW` like `error`, but its first

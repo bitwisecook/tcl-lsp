@@ -84,68 +84,33 @@ fn ilen(n: usize) -> i64 {
     i64::try_from(n).unwrap_or(i64::MAX)
 }
 
-/// The canonical `string` subcommands (Tcl 9 order), used for unique-prefix
-/// resolution and the error message.
-const STRING_SUBS: &[&str] = &[
-    "cat",
-    "compare",
-    "equal",
-    "first",
-    "index",
-    "insert",
-    "is",
-    "last",
-    "length",
-    "map",
-    "match",
-    "range",
-    "repeat",
-    "replace",
-    "reverse",
-    "tolower",
-    "totitle",
-    "toupper",
-    "trim",
-    "trimleft",
-    "trimright",
-    "wordend",
-    "wordstart",
-];
-
-/// Resolve a (possibly abbreviated) `string` subcommand to its canonical name
-/// through the shared ensemble owner (`string` is a `TclMakeEnsemble` command),
-/// or the ensemble's own miss sentence — including its comma before `or`, which
-/// `prefix::choice_list` words differently.
-fn resolve_string_sub<'a>(subs: &[&'a str], input: &str) -> Result<&'a str, String> {
-    match tcl_cmd_core::ensemble::resolve_subcommand(subs, input.as_bytes(), true) {
-        Some(index) => Ok(subs[index]),
-        None => Err(
-            String::from_utf8_lossy(&tcl_cmd_core::ensemble::unknown_subcommand_message(
-                subs,
-                input.as_bytes(),
-                true,
-                b"::tcl::string",
-            ))
-            .into_owned(),
-        ),
-    }
+/// Resolve a (possibly abbreviated) `string` subcommand among `subs`, the
+/// release's, as `release`'s `string` does
+/// ([`tcl_cmd_core::string::select_subcommand`]).
+fn resolve_string_sub<'a>(
+    subs: &[&'a str],
+    input: &str,
+    release: tcl_dialect::TclVersion,
+) -> Result<&'a str, tcl_cmd_core::CmdError> {
+    tcl_cmd_core::string::select_subcommand(subs, input.as_bytes(), release).map(|i| subs[i])
 }
 
 fn cmd_string(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let release = vm.runtime_version();
     let Some((sub, rest)) = args.split_first() else {
-        return err_wrong_args("string subcommand ?arg ...?");
+        return vm.cmd_error(tcl_cmd_core::string::usage_error(release));
     };
     // `insert` arrives in Tcl 9 and `bytelength` leaves with it, so the table
     // is the emulated release's: on 8.6 `string in` is `index`, on 9.0 it is
     // ambiguous with `insert`.
     let subs = crate::environment::release_subcommands(
-        vm.runtime_version().dialect_profile_name(),
+        release.dialect_profile_name(),
         "string",
-        STRING_SUBS,
+        tcl_cmd_core::string::SUBCOMMANDS,
     );
-    let canon = match resolve_string_sub(subs, &sub.to_str()) {
+    let canon = match resolve_string_sub(subs, &sub.to_str(), release) {
         Ok(c) => c,
-        Err(e) => return err(e),
+        Err(e) => return vm.cmd_error(e),
     };
     // `string repeat` is the one subcommand that can allocate without bound in
     // a single command, so it is charged against the value-size limit before
@@ -166,11 +131,10 @@ fn cmd_string(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // Portable subcommands now live in the shared command core (`tcl-cmd-core`);
     // the VM is a thin adapter that maps `Result<Value, CmdError>` onto its
     // `Completion`. Subcommands not yet in the core fall through to the legacy arms.
-    let numbers = vm.runtime_version().number_syntax();
-    if let Some(result) = tcl_cmd_core::string::dispatch_canon(vm, canon, rest, numbers) {
+    if let Some(result) = tcl_cmd_core::string::dispatch_canon_in(vm, canon, rest, release) {
         return match result {
             Ok(v) => ok(v),
-            Err(e) => crate::command::completion_from_cmd_error(e),
+            Err(e) => vm.cmd_error(e),
         };
     }
     match canon {
@@ -541,13 +505,18 @@ fn cmd_append(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 
 #[cfg(test)]
 mod tests {
-    use super::{STRING_SUBS, is_nocase};
+    use super::is_nocase;
 
-    /// The unit tests below exercise the resolver over the engine's full
-    /// (Tcl 9) table; the release filter that narrows it per pin is covered
+    /// The unit tests below exercise the resolver over every release's
+    /// subcommands; the release filter that narrows it per pin is covered
     /// end-to-end in `tests/cmd_info_prefix_e2e.rs`.
     fn resolve_string_sub(input: &str) -> Result<&'static str, String> {
-        super::resolve_string_sub(STRING_SUBS, input)
+        super::resolve_string_sub(
+            tcl_cmd_core::string::SUBCOMMANDS,
+            input,
+            tcl_dialect::TclVersion::V9_0,
+        )
+        .map_err(tcl_cmd_core::CmdError::into_message)
     }
 
     #[test]

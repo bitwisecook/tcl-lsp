@@ -27,7 +27,6 @@ use tcl_runtime_api::Completion;
 
 use tcl_cmd_core::lseq;
 
-use crate::command::completion_from_cmd_error;
 use crate::interp::{Vm, ok};
 use crate::value::Value;
 
@@ -46,6 +45,6 @@ fn cmd_lseq(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let refs: Vec<&[u8]> = bytes.iter().map(Vec::as_slice).collect();
     match lseq::decode(&refs).and_then(|plan| lseq::generate(vm, &plan)) {
         Ok(v) => ok(v),
-        Err(e) => completion_from_cmd_error(e),
+        Err(e) => vm.cmd_error(e),
     }
 }

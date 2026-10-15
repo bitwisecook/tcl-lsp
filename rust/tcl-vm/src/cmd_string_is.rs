@@ -38,12 +38,13 @@ const OPTIONS: OptionTable<'static> =
 pub(crate) fn string_is(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     const WRONG: &str =
         "wrong # args: should be \"string is class ?-strict? ?-failindex var? str\"";
-    if rest.len() < 2 {
-        return err(WRONG);
+    let release = vm.runtime_version();
+    if let Some(error) = tcl_cmd_core::string_is::arity_error(rest.len()) {
+        return vm.cmd_error(error);
     }
-    let class = match resolve_class(&rest[0].to_str()) {
+    let class = match resolve_class(&rest[0].to_str(), release) {
         Ok(c) => c,
-        Err(e) => return err(e.into_message()),
+        Err(e) => return vm.cmd_error(e),
     };
     let mut strict = false;
     let mut fail_var: Option<Value> = None;
@@ -52,7 +53,7 @@ pub(crate) fn string_is(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         // The loop only visits non-final arguments (the last is the string),
         // so an unrecognised token here is in option position: a bad option,
         // not a wrong count (`string is alpha a b` → `bad option "a"`).
-        match OPTIONS.index_of(rest[i].to_str().as_bytes()) {
+        match OPTIONS.index_of_in(rest[i].to_str().as_bytes(), release) {
             Ok(0) => {
                 strict = true;
                 i += 1;
@@ -67,7 +68,7 @@ pub(crate) fn string_is(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
                 i += 2;
             }
             Ok(_) => unreachable!("the option table is closed"),
-            Err(m) => return err(String::from_utf8_lossy(&m).into_owned()),
+            Err(e) => return vm.cmd_error(e),
         }
     }
     if rest.len() - i > 1 {

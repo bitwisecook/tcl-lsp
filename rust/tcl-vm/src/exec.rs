@@ -960,9 +960,7 @@ impl Vm {
             let inner = ps[idx].1.clone();
             ps[idx].1 = self.dict_unset_path_cow(&inner, &keys[1..], 3, copied)?;
         } else {
-            return Err(crate::command::completion_from_cmd_error(
-                tcl_cmd_core::dict::key_not_known(&k),
-            ));
+            return Err(self.cmd_error(tcl_cmd_core::dict::key_not_known(&k)));
         }
         Ok(dict_from_pairs_with_hash_bucket_count(&ps, bucket_count))
     }
@@ -1071,18 +1069,14 @@ fn imm_index(imm: i32, len: usize) -> isize {
 /// the non-validating `unwrap_or` forms it replaced turned a garbage index into
 /// a plausible-looking value.
 ///
-/// The word reads under the release's number grammar `numbers` and a bad one
-/// is the command's own error, code included.
-fn checked_index_value(
-    v: &Value,
-    len: usize,
-    numbers: tcl_syntax::number::NumberSyntax,
-) -> Result<isize, Completion<Value>> {
-    tcl_cmd_core::index::resolve_with(&v.to_str(), len, numbers)
+/// The word reads under `vm`'s release's number grammar and a bad one is the
+/// command's own error, its code the release's.
+fn checked_index_value(vm: &Vm, v: &Value, len: usize) -> Result<isize, Completion<Value>> {
+    tcl_cmd_core::index::resolve_with(&v.to_str(), len, vm.runtime_version().number_syntax())
         .map(|index| {
             isize::try_from(index).unwrap_or(if index < 0 { isize::MIN } else { isize::MAX })
         })
-        .map_err(crate::command::completion_from_cmd_error)
+        .map_err(|e| vm.cmd_error(e))
 }
 
 /// List element at signed index, or empty when out of range.
@@ -4056,9 +4050,9 @@ impl Vm {
                 let Ok(tcl_cmd_core::frame::FrameLevel::Named(target_level)) =
                     tcl_cmd_core::frame::frame_level(self, Some(&level), current)
                 else {
-                    return Tick::Return(crate::command::completion_from_cmd_error(
-                        tcl_cmd_core::frame::bad_level(&level.to_str()),
-                    ));
+                    return Tick::Return(
+                        self.cmd_error(tcl_cmd_core::frame::bad_level(&level.to_str())),
+                    );
                 };
                 if let Err(error) = self.link_upvar(target_level, &other, &local) {
                     return Tick::Return(crate::command::upvar_link_error(error, &other, &local));
@@ -4127,22 +4121,14 @@ impl Vm {
                         if mode == 1 {
                             // lreplace: list first last ?elem ...?
                             let first = match vals.get(1) {
-                                Some(v) => match checked_index_value(
-                                    v,
-                                    n,
-                                    self.runtime_version().number_syntax(),
-                                ) {
+                                Some(v) => match checked_index_value(self, v, n) {
                                     Ok(i) => i.max(0),
                                     Err(c) => return Tick::Return(c),
                                 },
                                 None => 0,
                             };
                             let last = match vals.get(2) {
-                                Some(v) => match checked_index_value(
-                                    v,
-                                    n,
-                                    self.runtime_version().number_syntax(),
-                                ) {
+                                Some(v) => match checked_index_value(self, v, n) {
                                     Ok(i) => i,
                                     Err(c) => return Tick::Return(c),
                                 },
@@ -4163,11 +4149,7 @@ impl Vm {
                         } else {
                             // linsert: list index ?elem ...? ("end" → after last).
                             let idx = match vals.get(1) {
-                                Some(v) => match checked_index_value(
-                                    v,
-                                    n + 1,
-                                    self.runtime_version().number_syntax(),
-                                ) {
+                                Some(v) => match checked_index_value(self, v, n + 1) {
                                     Ok(i) => i,
                                     Err(c) => return Tick::Return(c),
                                 },
@@ -4564,11 +4546,7 @@ impl Vm {
                 let string = pop(f);
                 let s = string.to_char_str();
                 let chars: Vec<char> = s.chars().collect();
-                let i = match checked_index_value(
-                    &idx,
-                    chars.len(),
-                    self.runtime_version().number_syntax(),
-                ) {
+                let i = match checked_index_value(self, &idx, chars.len()) {
                     Ok(i) => i,
                     Err(c) => {
                         f.failed_operands = vec![string, idx];
@@ -4594,19 +4572,11 @@ impl Vm {
                 let from = pop(f);
                 let s = pop(f).to_char_str();
                 let chars: Vec<char> = s.chars().collect();
-                let lo = match checked_index_value(
-                    &from,
-                    chars.len(),
-                    self.runtime_version().number_syntax(),
-                ) {
+                let lo = match checked_index_value(self, &from, chars.len()) {
                     Ok(i) => i,
                     Err(c) => return Tick::Return(c),
                 };
-                let hi = match checked_index_value(
-                    &to,
-                    chars.len(),
-                    self.runtime_version().number_syntax(),
-                ) {
+                let hi = match checked_index_value(self, &to, chars.len()) {
                     Ok(i) => i,
                     Err(c) => return Tick::Return(c),
                 };
@@ -5232,9 +5202,9 @@ impl Vm {
                     match ps.iter().find(|(pk, _)| pk == &*ks) {
                         Some((_, v)) => cur = v.clone(),
                         None => {
-                            return Tick::Return(crate::command::completion_from_cmd_error(
-                                tcl_cmd_core::dict::key_not_known(&ks),
-                            ));
+                            return Tick::Return(
+                                self.cmd_error(tcl_cmd_core::dict::key_not_known(&ks)),
+                            );
                         }
                     }
                 }
@@ -5338,12 +5308,11 @@ impl Vm {
                 let string = value.to_char_str().to_string();
                 let chars: Vec<char> = string.chars().collect();
                 let len = chars.len();
-                let numbers = self.runtime_version().number_syntax();
-                let from = match checked_index_value(&first, len, numbers) {
+                let from = match checked_index_value(self, &first, len) {
                     Ok(i) => i,
                     Err(c) => return Tick::Return(c),
                 };
-                let to = match checked_index_value(&last, len, numbers) {
+                let to = match checked_index_value(self, &last, len) {
                     Ok(i) => i,
                     Err(c) => return Tick::Return(c),
                 };
@@ -5382,7 +5351,7 @@ impl Vm {
                     release,
                 ) {
                     Ok(r) => f.stack.push(r),
-                    Err(e) => return Tick::Return(crate::command::completion_from_cmd_error(e)),
+                    Err(e) => return Tick::Return(self.cmd_error(e)),
                 }
             }
             // `lset var i1 i2 ?…? value` (≥ 2 flat indices) — C Tcl
@@ -5399,7 +5368,7 @@ impl Vm {
                 let release = self.runtime_version();
                 match tcl_cmd_core::list::lset(self, &list, &path, value, release) {
                     Ok(r) => f.stack.push(r),
-                    Err(e) => return Tick::Return(crate::command::completion_from_cmd_error(e)),
+                    Err(e) => return Tick::Return(self.cmd_error(e)),
                 }
             }
             // `[regexp $pat $str]` in value position — operand [Imm(cflags)];
@@ -7031,7 +7000,7 @@ impl Vm {
         let cur = self.read_for_update(name);
         let inc = Value::int(amount);
         let next = tcl_syntax::value::ValueOps::int_add(self, cur.as_ref(), &inc)
-            .map_err(|e| crate::command::completion_from_cmd_error(e.into()))?;
+            .map_err(|e| self.cmd_error(e.into()))?;
         let stored = self.store_var_result(name, next)?;
         f.stack.push(stored);
         Ok(())

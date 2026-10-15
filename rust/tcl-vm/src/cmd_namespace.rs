@@ -616,7 +616,7 @@ fn ns_ensemble_create(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         let word = pair[0].to_str();
         let resolved = match CreateOption::resolve(word.as_bytes()) {
             Ok(resolved) => resolved,
-            Err(error) => return completion_from_cmd_error(error),
+            Err(error) => return vm.cmd_error(error),
         };
         let Some(shared) = resolved.shared() else {
             // `-command` names the command rather than configuring it.
@@ -702,7 +702,7 @@ fn ns_ensemble_configure(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     if let [only] = rest {
         return match ConfigOption::resolve(only.to_str().as_bytes()) {
             Ok(option) => ok(ensemble_option_value(vm, &def, option)),
-            Err(error) => completion_from_cmd_error(error),
+            Err(error) => vm.cmd_error(error),
         };
     }
     let mut opts = EnsembleOptions::from_def(&def);
@@ -717,7 +717,7 @@ fn ns_ensemble_configure(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     for pair in rest.as_chunks::<2>().0 {
         let resolved = match ConfigOption::resolve(pair[0].to_str().as_bytes()) {
             Ok(resolved) => resolved,
-            Err(error) => return completion_from_cmd_error(error),
+            Err(error) => return vm.cmd_error(error),
         };
         let Some(shared) = resolved.shared() else {
             return err_with_code("option -namespace is read-only", "TCL ENSEMBLE READ_ONLY");

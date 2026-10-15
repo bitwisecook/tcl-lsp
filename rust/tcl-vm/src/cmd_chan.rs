@@ -36,7 +36,7 @@ use tcl_cmd_core::channel::{
 };
 use tcl_runtime_api::Completion;
 
-use crate::command::{completion_from_cmd_error, completion_from_tcl_error, err_with_code};
+use crate::command::{completion_from_tcl_error, err_with_code};
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
 
@@ -103,7 +103,7 @@ fn cmd_open(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let version = vm.runtime_version();
     let access = match resolve_open_access_mode(version, m) {
         Ok(access) => access,
-        Err(error) => return completion_from_cmd_error(error),
+        Err(error) => return vm.cmd_error(error),
     };
     let config = ChannelConfig::for_open_access(version, vm.system_encoding(), access);
 
@@ -418,7 +418,7 @@ fn cmd_seek(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let origin = match origin.map(|w| SEEK_ORIGINS.index_of_str(&w.to_str())) {
         None => 0,
         Some(Ok(index)) => index,
-        Some(Err(error)) => return completion_from_cmd_error(error),
+        Some(Err(error)) => return vm.cmd_error(error),
     };
     match vm.channel_mut(&id) {
         Some(Channel::Read { data, pos, .. }) => {
@@ -467,7 +467,7 @@ fn cmd_fconfigure(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 &opt.to_str(),
             ) {
                 Ok(option) => option,
-                Err(error) => return completion_from_cmd_error(error),
+                Err(error) => return vm.cmd_error(error),
             };
             ok(Value::string(config_value(option, &id, config)))
         }
@@ -478,14 +478,14 @@ fn cmd_fconfigure(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                     &pair[0].to_str(),
                 ) {
                     Ok(option) => option,
-                    Err(error) => return completion_from_cmd_error(error),
+                    Err(error) => return vm.cmd_error(error),
                 };
                 let configured = set_config_value(version, &mut config, option, &pair[1].to_str());
                 // Tcl preserves any direction changed before a later
                 // direction of the same translation value reports an error.
                 set_channel_config(vm, &id, config);
                 if let Err(error) = configured {
-                    return completion_from_cmd_error(error);
+                    return vm.cmd_error(error);
                 }
             }
             ok(Value::empty())

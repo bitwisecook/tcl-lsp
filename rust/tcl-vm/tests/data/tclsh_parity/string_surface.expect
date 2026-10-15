@@ -1,0 +1,330 @@
+==== 8.4 file ====
+1 <wrong # args: should be "string option arg ?arg ...?"> <NONE>
+1 <bad option "foo": must be bytelength, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, tolower, toupper, totitle, trim, trimleft, trimright, wordend, or wordstart> <NONE>
+1 <ambiguous option "t": must be bytelength, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, tolower, toupper, totitle, trim, trimleft, trimright, wordend, or wordstart> <NONE>
+1 <ambiguous option "tr": must be bytelength, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, tolower, toupper, totitle, trim, trimleft, trimright, wordend, or wordstart> <NONE>
+1 <wrong # args: should be "string bytelength string"> <NONE>
+0 <7> <NONE>
+0 <3> <NONE>
+1 <wrong # args: should be "string first subString string ?startIndex?"> <NONE>
+1 <wrong # args: should be "string last subString string ?startIndex?"> <NONE>
+1 <wrong # args: should be "string is class ?-strict? ?-failindex var? str"> <NONE>
+1 <wrong # args: should be "string is class ?-strict? ?-failindex var? str"> <NONE>
+1 <bad class "foo": must be alnum, alpha, ascii, control, boolean, digit, double, false, graph, integer, lower, print, punct, space, true, upper, wordchar, or xdigit> <NONE>
+1 <bad option "-foo": must be -strict or -failindex> <NONE>
+1 <bad class "wideinteger": must be alnum, alpha, ascii, control, boolean, digit, double, false, graph, integer, lower, print, punct, space, true, upper, wordchar, or xdigit> <NONE>
+1 <bad class "entier": must be alnum, alpha, ascii, control, boolean, digit, double, false, graph, integer, lower, print, punct, space, true, upper, wordchar, or xdigit> <NONE>
+1 <bad class "dict": must be alnum, alpha, ascii, control, boolean, digit, double, false, graph, integer, lower, print, punct, space, true, upper, wordchar, or xdigit> <NONE>
+0 <> <NONE>
+0 <> <NONE>
+0 <> <NONE>
+1 <extra characters after close-brace> <NONE>
+1 <extra characters after close-brace> <NONE>
+1 <ambiguous option "to": must be bytelength, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, tolower, toupper, totitle, trim, trimleft, trimright, wordend, or wordstart> <NONE>
+1 <ambiguous option "r": must be bytelength, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, tolower, toupper, totitle, trim, trimleft, trimright, wordend, or wordstart> <NONE>
+0 <> <NONE>
+0 <> <NONE>
+0 <> <NONE>
+1 <extra characters after close-brace> <NONE>
+1 <ambiguous option "to": must be bytelength, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, tolower, toupper, totitle, trim, trimleft, trimright, wordend, or wordstart> <NONE>
+0 <3> <NONE>
+0 <0> <NONE>
+0 <3> <NONE>
+1 <extra characters after close-brace> <NONE>
+==== 8.4 stdin ====
+1 <wrong # args: should be "string option arg ?arg ...?"> <NONE>
+1 <bad option "foo": must be bytelength, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, tolower, toupper, totitle, trim, trimleft, trimright, wordend, or wordstart> <NONE>
+1 <ambiguous option "t": must be bytelength, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, tolower, toupper, totitle, trim, trimleft, trimright, wordend, or wordstart> <NONE>
+1 <ambiguous option "tr": must be bytelength, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, tolower, toupper, totitle, trim, trimleft, trimright, wordend, or wordstart> <NONE>
+1 <wrong # args: should be "string bytelength string"> <NONE>
+0 <7> <NONE>
+0 <3> <NONE>
+1 <wrong # args: should be "string first subString string ?startIndex?"> <NONE>
+1 <wrong # args: should be "string last subString string ?startIndex?"> <NONE>
+1 <wrong # args: should be "string is class ?-strict? ?-failindex var? str"> <NONE>
+1 <wrong # args: should be "string is class ?-strict? ?-failindex var? str"> <NONE>
+1 <bad class "foo": must be alnum, alpha, ascii, control, boolean, digit, double, false, graph, integer, lower, print, punct, space, true, upper, wordchar, or xdigit> <NONE>
+1 <bad option "-foo": must be -strict or -failindex> <NONE>
+1 <bad class "wideinteger": must be alnum, alpha, ascii, control, boolean, digit, double, false, graph, integer, lower, print, punct, space, true, upper, wordchar, or xdigit> <NONE>
+1 <bad class "entier": must be alnum, alpha, ascii, control, boolean, digit, double, false, graph, integer, lower, print, punct, space, true, upper, wordchar, or xdigit> <NONE>
+1 <bad class "dict": must be alnum, alpha, ascii, control, boolean, digit, double, false, graph, integer, lower, print, punct, space, true, upper, wordchar, or xdigit> <NONE>
+0 <> <NONE>
+0 <> <NONE>
+0 <> <NONE>
+1 <extra characters after close-brace> <NONE>
+1 <extra characters after close-brace> <NONE>
+1 <ambiguous option "to": must be bytelength, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, tolower, toupper, totitle, trim, trimleft, trimright, wordend, or wordstart> <NONE>
+1 <ambiguous option "r": must be bytelength, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, tolower, toupper, totitle, trim, trimleft, trimright, wordend, or wordstart> <NONE>
+0 <> <NONE>
+0 <> <NONE>
+0 <> <NONE>
+1 <extra characters after close-brace> <NONE>
+1 <ambiguous option "to": must be bytelength, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, tolower, toupper, totitle, trim, trimleft, trimright, wordend, or wordstart> <NONE>
+0 <3> <NONE>
+0 <0> <NONE>
+0 <3> <NONE>
+1 <extra characters after close-brace> <NONE>
+==== 8.5 file ====
+1 <wrong # args: should be "string subcommand ?argument ...?"> <NONE>
+1 <unknown or ambiguous subcommand "foo": must be bytelength, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND foo>
+1 <unknown or ambiguous subcommand "t": must be bytelength, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND t>
+1 <unknown or ambiguous subcommand "tr": must be bytelength, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND tr>
+1 <wrong # args: should be "string bytelength string"> <NONE>
+0 <7> <NONE>
+0 <3> <NONE>
+1 <wrong # args: should be "string first needleString haystackString ?startIndex?"> <NONE>
+1 <wrong # args: should be "string last needleString haystackString ?startIndex?"> <NONE>
+1 <wrong # args: should be "string is class ?-strict? ?-failindex var? str"> <NONE>
+1 <wrong # args: should be "string is class ?-strict? ?-failindex var? str"> <NONE>
+1 <bad class "foo": must be alnum, alpha, ascii, control, boolean, digit, double, false, graph, integer, list, lower, print, punct, space, true, upper, wideinteger, wordchar, or xdigit> <TCL LOOKUP INDEX class foo>
+1 <bad option "-foo": must be -strict or -failindex> <TCL LOOKUP INDEX option -foo>
+0 <1> <NONE>
+1 <bad class "entier": must be alnum, alpha, ascii, control, boolean, digit, double, false, graph, integer, list, lower, print, punct, space, true, upper, wideinteger, wordchar, or xdigit> <TCL LOOKUP INDEX class entier>
+1 <bad class "dict": must be alnum, alpha, ascii, control, boolean, digit, double, false, graph, integer, list, lower, print, punct, space, true, upper, wideinteger, wordchar, or xdigit> <TCL LOOKUP INDEX class dict>
+0 <> <NONE>
+0 <> <NONE>
+0 <> <NONE>
+0 <> <NONE>
+0 <> <NONE>
+1 <unknown or ambiguous subcommand "to": must be bytelength, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND to>
+1 <unknown or ambiguous subcommand "r": must be bytelength, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND r>
+0 <> <NONE>
+0 <> <NONE>
+0 <> <NONE>
+0 <> <NONE>
+1 <unknown or ambiguous subcommand "to": must be bytelength, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND to>
+0 <3> <NONE>
+0 <0> <NONE>
+0 <3> <NONE>
+0 <{} {} {} 3 0> <NONE>
+==== 8.5 stdin ====
+1 <wrong # args: should be "string subcommand ?argument ...?"> <NONE>
+1 <unknown or ambiguous subcommand "foo": must be bytelength, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND foo>
+1 <unknown or ambiguous subcommand "t": must be bytelength, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND t>
+1 <unknown or ambiguous subcommand "tr": must be bytelength, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND tr>
+1 <wrong # args: should be "string bytelength string"> <NONE>
+0 <7> <NONE>
+0 <3> <NONE>
+1 <wrong # args: should be "string first needleString haystackString ?startIndex?"> <NONE>
+1 <wrong # args: should be "string last needleString haystackString ?startIndex?"> <NONE>
+1 <wrong # args: should be "string is class ?-strict? ?-failindex var? str"> <NONE>
+1 <wrong # args: should be "string is class ?-strict? ?-failindex var? str"> <NONE>
+1 <bad class "foo": must be alnum, alpha, ascii, control, boolean, digit, double, false, graph, integer, list, lower, print, punct, space, true, upper, wideinteger, wordchar, or xdigit> <TCL LOOKUP INDEX class foo>
+1 <bad option "-foo": must be -strict or -failindex> <TCL LOOKUP INDEX option -foo>
+0 <1> <NONE>
+1 <bad class "entier": must be alnum, alpha, ascii, control, boolean, digit, double, false, graph, integer, list, lower, print, punct, space, true, upper, wideinteger, wordchar, or xdigit> <TCL LOOKUP INDEX class entier>
+1 <bad class "dict": must be alnum, alpha, ascii, control, boolean, digit, double, false, graph, integer, list, lower, print, punct, space, true, upper, wideinteger, wordchar, or xdigit> <TCL LOOKUP INDEX class dict>
+0 <> <NONE>
+0 <> <NONE>
+0 <> <NONE>
+0 <> <NONE>
+0 <> <NONE>
+1 <unknown or ambiguous subcommand "to": must be bytelength, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND to>
+1 <unknown or ambiguous subcommand "r": must be bytelength, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND r>
+0 <> <NONE>
+0 <> <NONE>
+0 <> <NONE>
+0 <> <NONE>
+1 <unknown or ambiguous subcommand "to": must be bytelength, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND to>
+0 <3> <NONE>
+0 <0> <NONE>
+0 <3> <NONE>
+0 <{} {} {} 3 0> <NONE>
+==== 8.6 file ====
+1 <wrong # args: should be "string subcommand ?arg ...?"> <TCL WRONGARGS>
+1 <unknown or ambiguous subcommand "foo": must be bytelength, cat, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND foo>
+1 <unknown or ambiguous subcommand "t": must be bytelength, cat, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND t>
+1 <unknown or ambiguous subcommand "tr": must be bytelength, cat, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND tr>
+1 <wrong # args: should be "string bytelength string"> <TCL WRONGARGS>
+0 <7> <NONE>
+0 <3> <NONE>
+1 <wrong # args: should be "string first needleString haystackString ?startIndex?"> <TCL WRONGARGS>
+1 <wrong # args: should be "string last needleString haystackString ?startIndex?"> <TCL WRONGARGS>
+1 <wrong # args: should be "string is class ?-strict? ?-failindex var? str"> <TCL WRONGARGS>
+1 <wrong # args: should be "string is class ?-strict? ?-failindex var? str"> <TCL WRONGARGS>
+1 <bad class "foo": must be alnum, alpha, ascii, control, boolean, digit, double, entier, false, graph, integer, list, lower, print, punct, space, true, upper, wideinteger, wordchar, or xdigit> <TCL LOOKUP INDEX class foo>
+1 <bad option "-foo": must be -strict or -failindex> <TCL LOOKUP INDEX option -foo>
+0 <1> <NONE>
+0 <1> <NONE>
+1 <bad class "dict": must be alnum, alpha, ascii, control, boolean, digit, double, entier, false, graph, integer, list, lower, print, punct, space, true, upper, wideinteger, wordchar, or xdigit> <TCL LOOKUP INDEX class dict>
+0 <abcdef> <NONE>
+0 <abcdef> <NONE>
+0 <abcdef> <NONE>
+0 <abcdef> <NONE>
+0 <abcdef> <NONE>
+1 <unknown or ambiguous subcommand "to": must be bytelength, cat, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND to>
+1 <unknown or ambiguous subcommand "r": must be bytelength, cat, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND r>
+0 <abcdef> <NONE>
+0 <abcdef> <NONE>
+0 <abcdef> <NONE>
+0 <abcdef> <NONE>
+1 <unknown or ambiguous subcommand "to": must be bytelength, cat, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND to>
+0 <3> <NONE>
+0 <0> <NONE>
+0 <3> <NONE>
+0 <abcdef abcdef abcdef 3 0> <NONE>
+==== 8.6 stdin ====
+1 <wrong # args: should be "string subcommand ?arg ...?"> <TCL WRONGARGS>
+1 <unknown or ambiguous subcommand "foo": must be bytelength, cat, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND foo>
+1 <unknown or ambiguous subcommand "t": must be bytelength, cat, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND t>
+1 <unknown or ambiguous subcommand "tr": must be bytelength, cat, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND tr>
+1 <wrong # args: should be "string bytelength string"> <TCL WRONGARGS>
+0 <7> <NONE>
+0 <3> <NONE>
+1 <wrong # args: should be "string first needleString haystackString ?startIndex?"> <TCL WRONGARGS>
+1 <wrong # args: should be "string last needleString haystackString ?startIndex?"> <TCL WRONGARGS>
+1 <wrong # args: should be "string is class ?-strict? ?-failindex var? str"> <TCL WRONGARGS>
+1 <wrong # args: should be "string is class ?-strict? ?-failindex var? str"> <TCL WRONGARGS>
+1 <bad class "foo": must be alnum, alpha, ascii, control, boolean, digit, double, entier, false, graph, integer, list, lower, print, punct, space, true, upper, wideinteger, wordchar, or xdigit> <TCL LOOKUP INDEX class foo>
+1 <bad option "-foo": must be -strict or -failindex> <TCL LOOKUP INDEX option -foo>
+0 <1> <NONE>
+0 <1> <NONE>
+1 <bad class "dict": must be alnum, alpha, ascii, control, boolean, digit, double, entier, false, graph, integer, list, lower, print, punct, space, true, upper, wideinteger, wordchar, or xdigit> <TCL LOOKUP INDEX class dict>
+0 <abcdef> <NONE>
+0 <abcdef> <NONE>
+0 <abcdef> <NONE>
+0 <abcdef> <NONE>
+0 <abcdef> <NONE>
+1 <unknown or ambiguous subcommand "to": must be bytelength, cat, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND to>
+1 <unknown or ambiguous subcommand "r": must be bytelength, cat, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND r>
+0 <abcdef> <NONE>
+0 <abcdef> <NONE>
+0 <abcdef> <NONE>
+0 <abcdef> <NONE>
+1 <unknown or ambiguous subcommand "to": must be bytelength, cat, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND to>
+0 <3> <NONE>
+0 <0> <NONE>
+0 <3> <NONE>
+0 <abcdef abcdef abcdef 3 0> <NONE>
+==== 9.0 file ====
+1 <wrong # args: should be "string subcommand ?arg ...?"> <TCL WRONGARGS>
+1 <unknown or ambiguous subcommand "foo": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND foo>
+1 <unknown or ambiguous subcommand "t": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND t>
+1 <unknown or ambiguous subcommand "tr": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND tr>
+1 <unknown or ambiguous subcommand "bytelength": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND bytelength>
+1 <unknown or ambiguous subcommand "bytelength": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND bytelength>
+1 <unknown or ambiguous subcommand "byte": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND byte>
+1 <wrong # args: should be "string first needleString haystackString ?startIndex?"> <TCL WRONGARGS>
+1 <wrong # args: should be "string last needleString haystackString ?lastIndex?"> <TCL WRONGARGS>
+1 <wrong # args: should be "string is class ?-strict? ?-failindex var? str"> <TCL WRONGARGS>
+1 <wrong # args: should be "string is class ?-strict? ?-failindex var? str"> <TCL WRONGARGS>
+1 <bad class "foo": must be alnum, alpha, ascii, control, boolean, dict, digit, double, entier, false, graph, integer, list, lower, print, punct, space, true, upper, wideinteger, wordchar, or xdigit> <TCL LOOKUP INDEX class foo>
+1 <bad option "-foo": must be -strict or -failindex> <TCL LOOKUP INDEX option -foo>
+0 <1> <NONE>
+0 <1> <NONE>
+0 <1> <NONE>
+0 <> <NONE>
+0 <> <NONE>
+0 <> <NONE>
+0 <> <NONE>
+0 <> <NONE>
+1 <unknown or ambiguous subcommand "to": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND to>
+1 <unknown or ambiguous subcommand "r": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND r>
+0 <> <NONE>
+0 <> <NONE>
+0 <> <NONE>
+0 <> <NONE>
+1 <unknown or ambiguous subcommand "to": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND to>
+0 <3> <NONE>
+0 <0> <NONE>
+1 <unknown or ambiguous subcommand "bytel": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND bytel>
+0 <{} {} {} 3 0> <NONE>
+==== 9.0 stdin ====
+1 <wrong # args: should be "string subcommand ?arg ...?"> <TCL WRONGARGS>
+1 <unknown or ambiguous subcommand "foo": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND foo>
+1 <unknown or ambiguous subcommand "t": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND t>
+1 <unknown or ambiguous subcommand "tr": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND tr>
+1 <unknown or ambiguous subcommand "bytelength": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND bytelength>
+1 <unknown or ambiguous subcommand "bytelength": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND bytelength>
+1 <unknown or ambiguous subcommand "byte": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND byte>
+1 <wrong # args: should be "string first needleString haystackString ?startIndex?"> <TCL WRONGARGS>
+1 <wrong # args: should be "string last needleString haystackString ?lastIndex?"> <TCL WRONGARGS>
+1 <wrong # args: should be "string is class ?-strict? ?-failindex var? str"> <TCL WRONGARGS>
+1 <wrong # args: should be "string is class ?-strict? ?-failindex var? str"> <TCL WRONGARGS>
+1 <bad class "foo": must be alnum, alpha, ascii, control, boolean, dict, digit, double, entier, false, graph, integer, list, lower, print, punct, space, true, upper, wideinteger, wordchar, or xdigit> <TCL LOOKUP INDEX class foo>
+1 <bad option "-foo": must be -strict or -failindex> <TCL LOOKUP INDEX option -foo>
+0 <1> <NONE>
+0 <1> <NONE>
+0 <1> <NONE>
+0 <> <NONE>
+0 <> <NONE>
+0 <> <NONE>
+0 <> <NONE>
+0 <> <NONE>
+1 <unknown or ambiguous subcommand "to": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND to>
+1 <unknown or ambiguous subcommand "r": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND r>
+0 <> <NONE>
+0 <> <NONE>
+0 <> <NONE>
+0 <> <NONE>
+1 <unknown or ambiguous subcommand "to": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND to>
+0 <3> <NONE>
+0 <0> <NONE>
+1 <unknown or ambiguous subcommand "bytel": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND bytel>
+0 <{} {} {} 3 0> <NONE>
+==== 9.1 file ====
+1 <wrong # args: should be "string subcommand ?arg ...?"> <TCL WRONGARGS>
+1 <unknown or ambiguous subcommand "foo": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND foo>
+1 <unknown or ambiguous subcommand "t": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND t>
+1 <unknown or ambiguous subcommand "tr": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND tr>
+1 <unknown or ambiguous subcommand "bytelength": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND bytelength>
+1 <unknown or ambiguous subcommand "bytelength": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND bytelength>
+1 <unknown or ambiguous subcommand "byte": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND byte>
+1 <wrong # args: should be "string first needleString haystackString ?startIndex?"> <TCL WRONGARGS>
+1 <wrong # args: should be "string last needleString haystackString ?lastIndex?"> <TCL WRONGARGS>
+1 <wrong # args: should be "string is class ?-strict? ?-failindex var? str"> <TCL WRONGARGS>
+1 <wrong # args: should be "string is class ?-strict? ?-failindex var? str"> <TCL WRONGARGS>
+1 <bad class "foo": must be alnum, alpha, ascii, control, boolean, dict, digit, double, entier, false, graph, integer, list, lower, print, punct, space, true, upper, wideinteger, wordchar, or xdigit> <TCL LOOKUP INDEX class foo>
+1 <bad option "-foo": must be -strict or -failindex> <TCL LOOKUP INDEX option -foo>
+0 <1> <NONE>
+0 <1> <NONE>
+0 <1> <NONE>
+0 <> <NONE>
+0 <> <NONE>
+0 <> <NONE>
+0 <> <NONE>
+0 <> <NONE>
+1 <unknown or ambiguous subcommand "to": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND to>
+1 <unknown or ambiguous subcommand "r": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND r>
+0 <> <NONE>
+0 <> <NONE>
+0 <> <NONE>
+0 <> <NONE>
+1 <unknown or ambiguous subcommand "to": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND to>
+0 <3> <NONE>
+0 <0> <NONE>
+1 <unknown or ambiguous subcommand "bytel": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND bytel>
+0 <{} {} {} 3 0> <NONE>
+==== 9.1 stdin ====
+1 <wrong # args: should be "string subcommand ?arg ...?"> <TCL WRONGARGS>
+1 <unknown or ambiguous subcommand "foo": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND foo>
+1 <unknown or ambiguous subcommand "t": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND t>
+1 <unknown or ambiguous subcommand "tr": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND tr>
+1 <unknown or ambiguous subcommand "bytelength": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND bytelength>
+1 <unknown or ambiguous subcommand "bytelength": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND bytelength>
+1 <unknown or ambiguous subcommand "byte": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND byte>
+1 <wrong # args: should be "string first needleString haystackString ?startIndex?"> <TCL WRONGARGS>
+1 <wrong # args: should be "string last needleString haystackString ?lastIndex?"> <TCL WRONGARGS>
+1 <wrong # args: should be "string is class ?-strict? ?-failindex var? str"> <TCL WRONGARGS>
+1 <wrong # args: should be "string is class ?-strict? ?-failindex var? str"> <TCL WRONGARGS>
+1 <bad class "foo": must be alnum, alpha, ascii, control, boolean, dict, digit, double, entier, false, graph, integer, list, lower, print, punct, space, true, upper, wideinteger, wordchar, or xdigit> <TCL LOOKUP INDEX class foo>
+1 <bad option "-foo": must be -strict or -failindex> <TCL LOOKUP INDEX option -foo>
+0 <1> <NONE>
+0 <1> <NONE>
+0 <1> <NONE>
+0 <> <NONE>
+0 <> <NONE>
+0 <> <NONE>
+0 <> <NONE>
+0 <> <NONE>
+1 <unknown or ambiguous subcommand "to": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND to>
+1 <unknown or ambiguous subcommand "r": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND r>
+0 <> <NONE>
+0 <> <NONE>
+0 <> <NONE>
+0 <> <NONE>
+1 <unknown or ambiguous subcommand "to": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND to>
+0 <3> <NONE>
+0 <0> <NONE>
+1 <unknown or ambiguous subcommand "bytel": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND bytel>
+0 <{} {} {} 3 0> <NONE>

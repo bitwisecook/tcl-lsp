@@ -774,6 +774,33 @@ impl TclVersion {
         matches!(self, Self::V8_6 | Self::V9_0 | Self::V9_1)
     }
 
+    /// The `-errorcode` a builtin raising `code` leaves under this release:
+    /// `NONE` for a code this release does not set yet — a usage error's
+    /// (`TCL WRONGARGS`), a bad index's (`TCL VALUE INDEX`) and a malformed
+    /// list's or dictionary's, which arrive in 8.6
+    /// ([`Self::tags_usage_error_codes`]) — and `code` otherwise.
+    #[must_use]
+    pub fn release_error_code(self, code: &[u8]) -> &[u8] {
+        let untagged = !self.tags_usage_error_codes()
+            && (code == b"TCL VALUE INDEX"
+                || [
+                    &b"TCL WRONGARGS"[..],
+                    b"TCL VALUE LIST ",
+                    b"TCL VALUE DICTIONARY ",
+                ]
+                .iter()
+                .any(|family| code.starts_with(family)));
+        if untagged { b"NONE" } else { code }
+    }
+
+    /// Whether this release tags an expression's parse error with a
+    /// `TCL PARSE EXPR …` error code. `ParseExpr` sets one from 8.6; 8.4's
+    /// and 8.5's parsers set none, so `$errorCode` is `NONE`.
+    #[must_use]
+    pub fn tags_expression_parse_errors(self) -> bool {
+        matches!(self, Self::V8_6 | Self::V9_0 | Self::V9_1)
+    }
+
     /// Whether a script this release compiles fails whole on a compile
     /// procedure's error or a parse error, so that none of it runs (8.4's
     /// `TclCompileScript`). From 8.5 a compile procedure that cannot compile

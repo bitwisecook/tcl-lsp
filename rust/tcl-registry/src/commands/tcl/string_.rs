@@ -578,7 +578,8 @@ pub fn string_is_member_type(args: &[&str]) -> Option<TclType> {
             _ => return None,
         }
     }
-    let class = tcl_cmd_core::string_is::resolve_class(class).ok()?;
+    let class =
+        tcl_cmd_core::string_is::resolve_class(class, tcl_dialect::TclVersion::V9_1).ok()?;
     match class {
         "integer" | "entier" | "wideinteger" if strict => Some(TclType::Int),
         "double" if strict => Some(TclType::Numeric),

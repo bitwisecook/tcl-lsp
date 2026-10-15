@@ -1534,9 +1534,32 @@ pub(crate) fn err_with_code(message: impl Into<String>, code: &str) -> Completio
     Completion::new(Code::Error, Value::string(message.into()), options)
 }
 
+impl Vm {
+    /// A command core's error as this VM's completion, its error code the one
+    /// the emulated release sets ([`TclVersion::release_error_code`]).
+    pub(crate) fn cmd_error(&self, error: CmdError) -> Completion<Value> {
+        let release = self.runtime_version();
+        let (message, code, info, line) = error.into_details();
+        let code = code.map(|code| {
+            String::from_utf8_lossy(release.release_error_code(code.as_bytes())).into_owned()
+        });
+        completion_from_error_details(message, code, info, line)
+    }
+}
+
 /// Convert a portable command-layer error without losing its Tcl identity.
 pub(crate) fn completion_from_cmd_error(error: CmdError) -> Completion<Value> {
     let (message, code, info, line) = error.into_details();
+    completion_from_error_details(message, code, info, line)
+}
+
+/// The error completion of a message, error code, `errorInfo` and line.
+fn completion_from_error_details(
+    message: String,
+    code: Option<String>,
+    info: Option<Vec<u8>>,
+    line: Option<i64>,
+) -> Completion<Value> {
     if info.is_none() && line.is_none() {
         return match code {
             Some(code) => err_with_code(message, &code),

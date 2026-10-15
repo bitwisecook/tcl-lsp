@@ -119,10 +119,13 @@ impl CodegenCtx<'_> {
         let emitted = match (self.inline_cmd_subst_hook_candidate(cmd, args), args) {
             (Some(InlineCodegenHookId::String), [_, _, indices @ ..]) if apart(self, indices) => {
                 // The hook's own subcommand dispatch settles which opcode.
+                let Some(canonical) = self.canonical_subcommand_args(cmd, args) else {
+                    return false;
+                };
                 let Some((_, binding)) = self.inline_cmd_subst_resolution(cmd, args) else {
                     return false;
                 };
-                self.emit_inline_string(cmd, &binding, args);
+                self.emit_inline_string(cmd, &binding, &canonical);
                 return true;
             }
             (Some(InlineCodegenHookId::StringReplace), [_, _, indices @ ..])
@@ -606,6 +609,51 @@ pub fn parse_cmd_parts(text: &str) -> Vec<(String, bool)> {
         }
     }
     parts
+}
+
+/// The words of a command once the parser expands its `{*}` words, as
+/// `Tcl_ParseCommand` expands a word of literal text whose list elements are
+/// all literal into a word per element (an empty list into none). `None`
+/// where a `{*}` word is left to expand at run time, or an element or braced
+/// word would read as a substitution where a word is emitted (`$`, `[`,
+/// `\`). `words` are `(text, braced, expanded)`.
+pub(crate) fn parse_time_expansion<'w>(
+    words: impl IntoIterator<Item = (&'w str, bool, bool)>,
+) -> Option<Vec<(String, bool)>> {
+    let substitutes = |text: &str| text.contains(['$', '[', '\\']);
+    let mut out = Vec::new();
+    let mut expanded_any = false;
+    for (text, braced, expanded) in words {
+        if !expanded {
+            // A braced word keeps its bracedness only where its text could
+            // not read otherwise.
+            if braced && substitutes(text) {
+                return None;
+            }
+            out.push((text.to_owned(), braced));
+            continue;
+        }
+        if !braced && substitutes(text) {
+            return None;
+        }
+        expanded_any = true;
+        let mut at = 0;
+        while let Some(element) = tcl_syntax::list::find_element(text, at).ok()? {
+            let value = &text[element.value.clone()];
+            if !element.literal || substitutes(value) {
+                return None;
+            }
+            out.push((value.to_owned(), true));
+            at = element.next;
+        }
+    }
+    expanded_any.then_some(out)
+}
+
+/// Whether the command word `cmd` names the builtin `name`: its own spelling,
+/// or the global one, which a release compiles alike.
+pub(super) fn names_builtin(cmd: &str, name: &str) -> bool {
+    cmd == name || (cmd.strip_prefix("::") == Some(name) && !name.contains("::"))
 }
 
 /// Like [`parse_cmd_parts`] but also flags `{*}`-expansion words. Each tuple is
@@ -1345,7 +1393,40 @@ impl CodegenCtx<'_> {
         let resolved =
             self.registry
                 .resolve_call(cmd, &arg_refs, self.registry.own_surface_query())?;
-        (resolved.spec.name == cmd).then_some(resolved.inline_codegen_hook?)
+        names_builtin(cmd, resolved.spec.name).then_some(resolved.inline_codegen_hook?)
+    }
+
+    /// `args` with the subcommand word of `cmd`, an ensemble, spelt as the
+    /// subcommand it selects in the emulated release: an ensemble compiles a
+    /// unique prefix as the subcommand itself (`TclCompileEnsemble`). `None`
+    /// where the word is not literal or selects no one subcommand, which
+    /// leaves the command to run.
+    fn canonical_subcommand_args(
+        &self,
+        cmd: &str,
+        args: &[(String, bool)],
+    ) -> Option<Vec<(String, bool)>> {
+        let ((word, braced), rest) = args.split_first()?;
+        if tcl_syntax::naming::word_is_dynamic(word, *braced) {
+            return None;
+        }
+        let arg_refs: Vec<&str> = args.iter().map(|(a, _)| a.as_str()).collect();
+        let resolved =
+            self.registry
+                .resolve_call(cmd, &arg_refs, self.registry.own_surface_query())?;
+        if resolved.spec.subcommands.is_empty() {
+            return Some(args.to_vec());
+        }
+        let sub = resolved.sub.or_else(|| {
+            resolved
+                .spec
+                .resolve_subcommand_for_dialect(word, self.registry.own_surface_query())
+        })?;
+        Some(
+            std::iter::once((sub.name.to_owned(), true))
+                .chain(rest.iter().cloned())
+                .collect(),
+        )
     }
 
     /// Resolve and retain the hook together with the exact entered command
@@ -1398,7 +1479,7 @@ impl CodegenCtx<'_> {
         let resolved = self
             .registry
             .resolve_call(cmd, args, self.registry.own_surface_query())?;
-        if resolved.spec.name != cmd {
+        if !names_builtin(cmd, resolved.spec.name) {
             return None;
         }
         let hook = resolved.inline_codegen_hook?;
@@ -1526,11 +1607,14 @@ impl CodegenCtx<'_> {
             }
             InlineCodegenHookId::String => {
                 let previous_inline = self.used_inline_cmd_subst;
+                let Some(canonical) = self.canonical_subcommand_args(cmd, &inline_args) else {
+                    return false;
+                };
                 if !self.try_emit_inline_string_invoke_replace(
                     previous_inline,
                     cmd,
                     &site.binding,
-                    &inline_args,
+                    &canonical,
                     false,
                 ) && !self.try_emit_compiled_index_command(cmd, &inline_args)
                 {
@@ -1595,6 +1679,26 @@ impl CodegenCtx<'_> {
         }
     }
 
+    /// The words of the substituted script `text`, and whether a `{*}` of a
+    /// literal word was expanded as the parser expands it; `None` once a
+    /// run-time expansion has been emitted as the expanded generic form.
+    fn cmd_subst_parts(&mut self, text: &str) -> Option<(Vec<(String, bool)>, bool)> {
+        if self.recognises_expand_syntax() && text.contains("{*}") {
+            let expand_parts = parse_cmd_parts_expand(text);
+            if expand_parts.iter().any(|(_, _, expand)| *expand) {
+                let words = expand_parts
+                    .iter()
+                    .map(|(word, braced, expand)| (word.as_str(), *braced, *expand));
+                if let Some(expanded) = parse_time_expansion(words) {
+                    return Some((expanded, true));
+                }
+                self.emit_expanded_cmd_subst(&expand_parts);
+                return None;
+            }
+        }
+        Some((parse_cmd_parts(text), false))
+    }
+
     fn emit_inline_cmd_subst_with_tokens_unstamped(
         &mut self,
         text: &str,
@@ -1614,15 +1718,10 @@ impl CodegenCtx<'_> {
             self.emit(Op::EVAL_STK, vec![]);
             return;
         }
-        if self.recognises_expand_syntax() && text.contains("{*}") {
-            let parts = parse_cmd_parts_expand(text);
-            if parts.iter().any(|(_, _, expand)| *expand) {
-                self.emit_expanded_cmd_subst(&parts);
-                return;
-            }
-        }
-
-        let mut parts = parse_cmd_parts(text);
+        let Some((mut parts, expanded)) = self.cmd_subst_parts(text) else {
+            return;
+        };
+        let tokens = if expanded { None } else { tokens };
         if parts.is_empty() {
             self.push_lit("");
             return;
@@ -1666,7 +1765,12 @@ impl CodegenCtx<'_> {
                 self.load_var(&args[0].0);
             }
             Some((InlineCodegenHookId::String, binding)) if args.len() >= 2 => {
-                self.emit_inline_string(cmd, &binding, args);
+                if let Some(canonical) = self.canonical_subcommand_args(cmd, args) {
+                    self.emit_inline_string(cmd, &binding, &canonical);
+                } else {
+                    self.used_inline_cmd_subst = false;
+                    self.emit_generic_cmd_subst(cmd, args);
+                }
             }
             Some((InlineCodegenHookId::Lindex, _)) if args.len() >= 2 => {
                 self.emit_inline_lindex(args);
@@ -1991,11 +2095,14 @@ impl CodegenCtx<'_> {
         }
     }
 
-    /// Fall-through path: invoke `::tcl::string::<subcmd>` via
-    /// `INVOKE_STK1`/`STK4`.
-    fn emit_inline_string_fqn_invoke(
+    /// Fall-through path: invoke `entered_command` with the subcommand it
+    /// resolved to and its words, via `INVOKE_STK1`/`STK4`. The ensemble's
+    /// implementation commands (`::tcl::string::<subcmd>`) are not every
+    /// release's, so the command itself runs the subcommand.
+    fn emit_inline_string_command_invoke(
         &mut self,
         prev_inline: bool,
+        entered_command: &str,
         subcmd: &str,
         sargs: &[(String, bool)],
     ) {
@@ -2006,12 +2113,12 @@ impl CodegenCtx<'_> {
             vec![Operand::Label(sc_end.clone()), Operand::Imm(1)],
             "",
         );
-        let fqn = format!("::tcl::string::{subcmd}");
-        self.push_lit(&fqn);
+        self.push_lit(entered_command);
+        self.push_lit(subcmd);
         for (a, b) in sargs {
             self.emit_cmd_subst_arg(a, *b);
         }
-        let argc = bytecode_imm(1 + sargs.len());
+        let argc = bytecode_imm(2 + sargs.len());
         let invoke_op = if argc < 256 {
             Op::INVOKE_STK1
         } else {
@@ -2046,7 +2153,7 @@ impl CodegenCtx<'_> {
         match self.emit_string_op(args, prev_inline) {
             StringEmission::Op => {}
             StringEmission::Command => {
-                self.emit_inline_string_fqn_invoke(prev_inline, subcmd, sargs);
+                self.emit_inline_string_command_invoke(prev_inline, entered_command, subcmd, sargs);
             }
             StringEmission::IsCommand => {
                 self.emit_string_is_generic(entered_command, entered_binding, sargs);
@@ -3323,19 +3430,22 @@ mod tests {
         }
     }
 
-    /// A `::`-qualified head word keeps the generic-invoke path — the
-    /// retired dispatch keyed on the raw word, so `[::expr …]` never
-    /// took the inline expression emitter and must not start to.
+    /// A `::`-qualified head word naming a global builtin compiles as the
+    /// builtin does: C's compiler finds `::expr` and compiles it with
+    /// `TclCompileExprCmd`.
     #[test]
-    fn qualified_head_word_stays_generic() {
+    fn qualified_head_word_compiles_as_the_builtin() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(true, &[], &registry);
         ctx.emit_inline_cmd_subst("[::expr {$x+2}]");
         let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
-        assert!(!ops.contains(&Op::ADD), "qualified ::expr must not inline");
         assert!(
-            ops.contains(&Op::INVOKE_STK1),
-            "qualified ::expr must invoke generically, got {ops:?}"
+            ops.contains(&Op::ADD),
+            "qualified ::expr inlines, got {ops:?}"
+        );
+        assert!(
+            !ops.contains(&Op::INVOKE_STK1),
+            "qualified ::expr compiles, got {ops:?}"
         );
     }
 
