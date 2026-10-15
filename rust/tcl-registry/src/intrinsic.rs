@@ -560,6 +560,11 @@ impl IntrinsicId {
             CodegenHookId::Lset => Some(Self::ListSet),
             CodegenHookId::Concat => Some(Self::Concat),
             CodegenHookId::Append
+            | CodegenHookId::Set
+            | CodegenHookId::ArraySet
+            | CodegenHookId::ArrayUnset
+            | CodegenHookId::Variable
+            | CodegenHookId::NamespaceUpvar
             | CodegenHookId::Lappend
             | CodegenHookId::Unset
             | CodegenHookId::Tailcall
@@ -587,6 +592,7 @@ impl IntrinsicId {
             InlineCodegenHookId::DictGet => Some(Self::DictGet),
             InlineCodegenHookId::Expr
             | InlineCodegenHookId::Incr
+            | InlineCodegenHookId::Set
             | InlineCodegenHookId::Catch
             | InlineCodegenHookId::Return
             | InlineCodegenHookId::Error

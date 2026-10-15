@@ -321,12 +321,18 @@ pub const CODEGEN_HOOKS: &[Variant] = &[
     v("Concat", "concat"),
     v("Global", "global"),
     v("Upvar", "upvar"),
+    v("Set", "set"),
+    v("ArraySet", "array set"),
+    v("ArrayUnset", "array unset"),
+    v("Variable", "variable"),
+    v("NamespaceUpvar", "namespace upvar"),
 ];
 
 /// [`InlineCodegenHookId`] — the value-position / catch-body emitter.
 pub const INLINE_CODEGEN_HOOKS: &[Variant] = &[
     v("Expr", "expr"),
     v("Incr", "incr"),
+    v("Set", "set"),
     v("InfoExists", "info exists"),
     v("String", "string"),
     v("Lindex", "lindex"),
@@ -1099,7 +1105,12 @@ mod tests {
             | CodegenHookId::Tailcall
             | CodegenHookId::Concat
             | CodegenHookId::Global
-            | CodegenHookId::Upvar => true,
+            | CodegenHookId::Upvar
+            | CodegenHookId::Set
+            | CodegenHookId::ArraySet
+            | CodegenHookId::ArrayUnset
+            | CodegenHookId::Variable
+            | CodegenHookId::NamespaceUpvar => true,
         }
     }
 
@@ -1108,6 +1119,7 @@ mod tests {
         match h {
             InlineCodegenHookId::Expr
             | InlineCodegenHookId::Incr
+            | InlineCodegenHookId::Set
             | InlineCodegenHookId::InfoExists
             | InlineCodegenHookId::String
             | InlineCodegenHookId::Lindex

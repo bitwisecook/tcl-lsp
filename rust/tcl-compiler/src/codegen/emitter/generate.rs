@@ -403,6 +403,11 @@ fn emit_foreach_header(
         ctx.seen_generic_invoke = true;
         state.foreach_end_labels.insert(fi.end.clone(), fe_lbl);
     }
+    // `CompileEachloopCmd` makes each loop variable a compiled local before
+    // it compiles the list words.
+    for var in fi.var_groups.iter().flatten() {
+        ctx.intern_compiled_local(var);
+    }
     for (i, la) in fi.list_args.iter().enumerate() {
         // A braced list word is a literal in every direction: `TclFindElement`'s
         // brace semantics keep `$` / `[…]` inert both for the word itself and

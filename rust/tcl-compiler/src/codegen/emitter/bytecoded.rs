@@ -132,12 +132,13 @@ fn registry_codegen_hook(
 /// but C Tcl has already entered a command whose compile hook accepted that
 /// shape. Probe the same dispatcher in an isolated context so the surrogate
 /// inherits the hook's one authoritative applicability guard rather than a
-/// second command/arity table.
+/// second command/arity table. The probe's local table holds the compiled
+/// locals the hook's emission makes.
 pub(crate) fn applicable_codegen_binding(
     ctx: &CodegenCtx,
     cmd: &str,
     args: &[String],
-) -> Option<SiteBinding> {
+) -> Option<(SiteBinding, tcl_bytecode::LocalVarTable)> {
     if ctx.plain_command_dispatch {
         return None;
     }
@@ -152,7 +153,8 @@ pub(crate) fn applicable_codegen_binding(
     probe.current_span_is_command = ctx.current_span_is_command;
     probe.direct_commands.clone_from(&ctx.direct_commands);
     let mut used_generic_invoke = false;
-    dispatch_codegen_hook(hook, &mut probe, args, &mut used_generic_invoke).then_some(site)
+    let applies = dispatch_codegen_hook(hook, &mut probe, args, &mut used_generic_invoke);
+    applies.then_some((site, probe.lvt))
 }
 
 /// Dispatch a typed [`CodegenHookId`] to its emitter.
@@ -182,6 +184,11 @@ pub fn dispatch_codegen_hook(
         CodegenHookId::Concat => concat_cmd(ctx, args),
         CodegenHookId::Global => global_cmd(ctx, args),
         CodegenHookId::Upvar => upvar_cmd(ctx, args),
+        CodegenHookId::Set => set_cmd(ctx, args),
+        CodegenHookId::ArraySet => array_local(ctx, args, 3),
+        CodegenHookId::ArrayUnset => array_local(ctx, args, 2),
+        CodegenHookId::Variable => variable_locals(ctx, args),
+        CodegenHookId::NamespaceUpvar => namespace_upvar_locals(ctx, args),
     }
 }
 
@@ -208,6 +215,7 @@ fn lassign(ctx: &mut CodegenCtx, args: &[String]) -> bool {
     ctx.emit_word_arg(0, &args[0]);
     let var_names = &args[1..];
     for (i, var) in var_names.iter().enumerate() {
+        ctx.intern_compiled_local(var);
         ctx.push_lit(var);
         ctx.emit(Op::OVER, vec![Operand::Imm(1)]);
         ctx.emit(Op::LIST_INDEX_IMM, vec![Operand::Imm(bytecode_imm(i))]);
@@ -278,6 +286,10 @@ fn linsert(ctx: &mut CodegenCtx, args: &[String]) -> bool {
 /// everything else uses stack-based `loadStk` / `storeStk`.
 fn lset(ctx: &mut CodegenCtx, args: &[String]) -> bool {
     if args.len() < 3 {
+        // `lset varName newValue` compiles too, its variable a compiled local.
+        if let [var, _] = args {
+            ctx.intern_compiled_local(var);
+        }
         return false;
     }
     let var_name = &args[0];
@@ -630,6 +642,64 @@ fn array(ctx: &mut CodegenCtx, args: &[String], used_generic_invoke: &mut bool) 
     }
 }
 
+/// `set varName` — the load `TclCompileSetCmd` compiles the one-word form
+/// to. The two-word form is lowered as an assignment before it gets here.
+fn set_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
+    let [var] = args else {
+        return false;
+    };
+    if !is_compilable_local(ctx, var) {
+        return false;
+    }
+    ctx.load_var(var);
+    ctx.emit(Op::POP, vec![]);
+    true
+}
+
+/// `array set arrayName list` and `array unset arrayName`, `words` long with
+/// the subcommand: 8.6 compiles each, making the array a compiled local; the
+/// command itself runs here.
+fn array_local(ctx: &mut CodegenCtx, args: &[String], words: usize) -> bool {
+    if args.len() == words {
+        ctx.intern_compiled_local(&args[1]);
+    }
+    false
+}
+
+/// `variable name ?value name value ...?` — `TclCompileVariableCmd` makes
+/// the tail of each name a compiled local, up to the first that cannot be
+/// one; the command itself runs here.
+fn variable_locals(ctx: &mut CodegenCtx, args: &[String]) -> bool {
+    for name in args.iter().step_by(2) {
+        let tail = name.rsplit("::").next().unwrap_or_default();
+        if tail.is_empty() || split_array_ref(tail).is_some() {
+            break;
+        }
+        ctx.intern_compiled_local(tail);
+    }
+    false
+}
+
+/// `namespace upvar ns otherVar myVar ...` — `TclCompileNamespaceUpvarCmd`
+/// takes whole pairs and makes each `myVar` a compiled local, up to the first
+/// that cannot be one; the command itself runs here.
+fn namespace_upvar_locals(ctx: &mut CodegenCtx, args: &[String]) -> bool {
+    if args.len() >= 4 && args.len().is_multiple_of(2) {
+        for name in args.iter().skip(3).step_by(2) {
+            if !is_compilable_local(ctx, name) {
+                break;
+            }
+            // `LocalScalarFromToken` makes an element's array a local, and
+            // stops the compile there.
+            ctx.intern_compiled_local(name);
+            if split_array_ref(name).is_some() {
+                break;
+            }
+        }
+    }
+    false
+}
+
 // append / lappend
 
 /// True when `var` names a variable codegen can resolve to a compiled
@@ -662,8 +732,14 @@ fn is_compilable_scalar_local(ctx: &CodegenCtx, var: &str) -> bool {
 /// per value (mirroring C Tcl's `TclCompileAppendCmd`). Toplevel, qualified,
 /// dynamic, and multi-value array forms fall back to the generic invoke.
 fn append_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
-    if args.len() < 2 || !is_compilable_local(ctx, &args[0]) {
+    if args.is_empty() || !is_compilable_local(ctx, &args[0]) {
         return false;
+    }
+    if let [var] = args {
+        // `append varName` compiles as `set varName` does: a load.
+        ctx.load_var(var);
+        ctx.emit(Op::POP, vec![]);
+        return true;
     }
     let var = &args[0];
     let values = &args[1..];
@@ -1330,8 +1406,13 @@ mod tests {
             &["$dyn".into(), "a".into()],
             &mut used
         ));
-        // No value: nothing to append → generic invoke.
-        assert!(!try_bytecoded(&mut ctx, "append", &["x".into()], &mut used));
+        // No value: `append x` compiles as `set x` does, to a load.
+        assert!(try_bytecoded(&mut ctx, "append", &["x".into()], &mut used));
+        assert!(
+            ctx.instructions
+                .iter()
+                .any(|instruction| instruction.op == Op::LOAD_SCALAR1)
+        );
     }
 
     #[test]

@@ -1197,6 +1197,11 @@ Compiler internals: the named per-command bytecode emitters, mirroring what C Tc
 | `Concat` | concat |
 | `Global` | global |
 | `Upvar` | upvar |
+| `Set` | set |
+| `ArraySet` | array set |
+| `ArrayUnset` | array unset |
+| `Variable` | variable |
+| `NamespaceUpvar` | namespace upvar |
 
 ### Command-table effects
 
@@ -1291,6 +1296,7 @@ Compiler internals: bytecode emitters for value-position (`set x [cmd …]`) and
 |---|---|
 | `Expr` | expr |
 | `Incr` | incr |
+| `Set` | set |
 | `InfoExists` | info exists |
 | `String` | string |
 | `Lindex` | lindex |

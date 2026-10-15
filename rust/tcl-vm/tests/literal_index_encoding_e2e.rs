@@ -526,6 +526,42 @@ const EVAL_TEXT_READ: &str = "proc: t1=<> t2=<> t3=<> t4=<> t5=<{}>\ntop: <>\n";
 const EVAL_TEXT_86: &str =
     "proc: t1=<> t2=<abcdefghijkl> t3=<abcdefghijkl> t4=<abcdefghijkl> t5=<{}>\ntop: <>\n";
 
+/// Which variables a procedure's compiled locals include, as 8.6 shows it:
+/// a script `eval` compiles in the frame compiles `catch $b r` only where
+/// `r` is already one (`TclFindCompiledLocal`), and a compiled `catch` reads
+/// `$b`'s literal index apart. C makes a word a compiled local wherever a
+/// compile procedure compiles it, even where the command never runs: a
+/// one-word `set` or `append` in any position, an `info exists` element, the
+/// arrays of `array set` and of a pattern-less `array unset`, loop and
+/// handler variables, the variables of a `catch` (an element names its
+/// array's, and stops the compile) and of the scripts it compiles with it,
+/// `variable`'s tails and `namespace upvar`'s locals; not those of a command
+/// it leaves to run (`gets`, a `regexp` with match variables, `array names`),
+/// a qualified name, an element `variable` cannot link, nor a script behind
+/// a constant-false `if` or `while`.
+const COMPILED_LOCALS: &str = r#"proc L {} { list string range abcdefghijkl 0 [set e end-2147483649] }
+set shapes {
+    {set r} {set r(x)} {set x [set r]} {list [set r] 1} {set x "a[set r]"} {expr {[set r]}}
+    {append r} {info exists r(x)} {array set r {}} {array unset r} {array unset r x}
+    {lassign {a} r} {lset r 1} {foreach r {1} {}} {foreach {x r} {} {}} {lmap r {} {}}
+    {dict update d a r {}} {dict with r {}} {dict map {r v} {} {}} {catch {} r}
+    {catch {} r(x)} {catch {} ::r} {catch {foreach r {} {}}} {try {} on ok r {}}
+    {variable r} {variable r(x)} {namespace upvar :: x r} {gets stdin r}
+    {regexp a a r} {array names r} {if 0 {set r}} {while 0 {set r 1}}
+}
+set i 0
+foreach shape $shapes {
+    incr i
+    proc p$i {b} "if {\$b eq {}} { $shape }; eval {catch \$b r}; eval \$b"
+    append out [expr {[p$i [L]] eq {} ? {-} : {C}}]
+}
+puts $out
+"#;
+
+const COMPILED_LOCALS_READ: &str = "--------------------------------\n";
+
+const COMPILED_LOCALS_86: &str = "CCCCCCCCCC-CCCCCCCCCC-CCC-C-----\n";
+
 /// A canonical list `eval`, `uplevel`, `if` or `catch` runs directly hands
 /// its command the very values the list holds (`Tcl_EvalObjv` over its
 /// elements), so a canonical list among them stays one: `eval [list catch $b
@@ -637,6 +673,17 @@ matchstr=- trim=- trimright=- isalpha=C isascii=C isint=- replnew=C replall=- \
 replnone=- mapkey=C mapval=C maplong=- mappairs=C mapnone=- cat=- repeat=-\n";
 
 const VECTORS: &[Vector] = &[
+    Vector {
+        name: "a procedure's compiled locals",
+        script: COMPILED_LOCALS,
+        want: &[
+            (TclVersion::V8_4, COMPILED_LOCALS_READ, COMPILED_LOCALS_READ),
+            (TclVersion::V8_5, COMPILED_LOCALS_READ, COMPILED_LOCALS_READ),
+            (TclVersion::V8_6, COMPILED_LOCALS_86, COMPILED_LOCALS_86),
+            (TclVersion::V9_0, COMPILED_LOCALS_READ, COMPILED_LOCALS_READ),
+            (TclVersion::V9_1, COMPILED_LOCALS_READ, COMPILED_LOCALS_READ),
+        ],
+    },
     Vector {
         name: "the words of a script run directly",
         script: DIRECT_WORDS,

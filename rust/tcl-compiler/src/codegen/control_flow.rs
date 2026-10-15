@@ -247,13 +247,39 @@ impl CodegenCtx<'_> {
         let hook = resolved.lowering_hook?;
         let binding = self.command_binding_identity(command, resolved.spec.name);
         let frame_local_words = match hook {
-            LoweringHookId::Catch => self
-                .release_admits_arity(command, args.len())
-                .then(|| self.release_compiles_catch(&words))
-                .flatten(),
-            LoweringHookId::Try => self
-                .release_compiles_try(command, &words, &arg_refs)
-                .then_some(0),
+            LoweringHookId::Catch => {
+                let admitted = self.release_admits_arity(command, args.len());
+                let mask = admitted
+                    .then(|| self.release_compiles_catch(&words))
+                    .flatten();
+                // A procedure body's `catch` makes each variable a local
+                // (`LocalScalarFromToken`: an element names its array's, and
+                // stops the compile), and compiles a literal script with it.
+                if admitted && self.compiles_locals() {
+                    for var in words.iter().skip(1) {
+                        if !var.simple() || is_qualified(var.text) {
+                            break;
+                        }
+                        self.intern_compiled_local(var.text);
+                        if super::values::is_array_ref(var.text) {
+                            break;
+                        }
+                    }
+                }
+                if mask == Some(0)
+                    && let Some(script) = words.first().filter(|script| script.simple())
+                {
+                    self.intern_script_locals(script.text);
+                }
+                mask
+            }
+            LoweringHookId::Try => {
+                let compiled = self.release_compiles_try(command, &words, &arg_refs);
+                if compiled {
+                    self.intern_try_variables(command, &arg_refs);
+                }
+                compiled.then_some(0)
+            }
             LoweringHookId::For => matches!(words.as_slice(), [_, test, next, body]
                     if test.simple() && next.simple() && body.simple())
             .then_some(0),
@@ -341,6 +367,38 @@ impl CodegenCtx<'_> {
                 });
             self.compiles_locals() && body && selector && variables
         })
+    }
+
+    /// Make each handler variable of a `try` compiled locals, as
+    /// `TclCompileTryCmd` does in a procedure body.
+    fn intern_try_variables(&mut self, command: &str, arg_refs: &[&str]) {
+        let Some(invocation) = self.registry.try_control_invocation(
+            command,
+            arg_refs,
+            self.registry.own_surface_query(),
+        ) else {
+            return;
+        };
+        let names: Vec<String> = invocation
+            .clauses
+            .iter()
+            .filter_map(|clause| clause.variable_list_index)
+            .filter_map(|index| arg_refs.get(index))
+            .filter_map(|list| tcl_syntax::list::split_list(list).ok())
+            .flatten()
+            .map(|name| name.to_string())
+            .collect();
+        for name in names {
+            self.intern_compiled_local(&name);
+        }
+        // Then it compiles the body and each handler with it.
+        let scripts: Vec<&str> = std::iter::once(invocation.body_index)
+            .chain(invocation.clauses.iter().map(|clause| clause.body_index))
+            .filter_map(|index| arg_refs.get(index).copied())
+            .collect();
+        for script in scripts {
+            self.intern_script_locals(script);
+        }
     }
 
     /// Whether the literal-body `catch` specialiser can preserve the exact
@@ -570,6 +628,11 @@ impl CodegenCtx<'_> {
             || !body_ir.methods.is_empty()
             || !is_straight_line_body(&body_ir.top_level, self.registry)
         {
+            // As `emit_dict_map`.
+            for name in &vnames {
+                self.intern_compiled_local(name);
+            }
+            self.intern_script_locals(body_text);
             return false;
         }
 
@@ -680,6 +743,12 @@ impl CodegenCtx<'_> {
             || body_ir.top_level.statements.is_empty()
             || !is_straight_line_body(&body_ir.top_level, self.registry)
         {
+            // `CompileDictEachCmd` compiles any body, its loop variables
+            // locals of the procedure all the same.
+            for name in &vnames {
+                self.intern_compiled_local(name);
+            }
+            self.intern_script_locals(body_text);
             return false;
         }
 
@@ -819,6 +888,13 @@ impl CodegenCtx<'_> {
             || body_ir.top_level.statements.is_empty()
             || !is_straight_line_body(&body_ir.top_level, self.registry)
         {
+            // `TclCompileDictUpdateCmd` compiles any body with the command,
+            // and its variables are locals of the procedure all the same.
+            self.intern_compiled_local(dict_var);
+            for v in &vars {
+                self.intern_compiled_local(v);
+            }
+            self.intern_script_locals(body_text);
             return false;
         }
 
@@ -920,6 +996,9 @@ impl CodegenCtx<'_> {
             || body_ir.top_level.statements.is_empty()
             || !is_straight_line_body(&body_ir.top_level, self.registry)
         {
+            // As `emit_dict_update`: `TclCompileDictWithCmd` compiles any body.
+            self.intern_compiled_local(dict_var);
+            self.intern_script_locals(body_text);
             return false;
         }
 

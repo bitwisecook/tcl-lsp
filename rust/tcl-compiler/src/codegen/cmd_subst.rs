@@ -864,7 +864,13 @@ impl CodegenCtx<'_> {
             return None;
         }
         let args: Vec<String> = args.iter().map(|(arg, _)| arg.clone()).collect();
-        let site = applicable_codegen_binding(self, command, &args)?;
+        let (site, locals) = applicable_codegen_binding(self, command, &args)?;
+        // The command C compiles in its place makes these locals.
+        for name in locals.entries() {
+            if locals.is_source_local(name) {
+                self.intern_compiled_local(name);
+            }
+        }
         self.require_site_binding(&site);
         Some(site.binding)
     }
@@ -1627,6 +1633,16 @@ impl CodegenCtx<'_> {
             Some((InlineCodegenHookId::InfoExists, _)) if args.len() == 2 => {
                 self.emit_inline_info_exists(args);
             }
+            Some((InlineCodegenHookId::Set, _))
+                if matches!(args, [(name, braced)]
+                    if !self.in_direct_command()
+                        && !tcl_syntax::naming::word_is_dynamic(name, *braced)
+                        && !name.contains('\\')) =>
+            {
+                // `TclCompileSetCmd`: the one-word form is a load.
+                self.used_inline_cmd_subst = true;
+                self.load_var(&args[0].0);
+            }
             Some((InlineCodegenHookId::String, binding)) if args.len() >= 2 => {
                 self.emit_inline_string(cmd, &binding, args);
             }
@@ -1779,7 +1795,20 @@ impl CodegenCtx<'_> {
     fn emit_inline_info_exists(&mut self, args: &[(String, bool)]) {
         self.used_inline_cmd_subst = true;
         let var_name = &args[1].0;
-        if self.compiles_locals() && !is_qualified(var_name) {
+        if self.compiles_locals()
+            && !is_qualified(var_name)
+            && let Some((base, key)) = split_array_ref(var_name)
+        {
+            // `TclCompileInfoExistsCmd` names the array's compiled local and
+            // pushes the key.
+            let slot = bytecode_imm(self.lvt.intern(base));
+            self.push_array_key(key);
+            self.emit_comment(
+                Op::EXIST_ARRAY,
+                vec![Operand::Imm(slot)],
+                &format!("var \"{base}\""),
+            );
+        } else if self.compiles_locals() && !is_qualified(var_name) {
             let slot = bytecode_imm(self.lvt.intern(var_name));
             self.emit_comment(
                 Op::EXIST_SCALAR,
@@ -3178,6 +3207,7 @@ mod tests {
         let expected: &[(&str, H)] = &[
             ("expr", H::Expr),
             ("incr", H::Incr),
+            ("set", H::Set),
             ("string", H::String),
             ("lindex", H::Lindex),
             ("lrange", H::Lrange),

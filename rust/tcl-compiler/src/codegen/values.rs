@@ -156,6 +156,19 @@ impl CodegenCtx<'_> {
     }
     /// Push a literal onto the stack with deduplication.
     pub fn push_lit(&mut self, value: &str) {
+        // The command substitutions of a word substituted at run time are
+        // scripts C compiles with the command, their locals the procedure's.
+        if self.compiles_locals()
+            && value.contains('[')
+            && let Some(parts) =
+                super::helpers::parse_subst_template(value, self.escapes, self.braced_var)
+        {
+            for part in parts {
+                if let super::helpers::SubstPart::Cmd(script) = part {
+                    self.intern_script_locals(&script);
+                }
+            }
+        }
         let idx = self.literals.intern(value);
         let op = if idx < 256 { Op::PUSH1 } else { Op::PUSH4 };
         self.emit_comment(
@@ -450,6 +463,48 @@ impl CodegenCtx<'_> {
             // set v $b(\{a\}) -> ESCBRACE   (a substituting push read `b(a)`)
             // ```
             self.push_lit_exact(elem);
+        }
+    }
+
+    /// Make the variable `name` a compiled local of the procedure, as a C
+    /// compile procedure does for each variable word it compiles
+    /// (`TclFindCompiledLocal`) even where it emits no access to it: the
+    /// array an element names, nothing for a qualified name.
+    pub(crate) fn intern_compiled_local(&mut self, name: &str) {
+        if !self.compiles_locals() || is_qualified(name) || name.contains(['$', '[', '\\']) {
+            return;
+        }
+        let base = split_array_ref(name).map_or(name, |(base, _)| base);
+        self.lvt.intern(base);
+    }
+
+    /// Make the compiled locals of `script` locals of this procedure: the
+    /// literal script of a command C compiles with its command, which this
+    /// compiler leaves the command to run.
+    pub(crate) fn intern_script_locals(&mut self, script: &str) {
+        if !self.compiles_locals() {
+            return;
+        }
+        let config = self.lexer_config();
+        let ir = crate::lowering::lower_proc_body_module_for_bytecode(
+            script,
+            "",
+            self.registry,
+            config,
+            self.dialect,
+            false,
+        );
+        let cfg = crate::cfg_builder::build_cfg_codegen_with_registry_and_config(
+            &ir,
+            false,
+            self.registry,
+            config,
+        );
+        let asm = super::emitter::codegen_function(&cfg.top_level, &[], true, self.registry);
+        for name in asm.lvt.entries() {
+            if asm.lvt.is_source_local(name) {
+                self.intern_compiled_local(name);
+            }
         }
     }
 
