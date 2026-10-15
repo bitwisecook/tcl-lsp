@@ -32,6 +32,7 @@ use chrono::Utc;
 
 use crate::errors::TclPkgError;
 
+mod config;
 mod posix_source;
 
 fn venv_error(message: impl Into<String>, hint: Option<&str>) -> TclPkgError {
@@ -236,33 +237,31 @@ pub fn create_venv(venv_path: &Path, opts: &CreateOptions) -> Result<PathBuf, Tc
     let activation = posix_source::activation(&venv_path, &prompt_label)?;
     let fish = activate_fish(&venv_path, &prompt_label);
 
+    let mut cfg = vec![
+        ("tcl_version".to_owned(), version_str),
+        ("tcl_executable".to_owned(), config::path_value(&tclsh)?),
+        ("venv_tool".to_owned(), "tcl-lsp".to_owned()),
+        (
+            "created".to_owned(),
+            Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+        ),
+        ("prompt".to_owned(), prompt_label),
+        (
+            "include-system-site-packages".to_owned(),
+            opts.system_site_packages.to_string(),
+        ),
+    ];
+    if let Some(root) = opts.project_root {
+        cfg.push(("project_root".to_owned(), config::path_value(root)?));
+    }
+    let cfg_source = config::encode(&cfg)?;
     let bin_dir = venv_path.join("bin");
     let lib_dir = venv_path.join("lib");
     std::fs::create_dir_all(&bin_dir)
         .map_err(|e| venv_error(format!("cannot create venv: {e}"), None))?;
     std::fs::create_dir_all(&lib_dir)
         .map_err(|e| venv_error(format!("cannot create venv: {e}"), None))?;
-
-    let tclsh_display = tclsh.to_string_lossy();
-    let mut cfg = vec![
-        format!("tcl_version = {version_str}"),
-        format!("tcl_executable = {tclsh_display}"),
-        "venv_tool = tcl-lsp".to_string(),
-        format!("created = {}", Utc::now().format("%Y-%m-%dT%H:%M:%SZ")),
-        format!("prompt = {prompt_label}"),
-        format!(
-            "include-system-site-packages = {}",
-            if opts.system_site_packages {
-                "true"
-            } else {
-                "false"
-            }
-        ),
-    ];
-    if let Some(root) = opts.project_root {
-        cfg.push(format!("project_root = {}", root.display()));
-    }
-    write_file(&venv_path.join("tclvenv.cfg"), &(cfg.join("\n") + "\n"))?;
+    write_file(&venv_path.join("tclvenv.cfg"), &cfg_source)?;
 
     write_executable(&bin_dir.join("tclsh"), &wrapper)?;
     write_file(&bin_dir.join("activate"), &activation)?;
@@ -289,13 +288,7 @@ pub fn read_venv_config(venv_path: &Path) -> Result<Vec<(String, String)>, TclPk
     }
     let text = std::fs::read_to_string(&cfg_file)
         .map_err(|e| venv_error(format!("cannot read venv config: {e}"), None))?;
-    let mut result = Vec::new();
-    for line in text.lines() {
-        if let Some((key, value)) = line.split_once('=') {
-            result.push((key.trim().to_string(), value.trim().to_string()));
-        }
-    }
-    Ok(result)
+    config::decode(&text)
 }
 
 /// Remove a virtual environment directory.
@@ -319,7 +312,19 @@ pub fn delete_venv(venv_path: &Path, force: bool) -> Result<(), TclPkgError> {
     }
     if !force && let Some(active) = std::env::var_os("TCL_VENV") {
         let active = PathBuf::from(active);
-        if active.canonicalize().ok() == venv_path.canonicalize().ok() {
+        let active = active.canonicalize().map_err(|error| {
+            venv_error(
+                format!("cannot establish active venv path identity: {error}"),
+                Some("resolve TCL_VENV or use --force to override the active-venv guard"),
+            )
+        })?;
+        let selected = venv_path.canonicalize().map_err(|error| {
+            venv_error(
+                format!("cannot establish selected venv path identity: {error}"),
+                None,
+            )
+        })?;
+        if active == selected {
             return Err(venv_error(
                 "cannot delete the currently active venv",
                 Some("run 'deactivate' first or use --force"),
@@ -334,31 +339,16 @@ pub fn delete_venv(venv_path: &Path, force: bool) -> Result<(), TclPkgError> {
 /// `bin/tclsh` wrapper. Returns the resolved tclsh path.
 pub fn update_venv(venv_path: &Path, new_tcl: &str) -> Result<PathBuf, TclPkgError> {
     let venv_path = absolutise(venv_path);
-    read_venv_config(&venv_path)?; // validate the venv exists
+    let mut cfg = read_venv_config(&venv_path)?;
 
     let tclsh = which(&format!("tclsh{new_tcl}"))
         .or_else(|| which("tclsh"))
         .ok_or_else(|| venv_error(format!("tclsh{new_tcl} not found on PATH"), None))?;
     let tclsh = posix_source::selected_executable(&tclsh)?;
     let wrapper = posix_source::wrapper(&tclsh)?;
-    let tclsh_display = tclsh.to_string_lossy();
-
-    let cfg_file = venv_path.join("tclvenv.cfg");
-    let text = std::fs::read_to_string(&cfg_file)
-        .map_err(|e| venv_error(format!("cannot read venv config: {e}"), None))?;
-    let new_lines: Vec<String> = text
-        .lines()
-        .map(|line| {
-            if line.starts_with("tcl_version") {
-                format!("tcl_version = {new_tcl}")
-            } else if line.starts_with("tcl_executable") {
-                format!("tcl_executable = {tclsh_display}")
-            } else {
-                line.to_string()
-            }
-        })
-        .collect();
-    write_file(&cfg_file, &(new_lines.join("\n") + "\n"))?;
+    config::replace_selected(&mut cfg, new_tcl, &tclsh)?;
+    let source = config::encode(&cfg)?;
+    write_file(&venv_path.join("tclvenv.cfg"), &source)?;
 
     write_executable(&venv_path.join("bin").join("tclsh"), &wrapper)?;
     Ok(tclsh)

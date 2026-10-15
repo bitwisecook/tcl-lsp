@@ -1377,3 +1377,152 @@ fn generated_posix_venv_source_refuses_opaque_paths_before_writing() {
     );
     std::fs::remove_dir_all(base).unwrap();
 }
+
+#[cfg(unix)]
+#[test]
+fn venv_config_publication_preserves_original_paths_values_and_legacy_rows() {
+    use std::os::unix::fs::PermissionsExt;
+    let base = temp_dir("venv-config-source");
+    let selected_dir = base.join("selected \"quote\"\nnext=path");
+    std::fs::create_dir_all(&selected_dir).unwrap();
+    let executable = selected_dir.join("tclsh9.0");
+    std::fs::write(&executable, "#!/bin/sh\nprintf '9.0.4\\n'\n").unwrap();
+    std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let venv = base.join("venv");
+    let prompt = "literal \"quotes\"\\path\nnext = not-a-key";
+    let output = Command::new(env!("CARGO_BIN_EXE_tcl"))
+        .args(["venv", "create"])
+        .arg(&venv)
+        .args(["--prompt", prompt])
+        .env("PATH", &selected_dir)
+        .env("XDG_CACHE_HOME", base.join("cache"))
+        .current_dir(&base)
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{output:?}");
+    let pairs = tcl_pkg::venv::read_venv_config(&venv).unwrap();
+    assert!(pairs.contains(&("prompt".into(), prompt.into())));
+    assert!(pairs.contains(&("tcl_executable".into(), executable.to_str().unwrap().into())));
+    assert!(!pairs.iter().any(|(key, _)| key == "next"));
+    let output = Command::new(env!("CARGO_BIN_EXE_tcl"))
+        .args(["venv", "info"])
+        .arg(&venv)
+        .arg("--json")
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{output:?}");
+    let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report["prompt"], prompt);
+    let legacy = "tcl_version = 8.6\ntcl_executable = original\ntcl_version_extra = retain-version\ntcl_executable_backup = retain-path\nunknown = first\nunknown = second\nprompt = \"literal\"\n";
+    std::fs::write(venv.join("tclvenv.cfg"), legacy).unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_tcl"))
+        .args(["venv", "update"])
+        .arg(&venv)
+        .args(["--tcl", "9.0"])
+        .env("PATH", &selected_dir)
+        .env("XDG_CACHE_HOME", base.join("cache"))
+        .current_dir(&base)
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{output:?}");
+    assert_eq!(
+        tcl_pkg::venv::read_venv_config(&venv).unwrap(),
+        vec![
+            ("tcl_version".into(), "9.0".into()),
+            ("tcl_executable".into(), executable.to_str().unwrap().into()),
+            ("tcl_version_extra".into(), "retain-version".into()),
+            ("tcl_executable_backup".into(), "retain-path".into()),
+            ("unknown".into(), "first".into()),
+            ("unknown".into(), "second".into()),
+            ("prompt".into(), "\"literal\"".into()),
+        ]
+    );
+    let wrapper = std::fs::read(venv.join("bin/tclsh")).unwrap();
+    for invalid in [
+        "# tclpkg venv config TOML 1\nbroken source\n",
+        "# tclpkg venv config TOML 2\ntcl_version = legacy-fallback-must-not-run\n",
+        "tcl_version = one\ntcl_version = two\n",
+        "prompt = one\nprompt = two\n",
+    ] {
+        std::fs::write(venv.join("tclvenv.cfg"), invalid).unwrap();
+        let output = Command::new(env!("CARGO_BIN_EXE_tcl"))
+            .args(["venv", "update"])
+            .arg(&venv)
+            .args(["--tcl", "9.0"])
+            .env("PATH", &selected_dir)
+            .env("XDG_CACHE_HOME", base.join("cache"))
+            .current_dir(&base)
+            .output()
+            .unwrap();
+        assert_eq!(output.status.code(), Some(1), "{output:?}");
+        assert_eq!(
+            std::fs::read_to_string(venv.join("tclvenv.cfg")).unwrap(),
+            invalid
+        );
+        assert_eq!(std::fs::read(venv.join("bin/tclsh")).unwrap(), wrapper);
+    }
+    std::fs::remove_dir_all(base).unwrap();
+}
+
+#[test]
+fn venv_deletion_requires_successful_actual_active_path_identity() {
+    let base = temp_dir("venv-delete-identity");
+    let target = base.join("selected");
+    let distinct = base.join("distinct");
+    std::fs::create_dir_all(&target).unwrap();
+    std::fs::create_dir_all(&distinct).unwrap();
+    let marker = b"venv_tool = tcl-lsp\n";
+    std::fs::write(target.join("tclvenv.cfg"), marker).unwrap();
+    let delete = |active: &std::path::Path, force: bool| {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_tcl"));
+        command
+            .current_dir(&base)
+            .args(["venv", "delete"])
+            .arg(&target)
+            .env("TCL_VENV", active);
+        if force {
+            command.arg("--force");
+        }
+        command.output().unwrap()
+    };
+
+    let output = delete(&base.join("missing-active"), false);
+    assert!(!output.status.success());
+    assert!(
+        String::from_utf8_lossy(&output.stderr)
+            .contains("cannot establish active venv path identity")
+    );
+    assert_eq!(std::fs::read(target.join("tclvenv.cfg")).unwrap(), marker);
+
+    let output = delete(&target, false);
+    assert!(!output.status.success());
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("cannot delete the currently active venv")
+    );
+    assert_eq!(std::fs::read(target.join("tclvenv.cfg")).unwrap(), marker);
+
+    #[cfg(unix)]
+    {
+        let alias = base.join("active-alias");
+        std::os::unix::fs::symlink(&target, &alias).unwrap();
+        let output = delete(&alias, false);
+        assert!(!output.status.success());
+        assert!(
+            String::from_utf8_lossy(&output.stderr)
+                .contains("cannot delete the currently active venv")
+        );
+        assert_eq!(std::fs::read(target.join("tclvenv.cfg")).unwrap(), marker);
+    }
+
+    let output = delete(&distinct, false);
+    assert!(output.status.success(), "{:?}", output.stderr);
+    assert!(!target.exists());
+    assert!(distinct.is_dir());
+
+    std::fs::create_dir(&target).unwrap();
+    std::fs::write(target.join("tclvenv.cfg"), marker).unwrap();
+    let output = delete(&base.join("missing-active"), true);
+    assert!(output.status.success(), "{:?}", output.stderr);
+    assert!(!target.exists());
+    std::fs::remove_dir_all(base).unwrap();
+}

@@ -28,6 +28,9 @@ docs/sphinx/_autosummary/
 
 .venv/
 venv/
+!rust/tcl-pkg/src/venv/
+rust/tcl-pkg/src/venv/*
+!rust/tcl-pkg/src/venv/*.rs
 env/
 pip-wheel-metadata/
 
