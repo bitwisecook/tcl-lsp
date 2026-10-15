@@ -645,13 +645,6 @@ impl CellContents {
         Ok(retired)
     }
 
-    fn materialise_selected_array(&mut self, root: Option<&[u8]>) -> Result<(), VarError> {
-        if let Some(retired) = self.publish_selected_array(root)? {
-            retired.release();
-        }
-        Ok(())
-    }
-
     fn insert_member_entry(&mut self, key: &[u8]) {
         if !self.member_order.contains_key(key) {
             self.array_search_epoch = self.array_search_epoch.wrapping_add(1);

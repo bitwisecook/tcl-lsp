@@ -2,11 +2,10 @@
 // Copyright (C) 2026 James Deucker (bitwisecook)
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Current source projection parity and explicit compatibility admission.
+//! Current source projection parity and explicit input-purpose refusal.
 
 use super::*;
 use salsa::Setter as _;
-use tcl_compiler::signature_scan::types::SignatureCommandInvocation;
 
 fn configuration(db: &TclDatabase) -> AnalyserConfig {
     AnalyserConfig::new(
@@ -195,65 +194,53 @@ fn supplied_project_callback_projection_refuses_foreign_images_inputs_and_horizo
     );
 }
 
-fn legacy_callback() -> SignatureCommandInvocation {
-    let analysis = Analyser::new().analyse("lsort -command cb {2 1}", "tcl9.0");
-    let mut invocation = analysis
-        .command_invocations
-        .iter()
-        .find(|invocation| invocation.original_callback_prefix.is_some())
-        .unwrap()
-        .clone();
-    invocation.original_callback_prefix = None;
-    invocation.original_callback_signature_lookup = None;
-    invocation.original_lookup = None;
-    invocation.original_name_input = None;
-    invocation.resolved_command_reference = None;
-    invocation.name = "cb".to_owned();
-    invocation.resolution_candidates = vec!["cb".to_owned()];
-    invocation.callback_arity = Some(tcl_registry::AppendedArity::Exactly(2));
-    invocation.callback_baked_args = 0;
-    invocation
-}
+const LOGICAL_PROJECT_ADVICE_SOURCE: &str =
+    "proc callbackUse {} {lsort -command cb {2 1}}; proc directUse {} {cb ONE}";
 
-fn legacy_advice(analysis: &AnalysisResult) -> (Vec<DiagCode>, Vec<DiagCode>) {
-    let invocation = legacy_callback();
-    let arities = HashMap::from([("cb".to_owned(), vec![(0, 0)])]);
-    let callbacks = apply_project_callback_arity(
+fn source_owned_advice(analysis: &AnalysisResult) -> (Vec<DiagCode>, Vec<DiagCode>) {
+    let db = TclDatabase::default();
+    let library = SourceFile::new(&db, "proc cb {} {}".to_owned(), "tcl".to_owned(), None);
+    let project = Project::new(&db, vec![library]);
+    let diagnostics = project_source_diagnostics_for_analysis(
+        &db,
+        project,
+        LOGICAL_PROJECT_ADVICE_SOURCE,
         analysis,
-        &[],
-        std::slice::from_ref(&invocation),
-        &arities,
         |_| false,
     );
-    let mut direct = invocation;
-    direct.callback_arity = None;
-    direct.argc = Some(1);
-    let unresolved = vec![(direct.range, "cb".to_owned())];
-    let direct_calls =
-        apply_cross_file_resolution(analysis, &[], &unresolved, &[direct], &arities, |_| false);
-    (
-        callbacks.iter().map(|diagnostic| diagnostic.code).collect(),
-        direct_calls
+    let callback_head = u32::try_from(LOGICAL_PROJECT_ADVICE_SOURCE.find("cb {").unwrap()).unwrap();
+    let direct_head =
+        u32::try_from(LOGICAL_PROJECT_ADVICE_SOURCE.rfind("cb ONE").unwrap()).unwrap();
+    let codes = |offset| {
+        diagnostics
             .iter()
+            .filter(|diagnostic| {
+                diagnostic.span.start() == offset
+                    && matches!(
+                        diagnostic.code,
+                        DiagCode::E002 | DiagCode::E003 | DiagCode::E005
+                    )
+            })
             .map(|diagnostic| diagnostic.code)
-            .collect(),
-    )
+            .collect()
+    };
+    (codes(callback_head), codes(direct_head))
 }
 
 #[test]
 fn legacy_project_advice_requires_positive_retained_logical_input() {
     // naming.database.original-project-callback-projection
     // docs/design/analysis/name-resolution-proofs/database-original-project-callback-projection.md
-    let logical = Analyser::new().analyse("cb 1", "tcl");
+    let logical = Analyser::new().analyse(LOGICAL_PROJECT_ADVICE_SOURCE, "tcl");
     assert!(logical.allows_retained_logical_declaration_advice());
     assert_eq!(
-        legacy_advice(&logical),
+        source_owned_advice(&logical),
         (vec![DiagCode::E003], vec![DiagCode::E003])
     );
     let mut missing = logical.clone();
     missing.resolved_input = None;
     assert!(!missing.allows_lexical_declaration_advice());
-    assert_eq!(legacy_advice(&missing), (Vec::new(), Vec::new()));
+    assert_eq!(source_owned_advice(&missing), (Vec::new(), Vec::new()));
     let mut unavailable = logical.clone();
     unavailable.analysis_context_unavailable = Some(tcl_registry::model::OverlayMiss {
         environment: "tcl".to_owned(),
@@ -262,9 +249,9 @@ fn legacy_project_advice_requires_positive_retained_logical_input() {
     assert_eq!(unavailable.resolved_input, logical.resolved_input);
     assert!(!unavailable.allows_lexical_declaration_advice());
     assert!(!unavailable.allows_retained_logical_declaration_advice());
-    assert_eq!(legacy_advice(&unavailable), (Vec::new(), Vec::new()));
+    assert_eq!(source_owned_advice(&unavailable), (Vec::new(), Vec::new()));
     assert_eq!(
-        legacy_advice(&AnalysisResult::default()),
+        source_owned_advice(&AnalysisResult::default()),
         (Vec::new(), Vec::new())
     );
     for dialect in [
@@ -278,15 +265,14 @@ fn legacy_project_advice_requires_positive_retained_logical_input() {
         "f5-tmsh",
         "f5-iapps",
     ] {
-        let mut analysis = Analyser::new().analyse("proc cb {} {}", dialect);
-        analysis.command_invocations = vec![legacy_callback()];
+        let mut analysis = Analyser::new().analyse(LOGICAL_PROJECT_ADVICE_SOURCE, dialect);
         analysis.dialect = "tcl".to_owned();
         assert!(
             !analysis.allows_retained_logical_declaration_advice(),
             "{dialect}"
         );
         assert_eq!(
-            legacy_advice(&analysis),
+            source_owned_advice(&analysis),
             (Vec::new(), Vec::new()),
             "{dialect}"
         );

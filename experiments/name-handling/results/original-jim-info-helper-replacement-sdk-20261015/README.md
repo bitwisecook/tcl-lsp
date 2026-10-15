@@ -1,0 +1,9 @@
+# Original Jim namespace-info helper replacement
+
+[probe.c](probe.c) executes three phases over the same original `info` command header and integer42 namespace: default private `namespace info`, actual replacement and actual deletion. Each phase creates a fresh original pattern/List; namespace bytes are invalidated between phases. All BEFORE/AFTER header and updater observations precede result getters. [stdout.tsv](stdout.tsv) retains19 exact rows, including the provider version.
+
+The default returns `::42::target`, the real replacement returns `REPLACED`, and deleting the helper produces the original invalid-command error. Original pattern primary/type observations differ when the actual helper body performs its conversions. Replacement/deletion advances the command epoch, so a reused header is not claimed to stay a hot cache hit; the third updater observes absent namespace bytes before the later reached lookup materialises them.
+
+All eight original nonbinary source/driver/input/output/provenance files are byte-identical copies. No failed trial occurred in this capture. Compile and process exits are0. The selected original5bac library and six source hashes were checked before/after without modifying or rebuilding them. No new upstream HEAD query was made. The executable and library are hash-verified and excluded; the six relative provider snapshots are selected inputs, not a complete SDK/extensions/system-library build closure. Absolute original paths remain provenance; the driver is not a portable SDK reconstruction.
+
+Run `python3 verify.py --repository-root /path/to/tcl-lsp` to check retained files and references, optionally `--current-provider` to check available original provider/library bytes. This capture proves these original default/replacement/deletion and header observations only, not Runtime/VM, all-info-member, C Tcl/F5, final-free or complete lifecycle behavior.

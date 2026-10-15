@@ -2008,6 +2008,7 @@ pub(crate) fn native_command_name_unresolved_version(
 
 /// Install the selected original lookup's primary effect without changing bytes.
 /// The live world separately validates command and reference identities on use.
+#[cfg(test)]
 pub(crate) fn install_native_command_name_cache(
     value: *mut TclObj,
     cache: tcl_runtime_api::native_command_name::NativeCommandNameCache,
@@ -2054,6 +2055,7 @@ pub(crate) fn install_native_command_name_cache_with_stage_check(
 }
 
 /// Apply compile-time priming's selected early return to the original object.
+#[cfg(test)]
 pub(crate) fn prime_native_command_name_cache(
     value: *mut TclObj,
     incoming: tcl_runtime_api::native_command_name::NativeCommandNameCache,
@@ -2096,6 +2098,7 @@ pub(crate) fn prime_native_command_name_cache_with_stage_check(
 }
 
 /// Apply the selected failed lookup's null descriptor effect; C9 keeps its primary.
+#[cfg(test)]
 pub(crate) fn install_unresolved_native_command_name_cache(
     value: *mut TclObj,
     dialect: tcl_registry::InvocationDialect,

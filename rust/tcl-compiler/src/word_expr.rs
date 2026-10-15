@@ -781,10 +781,14 @@ mod original_quoted_extent_tests {
                 config,
             )
             .expect("complete original expanded vector");
+            let captured = original.last().unwrap();
+            assert!(captured.group().expand);
+            assert_eq!(captured.span(), word.source().span);
             assert_eq!(
-                original.last().unwrap().bytes(),
+                captured.written_bytes(),
                 r#"{*}"prefix ${value} suffix""#.as_bytes()
             );
+            assert_eq!(captured.bytes(), r#""prefix ${value} suffix""#.as_bytes());
         }
     }
 }

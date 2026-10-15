@@ -146,10 +146,6 @@ fn tables() -> &'static Tables {
     })
 }
 
-/// Delimiters stripped from a positional token before the falsey-keyword check
-/// (strips the leading/trailing characters `{}"'[](),`).
-const STRIP: &[char] = &['{', '}', '"', '\'', '[', ']', '(', ')', ','];
-
 /// Compatibility projection of the Registry-owned comparison vocabulary.
 fn is_class_operator(word: &str) -> bool {
     tcl_registry::is_data_group_comparison_operator(word)
@@ -288,6 +284,11 @@ fn resolve_persist_refs(args: &[&str]) -> Vec<(usize, Vec<&'static str>)> {
 /// Return the `(arg_index, kinds)` pairs naming BIG-IP objects in an iRule
 /// `command args…` invocation.
 ///
+/// `args` contains logical operand values for this standalone template query,
+/// not source-word spellings. Literal braces, quotes, brackets and punctuation
+/// remain name data. Source consumers use [`original_source_object_operands`]
+/// with their independently selected original schema and decoded values.
+/// Returned positions are candidates, not object identities or runtime effects.
 /// `rule_module` (`"ltm"` / `"gtm"`) selects the pool-kind family.
 #[must_use]
 pub fn resolve_object_ref_args(
@@ -322,7 +323,7 @@ pub fn resolve_object_ref_args(
         if seen.contains(&idx) {
             return;
         }
-        let token = args[idx].trim_matches(STRIP).to_ascii_lowercase();
+        let token = args[idx].to_ascii_lowercase();
         if t.falsey.contains(&token) {
             return;
         }

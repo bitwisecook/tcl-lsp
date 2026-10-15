@@ -2766,7 +2766,7 @@ mod original_jim_import_tests {
                 vm.pin_context(&changed).unwrap();
                 vm.pin_context(&current).unwrap();
             } else {
-                vm.refuse_host_command("original VM import first cause".to_owned());
+                let _ = vm.refuse_host_command("original VM import first cause".to_owned());
             }
             let first = scope.check(&mut vm).unwrap_err();
             let retained = vm.execution_refusal.clone().unwrap();

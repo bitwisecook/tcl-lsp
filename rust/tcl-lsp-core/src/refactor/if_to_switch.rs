@@ -28,122 +28,104 @@ use super::source_rewrite::{RewriteObligation, select};
 use super::{RefactorEdit, Refactoring, reindent_body};
 use crate::code_actions::ActionKind;
 
-/// Parsed equality condition: `(var_name, value, negated)`.
+/// A selected scalar/string equality; numeric comparison has a separate value policy.
 struct EqTest {
     subject: ScalarVariableSourceSyntax,
     value: String,
     negated: bool,
 }
 
-/// Parse an equality condition `$var eq "value"` / `"value" eq $var`
-/// (and the `==` / `ne` / `!=` operators).
-fn parse_eq_test(condition: &str, config: LexerConfig) -> Option<EqTest> {
-    let mut cond = condition.trim();
-
-    // Strip outer braces: `{ $x eq "foo" }`.
-    if cond.starts_with('{') && cond.ends_with('}') && cond.len() >= 2 {
-        cond = cond[1..cond.len() - 1].trim();
-    }
-
-    // Negation: `!($x eq "foo")` or `!{$x eq "foo"}`.
+fn parse_eq_test(
+    condition: &str,
+    config: LexerConfig,
+    context: &tcl_syntax::expr::parser::ExprParseContext,
+) -> Option<EqTest> {
+    use tcl_syntax::expr::{BinOp, ExprNode, UnaryOp};
+    let parsed = tcl_syntax::expr::parser::parse_expr_with_syntax_context(condition, context);
+    let mut node = &parsed;
     let mut negated = false;
-    if let Some(rest) = cond.strip_prefix('!') {
-        let inner = rest.trim();
-        if inner.len() >= 2
-            && ((inner.starts_with('(') && inner.ends_with(')'))
-                || (inner.starts_with('{') && inner.ends_with('}')))
-        {
-            cond = inner[1..inner.len() - 1].trim();
-            negated = true;
+    while let ExprNode::Unary {
+        op: UnaryOp::Not,
+        operand,
+    } = node
+    {
+        negated = !negated;
+        node = operand;
+    }
+    let ExprNode::Binary { op, left, right } = node else {
+        return None;
+    };
+    let numeric_operator = match op {
+        BinOp::StrEq => false,
+        BinOp::StrNe => {
+            negated = !negated;
+            false
         }
+        BinOp::Eq => true,
+        BinOp::Ne => {
+            negated = !negated;
+            true
+        }
+        _ => return None,
+    };
+    let (subject, value) = scalar_and_fixed_string(left, right, config)
+        .or_else(|| scalar_and_fixed_string(right, left, config))?;
+    if numeric_operator
+        && tcl_syntax::number::Numbers::Target(context.lexer_grammar.numbers)
+            .is_number_in_any_release(&value)
+    {
+        return None;
     }
-
-    if let Some((var, op, value)) = split_var_op_value(cond, config) {
-        let is_ne = op == "ne" || op == "!=";
-        return Some(EqTest {
-            subject: var,
-            value: value.trim().to_owned(),
-            negated: negated ^ is_ne,
-        });
-    }
-    if let Some((value, op, var)) = split_value_op_var(cond, config) {
-        let is_ne = op == "ne" || op == "!=";
-        return Some(EqTest {
-            subject: var,
-            value: value.trim().to_owned(),
-            negated: negated ^ is_ne,
-        });
-    }
-    None
+    Some(EqTest {
+        subject,
+        value,
+        negated,
+    })
 }
 
-/// Recognised equality operators, longest-first so `==` wins over a bare
-/// fragment.
-// registry-axis-ok: irreducible — `eq` / `ne` are expr comparison-operator
-// spellings (`tcl_syntax::expr::operators`'s own vocabulary), read here as
-// parsed condition text; they coincide with `::tcl::mathop::eq` / `ne`'s
-// bare registration only by spelling; until never
-const OPS: &[&str] = &["==", "!=", "eq", "ne"];
-
-/// Split `$var OP value` / `"$var" OP value` → `(var, op, value)`.
-fn split_var_op_value(
-    cond: &str,
+fn scalar_and_fixed_string(
+    subject: &tcl_syntax::expr::ExprNode,
+    value: &tcl_syntax::expr::ExprNode,
     config: LexerConfig,
-) -> Option<(ScalarVariableSourceSyntax, String, String)> {
-    for op in OPS {
-        let needle = format!(" {op} ");
-        if let Some(pos) = cond.find(&needle) {
-            let lhs = cond[..pos].trim();
-            let value = cond[pos + needle.len()..].to_owned();
-            if let Some(var) = scalar_variable_source_syntax(lhs, config) {
-                return Some((var, (*op).to_owned(), value));
-            }
-        }
-    }
-    None
+) -> Option<(ScalarVariableSourceSyntax, String)> {
+    use tcl_syntax::expr::ExprNode;
+    let (ExprNode::Var { text: subject, .. } | ExprNode::String { text: subject, .. }) = subject
+    else {
+        return None;
+    };
+    let ExprNode::String { text: value, .. } = value else {
+        return None;
+    };
+    Some((
+        scalar_variable_source_syntax(subject, config)?,
+        tcl_syntax::expr::fixed_string_operand(value)?.to_owned(),
+    ))
 }
 
-/// Split `value OP $var` / `value OP "$var"` → `(value, op, var)`.
-fn split_value_op_var(
-    cond: &str,
-    config: LexerConfig,
-) -> Option<(String, String, ScalarVariableSourceSyntax)> {
-    for op in OPS {
-        let needle = format!(" {op} ");
-        // Use the *last* occurrence so a value containing the operator
-        // text doesn't mis-split (the var is anchored on the right with
-        // `$`).
-        if let Some(pos) = cond.rfind(&needle) {
-            let value = cond[..pos].trim().to_owned();
-            let rhs = cond[pos + needle.len()..].trim();
-            if let Some(var) = scalar_variable_source_syntax(rhs, config) {
-                return Some((value, (*op).to_owned(), var));
-            }
-        }
+/// Render literal pattern data through the shared list and source-word owners.
+fn render_switch_pattern(value: &str, config: LexerConfig) -> Option<String> {
+    let spelling = tcl_syntax::list::list_element(value);
+    let container = format!("{{{spelling}}}");
+    let parsed = tcl_lexer::native_script_words_in(
+        tcl_lexer::SourceImage::document(&container),
+        tcl_lexer::Span::new(0, u32::try_from(container.len()).ok()?),
+        config.nested(),
+    )
+    .ok()?;
+    let [command] = parsed.commands.as_slice() else {
+        return None;
+    };
+    let [word] = command.words.as_slice() else {
+        return None;
+    };
+    if parsed.fatal_tail.is_some() || word.bytes() != container.as_bytes() {
+        return None;
     }
-    None
-}
-
-/// Remove surrounding double quotes if present.
-fn strip_quotes(s: &str) -> &str {
-    let b = s.as_bytes();
-    if b.len() >= 2 && b[0] == b'"' && b[b.len() - 1] == b'"' {
-        &s[1..s.len() - 1]
-    } else {
-        s
-    }
-}
-
-/// Render a switch pattern, preserving whitespace literals by bracing.
-fn render_switch_pattern(value: &str) -> String {
-    if value.is_empty() {
-        return "{}".to_owned();
-    }
-    if value.chars().any(char::is_whitespace) {
-        format!("{{{}}}", value.replace('}', "\\}"))
-    } else {
-        value.to_owned()
-    }
+    let actual = tcl_syntax::word_rules::original_static_word_unicode_value(word)?;
+    let values = tcl_syntax::word_rules::WordValueRules::from_config(&config)
+        .split_list(std::str::from_utf8(&actual).ok()?)
+        .ok()?;
+    (values.len() == 1 && values[0].as_ref() == value).then_some(spelling)
 }
 
 /// Convert an `if`/`elseif` chain at byte offset `cursor` to a `switch`.
@@ -168,6 +150,10 @@ pub fn if_to_switch(
         return Some(obligation.refusal("Convert if chain to switch"));
     }
     let config = analysis.body_lexer_config?;
+    let mut expression = tcl_syntax::expr::parser::ExprParseContext::for_profile(
+        analysis.resolved_input.as_ref()?.unit_profile(),
+    );
+    expression.lexer_grammar = config.grammar_over(expression.lexer_grammar);
     let texts = &cmd.texts;
     if texts.len() < 3 {
         return None;
@@ -199,26 +185,16 @@ pub fn if_to_switch(
         }
         let condition = args[clause.operand(ArgRole::Expr)?];
 
-        let parsed = parse_eq_test(condition, config)?;
+        let parsed = parse_eq_test(condition, config, &expression)?;
         match &target_var {
             None => target_var = Some(parsed.subject.clone()),
             Some(v) if v.name() != parsed.subject.name() => return None,
             _ => {}
         }
-        // Negated (ne / !=) conditions make switch conversion awkward.
         if parsed.negated {
             return None;
         }
-        let value = strip_quotes(&parsed.value);
-        // The emitted `switch -exact -- $x { … }` uses the braced case-list
-        // form, whose patterns are LITERAL. A RHS that carried a substitution
-        // in the original `eq` comparison (`$y`, `[cmd]`, a `\`-escape) cannot
-        // be reproduced as a literal pattern — the arm would never match — so
-        // decline the conversion.
-        if value.bytes().any(|b| matches!(b, b'$' | b'[' | b'\\')) {
-            return None;
-        }
-        branches.push((value.to_owned(), body));
+        branches.push((parsed.value, body));
     }
 
     let target_var = target_var?;
@@ -261,7 +237,10 @@ fn render_switch(
     let mut parts: Vec<String> = vec![format!("switch -exact -- {} {{", subject.reference())];
     for (value, body) in branches {
         let body_trimmed = reindent_body(body, &format!("{inner}    "));
-        parts.push(format!("{inner}{} {{", render_switch_pattern(value)));
+        parts.push(format!(
+            "{inner}{} {{",
+            render_switch_pattern(value, config)?
+        ));
         parts.push(body_trimmed);
         parts.push(format!("{inner}}}"));
     }
@@ -310,6 +289,9 @@ mod tests {
             );
         }
         let config = LexerConfig::for_dialect("tcl8.6");
+        let expression = tcl_syntax::expr::parser::ExprParseContext::for_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
         for subject in [
             "$a(k)",
             "${a(k)}",
@@ -319,7 +301,7 @@ mod tests {
             "${missing",
         ] {
             assert!(
-                parse_eq_test(&format!("{subject} eq one"), config).is_none(),
+                parse_eq_test(&format!("{subject} eq \"one\""), config, &expression).is_none(),
                 "{subject:?}"
             );
         }
@@ -550,5 +532,57 @@ mod decoded_clause_script_indentation_tests {
             assert!(proposal.contains(literal), "{proposal}");
         }
         assert!(!proposal.contains("        return one\n"));
+    }
+}
+
+#[cfg(test)]
+mod shared_expression_equality_tests {
+    use super::*;
+
+    #[test]
+    fn switch_conditions_use_original_expression_topology_and_literal_values() {
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let profile =
+                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
+            let config = LexerConfig::from_grammar(profile.grammar);
+            let context = tcl_syntax::expr::parser::ExprParseContext::for_profile(profile);
+            for (condition, value, negated) in [
+                (r#"$x eq "a||b""#, "a||b", false),
+                (r#"$x eq {$value}"#, "$value", false),
+                (r#"$x eq {{a}}"#, "{a}", false),
+                (r#""a" eq "$x""#, "a", false),
+                (r#"!($x ne {a})"#, "a", false),
+                (r#"$x ne {a}"#, "a", true),
+                (r#"$x == "GET""#, "GET", false),
+                (r#"$x != "GET""#, "GET", true),
+            ] {
+                let parsed = parse_eq_test(condition, config, &context)
+                    .expect("scalar and fixed original string operands");
+                assert_eq!(parsed.subject.name(), "x", "{dialect}: {condition}");
+                assert_eq!(parsed.value, value);
+                assert_eq!(parsed.negated, negated);
+                let pattern = render_switch_pattern(value, config).unwrap();
+                let values = tcl_syntax::word_rules::WordValueRules::from_config(&config)
+                    .split_list(&pattern)
+                    .unwrap();
+                assert_eq!(values[0].as_ref(), value);
+            }
+            for condition in [
+                r#"$x == 1"#,
+                r#"$x != 1"#,
+                r#"$x == "01""#,
+                r#"$x == " 1 ""#,
+                r#"$x == "1e0""#,
+                r#"{$x eq "a"}"#,
+                r#"$x eq "$y""#,
+                r#""$x.tail" eq "a""#,
+                r#"$a(k) eq "a""#,
+            ] {
+                assert!(
+                    parse_eq_test(condition, config, &context).is_none(),
+                    "{dialect}: {condition}"
+                );
+            }
+        }
     }
 }

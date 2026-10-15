@@ -1,0 +1,7 @@
+plain 1 {can't read "parameter": no such variable}
+bom 1 {invalid command name "﻿namespace"}
+ORIGINAL
+direct 0 {}
+inert 0 inert
+sugar 1 {can't read "(5 + 1)": no such variable}
+nestedSugar 1 {can't read "(5 + 1)": no such variable}

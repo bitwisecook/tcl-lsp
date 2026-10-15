@@ -1099,9 +1099,8 @@ pub struct Lowerer<'r> {
     /// flight. A positive value enables the const-map.
     proc_depth: u32,
     /// `namespace import` directives observed at lowering time.
-    /// Recorded as `(context_namespace, absolute_pattern)`
-    /// pairs and copied into `Module::namespace_imports` at the
-    /// end of lowering. Order is preserved.
+    /// Literal `(context_namespace, pattern)` dependency pairs preserve source
+    /// order independently of the typed import resolver.
     namespace_imports: Vec<(String, String)>,
     /// `namespace export` directives observed at lowering time.
     /// Recorded as `(context_namespace, pattern)` pairs
@@ -2955,13 +2954,8 @@ impl<'r> Lowerer<'r> {
                     ..
                 } => {
                     for pattern in patterns.iter().filter_map(TransitionSubject::literal) {
-                        if pattern
-                            .strip_prefix("::")
-                            .is_some_and(|tail| tail.contains("::"))
-                        {
-                            self.namespace_imports
-                                .push((namespace.to_owned(), pattern.to_owned()));
-                        }
+                        self.namespace_imports
+                            .push((namespace.to_owned(), pattern.to_owned()));
                     }
                 }
                 NamespaceTransition::Export {
@@ -4815,8 +4809,8 @@ impl<'r> Lowerer<'r> {
     ) {
         let n = self.body_unit_count;
         self.body_unit_count += 1;
-        let prefix = label.strip_prefix("::").unwrap_or(label);
-        let qualified = format!("::{prefix}#{n}");
+        let prefix = tcl_syntax::naming::unroot_rooted_key(label).unwrap_or(label);
+        let qualified = tcl_syntax::naming::root_unrooted_key(&format!("{prefix}#{n}"));
         let short_name = tcl_syntax::naming::key_tail(label).to_owned();
         let id = self.module.retain_body_unit(Procedure {
             name: short_name,
@@ -9567,14 +9561,29 @@ mod tests {
     }
 
     #[test]
-    fn ns_import_skips_relative_pattern() {
-        // Relative patterns (``foo::*`` without leading ``::``)
-        // require runtime namespace-path walking; we skip them.
+    fn ns_import_retains_relative_dependency_pattern() {
         let m = lower_to_ir("namespace import foo::*", &reg());
         assert_eq!(
             m.namespace_imports,
-            [] as [(std::string::String, std::string::String); 0]
+            vec![("::".to_owned(), "foo::*".to_owned())]
         );
+    }
+
+    #[test]
+    fn ns_import_dependencies_preserve_selected_literal_patterns_and_order() {
+        let m = lower_to_ir("namespace import foo::* ::* ::::* ::foo::* foo::*", &reg());
+        assert_eq!(
+            m.namespace_imports,
+            ["foo::*", "::*", "::::*", "::foo::*", "foo::*"]
+                .into_iter()
+                .map(|pattern| ("::".to_owned(), pattern.to_owned()))
+                .collect::<Vec<_>>()
+        );
+        let shadowed = lower_to_ir(
+            "proc namespace args {}; namespace import foo::* ::foo::*",
+            &reg(),
+        );
+        assert!(shadowed.namespace_imports.is_empty());
     }
 
     #[test]

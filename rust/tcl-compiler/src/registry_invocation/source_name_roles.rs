@@ -434,6 +434,13 @@ pub(crate) fn original_source_name_roles(
             || super::resolved_handler_invocation_with_metadata_context(registry, metadata, tokens),
         )
     {
+        if let Some(context) = metadata {
+            let input = context.source_analysis_input()?;
+            let realm = binding.original_source_realm_for_input(tokens, input, registry)?;
+            invocation.with_metadata_schema(registry, context, realm, |schema| {
+                (schema.facts() == *invocation.facts).then_some(())
+            })?;
+        }
         return Some(SourceNameRoleInventory::from_selected(
             invocation,
             false,
@@ -1069,5 +1076,60 @@ mod unresolved_point_metadata_tests {
         assert!(
             original_source_metadata_name_roles(foreign.commands(), original, &input).is_none()
         );
+    }
+    #[test]
+    fn selected_source_name_roles_recheck_actual_effective_argv_availability() {
+        let baseline = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let mut registry = baseline
+            .commands()
+            .project_for_profile(tcl_registry::model::resolve_environment("tcl8.6").unit_profile());
+        let mut puts = registry.get("puts").unwrap().clone();
+        puts.surface = registry.get("dict").unwrap().surface;
+        registry.insert(puts);
+        let current = Arc::new(baseline.with_command_store(Arc::new(registry)));
+        let older = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(Arc::clone(current.commands())),
+        );
+        assert!(Arc::ptr_eq(current.commands(), older.commands()));
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let mut config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+        config.braced_var = tcl_dialect::BracedVarStyle::FirstClose;
+        for (context, available) in [(current, true), (older, false)] {
+            let input = crate::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                Arc::clone(&context),
+                config,
+            );
+            assert!(input.has_logical_source_name_context());
+            let unit = crate::compilation_unit::CompilationUnit::build_with_analysis_input(
+                "puts VALUE",
+                crate::compilation_unit::UnitBuildOptions {
+                    registry: context.commands(),
+                    defer_top_level: false,
+                    config,
+                    dialect: Some(profile),
+                    external_call_sites: None,
+                    declared_commands: None,
+                },
+                None,
+                &input,
+            );
+            assert!(unit.ir_module.source_entry.native_entry.is_none());
+            let original = tokens(&unit.ir_module);
+            let inventory =
+                original_source_metadata_name_roles(context.commands(), original, &input);
+            assert_eq!(inventory.is_some(), available);
+            if let Some(inventory) = inventory {
+                assert_eq!(inventory.facts().descriptor_key().label(), "puts");
+                assert_eq!(inventory.argument_literal(0).as_deref(), Some("VALUE"));
+            }
+            let mut changed = original.clone();
+            changed.argv_texts[1].push('!');
+            assert!(
+                original_source_metadata_name_roles(context.commands(), &changed, &input).is_none()
+            );
+        }
     }
 }

@@ -449,6 +449,7 @@ impl super::RetainedArrayCell {
             key: key.to_vec(),
         })
     }
+    #[cfg(test)]
     pub(crate) fn retain_element_alias(&self, key: &[u8]) -> Option<Rc<NativeElementAliasEntry>> {
         self.select_element_alias(key, true)
     }

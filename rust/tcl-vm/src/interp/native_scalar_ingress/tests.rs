@@ -167,7 +167,7 @@ fn original_c84_wide_ingress_stops_before_abi_after_actual_host_context_or_descr
         };
         match mode {
             1 => {
-                vm.refuse_host_command("original scalar Host refusal".into());
+                let _ = vm.refuse_host_command("original scalar Host refusal".into());
             }
             2 => {
                 let old = vm.host_rc();

@@ -479,39 +479,61 @@ impl CrateModules {
         Some(target.clone())
     }
 
-    fn enum_field_type_reference(&self, row: &Row, file: &syn::File) -> bool {
-        let mut candidates = file.items.iter().filter_map(|item| match item {
-            syn::Item::Enum(item) if item.ident == row.consumer_entry.as_str() => Some(item),
-            _ => None,
+    fn field_type_reference(&self, row: &Row, file: &syn::File) -> bool {
+        let mut candidates = file.items.iter().filter(|item| match item {
+            syn::Item::Enum(item) => item.ident == row.consumer_entry.as_str(),
+            syn::Item::Struct(item) => item.ident == row.consumer_entry.as_str(),
+            _ => false,
         });
         let Some(item) = candidates.next() else {
             return false;
         };
-        if candidates.next().is_some()
-            || !source_type_attrs_preserve_routes(&item.attrs)
-            || !supported_generics(&item.generics)
-            || item.variants.iter().any(|variant| {
-                !source_attrs_preserve_routes(&variant.attrs)
-                    || variant.discriminant.is_some()
-                    || variant
-                        .fields
-                        .iter()
-                        .any(|field| !source_attrs_preserve_routes(&field.attrs))
-            })
-        {
+        if candidates.next().is_some() {
             return false;
         }
-        let mut references = EnumFieldTypeReferences {
+        let mut references = FieldTypeReferences {
             modules: self,
             module: &row.consumer_module,
             target: format!("{}::{}", row.module, row.entry),
             matched: false,
             invalid: false,
         };
-        for variant in &item.variants {
-            for field in &variant.fields {
-                references.visit_type(&field.ty);
+        match item {
+            syn::Item::Enum(item) => {
+                if !source_type_attrs_preserve_routes(&item.attrs)
+                    || !supported_generics(&item.generics)
+                    || item.variants.iter().any(|variant| {
+                        !source_attrs_preserve_routes(&variant.attrs)
+                            || variant.discriminant.is_some()
+                            || variant
+                                .fields
+                                .iter()
+                                .any(|field| !source_attrs_preserve_routes(&field.attrs))
+                    })
+                {
+                    return false;
+                }
+                for variant in &item.variants {
+                    for field in &variant.fields {
+                        references.visit_type(&field.ty);
+                    }
+                }
             }
+            syn::Item::Struct(item) => {
+                if !source_type_attrs_preserve_routes(&item.attrs)
+                    || !supported_generics(&item.generics)
+                    || item
+                        .fields
+                        .iter()
+                        .any(|field| !source_attrs_preserve_routes(&field.attrs))
+                {
+                    return false;
+                }
+                for field in &item.fields {
+                    references.visit_type(&field.ty);
+                }
+            }
+            _ => return false,
         }
         references.matched && !references.invalid
     }
@@ -600,7 +622,7 @@ impl CrateModules {
             if owner.signature.is_some() || owner.owner_type.is_some() {
                 return false;
             }
-            return self.enum_field_type_reference(row, &consumer_module.file);
+            return self.field_type_reference(row, &consumer_module.file);
         }
         let Some(signature) = consumer.signature else {
             return false;
@@ -639,7 +661,7 @@ impl CrateModules {
             }
             // This route records only an explicit declaration type occurrence.
             // Function body syntax supplies no value/receiver coverage here.
-            let mut references = EnumFieldTypeReferences {
+            let mut references = FieldTypeReferences {
                 modules: self,
                 module: &row.consumer_module,
                 target,
@@ -1074,7 +1096,7 @@ struct TypedReference {
     origin: String,
 }
 
-struct EnumFieldTypeReferences<'a> {
+struct FieldTypeReferences<'a> {
     modules: &'a CrateModules,
     module: &'a str,
     target: String,
@@ -1082,7 +1104,7 @@ struct EnumFieldTypeReferences<'a> {
     invalid: bool,
 }
 
-impl<'ast> Visit<'ast> for EnumFieldTypeReferences<'_> {
+impl<'ast> Visit<'ast> for FieldTypeReferences<'_> {
     fn visit_type_macro(&mut self, _ty: &'ast syn::TypeMacro) {
         self.invalid = true;
     }
@@ -2367,6 +2389,50 @@ mod tests {
     }
 
     #[test]
+    fn source_struct_type_rows_require_actual_accessible_field_occurrences() {
+        for caller in [
+            "struct Selected { value: super::owner::Ledger }",
+            "struct Selected(std::sync::Arc<super::owner::Ledger>);",
+            "use super::owner::Ledger as Current; struct Selected { values: std::collections::BTreeMap<u32, Option<Current>> }",
+            "struct Selected<'a> { value: &'a super::owner::Ledger }",
+        ] {
+            let (modules, mut row) = fixture("pub(super) struct Ledger;", caller, "Ledger", "type");
+            row.consumer_entry = "Selected".into();
+            assert!(modules.check_row(&row), "{caller}");
+        }
+        for caller in [
+            "struct Selected;",
+            "struct Selected { value: u32 }",
+            "struct Selected<Ledger> { value: Ledger }",
+            "struct Selected<const N: usize> { value: super::owner::Ledger }",
+            "#[cfg(any())] struct Selected { value: super::owner::Ledger }",
+            "#[custom] struct Selected { value: super::owner::Ledger }",
+            "struct Selected { #[cfg(any())] value: super::owner::Ledger }",
+            "struct Selected { #[custom] value: super::owner::Ledger }",
+            "struct Selected(#[cfg(any())] super::owner::Ledger);",
+            "type Alias = super::owner::Ledger; struct Selected { value: Alias }",
+            "struct Selected { value: super::owner::Ledger<u8> }",
+            "struct Selected { value: <super::owner::Ledger as Unknown>::Output }",
+            "struct Selected { value: super::owner::Ledger, hidden: select_type!() }",
+            "struct Selected { value: super::owner::Ledger } struct Selected { value: super::owner::Ledger }",
+            "struct Selected { value: super::owner::Ledger } enum Selected { Empty }",
+        ] {
+            let (modules, mut row) = fixture("pub(super) struct Ledger;", caller, "Ledger", "type");
+            row.consumer_entry = "Selected".into();
+            assert!(!modules.check_row(&row), "{caller}");
+        }
+        let (modules, mut row) = fixture(
+            "struct Ledger;",
+            "struct Selected { value: super::owner::Ledger }",
+            "Ledger",
+            "type",
+        );
+        row.consumer_entry = "Selected".into();
+        row.visibility = "private".into();
+        assert!(!modules.check_row(&row));
+    }
+
+    #[test]
     fn source_enum_type_rows_require_actual_accessible_field_occurrences() {
         for caller in [
             "enum Selected { Owned(Box<super::owner::Ledger>) }",
@@ -2379,7 +2445,7 @@ mod tests {
         }
         for caller in [
             "enum Selected { Empty }",
-            "struct Selected { value: super::owner::Ledger }",
+            "struct Selected { value: u32 }",
             "enum Selected<Ledger> { Owned(Ledger) }",
             "enum Selected<const N: usize> { Owned(super::owner::Ledger) }",
             "#[cfg(any())] enum Selected { Owned(super::owner::Ledger) }",

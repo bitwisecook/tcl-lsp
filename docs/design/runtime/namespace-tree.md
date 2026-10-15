@@ -934,3 +934,14 @@ Implemented — `Namespaces::which_command` / `which_variable`, described in
 [`command-introspection.md`](command-introspection.md) §5.
 
 During actual Jim result replacement, the previous result remains the interpreter's current slot while its native release runs. A scoped observation binds that original slot and allocation incarnation to the saved operation. The shared getter retains its original frame/instruction/enum/property primary-origin guards; retirement snapshots their pure admission result before cleanup and consumes it only at the actual resident getter. During the exact header's free phase, only resident String bytes remain readable through the interpreter's existing getter; normal native liveness, cache access and new owning references still refuse. Foreign interpreters, completed phases, changed primary descriptors, absent resident String storage and withdrawn issuers cannot obtain that observation. C retains its own publication order. This resident observation supplies no stringless updater, reentrant result mutation, unknown frame/recursion/trace producer or full Native lifecycle proof.
+
+Jim command inventory uses selected pure preflight before namespace input. Core
+-all/arity and exact -nons cases retain their original stage; remaining cases
+require the existing weak namespace/frame receipt around reached getters and
+query publication. The complete genuine argv and actual subvector must agree.
+Pattern materialisation precedes namespace selection, while flat query snapshots
+follow the reached pattern getter. The private namespace-info procedure is a
+genuine physical roster member, with its actual Proc formals and ordinary fresh
+helper lookup; replacement and deletion remain observable. Its descriptor grants
+no public subcommand dispatch. C inventory, other helpers, complete SDK rosters,
+reentrant traces and final-free chronology retain their separate obligations.

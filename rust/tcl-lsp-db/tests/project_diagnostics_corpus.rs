@@ -24,7 +24,7 @@
 //! edits.  This harness broadens that to **corpus scale**: a project of many real
 //! `.tcl` files from `tmp/` plus a synthetic caller/library pair whose cross-file
 //! edges (W123 suppression, `E002`/`E003` cross-file arity, and the per-symbol
-//! `command_arity` early-cutoff) actually fire, driven through a fuzzed edit
+//! typed source-slot arity early-cutoff) actually fire, driven through a fuzzed edit
 //! sequence.  After every edit the caller's (and a sampled real file's)
 //! `project_diagnostics` must equal a from-scratch whole-project rebuild — the
 //! gate that catches any untracked read or stale cross-file dependency edge that a

@@ -1380,6 +1380,57 @@ is renamed or deleted in this file."
         select().unwrap_or_default()
     }
 
+    fn param_reference_candidates_for(
+        &self,
+        fu: &crate::compilation_unit::FunctionUnit,
+        procedure: &crate::ir::Procedure,
+        module: Option<&crate::ir::Module>,
+    ) -> Option<std::collections::BTreeSet<String>> {
+        crate::source_graph::current_analysis(&self.source, &self.result)?;
+        if fu.source_metadata_input() != self.result.resolved_input.as_ref() {
+            return None;
+        }
+        let site = procedure.declaration_site.as_ref()?;
+        let mut declarations = self
+            .result
+            .original_procedure_declarations()
+            .filter(|declaration| declaration.declaration_site() == site);
+        let declaration = declarations.next()?;
+        if declarations.next().is_some() {
+            return None;
+        }
+        let (id, original) = crate::source_graph::procedure_body_for_declaration(
+            &self.source,
+            &self.result,
+            module?,
+            declaration,
+        )?;
+        if fu.body_id != Some(id) || !std::ptr::eq(original, procedure) {
+            return None;
+        }
+        let selected = crate::registry_invocation::source_structure::source_registry_words_at(
+            &self.source,
+            &self.result,
+            site.offset,
+        )?;
+        let context = self.result.resolved_input.as_ref()?.context_registry();
+        let mut bodies = selected
+            .source_script_bodies(&context)
+            .into_iter()
+            .filter(|body| {
+                body.original_container().group().span == declaration.metadata().body_span
+            });
+        let body = bodies.next()?;
+        if bodies.next().is_some() {
+            return None;
+        }
+        crate::registry_invocation::original_body_reference_candidates(
+            &self.source,
+            &self.result,
+            &body,
+        )
+    }
+
     /// W214 — unused-parameter hint.
     ///
     /// For every parameter
@@ -1406,6 +1457,7 @@ is renamed or deleted in this file."
         // empty result means we couldn't isolate the list and fall back to the
         // whole-definition span below.
         let param_sources = self.param_name_sources_for(fu, ir_proc, module);
+        let reference_candidates = self.param_reference_candidates_for(fu, ir_proc, module);
         let mut unused: Vec<(usize, String)> = Vec::new();
         for (idx, param) in ir_proc.params.iter().enumerate() {
             // Tcl's variadic ``args`` parameter is conventionally
@@ -1430,16 +1482,11 @@ is renamed or deleted in this file."
             if any_live {
                 continue;
             }
-            // Fallback: the def-use builder doesn't track variable
-            // references inside ``[expr {...}]`` command
-            // substitutions or arbitrary nested ``[cmd ...]``
-            // bodies that don't lower into a structured IR.
-            // If the body source contains a ``$param`` /
-            // ``${param}`` reference anywhere, treat the parameter
-            // as used and skip W214.  Saves the W214 over-emit on
-            // ``proc f {x} { return [expr {$x + 1}] }``-style bodies.
-            if let Some(body_source) = ir_proc.body_source.as_deref()
-                && body_references_param(body_source, param, self.lexer_config())
+            // Source candidates protect nested reads without claiming a physical
+            // cell. Only independently selected inherited bodies retain this scope.
+            if reference_candidates
+                .as_ref()
+                .is_some_and(|names| names.contains(param))
             {
                 continue;
             }
@@ -4985,96 +5032,35 @@ fn scan_literal_no_match(format: &str, input: &str, output_count: usize) -> bool
     conversions == output_count && crate::scan_predicate::scan_provably_no_match(format, input)
 }
 
-/// Return ``true`` when ``body`` contains a ``$param`` /
-/// ``${param}`` substitution.  Used as a fallback by the W214
-/// (unused-parameter) emitter to suppress the warning when the
-/// parameter is read inside a ``[expr {...}]`` / ``[cmd ...]``
-/// substitution that the IR lowerer doesn't track as a use.
-///
-/// Conservative — false negatives are fine (W214 still fires
-/// when the param genuinely isn't referenced), but false
-/// positives would cause the over-emit this guard exists to
-/// prevent.  The bare-name match enforces a non-identifier
-/// boundary on each side so ``$abc`` doesn't match ``$ab``,
-/// and skips the variable when it follows a ``\\`` escape.
-/// True when the proc body textually references the parameter `$param` /
-/// `${param}`, scanning command-by-command so a `namespace eval` body — which
-/// runs in the *namespace* frame, not the caller's — does **not** falsely
-/// recover a read of the caller's parameter.  Other bodies (`eval`, `if`,
-/// loops) run in the caller frame, so their `$param` reads still count.
+/// Authored fixture adapter; production supplies its actual declaration/body owner.
+#[cfg(test)]
 pub(super) fn body_references_param(
     body: &str,
     param: &str,
     config: tcl_lexer::LexerConfig,
 ) -> bool {
-    if param.is_empty() {
+    let profile = tcl_dialect::DialectProfile::plain_tcl();
+    let context =
+        crate::environment_ingress::resolve_environment("tcl8.6").default_context_registry();
+    let input =
+        crate::analyser::ResolvedAnalysisInput::new(profile, profile, context.clone(), config);
+    let parameters = tcl_syntax::list::join_list([param]);
+    let source = tcl_syntax::list::join_list(["proc", "__w214__", &parameters, body]);
+    let analysis = Analyser::new()
+        .with_resolved_input(input)
+        .analyse(&source, "tcl");
+    let Some(selected) = crate::registry_invocation::source_structure::source_registry_words_at(
+        &source, &analysis, 0,
+    ) else {
         return false;
-    }
-    let cmds = crate::segmenter::segment_commands_with_offset_and_config(body, 0, config.nested());
-    for cmd in &cmds {
-        // `namespace eval NS BODY` — the trailing body word evaluates in NS's
-        // frame, so exclude it; the NS-name word (e.g. `namespace eval $x …`)
-        // is still substituted in the caller frame and is scanned.
-        let is_ns_eval = cmd.texts.first().map(String::as_str) == Some("namespace")
-            && cmd.texts.get(1).map(String::as_str) == Some("eval");
-        let skip_last = is_ns_eval && cmd.texts.len() >= 4;
-        let last_idx = cmd.texts.len().saturating_sub(1);
-        for (i, word) in cmd.texts.iter().enumerate() {
-            if skip_last && i == last_idx {
-                continue;
-            }
-            if word_references_param(word, param) {
-                return true;
-            }
-        }
-    }
-    false
-}
-
-/// True when a single word textually references `$param` / `${param}`.  Flat
-/// byte scan with identifier-boundary and `\$` escape handling.
-fn word_references_param(body: &str, param: &str) -> bool {
-    if param.is_empty() {
+    };
+    let mut bodies = selected.source_script_bodies(&context).into_iter();
+    let Some(body) = bodies.next() else {
         return false;
-    }
-    let bytes = body.as_bytes();
-    let plen = param.len();
-    let mut i = 0;
-    while i < bytes.len() {
-        let c = bytes[i];
-        if c != b'$' {
-            i += 1;
-            continue;
-        }
-        // Skip backslash-escaped ``\$``.
-        if i > 0 && bytes[i - 1] == b'\\' {
-            i += 1;
-            continue;
-        }
-        // ``${name}`` form.
-        if i + 1 < bytes.len() && bytes[i + 1] == b'{' {
-            let start = i + 2;
-            if start + plen <= bytes.len()
-                && &bytes[start..start + plen] == param.as_bytes()
-                && start + plen < bytes.len()
-                && bytes[start + plen] == b'}'
-            {
-                return true;
-            }
-        } else {
-            // ``$name`` form — bare identifier match.
-            let start = i + 1;
-            if start + plen <= bytes.len() && &bytes[start..start + plen] == param.as_bytes() {
-                let after = start + plen;
-                let next_ok = after >= bytes.len() || !is_ident_continue(bytes[after]);
-                if next_ok {
-                    return true;
-                }
-            }
-        }
-        i += 1;
-    }
-    false
+    };
+    bodies.next().is_none()
+        && crate::registry_invocation::original_body_reference_candidates(&source, &analysis, &body)
+            .is_some_and(|names| names.contains(param))
 }
 
 /// Must-policy over a channel argument's type union: `Some(label)` when
@@ -5779,7 +5765,7 @@ mod original_body_parser_config_tests {
     fn original_body_reference_suppression_keeps_bom_in_the_selected_head() {
         // naming.source.original-configured-script-completeness
         // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
-        // Textual unused-parameter suppression only; no namespace/body execution proof.
+        // Unknown literal heads cannot grant a script role to inert argument data.
         let config = tcl_lexer::LexerConfig::for_file_grammar(
             crate::environment_ingress::resolve_environment("tcl9.1").grammar(),
         );
@@ -5788,7 +5774,7 @@ mod original_body_parser_config_tests {
             "parameter",
             config
         ));
-        assert!(body_references_param(
+        assert!(!body_references_param(
             "\u{feff}namespace eval NS {puts $parameter}",
             "parameter",
             config

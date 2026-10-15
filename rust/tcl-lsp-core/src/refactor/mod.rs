@@ -851,11 +851,26 @@ pub(crate) fn configured_command_words(
     command: &SegmentedCommand,
     config: LexerConfig,
 ) -> Option<Vec<tcl_lexer::NativeWord>> {
+    // The snapshot constructor assumes lexer-owned spans. Reject incompatible
+    // standalone geometry before borrowing any original token content.
+    source.get(command.span.as_range())?;
+    for token in command.argv.iter().chain(&command.all_tokens).chain(
+        command
+            .word_fragments
+            .iter()
+            .flatten()
+            .map(|part| &part.token),
+    ) {
+        source
+            .get(token.span.as_range())?
+            .get(usize::from(token.content_offset)..)?;
+    }
     let tokens = tcl_compiler::ir::CommandTokens::from_segmented(
         &tcl_lexer::SourceMap::new(source),
         config,
         command,
     );
+    tokens.original_words_match_argv_text().then_some(())?;
     tcl_compiler::registry_invocation::original_native_compiler_words(
         &tcl_lexer::SourceImage::document(source),
         tokens.words(),
@@ -1616,6 +1631,29 @@ mod configured_original_body_word_tests {
             );
             let original = &commands[0];
             assert!(body_words("apply {}", original, &registry, config).is_empty());
+        }
+    }
+}
+
+#[cfg(test)]
+mod standalone_original_presentation_tests {
+    use super::*;
+
+    #[test]
+    fn standalone_body_roles_require_current_original_word_presentations() {
+        let registry = test_registry();
+        for dialect in ["tcl8.6", "tcl9.0", "jim"] {
+            let config = LexerConfig::for_dialect(dialect);
+            let source = "apply {{} {return ${value}}}";
+            let command = segment_commands_with_offset_and_config(source, 0, config).remove(0);
+            assert_eq!(body_words(source, &command, &registry, config).len(), 1);
+            let changed = source.replacen("apply", "dummy", 1);
+            assert_eq!(changed.len(), source.len());
+            assert!(configured_command_words(&changed, &command, config).is_none());
+            assert!(body_words(&changed, &command, &registry, config).is_empty());
+            let mut changed_values = command.clone();
+            changed_values.texts[0] = "dummy".into();
+            assert!(configured_command_words(source, &changed_values, config).is_none());
         }
     }
 }

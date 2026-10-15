@@ -1,0 +1,7 @@
+# Original DataGroup record word values
+
+The retained C Tcl 8.4.20, 8.5.19, 8.6.18, 9.0.4, 9.1.0 and pinned Jim processes ran the fixed [probe](probe.tcl) before the related source-value assertions. All six exited zero. Their original [manifest](manifest.json) retains executable/init hashes before and after, actual commands, source library selection and exact stdout/stderr hashes. Empty stderr channels are retained.
+
+Quoted and numeric-escaped word syntax returns `80`. Braced literal quotes and spaces survive as data; braced dollar/bracket spelling remains literal. Variable and command substitutions return their evaluated values, which cannot be represented by retaining their source spelling as a static record. Each measured Return completes with catch code 2. These observations supply no F5 handler, Rust acceptance, operation binding, frame, edit permission or whole-refactoring equivalence.
+
+See the [name-handling contract](../../../docs/design/contracts/name-handling.md), [pattern catalogue](../patterns/README.md) and [result index](../results/README.md). The original files are immutable evidence; `SHA256SUMS` also covers the portable replay support. To capture a separate reproduction with the retained provider binaries and init files, run `python replay.py --out /tmp/new-record-value-capture`. The runner verifies provider hashes and refuses an existing output directory; it never overwrites these original outputs. A replay result is independent evidence.

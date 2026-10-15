@@ -327,6 +327,7 @@ impl Interp {
 
     /// Apply an already-merged original instruction operand. This does not
     /// publish the result, log the instruction, or perform RETURN_STK's merge.
+    #[cfg(test)]
     pub(crate) fn process_original_c_return_options(
         &mut self,
         purpose: NativeReturnOptionsApplication,

@@ -19,7 +19,7 @@ pub(super) struct NativeErrorObjects {
 /// A raw role during the real decrement, without a native object reference.
 /// Its allocation lease cannot revive a retired header or authorise a getter.
 struct NativeErrorObjectRetirement {
-    original: obj::NativeObjectLifetime,
+    _original: obj::NativeObjectLifetime,
     active: std::cell::Cell<bool>,
 }
 
@@ -374,7 +374,7 @@ impl Interp {
         obj::check_native_liveness(original)
             .map_err(|error| self.clone().refuse_completion_value_access(error))?;
         let role = std::rc::Rc::new(NativeErrorObjectRetirement {
-            original: obj::NativeObjectLifetime::retain(original),
+            _original: obj::NativeObjectLifetime::retain(original),
             active: std::cell::Cell::new(true),
         });
         let retired = {
@@ -635,6 +635,7 @@ impl Interp {
         extra()
     }
 
+    #[cfg(test)]
     pub(crate) fn retain_native_error_option(&self, info: bool, original: *mut obj::TclObj) {
         let Ok(scope) = super::native_operation_currency::NativeOperationScope::enter(self) else {
             return;
@@ -889,6 +890,7 @@ impl Interp {
         currency.ensure_current_or_refuse()
     }
 
+    #[cfg(test)]
     pub(crate) fn update_native_error_info(&mut self) {
         let Ok(scope) = super::native_operation_currency::NativeOperationScope::enter(self) else {
             return;
@@ -1194,6 +1196,7 @@ impl Interp {
         Ok(Some(held))
     }
 
+    #[cfg(test)]
     pub(crate) fn native_private_error_object(&self, info: bool) -> Option<obj::Owned> {
         self.check_native_error_object_readable(if info {
             Variable::ErrorInfo

@@ -3265,7 +3265,7 @@ mod method_original_lookup_operand_effect_tests {
                     logical_method_procedure_at(source, &analysis, *offset),
                     LogicalMethodProcedureSelection::Occupied {
                         procedure: Some(_),
-                        ..
+                        earlier_unknown_mutations: true,
                     }
                 ));
             }
@@ -3288,7 +3288,33 @@ mod method_original_lookup_operand_effect_tests {
             .iter()
             .find(|call| call.name == "::helper")
             .unwrap();
-        assert_eq!(helper.from_ranges.len(), 2);
+        assert_eq!(
+            helper.from_ranges,
+            offsets
+                .iter()
+                .map(|offset| span_to_range(
+                    source,
+                    &LineIndex::new(source),
+                    tcl_lexer::Span::new(*offset, *offset + 8)
+                ))
+                .collect::<Vec<_>>()
+        );
+        let effectful_ranges = offsets[1..]
+            .iter()
+            .map(|offset| {
+                span_to_range(
+                    source,
+                    &LineIndex::new(source),
+                    tcl_lexer::Span::new(*offset, *offset + 8),
+                )
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(effectful_ranges.len(), 2);
+        assert!(
+            effectful_ranges
+                .iter()
+                .all(|range| helper.from_ranges.contains(range))
+        );
         assert!(
             helper
                 .logical_occurrences

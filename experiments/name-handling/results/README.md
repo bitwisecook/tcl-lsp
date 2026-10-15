@@ -83,3 +83,15 @@ a completed C release gate or Jim/F5 agreement.
 - [Original import export-filter/self-import capture](original-import-export-policy-20261015/README.md): actual C5/Jim no-export target and self-import outcomes; source advice and Runtime acceptance remain separate.
 
 [Original Jim namespace Inscope SDK capture](original-jim-namespace-inscope-sdk-20261015/README.md) retains14cases/421rows across28 public/direct cold/hot phases: genuine selected tailcall, original List child/extra argv identity and headers, worker Return, arity/replacement/deletion, excluded trial and timed upstream receipt. No Runtime/lifecycle acceptance.
+
+[Original method pre-entry lookup](../method-pre-entry-lookup-20261015/README.md) retains actual C8.6–9.1 helper replacement and unavailable TclOO providers, independently of argument effects; possible source coordinates supply no closed binding or installed method frame.
+
+[Original data-group record values](../datagroup-record-values-20261015/README.md) preserve C5/pinned Jim static literal data, decoded escapes and dynamic values before related controls, without F5, Rust edit or equivalence acceptance.
+
+[Original body-reference scope](../patterns/w214-body-reference-scope/README.md) retains original six-provider BOM/body and expression observations separately from source MAY advice and Rust acceptance.
+
+[Original Jim inventory staging](original-jim-inventory-stage-sdk-20261015/README.md) retains105 rows/nine cases/eighteen phases, original pattern/namespace getter frontiers and the exact excluded trial. Its missing original failed-process exit remains unknown; no Runtime, full SDK roster or final-free/lifecycle acceptance follows.
+
+[Original Jim namespace-info helper replacement](original-jim-info-helper-replacement-sdk-20261015/README.md) retains19 exact rows across actual default/replaced/deleted helper phases with original headers sampled before getters. No Runtime/full-info/lifecycle acceptance follows.
+
+

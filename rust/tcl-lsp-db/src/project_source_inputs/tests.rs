@@ -74,8 +74,14 @@ fn configured_project_headers_keep_pack_definers_and_withdraw_changed_source_met
         "::provided"
     ));
     assert!(!has_procedure(&item_tree(&db, library), "::provided"));
+    let headers = item_sigs_for_config(&db, library, library_config);
+    let coordinate = headers
+        .iter()
+        .find_map(|header| header.logical_source_coordinate.clone())
+        .expect("actual selected source header coordinate");
+    let slot = LogicalSourceCommandSlot::new(&db, coordinate);
     assert_eq!(
-        command_arity_for_inputs(&db, project, CommandTail::new(&db, "provided".to_owned())),
+        logical_source_command_arity(&db, project, slot, true),
         Some(Arc::new(vec![(1, 1)]))
     );
 
@@ -84,10 +90,7 @@ fn configured_project_headers_keep_pack_definers_and_withdraw_changed_source_met
         (library, caller_config),
         (caller, caller_config),
     ]));
-    assert!(
-        command_arity_for_inputs(&db, project, CommandTail::new(&db, "provided".to_owned()))
-            .is_none()
-    );
+    assert!(logical_source_command_arity(&db, project, slot, true).is_none());
     project.set_token_configurations(&mut db).to(Some(vec![
         (library, library_config),
         (caller, caller_config),
@@ -100,17 +103,11 @@ fn configured_project_headers_keep_pack_definers_and_withdraw_changed_source_met
         &item_tree_for_config(&db, library, library_config),
         "::provided"
     ));
-    assert!(
-        command_arity_for_inputs(&db, project, CommandTail::new(&db, "provided".to_owned()))
-            .is_none()
-    );
+    assert!(logical_source_command_arity(&db, project, slot, true).is_none());
     library_config.set_spec_pack_key(&mut db).to(u64::MAX - 356);
     assert!(document_analysis_input(&db, library, library_config).is_err());
     assert!(item_sigs_for_config(&db, library, library_config).is_empty());
-    assert!(
-        command_arity_for_inputs(&db, project, CommandTail::new(&db, "provided".to_owned()))
-            .is_none()
-    );
+    assert!(logical_source_command_arity(&db, project, slot, true).is_none());
 }
 
 #[test]

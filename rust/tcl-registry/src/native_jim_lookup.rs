@@ -29,16 +29,25 @@ pub enum NativeJimNamespaceHelperKind {
     Origin,
     /// Original `namespace inscope` distribution procedure.
     Inscope,
+    /// Original private namespace-aware inventory distribution procedure.
+    Info,
 }
 impl NativeJimNamespaceHelperKind {
     /// Pinned source families this owner currently supplies.
-    pub const ALL: [Self; 4] = [Self::Which, Self::Code, Self::Origin, Self::Inscope];
+    pub const ALL: [Self; 5] = [
+        Self::Which,
+        Self::Code,
+        Self::Origin,
+        Self::Inscope,
+        Self::Info,
+    ];
 }
 
 /// Authored pinned distribution procedure source, not a published callable.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NativeJimNamespaceHelper {
     kind: NativeJimNamespaceHelperKind,
+    public_subcommand: bool,
     minimum_arguments: usize,
     maximum_arguments: usize,
     usage: &'static str,
@@ -55,7 +64,7 @@ impl NativeJimNamespaceHelper {
     /// `Jim_ParseSubCmd` validates the public operands before helper-head lookup.
     #[must_use]
     pub const fn accepts_public_arguments(self, count: usize) -> bool {
-        count >= self.minimum_arguments && count <= self.maximum_arguments
+        self.public_subcommand && count >= self.minimum_arguments && count <= self.maximum_arguments
     }
     /// Exact public-subcommand argument synopsis.
     #[must_use]
@@ -91,6 +100,7 @@ impl crate::InvocationDialect {
         Some(match kind {
             NativeJimNamespaceHelperKind::Which => NativeJimNamespaceHelper {
                 kind,
+                public_subcommand: true,
                 minimum_arguments: 1,
                 maximum_arguments: 2,
                 usage: "?-command|-variable? name",
@@ -114,6 +124,7 @@ impl crate::InvocationDialect {
             },
             NativeJimNamespaceHelperKind::Code => NativeJimNamespaceHelper {
                 kind,
+                public_subcommand: true,
                 minimum_arguments: 1,
                 maximum_arguments: 1,
                 usage: "arg",
@@ -129,6 +140,7 @@ impl crate::InvocationDialect {
             },
             NativeJimNamespaceHelperKind::Origin => NativeJimNamespaceHelper {
                 kind,
+                public_subcommand: true,
                 minimum_arguments: 1,
                 maximum_arguments: 1,
                 usage: "name",
@@ -151,12 +163,72 @@ impl crate::InvocationDialect {
             },
             NativeJimNamespaceHelperKind::Inscope => NativeJimNamespaceHelper {
                 kind,
+                public_subcommand: true,
                 minimum_arguments: 2,
                 maximum_arguments: usize::MAX,
                 usage: "name arg ?arg ...?",
                 name: "namespace inscope",
                 parameters: "name arg args",
                 body: "\n\ttailcall namespace eval $name $arg $args\n",
+            },
+            NativeJimNamespaceHelperKind::Info => NativeJimNamespaceHelper {
+                kind,
+                public_subcommand: false,
+                minimum_arguments: 0,
+                maximum_arguments: 0,
+                usage: "cmd ?pattern?",
+                name: "namespace info",
+                parameters: "cmd {pattern *}",
+                body: r#"
+	set current [uplevel 1 ::namespace canon]
+	# Now we may need to strip $pattern
+	if {[string first :: $pattern] == 0} {
+		set global 1
+		set prefix ::
+	} else {
+		set global 0
+		set clen [string length $current]
+		incr clen 2
+	}
+	set fqp [namespace canon $current $pattern]
+	switch -glob -- $cmd {
+		co* - p* {
+			if {$global} {
+				set result [info $cmd $fqp]
+			} else {
+				# Add commands in the current namespace
+				set r {}
+				foreach c [info $cmd $fqp] {
+					dict set r [string range $c $clen end] 1
+				}
+				if {[string match co* $cmd]} {
+					# Now in the global namespace
+					foreach c [info -nons commands $pattern] {
+						dict set r $c 1
+					}
+				}
+				set result [dict keys $r]
+			}
+		}
+		ch* {
+			set result [info channels $pattern]
+		}
+		v* {
+			#puts "uplevel #0 info gvars $fqp"
+			set result [uplevel #0 info -nons vars $fqp]
+		}
+		g* {
+			set result [info globals $fqp]
+		}
+		l* {
+			set result [uplevel 1 info -nons locals $pattern]
+		}
+	}
+	if {$global} {
+		set result [lmap p $result { string cat $prefix $p }]
+	}
+	return $result
+"#,
             },
         })
     }
@@ -352,6 +424,34 @@ mod namespace_helper_source_tests {
             assert!(
                 crate::InvocationDialect::of_profile(environment.unit_profile())
                     .native_jim_namespace_helper(super::NativeJimNamespaceHelperKind::Inscope)
+                    .is_none()
+            );
+        }
+    }
+    #[test]
+    fn info_helper_descriptor_keeps_original_private_procedure_without_public_dispatch() {
+        let environment = crate::model::ingress::resolve_known_environment("jim").unwrap();
+        let dialect = crate::InvocationDialect::of_profile(environment.unit_profile());
+        let helper = dialect
+            .native_jim_namespace_helper(super::NativeJimNamespaceHelperKind::Info)
+            .unwrap();
+        let source = include_str!("../tests/data/native_jim_namespace_which/nshelper.tcl");
+        assert!(source.contains(&format!(
+            "proc {{{}}} {{{}}} {{{}}}",
+            helper.name(),
+            helper.parameters(),
+            helper.body()
+        )));
+        for count in [0, 1, 2, 3, usize::MAX] {
+            assert!(!helper.accepts_public_arguments(count));
+        }
+        assert!(super::NativeJimNamespaceHelperKind::ALL.contains(&helper.kind()));
+        for version in tcl_dialect::TclVersion::ALL {
+            let environment =
+                crate::model::ingress::resolve_known_environment(version.dialect_name()).unwrap();
+            assert!(
+                crate::InvocationDialect::of_profile(environment.unit_profile())
+                    .native_jim_namespace_helper(super::NativeJimNamespaceHelperKind::Info)
                     .is_none()
             );
         }

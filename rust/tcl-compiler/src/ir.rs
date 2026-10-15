@@ -908,7 +908,8 @@ impl CommandTokens {
     /// purpose, Native identity and effective alias/expansion argv are checked
     /// separately by the original owner. Count-only compatibility snapshots
     /// continue to use words_align_with_argv_text.
-    pub(crate) fn original_words_match_argv_text(&self) -> bool {
+    #[must_use]
+    pub fn original_words_match_argv_text(&self) -> bool {
         self.words_align_with_argv_text()
             && self
                 .words()
@@ -2896,21 +2897,13 @@ pub struct Module {
     /// vectors. The method barrier joins current class allocations and their
     /// retained inheritance candidates; missing targets widen its MAY graph.
     pub class_relations: Vec<ClassRelation>,
-    /// `namespace import` directives captured at lowering time —
-    /// `(context_namespace, absolute_pattern)` pairs. Future codegen
-    /// passes pattern-match each against the final
-    /// `Self::procedures` table to resolve unqualified calls
-    /// directly instead of falling back to the runtime
-    /// interpreter. Only absolute patterns (`::foo::*` /
-    /// `::foo::bar`) are recorded; relative patterns require
-    /// runtime namespace-path walking which compile-time
-    /// resolution does not model.
+    /// Literal selected import patterns as `(context_namespace, pattern)`
+    /// dependency pairs in source order. These supply no resolved binding;
+    /// the source command graph independently owns import resolution.
     pub namespace_imports: Vec<(String, String)>,
-    /// `namespace export` directives captured at lowering time —
-    /// `(context_namespace, pattern)` pairs. Codegen consults this
-    /// list to gate the import shortcut on actual exportedness so
-    /// `namespace import ::foo::*` only resolves names that
-    /// `::foo` actually exports.
+    /// Literal selected export patterns as `(context_namespace, pattern)`
+    /// dependency pairs. Export filtering and binding selection retain their
+    /// independent typed source and Native owners.
     pub namespace_exports: Vec<(String, String)>,
     /// Literal command names that have an execution trace
     /// registered (`trace add execution NAME enter|leave HANDLER`).

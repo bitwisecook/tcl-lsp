@@ -52,6 +52,8 @@ pub(crate) use original_word_data::{
     original_literal_argument_data_for_module, original_lowered_expression_syntax,
     original_source_argument_for_module, original_source_argument_for_script,
 };
+mod source_reference_candidates;
+pub(crate) use source_reference_candidates::original_body_reference_candidates;
 mod source_operand_evaluation;
 pub(crate) use source_operand_evaluation::{
     OriginalOperandEvaluationUpdate, original_operand_evaluation_update,

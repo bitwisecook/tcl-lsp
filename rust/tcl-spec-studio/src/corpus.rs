@@ -874,7 +874,7 @@ mod tests {
         assert!(arms("x body dangling", config).is_empty());
         assert!(arms("x {unfinished", config).is_empty());
         let jim = LexerConfig::for_profile(Some(
-            tcl_registry::model::ingress::resolve_known_environment("jim0.79")
+            tcl_registry::model::ingress::resolve_known_environment("jim")
                 .expect("selected Jim test environment")
                 .unit_profile(),
         ));
@@ -943,7 +943,7 @@ mod tests {
                 .is_empty()
         );
         assert_eq!(
-            scan("$café payload", &[param("café")], "jim0.79").callbacks,
+            scan("$café payload", &[param("café")], "jim").callbacks,
             vec![Callback {
                 index: 0,
                 appended: Appended::Exactly(1)

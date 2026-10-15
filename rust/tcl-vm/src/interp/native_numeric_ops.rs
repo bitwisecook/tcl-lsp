@@ -1104,10 +1104,9 @@ mod tests {
                 dialect,
             )
             .unwrap();
-            let retired = vm
+            let _ = vm
                 .var_arena
                 .replace_state(id, super::super::Local::Scalar(value.clone()));
-            drop(retired);
             let context = crate::value::DoubleFormatContext::for_dialect(dialect).unwrap();
             let before = context.precision();
             vm.is_safe = safe;
@@ -1129,10 +1128,9 @@ mod tests {
         // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
         let (mut vm, numeric) = provided("tcl8.4");
         let cell = vm.trace_cell_bytes(b"tcl_precision").unwrap();
-        let retired = vm
+        let _ = vm
             .var_arena
             .replace_state(cell.id.unwrap(), super::super::Local::Undefined);
-        drop(retired);
         let scope = NativeOperationScope::enter_native(&mut vm).unwrap();
         let result = vm
             .fire_native_precision_trace_bytes(b"tcl_precision", "write", &cell, &scope)
@@ -1241,10 +1239,9 @@ mod tests {
                 .unwrap()
             };
             let cell = vm.trace_cell_bytes(b"tcl_precision").unwrap();
-            let retired = vm
+            let _ = vm
                 .var_arena
                 .replace_state(cell.id.unwrap(), super::super::Local::Scalar(value.clone()));
-            drop(retired);
             let references = value.native_object_reference_count();
             *numeric.original.borrow_mut() = Some(value.native_lifetime_lease());
             assert_eq!(value.native_object_reference_count(), references);

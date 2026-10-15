@@ -1413,15 +1413,6 @@ pub fn file_external_call_sites(
     Arc::new(all.slice_for_original_declarations(&sites))
 }
 
-/// Original unresolved source name retained by the diagnostic emitter.
-/// Missing semantic subjects stay unknown, independent of presentation.
-#[cfg(test)]
-fn w123_command(diagnostic: &tcl_compiler::analyser::Diagnostic) -> Option<&str> {
-    diagnostic
-        .unresolved_command()
-        .map(|subject| subject.reporting_name())
-}
-
 /// Inclusive count bounds from the formal owner's frozen header metadata.
 /// Unknown counts remain fully open. Selected C/Jim grammar and original
 /// formal storage are projected before the body-free database boundary.
@@ -1437,83 +1428,6 @@ fn proc_arity(
         usize::from(arity.max)
     };
     (usize::from(arity.min), max)
-}
-
-/// Project declaration arities keyed by complete constructed declaration names.
-/// Bare-tail entries separately retain legacy unresolved-command assistance.
-/// Positioned callbacks use their retained ordered lookup candidates; a qualified
-/// callback cannot borrow another namespace's same-tailed declaration.
-///
-/// A key shared by a proc and a non-proc command carries an empty arity list,
-/// because the class, alias or ensemble has no proc signature to validate.
-/// The table supplies no reached command, provider or runtime binding proof.
-///
-/// Depends only on each file's `item_sigs` (the signature firewall), so a body
-/// edit anywhere recomputes nothing here.
-#[cfg(test)]
-#[salsa::tracked(returns(clone))]
-pub fn project_command_arities(
-    db: &dyn TclDb,
-    project: Project,
-) -> Arc<HashMap<String, Vec<(usize, usize)>>> {
-    merge_command_arities(project.files(db).iter().map(|&file| item_sigs(db, file)))
-}
-
-#[cfg(test)]
-fn merge_command_arities(
-    signatures: impl IntoIterator<Item = Arc<Vec<ItemSig>>>,
-) -> Arc<HashMap<String, Vec<(usize, usize)>>> {
-    use tcl_compiler::analyser::ItemKind;
-    // Complete declaration keys and bare-tail assistance remain separate entries.
-    let mut acc: HashMap<String, (Vec<(usize, usize)>, bool)> = HashMap::new();
-    for signatures in signatures {
-        for sig in signatures.iter() {
-            // Command-resolvable kinds only — methods are object-dispatched and
-            // namespaces aren't commands, so neither suppresses a bare-command W123.
-            let resolvable = matches!(
-                sig.id.kind,
-                ItemKind::Proc | ItemKind::Class | ItemKind::Alias | ItemKind::Ensemble
-            );
-            if resolvable {
-                let tail = tcl_compiler::naming::key_tail(&sig.id.key);
-                for name in [sig.id.key.as_str(), tail] {
-                    if name.is_empty() {
-                        continue;
-                    }
-                    // A qualified procedure key can draw arity diagnostics only
-                    // when its original publication and global lookup select the
-                    // same exact retained slot. Bare tails remain assistance.
-                    if name == sig.id.key
-                        && sig.id.kind == ItemKind::Proc
-                        && sig
-                            .source_name
-                            .as_ref()
-                            .and_then(|source| source.source_spelling())
-                            .as_deref()
-                            != Some(name)
-                    {
-                        continue;
-                    }
-                    let entry = acc.entry(name.to_owned()).or_default();
-                    if sig.id.kind == ItemKind::Proc {
-                        entry.0.push(proc_arity(sig.formal_count));
-                    } else {
-                        entry.1 = true;
-                    }
-                }
-            }
-        }
-    }
-    // A tail with any non-proc resolver can't be arity-checked (the call may
-    // dispatch to the arity-less class/alias/ensemble), so drop its proc arities —
-    // it still resolves (suppresses W123) but never draws an arity error.
-    let map: HashMap<String, Vec<(usize, usize)>> = acc
-        .into_iter()
-        .map(|(tail, (arities, has_non_proc))| {
-            (tail, if has_non_proc { Vec::new() } else { arities })
-        })
-        .collect();
-    Arc::new(map)
 }
 
 /// Body-free original source headers under their exact publication keys.
@@ -1822,47 +1736,6 @@ fn logical_source_command_arity<'db>(
         .map(Arc::new)
 }
 
-/// Interned declaration key or legacy bare-tail assistance key for the
-/// per-symbol cross-file accessor [`command_arity`].
-#[cfg(test)]
-#[salsa::interned]
-pub struct CommandTail<'db> {
-    #[returns(ref)]
-    pub name: String,
-}
-
-/// Per-symbol cross-file resolution accessor — the **early-cutoff** point that
-/// gives cross-file diagnostics *per-symbol* (not whole-project) invalidation
-/// precision.
-///
-/// Reads the firewalled whole-project [`project_command_arities`] table and
-/// projects out one exact declaration or bare-tail assistance key:
-/// `Some(arities)` when the workspace contains that key. An empty list is
-/// non-proc assistance (class / alias / ensemble), without an arity error. `None`
-/// when nothing in the project claims it.
-///
-/// Why this is its own query: [`project_diagnostics`] for a file demands
-/// `command_arity` only for the tails that file actually references, so it depends
-/// on **those symbols' resolutions, not the whole table**.  A signature edit to an
-/// *unrelated* proc recomputes the aggregate table and re-runs this accessor for
-/// each demanded tail — but a tail this file does not call keeps the same
-/// projected output, so salsa **early-cutoff backdates** it and the file's
-/// `project_diagnostics` does not re-run.  Changing a widely-called utility's
-/// signature still re-checks exactly its callers (correct fan-out); changing a
-/// proc nobody in file B calls wakes nobody in B.  Proven by
-/// `project_diagnostics_per_symbol_cutoff`.
-#[cfg(test)]
-#[salsa::tracked(returns(clone))]
-pub fn command_arity<'db>(
-    db: &'db dyn TclDb,
-    project: Project,
-    tail: CommandTail<'db>,
-) -> Option<Arc<Vec<(usize, usize)>>> {
-    project_command_arities(db, project)
-        .get(tail.name(db).as_str())
-        .map(|arities| Arc::new(arities.clone()))
-}
-
 /// Build the cross-file wrong-argument-count diagnostic for a call to a workspace
 /// proc whose arg count fits none of the proc's arities.  Reuses the analyser's
 /// **own** arity codes — `E002` (too few) / `E003` (too many), `Severity::Error`,
@@ -1916,8 +1789,8 @@ fn cross_file_arity_diagnostic(
 }
 
 /// Diagnose one exact callback argument count when no visible proc candidate
-/// accepts it. Unlike the direct-call compatibility helper above, this also
-/// handles a genuine gap between disjoint same-tail proc arities: every
+/// accepts it. Unlike the direct-call count envelope above, this also
+/// handles a genuine gap between disjoint selected proc arities: every
 /// possible target rejects the count, so E005 is the precise shape error.
 fn callback_exact_arity_diagnostic(
     name: &str,
@@ -1946,172 +1819,6 @@ fn callback_exact_arity_diagnostic(
         severity: Severity::Error,
         fixes: Vec::new(),
     })
-}
-
-/// Legacy standalone project resolution: a W123 (unknown
-/// command) whose command tail is a workspace proc is **suppressed** (resolved
-/// cross-file); if that call's arg count is known and fits **none** of the
-/// proc's arities, a cross-file arity error (`E002`/`E003`, the analyser's own
-/// codes) replaces it. The server does not use this direct-call resolver: it
-/// settles direct calls once through its workspace-index oracle. `arities`
-/// empty ⇒ no project context ⇒ status-quo diagnostics.
-///
-/// This compatibility projection requires independently retained Logical input.
-/// Native, hosted and missing inputs preserve diagnostics without tail advice.
-/// `unresolved_sites` are the call sites of unknown commands
-/// ([`AnalysisResult::unresolved_command_sites`]), recorded by the analyser
-/// **regardless of whether W123 is disabled** — so cross-file arity is independent
-/// of the W123 toggle (matching local arity), since the arity check keys off these
-/// rather than the (possibly filtered) W123 diagnostic.
-///
-/// `is_disabled` reads the analyser's `disabled_diagnostics` for the
-/// synthesised arity code: the synthesised arity codes honour the same
-/// production skip as the analyser's own; whether they show is the policy
-/// step's decision.
-#[cfg(test)]
-#[must_use]
-pub fn apply_cross_file_resolution<S: std::hash::BuildHasher>(
-    analysis: &AnalysisResult,
-    diags: &[tcl_compiler::analyser::types::Diagnostic],
-    unresolved_sites: &[(tcl_lexer::Span, String)],
-    invocations: &[tcl_compiler::signature_scan::types::SignatureCommandInvocation],
-    arities: &HashMap<String, Vec<(usize, usize)>, S>,
-    is_disabled: impl Fn(&str) -> bool,
-) -> Vec<tcl_compiler::analyser::types::Diagnostic> {
-    if !analysis.allows_retained_logical_declaration_advice() || arities.is_empty() {
-        return diags.to_vec();
-    }
-    // Suppress every W123 that resolves cross-file (its tail is a workspace
-    // command); a genuinely-unknown command's W123 is kept.
-    let mut out: Vec<tcl_compiler::analyser::types::Diagnostic> = diags
-        .iter()
-        .filter(|d| {
-            d.code != DiagCode::W123
-                || !w123_command(d).is_some_and(|name| arities.contains_key(name))
-        })
-        .cloned()
-        .collect();
-    // Cross-file arity: for each unresolved call site that resolves to a workspace
-    // **proc** (non-empty arity list) with a known arg count fitting no arity, emit
-    // E002/E003 — unless that code is disabled.  Driven off the toggle-independent
-    // `unresolved_sites`, so disabling W123 does not also silence arity.
-    let argc_by_span: HashMap<(u32, u32), Option<usize>> = invocations
-        .iter()
-        .map(|inv| ((inv.range.start(), inv.range.end()), inv.argc))
-        .collect();
-    for (span, name) in unresolved_sites {
-        if let Some(candidates) = arities.get(name)
-            && !candidates.is_empty()
-            && let Some(Some(argc)) = argc_by_span.get(&(span.start(), span.end()))
-            && let Some(diag) =
-                cross_file_arity_diagnostic(name, *span, (*argc, Some(*argc)), candidates)
-            && !is_disabled(diag.code.as_str())
-        {
-            out.push(diag);
-        }
-    }
-    out
-}
-
-/// Legacy callback count advice for independently retained Logical input.
-/// Native, hosted and missing inputs preserve the supplied diagnostics.
-/// Authentic source callbacks use [`project_callback_diagnostics_for_analysis`].
-///
-/// Direct cross-file command existence and direct-call arity are settled by
-/// the server's workspace-index oracle. Keeping this helper limited to
-/// callback metadata lets the opt-in project pass retain that independent
-/// check without competing for direct-call verdicts.
-///
-/// `is_disabled` reads the analyser's `disabled_diagnostics`: the synthesised
-/// arity codes honour the same production skip as the analyser's own; whether
-/// they show is the policy step's decision.
-#[cfg(test)]
-#[must_use]
-fn apply_project_callback_arity<S: std::hash::BuildHasher>(
-    analysis: &AnalysisResult,
-    diags: &[tcl_compiler::analyser::types::Diagnostic],
-    invocations: &[tcl_compiler::signature_scan::types::SignatureCommandInvocation],
-    arities: &HashMap<String, Vec<(usize, usize)>, S>,
-    is_disabled: impl Fn(&str) -> bool,
-) -> Vec<tcl_compiler::analyser::types::Diagnostic> {
-    let mut out = diags.to_vec();
-    if analysis.allows_retained_logical_declaration_advice() {
-        apply_callback_arity(&mut out, invocations, arities, is_disabled);
-    }
-    out
-}
-
-/// Validate command-prefix **callback** arity: for each recorded callback head
-/// (`lsort -command myCompare` → `myCompare` with `callback_arity =
-/// Exactly(2)`), check that the referenced project proc accepts the arguments
-/// the calling command appends.
-///
-/// The effective arg count is `baked` args already in the prefix (`{myCmp
-/// extra}` bakes one; a bare word bakes zero) plus the command's appended
-/// arity. `Exactly(n)` checks one count; `OneOf(set)` requires the proc to
-/// accept every exact alternative; `AtLeast(n)` retains the conservative open
-/// range. Skipped for `Unknown`/absent arities and for tails the project
-/// resolves with a non-proc (empty candidate list).
-/// Same-file callbacks are covered too: `project_command_arities` aggregates
-/// every file, so a same-file proc's arity is in `arities`.
-#[cfg(test)]
-fn apply_callback_arity<S: std::hash::BuildHasher>(
-    out: &mut Vec<tcl_compiler::analyser::types::Diagnostic>,
-    invocations: &[tcl_compiler::signature_scan::types::SignatureCommandInvocation],
-    arities: &HashMap<String, Vec<(usize, usize)>, S>,
-    is_disabled: impl Fn(&str) -> bool,
-) {
-    for inv in invocations {
-        let Some(appended) = inv.callback_arity else {
-            continue;
-        };
-        if !appended.is_checkable() {
-            continue;
-        }
-        let Some(candidates) = inv
-            .logical_callback_candidate_keys()
-            .iter()
-            .find_map(|name| arities.get(name))
-        else {
-            continue;
-        };
-        if candidates.is_empty() {
-            continue;
-        }
-        if let Some(diag) = callback_arity_diagnostic(inv, candidates)
-            && !is_disabled(diag.code.as_str())
-        {
-            out.push(diag);
-        }
-    }
-}
-
-#[cfg(test)]
-fn callback_arity_diagnostic(
-    invocation: &tcl_compiler::signature_scan::types::SignatureCommandInvocation,
-    candidates: &[(usize, usize)],
-) -> Option<tcl_compiler::analyser::types::Diagnostic> {
-    let appended = invocation.callback_arity?;
-    if !appended.is_checkable() || candidates.is_empty() {
-        return None;
-    }
-    let baked = invocation.callback_baked_args;
-    if let Some(exact_counts) = appended.exact_counts() {
-        exact_counts
-            .map(|count| baked + usize::from(count))
-            .find_map(|count| {
-                callback_exact_arity_diagnostic(
-                    &invocation.name,
-                    invocation.range,
-                    count,
-                    candidates,
-                )
-            })
-    } else {
-        let lo = baked + appended.min() as usize;
-        let hi = appended.max().map(|max| baked + max as usize);
-        cross_file_arity_diagnostic(&invocation.name, invocation.range, (lo, hi), candidates)
-    }
 }
 
 #[derive(Clone, Copy)]
@@ -2261,6 +1968,31 @@ pub fn project_diagnostics(
     // `file` — a cache hit, not a second whole-file analysis.
     let analysis = file_analysis_incremental(db, file, config);
 
+    Arc::new(project_source_diagnostics_for_analysis(
+        db,
+        project,
+        file.text(db),
+        &analysis,
+        |code| disabled.iter().any(|disabled| disabled == code),
+    ))
+}
+
+fn project_source_diagnostics_for_analysis(
+    db: &dyn TclDb,
+    project: Project,
+    text: &str,
+    analysis: &AnalysisResult,
+    is_disabled: impl Fn(&str) -> bool,
+) -> Vec<tcl_compiler::analyser::Diagnostic> {
+    let Some(input) = analysis.resolved_input.as_ref() else {
+        return analysis.diagnostics.clone();
+    };
+    if !analysis.matches_original_source_image(
+        &tcl_lexer::SourceImage::document(text),
+        input.lexer_config(),
+    ) {
+        return analysis.diagnostics.clone();
+    }
     // Each original coordinate is demanded independently so unrelated header
     // changes keep the per-slot query's early cutoff.
     let unresolved = analysis
@@ -2296,7 +2028,7 @@ pub fn project_diagnostics(
             continue;
         }
         let Some(candidate) = tcl_compiler::registry_invocation::source_structure::source_logical_command_candidates_at(
-            file.text(db), &analysis, span.start(),
+            text, analysis, span.start(),
         ) else { continue; };
         if candidate.has_earlier_unknown_mutations()
             || candidate.has_lookup_operand_effects()
@@ -2355,7 +2087,7 @@ pub fn project_diagnostics(
                 (argc, Some(argc)),
                 candidates,
             )
-            && !disabled.iter().any(|code| code == diagnostic.code.as_str())
+            && !is_disabled(diagnostic.code.as_str())
         {
             diagnostics.push(diagnostic);
         }
@@ -2376,26 +2108,26 @@ pub fn project_diagnostics(
         let name = String::from_utf8_lossy(&name);
         if let Some(diagnostic) =
             cross_file_arity_diagnostic(&name, head.span(), (argc, Some(argc)), arities)
-            && !disabled.iter().any(|code| code == diagnostic.code.as_str())
+            && !is_disabled(diagnostic.code.as_str())
         {
             diagnostics.push(diagnostic);
         }
     }
     apply_logical_source_callback_arity(
         (db, project, ProjectSourceInputMode::Standalone),
-        file.text(db),
-        &analysis,
+        text,
+        analysis,
         &mut diagnostics,
-        |code| disabled.iter().any(|disabled| disabled == code),
+        &is_disabled,
     );
     apply_original_callback_arity(
         db,
         project,
         &mut diagnostics,
-        retained_callback_invocations(&analysis),
-        |code| disabled.iter().any(|disabled| disabled == code),
+        retained_callback_invocations(analysis),
+        &is_disabled,
     );
-    Arc::new(diagnostics)
+    diagnostics
 }
 
 /// Original callback rows that still belong to this analysis's complete input.
@@ -4732,8 +4464,6 @@ pub use project_call_inputs::{
     file_external_call_sites_for_inputs, file_source_targets_for_inputs,
 };
 mod project_source_inputs;
-#[cfg(test)]
-use project_source_inputs::command_arity_for_inputs;
 pub use project_source_inputs::{
     item_sigs_for_config, item_tree_for_config,
     project_callback_diagnostics_for_analysis_with_inputs, project_callback_diagnostics_for_inputs,
@@ -5286,11 +5016,24 @@ mod tests {
         invocation.original_lookup = None;
         invocation.resolved_command_reference = None;
         invocation.callback_arity = Some(tcl_registry::AppendedArity::Exactly(2));
-        let arities = HashMap::from([("cb".to_owned(), vec![(0, 0)])]);
         assert!(invocation.logical_callback_candidate_keys().is_empty());
+        let mut missing = (*analysis).clone();
+        missing.command_invocations = vec![invocation];
+        let library = SourceFile::new(&db, "proc cb {} {}".to_owned(), "tcl8.6".to_owned(), None);
+        let project = Project::new(&db, vec![library, file]);
         assert!(
-            apply_project_callback_arity(&analysis, &[], &[invocation], &arities, |_| false)
-                .is_empty()
+            project_callback_diagnostics_for_analysis(
+                &db,
+                project,
+                file.text(&db),
+                &missing,
+                |_| false,
+            )
+            .iter()
+            .all(|diagnostic| !matches!(
+                diagnostic.code,
+                DiagCode::E002 | DiagCode::E003 | DiagCode::E005
+            ))
         );
     }
 
@@ -5329,12 +5072,9 @@ mod tests {
             let key = header.name().clone();
             let original = project_original_command_arities(&db, project);
             assert_eq!(original.get(&key), Some(&vec![(minimum, 3)]), "{dialect}");
-            let reporting = project_command_arities(&db, project);
-            assert_eq!(
-                reporting.get("mixed"),
-                Some(&vec![(minimum, 3)]),
-                "{dialect}"
-            );
+            let slot = OriginalCommandSlot::new(&db, key.policy(), key.slot().clone());
+            let selected = original_command_arity(&db, project, slot);
+            assert_eq!(selected.as_deref(), Some(&vec![(minimum, 3)]), "{dialect}");
             file.set_text(&mut db)
                 .to("proc mixed {a {b B} c} {return A_LONGER_BODY}".to_owned());
             assert_eq!(
@@ -5343,8 +5083,8 @@ mod tests {
                 "{dialect}"
             );
             assert_eq!(
-                project_command_arities(&db, project),
-                reporting,
+                original_command_arity(&db, project, slot),
+                selected,
                 "{dialect}"
             );
             assert_eq!(item_sigs(&db, file), headers, "{dialect}");
@@ -8798,12 +8538,8 @@ p\uD801 ordinary";
         assert_eq!(names.len(), 3, "the new proc joins the project set");
     }
 
-    /// Cross-file arity firewall: `project_command_arities`
-    /// depends only on each file's `item_sigs`, so a body edit anywhere must
-    /// recompute **zero** — while a *signature* edit (changing a proc's parameter
-    /// list) must recompute it exactly once and flow the new arity through.  This is
-    /// the firewall that keeps the workspace arity table from waking on a keystroke
-    /// inside a proc body.
+    /// Original header arities ignore body edits and recompute once when the
+    /// selected signature changes.
     #[test]
     fn project_command_arities_firewall() {
         use salsa::Setter as _;
@@ -8819,7 +8555,7 @@ p\uD801 ordinary";
         let runs = |log: &Arc<Mutex<Vec<String>>>| {
             std::mem::take(&mut *log.lock().unwrap())
                 .into_iter()
-                .filter(|s| s.contains("project_command_arities"))
+                .filter(|s| s.contains("project_original_command_arities"))
                 .count()
         };
         let mut db = TclDatabase {
@@ -8839,9 +8575,13 @@ p\uD801 ordinary";
         );
         let project = Project::new(&db, vec![a, b]);
 
+        let headers = item_sigs(&db, a);
+        let header = headers[0].original_declaration.as_ref().unwrap().name();
+        let slot = OriginalCommandSlot::new(&db, header.policy(), header.slot().clone());
+
         // Cold: `helper` is a 2-param proc → arity (2, 2).
         assert_eq!(
-            project_command_arities(&db, project).get("helper").cloned(),
+            original_command_arity(&db, project, slot).map(|arities| (*arities).clone()),
             Some(vec![(2, 2)]),
             "cold: helper has arity (2, 2)"
         );
@@ -8851,25 +8591,25 @@ p\uD801 ordinary";
         // unchanged), so the arity table backdates and does NOT recompute.
         a.set_text(&mut db)
             .to("proc helper {x y} { set z 99999 }\n".to_owned());
-        let _ = project_command_arities(&db, project);
+        let _ = original_command_arity(&db, project, slot);
         assert_eq!(
             runs(&log),
             0,
-            "body edit must not recompute project_command_arities"
+            "body edit must not recompute project_original_command_arities"
         );
 
         // SIGNATURE edit — drop a parameter — `item_sigs(a)` changes, so the table
         // recomputes exactly once and the new arity (1, 1) flows through.
         a.set_text(&mut db)
             .to("proc helper {x} { set z 99999 }\n".to_owned());
-        let arities = project_command_arities(&db, project);
+        let arities = original_command_arity(&db, project, slot);
         assert_eq!(
             runs(&log),
             1,
-            "signature edit must recompute project_command_arities exactly once"
+            "signature edit must recompute project_original_command_arities exactly once"
         );
         assert_eq!(
-            arities.get("helper").cloned(),
+            arities.map(|arities| (*arities).clone()),
             Some(vec![(1, 1)]),
             "the new parameter list flows through to arity (1, 1)"
         );
@@ -8877,7 +8617,7 @@ p\uD801 ordinary";
 
     #[test]
     fn project_direct_logical_calls_use_original_occurrences_and_namespace_slots() {
-        let mut db = TclDatabase::default();
+        let db = TclDatabase::default();
         let cfg = AnalyserConfig::new(
             &db,
             Vec::new(),
@@ -8951,7 +8691,7 @@ p\uD801 ordinary";
 
     #[test]
     fn project_direct_logical_calls_keep_root_recipe_and_missing_namespace_unknown() {
-        let mut db = TclDatabase::default();
+        let db = TclDatabase::default();
         let cfg = AnalyserConfig::new(
             &db,
             Vec::new(),
@@ -9403,15 +9143,20 @@ p\uD801 ordinary";
             "tcl8.6".to_owned(),
             None,
         );
-        // The arity table must record `Widget` as resolvable but arity-less
-        // (mixed), so it can never draw an arity error.
+        // The actual root class slot is occupied without a procedure arity;
+        // a same-tailed declaration in another namespace cannot donate one.
         let proj_names = Project::new(&db, vec![b]);
+        let headers = item_sigs(&db, b);
+        let class = headers
+            .iter()
+            .find(|header| header.id.kind == tcl_compiler::analyser::ItemKind::Class)
+            .unwrap();
+        let name = class.original_declaration.as_ref().unwrap().name();
+        let slot = OriginalCommandSlot::new(&db, name.policy(), name.slot().clone());
         assert_eq!(
-            project_command_arities(&db, proj_names)
-                .get("Widget")
-                .cloned(),
+            original_command_arity(&db, proj_names, slot).map(|arities| (*arities).clone()),
             Some(Vec::new()),
-            "a mixed proc/non-proc tail must carry an empty arity list"
+            "an occupied non-procedure slot must carry an empty arity list"
         );
         // A calls `Widget new extra` (3 args) — fits no proc arity, but resolves to
         // the class → neither an arity error nor W123.
@@ -11620,8 +11365,18 @@ mod readonly_source_optimisation_owner_tests {
         let db = TclDatabase::default();
         let source = "proc a {} {puts VALUE}\nproc b {} {puts OTHER}\n";
         let file = SourceFile::new(&db, source.to_owned(), "tcl8.6".to_owned(), None);
-        let config = lexer_cfg_key(&db, "tcl8.6");
-        let unit = compilation_unit(&db, file, config, 0).unwrap();
+        let config = AnalyserConfig::new(
+            &db,
+            Vec::new(),
+            NonAsciiMode::Default,
+            Vec::new(),
+            None,
+            None,
+            0,
+            Vec::new(),
+            Vec::new(),
+        );
+        let unit = document_compilation_unit_for(&db, file, config).unwrap();
         let input = unit.ir_module.source_metadata_input.as_ref().unwrap();
         let registry = input.borrowed_context_registry().commands();
         assert!(unit.ir_module.source_entry.native_entry.is_none());

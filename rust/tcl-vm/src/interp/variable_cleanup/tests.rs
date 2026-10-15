@@ -206,7 +206,7 @@ fn original_variable_finish_refuses_unbalanced_frame_and_allows_balanced_reentry
             vm.pop_call_frame();
             vm.pop_ns();
         } else {
-            reached.unwrap();
+            let _ = reached.unwrap();
             held.check(&mut vm).unwrap();
             assert_eq!(vm.current_level(), 0);
         }

@@ -1023,6 +1023,7 @@ pub(crate) fn capture_original_indexed_receiver(
     }))
 }
 
+#[cfg(test)]
 pub(crate) fn original_indexed_link_target(
     frames: &mut FrameStack,
     ns: &mut Namespaces,

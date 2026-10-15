@@ -400,8 +400,6 @@ mod tests;
 
 #[cfg(test)]
 mod original_deletion_epoch_tests {
-    use super::*;
-
     #[test]
     fn original_command_deletion_epoch_predicates_keep_outer_recursive_and_unlink_stages() {
         // naming.embedding.original-host-publication-and-fact-transport

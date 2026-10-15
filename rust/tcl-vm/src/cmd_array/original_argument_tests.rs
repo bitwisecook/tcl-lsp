@@ -213,7 +213,7 @@ impl NativeCommand for ContextTrace {
         self.calls.set(self.calls.get() + 1);
         vm.set_var_bytes(b"reached", bytes(b"REACHED")).unwrap();
         if self.mode == 1 {
-            vm.refuse_host_command("first actual array observer".into());
+            let _ = vm.refuse_host_command("first actual array observer".into());
         } else if self.mode == 2 {
             let original = vm.runtime_context().clone();
             let mut changed = original.clone();

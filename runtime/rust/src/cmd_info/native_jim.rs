@@ -6,66 +6,6 @@ use crate::obj::{Owned, TclObj};
 use tcl_registry::commands::tcl::{NativeJimInfoProtocol, NativeJimInfoReport};
 use tcl_syntax::value::ValueOps;
 
-pub(super) fn command_inventory(
-    interp: &mut Interp,
-    scope: tcl_registry::commands::tcl::NativeJimInfoScope,
-    original: &[*mut TclObj],
-    kind: tcl_registry::commands::tcl::NativeJimCommandInventoryKind,
-) -> Code {
-    let namespace = match interp.materialize_jim_namespace(interp.current_ns()) {
-        Ok(namespace) => namespace,
-        Err(error) => return interp.report_cmd_error(error.into()),
-    };
-    let first_operand = match original
-        .get(1)
-        .map(|value| interp.native_string_bytes(value))
-        .transpose()
-    {
-        Ok(first) => first,
-        Err(error) => return interp.report_cmd_error(error.into()),
-    };
-    match scope.command_inventory(original.len() - 1, first_operand.as_deref(), &namespace) {
-        tcl_registry::commands::tcl::NativeJimCommandInventory::NamespaceHelper => {
-            let head = Owned::fresh(new_string(b"namespace info"));
-            let mut invocation = Vec::with_capacity(original.len() + 1);
-            invocation.push(head.as_ptr());
-            invocation.extend_from_slice(original);
-            interp.dispatch(&invocation)
-        }
-        tcl_registry::commands::tcl::NativeJimCommandInventory::Flat {
-            pattern,
-            include_spaces,
-        } => {
-            match tcl_cmd_core::info::jim_core_command_list(
-                interp,
-                pattern.map(|index| &original[index + 1]),
-                include_spaces,
-                kind,
-            ) {
-                Ok(value) => {
-                    interp.set_result(value);
-                    Code::Ok
-                }
-                Err(error) => interp.report_cmd_error(error),
-            }
-        }
-        tcl_registry::commands::tcl::NativeJimCommandInventory::WrongArguments => {
-            let selector = match interp.native_string_bytes(&original[0]) {
-                Ok(selector) => selector,
-                Err(error) => return interp.report_cmd_error(error.into()),
-            };
-            interp.report_cmd_error(
-                tcl_cmd_core::CmdError::new_bytes(
-                    tcl_registry::commands::tcl::NativeJimCommandInventory::wrong_arguments_message(
-                        &selector,
-                    ),
-                )
-                .with_native_string_result(tcl_syntax::native_string::NativeStringProtocol::Jim084),
-            )
-        }
-    }
-}
-
 pub(super) fn report(
     interp: &mut Interp,
     protocol: NativeJimInfoProtocol,
@@ -304,3 +244,7 @@ mod tests {
         assert_eq!(interp.result_bytes(), b"SORT_ERROR");
     }
 }
+
+#[cfg(test)]
+#[path = "native_jim/inventory_stage_tests.rs"]
+mod inventory_stage_tests;

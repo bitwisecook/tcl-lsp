@@ -78,7 +78,7 @@ pub enum RenameOutcome {
     TargetExists,
 }
 
-/// The half-finished `rename` a [`Namespaces::publish_rename_destination`]
+/// The half-finished `rename` a [`Namespaces::publish_rename_destination_with_original_key`]
 /// leaves behind: the command stands under *both* names until
 /// [`Namespaces::retire_rename_source`] drops the source's table entry.
 pub(crate) struct RenamePublication {
@@ -2412,6 +2412,7 @@ impl Namespaces {
     /// Built-in protection lives in the `rename` builtin, not here — this is
     /// the pure table operation, as is the `rename old ""` deletion
     /// ([`Self::delete`]).
+    #[cfg(test)]
     pub(crate) fn publish_rename_destination(
         &mut self,
         current: NsId,
@@ -2486,7 +2487,7 @@ impl Namespaces {
         })
     }
 
-    /// Delete the source entry [`Self::publish_rename_destination`] left
+    /// Delete the source entry [`Self::publish_rename_destination_with_original_key`] left
     /// standing — C's `Tcl_DeleteHashEntry(oldHPtr)` at the tail of
     /// `TclRenameCommand`. A plain table removal: no `delete` trace fires and
     /// no token dies, because the command lives on under its new name. A

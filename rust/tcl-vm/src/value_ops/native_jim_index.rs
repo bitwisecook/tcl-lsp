@@ -1091,7 +1091,8 @@ mod tests {
         let last = Value::new_native_string_bytes(b"end".as_slice());
         let result = tcl_cmd_core::list::lrange(&mut vm, &list, &first, &last).unwrap();
         assert_eq!(result.string_bytes().as_ref(), b"g");
-        vm.with_native_interp_result(|result| assert_eq!(result.string_bytes().as_ref(), b"6"));
+        vm.with_native_interp_result(|result| assert_eq!(result.string_bytes().as_ref(), b"6"))
+            .unwrap();
         assert_eq!(first.native_object_type_name(), "index");
         let source = Value::new_native_string_bytes(b"abcdefg".as_slice());
         assert_eq!(

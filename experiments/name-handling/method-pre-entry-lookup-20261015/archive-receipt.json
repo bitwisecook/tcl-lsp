@@ -1,0 +1,61 @@
+{
+  "originals": [
+    {
+      "path": "8.4.20.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "8.4.20.stdout",
+      "sha256": "15f9b1230f8f93a51748417237d9e479015b4bb87a883dd9ec21ac80948fbaac"
+    },
+    {
+      "path": "8.5.19.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "8.5.19.stdout",
+      "sha256": "15f9b1230f8f93a51748417237d9e479015b4bb87a883dd9ec21ac80948fbaac"
+    },
+    {
+      "path": "8.6.18.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "8.6.18.stdout",
+      "sha256": "f8c742c279338f4b8e6961fd9690ff5bec762e9c9cfb0e59d23fd886e8e825c4"
+    },
+    {
+      "path": "9.0.4.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "9.0.4.stdout",
+      "sha256": "f8c742c279338f4b8e6961fd9690ff5bec762e9c9cfb0e59d23fd886e8e825c4"
+    },
+    {
+      "path": "9.1.0.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "9.1.0.stdout",
+      "sha256": "f8c742c279338f4b8e6961fd9690ff5bec762e9c9cfb0e59d23fd886e8e825c4"
+    },
+    {
+      "path": "jim.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "jim.stdout",
+      "sha256": "15f9b1230f8f93a51748417237d9e479015b4bb87a883dd9ec21ac80948fbaac"
+    },
+    {
+      "path": "manifest.json",
+      "sha256": "1b6cd7ec047d3829ed48adfac7520dac6062c0be11a3f7e209b709bf3aa5dffa"
+    },
+    {
+      "path": "probe.tcl",
+      "sha256": "f0a0c162f971fc252f18a5bc6cf3d5e1df32323216c95274fd01a12d058f3620"
+    }
+  ],
+  "scope": "14 original source/result/provenance files copied byte-exact; portable replay and current semantic explanation added. All six original stderr channels retained, including empty files. No new provider observations made by archive."
+}

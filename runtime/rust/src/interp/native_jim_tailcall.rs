@@ -23,7 +23,9 @@ use super::{
     native_operation_currency::{NativeOperationScope, SavedNativeOperationCurrency},
     Code, Command, Interp, WeakInterp,
 };
-use crate::obj::{self, Owned, TclObj};
+#[cfg(test)]
+use crate::obj;
+use crate::obj::{Owned, TclObj};
 use std::rc::Rc;
 use tcl_syntax::value::ValueError;
 

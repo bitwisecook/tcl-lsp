@@ -56,3 +56,93 @@ fn resolve_args_match_golden() {
     }
     assert!(checked > 100, "golden unexpectedly small: {checked}");
 }
+
+#[test]
+fn standalone_template_operands_keep_literal_name_punctuation() {
+    for value in ["none", "NoNe", "member", "members"] {
+        assert!(
+            resolve_object_ref_args("pool", &[value], None).is_empty(),
+            "{value:?}"
+        );
+    }
+    for value in [
+        "{none}",
+        "\"none\"",
+        "'none'",
+        "[none]",
+        "(none)",
+        "none,",
+        " none ",
+        "{members}",
+        "(members)",
+        "none\0literal",
+    ] {
+        let references = resolve_object_ref_args("pool", &[value], None);
+        assert_eq!(references.len(), 1, "{value:?}");
+        assert_eq!(references[0].0, 0, "{value:?}");
+        assert!(references[0].1.contains(&"ltm_pool"), "{value:?}");
+    }
+}
+
+#[test]
+fn original_source_values_and_standalone_templates_agree_without_a_second_unwrap() {
+    let source = r#"when HTTP_REQUEST {
+        pool {{none}}
+        pool {"none"}
+        pool {'none'}
+        pool {[none]}
+        pool {(none)}
+        pool {none,}
+        pool { none }
+        pool {none}
+        pool "none"
+        pool none
+    }"#;
+    let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
+    let context = tcl_irules::OriginalIrulesSourceContext::capture(source, registry)
+        .expect("actual original hosted source owns its words and selected schema");
+    let commands = context
+        .commands()
+        .iter()
+        .filter(|command| command.words().command() == "pool")
+        .collect::<Vec<_>>();
+    assert_eq!(commands.len(), 10);
+    for command in commands {
+        let words = command.words();
+        let value = words.arguments()[0]
+            .literal_bytes()
+            .and_then(|bytes| std::str::from_utf8(bytes).ok())
+            .expect("actual complete original literal operand value");
+        let original = words
+            .with_source_schema(context.context_registry(), |schema| {
+                tcl_irules::original_source_object_operands(schema, Some("ltm"))
+            })
+            .expect("actual retained original schema");
+        let standalone = resolve_object_ref_args("pool", &[value], Some("ltm"));
+        assert_eq!(original.len(), standalone.len(), "{value:?}");
+        if let Some(original) = original.first() {
+            assert_eq!(original.argument(), standalone[0].0);
+            assert_eq!(original.kinds(), standalone[0].1.as_slice());
+        }
+    }
+    let references =
+        tcl_irules::extract_original_irules_source_object_references(source, &context, Some("ltm"));
+    let names = references
+        .iter()
+        .map(|reference| reference.name.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        names,
+        [
+            "{none}", "\"none\"", "'none'", "[none]", "(none)", "none,", " none "
+        ]
+    );
+    assert!(
+        tcl_irules::extract_original_irules_source_object_references(
+            &format!("{source}\n# changed"),
+            &context,
+            Some("ltm"),
+        )
+        .is_empty()
+    );
+}

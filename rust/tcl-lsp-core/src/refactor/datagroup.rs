@@ -456,7 +456,7 @@ fn render_if_extraction(
             .zip(chain.bodies.iter().cloned())
             .collect();
         let (set_var, use_return, value_entries) = extract_set_or_return_values(&pairs, config)?;
-        let records = zip_records(&stripped_values, &value_entries);
+        let records = zip_records(&stripped_values, &value_entries, config)?;
         let dg = DataGroupDefinition {
             name: dg_name.clone(),
             value_type: "string".to_owned(),
@@ -613,12 +613,41 @@ fn membership_extraction(
     (dg, replacement)
 }
 
-/// Pair completed keys with stripped body values into data-group records.
-fn zip_records(keys: &[String], values: &[String]) -> Vec<(String, String)> {
+/// Pair completed keys with independently decoded literal record values.
+fn zip_records(
+    keys: &[String],
+    values: &[String],
+    config: LexerConfig,
+) -> Option<Vec<(String, String)>> {
+    if keys.len() != values.len() {
+        return None;
+    }
     keys.iter()
-        .zip(values.iter())
-        .map(|(k, v)| (k.clone(), strip_quotes(v).to_owned()))
+        .zip(values)
+        .map(|(key, value)| Some((key.clone(), literal_record_value(value, config.nested())?)))
         .collect()
+}
+
+fn literal_record_value(source: &str, config: LexerConfig) -> Option<String> {
+    let parsed = tcl_lexer::native_script_words_in(
+        tcl_lexer::SourceImage::document(source),
+        tcl_lexer::Span::new(0, u32::try_from(source.len()).ok()?),
+        config,
+    )
+    .ok()?;
+    let [command] = parsed.commands.as_slice() else {
+        return None;
+    };
+    let [word] = command.words.as_slice() else {
+        return None;
+    };
+    if parsed.fatal_tail.is_some() || word.bytes() != source.as_bytes() {
+        return None;
+    }
+    String::from_utf8(tcl_syntax::word_rules::original_static_word_unicode_value(
+        word,
+    )?)
+    .ok()
 }
 
 /// Resolve a possibly-empty `dg_name` against a generated default.
@@ -803,7 +832,7 @@ fn switch_mapping_extraction(
 ) -> Option<(DataGroupDefinition, String)> {
     let (target_var, use_return, value_entries) =
         extract_set_or_return_values(regular_pairs, config)?;
-    let records = zip_records(keys, &value_entries);
+    let records = zip_records(keys, &value_entries, config)?;
     let dg = DataGroupDefinition {
         name: dg_name.to_owned(),
         value_type: "string".to_owned(),
@@ -1669,5 +1698,46 @@ mod decoded_membership_script_indentation_tests {
         assert!(proposal.contains("    {return one}\n"), "{proposal}");
         assert!(proposal.contains("    {return other}\n"), "{proposal}");
         assert!(!proposal.contains("    return one\n"));
+    }
+}
+
+#[cfg(test)]
+mod completed_literal_record_tests {
+    use super::*;
+
+    #[test]
+    fn data_group_record_values_decode_original_literal_words_without_losing_data() {
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let config = LexerConfig::for_dialect(dialect);
+            for (source, expected) in [
+                (r#""80""#, "80"),
+                (r#"{"80"}"#, r#""80""#),
+                ("{ 80 }", " 80 "),
+                ("{$value[missing]}", "$value[missing]"),
+                (r"\u0038\u0030", "80"),
+                ("{}", ""),
+            ] {
+                let records = zip_records(&["key".into()], &[source.into()], config).unwrap();
+                assert_eq!(
+                    records,
+                    [("key".into(), expected.into())],
+                    "{dialect}: {source}"
+                );
+            }
+            for source in [
+                "$value",
+                "[list computed]",
+                "prefix${value}",
+                "{*}{value}",
+                "first second",
+                "first; second",
+                "{missing",
+            ] {
+                assert!(
+                    zip_records(&["key".into()], &[source.into()], config).is_none(),
+                    "{dialect}: {source}"
+                );
+            }
+        }
     }
 }

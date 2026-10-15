@@ -460,3 +460,15 @@ The [completion argument-value capture](../completion-argument-values-20261015/R
 Original import policy evidence: [the six-provider no-export/self-import capture](../results/original-import-export-policy-20261015/README.md) records Jim importing without export filtering while C5 leaves the target missing; all six reject self-import and retain the local command. These branch observations grant no alias/conflict/census or Runtime completion.
 
 Original Jim namespace inscope reaches its pinned procedure and selected tailcall into namespace eval. The [original421-row SDK capture](../results/original-jim-namespace-inscope-sdk-20261015/README.md) observes actual original body List child/extra argv pointers and stringless headers before result getters, separate worker Return/arity/replacement/deletion stages and an excluded worker-placement trial. No Runtime or full free/lifecycle chronology follows.
+
+The [original method pre-entry lookup capture](../method-pre-entry-lookup-20261015/README.md) preserves helper replacement between declaration and actual entry, independently of argument evaluation. Its C8.6–9.1 OLD-to-NEW and unavailable-provider controls cannot turn a possible source candidate into a closed binding or erase unresolved alternatives.
+
+[Original data-group record values](../datagroup-record-values-20261015/README.md) retain literal quotes and whitespace separately from decoded escapes and actual dynamic values under all six providers. These source-value observations precede the corresponding controls and supply no F5, Native, edit or transformation-equivalence proof.
+
+[Original body-reference scope](w214-body-reference-scope/README.md) retains six-provider BOM/body and expression-reference observations. Shared source MAY-reference advice preserves diagnostics without issuing a complete read census, formal value, frame or Native execution.
+
+Jim command inventory has separately measured preflight and getter stages. The [original105-row SDK capture](../results/original-jim-inventory-stage-sdk-20261015/README.md) retains nine command-inventory cases/eighteen phases and an excluded authoritative-String invalidation trial whose process exit was not retained. Original headers precede result getters; these observations establish no complete SDK roster, Runtime or final-free/lifecycle agreement.
+
+Jim inventory obtains the genuine private `namespace info` callable by actual lookup. The [original19-row replacement capture](../results/original-jim-info-helper-replacement-sdk-20261015/README.md) retains default/replacement/deletion results and original pattern/namespace phases over the same input head. Epoch changes can invalidate caches; no full-info/Runtime/final-free grant follows.
+
+

@@ -2168,9 +2168,11 @@ mod tests {
         for (dialect, unicode, nested) in [
             ("tcl8.6", false, false),
             ("tcl9.1", false, true),
-            ("jimtcl", true, false),
+            ("jim", true, false),
         ] {
-            let profile = tcl_dialect::DialectProfile::find(dialect).unwrap();
+            let profile = crate::environment_ingress::resolve_known_environment(dialect)
+                .expect("selected original reference grammar environment")
+                .unit_profile();
             let config = LexerConfig::for_file_grammar(profile.grammar);
             let values = |word| lexical_reference_values(word, &parameters, config);
             for (word, expected) in [

@@ -107,6 +107,124 @@ impl Drop for JimActiveCommandScope {
     }
 }
 impl Interp {
+    /// Execute the original inventory preflight before any reached namespace getter.
+    /// The actual complete argv and weak namespace/frame owner remain independent.
+    pub(crate) fn original_jim_command_inventory(
+        &mut self,
+        scope: tcl_registry::commands::tcl::NativeJimInfoScope,
+        original: &[*mut TclObj],
+        arguments: &OriginalArguments,
+        selector: usize,
+        kind: tcl_registry::commands::tcl::NativeJimCommandInventoryKind,
+    ) -> Code {
+        let reached = (|| -> Result<Code, tcl_cmd_core::CmdError> {
+            if self
+                .native_invocation_dialect()
+                .native_jim_info_protocol()
+                .is_none()
+                || original.is_empty()
+            {
+                return Err(ValueError::CommandProtocolUnavailable(
+                    "original Jim inventory issuer",
+                )
+                .into());
+            }
+            for (offset, &value) in original.iter().enumerate() {
+                arguments.check_original_for(self, selector + offset, value)?;
+            }
+            let namespace = self.current_ns();
+            let namespace_scope = OriginalJimLookupNamespace::capture(self, namespace)?;
+            let check = |actual: &Interp| -> Result<(), tcl_cmd_core::CmdError> {
+                arguments.check_for(actual)?;
+                OriginalJimLookupNamespace::check(&namespace_scope, actual)?;
+                if actual.current_ns() != namespace {
+                    return Err(arguments.retain_refusal(
+                        ValueError::CommandProtocolUnavailable(
+                            "original Jim inventory current namespace",
+                        )
+                        .into(),
+                    ));
+                }
+                Ok(())
+            };
+            check(self)?;
+            let first_operand = original
+                .get(1)
+                .map(|value| self.native_string_bytes(value))
+                .transpose();
+            check(self)?;
+            let first_operand = first_operand?;
+            let selected = if let Some(selected) =
+                scope.command_inventory_preflight(original.len() - 1, first_operand.as_deref())
+            {
+                selected
+            } else {
+                let bytes = self.materialize_jim_namespace(namespace);
+                check(self)?;
+                scope.command_inventory(original.len() - 1, first_operand.as_deref(), &bytes?)
+            };
+            let code = match selected {
+                tcl_registry::commands::tcl::NativeJimCommandInventory::NamespaceHelper => {
+                    let head = Owned::fresh(super::new_string(b"namespace info"));
+                    let mut invocation = Vec::with_capacity(original.len() + 1);
+                    invocation.push(head.as_ptr());
+                    invocation.extend_from_slice(original);
+                    self.dispatch(&invocation)
+                }
+                tcl_registry::commands::tcl::NativeJimCommandInventory::Flat {
+                    pattern,
+                    include_spaces,
+                } => {
+                    if let Some(index) = pattern {
+                        // The original hash-table matcher reads the actual pattern
+                        // before looking up or iterating any table entries.
+                        let reached = self.native_string_bytes(&original[index + 1]);
+                        check(self)?;
+                        reached?;
+                    }
+                    let value = tcl_cmd_core::info::jim_core_command_list(
+                        self,
+                        pattern.map(|index| &original[index + 1]),
+                        include_spaces,
+                        kind,
+                    );
+                    if let Err(error) = check(self) {
+                        if let Ok(value) = value {
+                            super::drop_fresh(value);
+                        }
+                        return Err(error);
+                    }
+                    match value {
+                        Ok(value) => {
+                            self.set_result(value);
+                            Code::Ok
+                        }
+                        Err(error) => self.report_cmd_error(error),
+                    }
+                }
+                tcl_registry::commands::tcl::NativeJimCommandInventory::WrongArguments => {
+                    let selector = self.native_string_bytes(&original[0]);
+                    check(self)?;
+                    let selector = selector?;
+                    self.report_cmd_error(
+                tcl_cmd_core::CmdError::new_bytes(
+                    tcl_registry::commands::tcl::NativeJimCommandInventory::wrong_arguments_message(
+                        &selector,
+                    ),
+                )
+                .with_native_string_result(tcl_syntax::native_string::NativeStringProtocol::Jim084),
+            )
+                }
+            };
+            check(self)?;
+            Ok(code)
+        })();
+        match reached {
+            Ok(code) => code,
+            Err(error) => self.report_cmd_error(error),
+        }
+    }
+
     pub(super) fn retain_active_jim_command(
         &self,
         command: &Command,

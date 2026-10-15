@@ -2035,10 +2035,12 @@ mod original_reference_atom_tests {
         for (dialect, unicode, nested) in [
             ("tcl8.6", false, false),
             ("tcl9.1", false, true),
-            ("jimtcl", true, false),
+            ("jim", true, false),
         ] {
             let config = tcl_lexer::LexerConfig::for_profile(Some(
-                tcl_dialect::DialectProfile::find(dialect).unwrap(),
+                crate::environment_ingress::resolve_known_environment(dialect)
+                    .expect("selected original reference grammar environment")
+                    .unit_profile(),
             ));
             for reference in [
                 "${ with space }",

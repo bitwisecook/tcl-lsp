@@ -392,14 +392,13 @@ fn through_preserved(
     version
 }
 
-/// Return the registry spelling for a resolved potential startup variable, removing
-/// only Tcl's global marker.  A named namespace (`::pkg::name`) deliberately
-/// remains qualified and cannot accidentally inherit a global startup fact.
+/// Registry spelling of an authored startup key. Named namespaces retain their
+/// qualification; Native cells use their independently retained namespace owner.
 pub(super) fn startup_var_name(name: &str) -> &str {
     // naming.diagnostics.original-resolved-variable-name-advice
     // docs/design/analysis/name-resolution-proofs/diagnostic-original-resolved-variable-name-advice.md
     let normalised = crate::naming::split_array_name_braced(name, true).0;
-    normalised.strip_prefix("::").unwrap_or(normalised)
+    tcl_syntax::naming::unroot_rooted_key(normalised).unwrap_or(normalised)
 }
 
 /// Whether `name` resolves to the interpreter's global binding in this
@@ -411,20 +410,17 @@ pub(super) fn has_global_startup_binding(
     global_aliases: &HashSet<String>,
 ) -> bool {
     if initial_global
-        || crate::naming::split_array_name_braced(name, true)
-            .0
-            .starts_with("::")
+        || tcl_syntax::naming::unroot_rooted_key(
+            crate::naming::split_array_name_braced(name, true).0,
+        )
+        .is_some()
     {
         return true;
     }
     let startup_name = startup_var_name(name);
-    global_aliases.iter().any(|alias| {
-        let alias_normalised = crate::naming::split_array_name_braced(alias, true).0;
-        alias_normalised
-            .strip_prefix("::")
-            .unwrap_or(alias_normalised)
-            == startup_name
-    })
+    global_aliases
+        .iter()
+        .any(|alias| startup_var_name(alias) == startup_name)
 }
 
 /// Registry startup spelling only when the exact cell belongs to the native

@@ -916,3 +916,30 @@ remain unknown; original source geometry, actual operation selection and edit
 eligibility keep their separate owners. Quoted IR word extents retain their
 original opening fragment and full configuration through the shared quote
 closer, independently of trailing component geometry.
+
+Selected if-to-switch conditions use the configured shared expression AST, with
+independent axes from the actual retained profile and full lexical overlay.
+Static string values stay separate from original scalar source syntax. Numeric
+operators require the selected shared numeral grammar to prove the fixed value
+nonnumeric; potential numeric coercion and dynamic values decline. Pattern data
+roundtrips through the selected word and list owners; current source, selected
+If, control-flow and edit guards remain independent. Data-group expression
+consumers retain their separate context and semantic obligations.
+
+Original body reference advice retains the actual Script container, current full
+input and configuration before shared executable-part and expression traversal.
+Module-issued body IDs, FunctionUnit pointers and original declaration joins
+remain separate. These MAY candidates protect diagnostics; they supply no full
+read census, formal value, physical frame or Native execution.
+
+Standalone refactor token snapshots require actual source and token-content
+bounds before construction, followed by the shared unchanged whole-vector check.
+Data-group records decode one complete static source word exactly once, retaining
+literal braces, quotes and whitespace; dynamic and expanded records decline.
+Command-word presentation consistency does not replace those source owners.
+
+Selected source-role advice rechecks equal full invocation facts under its held
+source Context and realm. Unavailable or changed selections withdraw advice;
+scoped and explicit Standalone purposes retain their independent owners. Logical
+iRules template values preserve complete literal data, while genuine source
+decoding remains owned by its actual original context and selected schema.

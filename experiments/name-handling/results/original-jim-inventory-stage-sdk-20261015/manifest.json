@@ -1,0 +1,79 @@
+{
+  "capture_source_sha256": "abf63502ae36121375e70947117c6cf6746a33c5ceb2f99e12cf593603146e91",
+  "case_count": 9,
+  "measured_phases": 18,
+  "rows": 105,
+  "excluded_trials": [
+    {
+      "path": "excluded-string-namespace-invalidation",
+      "scope": "Excluded authoritativeString namespace invalidation trial; no AWARE_NONE hot behavior inferred."
+    }
+  ],
+  "provider_before_after_sha256": {
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/libjim.a": "2e75f1e259dc7896fa6996ebe2ad0fb5de2864770a772a0d102b2b6306280c61",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim.h": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim-namespace.c": "22bb6fb5fcea8ce8ec7e3eecbfe5ebd5ee290b9b725101ff4e4a1c0e9abed7f3",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim-config.h": "d092046fe07c2ec14b77da74304135da24725d766e1c9fd74ee32eeb07702221",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/Makefile": "1cfb962be629942512ee101d010f6c273fe9e2593fcf3f08a2565422fcf7d29c",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/nshelper.tcl": "97c67e98b1bef86c9564044dbed0d5110b38ba0fd416980663101f65b0066627"
+  },
+  "captured_at": "2026-10-15T05:17:08.934461+00:00",
+  "provider": "Original full-extension Jim0.84-9-g5bac7c9 build; revision label retained from prior capture, current library and source hashes reverified; no fresh upstream-head query",
+  "compile_command": [
+    "cc",
+    "-std=c99",
+    "-I/workspace/tcl-lsp/tmp/jimtcl-oracle",
+    "/tmp/name-jim-inventory-stage-sdk-20261015/probe.c",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/libjim.a",
+    "-lm",
+    "-lssl",
+    "-lcrypto",
+    "-lz",
+    "-ldl",
+    "-o",
+    "/tmp/name-jim-inventory-stage-sdk-20261015/probe"
+  ],
+  "compile_exit": 0,
+  "process_exit": 0,
+  "library": "/workspace/tcl-lsp/tmp/jimtcl-oracle/libjim.a",
+  "library_sha256": "2e75f1e259dc7896fa6996ebe2ad0fb5de2864770a772a0d102b2b6306280c61",
+  "source_sha256": "fcbf2e3d12321eda98da66317f222f1c4054463c4a004cdd3f381ca6aa5d1fb6",
+  "stdout_sha256": "fa3c631f57e92ef81ecf5b6d615c6d20488bade06c776d85cb89168b101d3d01",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "executable_sha256": "9dbacade26269e9360c5503d3624caee5efa38fb18a24abae5ddc0f7cc2deb61",
+  "provider_sources": [
+    {
+      "original": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim.h",
+      "sha256": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+      "canonical_reference": "experiments/name-handling/results/original-jim-lambda-context-sdk-20261014/captures/lambda-deferred-namespace/provider-sources/jim.h"
+    },
+    {
+      "original": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim.c",
+      "sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "canonical_reference": "experiments/name-handling/results/original-jim-lambda-context-sdk-20261014/captures/lambda-deferred-namespace/provider-sources/jim.c"
+    },
+    {
+      "original": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim-namespace.c",
+      "sha256": "22bb6fb5fcea8ce8ec7e3eecbfe5ebd5ee290b9b725101ff4e4a1c0e9abed7f3",
+      "canonical_reference": "experiments/name-handling/results/original-jim-lambda-context-sdk-20261014/captures/lambda-deferred-namespace/provider-sources/jim-namespace.c"
+    },
+    {
+      "original": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim-config.h",
+      "sha256": "d092046fe07c2ec14b77da74304135da24725d766e1c9fd74ee32eeb07702221",
+      "canonical_reference": "experiments/name-handling/results/original-jim-lambda-context-sdk-20261014/captures/lambda-deferred-namespace/provider-sources/jim-config.h"
+    },
+    {
+      "original": "/workspace/tcl-lsp/tmp/jimtcl-oracle/Makefile",
+      "sha256": "1cfb962be629942512ee101d010f6c273fe9e2593fcf3f08a2565422fcf7d29c",
+      "canonical_reference": "experiments/name-handling/results/original-jim-lambda-context-sdk-20261014/captures/lambda-deferred-namespace/provider-sources/Makefile"
+    },
+    {
+      "original": "/workspace/tcl-lsp/tmp/jimtcl-oracle/nshelper.tcl",
+      "sha256": "97c67e98b1bef86c9564044dbed0d5110b38ba0fd416980663101f65b0066627",
+      "retained": "nshelper.tcl",
+      "canonical_reference": "rust/tcl-registry/tests/data/native_jim_namespace_which/nshelper.tcl"
+    }
+  ],
+  "scope": "Actual original Jim info commands inventory stage only: same real head/cache and int42 namespace across cold/hot, fresh pattern updater/List each phase, only namespaceString invalidated hot. Original pattern updater samples namespace before producing its ownedString; AFTER headers precede resultgetter. Exact-nons, rooted-head independence, all option/worker arity/default helper branches retained; no Runtime/fullSDK/lifecycle acceptance or current-upstream claim."
+}

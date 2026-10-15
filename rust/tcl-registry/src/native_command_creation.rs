@@ -253,8 +253,6 @@ mod tests {
 
 #[cfg(test)]
 mod original_deletion_order_tests {
-    use super::*;
-
     #[test]
     fn original_c_deletion_order_preserves_release_split_and_independent_jim_owner() {
         // naming.embedding.original-host-publication-and-fact-transport

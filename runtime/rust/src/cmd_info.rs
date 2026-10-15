@@ -318,20 +318,21 @@ fn info_cmd_original(
             tcl_registry::commands::tcl::NativeJimInfoDispatch::Member {
                 name,
                 head,
-                arguments,
+                arguments: argument_start,
                 scope,
             } => {
                 if let Some(kind) = protocol.command_inventory_kind(name) {
-                    return native_jim::command_inventory(
-                        interp,
+                    return interp.original_jim_command_inventory(
                         scope,
-                        &argv[arguments - 1..],
+                        &argv[argument_start - 1..],
+                        arguments,
+                        argument_start - 1,
                         kind,
                     );
                 }
                 prepared.push(argv[head]);
-                prepared.push(argv[arguments - 1]);
-                prepared.extend_from_slice(&argv[arguments..]);
+                prepared.push(argv[argument_start - 1]);
+                prepared.extend_from_slice(&argv[argument_start..]);
                 name.as_bytes()
             }
             tcl_registry::commands::tcl::NativeJimInfoDispatch::Report(report) => {

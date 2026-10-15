@@ -1,0 +1,11 @@
+{
+  "scope": "Excluded initial trial invalidated an authoritativeString namespace after AWARE_NONE changed int42 primary toString. Original stdout/stderr retained; no AWARE_NONE hot/wholecapture acceptance. Original process return not separately retained; driver assertion failed.",
+  "files": {
+    "capture.py": "2617a7bb559ab5b86bf6b10d90ef9a309742ee891e4c3c2c88e8d6118581a354",
+    "compile.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "compile.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "probe.c": "82df557f6322f699f65cfe4cb47167948bc0b0da5673edb447cd37464b649313",
+    "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout.tsv": "d345018b40a25832897b6f43f31fe2f23e817fa81e3a07183e68f189b6a9ab32"
+  }
+}

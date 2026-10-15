@@ -69,28 +69,6 @@ pub fn project_original_command_signatures_for_inputs(
     merge_original_command_signatures(project_signatures(db, project))
 }
 
-#[cfg(test)]
-#[salsa::tracked(returns(clone))]
-fn project_command_arities_for_inputs(
-    db: &dyn TclDb,
-    project: Project,
-) -> Arc<HashMap<String, Vec<(usize, usize)>>> {
-    merge_command_arities(project_signatures(db, project))
-}
-
-#[cfg(test)]
-#[salsa::tracked(returns(clone))]
-pub(super) fn command_arity_for_inputs<'db>(
-    db: &'db dyn TclDb,
-    project: Project,
-    name: CommandTail<'db>,
-) -> Option<Arc<Vec<(usize, usize)>>> {
-    project_command_arities_for_inputs(db, project)
-        .get(name.name(db))
-        .cloned()
-        .map(Arc::new)
-}
-
 #[salsa::tracked(returns(clone))]
 pub(super) fn original_command_signatures_for_inputs<'db>(
     db: &'db dyn TclDb,

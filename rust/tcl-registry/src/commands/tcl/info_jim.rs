@@ -378,23 +378,43 @@ impl NativeJimInfoScope {
         first_operand: Option<&[u8]>,
         actual_namespace: &[u8],
     ) -> NativeJimCommandInventory {
-        let include_spaces =
-            first_operand.is_some_and(|word| tcl_core_types::c_string_extent(word) == b"-all");
-        let shift = usize::from(include_spaces);
-        if operand_count > shift + 1 {
-            return NativeJimCommandInventory::WrongArguments;
+        if let Some(selected) = self.command_inventory_preflight(operand_count, first_operand) {
+            return selected;
         }
-        // Jim_InfoCoreCommand forwards the original member vector; the helper's
-        // own formal grammar remains independent of this core option grammar.
         let rooted_single =
             operand_count == 1 && first_operand.is_some_and(|word| word.starts_with(b"::"));
-        if self == Self::NamespaceAware && (!actual_namespace.is_empty() || rooted_single) {
-            return NativeJimCommandInventory::NamespaceHelper;
+        if !actual_namespace.is_empty() || rooted_single {
+            NativeJimCommandInventory::NamespaceHelper
+        } else {
+            flat_inventory(operand_count, first_operand)
         }
-        NativeJimCommandInventory::Flat {
-            pattern: (operand_count == shift + 1).then_some(shift),
-            include_spaces,
+    }
+
+    /// Decide the core option/arity and exact -nons cases without namespace bytes.
+    /// `None` requires the actual namespace getter before the helper decision;
+    /// it supplies no namespace, callable or execution authority.
+    #[must_use]
+    pub fn command_inventory_preflight(
+        self,
+        operand_count: usize,
+        first_operand: Option<&[u8]>,
+    ) -> Option<NativeJimCommandInventory> {
+        let include_spaces =
+            first_operand.is_some_and(|word| tcl_core_types::c_string_extent(word) == b"-all");
+        if operand_count > usize::from(include_spaces) + 1 {
+            return Some(NativeJimCommandInventory::WrongArguments);
         }
+        (self != Self::NamespaceAware).then(|| flat_inventory(operand_count, first_operand))
+    }
+}
+
+fn flat_inventory(operand_count: usize, first_operand: Option<&[u8]>) -> NativeJimCommandInventory {
+    let include_spaces =
+        first_operand.is_some_and(|word| tcl_core_types::c_string_extent(word) == b"-all");
+    let shift = usize::from(include_spaces);
+    NativeJimCommandInventory::Flat {
+        pattern: (operand_count == shift + 1).then_some(shift),
+        include_spaces,
     }
 }
 
@@ -982,5 +1002,43 @@ mod tests {
         assert!(source.arity.accepts(1));
         assert!(!source.arity.accepts(2));
         assert!(source.arity.accepts(3));
+    }
+    #[test]
+    fn inventory_preflight_keeps_namespace_unavailable_until_the_reached_stage() {
+        use super::{NativeJimCommandInventory as Inventory, NativeJimInfoScope as Scope};
+        assert_eq!(
+            Scope::DirectCore.command_inventory_preflight(0, None),
+            Some(Inventory::Flat {
+                pattern: None,
+                include_spaces: false
+            })
+        );
+        assert_eq!(
+            Scope::NamespaceAware.command_inventory_preflight(0, None),
+            None
+        );
+        assert_eq!(
+            Scope::NamespaceAware.command_inventory_preflight(1, Some(b"::target")),
+            None
+        );
+        assert_eq!(
+            Scope::NamespaceAware.command_inventory_preflight(2, Some(b"target")),
+            Some(Inventory::WrongArguments)
+        );
+        assert_eq!(
+            Scope::DirectCore.command_inventory_preflight(2, Some(b"target")),
+            Some(Inventory::WrongArguments)
+        );
+        assert_eq!(
+            Scope::NamespaceAware.command_inventory_preflight(2, Some(b"-all")),
+            None
+        );
+        assert_eq!(
+            Scope::DirectCore.command_inventory_preflight(2, Some(b"-all")),
+            Some(Inventory::Flat {
+                pattern: Some(1),
+                include_spaces: true
+            })
+        );
     }
 }
