@@ -195,6 +195,12 @@ pub(crate) struct Frame {
     body_label: Option<&'static str>,
     /// Entered invocation retained when a tailcall removes its issuing frame.
     body_invocation: Option<(String, u32)>,
+    /// Runs a scheduled `tailcall` in place of a completed procedure, so an
+    /// error leaving it is logged at the procedure's own call site too.
+    replaces_procedure: bool,
+    /// A scheduled `tailcall`'s namespace and words, dispatched on this
+    /// instruction-less activation's first tick.
+    deferred_tailcall: Option<(String, Vec<Value>)>,
     /// Set on a **catch** activation: the body runs on the explicit stack (like a
     /// script frame) but its completion — of *any* code — is absorbed by the catch
     /// epilogue (`Vm::finish_catch`) rather than propagated. Carries the optional
@@ -431,6 +437,8 @@ impl Frame {
             replay_namespace_restore: None,
             body_label: None,
             body_invocation: None,
+            replaces_procedure: false,
+            deferred_tailcall: None,
             catch: None,
             subst: None,
             each_loop: None,
@@ -1772,7 +1780,7 @@ impl Vm {
                             }
                             None => Value::string(instruction.source_cmd_text.as_str()),
                         };
-                        if instruction.folded_expr {
+                        if instruction.error_origin == tcl_bytecode::ErrorOrigin::ConstantFold {
                             fold_failure = true;
                         }
                         let (source_text, line) = instruction.error_info_text();
@@ -1938,10 +1946,13 @@ impl Vm {
     /// bodies the same single error-context path as every other activation.
     fn apply_activation_error_context(&mut self, act: &Frame, acts: &[Frame], message: &str) {
         self.apply_error_regions(act);
-        let Some(label) = act.body_label else {
+        if act.replaces_procedure {
+            self.clear_error_logged();
+        } else if let Some(label) = act.body_label {
+            self.append_body_frame(label);
+        } else {
             return;
-        };
-        self.append_body_frame(label);
+        }
         if let Some((cmd, line)) = &act.body_invocation {
             self.log_command_info(cmd, message, *line);
             // The entered replacement and the original procedure call are
@@ -2033,13 +2044,8 @@ impl Vm {
             // A `tailcall` an `uplevel`ed body scheduled on this procedure
             // runs in its place, its result delivered as the procedure's.
             if let Some((namespace, words)) = scheduled_tailcall {
-                match self.scheduled_tailcall_frame(&namespace, words) {
-                    Ok(frame) => {
-                        acts.push(frame);
-                        return None;
-                    }
-                    Err(failed) => c = failed,
-                }
+                acts.push(self.scheduled_tailcall_frame(namespace, words));
+                return None;
             }
             // A `catch` activation absorbs the body's completion of *any* code:
             // its epilogue binds the result / options variables and yields the
@@ -2262,7 +2268,11 @@ impl Vm {
                     self.append_lambda_frame(&lambda.to_str(), n);
                     lambda_call = Some(key);
                 }
-                None => self.append_proc_frame(&name, n),
+                // C names the procedure by the word that invoked it.
+                None => match call_words.first() {
+                    Some(invoked) => self.append_proc_frame(&invoked.to_str(), n),
+                    None => self.append_proc_frame(&name, n),
+                },
             }
         }
         let scheduled_tailcall = self.current_frame_tailcall().and_then(Option::take);
@@ -2309,6 +2319,19 @@ impl Vm {
         self.error_stack_push_proc_call(body_code, c.code, &call_words);
         if c.code == Code::Error {
             let message = c.result.to_str().to_string();
+            // A tailcall's replacement logs its own words first; an `apply`
+            // lambda's are on its wrapper activation.
+            let entered = act.body_invocation.as_ref().or_else(|| {
+                lambda_call.as_ref()?;
+                acts.iter()
+                    .rev()
+                    .take_while(|parent| parent.cleanup_proc.is_some())
+                    .find_map(|parent| parent.body_invocation.as_ref())
+            });
+            if let Some((cmd, line)) = entered {
+                self.log_command_info(cmd, &message, *line);
+                self.clear_error_logged();
+            }
             self.log_procedure_invocation(acts, lambda_call.as_deref(), &call_words, &message);
         }
         scheduled_tailcall.filter(|_| c.code == Code::Ok)
@@ -2640,6 +2663,9 @@ impl Vm {
         // likewise driver-stepped, not bytecode-driven.
         if f.each_loop.is_some() {
             return self.tick_each_loop(f);
+        }
+        if let Some((namespace, words)) = f.deferred_tailcall.take() {
+            return self.tick_deferred_tailcall(f, &namespace, &words);
         }
         // A control transfer may skip an entered command's invoke (an error,
         // catch jump, or stale-command replay). Drop only entries whose
@@ -6106,15 +6132,7 @@ impl Vm {
         }) {
             return self.schedule_frame_tailcall(acts, words);
         }
-        // The tailcalled command resolves in the procedure's namespace, as
-        // C's `TclNRTailcallEval` looks it up, not the caller's.
-        let mut resolved = words.to_vec();
-        if let Some(head) = resolved.first_mut()
-            && let Some(key) = self.resolve_command_fqn(self.current_ns(), &head.to_str())
-        {
-            *head = Value::string(format!("::{key}"));
-        }
-        let words = resolved.as_slice();
+        let namespace = self.current_ns().to_owned();
 
         // These transparent wrappers introduce no Tcl call frame. Their
         // activation still owns the deferred command's leave trace, which sees
@@ -6170,17 +6188,39 @@ impl Vm {
         if acts.is_empty() {
             return Some(RunExit::Done(self.invoke_command(&name, &words[1..])));
         }
+        let invocation = Value::list(words.to_vec()).to_str().to_string();
+        let target = self.tailcall_entered(&namespace, &words[0]);
         let dispatched = {
             let parent = acts.last_mut().expect("tailcall parent present");
-            self.dispatch_words(parent, words)
+            if parent.replaces_procedure {
+                // The procedure ran as a scheduled tailcall: its own
+                // replacement replaces that command too.
+                parent.body_invocation = Some((invocation.clone(), 1));
+            }
+            self.dispatch_words_with_entered(parent, words, target.as_ref())
         };
+        let replaces_parent = acts.last().is_some_and(|parent| parent.replaces_procedure);
+        let depth = acts.len();
         match dispatched {
             Ok(Some(mut tick)) => {
-                if let Tick::PushEachLoop { req, .. } = &mut tick {
-                    req.invocation = Some((Value::list(words.to_vec()).to_str().to_string(), 1));
+                if let Tick::PushEachLoop { req, .. } = &mut tick
+                    && !replaces_parent
+                {
+                    req.invocation = Some((invocation.clone(), 1));
                 }
                 match self.install_tick(acts, tick) {
-                    TickAction::Resume => None,
+                    TickAction::Resume => {
+                        // The replacement is a command frame of its own: C
+                        // logs its words before the removed procedure's call.
+                        if !replaces_parent
+                            && acts.len() > depth
+                            && let Some(target) = acts.last_mut()
+                            && (target.is_proc || target.cleanup_proc.is_some())
+                        {
+                            target.body_invocation = Some((invocation, 1));
+                        }
+                        None
+                    }
                     TickAction::Complete(completion) => {
                         self.settle_completion(acts, completion).map(RunExit::Done)
                     }
@@ -6189,7 +6229,45 @@ impl Vm {
                 }
             }
             Ok(None) => None,
-            Err(completion) => self.unwind(acts, completion).map(RunExit::Done),
+            Err(completion) => {
+                if completion.code == Code::Error {
+                    self.log_tailcall_failure(acts, &invocation, words, &completion);
+                }
+                self.unwind(acts, completion).map(RunExit::Done)
+            }
+        }
+    }
+
+    /// Log a tailcalled command that failed as it was dispatched: its words,
+    /// then the call of the procedure it replaced, which a scheduled
+    /// replacement activation logs as it unwinds.
+    fn log_tailcall_failure(
+        &mut self,
+        acts: &mut [Frame],
+        invocation: &str,
+        words: &[Value],
+        completion: &Completion<Value>,
+    ) {
+        let message = completion.result.to_str().to_string();
+        self.log_command_info_with_context(invocation, Value::list(words.to_vec()), &message, 1);
+        let Some(parent) = acts.last_mut() else {
+            return;
+        };
+        if parent.replaces_procedure {
+            parent.body_invocation = None;
+            return;
+        }
+        let call = parent
+            .asm
+            .instructions
+            .get(parent.pc.saturating_sub(1))
+            .map(|i| {
+                let (text, line) = i.error_info_text();
+                (text.to_owned(), line)
+            });
+        if let Some((text, line)) = call {
+            self.clear_error_logged();
+            self.log_command_info(&text, &message, line);
         }
     }
 
@@ -6217,21 +6295,68 @@ impl Vm {
     }
 
     /// The activation that runs a scheduled `tailcall` in place of its
-    /// completed procedure: the command resolves from the namespace it was
-    /// scheduled in and runs at the caller's level.
-    fn scheduled_tailcall_frame(
-        &mut self,
-        namespace: &str,
-        mut words: Vec<Value>,
-    ) -> Result<Frame, Completion<Value>> {
-        if let Some(key) = self.resolve_command_fqn(namespace, &words[0].to_str()) {
-            words[0] = Value::string(format!("::{key}"));
+    /// completed procedure, at the caller's level: it has no instructions of
+    /// its own, so it completes with the command's result.
+    fn scheduled_tailcall_frame(&self, namespace: String, words: Vec<Value>) -> Frame {
+        let invocation = Value::list(words.clone()).to_str().to_string();
+        let unit = self.compiled_unit(Rc::new(FunctionAsm::default()), self.current_ns());
+        let mut frame = Frame::new_script(unit, None);
+        frame.replaces_procedure = true;
+        frame.body_invocation = Some((invocation, 1));
+        frame.deferred_tailcall = Some((namespace, words));
+        frame
+    }
+
+    /// Dispatch a scheduled `tailcall`'s words in its replacement activation.
+    fn tick_deferred_tailcall(&mut self, f: &mut Frame, namespace: &str, words: &[Value]) -> Tick {
+        let target = self.tailcall_entered(namespace, &words[0]);
+        match self.dispatch_words_with_entered(f, words, target.as_ref()) {
+            Ok(Some(tick)) => tick,
+            Ok(None) => Tick::Return(Completion::new(
+                Code::Ok,
+                f.stack
+                    .last()
+                    .cloned()
+                    .unwrap_or_else(|| f.last_result.clone()),
+                f.last_options.clone(),
+            )),
+            Err(c) => {
+                if c.code == Code::Error
+                    && let Some((invocation, line)) = f.body_invocation.take()
+                {
+                    let message = c.result.to_str().to_string();
+                    self.log_command_info_with_context(
+                        &invocation,
+                        Value::list(words.to_vec()),
+                        &message,
+                        line,
+                    );
+                }
+                Tick::Return(c)
+            }
         }
-        let script = tcl_syntax::list::join_list(words.iter().map(Value::to_str));
-        let unit = self
-            .compile_script_cached(&script)
-            .map_err(|e| err(e.message))?;
-        Ok(Frame::new_script(unit, None))
+    }
+
+    /// The command a `tailcall`'s head names, looked up from the namespace it
+    /// was issued in as C's `TclNRTailcallEval` sets `lookupNsPtr`; the words
+    /// themselves stay as written.
+    /// A traced command is dispatched by name so its traces fire; it resolves
+    /// from the caller's namespace, the same command in the common case.
+    fn tailcall_entered(&mut self, namespace: &str, head: &Value) -> Option<EnteredCommand> {
+        let name = head.to_str().to_string();
+        let (key, command) = self.lookup_command_in_namespace(namespace, &name)?;
+        let sidecar_key = CommandSidecarKey::visible(key);
+        if self.command_has_execution_trace(&sidecar_key) {
+            return None;
+        }
+        let sidecar = self.active_sidecar(sidecar_key);
+        Some(EnteredCommand {
+            resume: 0,
+            continuation: 0,
+            name,
+            command,
+            sidecar,
+        })
     }
 
     /// `incr` helper shared by the scalar/stk increment opcodes.

@@ -1754,7 +1754,7 @@ pub(crate) fn opt_get(options: &Value, key: &str) -> Option<Value> {
 /// mean what they do from 8.5.
 pub(crate) fn cmd_return_command(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     if !vm.runtime_version().has_return_options_dictionary() {
-        for pair in args.chunks_exact(2) {
+        for pair in args.as_chunks::<2>().0 {
             let name = pair[0].to_str();
             if !matches!(&*name, "-code" | "-errorinfo" | "-errorcode") {
                 return err(format!(
@@ -1766,84 +1766,82 @@ pub(crate) fn cmd_return_command(vm: &mut Vm, args: &[Value]) -> Completion<Valu
     cmd_return(vm, args)
 }
 
-/// `return`'s completion from option words — also how the `returnImm` and
-/// `returnStk` opcodes build theirs from an options dictionary.
-pub(crate) fn cmd_return(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    // Apply one option pair, from a direct argument or an expanded `-options`
-    // dict. `-code`/`-level` drive the completion and are validated once
-    // merged; every other key (`-errorcode`, `-errorinfo`, or a user option
-    // like `-foo`) is preserved in the options dict, later occurrences
-    // overriding earlier ones (C's `TclMergeReturnOptions`).
-    fn apply(
-        key: &str,
-        val: &Value,
-        code_word: &mut Option<Value>,
-        level_word: &mut Option<Value>,
-        extra: &mut Vec<(String, Value)>,
-    ) {
+/// `return`'s words: option pairs merged as C's `TclMergeReturnOptions` does,
+/// and the result.
+struct ReturnWords {
+    value: Value,
+    code_word: Option<Value>,
+    level_word: Option<Value>,
+    extra: Vec<(String, Value)>,
+}
+
+impl ReturnWords {
+    /// Read the words: while two remain they are an option, named by any word,
+    /// and its value; a last word alone is the result.
+    fn parse(release: tcl_dialect::TclVersion, args: &[Value]) -> Result<Self, Completion<Value>> {
+        let mut words = Self {
+            value: Value::empty(),
+            code_word: None,
+            level_word: None,
+            extra: Vec::new(),
+        };
+        let (pairs, rest) = args.as_chunks::<2>();
+        for pair in pairs {
+            let key = pair[0].to_str();
+            if &*key == "-options" {
+                // A later explicit option overrides the merged dict. 8.5
+                // merges an odd list's complete pairs; 8.6 rejects it.
+                let dict = &pair[1];
+                let options = match dict.as_list() {
+                    Ok(p) if p.len() % 2 == 0 || !release.rejects_odd_return_options() => p,
+                    _ => {
+                        return Err(return_option_error(
+                            release,
+                            format!("expected dict but got \"{}\"", dict.to_str()),
+                            "TCL RESULT ILLEGAL_OPTIONS",
+                        ));
+                    }
+                };
+                for option in options.as_chunks::<2>().0 {
+                    words.apply(&option[0].to_str(), &option[1]);
+                }
+            } else {
+                words.apply(&key, &pair[1]);
+            }
+        }
+        if let [value] = rest {
+            words.value = value.clone();
+        }
+        Ok(words)
+    }
+
+    /// `-code`/`-level` drive the completion and are validated once merged;
+    /// every other key is kept in the options dict, a later occurrence
+    /// overriding an earlier one.
+    fn apply(&mut self, key: &str, val: &Value) {
         match key {
-            "-code" => *code_word = Some(val.clone()),
-            "-level" => *level_word = Some(val.clone()),
-            _ => match extra.iter_mut().find(|(k, _)| k == key) {
+            "-code" => self.code_word = Some(val.clone()),
+            "-level" => self.level_word = Some(val.clone()),
+            _ => match self.extra.iter_mut().find(|(k, _)| k == key) {
                 Some(slot) => slot.1 = val.clone(),
-                None => extra.push((key.to_string(), val.clone())),
+                None => self.extra.push((key.to_string(), val.clone())),
             },
         }
     }
+}
 
-    let mut value = Value::empty();
-    let mut code_word = None;
-    let mut level_word = None;
-    let mut extra: Vec<(String, Value)> = Vec::new();
-    let mut i = 0;
-    while i < args.len() {
-        let a = args[i].to_str();
-        if &*a == "-options" && i + 1 < args.len() {
-            // Merge a return-options dict (TIP 90); a later explicit option
-            // overrides it, and an odd-sized list is not a dict.
-            // 8.5 merges an odd list's complete pairs; 8.6 rejects it.
-            let dict = &args[i + 1];
-            let release = vm.runtime_version();
-            let pairs = match dict.as_list() {
-                Ok(p) if p.len() % 2 == 0 || !release.rejects_odd_return_options() => p,
-                _ => {
-                    return return_option_error(
-                        release,
-                        format!("expected dict but got \"{}\"", dict.to_str()),
-                        "TCL RESULT ILLEGAL_OPTIONS",
-                    );
-                }
-            };
-            let mut j = 0;
-            while j + 1 < pairs.len() {
-                apply(
-                    &pairs[j].to_str(),
-                    &pairs[j + 1],
-                    &mut code_word,
-                    &mut level_word,
-                    &mut extra,
-                );
-                j += 2;
-            }
-            i += 2;
-        } else if i + 1 < args.len() {
-            // While two words remain they are an option and its value, the
-            // name any word (C's `TclMergeReturnOptions`).
-            apply(
-                &a,
-                &args[i + 1],
-                &mut code_word,
-                &mut level_word,
-                &mut extra,
-            );
-            i += 2;
-        } else if i == args.len() - 1 {
-            value = args[i].clone();
-            i += 1;
-        } else {
-            return err(format!("bad option \"{a}\""));
-        }
-    }
+/// `return`'s completion from option words — also how the `returnImm` and
+/// `returnStk` opcodes build theirs from an options dictionary.
+pub(crate) fn cmd_return(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let ReturnWords {
+        value,
+        code_word,
+        level_word,
+        extra,
+    } = match ReturnWords::parse(vm.runtime_version(), args) {
+        Ok(words) => words,
+        Err(bad) => return bad,
+    };
     let release = vm.runtime_version();
     let (ret_code, level) =
         match return_code_and_level(code_word.as_ref(), level_word.as_ref(), release) {

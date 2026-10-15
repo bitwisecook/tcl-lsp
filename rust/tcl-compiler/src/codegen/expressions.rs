@@ -488,7 +488,7 @@ impl CodegenCtx<'_> {
             let start = self.instructions.len();
             let emitted = self.emit_expr_operation(node, depth);
             for instruction in &mut self.instructions[start..] {
-                instruction.folded_expr = true;
+                instruction.error_origin = tcl_bytecode::ErrorOrigin::ConstantFold;
             }
             return emitted;
         }

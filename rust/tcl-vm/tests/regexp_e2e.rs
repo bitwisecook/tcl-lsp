@@ -210,13 +210,6 @@ fn regsub_command_evaluates_the_prefix() {
 /// "regsub -command {.x.} abcxdef boomp"
 /// ```
 ///
-/// The VM's trace omits the `invoked from within "boomp cxd"` frame because
-/// the prefix is invoked argv-wise (`Vm::dispatch`), which carries no source
-/// text to quote — the same pre-existing shape `lsort -command` has here
-/// (tclsh prints `invoked from within "errchk 1 2"` for `lsort -command
-/// errchk {1 2}`, the VM does not). Everything this change owns — the
-/// message, the `(-command substitution computation script)` frame and its
-/// position before the enclosing command's frame — matches C.
 #[test]
 fn regsub_command_error_appends_the_c_error_info_trailer() {
     let (ok, result) = run(r#"proc boomp args { error boom }
@@ -230,6 +223,7 @@ fn regsub_command_error_appends_the_c_error_info_trailer() {
     assert_eq!(
         info,
         "{boom\n    while executing\n\"error boom \"\n    (procedure \"boomp\" line 1)\n    \
+         invoked from within\n\"boomp cxd\"\n    \
          (-command substitution computation script)\n    invoked from within\n\"regsub -command \
          {.x.} abcxdef boomp\"}"
     );

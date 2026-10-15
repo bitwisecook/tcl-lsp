@@ -12244,6 +12244,13 @@ impl Vm {
         self.append_callable_frame("procedure", name, line);
     }
 
+    /// Log a command a builtin ran from its own words (an `lsort -command`
+    /// comparator, a `regsub -command` prefix) as C's `Tcl_EvalObjv` logs the
+    /// command it evaluated; the builtin then adds its context frame.
+    pub(crate) fn log_callback_command(&mut self, words: &[Value], message: &str) {
+        self.log_command_info(&Value::list(words.to_vec()).to_str(), message, 0);
+    }
+
     /// Start the `errorInfo` trace from `message` unless one is under way, so
     /// the next logged command reads `invoked from within`.
     pub(crate) fn seed_error_info_if_unset(&mut self, message: &str) {

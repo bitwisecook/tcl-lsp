@@ -1145,6 +1145,17 @@ pub struct ErrorInfoCommand {
     pub nested: bool,
 }
 
+/// Where an error an instruction raises comes from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ErrorOrigin {
+    #[default]
+    Execution,
+    /// An operation of a constant `expr` subexpression C folds at compile
+    /// time: the error is the fold's failure, so `errorInfo` already holds
+    /// the message when the command is logged.
+    ConstantFold,
+}
+
 impl Instruction {
     /// The command text and line `errorInfo` logs for this instruction.
     #[must_use]
@@ -1222,10 +1233,8 @@ pub struct Instruction {
     /// The command `errorInfo` names for this instruction where C's differs
     /// from [`Self::source_cmd_text`], which stays the replayable statement.
     pub error_info_command: Option<ErrorInfoCommand>,
-    /// An operation of a constant `expr` subexpression C folds at compile
-    /// time: an error it raises is the fold's failure, so `errorInfo` already
-    /// holds the message when the command is logged.
-    pub folded_expr: bool,
+    /// Whether an error raised here is a compile-time fold failure in C.
+    pub error_origin: ErrorOrigin,
     /// Canonical unrooted constructed namespace in which
     /// [`Self::source_cmd_text`] resolves when this instruction is an
     /// executable command boundary. Empty denotes the global namespace.
@@ -1331,7 +1340,7 @@ impl Instruction {
             source_cmd_text: String::new(),
             error_stack_context: None,
             error_info_command: None,
-            folded_expr: false,
+            error_origin: ErrorOrigin::Execution,
             source_command_namespace: String::new(),
             source_command_boundary: SourceCommandBoundary::None,
             completion_option_scope: None,
