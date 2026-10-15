@@ -263,5 +263,15 @@
     "file": "ordinary-m10-m11-build-feedback.tar.gz",
     "sha256": "b1e030d11f85e4e80d44ad7b47eee04d596d792b0548c3d59a791d8fadc753d3",
     "status": "Actual M10 and M11 failed builds: zero executed tests; unchanged source inventories; 11 and21 partial test ELFs respectively are not acceptance. Test-only API corrections use existing root/context/SourceImage owners and preserve assertions/budgets. M12 fresh c9e826a23 running, unaccepted. Duplicate raw-cache retirement verified identical tracked archives; no original data removed."
+  },
+  {
+    "file": "repository-audit-progress-20261015T195120Z.tar.gz",
+    "sha256": "b58f361cefff4cae4d9312d49637489551910f2dc4d779f00a7e80cfc7f5b35c",
+    "status": "INCOMPLETE cc24 source audit: 2639 provisional purpose rows; exact frozen input partitions/source SHA/schema reconcile, no same-key duplicate candidates. Includes shared owners, display, metadata/owner repairs and exclusions. Unexamined scope, work-kind/count-unit and independent semantic reconciliation remain; NOT remaining-consumer total. Peer corrections retained; no blanket execution/generator/gate acceptance."
+  },
+  {
+    "file": "ordinary-m12-build-and-first-core-db-feedback.tar.gz",
+    "sha256": "0b8e78b8e11a96d3ee45e6daa295b7210d2c0eacef374e097001a2b0652e43a1",
+    "status": "Actual frozen c9e M12 ordinary build23ELFs/0errors/source{} in678.805s. Original2286FIRST PASS71.841791191s/180; Core273=184P89F (all262retained,2gains,0regressions,11newallP); DB85=71P14F (all84retained,1gain,0regressions,1newP). Exact raw completed runs/source/artifact/run guards retained. Complete1546control replay still running, not accepted. LatestJim5bac rechecked; C9 actualZIPFS library distinguished from pinned source path, original-init pairing independently retained in tracked capture03. No Native/full gate acceptance."
   }
 ]
