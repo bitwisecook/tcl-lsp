@@ -24,6 +24,204 @@ use super::{
 };
 use crate::{ParseIssueKind, SourceImage, Span, TokenType};
 
+/// Original partial-word geometry unavailable under this source purpose.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WordCursorUnavailable {
+    /// Cursor, token or group geometry does not belong to the supplied region.
+    SourceGeometry,
+    /// The actual configured lexical stream is unavailable.
+    LexicalStream,
+    /// Expansion or welded delimiters do not retain an independent source word.
+    WordShape,
+}
+
+/// A cursor prefix in one actual source word, or an actual empty argv boundary.
+/// Neither the prefix nor its ordinal selects a command or evaluated value.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WordCursorPrefix {
+    image: SourceImage,
+    config: LexerConfig,
+    region: Span,
+    container: Span,
+    partial: Span,
+    kind: crate::WordKind,
+    command: Option<(usize, Span)>,
+    word_index: usize,
+    empty_boundary: bool,
+}
+
+impl WordCursorPrefix {
+    /// Same complete image/channel and all configured lexical grammar axes.
+    #[must_use]
+    pub fn matches_source(&self, image: &SourceImage, config: LexerConfig) -> bool {
+        &self.image == image && self.config == config
+    }
+    /// Whole original image/channel retained by the lexical issuer.
+    #[must_use]
+    pub const fn image(&self) -> &SourceImage {
+        &self.image
+    }
+    /// Full original grammar, including source continuation and escape rules.
+    #[must_use]
+    pub const fn config(&self) -> LexerConfig {
+        self.config
+    }
+    /// Independently selected lexical source phase.
+    #[must_use]
+    pub const fn region_span(&self) -> Span {
+        self.region
+    }
+    /// Whole original word, including real delimiters and the following suffix.
+    /// An empty boundary has exactly the original cursor point as its extent.
+    #[must_use]
+    pub const fn container_span(&self) -> Span {
+        self.container
+    }
+    /// Original content through the cursor, without a fabricated closer.
+    #[must_use]
+    pub const fn partial_span(&self) -> Span {
+        self.partial
+    }
+    /// Actual lexer/grouper word kind, never inferred from a decoded value.
+    #[must_use]
+    pub const fn kind(&self) -> crate::WordKind {
+        self.kind
+    }
+    /// Original argv ordinal in its containing lexical command.
+    #[must_use]
+    pub const fn word_index(&self) -> usize {
+        self.word_index
+    }
+    /// Containing grouped command ordinal and original source extent, when a
+    /// command is present. An empty head boundary creates no command receipt.
+    #[must_use]
+    pub const fn command_source(&self) -> Option<(usize, Span)> {
+        self.command
+    }
+    /// This source point follows actual delimiter trivia instead of a word.
+    #[must_use]
+    pub const fn is_empty_boundary(&self) -> bool {
+        self.empty_boundary
+    }
+}
+
+/// Retain actual configured word grouping at a source cursor, including an
+/// unfinished quote or brace. No complete word, name, binding or edit permission
+/// is issued; literal prefix values and enclosing source phases are separate.
+///
+/// # Errors
+/// Returns unavailable geometry, stream ownership or independent word shape.
+pub fn word_cursor_prefix_in(
+    image: &SourceImage,
+    region: Span,
+    cursor: u32,
+    config: LexerConfig,
+) -> Result<Option<WordCursorPrefix>, WordCursorUnavailable> {
+    if region.start() > cursor || cursor > region.end() || region.end() as usize > image.len() {
+        return Err(WordCursorUnavailable::SourceGeometry);
+    }
+    let tokens = crate::source_region_tokens_in(image, region, config)
+        .map_err(|_| WordCursorUnavailable::LexicalStream)?;
+    if tokens.iter().any(|token| {
+        token.kind == TokenType::Comment
+            && token.span.start() <= cursor
+            && cursor <= token.span.end()
+    }) {
+        return Ok(None);
+    }
+    let commands = crate::group_commands_bytes(&tokens, image.bytes(), config);
+    for (command_index, command) in commands.iter().enumerate() {
+        for (word_index, word) in command.words.iter().enumerate() {
+            let container =
+                crate::NativeWord::written_span_from_group(image.bytes(), config, &tokens, word)
+                    .map_err(|_| WordCursorUnavailable::SourceGeometry)?;
+            if container.start() < region.start() || container.end() > region.end() {
+                return Err(WordCursorUnavailable::SourceGeometry);
+            }
+            if !(container.start() <= cursor && cursor <= container.end()) {
+                continue;
+            }
+            if word.expand || word.welded_after_close || word.welded_after_close_quote {
+                return Err(WordCursorUnavailable::WordShape);
+            }
+            if tokens.get(word.tokens.clone()).is_none_or(|fragments| {
+                fragments
+                    .iter()
+                    .any(|token| !matches!(token.kind, TokenType::Esc | TokenType::Str))
+            }) {
+                return Ok(None);
+            }
+            let first = tokens
+                .get(word.tokens.start)
+                .ok_or(WordCursorUnavailable::SourceGeometry)?;
+            let start = word
+                .span
+                .start()
+                .checked_add(u32::from(first.content_offset))
+                .ok_or(WordCursorUnavailable::SourceGeometry)?;
+            let content_end = match word.kind {
+                crate::WordKind::Braced | crate::WordKind::Quoted => {
+                    crate::word_closer_offset_at(image.bytes(), word.span)
+                        .unwrap_or(container.end())
+                }
+                crate::WordKind::Bare => container.end(),
+            };
+            if start > cursor || start > content_end {
+                return Ok(None);
+            }
+            return Ok(Some(WordCursorPrefix {
+                image: image.clone(),
+                config,
+                region,
+                container,
+                partial: Span::new(start, cursor.min(content_end)),
+                kind: word.kind,
+                command: Some((
+                    command_index,
+                    command
+                        .source_extent(&tokens, region.end() as usize)
+                        .ok_or(WordCursorUnavailable::SourceGeometry)?,
+                )),
+                word_index,
+                empty_boundary: false,
+            }));
+        }
+    }
+    if tokens.iter().any(|token| {
+        token.kind == TokenType::Expand
+            && token.span.start() <= cursor
+            && cursor <= token.span.end()
+    }) {
+        return Err(WordCursorUnavailable::WordShape);
+    }
+    if tokens.iter().any(|token| {
+        token.span.start() < cursor
+            && cursor < token.span.end()
+            && !matches!(token.kind, TokenType::Sep | TokenType::Eol)
+    }) {
+        return Ok(None);
+    }
+    let command = commands.iter().enumerate().find_map(|(index, command)| {
+        let extent = command.source_extent(&tokens, region.end() as usize)?;
+        (extent.start() <= cursor && cursor <= extent.end()).then_some((
+            index,
+            extent,
+            command.words.len(),
+        ))
+    });
+    Ok(Some(WordCursorPrefix {
+        image: image.clone(),
+        config,
+        region,
+        container: Span::new(cursor, cursor),
+        partial: Span::new(cursor, cursor),
+        kind: crate::WordKind::Bare,
+        command: command.map(|(index, extent, _)| (index, extent)),
+        word_index: command.map_or(0, |(_, _, len)| len),
+        empty_boundary: true,
+    }))
+}
+
 /// Source cursor geometry that cannot be represented by this variable purpose.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VariableCursorUnavailable {
@@ -283,6 +481,105 @@ pub fn variable_cursor_prefix_in(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn word_at(marked: &str) -> (SourceImage, Option<WordCursorPrefix>) {
+        let cursor = marked.find("<|>").unwrap();
+        let source = marked.replacen("<|>", "", 1);
+        let image = SourceImage::document(&source);
+        let prefix = word_cursor_prefix_in(
+            &image,
+            Span::new(0, image.len() as u32),
+            cursor as u32,
+            LexerConfig::default(),
+        )
+        .unwrap();
+        (image, prefix)
+    }
+
+    #[test]
+    fn original_word_cursor_keeps_partial_grouping_and_whole_replacement_extent() {
+        for (source, partial, kind) in [
+            (r"some\ name<|>tail", r"some\ name", crate::WordKind::Bare),
+            ("{a b<|> suffix}", "a b", crate::WordKind::Braced),
+            ("\"a b<|> suffix\"", "a b", crate::WordKind::Quoted),
+            ("{unfinished<|>", "unfinished", crate::WordKind::Braced),
+            ("\"unfinished<|>", "unfinished", crate::WordKind::Quoted),
+        ] {
+            let (image, prefix) = word_at(source);
+            let prefix = prefix.unwrap();
+            assert_eq!(
+                &image.bytes()[prefix.partial_span().as_range()],
+                partial.as_bytes()
+            );
+            assert_eq!(prefix.container_span(), Span::new(0, image.len() as u32));
+            assert_eq!(prefix.kind(), kind);
+            assert_eq!(prefix.word_index(), 0);
+            assert!(!prefix.is_empty_boundary());
+            assert!(prefix.matches_source(&image, LexerConfig::default()));
+            assert!(!prefix.matches_source(
+                &SourceImage::native(image.shared_bytes()),
+                LexerConfig::default()
+            ));
+        }
+    }
+
+    #[test]
+    fn original_word_cursor_distinguishes_head_and_argument_boundaries() {
+        for (source, index) in [
+            ("<|>", 0),
+            ("puts <|>", 1),
+            ("puts value; <|>", 0),
+            ("puts value\n <|>", 0),
+            ("puts value\\\n <|>", 2),
+        ] {
+            let (_, prefix) = word_at(source);
+            let prefix = prefix.unwrap();
+            assert_eq!(prefix.word_index(), index);
+            assert!(prefix.is_empty_boundary());
+            assert!(prefix.container_span().is_empty());
+        }
+        let (_, prefix) = word_at("puts {ordinary data<|>}");
+        assert_eq!(prefix.unwrap().word_index(), 1);
+        for source in ["# comment<|>", "name$variable<|>", "name[puts child]<|>"] {
+            assert!(word_at(source).1.is_none());
+        }
+        let image = SourceImage::document("{word}");
+        assert_eq!(
+            word_cursor_prefix_in(&image, Span::new(0, 5), 5, LexerConfig::default()),
+            Err(WordCursorUnavailable::SourceGeometry)
+        );
+        let image = SourceImage::document("{*}word");
+        assert_eq!(
+            word_cursor_prefix_in(
+                &image,
+                Span::new(0, image.len() as u32),
+                image.len() as u32,
+                LexerConfig::default()
+            ),
+            Err(WordCursorUnavailable::WordShape)
+        );
+    }
+
+    #[test]
+    fn original_word_cursor_keeps_actual_grammar_and_region_currentness() {
+        for dialect in ["tcl8.6", "tcl9.0", "jim"] {
+            let config = LexerConfig::for_dialect(dialect);
+            let image = SourceImage::document("; café\\ name");
+            let region = Span::new(1, image.len() as u32);
+            let prefix = word_cursor_prefix_in(&image, region, image.len() as u32, config)
+                .unwrap()
+                .unwrap();
+            assert_eq!(prefix.region_span(), region);
+            assert_eq!(prefix.word_index(), 0);
+            assert!(prefix.matches_source(&image, config));
+            assert!(!prefix.matches_source(&SourceImage::document("; other\\ name"), config));
+            let changed = LexerConfig {
+                strict_quoting: !config.strict_quoting,
+                ..config
+            };
+            assert!(!prefix.matches_source(&image, changed));
+        }
+    }
 
     fn at(marked: &str, config: LexerConfig) -> (SourceImage, Option<VariableCursorPrefix>) {
         let cursor = marked.find("<|>").unwrap();

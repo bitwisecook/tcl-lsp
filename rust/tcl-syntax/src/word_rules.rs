@@ -627,6 +627,70 @@ pub fn standalone_static_word_fragment_value(
     String::from_utf8(value).ok()
 }
 
+/// Literal Unicode prefix data from genuine original partial-word geometry.
+/// The lexical issuer retains grouping, complete replacement extent and full
+/// source configuration; decoding supplies no offsets, completed word or name.
+#[must_use]
+pub fn original_word_cursor_literal_prefix(
+    prefix: &tcl_lexer::word_parts::WordCursorPrefix,
+) -> Option<String> {
+    if prefix.image().channel() != tcl_lexer::SourceChannel::Document {
+        return None;
+    }
+    let source = prefix.image().try_text().ok()?;
+    let fragment = source.get(prefix.partial_span().as_range())?;
+    standalone_static_word_fragment_value(
+        fragment,
+        prefix.kind() == tcl_lexer::WordKind::Braced,
+        prefix.config(),
+    )
+}
+
+#[cfg(test)]
+mod original_word_cursor_value_tests {
+    use super::*;
+
+    #[test]
+    fn cursor_prefix_values_keep_original_unicode_escapes_and_grouping_separate() {
+        for (marked, expected) in [
+            (r"caf\u00e9\ name<|>suffix", "café name"),
+            (r"{literal\n<|>suffix}", r"literal\n"),
+            (r#""quoted\ name<|>suffix""#, "quoted name"),
+            ("{unfinished name<|>", "unfinished name"),
+        ] {
+            let cursor = marked.find("<|>").unwrap();
+            let source = marked.replacen("<|>", "", 1);
+            let image = tcl_lexer::SourceImage::document(&source);
+            let prefix = tcl_lexer::word_parts::word_cursor_prefix_in(
+                &image,
+                tcl_lexer::Span::new(0, image.len() as u32),
+                cursor as u32,
+                tcl_lexer::LexerConfig::default(),
+            )
+            .unwrap()
+            .unwrap();
+            assert_eq!(
+                original_word_cursor_literal_prefix(&prefix).as_deref(),
+                Some(expected)
+            );
+            assert_eq!(
+                prefix.container_span(),
+                tcl_lexer::Span::new(0, image.len() as u32)
+            );
+            let native = tcl_lexer::SourceImage::native(image.shared_bytes());
+            let prefix = tcl_lexer::word_parts::word_cursor_prefix_in(
+                &native,
+                tcl_lexer::Span::new(0, native.len() as u32),
+                cursor as u32,
+                tcl_lexer::LexerConfig::default(),
+            )
+            .unwrap()
+            .unwrap();
+            assert!(original_word_cursor_literal_prefix(&prefix).is_none());
+        }
+    }
+}
+
 /// One original scalar reference with an exact decoded literal prefix.
 /// Original grouping and executable components remain authoritative; this
 /// classifies source syntax and supplies no variable read or name lookup.

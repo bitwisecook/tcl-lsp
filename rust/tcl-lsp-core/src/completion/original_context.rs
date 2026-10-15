@@ -34,12 +34,13 @@ pub(super) fn items(
         .then(|| first.and_then(|name| spec.resolve_subcommand_for_dialect(name, query)))
         .flatten();
     let switches = SwitchAdvice {
+        analysis,
         spec,
         context: context.context(),
         floor,
         query,
     };
-    if let Some(items) = switches.items(source, line, character, partial, &selected) {
+    if let Some(items) = switches.items(source, line, character, &selected) {
         return Some(items);
     }
     if selected.active == 0 {
@@ -98,6 +99,7 @@ pub(super) fn items(
 }
 
 struct SwitchAdvice<'a> {
+    analysis: &'a AnalysisResult,
     spec: &'a CommandSpec,
     context: &'a tcl_registry::model::ResolvedContext,
     floor: Option<&'a str>,
@@ -109,7 +111,6 @@ impl SwitchAdvice<'_> {
         source: &str,
         line: u32,
         character: u32,
-        partial: &str,
         selected: &SelectedContext,
     ) -> Option<Vec<CompletionItem>> {
         let first = selected.arguments.first().and_then(Option::as_deref);
@@ -118,8 +119,8 @@ impl SwitchAdvice<'_> {
                 first.and_then(|name| self.spec.resolve_subcommand_for_dialect(name, self.query))
             })
             .flatten();
-        if let Some(switch_partial) =
-            super::switch_partial_at_position(source, line, character, partial)
+        if let Some((switch_partial, edit)) =
+            super::switch_partial_at_position(source, line, character, self.analysis)
         {
             let (options, surface) = if let Some(sub) = sub {
                 let next = (selected.active >= 2)
@@ -131,18 +132,12 @@ impl SwitchAdvice<'_> {
                 (self.spec.options, self.spec.surface)
             };
             if !options.is_empty() {
-                let text = source.split('\n').nth(line as usize)?;
-                let end = super::utf16_col_to_char_col(text, character).min(text.chars().count());
-                let start = end.saturating_sub(switch_partial.chars().count());
                 return Some(super::switch_completions(
                     options,
                     self.context,
                     surface,
                     &switch_partial,
-                    (
-                        super::char_col_to_utf16(text, start),
-                        super::char_col_to_utf16(text, end),
-                    ),
+                    edit,
                     self.floor,
                 ));
             }

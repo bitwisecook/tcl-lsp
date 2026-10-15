@@ -1,5 +1,9 @@
 # Current centralised naming work
 
+## Original completion-word geometry
+
+The reviewed shared lexer owner retains complete configured source words/groups, original partial/fullcontainer spans, command/argv ordinals and empty boundaries. Syntax projects Unicode literal-prefix data; Core joins actual current source/input/config and innermost selected script phase, checks exact UTF16 and uses original replacement extent including switch dash prefixes. All208 prior test bodies remain byte-exact; seven new controls are unexecuted. No fake closer, cooked offset inverse, Native name/lookup or generic command advice in ordinary data follows. Candidate exact source encoding, Expr/snippet trigger domains and genuine multiline range transport remain unfinished; static-word grammar validation alone does not prove candidate-name equality.
+
 ## VM quiet globals and original captured options
 
 The reviewed VM uses the existing original-variable owner for actual root-frame bare errorCode reads, distinct Silent diagnostics and Borrowed/Retained result purposes, strict alias/dictionary/currentness transport and neutral captured headers. Catch/Try preserve the original early capture and reached original result/options stores; nonError uses lazy shared base pairs, while generic full-state keeps its prior Native hold before stacktrace. All new Rust controls remain unexecuted. Original successful capture03 retains15cases/30rows, fresh5bac match,247unchanged inputs and original79suite; capture01 network setup and capture02 signal11 remain excluded failed captures. Complete Native/callback/reference stages, compiled parity, old unset compatibility and remaining direct setters remain unfinished.

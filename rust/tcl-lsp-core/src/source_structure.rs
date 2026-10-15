@@ -310,6 +310,37 @@ pub(crate) fn original_variable_cursor_prefix(
     variable_cursor_prefix_in(&image, reference.whole_span, cursor, config)
 }
 
+/// Original word-cursor geometry in the current innermost selected script.
+/// Braced data and unsupported expression/child phases cannot create a script
+/// owner; the returned argv ordinal is lexical source data only.
+pub(crate) fn original_word_cursor_prefix(
+    source: &str,
+    analysis: &AnalysisResult,
+    cursor: u32,
+) -> Result<
+    Option<tcl_lexer::word_parts::WordCursorPrefix>,
+    tcl_lexer::word_parts::WordCursorUnavailable,
+> {
+    use tcl_lexer::word_parts::{WordCursorUnavailable, word_cursor_prefix_in};
+    let config = analysis
+        .body_lexer_config
+        .ok_or(WordCursorUnavailable::SourceGeometry)?;
+    let image = SourceImage::document(source);
+    if !analysis.matches_original_source_image(&image, config) || cursor as usize > source.len() {
+        return Err(WordCursorUnavailable::SourceGeometry);
+    }
+    let structure = SourceStructure::capture(source, Some(analysis), config)
+        .ok_or(WordCursorUnavailable::LexicalStream)?;
+    let region = structure
+        .scripts
+        .iter()
+        .filter(|(span, _)| span.start() <= cursor && cursor <= span.end())
+        .min_by_key(|(span, _)| span.len())
+        .map(|(span, _)| *span)
+        .ok_or(WordCursorUnavailable::SourceGeometry)?;
+    word_cursor_prefix_in(&image, region, cursor, config)
+}
+
 /// Reborrowed original variable geometry for one immutable analysis source.
 /// This view owns syntax only; callers retain name resolution and edit guards.
 pub(crate) struct OriginalVariableReferences<'a> {

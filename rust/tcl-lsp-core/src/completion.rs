@@ -455,9 +455,27 @@ pub fn completions(
     if let Some(items) = variable_trigger_completions(source, line, character, analysis) {
         return items;
     }
-    let partial = word_partial_at_position(source, line, character);
-    // Shared by the position lookups below instead of each rebuilding its own.
     let line_index = tcl_lexer::LineIndex::new(source);
+    let cursor = crate::definition::byte_offset_at(&line_index, source, line, character);
+    let Some(prefix) = word_prefix_at_position(source, line, character, analysis) else {
+        return Vec::new();
+    };
+    if crate::expr_context::source_expr_arg_context_at(
+        source,
+        analysis,
+        line,
+        character,
+        &line_index,
+    ) {
+        return math_function_completions(
+            current.registry(),
+            current.profile(),
+            &expression_function_partial_at_position(source, line, character),
+        );
+    }
+    let Some(partial) = tcl_syntax::word_rules::original_word_cursor_literal_prefix(&prefix) else {
+        return Vec::new();
+    };
     // The current source owner retains the profile and actual command store.
     let profile = current.profile();
     let registry = Some(current.registry());
@@ -469,7 +487,23 @@ pub fn completions(
             source, line, character, analysis, registry, &partial, profile,
         )
     {
-        return items;
+        return original_word_completion_edits(source, line, &prefix, items);
+    }
+    if prefix.word_index() != 0 {
+        return original_word_completion_edits(
+            source,
+            line,
+            &prefix,
+            fuzzy_command_fallback(
+                source,
+                line,
+                character,
+                analysis,
+                registry,
+                profile,
+                &line_index,
+            ),
+        );
     }
 
     // Definition bodies and document grammars have a closed member vocabulary;
@@ -478,27 +512,16 @@ pub fn completions(
         && let Some(grammar) =
             definition_grammar_at_position(source, line, character, &line_index, analysis, registry)
     {
-        return grammar_member_completions(grammar, &partial, registry);
+        return original_word_completion_edits(
+            source,
+            line,
+            &prefix,
+            grammar_member_completions(grammar, &partial, registry),
+        );
     }
 
     let usage = document_usage_counts(analysis);
     let mut items = proc_completions(analysis, &partial, &usage);
-    // Inside an `expr` expression argument the bare `expr` math functions are
-    // in scope; without them `expr {si` surfaces only unrelated
-    // `simulation::*` procs.
-    // The context test is registry-driven (`ArgRole::Expr`); see
-    // `crate::expr_context`.
-    if let Some(registry) = registry
-        && crate::expr_context::source_expr_arg_context_at(
-            source,
-            analysis,
-            line,
-            character,
-            &line_index,
-        )
-    {
-        items.extend(math_function_completions(registry, profile, &partial));
-    }
     if let Some(registry) = registry {
         // Tk commands are dialect-gated to Tcl/`tk` already, but they are also
         // offered as package advice from ambient placement — the `tk` dialect (a
@@ -527,7 +550,6 @@ pub fn completions(
         }
     }
     if let Some(index) = workspace {
-        let cursor = crate::definition::byte_offset_at(&line_index, source, line, character);
         items.extend(original_workspace::items(
             source, cursor, analysis, index, &partial,
         ));
@@ -539,7 +561,6 @@ pub fn completions(
     // snippets never pollute `$var` or `-option` completion.  Their
     // `Z0_…` sort key keeps them below real symbols, and the prefix
     // filter means they only surface once the user types `tcl-…`.
-    let cursor = crate::definition::byte_offset_at(&line_index, source, line, character);
     let variable_references = original_variables::source_references(source, analysis, cursor)
         .unwrap_or_else(|| {
             let image = tcl_lexer::SourceImage::document(source);
@@ -618,7 +639,7 @@ pub fn completions(
             &line_index,
         );
     }
-    items
+    original_word_completion_edits(source, line, &prefix, items)
 }
 
 /// Variable-trigger detection — `$prefix` or `${prefix}`.
@@ -652,11 +673,9 @@ fn variable_trigger(source: &str, line: u32, character: u32) -> Option<(char, St
     ))
 }
 
-/// Word-partial extraction for proc-name completion.
-///
-/// Returns the run of identifier-like chars immediately to the
-/// left of the cursor (the "partial" the user has typed so far).
-fn word_partial_at_position(source: &str, line: u32, character: u32) -> String {
+/// Fixed expression-function trigger text, independently admitted by the
+/// selected expression source phase. Command names use original word geometry.
+fn expression_function_partial_at_position(source: &str, line: u32, character: u32) -> String {
     let Some(line_text) = source.split('\n').nth(line as usize) else {
         return String::new();
     };
@@ -673,8 +692,74 @@ fn word_partial_at_position(source: &str, line: u32, character: u32) -> String {
     chars[start..col].iter().collect()
 }
 
-/// Like [`word_partial_at_position`] but also treats `-` as a word
-/// character, so a `tcl-…` snippet prefix is captured whole.
+fn word_prefix_at_position(
+    source: &str,
+    line: u32,
+    character: u32,
+    analysis: &AnalysisResult,
+) -> Option<tcl_lexer::word_parts::WordCursorPrefix> {
+    let index = tcl_lexer::LineIndex::new(source);
+    let cursor = crate::definition::byte_offset_at(&index, source, line, character);
+    let position = index.position_at_utf16(cursor, source);
+    if position.line != line || position.character.get() != character {
+        return None;
+    }
+    crate::source_structure::original_word_cursor_prefix(source, analysis, cursor).ok()?
+}
+
+fn original_word_completion_edits(
+    source: &str,
+    line: u32,
+    prefix: &tcl_lexer::word_parts::WordCursorPrefix,
+    items: Vec<CompletionItem>,
+) -> Vec<CompletionItem> {
+    if !prefix.matches_source(&tcl_lexer::SourceImage::document(source), prefix.config()) {
+        return Vec::new();
+    }
+    let index = tcl_lexer::LineIndex::new(source);
+    let start = index.position_at_utf16(prefix.container_span().start(), source);
+    let end = index.position_at_utf16(prefix.container_span().end(), source);
+    if start.line != line || end.line != line {
+        return Vec::new();
+    }
+    items
+        .into_iter()
+        .filter_map(|mut item| {
+            if item.text_edit.is_none() {
+                if !item.is_snippet {
+                    let image = tcl_lexer::SourceImage::document(&item.insert_text);
+                    let plan = tcl_lexer::native_script_words_in(
+                        image.clone(),
+                        tcl_lexer::Span::new(0, u32::try_from(image.len()).ok()?),
+                        prefix.config(),
+                    )
+                    .ok()?;
+                    let [command] = plan.commands.as_slice() else {
+                        return None;
+                    };
+                    let [word] = command.words.as_slice() else {
+                        return None;
+                    };
+                    if plan.fatal_tail.is_some()
+                        || word.span() != tcl_lexer::Span::new(0, u32::try_from(image.len()).ok()?)
+                        || tcl_syntax::word_rules::original_static_word_unicode_value(word)
+                            .is_none()
+                    {
+                        return None;
+                    }
+                }
+                item.text_edit = Some(CompletionEdit {
+                    start_char: start.character.get(),
+                    end_char: end.character.get(),
+                    new_text: item.insert_text.clone(),
+                });
+            }
+            Some(item)
+        })
+        .collect()
+}
+
+/// Fixed snippet trigger domain; `-` belongs to the authored `tcl-…` triggers.
 fn snippet_partial_at_position(source: &str, line: u32, character: u32) -> String {
     let Some(line_text) = source.split('\n').nth(line as usize) else {
         return String::new();
@@ -1687,15 +1772,6 @@ fn registry_method_items(
     Some(items)
 }
 
-/// Detect a `-switch` partial at the cursor.  Returns
-/// `Some(switch_partial)` (including the leading dash) when
-/// the character immediately preceding the identifier run
-/// before the cursor is a `-`; returns `None` otherwise.
-///
-/// `partial` is the identifier-only partial computed by
-/// [`word_partial_at_position`]; the helper reconstructs the
-/// switch-aware partial by prepending the dash without
-/// re-walking the line.
 /// The guaranteed-available version floor for a command's owning package,
 /// resolved from the document's `package require` statements.
 ///
@@ -1714,19 +1790,18 @@ fn switch_partial_at_position(
     source: &str,
     line: u32,
     character: u32,
-    partial: &str,
-) -> Option<String> {
-    let line_text = source.split('\n').nth(line as usize)?;
-    let chars: Vec<char> = line_text.chars().collect();
-    let col = utf16_col_to_char_col(line_text, character).min(chars.len());
-    let start = col.checked_sub(partial.chars().count())?;
-    if start == 0 {
+    analysis: &AnalysisResult,
+) -> Option<(String, (u32, u32))> {
+    let prefix = word_prefix_at_position(source, line, character, analysis)?;
+    let value = tcl_syntax::word_rules::original_word_cursor_literal_prefix(&prefix)?;
+    if !value.starts_with('-') {
         return None;
     }
-    if chars[start - 1] != '-' {
-        return None;
-    }
-    Some(format!("-{partial}"))
+    let index = tcl_lexer::LineIndex::new(source);
+    let start = index.position_at_utf16(prefix.container_span().start(), source);
+    let end = index.position_at_utf16(prefix.container_span().end(), source);
+    (start.line == line && end.line == line)
+        .then_some((value, (start.character.get(), end.character.get())))
 }
 
 fn switch_completions(
@@ -2641,7 +2716,13 @@ fn fuzzy_command_fallback(
     dialect: &'static tcl_dialect::DialectProfile,
     line_index: &tcl_lexer::LineIndex,
 ) -> Vec<CompletionItem> {
-    let partial = word_partial_at_position(source, line, character);
+    let Some(prefix) = word_prefix_at_position(source, line, character, analysis) else {
+        return Vec::new();
+    };
+    let command_head = prefix.word_index() == 0;
+    let Some(partial) = tcl_syntax::word_rules::original_word_cursor_literal_prefix(&prefix) else {
+        return Vec::new();
+    };
     if partial.chars().count() < MIN_FUZZY_FRAGMENT_CHARS {
         return Vec::new();
     }
@@ -2690,8 +2771,10 @@ fn fuzzy_command_fallback(
             universe.extend(methods);
         }
     }
-    universe.extend(proc_completions(analysis, "", &usage));
-    if let Some(registry) = registry {
+    if command_head {
+        universe.extend(proc_completions(analysis, "", &usage));
+    }
+    if command_head && let Some(registry) = registry {
         // Both halves are placement facts — the
         // environment ships Tk ambient (`wish`), or this document required
         // it. No `SpecSurface` bit and no environment *name* is consulted.
@@ -2702,7 +2785,8 @@ fn fuzzy_command_fallback(
             registry, dialect, "", &usage, tk_advice, analysis, oo_frame,
         ));
     }
-    if let Some(env) = scoped_env_at(analysis, source, line, character, line_index) {
+    if command_head && let Some(env) = scoped_env_at(analysis, source, line, character, line_index)
+    {
         let present: FxHashSet<String> = universe.iter().map(|i| i.label.clone()).collect();
         universe.extend(
             scoped_command_completions(env, "")
@@ -2718,6 +2802,140 @@ fn fuzzy_command_fallback(
         decorate_fuzzy_items(&mut items, &partial);
     }
     items
+}
+
+#[cfg(test)]
+mod original_command_cursor_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn command_completion_replaces_actual_escaped_and_delimited_words() {
+        for dialect in ["tcl", "tcl8.6"] {
+            for (written, extends_to_eof) in [
+                (r"two\ wo<|>suffix", false),
+                ("{two wo<|>suffix}", false),
+                ("\"two wo<|>suffix\"", false),
+                ("{two wo<|>", true),
+            ] {
+                const HEADER: &str = "proc {two words} {} {}; ";
+                let marked = format!("{HEADER}{written} remaining");
+                let cursor = marked.find("<|>").unwrap();
+                let source = marked.replacen("<|>", "", 1);
+                let analysis = Analyser::new().analyse(&source, dialect);
+                let index = tcl_lexer::LineIndex::new(&source);
+                let position = index.position_at_utf16(cursor as u32, &source);
+                let items = completions(
+                    &source,
+                    position.line,
+                    position.character.get(),
+                    &analysis,
+                    None,
+                    None,
+                    analysis.resolved_profile().unwrap(),
+                );
+                let item = items
+                    .iter()
+                    .find(|item| item.label == "two words")
+                    .expect("the actual source declaration remains a candidate");
+                let edit = item.text_edit.as_ref().expect("original container edit");
+                let start = HEADER.encode_utf16().count() as u32;
+                let end = if extends_to_eof {
+                    source.encode_utf16().count() as u32
+                } else {
+                    start + written.replace("<|>", "").encode_utf16().count() as u32
+                };
+                assert_eq!((edit.start_char, edit.end_char), (start, end));
+                assert_eq!(edit.new_text, item.insert_text);
+                assert!(edit.start_char < position.character.get());
+                if !extends_to_eof {
+                    assert!(source[end as usize..].starts_with(" remaining"));
+                }
+                let mut missing = analysis.clone();
+                missing.body_lexer_config = None;
+                assert!(
+                    completions(
+                        &source,
+                        position.line,
+                        position.character.get(),
+                        &missing,
+                        None,
+                        None,
+                        analysis.resolved_profile().unwrap()
+                    )
+                    .is_empty()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn switch_completion_keeps_actual_prefix_and_complete_original_container() {
+        let marked = r"lsearch \x2dno<|>suffix";
+        let cursor = marked.find("<|>").unwrap();
+        let source = marked.replacen("<|>", "", 1);
+        let analysis = Analyser::new().analyse(&source, "tcl8.6");
+        let position = tcl_lexer::LineIndex::new(&source).position_at_utf16(cursor as u32, &source);
+        let items = completions(
+            &source,
+            0,
+            position.character.get(),
+            &analysis,
+            None,
+            None,
+            analysis.resolved_profile().unwrap(),
+        );
+        let edit = items
+            .iter()
+            .find(|item| item.label == "-nocase")
+            .unwrap()
+            .text_edit
+            .as_ref()
+            .unwrap();
+        assert_eq!(edit.start_char, 8);
+        assert_eq!(edit.end_char, source.len() as u32);
+        assert_eq!(edit.new_text, "-nocase");
+    }
+
+    #[test]
+    fn command_cursor_cannot_promote_data_comments_or_invalid_utf16_points() {
+        for tail in ["puts {two wo<|>rds}", "# two wo<|>rds", "{*}two\\ wo<|>rds"] {
+            let marked = format!("proc {{two words}} {{}} {{}}; {tail}");
+            let cursor = marked.find("<|>").unwrap();
+            let source = marked.replacen("<|>", "", 1);
+            let analysis = Analyser::new().analyse(&source, "tcl");
+            let position =
+                tcl_lexer::LineIndex::new(&source).position_at_utf16(cursor as u32, &source);
+            assert!(
+                !completions(
+                    &source,
+                    position.line,
+                    position.character.get(),
+                    &analysis,
+                    None,
+                    None,
+                    analysis.resolved_profile().unwrap()
+                )
+                .iter()
+                .any(|item| item.label == "two words")
+            );
+        }
+        let source = "proc 😀name {} {}; 😀";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let end = tcl_lexer::LineIndex::new(source).position_at_utf16(source.len() as u32, source);
+        assert!(
+            completions(
+                source,
+                0,
+                end.character.get() - 1,
+                &analysis,
+                None,
+                None,
+                analysis.resolved_profile().unwrap()
+            )
+            .is_empty()
+        );
+    }
 }
 
 #[cfg(test)]

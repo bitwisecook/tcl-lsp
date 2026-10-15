@@ -37,7 +37,10 @@
 //! owns whole-word boundaries; decomposition owns only their components.
 
 mod cursor;
-pub use cursor::{VariableCursorPrefix, VariableCursorUnavailable, variable_cursor_prefix_in};
+pub use cursor::{
+    VariableCursorPrefix, VariableCursorUnavailable, WordCursorPrefix, WordCursorUnavailable,
+    variable_cursor_prefix_in, word_cursor_prefix_in,
+};
 
 use std::borrow::Cow;
 
