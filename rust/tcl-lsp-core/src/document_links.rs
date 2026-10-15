@@ -696,7 +696,12 @@ fn pack_include_links(
             if name.is_empty() || name.contains(['/', '\\']) || name.contains("..") {
                 continue;
             }
-            let target = file_uri_for_path(&dir.join(name).to_string_lossy());
+            let Some(target) = crate::file_uri::from_path(
+                &dir.join(name),
+                crate::file_uri::FileUriEscaping::PathCharacters,
+            ) else {
+                continue;
+            };
             let Some(tok) = row.argv.get(1) else { continue };
             let Some((anchor_start, anchor_end)) = link_anchor_with_config(source, config, tok)
             else {
@@ -805,84 +810,21 @@ fn resolve_path(path: &str, workspace_root: Option<&str>, home: Option<&str>) ->
         let root_trimmed = root.trim_end_matches('/');
         format!("{root_trimmed}/{expanded}")
     };
-    Some(file_uri_for_path(&resolved))
-}
-
-/// Build a `file://` URI for a resolved filesystem path.
-///
-/// Normalises Windows backslash separators to forward slashes
-/// and ensures the URI's path component starts with `/` so
-/// drive-letter paths (`C:/foo`) become `file:///C:/foo`
-/// rather than `file://C:/foo`.
-/// The path bytes are percent-encoded per RFC 3986 so special
-/// characters (spaces, `#`, `%`, non-ASCII) survive parsing
-/// as a URI.
-fn file_uri_for_path(path: &str) -> String {
-    let normalised: String = path
-        .chars()
-        .map(|c| if c == '\\' { '/' } else { c })
-        .collect();
-    let encoded = percent_encode_path(&normalised);
-    if encoded.starts_with('/') {
-        format!("file://{encoded}")
-    } else {
-        format!("file:///{encoded}")
-    }
-}
-
-/// Percent-encode the path component of a `file://` URI per
-/// RFC 3986.  Characters that don't form valid path-segment
-/// bytes (space, `#`, `?`, `%`, `[`, `]`, non-ASCII, …) get
-/// `%HH`-escaped so editors can parse the link target as a URI.
-///
-/// Per RFC 3986 the path-component reserves:
-///
-/// * unreserved: `A-Z` / `a-z` / `0-9` / `-` / `.` / `_` / `~`
-/// * sub-delims: `!` / `$` / `&` / `'` / `(` / `)` / `*` / `+`
-///   / `,` / `;` / `=`
-/// * pchar adds `:` / `@`, and the path layer adds `/`.
-///
-/// Everything else is encoded.  Keeps the encoded path
-/// conservative enough to round-trip through a `file://` URI
-/// parser.
-fn percent_encode_path(path: &str) -> String {
-    let mut out = String::with_capacity(path.len());
-    for &b in path.as_bytes() {
-        if is_path_safe_byte(b) {
-            out.push(b as char);
-        } else {
-            use std::fmt::Write;
-            let _ = write!(out, "%{b:02X}");
-        }
-    }
-    out
-}
-
-const fn is_path_safe_byte(b: u8) -> bool {
-    matches!(
-        b,
-        b'A'..=b'Z'
-            | b'a'..=b'z'
-            | b'0'..=b'9'
-            | b'-'
-            | b'.'
-            | b'_'
-            | b'~'
-            | b'!'
-            | b'$'
-            | b'&'
-            | b'\''
-            | b'('
-            | b')'
-            | b'*'
-            | b'+'
-            | b','
-            | b';'
-            | b'='
-            | b':'
-            | b'@'
-            | b'/'
+    crate::file_uri::from_path(
+        std::path::Path::new(&resolved),
+        crate::file_uri::FileUriEscaping::PathCharacters,
     )
+}
+
+#[cfg(test)]
+fn file_uri_for_path(path: &str) -> String {
+    crate::file_uri::standalone_windows_path(path, crate::file_uri::FileUriEscaping::PathCharacters)
+        .unwrap()
+}
+
+#[cfg(test)]
+fn percent_encode_path(path: &str) -> String {
+    crate::file_uri::escaped_path(path, crate::file_uri::FileUriEscaping::PathCharacters)
 }
 
 #[cfg(test)]
@@ -1721,6 +1663,28 @@ mod tests {
 mod original_document_link_tests {
     use super::*;
     use tcl_compiler::analyser::Analyser;
+
+    #[cfg(not(windows))]
+    #[test]
+    fn selected_source_links_preserve_a_posix_backslash_as_filename_data() {
+        let source = r"source {/work/a\b.tcl}";
+        for dialect in ["tcl", "tcl8.6"] {
+            let analysis = Analyser::new().analyse(source, dialect);
+            let links = document_links_from_analysis(source, &analysis, &LinkContext::default());
+            let [link] = links.as_slice() else {
+                panic!("one original path link: {dialect}: {links:?}")
+            };
+            assert_eq!(link.target, "file:///work/a%5Cb.tcl");
+            assert!(
+                document_links_from_analysis(
+                    &source.replace("a\\b", "a/b"),
+                    &analysis,
+                    &LinkContext::default()
+                )
+                .is_empty()
+            );
+        }
+    }
 
     #[test]
     // Implementation contract: naming.core.original-document-link-selection

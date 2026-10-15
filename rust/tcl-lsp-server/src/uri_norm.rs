@@ -260,59 +260,14 @@ pub fn repair_uri_string(raw: &str) -> Option<String> {
     out.parse::<Uri>().ok().map(|_| out)
 }
 
-/// The `file:` URI for an absolute path, for the one target
-/// `ls_types::Uri::from_file_path` cannot serve.
-///
-/// That function gates on `Path::is_absolute`, and `std` answers `false` for
-/// **every** path on `wasm32-unknown-unknown`: the target is neither `unix` nor
-/// `windows`, and outside those `is_absolute` additionally demands a path
-/// *prefix*, which only Windows paths have. `from_file_path` therefore takes
-/// its relative-path branch and tries to canonicalise against a filesystem a
-/// browser worker does not have, so it returns `None` for `/ws/main.tcl` — and
-/// with it every URI the server derives from a path it found itself. The
-/// workspace scan indexed nothing at all as a result: each scanned file was
-/// dropped before it could be read, on a target where the store had the bytes
-/// all along.
-///
-/// The output is the same spelling `from_file_path`'s non-Windows branch
-/// produces — `file://` plus the path percent-encoded by
-/// [`encode_path_segment_bytes`] — so a scanned path meets the canonical form
-/// the rest of the server (and the client) uses. Returns `None` for a path with
-/// no root, or one that is not valid UTF-8: neither can be spelled as a `file:`
-/// URI here.
-///
-/// The encoding is **unconditional**, not a fallback for a path that fails to
-/// parse. `#`, `?`, and a literal `%XX` all parse perfectly well in a URI — as
-/// a fragment, a query, and a decoded escape — so `/ws/a#1.tcl` would have
-/// become `file:///ws/a` with a fragment, aliasing a different file, and
-/// [`repair_uri_string`] could never have caught it: [`is_uri_legal`] admits
-/// `?` and the gen-delims by design, because its job is repairing a URI a
-/// client sent, not spelling one from a path.
+/// Render the actual host path through the shared file-path URI owner.
+/// The browser host uses this when `Uri::from_file_path` cannot access a
+/// filesystem. Incoming URI repair remains a separate protocol boundary.
 #[must_use]
 pub fn rooted_file_uri(path: &std::path::Path) -> Option<Uri> {
-    if !path.has_root() {
-        return None;
-    }
-    let mut raw = String::from("file://");
-    encode_path_segment_bytes(path.to_str()?, &mut raw);
-    raw.parse().ok()
-}
-
-/// Percent-encode `path` into `out` with `ls_types`' own file-path rule: keep
-/// `unreserved` (alphanumeric plus `-._~`) and the `/` separator, escape every
-/// other byte — which is what makes `#`, `?`, `%`, `:` and non-ASCII safe.
-///
-/// Hand-rolled rather than pulling in `percent-encoding` for one `AsciiSet`
-/// that crate does not export anyway (`ls-types-0.0.6/src/uri.rs`'s private
-/// `ASCII_SET`). The equivalence test is what pins the two together.
-fn encode_path_segment_bytes(path: &str, out: &mut String) {
-    for &byte in path.as_bytes() {
-        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~' | b'/') {
-            out.push(char::from(byte));
-        } else {
-            let _ = write!(out, "%{byte:02X}");
-        }
-    }
+    tcl_lsp_core::file_uri::from_path(path, tcl_lsp_core::file_uri::FileUriEscaping::Unreserved)?
+        .parse()
+        .ok()
 }
 
 /// JSON object keys whose string value is a document / folder URI.
@@ -586,6 +541,25 @@ mod tests {
             rooted_file_uri(std::path::Path::new("/ws/a#1.tcl")).map(|u| u.as_str().to_owned()),
             Some("file:///ws/a%231.tcl".to_owned()),
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn rooted_host_paths_keep_literal_backslashes_and_percent_signs() {
+        for path in [
+            r"/ws/literal\name.tcl",
+            "/ws/literal%5Cname#é.tcl",
+            "//server/share/file.tcl",
+            "//?/file.tcl",
+        ] {
+            let path = std::path::Path::new(path);
+            let uri = rooted_file_uri(path).unwrap();
+            assert_eq!(uri.to_file_path().as_deref(), Some(path));
+            assert_eq!(
+                Some(uri),
+                tower_lsp_server::ls_types::Uri::from_file_path(path)
+            );
+        }
     }
 
     #[test]

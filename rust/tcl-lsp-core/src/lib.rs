@@ -62,6 +62,7 @@ pub mod document_symbols;
 mod executable_regions;
 pub mod expr_context;
 pub mod file_ops;
+pub mod file_uri;
 pub mod folding;
 pub mod formatting;
 pub mod graphs;
