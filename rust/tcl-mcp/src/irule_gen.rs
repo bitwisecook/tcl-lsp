@@ -31,11 +31,12 @@
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
 
-use regex::Regex;
 use serde_json::{Value, json};
+use tcl_lexer::LexerConfig;
 use tcl_registry::ArgRole;
 use tcl_registry::events::EventRegistry;
 use tcl_registry::value_transfer::{EvalRoute, NativeEvalId};
+use tcl_syntax::expr::parser::ExprParseContext;
 use tcl_syntax::list::list_element;
 
 /// The prose emitted for `multi_tmm_hint` when multi-TMM patterns are detected.
@@ -166,6 +167,8 @@ pub fn generate_irule_test(args: &Value) -> Value {
         objects: &objects,
         variables: &variables,
         cfg_paths: &cfg_paths,
+        request_syntax: source_context
+            .map(tcl_irules::OriginalIrulesSourceContext::expression_syntax),
         multi_tmm,
     };
     let test_script = build_test_script(&ctx);
@@ -373,6 +376,7 @@ struct ScriptContext<'a> {
     objects: &'a ObjectRefs,
     variables: &'a Variables,
     cfg_paths: &'a [Value],
+    request_syntax: Option<(LexerConfig, ExprParseContext)>,
     multi_tmm: bool,
 }
 
@@ -547,7 +551,7 @@ fn build_all_test_blocks(test_name: &str, ctx: &ScriptContext) -> Vec<String> {
         for path in &by_event[event_name] {
             test_idx += 1;
             let desc = build_test_description(path);
-            let body = build_test_body(event_name, path);
+            let body = build_test_body(event_name, path, ctx.request_syntax);
             blocks.push(render_test_case(
                 &format!("{test_name}-cfg-{test_idx}.0"),
                 &desc,
@@ -619,7 +623,11 @@ fn cond_field<'a>(c: &'a Value, field: &str) -> &'a str {
 }
 
 /// Build the inner body lines for a CFG test case (`_build_test_body`).
-fn build_test_body(event_name: &str, path: &Value) -> Vec<String> {
+fn build_test_body(
+    event_name: &str,
+    path: &Value,
+    syntax: Option<(LexerConfig, ExprParseContext)>,
+) -> Vec<String> {
     let action = path.get("action");
     let cmd = action
         .and_then(|a| a.get("command"))
@@ -662,7 +670,7 @@ fn build_test_body(event_name: &str, path: &Value) -> Vec<String> {
         body.push(String::new());
     }
 
-    body.extend(build_request_setup(event_name, &conditions));
+    body.extend(build_request_setup(event_name, &conditions, syntax));
     body.push(String::new());
     body.extend(build_assertion(cmd, &args));
     body
@@ -679,100 +687,90 @@ fn build_assertion(cmd: &str, args: &[String]) -> Vec<String> {
     ]
 }
 
-/// Build request-setup lines based on path conditions (`_build_request_setup`).
-fn build_request_setup(event_name: &str, conditions: &[&Value]) -> Vec<String> {
-    // The *pattern-bearing* word operators are `matches_glob` /
-    // `matches_regex` (`tcl_syntax::expr::ast::BinOp`'s
-    // `MatchesGlob`/`MatchesRegex`), so a condition like `HTTP::uri
-    // matches_glob "/api/*"` must yield "/api/*" rather than falling
-    // through to the bare-value fallback below. The F5 trunk does also
-    // carry a bare `matches` (`BinOp::Matches`, measured present in
-    // `docs/design/f5/bigip-irule-parser-measurements.md` §4a), but it is
-    // deliberately **not** in this alternation: it carries no pattern to
-    // synthesise an example from, and a bare `matches` branch would also
-    // shadow the two longer spellings in the regex alternation below.
-    // Derived from `BinOp` rather than hand-typed so the spelling cannot
-    // drift.
-    let uri_ops = [
-        tcl_syntax::expr::ast::BinOp::StrEq.as_str(),
-        tcl_syntax::expr::ast::BinOp::StartsWith.as_str(),
-        tcl_syntax::expr::ast::BinOp::MatchesGlob.as_str(),
-        tcl_syntax::expr::ast::BinOp::MatchesRegex.as_str(),
-    ]
-    .join("|");
-    let host_re = Regex::new(r#"eq\s+"([^"]+)""#).expect("valid regex");
-    let host_bare_re = Regex::new(r"eq\s+(\S+)").expect("valid regex");
-    // Captures the operator too (group 1), not just the pattern (group 2):
-    // `matches_glob`/`matches_regex` need the pattern *synthesised* into a
-    // concrete example (see `synthesize_uri_example`), not reused verbatim.
-    let uri_re = Regex::new(&format!(r#"({uri_ops})\s+"([^"]+)""#)).expect("valid regex");
-    let uri_bare_re = Regex::new(&format!(r"({uri_ops})\s+(\S+)")).expect("valid regex");
-    let header_re = Regex::new(r#"HTTP::header\s+"?([^"\s]+)"?"#).expect("valid regex");
-
+/// Build conditional request examples under the actual captured source grammar.
+fn build_request_setup(
+    event_name: &str,
+    conditions: &[&Value],
+    syntax: Option<(LexerConfig, ExprParseContext)>,
+) -> Vec<String> {
+    use tcl_syntax::expr::{BinOp, ExprNode};
+    let Some((config, context)) = syntax else {
+        return Vec::new();
+    };
     let mut host_hint: Option<String> = None;
     let mut uri_hint: Option<String> = None;
     let mut header_hints: Vec<String> = Vec::new();
 
-    for c in conditions {
-        let kind = c.get("kind").and_then(Value::as_str);
-        if kind == Some("switch") {
-            let subject = cond_field(c, "subject");
-            let pattern = cond_field(c, "pattern");
-            let subj_lower = subject.to_lowercase();
+    for condition in conditions {
+        if condition.get("kind").and_then(Value::as_str) == Some("switch") {
+            let subject = cond_field(condition, "subject");
+            let pattern = cond_field(condition, "pattern");
+            let lower = subject.to_lowercase();
             let value = cfg_pattern_to_value(pattern);
-            if subj_lower.contains("host") {
+            if lower.contains("host") {
                 host_hint = value;
-            } else if subj_lower.contains("uri") || subject.contains("HTTP::path") {
+            } else if lower.contains("uri") || subject.contains("HTTP::path") {
                 uri_hint = value;
             }
             continue;
         }
-
-        let cond_text = cond_field(c, "condition");
-        let lower = cond_text.to_lowercase();
-        let host_related = cond_text.contains("HTTP::host") || lower.contains("host");
-        let uri_related = cond_text.contains("HTTP::uri")
-            || cond_text.contains("HTTP::path")
+        let source = cond_field(condition, "condition");
+        let parsed = tcl_syntax::expr::parser::parse_expr_with_syntax_context(source, &context);
+        let ExprNode::Binary { op, left, right } = &parsed else {
+            continue;
+        };
+        if let Some(header) = source_header_hint(left, config) {
+            header_hints.push(header);
+        }
+        let ExprNode::String { text, .. } = right.as_ref() else {
+            continue;
+        };
+        let Some(value) = tcl_syntax::expr::fixed_string_operand(text) else {
+            continue;
+        };
+        // Source labels select heuristic example categories, not command identity
+        // or a claim that this input reaches or satisfies the path.
+        let (ExprNode::Command { text: subject, .. }
+        | ExprNode::Var { text: subject, .. }
+        | ExprNode::String { text: subject, .. }) = left.as_ref()
+        else {
+            continue;
+        };
+        let lower = subject.to_lowercase();
+        let host_related = subject.contains("HTTP::host") || lower.contains("host");
+        let uri_related = subject.contains("HTTP::uri")
+            || subject.contains("HTTP::path")
             || lower.contains("uri")
             || lower.contains("path");
-
-        if host_related && !uri_related && host_hint.is_none() {
-            if let Some(m) = host_re.captures(cond_text) {
-                host_hint = Some(m[1].to_owned());
-            } else if let Some(m) = host_bare_re.captures(cond_text) {
-                let v = &m[1];
-                if !v.starts_with('$') {
-                    host_hint = Some(trim_quotes_braces(v).to_owned());
-                }
-            }
+        if host_related && !uri_related && host_hint.is_none() && *op == BinOp::StrEq {
+            host_hint = Some(value.to_owned());
         }
-        if uri_related && uri_hint.is_none() {
-            if let Some(m) = uri_re.captures(cond_text) {
-                uri_hint = Some(synthesize_uri_example(&m[1], &m[2]));
-            } else if let Some(m) = uri_bare_re.captures(cond_text) {
-                let v = &m[2];
-                if !v.starts_with('$') {
-                    uri_hint = Some(synthesize_uri_example(&m[1], trim_quotes_braces(v)));
-                }
-            }
-        }
-        // The regex itself requires "HTTP::header ...", so no separate
-        // `contains("HTTP::header")` guard is needed.
-        if let Some(m) = header_re.captures(cond_text) {
-            header_hints.push(m[1].to_owned());
+        if uri_related
+            && uri_hint.is_none()
+            && matches!(
+                op,
+                BinOp::StrEq | BinOp::StartsWith | BinOp::MatchesGlob | BinOp::MatchesRegex
+            )
+        {
+            uri_hint = Some(synthesize_uri_example(op.as_str(), value));
         }
     }
 
-    let mut result: Vec<String> = Vec::new();
+    let mut result = Vec::new();
     if event_name == "HTTP_REQUEST" || event_name == "HTTP_RESPONSE" || event_name.contains("HTTP")
     {
         let host = host_hint.as_deref().unwrap_or("example.com");
         let uri = uri_hint.as_deref().unwrap_or("/");
-        result.push(format!(
-            "::orch::run_http_request -host \"{host}\" -uri \"{uri}\""
-        ));
-        for hname in &header_hints {
-            result.push(format!("# Ensure header: {hname} = test-value"));
+        if let (Some(host), Some(uri)) = (
+            request_literal_word(host, config),
+            request_literal_word(uri, config),
+        ) {
+            result.push(format!("::orch::run_http_request -host {host} -uri {uri}"));
+        }
+        for header in header_hints {
+            if let Some(header) = request_literal_word(&header, config) {
+                result.push(format!("# Ensure header: {header} = test-value"));
+            }
         }
     } else if event_name == "DNS_REQUEST" || event_name == "DNS_RESPONSE" {
         result.push("set ::state::dns::qname \"example.com\"".to_owned());
@@ -787,8 +785,88 @@ fn build_request_setup(event_name: &str, conditions: &[&Value]) -> Vec<String> {
     result
 }
 
-fn trim_quotes_braces(s: &str) -> &str {
-    s.trim_matches(|c| matches!(c, '"' | '{' | '}'))
+fn sole_source_word(source: &str, config: LexerConfig) -> Option<tcl_lexer::NativeWord> {
+    let parsed = tcl_lexer::native_script_words_in(
+        tcl_lexer::SourceImage::document(source),
+        tcl_lexer::Span::new(0, u32::try_from(source.len()).ok()?),
+        config,
+    )
+    .ok()?;
+    let [command] = parsed.commands.as_slice() else {
+        return None;
+    };
+    let [word] = command.words.as_slice() else {
+        return None;
+    };
+    (parsed.fatal_tail.is_none()
+        && !word.group().expand
+        && word.written_bytes() == source.as_bytes())
+    .then(|| word.clone())
+}
+
+/// Keep a proposed word literal both alone and inside the generated braced script.
+fn request_literal_word(value: &str, config: LexerConfig) -> Option<String> {
+    let quoted = tcl_syntax::backslash::literal_quoted_source_fragment(value, config.escapes)
+        .map(|content| format!("\"{content}\""));
+    for proposal in quoted
+        .into_iter()
+        .chain(std::iter::once(list_element(value)))
+    {
+        let Some(word) = sole_source_word(&proposal, config.nested()) else {
+            continue;
+        };
+        if tcl_syntax::word_rules::original_static_word_unicode_value(&word).as_deref()
+            != Some(value.as_bytes())
+        {
+            continue;
+        }
+        let container = format!("{{{proposal}}}");
+        let Some(container_word) = sole_source_word(&container, config.nested()) else {
+            continue;
+        };
+        if tcl_syntax::word_rules::original_static_word_unicode_value(&container_word).as_deref()
+            == Some(proposal.as_bytes())
+        {
+            return Some(proposal);
+        }
+    }
+    None
+}
+
+/// Read a literal header-name operand from the actual command-substitution syntax.
+/// The named source vocabulary is a scaffold hint, never a resolved command.
+fn source_header_hint(parsed: &tcl_syntax::expr::ExprNode, config: LexerConfig) -> Option<String> {
+    let tcl_syntax::expr::ExprNode::Command { text, .. } = parsed else {
+        return None;
+    };
+    let word = sole_source_word(text, config.nested())?;
+    let arena = word.executable_parts();
+    let [part] = arena.list(arena.root()) else {
+        return None;
+    };
+    let tcl_lexer::ExecutablePart::Command { body } = &part.part else {
+        return None;
+    };
+    let parsed =
+        tcl_lexer::native_script_words_in(word.image().clone(), *body, config.nested()).ok()?;
+    let [command] = parsed.commands.as_slice() else {
+        return None;
+    };
+    let [head, name] = command.words.as_slice() else {
+        return None;
+    };
+    if parsed.fatal_tail.is_some()
+        || head.group().expand
+        || name.group().expand
+        || tcl_syntax::word_rules::original_static_word_unicode_value(head)?.as_slice()
+            != b"HTTP::header"
+    {
+        return None;
+    }
+    String::from_utf8(tcl_syntax::word_rules::original_static_word_unicode_value(
+        name,
+    )?)
+    .ok()
 }
 
 /// Build a concrete example URI that actually satisfies a condition using
@@ -838,7 +916,6 @@ fn synthesize_uri_example(op: &str, pattern: &str) -> String {
 /// Convert a switch glob/regex pattern to a concrete test value
 /// (`_cfg_pattern_to_value`). Returns `None` for the `default` pattern.
 fn cfg_pattern_to_value(pattern: &str) -> Option<String> {
-    let pattern = trim_quotes_braces(pattern);
     if pattern == "default" {
         return None;
     }
@@ -1059,6 +1136,8 @@ fn build_multi_tmm_block(test_name: &str, ctx: &ScriptContext) -> String {
 
 #[cfg(test)]
 mod tests {
+    use regex::Regex;
+
     use super::*;
 
     fn reset_request_closure_builds() {
@@ -1075,6 +1154,13 @@ mod tests {
 
     fn executable(src: &str) -> SourceInventory {
         SourceInventory::capture(src, registry())
+    }
+
+    fn request_syntax() -> (LexerConfig, ExprParseContext) {
+        executable("when HTTP_REQUEST {pool p}")
+            .context
+            .expect("original source context")
+            .expression_syntax()
     }
 
     fn object_refs(src: &str) -> ObjectRefs {
@@ -1113,14 +1199,14 @@ mod tests {
     #[test]
     fn uri_hint_extracts_matches_glob_and_matches_regex() {
         let cond = if_cond(r#"[HTTP::uri] matches_glob "/api/*""#);
-        let lines = build_request_setup("HTTP_REQUEST", &[&cond]);
+        let lines = build_request_setup("HTTP_REQUEST", &[&cond], Some(request_syntax()));
         assert!(
             lines.iter().any(|l| l.contains(r#"-uri "/api/x""#)),
             "{lines:?}"
         );
 
         let cond = if_cond(r#"[HTTP::uri] matches_regex "^/api/.*$""#);
-        let lines = build_request_setup("HTTP_REQUEST", &[&cond]);
+        let lines = build_request_setup("HTTP_REQUEST", &[&cond], Some(request_syntax()));
         assert!(
             lines.iter().any(|l| l.contains(r#"-uri "/api/x""#)),
             "{lines:?}"
@@ -1183,14 +1269,14 @@ mod tests {
     #[test]
     fn uri_hint_still_extracts_eq_and_starts_with() {
         let cond = if_cond(r#"[HTTP::uri] eq "/login""#);
-        let lines = build_request_setup("HTTP_REQUEST", &[&cond]);
+        let lines = build_request_setup("HTTP_REQUEST", &[&cond], Some(request_syntax()));
         assert!(
             lines.iter().any(|l| l.contains(r#"-uri "/login""#)),
             "{lines:?}"
         );
 
         let cond = if_cond(r#"[HTTP::uri] starts_with "/admin""#);
-        let lines = build_request_setup("HTTP_REQUEST", &[&cond]);
+        let lines = build_request_setup("HTTP_REQUEST", &[&cond], Some(request_syntax()));
         assert!(
             lines.iter().any(|l| l.contains(r#"-uri "/admin""#)),
             "{lines:?}"
@@ -1590,6 +1676,7 @@ mod tests {
             objects: &objects,
             variables: &variables,
             cfg_paths: &paths,
+            request_syntax: None,
             multi_tmm: false,
         };
         let blocks = build_all_test_blocks("owned-kind", &context);
@@ -1638,5 +1725,163 @@ mod tests {
         }
         let inventory = executable("when HTTP_REQUEST {set data {static::inert}}");
         assert!(extract_variables(&inventory).static_vars.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod original_request_source_tests {
+    use super::*;
+
+    #[test]
+    fn original_request_context_keeps_retained_unit_profile_and_current_source() {
+        let source = "when HTTP_REQUEST {pool p}";
+        let analysis = crate::tools::analyse(source, "f5-irules");
+        let current =
+            tcl_irules::OriginalIrulesSourceContext::from_source_analysis(source, &analysis)
+                .expect("actual current source analysis owns the source grammar");
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let config = analysis.body_lexer_config.unwrap();
+        let mut expression = ExprParseContext::for_profile(input.unit_profile());
+        expression.lexer_grammar = config.grammar_over(expression.lexer_grammar);
+        assert_eq!(current.expression_syntax(), (config, expression));
+        let mut changed_unit = input.unit_profile().clone();
+        changed_unit.expr_grammar_base =
+            if changed_unit.expr_grammar_base == Some(tcl_dialect::TclVersion::V9_1) {
+                None
+            } else {
+                Some(tcl_dialect::TclVersion::V9_1)
+            };
+        let changed_unit = changed_unit.intern();
+        let mut changed_analyser = input.analyser_profile().clone();
+        changed_analyser.expr_grammar_base =
+            if changed_analyser.expr_grammar_base == Some(tcl_dialect::TclVersion::V9_1) {
+                None
+            } else {
+                Some(tcl_dialect::TclVersion::V9_1)
+            };
+        let changed_analyser = changed_analyser.intern();
+        assert!(current.matches_current(source, &analysis, &input.context_registry()));
+        for (analyser, unit) in [
+            (input.analyser_profile(), changed_unit),
+            (changed_analyser, input.unit_profile()),
+        ] {
+            let changed_input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                analyser,
+                unit,
+                input.context_registry(),
+                config,
+            );
+            let changed = tcl_compiler::analyser::Analyser::new()
+                .with_resolved_input(changed_input)
+                .analyse(source, analyser.name);
+            assert!(tcl_compiler::source_graph::current_analysis(source, &changed).is_some());
+            assert!(!current.matches_current(source, &changed, &input.context_registry()));
+        }
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        assert!(
+            tcl_irules::OriginalIrulesSourceContext::from_source_analysis(source, &missing)
+                .is_none()
+        );
+        assert!(
+            tcl_irules::OriginalIrulesSourceContext::from_source_analysis("# changed", &analysis)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn request_hints_keep_literal_word_and_container_values() {
+        let source = "when HTTP_REQUEST {pool p}";
+        let registry = crate::environment::store_for_dialect("f5-irules");
+        let captured = SourceInventory::capture(source, registry);
+        let syntax = captured.context.as_ref().unwrap().expression_syntax();
+        let config = syntax.0;
+        for (condition, expected) in [
+            (r#"[HTTP::uri] eq {"/literal"}"#, "\"/literal\""),
+            (
+                r#"[HTTP::uri] eq {host[set ::hint 1]}"#,
+                "host[set ::hint 1]",
+            ),
+            (r#"[HTTP::uri] eq {$literal}"#, "$literal"),
+            (r#"[HTTP::uri] eq "one||two""#, "one||two"),
+        ] {
+            let condition = json!({"kind":"if", "condition":condition});
+            let lines = build_request_setup("HTTP_REQUEST", &[&condition], Some(syntax));
+            let line = lines.first().expect("literal request example");
+            let parsed = tcl_lexer::native_script_words_in(
+                tcl_lexer::SourceImage::document(line),
+                tcl_lexer::Span::new(0, u32::try_from(line.len()).unwrap()),
+                config.nested(),
+            )
+            .unwrap();
+            assert!(parsed.fatal_tail.is_none());
+            assert_eq!(parsed.commands.len(), 1);
+            assert_eq!(parsed.commands[0].words.len(), 5);
+            let uri = &parsed.commands[0].words[4];
+            assert_eq!(
+                tcl_syntax::word_rules::original_static_word_unicode_value(uri).as_deref(),
+                Some(expected.as_bytes())
+            );
+            assert!(
+                uri.executable_parts()
+                    .all_parts()
+                    .all(|part| matches!(part.part, tcl_lexer::ExecutablePart::Text(_)))
+            );
+        }
+        for value in [
+            "}",
+            "\"host\"",
+            "$literal",
+            "host[set ::hint 1]",
+            "a\\b",
+            "a\nb",
+        ] {
+            let proposal = request_literal_word(value, config).unwrap();
+            let word = sole_source_word(&proposal, config.nested()).unwrap();
+            assert_eq!(
+                tcl_syntax::word_rules::original_static_word_unicode_value(&word).as_deref(),
+                Some(value.as_bytes())
+            );
+            let container = format!("{{{proposal}}}");
+            let container = sole_source_word(&container, config.nested()).unwrap();
+            assert_eq!(
+                tcl_syntax::word_rules::original_static_word_unicode_value(&container).as_deref(),
+                Some(proposal.as_bytes())
+            );
+        }
+        let condition = json!({"kind":"if", "condition":r#"[HTTP::uri] eq "$dynamic""#});
+        let lines = build_request_setup("HTTP_REQUEST", &[&condition], Some(syntax));
+        assert_eq!(
+            lines,
+            ["::orch::run_http_request -host \"example.com\" -uri \"/\""]
+        );
+        assert!(build_request_setup("HTTP_REQUEST", &[&condition], None).is_empty());
+        assert_eq!(
+            cfg_pattern_to_value("\"quoted\"").as_deref(),
+            Some("\"quoted\"")
+        );
+        assert_eq!(
+            cfg_pattern_to_value("{literal}").as_deref(),
+            Some("{literal}")
+        );
+        let parsed = tcl_syntax::expr::parser::parse_expr_with_syntax_context(
+            r#"[HTTP::header {X Literal}] eq "yes""#,
+            &syntax.1,
+        );
+        let tcl_syntax::expr::ExprNode::Binary { left, .. } = parsed else {
+            panic!("original expression topology");
+        };
+        assert_eq!(
+            source_header_hint(&left, config).as_deref(),
+            Some("X Literal")
+        );
+        let parsed = tcl_syntax::expr::parser::parse_expr_with_syntax_context(
+            r#"[HTTP::header $dynamic] eq "yes""#,
+            &syntax.1,
+        );
+        let tcl_syntax::expr::ExprNode::Binary { left, .. } = parsed else {
+            panic!("original expression topology");
+        };
+        assert!(source_header_hint(&left, config).is_none());
     }
 }

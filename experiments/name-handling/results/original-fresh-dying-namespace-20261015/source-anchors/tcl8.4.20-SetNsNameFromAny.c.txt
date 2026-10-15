@@ -1,0 +1,68 @@
+SetNsNameFromAny(interp, objPtr)
+    Tcl_Interp *interp;		/* Points to the namespace in which to
+				 * resolve name. Also used for error
+				 * reporting if not NULL. */
+    register Tcl_Obj *objPtr;	/* The object to convert. */
+{
+    register Tcl_ObjType *oldTypePtr = objPtr->typePtr;
+    char *name;
+    CONST char *dummy;
+    Namespace *nsPtr, *dummy1Ptr, *dummy2Ptr;
+    register ResolvedNsName *resNamePtr;
+
+    if (interp == NULL) {
+	return TCL_ERROR;
+    }
+
+    /*
+     * Get the string representation. Make it up-to-date if necessary.
+     */
+
+    name = objPtr->bytes;
+    if (name == NULL) {
+	name = Tcl_GetString(objPtr);
+    }
+
+    /*
+     * Look for the namespace "name" in the current namespace. If there is
+     * an error parsing the (possibly qualified) name, return an error.
+     * If the namespace isn't found, we convert the object to an nsName
+     * object with a NULL ResolvedNsName* internal rep.
+     */
+
+    TclGetNamespaceForQualName(interp, name, (Namespace *) NULL,
+            FIND_ONLY_NS, &nsPtr, &dummy1Ptr, &dummy2Ptr, &dummy);
+
+    /*
+     * If we found a namespace, then create a new ResolvedNsName structure
+     * that holds a reference to it.
+     */
+
+    if (nsPtr != NULL) {
+	Namespace *currNsPtr =
+	        (Namespace *) Tcl_GetCurrentNamespace(interp);
+	
+        nsPtr->refCount++;
+        resNamePtr = (ResolvedNsName *) ckalloc(sizeof(ResolvedNsName));
+        resNamePtr->nsPtr = nsPtr;
+        resNamePtr->nsId = nsPtr->nsId;
+        resNamePtr->refNsPtr = currNsPtr;
+        resNamePtr->refCount = 1;
+    } else {
+        resNamePtr = NULL;
+    }
+
+    /*
+     * Free the old internalRep before setting the new one.
+     * We do this as late as possible to allow the conversion code
+     * (in particular, Tcl_GetStringFromObj) to use that old internalRep.
+     */
+
+    if ((oldTypePtr != NULL) && (oldTypePtr->freeIntRepProc != NULL)) {
+        oldTypePtr->freeIntRepProc(objPtr);
+    }
+
+    objPtr->internalRep.otherValuePtr = (VOID *) resNamePtr;
+    objPtr->typePtr = &tclNsNameType;
+    return TCL_OK;
+}

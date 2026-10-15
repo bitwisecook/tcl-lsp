@@ -1,0 +1,9 @@
+# Original generated request-word proposals
+
+The fixed [probe](probe.tcl) ran on original Tcl 8.4.20, 8.5.19, 8.6.18, 9.0.4, 9.1.0 and pinned Jim before new hint-word constructor assertions. All six processes exited zero. The [original manifest](manifest.json) retains commands, matching Tcl libraries, provider/init hashes before and after and exact output hashes. All six zero-byte stderr channels are retained. [The original capture driver](original_capture.py) is preserved byte-for-byte as provenance; use the portable replay below for a new capture.
+
+The raw quoted `host[set ::hint 1]` proposal performs substitution and sets the local marker to one. Escaped command-looking and variable-looking data retain marker zero and their literal values. Escaped quote data remains quoted data. A quoted unbalanced closing brace is a valid standalone Tcl word but fails inside the independently braced script container; the escaped-brace source proposal preserves the value in both stages. `WORD_CODE`, `BODY_CODE`, `ENTERED_CODE`, result and marker fields retain each actual stage, with provider-specific Tcl list presentation unchanged.
+
+These are bounded source-word and braced-container observations. They supply no F5 execution, MCP/Rust acceptance, reached handler/path/frame, observed application outcome or whole generated-scaffold/edit equivalence. See the [name-handling contract](../../../docs/design/contracts/name-handling.md), [pattern catalogue](../patterns/README.md) and [result index](../results/README.md).
+
+Original outputs are immutable. `SHA256SUMS` covers evidence and support files. Run `python replay.py --out /tmp/new-generated-request-word-capture` for a separate reproduction using the retained original binaries/init files. It checks provider hashes, refuses an existing output directory and never overwrites the original evidence. Any replay is separate evidence. The portable replay was AST-checked only when this archive was prepared.

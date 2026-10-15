@@ -1,0 +1,52 @@
+SetNsNameFromAny(
+    Tcl_Interp *interp,		/* Points to the namespace in which to resolve
+				 * name. Also used for error reporting if not
+				 * NULL. */
+    register Tcl_Obj *objPtr)	/* The object to convert. */
+{
+    const char *dummy;
+    Namespace *nsPtr, *dummy1Ptr, *dummy2Ptr;
+    register ResolvedNsName *resNamePtr;
+    const char *name;
+
+    if (interp == NULL) {
+	return TCL_ERROR;
+    }
+
+    name = TclGetString(objPtr);
+    TclGetNamespaceForQualName(interp, name, NULL, TCL_FIND_ONLY_NS,
+	     &nsPtr, &dummy1Ptr, &dummy2Ptr, &dummy);
+
+    /*
+     * If we found a namespace, then create a new ResolvedNsName structure
+     * that holds a reference to it.
+     */
+
+    if ((nsPtr == NULL) || (nsPtr->flags & NS_DYING)) {
+	/*
+	 * Our failed lookup proves any previously cached nsName intrep is no
+	 * longer valid. Get rid of it so we no longer waste memory storing
+	 * it, nor time determining its invalidity again and again.
+	 */
+
+	if (objPtr->typePtr == &nsNameType) {
+	    TclFreeIntRep(objPtr);
+	    objPtr->typePtr = NULL;
+	}
+	return TCL_ERROR;
+    }
+
+    nsPtr->refCount++;
+    resNamePtr = (ResolvedNsName *) ckalloc(sizeof(ResolvedNsName));
+    resNamePtr->nsPtr = nsPtr;
+    if ((name[0] == ':') && (name[1] == ':')) {
+	resNamePtr->refNsPtr = NULL;
+    } else {
+	resNamePtr->refNsPtr = (Namespace *) Tcl_GetCurrentNamespace(interp);
+    }
+    resNamePtr->refCount = 1;
+    TclFreeIntRep(objPtr);
+    objPtr->internalRep.twoPtrValue.ptr1 = resNamePtr;
+    objPtr->typePtr = &nsNameType;
+    return TCL_OK;
+}

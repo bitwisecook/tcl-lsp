@@ -1,0 +1,226 @@
+{
+  "original_files": [
+    {
+      "path": "8-4-20.stderr",
+      "original": "/workspace/name-oracles/fresh-dying-namespace-20261015/8-4-20.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "8-4-20.stdout",
+      "original": "/workspace/name-oracles/fresh-dying-namespace-20261015/8-4-20.stdout",
+      "sha256": "689e60bbc50307d80f51b24b64135b50640dab15f7e699b80818c35efe2be4c5",
+      "bytes": 48
+    },
+    {
+      "path": "8-5-19.stderr",
+      "original": "/workspace/name-oracles/fresh-dying-namespace-20261015/8-5-19.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "8-5-19.stdout",
+      "original": "/workspace/name-oracles/fresh-dying-namespace-20261015/8-5-19.stdout",
+      "sha256": "fa0301235e1ceb413f7b2a9f72190996d9042c04d829a8e8bfde508f4e093e94",
+      "bytes": 97
+    },
+    {
+      "path": "8-6-18.stderr",
+      "original": "/workspace/name-oracles/fresh-dying-namespace-20261015/8-6-18.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "8-6-18.stdout",
+      "original": "/workspace/name-oracles/fresh-dying-namespace-20261015/8-6-18.stdout",
+      "sha256": "fa0301235e1ceb413f7b2a9f72190996d9042c04d829a8e8bfde508f4e093e94",
+      "bytes": 97
+    },
+    {
+      "path": "9-0-4.stderr",
+      "original": "/workspace/name-oracles/fresh-dying-namespace-20261015/9-0-4.stderr",
+      "sha256": "95f9b8738544dc36fd1ee47bb9ba3cec700edd060d54b6f96fee342ea4b30424",
+      "bytes": 366
+    },
+    {
+      "path": "9-0-4.stdout",
+      "original": "/workspace/name-oracles/fresh-dying-namespace-20261015/9-0-4.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "9-1-0.stderr",
+      "original": "/workspace/name-oracles/fresh-dying-namespace-20261015/9-1-0.stderr",
+      "sha256": "95f9b8738544dc36fd1ee47bb9ba3cec700edd060d54b6f96fee342ea4b30424",
+      "bytes": 366
+    },
+    {
+      "path": "9-1-0.stdout",
+      "original": "/workspace/name-oracles/fresh-dying-namespace-20261015/9-1-0.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "Jim.stderr",
+      "original": "/workspace/name-oracles/fresh-dying-namespace-20261015/Jim.stderr",
+      "sha256": "07691eefefa12618092950f26b77db9f4f323178b06257ba7d67b381ec10bc13",
+      "bytes": 223
+    },
+    {
+      "path": "Jim.stdout",
+      "original": "/workspace/name-oracles/fresh-dying-namespace-20261015/Jim.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "manifest.json",
+      "original": "/workspace/name-oracles/fresh-dying-namespace-20261015/manifest.json",
+      "sha256": "8f380844be445dcdb0328c6d2edfa4d9d5a94020647ea5dd331b04ddecd0dd43",
+      "bytes": 7026
+    },
+    {
+      "path": "probe.tcl",
+      "original": "/workspace/name-oracles/fresh-dying-namespace-20261015/probe.tcl",
+      "sha256": "23919a81a713910d1c9f42e9de2987ca9f9880be25a15276afc48e015c5f2414",
+      "bytes": 547
+    },
+    {
+      "path": "trace-add/8-4-20.stderr",
+      "original": "/workspace/name-oracles/fresh-dying-namespace-20261015/trace-add/8-4-20.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "trace-add/8-4-20.stdout",
+      "original": "/workspace/name-oracles/fresh-dying-namespace-20261015/trace-add/8-4-20.stdout",
+      "sha256": "689e60bbc50307d80f51b24b64135b50640dab15f7e699b80818c35efe2be4c5",
+      "bytes": 48
+    },
+    {
+      "path": "trace-add/8-5-19.stderr",
+      "original": "/workspace/name-oracles/fresh-dying-namespace-20261015/trace-add/8-5-19.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "trace-add/8-5-19.stdout",
+      "original": "/workspace/name-oracles/fresh-dying-namespace-20261015/trace-add/8-5-19.stdout",
+      "sha256": "fa0301235e1ceb413f7b2a9f72190996d9042c04d829a8e8bfde508f4e093e94",
+      "bytes": 97
+    },
+    {
+      "path": "trace-add/8-6-18.stderr",
+      "original": "/workspace/name-oracles/fresh-dying-namespace-20261015/trace-add/8-6-18.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "trace-add/8-6-18.stdout",
+      "original": "/workspace/name-oracles/fresh-dying-namespace-20261015/trace-add/8-6-18.stdout",
+      "sha256": "fa0301235e1ceb413f7b2a9f72190996d9042c04d829a8e8bfde508f4e093e94",
+      "bytes": 97
+    },
+    {
+      "path": "trace-add/9-0-4.stderr",
+      "original": "/workspace/name-oracles/fresh-dying-namespace-20261015/trace-add/9-0-4.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "trace-add/9-0-4.stdout",
+      "original": "/workspace/name-oracles/fresh-dying-namespace-20261015/trace-add/9-0-4.stdout",
+      "sha256": "fa0301235e1ceb413f7b2a9f72190996d9042c04d829a8e8bfde508f4e093e94",
+      "bytes": 97
+    },
+    {
+      "path": "trace-add/9-1-0.stderr",
+      "original": "/workspace/name-oracles/fresh-dying-namespace-20261015/trace-add/9-1-0.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "trace-add/9-1-0.stdout",
+      "original": "/workspace/name-oracles/fresh-dying-namespace-20261015/trace-add/9-1-0.stdout",
+      "sha256": "fa0301235e1ceb413f7b2a9f72190996d9042c04d829a8e8bfde508f4e093e94",
+      "bytes": 97
+    },
+    {
+      "path": "trace-add/Jim.stderr",
+      "original": "/workspace/name-oracles/fresh-dying-namespace-20261015/trace-add/Jim.stderr",
+      "sha256": "9a68d5ddaee0e5dcd7cdbd5687f0b7e3183e612c551f1d774612bd2358020363",
+      "bytes": 243
+    },
+    {
+      "path": "trace-add/Jim.stdout",
+      "original": "/workspace/name-oracles/fresh-dying-namespace-20261015/trace-add/Jim.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "trace-add/manifest.json",
+      "original": "/workspace/name-oracles/fresh-dying-namespace-20261015/trace-add/manifest.json",
+      "sha256": "e0347188afb17620a91568752da62d316df1e79d5f1d9948adb0e99c1280c9e5",
+      "bytes": 7080
+    },
+    {
+      "path": "trace-add/probe.tcl",
+      "original": "/workspace/name-oracles/fresh-dying-namespace-20261015/trace-add/probe.tcl",
+      "sha256": "a613ac3f782a4628780e5c22722055127e64a381c5ba84496a40dfefeaf637ea",
+      "bytes": 555
+    }
+  ],
+  "original_file_count": 28,
+  "source_anchors": [
+    {
+      "version": "8.4.20",
+      "original": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclNamesp.c",
+      "original_sha256": "cd23865ee8d4b0ce81874d519b24de5b84a16c116ed3593ead366946b0512cbb",
+      "path": "source-anchors/tcl8.4.20-SetNsNameFromAny.c.txt",
+      "sha256": "4182f2807551d4a1d085191f40b20c29393328cd4cf8f8f9d54a616a827dfb91",
+      "start_line": 3885,
+      "source_lines": 68,
+      "scope": "Current selected source anchor; separate from original executed stdout, not complete build/SDK/ABI evidence."
+    },
+    {
+      "version": "8.5.19",
+      "original": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclNamesp.c",
+      "original_sha256": "60f944eb9ab669e183a546297c5aa6c8b62af0f79cdab115c74d37497c1fd83f",
+      "path": "source-anchors/tcl8.5.19-SetNsNameFromAny.c.txt",
+      "sha256": "60839325df8f920e7a7845d47a29071a8536d64e1d44acd60980083a6a9e0444",
+      "start_line": 4688,
+      "source_lines": 52,
+      "scope": "Current selected source anchor; separate from original executed stdout, not complete build/SDK/ABI evidence."
+    },
+    {
+      "version": "8.6.18",
+      "original": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclNamesp.c",
+      "original_sha256": "b4b3095f69b2192f13bf355d70a0efeb9aa78b5e6ceccf6b17536cc5e9be1e24",
+      "path": "source-anchors/tcl8.6.18-SetNsNameFromAny.c.txt",
+      "sha256": "409f7b126709d610a18c4548996958ac68062e6fd4de4c964d64375e4e97f2c8",
+      "start_line": 4706,
+      "source_lines": 51,
+      "scope": "Current selected source anchor; separate from original executed stdout, not complete build/SDK/ABI evidence."
+    },
+    {
+      "version": "9.0.4",
+      "original": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclNamesp.c",
+      "original_sha256": "73e79904d662d12564dd7d35f922fd896566411524a6e14c6454325f2ce17b8d",
+      "path": "source-anchors/tcl9.0.4-SetNsNameFromAny.c.txt",
+      "sha256": "d37be03456bf4500d887c6c5ff06adf67348a061736a1a774e70b70fab169a80",
+      "start_line": 4903,
+      "source_lines": 40,
+      "scope": "Current selected source anchor; separate from original executed stdout, not complete build/SDK/ABI evidence."
+    },
+    {
+      "version": "9.1.0",
+      "original": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclNamesp.c",
+      "original_sha256": "fce8ca8ee9a21f2e87f7a1917e7a2e4109f9fadf72fd0e585673d1450409b815",
+      "path": "source-anchors/tcl9.1.0-SetNsNameFromAny.c.txt",
+      "sha256": "d32c714ed70f610b737d23f48266438ca4f46f1b21f5c1dd80d28752c7bc11f8",
+      "start_line": 4876,
+      "source_lines": 40,
+      "scope": "Current selected source anchor; separate from original executed stdout, not complete build/SDK/ABI evidence."
+    }
+  ],
+  "scope": "Exact legacy and trace-add captures; failures/unavailable providers retained, source anchors separate; no provider rerun or Rust/F5/native lifecycle acceptance."
+}

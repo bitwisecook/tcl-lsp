@@ -231,36 +231,6 @@ pub(super) fn word_raw<'t>(text: &'t str, word: &[Token]) -> &'t str {
     text.get(start..end).unwrap_or("")
 }
 
-/// The inner script text of `word` if it is a single wrapper word
-/// (`[...]` command substitution, `{...}` braced literal, or `"..."` quoted
-/// word); `None` for a bare word.
-pub(super) fn word_unwrap(text: &str, word: &[Token]) -> Option<String> {
-    if word.len() == 1 {
-        let tok = word[0];
-        if matches!(tok.kind, TokenType::Cmd | TokenType::Str) {
-            let start = tok.span.start() as usize + tok.content_offset as usize;
-            let end = tok.span.end() as usize;
-            return text.get(start..end).map(str::to_owned);
-        }
-    }
-    let open_off = word[0].span.start() as usize;
-    if word[0].in_quote && text.as_bytes().get(open_off) == Some(&b'"') {
-        // Locate the closing quote with a backslash-aware forward scan; the
-        // inner script is the span between the two quotes.
-        let bytes = text.as_bytes();
-        let mut i = open_off + 1;
-        while i < bytes.len() {
-            match bytes[i] {
-                b'\\' => i += 2,
-                b'"' => return text.get(open_off + 1..i).map(str::to_owned),
-                _ => i += 1,
-            }
-        }
-        return text.get(open_off + 1..).map(str::to_owned);
-    }
-    None
-}
-
 /// Fixture-only legacy syntax projection for retained parser boundary controls.
 #[cfg(test)]
 fn source_filename_with_config(

@@ -303,9 +303,15 @@ impl Vm {
                 })?;
             let absolute =
                 input.qualification() == tcl_syntax::naming::NativeNameQualification::Absolute;
-            let selected = Namespaces::find_namespace_bytes_checked(self, reference_ns, &bytes)?;
-            if let Some(namespace) = selected {
-                let target = self.native_namespace_name_token(namespace)?;
+            let selected = Namespaces::find_namespace_bytes_checked(self, reference_ns, &bytes)?
+                .map(|namespace| {
+                    self.native_namespace_name_token(namespace)
+                        .map(|target| (namespace, target))
+                })
+                .transpose()?
+                .filter(|(_, target)| recipe.permits_target(target.lifecycle()));
+            let namespace = selected.as_ref().map(|(namespace, _)| *namespace);
+            if let Some((namespace, target)) = selected {
                 let reference =
                     (!absolute || recipe.absolute_references_global()).then_some(reference);
                 let selected_target = QueryNamespace::capture(self, namespace)?;
@@ -338,7 +344,7 @@ impl Vm {
                 entered.check(self)?;
                 reached?;
             }
-            Ok(selected)
+            Ok(namespace)
         })();
         entered.finish(self, reached)
     }

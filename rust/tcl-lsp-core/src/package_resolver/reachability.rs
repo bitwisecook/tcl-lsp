@@ -117,7 +117,7 @@ use tcl_lexer::{LexerConfig, NativeWord, SourceImage, Span, Token, TokenType};
 use tcl_registry::{ClauseSelection, CommandRegistry, Traits, arg_role::ArgRole};
 use tcl_syntax::naming::{canonical_written_command, unroot_rooted_key};
 
-use super::{walk_command_words_with_config, word_raw, word_unwrap};
+use super::{walk_command_words_with_config, word_raw};
 
 mod original;
 
@@ -492,7 +492,7 @@ impl ScriptWalker<'_, '_> {
             // (`library/pkgIndex.tcl` in the zipfs `tcl_library`), so a tcl9.0
             // workspace saw http / msgcat / tcltest / platform / cookiejar declare
             // nothing whatsoever.
-            for (body, body_index) in body_scripts(text, words, head, registry) {
+            for (body, body_index) in body_scripts(text, words, head, registry, config) {
                 let child = original
                     .zip(original_words.as_ref())
                     .and_then(|(original, words)| {
@@ -535,6 +535,7 @@ impl ScriptWalker<'_, '_> {
         let mut terminating: Vec<Option<Condition>> = Vec::new();
         let mut has_else = false;
         let mut definitely_taken_terminates = false;
+        let mut unavailable_body = false;
 
         for clause in &clauses {
             let branch_conditions = match clause.expr {
@@ -555,7 +556,10 @@ impl ScriptWalker<'_, '_> {
                     conditions
                 }
             };
-            let body_text = script_of(text, &words[1..][clause.body]);
+            let Some(body_text) = script_of(text, &words[1..][clause.body], config) else {
+                unavailable_body = true;
+                continue;
+            };
             let mut branch_reached = reached.clone();
             for condition in &branch_conditions.0 {
                 branch_reached = branch_reached.with(condition.clone());
@@ -586,8 +590,13 @@ impl ScriptWalker<'_, '_> {
             }
         }
 
-        if definitely_taken_terminates || (has_else && terminating.len() == clauses.len()) {
+        if definitely_taken_terminates
+            || (!unavailable_body && has_else && terminating.len() == clauses.len())
+        {
             return AfterIf::Stops;
+        }
+        if unavailable_body {
+            return AfterIf::Continues(reached.with(Condition::Undecidable));
         }
         AfterIf::Continues(match terminating.as_slice() {
             // Nothing in the chain stops control continuing.
@@ -626,12 +635,13 @@ fn body_scripts(
     words: &[Vec<Token>],
     head: &str,
     registry: &CommandRegistry,
+    config: LexerConfig,
 ) -> Vec<(String, usize)> {
     let args: Vec<&str> = words[1..].iter().map(|w| word_raw(text, w)).collect();
     let mut out: Vec<(String, usize)> = registry
         .arg_indices_for_role(head, &args, ArgRole::Body)
         .into_iter()
-        .filter_map(|i| words[1..].get(i).map(|word| (script_of(text, word), i)))
+        .filter_map(|i| Some((script_of(text, words[1..].get(i)?, config)?, i)))
         .collect();
     for index in registry.arg_indices_for_role(head, &args, ArgRole::LambdaLiteral) {
         // A statically-splittable lambda is a single braced word; a `$var` /
@@ -663,13 +673,62 @@ fn command_body_may_terminate(
         .arg_indices_for_role(head, &args, ArgRole::Body)
         .into_iter()
         .filter_map(|i| words[1..].get(i))
-        .any(|word| body_may_terminate(&script_of(text, word), registry, depth + 1, config))
+        .any(|word| {
+            script_of(text, word, config)
+                .is_none_or(|body| body_may_terminate(&body, registry, depth + 1, config))
+        })
 }
 
-/// The script text of a body word: the inside of a braced / quoted / bracketed
-/// word, or the word itself when it is bare (`if {$c} return`).
-fn script_of(text: &str, word: &[Token]) -> String {
-    word_unwrap(text, word).unwrap_or_else(|| word_raw(text, word).to_owned())
+/// Authenticate a lexical word against the complete configured source plan.
+fn original_data_word(text: &str, word: &[Token], config: LexerConfig) -> Option<NativeWord> {
+    let length = u32::try_from(text.len()).ok()?;
+    let plan = tcl_lexer::native_script_words_in_with_purpose(
+        SourceImage::document(text),
+        Span::new(0, length),
+        config,
+        tcl_lexer::SourceSegmentationPurpose::NestedScript,
+    )
+    .ok()?;
+    if plan.fatal_tail.is_some() {
+        return None;
+    }
+    let mut matching = plan
+        .commands
+        .iter()
+        .flat_map(|command| &command.words)
+        .filter(|original| original.tokens() == word);
+    let original = matching.next()?;
+    matching.next().is_none().then(|| original.clone())
+}
+
+/// Decode a static Body or Expr operand once, before reading its script data.
+fn script_of(text: &str, word: &[Token], config: LexerConfig) -> Option<String> {
+    let original = original_data_word(text, word, config)?;
+    String::from_utf8(tcl_syntax::word_rules::original_static_word_unicode_value(
+        &original,
+    )?)
+    .ok()
+}
+
+/// A whole command substitution contributes its original script, not its result.
+fn command_source(text: &str, word: &[Token], config: LexerConfig) -> Option<String> {
+    let original = original_data_word(text, word, config)?;
+    if original.group().expand || original.group().kind != tcl_lexer::WordKind::Bare {
+        return None;
+    }
+    let arena = original.executable_parts();
+    let [part] = arena.list(arena.root()) else {
+        return None;
+    };
+    let tcl_lexer::ExecutablePart::Command { body } = part.part else {
+        return None;
+    };
+    if part.span != original.word_span() {
+        return None;
+    }
+    std::str::from_utf8(original.image().bytes().get(body.as_range())?)
+        .ok()
+        .map(str::to_owned)
 }
 
 /// What an `if` chain does to control flow.
@@ -706,8 +765,21 @@ fn body_may_terminate(
                     .get(head)
                     .is_some_and(|spec| spec.traits.contains(Traits::TERMINATES_BLOCK))
             }) || words.iter().any(|word| {
-                word_unwrap(script, word)
-                    .is_some_and(|inner| body_may_terminate(&inner, registry, depth + 1, config))
+                let Some(original) = original_data_word(script, word, config) else {
+                    return true;
+                };
+                original.executable_parts().all_parts().any(|part| {
+                    let tcl_lexer::ExecutablePart::Command { body } = part.part else {
+                        return false;
+                    };
+                    std::str::from_utf8(&original.image().bytes()[body.as_range()])
+                        .ok()
+                        .is_none_or(|body| body_may_terminate(body, registry, depth + 1, config))
+                }) || (matches!(
+                    original.group().kind,
+                    tcl_lexer::WordKind::Braced | tcl_lexer::WordKind::Quoted
+                ) && script_of(script, word, config)
+                    .is_some_and(|inner| body_may_terminate(&inner, registry, depth + 1, config)))
             })
         })
 }
@@ -782,7 +854,10 @@ impl Guard {
 /// A braced or quoted condition — the universal spelling — is read from its
 /// inner text; a bare condition is read as written.
 fn guard_expr(text: &str, word: &[Token], config: LexerConfig) -> Guard {
-    parse_guard(script_of(text, word).trim(), config)
+    if let Some(inner) = command_source(text, word, config) {
+        return parse_vsatisfies(&inner, config);
+    }
+    script_of(text, word, config).map_or(Guard::Unknown, |value| parse_guard(value.trim(), config))
 }
 
 /// Parse a condition's source text.
@@ -802,8 +877,8 @@ fn parse_guard(expr: &str, config: LexerConfig) -> Guard {
         };
     }
     // A whole-expression `[...]` substitution: unwrap and read the command.
-    if let Some(inner) = bracketed_body(expr) {
-        return parse_vsatisfies(inner, config);
+    if let Some(inner) = bracketed_body(expr, config) {
+        return parse_vsatisfies(&inner, config);
     }
     // The same acceptor `if` itself uses (`Tcl_GetBooleanFromObj`'s string
     // path), so `1`, `true`, `yes`, `on`, `2`, and `0x0` read exactly as the
@@ -819,23 +894,19 @@ fn parse_guard(expr: &str, config: LexerConfig) -> Guard {
 }
 
 /// The inner text of `expr` when it is exactly one `[...]` substitution.
-fn bracketed_body(expr: &str) -> Option<&str> {
-    let inner = expr.strip_prefix('[')?.strip_suffix(']')?;
-    // Reject `[a] + [b]`, where the outer brackets are not a matched pair.
-    let mut depth = 0i32;
-    for ch in inner.chars() {
-        match ch {
-            '[' => depth += 1,
-            ']' => {
-                depth -= 1;
-                if depth < 0 {
-                    return None;
-                }
-            }
-            _ => {}
-        }
+fn bracketed_body(expr: &str, config: LexerConfig) -> Option<String> {
+    let commands = walk_command_words_with_config(expr, config);
+    let [words] = commands.as_slice() else {
+        return None;
+    };
+    let [word] = words.as_slice() else {
+        return None;
+    };
+    let original = original_data_word(expr, word, config)?;
+    if original.word_span() != Span::new(0, u32::try_from(expr.len()).ok()?) {
+        return None;
     }
-    (depth == 0).then_some(inner)
+    command_source(expr, word, config)
 }
 
 /// Read `package vsatisfies [package provide Tcl] REQ …` — the only
@@ -912,7 +983,7 @@ fn is_tcl_version_subject(script: &str, word: &[Token], config: LexerConfig) -> 
     if word.len() != 1 || word[0].kind != TokenType::Cmd {
         return false;
     }
-    let Some(inner) = word_unwrap(script, word) else {
+    let Some(inner) = command_source(script, word, config) else {
         return false;
     };
     let commands = walk_command_words_with_config(&inner, config);

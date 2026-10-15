@@ -1144,18 +1144,6 @@ pub fn reindent_body(body: &str, target_indent: &str) -> String {
     result.join("\n")
 }
 
-/// Strip one layer of surrounding double quotes, if present.
-#[must_use]
-pub fn strip_quotes(s: &str) -> &str {
-    let s = s.trim();
-    let bytes = s.as_bytes();
-    if bytes.len() >= 2 && bytes[0] == b'"' && bytes[bytes.len() - 1] == b'"' {
-        &s[1..s.len() - 1]
-    } else {
-        s
-    }
-}
-
 #[cfg(test)]
 pub(crate) fn test_registry() -> CommandRegistry {
     CommandRegistry::build_default()

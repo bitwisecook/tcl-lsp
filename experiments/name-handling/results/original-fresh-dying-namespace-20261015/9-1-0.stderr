@@ -1,0 +1,10 @@
+bad option "variable": must be add, info, or remove
+    while executing
+"trace variable sentinel u ::during"
+    (in namespace eval "::retiring" script line 3)
+    invoked from within
+"namespace eval retiring {
+    variable sentinel HELD
+    trace variable sentinel u ::during
+}"
+    (file "/workspace/name-oracles/fresh-dying-namespace-20261015/probe.tcl" line 11)

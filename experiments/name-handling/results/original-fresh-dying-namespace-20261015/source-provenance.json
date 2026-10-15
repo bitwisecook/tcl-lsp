@@ -1,0 +1,55 @@
+{
+  "anchors": [
+    {
+      "version": "8.4.20",
+      "original": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclNamesp.c",
+      "original_sha256": "cd23865ee8d4b0ce81874d519b24de5b84a16c116ed3593ead366946b0512cbb",
+      "path": "source-anchors/tcl8.4.20-SetNsNameFromAny.c.txt",
+      "sha256": "4182f2807551d4a1d085191f40b20c29393328cd4cf8f8f9d54a616a827dfb91",
+      "start_line": 3885,
+      "source_lines": 68,
+      "scope": "Current selected source anchor; separate from original executed stdout, not complete build/SDK/ABI evidence."
+    },
+    {
+      "version": "8.5.19",
+      "original": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclNamesp.c",
+      "original_sha256": "60f944eb9ab669e183a546297c5aa6c8b62af0f79cdab115c74d37497c1fd83f",
+      "path": "source-anchors/tcl8.5.19-SetNsNameFromAny.c.txt",
+      "sha256": "60839325df8f920e7a7845d47a29071a8536d64e1d44acd60980083a6a9e0444",
+      "start_line": 4688,
+      "source_lines": 52,
+      "scope": "Current selected source anchor; separate from original executed stdout, not complete build/SDK/ABI evidence."
+    },
+    {
+      "version": "8.6.18",
+      "original": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclNamesp.c",
+      "original_sha256": "b4b3095f69b2192f13bf355d70a0efeb9aa78b5e6ceccf6b17536cc5e9be1e24",
+      "path": "source-anchors/tcl8.6.18-SetNsNameFromAny.c.txt",
+      "sha256": "409f7b126709d610a18c4548996958ac68062e6fd4de4c964d64375e4e97f2c8",
+      "start_line": 4706,
+      "source_lines": 51,
+      "scope": "Current selected source anchor; separate from original executed stdout, not complete build/SDK/ABI evidence."
+    },
+    {
+      "version": "9.0.4",
+      "original": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclNamesp.c",
+      "original_sha256": "73e79904d662d12564dd7d35f922fd896566411524a6e14c6454325f2ce17b8d",
+      "path": "source-anchors/tcl9.0.4-SetNsNameFromAny.c.txt",
+      "sha256": "d37be03456bf4500d887c6c5ff06adf67348a061736a1a774e70b70fab169a80",
+      "start_line": 4903,
+      "source_lines": 40,
+      "scope": "Current selected source anchor; separate from original executed stdout, not complete build/SDK/ABI evidence."
+    },
+    {
+      "version": "9.1.0",
+      "original": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclNamesp.c",
+      "original_sha256": "fce8ca8ee9a21f2e87f7a1917e7a2e4109f9fadf72fd0e585673d1450409b815",
+      "path": "source-anchors/tcl9.1.0-SetNsNameFromAny.c.txt",
+      "sha256": "d32c714ed70f610b737d23f48266438ca4f46f1b21f5c1dd80d28752c7bc11f8",
+      "start_line": 4876,
+      "source_lines": 40,
+      "scope": "Current selected source anchor; separate from original executed stdout, not complete build/SDK/ABI evidence."
+    }
+  ],
+  "scope": "Exact current original source function excerpts; no source/provider modification or rebuild. Executed binary/init hashes live in unchanged original manifests."
+}

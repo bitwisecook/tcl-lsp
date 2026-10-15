@@ -1,0 +1,40 @@
+SetNsNameFromAny(
+    Tcl_Interp *interp,		/* Points to the namespace in which to resolve
+				 * name. Also used for error reporting if not
+				 * NULL. */
+    Tcl_Obj *objPtr)		/* The object to convert. */
+{
+    const char *dummy;
+    Namespace *nsPtr, *dummy1Ptr, *dummy2Ptr;
+    ResolvedNsName *resNamePtr;
+    const char *name;
+
+    if (interp == NULL) {
+	return TCL_ERROR;
+    }
+
+    name = TclGetString(objPtr);
+    TclGetNamespaceForQualName(interp, name, NULL, TCL_FIND_ONLY_NS,
+	    &nsPtr, &dummy1Ptr, &dummy2Ptr, &dummy);
+
+    if ((nsPtr == NULL) || (nsPtr->flags & NS_DYING)) {
+	return TCL_ERROR;
+    }
+
+    /*
+     * If we found a namespace, then create a new ResolvedNsName structure
+     * that holds a reference to it.
+     */
+
+    nsPtr->refCount++;
+    resNamePtr = (ResolvedNsName *) Tcl_Alloc(sizeof(ResolvedNsName));
+    resNamePtr->nsPtr = nsPtr;
+    if ((name[0] == ':') && (name[1] == ':')) {
+	resNamePtr->refNsPtr = NULL;
+    } else {
+	resNamePtr->refNsPtr = (Namespace *) TclGetCurrentNamespace(interp);
+    }
+    resNamePtr->refCount = 0;
+    NsNameSetInternalRep(objPtr, resNamePtr);
+    return TCL_OK;
+}

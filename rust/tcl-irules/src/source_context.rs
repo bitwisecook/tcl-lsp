@@ -81,6 +81,7 @@ pub struct OriginalIrulesSourceContext {
     context: tcl_registry::model::ResolvedContext,
     context_registry: Arc<ContextRegistry>,
     profile: &'static tcl_dialect::DialectProfile,
+    unit_profile: &'static tcl_dialect::DialectProfile,
     registry: RegistrySemanticKey,
     events: Vec<SourceIrulesEventBody>,
     commands: Vec<OriginalIrulesSourceCommand>,
@@ -540,6 +541,7 @@ impl OriginalIrulesSourceContext {
             registry: context.commands().snapshot().semantic_key(),
             context_registry: retained.context_registry(),
             profile: retained.analyser_profile(),
+            unit_profile: retained.unit_profile(),
             events,
             commands,
             source_vectors: vectors,
@@ -571,6 +573,7 @@ impl OriginalIrulesSourceContext {
             registry: registry.snapshot().semantic_key(),
             context_registry: context,
             profile: retained.analyser_profile(),
+            unit_profile: retained.unit_profile(),
             events: Vec::new(),
             commands: Vec::new(),
             source_vectors: vectors,
@@ -632,6 +635,8 @@ impl OriginalIrulesSourceContext {
                         .snapshot()
                         .semantic_key()
                         == self.registry
+                    && input.unit_profile().cache_key() == self.unit_profile.cache_key()
+                    && input.analyser_profile().cache_key() == self.profile.cache_key()
             })
     }
 
@@ -645,6 +650,16 @@ impl OriginalIrulesSourceContext {
     #[must_use]
     pub fn context_registry(&self) -> &ContextRegistry {
         &self.context_registry
+    }
+
+    /// Lexical configuration and independent expression axes retained by this source capture.
+    /// Fragment parsing under these axes grants no source occurrence, lookup, frame or edit authority.
+    #[must_use]
+    pub fn expression_syntax(&self) -> (LexerConfig, tcl_syntax::expr::parser::ExprParseContext) {
+        let mut expression =
+            tcl_syntax::expr::parser::ExprParseContext::for_profile(self.unit_profile);
+        expression.lexer_grammar = self.config.grammar_over(expression.lexer_grammar);
+        (self.config, expression)
     }
 
     /// Presentation-only compatibility fields from genuine source candidates.

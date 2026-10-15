@@ -525,3 +525,64 @@ fn original_requirement_words_preserve_literal_wrappers_and_configured_values() 
         assert_eq!(only(&source, V86), Availability::Conditional, "{source}");
     }
 }
+
+#[test]
+fn configured_body_values_and_command_children_keep_distinct_original_grammar() {
+    for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+        let environment = tcl_registry::model::ingress::resolve_known_environment(dialect).unwrap();
+        let context = environment.default_context_registry();
+        let config = tcl_lexer::LexerConfig::from_grammar(environment.grammar());
+        let supports_index = context
+            .commands()
+            .get("package")
+            .and_then(|spec| spec.subcommand("ifneeded"))
+            .is_some();
+        assert_eq!(supports_index, dialect != "jim");
+        if supports_index {
+            let source =
+                r#"if 1 "\u0072eturn"; package ifneeded unreachable 1.0 {source unreachable.tcl}"#;
+            let mut found = Vec::new();
+            super::scan_with_config(source, context.commands(), config, &mut |reached| {
+                found.push(reached.conditions.availability(None));
+            });
+            assert!(
+                found.is_empty(),
+                "{dialect}: decoded return stops the original script"
+            );
+            let source = r#"if 1 {set kept {{literal}}}; package ifneeded retained 1.0 {source retained.tcl}"#;
+            let mut found = Vec::new();
+            super::scan_with_config(source, context.commands(), config, &mut |reached| {
+                found.push(reached.conditions.availability(None));
+            });
+            assert_eq!(found, [Availability::Available], "{dialect}");
+            let source = r#"if 1 "$missing"; package ifneeded unknown 1.0 {source unknown.tcl}"#;
+            let mut found = Vec::new();
+            super::scan_with_config(source, context.commands(), config, &mut |reached| {
+                found.push(reached.conditions.availability(None));
+            });
+            assert_eq!(found, [Availability::Conditional], "{dialect}");
+        }
+
+        let source = r#"if 1 "set kept \{literal\}""#;
+        let words = super::walk_command_words_with_config(source, config);
+        assert_eq!(
+            super::script_of(source, &words[0][2], config).as_deref(),
+            Some("set kept {literal}")
+        );
+        let source = r#"if 1 {set kept {{literal}}}"#;
+        let words = super::walk_command_words_with_config(source, config);
+        assert_eq!(
+            super::script_of(source, &words[0][2], config).as_deref(),
+            Some("set kept {{literal}}")
+        );
+        let source = r#"[format "%s" "]"]"#;
+        assert_eq!(
+            super::bracketed_body(source, config).as_deref(),
+            Some(r#"format "%s" "]""#)
+        );
+        assert!(super::bracketed_body("[a] + [b]", config).is_none());
+        assert!(super::bracketed_body("[a]tail", config).is_none());
+        assert!(super::bracketed_body("{[a]}", config).is_none());
+        assert!(super::script_of(source, &words[0][2], config).is_none());
+    }
+}

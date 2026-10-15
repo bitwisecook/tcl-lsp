@@ -966,3 +966,44 @@ installation. Shared list decoding must agree across the central C release
 escape grammars and retain complete values, including empty elements. Malformed
 or release-dependent data declines; no filesystem normalization or Native/source
 identity follows from this environment projection.
+
+Authored scalar/control source ownership accepts a genuine tagged Standalone
+metadata projection with its retained profile after the same current original
+declaration/card/context checks. Unprofiled unavailability remains distinct, and
+supplied, reached, Native or unknown-history refusal cannot borrow this ingress.
+
+Namespace-upvar source advice selects the actual Written namespace operand
+through an immutable complete source/schema/argv receipt and unchanged typed
+current scope. Conflicting selected relationships or missing, dynamic and
+captured operands decline. Legacy marker/report spellings supply no target
+namespace, installed alias, frame, physical cell or edit authority.
+
+Package source-data planning authenticates complete configured source and original
+word tokens before shared static Unicode Body/Expr values. Decoded nested wrappers
+are not peeled again. Unavailable potentially reached bodies keep subsequent
+advice Undecidable. Lexical command substitutions retain their actual executable
+body spans separately from result values, and package-version expression shapes
+require one whole unexpanded command. Values supply no original source coordinate,
+analysis, reached Body, frame or Native issuer.
+
+Fresh VM original C namespace conversion applies the same selected lifecycle
+recipe as cache reuse. Raw namespace handles remain independently available for
+hidden execution; an actual C8.4 Dying conversion and later fresh-Dying refusal
+retain the existing entered operation, context, target, publication and getter
+checks. Source observations do not establish cached/header or final-free behavior.
+
+The Jim variable-inventory adapter separates original-argument preflight, selected
+matcher, actual table capture and incremental key append. Each stage retains the
+same weak namespace/frame/table/key receipts and original argument currency;
+refusal and result publication do not gain a second namespace or table owner.
+
+MCP request hints retain the original iRules source context's actual unit-profile
+expression axes and complete lexical configuration; public currentness also
+checks both retained profile cache keys. Shared expression topology
+and fixed literal operands replace quote/brace trimming; command substitutions
+retain their shared original component and whole-word operand geometry. Generated
+hint operands roundtrip both as literal source words and as bytes inside the
+generated braced script container. Completed Switch pattern values retain literal
+quotes and braces. Source-label categories and URI examples remain heuristics;
+they establish no reached handler, path satisfaction, frame or observed outcome.
+Missing context supplies no replacement grammar.

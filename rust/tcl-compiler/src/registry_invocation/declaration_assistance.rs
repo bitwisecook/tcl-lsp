@@ -492,7 +492,18 @@ mod original_alias_source_schema_tests {
             crate::signature_scan::original_name::OriginalSourceNamePurpose::for_analysis_input(
                 input, None, policy,
             );
-        let aliases = &analysis.original_variable_alias_source_operands;
+        let words = crate::registry_invocation::source_structure::source_registry_words_at(
+            source,
+            &analysis,
+            u32::try_from(source.find("namespace upvar").unwrap()).unwrap(),
+        )
+        .expect("original alias invocation source");
+        let aliases = super::OriginalSourceVariableAliasOperands::capture(
+            words,
+            input.borrowed_context_registry(),
+        )
+        .into_iter()
+        .collect::<Vec<_>>();
         assert_eq!(aliases.len(), 1);
         let (local, target, _) = aliases[0].operands()[0];
         let selected = aliases[0]
@@ -520,7 +531,7 @@ mod original_alias_source_schema_tests {
         else {
             panic!("C source variable slot");
         };
-        assert_eq!(namespace, path);
+        assert_eq!(namespace.as_segments(), path.as_segments());
         assert_eq!(simple.as_bytes(), b"value");
         assert!(
             aliases[0]
@@ -569,7 +580,22 @@ mod original_alias_source_schema_tests {
                 .and_then(|scope| scope.naming_scope.as_ref())
                 .or(analysis.global_scope.naming_scope.as_ref())
                 .unwrap();
-            for aliases in &analysis.original_variable_alias_source_operands {
+            let offset = source
+                .rfind("link value")
+                .or_else(|| source.find("namespace upvar"))
+                .unwrap();
+            let aliases = crate::registry_invocation::source_structure::source_registry_words_at(
+                source,
+                &analysis,
+                u32::try_from(offset).unwrap(),
+            )
+            .and_then(|words| {
+                super::OriginalSourceVariableAliasOperands::capture(
+                    words,
+                    input.borrowed_context_registry(),
+                )
+            });
+            if let Some(aliases) = aliases {
                 for &(local, target, _) in aliases.operands() {
                     assert!(
                         aliases

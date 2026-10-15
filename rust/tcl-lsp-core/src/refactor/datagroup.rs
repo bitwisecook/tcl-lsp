@@ -1049,11 +1049,10 @@ mod tests {
 
     use super::*;
 
-    fn reg() -> CommandRegistry {
+    fn reg() -> std::sync::Arc<CommandRegistry> {
         tcl_registry::model::resolve_environment("f5-irules")
             .default_context_registry()
             .commands()
-            .as_ref()
             .clone()
     }
 
