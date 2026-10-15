@@ -1403,49 +1403,6 @@ impl<'src> Lexer<'src> {
         ))
     }
 
-    /// Parse a command substitution starting at the current `[`.
-    ///
-    /// Scans the command body until a matching `]`, tracking outer
-    /// bracket nesting (`level`), brace nesting (`blevel`), and
-    /// whether we are inside a `"…"` sub-region (`in_quotes`). Each
-    /// piece of state gates which characters are meaningful:
-    ///
-    /// - `"` — toggles `in_quotes` when `blevel == 0`.
-    /// - `[` — increments `level` when not braced and not quoted.
-    /// - `]` — decrements `level` when not braced and not quoted;
-    ///   closes the command when `level` reaches zero.
-    /// - `\\` — consumes the next character unconditionally (CRLF
-    ///   counted as one pair). This makes `\]` and `\"` inside a
-    ///   command body inert.
-    /// - `$` followed by `{` (outside braces and quotes) — sub-scans
-    ///   a `${…}` construct so a `}` or `)` inside a braced
-    ///   variable name does not fool the counter.
-    /// - `{` / `}` — adjust `blevel` when not quoted.
-    ///
-    /// The span always starts at the `[` and normally ends at the
-    /// last character of the body (NOT the closing `]`). The
-    /// empty-command degenerate case `[]` extends the span by one so
-    /// `range_positions` reports the `]` as the end position.
-    /// `SourceMap::token_text` strips the leading `[` (and the
-    /// trailing `]` from the degenerate case) so callers see just the
-    /// command body.
-    ///
-    /// Never fails. An unterminated `[` tokenises best-effort; the
-    /// `missing close-bracket` warning is not yet emitted.
-    /// Advance `self.pos` past a `${…}` braced variable name beginning at the
-    /// current `$` (whose next byte is `{`), using the same brace-nesting +
-    /// backslash-pair rules as [`Self::parse_var`]'s braced branch: `\X` is a
-    /// literal pair (so `\}` does not close) and inner `{`/`}` nest. Shared by
-    /// the command-substitution scanner so an inner `}`/`]`/`)` in a braced
-    /// name does not fool its delimiter counter.
-    fn skip_braced_var_name(&mut self) {
-        self.pos += 2; // skip '${'
-        self.skip_braced_var_name_body();
-        if self.current_byte() == Some(b'}') {
-            self.pos += 1;
-        }
-    }
-
     /// Advance from the first byte of a `${…}` variable **name** to the `}`
     /// that closes it (or to end-of-input when the form is unterminated),
     /// leaving `pos` *on* the closer.
@@ -1468,46 +1425,6 @@ impl<'src> Lexer<'src> {
             crate::ranges::BracedVarEnd::Unterminated => self.source().len(),
         };
         self.pos = u32::try_from(end).expect("source offset fits u32");
-    }
-
-    /// Advance one character/escape while inside a command-position comment
-    /// nested in `[...]`. Returns `true` only when an unescaped newline ends
-    /// the comment. Escape width follows the document source-channel seam, so
-    /// CRLF is one continuation newline.
-    fn advance_command_comment(&mut self, ch: char) -> bool {
-        match ch {
-            '\n' => {
-                self.pos += 1;
-                true
-            }
-            '\\' => {
-                let end = self.source_backslash_escape_end();
-                self.pos = u32::try_from(end).expect("source offset fits u32");
-                false
-            }
-            _ => {
-                self.pos += u32::try_from(ch.len_utf8()).expect("char len fits u32");
-                false
-            }
-        }
-    }
-
-    /// Consume a recovery ghost `]` at the current position. Ghosts close a
-    /// command unconditionally: their derivation already vetoed inert brace,
-    /// escape, and `${...}` positions. Returns `None` when there is no ghost,
-    /// or `Some(true)` when this one closes the outermost substitution.
-    fn advance_command_ghost(&mut self, level: &mut u32) -> Option<bool> {
-        (self.ghost_at(self.pos) == Some(b']')).then(|| {
-            *level -= 1;
-            if *level == 0 {
-                true
-            } else {
-                // It is a zero-width insertion: remove it and re-examine the
-                // real byte at this offset on the next iteration.
-                self.ghosts.remove(&self.pos);
-                false
-            }
-        })
     }
 
     /// Finish a `[...]` token after its body scan stopped at a real/ghost
@@ -1540,117 +1457,41 @@ impl<'src> Lexer<'src> {
         ))
     }
 
+    /// Lex a `[…]` command substitution. Where it ends is the shared
+    /// scanner's answer ([`crate::ranges::command_substitution_end`]): the
+    /// nested script read word by word as `Tcl_ParseCommand` reads it, over
+    /// the document's line continuations, with a recovery ghost `]` closing
+    /// the innermost substitution open where it sits.
     fn parse_command(&mut self) -> Result<Token, LexError> {
         let bracket_pos = self.pos;
-        self.pos += 1; // skip '['
-        let content_start = self.pos;
-
-        let mut level: u32 = 1;
-        let mut blevel: u32 = 0;
-        let mut in_quotes = false;
-        // A command substitution contains a Tcl script, so its command
-        // position is independent of the outer lexer.  Keep this pair with
-        // the delimiter counters: a `#` is a comment only outside quotes /
-        // braces, after the `[` or a top-level `;` / newline.
-        let mut in_comment = false;
-        let mut at_command_start = true;
-
-        while let Some(ch) = self.current_char() {
-            if let Some(closed) = self.advance_command_ghost(&mut level) {
-                if closed {
-                    break;
+        let content_start = self.pos + 1;
+        let mut nested_ghosts = Vec::new();
+        let ghosts = &self.ghosts;
+        let end = crate::ranges::scan_command_substitution(
+            self.source().as_bytes(),
+            bracket_pos as usize,
+            crate::ranges::Continuation::Document,
+            &mut |pos| {
+                let offset = u32::try_from(pos).expect("source offset fits u32");
+                let seen = ghosts.get(&offset) == Some(&b']');
+                if seen {
+                    nested_ghosts.push(offset);
                 }
-                continue;
+                seen
+            },
+        );
+        let stop = match end {
+            crate::ranges::SubstitutionEnd::Closed(end) => end - 1,
+            crate::ranges::SubstitutionEnd::Ghost(at) => {
+                nested_ghosts.retain(|&offset| offset as usize != at);
+                at
             }
-
-            // `#` comments are parsed by the nested Tcl script, not by the
-            // outer lexer.  In particular, a `]` in a command-position
-            // comment is content and must not close this substitution.  A
-            // backslash-newline continues the comment, matching
-            // `parse_comment` and C Tcl's TclParse.c rule.
-            if in_comment {
-                if self.advance_command_comment(ch) {
-                    in_comment = false;
-                    at_command_start = true;
-                }
-                continue;
-            }
-
-            if ch == '#' && at_command_start && blevel == 0 && !in_quotes {
-                in_comment = true;
-                self.pos += 1;
-                continue;
-            }
-
-            match ch {
-                '"' if blevel == 0 => {
-                    in_quotes = !in_quotes;
-                    at_command_start = false;
-                    self.pos += 1;
-                }
-                '[' if blevel == 0 && !in_quotes => {
-                    level += 1;
-                    // A nested command substitution starts a fresh script.
-                    at_command_start = true;
-                    self.pos += 1;
-                }
-                ']' if blevel == 0 && !in_quotes => {
-                    level -= 1;
-                    if level == 0 {
-                        // Leave `self.pos` at the closing `]`; the
-                        // code after the loop decides whether to
-                        // include it in the span and consume it.
-                        break;
-                    }
-                    at_command_start = false;
-                    self.pos += 1;
-                }
-                '\\' => {
-                    let continuation = self.source_is_line_continuation();
-                    self.pos = u32::try_from(self.source_backslash_escape_end())
-                        .expect("source offset fits u32");
-                    // A continuation substitutes to whitespace and keeps
-                    // command position; every other escape is word content.
-                    if !continuation {
-                        at_command_start = false;
-                    }
-                }
-                '$' if !in_quotes && blevel == 0 => {
-                    // `${…}` inside a command body: sub-scan to the matching `}`
-                    // so any `)` or `]` inside a braced variable name does not
-                    // fool the outer counter.
-                    if self.peek_byte(1) == Some(b'{') {
-                        self.skip_braced_var_name();
-                    } else {
-                        self.pos += 1;
-                    }
-                    at_command_start = false;
-                }
-                '{' if !in_quotes => {
-                    blevel += 1;
-                    at_command_start = false;
-                    self.pos += 1;
-                }
-                '}' if !in_quotes => {
-                    blevel = blevel.saturating_sub(1);
-                    at_command_start = false;
-                    self.pos += 1;
-                }
-                '\n' | ';' if blevel == 0 && !in_quotes => {
-                    at_command_start = true;
-                    self.pos += 1;
-                }
-                ' ' | '\t' | '\r' | '\u{0b}' | '\u{0c}' if blevel == 0 && !in_quotes => {
-                    // Leading whitespace preserves command position.
-                    self.pos += 1;
-                }
-                _ => {
-                    at_command_start = false;
-                    self.pos += u32::try_from(ch.len_utf8()).expect("char len fits u32");
-                }
-            }
+            crate::ranges::SubstitutionEnd::Unterminated => self.source().len(),
+        };
+        for offset in nested_ghosts {
+            self.ghosts.remove(&offset);
         }
-
+        self.pos = u32::try_from(stop).expect("source offset fits u32");
         self.finish_command_token(bracket_pos, content_start)
     }
 }
