@@ -3895,6 +3895,50 @@ impl WorkspaceIndex {
         self.docs.iter().flat_map(|doc| doc.sources.iter())
     }
 
+    /// Current source-action input from an actual indexed row. Reporting path
+    /// text/ranges cannot replace the retained FILE operand and source owner.
+    #[must_use]
+    pub fn source_file_reference(
+        &self,
+        source: &WorkspaceSource,
+    ) -> Option<(
+        u64,
+        &tcl_compiler::auto_path_eval::OriginalSourcePathExpression,
+    )> {
+        let document = self.docs.get(*self.slots.get(&source.uri)?)?;
+        let source = document
+            .sources
+            .iter()
+            .find(|row| std::ptr::eq(*row, source))?;
+        let original = source.original_path_expression.as_ref()?;
+        original.file_reference_value()?;
+        original
+            .matches_assignments(&document.path_constant_assignments)
+            .then_some(())?;
+        Some((document.revision, original))
+    }
+
+    /// Join a proposed host file action to the same indexed source generation
+    /// and independently obtained current analysis before publishing edits.
+    #[must_use]
+    pub fn source_file_reference_is_current(
+        &self,
+        uri: &str,
+        revision: u64,
+        original: &tcl_compiler::auto_path_eval::OriginalSourcePathExpression,
+        analysis: &AnalysisResult,
+    ) -> bool {
+        self.document_revision(uri) == Some(revision)
+            && original.matches_analysis(analysis)
+            && self.sources().any(|row| {
+                row.uri == uri
+                    && row.original_path_expression.as_ref() == Some(original)
+                    && self
+                        .source_file_reference(row)
+                        .is_some_and(|(held, _)| held == revision)
+            })
+    }
+
     /// `uri`'s raw single-assignment path-constant candidates
     /// ([`AnalysisResult::path_constant_assignments`], carried per document);
     /// empty for an unindexed URI.  The source-edge resolver chain-folds

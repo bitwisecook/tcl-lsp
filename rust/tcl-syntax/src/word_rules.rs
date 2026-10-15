@@ -984,7 +984,26 @@ pub fn lexical_ascii_source_word(value: &str, config: tcl_lexer::LexerConfig) ->
 /// This authoring purpose supplies no Native name recipe or existing identity.
 #[must_use]
 pub fn lexical_unicode_source_word(value: &str, config: tcl_lexer::LexerConfig) -> Option<String> {
-    let admits = |spelling: &str| {
+    let proposal = crate::list::list_element(value);
+    if lexical_unicode_source_word_matches(&proposal, value, config) {
+        return Some(proposal);
+    }
+    let fragment = crate::backslash::literal_quoted_source_fragment(value, config.escapes)?;
+    let proposal = format!("\"{fragment}\"");
+    lexical_unicode_source_word_matches(&proposal, value, config).then_some(())?;
+    Some(proposal)
+}
+
+/// Whether one complete configured source word has exactly the supplied
+/// Unicode value. This is source syntax correspondence, not dispatch, value
+/// observation or edit authority.
+#[must_use]
+pub fn lexical_unicode_source_word_matches(
+    spelling: &str,
+    value: &str,
+    config: tcl_lexer::LexerConfig,
+) -> bool {
+    let admits = || -> Option<()> {
         let end = u32::try_from(spelling.len()).ok()?;
         let image = tcl_lexer::SourceImage::document(spelling);
         let plan =
@@ -1001,14 +1020,7 @@ pub fn lexical_unicode_source_word(value: &str, config: tcl_lexer::LexerConfig) 
             && original_static_word_unicode_value(word)?.as_slice() == value.as_bytes())
         .then_some(())
     };
-    let proposal = crate::list::list_element(value);
-    if admits(&proposal).is_some() {
-        return Some(proposal);
-    }
-    let fragment = crate::backslash::literal_quoted_source_fragment(value, config.escapes)?;
-    let proposal = format!("\"{fragment}\"");
-    admits(&proposal)?;
-    Some(proposal)
+    admits().is_some()
 }
 
 #[cfg(test)]

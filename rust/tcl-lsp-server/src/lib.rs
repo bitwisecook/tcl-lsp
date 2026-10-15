@@ -29121,13 +29121,9 @@ impl LanguageServer for Backend {
         }))
     }
 
-    /// `workspace/willRenameFiles`: when `.tcl` files are
-    /// renamed in the editor, rewrite every dependent file's `source`
-    /// literal so the workspace still loads.  The pure core
-    /// (`core_file_ops::compute_rename_edits`) returns byte-span edits
-    /// keyed by dependent URI; here we resolve each span to an LSP
-    /// range against the dependent's current text and assemble a
-    /// `WorkspaceEdit` (one `TextDocumentEdit` per dependent).
+    /// Project source-reference edits for an explicit host file rename.
+    /// Each literal proposal retains its actual FILE role and source owner;
+    /// current document/index joins precede versioned edit publication.
     async fn will_rename_files(
         &self,
         params: RenameFilesParams,
@@ -29142,50 +29138,200 @@ impl LanguageServer for Backend {
         {
             return Ok(None);
         }
-        // Collect the byte-span edits for every rename in the batch.
-        let roots: Vec<String> = self
+        let epoch = self.diag_inputs_epoch();
+        let Some(roots) = self
             .workspace_folder_urls()
             .await
             .iter()
-            .map(|u| u.as_str().to_owned())
-            .collect();
+            .map(uri_norm::file_action_path)
+            .collect::<Option<Vec<_>>>()
+        else {
+            return Ok(None);
+        };
+        let renames = params
+            .files
+            .iter()
+            .map(|file| {
+                let old: Uri = file.old_uri.parse().ok()?;
+                let new: Uri = file.new_uri.parse().ok()?;
+                Some((
+                    uri_norm::file_action_path(&old)?,
+                    uri_norm::file_action_path(&new)?,
+                ))
+            })
+            .collect::<Option<Vec<_>>>();
+        let Some(renames) = renames else {
+            return Ok(None);
+        };
+        // The roster schedules work only. Refresh each document from its
+        // genuine current analysis, then derive proposals from that same owner.
+        let (candidates, mut generation) = {
+            let index = self.workspace_index.read().await;
+            let mut candidates: Vec<_> = index.sources().map(|row| row.uri.clone()).collect();
+            candidates.sort();
+            candidates.dedup();
+            (candidates, index.generation())
+        };
+        let mut current_sources = HashMap::new();
+        for owner in candidates {
+            let Ok(uri) = owner.parse::<Uri>() else {
+                continue;
+            };
+            if uri_norm::file_action_path(&uri).is_none() {
+                continue;
+            }
+            let Some(document) = self.read_document(&uri).await else {
+                return Ok(None);
+            };
+            let analysis = self
+                .analysis_for(&uri, document.text.clone(), document.dialect.clone())
+                .await;
+            let Some(config) = analysis.body_lexer_config else {
+                return Ok(None);
+            };
+            if !analysis.matches_original_source_image(
+                &tcl_lexer::SourceImage::document(document.text.as_ref()),
+                config,
+            ) {
+                return Ok(None);
+            }
+            let Some(current) = self.read_document(&uri).await else {
+                return Ok(None);
+            };
+            if current.text != document.text
+                || current.dialect != document.dialect
+                || current.revision != document.revision
+                || current.version != document.version
+            {
+                return Ok(None);
+            }
+            let documents = self.documents.lock("will_rename_source_refresh").await;
+            if documents
+                .get(&uri)
+                .map_or(document.version.is_some(), |current| {
+                    let current = current.clone().normalised_for_analysis();
+                    current.backing_file_deleted
+                        || current.text != document.text
+                        || current.dialect != document.dialect
+                        || current.revision != document.revision
+                        || current.version != document.version
+                })
+            {
+                return Ok(None);
+            }
+            let mut index = self.workspace_index.write().await;
+            if index.generation() != generation || self.diag_inputs_epoch() != epoch {
+                return Ok(None);
+            }
+            index.replace_document(uri.as_str(), &analysis);
+            generation = index.generation();
+            current_sources.insert(uri, (document, analysis));
+        }
         let raw_edits: Vec<core_file_ops::RenameEdit> = {
             let index = self.workspace_index.read().await;
-            params
-                .files
+            if index.generation() != generation {
+                return Ok(None);
+            }
+            renames
                 .iter()
-                .flat_map(|f| {
-                    core_file_ops::compute_rename_edits(&f.old_uri, &f.new_uri, &index, &roots)
+                .flat_map(|(old, new)| {
+                    core_file_ops::FileRenameSourceAction::new(old, new, &roots)
+                        .map(|action| {
+                            core_file_ops::compute_rename_edits(&action, &index, &|owner| {
+                                uri_norm::file_action_path(&owner.parse::<Uri>().ok()?)
+                            })
+                        })
+                        .unwrap_or_default()
                 })
                 .collect()
         };
         if raw_edits.is_empty() {
             return Ok(None);
         }
-        // Group by dependent URI, resolving each span against that
-        // document's source (open buffer or on-disk fallback).
-        let mut by_dep: HashMap<Uri, Vec<TextEdit>> = HashMap::new();
+        let mut by_dep: HashMap<Uri, Vec<core_file_ops::RenameEdit>> = HashMap::new();
         for edit in raw_edits {
-            let Ok(dep_url) = Uri::from_str(&edit.uri) else {
-                continue;
+            let Ok(uri) = edit.uri.parse::<Uri>() else {
+                return Ok(None);
             };
-            let Some(doc) = self.read_document(&dep_url).await else {
-                continue;
-            };
-            let line_index = doc.line_index.clone();
-            by_dep.entry(dep_url).or_default().push(TextEdit {
-                range: lift_span(&doc.text, &line_index, edit.span),
-                new_text: edit.new_text,
-            });
+            by_dep.entry(uri).or_default().push(edit);
         }
-        if by_dep.is_empty() {
+        let mut held = Vec::new();
+        for (uri, mut edits) in by_dep {
+            edits.sort_by_key(|edit| (edit.span.start(), edit.span.end()));
+            edits.dedup();
+            if edits
+                .windows(2)
+                .any(|pair| pair[0].span.end() > pair[1].span.start())
+            {
+                return Ok(None);
+            }
+            let Some((document, analysis)) = current_sources.remove(&uri) else {
+                return Ok(None);
+            };
+            {
+                let index = self.workspace_index.read().await;
+                if !edits.iter().all(|edit| {
+                    uri_norm::file_action_path(&uri)
+                        .is_some_and(|path| edit.matches_current(&index, &analysis, &path))
+                }) {
+                    return Ok(None);
+                }
+            }
+            held.push((uri, document, analysis, edits));
+        }
+        // Closed files have no client version; re-read them before the final
+        // open-document/index join rather than publishing stale indexed spans.
+        for (uri, document, _, _) in &held {
+            let Some(current) = self.read_document(uri).await else {
+                return Ok(None);
+            };
+            if current.text != document.text
+                || current.dialect != document.dialect
+                || current.revision != document.revision
+                || current.version != document.version
+            {
+                return Ok(None);
+            }
+        }
+        let documents = self.documents.lock("will_rename_source_currency").await;
+        let index = self.workspace_index.read().await;
+        if self.diag_inputs_epoch() != epoch
+            || index.generation() != generation
+            || held.iter().any(|(uri, document, analysis, edits)| {
+                documents
+                    .get(uri)
+                    .map_or(document.version.is_some(), |current| {
+                        let current = current.clone().normalised_for_analysis();
+                        current.backing_file_deleted
+                            || current.text != document.text
+                            || current.dialect != document.dialect
+                            || current.revision != document.revision
+                            || current.version != document.version
+                    })
+                    || !edits.iter().all(|edit| {
+                        uri_norm::file_action_path(uri)
+                            .is_some_and(|path| edit.matches_current(&index, analysis, &path))
+                    })
+            })
+        {
             return Ok(None);
         }
-        let document_changes: Vec<TextDocumentEdit> = by_dep
+        let document_changes: Vec<TextDocumentEdit> = held
             .into_iter()
-            .map(|(uri, edits)| TextDocumentEdit {
-                text_document: OptionalVersionedTextDocumentIdentifier { uri, version: None },
-                edits: edits.into_iter().map(OneOf::Left).collect(),
+            .map(|(uri, document, _, edits)| TextDocumentEdit {
+                text_document: OptionalVersionedTextDocumentIdentifier {
+                    uri,
+                    version: document.version,
+                },
+                edits: edits
+                    .into_iter()
+                    .map(|edit| {
+                        OneOf::Left(TextEdit {
+                            range: lift_span(&document.text, &document.line_index, edit.span),
+                            new_text: edit.new_text,
+                        })
+                    })
+                    .collect(),
             })
             .collect();
         Ok(Some(WorkspaceEdit {
@@ -58999,6 +59145,73 @@ proc p {} {
         // The edit range covers the original `lib/old.tcl` literal on
         // the first line.
         assert_eq!(text_edit.range.start.line, 0);
+    }
+
+    #[tokio::test]
+    async fn will_rename_retains_client_version_and_literal_source_value() {
+        let backend = test_backend();
+        let uri: Uri = "file:///project/main.tcl".parse().unwrap();
+        let source = "source \"lib/old.tcl\"\n";
+        backend
+            .did_open(DidOpenTextDocumentParams {
+                text_document: TextDocumentItem {
+                    uri: uri.clone(),
+                    language_id: "tcl".to_owned(),
+                    version: 17,
+                    text: source.to_owned(),
+                },
+            })
+            .await;
+        let result = backend
+            .will_rename_files(RenameFilesParams {
+                files: vec![tower_lsp_server::ls_types::FileRename {
+                    old_uri: "file:///project/lib/old.tcl".to_owned(),
+                    new_uri: "file:///project/lib/new%20%24v%5Bunknown%5D%3B.tcl".to_owned(),
+                }],
+            })
+            .await
+            .unwrap()
+            .expect("actual source action");
+        let DocumentChanges::Edits(edits) = result.document_changes.unwrap() else {
+            panic!("document edits");
+        };
+        assert_eq!(edits.len(), 1);
+        assert_eq!(edits[0].text_document.version, Some(17));
+        let OneOf::Left(edit) = &edits[0].edits[0] else {
+            panic!("plain edit");
+        };
+        let start = tcl_lexer::LineIndex::new(source).offset_at_utf16(
+            edit.range.start.line,
+            tcl_lexer::Utf16Col::new(edit.range.start.character),
+            source,
+        );
+        let end = tcl_lexer::LineIndex::new(source).offset_at_utf16(
+            edit.range.end.line,
+            tcl_lexer::Utf16Col::new(edit.range.end.character),
+            source,
+        );
+        let mut changed = source.to_owned();
+        changed.replace_range(start as usize..end as usize, &edit.new_text);
+        let document = backend.read_document(&uri).await.unwrap();
+        let analysis = backend
+            .analysis_for(&uri, document.text, document.dialect)
+            .await;
+        let config = analysis.body_lexer_config.unwrap();
+        let image = tcl_lexer::SourceImage::document(&changed);
+        let plan = tcl_lexer::native_script_words_in(
+            image,
+            tcl_lexer::Span::new(0, u32::try_from(changed.len()).unwrap()),
+            config,
+        )
+        .unwrap();
+        assert!(plan.fatal_tail.is_none());
+        assert_eq!(plan.commands.len(), 1);
+        assert_eq!(plan.commands[0].words.len(), 2);
+        assert_eq!(
+            tcl_syntax::word_rules::original_static_word_unicode_value(&plan.commands[0].words[1])
+                .as_deref(),
+            Some("lib/new $v[unknown];.tcl".as_bytes())
+        );
     }
 
     #[tokio::test]

@@ -16,254 +16,218 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! File-operation helpers: rewrite `source FILE` references when a
-//! sourced file is renamed.
-//!
-//! When a `.tcl` file is renamed, every dependent file that `source`s
-//! it (via a *literal* path) gets its path literal rewritten so the
-//! workspace still loads.  `compute_rename_edits` is pure and
-//! returns byte-span edits keyed by dependent URI; the server resolves
-//! the spans to LSP ranges against each dependent's current text and
-//! assembles the `WorkspaceEdit`.
+//! Intentional project source-reference rewrites for host file renames.
 
+use std::path::{Path, PathBuf};
+
+use tcl_compiler::analyser::AnalysisResult;
+use tcl_compiler::auto_path_eval::OriginalSourcePathExpression;
 use tcl_lexer::Span;
 
+use crate::source_graph::{ProjectSourceAssociation, project_source_association};
 use crate::workspace_index::WorkspaceIndex;
 
-/// One edit to a dependent document: replace `span` with `new_text`.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RenameEdit {
-    /// Dependent document to edit.
-    pub uri: String,
-    /// Byte span of the `source` path literal to replace.
-    pub span: Span,
-    /// New path literal (style-preserving — relative stays relative).
-    pub new_text: String,
+/// Actual host paths and the declared project association policy for a user
+/// file rename. This authorizes an intentional source rewrite; it establishes
+/// neither Tcl's runtime working directory nor an observed file load.
+#[derive(Debug)]
+pub struct FileRenameSourceAction<'a> {
+    old_path: &'a Path,
+    new_path: &'a Path,
+    workspace_roots: &'a [PathBuf],
 }
 
-/// Compute the `source`-rewrite edits for renaming `old_uri` → `new_uri`.
-///
-/// Scans every literal `source` target in the index, resolves it
-/// against its own document's path (and each workspace root), and — when
-/// it points at `old_uri`'s path — emits an edit replacing the literal
-/// with the new path (preserving absolute-vs-relative style).
-/// `workspace_roots` are `file://` URIs of the workspace folders, tried
-/// for a relative literal that doesn't resolve next to its script.
-/// Returns an empty vector when nothing references the renamed file.
+impl<'a> FileRenameSourceAction<'a> {
+    #[must_use]
+    pub fn new(
+        old_path: &'a Path,
+        new_path: &'a Path,
+        workspace_roots: &'a [PathBuf],
+    ) -> Option<Self> {
+        let admissible = |path: &Path| {
+            path.is_absolute() && path.to_str().is_some_and(|text| !text.contains('\0'))
+        };
+        (admissible(old_path)
+            && admissible(new_path)
+            && workspace_roots.iter().all(|root| admissible(root)))
+        .then_some(Self {
+            old_path,
+            new_path,
+            workspace_roots,
+        })
+    }
+}
+
+/// A proposed edit retaining its original source/index generation. The host
+/// must join it to current analysis and document versions before publication.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RenameEdit {
+    pub uri: String,
+    pub span: Span,
+    pub new_text: String,
+    revision: u64,
+    original: OriginalSourcePathExpression,
+    literal: String,
+    document_path: PathBuf,
+    old_path: PathBuf,
+    new_path: PathBuf,
+    workspace_roots: Vec<PathBuf>,
+    association: ProjectSourceAssociation,
+}
+
+impl RenameEdit {
+    #[must_use]
+    pub fn matches_current(
+        &self,
+        index: &WorkspaceIndex,
+        analysis: &AnalysisResult,
+        document_path: &Path,
+    ) -> bool {
+        self.document_path == document_path
+            && self.original.file_reference_value().is_some_and(|literal| {
+                project_source_association(
+                    document_path,
+                    &self.workspace_roots,
+                    literal,
+                    &self.old_path,
+                )
+                .is_some_and(|association| {
+                    association == self.association
+                        && association.renamed_literal(&self.new_path).as_deref()
+                            == Some(self.literal.as_str())
+                })
+            })
+            && index.source_file_reference_is_current(
+                &self.uri,
+                self.revision,
+                &self.original,
+                analysis,
+            )
+            && self
+                .original
+                .file_rename_proposal(&self.literal)
+                .is_some_and(|proposal| {
+                    proposal.span() == self.span && proposal.replacement() == self.new_text
+                })
+    }
+}
+
+/// Apply the explicit script-directory/workspace-root project policy to
+/// genuine current FILE-reference source inputs. A unique project association
+/// and exact configured literal replacement are required; report path strings,
+/// conditional source expressions and guessed ranges are never edit inputs.
 #[must_use]
 pub fn compute_rename_edits(
-    old_uri: &str,
-    new_uri: &str,
+    action: &FileRenameSourceAction<'_>,
     index: &WorkspaceIndex,
-    workspace_roots: &[String],
+    document_path: &dyn Fn(&str) -> Option<PathBuf>,
 ) -> Vec<RenameEdit> {
-    let (Some(old_raw), Some(new_raw)) = (uri_to_path(old_uri), uri_to_path(new_uri)) else {
-        return Vec::new(); // non-file URIs are not renameable
-    };
-    let old_path = normpath(&old_raw);
-    let new_path = normpath(&new_raw);
-    // Workspace roots as filesystem paths (non-file URIs are dropped).
-    let root_paths: Vec<String> = workspace_roots
-        .iter()
-        .filter_map(|r| uri_to_path(r))
-        .collect();
-
     let mut edits = Vec::new();
-    for src in index.sources() {
-        if !src.is_literal {
-            continue; // conservative: leave substitution paths alone
-        }
-        let Some(dep_path) = uri_to_path(&src.uri) else {
+    for source in index.sources() {
+        let Some((revision, original)) = index.source_file_reference(source) else {
             continue;
         };
-        let Some(base) = matched_base(&src.raw_path, &dep_path, &root_paths, &old_path) else {
+        let Some(path) = document_path(&source.uri) else {
             continue;
         };
-        let new_text = compute_new_literal(&src.raw_path, &base, &new_path);
-        // `src.range` is the path word's lexer span, which for a braced
-        // (`{…}`) or quoted (`"…"`) literal covers the *opening*
-        // delimiter + content but not the closing one (the inner-end
-        // span convention).  Replacing it with the bare new path would
-        // drop the opener and orphan the closer (`{old}` → `new}`), so
-        // narrow the edit to the path content only — the range length
-        // minus the (delimiter-free) `raw_path` length is the opening
-        // delimiter width, and the closing delimiter sits past
-        // `range.end()`.  Both delimiters are then preserved.
+        let Some(literal) = original.file_reference_value() else {
+            continue;
+        };
+        let Some(association) =
+            project_source_association(&path, action.workspace_roots, literal, action.old_path)
+        else {
+            continue;
+        };
+        let Some(literal) = association.renamed_literal(action.new_path) else {
+            continue;
+        };
+        let Some(proposal) = original.file_rename_proposal(&literal) else {
+            continue;
+        };
         edits.push(RenameEdit {
-            uri: src.uri.clone(),
-            span: content_span(src.range, &src.raw_path),
-            new_text,
+            uri: source.uri.clone(),
+            span: proposal.span(),
+            new_text: proposal.replacement().to_owned(),
+            revision,
+            original: original.clone(),
+            literal,
+            document_path: path,
+            old_path: action.old_path.to_path_buf(),
+            new_path: action.new_path.to_path_buf(),
+            workspace_roots: action.workspace_roots.to_vec(),
+            association,
         });
     }
     edits
-}
-
-/// The span covering only the path *content* of a `source` literal,
-/// given the word's full lexer span and its delimiter-free `raw_path`.
-/// For a braced / quoted literal the leading delimiter width is
-/// `range_len - raw_path_len`; the trailing delimiter lies past
-/// `range.end()` and is left untouched, so a rewrite preserves both.
-/// For a bare word the delimiter width is zero (the span is returned
-/// unchanged).
-fn content_span(range: Span, raw_path: &str) -> Span {
-    let range_len = range.end().saturating_sub(range.start());
-    let raw_len = u32::try_from(raw_path.len()).unwrap_or(range_len);
-    let lead = range_len.saturating_sub(raw_len);
-    Span::new(range.start() + lead, range.end())
-}
-
-/// Convert a `file://` URI to a filesystem path, or `None` for a
-/// non-file URI (`untitled:`, `vscode-vfs:`, …).
-fn uri_to_path(uri: &str) -> Option<String> {
-    let rest = uri.strip_prefix("file://")?;
-    // `file:///abs/path` → `/abs/path`; drop a leading authority-less
-    // `//` host segment (empty host) by keeping from the first `/`.
-    let path = rest.strip_prefix("//").map_or(rest, |after_host| {
-        after_host.find('/').map_or("/", |i| &after_host[i..])
-    });
-    Some(percent_decode(path))
-}
-
-/// Minimal percent-decoding for the characters a path realistically
-/// carries (`%20` → space, etc.).  Unknown / malformed escapes pass
-/// through verbatim.
-fn percent_decode(s: &str) -> String {
-    let bytes = s.as_bytes();
-    let mut out = Vec::with_capacity(bytes.len());
-    let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] == b'%'
-            && i + 2 < bytes.len()
-            && let (Some(h), Some(l)) = (hex_val(bytes[i + 1]), hex_val(bytes[i + 2]))
-        {
-            out.push(h * 16 + l);
-            i += 3;
-            continue;
-        }
-        out.push(bytes[i]);
-        i += 1;
-    }
-    String::from_utf8_lossy(&out).into_owned()
-}
-
-fn hex_val(b: u8) -> Option<u8> {
-    match b {
-        b'0'..=b'9' => Some(b - b'0'),
-        b'a'..=b'f' => Some(b - b'a' + 10),
-        b'A'..=b'F' => Some(b - b'A' + 10),
-        _ => None,
-    }
-}
-
-/// The base directory under which a literal `source` path resolves to
-/// `old_path`, or `None` if it does not resolve.  Candidate bases (for the
-/// relative case) are the script's own directory first, then each workspace
-/// root; an absolute literal resolves only to itself (base unused, reported as
-/// `""`).  The pure analogue of the filesystem `isfile` probes — a match against
-/// *any* candidate counts, since the renamed file is known to exist at
-/// `old_path`.
-///
-/// The matched base is returned (not just a bool) so the rewrite re-relativises
-/// the literal against the *same* base it matched under: a literal matched via
-/// a workspace root must stay root-relative, not be recomputed against the
-/// script's directory.
-fn matched_base(raw: &str, dep_path: &str, roots: &[String], old_path: &str) -> Option<String> {
-    if raw.starts_with('/') {
-        return (normpath(raw) == old_path).then(String::new);
-    }
-    // Relative to the script's own directory.
-    let dir = posix_dirname(dep_path);
-    if normpath(&posix_join(dir, raw)) == old_path {
-        return Some(dir.to_string());
-    }
-    // Relative to each workspace root.
-    roots
-        .iter()
-        .find(|root| normpath(&posix_join(root, raw)) == old_path)
-        .cloned()
-}
-
-/// The new path literal preserving the existing style: an absolute
-/// literal becomes the new absolute path; a relative one is re-relative
-/// to `base` — the directory it was found to resolve under.
-fn compute_new_literal(old_literal: &str, base: &str, new_abs_path: &str) -> String {
-    if old_literal.starts_with('/') {
-        return new_abs_path.to_string();
-    }
-    relpath(new_abs_path, base)
-}
-
-// posix path helpers (the test environment is Linux)
-
-fn posix_dirname(p: &str) -> &str {
-    match p.rfind('/') {
-        Some(0) => "/",
-        Some(i) => &p[..i],
-        None => "",
-    }
-}
-
-fn posix_join(dir: &str, rel: &str) -> String {
-    if dir.is_empty() {
-        rel.to_string()
-    } else if dir.ends_with('/') {
-        format!("{dir}{rel}")
-    } else {
-        format!("{dir}/{rel}")
-    }
-}
-
-/// Collapse `.` / `..` / repeated slashes (POSIX path normalisation).
-fn normpath(p: &str) -> String {
-    if p.is_empty() {
-        return ".".to_string();
-    }
-    let absolute = p.starts_with('/');
-    let mut out: Vec<&str> = Vec::new();
-    for comp in p.split('/') {
-        match comp {
-            "" | "." => {}
-            ".." => {
-                if matches!(out.last(), Some(&"..")) || (!absolute && out.is_empty()) {
-                    out.push("..");
-                } else {
-                    out.pop();
-                }
-            }
-            other => out.push(other),
-        }
-    }
-    let joined = out.join("/");
-    if absolute {
-        format!("/{joined}")
-    } else if joined.is_empty() {
-        ".".to_string()
-    } else {
-        joined
-    }
-}
-
-/// Relative path from `start` to `target`.
-fn relpath(target: &str, start: &str) -> String {
-    let target_norm = normpath(target);
-    let start_norm = normpath(start);
-    let t: Vec<&str> = target_norm.split('/').filter(|c| !c.is_empty()).collect();
-    let s: Vec<&str> = start_norm.split('/').filter(|c| !c.is_empty()).collect();
-    let common = t.iter().zip(&s).take_while(|(a, b)| a == b).count();
-    let ups = s.len() - common;
-    let mut parts: Vec<&str> = vec![".."; ups];
-    parts.extend(&t[common..]);
-    if parts.is_empty() {
-        ".".to_string()
-    } else {
-        parts.join("/")
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use tcl_compiler::analyser::Analyser;
+
+    // Preserve the original URI-facing test ingress through the real protocol
+    // provider; production receives paths checked by the server URI owner.
+    fn uri_to_path(uri: &str) -> Option<String> {
+        let uri: tower_lsp_server::ls_types::Uri = uri.parse().ok()?;
+        (uri.scheme().as_str() == "file" && uri.query().is_none() && uri.fragment().is_none())
+            .then_some(())?;
+        let authority = uri
+            .authority()
+            .map(|authority| authority.as_str())
+            .unwrap_or_default();
+        if !authority.is_empty() && !(cfg!(unix) && authority.eq_ignore_ascii_case("localhost")) {
+            return None;
+        }
+        let decoded = uri.path().decode().to_string().ok()?;
+        (!decoded.contains('\0')).then_some(())?;
+        uri.to_file_path()?.to_str().map(str::to_owned)
+    }
+
+    fn compute_rename_edits(
+        old_uri: &str,
+        new_uri: &str,
+        index: &WorkspaceIndex,
+        roots: &[String],
+    ) -> Vec<RenameEdit> {
+        let (Some(old), Some(new)) = (uri_to_path(old_uri), uri_to_path(new_uri)) else {
+            return Vec::new();
+        };
+        let Some(roots) = roots
+            .iter()
+            .map(|root| uri_to_path(root).map(PathBuf::from))
+            .collect::<Option<Vec<_>>>()
+        else {
+            return Vec::new();
+        };
+        let Some(action) = FileRenameSourceAction::new(Path::new(&old), Path::new(&new), &roots)
+        else {
+            return Vec::new();
+        };
+        super::compute_rename_edits(&action, index, &|uri| uri_to_path(uri).map(PathBuf::from))
+    }
+
+    fn normpath(path: &str) -> String {
+        crate::source_graph::resolve_under(Path::new(""), path)
+            .to_str()
+            .unwrap()
+            .to_owned()
+    }
+
+    fn posix_dirname(path: &str) -> &str {
+        Path::new(path)
+            .parent()
+            .and_then(Path::to_str)
+            .unwrap_or("")
+    }
+
+    fn relpath(target: &str, base: &str) -> String {
+        crate::source_graph::relative_source_path(Path::new(target), Path::new(base))
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_owned()
+    }
 
     fn index_of(uri: &str, src: &str) -> WorkspaceIndex {
         let mut a = Analyser::new();
@@ -399,5 +363,27 @@ mod tests {
         assert_eq!(relpath("/proj/new.tcl", "/proj/sub"), "../new.tcl");
         assert_eq!(uri_to_path("file:///a/b.tcl").as_deref(), Some("/a/b.tcl"));
         assert_eq!(uri_to_path("untitled:foo"), None);
+    }
+    #[test]
+    fn file_action_edits_require_the_original_index_and_analysis_generation() {
+        let source = "source {lib/old.tcl}\n";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let mut index = WorkspaceIndex::new();
+        index.add_document("file:///project/main.tcl", &analysis);
+        let edits = compute_rename_edits(
+            "file:///project/lib/old.tcl",
+            "file:///project/lib/new.tcl",
+            &index,
+            &[],
+        );
+        assert_eq!(edits.len(), 1);
+        assert!(edits[0].matches_current(&index, &analysis, Path::new("/project/main.tcl")));
+        let mut altered = edits[0].clone();
+        altered.new_text.push_str("; unknown");
+        assert!(!altered.matches_current(&index, &analysis, Path::new("/project/main.tcl")));
+        let foreign = Analyser::new().analyse(source, "tcl8.6");
+        assert!(!edits[0].matches_current(&index, &foreign, Path::new("/project/main.tcl")));
+        index.replace_document("file:///project/main.tcl", &analysis);
+        assert!(!edits[0].matches_current(&index, &analysis, Path::new("/project/main.tcl")));
     }
 }

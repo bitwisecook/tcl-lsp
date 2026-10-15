@@ -59,9 +59,11 @@ use std::sync::Arc;
 /// Resolve a literal `source` path argument written in `parent_file` to the
 /// absolute path it refers to.
 ///
-/// A relative `raw_path` resolves against the **directory** of `parent_file`
-/// (Tcl's `source` is relative to the sourcing script's location); an absolute
-/// `raw_path` passes through unchanged.  The result is lexically normalised —
+/// This project association resolves a relative `raw_path` against the
+/// directory of `parent_file`; an absolute path passes through unchanged.
+/// Tcl itself resolves relative `source` paths against its runtime working
+/// directory, which this advisory graph does not establish.
+/// The result is lexically normalised —
 /// `.` and `..` segments are folded without touching the filesystem, so a
 /// symlink is never followed and the call is cheap and deterministic.
 #[must_use]
@@ -108,6 +110,127 @@ fn lexically_normalise(path: &Path) -> PathBuf {
         return PathBuf::from(".");
     }
     out.iter().collect()
+}
+
+/// The unique declared project base associating a literal source reference
+/// with a host rename. This is an intentional source-action policy, not an
+/// observation of Tcl's working directory, file loading or normal completion.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProjectSourceAssociation {
+    base: Option<PathBuf>,
+}
+
+impl ProjectSourceAssociation {
+    /// Preserve absolute/relative style under this same declared project base.
+    #[must_use]
+    pub fn renamed_literal(&self, new_path: &Path) -> Option<String> {
+        if !project_source_action_path(new_path) {
+            return None;
+        }
+        let target = lexically_normalise(new_path);
+        let value = match &self.base {
+            None => target,
+            Some(base) => relative_source_path(&target, base)?,
+        };
+        let text = value.to_str()?;
+        #[cfg(windows)]
+        let text = text.replace('\\', "/");
+        Some(text.to_owned())
+    }
+}
+
+/// Associate a whole literal FILE operand under the explicitly declared
+/// script-directory/workspace-root project policy. Multiple distinct matching
+/// bases refuse; candidate filesystem existence is never inferred here.
+#[must_use]
+pub fn project_source_association(
+    document: &Path,
+    workspace_roots: &[PathBuf],
+    literal: &str,
+    old_path: &Path,
+) -> Option<ProjectSourceAssociation> {
+    // Home expansion and drive-relative bases have no project-path issuer.
+    if literal.is_empty()
+        || literal.starts_with('~')
+        || literal.contains('\0')
+        || !project_source_action_path(document)
+        || !project_source_action_path(old_path)
+    {
+        return None;
+    }
+    let old = lexically_normalise(old_path);
+    let raw = Path::new(literal);
+    if raw.is_absolute() {
+        project_source_action_path(raw).then_some(())?;
+        return (lexically_normalise(raw) == old)
+            .then_some(ProjectSourceAssociation { base: None });
+    }
+    if matches!(raw.components().next(), Some(Component::Prefix(_))) {
+        return None;
+    }
+    let mut bases = Vec::new();
+    for base in
+        std::iter::once(document.parent()?).chain(workspace_roots.iter().map(PathBuf::as_path))
+    {
+        if !project_source_action_path(base) {
+            return None;
+        }
+        let base = lexically_normalise(base);
+        if resolve_under(&base, literal) == old && !bases.contains(&base) {
+            bases.push(base);
+        }
+    }
+    let [base] = bases.as_slice() else {
+        return None;
+    };
+    Some(ProjectSourceAssociation {
+        base: Some(base.clone()),
+    })
+}
+
+fn project_source_action_path(path: &Path) -> bool {
+    // POSIX double-leading slash may select an implementation-defined root.
+    path.is_absolute()
+        && path
+            .to_str()
+            .is_some_and(|text| !text.contains('\0') && !(cfg!(unix) && text.starts_with("//")))
+}
+
+/// Relative spelling in the same host path domain; different roots decline.
+#[must_use]
+pub fn relative_source_path(target: &Path, base: &Path) -> Option<PathBuf> {
+    if !target.is_absolute() || !base.is_absolute() {
+        return None;
+    }
+    let target = lexically_normalise(target);
+    let base = lexically_normalise(base);
+    let target: Vec<_> = target.components().collect();
+    let base: Vec<_> = base.components().collect();
+    if target.first() != base.first() {
+        return None;
+    }
+    let common = target
+        .iter()
+        .zip(&base)
+        .take_while(|(left, right)| left == right)
+        .count();
+    if base[common..]
+        .iter()
+        .any(|part| !matches!(part, Component::Normal(_)))
+    {
+        return None;
+    }
+    let mut result = PathBuf::new();
+    for _ in &base[common..] {
+        result.push("..");
+    }
+    for part in &target[common..] {
+        result.push(part.as_os_str());
+    }
+    if result.as_os_str().is_empty() {
+        result.push(".");
+    }
+    Some(result)
 }
 
 /// The union of `package require` names from every node that transitively
@@ -1787,5 +1910,68 @@ mod tests {
             [7, 90],
             "{got:?}",
         );
+    }
+}
+
+#[cfg(test)]
+mod project_source_action_tests {
+    use super::*;
+
+    #[test]
+    fn rename_association_requires_a_unique_declared_base_and_same_host_root() {
+        let document = Path::new("/project/sub/main.tcl");
+        let old = Path::new("/project/old.tcl");
+        let one = project_source_association(document, &[], "../old.tcl", old).unwrap();
+        assert_eq!(
+            one.renamed_literal(Path::new("/project/new.tcl"))
+                .as_deref(),
+            Some("../new.tcl")
+        );
+        assert!(
+            project_source_association(
+                document,
+                &[PathBuf::from("/project/other")],
+                "../old.tcl",
+                old
+            )
+            .is_none()
+        );
+        let duplicate = project_source_association(
+            document,
+            &[PathBuf::from("/project/sub")],
+            "../old.tcl",
+            old,
+        )
+        .unwrap();
+        assert_eq!(duplicate, one);
+        assert!(project_source_association(document, &[], "other.tcl", old).is_none());
+        assert!(
+            project_source_association(document, &[PathBuf::from("relative")], "../old.tcl", old)
+                .is_none()
+        );
+        assert!(one.renamed_literal(Path::new("relative/new.tcl")).is_none());
+        assert!(
+            relative_source_path(Path::new("relative/new.tcl"), Path::new("relative")).is_none()
+        );
+        assert!(project_source_association(document, &[], "~/old.tcl", old).is_none());
+        assert!(project_source_association(document, &[], "~other/old.tcl", old).is_none());
+        assert!(project_source_association(document, &[], "", old).is_none());
+        #[cfg(unix)]
+        {
+            assert!(
+                project_source_association(
+                    Path::new("//project/sub/main.tcl"),
+                    &[],
+                    "../old.tcl",
+                    old
+                )
+                .is_none()
+            );
+            assert!(project_source_association(document, &[], "//project/old.tcl", old).is_none());
+            assert!(
+                one.renamed_literal(Path::new("//project/new.tcl"))
+                    .is_none()
+            );
+        }
     }
 }

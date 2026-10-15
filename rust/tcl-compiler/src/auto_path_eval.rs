@@ -379,7 +379,7 @@ pub fn constant_path_vars(
 
 mod source_expression;
 pub use source_expression::{
-    OriginalSourceAutoPathExpression, OriginalSourcePathExpression,
+    OriginalSourceAutoPathExpression, OriginalSourceFileRewrite, OriginalSourcePathExpression,
     capture_source_auto_path_expression, capture_source_path_expression,
     capture_source_path_expression_at_analysis, capture_source_target_path_expression,
 };

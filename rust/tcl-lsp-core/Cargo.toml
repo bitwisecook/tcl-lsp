@@ -58,5 +58,12 @@ serde_json = "1"
 # same engine Tcl uses at runtime, tying the two to one source of truth.
 tcl-regex = { path = "../tcl-regex" }
 
+# Match the server provider's mutually exclusive runtime features per target.
+[target.'cfg(not(target_family = "wasm"))'.dev-dependencies]
+tower-lsp-server = "0.23"
+
+[target.'cfg(target_family = "wasm")'.dev-dependencies]
+tower-lsp-server = { version = "0.23", default-features = false, features = ["runtime-agnostic"] }
+
 [lints]
 workspace = true

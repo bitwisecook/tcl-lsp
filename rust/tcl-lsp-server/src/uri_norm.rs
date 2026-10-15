@@ -270,6 +270,32 @@ pub fn rooted_file_uri(path: &std::path::Path) -> Option<Uri> {
         .ok()
 }
 
+/// Strict incoming file-URI boundary for host file actions. URI repair and
+/// display normalization cannot establish a path. Decode with the protocol
+/// provider, rejecting its lossy Unicode fallback and unsupported authorities.
+#[must_use]
+pub fn file_action_path(uri: &Uri) -> Option<std::path::PathBuf> {
+    if !uri.scheme().as_str().eq_ignore_ascii_case("file")
+        || uri.query().is_some()
+        || uri.fragment().is_some()
+    {
+        return None;
+    }
+    let authority = uri
+        .authority()
+        .map(|authority| authority.as_str())
+        .unwrap_or_default();
+    if !authority.is_empty() && !(cfg!(unix) && authority.eq_ignore_ascii_case("localhost")) {
+        return None;
+    }
+    let decoded = uri.path().decode().to_string().ok()?;
+    if decoded.contains('\0') {
+        return None;
+    }
+    let path = uri.to_file_path()?.into_owned();
+    (path.is_absolute() && path.to_str().is_some()).then_some(path)
+}
+
 /// JSON object keys whose string value is a document / folder URI.
 ///
 /// Every URI-shaped field in the LSP request surface the server handles, so a
@@ -700,5 +726,41 @@ mod tests {
         let mut params = json!({ "rootUri": "file:///C:/Users/me/my project" });
         normalise_uris_in_params(&mut params);
         assert_eq!(params["rootUri"], json!("file:///c:/Users/me/my%20project"),);
+    }
+}
+
+#[cfg(test)]
+mod file_action_path_tests {
+    use super::*;
+
+    #[test]
+    fn incoming_file_action_paths_reject_lossy_or_unrepresented_uri_data() {
+        for raw in [
+            "file:///tmp/%FF.tcl",
+            "file:///tmp/%00.tcl",
+            "file:///tmp/x.tcl?query",
+            "file:///tmp/x.tcl#fragment",
+            "file://remote/tmp/x.tcl",
+            "untitled:buffer",
+        ] {
+            let uri: Uri = raw.parse().unwrap();
+            assert!(file_action_path(&uri).is_none(), "{raw}");
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn incoming_file_action_paths_preserve_actual_posix_path_data() {
+        for (raw, expected) in [
+            ("file:///tmp/a%20%CE%BB.tcl", "/tmp/a λ.tcl"),
+            ("file:////server/share.tcl", "//server/share.tcl"),
+            ("file:///tmp/a%5Cb.tcl", "/tmp/a\\b.tcl"),
+        ] {
+            let uri: Uri = raw.parse().unwrap();
+            assert_eq!(
+                file_action_path(&uri).as_deref(),
+                Some(std::path::Path::new(expected))
+            );
+        }
     }
 }

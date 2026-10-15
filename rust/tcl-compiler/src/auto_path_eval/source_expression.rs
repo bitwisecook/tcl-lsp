@@ -34,9 +34,80 @@ pub struct OriginalSourcePathExpression {
     realm: Arc<CommandBindingRealm>,
     span: tcl_lexer::Span,
     words: Vec<Vec<PathPart>>,
+    file_reference: Option<OriginalSourceFileReference>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct OriginalSourceFileReference {
+    head: u32,
+    argument: usize,
+    invocation: OriginalRegistryWords,
+    word: NativeWord,
+    value: String,
+}
+
+/// Source-word geometry derived from a retained FILE operand. The host keeps
+/// the original expression and independently checks rename intent, project
+/// association and document currency before publishing the proposal.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OriginalSourceFileRewrite {
+    span: tcl_lexer::Span,
+    replacement: String,
+}
+
+impl OriginalSourceFileRewrite {
+    #[must_use]
+    pub const fn span(&self) -> tcl_lexer::Span {
+        self.span
+    }
+
+    #[must_use]
+    pub fn replacement(&self) -> &str {
+        &self.replacement
+    }
 }
 
 impl OriginalSourcePathExpression {
+    /// An actual whole written FILE operand with stable original lookup.
+    /// Generic path captures and conditional-only source schemas have no
+    /// automatic source-action role.
+    #[must_use]
+    pub fn file_reference_value(&self) -> Option<&str> {
+        Some(&self.file_reference.as_ref()?.value)
+    }
+
+    /// Construct a literal replacement under the retained source grammar.
+    /// The host must separately authenticate the rename intent, project path
+    /// association and current document/index before publishing this proposal.
+    #[must_use]
+    pub fn file_rename_proposal(&self, replacement: &str) -> Option<OriginalSourceFileRewrite> {
+        let reference = self.file_reference.as_ref()?;
+        let word = &reference.word;
+        let config = self.input.lexer_config();
+        let whole = word.word_span();
+        let content = word.content_span().ok()?;
+        let original = self.image.try_text().ok()?;
+        let whole_text = original.get(whole.as_range())?;
+        let relative = usize::try_from(content.start().checked_sub(whole.start())?).ok()?
+            ..usize::try_from(content.end().checked_sub(whole.start())?).ok()?;
+        let mut preserved = whole_text.to_owned();
+        preserved.replace_range(relative, replacement);
+        if tcl_syntax::word_rules::lexical_unicode_source_word_matches(
+            &preserved,
+            replacement,
+            config,
+        ) {
+            return Some(OriginalSourceFileRewrite {
+                span: content,
+                replacement: replacement.to_owned(),
+            });
+        }
+        Some(OriginalSourceFileRewrite {
+            span: whole,
+            replacement: tcl_syntax::word_rules::lexical_unicode_source_word(replacement, config)?,
+        })
+    }
+
     /// Apply the explicit path algebra using caller-supplied document and
     /// variable advice. The result is a candidate path, not an observed value
     /// or a filesystem/current-filename fact.
@@ -65,6 +136,21 @@ impl OriginalSourcePathExpression {
             && analysis
                 .retained_command_realm_arc()
                 .is_some_and(|realm| Arc::ptr_eq(realm, &self.realm))
+            && self.file_reference.as_ref().is_none_or(|reference| {
+                self.image.try_text().ok().is_some_and(|source| {
+                    source_registry_words_at(source, analysis, reference.head).is_some_and(
+                        |current| {
+                            current == reference.invocation
+                                && current
+                                    .operands()
+                                    .get(reference.argument)
+                                    .and_then(Option::as_ref)
+                                    .and_then(|operand| operand.word())
+                                    == Some(&reference.word)
+                        },
+                    )
+                })
+            })
     }
 
     /// Same retained source inventory before a host folds indexed edges.
@@ -267,6 +353,7 @@ pub fn capture_source_path_expression(
         realm: Arc::clone(realm),
         span: word.word_span(),
         words: builder.collect()?,
+        file_reference: None,
     })
 }
 
@@ -330,7 +417,28 @@ pub fn capture_source_target_path_expression(
         return None;
     };
     (words.operands().get(argument)?.as_ref()?.word()? == &word).then_some(())?;
-    capture_source_path_expression(source, analysis, &word)
+    let mut expression = capture_source_path_expression(source, analysis, &word)?;
+    if matches!(
+        words.source(),
+        crate::registry_invocation::source_structure::OriginalRegistrySource::Selected
+    ) && words.operands_preserve_source_lookup()
+        && matches!(
+            words.origins().get(argument.checked_add(1)?),
+            Some(crate::registry_invocation::InvocationWordOrigin::Written(_))
+        )
+        && !word.group().expand
+        && let Some(value) = tcl_syntax::word_rules::original_static_word_unicode_value(&word)
+        && let Ok(value) = String::from_utf8(value)
+    {
+        expression.file_reference = Some(OriginalSourceFileReference {
+            head,
+            argument,
+            invocation: words,
+            word,
+            value,
+        });
+    }
+    Some(expression)
 }
 
 /// Selected conditional package-search-path source expression. The selected
@@ -852,3 +960,77 @@ mod original_path_child_purpose_tests {
 
 #[cfg(test)]
 mod original_path_argument_coordinates_tests;
+
+#[cfg(test)]
+mod file_rename_source_action_tests {
+    use super::*;
+
+    fn analyse(source: &str) -> AnalysisResult {
+        crate::analyser::Analyser::new().analyse(source, "tcl8.6")
+    }
+
+    #[test]
+    fn file_role_rewrite_retains_original_containers_and_exact_new_values() {
+        for source in [
+            "source lib/old.tcl\n",
+            "source {lib/old.tcl}\n",
+            "source \"lib/old.tcl\"\n",
+        ] {
+            let analysis = analyse(source);
+            let target = analysis
+                .source_targets
+                .first()
+                .expect("actual source target");
+            let original = capture_source_target_path_expression(&analysis, target).unwrap();
+            assert_eq!(original.file_reference_value(), Some("lib/old.tcl"));
+            assert!(original.matches_analysis(&analysis));
+            let safe = original.file_rename_proposal("lib/new.tcl").unwrap();
+            assert_eq!(&source[safe.span().as_range()], "lib/old.tcl");
+            for value in [
+                "lib/new.tcl",
+                "lib/space $var[unknown];brace}.tcl",
+                "lib/λ\\literal.tcl",
+            ] {
+                let proposal = original.file_rename_proposal(value).unwrap();
+                let mut changed = source.to_owned();
+                changed.replace_range(proposal.span().as_range(), proposal.replacement());
+                let changed_analysis = analyse(&changed);
+                let changed_target = changed_analysis
+                    .source_targets
+                    .first()
+                    .expect("rewritten FILE operand");
+                let changed_original =
+                    capture_source_target_path_expression(&changed_analysis, changed_target)
+                        .unwrap();
+                assert_eq!(changed_original.file_reference_value(), Some(value));
+                assert!(!original.matches_analysis(&changed_analysis));
+            }
+            let generic =
+                capture_source_path_expression_at_analysis(&analysis, target.range).unwrap();
+            assert_eq!(generic.file_reference_value(), None);
+            assert!(generic.file_rename_proposal("lib/new.tcl").is_none());
+        }
+    }
+
+    #[test]
+    fn file_action_role_refuses_shadowed_dynamic_and_foreign_sources() {
+        for source in [
+            "source $path\n",
+            "proc source args {}\nsource lib/old.tcl\n",
+        ] {
+            let analysis = analyse(source);
+            assert!(analysis.source_targets.iter().all(|target| {
+                capture_source_target_path_expression(&analysis, target)
+                    .is_none_or(|original| original.file_reference_value().is_none())
+            }));
+        }
+        let analysis = analyse("source lib/old.tcl\n");
+        let original =
+            capture_source_target_path_expression(&analysis, &analysis.source_targets[0]).unwrap();
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        assert!(!original.matches_analysis(&missing));
+        let foreign = analyse("source lib/old.tcl\n");
+        assert!(!original.matches_analysis(&foreign));
+    }
+}
