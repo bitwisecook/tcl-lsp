@@ -1,0 +1,80 @@
+{
+  "source": "/tmp/name-logical-array-insertion-oracle-20261015/probe.tcl",
+  "source_sha256": "09524d54aa975c225a3ed8c77226979f5d61c52cb05ef127532b01de20f2dd30",
+  "scope": "Fixed original seeded array-index interpolation probe on actual C5/latest Jim providers; direct formatting mirrors current Logical completion constructor, braced formatting is a source proposal only. No Rust, LSP acceptance, Native cell/read/edit authority, full startup closure or F5 claim.",
+  "prior_provider_receipt": "/tmp/name-logical-variable-insertion-oracle-20261014/probe.tcl",
+  "runs": [
+    {
+      "provider": "84",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "binary_sha256_before": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "binary_sha256_after": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "matches_prior_provider": true,
+      "exit_code": 0,
+      "stdout": "/tmp/name-logical-array-insertion-oracle-20261015/84.stdout",
+      "stdout_sha256": "8358d59ae9bf55743e50d7a549563d3cc3e0b6883168b02c8cde56d4a93ab6ea",
+      "stderr": "/tmp/name-logical-array-insertion-oracle-20261015/84.stderr",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "85",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "binary_sha256_before": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "binary_sha256_after": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "matches_prior_provider": true,
+      "exit_code": 0,
+      "stdout": "/tmp/name-logical-array-insertion-oracle-20261015/85.stdout",
+      "stdout_sha256": "8358d59ae9bf55743e50d7a549563d3cc3e0b6883168b02c8cde56d4a93ab6ea",
+      "stderr": "/tmp/name-logical-array-insertion-oracle-20261015/85.stderr",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "86",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "binary_sha256_before": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "binary_sha256_after": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "matches_prior_provider": true,
+      "exit_code": 0,
+      "stdout": "/tmp/name-logical-array-insertion-oracle-20261015/86.stdout",
+      "stdout_sha256": "8358d59ae9bf55743e50d7a549563d3cc3e0b6883168b02c8cde56d4a93ab6ea",
+      "stderr": "/tmp/name-logical-array-insertion-oracle-20261015/86.stderr",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "90",
+      "executable": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "binary_sha256_before": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "binary_sha256_after": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "matches_prior_provider": true,
+      "exit_code": 0,
+      "stdout": "/tmp/name-logical-array-insertion-oracle-20261015/90.stdout",
+      "stdout_sha256": "16529dfe70a78f798de99f1ad401f9dd0d5faad07aaef590ff5f362128f46be8",
+      "stderr": "/tmp/name-logical-array-insertion-oracle-20261015/90.stderr",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "91",
+      "executable": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "binary_sha256_before": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "binary_sha256_after": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "matches_prior_provider": true,
+      "exit_code": 0,
+      "stdout": "/tmp/name-logical-array-insertion-oracle-20261015/91.stdout",
+      "stdout_sha256": "16529dfe70a78f798de99f1ad401f9dd0d5faad07aaef590ff5f362128f46be8",
+      "stderr": "/tmp/name-logical-array-insertion-oracle-20261015/91.stderr",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "JIM",
+      "executable": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "binary_sha256_before": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "binary_sha256_after": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "matches_prior_provider": true,
+      "exit_code": 0,
+      "stdout": "/tmp/name-logical-array-insertion-oracle-20261015/JIM.stdout",
+      "stdout_sha256": "063ad2712add220574f27b97262ac36339e846987525a74fe515fc695aadff30",
+      "stderr": "/tmp/name-logical-array-insertion-oracle-20261015/JIM.stderr",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

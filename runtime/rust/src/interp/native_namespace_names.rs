@@ -272,9 +272,7 @@ impl tcl_cmd_core::namespace::NamespaceObjectBackend for Interp {
                         "Jim original namespace result frame",
                     ));
                 }
-                let original = self.jim_current_namespace_object()?;
-                let bytes =
-                    tcl_syntax::value::ValueOps::native_string_bytes(self, &original.as_ptr())?;
+                let bytes = self.materialize_jim_namespace(self.current_ns())?;
                 recipe.namespace_current_result(&bytes)
             } else {
                 Namespaces::name_bytes(self, namespace)

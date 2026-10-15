@@ -43,6 +43,9 @@ use crate::naming::normalise_qualified_name;
 use super::state::Analyser;
 use super::types::{ClassDef, ProcDef, Scope, ScopeKind, VarDef};
 
+mod logical_array_indices;
+pub use logical_array_indices::{LogicalArrayIndexCandidate, LogicalArrayIndexKind};
+
 pub(super) struct VariableLinkTarget {
     pub(super) target: String,
     pub(super) target_span: Span,
@@ -267,6 +270,62 @@ impl<'a> LogicalVariableScopeAdvice<'a> {
     #[must_use]
     pub fn eligible_scopes(&self) -> impl DoubleEndedIterator<Item = &'a Scope> + '_ {
         self.eligible.iter().map(|&index| self.scopes[index])
+    }
+
+    /// Fully rooted candidates from other authentic namespace declaration tables.
+    /// Each original declaration supplies its own retained namespace coordinate;
+    /// reporting scope names cannot construct insertion text or establish a cell.
+    #[must_use]
+    pub fn cross_namespace_variable_names(&self) -> Vec<String> {
+        let mut pending = vec![self.root()];
+        let mut names = Vec::new();
+        while let Some(scope) = pending.pop() {
+            pending.extend(&scope.children);
+            if !matches!(scope.kind, ScopeKind::Global | ScopeKind::Namespace)
+                || self
+                    .eligible_scopes()
+                    .any(|current| std::ptr::eq(current, scope))
+            {
+                continue;
+            }
+            for (name, declaration) in &scope.variables {
+                let Some(original) = self.analysis.logical_variable_scope_advice(
+                    &self.image,
+                    self.config,
+                    declaration.definition_span.start(),
+                ) else {
+                    continue;
+                };
+                if !matches!(
+                    original.kind,
+                    LogicalVariableScopeKind::Root | LogicalVariableScopeKind::Namespace
+                ) || !original
+                    .eligible_scopes()
+                    .any(|current| std::ptr::eq(current, scope))
+                {
+                    continue;
+                }
+                let Some(namespace) = original.namespace() else {
+                    continue;
+                };
+                let coordinate = if crate::naming::unroot_rooted_key(name).is_some() {
+                    name.clone()
+                } else if namespace == "::" {
+                    crate::naming::root_unrooted_key(name)
+                } else {
+                    format!("{namespace}::{name}")
+                };
+                if self
+                    .variable_definition(&coordinate)
+                    .is_some_and(|selected| std::ptr::eq(selected, declaration))
+                {
+                    names.push(coordinate);
+                }
+            }
+        }
+        names.sort_unstable();
+        names.dedup();
+        names
     }
 
     /// Inferred source names from the eligible Logical tables, without editable declarations.
@@ -3980,6 +4039,51 @@ mod tests {
             token.span.end() + u32::try_from(start).unwrap(),
         );
         token
+    }
+
+    #[test]
+    fn logical_cross_namespace_candidates_use_actual_namespace_owners() {
+        let source =
+            "namespace eval N {set {a{b}c} ONE; namespace eval Nested {set value TWO}}\nputs $";
+        let mut analysis = Analyser::new().analyse(source, "tcl");
+        fn erase_labels(scope: &mut Scope) {
+            scope.name = "unrelated report".to_owned();
+            for child in &mut scope.children {
+                erase_labels(child);
+            }
+        }
+        erase_labels(&mut analysis.global_scope);
+        let image = tcl_lexer::SourceImage::document(source);
+        let config = analysis.body_lexer_config.unwrap();
+        let advice = analysis
+            .logical_variable_scope_advice(&image, config, u32::try_from(source.len()).unwrap())
+            .unwrap();
+        assert_eq!(
+            advice.cross_namespace_variable_names(),
+            vec!["::N::Nested::value", "::N::a{b}c"]
+        );
+        assert!(
+            analysis
+                .logical_variable_scope_advice(
+                    &tcl_lexer::SourceImage::document(format!("#{source}")),
+                    config,
+                    0
+                )
+                .is_none()
+        );
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        assert!(
+            missing
+                .logical_variable_scope_advice(&image, config, 0)
+                .is_none()
+        );
+        let mut unavailable = analysis.clone();
+        unavailable.global_scope.children[0].naming_scope = None;
+        let advice = unavailable
+            .logical_variable_scope_advice(&image, config, u32::try_from(source.len()).unwrap())
+            .unwrap();
+        assert!(advice.cross_namespace_variable_names().is_empty());
     }
 
     #[test]

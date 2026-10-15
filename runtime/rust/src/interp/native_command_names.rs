@@ -178,13 +178,10 @@ impl Interp {
         )?;
         obj::check_native_liveness(original)?;
         let original_allocation = obj::NativeObjectLifetime::retain(original);
-        let namespace = self
-            .namespaces()
-            .jim_namespace_original_owner(origin)
-            .ok_or(ValueError::CommandProtocolUnavailable(
-                "original Jim key namespace owner",
-            ))?;
-        let namespace_bytes = self.native_object_string_bytes(namespace.as_ptr());
+        let namespace_scope =
+            super::native_jim_lookup::OriginalJimLookupNamespace::capture(self, origin)?;
+        let namespace_bytes = self.materialize_jim_namespace(origin);
+        namespace_scope.check(self)?;
         scope.currency().ensure_current_or_refuse().map_err(|_| {
             ValueError::CommandProtocolUnavailable("original Jim key namespace currency")
         })?;
@@ -194,6 +191,7 @@ impl Interp {
             std::rc::Rc::<[u8]>::from([])
         } else {
             let bytes = self.native_object_string_bytes(original);
+            namespace_scope.check(self)?;
             scope.currency().ensure_current_or_refuse().map_err(|_| {
                 ValueError::CommandProtocolUnavailable("original Jim key getter currency")
             })?;
@@ -216,7 +214,7 @@ impl Interp {
             NativeJimNamespaceConstruction::DuplicateNamespaceAndAppend => {
                 // JimQualifyName increments only after both CString appends.
                 // This lease protects allocation without changing sharing.
-                let duplicate = obj::duplicate(namespace.as_ptr());
+                let duplicate = obj::duplicate(namespace_scope.original_ptr());
                 let allocation = obj::NativeObjectLifetime::retain(duplicate);
                 let prepared = (|| {
                     let dialect = self.native_invocation_dialect();
@@ -229,6 +227,7 @@ impl Interp {
                     };
                     let receiver = crate::value_ops::RuntimeAppendValue::borrowed(duplicate);
                     let mut check = || {
+                        namespace_scope.check(self)?;
                         scope.currency().ensure_current_or_refuse().map_err(|_| {
                             ValueError::CommandProtocolUnavailable(
                                 "original Jim key append currency",
@@ -261,6 +260,7 @@ impl Interp {
                         unsafe { obj::free_obj(duplicate) };
                     }
                     drop(allocation);
+                    namespace_scope.check(self)?;
                     scope.currency().ensure_current_or_refuse().map_err(|_| {
                         ValueError::CommandProtocolUnavailable("original Jim key cleanup currency")
                     })?;
@@ -276,6 +276,7 @@ impl Interp {
                 ));
             }
         };
+        namespace_scope.check(self)?;
         scope.currency().ensure_current_or_refuse().map_err(|_| {
             ValueError::CommandProtocolUnavailable("original Jim key producer currency")
         })?;
@@ -413,13 +414,10 @@ impl Interp {
             },
         )?;
         let current = self.current_ns();
-        let namespace = self
-            .namespaces()
-            .jim_namespace_original_owner(current)
-            .ok_or(ValueError::CommandProtocolUnavailable(
-                "Jim namespace command query holder",
-            ))?;
-        let namespace_bytes = self.native_object_string_bytes(namespace.as_ptr());
+        let namespace_scope =
+            super::native_jim_lookup::OriginalJimLookupNamespace::capture(self, current)?;
+        let namespace_bytes = self.materialize_jim_namespace(current);
+        namespace_scope.check(self)?;
         scope.currency().ensure_current_or_refuse().map_err(|_| {
             ValueError::CommandProtocolUnavailable("Jim namespace command query currency")
         })?;

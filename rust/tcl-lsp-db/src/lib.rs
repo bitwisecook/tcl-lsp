@@ -10239,6 +10239,12 @@ p\uD801 ordinary";
             // These library descriptors remain available in the closed model.
             // Its supplied input cannot borrow the other source producer's receipts.
             let mut analysis = analyse(source, Arc::clone(&available));
+            assert!(
+                analysis.matches_original_source_image(
+                    &tcl_lexer::SourceImage::document(source),
+                    config,
+                )
+            );
             let supplied = input(Arc::clone(&unavailable));
             analysis.resolved_input = Some(supplied.clone());
             assert!(
@@ -10269,7 +10275,7 @@ p\uD801 ordinary";
                     .matches_resolved_analysis_input(&supplied)
             );
             assert!(
-                analysis.matches_original_source_image(
+                !analysis.matches_original_source_image(
                     &tcl_lexer::SourceImage::document(source),
                     config
                 )

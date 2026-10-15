@@ -47,6 +47,40 @@ pub fn scalar_source_reference(
         .then_some(reference)
 }
 
+/// Propose a complete array reference from separate literal root/index data.
+/// The selected scanner and static fragment decoder must reproduce both parts.
+/// This supplies syntax only, without source ownership, a cell or a read grant.
+#[must_use]
+pub fn array_source_reference(
+    root: &str,
+    index: &str,
+    config: tcl_lexer::LexerConfig,
+    require_braces: bool,
+) -> Option<String> {
+    if !require_braces {
+        let reference = format!("${root}({index})");
+        if let Ok(Some(parsed)) = tcl_lexer::word_parts::whole_var_ref(reference.as_bytes(), config)
+            && parsed.name == root.as_bytes()
+            && let Some(source) = parsed
+                .index
+                .and_then(|index| std::str::from_utf8(index).ok())
+            && crate::word_rules::standalone_static_word_fragment_value(source, false, config)
+                .as_deref()
+                == Some(index)
+        {
+            return Some(reference);
+        }
+    }
+    let name = format!("{root}({index})");
+    let reference = format!("${{{name}}}");
+    let parsed = tcl_lexer::word_parts::whole_var_ref(reference.as_bytes(), config).ok()??;
+    if parsed.index.is_some() {
+        return None;
+    }
+    let (selected_root, selected_index) = super::split_element_ref_bytes(parsed.name)?;
+    (selected_root == root.as_bytes() && selected_index == index.as_bytes()).then_some(reference)
+}
+
 /// Render an exact local scalar name and reference under the complete source
 /// grammar and native string recipe. Qualification, array interpretation,
 /// clipped operands and unrepresentable source text are unavailable. The
@@ -150,6 +184,46 @@ mod tests {
             );
         }
     }
+    #[test]
+    fn source_array_references_keep_literal_indices_and_selected_delimiters() {
+        for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let config = LexerConfig::for_dialect(environment);
+            assert_eq!(
+                array_source_reference("arr", "key", config, false).as_deref(),
+                Some("$arr(key)")
+            );
+            for index in ["$literal", "[list redirected]", r"\x41", ")", ""] {
+                let reference = array_source_reference("arr", index, config, true).unwrap();
+                assert_eq!(
+                    reference,
+                    format!("${{arr({index})}}"),
+                    "{environment}: {index}"
+                );
+            }
+            for index in ["$literal", "[list redirected]", r"\x41"] {
+                let reference = array_source_reference("arr", index, config, false).unwrap();
+                assert_eq!(
+                    reference,
+                    format!("${{arr({index})}}"),
+                    "{environment}: {index}"
+                );
+            }
+            let nested = config.braced_var == tcl_dialect::BracedVarStyle::Tcl9Nesting;
+            assert_eq!(
+                array_source_reference("arr", "a{b}c", config, true).is_some(),
+                nested,
+                "{environment}"
+            );
+            assert_eq!(
+                array_source_reference("arr", "a{b", config, true).is_some(),
+                !nested,
+                "{environment}"
+            );
+            assert!(array_source_reference("bad root", "key", config, false).is_some());
+            assert!(array_source_reference("arr", "unmatched}suffix", config, true).is_none());
+        }
+    }
+
     #[test]
     fn source_scalar_references_keep_selected_braces_and_literal_name_data() {
         for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {

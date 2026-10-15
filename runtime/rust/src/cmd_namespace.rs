@@ -1002,7 +1002,7 @@ fn ns_import_source_names(
         Ok(current) => current,
         Err(error) => return interp.report_cmd_error(error.into()),
     };
-    let current_name = match interp.native_string_bytes(&current.as_ptr()) {
+    let current_name = match interp.materialize_jim_namespace(interp.current_ns()) {
         Ok(bytes) => bytes,
         Err(error) => return interp.report_cmd_error(error.into()),
     };

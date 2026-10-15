@@ -1,0 +1,26 @@
+plain form direct code 0 exact 1 reference {$arr(key)} value VALUE_plain
+plain form braced code 0 exact 1 reference {${arr(key)}} value VALUE_plain
+space form direct code 0 exact 1 reference {$arr(two words)} value VALUE_space
+space form braced code 0 exact 1 reference {${arr(two words)}} value VALUE_space
+sigil form direct code 0 exact 0 reference {$arr($literal)} value REDIRECTED
+sigil form braced code 0 exact 1 reference {${arr($literal)}} value VALUE_sigil
+bracket form direct code 0 exact 0 reference {$arr([list redirected])} value REDIRECTED
+bracket form braced code 0 exact 1 reference {${arr([list redirected])}} value VALUE_bracket
+backslash form direct code 0 exact 0 reference {$arr(\x41)} value DECODED
+backslash form braced code 0 exact 1 reference {${arr(\x41)}} value VALUE_backslash
+newline form direct code 0 exact 1 reference {$arr(a
+b)} value VALUE_newline
+newline form braced code 0 exact 1 reference {${arr(a
+b)}} value VALUE_newline
+empty form direct code 0 exact 1 reference {$arr()} value VALUE_empty
+empty form braced code 0 exact 1 reference {${arr()}} value VALUE_empty
+open form direct code 1 exact 0 reference {$arr(()} value {invalid character in array index}
+open form braced code 0 exact 1 reference {${arr(()}} value VALUE_open
+close form direct code 0 exact 0 reference {$arr())} value VALUE_empty)
+close form braced code 0 exact 1 reference {${arr())}} value VALUE_close
+nested form direct code 1 exact 0 reference {$arr(a(b)c)} value {invalid character in array index}
+nested form braced code 0 exact 1 reference {${arr(a(b)c)}} value VALUE_nested
+balanced form direct code 1 exact 0 reference {$arr(a{b}c)} value {invalid character in array index}
+balanced form braced code 0 exact 1 reference {${arr(a{b}c)}} value VALUE_balanced
+unmatched form direct code 1 exact 0 reference \$arr(a\{b) value {invalid character in array index}
+unmatched form braced code 1 exact 0 reference \$\{arr(a\{b)\} value {missing close-brace for variable name}

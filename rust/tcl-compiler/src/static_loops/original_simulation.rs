@@ -443,17 +443,19 @@ fn exec_statement(
             }
         }
         Statement::AssignValue { name, value, .. } => {
-            if value.contains('[') {
+            let Some(argument) = crate::registry_invocation::original_source_argument_for_script(
+                source, stmt, 1, value,
+            ) else {
                 return false;
-            }
-            if let Some(var) = simple_var_ref(value) {
-                let Some(existing) = env.get(&var).cloned() else {
-                    return false;
-                };
-                env.insert(name.clone(), existing);
-                return true;
-            }
-            env.insert(name.clone(), StaticValue::Str(value.clone()));
+            };
+            let value = argument
+                .literal_data()
+                .map(StaticValue::Str)
+                .or_else(|| env.get(argument.scalar_reference_name()?).cloned());
+            let Some(value) = value else {
+                return false;
+            };
+            env.insert(name.clone(), value);
             true
         }
         Statement::Incr {
@@ -473,10 +475,21 @@ fn exec_statement(
                 Some(text) => {
                     let operand = if *amount_braced {
                         StaticValue::Str(text.to_owned())
+                    } else if let Some(argument) =
+                        crate::registry_invocation::original_source_argument_for_script(
+                            source, stmt, 1, text,
+                        )
+                    {
+                        let value = argument
+                            .literal_data()
+                            .map(StaticValue::Str)
+                            .or_else(|| env.get(argument.scalar_reference_name()?).cloned());
+                        let Some(value) = value else {
+                            return false;
+                        };
+                        value
                     } else {
-                        simple_var_ref(text)
-                            .and_then(|name| env.get(&name).cloned())
-                            .unwrap_or_else(|| StaticValue::Str(text.to_owned()))
+                        StaticValue::Str(text.to_owned())
                     };
                     let Some(amount) = static_integer(&operand, simulation.policy) else {
                         return false;
@@ -986,12 +999,136 @@ mod tests {
     }
 
     #[test]
+    fn original_assignment_values_use_whole_words_without_promoting_literal_data() {
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+            for (value, expected) in [
+                ("$input", Some("VALUE")),
+                ("\"$input\"", Some("VALUE")),
+                (r"\$input", Some("$input")),
+                ("{$input}", Some("$input")),
+                ("\"$input tail\"", None),
+                ("$input(key)", None),
+                ("[unknown_command]", None),
+            ] {
+                let source = format!("set input VALUE; set result {value}");
+                let fixture = crate::provider_fixtures::original_native_module(&source, dialect);
+                let (context, module) = &*fixture;
+                let policy = FoldPolicy::for_retained_entry(
+                    context.commands(),
+                    Some(tcl_registry::InvocationDialect::of_profile(
+                        module
+                            .source_metadata_input
+                            .as_ref()
+                            .unwrap()
+                            .unit_profile(),
+                    )),
+                    &module.native_lexer_config(),
+                );
+                let observations = std::cell::RefCell::new(Vec::new());
+                let increments = std::cell::RefCell::new(Vec::new());
+                let preparations = std::cell::RefCell::new(Vec::new());
+                let dependencies = std::cell::RefCell::new(Vec::new());
+                let evaluation_order = std::cell::Cell::new(0);
+                let simulation = StaticSimulation {
+                    policy,
+                    purpose: SimulationPurpose::Analysis,
+                    observations: &observations,
+                    increments: &increments,
+                    preparations: &preparations,
+                    dependencies: &dependencies,
+                    evaluation_order: &evaluation_order,
+                };
+                let mut environment = StaticEnv::new();
+                assert_eq!(
+                    exec_script(&module.top_level, &mut environment, simulation),
+                    expected.is_some(),
+                    "{dialect}: {source}"
+                );
+                assert_eq!(
+                    environment.get("result"),
+                    expected
+                        .map(|value| StaticValue::Str(value.to_owned()))
+                        .as_ref(),
+                    "{dialect}: {source}"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn original_increment_amount_keeps_braced_data_separate_from_reads() {
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
             for (amount, braced, supported) in [
                 ("{$delta}", true, false),
                 ("$delta", false, true),
                 ("{2}", true, true),
+            ] {
+                let source = format!("set n 1; set delta 2; incr n {amount}");
+                let fixture = crate::provider_fixtures::original_native_module(&source, dialect);
+                let (context, module) = &*fixture;
+                let statement = module.top_level.statements.last().unwrap();
+                let Statement::Incr { amount_braced, .. } = statement else {
+                    panic!("actual source increment must retain its typed amount");
+                };
+                assert_eq!(*amount_braced, braced);
+                assert!(
+                    module
+                        .top_level
+                        .retained_source_tokens_for_statement(statement)
+                        .is_some()
+                );
+                let policy = FoldPolicy::for_retained_entry(
+                    context.commands(),
+                    Some(tcl_registry::InvocationDialect::of_profile(
+                        module
+                            .source_metadata_input
+                            .as_ref()
+                            .unwrap()
+                            .unit_profile(),
+                    )),
+                    &module.native_lexer_config(),
+                );
+                let observations = std::cell::RefCell::new(Vec::new());
+                let increments = std::cell::RefCell::new(Vec::new());
+                let preparations = std::cell::RefCell::new(Vec::new());
+                let dependencies = std::cell::RefCell::new(Vec::new());
+                let evaluation_order = std::cell::Cell::new(0);
+                let simulation = StaticSimulation {
+                    policy,
+                    purpose: SimulationPurpose::Analysis,
+                    observations: &observations,
+                    increments: &increments,
+                    preparations: &preparations,
+                    dependencies: &dependencies,
+                    evaluation_order: &evaluation_order,
+                };
+                let mut environment = StaticEnv::new();
+                assert_eq!(
+                    exec_script(&module.top_level, &mut environment, simulation),
+                    supported
+                );
+                if supported {
+                    assert_eq!(environment.get("n"), Some(&StaticValue::Int(3)));
+                    assert_eq!(increments.borrow().len(), 1);
+                } else {
+                    assert_eq!(
+                        environment.get("n"),
+                        Some(&StaticValue::Str("1".to_owned()))
+                    );
+                    assert!(increments.borrow().is_empty());
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn original_increment_reads_use_whole_words_and_decode_literal_escapes() {
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+            for (amount, braced, supported) in [
+                ("\"$delta\"", false, true),
+                (r"\x32", false, true),
+                ("\"$delta tail\"", false, false),
+                ("$missing", false, false),
             ] {
                 let source = format!("set n 1; set delta 2; incr n {amount}");
                 let fixture = crate::provider_fixtures::original_native_module(&source, dialect);

@@ -1,0 +1,14 @@
+{
+  "argv": [
+    "git",
+    "ls-remote",
+    "https://github.com/msteveb/jimtcl.git",
+    "HEAD"
+  ],
+  "started_utc": "2026-10-15T00:31:51.799800+00:00",
+  "finished_utc": "2026-10-15T00:31:52.189738+00:00",
+  "exit_code": 0,
+  "stdout": "5bac7c99ad65864c87da513e22e2f01703fa4e03\tHEAD\n",
+  "stderr": "",
+  "scope": "Remote HEAD observation only; no build or Runtime/VM conformance execution."
+}

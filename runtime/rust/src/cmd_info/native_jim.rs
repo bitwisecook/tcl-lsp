@@ -12,11 +12,7 @@ pub(super) fn command_inventory(
     original: &[*mut TclObj],
     kind: tcl_registry::commands::tcl::NativeJimCommandInventoryKind,
 ) -> Code {
-    let namespace = match interp.jim_current_namespace_object() {
-        Ok(namespace) => namespace,
-        Err(error) => return interp.report_cmd_error(error.into()),
-    };
-    let namespace = match interp.native_string_bytes(&namespace.as_ptr()) {
+    let namespace = match interp.materialize_jim_namespace(interp.current_ns()) {
         Ok(namespace) => namespace,
         Err(error) => return interp.report_cmd_error(error.into()),
     };

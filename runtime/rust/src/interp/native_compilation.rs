@@ -1003,17 +1003,19 @@ impl Interp {
                     .borrow_mut()
                     .retain_c_procedure(Rc::clone(procedure));
             }
-            if let Some(argv) = meta.original_argv {
-                let installed = self
-                    .frames
-                    .borrow_mut()
-                    .install_original_error_stack_argv(argv);
-                if let Err(error) = installed {
-                    let popped = self.pop_native_call_frame();
-                    self.leave_namespace_activation(popped);
-                    self.recursion_depth.set(self.recursion_depth.get() - 1);
-                    return Err(self.report_cmd_error(error.into()));
-                }
+        }
+        if let Some(argv) =
+            CallMeta::original_frame_arguments(self.native_invocation_dialect(), meta.original_argv)
+        {
+            let installed = self
+                .frames
+                .borrow_mut()
+                .install_original_error_stack_argv(argv);
+            if let Err(error) = installed {
+                let popped = self.pop_native_call_frame();
+                self.leave_namespace_activation(popped);
+                self.recursion_depth.set(self.recursion_depth.get() - 1);
+                return Err(self.report_cmd_error(error.into()));
             }
         }
         if self.native_invocation_dialect().native_string_protocol()
@@ -1034,6 +1036,17 @@ impl Interp {
                     .into(),
                 ));
             };
+            let registered = crate::namespace::Namespaces::remember_jim_namespace_owner(
+                &mut self.namespaces.borrow_mut(),
+                ns,
+                &namespace,
+            );
+            if let Err(error) = registered {
+                let popped = self.pop_native_call_frame();
+                self.leave_namespace_activation(popped);
+                self.recursion_depth.set(self.recursion_depth.get() - 1);
+                return Err(self.report_cmd_error(error.into()));
+            }
             self.frames.borrow_mut().retain_jim_activation_objects(
                 meta.jim_parameters.map(obj::Owned::retain),
                 meta.jim_body.map(obj::Owned::retain),
@@ -1057,8 +1070,8 @@ impl Interp {
         )
         .is_some()
         {
-            // Native C borrows objc/objv. No argument string getter is reached
-            // merely to install the frame's invocation transport.
+            // Native C and Jim borrow their actual invocation objects without
+            // getters merely to install the frame's invocation transport.
             Vec::new()
         } else {
             meta.level_words.take().unwrap_or_else(|| {

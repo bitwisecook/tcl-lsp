@@ -7,6 +7,62 @@ use tcl_syntax::naming::{NativeJimNamespaceConstruction, NativeNameContext};
 use tcl_syntax::value::{ValueError, ValueOps};
 
 impl Interp {
+    /// Materialize this actual Jim object context only at a reached namespace consumer.
+    pub(crate) fn materialize_jim_namespace(
+        &mut self,
+        namespace: crate::namespace::NsId,
+    ) -> Result<std::rc::Rc<[u8]>, ValueError> {
+        let scope = super::native_operation_currency::NativeOperationScope::enter(self).map_err(
+            |first| {
+                self.refuse_native_execution(first);
+                ValueError::CommandProtocolUnavailable("Jim namespace operation entry")
+            },
+        )?;
+        let _context = self.native_jim_object_context()?;
+        let original = self
+            .namespaces()
+            .jim_namespace_original_owner(namespace)
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "Jim original namespace context",
+            ))?;
+        let original_birth = std::rc::Rc::downgrade(&original);
+        let allocation = obj::NativeObjectLifetime::retain(original.as_ptr());
+        drop(original);
+        let caller_namespace = self.current_ns();
+        let caller_frame = super::native_arguments::OriginalArgumentFrame::capture(self);
+        let reached = self.native_string_bytes(&allocation.checked_ptr()?);
+        scope.check().map_err(|first| {
+            self.refuse_native_execution(first);
+            ValueError::CommandProtocolUnavailable("Jim namespace operation currency")
+        })?;
+        if self.current_ns() != caller_namespace
+            || caller_frame.check_frame(self).is_err()
+            || !self
+                .namespaces()
+                .jim_namespace_original_owner(namespace)
+                .is_some_and(|owner| {
+                    std::rc::Weak::ptr_eq(&original_birth, &std::rc::Rc::downgrade(&owner))
+                })
+        {
+            let error = ValueError::CommandProtocolUnavailable("Jim namespace getter frame owner");
+            self.refuse_native_execution(
+                error
+                    .native_access_refusal()
+                    .expect("native refusal")
+                    .into(),
+            );
+            return Err(error);
+        }
+        let bytes = reached?;
+        crate::namespace::Namespaces::record_jim_namespace_materialized(
+            &mut self.namespaces_mut(),
+            namespace,
+            allocation.checked_ptr()?,
+            std::rc::Rc::clone(&bytes),
+        )?;
+        Ok(bytes)
+    }
+
     pub(crate) fn jim_current_namespace_object(&self) -> Result<Owned, ValueError> {
         if self.current_ns() == crate::namespace::GLOBAL {
             let _context = self.native_jim_object_context()?;
@@ -29,7 +85,16 @@ impl Interp {
                 "Jim namespace canonical issuer",
             ))?
             .recipe();
-        let namespace_bytes = self.native_string_bytes(&namespace.as_ptr())?;
+        let current = self.current_ns();
+        let is_current = self
+            .namespaces()
+            .jim_namespace_original_owner(current)
+            .is_some_and(|holder| holder.as_ptr() == namespace.as_ptr());
+        let namespace_bytes = if is_current {
+            self.materialize_jim_namespace(current)?
+        } else {
+            self.native_string_bytes(&namespace.as_ptr())?
+        };
         let original_bytes = self.native_string_bytes(&original)?;
         let path = tcl_core_types::ByteNamespacePath::root();
         let context = NativeNameContext::with_jim_namespace(&path, &namespace_bytes);

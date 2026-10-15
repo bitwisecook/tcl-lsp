@@ -50,7 +50,7 @@ mod original_word_data;
 pub(crate) use original_word_data::{
     OriginalSourceArgument, original_literal_argument_data,
     original_literal_argument_data_for_module, original_lowered_expression_syntax,
-    original_source_argument_for_module,
+    original_source_argument_for_module, original_source_argument_for_script,
 };
 mod source_name_roles;
 pub(crate) use source_name_roles::{
@@ -3076,6 +3076,16 @@ impl NormalRepresentationInvocation {
             | NormalRepresentationProof::PatternLayout(call) => Some(call),
             NormalRepresentationProof::Iteration { .. } => None,
         }
+    }
+
+    /// Rendered-result hints of the selected normal handler only. Conditional
+    /// layouts and synthetic iteration contracts do not prove these properties.
+    pub(crate) fn rendered_value_traits(&self) -> Option<tcl_registry::Traits> {
+        Some(self.handler()?.facts.traits.intersection(
+            tcl_registry::Traits::IS_UNESCAPE
+                | tcl_registry::Traits::RETURNS_PATH
+                | tcl_registry::Traits::UNNORMALISED_HTTP_GETTER,
+        ))
     }
 
     /// Successful assignment value for tracking representations through generic

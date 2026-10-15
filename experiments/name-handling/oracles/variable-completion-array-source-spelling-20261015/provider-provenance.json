@@ -1,0 +1,43 @@
+{
+  "scope": "Archival provider comparison only. Original receipt field prior_provider_receipt names the prior probe source path, not a receipt path; the canonical receipt below is the independent comparison authority. No original receipt was changed. No new version query or full startup closure claim.",
+  "prior_receipt": "../variable-completion-source-spelling-20261014/manifest.json",
+  "prior_receipt_sha256": "9e145db419c33f571b88a8931be2215e59aea8ca39d897ed06c7e415052133d6",
+  "providers": [
+    {
+      "provider": "84",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "matches_existing_provider": true
+    },
+    {
+      "provider": "85",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "matches_existing_provider": true
+    },
+    {
+      "provider": "86",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "matches_existing_provider": true
+    },
+    {
+      "provider": "90",
+      "executable": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "sha256": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "matches_existing_provider": true
+    },
+    {
+      "provider": "91",
+      "executable": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "matches_existing_provider": true
+    },
+    {
+      "provider": "JIM",
+      "executable": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "matches_existing_provider": true
+    }
+  ]
+}

@@ -107,7 +107,8 @@ pub use variable_geometry::{
 };
 mod variable_spelling;
 pub use variable_spelling::{
-    NativeScalarSourceSpelling, native_scalar_source_spelling, scalar_source_reference,
+    NativeScalarSourceSpelling, array_source_reference, native_scalar_source_spelling,
+    scalar_source_reference,
 };
 mod jim_enumeration;
 mod jim_table_key;

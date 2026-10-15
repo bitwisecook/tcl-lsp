@@ -342,20 +342,25 @@ impl CommandTable {
 /// `namespace path` search list, and `export` patterns.
 enum JimNamespaceObject {
     Initial(std::rc::Rc<crate::obj::Owned>),
-    Published(std::rc::Weak<crate::obj::Owned>),
+    Published(Vec<std::rc::Weak<crate::obj::Owned>>),
 }
 impl JimNamespaceObject {
     fn owner(&self) -> Option<std::rc::Rc<crate::obj::Owned>> {
         match self {
             Self::Initial(owner) => Some(std::rc::Rc::clone(owner)),
-            Self::Published(owner) => owner.upgrade(),
+            Self::Published(owners) => owners.iter().find_map(std::rc::Weak::upgrade),
         }
     }
 }
 
+enum JimNamespaceName {
+    Unmaterialized,
+    Materialized(std::rc::Rc<[u8]>),
+}
+
 struct Namespace {
-    /// Actual Jim canonical namespace holder, separate from C tree edges.
-    jim_namespace: Option<(JimNamespaceObject, std::rc::Rc<[u8]>)>,
+    /// Actual Jim namespace object context, separate from C tree coordinates.
+    jim_namespace: Option<(JimNamespaceObject, JimNamespaceName)>,
     /// Simple name (e.g. `mathfunc`); the global namespace's is empty.
     name: Vec<u8>,
     parent: Option<NsId>,
@@ -1668,7 +1673,7 @@ impl Namespaces {
                     JimNamespaceObject::Initial(std::rc::Rc::new(crate::obj::Owned::fresh(
                         crate::obj::new_string_bytes(b""),
                     ))),
-                    std::rc::Rc::from(&b""[..]),
+                    JimNamespaceName::Materialized(std::rc::Rc::from(&b""[..])),
                 ));
                 root
             }],
@@ -1690,10 +1695,26 @@ impl Namespaces {
         holder: crate::obj::Owned,
         bytes: std::rc::Rc<[u8]>,
     ) -> NsId {
+        self.retain_jim_namespace_with_name(holder, JimNamespaceName::Materialized(bytes))
+    }
+
+    /// Allocate an actual original-object context without claiming a name coordinate.
+    pub(crate) fn retain_unmaterialized_jim_namespace(
+        &mut self,
+        holder: crate::obj::Owned,
+    ) -> NsId {
+        self.retain_jim_namespace_with_name(holder, JimNamespaceName::Unmaterialized)
+    }
+
+    fn retain_jim_namespace_with_name(
+        &mut self,
+        holder: crate::obj::Owned,
+        name: JimNamespaceName,
+    ) -> NsId {
         let token = self.arena.len();
         let mut namespace = Namespace::new(Vec::new(), None);
         namespace.jim_namespace =
-            Some((JimNamespaceObject::Initial(std::rc::Rc::new(holder)), bytes));
+            Some((JimNamespaceObject::Initial(std::rc::Rc::new(holder)), name));
         self.arena.push(namespace);
         self.activations.push(0);
         token
@@ -1703,17 +1724,52 @@ impl Namespaces {
     pub(crate) fn adopt_jim_root_namespace(&mut self, holder: crate::obj::Owned) {
         self.arena[GLOBAL].jim_namespace = Some((
             JimNamespaceObject::Initial(std::rc::Rc::new(holder)),
-            std::rc::Rc::from(&b""[..]),
+            JimNamespaceName::Materialized(std::rc::Rc::from(&b""[..])),
         ));
     }
 
     /// The counted canonical name selected from the actual retained Jim object.
     pub(crate) fn jim_namespace_bytes(&self, token: NsId) -> Option<&[u8]> {
-        self.arena
-            .get(token)?
-            .jim_namespace
-            .as_ref()
-            .map(|(_, bytes)| bytes.as_ref())
+        let (holder, name) = self.arena.get(token)?.jim_namespace.as_ref()?;
+        let JimNamespaceName::Materialized(bytes) = name else {
+            return None;
+        };
+        let original = holder.owner()?;
+        let resident = crate::obj::native_object_snapshot(original.as_ptr())
+            .ok()?
+            .resident?;
+        (resident.as_ref() == bytes.as_ref()).then_some(bytes.as_ref())
+    }
+
+    /// Record only bytes obtained from this context's actual original object.
+    pub(crate) fn record_jim_namespace_materialized(
+        &mut self,
+        token: NsId,
+        original: *mut crate::obj::TclObj,
+        bytes: std::rc::Rc<[u8]>,
+    ) -> Result<(), tcl_syntax::value::ValueError> {
+        let context = self
+            .arena
+            .get_mut(token)
+            .and_then(|namespace| namespace.jim_namespace.as_mut());
+        let Some((holder, name)) = context else {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "Jim namespace context owner",
+            ));
+        };
+        if !holder
+            .owner()
+            .is_some_and(|holder| holder.as_ptr() == original)
+            || !crate::obj::native_object_snapshot(original)?
+                .resident
+                .is_some_and(|resident| resident.as_ref() == bytes.as_ref())
+        {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "Jim namespace materialization owner",
+            ));
+        }
+        *name = JimNamespaceName::Materialized(bytes);
+        Ok(())
     }
 
     /// Retain the actual original Jim namespace object, without display reparsing.
@@ -1736,13 +1792,59 @@ impl Namespaces {
         let owner = slot.owner()?;
         match slot {
             JimNamespaceObject::Initial(_) => {
-                *slot = JimNamespaceObject::Published(std::rc::Rc::downgrade(&owner));
+                *slot = JimNamespaceObject::Published(vec![std::rc::Rc::downgrade(&owner)]);
                 Some(owner)
             }
-            JimNamespaceObject::Published(_) => {
-                Some(std::rc::Rc::new(crate::obj::Owned::retain(owner.as_ptr())))
+            JimNamespaceObject::Published(owners) => {
+                let owner = std::rc::Rc::new(crate::obj::Owned::retain(owner.as_ptr()));
+                owners.retain(|owner| owner.strong_count() != 0);
+                owners.insert(0, std::rc::Rc::downgrade(&owner));
+                Some(owner)
             }
         }
+    }
+
+    /// Index an independently acquired actual frame role without retaining that role.
+    pub(crate) fn remember_jim_namespace_owner(
+        &mut self,
+        token: NsId,
+        owner: &std::rc::Rc<crate::obj::Owned>,
+    ) -> Result<(), tcl_syntax::value::ValueError> {
+        let context = self
+            .arena
+            .get_mut(token)
+            .and_then(|namespace| namespace.jim_namespace.as_mut());
+        let Some((holder, _)) = context else {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "Jim frame namespace context",
+            ));
+        };
+        if !holder
+            .owner()
+            .is_some_and(|actual| actual.as_ptr() == owner.as_ptr())
+        {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "Jim frame namespace original",
+            ));
+        }
+        match holder {
+            JimNamespaceObject::Initial(_) => {
+                return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "Jim frame namespace role transfer",
+                ));
+            }
+            JimNamespaceObject::Published(owners) => {
+                owners.retain(|actual| actual.strong_count() != 0);
+                let birth = std::rc::Rc::downgrade(owner);
+                if !owners
+                    .first()
+                    .is_some_and(|actual| std::rc::Weak::ptr_eq(actual, &birth))
+                {
+                    owners.insert(0, birth);
+                }
+            }
+        }
+        Ok(())
     }
 
     pub(crate) fn jim_namespace_original_owner(
@@ -3154,11 +3256,12 @@ impl Namespaces {
             .variable_name_protocol
             .is_some_and(|protocol| protocol.is_jim084())
         {
-            if let Some(namespace) = self.jim_namespace_bytes(ns) {
-                let mut rooted = b"::".to_vec();
-                rooted.extend_from_slice(namespace);
-                return rooted;
-            }
+            let namespace = self
+                .jim_namespace_bytes(ns)
+                .expect("Jim namespace reporting requires an already reached namespace getter");
+            let mut rooted = b"::".to_vec();
+            rooted.extend_from_slice(namespace);
+            return rooted;
         }
         let mut parts: Vec<&[u8]> = Vec::new();
         let mut cur = ns;
@@ -3194,6 +3297,7 @@ impl Namespaces {
         }
         self.arena
             .get(namespace)
+            .filter(|node| namespace == GLOBAL || node.jim_namespace.is_none())
             .map(|node| node.constructed_path.clone())
     }
 
@@ -3217,6 +3321,7 @@ impl Namespaces {
         }
         self.arena
             .get(ns)
+            .filter(|namespace| ns == GLOBAL || namespace.jim_namespace.is_none())
             .map(|namespace| namespace.constructed_path.clone())
     }
 
@@ -4566,3 +4671,6 @@ mod original_variable_geometry_tests {
         }
     }
 }
+
+#[cfg(test)]
+mod native_jim_context_tests;

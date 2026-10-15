@@ -262,6 +262,8 @@ pub(crate) enum ProcFrame<'a> {
     /// `(lambda term "LAMBDA" line N)` — an `apply` lambda. `LAMBDA` is the whole
     /// lambda-expression string (`{params body ?ns?}`, i.e. `argv[1]`).
     Lambda(&'a [u8]),
+    /// Jim records its original invocation without a lambda-expression display.
+    JimLambda,
     /// A TclOO method body (`CommonMethErrorHandler`, `tclOOMethod.c`):
     /// `(KIND "OWNER" method "NAME" line N)`, or `(KIND "OWNER" constructor|
     /// destructor line N)`. `kind` is `object`/`class` per the declaring entity,
@@ -346,16 +348,13 @@ pub(crate) struct CallMeta<'a> {
 }
 
 impl<'a> CallMeta<'a> {
-    /// Borrow the genuine C invocation tape without reading argument Strings.
-    /// Other selected frame formats retain their independent rendered words.
+    /// Borrow genuine C or Jim invocation objects without reading argument Strings.
+    /// Other frame formats keep their independently selected word transport.
     pub(crate) fn original_frame_arguments(
         dialect: tcl_registry::InvocationDialect,
         original_argv: Option<&'a [*mut TclObj]>,
     ) -> Option<&'a [*mut TclObj]> {
-        dialect
-            .native_string_protocol()
-            .filter(|protocol| protocol.tcl_version().is_some())
-            .and(original_argv)
+        dialect.native_string_protocol().and(original_argv)
     }
 }
 
@@ -12255,6 +12254,7 @@ impl Interp {
             out.push(b'"');
         }
         let inner = match frame {
+            ProcFrame::JimLambda => return,
             ProcFrame::Proc(n) | ProcFrame::Lambda(n) => {
                 let kind: &[u8] = if matches!(frame, ProcFrame::Lambda(_)) {
                     b"lambda term"

@@ -59,3 +59,7 @@ a completed C release gate or Jim/F5 agreement.
 [Original #2286 SSA equation diagnostic](temp210-original2286-equations-20261015/README.md) retains the actual unique-definition oscillation graph, unchanged180-second timeout, partial-build scope and exact production restoration.
 
 [Original Jim first-substitution SDK capture](original-jim-first-substitution-sdk-20261015/README.md) retains ten fixed genuine-object cases distinguishing failed substitutions from reached command lookup and namespace byte materialisation; no Runtime/VM acceptance is inferred.
+
+[Original Jim remote HEAD recheck](original-jim-remote-head-recheck-20261015/README.md) retains the actual00:31:51–52UTC remote reference observation independently of SDK builds and implementation acceptance.
+
+[Original Jim apply frame argv SDK capture](original-jim-apply-frame-argv-sdk-20261015/README.md) retains seven genuine-object controls for lazy namespace/argument getters and actual frame argv member identity; no Runtime/VM acceptance is inferred.

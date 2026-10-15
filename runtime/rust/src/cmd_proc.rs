@@ -30,6 +30,8 @@ use crate::obj::TclObj;
 use crate::obj::{self, Owned};
 use tcl_cmd_core::CmdError;
 use tcl_syntax::value::ValueOps;
+mod native_jim_apply;
+
 #[cfg(test)]
 mod native_name_tests;
 
@@ -562,7 +564,12 @@ fn apply_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     {
         return apply_native_c(interp, argv, &original, protocol, diagnostics);
     }
-    let mut parts = match ValueOps::list_elements(interp, &original.as_ptr()) {
+    if interp.native_invocation_dialect().native_string_protocol()
+        == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
+    {
+        return native_jim_apply::apply(interp, argv, &original, diagnostics);
+    }
+    let parts = match ValueOps::list_elements(interp, &original.as_ptr()) {
         Ok(parts) => parts.into_iter().map(Owned::retain).collect::<Vec<_>>(),
         Err(error) => {
             let error = lambda_list_error(interp, &original, diagnostics, error);
@@ -586,25 +593,7 @@ fn apply_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             return code;
         }
     };
-    let jim = interp.native_invocation_dialect().native_string_protocol()
-        == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084);
-    let ns = if jim {
-        let namespace = if parts.len() == 3 {
-            parts.pop().expect("original lambda namespace")
-        } else {
-            match interp.native_jim_object_context() {
-                Ok(context) => context.empty_object().clone(),
-                Err(error) => return interp.report_cmd_error(error.into()),
-            }
-        };
-        let bytes = match ValueOps::native_string_bytes(interp, &namespace.as_ptr()) {
-            Ok(bytes) => bytes,
-            Err(error) => return interp.report_cmd_error(error.into()),
-        };
-        interp
-            .namespaces_mut()
-            .retain_jim_namespace(namespace, bytes)
-    } else if parts.len() == 3 {
+    let ns = if parts.len() == 3 {
         // C prepends `::` to a non-global-qualified namespace name, then resolves
         // it (`TclGetNamespaceFromObj`); a missing namespace is an error — apply
         // does **not** create it.
@@ -661,11 +650,6 @@ fn apply_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Ok(bytes) => bytes,
         Err(error) => return interp.report_cmd_error(error.into()),
     };
-    let jim_namespace = if jim {
-        interp.namespaces_mut().take_jim_namespace_owner(ns)
-    } else {
-        None
-    };
     interp.run_proc(
         &params,
         &body,
@@ -690,9 +674,9 @@ fn apply_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             statics: None,
             c_procedure: None,
             c_method_client_data: None,
-            jim_parameters: jim.then_some(parts[0].as_ptr()),
-            jim_body: jim.then_some(parts[1].as_ptr()),
-            jim_namespace: jim_namespace.as_ref(),
+            jim_parameters: None,
+            jim_body: None,
+            jim_namespace: None,
         },
     )
 }

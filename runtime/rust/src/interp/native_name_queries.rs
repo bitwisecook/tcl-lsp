@@ -28,12 +28,14 @@ impl JimNamespaceOriginResult {
 struct JimOriginQuery<'a> {
     interpreter: &'a mut Interp,
     namespace: obj::Owned,
+    namespace_scope: super::native_jim_lookup::OriginalJimLookupNamespace,
     protocol: tcl_syntax::native_jim_lookup::NativeJimLookupProtocol,
     scope: NativeOperationScope,
 }
 impl JimOriginQuery<'_> {
     fn check(&mut self) -> Result<(), CmdError> {
         self.scope.currency().ensure_current_or_refuse()?;
+        self.namespace_scope.check(self.interpreter)?;
         obj::check_native_liveness(self.namespace.as_ptr())?;
         Ok(())
     }
@@ -196,6 +198,8 @@ impl Interp {
         obj::check_native_liveness(original)?;
         let original = Rc::new(obj::Owned::retain(original));
         let namespace = self.jim_current_namespace_object()?;
+        let namespace_scope =
+            super::native_jim_lookup::OriginalJimLookupNamespace::capture(self, self.current_ns())?;
         let protocol = self
             .native_invocation_dialect()
             .native_jim_lookup_protocol()
@@ -205,6 +209,7 @@ impl Interp {
         let mut query = JimOriginQuery {
             interpreter: self,
             namespace,
+            namespace_scope,
             protocol,
             scope,
         };

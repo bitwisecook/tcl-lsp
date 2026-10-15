@@ -48,7 +48,8 @@ use bitflags::bitflags;
 use tcl_registry::{CommandRegistry, Traits};
 
 use crate::cfg::{BlockId, Function as CfgFunction};
-use crate::ir::Statement;
+use crate::ir::{CommandBindingSites, CommandTokens, Statement, WordExpr, WordPart};
+use crate::registry_invocation::{InvocationMetadataContext, NormalRepresentationInvocation};
 use crate::sccp::{SccpResult, cfg_order};
 use crate::ssa::{SsaFunction, Symbol, ValueKey};
 use crate::value_shapes::{parse_command_substitution_with_config, whole_word_scalar_var_name};
@@ -237,7 +238,7 @@ pub fn apply_normalised(mut input: RenderedValueProps) -> RenderedValueProps {
     input
 }
 
-// Command classification
+// Explicit standalone catalogue classification
 
 /// True when the command performs partial unescaping / decoding
 /// (`subst`, `URI::decode`, `encoding convertfrom`, …).
@@ -271,6 +272,130 @@ fn is_normalised_getter(registry: &CommandRegistry, command: &str, args: &[&str]
         return false;
     };
     spec.traits.contains(Traits::UNNORMALISED_HTTP_GETTER) && args.contains(&"-normalized")
+}
+
+/// Original source and actual availability for a source-bearing CFG. Missing
+/// ownership cannot reopen the explicit standalone catalogue path.
+struct SourceRenderedContext<'a> {
+    cfg: &'a CfgFunction,
+    registry: &'a CommandRegistry,
+    config: Option<tcl_lexer::LexerConfig>,
+    metadata: Option<InvocationMetadataContext<'a>>,
+}
+
+impl SourceRenderedContext<'_> {
+    fn tokens<'a>(&'a self, statement: &'a Statement) -> Option<&'a CommandTokens> {
+        let tokens = CommandBindingSites::unanimous_statement_source_tokens(
+            self.cfg.command_binding_sites.iter(),
+            statement,
+        )?;
+        let binding = tokens.source_binding.as_ref()?;
+        (binding.original_lexer_config_for_tokens(tokens)? == self.config?).then_some(())?;
+        let (command, _) = binding.original_recorded_command()?;
+        (command.span == statement.span()).then_some(tokens)
+    }
+
+    fn normal(&self, tokens: &CommandTokens) -> Option<NormalRepresentationInvocation> {
+        let metadata = self.metadata?;
+        tokens
+            .source_binding
+            .as_ref()?
+            .original_source_advice_purpose(tokens, metadata, self.registry)?;
+        crate::registry_invocation::normal_representation_invocation_with_metadata_context(
+            self.registry,
+            Some(metadata),
+            tokens,
+        )
+    }
+
+    fn evaluate(
+        &self,
+        statement: &Statement,
+        uses: &HashMap<Symbol, u32>,
+        props: &HashMap<ValueKey, RenderedValueProps>,
+        ssa: &SsaFunction,
+    ) -> Option<RenderedValueProps> {
+        let tokens = self.tokens(statement)?;
+        let normal = self.normal(tokens)?;
+        match statement {
+            Statement::AssignValue { name, value, .. } => {
+                let assignment = normal.value_assignment()?;
+                (assignment.name == *name && assignment.value.legacy_text() == *value)
+                    .then_some(())?;
+                let word = &assignment.value;
+                if let Some((spelling, _)) = word.sole_variable_substitution() {
+                    let name = whole_word_scalar_var_name(spelling, self.config?)?;
+                    let symbol = ssa.var_symbol(name)?;
+                    let version = uses.get(&symbol).copied().filter(|version| *version > 0)?;
+                    return props.get(&(symbol, version)).copied();
+                }
+                let static_word = match word {
+                    WordExpr::Literal { .. } | WordExpr::BracedLiteral { .. } => true,
+                    WordExpr::Template {
+                        parts,
+                        rejected: None,
+                        ..
+                    } => parts
+                        .iter()
+                        .all(|part| matches!(part, WordPart::Text { .. })),
+                    _ => false,
+                };
+                if static_word {
+                    return Some(analyse_literal(&normal.argument_literal(1)?));
+                }
+                // Captured alias-prefix objects cannot donate positioned nested
+                // source. The original effective-word owner supplies this mapping.
+                normal.effective_words().written_argument(1)?;
+                let mut child = crate::word_subst::whole_word_command_tokens(word, self.config?)?;
+                child.inherit_nested_bindings(tokens);
+                let child = self.normal(&child)?;
+                rendered_command_properties(&child, uses, props, true)
+            }
+            Statement::Call { command, args, .. } => {
+                (tokens.argv_texts.len() == args.len() + 1
+                    && tokens.argv_texts.first() == Some(command)
+                    && tokens.argv_texts.get(1..)? == args.as_slice())
+                .then_some(())?;
+                rendered_command_properties(&normal, uses, props, false)
+            }
+            _ => None,
+        }
+    }
+}
+
+fn rendered_command_properties(
+    normal: &NormalRepresentationInvocation,
+    uses: &HashMap<Symbol, u32>,
+    props: &HashMap<ValueKey, RenderedValueProps>,
+    substitution: bool,
+) -> Option<RenderedValueProps> {
+    let traits = normal.rendered_value_traits()?;
+    let normalised = traits.contains(Traits::UNNORMALISED_HTTP_GETTER)
+        && (0..normal.argument_count())
+            .any(|index| normal.argument_literal(index).as_deref() == Some("-normalized"));
+    let mut may = if substitution {
+        RenderedProperties::HAS_INTERPOLATION
+    } else {
+        RenderedProperties::MAY_MASK
+    };
+    if traits.contains(Traits::RETURNS_PATH) {
+        may |= RenderedProperties::HAS_FORWARD_SLASH;
+    }
+    if normalised {
+        may |= RenderedProperties::FULLY_NORMALISED;
+    } else if traits.contains(Traits::IS_UNESCAPE) {
+        may |= RenderedProperties::WAS_UNESCAPED;
+        let input_may = collect_use_may(uses, props);
+        if input_may.contains(RenderedProperties::WAS_UNESCAPED)
+            && !input_may.contains(RenderedProperties::FULLY_NORMALISED)
+        {
+            may |= RenderedProperties::DOUBLE_UNESCAPED;
+        }
+    }
+    Some(RenderedValueProps {
+        may,
+        must: RenderedProperties::NONE,
+    })
 }
 
 // Per-statement evaluation
@@ -694,8 +819,16 @@ fn evaluate_def(
     props: &HashMap<ValueKey, RenderedValueProps>,
     registry: &CommandRegistry,
     ssa: &SsaFunction,
-    config: Option<tcl_lexer::LexerConfig>,
+    source: &SourceRenderedContext<'_>,
 ) -> RenderedValueProps {
+    if !source.cfg.metadata_context.is_standalone()
+        && matches!(stmt, Statement::AssignValue { .. } | Statement::Call { .. })
+    {
+        return source
+            .evaluate(stmt, uses, props, ssa)
+            .unwrap_or_else(unknown_top);
+    }
+    let config = source.config;
     match stmt {
         Statement::AssignConst { value, .. } => evaluate_const(value),
         Statement::AssignValue { value, .. } => {
@@ -755,6 +888,34 @@ pub fn propagate_rendered_props(
                 })
                 .flatten()
         });
+    propagate_rendered_props_with_config(cfg, ssa, sccp, registry, config)
+}
+
+/// Retain the actual function producer's full lexer configuration.
+pub(crate) fn propagate_rendered_props_with_config(
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    sccp: &SccpResult,
+    registry: &CommandRegistry,
+    config: Option<tcl_lexer::LexerConfig>,
+) -> HashMap<ValueKey, RenderedValueProps> {
+    let metadata = cfg
+        .metadata_context
+        .source_analysis_input()
+        .and_then(|input| {
+            InvocationMetadataContext::for_source_input(
+                registry,
+                input,
+                config?,
+                Some(input.unit_profile()),
+            )
+        });
+    let source = SourceRenderedContext {
+        cfg,
+        registry,
+        config,
+        metadata,
+    };
     let preds = cfg.predecessors();
     let order = cfg_order(cfg);
 
@@ -833,7 +994,7 @@ pub fn propagate_rendered_props(
                 }
                 for (&var, &ver) in &ssa_stmt.defs {
                     let inferred =
-                        evaluate_def(stmt, &ssa_stmt.uses, &props, registry, ssa, config);
+                        evaluate_def(stmt, &ssa_stmt.uses, &props, registry, ssa, &source);
                     set_props(&mut props, (var, ver), inferred, &mut changed);
                 }
             }
@@ -1103,6 +1264,157 @@ mod tests {
         assert!(!p.may.contains(RenderedProperties::HAS_FORWARD_SLASH));
         assert!(!p.may.contains(RenderedProperties::HAS_BACKSLASH));
         assert!(!p.may.contains(RenderedProperties::HAS_CRLF));
+    }
+
+    #[test]
+    fn original_source_result_hints_use_actual_whole_words_and_current_input() {
+        use crate::registry_invocation::OwnedInvocationMetadataContext;
+        use std::sync::Arc;
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+            for (source, unescaped) in [
+                ("set output [subst {VALUE}]", true),
+                (r#"set output "[subst {VALUE}]""#, true),
+                ("set output {[subst VALUE]}", false),
+                (r"set output \[subst\ VALUE\]", false),
+                ("set output prefix[subst {VALUE}]", false),
+                (
+                    "interp alias {} decode {} subst; set output [decode {VALUE}]",
+                    true,
+                ),
+                (
+                    "proc subst args {return REPLACED}; set output [subst {VALUE}]",
+                    false,
+                ),
+            ] {
+                let fixture = crate::provider_fixtures::original_native_module(source, dialect);
+                let (context, module) = &*fixture;
+                let registry = context.commands();
+                let cfg =
+                    crate::cfg_builder::build_cfg_with_registry(module, false, registry).top_level;
+                assert!(!cfg.metadata_context.is_standalone());
+                let statement = module.top_level.statements.last().unwrap();
+                let config = module.native_lexer_config();
+                let metadata = InvocationMetadataContext::for_module(registry, module);
+                assert!(metadata.is_some());
+                let source_context = SourceRenderedContext {
+                    cfg: &cfg,
+                    registry,
+                    config: Some(config),
+                    metadata,
+                };
+                let ssa = SsaFunction::trivial("::top", BlockId(0), vec!["entry".into()]);
+                let uses = HashMap::new();
+                let props = HashMap::new();
+                let inferred =
+                    evaluate_def(statement, &uses, &props, registry, &ssa, &source_context);
+                assert_eq!(
+                    inferred.may.contains(RenderedProperties::WAS_UNESCAPED),
+                    unescaped,
+                    "{dialect}: {source}"
+                );
+                if !unescaped {
+                    continue;
+                }
+                // Same command store, independently changed availability owner.
+                // It cannot reuse the older source point's successful handler.
+                let other_dialect = if dialect == "tcl8.4" {
+                    "tcl9.1"
+                } else {
+                    "tcl8.4"
+                };
+                let other = Arc::new(
+                    tcl_registry::model::ingress::static_context_for(other_dialect)
+                        .with_command_store(Arc::clone(registry)),
+                );
+                assert!(Arc::ptr_eq(other.commands(), registry));
+                assert_ne!(other.context(), context.context());
+                let input = module.source_metadata_input.as_ref().unwrap();
+                let changed_input = crate::analyser::ResolvedAnalysisInput::new(
+                    input.analyser_profile(),
+                    input.unit_profile(),
+                    other,
+                    input.lexer_config(),
+                );
+                assert_ne!(&changed_input, input);
+                let mut changed_cfg = cfg.clone();
+                changed_cfg.metadata_context =
+                    OwnedInvocationMetadataContext::for_source_input(Some(&changed_input));
+                let changed_context = SourceRenderedContext {
+                    cfg: &changed_cfg,
+                    registry,
+                    config: Some(config),
+                    metadata: InvocationMetadataContext::for_analysis_input(
+                        registry,
+                        &changed_input,
+                    ),
+                };
+                assert!(
+                    !evaluate_def(statement, &uses, &props, registry, &ssa, &changed_context)
+                        .may
+                        .contains(RenderedProperties::WAS_UNESCAPED)
+                );
+                let missing = SourceRenderedContext {
+                    metadata: None,
+                    ..source_context
+                };
+                assert!(
+                    !evaluate_def(statement, &uses, &props, registry, &ssa, &missing)
+                        .may
+                        .contains(RenderedProperties::WAS_UNESCAPED)
+                );
+                let mut changed = config;
+                changed.strict_quoting = !changed.strict_quoting;
+                let changed = SourceRenderedContext {
+                    cfg: &cfg,
+                    registry,
+                    config: Some(changed),
+                    metadata,
+                };
+                assert!(
+                    !evaluate_def(statement, &uses, &props, registry, &ssa, &changed)
+                        .may
+                        .contains(RenderedProperties::WAS_UNESCAPED)
+                );
+                let mut changed_statement = statement.clone();
+                if let Statement::AssignValue { value, .. } = &mut changed_statement {
+                    value.push_str("CHANGED");
+                }
+                assert!(
+                    !evaluate_def(
+                        &changed_statement,
+                        &uses,
+                        &props,
+                        registry,
+                        &ssa,
+                        &SourceRenderedContext {
+                            cfg: &cfg,
+                            registry,
+                            config: Some(config),
+                            metadata
+                        }
+                    )
+                    .may
+                    .contains(RenderedProperties::WAS_UNESCAPED)
+                );
+                let mut absent_cfg = cfg.clone();
+                absent_cfg.command_binding_sites.clear();
+                let mut absent_statement = statement.clone();
+                if let Statement::AssignValue { tokens, .. } = &mut absent_statement {
+                    *tokens = None;
+                }
+                let absent = SourceRenderedContext {
+                    cfg: &absent_cfg,
+                    registry,
+                    config: Some(config),
+                    metadata,
+                };
+                assert!(
+                    absent
+                        .evaluate(&absent_statement, &uses, &props, &ssa)
+                        .is_none()
+                );
+            }
+        }
     }
 
     #[test]

@@ -91,15 +91,6 @@ fn contains(outer: Span, inner: Span) -> bool {
     outer.start() <= inner.start() && inner.end() <= outer.end()
 }
 
-// Labels preserve authentic variable-token geometry without issuing a cell key.
-fn source_variable_label(raw: &str) -> String {
-    let raw = raw.strip_prefix('$').unwrap_or(raw);
-    raw.strip_prefix('{')
-        .and_then(|name| name.strip_suffix('}'))
-        .unwrap_or(raw)
-        .to_owned()
-}
-
 /// Original hosted variable substitutions and independently bounded source coverage.
 #[derive(Debug, Clone)]
 pub struct OriginalHostedSourceVariableReferences {
@@ -694,7 +685,10 @@ impl OriginalIrulesSourceContext {
                 )
                 .into_iter()
                 .filter_map(|span| source.get(span.as_range()))
-                .map(source_variable_label)
+                .map(|original| {
+                    tcl_syntax::naming::var_reference_for_style(original, self.config.braced_var)
+                        .to_owned()
+                })
                 .collect();
                 crate::IrulesExecutableCommand {
                     span: command.span,

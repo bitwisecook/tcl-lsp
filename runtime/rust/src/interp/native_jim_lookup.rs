@@ -15,6 +15,69 @@ enum OriginalJimCachedStore {
     Unavailable,
 }
 
+/// The genuine current namespace holder and frame, before any reached getter.
+/// A weak owner observation and allocation lease preserve actual native retirement.
+pub(super) struct OriginalJimLookupNamespace {
+    interpreter: Interp,
+    namespace: NsId,
+    holder_birth: std::rc::Weak<Owned>,
+    original: obj::NativeObjectLifetime,
+    frame: super::native_arguments::OriginalArgumentFrame,
+}
+impl OriginalJimLookupNamespace {
+    pub(super) fn capture(interpreter: &Interp, namespace: NsId) -> Result<Self, ValueError> {
+        let holder = interpreter
+            .namespaces()
+            .jim_namespace_original_owner(namespace)
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "original Jim lookup namespace holder",
+            ))?;
+        obj::check_native_liveness(holder.as_ptr())?;
+        Ok(Self {
+            interpreter: interpreter.clone(),
+            namespace,
+            holder_birth: std::rc::Rc::downgrade(&holder),
+            original: obj::NativeObjectLifetime::retain(holder.as_ptr()),
+            frame: super::native_arguments::OriginalArgumentFrame::capture(interpreter),
+        })
+    }
+    pub(super) fn original_ptr(&self) -> *mut TclObj {
+        self.original.as_ptr()
+    }
+    pub(super) fn check(&self, actual: &Interp) -> Result<(), ValueError> {
+        let reached = (|| {
+            if !std::rc::Rc::ptr_eq(&self.interpreter.0, &actual.0) {
+                return Err(ValueError::CommandProtocolUnavailable(
+                    "foreign Jim lookup namespace",
+                ));
+            }
+            actual.check_entered_native_operation().map_err(|_| {
+                ValueError::CommandProtocolUnavailable("entered original Jim lookup namespace")
+            })?;
+            self.frame.check_frame(actual)?;
+            self.original.checked_ptr()?;
+            if !actual
+                .namespaces()
+                .jim_namespace_original_owner(self.namespace)
+                .is_some_and(|holder| {
+                    std::rc::Weak::ptr_eq(&std::rc::Rc::downgrade(&holder), &self.holder_birth)
+                })
+            {
+                return Err(ValueError::CommandProtocolUnavailable(
+                    "retired original Jim lookup namespace",
+                ));
+            }
+            Ok(())
+        })();
+        if let Err(error) = &reached {
+            if let Some(refusal) = error.native_access_refusal() {
+                actual.clone().refuse_native_execution(refusal.into());
+            }
+        }
+        reached
+    }
+}
+
 pub(super) struct JimActiveCommandScope {
     interp: Interp,
     token: u64,
@@ -74,43 +137,89 @@ impl Interp {
                     "Jim original command lookup",
                 ))?;
         let _context = self.native_jim_object_context()?;
-        let hit = obj::with_jim_command_cache(original, |cache| {
+        let namespace_scope: OriginalJimLookupNamespace =
+            OriginalJimLookupNamespace::capture(self, current)?;
+        let lookup_interpreter = self.clone();
+        let check_lookup = || {
+            scope.currency().ensure_current_or_refuse().map_err(|_| {
+                ValueError::CommandProtocolUnavailable("original Jim lookup currency")
+            })?;
+            obj::check_native_liveness(original)?;
+            namespace_scope.check(&lookup_interpreter)
+        };
+        check_lookup()?;
+        // Copy only observations and an allocation lease. No native namespace
+        // reference or borrowed cache/world payload crosses a reached getter.
+        let cached = obj::with_jim_command_cache(original, |cache| {
             if cache.interpreter != self.native_command_interpreter {
                 return Err(ValueError::CommandProtocolUnavailable(
                     "foreign Jim command cache",
                 ));
             }
-            let world = self.namespaces.borrow();
-            if cache.epoch != world.jim_procedure_epoch() {
-                return Ok(None);
-            }
-            let same_namespace = world
-                .jim_namespace_bytes(current)
-                .is_some_and(|bytes| obj::bytes_of(cache.namespace.as_ptr()) == bytes);
-            if !same_namespace {
-                return Ok(None);
-            }
-            let command = world.jim_node_command(cache.token).or_else(|| {
-                self.jim_active_command_workers
-                    .borrow()
-                    .iter()
-                    .rev()
-                    .find(|(token, _)| *token == cache.token)
-                    .map(|(_, command)| command.clone())
-            });
-            if recipe.command_is_current(
+            Ok((
                 cache.epoch,
-                world.jim_procedure_epoch(),
-                same_namespace,
-                command.is_some(),
-            ) {
-                Ok(command.map(|command| (command, Some(cache.token))))
-            } else {
-                Ok(None)
-            }
+                cache.token,
+                cache.namespace.as_ptr(),
+                obj::NativeObjectLifetime::retain(cache.namespace.as_ptr()),
+            ))
         })
-        .transpose()?
-        .flatten();
+        .transpose()?;
+        let hit = if let Some((epoch, token, cached_namespace, _cached_allocation)) = cached {
+            if epoch != self.namespaces().jim_procedure_epoch() {
+                None
+            } else {
+                let same_namespace = if cached_namespace == namespace_scope.original_ptr() {
+                    // Jim StringEqObj accepts the actual same pointer without
+                    // either getter, even when the original is still stringless.
+                    true
+                } else {
+                    let cached_bytes = self.native_object_string_bytes_using(
+                        cached_namespace,
+                        &check_lookup,
+                        &|error| error,
+                    );
+                    check_lookup()?;
+                    let cached_bytes = cached_bytes?;
+                    let current_bytes = self.materialize_jim_namespace(current);
+                    check_lookup()?;
+                    cached_bytes.as_ref() == current_bytes?.as_ref()
+                };
+                check_lookup()?;
+                if !obj::with_jim_command_cache(original, |cache| {
+                    cache.interpreter == self.native_command_interpreter
+                        && cache.epoch == epoch
+                        && cache.token == token
+                        && cache.namespace.as_ptr() == cached_namespace
+                })
+                .unwrap_or(false)
+                {
+                    return Err(ValueError::CommandProtocolUnavailable(
+                        "changed original Jim command cache",
+                    ));
+                }
+                let world = self.namespaces.borrow();
+                let command = world.jim_node_command(token).or_else(|| {
+                    self.jim_active_command_workers
+                        .borrow()
+                        .iter()
+                        .rev()
+                        .find(|(actual, _)| *actual == token)
+                        .map(|(_, command)| command.clone())
+                });
+                if recipe.command_is_current(
+                    epoch,
+                    world.jim_procedure_epoch(),
+                    same_namespace,
+                    command.is_some(),
+                ) {
+                    command.map(|command| (command, Some(token)))
+                } else {
+                    None
+                }
+            }
+        } else {
+            None
+        };
         if let Some((command, Some(token))) = hit {
             return Ok(self
                 .namespaces
@@ -118,7 +227,14 @@ impl Interp {
                 .jim_previous_selection(token, command)
                 .map(|(command, token)| (command, Some(token))));
         }
-        let bytes = self.native_string_bytes(&original)?;
+        // JimQualifyName reaches its namespace length before the name getter,
+        // including an absolute incoming command name. Capture remains getter-free.
+        let namespace_bytes = self.materialize_jim_namespace(current);
+        check_lookup()?;
+        namespace_bytes?;
+        let bytes = self.native_object_string_bytes_using(original, &check_lookup, &|error| error);
+        check_lookup()?;
+        let bytes = bytes?;
         let selected = self.resolve_dispatchable_with_generation(current, &bytes);
         // The selection is metadata during old-primary retirement. Keeping a
         // Command clone here would postpone an idle owned delete callback.
@@ -133,41 +249,24 @@ impl Interp {
             self.namespaces
                 .borrow_mut()
                 .observe_original_jim_command_name(token)?;
-            let (namespace, epoch) = {
-                let world = self.namespaces.borrow();
-                let namespace = world.jim_namespace_original_owner(current).ok_or(
-                    ValueError::CommandProtocolUnavailable("Jim current namespace original holder"),
-                )?;
-                (namespace, world.jim_procedure_epoch())
-            };
-            let namespace_birth = std::rc::Rc::downgrade(&namespace);
+            let epoch = self.namespaces().jim_procedure_epoch();
+            let namespace = namespace_scope.original_ptr();
             let check = || {
+                namespace_scope.check(self)?;
                 scope.currency().ensure_current_or_refuse().map_err(|_| {
                     ValueError::CommandProtocolUnavailable("original Jim command currency")
                 })?;
                 obj::check_native_liveness(original)?;
-                obj::check_native_liveness(namespace.as_ptr())?;
+                obj::check_native_liveness(namespace)?;
                 let world = self.namespaces.borrow();
-                let same_namespace =
-                    world
-                        .jim_namespace_original_owner(current)
-                        .is_some_and(|actual| {
-                            std::rc::Weak::ptr_eq(
-                                &namespace_birth,
-                                &std::rc::Rc::downgrade(&actual),
-                            )
-                        });
-                if world.jim_procedure_epoch() != epoch
-                    || !same_namespace
-                    || world.jim_node_command(token).is_none()
-                {
+                if world.jim_procedure_epoch() != epoch || world.jim_node_command(token).is_none() {
                     return Err(ValueError::CommandProtocolUnavailable(
                         "captured original Jim command binding",
                     ));
                 }
                 Ok(())
             };
-            // Capture keeps only the real namespace holder's Rust allocation.
+            // Capture owns only the allocation lease and weak namespace birth.
             // Its cache-native reference is acquired after old primary retirement.
             let reached = obj::install_jim_command_cache_with_stage_check(
                 original,
@@ -176,7 +275,7 @@ impl Interp {
                         interpreter: self.native_command_interpreter,
                         epoch,
                         token,
-                        namespace: Owned::retain(namespace.as_ptr()),
+                        namespace: Owned::retain(namespace),
                     })
                 },
                 dialect,
@@ -671,6 +770,117 @@ mod tests {
     }
     fn worker(_interp: &mut Interp, _argv: &[*mut TclObj]) -> Code {
         Code::Ok
+    }
+
+    #[test]
+    fn original_jim_namespace_receipt_does_not_keep_a_withdrawn_native_owner_alive() {
+        let mut interp = jim();
+        let _context = interp.native_jim_object_context().unwrap();
+        let original = Owned::fresh(obj::new_wide_int_obj(42));
+        let pointer = original.as_ptr();
+        let namespace = interp
+            .namespaces_mut()
+            .retain_unmaterialized_jim_namespace(original);
+        let owner = interp
+            .namespaces_mut()
+            .take_jim_namespace_owner(namespace)
+            .unwrap();
+        let _entered =
+            super::super::native_operation_currency::NativeOperationScope::enter(&interp).unwrap();
+        let receipt = OriginalJimLookupNamespace::capture(&interp, namespace).unwrap();
+        assert_eq!(unsafe { (*pointer).ref_count }, 1);
+        assert!(!obj::has_string_rep(pointer));
+        drop(owner);
+        // The allocation lease prevents address reuse, not the real final
+        // native decrement or retirement of this exact namespace object.
+        assert!(obj::check_native_liveness(pointer).is_err());
+        assert!(receipt.check(&interp).is_err());
+    }
+
+    #[test]
+    fn deferred_jim_command_lookup_preserves_same_pointer_cache_and_reached_namespace_getters() {
+        let mut interp = jim();
+        interp.bind_command_replacement(GLOBAL, b"p", Command::Builtin(worker));
+        let namespace = Owned::fresh(obj::new_wide_int_obj(42));
+        let native_context = interp.native_jim_object_context().unwrap();
+        crate::native_source::bind_context(namespace.as_ptr(), &native_context).unwrap();
+        let current = interp
+            .namespaces_mut()
+            .retain_unmaterialized_jim_namespace(Owned::retain(namespace.as_ptr()));
+        assert!(!obj::has_string_rep(namespace.as_ptr()));
+        assert!(interp.namespaces().jim_namespace_bytes(current).is_none());
+        assert!(interp.namespaces().native_context_path(current).is_none());
+        let command = name(b"p");
+        let (_, token) = interp
+            .resolve_original_command_at(current, command.as_ptr())
+            .unwrap()
+            .unwrap();
+        assert!(token.is_some());
+        assert!(obj::has_string_rep(namespace.as_ptr()));
+        assert_eq!(
+            interp.namespaces().jim_namespace_bytes(current),
+            Some(b"42".as_slice())
+        );
+        assert_eq!(
+            obj::with_jim_command_cache(command.as_ptr(), |cache| cache.namespace.as_ptr()),
+            Some(namespace.as_ptr())
+        );
+
+        // A genuine installed cache keeps the same original namespace object.
+        // Drop only its resident string, leaving the actual typed integer alive.
+        obj::invalidate_string(namespace.as_ptr());
+        let references = unsafe { (*namespace.as_ptr()).ref_count };
+        assert!(interp.namespaces().jim_namespace_bytes(current).is_none());
+        let (_, hot) = interp
+            .resolve_original_command_at(current, command.as_ptr())
+            .unwrap()
+            .unwrap();
+        assert_eq!(hot, token);
+        assert!(!obj::has_string_rep(namespace.as_ptr()));
+        assert!(interp.namespaces().native_context_path(current).is_none());
+        assert_eq!(unsafe { (*namespace.as_ptr()).ref_count }, references);
+
+        // Equal bytes in another actual object require cached/current getters.
+        let other = Owned::fresh(obj::new_wide_int_obj(42));
+        crate::native_source::bind_context(other.as_ptr(), &native_context).unwrap();
+        let other_context = interp
+            .namespaces_mut()
+            .retain_unmaterialized_jim_namespace(Owned::retain(other.as_ptr()));
+        assert_ne!(other.as_ptr(), namespace.as_ptr());
+        assert!(!obj::has_string_rep(other.as_ptr()));
+        let (_, equal) = interp
+            .resolve_original_command_at(other_context, command.as_ptr())
+            .unwrap()
+            .unwrap();
+        assert_eq!(equal, token);
+        assert!(obj::has_string_rep(namespace.as_ptr()));
+        assert!(obj::has_string_rep(other.as_ptr()));
+        assert_eq!(
+            interp.namespaces().jim_namespace_bytes(other_context),
+            Some(b"42".as_slice())
+        );
+        assert_eq!(
+            obj::with_jim_command_cache(command.as_ptr(), |cache| cache.namespace.as_ptr()),
+            Some(namespace.as_ptr())
+        );
+
+        // An absolute incoming cold head still reaches the genuine namespace.
+        let rooted_namespace = Owned::fresh(obj::new_wide_int_obj(43));
+        crate::native_source::bind_context(rooted_namespace.as_ptr(), &native_context).unwrap();
+        let rooted_context = interp
+            .namespaces_mut()
+            .retain_unmaterialized_jim_namespace(Owned::retain(rooted_namespace.as_ptr()));
+        let rooted = name(b"::p");
+        assert!(interp
+            .resolve_original_command_at(rooted_context, rooted.as_ptr())
+            .unwrap()
+            .is_some());
+        assert!(obj::has_string_rep(rooted_namespace.as_ptr()));
+        assert_eq!(
+            interp.namespaces().jim_namespace_bytes(rooted_context),
+            Some(b"43".as_slice())
+        );
+        assert!(interp.native_execution_refusal().is_none());
     }
 
     #[test]

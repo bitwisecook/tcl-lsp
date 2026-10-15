@@ -213,15 +213,6 @@ fn item_match_name<'a>(item: &'a CompletionItem, partial: &str) -> &'a str {
     }
 }
 
-/// `true` when `$name` lexes as a single bare variable token (so it
-/// needs no `${…}` braces). Delegates to the shared, ASCII-correct rule
-/// (`TclIsBareword` accepts only ASCII alphanumerics — a Unicode-permissive
-/// copy here would offer brace-free completions that change which variable
-/// is read).
-fn is_bare_var_name(name: &str) -> bool {
-    tcl_syntax::naming::is_bare_var_name(name)
-}
-
 /// Convert a codepoint column on `line_text` to a UTF-16 column (for
 /// LSP ranges).  The inverse of [`utf16_col_to_char_col`].
 fn char_col_to_utf16(line_text: &str, char_col: usize) -> u32 {
@@ -542,16 +533,29 @@ pub fn completions(
     let cursor = crate::definition::byte_offset_at(&line_index, source, line, character);
     let variable_references = original_variables::source_references(source, analysis, cursor)
         .unwrap_or_else(|| {
-            if analysis.allows_retained_logical_declaration_advice() {
-                analysis
-                    .global_scope
-                    .variables
-                    .keys()
-                    .map(|name| format!("${name}"))
-                    .collect()
-            } else {
-                Vec::new()
-            }
+            let image = tcl_lexer::SourceImage::document(source);
+            let Some(advice) =
+                analysis.logical_variable_scope_advice(&image, current.config(), cursor)
+            else {
+                return Vec::new();
+            };
+            let qualify_globals = crate::definition::global_vars_needing_qualification(&advice);
+            let mut candidates = Vec::new();
+            push_local_var_items(
+                &mut candidates,
+                visible_variable_names(&advice, ""),
+                qualify_globals.as_ref(),
+                VarEdit {
+                    start: None,
+                    end: 0,
+                    has_open_brace: false,
+                    config: current.config(),
+                },
+            );
+            candidates
+                .into_iter()
+                .map(|item| item.insert_text)
+                .collect()
         });
     let snippet_partial = snippet_partial_at_position(source, line, character);
     // `current_event` / `file_events` drive the iRules event templates'
@@ -771,7 +775,14 @@ fn variable_completions(
     // resolves here (to suggestions or an empty list); it never falls
     // through to plain-name completion.
     if partial.contains('(') {
-        return array_element_completions(line_text, &advice, partial, end, edit_start);
+        return array_element_completions(
+            line_text,
+            &advice,
+            partial,
+            end,
+            edit_start,
+            has_open_brace,
+        );
     }
 
     // Source visibility and rooted insertion share the checked scope selector.
@@ -896,22 +907,7 @@ fn push_cross_namespace_vars(
     edit: VarEdit,
 ) {
     let mut seen: FxHashSet<String> = items.iter().map(|i| i.label.clone()).collect();
-    let scope = advice.root();
-    let chain = advice
-        .eligible_scopes()
-        .filter(|scope| {
-            matches!(
-                scope.kind,
-                tcl_compiler::analyser::ScopeKind::Namespace
-                    | tcl_compiler::analyser::ScopeKind::Global
-            )
-        })
-        .map(|scope| scope.name.clone())
-        .collect::<FxHashSet<_>>();
-    let mut qnames = crate::definition::cross_namespace_qualified_vars(scope, &chain);
-    qnames.sort_unstable();
-    qnames.dedup();
-    for qname in qnames {
+    for qname in advice.cross_namespace_variable_names() {
         if !qname.starts_with(partial) {
             continue;
         }
@@ -952,6 +948,7 @@ fn array_element_completions(
     partial: &str,
     end: usize,
     edit_start: Option<u32>,
+    has_open_brace: bool,
 ) -> Vec<CompletionItem> {
     // The caller dispatches here exactly when `partial` contains a `(`.
     let Some((arr_name, elem_prefix)) =
@@ -959,25 +956,18 @@ fn array_element_completions(
     else {
         return Vec::new();
     };
-    let Some(arr_def) = crate::definition::lookup_var_in_logical_scope(advice, arr_name) else {
-        return Vec::new();
-    };
-    if arr_def.array_indices.is_empty() || !is_bare_var_name(arr_name) {
-        return Vec::new();
-    }
+    let candidates = advice.array_index_candidates(arr_name);
     let arr_edit_end = char_col_to_utf16(line_text, end);
-    let valid: Vec<&String> = arr_def
-        .array_indices
-        .iter()
-        .filter(|elem| !elem.is_empty() && !elem.contains(')'))
-        .collect();
     let FilteredCandidates {
         candidates: elems,
         fuzzy,
-    } = filter_candidates(elem_prefix, valid, |elem| elem.as_str());
+    } = filter_candidates(elem_prefix, candidates, |candidate| candidate.index());
     let mut items = Vec::new();
-    for elem in elems {
-        let new_text = format!("${arr_name}({elem})");
+    for candidate in elems {
+        let Some(new_text) = candidate.source_reference(has_open_brace) else {
+            continue;
+        };
+        let elem = candidate.index();
         let text_edit = edit_start.map(|start_char| CompletionEdit {
             start_char,
             end_char: arr_edit_end,
@@ -6161,6 +6151,71 @@ mod original_snippet_context_tests {
     }
 
     #[test]
+    fn logical_snippet_choices_use_current_scope_and_selected_source_reference_grammar() {
+        let source = "set {two words} LIST\nset {a{b}c} LIST\nset a_\\}_closebrace LIST\nproc p {} {\nset local LIST\ntcl-foreach\n}\n";
+        let cursor = source.find("tcl-foreach").unwrap() + "tcl-foreach".len();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let selected = tcl_registry::model::ingress::resolve_environment(environment);
+            let config = tcl_lexer::LexerConfig::for_profile(Some(selected.analyser_profile()));
+            let analysis = Analyser::new()
+                .with_resolved_input(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                    profile,
+                    profile,
+                    selected.default_context_registry(),
+                    config,
+                ))
+                .analyse(source, "display only");
+            let candidates = at(source, &analysis, cursor);
+            let snippet = candidates
+                .iter()
+                .find(|item| item.label == "Foreach")
+                .unwrap();
+            assert!(
+                snippet.insert_text.contains("$local"),
+                "{environment}: {}",
+                snippet.insert_text
+            );
+            assert!(
+                snippet.insert_text.contains("${::two words}"),
+                "{environment}: {}",
+                snippet.insert_text
+            );
+            assert!(
+                !snippet.insert_text.contains("closebrace"),
+                "{environment}: {}",
+                snippet.insert_text
+            );
+            assert_eq!(
+                snippet.insert_text.contains("${::a{b}c}"),
+                config.braced_var == tcl_dialect::BracedVarStyle::Tcl9Nesting,
+                "{environment}: {}",
+                snippet.insert_text,
+            );
+            assert!(at(&format!("#{source}"), &analysis, cursor + 1).is_empty());
+            let mut missing = analysis.clone();
+            missing.resolved_input = None;
+            let position = tcl_lexer::LineIndex::new(source)
+                .position_at_utf16(u32::try_from(cursor).unwrap(), source);
+            assert!(
+                completions(
+                    source,
+                    position.line,
+                    position.character.get(),
+                    &missing,
+                    None,
+                    None,
+                    profile
+                )
+                .is_empty()
+            );
+            let mut changed = analysis.clone();
+            changed.body_lexer_config.as_mut().unwrap().strict_quoting = !config.strict_quoting;
+            assert!(at(source, &changed, cursor).is_empty());
+        }
+    }
+
+    #[test]
     fn original_snippet_events_keep_retained_cards_and_actual_script_placement() {
         // naming.core.original-snippet-source-context
         // docs/design/analysis/name-resolution-proofs/original-snippet-source-context.md
@@ -6772,6 +6827,57 @@ mod configured_receiver_completion_tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn logical_array_completion_keeps_original_literal_data_and_computed_index_syntax() {
+        let source = "set {arr($literal)} ONE\nset {arr([list redirected])} TWO\nset {arr(\\x41)} THREE\nset {arr(key)} KEY\nset value $arr($computed)\nputs $arr(";
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let selected = tcl_registry::model::ingress::resolve_environment(environment);
+            let config = tcl_lexer::LexerConfig::for_profile(Some(selected.analyser_profile()));
+            let mut analysis = Analyser::new()
+                .with_resolved_input(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                    profile,
+                    profile,
+                    selected.default_context_registry(),
+                    config,
+                ))
+                .analyse(source, "display only");
+            analysis
+                .global_scope
+                .variables
+                .get_mut("arr")
+                .unwrap()
+                .array_indices
+                .insert("UNOWNED".to_owned());
+            let items = variable_completions(source, 5, 10, &analysis, "arr(", '$');
+            for reference in [
+                "${arr($literal)}",
+                "${arr([list redirected])}",
+                "${arr(\\x41)}",
+                "$arr(key)",
+                "$arr($computed)",
+            ] {
+                assert!(
+                    items.iter().any(|item| item.insert_text == reference),
+                    "{environment}: {reference}: {items:?}"
+                );
+            }
+            assert!(items.iter().all(|item| !item.label.contains("UNOWNED")));
+            let mut missing = analysis.clone();
+            missing.resolved_input = None;
+            assert!(variable_completions(source, 5, 10, &missing, "arr(", '$').is_empty());
+            let mut changed = analysis.clone();
+            changed.body_lexer_config.as_mut().unwrap().strict_quoting = !config.strict_quoting;
+            assert!(variable_completions(source, 5, 10, &changed, "arr(", '$').is_empty());
+            assert!(
+                variable_completions(&format!("#{source}"), 5, 10, &analysis, "arr(", '$')
+                    .is_empty()
+            );
+        }
+        let native = Analyser::new().analyse(source, "tcl9.1");
+        assert!(variable_completions(source, 5, 10, &native, "arr(", '$').is_empty());
     }
 
     #[test]

@@ -18,7 +18,7 @@
 
 //! Literal argument data from its actual retained whole source word.
 
-use crate::ir::{CommandTokens, Module, WordExpr};
+use crate::ir::{CommandTokens, Module, Script, Statement, WordExpr};
 use tcl_registry::CommandRegistry;
 
 /// Read one unchanged literal argument under its original Module and grammar.
@@ -33,11 +33,12 @@ pub(crate) fn original_literal_argument_data_for_module(
     original_source_argument_for_module(registry, module, tokens, argument)?.literal_data()
 }
 
-/// One immutable original argument under its actual current Module. The view
-/// carries source syntax and literal data, without read or execution authority.
+/// One immutable original argument selected under its Module or Script owner.
+/// The view carries source syntax and literal data, without read or execution authority.
 pub(crate) struct OriginalSourceArgument<'a> {
     word: &'a WordExpr,
     native: tcl_lexer::NativeWord,
+    config: tcl_lexer::LexerConfig,
 }
 
 impl<'a> OriginalSourceArgument<'a> {
@@ -47,6 +48,12 @@ impl<'a> OriginalSourceArgument<'a> {
 
     pub(crate) fn literal_data(&self) -> Option<String> {
         literal_word_data(&self.native)
+    }
+
+    /// Exact name syntax of a whole scalar substitution, without a cell or read proof.
+    pub(crate) fn scalar_reference_name(&self) -> Option<&str> {
+        let (reference, _) = self.word.sole_variable_substitution()?;
+        tcl_syntax::naming::whole_scalar_variable_reference_name(reference, self.config)
     }
 }
 
@@ -61,11 +68,48 @@ pub(crate) fn original_source_argument_for_module<'a>(
     retained
         .owns_original_analysis_attachment(tokens)
         .then_some(())?;
-    let (_, words) = original_command_words(tokens)?;
+    original_source_argument(tokens, argument)
+}
+
+/// Reborrow one lowered operand from its unchanged actual Script and source
+/// instance. This supplies immutable syntax only; caller state, reads, Native
+/// entry and successful evaluation remain independent.
+pub(crate) fn original_source_argument_for_script<'a>(
+    script: &'a Script,
+    statement: &'a Statement,
+    argument: usize,
+    expected: &str,
+) -> Option<OriginalSourceArgument<'a>> {
+    let tokens = script.retained_source_tokens_for_statement(statement)?;
+    let executed = script.executed_source.as_deref()?;
+    let binding = tokens.source_binding.as_ref()?;
+    let site = binding.invocation_site()?;
+    let (command, _) = binding.original_recorded_command()?;
+    if site.source != executed.origin || command.span != statement.span() {
+        return None;
+    }
+    let start = usize::try_from(executed.base()).ok()?;
+    let end = start.checked_add(executed.text.bytes().len())?;
+    if executed.origin.source_image().bytes().get(start..end) != Some(executed.text.bytes())
+        || usize::try_from(command.span.start()).ok()? < start
+        || usize::try_from(command.span.end()).ok()? > end
+        || tokens.argv_texts.get(argument.checked_add(1)?)?.as_str() != expected
+    {
+        return None;
+    }
+    original_source_argument(tokens, argument)
+}
+
+fn original_source_argument(
+    tokens: &CommandTokens,
+    argument: usize,
+) -> Option<OriginalSourceArgument<'_>> {
+    let (config, words) = original_command_words(tokens)?;
     let index = argument.checked_add(1)?;
     Some(OriginalSourceArgument {
         word: tokens.words().get(index)?,
         native: words.get(index)?.clone(),
+        config,
     })
 }
 
@@ -191,6 +235,50 @@ mod tests {
                     .retained_source_tokens_for_statement(statement)
             })
             .expect("retained complete original source vector")
+    }
+
+    #[test]
+    fn script_arguments_require_the_actual_statement_and_unchanged_body() {
+        let fixture =
+            crate::provider_fixtures::original_native_module(r#"set result "$input""#, "tcl8.6");
+        let (_, module) = &*fixture;
+        let script = &module.top_level;
+        let statement = script.statements.last().unwrap();
+        let Statement::AssignValue { value, .. } = statement else {
+            panic!("actual source variable assignment");
+        };
+        let argument = original_source_argument_for_script(script, statement, 1, value).unwrap();
+        assert_eq!(argument.scalar_reference_name(), Some("input"));
+        assert_eq!(argument.literal_data(), None);
+        assert!(original_source_argument_for_script(script, statement, 1, "OTHER").is_none());
+        let copy = statement.clone();
+        assert!(original_source_argument_for_script(script, &copy, 1, value).is_none());
+        let mut missing = script.clone();
+        missing.executed_source = None;
+        assert!(
+            original_source_argument_for_script(&missing, &missing.statements[0], 1, value)
+                .is_none()
+        );
+        let mut changed = script.clone();
+        std::sync::Arc::make_mut(changed.executed_source.as_mut().unwrap()).text =
+            tcl_lexer::SourceImage::native(b"set result CHANGED".as_slice());
+        assert!(
+            original_source_argument_for_script(&changed, &changed.statements[0], 1, value)
+                .is_none()
+        );
+        let mut changed = script.clone();
+        let Statement::AssignValue {
+            value: changed_value,
+            ..
+        } = &mut changed.statements[0]
+        else {
+            unreachable!();
+        };
+        *changed_value = "OTHER".to_owned();
+        assert!(
+            original_source_argument_for_script(&changed, &changed.statements[0], 1, "OTHER")
+                .is_none()
+        );
     }
 
     #[test]

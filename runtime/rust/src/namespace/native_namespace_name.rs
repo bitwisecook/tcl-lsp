@@ -15,6 +15,9 @@ impl Namespaces {
         ns: NsId,
     ) -> Option<NativeNamespaceNameToken> {
         let namespace = self.arena.get(ns)?;
+        if ns != super::GLOBAL && namespace.jim_namespace.is_some() {
+            return None;
+        }
         if self.native_namespace_name_dead.contains(&ns) {
             return None;
         }

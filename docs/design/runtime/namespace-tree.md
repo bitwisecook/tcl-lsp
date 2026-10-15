@@ -19,6 +19,11 @@ citations in this doc use that release's source.
 Jim uses a separate flat command table and retained canonical namespace
 objects. Each active context has an `Owned` original Jim object and a stable
 arena token; its counted name is not parsed into C parent/child edges.
+`JimNamespaceName::Unmaterialized` records an original object context without
+name bytes or a C-tree coordinate. Only a reached guarded getter records the
+actual bytes on that same context; changing policy cannot turn a Jim-only
+context into a C path. Weak procedure/frame owners preserve native role
+retirement independently of allocation leases.
 `namespace canonical` returns the original root-relative operand, creates a
 fresh absolute suffix string, or duplicates and appends to the actual current
 object. `namespace eval` retains the original name and single body object;

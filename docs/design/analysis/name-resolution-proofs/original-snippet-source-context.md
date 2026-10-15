@@ -18,7 +18,7 @@ The marked event source definition retains current source cards and placement, w
 
 ## Scope
 
-Readonly source candidates and explicit snippet authoring placement. Unicode braced references, opaque unsupported units, erased reporting maps, nested event source placement and changed whole source/configuration are fixed Rust coverage. This supplies no live variable read, cell binding, selected runtime event, TMM worker, appliance availability, execution or edit-equivalence grant. Explicit lexical source advice retains its independently selected compatibility branch.
+Readonly source candidates and explicit snippet authoring placement. Unicode braced references, opaque unsupported units, erased reporting maps, nested event source placement and changed whole source/configuration are fixed Rust coverage. This supplies no live variable read, cell binding, selected runtime event, TMM worker, appliance availability, execution or edit-equivalence grant. Explicit Logical source advice uses the current cursor’s checked variable scopes and root qualification, then the shared scalar source-reference constructor under the complete retained grammar. Incomplete or differently named proposals decline; name-table candidates supply no Native cell, read or edit authority.
 
 Source event/snippet context does not establish handler reachability, event invocation, a BIG-IP execution result, compilation, frame authority or an assertion outcome.
 

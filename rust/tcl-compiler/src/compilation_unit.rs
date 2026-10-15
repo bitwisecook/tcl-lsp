@@ -43,7 +43,7 @@ use crate::def_use::{DefUseResult, build_def_use_chains};
 use crate::interprocedural::InterproceduralAnalysis;
 use crate::ir::{Module as IrModule, Statement};
 use crate::memory_ssa::MemorySsaFunction;
-use crate::rendered_properties::{RenderedValueProps, propagate_rendered_props};
+use crate::rendered_properties::{RenderedValueProps, propagate_rendered_props_with_config};
 use crate::sccp::SccpResult;
 use crate::semantic_analysis::SemanticAnalysisBundle;
 use crate::ssa::{SsaFunction, ValueKey, build_ssa_with_context_for_entry_and_metadata};
@@ -1996,7 +1996,8 @@ impl FunctionUnit {
         );
         #[cfg(any(test, debug_assertions))]
         phase_trace.phase(6);
-        let rendered_props = propagate_rendered_props(&cfg, &ssa, &sccp, registry);
+        let rendered_props =
+            propagate_rendered_props_with_config(&cfg, &ssa, &sccp, registry, Some(config));
         #[cfg(any(test, debug_assertions))]
         phase_trace.phase(7);
         let instance_classes = instance_classes_for_function(

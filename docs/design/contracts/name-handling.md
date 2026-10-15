@@ -284,8 +284,11 @@ same-object command-cache comparison obtains neither namespace getter. A later
 coordinate belongs to that original context and does not replace its identity.
 Native compilation of this current context requires an already materialised,
 authenticated coordinate and declines while it is unavailable. Independently
-selected explicit known targets retain their own checks. Standalone Runtime and source analysis
-keep their independent entry and getter contracts. The
+selected explicit known targets retain their own checks. Runtime independently retains its original Jim context without a name coordinate;
+its reached getter checks the actual holder, interpreter operation and physical
+frame birth. Procedure and frame native roles remain independent of allocation
+leases, and actual apply argv objects travel without metadata String getters.
+Source analysis retains its separate entry contract. The
 [original argument contract](../runtime/original-command-arguments.md#original-jim-procedure-namespaces)
 describes the VM owners and retained SDK evidence boundaries.
 

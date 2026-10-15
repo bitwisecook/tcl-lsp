@@ -4778,15 +4778,22 @@ mod tests {
 
     #[test]
     fn original_declaration_summaries_keep_actual_cards_without_callable_publication() {
-        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
-        let profile = registry.profile().unwrap();
-        let source = "proc p {} {return ORIGINAL}";
-        let module = crate::lowering::lower_to_ir_with_dialect(
-            source,
-            registry,
-            tcl_lexer::LexerConfig::for_profile(Some(profile)),
-            Some(profile),
+        let environment = tcl_registry::model::ingress::resolve_environment("tcl8.6");
+        let context = environment.default_context_registry();
+        let registry = context.commands();
+        let profile = environment.unit_profile();
+        let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
         );
+        let source = "proc p {} {return ORIGINAL}";
+        let mut lowerer = crate::lowering::Lowerer::with_config(registry, config)
+            .with_resolved_analysis_input(input);
+        lowerer.lower(source);
+        let module = lowerer.finish_module(source);
         let mut bodies = module.original_source_procedure_bodies();
         let (id, body) = bodies.next().expect("genuine original declaration card");
         assert!(bodies.next().is_none());

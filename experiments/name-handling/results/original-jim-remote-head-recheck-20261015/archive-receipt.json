@@ -1,0 +1,6 @@
+{
+  "original": "/tmp/name-jim-upstream-head-recheck-20261015/result.json",
+  "sha256": "6ef1f28cb7e8e3286f9447533510a0fd71604b9c018ddc611c8c277c0aae1bf5",
+  "bytes": 399,
+  "scope": "Exact original remote HEAD receipt only; no SDK build or Runtime/VM acceptance."
+}

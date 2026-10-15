@@ -24524,7 +24524,10 @@ impl Vm {
     ) -> Result<tcl_runtime_api::NativeCompilationEntry, TclError> {
         let current = if namespace.is_empty() {
             Some(ROOT_NS)
-        } else if let Some(current) = self.current_namespace_execution_context().resolved_token()
+        } else if let Some(current) = self
+            .current_namespace_execution_context()
+            .resolved_token()
+            .filter(|token| self.native_namespace_token_has_owner(*token))
             && tcl_syntax::naming::checked_namespace_path_utf8(&self.ns_path(current))
                 .is_ok_and(|segments| segments.join("::") == namespace)
         {
@@ -24539,7 +24542,9 @@ impl Vm {
             });
             matches.next().filter(|_| matches.next().is_none())
         };
-        let current = current.ok_or_else(Self::unavailable_native_compilation_namespace)?;
+        let current = current
+            .filter(|token| self.native_namespace_token_has_owner(*token))
+            .ok_or_else(Self::unavailable_native_compilation_namespace)?;
         Ok(self.native_compilation_entry_for_namespace_token(current, procedure))
     }
 
@@ -25335,9 +25340,12 @@ impl Vm {
         let current = self
             .current_namespace_execution_context()
             .resolved_token()
+            .filter(|token| self.native_namespace_token_has_owner(*token))
             .filter(|current| namespace == &self.ns_path(*current))
             .or_else(|| self.namespace_token_at_path(namespace, true));
-        let current = current.ok_or_else(Self::unavailable_native_compilation_namespace)?;
+        let current = current
+            .filter(|token| self.native_namespace_token_has_owner(*token))
+            .ok_or_else(Self::unavailable_native_compilation_namespace)?;
         let entry =
             std::sync::Arc::new(self.native_compilation_entry_for_namespace_token(current, false));
         let key = (namespace.clone(), source.clone());

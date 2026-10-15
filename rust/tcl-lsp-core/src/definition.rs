@@ -4200,8 +4200,9 @@ fn name_token_in_document(source: &str, proc_def: &tcl_compiler::analyser::ProcD
         .is_some_and(|text| text.ends_with(proc_def.name.as_str()))
 }
 
-/// Logical scope display coordinate for a namespace or global variable.
-/// These stored scope keys are constructed metadata, not written Tcl names.
+/// Test-only display coordinate for isolated scope-walk geometry controls.
+/// Production insertion uses current Logical source namespace advice.
+#[cfg(test)]
 fn qualified_var_name(scope: &tcl_compiler::analyser::Scope, var: &str) -> String {
     use tcl_compiler::analyser::ScopeKind;
     if tcl_syntax::naming::unroot_rooted_key(var).is_some() {
@@ -4218,6 +4219,7 @@ fn qualified_var_name(scope: &tcl_compiler::analyser::Scope, var: &str) -> Strin
 /// Walk the scope tree and return the fully-qualified names of every
 /// namespace / global variable whose enclosing namespace is not in the
 /// cursor's lexical `chain` (proc locals excluded).
+#[cfg(test)]
 pub(crate) fn cross_namespace_qualified_vars(
     global: &tcl_compiler::analyser::Scope,
     chain: &FxHashSet<String>,

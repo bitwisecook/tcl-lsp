@@ -58,6 +58,16 @@ The [original producer question](../../../experiments/name-handling/results/spli
 
 ## Original Jim procedure namespaces
 
+Runtime uses `Namespaces::retain_unmaterialized_jim_namespace` and the same
+original holder through its own frame owner. `Interp::materialize_jim_namespace`
+checks the actual interpreter operation, frame birth and holder before reaching
+the getter; native pointer-equal cache checks obtain neither namespace getter,
+while distinct holders retain cached-before-current comparison order. Jim apply
+retains its real `apply lambdaExpr` dummy argv head and supplied argument
+objects. `CallMeta::original_frame_arguments` carries that native invocation
+tape without reading lambda or argument Strings for metadata. Query, error and
+body consumers independently select their reached getters.
+
 VM procedure declarations and call frames retain `NamespaceExecutionContext`.
 A resolved namespace owns its actual token. An original Jim lambda namespace
 retains its genuine original Value, interpreter, naming policy and world owner.

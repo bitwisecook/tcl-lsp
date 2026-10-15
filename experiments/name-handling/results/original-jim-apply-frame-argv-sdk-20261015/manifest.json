@@ -1,0 +1,54 @@
+{
+  "captured_at": "2026-10-15T00:27:55.922696+00:00",
+  "provider": "Original full-extension Jim0.84-9-g5bac7c9 build; revision label retained from prior capture, current library and source hashes reverified; no fresh upstream-head query",
+  "compile_command": [
+    "cc",
+    "-std=c99",
+    "-I/workspace/tcl-lsp/tmp/jimtcl-oracle",
+    "/tmp/name-jim-apply-frame-argv-sdk-20261015/probe.c",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/libjim.a",
+    "-lm",
+    "-lssl",
+    "-lcrypto",
+    "-lz",
+    "-ldl",
+    "-o",
+    "/tmp/name-jim-apply-frame-argv-sdk-20261015/probe"
+  ],
+  "compile_exit": 0,
+  "process_exit": 0,
+  "library": "/workspace/tcl-lsp/tmp/jimtcl-oracle/libjim.a",
+  "library_sha256": "2e75f1e259dc7896fa6996ebe2ad0fb5de2864770a772a0d102b2b6306280c61",
+  "source_sha256": "08a82c15955172ab74a99d347be6e461949a1a86ec9dbfcc6d43f958f110971e",
+  "stdout_sha256": "ca1a6342cf339f3c93a27d8162c49ef4d6550a38c56ca4afa3027462d4ad64f7",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "executable_sha256": "6c6768c201026b9f8a182f82684a76bdd4dc9ee725fa70a96e3f401a6a624a28",
+  "provider_sources": [
+    {
+      "original": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim.h",
+      "sha256": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+      "canonical_reference": "experiments/name-handling/results/original-jim-lambda-context-sdk-20261014/captures/lambda-deferred-namespace/provider-sources/jim.h"
+    },
+    {
+      "original": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim.c",
+      "sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "canonical_reference": "experiments/name-handling/results/original-jim-lambda-context-sdk-20261014/captures/lambda-deferred-namespace/provider-sources/jim.c"
+    },
+    {
+      "original": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim-namespace.c",
+      "sha256": "22bb6fb5fcea8ce8ec7e3eecbfe5ebd5ee290b9b725101ff4e4a1c0e9abed7f3",
+      "canonical_reference": "experiments/name-handling/results/original-jim-lambda-context-sdk-20261014/captures/lambda-deferred-namespace/provider-sources/jim-namespace.c"
+    },
+    {
+      "original": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim-config.h",
+      "sha256": "d092046fe07c2ec14b77da74304135da24725d766e1c9fd74ee32eeb07702221",
+      "canonical_reference": "experiments/name-handling/results/original-jim-lambda-context-sdk-20261014/captures/lambda-deferred-namespace/provider-sources/jim-config.h"
+    },
+    {
+      "original": "/workspace/tcl-lsp/tmp/jimtcl-oracle/Makefile",
+      "sha256": "1cfb962be629942512ee101d010f6c273fe9e2593fcf3f08a2565422fcf7d29c",
+      "canonical_reference": "experiments/name-handling/results/original-jim-lambda-context-sdk-20261014/captures/lambda-deferred-namespace/provider-sources/Makefile"
+    }
+  ],
+  "scope": "Actual Jim apply original integer namespace42 and actual integer argument84, sampled independently before/after seven actual invocations. No result getter before AFTER. LEVEL selects actual result List member before getter, comparing pointer identity to original argument. Wrong-arity/empty/comment/invalid/missing/return/level controls; explicit later getter rows distinct. No Runtime/VM/C/F5/full lifecycle acceptance."
+}

@@ -163,6 +163,16 @@ span and expected original argument. A variable amount needs the actual sole
 scalar reference and independent read/trace guards. The view remains immutable
 source syntax; it neither checks later Module mutations nor grants Native entry.
 
+Script-only source simulation uses `original_source_argument_for_script` with
+its actual statement and expected lowered operand. The issuer checks statement
+membership, unanimous original tokens, retained source instance, unchanged body
+bytes/extent, command span and the complete configured original word vector.
+`scalar_reference_name()` accepts only a whole typed scalar substitution under
+that vector's lexer configuration. Decode literal data first so escaped sigils
+remain literal; compound substitutions, arrays and commands decline rather than
+becoming raw stored text. These immutable syntax views supply no current Module,
+physical read, Native entry or executable erasure proof.
+
 `is_static_variable_source_word` is an unquoted source construction policy for
 a fixed ASCII identifier subset. Use it only when emitting that representation;
 it does not classify all accepted Tcl names or parse variable references.
@@ -6705,7 +6715,25 @@ array-element names decline this scalar constructor. Logical variable completion
 uses it for local and cross-namespace insertions after exact current source,
 input and scope eligibility checks, including prefix and fuzzy candidates.
 This pure source proposal issues no Native naming recipe, cell, current value,
-read or edit permission.
+read or edit permission. Cross-namespace candidates use
+`LogicalVariableScopeAdvice::cross_namespace_variable_names`: each declaration
+supplies its own retained current source namespace, and its proposed rooted
+coordinate must reselect that same declaration. A reporting `Scope.name` is not
+an insertion coordinate.
+
+Logical array completion consumes `LogicalVariableScopeAdvice::array_index_candidates`.
+The selected declaration’s actual definition/reference occurrences must retain a
+genuine whole original word and select that same declaration through their own
+current source scope. Shared original variable-name roles validate literal name
+operands; active variable components retain their actual configured index syntax.
+`LiteralNameData` and `ComputedOriginalSyntax` stay distinct. Computed indices
+require the same source frame and namespace and cannot become braced literal
+choices. `array_source_reference` validates both literal root and index under the
+full source grammar, using the shared static fragment decoder for a direct
+reference and checked combined-name data for a braced reference. The legacy
+`array_indices` set remains an observation inventory and supplies no insertion
+candidate. Missing original occurrences or source ownership decline. These are
+source proposals without a Native cell, evaluated index, read or edit grant.
 
 `native_scalar_source_spelling` accepts original bytes, the source channel,
 complete `LexerConfig` and selected native name protocol. It requires unchanged
@@ -7567,9 +7595,13 @@ bytes even for a qualified head. A valid cached command whose namespace is the
 same original object compares that identity without obtaining either namespace
 String getter. Reached materialisation records a coordinate on the same context;
 frame selection, suspended-flow transport and cleanup retain its activation
-birth independently. The standalone Runtime apply worker still obtains its
-original namespace String while preparing that namespace; this VM contract
-supplies no acceptance for that separate worker. C ordering remains independent.
+birth independently. Runtime independently retains an explicit unmaterialized
+Jim context through `retain_unmaterialized_jim_namespace`; its reached
+`materialize_jim_namespace` validates the actual operation, original holder and
+physical frame birth. Actual apply frame argv uses the `apply lambdaExpr` dummy
+head and original argument objects without metadata String getters. Weak frame
+and procedure owners preserve native role retirement independently of allocation
+leases. VM and Runtime execution scopes and C ordering remain independent.
 The namespace projection grants no lookup, creation, entered frame or successful
 invocation. The [retained SDK observations](../../../experiments/name-handling/results/original-jim-lambda-context-sdk-20261014/README.md)
 cover their original probes and getter order, not current Rust execution or full
@@ -8503,8 +8535,10 @@ See the [file candidate contract](../analysis/name-resolution-proofs/original-pa
 Completion snippet variable choices use `original_variables::source_references`,
 the same current visibility and complete source-reference decoder as variable
 completion. Unknown Native or hosted spellings remain unavailable; only the
-explicit lexical advice branch may read its reporting inventory. Snippet
-escaping preserves complete reference spellings. `EventHandlerFacts::from_analysis`
+explicit Logical advice branch uses the current cursor’s checked variable scope,
+root qualification and shared `scalar_source_reference` constructor. Its source
+name tables supply candidates; they establish no Native cell or successful read.
+Snippet escaping preserves complete reference spellings. `EventHandlerFacts::from_analysis`
 retains actual source/configuration/ContextRegistry and authentic hosted event
 cards through shared source structure. Event templates require the current
 root script; a source event label supplies no worker reachability or binding.
