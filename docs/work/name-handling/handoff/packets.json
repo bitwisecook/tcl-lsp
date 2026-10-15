@@ -348,5 +348,15 @@
     "file": "repository-audit-progress-20261015T230620Z.tar.gz",
     "sha256": "1d5d1b398e1de5863c3fe9c191027bc964551d8b888ab2c8d80d7844079d05a4",
     "status": "INCOMPLETE cc24 source audit: 6758 provisional purpose rows; exact frozen primary partitions/source SHA/schema reconcile, no same-key duplicate candidates. Semantic aliases have independent reconciliation receipts but remaining work-kind/purpose/unit reconciliation and unexamined production/harness/guidance remain. Shared owners/display/metadata/exclusions included; NOT remaining-consumer total. No test/provider/generator/gate acceptance."
+  },
+  {
+    "file": "repository-audit-deep-delta-20261015T232013Z.tar.gz",
+    "sha256": "8b5961fd8a1f41a165a2bb568fd756fe6dc4e0bbae927f9b596bf881a1bb05ad",
+    "status": "Exact nested audit delta against repository-audit-deep-progress-20261015T220906Z.tar.gz SHA8813dc50abbc84c6c55a0ca2563df708c80ce8d8f8fcb7c60ad2bb092122d4fa; 153 changed/new verified members,0 deletions; source retention only, no review/execution acceptance."
+  },
+  {
+    "file": "repository-audit-progress-20261015T232153Z.tar.gz",
+    "sha256": "788f83e79684bc251fc7f78eea746e89f72a3ee001bfce41a74a3161d9264f0b",
+    "status": "INCOMPLETE cc24 source audit: 6903 provisional purpose rows; exact frozen primary partitions/source SHA/schema reconcile, no same-key duplicate candidates. Semantic aliases have independent reconciliation receipts but remaining work-kind/purpose/unit reconciliation and unexamined production/harness/guidance remain. Shared owners/display/metadata/exclusions included; NOT remaining-consumer total. No test/provider/generator/gate acceptance."
   }
 ]

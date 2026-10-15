@@ -1,6 +1,6 @@
 # Bounded name-handling consumer inventory
 
-Audit resumed at the user’s request. Six disjoint lanes continue actual source/operational/generated/guidance review. The 2026-10-15 23:06 UTC checkpoint retains **6,758 provisional purpose records / 960 hash-verified members**, not a repository migration total. Root has mapped its 329 records to a separate proposed work-unit catalogue; independent and cross-owner reconciliation remain unfinished. See [the current audit status](audit-status.md). Source/build freeze and original validation limits remain.
+Audit resumed at the user’s request. Six disjoint lanes continue actual source/operational/generated/guidance review. The 2026-10-15 23:21 UTC checkpoint retains **6,903 provisional purpose records / 1,051 hash-verified members**, not a repository migration total. Root has mapped its 329 records to a separate proposed work-unit catalogue; independent and cross-owner reconciliation remain unfinished. See [the current audit status](audit-status.md). Source/build freeze and original validation limits remain.
 
 The rows below are the historical bounded inventory; their source dates and original validation limits remain intact. The final repository audit supersedes them where exact source-purpose corrections exist. No bounded exclusion or older completion statement closes an unexamined surface.
 

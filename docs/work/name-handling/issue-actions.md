@@ -1,6 +1,6 @@
 # Current issue actions
 
-Audit resumed at the user’s request. Six disjoint lanes continue actual source/operational/generated/guidance review. The 2026-10-15 23:06 UTC checkpoint retains **6,758 provisional purpose records / 960 hash-verified members**, not a repository migration total. Root has mapped its 329 records to a separate proposed work-unit catalogue; independent and cross-owner reconciliation remain unfinished. See [the current audit status](audit-status.md). Source/build freeze and original validation limits remain.
+Audit resumed at the user’s request. Six disjoint lanes continue actual source/operational/generated/guidance review. The 2026-10-15 23:21 UTC checkpoint retains **6,903 provisional purpose records / 1,051 hash-verified members**, not a repository migration total. Root has mapped its 329 records to a separate proposed work-unit catalogue; independent and cross-owner reconciliation remain unfinished. See [the current audit status](audit-status.md). Source/build freeze and original validation limits remain.
 
 Issue metadata is unchanged: 449 exact reads as of 2026-10-15 11:06:53 UTC (97 OPEN, 352 CLOSED); current-source acceptance mapping remains unfinished. M12 is the latest replay (1,133 PASS / 410 FAIL / one TIMEOUT / two rejected run counts); the earlier L15/K sections below retain historical scope. #2286 remains OPEN; no GitHub mutations.
 
