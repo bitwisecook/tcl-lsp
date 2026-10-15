@@ -199,6 +199,17 @@ pub struct LoopNode {
     pub statement: Statement,
 }
 
+/// The command a branch condition belongs to ([`Function::condition_owners`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ConditionOwner {
+    /// The command's source span.
+    pub command: Span,
+    /// Whether the command's compile procedure leaves uncompiled the script a
+    /// condition that is one literal constant never runs (`TclCompileIfCmd`,
+    /// `TclCompileWhileCmd`); `TclCompileForCmd` compiles every clause.
+    pub skips_constant_dead_script: bool,
+}
+
 /// Source site and Tcl error context for a command body flattened into a CFG.
 ///
 /// The semantic context comes from registry resolution during lowering.  It is
@@ -310,6 +321,9 @@ pub struct Function {
     /// Exact owning Tcl command for synthetic runtime boundaries emitted at a
     /// block. Absence means compiler-generated control, not a replay point.
     pub command_boundary_sites: HashMap<BlockId, CommandBindingSite>,
+    /// The `if`, `while` or `for` command each branch condition, keyed by its
+    /// span, belongs to: an error its evaluation raises logs that command.
+    pub condition_owners: HashMap<Span, ConditionOwner>,
     /// Continuation block for a structured command whose inline CFG occupies a
     /// region rather than one statement or a recognised loop shape. Codegen
     /// wraps that region in one replayable `START_CMD` boundary.
@@ -379,6 +393,7 @@ impl Function {
             command_binding_sites: Vec::new(),
             procedure_binding_requirements: Vec::new(),
             command_boundary_sites: HashMap::new(),
+            condition_owners: HashMap::new(),
             command_boundary_continuations: HashMap::new(),
             branch_command_joins: HashMap::new(),
             body_scripts: Vec::new(),

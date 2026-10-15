@@ -13059,7 +13059,11 @@ impl Vm {
         if let Err(error) = surface.validate(&node) {
             let message = error.message(src);
             self.seed_parsing_expression_frame(src, &message);
-            return Err(TclError::with_error_code(message, error.error_code()));
+            return Err(if self.runtime_version.tags_expression_parse_errors() {
+                TclError::with_error_code(message, error.error_code())
+            } else {
+                TclError::new(message)
+            });
         }
         let mut ops = ExprEval { vm: self };
         eval(&node, &mut ops)
@@ -13092,7 +13096,10 @@ impl Vm {
         );
         let message = error.message(src);
         self.seed_parsing_expression_frame(src, &message);
-        TclError::with_error_code(message, error.error_code())
+        match error.error_code_in(self.runtime_version) {
+            Some(code) => TclError::with_error_code(message, code),
+            None => TclError::new(message),
+        }
     }
 
     /// Add C's `(parsing expression "…")` `errorInfo` frame for a rejected

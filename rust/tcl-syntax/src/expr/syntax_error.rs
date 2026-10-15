@@ -240,6 +240,16 @@ impl ExprSyntaxError {
         out
     }
 
+    /// The `-errorcode` `release` sets for this error: [`Self::error_code`]
+    /// where it tags one ([`TclVersion::tags_expression_parse_errors`]),
+    /// `None` before.
+    #[must_use]
+    pub fn error_code_in(&self, release: TclVersion) -> Option<String> {
+        release
+            .tags_expression_parse_errors()
+            .then(|| self.error_code())
+    }
+
     /// The full Tcl `-errorcode`, `TCL PARSE EXPR <detail>`.
     #[must_use]
     pub fn error_code(&self) -> String {

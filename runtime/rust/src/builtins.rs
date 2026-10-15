@@ -948,12 +948,7 @@ fn expr_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let cached_on = (argv.len() == 2).then(|| argv[1]);
     let node = match parse_runtime_expr_cached(interp, cached_on, src) {
         Ok(node) => node,
-        Err(e) => {
-            return match e.code {
-                Some(code) => interp.error_with_code(&e.msg, &code),
-                None => interp.set_error(&e.msg),
-            };
-        }
+        Err(e) => return raise_expr_parse_error(interp, src, &e),
     };
     let mut ctx = InterpExprCtx {
         interp: &mut *interp,
@@ -989,10 +984,7 @@ pub(crate) fn eval_expr_obj(interp: &mut Interp, src: &[u8]) -> Result<*mut TclO
     let Ok(s) = core::str::from_utf8(src) else {
         return Err(interp.set_error(b"expr operand is not valid UTF-8"));
     };
-    let node = parse_runtime_expr(interp, s).map_err(|e| match e.code {
-        Some(code) => interp.error_with_code(&e.msg, &code),
-        None => interp.set_error(&e.msg),
-    })?;
+    let node = parse_runtime_expr(interp, s).map_err(|e| raise_expr_parse_error(interp, s, &e))?;
     let mut ctx = InterpExprCtx {
         interp: &mut *interp,
         propagated: false,
@@ -1033,10 +1025,7 @@ pub(crate) fn eval_bool_expr(interp: &mut Interp, cond: *mut TclObj) -> Result<b
             if let Some(old) = saved {
                 interp.restore_line_base(old);
             }
-            return Err(match e.code {
-                Some(code) => interp.error_with_code(&e.msg, &code),
-                None => interp.set_error(&e.msg),
-            });
+            return Err(raise_expr_parse_error(interp, s, &e));
         }
     };
     let mut ctx = InterpExprCtx {
@@ -1069,6 +1058,30 @@ pub(crate) fn eval_bool_expr(interp: &mut Interp, cond: *mut TclObj) -> Result<b
     }
 }
 
+/// Raise the parse error `error` of the expression `source`: from 8.5 with
+/// the `(parsing expression "…")` frame `ParseExpr` adds, so the command
+/// holding the expression logs itself as invoked from within.
+#[cfg(have_tommath)]
+fn raise_expr_parse_error(
+    interp: &mut Interp,
+    source: &str,
+    error: &crate::expr::ExprError,
+) -> Code {
+    let code = match &error.code {
+        Some(code) => interp.error_with_code(&error.msg, code),
+        None => interp.set_error(&error.msg),
+    };
+    if !interp.runtime_version().parses_expressions_as_8_4() {
+        let frame = tcl_syntax::expr::ExprSyntaxError::error_info_frame(source);
+        let text = frame
+            .trim_start_matches("\n    (")
+            .strip_suffix(')')
+            .unwrap_or(&frame);
+        interp.append_frame_noline(text.as_bytes());
+    }
+    code
+}
+
 /// Parse an expression against the registry-owned surface for this
 /// interpreter's emulated release. The parser deliberately runs over the
 /// union grammar: a later-release operator is then rejected by the registry
@@ -1082,13 +1095,36 @@ fn parse_runtime_expr(
 ) -> Result<tcl_syntax::expr::ExprNode, crate::expr::ExprError> {
     #[cfg(test)]
     crate::expr::note_expr_parse();
+    let release = interp.runtime_version();
+    let error = |message: String, code: Option<String>| match code {
+        Some(code) => crate::expr::ExprError::from_parts(message.into_bytes(), code.into_bytes()),
+        None => crate::expr::ExprError::from_bytes(message.into_bytes()),
+    };
+    // 8.4 parses with its own parser first, whose errors carry no code.
+    if release.parses_expressions_as_8_4() {
+        if let Err(message) = tcl_syntax::expr::syntax_84::parse_tcl84(source) {
+            return Err(error(message, None));
+        }
+    }
     let node = tcl_syntax::expr::parse_expr(source, None);
-    tcl_registry::expr_surface::RuntimeExprSurface::for_tcl_version(interp.runtime_version())
+    if matches!(node, tcl_syntax::expr::ExprNode::Raw { .. }) {
+        // C's own reason for the failure, as `ParseExpr` words it, under the
+        // emulated release's grammar.
+        let diagnosis =
+            tcl_syntax::expr::ExprSyntaxError::diagnose(source, Some(release.dialect_name()));
+        return Err(error(
+            diagnosis.message(source),
+            diagnosis.error_code_in(release),
+        ));
+    }
+    tcl_registry::expr_surface::RuntimeExprSurface::for_tcl_version(release)
         .validate(&node)
-        .map_err(|error| {
-            crate::expr::ExprError::from_parts(
-                error.message(source).into_bytes(),
-                error.error_code().as_bytes().to_vec(),
+        .map_err(|surface| {
+            error(
+                surface.message(source),
+                release
+                    .tags_expression_parse_errors()
+                    .then(|| surface.error_code().to_owned()),
             )
         })?;
     Ok(node)

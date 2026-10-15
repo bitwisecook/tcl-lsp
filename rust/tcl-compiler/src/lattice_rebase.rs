@@ -82,6 +82,14 @@ pub(crate) fn rebase_function_unit(fu: &mut FunctionUnit, delta: i64) {
     for site in fu.cfg.command_boundary_sites.values_mut() {
         shift(&mut site.span, delta);
     }
+    fu.cfg.condition_owners = std::mem::take(&mut fu.cfg.condition_owners)
+        .into_iter()
+        .map(|(mut condition, mut owner)| {
+            shift(&mut condition, delta);
+            shift(&mut owner.command, delta);
+            (condition, owner)
+        })
+        .collect();
     // SSA holds its own clones of the IR statements; some emitters read spans
     // from them (`stmt.statement.span()`), so rebase those too.
     for block in fu.ssa.blocks.values_mut() {

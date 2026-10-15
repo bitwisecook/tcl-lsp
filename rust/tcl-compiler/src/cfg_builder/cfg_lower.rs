@@ -331,6 +331,13 @@ impl CfgBuilder<'_> {
 
             let true_target = self.bid(&then_block);
             let false_target = self.bid(&next_dispatch);
+            self.condition_owners.insert(
+                clause.condition_span,
+                crate::cfg::ConditionOwner {
+                    command: *span,
+                    skips_constant_dead_script: true,
+                },
+            );
             self.block_mut(&dispatch).terminator = Some(Terminator::Branch {
                 condition: clause.condition.clone(),
                 true_target,
@@ -435,6 +442,13 @@ impl CfgBuilder<'_> {
 
         let body_id = self.bid(&body_block);
         let end_id = self.bid(&end_block);
+        self.condition_owners.insert(
+            *condition_span,
+            crate::cfg::ConditionOwner {
+                command: stmt.span(),
+                skips_constant_dead_script: matches!(stmt, Statement::While { .. }),
+            },
+        );
         self.block_mut(&header).terminator = Some(Terminator::Branch {
             condition: condition.clone(),
             true_target: body_id,
@@ -556,6 +570,13 @@ impl CfgBuilder<'_> {
         }
         let body_id = self.bid(&body_block);
         let end_id = self.bid(&end_block);
+        self.condition_owners.insert(
+            *condition_span,
+            crate::cfg::ConditionOwner {
+                command: stmt.span(),
+                skips_constant_dead_script: matches!(stmt, Statement::While { .. }),
+            },
+        );
         self.block_mut(&header).terminator = Some(Terminator::Branch {
             condition: condition.clone(),
             true_target: body_id,

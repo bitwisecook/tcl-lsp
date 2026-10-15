@@ -377,6 +377,7 @@ pub(crate) struct CfgBuilder<'a> {
     /// Block name to exact owning structured Tcl command for synthetic runtime
     /// revalidation boundaries.
     command_boundary_sites: HashMap<String, CommandBindingSite>,
+    condition_owners: HashMap<Span, crate::cfg::ConditionOwner>,
     /// Entry block to continuation block for an explicitly delimited inline
     /// structured-command region.
     command_boundary_continuations: HashMap<String, String>,
@@ -526,6 +527,7 @@ impl<'a> CfgBuilder<'a> {
             command_binding_sites: Vec::new(),
             procedure_binding_requirements: Vec::new(),
             command_boundary_sites: HashMap::new(),
+            condition_owners: HashMap::new(),
             command_boundary_continuations: HashMap::new(),
             branch_command_joins: HashMap::new(),
             body_scripts: Vec::new(),
@@ -2096,6 +2098,7 @@ impl<'a> CfgBuilder<'a> {
         func.command_binding_sites = std::mem::take(&mut self.command_binding_sites);
         func.procedure_binding_requirements =
             std::mem::take(&mut self.procedure_binding_requirements);
+        func.condition_owners = std::mem::take(&mut self.condition_owners);
         func.command_boundary_sites = std::mem::take(&mut self.command_boundary_sites)
             .into_iter()
             .map(|(block, site)| (self.bid(&block), site))
