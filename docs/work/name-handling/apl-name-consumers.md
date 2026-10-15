@@ -1,5 +1,15 @@
 # APL variable names
 
+## Current238 handoff scope
+
+The bounded source/reference convention owner below remains separate from actual appliance publication. Keep the F5 request/answer paths and missing operation-specific answers explicit. The original C/Jim source geometry tests are not iApp export, cell or appliance execution evidence.
+
+Priority remains finishing actual naming-consumer migrations in parallel; [implementation-ledger.md](implementation-ledger.md) assigns the next owners. [current-state.md](current-state.md) records the current executed scopes; [handoff/README.md](handoff/README.md) contains explicitly unadopted continuation work.
+
+## Retained bounded audit
+
+The text below records its stated source/date and earlier acceptance only. It is not a fresh whole-surface current-source certification; later implementation and current failures are governed by the handoff above.
+
 The APL convention owner in `tcl-bigip::apl::variable_names` serves the public converters, model export reports and iApp source diagnostics. It projects dotted presentation fields to double-underscore variable labels. Reverse projection uses shared counted colon geometry, preserves lone-colon data, and declines namespace-qualified roots and empty simple components. Actual reference extraction requires an explicit root marker; relative convention-like reads cannot establish an appliance global and leave absence coverage partial. Conventional rooted export strings are reports; they do not establish source addressability, native variable cells or appliance publication.
 
 Configured extraction consumes `tcl-irules::original_hosted_source_variable_references` under the original selected profile, Registry context and full LexerConfig. The existing analyser retains genuine original words and Registry source-body roles. Original lexical components and selected expression syntax supply reference spans. Comments, escaped dollars and inert braced data are not substitution reads; arbitrary braced words are not entered as scripts.

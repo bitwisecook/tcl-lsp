@@ -1,5 +1,15 @@
 # Registry name-consumer audit
 
+## Current238 handoff scope
+
+Current shared owners retain selected dialect/profile, exact original operand roles/layouts, availability, formal/body schemas and distinct Native/conditional purposes. Registry26512/12 and Source26542/42 are selected unit scopes; normal owner CLI250 remains197 diagnostics. Later actual237/238 Native parent/text pure branches retain data-only semantics; no roster, object or namespace capability follows from a pure branch.
+
+Priority remains finishing actual naming-consumer migrations in parallel; [implementation-ledger.md](implementation-ledger.md) assigns the next owners. [current-state.md](current-state.md) records the current executed scopes; [handoff/README.md](handoff/README.md) contains explicitly unadopted continuation work.
+
+## Retained bounded audit
+
+The text below records its stated source/date and earlier acceptance only. It is not a fresh whole-surface current-source certification; later implementation and current failures are governed by the handoff above.
+
 Read-only source audit at `fec11755eda5a2c7ed1e086e5ae708977e234cc2` plus the unchanged frozen working-tree inputs captured by `experiments/name-handling/results/registry-descriptor-root-cache/source-current.json`. This is a current coordination snapshot, not shipped contract prose. Source inspection establishes delegation and boundaries; only the separately listed receipts establish executed controls. No source changes or builds were performed for this audit.
 
 The search covers Registry production and tests using the shared naming owner, Native naming purposes, colon splitting/trimming, descriptor labels, selected worker operands and name-shaped primitive guards. Paths below are relative to `rust/tcl-registry/src/`. Unlisted string trimming in `commands/tcl/string_.rs` and numeric formatting in `commands/tcl/format_.rs` implement command/string values and are not name lookup.

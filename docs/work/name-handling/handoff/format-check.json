@@ -1,0 +1,92 @@
+{
+  "utc": "2026-10-15T08:50:48.302253+00:00",
+  "command": "rustfmt --check --edition <runtime2021|crate2024> --config skip_children=true <exact222\u2013238adoptedRustpaths>",
+  "exit_code": 0,
+  "files": [
+    {
+      "path": "runtime/rust/src/cmd_namespace.rs",
+      "sha256": "8213a5ec2c691f0d1036968ad3485fc4138fa046fc9add0d89fa6d98edf68f35"
+    },
+    {
+      "path": "runtime/rust/src/cmd_namespace/native_jim_delete_tests.rs",
+      "sha256": "4322f2cc038604fe3bc6a1070c1b48ac33e047dd62ba4453b8ac6d40728b4826"
+    },
+    {
+      "path": "runtime/rust/src/cmd_namespace/native_jim_parent_tests.rs",
+      "sha256": "805c0602a72758f06cd2fb3095fece9901f0fa7a9ac7a44c756bea16160374be"
+    },
+    {
+      "path": "runtime/rust/src/cmd_namespace/native_jim_text_result_tests.rs",
+      "sha256": "c909c82198d3c7203bb3e68ad7758417edb8b941d5c1443ca09e04b29d5b129f"
+    },
+    {
+      "path": "runtime/rust/src/interp/native_jim_namespace.rs",
+      "sha256": "a2678c3d9cff5a319e5889ee94b93024c608af64848ee433be54b01b2db62b44"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/item_tree.rs",
+      "sha256": "7f1a1e862a924484a45b7a22c2fac6cb1cf2d50e79ad7f509eb634a13eecc250"
+    },
+    {
+      "path": "rust/tcl-compiler/src/body_analysis_capsule.rs",
+      "sha256": "acd319c5030b15ca8a147849c182d92d2b4381690dfc72f705571b34604157d9"
+    },
+    {
+      "path": "rust/tcl-compiler/src/body_analysis_capsule/readonly_authored_coverage.rs",
+      "sha256": "71c62378e3e236e5dcd92b07f4ebe569d911a69fa99d7af6d4c492e1cbc804c5"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/declaration_preview.rs",
+      "sha256": "724b6d36628cfc59d628b1a553b8d74cb505456762c663104f09d50f5b729458"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/authored_source_bodies.rs",
+      "sha256": "46d1689dbf5dfbb7ec2c180229762079c252998dec3b470dcd4ce4b756318a37"
+    },
+    {
+      "path": "rust/tcl-irules/src/walker.rs",
+      "sha256": "8888e9f1396e75425f9222c86ccb7511249215607f8d9d86d1f2a47ee66303a7"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/formatting/engine.rs",
+      "sha256": "fbdc7fab42074c6679aeefdaabdde07d4d18348570410b034e9bd844c0a2c5f6"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/refactor/inline_variable.rs",
+      "sha256": "6f0e35a1906c862f1738b44f6c5ecaec50a8164aed132f92b9fd3b3558c9595f"
+    },
+    {
+      "path": "rust/tcl-lsp-db/src/lib.rs",
+      "sha256": "0ad01dfb7e63dcd16b427c790f1b48623dd0f2af69f9e0ddc22cf69eca3f5618"
+    },
+    {
+      "path": "rust/tcl-mcp/src/tools.rs",
+      "sha256": "3904242b110f2135819a1b49530b93670c66f4d70f1e8e46cc81933abb136ef7"
+    },
+    {
+      "path": "rust/tcl-syntax/src/naming.rs",
+      "sha256": "f4bc2bacbc97055f905598cd3a1401c1d183fcab0eb5dfdc6412eafb8e863d89"
+    },
+    {
+      "path": "rust/tcl-syntax/src/naming/native.rs",
+      "sha256": "a1602e9ed1a3b1c674de97770874295cbd8d1d5893349aec14ba4ac004d99cfa"
+    },
+    {
+      "path": "rust/tcl-vm/src/cmd_namespace.rs",
+      "sha256": "53cf056c436d9eda63936882a52af6550d69cec535108399584bc1bd58fbcbf4"
+    },
+    {
+      "path": "rust/tcl-vm/src/command/native_apply_original_tests.rs",
+      "sha256": "49949f991bea8122c25309d43ed6b9e26bcd1372a3e82b929fdb1b98c13ff51e"
+    },
+    {
+      "path": "rust/tcl-vm/src/interp/oo_cleanup/active_frame/tests.rs",
+      "sha256": "24344a111af16decb1170eb47457f73f148839a736425accc2b847ffea039094"
+    },
+    {
+      "path": "rust/tcl-vm/src/interp/selected_frame/tests.rs",
+      "sha256": "fc0bb8c492b6671cc711c7a3a83b5b9d452d406528f2cc3bd570b4c8342b5442"
+    }
+  ],
+  "scope": "21 exact adopted Rustfiles only; make rust-check and make prep-pr remain unexecuted; no semantic/test acceptance"
+}

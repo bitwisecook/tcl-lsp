@@ -1,0 +1,42 @@
+[
+  {
+    "file": "compiler-logical-source.tar.gz",
+    "sha256": "f6153d8aae467d2e01c70137ee7b68d2b855d36e5268abad1186904212970564",
+    "status": "UNADOPTED; inspect included scope and blockers before implementation/review; no acceptance"
+  },
+  {
+    "file": "db-logical-source.tar.gz",
+    "sha256": "6120a0c5c79425b5f4ef565620082edad4f689f7ce17459f7c4b0199400541ea",
+    "status": "UNADOPTED; inspect included scope and blockers before implementation/review; no acceptance"
+  },
+  {
+    "file": "validation-plans.tar.gz",
+    "sha256": "5906a361c98c64e55746e404d85dd7799f11efdc8c9668b7135fb2b1d6008397",
+    "status": "Future exact plans and reusable capture scripts; preserve original budgets and all guards; no execution acceptance"
+  },
+  {
+    "file": "runtime-naming.tar.gz",
+    "sha256": "f002968199038ce06fe92d6973319dc9f3dc05dac3c3ac723729f7795683cd5d",
+    "status": "UNADOPTED helper-prefix draft and import evidence/design; current174 metadata is a future unexecuted plan"
+  },
+  {
+    "file": "vm-naming.tar.gz",
+    "sha256": "a14c79a053a316190098dd21b1541c73e4d12ff3ca8550cdf56ee0e80b02f209",
+    "status": "UNADOPTED selected-retirement and current-holder Parent drafts; API/lifetime peers pending; VM133 full future plan is in validation-plans archive"
+  },
+  {
+    "file": "validation-receipts.tar.gz",
+    "sha256": "7ecee27b0ab5f813cb171076b466dee12b7d0358af5007bc2e45676a4d301718",
+    "status": "Actual265/268/269/270 receipts and raw exact-test logs; original full source/provider/build closures remain at capture paths; no current238 ordinary acceptance yet"
+  },
+  {
+    "file": "compiler-temp270-addendum.tar.gz",
+    "sha256": "44d3de59fd7eb64378030ff2f877db4ec6103cefe0c8db358955c4efe12ac7d8",
+    "status": "Actual diagnostic-only first refusals with all8 raw Compiler logs and exact restoration receipt; no ordinary acceptance"
+  },
+  {
+    "file": "lsp-minifier.tar.gz",
+    "sha256": "d22fb434a83ded4999b8c8d50b54882f41c1089a7e29587d86e727bda6e7504a",
+    "status": "UNIMPLEMENTED minifier design with controlled/excluded original6 oracle raw channels and12 zero stderr; no new assertions or Native authority"
+  }
+]

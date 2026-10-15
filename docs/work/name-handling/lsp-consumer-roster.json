@@ -4085,7 +4085,7 @@
           "matches": [
             "format!(\"{}::"
           ],
-          "source": "SpecialVarKind::Namespace => (\"special namespace\", format!(\"{}::\u2026\", spec.name)),"
+          "source": "SpecialVarKind::Namespace => (\"special namespace\", format!(\"{}::…\", spec.name)),"
         }
       ]
     },
@@ -8083,5 +8083,14 @@
     }
   ],
   "limitations": "Candidate census uses bounded lexical function attribution and excludes first cfg(test) module tail; caller/provenance review required. Not a verified consumer count or exhaustive AST proof.",
-  "scope": "Tracked current source files in three LSP crates plus editor hosts; vendor modules/generated output excluded. Tests are inventoried separately."
+  "scope": "Tracked current source files in three LSP crates plus editor hosts; vendor modules/generated output excluded. Tests are inventoried separately.",
+  "handoff_context": {
+    "source_epoch": 238,
+    "checkpoint_basis": "b076a4095 push-confirmed; inspect actual later HEAD",
+    "current_status": "Source238 adopted; TEMP270 restored all3/97819 exactly; ordinary271 build failed/0 tests; ordinary272 single-job retry active, no fresh acceptance",
+    "canonical_status": "current-state.md",
+    "continuation": "continue-prompt.md",
+    "portable_work": "handoff/README.md",
+    "scope": "Original roster/search/issue records retain their captured dates and hashes; this context does not refresh every row or certify complete migration."
+  }
 }

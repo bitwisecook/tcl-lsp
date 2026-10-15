@@ -20,9 +20,7 @@ implementation-ledger.md, plan.md and issues.md. Read the durable entry points:
 
 Inspect Git status, branch, HEAD, remote and incoming changes. Stay on work,
 preserve other edits and coordinate concurrent chats, including the BIG-IP chat.
-The documentation audit read e0277ec42124d26b36cc06daa760de6b21a1decb;
-it supplies no fresh execution result. Re-read current tracking and source before
-acting. Old target directories, /tmp/name-env.sh, provisioned binaries and
+The current handoff adopts source238; checkpoint `b076a4095` was push-confirmed before this status refresh. Inspect the actual later HEAD and [handoff/README.md](handoff/README.md); portable drafts are not adopted source. Re-read current tracking and source before acting. Old target directories, /tmp/name-env.sh, provisioned binaries and
 absolute paths in receipts may be absent in a new environment. Discover and
 validate them using the repository's supported environment/oracle owners.
 Do not restore scrubbed lab, device, credential or certificate material.
@@ -92,40 +90,35 @@ integrates coherent batches, updates current snapshots, commits and pushes
 regularly. Development pushes before green gates are already authorised; all
 required checks must pass at the PR stage. Do not merge.
 
-## Current priorities to revalidate
+## Current priorities and first actions
 
-- Original C8.6 var-13.2 aborts the Runtime with SIGABRT; C8.6 reports
-  passed 1/skipped 109/failed 0. The larger orchestration reached 67 starts
-  and 18 skips with no final counts. Inspect the isolated experiment under
-  experiments/name-handling/results/runtime-c86-real-suites/array-search-isolation/var-13.2/.
-  Investigate actual array-search/element-unset storage/lifetime cause first;
-  a start marker or absent failure banner is not success. Keep the proposed
-  original-argv WASM change on hold until this blocker is understood.
-- #2286 remains OPEN. Current original C8.4 program is one versus two W210
-  reads at bytes160–167; namespace import remains zero versus one. Alias setup
-  retains all forty cases and shared undefined-read controls pass. Diagnostic79
-  times out the unchanged program after180 seconds and grants no acceptance.
-  Diagnose actual retained input/read/body producer refusals; preserve every
-  reported source, both '$absent' expectations and matching original init/tcltest
-  files. Do not fabricate Native witnesses or suppress the original assertions.
-- Retired-namespace variable-diagnostic Runtime controls still fail 3/3.
-  The caller-context source review proposes preserving selected EVAL_STK
-  compilation and ordinary element NameLookup context. A proposal is not a fix.
-  Detached-write and expression-source passes have narrower scopes.
-- Callback namespace-code selector preservation has two compiler passes;
-  after211 catalogue/transition advice and stored callback targets remain
-  unresolved. Keep conditional readonly advice independent of execution.
-- #2287 and #2300 are CLOSED with scoped published acceptance. Retain their
-  fixtures and test broader mutations, release profiles and consumers separately.
-  Remove obsolete plan claims that those accepted packaged controls still fail.
-- Finish VM OO native-expression/forward/procedure boundaries, middleware
-  literal-positive/computed-negative public fixtures, evaluated publication argv
-  versus entry key, actual compiler admission, emitted WASM and ABI/lifecycle
-  controls, remaining clock/bootstrap dependencies and all inventory rows.
-  Avoid turning adjacent dependency repair into an unaudited scope expansion.
-- Historical owner counts and proof-digest counts require current review.
-  Renew only bindings whose meaning and current substantive acceptance were
-  reviewed; never obtain green checks by bulk digest refresh or weaker assertions.
+Source238 is adopted on `work`; checkpoint `b076a4095` is push-confirmed. Source232 owner clauses and the219 RHS catalogue are applied. Parent/Text sources237/238 and the source222–233 consumer/fixture changes have no fresh ordinary acceptance yet. Ordinary271 failed its fresh build with exit101, Registry/Compiler rustc SIGKILL9, seven partial ELFs and zero tests; source drift{}. The956-control replay was not launched. Ordinary272 is active on the same source238 with `-j1`, preserving the exact twelve-scope956 plans; no acceptance yet. The cgroup OOM counters are cumulative without a before/after cause baseline; do not claim measured causation. Runtime174 and VM133 are fully peered future plans, unexecuted.
+
+TEMP270 built successfully and ran twelve exact diagnostic controls once: eight Compiler failures and four DB failures, no timeouts or source/binary drift. All three temporary files and97,819 authored inputs restored exactly at08:45:43.133493 UTC, changed inputs{}. Diagnostic results establish first guards only; they provide no ordinary acceptance.
+
+First finish the remaining naming-consumer migrations through the central APIs, using parallel bounded owner work. Continue the remaining audits in parallel. Do not turn this continuation into a validation, project-documentation or generic parser cleanup detour.
+
+| Owner | Next actual naming-consumer work | State and boundary |
+| --- | --- | --- |
+| Compiler + Core |Finish authentic Logical variable source-scope/occurrence/declaration transport, then typed alias/reference/rename consumers |Portable Compiler draft is incomplete and unreviewed. TEMP270 shows source word/key/reference geometry passes before namespace/local point adapters refuse; alias control has no actual VarDefs before the public join. Do not weaken current joins or invent Native frames. |
+| DB + Compiler |Replace Absent/W123-ledger call inventory with the positive retained Logical source catalogue and a genuine source-selected occupancy facet |Portable DB facade is unadopted; consumer draft is not a patch. Builtin/local/alias source occupancy stays terminal; None means unrepresented, never absence. Callback earlier-unknown effects remain a barrier. |
+| Compiler |Migrate live `apply_variable_alias`→`alias_cell` source-definition inventory constructors and `param_traits::scan_segment` recursive command-body geometry |These remain genuine naming consumers. Presence-only protective `link_target` uses and report transport are distinct; Core/Server positive String alias joins are retired. |
+| Core/LSP |Migrate aggressive minifier `alias_string_literals` reference-boundary construction |Controlled original-six and excluded initial evidence are retained; no Rust implementation yet. Use actual full input/config, shared scalar construction and complete following-fragment boundaries. Inline229 and formatter230 are already adopted, awaiting replay. |
+| Runtime |Finish remaining actual namespace helper/import consumers through the existing physical/publication/argv/lifetime owners |Parent237/Text238 are adopted, unexecuted. Import manual cache/alias/cycle handling is not safely replaced by a naive helper call. Wider roster/traversal/reentrant/final-free obligations remain separate. |
+| VM/Codegen |Finish selected C deletion-incarnation operation receipt and no-argument Parent current-holder read |Portable drafts have API/lifetime peers pending. Preserve strict generic namespace currentness; a report label cannot issue a token. |
+| Every surface |Continue naming-specific audits across all registered targets, hosts, editors, CLI/debugger, F5/EDA, MCP/AI/templates and generated guidance |Finite330 is a bounded reviewed universe, not a migration count or complete-codebase census. Generic command counting/separator parsing alone is adjacent syntax, outside this task without a real naming/operand-role caller. Dormant TS package insertion remains dormant. |
+
+The finite330 review is completely bound through217 and source-current through221:171 exact original-file bindings plus159 explicit additive reviews. Current238 changes leave21 rows requiring additive rebinding (three formatter, two inline and sixteen DB); do not silently rehash old proof. Later source files outside the roster need their own bounded review. Dated source audits, provider/issue snapshots and experiment receipts retain their captured scope.330 reviewed does not mean330 migrated.
+
+Portable continuation material is indexed in [handoff/README.md](handoff/README.md), with exact hashes/status in [handoff/packets.json](handoff/packets.json). Compiler and DB drafts, Runtime and VM work, future validation plans and selected raw validation receipts are retained there. These removable handoff packets are explicitly unadopted; inspect their blockers before editing. Full historical build/provider/source closures remain at their captured paths and are not reconstructed by a small receipt archive.
+
+Actual source221 captures are `/workspace/name-captures/current265-replays-20261015/`, `/workspace/name-captures/runtime268-full170-20261015/` and `/workspace/name-captures/vm269-full132-20261015/`. TEMP270 is `/workspace/name-captures/temp270-source-firstguards-20261015/`. Fresh ordinary272 is the current Root-owned capture; inspect its actual result before replacing pending status. Paths may be absent in a fresh checkout: use the portable receipts and supported owners to restore reproducibility, never manufacture a past closure.
+
+Latest sealed ordinary265 on source221 is929=619 PASS/309 FAIL/1 TIMEOUT. Compiler478=277/200/1, Core243=161/82, DB76=63/13, MCP43=32/11, Server15=12/3; Registry12, Lexer11, Source42, Syntax5, Studio3 and SpecTcl1 all pass their selected controls. Original#2286 passes70.901856808s under its unchanged180s budget and remains OPEN (Root read15 October; GitHub updated2026-10-12T22:29:51Z). Preserve remaining original negative/import/read controls. Runtime268 builds fail with0 tests;222 fixes its observer without acceptance. Latest executed selected Runtime249 is158/158. VM269 is126/132, with5 gains/0 prior-PASS regressions across retained260131. Later adopted fixes require fresh replay. Normal owner CLI250 remains197 diagnostics; unit source checks do not replace it.
+
+Keep the original goal: complete every naming consumer through the shared purpose-specific owners, with consumer implementation first and remaining audits in parallel. Preserve exact original controls, real C8.4–9.1/Jim observations, matching interpreter init/Tcltest inputs, source/provider provenance and legal attribution. Actual F5 questions/answers remain a separate requirement; source geometry cannot substitute for appliance execution. Complete required owner/proof/native/editor/generated/provider gates and repository-wide current documentation/comments cleanup before PR. Remove this temporary directory, handoff packets and their references only after durable useful contracts/evidence are in place. Do not merge.
+
+Root owns Main/Git/shared integration and source/build freezes. The21 adopted222–238 Rust files pass actual per-edition rustfmt checks (`skip_children=true`), recorded in `handoff/format-check.json`; `make rust-check` and `prep-pr` remain unrun. Development pushes are authorised. Commit and push roughly every15 minutes with accurate scoped snapshots; hourly user reports last delivered08:15 UTC, next09:15 UTC. Preserve the user’s untracked VSCode cache directory; do not stage it.
 
 ## Inventory and finish every consumer
 

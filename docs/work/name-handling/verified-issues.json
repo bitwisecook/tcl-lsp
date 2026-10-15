@@ -514,5 +514,21 @@
       "closed_at": null
     }
   ],
-  "failed": []
+  "failed": [],
+  "handoff_context": {
+    "source_epoch": 238,
+    "checkpoint_basis": "b076a4095 push-confirmed; inspect actual later HEAD",
+    "current_status": "Source238 adopted; TEMP270 restored all3/97819 exactly; ordinary271 build failed/0 tests; ordinary272 single-job retry active, no fresh acceptance",
+    "canonical_status": "current-state.md",
+    "continuation": "continue-prompt.md",
+    "portable_work": "handoff/README.md",
+    "scope": "Original roster/search/issue records retain their captured dates and hashes; this context does not refresh every row or certify complete migration.",
+    "fresh_narrow_issue_read": {
+      "issue": 2286,
+      "state": "OPEN",
+      "read_date": "2026-10-15",
+      "updated_at": "2026-10-12T22:29:51Z",
+      "scope": "Root narrow GitHub read only; all other historical states unchanged"
+    }
+  }
 }

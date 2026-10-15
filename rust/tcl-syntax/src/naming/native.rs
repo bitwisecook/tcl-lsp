@@ -27,12 +27,35 @@ pub enum NativeNameProtocol {
 /// Selected direct namespace text result path, without a live object capability.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NativeNamespaceTextResult<'a> {
+    /// Jim qualifiers with no paired colon return the actual interpreter empty object.
+    SharedEmpty,
     /// Jim's unchanged input object, preserving its actual header and identity.
     Original,
     /// C8.4 appends the selected bytes to the fresh interpreter result.
     Append(&'a [u8]),
     /// A fresh counted byte object selected by C8.5+ or Jim.
     Counted(&'a [u8]),
+}
+
+/// Jim's textual parent result branch, without a namespace lookup or object role.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeJimNamespaceParentResult<'a> {
+    /// The primitive leaves the interpreter's current result untouched.
+    Unchanged,
+    /// Return the original counted qualifier bytes in a fresh String object.
+    CountedQualifier(&'a [u8]),
+    /// Publish a root prefix, then append a fresh counted qualifier object.
+    RootedQualifier(&'a [u8]),
+    /// Publish a root prefix, then append the interpreter's actual empty object.
+    RootedSharedEmpty,
+}
+
+fn jim_namespace_qualifier(original: &[u8]) -> Option<&[u8]> {
+    let prefix = c_string_extent(original);
+    match prefix.iter().rposition(|byte| *byte == b':') {
+        Some(last) if last > 0 && prefix[last - 1] == b':' => Some(&prefix[..last - 1]),
+        _ => None,
+    }
 }
 
 /// The issuer of a pure naming policy, distinct from live native attestation.
@@ -1312,6 +1335,32 @@ impl NativeNameProtocol {
         )
     }
 
+    /// Select Jim's textual parent producer without consulting namespace tables.
+    /// Original object getters and the immediate root-literal comparison remain
+    /// independent reached operations of the consumer.
+    ///
+    /// # Errors
+    /// C parent lookup requires an actual namespace token.
+    pub fn jim_namespace_parent_result(
+        self,
+        original: &[u8],
+    ) -> Result<NativeJimNamespaceParentResult<'_>, NameProjectionUnavailable> {
+        if !self.is_jim084() {
+            return Err(NameProjectionUnavailable::PurposeNotModelled);
+        }
+        if original.is_empty() || c_string_extent(original) == b"::" {
+            return Ok(NativeJimNamespaceParentResult::Unchanged);
+        }
+        let Some(parent) = jim_namespace_qualifier(original) else {
+            return Ok(NativeJimNamespaceParentResult::RootedSharedEmpty);
+        };
+        Ok(if parent.starts_with(b"::") {
+            NativeJimNamespaceParentResult::CountedQualifier(parent)
+        } else {
+            NativeJimNamespaceParentResult::RootedQualifier(parent)
+        })
+    }
+
     /// Jim's textual parent query does not require a namespace object to exist.
     ///
     /// # Errors
@@ -1320,19 +1369,16 @@ impl NativeNameProtocol {
         self,
         original: &[u8],
     ) -> Result<Vec<u8>, NameProjectionUnavailable> {
-        if !self.is_jim084() {
-            return Err(NameProjectionUnavailable::PurposeNotModelled);
+        match self.jim_namespace_parent_result(original)? {
+            NativeJimNamespaceParentResult::Unchanged => Ok(Vec::new()),
+            NativeJimNamespaceParentResult::CountedQualifier(bytes) => Ok(bytes.to_vec()),
+            NativeJimNamespaceParentResult::RootedSharedEmpty => Ok(b"::".to_vec()),
+            NativeJimNamespaceParentResult::RootedQualifier(bytes) => {
+                let mut rooted = b"::".to_vec();
+                rooted.extend_from_slice(bytes);
+                Ok(rooted)
+            }
         }
-        if original.is_empty() || c_string_extent(original) == b"::" {
-            return Ok(Vec::new());
-        }
-        let parent = self.namespace_qualifier_bytes(original);
-        if parent.starts_with(b"::") {
-            return Ok(parent.to_vec());
-        }
-        let mut bytes = b"::".to_vec();
-        bytes.extend_from_slice(parent);
-        Ok(bytes)
     }
 
     /// Native namespace-tail reporting. Jim tests only its last `CString` colon
@@ -1341,6 +1387,7 @@ impl NativeNameProtocol {
     pub fn namespace_tail_bytes(self, original: &[u8]) -> &[u8] {
         match self.namespace_text_result(original, true) {
             NativeNamespaceTextResult::Original => original,
+            NativeNamespaceTextResult::SharedEmpty => b"",
             NativeNamespaceTextResult::Append(bytes)
             | NativeNamespaceTextResult::Counted(bytes) => bytes,
         }
@@ -1357,6 +1404,11 @@ impl NativeNameProtocol {
         original: &[u8],
         tail: bool,
     ) -> NativeNamespaceTextResult<'_> {
+        if self.is_jim084() && !tail {
+            if jim_namespace_qualifier(original).is_none() {
+                return NativeNamespaceTextResult::SharedEmpty;
+            }
+        }
         let bytes = if tail {
             let prefix = c_string_extent(original);
             if self.is_jim084() {
@@ -1389,10 +1441,7 @@ impl NativeNameProtocol {
     pub fn namespace_qualifier_bytes(self, original: &[u8]) -> &[u8] {
         let prefix = c_string_extent(original);
         if self.is_jim084() {
-            return match prefix.iter().rposition(|byte| *byte == b':') {
-                Some(last) if last > 0 && prefix[last - 1] == b':' => &prefix[..last - 1],
-                _ => b"",
-            };
+            return jim_namespace_qualifier(original).unwrap_or(&prefix[..0]);
         }
         super::written_separator_extent(prefix)
             .map_or(&prefix[..0], |separator| &prefix[..separator.start])
@@ -5474,5 +5523,74 @@ mod jim_command_hash_comparison_tests {
                 Err(NameProjectionUnavailable::PurposeNotModelled)
             );
         }
+    }
+}
+
+#[test]
+fn original_jim_parent_producer_distinguishes_unchanged_counted_and_rooted_branches() {
+    use NativeJimNamespaceParentResult::{
+        CountedQualifier, RootedQualifier, RootedSharedEmpty, Unchanged,
+    };
+    let jim = NativeNameProtocol::Jim084;
+    for input in [b"".as_slice(), b"::", b"::\0tail"] {
+        assert_eq!(jim.jim_namespace_parent_result(input).unwrap(), Unchanged);
+    }
+    assert_eq!(
+        jim.jim_namespace_parent_result(b"::absent::child").unwrap(),
+        CountedQualifier(b"::absent")
+    );
+    assert_eq!(
+        jim.jim_namespace_parent_result(b"absent::child").unwrap(),
+        RootedQualifier(b"absent")
+    );
+    assert_eq!(
+        jim.jim_namespace_parent_result(b"84").unwrap(),
+        RootedSharedEmpty
+    );
+    assert_eq!(
+        jim.jim_namespace_parent_result(b"::child").unwrap(),
+        RootedQualifier(b"")
+    );
+    assert_eq!(
+        jim.jim_namespace_parent_result(b"unpaired:").unwrap(),
+        RootedSharedEmpty
+    );
+    for version in TclVersion::ALL {
+        assert!(
+            NativeNameProtocol::C(version)
+                .jim_namespace_parent_result(b"absent")
+                .is_err()
+        );
+    }
+}
+
+#[test]
+fn jim_qualifiers_shared_empty_is_distinct_from_a_paired_root_counted_empty() {
+    let jim = NativeNameProtocol::Jim084;
+    for original in [b"".as_slice(), b"plain", b":", b"plain\0::tail"] {
+        assert_eq!(
+            jim.namespace_text_result(original, false),
+            NativeNamespaceTextResult::SharedEmpty
+        );
+        assert_eq!(
+            jim.namespace_text_result(original, true),
+            NativeNamespaceTextResult::Original
+        );
+    }
+    for original in [b"::".as_slice(), b"::\0tail"] {
+        assert_eq!(
+            jim.namespace_text_result(original, false),
+            NativeNamespaceTextResult::Counted(b"")
+        );
+        assert_eq!(
+            jim.namespace_text_result(original, true),
+            NativeNamespaceTextResult::Counted(b"")
+        );
+    }
+    for version in TclVersion::ALL {
+        assert_ne!(
+            NativeNameProtocol::C(version).namespace_text_result(b"plain", false),
+            NativeNamespaceTextResult::SharedEmpty
+        );
     }
 }

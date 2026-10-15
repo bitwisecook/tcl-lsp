@@ -402,3 +402,9 @@ measurements; neither supplies the primary parity table. The primary capture
 uses stdin configure/source for C/runtime and the original file directly for
 VM, with real source libraries. C frame-debug state is recorded explicitly.
 No upstream expected value was edited to accommodate any capture.
+
+[Original Jim namespace-parent primitive](original-jim-namespace-parent-sdk-20261015/README.md) retains 258 rows over twelve cases/24 original-object COLD/REUSE phases: textual absent-name parents, no-operand versus explicit-name getters, root compared-string cache, shared empty-result identity and rooted-append versus counted-qualifier primaries are sampled before the result getter. No Runtime/VM, universal hot-hit or final-free/lifecycle acceptance follows.
+
+[Original Jim namespace qualifier/tail result objects](original-jim-namespace-text-results-sdk-20261015/README.md) retains 516 rows over 24 cases/48 COLD/REUSE phases. Qualifiers distinguish the actual shared empty object for unpaired names from fresh counted empty for paired root; unpaired tails retain the original argument. Headers and identity precede the result getter; no Runtime/VM, universal hot-hit or final-free/lifecycle acceptance follows.
+
+[Original formatter variable-reference source values](../formatter-variable-reference-values-20261015/README.md) retain all six providers and matching source/init provenance, complete original channels and the capture driver. Computed array indices and combined braced literal names produce distinct ELEMENT/LITERAL observations; C9 closer-name success stays separate from C8/Jim refusals. These are lexical/source observations, without physical scalar/cell partition, whole-format equivalence, F5, Native or Rust acceptance.

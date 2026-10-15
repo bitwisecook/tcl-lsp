@@ -1,5 +1,15 @@
 # Bounded MCP and AI consumer review
 
+## Current238 handoff scope
+
+MCP actual profiled source/Expr transport186, pool encoding199, configured literal RHS216 and Written object-name decoding231 are adopted. Source221 MCP43 is32 PASS/11 FAIL, including a URI hint gain;231 needs fresh replay. Model/tool reports, Rust grammar parsers and heuristic generated sample data are distinct from Tcl target lookup. The aggressive minifier remains a genuine Core alias-reference emitter with evidence/design only.
+
+Priority remains finishing actual naming-consumer migrations in parallel; [implementation-ledger.md](implementation-ledger.md) assigns the next owners. [current-state.md](current-state.md) records the current executed scopes; [handoff/README.md](handoff/README.md) contains explicitly unadopted continuation work.
+
+## Retained bounded audit
+
+The text below records its stated source/date and earlier acceptance only. It is not a fresh whole-surface current-source certification; later implementation and current failures are governed by the handoff above.
+
 Temporary coordination snapshot; remove before merge. This bounded review on
 `work` covers MCP `tools.rs` and `irule_gen.rs`, Core `procedure_symbol.rs`,
 and AI `gen_ai.rs` with their immediate contracts/templates/context seam.

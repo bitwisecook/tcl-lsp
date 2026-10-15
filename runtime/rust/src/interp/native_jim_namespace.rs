@@ -193,6 +193,204 @@ impl Interp {
         result
     }
 
+    pub(crate) fn original_jim_namespace_text(
+        &mut self,
+        original: *mut TclObj,
+        tail: bool,
+        arguments: &super::native_arguments::OriginalArguments,
+    ) -> Code {
+        let reached = (|| -> Result<Code, tcl_cmd_core::CmdError> {
+            let context = self.native_jim_object_context()?;
+            let namespace = self.current_ns();
+            let original_namespace =
+                super::native_jim_lookup::OriginalJimLookupNamespace::capture(self, namespace)?;
+            let check = |actual: &Interp| -> Result<(), tcl_cmd_core::CmdError> {
+                arguments.check_for(actual)?;
+                original_namespace.check(actual)?;
+                if actual.current_ns() != namespace {
+                    return Err(arguments.retain_refusal(
+                        ValueError::CommandProtocolUnavailable(
+                            "Jim namespace text current namespace",
+                        )
+                        .into(),
+                    ));
+                }
+                Ok(())
+            };
+            check(self)?;
+            let bytes = self.native_string_bytes(&original);
+            check(self)?;
+            let bytes = bytes?;
+            let protocol = self
+                .name_policy_protocol()
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "Jim namespace text issuer",
+                ))?
+                .recipe();
+            use tcl_syntax::naming::NativeNamespaceTextResult;
+            match protocol.namespace_text_result(&bytes, tail) {
+                NativeNamespaceTextResult::SharedEmpty => {
+                    self.set_result(context.empty_object().as_ptr())
+                }
+                NativeNamespaceTextResult::Original => self.set_result(original),
+                NativeNamespaceTextResult::Counted(bytes) => self.set_result_bytes(bytes),
+                NativeNamespaceTextResult::Append(_) => {
+                    return Err(ValueError::CommandProtocolUnavailable(
+                        "C append outside Jim namespace text producer",
+                    )
+                    .into())
+                }
+            }
+            check(self)?;
+            Ok(Code::Ok)
+        })();
+        match reached {
+            Ok(code) => code,
+            Err(error) => self.report_cmd_error(arguments.retain_refusal(error)),
+        }
+    }
+
+    /// Keep original Jim parent getters, literal cache and result publication stages.
+    pub(crate) fn original_jim_namespace_parent(
+        &mut self,
+        argv: &[*mut TclObj],
+        arguments: &super::native_arguments::OriginalArguments,
+    ) -> Code {
+        let reached = (|| -> Result<Code, tcl_cmd_core::CmdError> {
+            let _context = self.native_jim_object_context()?;
+            let namespace = self.current_ns();
+            let original_namespace =
+                super::native_jim_lookup::OriginalJimLookupNamespace::capture(self, namespace)?;
+            let check = |actual: &Interp| -> Result<(), tcl_cmd_core::CmdError> {
+                arguments.check_for(actual)?;
+                original_namespace.check(actual)?;
+                if actual.current_ns() != namespace {
+                    return Err(arguments.retain_refusal(
+                        ValueError::CommandProtocolUnavailable("Jim parent current namespace")
+                            .into(),
+                    ));
+                }
+                Ok(())
+            };
+            check(self)?;
+            let original = argv
+                .get(2)
+                .copied()
+                .unwrap_or_else(|| original_namespace.original_ptr());
+            let bytes = if argv.len() == 2 {
+                self.materialize_jim_namespace(namespace)
+            } else {
+                self.native_string_bytes(&original)
+            };
+            check(self)?;
+            let bytes = bytes?;
+            if !bytes.is_empty() {
+                const ROOT_LITERAL: &[&str] = &["::"];
+                let literal =
+                    tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend(
+                        ROOT_LITERAL,
+                    );
+                let comparison = self.native_jim_compare_immediate(original, &literal, 0);
+                check(self)?;
+                if comparison? {
+                    return Ok(Code::Ok);
+                }
+            }
+            let protocol = self
+                .name_policy_protocol()
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "Jim parent text issuer",
+                ))?
+                .recipe();
+            let result = protocol.jim_namespace_parent_result(&bytes).map_err(|_| {
+                ValueError::CommandProtocolUnavailable("Jim parent text result purpose")
+            })?;
+            self.publish_original_jim_parent_result(result, &check)?;
+            check(self)?;
+            Ok(Code::Ok)
+        })();
+        match reached {
+            Ok(code) => code,
+            Err(error) => self.report_cmd_error(arguments.retain_refusal(error)),
+        }
+    }
+
+    fn publish_original_jim_parent_result(
+        &mut self,
+        result: tcl_syntax::naming::NativeJimNamespaceParentResult<'_>,
+        check: &impl Fn(&Interp) -> Result<(), tcl_cmd_core::CmdError>,
+    ) -> Result<(), tcl_cmd_core::CmdError> {
+        use tcl_syntax::naming::NativeJimNamespaceParentResult;
+        match result {
+            NativeJimNamespaceParentResult::Unchanged => {}
+            NativeJimNamespaceParentResult::CountedQualifier(bytes) => self.set_result_bytes(bytes),
+            NativeJimNamespaceParentResult::RootedQualifier(bytes) => {
+                self.append_original_jim_parent_qualifier(Some(bytes), check)?;
+            }
+            NativeJimNamespaceParentResult::RootedSharedEmpty => {
+                self.append_original_jim_parent_qualifier(None, check)?;
+            }
+        }
+        check(self)
+    }
+
+    fn append_original_jim_parent_qualifier(
+        &mut self,
+        fresh_bytes: Option<&[u8]>,
+        check: &impl Fn(&Interp) -> Result<(), tcl_cmd_core::CmdError>,
+    ) -> Result<(), tcl_cmd_core::CmdError> {
+        let context = self.native_jim_object_context()?;
+        let qualifier =
+            fresh_bytes.map_or_else(|| context.empty_object().as_ptr(), obj::new_string_bytes);
+        let allocation = obj::NativeObjectLifetime::retain(qualifier);
+        let reached = (|| {
+            let dialect = self.native_invocation_dialect();
+            let append = dialect.native_object_append_protocol(None).ok_or(
+                ValueError::CommandProtocolUnavailable("Jim parent qualifier append"),
+            )?;
+            let operations = crate::value_ops::RuntimeAppendObjects {
+                dialect,
+                binary_recipe: None,
+            };
+            self.set_result_bytes(b"::");
+            check(self)?;
+            let published = self.result_obj();
+            let receiver = crate::value_ops::RuntimeAppendValue::borrowed(published);
+            let source = crate::value_ops::RuntimeAppendValue::borrowed(allocation.checked_ptr()?);
+            let appended = tcl_cmd_core::native_append::append_object(
+                &operations,
+                append.recipe(),
+                Some(&receiver),
+                &source,
+            );
+            check(self)?;
+            if appended?.value().as_ptr() != published {
+                return Err(ValueError::CommandProtocolUnavailable(
+                    "Jim parent published append receiver",
+                )
+                .into());
+            }
+            // Jim retires the actual qualifier only after appending it.
+            let qualifier = allocation.checked_ptr()?;
+            // SAFETY: the checked original source is live; the pair balances
+            // exactly Jim's post-append temporary reference.
+            unsafe {
+                obj::incr_ref_count(qualifier);
+                obj::decr_ref_count(qualifier);
+            }
+            Ok(())
+        })();
+        if reached.is_err() && fresh_bytes.is_some() && obj::allocation_is_live(qualifier)
+            // SAFETY: the memory-only lease pins this fresh source header.
+            && unsafe { (*qualifier).ref_count == 0 }
+        {
+            // SAFETY: refused unpublished source has no native owner to release.
+            unsafe { obj::free_obj(qualifier) };
+        }
+        check(self)?;
+        reached
+    }
+
     #[cfg(test)]
     pub(crate) fn ns_eval_objects(&mut self, name: *mut TclObj, body: *mut TclObj) -> Code {
         self.ns_eval_objects_with_purpose(

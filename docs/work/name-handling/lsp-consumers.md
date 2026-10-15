@@ -1,5 +1,15 @@
 # LSP, database, server and editor name consumer audit
 
+## Current238 handoff scope
+
+Typed declaration/cursor consumers190/208/209, full inline229 and formatter230 are adopted. Source221 Core243 is161 PASS/82 FAIL; Server15 is12/3; DB76 is63/13. Current238 acceptance awaits272. Remaining live work is authentic Logical scope/occurrence transport, positive source call catalogue/occupancy and aggressive-minifier alias-reference construction; do not restore String inverse joins.
+
+Priority remains finishing actual naming-consumer migrations in parallel; [implementation-ledger.md](implementation-ledger.md) assigns the next owners. [current-state.md](current-state.md) records the current executed scopes; [handoff/README.md](handoff/README.md) contains explicitly unadopted continuation work.
+
+## Retained bounded audit
+
+The text below records its stated source/date and earlier acceptance only. It is not a fresh whole-surface current-source certification; later implementation and current failures are governed by the handoff above.
+
 This is a retained read-only candidate census and bounded semantic review. Current owner dispositions below remain separate from the sealed callsite snapshot. No fresh LSP/DB/server/editor tests were run during this audit. The accompanying `lsp-name-consumer-audit-roster.json` seals the tracked file roster and exact candidate callsites. Vendor dependencies, generated editor output and build products are excluded. Function attribution is lexical, so candidate rows are evidence to reconcile, not verified completion claims.
 
 ## Current owner boundaries and priority consumers

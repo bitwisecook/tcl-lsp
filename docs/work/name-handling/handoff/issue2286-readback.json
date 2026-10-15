@@ -1,0 +1,11 @@
+{
+  "provider": "GitHub gh issue view; read-only",
+  "repository": "bitwisecook/tcl-lsp",
+  "number": 2286,
+  "title": "W210 false triggering",
+  "state": "OPEN",
+  "updatedAt": "2026-10-12T22:29:51Z",
+  "url": "https://github.com/bitwisecook/tcl-lsp/issues/2286",
+  "scope": "State snapshot only, not source behavior or issue acceptance; no GitHub mutation performed",
+  "read_date_utc": "2026-10-15"
+}

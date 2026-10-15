@@ -1785,6 +1785,10 @@ fn ns_text_op(vm: &mut Vm, rest: &[Value], tail: bool) -> Completion<Value> {
         };
         let result = match policy.recipe().namespace_text_result(&bytes, tail) {
             NativeNamespaceTextResult::Original => original.clone(),
+            NativeNamespaceTextResult::SharedEmpty => match vm.native_jim_object_context() {
+                Ok(context) => context.empty_object().clone(),
+                Err(error) => return crate::command::completion_from_cmd_error(vm, error.into()),
+            },
             NativeNamespaceTextResult::Counted(bytes) => Value::from_native_string_bytes(bytes),
             NativeNamespaceTextResult::Append(bytes) => {
                 let Some(append) = vm
@@ -2794,5 +2798,34 @@ mod original_jim_import_tests {
             vm.pop_ns();
             vm.pop_call_frame();
         }
+    }
+}
+
+#[cfg(test)]
+mod original_jim_namespace_text_result_tests {
+    use super::*;
+
+    #[test]
+    fn qualifiers_selects_the_actual_shared_empty_without_changing_root_or_tail_identity() {
+        let profile = tcl_registry::model::ingress::resolve_environment("jim").unit_profile();
+        let mut vm = crate::native_fixture::interpreter(profile);
+        let context = vm.native_jim_object_context().unwrap();
+        let empty = context.empty_object().clone();
+        for bytes in [b"absent".as_slice(), b":", b""] {
+            let original = Value::from_native_string_bytes(bytes);
+            let completion = ns_text_op(&mut vm, std::slice::from_ref(&original), false);
+            assert_eq!(completion.code, Code::Ok);
+            assert!(completion.result.is_same_object(&empty));
+            assert!(!completion.result.is_same_object(&original));
+        }
+        let rooted = Value::from_native_string_bytes(b"::".as_slice());
+        let completion = ns_text_op(&mut vm, &[rooted], false);
+        assert_eq!(completion.code, Code::Ok);
+        assert!(!completion.result.is_same_object(&empty));
+        let tail = Value::from_native_string_bytes(b"absent".as_slice());
+        let completion = ns_text_op(&mut vm, std::slice::from_ref(&tail), true);
+        assert_eq!(completion.code, Code::Ok);
+        assert!(completion.result.is_same_object(&tail));
+        assert!(vm.refused_completion().is_none());
     }
 }

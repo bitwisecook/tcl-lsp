@@ -267,10 +267,10 @@ fn namespace_cmd_original(
         b"delete" => ns_delete(interp, argv),
         b"eval" => ns_eval(interp, argv),
         b"exists" => ns_exists(interp, argv),
-        b"parent" => ns_parent(interp, argv),
+        b"parent" => ns_parent(interp, argv, arguments),
         b"children" => ns_children(interp, argv),
-        b"qualifiers" => ns_qualifiers(interp, argv),
-        b"tail" => ns_tail(interp, argv),
+        b"qualifiers" => ns_qualifiers(interp, argv, arguments),
+        b"tail" => ns_tail(interp, argv, arguments),
         b"which" => ns_which(interp, argv),
         b"origin" => ns_origin(interp, argv),
         b"export" => {
@@ -426,11 +426,18 @@ fn ns_exists(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
 }
 
-/// `namespace parent ?name?` — the FQN of the (named, or current) ns's parent,
-/// via the shared `tcl_cmd_core::namespace` core over `Namespaces`.
-fn ns_parent(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+/// `namespace parent ?name?` selects the C namespace token or Jim textual parent.
+/// Jim reads the original operand or the reached current namespace holder.
+fn ns_parent(interp: &mut Interp, argv: &[*mut TclObj], arguments: &OriginalArguments) -> Code {
     if argv.len() > 3 {
         return interp.wrong_args_for_prefix(argv, 2, b"?name?");
+    }
+    if interp
+        .native_invocation_dialect()
+        .native_jim_lookup_protocol()
+        .is_some()
+    {
+        return interp.original_jim_namespace_parent(argv, arguments);
     }
     let target = if let Some(&original) = argv.get(2) {
         match interp.native_namespace_object_lookup(original) {
@@ -525,9 +532,16 @@ fn ns_children(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 }
 
 /// `namespace qualifiers string` — everything before the last `::` (pure text).
-fn ns_qualifiers(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+fn ns_qualifiers(interp: &mut Interp, argv: &[*mut TclObj], arguments: &OriginalArguments) -> Code {
     if argv.len() != 3 {
         return interp.wrong_args_for_prefix(argv, 2, b"string");
+    }
+    if interp
+        .native_invocation_dialect()
+        .native_jim_lookup_protocol()
+        .is_some()
+    {
+        return interp.original_jim_namespace_text(argv[2], false, arguments);
     }
     let bytes = match tcl_syntax::value::ValueOps::native_string_bytes(interp, &argv[2]) {
         Ok(bytes) => bytes,
@@ -549,9 +563,16 @@ fn ns_qualifiers(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 }
 
 /// `namespace tail string` — the simple name after the last `::` (pure text).
-fn ns_tail(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+fn ns_tail(interp: &mut Interp, argv: &[*mut TclObj], arguments: &OriginalArguments) -> Code {
     if argv.len() != 3 {
         return interp.wrong_args_for_prefix(argv, 2, b"string");
+    }
+    if interp
+        .native_invocation_dialect()
+        .native_jim_lookup_protocol()
+        .is_some()
+    {
+        return interp.original_jim_namespace_text(argv[2], true, arguments);
     }
     let bytes = match tcl_syntax::value::ValueOps::native_string_bytes(interp, &argv[2]) {
         Ok(bytes) => bytes,
@@ -578,6 +599,13 @@ fn namespace_text_result(
 ) -> Code {
     use tcl_syntax::naming::NativeNamespaceTextResult;
     match result {
+        NativeNamespaceTextResult::SharedEmpty => {
+            return interp.refuse_native_access(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "Jim shared empty outside original text owner",
+                ),
+            );
+        }
         NativeNamespaceTextResult::Original => interp.set_result(original),
         NativeNamespaceTextResult::Counted(bytes) => interp.set_result_bytes(bytes),
         NativeNamespaceTextResult::Append(bytes) => {
@@ -7181,3 +7209,11 @@ mod native_jim_delete_tests;
 #[cfg(test)]
 #[path = "cmd_namespace/native_jim_upvar_tests.rs"]
 mod native_jim_upvar_tests;
+
+#[cfg(test)]
+#[path = "cmd_namespace/native_jim_parent_tests.rs"]
+mod native_jim_parent_tests;
+
+#[cfg(test)]
+#[path = "cmd_namespace/native_jim_text_result_tests.rs"]
+mod native_jim_text_result_tests;

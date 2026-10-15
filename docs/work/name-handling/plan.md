@@ -55,26 +55,21 @@ The final check reconciles all matches and all workspace members with the ledger
 
 ## Current execution priorities
 
-Use [current state](current-state.md) and its exact receipts before selecting
-work. The array iterator validation dependency is repaired and exact original
-var13.2 replay completes in Runtime/C86. Complete the shared lookup adapters,
-#2286 original procedure-read correspondence, callback source catalogue and
-registry metadata consumers. Run genuine retained-context/refusal and current
-public consumer controls; preserve failures and operational refusals separately.
+| Owner | Next actual naming-consumer work | State and boundary |
+| --- | --- | --- |
+| Compiler + Core |Finish authentic Logical variable source-scope/occurrence/declaration transport, then typed alias/reference/rename consumers |Portable Compiler draft is incomplete and unreviewed. TEMP270 shows source word/key/reference geometry passes before namespace/local point adapters refuse; alias control has no actual VarDefs before the public join. Do not weaken current joins or invent Native frames. |
+| DB + Compiler |Replace Absent/W123-ledger call inventory with the positive retained Logical source catalogue and a genuine source-selected occupancy facet |Portable DB facade is unadopted; consumer draft is not a patch. Builtin/local/alias source occupancy stays terminal; None means unrepresented, never absence. Callback earlier-unknown effects remain a barrier. |
+| Compiler |Migrate live `apply_variable_alias`→`alias_cell` source-definition inventory constructors and `param_traits::scan_segment` recursive command-body geometry |These remain genuine naming consumers. Presence-only protective `link_target` uses and report transport are distinct; Core/Server positive String alias joins are retired. |
+| Core/LSP |Migrate aggressive minifier `alias_string_literals` reference-boundary construction |Controlled original-six and excluded initial evidence are retained; no Rust implementation yet. Use actual full input/config, shared scalar construction and complete following-fragment boundaries. Inline229 and formatter230 are already adopted, awaiting replay. |
+| Runtime |Finish remaining actual namespace helper/import consumers through the existing physical/publication/argv/lifetime owners |Parent237/Text238 are adopted, unexecuted. Import manual cache/alias/cycle handling is not safely replaced by a naive helper call. Wider roster/traversal/reentrant/final-free obligations remain separate. |
+| VM/Codegen |Finish selected C deletion-incarnation operation receipt and no-argument Parent current-holder read |Portable drafts have API/lifetime peers pending. Preserve strict generic namespace currentness; a report label cannot issue a token. |
+| Every surface |Continue naming-specific audits across all registered targets, hosts, editors, CLI/debugger, F5/EDA, MCP/AI/templates and generated guidance |Finite330 is a bounded reviewed universe, not a migration count or complete-codebase census. Generic command counting/separator parsing alone is adjacent syntax, outside this task without a real naming/operand-role caller. Dormant TS package insertion remains dormant. |
 
-Original evaluated-argv codegen publication is in progress; require actual
-Runtime/module ABI compatibility, once-only operands and emitted WASM execution.
-Follow with structured identity map/collision coverage and the remaining variable,
-alias, generation and namespace consumers. The owner/drift gates complement a
-complete callsite audit rather than replace it.
+Source238 is adopted on `work`; checkpoint `b076a4095` is push-confirmed. Source232 owner clauses and the219 RHS catalogue are applied. Parent/Text sources237/238 and the source222–233 consumer/fixture changes have no fresh ordinary acceptance yet. Ordinary271 failed its fresh build with exit101, Registry/Compiler rustc SIGKILL9, seven partial ELFs and zero tests; source drift{}. The956-control replay was not launched. Ordinary272 is active on the same source238 with `-j1`, preserving the exact twelve-scope956 plans; no acceptance yet. The cgroup OOM counters are cumulative without a before/after cause baseline; do not claim measured causation. Runtime174 and VM133 are fully peered future plans, unexecuted.
 
-The original C suite runner checks immutable release-specific library/test
-inventories; original proc/rename captures complete for all five C references.
-The VM suite driver remains fixed to9.0; changing that requires real selected
-runtime support. Use the [suite index](../../../experiments/name-handling/results/RESULTS.md)
-to select exact naming questions, retaining capture scopes and current source
-bindings. A focused pass cannot establish an unexecuted upstream file. Every
-backend, latest Jim and actually reached F5 contexts remain separate evidence.
+TEMP270 built successfully and ran twelve exact diagnostic controls once: eight Compiler failures and four DB failures, no timeouts or source/binary drift. All three temporary files and97,819 authored inputs restored exactly at08:45:43.133493 UTC, changed inputs{}. Diagnostic results establish first guards only; they provide no ordinary acceptance.
+
+Read [current-state.md](current-state.md) for scoped failures and pending272; preserve the unchanged180-second original#2286 budget and every earlier selector. Do not prioritise validation/documentation chores over finishing actual naming-consumer migrations.
 
 ## Dynamic-pattern coverage and abstention
 
@@ -257,8 +252,7 @@ GitHub status alone is not a completion gate or proof of a branch fix.
 
 #2287 is closed with both complete packaged-server import controls passing.
 Retain those controls and their exact scoped receipts rather than treating the
-original highlighting failure as current. Callback after211 catalogue/transition
-advice remains unresolved; inspect the current shared producer and build a
+original highlighting failure as current. The remaining positive Logical catalogue/occupancy transport is unresolved; inspect the current shared producer and build a
 public-path positive/negative before broadening assistance.
 
 The consumer already delegates to Compiler

@@ -1106,3 +1106,33 @@ point with current full input/store/site/vector/configuration, Generic or Unknow
 selection and no known target, handler or concrete preparation. Its schema keeps
 an unknown execution residual. A present original Native child route remains
 terminal; compiler syntax supplies no body, frame, lookup or executable facts.
+
+Explicit Standalone procedure source layouts accept absent unprofiled metadata
+or a genuine successful tagged Standalone projection under the unchanged closed
+lookup, current owner/site/frame/vector/configuration/Registry/header/body/formals
+guards. Supplied refusal remains terminal; source layouts grant no entered frame.
+
+Readonly Authored coverage preserves all separate Authored and Installed analysis
+rows. A unique injective allocation/site/origin/formals/namespace/contiguous-body
+pairing and current Module/function/CFG correspondence admit only Authored
+analytical coverage, without IR deduplication, Installed authority or erased world
+dependencies.
+
+Inline-variable fragments use actual value and receiver NativeWords, complete
+configurations and the selected scalar component. Shared content/template source
+construction and complete receiver parsing must preserve typed components,
+coalescing only literal Text runs; original binding, sole-use, SSA/movement and
+edit coverage remain independent of this lexical proposal.
+
+Formatter variable reconstruction retains actual local configured lexical words
+separately from stronger analysis/Native receipts. Exact RawVarRef span/content
+geometry preserves written references; index-free style proposals require whole
+receiver component/expansion agreement. Separate substituted indices, literal
+combined names and unavailable proposals retain their source spelling; actual
+Native partition, cell/frame, role and formatting eligibility remain independent.
+
+Original iRules object candidates decode only Written strong source words through
+shared static Unicode values. BindingPrefix words retain captured literal values
+without reparsing source. Original context/schema/ordinal/span/UTF-8/NUL guards
+remain; dynamic, expanded or unavailable source grants no candidate or fallback,
+object lookup, handler, Native permission or observed outcome.

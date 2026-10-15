@@ -37,14 +37,11 @@ evidence cannot establish a target.
 | [BIG-IP request](../../../experiments/name-handling/f5/REQUEST.md) | Questions for the chat with appliance access |
 | [BIG-IP answers](../../../experiments/name-handling/f5/answers/README.md) | Returned answers and outstanding operation audit |
 
-The continuation audit read remote work at
-e0277ec42124d26b36cc06daa760de6b21a1decb on 13 October 2026.
-Inspect the actual branch head before implementing: source, executable and
-oracle receipts certify their captured inputs rather than every later commit.
-The audit used read-only sub-agents for consumers, issues and oracle integrity.
-The checkout is synchronised to work. Current source-built C/Jim references
-and scoped shared-owner checks are recorded in current-state.md; no full PR
-gate or whole-codebase consumer completion is claimed.
+Source238 is adopted on `work`; checkpoint `b076a4095` is push-confirmed. Source232 owner clauses and the219 RHS catalogue are applied. Parent/Text sources237/238 and the source222–233 consumer/fixture changes have no fresh ordinary acceptance yet. Ordinary271 failed its fresh build with exit101, Registry/Compiler rustc SIGKILL9, seven partial ELFs and zero tests; source drift{}. The956-control replay was not launched. Ordinary272 is active on the same source238 with `-j1`, preserving the exact twelve-scope956 plans; no acceptance yet. The cgroup OOM counters are cumulative without a before/after cause baseline; do not claim measured causation. Runtime174 and VM133 are fully peered future plans, unexecuted.
+
+TEMP270 built successfully and ran twelve exact diagnostic controls once: eight Compiler failures and four DB failures, no timeouts or source/binary drift. All three temporary files and97,819 authored inputs restored exactly at08:45:43.133493 UTC, changed inputs{}. Diagnostic results establish first guards only; they provide no ordinary acceptance.
+
+The canonical continuation is [continue-prompt.md](continue-prompt.md). Portable unfinished work and exact future plans are indexed in [handoff/README.md](handoff/README.md). Prior source audits and issue/provider rosters retain their original capture dates. Current implementation, remaining naming-consumer owners and validation limits are recorded in [current-state.md](current-state.md) and [implementation-ledger.md](implementation-ledger.md).
 
 ## Acceptance and document lifecycle
 

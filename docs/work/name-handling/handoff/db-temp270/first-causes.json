@@ -1,0 +1,82 @@
+{
+  "status": "actual diagnostic addendum outside frozen handoff; no production adoption or passing semantic claim",
+  "source_epoch": 238,
+  "result": "/workspace/name-captures/temp270-source-firstguards-20261015/db/result.json",
+  "result_sha256": "c307b6d9b484eccd0867151333981026ef852cab9e0f5baea439c9d6bfe0bafd",
+  "selected": 4,
+  "pass": 0,
+  "fail": 4,
+  "binary_unchanged": true,
+  "changed_sources": {},
+  "missing_exact": [],
+  "empty_filters": [],
+  "parent_restoration_receipt": "Root reported full3-file/full97,819-input restoration changed{} at08:45:43; final path owned byRoot",
+  "runs": [
+    {
+      "test": "tests::logical_callback_source_slots_preserve_namespace_order_and_missing_project_inputs",
+      "log": "/workspace/name-captures/temp270-source-firstguards-20261015/db/test-01.log.gz",
+      "sha256": "d25b3dce4cc08c90380d590cabdbb438f58c0e65aceff0c9bdc2c602fe5f8975",
+      "exit_code": 101,
+      "timed_out": false,
+      "primitive_lines": [
+        "test tests::logical_callback_source_slots_preserve_namespace_order_and_missing_project_inputs ... project-callback-applicability earlier_unknown=false coordinates=2",
+        "project-callback-applicability appended_checkable=true",
+        "project-callback-applicability stage=arity present=true count=1",
+        "project-callback-applicability minimum=2 maximum=2",
+        "project-callback-applicability earlier_unknown=true coordinates=2"
+      ]
+    },
+    {
+      "test": "tests::project_direct_logical_calls_keep_root_recipe_and_missing_namespace_unknown",
+      "log": "/workspace/name-captures/temp270-source-firstguards-20261015/db/test-02.log.gz",
+      "sha256": "1a2305064753dbc2a96f95c6f5bcc826cd00be7416045b9414486c19c1f1e834",
+      "exit_code": 101,
+      "timed_out": false,
+      "primitive_lines": [
+        "test tests::project_direct_logical_calls_keep_root_recipe_and_missing_namespace_unknown ... project-source-applicability domain_logical=true unresolved=1 invocations=3 warning_unknown=1",
+        "project-source-applicability stage=candidate present=true",
+        "project-source-applicability stage=earlier_unknown value=false",
+        "project-source-applicability stage=operand_effects value=false",
+        "project-source-applicability stage=original_head matches=true",
+        "project-source-applicability stage=arity present=true count=1"
+      ]
+    },
+    {
+      "test": "tests::project_direct_logical_calls_use_original_occurrences_and_namespace_slots",
+      "log": "/workspace/name-captures/temp270-source-firstguards-20261015/db/test-03.log.gz",
+      "sha256": "9030607ed3c2c9a254d5330cd92a8396dcdd8b2dd7c6962346ac3151d4313e19",
+      "exit_code": 101,
+      "timed_out": false,
+      "primitive_lines": [
+        "test tests::project_direct_logical_calls_use_original_occurrences_and_namespace_slots ... project-source-applicability domain_logical=true unresolved=0 invocations=6 warning_unknown=0"
+      ]
+    },
+    {
+      "test": "original_project_callback_projection_tests::legacy_project_advice_requires_positive_retained_logical_input",
+      "log": "/workspace/name-captures/temp270-source-firstguards-20261015/db/test-04.log.gz",
+      "sha256": "59b4ff03b64188df51d97e07e0354db5587e676517c887c0d968306d30ce4a47",
+      "exit_code": 101,
+      "timed_out": false,
+      "primitive_lines": [
+        "test original_project_callback_projection_tests::legacy_project_advice_requires_positive_retained_logical_input ... project-source-applicability domain_logical=true unresolved=0 invocations=4 warning_unknown=0",
+        "project-callback-applicability earlier_unknown=false coordinates=1",
+        "project-callback-applicability appended_checkable=true",
+        "project-callback-applicability stage=arity present=true count=1",
+        "project-callback-applicability minimum=0 maximum=0"
+      ]
+    }
+  ],
+  "first_causes": {
+    "callback_namespace": "First callback accepted earlierUnknown=false/appendCheckable=true, one retained arity(2,2), hence no E003 for its2 arguments. Second callback earlierUnknown=true, correctly refuses BEFORE arity. Countprojection is no longer first cause; do not clear real uncertainty. Need trace actual source-world operation/ancestry which introduced uncertainty, then repair genuine producer if misattributed, or correct new fixture premises only with actual evidence.",
+    "direct_crossnamespace": "domainLogical=true, unresolved=0,invocations6,W1230; no candidate/arity stage runs. Actual Absent/W123-ledger inventory mismatch confirmed. Positive source occurrence catalogue is required.",
+    "legacy_callback_direct": "domainLogical=true,unresolved0,invocations4,W1230; callback accepted actualarity(0,0) and emitsE003, direct never examined. Same direct inventory mismatch, not a count issue.",
+    "root_missing_namespace": "domainLogical=true,unresolved1,invocations3,W1231; existing sole candidate passes current/earlierfalse/effectsfalse/headtrue and actualaritySome1. Final W123 count0(expected1). Existing positiveprojectowner suppression consumed the independently issuedwarning; no newwarning is issued for missingnamespace byprojectconsumer. This capture logs no offsets, so do not relabel which occurrence without further genuine source evidence. Missing project data must never createabsence."
+  },
+  "next_work": [
+    "Finish source-selected occupancy facet using actual AdviceGraph.cells/lookup_head_key/resolve/blocks_registry_source; genuine strongerknownsource owner terminal for strictexternalprojectarity. None is unrepresented, neverabsence; conditionalRegistry schema lookup alone insufficient.",
+    "Bulk facade9b4 and separate incompleteconsumerdraft remain UNADOPTED. Readonly source occurrence inventory replaces Absentledger only for conditionalarity, retains strict earlierUnknown/currentoperand/fullword/currentheader/firstoccupiedcutoffs.",
+    "Investigate secondcallback earlierUnknown actual operation attribution/parent-versus-deferredbody; do not reset/eraseuncertainty or weakenstrictguard.",
+    "Keep currentroot/missingnamespace absence obligation separate; no absentinput/projectfallback diagnostic or unmeasuredfixture rewrite.",
+    "Allordinary26576 selectors retained; four actual270controls remain FAIL. Freshordinary271 currentlyrunning byRoot. No furtherMainproductionadoptions atusercheckpoint."
+  ]
+}

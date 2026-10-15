@@ -28,14 +28,7 @@ Rust receipts retain separate authority.
 - [The retained native lifecycle question](../../design/analysis/name-resolution-proofs/tcltest-original-alias-caller-frame-lifecycle.md)
   measures all five C packages and Jim's distinct global-test protocol. It does
   not execute the full tclopt constructors or assert Rust diagnostics.
-- The current original Tcltest scope retains the forty-case alias setup and
-  passing missing/undefined sharing controls. The C8.4 #2286 program still
-  reports one versus two expected reads, with W210 at bytes160–167; namespace
-  import remains zero versus one. Sealed Compiler92 preserves all original
-  controls: the forty-case setup passes, namespace import fails, and the unchanged
-  #2286 program times out at the600-second harness limit. No assertion or code
-  budget changes; #2286 remains open. Matching original init/Tcltest observations and exact compiler receipts
-  are linked from [current-state.md](current-state.md).
+- Root re-read#2286 on15 October2026: OPEN, updated2026-10-12T22:29:51Z. The original current265 selector passes70.901856808s under unchanged180; its source221 captured context is in [current-state.md](current-state.md). Earlier one-versus-two warnings, namespace-import failures and180/600-second timeouts remain preserved prior receipts, not latest program outcomes. All original sources, negative/shared-read/import controls and matching init/Tcltest inputs remain required. The issue remains open while the complete relevant acceptance and all-consumer migration are unfinished.
 - Both complete packaged highlighting regressions now pass, including the
   import moved inside `::nativeTest`, option pairs and nested commands.
   [Exact C-source receipts](../../../experiments/name-handling/results/c-source-namespace-advice/outcomes.json)

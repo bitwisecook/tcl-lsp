@@ -1,5 +1,15 @@
 # Codegen and middle-end naming consumers
 
+## Current238 handoff scope
+
+Current VM269 source221 seals126 PASS/6 FAIL across132 exact controls; all260131 retained with5 gains and0 prior-PASS regressions. Adopted later fixture corrections are unexecuted. Genuine remaining naming consumers include the selected C namespace-deletion incarnation receipt and no-argument Parent current-holder read; portable drafts need API/lifetime peers. Backend/publication/ABI/WASM scopes remain independent.
+
+Priority remains finishing actual naming-consumer migrations in parallel; [implementation-ledger.md](implementation-ledger.md) assigns the next owners. [current-state.md](current-state.md) records the current executed scopes; [handoff/README.md](handoff/README.md) contains explicitly unadopted continuation work.
+
+## Retained bounded audit
+
+The text below records its stated source/date and earlier acceptance only. It is not a fresh whole-surface current-source certification; later implementation and current failures are governed by the handoff above.
+
 Read-only audit of current `work`, 2026-10-13. This is a disposition inventory;
 "existing test" identifies authored coverage, not a claim this audit ran it.
 Original-argv production checks are currently capturing under

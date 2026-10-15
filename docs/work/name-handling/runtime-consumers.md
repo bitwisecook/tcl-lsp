@@ -1,5 +1,15 @@
 # Runtime name consumer audit
 
+## Current238 handoff scope
+
+Current238 includes the actual private/public Jim helper family and weak original namespace/frame/key/argv/list ownership, variable inventory177, staged factor184, Parent237 and Text238. Parent/Text preserve shared-empty versus paired fresh qualifiers and allocation-only rc0 append ordering. Latest full executed selected Runtime249158/158 is source133; Runtime268170 builds fail before tests and its observer is fixed222 without replay. Remaining import helper and roster/traversal/reentrant/final-free obligations stay explicit.
+
+Priority remains finishing actual naming-consumer migrations in parallel; [implementation-ledger.md](implementation-ledger.md) assigns the next owners. [current-state.md](current-state.md) records the current executed scopes; [handoff/README.md](handoff/README.md) contains explicitly unadopted continuation work.
+
+## Retained bounded audit
+
+The text below records its stated source/date and earlier acceptance only. It is not a fresh whole-surface current-source certification; later implementation and current failures are governed by the handoff above.
+
 Scope: production `runtime/rust/src`, read on 2026-10-13. This inventories policy and geometry consumers, not runtime-wide conformance or physical C object equivalence. Paths below are repository-relative. C84–91, Jim and F5 remain independent issuers; compatibility profile inheritance grants no native F5 lookup.
 
 | Consumer | Current owner / remaining private decision | Disposition |

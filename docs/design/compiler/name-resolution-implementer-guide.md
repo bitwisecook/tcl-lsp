@@ -11141,3 +11141,7 @@ Use `WordExpr::original_written_span` for written word extents and
 `original_command_substitution_span` for a sole command component. Whole Command
 bytes must match retained spelling; the typed variable/braced conventions remain
 separate. Every caller still validates its own current input/binding/body/frame.
+
+Jim Parent uses `NativeNameProtocol::jim_namespace_parent_result` only to select a textual result source. Empty/root leaves the actual result untouched. A rooted unpaired qualifier appends the real context shared-empty object; a paired qualifier, including paired empty, uses a fresh counted object. Runtime preserves the actual original argument or reached current-namespace getter, root-literal comparison cache, weak namespace/frame and complete argv checks. It publishes the root prefix before appending on that exact receiver. Fresh qualifiers remain at refcount zero under memory-only allocation protection until the original post-append increment/decrement; refusal cannot issue an object role.
+
+Direct Jim Qualifiers selects the actual context empty object only when its CString has no paired final colon. Paired root remains fresh counted empty, and unpaired Tail returns the original argument. Runtime checks its original owner before and after getters and publication; VM obtains its own genuine live Jim context empty object within its existing original-name scope. The shared pure branches grant no namespace existence, object/header capability, getter, frame, result completion or lifecycle proof. C result protocols remain independent.

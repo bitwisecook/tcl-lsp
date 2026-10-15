@@ -6,20 +6,9 @@ centralisation. This is temporary coordination material; remove before merge.
 
 ## #2286 — keep open
 
-The current original C8.4 program remains red: one versus two expected W210
-reads, with the remaining warning at bytes160–167. Original namespace import
-remains zero versus one. Alias setup retains all forty cases and the direct/
-shared undefined-read controls pass. Diagnostic79 times out the unchanged
-original program after180 seconds; that attempt grants no semantic acceptance.
-The reported source fixtures, both original '$absent' expectations and matching
-original interpreter init/tcltest sources remain mandatory.
+Root's fresh read on15 October2026 confirms OPEN, GitHub updated2026-10-12T22:29:51Z. The unchanged original selector `analyser::diagnostics::tests::tcltest_oracle_program_keeps_missing_reads_and_setup_completion` passes in ordinary265 at70.901856808 wrapper seconds under its original180-second budget. This is the latest measured original-program result, on source221.
 
-Retained cleanup-flow and factory-prefix experiments describe their captured
-source and execution only. Current source has original-braced declaration
-correspondence; the remaining current read/body producer must be diagnosed from
-the actual original input without fake Native witnesses or suppression. Keep
-#2286 open until all original controls pass. Published issue receipts and their
-original failures remain retained in the experiment documents and Git history.
+The earlier one-versus-two C8.4 warning and180/600-second timeout receipts are bounded prior failures, not current source verdicts. Preserve those receipts, all reported programs, both original `$absent` expectations, matching interpreter init/Tcltest files, forty-case alias setup and original negative/import/shared-read controls. Current265 still has200 Compiler failures and a separate deep-forwarding timeout. A single original-program PASS does not close remaining naming consumers, import/read/refusal obligations or#2286; publish issue changes only with precise scoped acceptance.
 
 ## #2287 — verified and closed
 

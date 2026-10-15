@@ -1,5 +1,15 @@
 # Structured procedure and body identity: proposed #1778 migration
 
+## Current238 handoff scope
+
+This is a dated13 October design proposal, not the present Module representation. Current issued procedure IDs, original Authored/Logical/Native body cards and report-label projections are adopted. Current226 readonly coverage preserves all Authored+Installed rows with unique injective actual allocation/site/origin/formals/namespace/current Module/FU/CFG pairing; it grants only Authored analytical admissibility. Remaining live source-scope/catalogue consumers are in the current ledger; no old rendered-name architecture should be reinstated.
+
+Priority remains finishing actual naming-consumer migrations in parallel; [implementation-ledger.md](implementation-ledger.md) assigns the next owners. [current-state.md](current-state.md) records the current executed scopes; [handoff/README.md](handoff/README.md) contains explicitly unadopted continuation work.
+
+## Retained bounded audit
+
+The text below records its stated source/date and earlier acceptance only. It is not a fresh whole-surface current-source certification; later implementation and current failures are governed by the handoff above.
+
 Read-only proposal for the current `work` sources, 2026-10-13. Do not apply
 until the evaluated-original-argv implementation has passed the queued genuine
 WASM checks. This plan changes semantic map keys; it does not introduce another
