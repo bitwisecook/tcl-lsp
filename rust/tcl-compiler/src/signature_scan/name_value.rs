@@ -1648,8 +1648,14 @@ mod logical_formal_field_tests {
             assert!(set.insert(field.clone()));
             assert!(!set.insert(owner.formal_name_field(&input, ordinal).unwrap()));
             assert!(set.insert(foreign_allocation));
-            let mut foreign = input.clone();
-            foreign.config.strict_quoting = !foreign.config.strict_quoting;
+            let mut foreign_config = input.lexer_config();
+            foreign_config.strict_quoting = !foreign_config.strict_quoting;
+            let foreign = crate::analyser::ResolvedAnalysisInput::new(
+                input.analyser_profile(),
+                input.unit_profile(),
+                input.context_registry(),
+                foreign_config,
+            );
             assert!(!field.matches_source(&SourceImage::document(source), &foreign));
             assert!(!field.matches_source(
                 &SourceImage::document(&source.replace("DEFAULT", "CHANGED")),

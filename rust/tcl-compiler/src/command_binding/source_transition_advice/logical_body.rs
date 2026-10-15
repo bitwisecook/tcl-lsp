@@ -1131,8 +1131,14 @@ mod tests {
             assert!(scope.lambda_source().is_some());
             assert!(scope.matches_input(input));
             assert!(advice.original_head().native_input().is_none());
-            let mut foreign = input.clone();
-            foreign.config.strict_quoting = !foreign.config.strict_quoting;
+            let mut foreign_config = input.lexer_config();
+            foreign_config.strict_quoting = !foreign_config.strict_quoting;
+            let foreign = crate::analyser::ResolvedAnalysisInput::new(
+                input.analyser_profile(),
+                input.unit_profile(),
+                input.context_registry(),
+                foreign_config,
+            );
             assert!(!scope.matches_input(&foreign));
             let image = tcl_lexer::SourceImage::document(source);
             let config = input.lexer_config();
