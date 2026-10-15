@@ -1,5 +1,11 @@
 # Current centralised naming work
 
+## Shared mapping-arm source consumers
+
+Dictionary-conversion and data-group mapping advice now share a source arm owner retaining actual whole original operands, complete same-frame body census and selected child Registry operation at each actual horizon. Switch case values must correspond to the exact source-ordered original bodies; extra or cooked regions refuse. Original value syntax stays intact. Target-name data uses the shared interpreted Unicode owner; proposed target/temp words and references use checked shared constructors. All47 prior test bodies are byte-exact and two new controls are unexecuted. This supplies no movement/evaluation/fresh-cell/observer/insertion/edit permission; existing purpose guards remain.
+
+L9 frozen829986105 failed101 with two Runtime quiet-getter mutability errors,0ELFs/0tests/source drift{}. The minimal reviewed repair uses the existing shared interpreter handle for refusal recording; L10 at e4b589316 is building under the sole Cargo lease. No successor Rust acceptance has been established.
+
 ## L8 feedback and original C Try consumers
 
 L8 frozen349022af9 failed101 in83.366040497s with one Compiler production temporary-owner borrow error,0testELFs/0tests and complete source drift{}. The exact two-line repair retains the actual source-bindings owner through original lexical-command construction. No assertions, purpose guards or budgets change. A fresh build remains required.

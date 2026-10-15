@@ -903,29 +903,7 @@ fn original_mapping_arms(
     source: &str,
     command: &SegmentedCommand,
 ) -> Option<()> {
-    let regions = walk.same_frame_regions(source, command);
-    if regions.is_empty() || !walk.complete() {
-        return None;
-    }
-    for (start, end) in regions {
-        let commands = walk.segment_nested(source.get(start..end)?, u32::try_from(start).ok()?);
-        let [command] = commands.as_slice() else {
-            return None;
-        };
-        let words = walk.source_words(source, command)?;
-        if !written_operands_match(&words) {
-            return None;
-        }
-        let hook = words.with_source_schema(&walk.source_context(), |schema| {
-            schema.semantics.lowering_hook
-        })??;
-        match (hook, words.arguments().len()) {
-            (tcl_registry::hooks::LoweringHookId::Set, 2)
-            | (tcl_registry::hooks::LoweringHookId::Return, 1) => {}
-            _ => return None,
-        }
-    }
-    Some(())
+    super::source_rewrite::mapping_arms(walk, source, command).map(|_| ())
 }
 
 #[cfg(test)]

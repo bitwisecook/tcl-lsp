@@ -40,6 +40,84 @@ impl RewriteObligation {
     }
 }
 
+/// An actual same-frame child whose selected source operation is a mapping arm.
+/// Its original words retain source geometry, not evaluation or edit permission.
+pub(super) struct SourceMappingArm {
+    body: tcl_lexer::Span,
+    words: tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords,
+    hook: LoweringHookId,
+}
+
+impl SourceMappingArm {
+    pub(super) fn body_text(&self) -> Option<&str> {
+        let word = self.words.original_argument_word(0)?;
+        std::str::from_utf8(word.image().bytes().get(self.body.as_range())?).ok()
+    }
+
+    pub(super) fn assignment(&self) -> Option<(Option<String>, String)> {
+        let (target, value) = match self.hook {
+            LoweringHookId::Set => (
+                Some(
+                    String::from_utf8(tcl_syntax::word_rules::original_static_word_unicode_value(
+                        self.words.original_argument_word(0)?,
+                    )?)
+                    .ok()?,
+                ),
+                1,
+            ),
+            LoweringHookId::Return => (None, 0),
+            _ => return None,
+        };
+        Some((
+            target,
+            self.words
+                .original_argument_word(value)?
+                .try_text()
+                .ok()?
+                .to_owned(),
+        ))
+    }
+}
+
+/// Every body must be represented and select its operation at its own source
+/// horizon. Captured operands cannot borrow the current call's written spans.
+pub(super) fn mapping_arms(
+    walk: &FrameWalk<'_>,
+    source: &str,
+    command: &SegmentedCommand,
+) -> Option<Vec<SourceMappingArm>> {
+    let regions = walk.same_frame_regions(source, command);
+    if regions.is_empty() || !walk.complete() {
+        return None;
+    }
+    let mut arms = Vec::with_capacity(regions.len());
+    for (start, end) in regions {
+        let commands = walk.segment_nested(source.get(start..end)?, u32::try_from(start).ok()?);
+        let [command] = commands.as_slice() else {
+            return None;
+        };
+        let words = walk.source_words(source, command)?;
+        if words.origins().iter().enumerate().skip(1).any(|(index, origin)| {
+            !matches!(origin, tcl_compiler::registry_invocation::InvocationWordOrigin::Written(written) if *written == index)
+        }) {
+            return None;
+        }
+        let hook = words.with_source_schema(&walk.source_context(), |schema| {
+            schema.semantics.lowering_hook
+        })??;
+        match (hook, words.arguments().len()) {
+            (LoweringHookId::Set, 2) | (LoweringHookId::Return, 1) => {}
+            _ => return None,
+        }
+        arms.push(SourceMappingArm {
+            body: tcl_lexer::Span::new(u32::try_from(start).ok()?, u32::try_from(end).ok()?),
+            words,
+            hook,
+        });
+    }
+    Some(arms)
+}
+
 pub(super) fn select(
     source: &str,
     cursor: u32,
@@ -148,6 +226,37 @@ pub(super) fn lexical_analysis(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn mapping_arms_use_actual_child_bindings_and_original_operand_geometry() {
+        let source =
+            "switch -exact -- $x {a {set {output name} ${one}} b {set {output name} prefix${two}}}";
+        let analysis = lexical_analysis(source, &super::super::test_registry());
+        let walk = FrameWalk::new(source, &analysis).unwrap();
+        let command = walk.segment_document(source).remove(0);
+        let arms = mapping_arms(&walk, source, &command).unwrap();
+        assert_eq!(arms.len(), 2);
+        assert_eq!(arms[0].body_text(), Some("set {output name} ${one}"));
+        assert_eq!(
+            arms[0].assignment(),
+            Some((Some("output name".to_owned()), "${one}".to_owned()))
+        );
+        assert_eq!(
+            arms[1].assignment(),
+            Some((Some("output name".to_owned()), "prefix${two}".to_owned()))
+        );
+        assert!(mapping_arms(&walk, &source.replace("${one}", "${bad}"), &command).is_none());
+        for source in [
+            "proc set {args} {}\nswitch -exact -- $x {a {set y one} b {set y two}}",
+            "proc return {args} {}\nswitch -exact -- $x {a {return one} b {return two}}",
+        ] {
+            let analysis = lexical_analysis(source, &super::super::test_registry());
+            let walk = FrameWalk::new(source, &analysis).unwrap();
+            let command = walk.segment_document(source).pop().unwrap();
+            assert!(mapping_arms(&walk, source, &command).is_none());
+        }
+    }
+
     use tcl_compiler::analyser::Analyser;
 
     // Implementation contract: naming.refactor.original-source-rewrite-permissions

@@ -19,6 +19,7 @@
 //! Convert a constant-mapping `switch` to a `dict` lookup.
 
 use tcl_compiler::analyser::AnalysisResult;
+#[cfg(test)]
 use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::{LexerConfig, LineIndex};
 
@@ -40,6 +41,7 @@ enum BranchBody {
 ///
 /// `config` is the document's [`LexerConfig`]; this extracted arm selects
 /// its nested projection without changing the retained parent input.
+#[cfg(test)]
 fn parse_branch_assignment(body_text: &str, config: LexerConfig) -> Option<BranchBody> {
     let commands = segment_commands_with_offset_and_config(body_text, 0, config.nested());
     if commands.len() != 1 || commands[0].texts.is_empty() {
@@ -91,7 +93,28 @@ pub fn switch_to_dict(
         return Some(obligation.refusal("Convert to dict lookup"));
     }
     let subject = original.subject().try_text().ok()?;
-    let arms = parse_arms(original.pairs(), config)?;
+    let walk = super::FrameWalk::new(source, analysis)?;
+    let selected = super::source_rewrite::mapping_arms(&walk, source, &cmd)?;
+    if selected.len() != original.pairs().len() {
+        return None;
+    }
+    let pairs = original
+        .pairs()
+        .iter()
+        .zip(&selected)
+        .map(|((pattern, body), selected)| {
+            (selected.body_text()? == body).then_some(())?;
+            let (target, value) = selected.assignment()?;
+            Some((
+                pattern.clone(),
+                match target {
+                    Some(target) => BranchBody::Set(target, value),
+                    None => BranchBody::Return(value),
+                },
+            ))
+        })
+        .collect::<Option<Vec<_>>>()?;
+    let arms = assemble_arms(pairs)?;
     if arms.dict_entries.len() < 2 {
         return None;
     }
@@ -142,19 +165,24 @@ struct ParsedArms {
 /// Parse every arm, requiring a single uniform `set VAR …` / `return …`
 /// shape.  Returns `None` on a fallthrough marker, a body that is neither
 /// form, or a mixed shape.
+#[cfg(test)]
 fn parse_arms(pairs: &[(String, String)], config: LexerConfig) -> Option<ParsedArms> {
+    assemble_arms(
+        pairs
+            .iter()
+            .map(|(pattern, body)| Some((pattern.clone(), parse_branch_assignment(body, config)?)))
+            .collect::<Option<Vec<_>>>()?,
+    )
+}
+
+fn assemble_arms(pairs: Vec<(String, BranchBody)>) -> Option<ParsedArms> {
     let mut target_var: Option<String> = None;
     let mut use_return = false;
     let mut dict_entries: Vec<(String, String)> = Vec::new();
     let mut default_value: Option<String> = None;
 
     for (pattern, body) in pairs {
-        // The shared case-value owner already decoded the arm's container.
-        let body_text = body.as_str();
-        if body_text == "-" {
-            return None; // fallthrough marker
-        }
-        let value = match parse_branch_assignment(body_text, config)? {
+        let value = match body {
             BranchBody::Set(var, value) => {
                 match &target_var {
                     None => {
@@ -213,7 +241,7 @@ fn literal_pattern_source(value: &str, config: LexerConfig) -> Option<String> {
         return None;
     };
     (parsed.fatal_tail.is_none()
-        && tcl_syntax::word_rules::original_static_word_source_bytes(word)?.as_slice()
+        && tcl_syntax::word_rules::original_static_word_unicode_value(word)?.as_slice()
             == value.as_bytes())
     .then_some(proposed)
 }
@@ -236,32 +264,36 @@ fn build_dict_replacement(
     } else {
         format!("{}_map", arms.target_var)
     };
-    let target_var = &arms.target_var;
+    let target_var = literal_pattern_source(&arms.target_var, config)?;
+    let dict_word = literal_pattern_source(&dict_name, config)?;
+    let dict_reference = tcl_syntax::naming::scalar_source_reference(&dict_name, config, false)?;
 
-    let mut parts: Vec<String> = vec![format!("set {dict_name} [dict create {dict_items}]")];
+    let mut parts: Vec<String> = vec![format!("set {dict_word} [dict create {dict_items}]")];
     if let Some(default) = &arms.default_value {
         parts.push(format!(
-            "{indent}if {{[dict exists ${dict_name} {subject}]}} {{"
+            "{indent}if {{[dict exists {dict_reference} {subject}]}} {{"
         ));
         if arms.use_return {
             parts.push(format!(
-                "{indent}    return [dict get ${dict_name} {subject}]"
+                "{indent}    return [dict get {dict_reference} {subject}]"
             ));
             parts.push(format!("{indent}}} else {{"));
             parts.push(format!("{indent}    return {default}"));
         } else {
             parts.push(format!(
-                "{indent}    set {target_var} [dict get ${dict_name} {subject}]"
+                "{indent}    set {target_var} [dict get {dict_reference} {subject}]"
             ));
             parts.push(format!("{indent}}} else {{"));
             parts.push(format!("{indent}    set {target_var} {default}"));
         }
         parts.push(format!("{indent}}}"));
     } else if arms.use_return {
-        parts.push(format!("{indent}return [dict get ${dict_name} {subject}]"));
+        parts.push(format!(
+            "{indent}return [dict get {dict_reference} {subject}]"
+        ));
     } else {
         parts.push(format!(
-            "{indent}set {target_var} [dict get ${dict_name} {subject}]"
+            "{indent}set {target_var} [dict get {dict_reference} {subject}]"
         ));
     }
     Some(parts.join("\n"))
@@ -278,6 +310,19 @@ mod tests {
         let analysis = super::super::source_rewrite::lexical_analysis(source, &reg);
         let li = LineIndex::new(source);
         switch_to_dict(source, cursor, &analysis, &li)
+    }
+
+    #[test]
+    fn proposed_mapping_names_use_complete_shared_literal_and_reference_construction() {
+        let source = "switch -exact -- $x {a {set {output name} one} b {set {output name} two}}";
+        let proposed = run(source, 0).unwrap().apply(source);
+        assert_eq!(
+            proposed,
+            "set {output name_map} [dict create a one b two]\nset {output name} [dict get ${output name_map} $x]"
+        );
+        let unavailable =
+            r"switch -exact -- $x {a {set output\}tail one} b {set output\}tail two}}";
+        assert!(run(unavailable, 0).is_none());
     }
 
     #[test]
