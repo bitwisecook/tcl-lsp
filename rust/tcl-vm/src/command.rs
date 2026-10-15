@@ -1886,28 +1886,20 @@ pub(crate) fn cmd_const(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 }
 
 /// `tailcall ?command ?arg …??` — the runtime fallback for forms the codegen
-/// does not specialise into the `TAILCALL` opcode (an empty `tailcall`, or a
-/// dynamically-built one reached via the generic invoke). No command terminates
-/// the proc with an empty result (C: `tailcall` is a no-op return). For a
-/// dynamic command the call runs now and its result becomes the proc's,
-/// terminating it — a close approximation of the true caller-frame tail call the
-/// opcode performs (this fallback runs in the proc's own frame).
+/// does not specialise into the `TAILCALL` opcode (an empty `tailcall`, one in
+/// a `catch` body, or a dynamically-built one reached via the generic invoke).
+/// As C's `TclNRTailcallObjCmd`, the command is scheduled on the current
+/// procedure frame and `TCL_RETURN` returned; it runs in that procedure's place
+/// once the procedure completes `ok`. No command cancels one already scheduled.
 fn cmd_tailcall(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    if args.is_empty() {
-        // An argument-less `tailcall` also cancels one already scheduled on
-        // this frame by an `uplevel`ed body.
-        if let Some(scheduled) = vm.current_frame_tailcall() {
-            *scheduled = None;
-        }
-        return Completion::new(Code::Return, Value::empty(), Value::empty());
+    if !vm.current_frame_is_proc() {
+        return err("tailcall can only be called from a proc, lambda or method");
     }
-    let name = args[0].to_str().to_string();
-    let res = vm.invoke_command(&name, &args[1..]);
-    if res.code.is_ok() {
-        Completion::new(Code::Return, res.result, Value::empty())
-    } else {
-        res
+    let namespace = vm.current_ns().to_owned();
+    if let Some(scheduled) = vm.current_frame_tailcall() {
+        *scheduled = (!args.is_empty()).then(|| (namespace, args.to_vec()));
     }
+    Completion::new(Code::Return, Value::empty(), Value::empty())
 }
 
 /// `time command ?count?` — evaluate `command` (in the current frame) `count`

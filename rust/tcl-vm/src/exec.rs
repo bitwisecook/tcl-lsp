@@ -1927,14 +1927,14 @@ impl Vm {
     /// Add the error frames owned by one completed activation before its proc
     /// boundary is unwound. Keeping this here gives compiled `eval`/`uplevel`
     /// bodies the same single error-context path as every other activation.
-    fn apply_activation_error_context(&mut self, act: &Frame, acts: &[Frame]) {
+    fn apply_activation_error_context(&mut self, act: &Frame, acts: &[Frame], message: &str) {
         self.apply_error_regions(act);
         let Some(label) = act.body_label else {
             return;
         };
         self.append_body_frame(label);
         if let Some((cmd, line)) = &act.body_invocation {
-            self.log_command_info(cmd, "", *line);
+            self.log_command_info(cmd, message, *line);
             // The entered replacement and the original procedure call are
             // separate Tcl command frames, even though tailcall removed the
             // procedure activation between them.
@@ -1950,7 +1950,7 @@ impl Vm {
                     (text.to_owned(), line)
                 })
         }) {
-            self.log_command_info(&cmd, "", line);
+            self.log_command_info(&cmd, message, line);
         }
     }
 
@@ -1993,7 +1993,8 @@ impl Vm {
             // activation's own proc frame (innermost first) — the compiled
             // analogue of C's `CmdFrame` trace.
             if c.code == Code::Error {
-                self.apply_activation_error_context(&act, acts);
+                let message = c.result.to_str().to_string();
+                self.apply_activation_error_context(&act, acts, &message);
             }
             let mut scheduled_tailcall = None;
             if act.is_proc {
@@ -2298,7 +2299,8 @@ impl Vm {
         }
         self.error_stack_push_proc_call(body_code, c.code, &call_words);
         if c.code == Code::Error {
-            self.log_procedure_invocation(acts, lambda_call.as_deref(), &call_words);
+            let message = c.result.to_str().to_string();
+            self.log_procedure_invocation(acts, lambda_call.as_deref(), &call_words, &message);
         }
         scheduled_tailcall.filter(|_| c.code == Code::Ok)
     }
@@ -2311,6 +2313,7 @@ impl Vm {
         acts: &[Frame],
         lambda_key: Option<&str>,
         call_words: &[Value],
+        message: &str,
     ) {
         // A lambda runs through `apply`'s internal call script, which is
         // transparent: the command C logs is the one that ran `apply`, or the
@@ -2341,10 +2344,10 @@ impl Vm {
                     .next()
                     .is_some_and(|head| head.trim_start_matches("::") == key) =>
             {
-                self.log_command_info(&invocation(), "", line);
+                self.log_command_info(&invocation(), message, line);
             }
-            (Some((cmd, line)), _) => self.log_command_info(&cmd, "", line),
-            (None, Some(_)) => self.log_command_info(&invocation(), "", 0),
+            (Some((cmd, line)), _) => self.log_command_info(&cmd, message, line),
+            (None, Some(_)) => self.log_command_info(&invocation(), message, 0),
             (None, None) => {}
         }
     }
@@ -2770,10 +2773,14 @@ impl Vm {
                 match $e {
                     Ok(v) => v,
                     Err(c) => {
-                        let (cmd_text, line) = instr.error_info_text();
-                        let cmd_text = cmd_text.to_owned();
-                        let msg = c.result.to_str().to_string();
-                        self.log_command_info(&cmd_text, &msg, line);
+                        // C logs only an error; a `TCL_RETURN` carrying `-code error` is
+                        // raised at the procedure boundary, which logs the call instead.
+                        if c.code == Code::Error {
+                            let (cmd_text, line) = instr.error_info_text();
+                            let cmd_text = cmd_text.to_owned();
+                            let msg = c.result.to_str().to_string();
+                            self.log_command_info(&cmd_text, &msg, line);
+                        }
                         return Tick::Return(c);
                     }
                 }
@@ -4331,15 +4338,19 @@ impl Vm {
                     Ok(Some(call)) => return call,
                     Ok(None) => {}
                     Err(c) => {
-                        let (cmd_text, line) = instr.error_info_text();
-                        let cmd_text = cmd_text.to_owned();
-                        let msg = c.result.to_str().to_string();
-                        self.log_command_info_with_context(
-                            &cmd_text,
-                            Value::list(words),
-                            &msg,
-                            line,
-                        );
+                        // C logs only an error; a `TCL_RETURN` carrying `-code error` is
+                        // raised at the procedure boundary, which logs the call instead.
+                        if c.code == Code::Error {
+                            let (cmd_text, line) = instr.error_info_text();
+                            let cmd_text = cmd_text.to_owned();
+                            let msg = c.result.to_str().to_string();
+                            self.log_command_info_with_context(
+                                &cmd_text,
+                                Value::list(words),
+                                &msg,
+                                line,
+                            );
+                        }
                         return Tick::Return(c);
                     }
                 }
@@ -4391,15 +4402,19 @@ impl Vm {
                         Ok(Some(call)) => return call,
                         Ok(None) => {}
                         Err(c) => {
-                            let (cmd_text, line) = instr.error_info_text();
-                            let cmd_text = cmd_text.to_owned();
-                            let msg = c.result.to_str().to_string();
-                            self.log_command_info_with_context(
-                                &cmd_text,
-                                Value::list(words),
-                                &msg,
-                                line,
-                            );
+                            // C logs only an error; a `TCL_RETURN` carrying `-code error` is
+                            // raised at the procedure boundary, which logs the call instead.
+                            if c.code == Code::Error {
+                                let (cmd_text, line) = instr.error_info_text();
+                                let cmd_text = cmd_text.to_owned();
+                                let msg = c.result.to_str().to_string();
+                                self.log_command_info_with_context(
+                                    &cmd_text,
+                                    Value::list(words),
+                                    &msg,
+                                    line,
+                                );
+                            }
                             return Tick::Return(c);
                         }
                     }
@@ -4437,15 +4452,19 @@ impl Vm {
                     Ok(Some(call)) => return call,
                     Ok(None) => {}
                     Err(c) => {
-                        let (cmd_text, line) = instr.error_info_text();
-                        let cmd_text = cmd_text.to_owned();
-                        let msg = c.result.to_str().to_string();
-                        self.log_command_info_with_context(
-                            &cmd_text,
-                            Value::list(rewritten),
-                            &msg,
-                            line,
-                        );
+                        // C logs only an error; a `TCL_RETURN` carrying `-code error` is
+                        // raised at the procedure boundary, which logs the call instead.
+                        if c.code == Code::Error {
+                            let (cmd_text, line) = instr.error_info_text();
+                            let cmd_text = cmd_text.to_owned();
+                            let msg = c.result.to_str().to_string();
+                            self.log_command_info_with_context(
+                                &cmd_text,
+                                Value::list(rewritten),
+                                &msg,
+                                line,
+                            );
+                        }
                         return Tick::Return(c);
                     }
                 }
@@ -6066,18 +6085,27 @@ impl Vm {
             let c = err("tailcall can only be called from a proc, lambda or method");
             return self.unwind(acts, c).map(RunExit::Done);
         };
-        if acts[proc_index + 1..]
-            .iter()
-            .any(|frame| frame.level_restore.is_some())
-        {
+        // C stores every tailcall on the current frame and returns
+        // `TCL_RETURN` (`TclNRTailcallObjCmd`). Running it at once is the same
+        // only while nothing between the opcode and its procedure would see
+        // that `TCL_RETURN`: a `catch`, `try`, substitution or a body
+        // `uplevel` redirected elsewhere takes the scheduling path instead.
+        if acts[proc_index + 1..].iter().any(|frame| {
+            frame.level_restore.is_some()
+                || !frame.is_script
+                || (frame.body_label.is_none() && frame.cleanup_proc.is_none())
+        }) {
             return self.schedule_frame_tailcall(acts, words);
         }
-        if acts[proc_index + 1..].iter().any(|frame| {
-            !frame.is_script || (frame.body_label.is_none() && frame.cleanup_proc.is_none())
-        }) {
-            let c = err("tailcall can only be called from a proc, lambda or method");
-            return self.unwind(acts, c).map(RunExit::Done);
+        // The tailcalled command resolves in the procedure's namespace, as
+        // C's `TclNRTailcallEval` looks it up, not the caller's.
+        let mut resolved = words.to_vec();
+        if let Some(head) = resolved.first_mut()
+            && let Some(key) = self.resolve_command_fqn(self.current_ns(), &head.to_str())
+        {
+            *head = Value::string(format!("::{key}"));
         }
+        let words = resolved.as_slice();
 
         // These transparent wrappers introduce no Tcl call frame. Their
         // activation still owns the deferred command's leave trace, which sees
