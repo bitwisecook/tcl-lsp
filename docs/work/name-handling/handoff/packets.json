@@ -273,5 +273,10 @@
     "file": "ordinary-m12-build-and-first-core-db-feedback.tar.gz",
     "sha256": "0b8e78b8e11a96d3ee45e6daa295b7210d2c0eacef374e097001a2b0652e43a1",
     "status": "Actual frozen c9e M12 ordinary build23ELFs/0errors/source{} in678.805s. Original2286FIRST PASS71.841791191s/180; Core273=184P89F (all262retained,2gains,0regressions,11newallP); DB85=71P14F (all84retained,1gain,0regressions,1newP). Exact raw completed runs/source/artifact/run guards retained. Complete1546control replay still running, not accepted. LatestJim5bac rechecked; C9 actualZIPFS library distinguished from pinned source path, original-init pairing independently retained in tracked capture03. No Native/full gate acceptance."
+  },
+  {
+    "file": "ordinary-m12-complete-1546-and-permission-repairs.tar.gz",
+    "sha256": "b4563a00663bdfb7defcac59306906866d58f121bcbeb428d91438e30b080140",
+    "status": "Complete frozen c9e M12 ordinary23ELF build and1546 exact selected attempts: strict1126PASS410FAIL7ABORT1TIMEOUT2NOT_ACCEPTED_RUN_COUNT. Seven independent unchanged-selector/assertion/budget/source/artifact/runner permission repairs allPASS; combined1133PASS410FAIL1TIMEOUT2NOT_ACCEPTED_RUN_COUNT. All1491 predecessor controls retained,4gains0priorPASSregressions0drops;55new53PASS2FAIL. Original2286FIRSTPASS71.841791191s/original180. Initial EPERM aborts and Host nested-harness guard rejections retained. Source/artifact/selector guards verified. Native Runtime174/VM133 current replay, formatter/integration and required gates remain separate/unexecuted."
   }
 ]

@@ -1,5 +1,15 @@
 # Remaining name-handling obligations
 
+## Current audit and validation snapshot — 2026-10-15 20:13 UTC
+
+The repository-wide audit is incomplete. The latest portable audit checkpoint has 2,639 provisional purpose rows, including shared owners, display uses and exclusions; it is **not a remaining-migration count**. All seven disjoint source-review assignments continue against immutable cc24c3940. Exact source hashes and unique IDs do not prove semantic uniqueness: independent reconciliation has removed alternate labels for the same call site and withdrawn unsupported guidance findings. Unexamined files, partially read production, operational harnesses and count-unit reconciliation remain explicit. See [repository-consumer-audit.md](repository-consumer-audit.md).
+
+Fresh ordinary M12 built all 23 selected test binaries on frozen c9e826a23 with one Cargo job, zero compiler errors and unchanged source inventories (678.805s). The complete 1,546-control replay initially recorded 1,126 PASS, 410 FAIL, 7 ABORT, 1 TIMEOUT and 2 NOT_ACCEPTED_RUN_COUNT. The seven exact EPERM signal-handler aborts were independently rerun with unchanged selectors, assertions, budgets, source, artifacts and runner guards; all seven PASS, with the original aborts retained. Latest per-selector result: **1,133 PASS, 410 FAIL, 1 TIMEOUT, 2 NOT_ACCEPTED_RUN_COUNT**. Both nested Host harness runs remain rejected by the unchanged single-run guard despite raw exit 0.
+
+All 1,491 predecessor controls were retained: four gains, zero prior-PASS regressions, zero drops. The 55 additions yield 53 PASS and two Logical lambda source-scope/declaration failures; their exact source-only diagnosis remains separate from acceptance. Original #2286 ran FIRST and passed in 71.841791191s within its unchanged 180s budget. The portable complete capture retains 1,807 hash-verified members, all raw channels, separate permission repairs, source/artifact guards and predecessor comparison. See [handoff/packets.json](handoff/packets.json).
+
+M12 does not execute the current Native Runtime174 or VM133 future replay plans. Formatter88 and integration55/15 annexes remain unexecuted. Required proof/owner/generated/repository gates remain red or unrun, including make rust-check and make prep-pr. No issue closure or PR acceptance follows; #2286 remains open.
+
 ## Completed L15 replay and exact permission repairs
 
 Frozen4faff complete1491 selected attempts retain all1027 K controls,8 predecessor gains,2 prior-PASS array-completion regressions and0drops. Strict initial results:1070PASS412FAIL6ABORT1TIMEOUT2NOT_ACCEPTED_RUN_COUNT. The six aborts show wait_timeout signal-handler writes refused with EPERM; independent outside-sandbox reruns of the same six exact selectors/assertions/budgets/artifacts/source and unchanged runner all PASS. Combined latest per selector:1076PASS412FAIL1TIMEOUT2NOT_ACCEPTED_RUN_COUNT. The two Host tests legitimately launch a second original test harness; the unchanged one-run guard rejects their raw exit0 captures, so they remain NOT accepted. No guard is relaxed or inferred test success substituted.
