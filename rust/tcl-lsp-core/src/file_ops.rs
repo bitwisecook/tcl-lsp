@@ -38,6 +38,7 @@ pub struct FileRenameSourceAction<'a> {
 }
 
 impl<'a> FileRenameSourceAction<'a> {
+    /// Retain rooted Unicode host paths for the explicit project rename policy.
     #[must_use]
     pub fn new(
         old_path: &'a Path,
@@ -62,8 +63,11 @@ impl<'a> FileRenameSourceAction<'a> {
 /// must join it to current analysis and document versions before publication.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RenameEdit {
+    /// Indexed document URI retained as its report key.
     pub uri: String,
+    /// Exact original source range selected by the source-word owner.
     pub span: Span,
+    /// Replacement source prepared under the retained lexer configuration.
     pub new_text: String,
     revision: u64,
     original: OriginalSourcePathExpression,
@@ -76,6 +80,7 @@ pub struct RenameEdit {
 }
 
 impl RenameEdit {
+    /// Recheck the retained source, index generation and project path association.
     #[must_use]
     pub fn matches_current(
         &self,
