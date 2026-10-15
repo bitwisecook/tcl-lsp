@@ -1961,17 +1961,6 @@ impl<'r> Lowerer<'r> {
         });
     }
 
-    /// Whether this lowering compiles for the VM under a release that reads
-    /// a command apart compiled and evaluated directly
-    /// ([`tcl_cmd_core::index::compiles_literals_apart`]); analysis keeps the
-    /// structure it can see.
-    fn release_compiles_literals_apart(&self) -> bool {
-        self.target.is_bytecode()
-            && self.dialect.is_some_and(|profile| {
-                tcl_cmd_core::index::compiles_literals_apart(profile.vm_runtime_version)
-            })
-    }
-
     /// Whether the release's signature of `command` admits `count` arguments.
     fn release_admits_arity(&self, command: &str, count: usize) -> bool {
         self.registry.get(command).is_none_or(|spec| {
@@ -2825,12 +2814,13 @@ impl<'r> Lowerer<'r> {
             let body_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
             self.lower_body(body_text, body_offset, namespace)
         } else if body_tok.kind == TokenType::Var {
-            // The script `eval` compiles at run time is a unit of its own,
-            // which creates no locals and reaches only those the procedure
-            // compiled (`TclFindCompiledLocal`); folded into the body it would
-            // create them. Where compiled and direct evaluation read apart the
-            // runtime `eval` keeps that distinction.
-            if self.release_compiles_literals_apart() {
+            // The script `eval` evaluates at run time is a unit of its own
+            // (8.4 runs it directly), which creates no locals and reaches only
+            // those the procedure compiled (`TclFindCompiledLocal`), and whose
+            // errors name its own commands; folded into the body it would
+            // create them and be logged as the body's text. Analysis keeps the
+            // structure it can see.
+            if self.target.is_bytecode() {
                 return None;
             }
             let literal = self.const_map_lookup(&args[0])?;
