@@ -1,0 +1,13 @@
+HEADER|8.4.20
+VERSION|0|8.4.20
+RESULT|0|0
+NAME|0|0|1|parsedVarName
+NAME|0|1|0|int
+VERSION|1|8.4.20
+RESULT|1|0
+NAME|1|0|1|parsedVarName
+NAME|1|1|0|int
+VERSION|2|8.4.20
+RESULT|2|1
+NAME|2|0|1|parsedVarName
+NAME|2|1|0|int

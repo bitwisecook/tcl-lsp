@@ -136,8 +136,9 @@ fn catch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let Some(order) = selected.output_order(dialect, selection).indices(selected) else {
         return interp.error(b"native catch output protocol is not selected");
     };
+    let original_c_names = interp.native_c_variable_name_protocol().is_some();
     for index in order.into_iter().flatten() {
-        let original = if jim {
+        let original = if jim || original_c_names {
             match crate::interp::native_arguments::OriginalArguments::enter(
                 interp,
                 &[argv[index + 1]],
@@ -149,13 +150,14 @@ fn catch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             None
         };
         let name = match &original {
-            Some(original) => match original.bytes(0) {
-                Ok(bytes) => bytes.to_vec(),
+            Some(original) if jim => match original.bytes(0) {
+                Ok(bytes) => Some(bytes.to_vec()),
                 Err(error) => return interp.report_cmd_error(error),
             },
-            None => obj_bytes(argv[index + 1]),
+            Some(_) => None,
+            None => Some(obj_bytes(argv[index + 1])),
         };
-        if jim && name.is_empty() {
+        if jim && name.as_ref().is_some_and(Vec::is_empty) {
             continue;
         }
         let jim_options = if jim && Some(index) == selected.options_var_at {
@@ -184,13 +186,16 @@ fn catch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 return interp.report_cmd_error(error);
             }
             if let Err(code) = assigned {
-                if interp.host_refusal_pending() {
+                if !jim || interp.host_refusal_pending() {
                     return code;
                 }
                 break;
             }
-        } else if let Err(error) = set_var_or_elem(interp, &name, value) {
-            return crate::builtins::var_error(interp, &name, error);
+        } else {
+            let name = name.as_deref().expect("byte-name output fallback");
+            if let Err(error) = set_var_or_elem(interp, name, value) {
+                return crate::builtins::var_error(interp, name, error);
+            }
         }
     }
     if jim {
@@ -933,6 +938,7 @@ fn throw_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 #[cfg(test)]
 mod tests {
+    mod original_c_output_names;
     mod original_jim_output_keys;
     #[test]
     fn dynamic_catch_resets_error_state_in_all_six_native_engines() {

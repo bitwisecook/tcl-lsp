@@ -1,5 +1,9 @@
 # Current centralised naming work
 
+## Reviewed C catch name consumers
+
+The next checkpoint also routes selected C catch message/options output names through the existing original-variable assignment owner, preserving actual name headers and reached conversion/cache/publication order. It does not force a name String before that owner, change Jim/C failure behaviour or weaken original currentness checks. Two original paired SDK captures on each pinned C8.4.20/8.5.19/8.6.18/9.0.4/9.1.0 retain65primary rows, actual static header/library/source/compiler/executable pairing and unchanged provider inputs. Core-only Tcl_CreateInterp was used; no Tcl_Init or tcltest harness is claimed. Initial inline-driver limits are recorded separately. New Rust controls and broader compiled-catch/reference-count equivalence remain unexecuted.
+
 ## Reviewed BPF consumers
 
 The next checkpoint adopts the typed BPF source/generated command carrier through a private actual-Module source phase, full configured syntax/census, immutable source-selected environment and same-phase when-header witness. Fixed template/unroll/profile/capability transforms preserve genuine command/body origin and typed generated operations. The actual CFG factory issues an immutable prepared-function owner; positive lowering requires it, while public unowned lower_function retains rejection diagnostics and cannot publish positive output. The explicit RuntimeSelected namespace factory does not derive namespace identity from a generated function label.

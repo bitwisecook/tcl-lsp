@@ -1,0 +1,13 @@
+HEADER|9.0.4
+VERSION|0|9.0.4
+RESULT|0|0
+NAME|0|0|1|parsedVarName
+NAME|0|1|1|parsedVarName
+VERSION|1|9.0.4
+RESULT|1|0
+NAME|1|0|1|parsedVarName
+NAME|1|1|1|parsedVarName
+VERSION|2|9.0.4
+RESULT|2|1
+NAME|2|0|1|parsedVarName
+NAME|2|1|1|int
