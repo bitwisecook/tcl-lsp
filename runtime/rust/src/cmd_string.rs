@@ -31,6 +31,8 @@
 
 use tcl_cmd_core::index::IndexCompiler;
 use tcl_cmd_core::prefix::Resolution;
+use tcl_registry::hooks::InlineCodegenHookId;
+use tcl_syntax::value::ValueOps;
 
 use crate::interp::{new_string, obj_bytes, Code, Interp};
 use crate::obj::{self, TclObj};
@@ -161,6 +163,14 @@ fn string_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // driven over this runtime's `*mut TclObj` `ValueOps`. The runtime is a thin
     // adapter: map `Result<*mut TclObj, CmdError>` onto set_result/set_error.
     // Not-yet-ported subcommands fall through to the legacy arms below.
+    // A subcommand the release compiles reads and returns its words as its
+    // compiled form does, where that differs from the command.
+    if let Some(code) = interp
+        .release_compiled_hook(argv)
+        .and_then(|(hook, literal)| compiled_string(interp, hook, &literal, argv))
+    {
+        return code;
+    }
     // `range` and `replace` read their literal indices as the release
     // compiles them in a command it compiles.
     let compiler = match (canonical, argv.len()) {
@@ -210,6 +220,146 @@ fn string_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         // `wordstart`/`wordend` are handled by the shared core above.
         _ => unreachable!("index_lookup only yields a known subcommand"),
     }
+}
+
+/// `string`'s subcommand `argv`, as the release compiles it through `hook`
+/// with the words `literal` marks literal, where its compiled form reads or
+/// returns its words apart from the command; `None` where it runs as the
+/// command, after any read the compiled form makes first.
+fn compiled_string(
+    interp: &mut Interp,
+    hook: InlineCodegenHookId,
+    literal: &[bool],
+    argv: &[*mut TclObj],
+) -> Option<Code> {
+    let is_option = |index: usize, option: &[u8]| {
+        literal[index] && {
+            let word = obj_bytes(argv[index]);
+            word.len() > 1 && option.starts_with(&word)
+        }
+    };
+    match hook {
+        // `TclCompileStringIsCmd` reads a character class's value by
+        // character (`INST_STR_CLASS`).
+        InlineCodegenHookId::StringIs => {
+            let compiles = argv.len() == 4 || (argv.len() == 5 && is_option(3, b"-strict"));
+            let class = literal[2]
+                .then(|| obj_bytes(argv[2]))
+                .and_then(|class| String::from_utf8(class).ok())
+                .and_then(|class| tcl_cmd_core::string_is::resolve_class(&class).ok());
+            if compiles && class.is_some_and(tcl_cmd_core::string_is::is_character_class) {
+                crate::list::read_as_string(argv[argv.len() - 1]);
+            }
+            None
+        }
+        // `INST_STR_EQ` for a literal pattern with no glob character, else
+        // `INST_STR_MATCH`, which reads both by character only where either
+        // already is a string.
+        InlineCodegenHookId::StringMatch => {
+            let nocase = match argv.len() {
+                4 => false,
+                5 if is_option(2, b"-nocase") => true,
+                _ => return None,
+            };
+            let (pattern, string) = (argv[argv.len() - 2], argv[argv.len() - 1]);
+            let exact = !nocase
+                && literal[argv.len() - 2]
+                && !obj_bytes(pattern)
+                    .iter()
+                    .any(|b| matches!(b, b'*' | b'?' | b'[' | b'\\'));
+            if !exact
+                && (crate::list::is_string_typed(pattern) || crate::list::is_string_typed(string))
+            {
+                crate::list::read_as_string(pattern);
+                crate::list::read_as_string(string);
+            }
+            let pattern = String::from_utf8_lossy(&obj_bytes(pattern)).into_owned();
+            let string = String::from_utf8_lossy(&obj_bytes(string)).into_owned();
+            let matched = tcl_syntax::glob::string_case_match(&pattern, &string, nocase);
+            interp.set_result(obj::new_boolean_obj(i32::from(matched)));
+            Some(Code::Ok)
+        }
+        // The compiled trims leave the value itself where they trim nothing.
+        InlineCodegenHookId::StringTrim
+        | InlineCodegenHookId::StringTrimLeft
+        | InlineCodegenHookId::StringTrimRight
+            if matches!(argv.len(), 3 | 4) =>
+        {
+            let (left, right) = match hook {
+                InlineCodegenHookId::StringTrimLeft => (true, false),
+                InlineCodegenHookId::StringTrimRight => (false, true),
+                _ => (true, true),
+            };
+            let trimmed = tcl_cmd_core::string::trim(interp, &argv[2], argv.get(3), left, right);
+            if obj_bytes(trimmed) == obj_bytes(argv[2]) {
+                crate::interp::drop_fresh(trimmed);
+                interp.set_result(argv[2]);
+            } else {
+                interp.set_result(trimmed);
+            }
+            Some(Code::Ok)
+        }
+        InlineCodegenHookId::StringReplace if matches!(argv.len(), 5 | 6) => {
+            compiled_string_replace(interp, literal, argv)
+        }
+        _ => None,
+    }
+}
+
+/// `string replace` as `TclCompileStringReplaceCmd` settles it on its
+/// literal indices (`tcl_cmd_core::index::settle_string_replace`): a no-op
+/// leaves the string unread, a whole replacement is the replacement itself,
+/// and `INST_STR_REPLACE` reads the replacement by character where it keeps
+/// part of the string; `None` where it reads as the command.
+fn compiled_string_replace(
+    interp: &mut Interp,
+    literal: &[bool],
+    argv: &[*mut TclObj],
+) -> Option<Code> {
+    use tcl_cmd_core::index::StringReplaceSettlement as Settlement;
+    let release = interp.runtime_version();
+    let encoded = |index: usize| {
+        literal[index]
+            .then(|| String::from_utf8_lossy(&obj_bytes(argv[index])).into_owned())
+            .and_then(|word| tcl_cmd_core::index::encode(&word, release, true))
+    };
+    let replacement = argv.get(5).copied();
+    match tcl_cmd_core::index::settle_string_replace(encoded(3), encoded(4), replacement.is_some())
+    {
+        Settlement::Unchanged => interp.set_result(argv[2]),
+        Settlement::Replacement => interp.set_result(replacement?),
+        Settlement::Empty => interp.set_result_bytes(b""),
+        Settlement::Ranges => return None,
+        Settlement::Runtime => {
+            let chars = interp.as_chars(&argv[2]).chars().count();
+            let numbers = release.number_syntax();
+            let index = |word: *mut TclObj| {
+                tcl_cmd_core::index::resolve_with(
+                    &String::from_utf8_lossy(&obj_bytes(word)),
+                    chars,
+                    numbers,
+                )
+                .ok()
+            };
+            let (first, last) = (index(argv[3])?, index(argv[4])?);
+            let end = i64::try_from(chars).unwrap_or(i64::MAX) - 1;
+            if last < 0 || first > end || last < first {
+                return None;
+            }
+            if first <= 0 && last >= end {
+                match replacement {
+                    Some(replacement) => interp.set_result(replacement),
+                    None => interp.set_result_bytes(b""),
+                }
+                return Some(Code::Ok);
+            }
+            if let Some(replacement) = replacement {
+                crate::list::read_as_string(replacement);
+            }
+            return None;
+        }
+    }
+    Some(Code::Ok)
 }
 
 /// The `string` ensemble subcommands, in the order used by the

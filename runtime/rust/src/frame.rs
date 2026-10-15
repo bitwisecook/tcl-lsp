@@ -46,6 +46,7 @@
 //! overwriting/unsetting/dropping releases. Links own nothing.
 
 use std::collections::BTreeMap;
+use std::rc::Rc;
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use tcl_runtime_api::{FrameLinkOrigin, VarId};
@@ -751,6 +752,10 @@ struct Frame {
     /// effect when it was pushed). Restores correctly even when the push
     /// happened under an `uplevel` redirection.
     saved_active: usize,
+    /// The procedure body this frame activates, whose compiled locals a
+    /// script the release compiles in the frame can reach (C's
+    /// `localCachePtr`).
+    unit: Option<Rc<crate::compiled_locals::ProcUnit>>,
 }
 
 impl Frame {
@@ -763,6 +768,7 @@ impl Frame {
             words: Vec::new(),
             is_proc: false,
             saved_active: 0,
+            unit: None,
         }
     }
 }
@@ -847,6 +853,20 @@ impl FrameStack {
         self.frames.push(f);
         self.active_level = level;
         level
+    }
+
+    /// Record the procedure body the top frame activates.
+    pub(crate) fn set_unit(&mut self, unit: Rc<crate::compiled_locals::ProcUnit>) {
+        if let Some(frame) = self.frames.last_mut() {
+            frame.unit = Some(unit);
+        }
+    }
+
+    /// The procedure body the active variable frame activates, if it is a
+    /// procedure frame whose body is recorded.
+    pub(crate) fn active_unit(&self) -> Option<Rc<crate::compiled_locals::ProcUnit>> {
+        self.index_of_level(self.active_level)
+            .and_then(|i| self.frames[i].unit.clone())
     }
 
     /// Push a *namespace* frame (`namespace eval`/`inscope`): a new scope whose

@@ -151,6 +151,10 @@ impl ValueOps for Interp {
         self.as_str(v)
     }
 
+    fn is_untyped_or_string(&mut self, v: &*mut TclObj) -> bool {
+        list::is_untyped_or_string(*v)
+    }
+
     fn char_len(&mut self, v: &*mut TclObj) -> usize {
         let chars = self.as_chars(v);
         string_char_len(&chars, self.runtime_version())

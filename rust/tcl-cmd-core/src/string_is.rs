@@ -73,6 +73,29 @@ pub fn resolve_class(input: &str) -> Result<&'static str, CmdError> {
     TABLE.index_of_str(input).map(|i| CLASSES[i])
 }
 
+/// Whether `class` (canonical) tests each character, which 8.6's
+/// `TclCompileStringIsCmd` compiles to `INST_STR_CLASS`, a read of the value
+/// by character; the boolean, numeric and list classes read it otherwise.
+#[must_use]
+pub fn is_character_class(class: &str) -> bool {
+    matches!(
+        class,
+        "alnum"
+            | "alpha"
+            | "ascii"
+            | "control"
+            | "digit"
+            | "graph"
+            | "lower"
+            | "print"
+            | "punct"
+            | "space"
+            | "upper"
+            | "wordchar"
+            | "xdigit"
+    )
+}
+
 /// Classify `s` against `class` (canonical), returning `(is_member, fail_index)`.
 ///
 /// `numbers` is the numeral grammar of the release being emulated: the numeric

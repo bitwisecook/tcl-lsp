@@ -137,6 +137,151 @@ pub fn evaluates_script_directly(version: TclVersion, command: &str) -> bool {
     version == TclVersion::V8_4 && matches!(command, "eval" | "uplevel" | "source")
 }
 
+/// The commands 8.6's compiler has a compile procedure for, and for an
+/// ensemble the subcommands that have one: `builtInCmds[]`'s entries with a
+/// `compileProc` (`generic/tclBasic.c`), the ensemble implementation maps of
+/// `array` (`tclVar.c`), `dict` (`tclDictObj.c`), `info` (`tclCmdIL.c`),
+/// `namespace` (`tclNamesp.c`), `string` (`tclCmdMZ.c`) and `clock`
+/// (`tclClock.c`), and `TclOO`'s `next`, `nextto` and `self` (`tclOO.c`).
+const COMPILED_8_6: &[(&str, Option<&[&str]>)] = &[
+    ("append", None),
+    ("array", Some(&["exists", "set", "unset"])),
+    ("break", None),
+    ("catch", None),
+    (
+        "clock",
+        Some(&["clicks", "microseconds", "milliseconds", "seconds"]),
+    ),
+    ("concat", None),
+    ("continue", None),
+    (
+        "dict",
+        Some(&[
+            "append", "create", "exists", "for", "get", "incr", "lappend", "map", "merge", "set",
+            "unset", "update", "with",
+        ]),
+    ),
+    ("error", None),
+    ("expr", None),
+    ("for", None),
+    ("foreach", None),
+    ("format", None),
+    ("global", None),
+    ("if", None),
+    ("incr", None),
+    ("info", Some(&["commands", "coroutine", "exists", "level"])),
+    ("lappend", None),
+    ("lassign", None),
+    ("lindex", None),
+    ("linsert", None),
+    ("list", None),
+    ("llength", None),
+    ("lmap", None),
+    ("lrange", None),
+    ("lreplace", None),
+    ("lset", None),
+    (
+        "namespace",
+        Some(&[
+            "code",
+            "current",
+            "origin",
+            "qualifiers",
+            "tail",
+            "upvar",
+            "which",
+        ]),
+    ),
+    ("next", None),
+    ("nextto", None),
+    ("regexp", None),
+    ("regsub", None),
+    ("return", None),
+    ("self", None),
+    ("set", None),
+    (
+        "string",
+        Some(&[
+            "cat",
+            "compare",
+            "equal",
+            "first",
+            "index",
+            "is",
+            "last",
+            "length",
+            "map",
+            "match",
+            "range",
+            "replace",
+            "tolower",
+            "toupper",
+            "totitle",
+            "trim",
+            "trimleft",
+            "trimright",
+        ]),
+    ),
+    ("subst", None),
+    ("switch", None),
+    ("tailcall", None),
+    ("throw", None),
+    ("try", None),
+    ("unset", None),
+    ("upvar", None),
+    ("variable", None),
+    ("while", None),
+    ("yield", None),
+    ("yieldto", None),
+];
+
+/// The 8.6 compile procedures that compile no variable word: those of
+/// `regexp` and `regsub`, which leave a command with a match or result
+/// variable to run (`TclCompileRegexpCmd`, `TclCompileRegsubCmd`).
+const BINDS_NO_VARIABLES_8_6: &[&str] = &["regexp", "regsub"];
+
+/// What a release's compile procedure for a command does with its words.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CompileProcedure {
+    /// Whether it compiles the command's variable words, making a procedure
+    /// body's locals of them, rather than leaving a command with one to run.
+    pub binds_variables: bool,
+}
+
+/// Whether [`compile_procedure`] models `version`'s compile procedures: 8.6
+/// alone, the release whose compiled and directly evaluated commands read a
+/// literal index apart, so the one where which commands compile is
+/// observable.
+#[must_use]
+pub fn compile_procedures_modelled(version: TclVersion) -> bool {
+    version == TclVersion::V8_6
+}
+
+/// `version`'s compile procedure for `command`, and for an ensemble for its
+/// canonical `subcommand` (an ensemble whose subcommand is not known at
+/// compile time has none); `None` where it has none, or its procedures are
+/// not modelled ([`compile_procedures_modelled`]).
+#[must_use]
+pub fn compile_procedure(
+    version: TclVersion,
+    command: &str,
+    subcommand: Option<&str>,
+) -> Option<CompileProcedure> {
+    if !compile_procedures_modelled(version) {
+        return None;
+    }
+    let command = command.strip_prefix("::").unwrap_or(command);
+    let (_, subcommands) = COMPILED_8_6.iter().find(|(name, _)| *name == command)?;
+    if let Some(subcommands) = subcommands
+        && !subcommand.is_some_and(|sub| subcommands.contains(&sub))
+    {
+        return None;
+    }
+    Some(CompileProcedure {
+        binds_variables: !BINDS_NO_VARIABLES_8_6.contains(&command),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -231,6 +376,26 @@ mod tests {
             release_binding(TclVersion::V8_4, "if", &InvocationShape::default()),
             Some(ReleaseBinding::Invoked)
         );
+    }
+
+    #[test]
+    fn eight_six_compiles_its_builtins_and_ensemble_subcommands() {
+        let compiles = |command, sub| compile_procedure(TclVersion::V8_6, command, sub).is_some();
+        assert!(compiles("set", None));
+        assert!(compiles("::catch", None));
+        assert!(!compiles("gets", None));
+        assert!(!compiles("eval", None));
+        assert!(compiles("array", Some("set")));
+        assert!(!compiles("array", Some("names")));
+        assert!(!compiles("dict", None));
+        assert!(compiles("dict", Some("update")));
+        assert_eq!(
+            compile_procedure(TclVersion::V8_6, "regsub", None),
+            Some(CompileProcedure {
+                binds_variables: false
+            })
+        );
+        assert_eq!(compile_procedure(TclVersion::V8_5, "set", None), None);
     }
 
     #[test]

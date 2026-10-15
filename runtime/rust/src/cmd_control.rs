@@ -556,6 +556,14 @@ fn for_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return interp.wrong_args(b"for start test next command");
     }
     let (init, cond, next, body) = (argv[1], argv[2], argv[3], argv[4]);
+    // `TclCompileForCmd` compiles a substituted start with the command
+    // beside literal clauses (`INST_EVAL_STK`), the value with it.
+    if interp
+        .compiled_words(argv)
+        .is_some_and(|literal| !literal[1] && literal[2..].iter().all(|&word| word))
+    {
+        crate::list::read_as_other_type(init);
+    }
     // `start`/`next` are scripts too — run them through `eval_control_body` so a
     // located literal reports `type source` at its own line (TIP 280), matching
     // the body. (Their result is discarded; only their completion code matters.)

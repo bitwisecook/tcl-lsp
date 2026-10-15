@@ -1061,12 +1061,18 @@ pub struct InterpState {
     /// its caller's (a command substitution) takes the caller's.
     next_evaluation: Cell<Option<CommandEvaluation>>,
     /// `(argv, index)` of each literal word of every compiled command
-    /// dispatching whose command word is literal, under a release whose
-    /// compiler reads a literal index apart from its command
-    /// (`tcl_cmd_core::index::compiled_index_words`).
+    /// dispatching whose command word is literal, the words the release's
+    /// compiler sees as it compiles the command (`compiled_words`).
     /// Pushed before the command dispatches and truncated after, as
     /// `arg_locs`, so the argv each names stays live.
     compiled_literals: RefCell<Vec<(usize, usize)>>,
+    /// Whether the commands now running are compiled as part of a procedure
+    /// body, whose compile creates the locals it names (C's
+    /// `envPtr->procPtr`): a body and the literal scripts and command
+    /// substitutions compiled with it, not an `eval` or `uplevel` script.
+    proc_body: Cell<bool>,
+    /// Whether the next script loop that owns a frame runs a procedure body.
+    next_proc_body: Cell<bool>,
     /// `eval_str` nesting depth. The outermost eval (depth returning to 0)
     /// publishes the accumulated error trace to the `::errorInfo`/`::errorCode`
     /// globals; nested evals (proc bodies, `[cmd]` subst, control bodies) just
@@ -1467,6 +1473,8 @@ impl Interp {
             evaluation: Cell::new(CommandEvaluation::Direct),
             next_evaluation: Cell::new(None),
             compiled_literals: RefCell::new(Vec::new()),
+            proc_body: Cell::new(false),
+            next_proc_body: Cell::new(false),
             eval_depth: Cell::new(0),
             var_trace_epoch: Cell::new(1),
             cmd_count: Cell::new(0),
@@ -3788,6 +3796,13 @@ impl Interp {
         self.current_ns.set(saved);
         self.leave_namespace_activation(popped);
         code
+    }
+
+    /// Evaluate a procedure or lambda body, which the release compiles as one
+    /// unit making its own locals ([`InterpState::proc_body`]).
+    fn eval_proc_body(&mut self, body: &[u8], frame: CmdFrame) -> Code {
+        self.next_proc_body.set(true);
+        self.eval_framed(body, frame)
     }
 
     /// Whether the active variable frame is a proc call frame (vs. global /
@@ -7453,6 +7468,7 @@ impl Interp {
         // comment. Checked before incrementing / doing any other setup, so
         // bailing out here needs no unwind: `owned` (not yet pushed) simply
         // drops normally.
+        let next_proc_body = self.next_proc_body.replace(false);
         if NATIVE_EVAL_DEPTH_LIMIT.exceeded(self.eval_depth.get() + 1) {
             return self.error(b"too many nested evaluations (infinite loop?)");
         }
@@ -7464,6 +7480,12 @@ impl Interp {
             self.evaluation.get()
         });
         let outer_evaluation = self.evaluation.replace(evaluation);
+        let proc_body = pushed && next_proc_body;
+        let outer_proc_body = if pushed {
+            self.proc_body.replace(proc_body)
+        } else {
+            self.proc_body.get()
+        };
         let owns_frame = pushed || advance_shared;
         if let Some(f) = owned {
             self.cmd_frames.borrow_mut().push(f);
@@ -7488,6 +7510,7 @@ impl Interp {
             self.cmd_frames.borrow_mut().pop();
         }
         self.evaluation.set(outer_evaluation);
+        self.proc_body.set(outer_proc_body);
         self.eval_depth.set(self.eval_depth.get() - 1);
         last
     }
@@ -7900,14 +7923,12 @@ impl Interp {
         // record in the LABC table (`eval`/`uplevel`/proc body source locations).
         let mut arg_lines: Vec<u32> = Vec::new();
         let mut labc: Vec<usize> = Vec::new();
-        // The literal words of a command the release compiles, where its
-        // compiler reads one apart. The parser expands a literal `{*}` whose
-        // elements are all literal into literal words; any other `{*}` leaves
-        // the command to the generic invocation, as does a substituted
-        // command word.
+        // The literal words of a command the release compiles. The parser
+        // expands a literal `{*}` whose elements are all literal into literal
+        // words; any other `{*}` leaves the command to the generic
+        // invocation, as does a substituted command word.
         let mut literals: Vec<usize> = Vec::new();
-        let mut compiles_literals = self.evaluation.get() == CommandEvaluation::Compiled
-            && tcl_cmd_core::index::compiles_literals_apart(self.runtime_version());
+        let mut compiled = self.evaluation.get() == CommandEvaluation::Compiled;
 
         for w in words {
             let word_line = cmd_line + count_newlines(&src[w0..w.start.min(src.len())]);
@@ -7938,7 +7959,7 @@ impl Interp {
                 let parsed = offsets
                     .as_ref()
                     .is_some_and(|o| o.iter().all(|&(_, lit)| lit));
-                compiles_literals &= parsed;
+                compiled &= parsed;
                 for (k, e) in elems.iter().enumerate() {
                     let eo = new_string(e);
                     unsafe { obj::incr_ref_count(eo) };
@@ -7987,7 +8008,7 @@ impl Interp {
             }
         }
         *self.arg_lines.borrow_mut() = arg_lines;
-        if !compiles_literals || literals.first() != Some(&0) {
+        if !compiled || literals.first() != Some(&0) {
             literals.clear();
         }
         let compiled_pushed = literals.len();
@@ -8026,6 +8047,9 @@ impl Interp {
         argv: &[*mut TclObj],
         at: &[usize],
     ) -> Option<CompiledArgv> {
+        if !tcl_cmd_core::index::compiles_literals_apart(self.runtime_version()) {
+            return None;
+        }
         let words: Vec<Option<String>> = {
             let literals = self.compiled_literals.borrow();
             let base = argv.as_ptr() as usize;
@@ -8059,6 +8083,72 @@ impl Interp {
             }
         }
         Some(compiled)
+    }
+
+    /// Which words of `argv` are literal where it is a command the release
+    /// compiles, selected by its literal command word, and `None` where it
+    /// is evaluated directly or invoked through a substituted word.
+    pub(crate) fn compiled_words(&self, argv: &[*mut TclObj]) -> Option<Vec<bool>> {
+        let literals = self.compiled_literals.borrow();
+        let base = argv.as_ptr() as usize;
+        literals.contains(&(base, 0)).then(|| {
+            (0..argv.len())
+                .map(|idx| literals.contains(&(base, idx)))
+                .collect()
+        })
+    }
+
+    /// The inline codegen hook through which the release compiles `argv`,
+    /// a command it compiles ([`Self::compiled_words`]) whose subcommand
+    /// word, where it has one, is literal too, with which words are literal;
+    /// `None` where the command runs it.
+    pub(crate) fn release_compiled_hook(
+        &self,
+        argv: &[*mut TclObj],
+    ) -> Option<(tcl_registry::hooks::InlineCodegenHookId, Vec<bool>)> {
+        let literal = self.compiled_words(argv)?;
+        let registry = self.0.profile_registry.get()?;
+        // An inline hook is a command's or a subcommand's, never a form's, so
+        // the command and subcommand words select it.
+        let words: Vec<String> = argv
+            .iter()
+            .take(2)
+            .map(|&word| String::from_utf8_lossy(&obj_bytes(word)).into_owned())
+            .collect();
+        let args: Vec<&str> = words[1..].iter().map(String::as_str).collect();
+        let call = registry.resolve_call(&words[0], &args, self.0.dialect_point.get())?;
+        if call.sub.is_some() && !literal.get(1).copied().unwrap_or(false) {
+            return None;
+        }
+        Some((call.inline_codegen_hook?, literal))
+    }
+
+    /// Whether each of `names` is a compiled local of the procedure body the
+    /// active variable frame activates, which a script the release compiles
+    /// in that frame finds (`TclFindCompiledLocal` without a `procPtr`).
+    pub(crate) fn frame_compiled_locals(&self, names: &[Vec<u8>]) -> bool {
+        let Some(unit) = self.frames.borrow().active_unit() else {
+            return false;
+        };
+        let Some(registry) = self.0.profile_registry.get() else {
+            return false;
+        };
+        unit.has_locals(
+            names,
+            &crate::compiled_locals::Release {
+                registry,
+                point: self.0.dialect_point.get(),
+                version: self.runtime_version(),
+                config: self.lexer_config(),
+            },
+        )
+    }
+
+    /// Whether the commands now running are compiled as part of a procedure
+    /// body, so a compile procedure creates the locals it names
+    /// ([`InterpState::proc_body`]).
+    pub(crate) fn compiles_locals(&self) -> bool {
+        self.proc_body.get()
     }
 
     /// The recorded TIP 280 source location of a script obj (C's `lineLABCPtr`
@@ -9971,6 +10061,13 @@ impl Interp {
             w
         });
         self.frames.borrow_mut().set_words(words);
+        if tcl_registry::release_compilation::compile_procedures_modelled(self.runtime_version()) {
+            let unit = crate::compiled_locals::ProcUnit::new(
+                body,
+                params.iter().map(|param| param.name.clone()).collect(),
+            );
+            self.frames.borrow_mut().set_unit(Rc::new(unit));
+        }
         let saved_ns = self.current_ns.get();
         self.current_ns.set(ns);
 
@@ -10093,9 +10190,9 @@ impl Interp {
         let code = match native {
             Some(entry) => match self.run_native_body(entry, call_args, proc_frame) {
                 Ok(code) => code,
-                Err(frame) => self.eval_framed(body, *frame),
+                Err(frame) => self.eval_proc_body(body, *frame),
             },
-            None => self.eval_framed(body, proc_frame),
+            None => self.eval_proc_body(body, proc_frame),
         };
         // The frame's local variables (and any traces on them) die with it.
         let proc_level = self.frames.borrow().current_level();

@@ -208,6 +208,22 @@ fn switch_list_form(
         b += 1;
     }
     let body_elem = &elems[b * 2 + 1];
+    // A list value's elements are its own objects (`Tcl_ListObjGetElements`):
+    // a body that is a canonical list runs as one, directly.
+    if let Some(list) = crate::list::with_list_rep(list_obj, |items| items.get(b * 2 + 1).copied())
+        .flatten()
+        .filter(|&body| crate::list::is_pure_list(body))
+    {
+        // SAFETY: a live element; this hold keeps it across the evaluation.
+        unsafe { crate::obj::incr_ref_count(list) };
+        let code = interp.eval_control_body(list);
+        // SAFETY: releases the hold taken above.
+        unsafe { crate::obj::decr_ref_count(list) };
+        if code == Code::Error {
+            arm_error_info(interp, &pat_bytes[matched]);
+        }
+        return code;
+    }
     let body = element_value(&list_str, body_elem);
     // Source-track only a literal body in a located list (a body with backslash
     // collapse, or a dynamic list, reverts to body-relative — C sets such lines

@@ -387,6 +387,58 @@ pub fn string_replace_compiles_encoded(first: Encoded, last: Encoded, replacing:
         || (last == ENCODED_AFTER && first <= ENCODED_END)
 }
 
+/// How a release's `TclCompileStringReplaceCmd` settles a `string replace`
+/// on its literal indices, so what the compiled command reads and returns.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StringReplaceSettlement {
+    /// A replacement it proves changes nothing: the string itself, unread.
+    Unchanged,
+    /// The whole string replaced: the replacement itself, unread.
+    Replacement,
+    /// The whole string removed: the empty string.
+    Empty,
+    /// The kept part read by character (`INST_STR_RANGE_IMM`) and joined.
+    Ranges,
+    /// Left to `INST_STR_REPLACE` over the words as written.
+    Runtime,
+}
+
+/// [`StringReplaceSettlement`] for the indices `first` and `last` as the
+/// release encodes them (`None` for a word it does not settle), with a
+/// replacement string where `replacing` says; it settles exactly where
+/// [`string_replace_compiles_encoded`] says it compiles.
+#[must_use]
+pub fn settle_string_replace(
+    first: Option<Encoded>,
+    last: Option<Encoded>,
+    replacing: bool,
+) -> StringReplaceSettlement {
+    let (Some(first), Some(last)) = (first, last) else {
+        return StringReplaceSettlement::Runtime;
+    };
+    if !string_replace_compiles_encoded(first, last, replacing) {
+        return StringReplaceSettlement::Runtime;
+    }
+    let first = encoded_value(first, ENCODED_BEFORE, ENCODED_AFTER);
+    let last = encoded_value(last, ENCODED_BEFORE, ENCODED_AFTER);
+    let no_op = last == ENCODED_BEFORE
+        || first == ENCODED_AFTER
+        || (first <= ENCODED_END && last <= ENCODED_END && last < first)
+        || (first >= ENCODED_START && last >= ENCODED_START && last < first);
+    if no_op {
+        StringReplaceSettlement::Unchanged
+    } else if replacing && first == ENCODED_BEFORE && last == ENCODED_AFTER {
+        StringReplaceSettlement::Replacement
+    } else if !replacing
+        && (first == ENCODED_BEFORE || first == ENCODED_START)
+        && (last == ENCODED_END || last == ENCODED_AFTER)
+    {
+        StringReplaceSettlement::Empty
+    } else {
+        StringReplaceSettlement::Ranges
+    }
+}
+
 /// A failed `lsearch`/`lsort -index` path step: C's message and, where C sets
 /// one, its `-errorcode`.
 pub struct IndexPathError {
@@ -1087,6 +1139,22 @@ mod tests {
                 [None]
             );
         }
+    }
+
+    #[test]
+    fn string_replace_settles_as_the_compiler_does() {
+        use StringReplaceSettlement as S;
+        let at = |index| Some(Encoded::Index(index));
+        let end = Some(Encoded::FromEnd(0));
+        assert_eq!(settle_string_replace(at(5), at(2), true), S::Unchanged);
+        assert_eq!(settle_string_replace(at(0), at(2), true), S::Runtime);
+        assert_eq!(
+            settle_string_replace(Some(Encoded::Before), Some(Encoded::After), true),
+            S::Replacement
+        );
+        assert_eq!(settle_string_replace(at(0), end, false), S::Empty);
+        assert_eq!(settle_string_replace(at(1), end, false), S::Ranges);
+        assert_eq!(settle_string_replace(None, end, false), S::Runtime);
     }
 
     #[test]

@@ -110,6 +110,7 @@ pub mod cmd_zlib;
 // imports (`rust/tcl-compiler` codegen), distinct from `capi`'s `Tcl_*` surface.
 pub mod codegen_abi;
 pub mod codegen_native;
+mod compiled_locals;
 mod completion;
 pub mod counters;
 pub mod dict;

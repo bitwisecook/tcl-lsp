@@ -67,7 +67,11 @@ fn regexp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let args: Vec<Vec<u8>> = argv[1..].iter().map(|&a| obj_bytes(a)).collect();
     let refs: Vec<&[u8]> = args.iter().map(Vec::as_slice).collect();
     let version = interp.runtime_version();
-    match core_re::regexp::<Interp, AreEngine>(interp, &refs, version) {
+    let result = core_re::regexp::<Interp, AreEngine>(interp, &refs, version);
+    if result.is_ok() {
+        convert_regexp_operands(interp, argv);
+    }
+    match result {
         Ok(RegexpResult::Inline(v)) => {
             interp.set_result(v);
             Code::Ok
@@ -104,6 +108,84 @@ fn regexp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
 }
 
+/// The words past `argv`'s switches (`-start` taking a word, `--` ending
+/// them): the pattern, the string, and the rest.
+fn regex_operands(argv: &[*mut TclObj]) -> &[*mut TclObj] {
+    let mut i = 1;
+    while let Some(word) = argv.get(i).map(|&word| obj_bytes(word)) {
+        if !word.starts_with(b"-") {
+            break;
+        }
+        i += 1;
+        if word == b"--" {
+            break;
+        }
+        if word.len() > 1 && b"-start".starts_with(&word) {
+            i += 1;
+        }
+    }
+    argv.get(i..).unwrap_or_default()
+}
+
+/// Leave `regexp`'s pattern a regular expression and its string read by
+/// character, as `Tcl_RegexpObjCmd` and `INST_REGEXP` do; a canonical list
+/// in either place is one no longer. Where the release compiles a literal
+/// pattern `TclReToGlob` converts, it compares the glob instead: exactly,
+/// reading nothing, or as `INST_STR_MATCH`, reading the string by character
+/// only where it already is a string.
+fn convert_regexp_operands(interp: &Interp, argv: &[*mut TclObj]) {
+    let [pattern, string, rest @ ..] = regex_operands(argv) else {
+        return;
+    };
+    if let Some(glob) = compiled_glob(interp, argv).filter(|_| rest.is_empty()) {
+        if !glob && crate::list::is_string_typed(*string) {
+            crate::list::read_as_string(*string);
+        }
+        return;
+    }
+    crate::list::read_as_other_type(*pattern);
+    crate::list::read_as_string(*string);
+}
+
+/// Whether the release compiles this `regexp` over a glob of its literal
+/// pattern (`TclCompileRegexpCmd`: only literal `-nocase` prefixes and `--`
+/// before the two words, a pattern that is no switch unless `--` came first,
+/// and that `TclReToGlob` converts), and that comparison inexact
+/// (`INST_STR_MATCH` rather than `INST_STR_EQ`); `None` where it does not.
+fn compiled_glob(interp: &Interp, argv: &[*mut TclObj]) -> Option<bool> {
+    let (hook, literal) = interp.release_compiled_hook(argv)?;
+    if hook != tcl_registry::hooks::InlineCodegenHookId::Regexp {
+        return None;
+    }
+    let mut nocase = false;
+    let mut ended = false;
+    let mut i = 1;
+    while i + 2 < argv.len() {
+        let word = obj_bytes(argv[i]);
+        if !literal[i] {
+            return None;
+        }
+        i += 1;
+        if word == b"--" {
+            ended = true;
+            break;
+        }
+        if !(word.len() > 1 && b"-nocase".starts_with(&word)) {
+            return None;
+        }
+        nocase = true;
+    }
+    if argv.len() != i + 2 || !literal[i] {
+        return None;
+    }
+    let pattern = obj_bytes(argv[i]);
+    if pattern.starts_with(b"-") && !ended {
+        return None;
+    }
+    let (_, exact) = tcl_syntax::glob::re_to_glob(&pattern)?;
+    Some(!exact || nocase)
+}
+
 /// Raise a `regexp`/`regsub` failure with the code the core carries.
 fn regex_error(interp: &mut Interp, error: &core_re::RegexError) -> Code {
     match &error.code {
@@ -113,6 +195,14 @@ fn regex_error(interp: &mut Interp, error: &core_re::RegexError) -> Code {
 }
 
 fn regsub_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    // `Tcl_RegsubObjCmd` reads its pattern as a regular expression and its
+    // string and substitution by character: a canonical list among them is
+    // one no longer.
+    if let [pattern, string, subspec, ..] = regex_operands(argv) {
+        crate::list::read_as_other_type(*pattern);
+        crate::list::read_as_string(*string);
+        crate::list::read_as_string(*subspec);
+    }
     let args: Vec<Vec<u8>> = argv[1..].iter().map(|&a| obj_bytes(a)).collect();
     let refs: Vec<&[u8]> = args.iter().map(Vec::as_slice).collect();
     // The core owns `-command` (option table, prefix split, per-match word

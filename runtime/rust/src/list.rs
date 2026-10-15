@@ -56,6 +56,10 @@ struct TclList {
     /// loop dispatches a canonical list by element identity; a non-canonical one
     /// is re-parsed from its string ([`is_pure_list`]).
     canonical: bool,
+    /// Whether C would hold the value as its string type (`tclStringType`)
+    /// rather than as a list: a character-indexed read converts it so, and a
+    /// list read parses it back ([`is_untyped_or_string`]).
+    string_typed: bool,
 }
 
 /// The `list` type descriptor — free/dup/update-string procs wired to the list
@@ -103,10 +107,15 @@ extern "C" fn list_dup(src: *mut TclObj, dup: *mut TclObj) {
         let src_ref = list_ref(src);
         let elems = src_ref.elems.clone();
         let canonical = src_ref.canonical;
+        let string_typed = src_ref.string_typed;
         for &e in &elems {
             obj::incr_ref_count(e);
         }
-        let boxed = Box::new(TclList { elems, canonical });
+        let boxed = Box::new(TclList {
+            elems,
+            canonical,
+            string_typed,
+        });
         obj::change_type(dup, &TCL_LIST_TYPE, Box::into_raw(boxed) as usize as u64);
     }
 }
@@ -131,6 +140,9 @@ extern "C" fn list_update_string(obj: *mut TclObj) {
 /// elements if it does not (string → list shimmer). The string rep is kept.
 fn ensure_list(obj: *mut TclObj) -> Result<(), ListError> {
     if obj::obj_type_ptr(obj) == &TCL_LIST_TYPE {
+        // A list C holds as a string it parses back into a list.
+        // SAFETY: the list type was just checked.
+        unsafe { list_mut(obj) }.string_typed = false;
         return Ok(());
     }
     let bytes = obj::bytes_of(obj);
@@ -147,6 +159,7 @@ fn ensure_list(obj: *mut TclObj) -> Result<(), ListError> {
     let boxed = Box::new(TclList {
         elems,
         canonical: false,
+        string_typed: false,
     });
     obj::change_type(obj, &TCL_LIST_TYPE, Box::into_raw(boxed) as usize as u64);
     Ok(())
@@ -164,6 +177,7 @@ pub fn new_list_obj(elems: &[*mut TclObj]) -> *mut TclObj {
     let boxed = Box::new(TclList {
         elems: v,
         canonical: true,
+        string_typed: false,
     });
     obj::alloc_typed(&TCL_LIST_TYPE, Box::into_raw(boxed) as usize as u64)
 }
@@ -208,13 +222,42 @@ pub fn is_pure_list(obj: *mut TclObj) -> bool {
 /// later evaluation parses and compiles its string. The list rep is kept,
 /// read from that string, as C would parse it again.
 pub(crate) fn read_as_string(obj: *mut TclObj) {
-    if !is_pure_list(obj) {
+    convert_from_list(obj, true);
+}
+
+/// Read `obj` as C converts it to another type than a list or a string: a
+/// regular expression (`Tcl_GetRegExpFromObj`) or a script compiled in place
+/// (`TclCompileObj`). A canonical list is one no longer.
+pub(crate) fn read_as_other_type(obj: *mut TclObj) {
+    convert_from_list(obj, false);
+}
+
+/// Leave a list `obj` read from the string it renders to, held as a string
+/// where `string_typed` says so.
+fn convert_from_list(obj: *mut TclObj, string_typed: bool) {
+    if obj::obj_type_ptr(obj) != &TCL_LIST_TYPE {
         return;
     }
     // The string the list renders to, which the list is now read from.
     let _ = obj::bytes_of(obj);
-    // SAFETY: `is_pure_list` checked the list type.
-    unsafe { list_mut(obj) }.canonical = false;
+    // SAFETY: the list type was just checked.
+    let list = unsafe { list_mut(obj) };
+    list.canonical = false;
+    list.string_typed = string_typed;
+}
+
+/// Whether C holds `obj` with no type or as its string type, as
+/// `TclStringMatchObj` and `INST_STR_MATCH` ask: a plain string, or a list a
+/// character read left a string. Another typed value is held as its type.
+pub(crate) fn is_untyped_or_string(obj: *mut TclObj) -> bool {
+    obj::is_plain_string(obj) || is_string_typed(obj)
+}
+
+/// Whether C holds the list `obj` as its string type, as `INST_STR_MATCH`
+/// asks of either operand; a plain string has no type.
+pub(crate) fn is_string_typed(obj: *mut TclObj) -> bool {
+    // SAFETY: the list type is checked before the rep is read.
+    obj::obj_type_ptr(obj) == &TCL_LIST_TYPE && unsafe { list_ref(obj) }.string_typed
 }
 
 pub fn list_elements(obj: *mut TclObj) -> Result<Vec<*mut TclObj>, ListError> {
