@@ -6392,18 +6392,19 @@ impl Interp {
 
     /// An error a C API call reports: `message` as the result and, when given,
     /// `code` as its `-errorcode` (`NONE` otherwise), starting a new error.
-    /// `code` as the release sets it: a usage error's and a malformed list's
-    /// or dictionary's codes arrive in 8.6, and before it are `NONE`
-    /// ([`tcl_dialect::TclVersion::tags_usage_error_codes`]).
+    /// `code` as the release sets it: a usage error's, a bad index's and a
+    /// malformed list's or dictionary's codes arrive in 8.6, and before it
+    /// are `NONE` ([`tcl_dialect::TclVersion::tags_usage_error_codes`]).
     fn release_error_code<'c>(&self, code: &'c [u8]) -> &'c [u8] {
         let untagged = !self.runtime_version().tags_usage_error_codes()
-            && [
-                &b"TCL WRONGARGS"[..],
-                b"TCL VALUE LIST ",
-                b"TCL VALUE DICTIONARY ",
-            ]
-            .iter()
-            .any(|family| code.starts_with(family));
+            && (code == b"TCL VALUE INDEX"
+                || [
+                    &b"TCL WRONGARGS"[..],
+                    b"TCL VALUE LIST ",
+                    b"TCL VALUE DICTIONARY ",
+                ]
+                .iter()
+                .any(|family| code.starts_with(family)));
         if untagged {
             b"NONE"
         } else {

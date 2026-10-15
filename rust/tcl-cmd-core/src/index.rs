@@ -88,7 +88,7 @@ impl IndexReading {
 pub fn resolve_with(spec: &str, len: usize, numbers: NumberSyntax) -> Result<i64, CmdError> {
     read_with(spec, len, numbers)
         .on_this_host()
-        .ok_or_else(|| bad_index(spec.trim()))
+        .ok_or_else(|| bad_index_with(spec.trim(), numbers))
 }
 
 /// [`resolve_with`] under the grammar this thread's interpreter installed
@@ -514,13 +514,8 @@ pub fn check_index_path(path: &[Vec<u8>]) -> Result<(), IndexPathError> {
 fn path_error(spec: &[u8], refusal: Refusal) -> IndexPathError {
     match refusal {
         Refusal::Bad => {
-            let mut message = b"bad index \"".to_vec();
-            message.extend_from_slice(spec);
-            message.extend_from_slice(b"\": must be integer?[+-]integer? or end?[+-]integer?");
-            IndexPathError {
-                message,
-                code: Some(b"TCL VALUE INDEX"),
-            }
+            let (message, code) = bad_index_parts(spec);
+            IndexPathError { message, code }
         }
         Refusal::OutOfRange => {
             let mut message = b"index \"".to_vec();
@@ -1006,6 +1001,35 @@ fn parse_int_whole(s: &str, numbers: NumberSyntax) -> Option<i64> {
 #[must_use]
 pub fn bad_index(spec: &str) -> CmdError {
     bad_index_under(spec, TclVersion::V8_6)
+}
+
+/// The `bad index` error for `spec` a caller reading it under `numbers`
+/// raises: 8.4's wording under its grammar, 8.6's otherwise
+/// ([`bad_index_under`]). The grammar does not tell 8.5 from 8.6, so 8.6's
+/// `TCL VALUE INDEX` error code is left for an 8.5 runtime to drop.
+#[must_use]
+pub fn bad_index_with(spec: &str, numbers: NumberSyntax) -> CmdError {
+    if numbers == NumberSyntax::Tcl84 {
+        bad_index_under(spec, TclVersion::V8_4)
+    } else {
+        bad_index(spec)
+    }
+}
+
+/// [`bad_index_with`] under the grammar this thread's interpreter installed,
+/// as a message and the code it carries, for an option word read under it
+/// (`lsearch -start`, an `-index` step).
+#[must_use]
+pub fn bad_index_parts(spec: &[u8]) -> (Vec<u8>, Option<&'static [u8]>) {
+    let (message, code, _, _) = bad_index_with(
+        &String::from_utf8_lossy(spec),
+        tcl_syntax::number::runtime_syntax(),
+    )
+    .into_details();
+    (
+        message.into_bytes(),
+        code.is_some().then_some(&b"TCL VALUE INDEX"[..]),
+    )
 }
 
 /// The `bad index` error `release` raises for `spec`: 8.4 words the grammar

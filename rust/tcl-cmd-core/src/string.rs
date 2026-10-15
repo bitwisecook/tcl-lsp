@@ -1095,7 +1095,8 @@ mod tests {
         // the thread's installed grammar, so a caller under a stated profile
         // got whichever release the process last pinned. Measured with
         // LANG=C.UTF-8 on tclsh 8.4.20, 8.5.19 and 8.6.18 (the 8.x column,
-        // identical on all three) and 9.0.4 and 9.1.0 (the 9.x column):
+        // identical on all three but 8.4's wording of `bad index`) and 9.0.4
+        // and 9.1.0 (the 9.x column):
         //   string range abcdefghijkl 010 end           ijkl | kl
         //   string range abcdefghijkl 0 end-010         abcd | ab
         //   string range abcdefghijkl 1_0 end           bad index | kl
@@ -1175,14 +1176,24 @@ mod tests {
                 "abcdefghijKl".into(),
             ),
         ];
+        // 8.4 words its `bad index` for its own grammar.
+        let tcl84 = |tcl8: &str| {
+            tcl8.replace(
+                "must be integer?[+-]integer? or end?[+-]integer?",
+                "must be integer or end?-integer?",
+            )
+        };
         for (words, tcl8, tcl9) in rows {
-            for tcl8_numbers in [NumberSyntax::Tcl84, NumberSyntax::Tcl85] {
-                assert_eq!(
-                    &string_under(words, tcl8_numbers, NumberSyntax::Tcl90),
-                    tcl8,
-                    "{words:?} under {tcl8_numbers:?}"
-                );
-            }
+            assert_eq!(
+                string_under(words, NumberSyntax::Tcl84, NumberSyntax::Tcl90),
+                tcl84(tcl8),
+                "{words:?} under Tcl84"
+            );
+            assert_eq!(
+                &string_under(words, NumberSyntax::Tcl85, NumberSyntax::Tcl90),
+                tcl8,
+                "{words:?} under Tcl85"
+            );
             assert_eq!(
                 &string_under(words, NumberSyntax::Tcl90, NumberSyntax::Tcl85),
                 tcl9,

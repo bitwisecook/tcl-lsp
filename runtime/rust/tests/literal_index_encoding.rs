@@ -1175,6 +1175,94 @@ none 1 <wrong # args: should be "catch command ?varName?"> <NONE>
 "catch">
 "#;
 
+    /// A malformed index from each command that reads one, at top level and
+    /// in a proc: 8.4 words it `must be integer or end?-integer?` and reads no
+    /// `end+N`, 8.5 on `must be integer?[+-]integer? or end?[+-]integer?`, and
+    /// the error code is `TCL VALUE INDEX` from 8.6, `NONE` before it.
+    const BAD_INDEX: &str = r#"proc code {script} { set c [catch {uplevel 1 $script} m]; return "$c <$m> <$::errorCode>" }
+set l {a b c}; set s abc
+foreach cmd [list {lindex $l x} {lindex $l end+1} {lrange $l x 1} {lrange $l 0 end+x} {linsert $l x a} {lreplace $l x x} {lset l x a} {string index $s x} {string range $s 0 x} {string replace $s x x} {string first a $s x} {string last a $s x} {string wordend $s x} {string toupper $s x} {lsearch -start x $l a} {lsort -index x {{a b}}} {lindex $l end-x} {lindex $l 1x} {string index $s end+1} {lindex $l --1} {lindex $l 0x} {lindex $l 1.0}] {
+    puts "$cmd => [code $cmd]"
+}
+proc p {} { set l {a b c}; set s abc; list [code {lindex $l x}] [code {string range $s 0 y}] [catch {lindex $l z} m] $m [catch {string index $s q} m] $m }
+puts "proc: [p]"
+"#;
+
+    const BAD_INDEX_84: &str = r#"lindex $l x => 1 <bad index "x": must be integer or end?-integer?> <NONE>
+lindex $l end+1 => 1 <bad index "end+1": must be integer or end?-integer?> <NONE>
+lrange $l x 1 => 1 <bad index "x": must be integer or end?-integer?> <NONE>
+lrange $l 0 end+x => 1 <bad index "end+x": must be integer or end?-integer?> <NONE>
+linsert $l x a => 1 <bad index "x": must be integer or end?-integer?> <NONE>
+lreplace $l x x => 1 <bad index "x": must be integer or end?-integer?> <NONE>
+lset l x a => 1 <bad index "x": must be integer or end?-integer?> <NONE>
+string index $s x => 1 <bad index "x": must be integer or end?-integer?> <NONE>
+string range $s 0 x => 1 <bad index "x": must be integer or end?-integer?> <NONE>
+string replace $s x x => 1 <bad index "x": must be integer or end?-integer?> <NONE>
+string first a $s x => 1 <bad index "x": must be integer or end?-integer?> <NONE>
+string last a $s x => 1 <bad index "x": must be integer or end?-integer?> <NONE>
+string wordend $s x => 1 <bad index "x": must be integer or end?-integer?> <NONE>
+string toupper $s x => 1 <bad index "x": must be integer or end?-integer?> <NONE>
+lsearch -start x $l a => 1 <bad index "x": must be integer or end?-integer?> <NONE>
+lsort -index x {{a b}} => 1 <bad index "x": must be integer or end?-integer?> <NONE>
+lindex $l end-x => 1 <bad index "end-x": must be integer or end?-integer?> <NONE>
+lindex $l 1x => 1 <bad index "1x": must be integer or end?-integer?> <NONE>
+string index $s end+1 => 1 <bad index "end+1": must be integer or end?-integer?> <NONE>
+lindex $l --1 => 1 <bad index "--1": must be integer or end?-integer?> <NONE>
+lindex $l 0x => 1 <bad index "0x": must be integer or end?-integer?> <NONE>
+lindex $l 1.0 => 1 <bad index "1.0": must be integer or end?-integer?> <NONE>
+proc: {1 <bad index "x": must be integer or end?-integer?> <NONE>} {1 <bad index "y": must be integer or end?-integer?> <NONE>} 1 {bad index "z": must be integer or end?-integer?} 1 {bad index "q": must be integer or end?-integer?}
+"#;
+
+    const BAD_INDEX_85: &str = r#"lindex $l x => 1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <NONE>
+lindex $l end+1 => 0 <> <NONE>
+lrange $l x 1 => 1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <NONE>
+lrange $l 0 end+x => 1 <bad index "end+x": must be integer?[+-]integer? or end?[+-]integer?> <NONE>
+linsert $l x a => 1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <NONE>
+lreplace $l x x => 1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <NONE>
+lset l x a => 1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <NONE>
+string index $s x => 1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <NONE>
+string range $s 0 x => 1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <NONE>
+string replace $s x x => 1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <NONE>
+string first a $s x => 1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <NONE>
+string last a $s x => 1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <NONE>
+string wordend $s x => 1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <NONE>
+string toupper $s x => 1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <NONE>
+lsearch -start x $l a => 1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <NONE>
+lsort -index x {{a b}} => 1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <NONE>
+lindex $l end-x => 1 <bad index "end-x": must be integer?[+-]integer? or end?[+-]integer?> <NONE>
+lindex $l 1x => 1 <bad index "1x": must be integer?[+-]integer? or end?[+-]integer?> <NONE>
+string index $s end+1 => 0 <> <NONE>
+lindex $l --1 => 1 <bad index "--1": must be integer?[+-]integer? or end?[+-]integer?> <NONE>
+lindex $l 0x => 1 <bad index "0x": must be integer?[+-]integer? or end?[+-]integer?> <NONE>
+lindex $l 1.0 => 1 <bad index "1.0": must be integer?[+-]integer? or end?[+-]integer?> <NONE>
+proc: {1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <NONE>} {1 <bad index "y": must be integer?[+-]integer? or end?[+-]integer?> <NONE>} 1 {bad index "z": must be integer?[+-]integer? or end?[+-]integer?} 1 {bad index "q": must be integer?[+-]integer? or end?[+-]integer?}
+"#;
+
+    const BAD_INDEX_86: &str = r#"lindex $l x => 1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+lindex $l end+1 => 0 <> <TCL VALUE INDEX>
+lrange $l x 1 => 1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+lrange $l 0 end+x => 1 <bad index "end+x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+linsert $l x a => 1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+lreplace $l x x => 1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+lset l x a => 1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+string index $s x => 1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+string range $s 0 x => 1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+string replace $s x x => 1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+string first a $s x => 1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+string last a $s x => 1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+string wordend $s x => 1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+string toupper $s x => 1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+lsearch -start x $l a => 1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+lsort -index x {{a b}} => 1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+lindex $l end-x => 1 <bad index "end-x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+lindex $l 1x => 1 <bad index "1x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+string index $s end+1 => 0 <> <TCL VALUE INDEX>
+lindex $l --1 => 1 <bad index "--1": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+lindex $l 0x => 1 <bad index "0x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+lindex $l 1.0 => 1 <bad index "1.0": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+proc: {1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>} {1 <bad index "y": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>} 1 {bad index "z": must be integer?[+-]integer? or end?[+-]integer?} 1 {bad index "q": must be integer?[+-]integer? or end?[+-]integer?}
+"#;
+
     /// Scripts that print what each release does, as the file and on stdin.
     const PRINTED: &[Vector] = &[
         Vector {
@@ -1207,6 +1295,17 @@ none 1 <wrong # args: should be "catch command ?varName?"> <NONE>
                 (TclVersion::V8_6, ERROR_CODES_TAGGED, ERROR_CODES_TAGGED),
                 (TclVersion::V9_0, ERROR_CODES_TAGGED, ERROR_CODES_TAGGED),
                 (TclVersion::V9_1, ERROR_CODES_TAGGED, ERROR_CODES_TAGGED),
+            ],
+        },
+        Vector {
+            name: "a malformed index",
+            script: BAD_INDEX,
+            want: &[
+                (TclVersion::V8_4, BAD_INDEX_84, BAD_INDEX_84),
+                (TclVersion::V8_5, BAD_INDEX_85, BAD_INDEX_85),
+                (TclVersion::V8_6, BAD_INDEX_86, BAD_INDEX_86),
+                (TclVersion::V9_0, BAD_INDEX_86, BAD_INDEX_86),
+                (TclVersion::V9_1, BAD_INDEX_86, BAD_INDEX_86),
             ],
         },
         Vector {
