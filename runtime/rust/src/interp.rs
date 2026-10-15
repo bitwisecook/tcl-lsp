@@ -1061,8 +1061,9 @@ pub struct InterpState {
     /// its caller's (a command substitution) takes the caller's.
     next_evaluation: Cell<Option<CommandEvaluation>>,
     /// `(argv, index)` of each literal word of every compiled command
-    /// dispatching, under a release whose compiler reads a literal index
-    /// apart from its command (`tcl_cmd_core::index::compiled_index_words`).
+    /// dispatching whose command word is literal, under a release whose
+    /// compiler reads a literal index apart from its command
+    /// (`tcl_cmd_core::index::compiled_index_words`).
     /// Pushed before the command dispatches and truncated after, as
     /// `arg_locs`, so the argv each names stays live.
     compiled_literals: RefCell<Vec<(usize, usize)>>,
@@ -7900,11 +7901,13 @@ impl Interp {
         let mut arg_lines: Vec<u32> = Vec::new();
         let mut labc: Vec<usize> = Vec::new();
         // The literal words of a command the release compiles, where its
-        // compiler reads one apart; a command with `{*}` is not compiled so.
+        // compiler reads one apart. The parser expands a literal `{*}` whose
+        // elements are all literal into literal words; any other `{*}` leaves
+        // the command to the generic invocation, as does a substituted
+        // command word.
         let mut literals: Vec<usize> = Vec::new();
-        let compiles_literals = self.evaluation.get() == CommandEvaluation::Compiled
-            && tcl_cmd_core::index::compiles_literals_apart(self.runtime_version())
-            && !words.iter().any(|w| w.expand);
+        let mut compiles_literals = self.evaluation.get() == CommandEvaluation::Compiled
+            && tcl_cmd_core::index::compiles_literals_apart(self.runtime_version());
 
         for w in words {
             let word_line = cmd_line + count_newlines(&src[w0..w.start.min(src.len())]);
@@ -7932,6 +7935,10 @@ impl Interp {
                 // body-defining element (`namespace {*}{eval ns {proc …}}`) is
                 // `type source`. A dynamic `{*}$v` has no per-element location.
                 let offsets = is_literal.then(|| scan_list_offsets(&bytes)).flatten();
+                let parsed = offsets
+                    .as_ref()
+                    .is_some_and(|o| o.iter().all(|&(_, lit)| lit));
+                compiles_literals &= parsed;
                 for (k, e) in elems.iter().enumerate() {
                     let eo = new_string(e);
                     unsafe { obj::incr_ref_count(eo) };
@@ -7946,6 +7953,7 @@ impl Interp {
                     if file.is_some() && lit {
                         labc.push(idx);
                     }
+                    literals.push(idx);
                 }
             } else {
                 let idx = argv.len();
@@ -7954,7 +7962,7 @@ impl Interp {
                 if file.is_some() && is_literal {
                     labc.push(idx);
                 }
-                if compiles_literals && is_literal {
+                if is_literal {
                     literals.push(idx);
                 }
             }
@@ -7979,6 +7987,9 @@ impl Interp {
             }
         }
         *self.arg_lines.borrow_mut() = arg_lines;
+        if !compiles_literals || literals.first() != Some(&0) {
+            literals.clear();
+        }
         let compiled_pushed = literals.len();
         if compiled_pushed > 0 {
             let base = argv.as_ptr() as usize;
@@ -8005,8 +8016,9 @@ impl Interp {
     }
 
     /// `argv` with its index words at `at` respelt as the release compiles
-    /// them, where the command is one it compiles and they are literals it
-    /// reads apart from the command (`tcl_cmd_core::index::compiled_index_words`);
+    /// them, where the command is one it compiles, selected by literal words
+    /// (`IndexCompiler::selecting_words`), and they are literals it reads
+    /// apart from the command (`tcl_cmd_core::index::compiled_index_words`);
     /// `None` where it passes every word as written.
     pub(crate) fn compiled_index_argv(
         &self,
@@ -8017,7 +8029,7 @@ impl Interp {
         let words: Vec<Option<String>> = {
             let literals = self.compiled_literals.borrow();
             let base = argv.as_ptr() as usize;
-            if !literals.iter().any(|&(b, _)| b == base) {
+            if !(0..compiler.selecting_words()).all(|idx| literals.contains(&(base, idx))) {
                 return None;
             }
             at.iter()

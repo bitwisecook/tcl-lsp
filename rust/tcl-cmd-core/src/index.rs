@@ -272,6 +272,21 @@ pub enum IndexCompiler {
     },
 }
 
+impl IndexCompiler {
+    /// How many leading words select the compile procedure: the command word,
+    /// and an ensemble's subcommand word (`TclCompileEnsemble`). The release
+    /// compiles the command only where each is one literal word; a
+    /// substituted one leaves it to the generic invocation, which reads every
+    /// index word as the command runs.
+    #[must_use]
+    pub const fn selecting_words(self) -> usize {
+        match self {
+            Self::StringRange | Self::StringReplace { .. } => 2,
+            Self::Lindex | Self::Lrange | Self::Linsert | Self::Lreplace => 1,
+        }
+    }
+}
+
 /// The index words of a command `compiler` compiles, each respelt where
 /// `release` compiles it to a reading apart from the one its command makes as
 /// it runs ([`encodes_apart`]): `2147483647` after the end and `-1` before

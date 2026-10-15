@@ -204,6 +204,34 @@ const LAMBDA: &str = r#"set out [apply {{} {
 }}]
 "#;
 
+/// 8.6 compiles a command through its compile procedure only where the words
+/// that select it are literal: the command word, and an ensemble's subcommand
+/// word. A command or subcommand reached through a variable, or a command
+/// with a `{*}` the parser cannot expand, is a generic invocation, which reads
+/// every index word as the command runs; a literal `{*}` of literal elements
+/// the parser expands into literal words.
+const SELECTED: &str = r#"proc p {} {
+    set c lrange; set sub range; set st string; set l {a b c}; set s abcdef
+    list <[$c $l 0 end-2147483649]> <[lrange $l 0 end-2147483649]> \
+        <[string $sub $s 0 end-2147483649]> <[$st range $s 0 end-2147483649]> \
+        <[string range $s 0 end-2147483649]> <[string ran $s 0 end-2147483649]> \
+        <[{*}$c $l 0 end-2147483649]> <[lrange {*}{{a b c} 0} end-2147483649]> \
+        <[{*}{string range} $s 0 end-2147483649]> <[lrange $l {*}"0 end-2147483649"]>
+}
+set out [p]
+set c lrange; set sub range
+lappend out <[$c {a b c} 0 end-2147483649]> <[string $sub abcdef 0 end-2147483649]> \
+    <[lrange {a b c} 0 end-2147483649]>
+"#;
+
+const SELECTED_READ: &str = "<> <> <> <> <> <> <> <> <> <> <> <> <>";
+
+const SELECTED_86_FILE: &str = "<> {<a b c>} <> <> <abcdef> <abcdef> <> {<a b c>} <abcdef> \
+{<a b c>} <> <> <>";
+
+const SELECTED_86_STDIN: &str = "<> {<a b c>} <> <> <abcdef> <abcdef> <> {<a b c>} <abcdef> \
+{<a b c>} <> <> {<a b c>}";
+
 const VECTORS: &[Vector] = &[
     Vector {
         name: "a literal index",
@@ -224,6 +252,16 @@ const VECTORS: &[Vector] = &[
             (TclVersion::V8_6, "{a b c} {a b c X}", "{a b c} {a b c X}"),
             (TclVersion::V9_0, "{} {X a b c}", "{} {X a b c}"),
             (TclVersion::V9_1, "{} {X a b c}", "{} {X a b c}"),
+        ],
+    },
+    Vector {
+        name: "a command selected by literal words",
+        script: SELECTED,
+        want: &[
+            (TclVersion::V8_5, SELECTED_READ, SELECTED_READ),
+            (TclVersion::V8_6, SELECTED_86_FILE, SELECTED_86_STDIN),
+            (TclVersion::V9_0, SELECTED_READ, SELECTED_READ),
+            (TclVersion::V9_1, SELECTED_READ, SELECTED_READ),
         ],
     },
 ];
