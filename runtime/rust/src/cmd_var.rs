@@ -40,9 +40,8 @@
 use tcl_syntax::naming::is_qualified;
 
 use crate::frame::{split_array_ref, Link, VarHome};
-use crate::interp::{drop_fresh, obj_bytes, Code, Interp};
+use crate::interp::{obj_bytes, Code, Interp};
 use crate::namespace::GLOBAL;
-use crate::obj;
 use crate::obj::TclObj;
 
 /// Register `global`, `variable`, and `upvar`; also re-registers `set` (and,
@@ -180,11 +179,11 @@ fn incr_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             return interp.report_typed_error(&error);
         }
     }
-    let one = obj::new_wide_int_obj(1);
+    let one = crate::obj::new_wide_int_obj(1);
     let amount = if argv.len() == 3 { argv[2] } else { one };
 
     let sum = tcl_syntax::value::ValueOps::int_add(interp, cur.as_ref(), &amount);
-    drop_fresh(one); // the transient `1` (used or not) is no longer needed
+    crate::interp::drop_fresh(one); // the transient `1` (used or not) is no longer needed
     let sum = match sum {
         Ok(s) => s, // rc 0
         Err(e) => return interp.report_cmd_error(e.into()),
