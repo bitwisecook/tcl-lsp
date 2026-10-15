@@ -294,6 +294,8 @@ fn binary_and_encoding_tables_follow_the_emulated_release() {
 /// internal rep is its `%g` from 9.0 and its bits in 8.6. This engine's values
 /// often carry a string rep where C's have none, so the string clause is
 /// checked only where tclsh has one.
+// The probe branches with `if`, which the no-libtommath build lacks.
+#[cfg(have_tommath)]
 #[test]
 fn representation_reports_the_value_as_each_release_does() {
     const SCRIPT: &str = r#"if {[catch {tcl::unsupported::representation x} m]} {
