@@ -1,5 +1,12 @@
 # Current centralised naming work
 
+## Current audit and build snapshot — 2026-10-15 19:24 UTC
+
+The repository-wide audit remains incomplete. The latest independently reconciled portable checkpoint retains1,566 provisional purpose rows with zero recorded source/schema/partition errors or same-key duplicates. These include existing shared owners, display-only uses and exclusions, and **are not a remaining-migration total**. Unexamined production remains unfinished; see [repository-consumer-audit.md](repository-consumer-audit.md).
+
+Fresh ordinary M10 and M11 both stopped before test execution, with11 and21 partial test ELF artifacts respectively and unchanged source inventories. M10 required test-only public ROOT_NS and actual current namespace-context API corrections; M11 required borrowing fixture text for SourceImage::document. Assertions and budgets remain unchanged. M12 is building frozen c9e826a23 with one Cargo job; no M12 acceptance yet. Full failure channels/source inventories and bounded repair/cache-retirement receipts are indexed in [handoff/packets.json](handoff/packets.json). The latest semantic replay remains L15 (1,076 PASS,412 FAIL,1 TIMEOUT,2 NOT_ACCEPTED_RUN_COUNT after six separately retained permission reruns). Required repository gates remain unfinished.
+
+
 Current build: frozen0a80c53a1 M10 running after M8 missing test type qualifier and M9 Server concrete trait-depth failures (bothzero tests/source{}). Compiler, DB and Server retain all original ownership and Sync bounds with measured compile-time256 budgets; no runtime recursion or source/provider guard changed. All51 portable packet hashes verify. Latest measured semantic acceptance stays the separate frozen4faff L15 replay below. The repository-wide consumer total remains UNKNOWN.
 
 Audit checkpoint: all110709coverage rows reconcile and583 recorded purpose rows bind to exact baseline blobs with0binding/schema/partition errors. These include owners/display and are NOT a remaining-consumer total. Unexamined scope remains unfinished. Main3c3f864e4 adds only required API docs and measured finite trait-budget repairs after cc24; M4/M5/M6/M7 eachstopped beforetests withsource{}, M7 is explicit unchanged-source repetition after a failed setup assertion. Fresh M8 on3c3f864e4 is running. No current-source Rust acceptance or green repository gates.

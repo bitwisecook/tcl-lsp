@@ -253,5 +253,15 @@
     "file": "ordinary-m4-m9-build-feedback.tar.gz",
     "sha256": "98ecb042c237c7752b020fa5edca0a86975732971d50304c329f72ca43c9d3b3",
     "status": "Exact M4\u2013M9 failedordinarybuild channels/sourceinventories,zeroexecutedtests andsource{} each. M7explicitlyrepeatsunchangedM6sourceafterRootsetupassertionfailure,notarepair/acceptance. RequiredAPI docs/testtypequalificationand finite concrete compile-time trait budgets repaired; runtime/source/provider/ownership/SendSync guards/assertions/budgets unchanged. M10fresh0a80c53a1running,unaccepted. Recursiveformatgate has inheriteddifferences,notgreen."
+  },
+  {
+    "file": "repository-audit-progress-20261015T192406Z.tar.gz",
+    "sha256": "b8a21b3b32450e7a3ccc71fac760af6c37e21d2d2285886fcffcac384a402176",
+    "status": "INCOMPLETE cc24 baseline source audit; 1566 provisional purpose rows, zero recorded source/partition/schema errors and same-key duplicates. Shared owners/display/exclusions included; unexamined production and semantic reconciliation remain. NOT remaining-consumer total; no test/provider/generator/gate acceptance."
+  },
+  {
+    "file": "ordinary-m10-m11-build-feedback.tar.gz",
+    "sha256": "b1e030d11f85e4e80d44ad7b47eee04d596d792b0548c3d59a791d8fadc753d3",
+    "status": "Actual M10 and M11 failed builds: zero executed tests; unchanged source inventories; 11 and21 partial test ELFs respectively are not acceptance. Test-only API corrections use existing root/context/SourceImage owners and preserve assertions/budgets. M12 fresh c9e826a23 running, unaccepted. Duplicate raw-cache retirement verified identical tracked archives; no original data removed."
   }
 ]
