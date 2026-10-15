@@ -1,5 +1,9 @@
 # Current centralised naming work
 
+## Original Jim info literal-script consumers
+
+Reviewed Runtime and VM Jim hostname/nameofexecutable now delegate central exact original Jim_Eval script data to existing genuine fresh Script evaluators under selected-member/argv/caller guards. Mutable ordinary helper lookup, missing core-only provider and raw completion are preserved; Jim nameofexecutable no longer invents an OS-query result. Paired48row original SDK captures retain actual script/frame fields and distinct replacement userdata, fresh5bac/provider247unchanged/original79suite. Rust tests remain unexecuted and do not close complete Script count/frame/cache/stdlib lifecycle. C host encoding and retained executable lifecycle remain unfinished independent consumers. This newer Main source does not inherit frozen L15 results.
+
 ## Completion candidate source construction
 
 Reviewed catalogue producers now pass actual candidate data through shared exact-value Unicode source construction before UI-label packaging. Full production configuration/input and event placement remain genuine; explicit standalone metadata tests keep their independent supplied syntax profile. Backslash/punctuation proposals must reproduce the intended value, not merely parse as one word. Existing SourceMethod NUL policy remains distinct. All173 prior test bodies remain byte-exact; four new controls are unexecuted. Expr/snippet trigger domains, OO receiver/parameter policy and protocol-compatible multiline editing remain independently bounded. Source is newer than L14; its result cannot accept this tranche.

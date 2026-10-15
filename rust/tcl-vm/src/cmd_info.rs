@@ -29,6 +29,8 @@ use crate::command::completion_from_cmd_error;
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
 
+#[cfg(test)]
+mod literal_script_tests;
 mod native_jim;
 #[cfg(test)]
 mod native_jim_inventory_tests;
@@ -234,6 +236,19 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                     scope,
                     ..
                 } => {
+                    if let Some(script) = protocol.literal_script(name) {
+                        if let Err(error) = original_names.check(vm) {
+                            return crate::command::completion_from_cmd_error(vm, error);
+                        }
+                        let reached = vm.eval_native_jim_source_bytes(script, None);
+                        if let Err(error) = original_names.check(vm) {
+                            return crate::command::completion_from_cmd_error(vm, error);
+                        }
+                        return match reached {
+                            Ok(completion) => completion,
+                            Err(error) => crate::command::completion_from_tcl_error(vm, error),
+                        };
+                    }
                     if let Some(kind) = protocol.command_inventory_kind(name) {
                         return native_jim::command_inventory(
                             vm,

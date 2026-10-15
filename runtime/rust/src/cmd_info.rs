@@ -32,6 +32,8 @@ use crate::interp::{new_string, Code, Interp};
 use crate::obj::TclObj;
 use tcl_syntax::value::ValueOps;
 
+#[cfg(test)]
+mod literal_script_tests;
 mod native_jim;
 #[cfg(test)]
 mod native_jim_inventory_tests;
@@ -321,6 +323,24 @@ fn info_cmd_original(
                 arguments: argument_start,
                 scope,
             } => {
+                if let Some(script) = protocol.literal_script(name) {
+                    let namespace =
+                        match crate::interp::native_jim_lookup::OriginalJimLookupNamespace::capture(
+                            interp,
+                            interp.current_ns(),
+                        ) {
+                            Ok(namespace) => namespace,
+                            Err(error) => return interp.report_cmd_error(error),
+                        };
+                    if let Err(error) = namespace.check_current_arguments(interp, arguments) {
+                        return interp.report_cmd_error(error);
+                    }
+                    let code = interp.eval_str(script);
+                    if let Err(error) = namespace.check_current_arguments(interp, arguments) {
+                        return interp.report_cmd_error(error);
+                    }
+                    return code;
+                }
                 if let Some(kind) = protocol.command_inventory_kind(name) {
                     return interp.original_jim_command_inventory(
                         scope,

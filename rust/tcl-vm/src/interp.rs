@@ -26009,7 +26009,7 @@ impl Vm {
 
     /// Public original Jim source is parsed by the actual Script object owner,
     /// independently of the C bytecode compile service and loaded Tcl helpers.
-    fn eval_native_jim_source_bytes(
+    pub(crate) fn eval_native_jim_source_bytes(
         &mut self,
         source: &[u8],
         location: Option<tcl_runtime_api::script_source_location::ScriptSourceLocation>,

@@ -510,6 +510,20 @@ enum JimInfoReportKind {
 }
 
 impl NativeJimInfoProtocol {
+    /// Original Jim_Eval input for an already selected core member.
+    /// These bytes supply no installed helper or execution authority.
+    #[must_use]
+    pub fn literal_script(self, member: &str) -> Option<&'static [u8]> {
+        if !self.names().contains(&member) {
+            return None;
+        }
+        match member {
+            "hostname" => Some(b"os.gethostname"),
+            "nameofexecutable" => Some(b"{info nameofexecutable}"),
+            _ => None,
+        }
+    }
+
     /// Select only declared original variable-inventory workers.
     #[must_use]
     pub fn variable_inventory_kind(self, member: &str) -> Option<NativeJimVariableInventoryKind> {
