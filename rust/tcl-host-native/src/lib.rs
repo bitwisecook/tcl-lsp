@@ -546,8 +546,13 @@ impl Process for NativeProcess {
         let mut command = std::process::Command::new(cmd);
         command.args(rest);
         for (key, value) in self.env.overrides.borrow().iter() {
+            // A NUL cannot reach a child's environment: C's `environ` cuts
+            // there, and `Command` would refuse to spawn at all.
+            if key.is_empty() || key.contains('\0') {
+                continue;
+            }
             match value {
-                Some(value) => command.env(key, value),
+                Some(value) => command.env(key, value.split('\0').next().unwrap_or_default()),
                 None => command.env_remove(key),
             };
         }
@@ -583,12 +588,18 @@ mod tests {
         let host = NativeHost::new();
         host.env().set("TCL_LSP_ENV_PROBE", "seen");
         host.env().unset("HOME");
+        host.env().set("TCL_LSP_NUL\0NAME", "x");
+        host.env().set("TCL_LSP_NUL_VALUE", "a\0b");
         let out = host
             .process()
             .expect("a process capability")
-            .run(&["sh", "-c", "echo \"$TCL_LSP_ENV_PROBE:${HOME-unset}\""])
-            .expect("sh runs");
-        assert_eq!(String::from_utf8_lossy(&out.stdout).trim(), "seen:unset");
+            .run(&[
+                "sh",
+                "-c",
+                "echo \"$TCL_LSP_ENV_PROBE:${HOME-unset}:$TCL_LSP_NUL_VALUE\"",
+            ])
+            .expect("sh runs despite NULs in the overrides");
+        assert_eq!(String::from_utf8_lossy(&out.stdout).trim(), "seen:unset:a");
     }
 
     #[cfg(unix)]

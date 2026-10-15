@@ -154,6 +154,41 @@ fn host(env: &Vars, key: &str) -> Option<String> {
 
 const RELEASES: [TclVersion; 2] = [TclVersion::V8_6, TclVersion::V9_0];
 
+/// tclsh 8.6.18 and 9.0.4: a re-sync that drops `env(GONE)` runs its own
+/// unset trace (not the array's) and leaves no trace behind.
+#[test]
+fn a_resync_fires_and_drops_a_removed_elements_unset_traces() {
+    for version in RELEASES {
+        let env = vars(&[]);
+        let mut vm = vm_on(version, &env);
+        ok(
+            &mut vm,
+            "set env(GONE) 1; set ::log {}\n\
+             trace add variable env unset {apply {args {lappend ::log arr}}}\n\
+             trace add variable env(GONE) unset {apply {args {lappend ::log elem:$args}}}",
+        );
+        env.borrow_mut().remove("GONE");
+        ok(&mut vm, "array size env");
+        assert_eq!(ok(&mut vm, "set ::log"), "{elem:env GONE unset}");
+        assert_eq!(ok(&mut vm, "trace info variable env(GONE)"), "");
+    }
+}
+
+/// `env()` is an element like any other, and the host keeps a name or value
+/// only up to its first NUL, as C's `environ` does.
+#[test]
+fn an_empty_name_is_an_element_and_a_nul_cuts_what_the_host_keeps() {
+    for version in RELEASES {
+        let env = vars(&[]);
+        let mut vm = vm_on(version, &env);
+        ok(&mut vm, "set env() empty");
+        assert_eq!(host(&env, "").as_deref(), Some("empty"));
+        ok(&mut vm, "set env(NV) a\\0b");
+        assert_eq!(host(&env, "NV").as_deref(), Some("a"));
+        assert_eq!(ok(&mut vm, "string length $env(NV)"), "1");
+    }
+}
+
 #[test]
 fn element_writes_reach_the_host_by_every_route() {
     for version in RELEASES {

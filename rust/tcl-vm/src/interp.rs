@@ -1674,6 +1674,18 @@ struct VarTraceInvocation<'a> {
     element_access: bool,
 }
 
+/// Whether the variable `name` spells (`env`, `::env`, `env(X)`) is named
+/// `env` once its namespace qualifiers and element are set aside.
+fn names_env(name: &str) -> bool {
+    let base = name.split_once('(').map_or(name, |(base, _)| base);
+    base.rsplit("::").next() == Some("env")
+}
+
+/// `text` up to its first NUL, as far as C's `environ` keeps it.
+fn before_nul(text: &str) -> &str {
+    text.split('\0').next().unwrap_or_default()
+}
+
 /// One `trace add command|execution` registration: the op set
 /// (`rename`/`delete` or `enter`/`leave`/`enterstep`/`leavestep`) and the
 /// callback command prefix.  `firing` disables the entry while its own
@@ -8646,15 +8658,15 @@ impl Vm {
     /// Whether an access to `name` can reach a variable trace at all, the
     /// shortcut every access takes before resolving trace cells. While the
     /// host-environment hook is the only trace, an access reaches it only
-    /// through a name containing `env` (`env`, `::env`, a `global env` link)
-    /// or through a link made under another name, which
+    /// through a name whose tail is `env` (`env`, `::env(X)`, a `global env`
+    /// link) or through a link made under another name, which
     /// [`Self::note_env_hook_link`] records; ordinary variables keep the
     /// untraced fast path.
     fn var_trace_may_fire(&self, name: &str) -> bool {
         if self.var_traces.is_empty() {
             return false;
         }
-        !self.only_env_hook() || self.var_trace_book.env_hook_aliased || name.contains("env")
+        names_env(name) || self.var_trace_book.env_hook_aliased || !self.only_env_hook()
     }
 
     /// Record a link to the hooked `env` array or one of its elements made
@@ -8664,7 +8676,7 @@ impl Vm {
         let Some(env) = self.var_trace_book.env_hook else {
             return;
         };
-        if self.var_trace_book.env_hook_aliased || binding.name.contains("env") {
+        if self.var_trace_book.env_hook_aliased || names_env(&binding.name) {
             return;
         }
         let Some(target) = self.var_arena.resolve(target) else {
@@ -8682,13 +8694,19 @@ impl Vm {
     /// write sets the host variable, an element unset removes it, and an
     /// element read refreshes the element from the host or fails with C's
     /// `no such variable` when the host lacks it. A whole-array unset
-    /// (`key` empty) leaves the host alone. Every store into the array here
-    /// is raw: no script trace runs and nothing is written back.
+    /// (`key` `None`) leaves the host alone. Every store into the array here
+    /// is raw: no script trace runs and nothing is written back. A name or
+    /// value reaches the host cut at its first NUL, as C's `environ` does.
     ///
     /// Not modelled: 9.x's `encoding error` for a value the system encoding
     /// cannot represent, and 8.4/8.5's re-sync deleting and re-creating the
     /// whole variable (and with it every script trace on it).
-    fn run_env_hook(&mut self, op: &str, array: Option<VarId>, key: &str) -> Result<(), String> {
+    fn run_env_hook(
+        &mut self,
+        op: &str,
+        array: Option<VarId>,
+        key: Option<&str>,
+    ) -> Result<(), String> {
         let host = self.host_rc();
         let env = host.env();
         if op == "array" {
@@ -8697,17 +8715,18 @@ impl Vm {
             }
             return Ok(());
         }
-        if key.is_empty() {
+        let Some(key) = key else {
             return Ok(());
-        }
+        };
+        let host_key = before_nul(key);
         match op {
             "write" => {
                 if let Some(value) = array.and_then(|array| self.read_resolved_elem(array, key)) {
-                    env.set(key, &value.to_str());
+                    env.set(host_key, before_nul(&value.to_str()));
                 }
             }
             "read" => {
-                let Some(value) = env.get(key) else {
+                let Some(value) = env.get(host_key) else {
                     return Err("no such variable".to_owned());
                 };
                 if let Some(array) = array
@@ -8718,7 +8737,7 @@ impl Vm {
                     let _ = self.write_elem_raw_at(array, key, Value::string(value));
                 }
             }
-            "unset" => env.unset(key),
+            "unset" => env.unset(host_key),
             _ => {}
         }
         Ok(())
@@ -8760,8 +8779,9 @@ impl Vm {
         }
     }
 
-    /// Remove element `key` of the array cell `array` with no callbacks,
-    /// retiring any traces the element carried.
+    /// Remove element `key` of the array cell `array` for a re-sync: the
+    /// element's own unset traces run and go with it, the array's do not
+    /// (C's `Tcl_UnsetVar2` from inside the array's trace, tclsh 8.6 and 9.0).
     fn remove_elem_raw_at(&mut self, array: VarId, key: &str) {
         let raw = match self.var_arena.get(array).map(crate::vars::VarCell::state) {
             Some(Local::Array(elements)) => elements.get(key).copied(),
@@ -8773,8 +8793,13 @@ impl Vm {
         let Some(id) = self.var_arena.resolve(raw) else {
             return;
         };
-        self.drop_var_traces(id);
         self.unbind_array_element(array, key, raw, id);
+        let cell = VarTraceCell {
+            id: Some(id),
+            array: Some(array),
+            elem: Some(key.to_owned()),
+        };
+        self.fire_taken_unset(&format!("env({key})"), Some("env"), cell, false);
     }
 
     /// Remove one `trace remove variable` callback matching `ops` + `command`.
@@ -9817,7 +9842,12 @@ impl Vm {
                 let (command, old_style) = match callback {
                     VarTraceCallback::Script { command, old_style } => (command, old_style),
                     VarTraceCallback::HostEnv => {
-                        let Err(message) = self.run_env_hook(op, live_key, &name2) else {
+                        // An element access reaches the hook through its
+                        // array's group; a whole-array one through the
+                        // array's own cell.
+                        let element =
+                            (live_key.is_some() && live_key != cell.id).then_some(name2.as_str());
+                        let Err(message) = self.run_env_hook(op, live_key, element) else {
                             continue;
                         };
                         if op == "unset" {

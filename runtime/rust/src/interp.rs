@@ -4534,6 +4534,19 @@ impl Interp {
 
     /// `unset name(key)` — returns whether it existed.
     pub(crate) fn var_unset_elem(&mut self, name: &[u8], key: &[u8]) -> bool {
+        self.var_unset_elem_reported(name, None, key)
+    }
+
+    /// [`Self::var_unset_elem`], with `reported` (when given) as the name the
+    /// unset traces are told in every release — C's `Tcl_UnsetVar2` with the
+    /// array and element passed apart, where 9.0 would otherwise report the
+    /// `name(key)` spelling.
+    pub(crate) fn var_unset_elem_reported(
+        &mut self,
+        name: &[u8],
+        reported: Option<&[u8]>,
+        key: &[u8],
+    ) -> bool {
         // Resolved before the removal — see [`Self::var_unset`].
         let trace_key = self
             .traces_may_observe(name)
@@ -4546,11 +4559,15 @@ impl Interp {
             key,
         );
         if let (true, Some(home)) = (existed, trace_key) {
-            let mut spelling = name.to_vec();
-            spelling.push(b'(');
-            spelling.extend_from_slice(key);
-            spelling.push(b')');
-            let access = self.trace_access(&spelling, name, Some(key), &home, true);
+            let access = if let Some(reported) = reported {
+                self.trace_access(reported, reported, Some(key), &home, true)
+            } else {
+                let mut spelling = name.to_vec();
+                spelling.push(b'(');
+                spelling.extend_from_slice(key);
+                spelling.push(b')');
+                self.trace_access(&spelling, name, Some(key), &home, true)
+            };
             self.fire_var_trace_resolved(&home, &access, b"unset");
             // Drop this element's traces (whole-array traces survive).
             let mut t = self.traces.borrow_mut();

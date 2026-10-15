@@ -157,9 +157,12 @@ impl Interp {
     }
 
     /// Re-sync the whole array from the host: every host variable stored, and
-    /// every element the host lacks removed.
+    /// every element the host lacks removed. Running inside the array's own
+    /// trace, a removal fires the element's unset traces but not the
+    /// array's, as C's `Tcl_UnsetVar2` from `TclSetupEnv` does.
     fn sync_env_array(&mut self) {
-        let vars = self.host().env().vars();
+        let mut vars = self.host().env().vars();
+        vars.sort_unstable();
         let live: HashSet<&[u8]> = vars.iter().map(|(name, _)| name.as_bytes()).collect();
         let stale: Vec<Vec<u8>> = self
             .array_names(GLOBAL_ENV)
@@ -171,7 +174,7 @@ impl Interp {
             self.store_env_element(name.as_bytes(), value.as_bytes());
         }
         for elem in stale {
-            self.var_unset_elem_at(GLOBAL_ENV, &elem, 0);
+            self.var_unset_elem_reported(GLOBAL_ENV, Some(b"env"), &elem);
         }
     }
 
@@ -321,6 +324,26 @@ mod tests {
         let result = String::from_utf8_lossy(&interp.result_bytes()).into_owned();
         assert_eq!(code, Code::Ok, "{script} -> {result}");
         result
+    }
+
+    /// tclsh 8.6.18 and 9.0.4: a re-sync that drops `env(GONE)` runs its
+    /// own unset trace (not the array's) and leaves no trace behind.
+    #[test]
+    fn a_resync_fires_and_drops_a_removed_elements_unset_traces() {
+        for release in [TclVersion::V8_6, TclVersion::V9_0] {
+            with_host(release, |interp, host| {
+                ok(
+                    interp,
+                    "set env(GONE) 1; set ::log {}\n\
+                     trace add variable env unset {apply {args {lappend ::log arr}}}\n\
+                     trace add variable env(GONE) unset {apply {args {lappend ::log elem:$args}}}",
+                );
+                host.env.unset("GONE");
+                ok(interp, "array size env");
+                assert_eq!(ok(interp, "set ::log"), "{elem:env GONE unset}");
+                assert_eq!(ok(interp, "trace info variable env(GONE)"), "");
+            });
+        }
     }
 
     #[test]
