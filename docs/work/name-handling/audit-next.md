@@ -2470,3 +2470,708 @@ collectors and actual child-body context controls are retained. Source owner
 SHA2296a21d74bd300c7726cbc0bae2d44ffff34050b72597ff02e07ac6a343e891.
 Private lowering/transformed consumers and typed operation carriers remain
 unfinished; new tests are unexecuted.
+
+Current source peers after d70c remain unexecuted. The compiler's actual selected
+If clause order/body/Expr inventory and original pure-expression advice now
+replace raw role/String condition reconstruction; actual InvocationDialect and
+complete word configuration are retained, errors/unknown constants abstain.
+Existing completion-purpose guards remain independent. Shared body geometry
+admits unchanged Bare Text(Original), with computation, decoded escapes and
+expansion refused. The actual lib-test LexerConfig qualifier repair changes no
+assertion or fixture.
+
+The first SourceBpfCommand carrier passes bounded source peer: actual catalogue
+row/semantic key, immutable whole lexical vector, original NativeWords versus
+explicit typed generated arguments, and checked reversible affine rebase remain
+distinct. Its APIs retain timeless source metadata; owning module/source/config
+and complete transformed-phase correspondence remain required before adoption.
+No production consumers were migrated merely by adding the carrier.
+
+The conditional iRules flow extension passes bounded source peer. The existing
+closed leaf census records actual child-before-parent actions and selected source
+completion shapes once. Source abrupt shapes refuse flow; actual Normal remains
+an explicit unresolved obligation alongside event/schema/unknown/effect premises.
+Strict original APIs refuse those obligations, while independently typed source
+findings retain NoAction through diagnostics and explicit conditional Explorer
+reports. Helper ingress adapts actual F5 inputs and typed advice without changing
+the 222 retained original test bodies, assertions or expected fixes. Unsupported
+phases/old definitive expectations may still fail; execution remains required.
+
+The codegen bracket/terminator consumers now delegate to shared configured
+command-close, lexical-token and single-command owners. An initial peer blocker
+was fixed: Lexer emits a zero-width EOF Eol, so actual separator advice requires
+a nonempty genuine token span. Default wrappers remain explicit standalone
+compatibility; actual assignment/Return paths pass their complete CodegenConfig.
+Hash-only original C evidence admission passes forty exact reports across pinned
+8.4.20/8.5.19/8.6.18/9.0.4/9.1.0, with current225/371/431/549/557 captured provider
+inputs matching unchanged before/after closures, original binaries/libraries and
+complete channels. No tcltest was used. The failed old8.4 binary-encode reporter
+setup stays separate; no Rust or Native-entry acceptance follows.
+
+L4 d70c Native packets are independently sealed retention only: Runtime782 and
+VM503 checksum entries pass, including immutable K/F closures, exact README
+pairings and byte-identical successful K runners. Independent actual Git source
+function extraction confirms Runtime174 has173 exact plus the same prior
+unused-mut-only correction; VM133 is entirely exact. The additive source pin
+covers98332 files in eleven stated roots, not the whole repository. Root's L4
+ordinary build failed before ELFs/tests at the Import alias-cycle resident
+Rc<[u8]> versus BTreeSet<Vec<u8>> seam. A separate supersession note prohibits
+executing these sealed plans or donating acceptance to repairs. Exact to_vec
+byte-copy and later test-name qualifier fixes pass source peer, not compilation.
+
+Runtime catch's new original-key producer passes bounded source/lifetime peer,
+but its initial array-failure fixture expectation was not original-provider
+evidence. Fresh Jim measurement shows array-set data is a scalar Dictionary and
+that reset succeeds; the earlier source-peer wording calling this a real failure
+is withdrawn. Corrected controls must follow actual observed success or a
+separately reached failure. Original174 controls remain untouched. Further
+catch/Try/output/Return original header transport and currency checks are in
+active review; no test acceptance is claimed.
+
+The Profile/HookContext/CLI OS transport tranche passes bounded source peer.
+OsString, var_os and vars_os preserve actual argv/environment units and opaque
+keys, while existing ASCII policy/override order remains. The existing Unicode
+template syntax inserts held OS values literally into argv/fs paths/env; no
+recursive template evaluation, shell grammar or TCLLIBPATH list authority is
+added. Actual subprocess/inherited-environment child and literal-template controls
+are retained, unexecuted. Generated shell/Tcl-list consumers remain unfinished.
+
+A shared complete-body-coverage gap remains live: mutation coverage counts Body
+roles and its extraction inventory omits LambdaLiteral bodies; selected Apply can
+otherwise appear to have no body regions in that specific facade. Existing
+collect_lambda_arms is a raw consumer. The shared owner needs actual selected
+lambda grammar and strict original2/3-field list/body geometry, or explicit
+refusal for every unsupported lambda role. Precise owner tracing confirms
+authored_source_script_arguments already includes LambdaLiteral through
+has_script_timing, so LSP's existing nonempty-script leaf gate already refuses
+actual Apply. The separate script-or-prefix API excludes lambda grammar; these
+purposes must not be conflated. No prior LSP leaf-census hole is established by
+the extraction debt. The current If clause-specific checks likewise do not admit
+lambda geometry. No default dialect catalogue absence can stand in for a missing
+producer requirement.
+
+The immediate shared mutation-coverage refusal now passes source peer: held
+LambdaLiteral roles with unknown or non-ReferenceOnly timing decline complete
+coverage before counting Body regions; partial syntax inventory remains separate.
+Genuine literal/dynamic selected Apply controls require None completeness beside
+empty partial regions. Current body source SHA6257a98316b39988f8f145b0472b9736eecbddca66d338e71d3366a49077ef31;
+the final test context repair removes an extra Arc wrapper without guard/assertion
+changes. Full authentic lambda body production remains unfinished.
+
+Final Runtime output-key source/evidence peer passes bounded review after the
+original-provider correction. Catch/Try actual retained output-name headers now
+reach the shared original assignment owner, with exact earlier operation currency
+rechecked before and after nested stores, after options construction. Empty-name
+skips and message-before-options getter/publication ordering remain. Jim guest
+setter failure stops further output publication while retaining original catch
+completion0; Try retains its observed failure1. Native refusal remains terminal
+and C paths are unchanged. Shared actual global error-code setter retains real
+root frame/namespace, original bare central name, first-key/cache behavior and
+caller restoration. Hash-only evidence verification passes captures18+27+33 rows,
+current247 inputs/linked libraries, original79/79 suites each and fresh upstream
+clean5bac at15:12/15:14/15:18. Corrected controls use measured dictionary-global
+success and genuine linked-element failure; the incorrect f462 beforeimage is
+retained. New tests and production Native behavior remain unexecuted.
+
+The additional LSP leaf Lambda refusal is also source-reviewed: complete actual
+roles are mandatory and LambdaLiteral is an explicit scope refusal. Its actual
+Tcl8.6 Apply control confirms the pre-existing authored_source_script_arguments
+result is nonempty, so the old leaf gate already rejected this case. Current
+irules source SHA6d65c729eb12d7e0ba05c5eabee37026fc80286904905852875ee57c32f7a24d.
+This strengthens the stated scope without establishing a prior LSP census bug.
+
+
+The full lambda-container source owner is now source-reviewed, unexecuted. The
+selected actual Apply schema and exact LambdaLiteral ordinal retain the genuine
+whole Document word, current configuration, unchanged parent content and complete
+shared two-or-three-field list. Only an honest bounded body field whose original
+bytes equal its decoded value supplies child content; the parent NativeWord stays
+retained and no child word/frame/Normal authority is fabricated. Complete coverage
+counts every evaluated lambda or declines; partial inventory remains separate.
+The temporary refusal test evolves only its new implementation-availability
+expectation: the same selector and both Tcl fixtures remain, literal coverage now
+requires actual body/container/config receipts and dynamic coverage still refuses.
+Exact original6257 file and before-test9358 hashes are preserved in
+experiments/name-handling/results/lambda-source-body-geometry-20261015. Independent
+ten-case geometry/foreign-context controls are retained. Final reviewed body SHA
+ed334d891e36062cbd4464035ba241ba6199928aec313a240bbea1a78bae6fd3. This does not
+establish an old LSP leaf-census defect: its script-argument gate already includes
+LambdaLiteral and refused Apply.
+
+Package Git fetch destination transport also passes bounded source peer. The
+clone argv now retains actual dest.as_os_str through the existing OsString Profile;
+URL/revision textual grammar, cwd, revision query and .git removal stay unchanged.
+The new local Git fixture targets two distinct opaque OS destinations and checks
+file bytes, revision and cleanup. No network, Git fixture or Cargo test was run by
+the auditor; formatting/execution remain required. New Runtime error-variable
+fixed-name consumers likewise delegate the existing Registry global/bare metadata
+without changing actual C84 trace/store/object ordering; this is source reuse only.
+
+Fresh Core refactor census identifies a live remaining switch_to_dict consumer:
+parse_branch_assignment selects raw set/return labels, and build_dict_replacement
+renders target_var and a target-derived dict_name directly as source set operands
+and dollar references. Native conversion is disabled by the independent insertion
+obligation, while explicit lexical-declaration advice still reaches edits. The
+final generated script check counts two commands; it does not prove original
+variable-name/argv equivalence or fresh temporary occupancy. Root owns the next
+bounded migration. Existing FrameWalk original regions/words and selected schema
+can supply actual per-arm identity; copied label tables cannot.
+
+The sibling datagroup actual-analysis route already calls original_mapping_arms:
+every original arm retains direct written origins, selected Set/Return hook and
+arity at its own horizon before the documented representation-only template parser.
+That raw parser is therefore not evidence of missing actual arm selection. Its
+raw target-variable rendering and ownerless legacy proposal route remain separate
+unfinished consumers. Extract-procedure's generated proc name is the fixed safe
+extracted_proc[_n] proposal alphabet; its raw proc header is not arbitrary input.
+Fresh publication/timeline and transform authority remain separate obligations.
+
+
+A subsequent lambda caller audit limits the preceding geometry acceptance.
+OriginalSourceScriptBody is genuine readonly geometry, but generic inventory
+exposure changes caller assumptions: Core FrameWalk::source_regions selects Plain
+body inventories as same-frame regions, while Apply's LambdaLiteral uses a new
+frame and default-global or explicit lambda namespace. BodyKind describes Body
+roles; its default Plain does not describe LambdaLiteral framing. Existing
+sourceTransition and unit_scope callers have Body-only early gates, so standard
+Apply does not newly reach those particular frame-sensitive loops; no such reached
+bug is claimed. Compiler is adding a typed geometry-kind/purpose distinction or
+explicit caller refusals before broader lambda inventory adoption. Do not infer
+same-frame namespace, entered lambda or transformation authority from the new
+syntax body. Analyser nested_source_bodies and editor/refactor callers still need
+purpose-by-purpose review; a source-peer of the body issuer is not whole-caller
+migration acceptance.
+
+The first BPF Module-context component also passes source-only peer: actual
+retained.positioned_for_module issues held Arc/source/channel/fullconfig/entry/
+namespace/RegistrySnapshot correspondence, and matches_module rechecks the supplied
+current Module. Body source owners inherit that genuine context. Merely retaining
+Some(context) authenticates capture, not a subsequently changed Module; the next
+opaque phase constructor must perform the actual current Module join before any
+transformed/complete-script authority. No production phase adoption or execution
+acceptance follows from this component.
+
+
+Final lambda correction restores the generic inventory and complete-coverage
+refusal, including the exact6257 temporary-control assertions. The genuine new
+geometry remains available only through the explicit existing-owner
+OriginalRegistryWords::original_lambda_body_geometry query, which grants no
+caller frame, namespace or coverage. Body source inheritance additionally refuses
+any selected LambdaLiteral role, including mixed Body/Lambda schemas. This avoids
+both the demonstrated Core same-frame assumption and analyser substitution
+collector's duplicate enclosing-scope descent: commands.rs explicitly leaves Apply
+body handling to the actual Hook::Apply own-scope handler. Standard Body-only
+sourceTransition/unit_scope gates were already safe and are unchanged. Current
+body40aa1407e3fcdb1c235734ff226311d2d6cd6000abbc72d817d2c3e139509e9f passes
+bounded source peer. Readonly control-arm ordinal mapping may explicitly borrow
+that lambda geometry, while selected FrameBoundary still refuses execution.
+
+The next handler mapping also passes source-only peer: real original lexical
+snapshot authenticates the supplied controller's span, complete argv/texts,
+fragments and relevant flags before the shared full-vector source schema join.
+Unique original body/container evidence and actual If clauses replace raw
+case/lambda containment and command-label lookup. Changed head, operand value,
+token span, source and container/interior controls are retained. Existing
+static_expr_value bracket parsing/environment/truth, switch selection, raw factory
+completion and Normal authority remain unfinished; this migration does not repair
+or authorise those broader consumers.
+
+The Runtime quiet global error-code getter and actual return-receipt consumer now
+pass bounded source/lifetime and hash-only evidence peer. Genuine selected Jim
+root frame/namespace and fresh original bare name feed the existing Silent lookup;
+guest-null carries no absence proof and host refusal stays terminal. The actual
+returned header is revalidated after name cleanup/frame restoration, with operation
+currency checked before and after Native Owned retention; no value String getter
+is added. All31 ready hashes and original12-row capture/fixture/provider closure
+pass hash-only verification, including clean upstream5bac at15:30,247inputs,
+linked libraries and original79/79 namespace suite. Direct C API probe uses no
+Tcltest harness. New actual caller/local/header/result controls remain unexecuted.
+
+
+The Logical local-procedure argument-role producer is also bounded source-peered.
+Existing closed source selection retains a complete unanimous actual Proc target;
+mixed captured prefixes cannot donate the optional selected target. Authentic
+whole supplied call vectors, current input/source/config and no earlier unknown or
+lookup-operand effects join the actual allocation site to the same retained body
+card Arc and current declaration metadata. Written operands retain original source
+inputs/NativeWords; captured prefixes are validated separately and have no borrowed
+call-site spans. Exact known-argc binding must agree under both already-owned Tcl
+and Jim formal grammars, with duplicate formals refused. Native APIs remain strict
+and unchanged. This is source-role/display geometry, not callee dispatch, entered
+frame, read, Normal or edit authority. New actual positive/adversarial controls
+remain unexecuted; semantic-token consumer adoption is separate work.
+
+The first private BPF complete-source phase constructor passes bounded source
+review only: actual Module context is rechecked; full immutable syntax is compared
+after discarding independent Native advice; complete original command census and
+per-body original NativeWord/configuration checks precede typed command receipt
+attachment. Changed root/child/condition/source/config controls are retained. It is
+not yet production-adopted and fixed transformations/CFG freezing remain separate.
+Fresh lowering may refuse independently allocated source metadata; availability
+must not be restored by discarding genuine source identity or weakening coverage.
+
+
+Root's additional FrameWalk same-frame guard passes source peer467683: complete
+actual body coverage is retained, and every nonstructural body must independently
+inherit immediate caller source context before projection. False returns the
+existing incomplete traversal refusal; structural/frame-shift routing is unchanged.
+The current source body inheritance owner conservatively refuses mixed Lambda
+schemas too. Root explicitly excludes unsafe broad-inventory66d from replay;
+its in-progress L7 build is build-only evidence pending a corrected fresh freeze.
+
+Another codegen source/value naming seam remains unfinished. statements.rs
+store_target/decoded_name consume String plus name_braced, private substitution
+marker scanning, evaluated element splitting over source spelling, then a rendered
+decoded base/index combination. Actual callers include assignment and increment
+after retained-native dispatch guards; some authentic Native preparation paths
+bypass this legacy surface. values::split_array_ref already delegates the shared
+evaluated-name splitter, so merely changing that facade would not migrate source
+word geometry, original configuration or preparation authority. helpers.rs and
+emit_word_from_source also retain the private marker scanner. No new observed
+regression is claimed; call-proof and legacy/standalone purpose review remain.
+
+
+The Logical argument-role producer's final correspondence explicitly treats
+presentation rows as advisory: same actual card Arc/current analysis context and
+held original signature/spans must agree with the genuine card. Report-map
+signature tampering cannot replace that owner; an independent private test changes
+the actual held captured signature and correctly requires refusal. Existing Native
+passed-ProcDef correspondence remains unchanged. New-test beforeimages and the
+review correction are retained separately; no original semantic assertion changed.
+
+Semantic-token consumers now pass bounded source peer for the new source-only
+variable-name geometry and Logical procedure roles. Actual Registry/declaration
+role plus original NativeWord/token membership precede display extents; shared
+literal component spans replace consumer-local parentheses/text guesses. Static
+source values and possible compound-array shapes are distinct from variable
+places/cells. Logical procedure colours consume the actual call/card/dual-grammar
+argument producer with full source/configuration/Registry/input joins; captured
+prefixes have no borrowed call spans, default/rest bindings do not invent anchors,
+and unrepresented expansion remains unavailable. The raw lexical head-to-role-map
+fallback is removed. Native descriptor purposes remain separate; OO member-name
+operand transport remains unfinished. New controls remain unexecuted.
+
+A further live VM return-state consumer remains unfinished: Interp::jim_return_receipt
+reads error_code via get_var_bytes on the rendered fixed global label, while the
+Runtime counterpart now uses the authentic original Jim global-name getter.
+VM needs its own existing actual name/frame/read owner and the original quiet-getter
+capture; copying Runtime frame switches or treating NULL as absence is insufficient.
+No VM source change or original conformance result is claimed for that callsite.
+
+
+The full nine-path BPF phase/consumer tranche now passes bounded source peer,
+still unexecuted. Opaque private phase creation requires actual current Module
+context, full immutable syntax and complete source census. Its profile/templates/
+policy environment comes from that actual input. A single existing frontend header
+parser now issues an opaque SelectedWhenDeclaration retaining the actual phase,
+statement, genuine body source, event identity and priority; body entry checks
+same-phase/statement ownership, so arbitrary event/priority indices cannot become
+body scripts. Reached templates retain their own source owner; typed generated
+operations retain identity independently of same-spelling profile fields. Selected
+receipts survive strict transform, policy, map and physical lower consumers;
+missing receipts never prove an empty policy/map inventory. Only privately frozen
+actual CFG output can issue a prepared executable lowering request. The public
+unowned lower_function preserves diagnostics but always refuses executable output.
+The new generic CFG runtime-selected-scope factory does not derive namespace
+identity from its function label and supplies no source/phase/Native permission.
+Four independent controls cover complete root/child/condition/currentness,
+escaped/mixed template inputs and generated-field collisions, genuine positive map
+lowering followed by lost CFG receipt, and actual When body/foreign-phase witness.
+All nine reported source hashes and scoped diff checks were independently checked.
+Original tests/assertions remain; positive availability still needs a fresh build
+and replay. Mixed final instruction-span source origins remain explicitly
+unfinished, so this is not whole-BPF migration or target acceptance.
+
+
+Runtime C catch output-name migration passes bounded source and hash-only evidence
+peer. The existing selected actual C variable-name protocol retains each original
+output header and delegates assignment without an earlier String getter. Existing
+Jim length/empty-name/guest-failure behavior stays separate; C store failure is
+terminal, with original result/options order and construction retained. Currency
+checks surround the nested original setter. Fresh paired original C captures cover
+8.4.20/8.5.19/8.6.18/9.0.4/9.1.0, thirteen rows per provider, and sixty-five primary
+fixture rows. All ten compile/execution pairs and unchanged source/library/provider
+closures pass hash-only verification. Capture02 is the prehashed standalone-driver
+fixture source; exploratory Capture01's inline-driver limitation is explicit.
+The probe uses Tcl_CreateInterp core only, not Tcl_Init or Tcltest. New Rust
+controls compare actual parsedVarName/header/String effects, including empty name,
+array-store failure and unpassed8.4 options. They remain unexecuted; Native reference
+counts, full diagnostics and compiled catch bodies remain outside this capture.
+
+
+Additional bounded MCP/host review distinguishes purposes. SpecTcl ctx_reads
+already delegates variable-reference grammar to configured shared scan_var_ref.
+Its dict_get_key still textually recognises dict/get/key source layout, so it is
+only suspicious declaration-conflict advice, not a complete reached-read inventory.
+The cacheability answer comes from declared HookInputs, never this scan. Actual
+selected source argv/schema or an explicitly bounded question-advice purpose is
+still required before stronger read-set claims. No executed hook/cache bug is
+established by this textual advisory consumer.
+
+MCP normalise_lone_cr is the shared documented Document/file-auto-translation
+projection, with raw source separately retained by Analysed. It is not a general
+NativeValue/eval-string naming normaliser. Wasm extension host command publication
+still retains actual byte command receipts with namespace/generation/slot under
+bounded inspection; the C-ABI numeric prefix helper is libc numeric conversion,
+not a Tcl-name or artifact-entry admission rule. Native current_exe/read_dir/cwd/
+readlink output representations and generated/direct TCLLIBPATH consumers remain
+separate host-source surfaces; direct TCLLIBPATH source construction is reviewed
+below but its Rust controls remain unexecuted. No whole-host acceptance is implied.
+
+
+OO direct whole-word variable-colour consumers now pass bounded source peer.
+Registry's new source role facade delegates the existing selected member walker;
+Compiler authenticates the full original command in its retained definition
+region and lends self-held original words at actual VarWrite ordinals. Core
+retains genuine parent/region/member-body carriers in both source domains, with
+inline OoDefine using the same actual member vocabulary and source operands.
+The raw variable-name punctuation/array filter is removed. Colours claim written
+variable-name role/display geometry, not accepted OO member names, runtime variable
+places or an entered definition frame. Param/list-field sources and unrelated
+legacy name/body/parameter consumers remain separate. Actual direct/wrapped/inline/
+compound, source/parent/vector/shadow/inert controls remain unexecuted.
+
+A separate original C Try output-member evidence packet passes hash-only admission:
+Tcl8.6.18/9.0.4/9.1.0 each contribute31 primary rows, with prehashed exact source/
+driver, current unchanged provider/configuration/static/linked libraries, matching
+header/live patchlevel and all six compile/execution stages successful. Exact
+fixtures measure empty first-name assignment, array-result-store failure before
+options/body, fallthrough unused member headers, and malformed-list refusal before
+body. The core C API probe executes no Tcl_Init or Tcltest. Reference counts,
+compiled Try, callback mutation and full return-option/error parity remain outside
+capture. Runtime implementation and new Rust controls need their separate source
+and execution receipts; the evidence alone does not accept them.
+
+The C Try source implementation now also passes bounded source/lifetime peer.
+Selected C variable-list conversion occurs before the body; each reached member
+is reconverted and retained from the actual original list before its own store.
+Empty names reach the existing original C assignment owner. Its same kernel now
+accepts the held outer-list/frame/member currency check at actual getter,
+receiver, trace and publication stages. Fresh result cleanup uses a neutral live
+header lease, avoiding Native holds or a retired-header decrement. The existing
+body-result byte snapshot and unselected fallback remain separate. Ready35 hashes
+and original93-row evidence closure were independently verified; new Rust tests
+remain unexecuted. This supersedes the implementation-pending status above only
+for this bounded source tranche.
+
+Logical Apply namespace advice now retains its actual source owner in Scope.
+The distinct sealed Logical list-field roster preserves all fields and order from
+one genuine original word; only exact two fields prove omitted namespace, while
+an explicit third field uses the shared authored C lambda namespace recipe.
+Actual whole input/source/configuration, selected Apply, original argv and isolated
+body geometry remain held and rechecked. Native snapshot behavior is unchanged.
+This supplies conditional source namespace context, without lambda activation,
+formal binding, physical frame or Native authority. Existing raw parameter parsing
+and definitions remain separate obligations. New controls are unexecuted.
+
+The direct pkg/venv TCLLIBPATH consumers now use one source-construction owner.
+Actual Unicode OS strings are checked without collapsing opaque input into missing
+input. The existing list renderer proposes a prefix; every supported escape/list
+grammar independently verifies that the decoded result is the exact directory
+followed by that receiver's original suffix values. Raw inherited suffix text is
+preserved, including release-dependent escape meaning. Original C5 evidence is
+retained at experiments/name-handling/results/tcllibpath-original-c5: immutable
+original seal788c7a1f and outer retention seal0ff378cd pass hash-only verification
+for126 original and129 wrapper entries. Thirty original invocations comprise20
+constructor checks and10 observed strict list errors, with unchanged provider
+maps. Only captured UTF-8 receiver contexts are supported by that evidence;
+unknown external encoding and generated shell/fish/Docker wrappers remain open.
+Source peer missed a malformed raw-string delimiter in a new Rust fixture; root
+rustfmt caught it before capture. The corrected raw-delimiter-only change passed
+the agent's rustfmt parse check and independent
+literal/hash inspection. The original oracle channels are unchanged. New Rust
+controls remain unexecuted.
+
+Core switch-to-dict and data-group mapping arms now share a typed source adapter.
+Complete FrameWalk regions each retain original words and select Set/Return at
+their own source horizon with direct written operands. Switch conversion requires
+the same ordered body count and unchanged actual body bytes for every decoded
+case pair. Strict Unicode source values and existing literal/reference constructors
+author target/temporary names; original value-word source stays intact. This grants
+no fresh-cell, observer, inserted-store or evaluation-movement permission. All47
+original test bodies match e4b589316 exactly; source-only preservation receipt is
+/workspace/name-session/mapping-arm-source-receipt.json, SHA7e4f519d. New controls
+remain unexecuted.
+
+The next OO semantic display tranche passes bounded source peer: selected member
+roles lend self-held original Name/ParamList/Option/Namespace/Keyword words,
+availability-sensitive wrapper selectors, and actual reference/body receipts in
+both source domains. Inline bodies use the existing source body owner. Original
+list fields keep their actual parent word, without child NativeWord or formal
+binding manufacture. All281 original test bodies are retained; agent rustfmt and
+scoped diff checks pass. Existing empty/NUL parameter-display predicates remain
+unchanged and separately audited. Lexical receiver_grammar_for_body still rebuilds
+a member row from token-derived values and matches its body by representative
+span; next-definition/enclosing-class report joins remain separate consumers.
+New controls remain unexecuted.
+
+VM's actual Jim quiet global error-code getter passes bounded source peer.
+Typed Silent mode preserves the interpreter result on a scalar miss but retains
+actual reached dictionary diagnostics; aliases retain exact target/header/frame
+checks. Actual root-frame selection, central bare original name construction,
+caller restoration and operation currency precede receipt publication. Captured
+error-code options avoid another global lookup. The original paired12-row fixture
+and retired-header controls remain unexecuted in Rust. Earlier catch/try capture
+timing and neutral-hold parity remain separate: Runtime is implementing a closed
+once-captured original-header owner, not donating full return-state conformance
+from the getter migration alone.
+
+Runtime's new once-captured error-code owner has passed substantive Error-path
+source/lifetime peer and six-row original evidence verification. It retains a
+neutral checked original header and actual caller/context through later stores,
+then uses that same capture at options publication. Before freeze, self-review
+identified that original Jim only consumes this pointer for Error options:
+nonError options must not demand liveness or retain an unused old header after a
+result-variable overwrite. The corrected explicit exit-code purpose gating and
+safe original nonError controls are reviewed below. The earlier Error capture
+remains immutable; no full options/reference-count or Rust execution acceptance
+is implied.
+
+Further package path identity consumers remain live. In tcl-pkg/cas.rs,
+collect_files converts each original filename lossily before ignore selection;
+posix converts every path component lossily for ordering and the integrity digest.
+Distinct Unix opaque and genuine replacement-character filenames with identical
+content/mode feed identical filename bytes into that digest by source inspection;
+ties also lose a deterministic original-path ordering. The integrity result is
+used by verification and CAS store/materialisation, so this is not display-only.
+The actual package hash/path owner needs a representation-preserving extension
+and compatibility controls before any hash-format change. Separately,
+fetchers.rs tar/zip extraction converts genuine archive member Paths lossily before
+safe_join and file creation; preserving or explicitly refusing unsupported actual
+member path representation is required before target selection. No runtime test,
+archive exploit or accepted migration is claimed. pkg/exec.rs's program conversion
+is only JSON audit presentation under inspected callers, a different purpose.
+
+The archive extraction portion now has a bounded source-peer-approved correction:
+existing safe_join borrows actual Path components, and tar Entry::path plus zip
+enclosed_name reach it without an additional local lossy String projection.
+Absolute/parent checks, skipped links, size limits and extraction order remain.
+A new genuine GNU tar fixture distinguishes opaque and Unicode replacement-
+character sibling names and contents, with traversal refusal. It is unexecuted;
+root formatting and fresh checks remain required. The zip library's initial
+filename decoding and the CAS compatibility/hash design remain separate.
+
+Core file_ops::compute_rename_edits is another live rewrite consumer. Its private
+URI parser percent-decodes into lossy UTF-8, then private string path helpers choose
+old/new identity. It derives a path-content span from report-string length and
+inserts the new path as raw text within existing Tcl grouping. Server
+will_rename_files applies those index spans against the current document without
+a retained producer-source/version join. WorkspaceSource already retains genuine
+original_path_expression and optional interpreter-source-load owners; this
+consumer ignores them. Reborrow that existing source owner plus the existing URI
+filesystem-path owner, current document proof and configured source construction;
+do not add a private path/source resolver. Opaque URI bytes versus genuine Unicode
+replacement text, grouping metacharacters and stale documents are discriminating
+controls, not executed observations. No implementation migration is claimed.
+
+POSIX venv source construction needs a separate PATH-component purpose:
+single-quoting retains bytes but cannot make a colon-containing directory one
+POSIX PATH entry. Admission must distinguish this from a valid colon-containing
+single executable word. The draft's dynamic wrapper pwd/newline and TCLLIBPATH
+construction remain separately unfinished. The corrected bounded shell source
+tranche is reviewed below; runtime execution acceptance remains outstanding.
+
+The bounded POSIX tranche now passes source/API/evidence peer after the colon
+correction. One Syntax renderer factors the preexisting jq @sh quoting recipe;
+descriptive NUL rendering remains separate from executable-source admission.
+Pkg's actual selected executable retains its selection cwd, and validated static
+exec/prompt/root/list-prefix source is staged before writes. PATH-component
+admission rejects colon separately from a single executable word. Original
+/bin/sh recipe evidence passes36-original/39-retention hash closure, twelve
+literal-argv/raw-suffix observations; Rust wrapper/activation controls are
+unexecuted. Dynamic wrapper pwd/newline and TCLLIBPATH, Fish/Docker, configuration
+line encoding and empty-environment restoration remain separate obligations.
+
+CAS canonical-path migration also passes bounded source/API peer. Original OS
+paths remain beside checked Unicode canonical keys; ignore selection compares
+original OsStr data. Opaque names and incomplete enumeration/ignore-source/
+metadata/content reads return errors instead of a partial canonical hash.
+Representable Unicode keys retain the existing hash format. Store, installer and
+CLI verification propagate the fallible owner. Existing assertions remain through
+test-only unwrap adapters; new genuine opaque/Unicode/ignore-alias/no-publication
+and incomplete-source controls are unexecuted. This is not a concurrent-tree
+snapshot/copy proof or a new raw-path hash format.
+
+Runtime's captured-options Error/nonError purpose blocker is now corrected and
+passes bounded source/lifetime/evidence peer. Shared JimReturnState owns base
+raw-exit code/level pairs. Actual nonError options check context/currency but do
+not access the old captured header or trace; Error uses the genuine full receipt.
+Immutable original capture01 plus new safe nonError capture02 pass hash-only
+verification of6+12 rows and exact fixtures/current provider maps. New Rust
+retired/foreign/no-early-hold controls remain unexecuted. Full options allocation,
+reference-count, callback and compiled-path parity is outside this receipt.
+
+Logical lambda formal source data and conditional cursor-frame layout pass
+bounded source peer as distinct purposes. Formal names/defaults/spans retain the
+same whole lambda roster and genuine nested source fields; selected Tcl grammar
+or explicit unselected Tcl/Jim agreement is required. The optional cursor frame
+additionally rechecks actual call argument-count agreement, original allocation/
+site/body/input and typed namespace. Nearest lambda scope is selected before
+admission, so unavailable lambda context cannot fall back to an enclosing
+procedure. The unchanged direct-script scanner is shared at the existing frame
+owner with its64 budget; inert braces refuse. These do not issue entered frames,
+body-variable symbols, Native formal inputs or edit permission. Legacy unsupported
+formal fallback and future typed lambda symbol producers remain unfinished.
+
+VM's corresponding quiet/captured-state tranche now passes final bounded source,
+API, lifetime and evidence peer. A neutral genuine capture retains actual caller
+currency and headers through catch/try's later reached original-name stores.
+NonError options use shared base pairs without unused trace/header access; generic
+full-state receipts separately restore their Native owned value before the trace
+getter, preserving that role's prior ordering. Successful original capture03 has
+fifteen inputs/thirty rows; failed network capture01 and signalled capture02 stay
+separate and confer no matrix acceptance. Seal01e4fbad and all eleven ready-source
+hashes pass independent verification. Agent rustfmt parse/check and scoped diff
+checks pass; all Rust controls remain unexecuted. Callback/signal/compiled paths,
+every Native reference stage and legacy unset compatibility remain unfinished.
+In particular, VM Try currently refreshes its message result after the quiet
+getter but before clause/trap processing; original Jim reads that result after
+those getters. The measured ordinary matrix does not establish custom callback
+ordering across that later stage. A subsequent bounded Return -errorcode setter
+uses the existing actual global/original-name owner with the prepared value,
+preserving ignored guest setter failure and terminal host refusal; its source
+peer and format checks pass, with execution still outstanding.
+Fresh original callback observations also show later trap getters still run after
+the first handler matches, and can change the message subsequently bound to that
+first handler. VM's current early break is a separate reached-stage consumer gap.
+Runtime already visits later clauses, but its saved result precedes the output
+name length getter; original Jim obtains the message after that getter. Prior
+quiet/captured-state receipts do not establish this custom-getter ordering.
+
+Command completion now has a bounded original word-cursor source owner. It
+retains complete image/channel/configuration, selected lexical script, command
+ordinal/extent and actual grouped word ordinal, prefix and replacement spans.
+Actual empty delimiter boundaries differ from trailing argv whitespace. Shared
+literal-prefix decoding creates no offsets, fake closer or completed NativeWord.
+Core checks exact UTF-16 geometry and edits whole retained containers; head
+candidate universes are limited to argv zero, with independent selected-role and
+receiver purposes elsewhere. Agent rustfmt/diff checks pass; all208 original test
+bodies are retained and seven new controls are unexecuted. Raw externally authored
+candidate insertion sources remain a separate debt: checking one static output
+word alone does not prove equality to its intended target name. Expr math and
+snippet trigger/template purposes remain distinct.
+
+The Logical lambda payload is now factored into one canonical source-declaration
+owner used by interpreter namespace advice and conditional cursor frames. Capture
+and currentness retain the same sealed call/input/vector/list/formal/body guards,
+with an additional complete fresh body-receipt equality check. The Native wrapper
+is unchanged. This factor alone adds no graph body traversal or generic lambda
+inventory admission. Any next explicit graph walk must retain anonymous lambda
+scope separately from named procedure owners and preserve unknown outer effects;
+inspecting a child clone cannot silently discard immediate lambda mutations and
+make later parent command lookup trusted.
+
+The scanner move's earlier source peer did not establish preservation of cursor
+availability: scanning an entire procedure body instead of the selected genuine
+same-frame region can conservatively reject cursors inside braced while/if
+bodies. That implication is retracted; no executed regression is claimed. The
+current graph draft passes bounded source peer with a typed region check using
+the actual SourceOrigin allocation, complete source/configuration and containment
+inside the held frame. Procedure and lambda Tape queries pass their nearest
+retained body, while the analyser independently joins the canonical lambda frame
+to that Tape selection. Anonymous lambda contexts retain the canonical owner and
+have no named-procedure input. Cloned child inventories preserve the existing
+outer Apply effect/unknown barriers. New nested-region and outer-mutation
+controls remain unexecuted; this draft is not ordinary-build acceptance.
+
+The bounded Jim Info literal-script forwarding migration passes source/API and
+evidence peer. Registry owns the two original fixed script inputs, and actual
+selected Jim dispatch reaches the existing fresh Script evaluator with original
+argument/caller guards before and after execution. Independent hash-only
+verification passes both48-row original captures and the exact capture02 fixture;
+distinct original command private data discriminates actual replacement. New
+Runtime/VM controls cover completion, result, argv and namespace only, and remain
+unexecuted. Full Script-count/frame/cache/stdlib lifecycle parity is outstanding.
+
+The next catalogue insertion constructor now passes bounded source/API peer.
+Shared lexical_unicode_source_word validates complete configured one-word source,
+no fatal tail or expansion, exact whole extent and decoded Unicode equality to
+the actual provider data. Existing list formatting is only a proposal; the
+existing quoted-fragment fallback receives the same check. Completion retains
+CurrentSourceContext, the SourceMethod NUL guard and actual event placement.
+Four source files and the173-original-body equality receipt are hash matched;
+agent rustfmt parse/check and scoped diff checks pass. Four new controls remain
+unexecuted. This corrects the raw catalogue insertion debt above at the reviewed
+source boundary, without Native dispatch, publication or edit authority.
+
+A further Jim Try getter-order obligation remains: original Jim saves the first
+selected message/options variable headers with ListGetIndex at that matching
+clause, before later on/trap getters. Recording only the match and converting
+that selected variable list during final binding loses this original ordinal.
+The selected list getter can affect later comparisons, and later callbacks can
+alter which name header a delayed conversion chooses. The callback draft must
+transport those actual first-selected members with their genuine neutral owners;
+no getters belong to later unselected variable lists. Its current correction
+passes bounded source peer: first-match parsing captures the actual first two
+headers with checked neutral leases, and binding uses those exact live members
+without reselecting the parent list. The message is selected after its reached
+nonempty name getter; options remain lazy after their name and first-store
+success. Final expanded evidence, syntax/hash and test-retention checks are still
+independent of Rust execution. The final four-file draft passes bounded source,
+API, lifetime and evidence peer at manifest8af5fcc4: all source hashes and the
+144-entry sealf0610a90 are verified, as are seven clean original upstream/provider
+pairings and the latest17OBS/47 rows with prior outputs retained. Original fixture
+test bodies remain byte-exact; agent rustfmt parse/check and scoped diff checks
+pass. Four new selectors remain unexecuted. Software stage controls do not
+manufacture arbitrary original ObjType capability, and shared equality internal
+callback/currentness, all reference-count stages, signals and compiled paths
+remain outside this acceptance.
+
+An additional Studio output consumer is distinct from its Rust-expression
+parsers: render_spectcl::relation_term_word decodes OptionTerm fields then joins
+them with spaces as inner Tcl-list data. Outer term/list quoting in
+option_conflict_rows does not protect those inner elements. By source inspection,
+OptionValue("-mode", "two words") produces three inner fields, while the loader's
+relation_term requires two; literal backslashes also need the actual list-value
+constructor purpose. Existing simple-term rendering assertions do not establish
+loader roundtrip for these values. This is an unfinished live source constructor,
+not an executed failure or permission to replace the Rust expression grammar.
+PackStore::accepts compares against the meaning of the already rendered block,
+rather than the requested draft, so that caller check does not independently
+prove inner-value fidelity. The canonical registration exporter is separate and
+does check bare/brace source admission; its synthesized word's braced flag alone
+is not evidence of a substitution bug.
+
+Document links have a separate final path-to-URI boundary. Live Native,
+Hosted and Logical links reach document_links::file_uri_for_path, which changes
+every backslash to a slash before private percent-encoding. An actual POSIX
+backslash component consequently selects a different target even when every
+source byte is valid Unicode. Windows compatibility needs an actual selected
+path/platform purpose. Pack includes additionally convert actual dir.join(name)
+lossily before that helper. Upstream original word/value/context receipts remain
+genuine; the unfinished consumer is the final navigation candidate conversion,
+not source execution or filesystem absence. Reuse the existing URI filesystem
+path owner rather than another private path parser. No executed counterexample
+or source migration is claimed.
+
+The coordinator's retained full proof-checker capture for frozen6294 reports
+exit1:7069 candidates,31924 files,2606 questions,2128 structural errors and zero
+unlinked records. This is not a green census or permission to refresh inventory
+as acceptance. Its next isolated ordinary source adds only the reviewed retained
+test-helper TokenType qualifier repair; later Main graph, constructor and callback
+changes cannot inherit that isolated build or replay. This audit executed no
+checker, Rust build or semantic test for either source.
+
+The private Logical formal-field carrier passes bounded source/API peer after an
+allocation-currentness correction. It retains the canonical lambda, actual
+SourceOrigin Arc, complete formal-list path and unchanged original field/span.
+Matching rechecks the actual current allocation as well as complete source,
+configuration, selected call, formal roster and argument-count agreement; semantic
+source equality alone is insufficient. The canonical owner never retains the
+field, so there is no reverse ownership cycle. This private unconsumed type adds
+no public SignatureSourceNameInput variant or Native/value/key/list/edit
+projection. Two new controls are unexecuted. The first six evaluated-role sinks
+also pass source peer after changing negative Root tests to exhaustive positive
+Word/Value admission, retaining all existing policy/currentness/receiver guards.
+Remaining explicit and inferred sinks still require individual disposition.
+
+Runtime's output-name Length/result tranche passes bounded source/API/lifetime
+and evidence peer. Jim reads the actual result after the reached nonempty name
+getter without an early Owned result hold; options construction is lazy after
+its name getter and first-store success. C's earlier result snapshot is unchanged.
+The20-row/eight-case original capture, exact fixture and current247-provider
+closure pass independent hash-only verification. The new genuine Runtime
+extension-stage control also compares its Try subset with sealed shared
+capture07. Rust controls remain unexecuted; this does not equate Runtime's
+extension ABI to Jim ObjType or accept all first-match/reference/count/compiled
+stages.

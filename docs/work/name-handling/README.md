@@ -1,6 +1,6 @@
 # Centralised name handling on work
 
-Current continuation: frozenK ordinary1027 seals696PASS/330FAIL/1TIMEOUT with all992 predecessors retained,1gain/4priorPASS regressions/0drops. NativeK Runtime174 seals173PASS/1FAIL and repaired VM133 seals133PASS/0FAIL, with source/provider/artifact guards intact. Successor builds L through L9 failed before tests; reviewed repairs require a fresh build. No successor compilation failure supplies semantic acceptance. The current [snapshot](current-state.md) overrides historical capture descriptions below.
+Current continuation: frozenK ordinary1027 seals696PASS/330FAIL/1TIMEOUT; NativeK Runtime174 seals173PASS/1FAIL and VM133 seals133PASS/0FAIL. FrozenL15 at4faff builds23ELFs exit0/source{} and original#2286 FIRST PASS75.412753406s/180. Selected1491 replay is RUNNING, retaining all1027 K controls. Newer Main source has no L15 acceptance. Full proof checker fails2128 structural errors; other required gates remain unfinished. The current [snapshot](current-state.md) overrides historical descriptions below.
 
 Complete one coherent set of name representations, lookup policies and
 purpose-specific queries across the entire codebase. The starting report is

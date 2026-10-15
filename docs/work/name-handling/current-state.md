@@ -1,5 +1,15 @@
 # Current centralised naming work
 
+## Current frozen build and live source checkpoint
+
+Frozen L15 at4faff1a8db8ee365b90e5c0609d038b98334dfa3 built all23 selected test ELFs successfully in412.418036719s, with errors[] and source drift{}. It contains6294d39c2 plus only the reviewed package-test TokenType qualifier repair47f7bb9d1. Original#2286 ran FIRST and PASS75.412753406s within its unchanged180s budget; exact one-test summaries/source/artifact checks pass. Selected1491 replay is running, retaining every1027 K selector/budget plus actually listed additions and scoped owner/host/debugger/package/runtimeAPI/query controls. No remaining scope result or newer Main acceptance is claimed.
+
+Newer Main separately integrates genuine lambda child graphs, exact Unicode completion construction, original Jim info-script dispatch, reached Jim Try selected-name/message stages, Runtime reached catch/Try output getters, private Logical formal-field receipts and exhaustive current source-role boundaries. Reviewed source/API/static-body receipts and independent original SDK evidence are retained; these newer Rust changes are unexecuted. Private formal fields have no public enum admission or production consumer yet. All explicit and inferred byte/policy sinks must receive purpose dispositions before admission, without Native/cell/edit/absence grants.
+
+L9–L14 failures remain separate zero-test records. The full normal name-resolution proof checker on frozen6294 exited1 with2128 structural errors,0unlinkedtests; this is a real failing gate, not a structural-only substitute or a green census refresh. Required rust-check/prep-pr and generated/owner gates remain unfinished. The43 handoff packets have verified hashes; the new portable archive retains exact L9–L14 feedback, proof failure and static-source receipts. Main inactive target-cache retirement preserved actual provider inputs and did not encounter ENOSPC.
+
+The330-row historical audit is a bounded source-review sample, not a repository census or migration-completion count. The47 historical grouped work items are likewise not a count of remaining consumers. A current-source disjoint implementation-needed / implemented-unverified / accepted ledger is being constructed; unexamined repository consumers remain unbounded and unfinished. #2286 stays OPEN until complete issue acceptance.
+
 ## Original Jim info literal-script consumers
 
 Reviewed Runtime and VM Jim hostname/nameofexecutable now delegate central exact original Jim_Eval script data to existing genuine fresh Script evaluators under selected-member/argv/caller guards. Mutable ordinary helper lookup, missing core-only provider and raw completion are preserved; Jim nameofexecutable no longer invents an OS-query result. Paired48row original SDK captures retain actual script/frame fields and distinct replacement userdata, fresh5bac/provider247unchanged/original79suite. Rust tests remain unexecuted and do not close complete Script count/frame/cache/stdlib lifecycle. C host encoding and retained executable lifecycle remain unfinished independent consumers. This newer Main source does not inherit frozen L15 results.

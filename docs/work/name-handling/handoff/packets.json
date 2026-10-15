@@ -208,5 +208,10 @@
     "file": "successor-l6-l7-l8-build-feedback.tar.gz",
     "sha256": "5427a6e239352916436bd7f6daa2e0cee32ac909e759cbd437f75e3246352d35",
     "status": "Exact L6/L7/L8 failed ordinary builds, all0tests/source drift{}. L6 two new iRules test-borrow errors5ELFs; L7 eleven old Core cursor-ingress errors15ELFs; L8 temporary Compiler source-owner borrow0ELFs. Subsequent repairs need fresh build. Known generic Lambda frame issue forbids L7 semantic replay; compiled outputs retired after112319 inputs unchanged, no ENOSPC. No semantic acceptance."
+  },
+  {
+    "file": "successor-l9-l14-build-and-source-receipts.tar.gz",
+    "sha256": "fe543cc6c88be1c48a24dbda2fbda2dc4baa7ec3d3be2dc90597fc304d1a763f",
+    "status": "Actual isolated L9-L14 compilation/setup failures, zero semantic tests, unchanged source; full normal proof checker exit1 with2128 structural errors and0unlinkedtests; inactive Main target retirement retained with unchanged actual providers. Includes bounded source/API/static-body receipts only, not acceptance of newer Main or public Logical formal field admission. L15 is separately executing ordinary replay after23ELF build0."
   }
 ]

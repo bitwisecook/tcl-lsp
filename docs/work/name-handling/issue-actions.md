@@ -4,13 +4,41 @@ Only the coordinator mutates GitHub. Bind each update to published source and
 exact executed acceptance; issue closure does not establish all-consumer
 centralisation. This is temporary coordination material; remove before merge.
 
+The current retained metadata snapshot is449 exact issue reads captured15October
+at11:06:53UTC:97OPEN/352CLOSED. It combines the previous346 catalogue IDs with103
+new search hits; all329 prior state rows/318 unique issues are unchanged. Thirteen
+strong naming omissions are individually classified in [issues.md](issues.md),
+all CLOSED; the full103-hit discovery pool in
+[audit-next-issues.json](audit-next-issues.json) remains explicitly UNCLASSIFIED
+until individual scope review. Metadata state is not execution acceptance.
+
+Published `0fd42b29f` is the historical source bound at the start of this local
+refresh. Later Main checkpoints have no semantic acceptance from an isolated
+earlier source or a type-only repair. K remains the latest sealed ordinary result:
+frozen `c448d18f6fdb8ffbbba89156222af4c7b8a692d9`,1027controls,
+696PASS/330FAIL/1TIMEOUT. All992F predecessors remain, with1gain,
+4prior-PASS regressions and0drops;35 additions give22PASS/13FAIL. The
+[portable K receipt](handoff/README.md) and [current state](current-state.md)
+retain exact source, selectors, original budgets and unchanged artifact guards.
+
 ## #2286 — keep open
 
-Fresh frozen `551f3b2c1` reran the unchanged original selector first: PASS68.977646515s under180s. Complete ordinary replay is still running; this does not replace broader issue acceptance. Raw capture is `/workspace/name-session/replay-a-compiler/test-01.log.gz`.
+The exact snapshot keeps#2286 OPEN, updated2026-10-12T22:29:51Z. Its unchanged
+original selector
+`analyser::diagnostics::tests::tcltest_oracle_program_keeps_missing_reads_and_setup_completion`
+ran first in K and PASS73.301624588s under the original180-second budget.
+K still has330failures and1timeout. A single original-program PASS does not close
+remaining naming consumers, import/read/refusal obligations or complete#2286
+acceptance; no closure action is authorised by this result alone.
 
-Root's fresh read on15 October2026 confirms OPEN, GitHub updated2026-10-12T22:29:51Z. The unchanged original selector `analyser::diagnostics::tests::tcltest_oracle_program_keeps_missing_reads_and_setup_completion` passes in ordinary272 at72.400995379 wrapper seconds under its original180-second budget. This is the latest measured original-program result, on source238.
-
-The earlier one-versus-two C8.4 warning and180/600-second timeout receipts are bounded prior failures, not current source verdicts. Preserve those receipts, all reported programs, both original `$absent` expectations, matching interpreter init/Tcltest files, forty-case alias setup and original negative/import/shared-read controls. Current272 still has200 Compiler failures and 1 separately measured deep-forwarding timeout. A single original-program PASS does not close remaining naming consumers, import/read/refusal obligations or#2286; publish issue changes only with precise scoped acceptance.
+Historical bounds remain: source238 ordinary272 PASS72.400995379s and frozen
+`551f3b2c1` PASS68.977646515s/180s, with the latter raw capture at
+`/workspace/name-session/replay-a-compiler/test-01.log.gz`. Ordinary272's200
+Compiler failures and separately measured deep-forwarding timeout describe that
+earlier replay. One-versus-two C8.4 warnings, namespace import failures and
+180/600-second timeout receipts remain prior evidence. Preserve all reported
+programs, both original `$absent` expectations, matching interpreter init/Tcltest
+files, forty-case alias setup and original negative/import/shared-read controls.
 
 ## #2287 — verified and closed
 
@@ -49,6 +77,10 @@ Pending provider answers and failed setup do not establish runtime bugs. New
 issues require exact input/source/reached-stage/output evidence. F5 answers
 remain independent until returned by the appliance chat.
 
-Final source238 validation: [ordinary272 current snapshot](current-state.md#current272-selected-scopes); exact portable receipts and unfinished owner work are indexed in [handoff/README.md](handoff/README.md). Historical scope in this document remains bounded to its stated capture.
-
-Expanded read-only refresh on15 October2026 exact-fetched all346 catalogue IDs, with329 explicit state rows/318 unique state-bearing IDs unchanged. Four related searches produced103 additional candidates;13 naming regressions are added to the catalogue, all CLOSED. Exact449metadata97OPEN/352CLOSED is a combined search scope, not an acceptance count. Three added regression selectors are source-verified and unexecuted; the remaining mappings stay unfinished. No issue mutations. #2286 remains OPEN: frozen551f original regression PASS68.977646515s/180s does not close complete acceptance.
+Historical source238 validation remains in
+[ordinary272](current-state.md#current272-selected-scopes). K's executed receipts
+supersede it for the K source only; neither accepts later implementation changes.
+Three of the thirteen added issue mappings have source-verified selectors, with
+execution still unverified for that mapping; ten selector mappings remain
+unfinished. The103 discovery hits confer no automatic naming scope or acceptance.
+No GitHub state was changed by this local reconciliation.

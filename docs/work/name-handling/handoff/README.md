@@ -89,3 +89,7 @@ full host/backend coverage and required repository gates remain unaccepted.
 `successor-l-l2-l3-build-feedback.tar.gz` preserves the wrong-package setup separately from the corrected production compilation failures. All three ran0tests with source drift{}. The reviewed canonical import repair and source consumers require a fresh L4 build. `conditional-pairing-ingress-receipt.json` records219 unchanged original test bodies and the explicit test helper API adoption; it supplies no execution acceptance.
 
 `successor-l6-l7-l8-build-feedback.tar.gz` retains exact failed build channels and source snapshots for L6/L7/L8, zero executed tests, and the separate guarded L7 compiled-output retirement. The repaired source requires fresh execution; L7 had a known generic Lambda frame issue and was never admitted for semantic replay.
+
+## Successor L9–L14 feedback and bounded source receipts
+
+`successor-l9-l14-build-and-source-receipts.tar.gz` retains failed zero-test build/setup captures, exact source-before/after inventories, the actual failing full proof-check result, provider-preserving cache retirement and bounded original-test-body/API receipts. Its SHA256 and all43 packet hashes are verified in packets.json/SHA256SUMS. It supplies no execution acceptance for newer Main. L15 at4faff is a separately frozen23ELF successful build with selected1491 replay running; its complete replay is not yet sealed.

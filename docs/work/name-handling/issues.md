@@ -1,14 +1,25 @@
 # Related issues and prior work
 
-Read-only refresh on15 October2026 fetched all254 catalogue IDs successfully:59OPEN/195CLOSED, zero changes among prior explicitly recorded states. See [additive audit](audit-next.md); GitHub state remains separate from branch acceptance.
-The broad catalogue was searched on 12 October 2026. A focused follow-up on
-13 October verified issue states and relevant merged PRs with individual
-GitHub reads. Rows added below have verified states; unchanged broad rows
-retain their earlier snapshot and must be refreshed before issue actions.
-The #2286, #2287 and #2300 anchors were re-read in the focused audit.
-Issue metadata is a search snapshot; actual current state and narrow executed
-acceptance are recorded below and in current-state.md. An open issue supplies an
-acceptance target; its state alone does not establish current source behaviour.
+The latest retained read-only issue snapshot, captured15 October2026 at11:06:53UTC,
+contains449 exact issue reads:97OPEN/352CLOSED. Its scope is the previous346
+catalogue IDs plus103 additional search hits, not every repository issue.
+All329 prior explicit state rows, covering318 unique issues, match that snapshot.
+Thirteen strong naming omissions are classified below from those exact records;
+all are CLOSED. The original103-hit discovery pool remains explicitly UNCLASSIFIED
+in the retained sidecar until each candidate receives its own scope review;
+the thirteen separately reviewed additions do not classify the rest by keyword.
+Exact queries, metadata and limits are in [audit-next-issues.json](audit-next-issues.json).
+No GitHub issue action was performed by this refresh.
+
+Earlier12–14October searches and narrower254-ID snapshots are historical evidence
+retained below. Issue state is independent of source or execution acceptance.
+Published `0fd42b29f` is the historical source bound at the start of this local
+refresh. Later Main checkpoints do not inherit results from an isolated earlier
+source or a type-only repair. K is the latest sealed semantic replay:1027controls,
+696PASS/330FAIL/1TIMEOUT on frozen `c448d18f6fdb8ffbbba89156222af4c7b8a692d9`.
+See [current-state.md](current-state.md) and the [portable K receipt](handoff/README.md).
+An open issue supplies an acceptance target; its state alone establishes no
+current source behavior, and a closed issue remains a regression obligation.
 
 The durable authorities are the [name model](../../design/analysis/name-resolution.md),
 [command owner contract](../../design/contracts/command-resolution.md),
@@ -29,7 +40,7 @@ Rust receipts retain separate authority.
 - [The retained native lifecycle question](../../design/analysis/name-resolution-proofs/tcltest-original-alias-caller-frame-lifecycle.md)
   measures all five C packages and Jim's distinct global-test protocol. It does
   not execute the full tclopt constructors or assert Rust diagnostics.
-- Root re-read#2286 on15 October2026: OPEN, updated2026-10-12T22:29:51Z. The original current272 selector passes72.400995379s under unchanged180; its source238 captured context is in [current-state.md](current-state.md). Earlier one-versus-two warnings, namespace-import failures and180/600-second timeouts remain preserved prior receipts, not latest program outcomes. All original sources, negative/shared-read/import controls and matching init/Tcltest inputs remain required. The issue remains open while the complete relevant acceptance and all-consumer migration are unfinished.
+- The exact15October snapshot keeps#2286 OPEN, updated2026-10-12T22:29:51Z. Its unchanged original selector ran first in K and PASS73.301624588s under the original180-second budget. Earlier ordinary272/source238 PASS72.400995379s and frozen551f PASS68.977646515s, one-versus-two warnings, namespace-import failures and180/600-second timeouts remain scoped historical receipts. All original sources, negative/shared-read/import controls and matching init/Tcltest inputs remain required. K still has330failures and1timeout; this single PASS does not close complete acceptance or the all-consumer migration.
 - Both complete packaged highlighting regressions now pass, including the
   import moved inside `::nativeTest`, option pairs and nested commands.
   [Exact C-source receipts](../../../experiments/name-handling/results/c-source-namespace-advice/outcomes.json)
@@ -321,7 +332,7 @@ work merely because a title contains a keyword.
 | [#2379](https://github.com/bitwisecook/tcl-lsp/issues/2379) | OPEN | W210 reports `array size`, `array names` and `array get` on a possibly unset array as a read before set; tclsh returns 0 or the empty list |
 | [#2441](https://github.com/bitwisecook/tcl-lsp/issues/2441) | OPEN | W210 is silent on a read after a `foreach` over an empty list, although I230 already decides `[info exists x]` false there |
 
-## Current GitHub issue refresh
+## Historical repository-wide issue refresh — 14 October 2026
 
 The complete repository issue listing was read on 14 October 2026 using the
 paginated GitHub REST issues endpoint, including open and closed records. It
@@ -335,7 +346,9 @@ All 216 open issue titles were inspected; closed records were searched for
 name, namespace, alias, qualification, colon, symbol, shadow, rename, token,
 binding, identity, cell, lookup, dispatch, TclOO, method, variable, procedure
 and frame terms. The following omissions extend the current acceptance map.
-No issue was changed and no new Rust or oracle test was run by this refresh.
+No issue was changed and no new Rust or oracle test was run by this historical
+refresh. The later449-record snapshot at the top supersedes these metadata totals
+for its explicitly bounded combined scope.
 
 ### Additional naming acceptance targets
 
@@ -393,26 +406,26 @@ regressions; closure does not prove that a subsequent migration preserves them.
 The issue metadata and exact API capture are in the isolated issue refresh
 delivery; they contain no execution acceptance and grant no issue action.
 
-Final source238 validation: [ordinary272 current snapshot](current-state.md#current272-selected-scopes); exact portable receipts and unfinished owner work are indexed in [handoff/README.md](handoff/README.md). Historical scope in this document remains bounded to its stated capture.
+Historical source238/ordinary272 receipts remain in [current-state.md](current-state.md#current272-selected-scopes). K is the latest sealed semantic replay for its frozen source; [portable receipts](handoff/README.md) retain both captures and their independent bounds. Neither accepts newer Rust changes.
 
 ## Expanded naming regression catalogue — 15 October 2026
 
-The expanded read-only audit exact-fetched all346 issue IDs referenced by the previous catalogue; all329 explicit state rows (318 unique issues) match GitHub. Four related searches returned103 additional uncatalogued candidates. Their449 combined exact metadata reads report97OPEN/352CLOSED, but the103 candidates remain unclassified except the naming-related additions below. This is a bounded search, not a complete issue census. Exact queries, metadata and candidate scope are retained in [audit-next-issues.json](audit-next-issues.json). No issue state changed.
+The expanded read-only audit exact-fetched all346 issue IDs referenced by the previous catalogue; all329 explicit state rows (318 unique issues) match the retained GitHub snapshot. Four related searches returned103 additional candidates. Their449 combined exact metadata reads report97OPEN/352CLOSED. The immutable discovery pool is explicitly UNCLASSIFIED; the thirteen individually reviewed omissions below have a separate narrow naming disposition. This is a bounded search, not a complete issue census. Exact queries, metadata and candidate scope are retained in [audit-next-issues.json](audit-next-issues.json). No issue state changed.
 
 All following issues are CLOSED. The catalogue preserves their naming acceptance targets; it does not claim current execution. Source-verified selectors remain unexecuted in this continuation unless separately recorded. Mixed-scope issues contribute only their naming/source-ownership regressions.
 
-| Issue | Naming regression | Retained regression evidence |
-| --- | --- | --- |
-| [#1601](https://github.com/bitwisecook/tcl-lsp/issues/1601) | expr_lexer has its own release-blind first-`}` scan: `expr {${a{b}c} + 1}` fails at 9.x while `if {${a{b}c} > 3}` works — the sixth site of the #1568 defect, in the owner crate | `rust/tcl-lexer/src/expr_lexer.rs::braced_variable_closer_follows_the_release_rule` (source verified; execution pending) |
-| [#1431](https://github.com/bitwisecook/tcl-lsp/issues/1431) | `tcl-compiler` lowering hand-rolls a var/param-list splitter (`parse_param_names`, 8 call sites) that mis-splits `a\ b` and `{a b}` — the analyser, `signature_scan`, and both runtimes use the shared list codec | Regression selector mapping remains unfinished. |
-| [#1487](https://github.com/bitwisecook/tcl-lsp/issues/1487) | `try_lower_incr` has no name gate: `incr $n` lowers to `Statement::Incr { name: "${n}" }`, invisible to the dynamic-name barrier | `rust/tcl-compiler/tests/var_escape_residual2.rs::cu_dynamic_incr_name_spills_all_known` (source verified; execution pending) |
-| [#1595](https://github.com/bitwisecook/tcl-lsp/issues/1595) | WASM whole-command eval path truncates a quoted command word: `"puts hi"` interns `"puts hi` and raises `missing "` instead of `invalid command name "puts hi"` | Regression selector mapping remains unfinished. |
-| [#1779](https://github.com/bitwisecook/tcl-lsp/issues/1779) | Expand a Tcl 8.5+ {*} command-head word before INVOKE_EXPANDED | Regression selector mapping remains unfinished. |
-| [#1386](https://github.com/bitwisecook/tcl-lsp/issues/1386) | Hover's six pattern/format detectors hardcode command names and ignore argument index, contradicting semantic tokens' registry-driven marking | Regression selector mapping remains unfinished. |
-| [#1378](https://github.com/bitwisecook/tcl-lsp/issues/1378) | `switch` clause-list layout is hand-rolled in three analyser sites that mis-parse value-taking options, producing false W123 and dropping find-references hits | Regression selector mapping remains unfinished. |
-| [#1380](https://github.com/bitwisecook/tcl-lsp/issues/1380) | The `{*}` expansion barrier for structured commands is a hardcoded 9-name list against 17 registry hook IDs, so `lmap`/`dict for`/`catch` lower an un-expanded argv | Regression selector mapping remains unfinished. |
-| [#1391](https://github.com/bitwisecook/tcl-lsp/issues/1391) | W231 and W201 byte-scan raw source for facts the segmenter, registry, and taint lattice already hold | Regression selector mapping remains unfinished. |
-| [#1653](https://github.com/bitwisecook/tcl-lsp/issues/1653) | analyser: via_define stub's default metaclass is compared as if observed, costing a computed-name metaclass its factory | Regression selector mapping remains unfinished. |
-| [#1637](https://github.com/bitwisecook/tcl-lsp/issues/1637) | Pack-vs-pack collisions resolve in silence: two packs claiming one command, or one `file_extension`, drop the loser with no notice and pick the winner by pack-name sort order | Regression selector mapping remains unfinished. |
-| [#1638](https://github.com/bitwisecook/tcl-lsp/issues/1638) | SpecTcl loader paper cuts: duplicate-command notice lands on line 1 and names its own file, whitespace-bearing command names load unreported, and a version-less `speclib` takes the whole body as the pack name | `rust/tcl-spectcl/tests/pack_torture.rs::a_whitespace_bearing_command_name_loads_and_is_installable` (source verified; execution pending) |
-| [#1845](https://github.com/bitwisecook/tcl-lsp/issues/1845) | S100 fires on a braced literal argument (`lindex {$x} 0`), which substitutes nothing | Regression selector mapping remains unfinished. |
+| Issue | State | Reported naming regression | Narrow scope / retained regression evidence |
+| --- | --- | --- | --- |
+| [#1601](https://github.com/bitwisecook/tcl-lsp/issues/1601) | CLOSED | expr_lexer has its own release-blind first-`}` scan: `expr {${a{b}c} + 1}` fails at 9.x while `if {${a{b}c} > 3}` works — the sixth site of the #1568 defect, in the owner crate | Shared configured variable-reference grammar. `rust/tcl-lexer/src/expr_lexer.rs::braced_variable_closer_follows_the_release_rule` (source verified; execution pending) |
+| [#1431](https://github.com/bitwisecook/tcl-lsp/issues/1431) | CLOSED | `tcl-compiler` lowering hand-rolls a var/param-list splitter (`parse_param_names`, 8 call sites) that mis-splits `a\ b` and `{a b}` — the analyser, `signature_scan`, and both runtimes use the shared list codec | Shared formal/list parsing. Regression selector mapping remains unfinished. |
+| [#1487](https://github.com/bitwisecook/tcl-lsp/issues/1487) | CLOSED | `try_lower_incr` has no name gate: `incr $n` lowers to `Statement::Incr { name: "${n}" }`, invisible to the dynamic-name barrier | Dynamic original variable-name effects. `rust/tcl-compiler/tests/var_escape_residual2.rs::cu_dynamic_incr_name_spills_all_known` (source verified; execution pending) |
+| [#1595](https://github.com/bitwisecook/tcl-lsp/issues/1595) | CLOSED | WASM whole-command eval path truncates a quoted command word: `"puts hi"` interns `"puts hi` and raises `missing "` instead of `invalid command name "puts hi"` | Original whole command-word geometry. Regression selector mapping remains unfinished. |
+| [#1779](https://github.com/bitwisecook/tcl-lsp/issues/1779) | CLOSED | Expand a Tcl 8.5+ {*} command-head word before INVOKE_EXPANDED | Expanded original command-head argv. Regression selector mapping remains unfinished. |
+| [#1386](https://github.com/bitwisecook/tcl-lsp/issues/1386) | CLOSED | Hover's six pattern/format detectors hardcode command names and ignore argument index, contradicting semantic tokens' registry-driven marking | Selected role/index-aware source annotation. Regression selector mapping remains unfinished. |
+| [#1378](https://github.com/bitwisecook/tcl-lsp/issues/1378) | CLOSED | `switch` clause-list layout is hand-rolled in three analyser sites that mis-parse value-taking options, producing false W123 and dropping find-references hits | Shared selected case-list layout. Regression selector mapping remains unfinished. |
+| [#1380](https://github.com/bitwisecook/tcl-lsp/issues/1380) | CLOSED | The `{*}` expansion barrier for structured commands is a hardcoded 9-name list against 17 registry hook IDs, so `lmap`/`dict for`/`catch` lower an un-expanded argv | Structured original argv expansion provenance. Regression selector mapping remains unfinished. |
+| [#1391](https://github.com/bitwisecook/tcl-lsp/issues/1391) | CLOSED | W231 and W201 byte-scan raw source for facts the segmenter, registry, and taint lattice already hold | Actual source/dataflow diagnostic facts. Regression selector mapping remains unfinished. |
+| [#1653](https://github.com/bitwisecook/tcl-lsp/issues/1653) | CLOSED | analyser: via_define stub's default metaclass is compared as if observed, costing a computed-name metaclass its factory | Observed versus authored class/metaclass provenance. Regression selector mapping remains unfinished. |
+| [#1637](https://github.com/bitwisecook/tcl-lsp/issues/1637) | CLOSED | Pack-vs-pack collisions resolve in silence: two packs claiming one command, or one `file_extension`, drop the loser with no notice and pick the winner by pack-name sort order | Actual command publication collisions; file-extension provider policy remains adjacent. Regression selector mapping remains unfinished. |
+| [#1638](https://github.com/bitwisecook/tcl-lsp/issues/1638) | CLOSED | SpecTcl loader paper cuts: duplicate-command notice lands on line 1 and names its own file, whitespace-bearing command names load unreported, and a version-less `speclib` takes the whole body as the pack name | Whitespace-bearing command names and original diagnostic sites; version-less pack parsing remains separate. `rust/tcl-spectcl/tests/pack_torture.rs::a_whitespace_bearing_command_name_loads_and_is_installable` (source verified; execution pending) |
+| [#1845](https://github.com/bitwisecook/tcl-lsp/issues/1845) | CLOSED | S100 fires on a braced literal argument (`lindex {$x} 0`), which substitutes nothing | Braced-literal substitution/source classification. Regression selector mapping remains unfinished. |
