@@ -815,6 +815,87 @@ impl LogicalSourceListNameInput {
     }
 }
 
+/// One unchanged Logical lambda formal name, retaining the whole selected
+/// call and list path. Unicode source units supply no Native value, word key,
+/// namespace/command role, cell or edit permission.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct OriginalLogicalListField {
+    lambda: std::sync::Arc<crate::command_binding::OriginalLogicalLambdaBody>,
+    source: std::sync::Arc<crate::command_binding::SourceOriginId>,
+    path: [usize; 3],
+    field: tcl_syntax::word_rules::OriginalSourceListElement,
+    span: Span,
+}
+
+impl OriginalLogicalListField {
+    pub(crate) fn from_lambda_formal(
+        lambda: std::sync::Arc<crate::command_binding::OriginalLogicalLambdaBody>,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        parameter: usize,
+    ) -> Option<Self> {
+        let (source, ..) = lambda.frame_source(input)?;
+        let field = lambda.original_formal_name_field(input, parameter)?;
+        let span = field.source_span()?;
+        Some(Self {
+            lambda,
+            source,
+            path: [0, parameter, 0],
+            field,
+            span,
+        })
+    }
+
+    pub(crate) fn matches_source(
+        &self,
+        image: &SourceImage,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> bool {
+        self.path[0] == 0
+            && self.path[2] == 0
+            && self.lambda.matches_source(image, input)
+            && self
+                .lambda
+                .frame_source(input)
+                .is_some_and(|(source, ..)| std::sync::Arc::ptr_eq(&self.source, &source))
+            && self
+                .lambda
+                .original_formal_name_field(input, self.path[1])
+                .as_ref()
+                == Some(&self.field)
+            && self.field.source_span() == Some(self.span)
+    }
+
+    /// The entire current canonical owner must agree; equal field text cannot
+    /// substitute a sibling call, different source allocation or purpose facet.
+    pub(crate) fn matches_lambda(
+        &self,
+        lambda: &crate::command_binding::OriginalLogicalLambdaBody,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> bool {
+        lambda
+            .frame_source(input)
+            .is_some_and(|(source, ..)| std::sync::Arc::ptr_eq(&self.source, &source))
+            && self.lambda.as_ref() == lambda
+            && self.matches_source(lambda.lambda().image(), input)
+    }
+
+    pub(crate) fn source_units(&self) -> &[u8] {
+        self.field.value().as_bytes()
+    }
+    pub(crate) fn source_span(&self) -> Span {
+        self.span
+    }
+    pub(crate) fn source_path(&self) -> &[usize; 3] {
+        &self.path
+    }
+    pub(crate) fn policy(&self) -> NamePolicyProtocol {
+        self.lambda.name_policy()
+    }
+    pub(crate) fn original_container(&self) -> &NativeWord {
+        self.field.original_word()
+    }
+}
+
 /// Complete-word and readonly produced-value inputs retain distinct authority.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum SignatureSourceNameInput {
@@ -1413,5 +1494,125 @@ mod logical_list_name_tests {
                 "{source}"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod logical_formal_field_tests {
+    use super::*;
+    use std::sync::Arc;
+
+    fn lambda(
+        source: &str,
+        ordinal: usize,
+    ) -> (
+        Arc<crate::command_binding::OriginalLogicalLambdaBody>,
+        crate::analyser::ResolvedAnalysisInput,
+    ) {
+        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
+        let input = analysis.resolved_input.as_ref().unwrap().clone();
+        let command = crate::segmenter::segment_commands_with_offset_and_config(
+            source,
+            0,
+            input.lexer_config(),
+        )
+        .remove(ordinal);
+        let words = crate::registry_invocation::source_structure::source_registry_words(
+            source, &analysis, &command,
+        )
+        .unwrap();
+        let crate::registry_invocation::source_structure::OriginalRegistrySource::SourceTransitions(
+            advice,
+        ) = words.source()
+        else {
+            panic!("actual Logical source call");
+        };
+        let original = advice.original_words().to_vec();
+        let policy = crate::command_binding::source_input_dialect(&input)
+            .authored_name_policy()
+            .unwrap();
+        assert!(
+            crate::command_binding::OriginalLogicalLambdaBody::capture(
+                &input,
+                words.clone(),
+                &original,
+                crate::signature_scan::original_name::OriginalSourceNamePurpose::Native(policy),
+            )
+            .is_none()
+        );
+        let purpose =
+            crate::signature_scan::original_name::OriginalSourceNamePurpose::for_analysis_input(
+                &input, None, policy,
+            );
+        let owner = crate::command_binding::OriginalLogicalLambdaBody::capture(
+            &input, words, &original, purpose,
+        )
+        .unwrap();
+        (Arc::new(owner), input)
+    }
+
+    #[test]
+    fn logical_formal_fields_retain_complete_call_path_and_unicode_source_units() {
+        let source = "apply {{first {second DEFAULT} args} {return $first}} ONE";
+        let (owner, input) = lambda(source, 0);
+        for (ordinal, expected) in ["first", "second", "args"].into_iter().enumerate() {
+            let field = owner.formal_name_field(&input, ordinal).unwrap();
+            assert_eq!(field.source_path(), &[0, ordinal, 0]);
+            assert_eq!(field.source_units(), expected.as_bytes());
+            assert_eq!(&source[field.source_span().as_range()], expected);
+            assert_eq!(field.original_container(), owner.lambda());
+            assert_eq!(field.original_container().config(), input.lexer_config());
+            assert_eq!(field.policy(), owner.name_policy());
+            assert!(field.matches_source(&SourceImage::document(source), &input));
+            assert!(field.matches_lambda(&owner, &input));
+            let mut foreign_allocation = field.clone();
+            foreign_allocation.source =
+                Arc::new(crate::command_binding::SourceOriginId::authored_image(
+                    owner.lambda().image().clone(),
+                ));
+            assert_eq!(foreign_allocation.source, field.source);
+            assert!(!Arc::ptr_eq(&foreign_allocation.source, &field.source));
+            assert!(!foreign_allocation.matches_source(owner.lambda().image(), &input));
+            assert!(!foreign_allocation.matches_lambda(&owner, &input));
+            let mut foreign = input.clone();
+            foreign.config.strict_quoting = !foreign.config.strict_quoting;
+            assert!(!field.matches_source(&SourceImage::document(source), &foreign));
+            assert!(!field.matches_source(
+                &SourceImage::document(&source.replace("DEFAULT", "CHANGED")),
+                &input,
+            ));
+            let mut changed = field.clone();
+            changed.path[0] = 1;
+            assert!(!changed.matches_source(&SourceImage::document(source), &input));
+            changed.path = [0, usize::MAX, 0];
+            assert!(!changed.matches_source(&SourceImage::document(source), &input));
+        }
+        let source = "apply {{é} {return}} ONE";
+        let (owner, input) = lambda(source, 0);
+        let field = owner.formal_name_field(&input, 0).unwrap();
+        assert_eq!(field.source_units(), "é".as_bytes());
+        assert_eq!(&source[field.source_span().as_range()], "é");
+        let (first, input) = lambda("apply {{first} {return}} ONE", 0);
+        let (second, _) = lambda("apply {{first} {return}} TWO", 0);
+        let field = first.formal_name_field(&input, 0).unwrap();
+        assert!(!field.matches_lambda(&second, &input));
+    }
+
+    #[test]
+    fn logical_formal_fields_refuse_unrepresented_grammar_or_call_binding() {
+        for source in [
+            "apply {{first} {return}}",
+            "apply {{first first} {return}} ONE TWO",
+            r"apply {{{na\u006de}} {return}} ONE",
+            r"apply {{{first D\u0045FAULT}} {return}}",
+            "apply {{{first SECOND THIRD}} {return}} ONE",
+            "apply {{{array(key)}} {return}} ONE",
+            "apply {{{ns::first}} {return}} ONE",
+        ] {
+            let (owner, input) = lambda(source, 0);
+            assert!(owner.formal_name_field(&input, 0).is_none(), "{source}");
+        }
+        let (owner, input) = lambda("apply {{first} {return}} ONE", 0);
+        assert!(owner.formal_name_field(&input, 1).is_none());
     }
 }

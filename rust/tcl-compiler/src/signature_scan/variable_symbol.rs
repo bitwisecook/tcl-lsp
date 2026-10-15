@@ -101,13 +101,19 @@ impl OriginalVariableSymbolReceiver {
                 })
             }
             Self::Operand(form) => {
-                (!matches!(input, SignatureSourceNameInput::OriginalVariableRoot(_)))
-                    .then_some(())?;
+                match input {
+                    SignatureSourceNameInput::OriginalWord(_)
+                    | SignatureSourceNameInput::OriginalValue(_) => {}
+                    SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+                }
                 form.input_form(protocol, input.bytes())
             }
             Self::NamespaceAlias | Self::NamespaceVariableWithoutLink => {
-                (!matches!(input, SignatureSourceNameInput::OriginalVariableRoot(_)))
-                    .then_some(())?;
+                match input {
+                    SignatureSourceNameInput::OriginalWord(_)
+                    | SignatureSourceNameInput::OriginalValue(_) => {}
+                    SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+                }
                 let bytes = if self == Self::NamespaceVariableWithoutLink && protocol.is_jim084() {
                     protocol.namespace_tail_bytes(input.bytes())
                 } else {

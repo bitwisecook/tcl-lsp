@@ -37,9 +37,12 @@ impl OriginalSourceSymbolDeclaration {
         metadata: &DefinedSymbol,
         registry: &CommandRegistry,
     ) -> Option<Self> {
-        if metadata.original_name_input.as_ref() != Some(input)
-            || matches!(input, SignatureSourceNameInput::OriginalVariableRoot(_))
-            || metadata.kind != descriptor.kind
+        match input {
+            SignatureSourceNameInput::OriginalWord(_)
+            | SignatureSourceNameInput::OriginalValue(_) => {}
+            SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+        }
+        if metadata.original_name_input.as_ref() != Some(input) || metadata.kind != descriptor.kind
         {
             return None;
         }

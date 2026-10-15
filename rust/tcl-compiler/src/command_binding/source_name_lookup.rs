@@ -534,8 +534,10 @@ impl SourceInvocationBinding {
         let operands = self.original_variable_operands_for_tokens(tokens)?;
         let state = &self.lookup_state.as_ref()?.state;
         let input = operands.input(argument_index, &state.source_variables)?;
-        if matches!(input, SignatureSourceNameInput::OriginalVariableRoot(_)) {
-            return None;
+        match input {
+            SignatureSourceNameInput::OriginalWord(_)
+            | SignatureSourceNameInput::OriginalValue(_) => {}
+            SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
         }
         let rows = super::declaration_layout::original_declaration_layouts(
             self.declaration_layout_observations.as_deref()?,
@@ -600,6 +602,11 @@ impl SourceInvocationBinding {
         input: &SignatureSourceNameInput,
         rows: Vec<&super::declaration_layout::DeclarationLayoutObservation>,
     ) -> Option<OriginalCommandLookup> {
+        match input {
+            SignatureSourceNameInput::OriginalWord(_)
+            | SignatureSourceNameInput::OriginalValue(_) => {}
+            SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+        }
         let mut unanimous = None;
         let mut naming_scope = None;
         let mut naming_scope_available = true;

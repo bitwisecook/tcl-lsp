@@ -405,13 +405,17 @@ impl SignatureSourceFormalParameterValue {
         input: &SignatureSourceNameInput,
         dialect: tcl_registry::InvocationDialect,
     ) -> Option<Self> {
+        match input {
+            SignatureSourceNameInput::OriginalWord(_)
+            | SignatureSourceNameInput::OriginalValue(_) => {}
+            SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+        }
         let protocol = input.policy().recipe();
-        if matches!(input, SignatureSourceNameInput::OriginalVariableRoot(_))
-            || dialect.native_name_protocol().or_else(|| {
-                dialect
-                    .authored_name_policy()
-                    .map(tcl_syntax::naming::NamePolicyProtocol::recipe)
-            }) != Some(protocol)
+        if dialect.native_name_protocol().or_else(|| {
+            dialect
+                .authored_name_policy()
+                .map(tcl_syntax::naming::NamePolicyProtocol::recipe)
+        }) != Some(protocol)
         {
             return None;
         }

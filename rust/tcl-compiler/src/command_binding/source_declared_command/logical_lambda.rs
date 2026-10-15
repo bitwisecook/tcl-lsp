@@ -175,6 +175,46 @@ impl OriginalLogicalLambdaBody {
         ))
     }
 
+    pub(crate) fn formal_name_field(
+        self: &Arc<Self>,
+        input: &ResolvedAnalysisInput,
+        parameter: usize,
+    ) -> Option<crate::signature_scan::name_value::OriginalLogicalListField> {
+        crate::signature_scan::name_value::OriginalLogicalListField::from_lambda_formal(
+            Arc::clone(self),
+            input,
+            parameter,
+        )
+    }
+
+    pub(crate) fn original_formal_name_field(
+        &self,
+        input: &ResolvedAnalysisInput,
+        parameter: usize,
+    ) -> Option<tcl_syntax::word_rules::OriginalSourceListElement> {
+        self.frame_source(input)?;
+        let formals = self.formal_parameters()?;
+        let expected = formals.parameters().get(parameter)?;
+        let specifiers = formals.parameter_field().elements()?;
+        let fields = specifiers.get(parameter)?.elements()?;
+        let field = fields.first()?;
+        let span = field.source_span()?;
+        if fields.len() != 1 + usize::from(expected.default.is_some())
+            || field.value() != expected.name
+            || fields.get(1).map(|field| field.value()) != expected.default.as_deref()
+            || field.original_word() != self.lambda()
+            || self.lambda.image().bytes().get(span.as_range())? != expected.name.as_bytes()
+            || formals.name_sources().get(parameter)?.source_span() != Some(span)
+        {
+            return None;
+        }
+        Some(field.clone())
+    }
+
+    pub(crate) fn name_policy(&self) -> tcl_syntax::naming::NamePolicyProtocol {
+        self.fields[0].policy()
+    }
+
     pub(crate) fn original_words(&self) -> &[NativeWord] {
         &self.producer
     }

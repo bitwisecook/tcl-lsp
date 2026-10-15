@@ -110,8 +110,10 @@ impl SignatureNamespaceScope {
     /// A lexical variable root does not donate an evaluated namespace operand.
     #[must_use]
     pub fn child_from_input(&self, input: &SignatureSourceNameInput) -> Option<Self> {
-        if matches!(input, SignatureSourceNameInput::OriginalVariableRoot(_)) {
-            return None;
+        match input {
+            SignatureSourceNameInput::OriginalWord(_)
+            | SignatureSourceNameInput::OriginalValue(_) => {}
+            SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
         }
         let policy = input.policy();
         let context = self.context_for_policy(policy)?;
@@ -589,8 +591,10 @@ impl SignatureSourceLookup {
         namespace: SignatureNamespaceScope,
         input: &SignatureSourceNameInput,
     ) -> Option<Self> {
-        if matches!(input, SignatureSourceNameInput::OriginalVariableRoot(_)) {
-            return None;
+        match input {
+            SignatureSourceNameInput::OriginalWord(_)
+            | SignatureSourceNameInput::OriginalValue(_) => {}
+            SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
         }
         namespace.context_for_policy(input.policy())?;
         Some(Self {

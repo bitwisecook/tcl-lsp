@@ -63,9 +63,12 @@ impl OriginalProducedNameValue {
         input: &SignatureSourceNameInput,
         context: &ResolveContext,
     ) -> Option<Self> {
-        if matches!(input, SignatureSourceNameInput::OriginalVariableRoot(_))
-            || !input.is_current(context)
-        {
+        match input {
+            SignatureSourceNameInput::OriginalWord(_)
+            | SignatureSourceNameInput::OriginalValue(_) => {}
+            SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+        }
+        if !input.is_current(context) {
             return None;
         }
         if let Some(value) = input.produced_value() {
