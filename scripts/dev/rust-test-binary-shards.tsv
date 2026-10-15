@@ -105,6 +105,7 @@
 2	tcl-vm::namespace_colon_runs_e2e	test	tcl-vm	namespace_colon_runs_e2e
 2	tcl-vm::numeric_tower_e2e	test	tcl-vm	numeric_tower_e2e
 2	tcl-vm::opcode_dispatch_coverage	test	tcl-vm	opcode_dispatch_coverage
+2	tcl-vm::package_coro_e2e	test	tcl-vm	package_coro_e2e
 2	tcl-vm::regexp_e2e	test	tcl-vm	regexp_e2e
 2	tcl-vm::switch_integer_e2e	test	tcl-vm	switch_integer_e2e
 2	tcl-vm::wasm_coro_e2e	test	tcl-vm	wasm_coro_e2e
@@ -276,6 +277,7 @@
 4	tcl-vm::cross_version_command_surface_e2e	test	tcl-vm	cross_version_command_surface_e2e
 4	tcl-vm::cross_version_vars_e2e	test	tcl-vm	cross_version_vars_e2e
 4	tcl-vm::language_e2e	test	tcl-vm	language_e2e
+4	tcl-vm::package_diagnostics_e2e	test	tcl-vm	package_diagnostics_e2e
 4	tcl-vm::regexp_cmd_corpus	test	tcl-vm	regexp_cmd_corpus
 4	tcl-vm::tcltest_load	test	tcl-vm	tcltest_load
 4	xtask::bin/xtask	bin	xtask	xtask

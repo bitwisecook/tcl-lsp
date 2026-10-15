@@ -525,7 +525,10 @@ fn a_host_command_provides_a_package_a_later_require_finds() {
     let mut engine = engine();
     assert_eq!(
         run(&mut engine, "package require pkgq"),
-        Err(script_error("can't find package pkgq")),
+        Err(EngineError::Script {
+            message: "can't find package pkgq".to_owned(),
+            code: Some("TCL PACKAGE UNFOUND".to_owned()),
+        }),
         "nothing provides it yet"
     );
     assert_eq!(

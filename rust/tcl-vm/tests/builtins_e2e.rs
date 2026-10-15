@@ -766,7 +766,9 @@ fn ensemble_subcommand_words_resolve_like_tclsh() {
     );
     // `encoding`: this engine advertises only what it implements (9.0 also has
     // `profiles` and `user`), but the verdicts are tclsh's.
-    assert_eq!(run("encoding s").1, "utf-8");
+    // The default system encoding is locale-dependent; pin it so the prefix
+    // lookup is what is measured.
+    assert_eq!(run("encoding system utf-8; encoding s").1, "utf-8");
     assert_eq!(
         msg("encoding c"),
         format!("unknown or ambiguous subcommand \"c\": {ENC_MUST}")
@@ -1701,6 +1703,31 @@ fn package_loader_must_provide_its_selected_version() {
          catch {package require Wrong} message options\n\
          puts [list $equivalent $message [dict get $options -errorcode]]\n",
         "1.0.0 {attempt to provide package Wrong 1.0 failed: package Wrong 2.0 provided instead} {TCL PACKAGE WRONGPROVIDE}\n",
+    );
+}
+
+/// `SelectPackageFinal` names the loader in `errorInfo` for every failure,
+/// including the two it raises itself, and withdraws a wrong provide
+/// (tclsh 8.5.19 through 9.1.0 agree).
+#[test]
+fn package_loader_generated_failures_name_the_loader_in_error_info() {
+    out_eq(
+        r"package ifneeded Unprovided 1.0 {}
+catch {package require Unprovided} message options
+puts [dict get $options -errorinfo]
+package ifneeded Wrong 1.0 {package provide Wrong 2.0}
+catch {package require Wrong} message options
+puts [list [dict get $options -errorinfo] [package provide Wrong]]
+",
+        r#"attempt to provide package Unprovided 1.0 failed: no version of package Unprovided provided
+    ("package ifneeded Unprovided 1.0" script)
+    invoked from within
+"package require Unprovided"
+{attempt to provide package Wrong 1.0 failed: package Wrong 2.0 provided instead
+    ("package ifneeded Wrong 1.0" script)
+    invoked from within
+"package require Wrong"} {}
+"#,
     );
 }
 
