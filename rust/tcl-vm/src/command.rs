@@ -346,7 +346,13 @@ fn cmd_source(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // Track the path so `info script` (and callers like `[file dirname [info
     // script]]`) resolve relative to the file being sourced.
     vm.push_script(path.to_string());
-    let mut result = match vm.eval_source(&contents) {
+    // 8.4 evaluates the file with `Tcl_EvalEx`, one command at a time.
+    let evaluation = if vm.runtime_version().compiles_eval_scripts() {
+        tcl_runtime_api::CommandEvaluation::Compiled
+    } else {
+        tcl_runtime_api::CommandEvaluation::Direct
+    };
+    let mut result = match vm.eval_source_as(&contents, evaluation) {
         Ok(c) => c,
         Err(e) => err(e.message),
     };
@@ -407,7 +413,7 @@ fn cmd_eval(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // before the error is raised (#1603): C parses one command at a time, so
     // the malformed tail is never reached until the commands ahead of it have
     // run.  `catch`/`try` already prepare their bodies this way.
-    let evaluation = vm.script_evaluation(args);
+    let evaluation = vm.eval_script_evaluation(args);
     match vm.prepare_script_commands_as(&script, evaluation) {
         Ok(prepared) => match prepared.prefix {
             Some(unit) => {
@@ -2574,7 +2580,7 @@ fn cmd_uplevel(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // that frame's namespace, the frames above it carried on the activation
     // until it completes. As with `eval`, the clean prefix of a body whose
     // later commands do not parse runs before the parse error (#1603).
-    let evaluation = vm.script_evaluation(rest);
+    let evaluation = vm.eval_script_evaluation(rest);
     let namespace = vm.namespace_at_level(target);
     match vm.prepare_script_commands_in_namespace_as(&script, &namespace, evaluation) {
         Ok(prepared) => match prepared.prefix {

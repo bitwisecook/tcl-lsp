@@ -265,6 +265,20 @@ fn run_script(vm: &mut Vm, src: &str, direct: bool) -> i32 {
     } else {
         vm.eval_source(src)
     };
+    finish(vm, result)
+}
+
+/// Run the commands piped to stdin as `tclsh` runs them
+/// ([`Vm::eval_source_commands`]): each error reported to stderr, the run
+/// going on after it, the exit code `exit`'s or 0.
+fn run_stdin(vm: &mut Vm, src: &str) -> i32 {
+    vm.eval_source_commands(src, Vm::report_stderr_text);
+    vm.take_exit().unwrap_or(0)
+}
+
+/// The process exit code for a script's `result`, its error reported to
+/// stderr.
+fn finish(vm: &mut Vm, result: Result<tcl_vm::Completion<Value>, tcl_vm::TclError>) -> i32 {
     // `exit` records a pending code on the VM rather than killing the process
     // (so embedders survive); the standalone CLI performs the real termination.
     if let Some(code) = vm.take_exit() {
@@ -328,7 +342,7 @@ fn run() -> i32 {
                     return 1;
                 }
                 let mut vm = new_vm(&options);
-                run_script(&mut vm, &src, false)
+                run_stdin(&mut vm, &src)
             }
         }
     }

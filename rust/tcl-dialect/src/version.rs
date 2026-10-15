@@ -706,6 +706,33 @@ impl TclVersion {
         matches!(self, Self::V8_6 | Self::V9_0 | Self::V9_1)
     }
 
+    /// Whether a script this release compiles fails whole on a compile
+    /// procedure's error or a parse error, so that none of it runs (8.4's
+    /// `TclCompileScript`). From 8.5 a compile procedure that cannot compile
+    /// a command leaves it to run, and a parse error is raised where it lies.
+    #[must_use]
+    pub fn compile_errors_fail_scripts(self) -> bool {
+        matches!(self, Self::V8_4)
+    }
+
+    /// Whether this release parses an expression with its own
+    /// recursive-descent parser (`tclParseExpr.c`), whose syntax errors read
+    /// `syntax error in expression "…": <reason>` and carry no `(parsing
+    /// expression …)` frame. 8.5 replaced it.
+    #[must_use]
+    pub fn parses_expressions_as_8_4(self) -> bool {
+        matches!(self, Self::V8_4)
+    }
+
+    /// Whether `eval` and `uplevel` compile a script that is no canonical
+    /// list (`TclEvalObjEx` with no flags), and `source` the file it reads.
+    /// 8.4 evaluates every such script directly (`TCL_EVAL_DIRECT`,
+    /// `Tcl_EvalEx`).
+    #[must_use]
+    pub fn compiles_eval_scripts(self) -> bool {
+        !matches!(self, Self::V8_4)
+    }
+
     /// Does this release **definitely** satisfy any of `requirements` — the
     /// answer `package vsatisfies [package provide Tcl] REQ ?REQ …?` gives on
     /// every build of the release line?

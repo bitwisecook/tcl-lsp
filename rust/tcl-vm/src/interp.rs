@@ -45,8 +45,8 @@ use tcl_runtime_api::guard::{
 use tcl_runtime_api::{
     ArrayElementRead, ArrayInvalidation, ArrayReadFailure, ArrayReadMiss, ArrayTarget,
     ArtefactIdentityManifest, Code, CommandEvaluation, CommandId, Commands, CompileService,
-    Completion, FatalTail, FrameId, FrameLinkOrigin, Frames, Introspect, Namespaces, NsId,
-    ProcInfo, ProcParam, ProcedureCompileTarget, ProcedureDispatch, Procs, ROOT_NS,
+    CompileUnit, Completion, FatalTail, FrameId, FrameLinkOrigin, Frames, Introspect, Namespaces,
+    NsId, ProcInfo, ProcParam, ProcedureCompileTarget, ProcedureDispatch, Procs, ROOT_NS,
     RegisteredBacking, Rung, RuntimeContext, ScriptCompileTarget, Traces, VarId, VarStore,
     VarUnsetError,
 };
@@ -831,6 +831,12 @@ pub(crate) struct PendingControl {
     pub(crate) release_compiled: Option<tcl_bytecode::ReleaseCompiled>,
     /// Next `package unknown` or `package ifneeded` script of a require.
     pub(crate) package: Option<crate::cmd_package::PackageReq>,
+    /// The procedure body unwinding now failed to compile
+    /// ([`FatalTail::compile_info`]), so its frame reads `compiling body`.
+    pub(crate) body_compile_failed: bool,
+    /// The next unit run is a chunk `tclsh` records in its history
+    /// ([`Vm::eval_source_commands`]).
+    pub(crate) record_history: bool,
     /// The script a builtin is about to evaluate directly, as the text it
     /// compiles and the values its words are ([`Vm::script_evaluation`]).
     pub(crate) direct_script: Option<(String, Vec<Value>)>,
@@ -912,6 +918,13 @@ struct ScriptCaches {
     /// never collide or get served to the wrong mode. Both maps are cleared
     /// when the profile changes.
     plain: HashMap<(String, String, CommandEvaluation), Rc<ModuleAsm>>,
+    /// What a release that compiles a script whole made of each script it
+    /// was asked about, keyed by source text and how it compiles it
+    /// ([`Vm::release_compile_failure`]).
+    refusals: HashMap<(String, CompileUnit), Option<FatalTail>>,
+    /// The literal objects of the stdin chunks `tclsh`'s history still
+    /// keeps ([`Vm::record_history`]).
+    history: std::collections::VecDeque<Rc<crate::compiled::LiteralValues>>,
 }
 
 impl ScriptCaches {
@@ -919,6 +932,7 @@ impl ScriptCaches {
     fn clear(&mut self) {
         self.fast.clear();
         self.plain.clear();
+        self.refusals.clear();
     }
 }
 
@@ -9685,7 +9699,13 @@ impl Vm {
         // later commands do not parse must neither refuse the definition nor
         // run with the lenient lowering's invented meaning: compile the clean
         // prefix and carry the error for the unit to raise on entry (#1829).
-        let (body_src, fatal_tail, _) = self.script_prefix_and_fatal_tail(src);
+        // A release that compiles the body whole refuses it before any of it
+        // runs, the error raised on entry all the same.
+        let (body_src, fatal_tail, _) =
+            match self.release_compile_failure(src, CompileUnit::ProcedureBody) {
+                Some(tail) => ("", Some(tail), 0),
+                None => self.script_prefix_and_fatal_tail(src),
+            };
         // The AOT admission path returns assembly the *enclosing module*
         // lowered, and that lowering is the lenient one — it would hand back a
         // body that quietly means something C never means. Only a body that
@@ -12265,6 +12285,25 @@ impl Vm {
             .map(|q| key_holder_and_tail_unrooted(q).1)
     }
 
+    /// Append a `(compiling body of proc "<name>", line N)` frame — the frame
+    /// a procedure whose body failed to compile adds (`TclProcCompileProc`),
+    /// its name cut at 50 bytes.
+    pub(crate) fn append_compile_body_frame(&mut self, name: &str, line: u32) {
+        use std::fmt::Write as _;
+        let mut cut = name.len().min(50);
+        while !name.is_char_boundary(cut) {
+            cut -= 1;
+        }
+        let ellipsis = if cut < name.len() { "..." } else { "" };
+        let info = self.error_info.get_or_insert_with(String::new);
+        let _ = write!(
+            info,
+            "\n    (compiling body of proc \"{}{ellipsis}\", line {line})",
+            &name[..cut]
+        );
+        self.error_logged = false;
+    }
+
     /// Append a `(procedure "<name>" line N)` frame — the frame a proc body adds
     /// to errorInfo as an error unwinds out of it (C's `errorInfo` proc frame).
     /// `line` is the proc-relative line of the innermost logged command. Clears
@@ -12337,7 +12376,13 @@ impl Vm {
     /// A tail with no recorded command text falls back to seeding the bare
     /// message: an empty pair of quotes would be a visible wrong answer.
     pub(crate) fn raise_fatal_tail(&mut self, tail: FatalTail) -> Completion<Value> {
-        if tail.command_text.is_empty() {
+        if let Some(info) = &tail.compile_info {
+            self.error_info = Some(format!("{}{info}", tail.message));
+            self.error_logged = false;
+            if tail.line != 0 {
+                self.error_line = tail.line;
+            }
+        } else if tail.command_text.is_empty() {
             self.seed_error_info(tail.message.clone());
         } else {
             self.log_command_info_only(&tail.command_text, &tail.message, tail.line);
@@ -12593,6 +12638,13 @@ impl Vm {
         // under that release's grammar rather than the permissive default: a
         // 8.6 interpreter must reject `1.0_2` and an expression `#` comment,
         // both of which are valid only from 9.0.
+        // 8.4 parses with its own parser first, which also refuses a numeral
+        // past the wide or double range.
+        if self.runtime_version.parses_expressions_as_8_4()
+            && let Err(message) = tcl_syntax::expr::syntax_84::parse_tcl84(src)
+        {
+            return Err(TclError::new(message));
+        }
         let node = parse_expr(src, Some(self.runtime_version.dialect_name()));
         if matches!(node, tcl_syntax::expr::ExprNode::Raw { .. }) {
             return Err(self.expr_syntax_error(src));
@@ -12674,7 +12726,12 @@ impl Vm {
         namespace: &str,
         evaluation: CommandEvaluation,
     ) -> Result<Rc<ModuleAsm>, TclError> {
-        let plain = self.requires_plain_command_dispatch();
+        // A release whose compiles fail whole runs a script it evaluates
+        // directly one command at a time, each command compiling its own
+        // scripts as it runs them: the plain dispatch of every command.
+        let plain = self.requires_plain_command_dispatch()
+            || (evaluation == CommandEvaluation::Direct
+                && self.runtime_version().compile_errors_fail_scripts());
         let target = ScriptCompileTarget {
             source: src,
             namespace,
@@ -12714,6 +12771,43 @@ impl Vm {
         self.eval_source_as(src, CommandEvaluation::Compiled)
     }
 
+    /// [`Self::eval_source`] for the commands `tclsh` reads from its stdin:
+    /// line by line until the lines read form complete commands, each such
+    /// chunk compiled and run as a script of its own. A chunk that does not
+    /// complete normally hands its result to `report` and the next runs, as
+    /// `tclsh` prints the error and reads on; an `exit` ends the run, and an
+    /// incomplete last chunk never runs.
+    pub fn eval_source_commands(&mut self, src: &str, mut report: impl FnMut(&mut Self, &str)) {
+        for chunk in stdin_chunks(src) {
+            self.pending.record_history = true;
+            let failure = match self.eval_source(chunk) {
+                Ok(completion) if completion.code.is_ok() => None,
+                Ok(completion) => Some(completion.result.to_str().to_string()),
+                Err(error) => Some(error.message),
+            };
+            self.pending.record_history = false;
+            if self.exit_pending() {
+                return;
+            }
+            if let Some(message) = failure {
+                report(self, &message);
+            }
+        }
+    }
+
+    /// Keep the literal objects of a chunk `tclsh` read from its stdin alive
+    /// while its history keeps the command: `Tcl_RecordAndEvalObj` adds the
+    /// command object, its bytecode with it, as an event, and `history`
+    /// keeps the last 20.
+    pub(crate) fn record_history(&mut self, literals: Rc<crate::compiled::LiteralValues>) {
+        const HISTORY_KEEP: usize = 20;
+        let history = &mut self.script_caches.history;
+        if history.len() == HISTORY_KEEP {
+            history.pop_front();
+        }
+        history.push_back(literals);
+    }
+
     /// [`Self::eval_source`] for the script file `tclsh` is given, whose own
     /// commands the emulated release evaluates as `Tcl_EvalEx` does, one at a
     /// time and without compiling them, where it compiles every body they
@@ -12733,8 +12827,15 @@ impl Vm {
         self.reset_error_state_for_eval();
         // C parses one command immediately before evaluating it, so every
         // command ahead of a malformed one runs before the parse error is
-        // raised (#1603). Compile and run that prefix, then raise.
-        let (prefix, fatal_tail, prefix_commands) = self.script_prefix_and_fatal_tail(src);
+        // raised (#1603). Compile and run that prefix, then raise. A release
+        // whose compiles fail whole raises the failure before any of it runs.
+        let refusal = (evaluation == CommandEvaluation::Compiled)
+            .then(|| self.release_compile_failure(src, CompileUnit::Script))
+            .flatten();
+        let (prefix, fatal_tail, prefix_commands) = match refusal {
+            Some(tail) => ("", Some(tail), 0),
+            None => self.script_prefix_and_fatal_tail(src),
+        };
         // No command parsed, so none ran and there is no prefix completion to
         // carry: report the error on the channel this entry point has always
         // used for a script it could not compile at all. Only a script that
@@ -12748,10 +12849,13 @@ impl Vm {
             && let Some(tail) = fatal_tail
         {
             // Nothing ran, but C still names the command that failed to parse.
-            if !tail.command_text.is_empty() {
+            let message = tail.message.clone();
+            if tail.compile_info.is_some() {
+                let _ = self.raise_fatal_tail(tail);
+            } else if !tail.command_text.is_empty() {
                 self.log_command_info_only(&tail.command_text, &tail.message, tail.line);
             }
-            return Err(TclError::new(tail.message));
+            return Err(TclError::new(message));
         }
         let module = self.compile_cached(prefix, evaluation)?;
         let words = (evaluation == CommandEvaluation::Direct)
@@ -12773,6 +12877,26 @@ impl Vm {
             self.clear_error_logged();
         }
         Ok(comp)
+    }
+
+    /// What a release that compiles a script whole
+    /// ([`tcl_dialect::TclVersion::compile_errors_fail_scripts`]) makes of
+    /// `src` compiled as `unit`: the tail it raises in place of running it.
+    fn release_compile_failure(&mut self, src: &str, unit: CompileUnit) -> Option<FatalTail> {
+        if !self.runtime_version().compile_errors_fail_scripts() {
+            return None;
+        }
+        let key = (src.to_owned(), unit);
+        if let Some(refusal) = self.script_caches.refusals.get(&key) {
+            return refusal.clone();
+        }
+        let refusal = self
+            .compiler
+            .as_ref()?
+            .compile_failure_for_profile(src, self.pin.profile, unit)
+            .map(FatalTail::compile_failure);
+        self.script_caches.refusals.insert(key, refusal.clone());
+        refusal
     }
 
     /// Split `src` into the leading commands that parse and the parse error C
@@ -12832,6 +12956,18 @@ impl Vm {
             (text, values)
         });
         evaluation
+    }
+
+    /// How `eval` and `uplevel` evaluate `words` as one script: as
+    /// [`Self::script_evaluation`] says, or directly where the release
+    /// compiles no such script (`TCL_EVAL_DIRECT`).
+    pub(crate) fn eval_script_evaluation(&mut self, words: &[Value]) -> CommandEvaluation {
+        let evaluation = self.script_evaluation(words);
+        if self.runtime_version().compiles_eval_scripts() {
+            evaluation
+        } else {
+            CommandEvaluation::Direct
+        }
     }
 
     /// The values [`Self::script_evaluation`] noted for the direct script
@@ -12917,6 +13053,14 @@ impl Vm {
         namespace: &str,
         evaluation: CommandEvaluation,
     ) -> Result<PreparedScript, TclError> {
+        if evaluation == CommandEvaluation::Compiled
+            && let Some(tail) = self.release_compile_failure(src, CompileUnit::Script)
+        {
+            return Ok(PreparedScript {
+                prefix: None,
+                fatal_tail: Some(tail),
+            });
+        }
         let Some(compiler) = self.compiler.as_ref() else {
             return Err(TclError::new(
                 "eval / command substitution requires a CompileService",
@@ -12942,6 +13086,26 @@ impl Vm {
             fatal_tail: plan.fatal_tail,
         })
     }
+}
+
+/// The chunks `tclsh` evaluates from its stdin: lines read until they form
+/// complete commands.
+fn stdin_chunks(src: &str) -> impl Iterator<Item = &str> {
+    let mut start = 0;
+    src.split_inclusive('\n')
+        .scan(0, |end, line| {
+            *end += line.len();
+            Some(*end)
+        })
+        .chain(std::iter::once(src.len()))
+        .filter_map(move |end| {
+            let chunk = src.get(start..end)?;
+            if chunk.is_empty() || !tcl_lexer::script_is_complete(chunk) {
+                return None;
+            }
+            start = end;
+            Some(chunk)
+        })
 }
 
 impl Default for Vm {

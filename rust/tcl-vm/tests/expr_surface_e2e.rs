@@ -63,11 +63,20 @@ fn boolean_word_prefixes_are_literals_in_every_release() {
         let ambiguous = vm
             .eval_expr("o")
             .expect_err("the shared on/off prefix remains ambiguous");
-        assert_eq!(
-            ambiguous.error_code.as_deref(),
-            Some("TCL PARSE EXPR BAREWORD"),
-            "{version:?}"
-        );
+        if version == TclVersion::V8_4 {
+            // tclsh 8.4.20: its own expression parser, and no error code.
+            assert_eq!(
+                ambiguous.message,
+                "syntax error in expression \"o\": variable references require preceding $"
+            );
+            assert_eq!(ambiguous.error_code, None);
+        } else {
+            assert_eq!(
+                ambiguous.error_code.as_deref(),
+                Some("TCL PARSE EXPR BAREWORD"),
+                "{version:?}"
+            );
+        }
     }
 }
 

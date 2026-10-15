@@ -1322,6 +1322,9 @@ impl Vm {
         if let Some(words) = words {
             unit.literal_values.bind_words(words);
         }
+        if std::mem::take(&mut self.pending.record_history) {
+            self.record_history(Rc::clone(&unit.literal_values));
+        }
         self.run_compiled_unit(unit)
     }
 
@@ -1999,6 +2002,7 @@ impl Vm {
             if c.code == Code::Ok
                 && let Some(tail) = act.fatal_tail.take()
             {
+                self.pending.body_compile_failed = act.is_proc && tail.compile_info.is_some();
                 c = self.raise_fatal_tail(tail);
             }
             // Back at the caller's level before its command is logged, so
@@ -2164,7 +2168,7 @@ impl Vm {
             }
             match crate::cmd_try::advance_try(self, *ctx, c) {
                 crate::cmd_try::TryOutcome::Push(req) => {
-                    let mut next = Frame::new_try(req, Value::empty());
+                    let mut next = Frame::new_try(*req, Value::empty());
                     next.exec_leave.append(&mut act.exec_leave);
                     return std::ops::ControlFlow::Break(next);
                 }
@@ -2248,7 +2252,11 @@ impl Vm {
                     .saturating_add(1)
                     .max(1)
             };
-            self.append_proc_frame(&name, n);
+            if std::mem::take(&mut self.pending.body_compile_failed) {
+                self.append_compile_body_frame(&name, n);
+            } else {
+                self.append_proc_frame(&name, n);
+            }
         }
         self.pop_call_frame();
         self.pop_ns();

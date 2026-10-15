@@ -115,7 +115,7 @@ pub(crate) struct TryReq {
 /// [`advance_try`]): either move on to the next phase (push a new try
 /// activation for it) or the whole `try` is done.
 pub(crate) enum TryOutcome {
-    Push(TryReq),
+    Push(Box<TryReq>),
     Deliver(Completion<Value>),
 }
 
@@ -330,7 +330,7 @@ fn cmd_try(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 .map_or_else(|| ok(Value::empty()), |tail| vm.raise_fatal_tail(tail));
             match advance_after_body(vm, &plan, body_completion) {
                 TryOutcome::Push(req) => {
-                    vm.pending.try_phase = Some(req);
+                    vm.pending.try_phase = Some(*req);
                     ok(Value::empty())
                 }
                 TryOutcome::Deliver(c) => c,
@@ -343,7 +343,7 @@ fn cmd_try(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         // failure that skips it (try-body-parse-error tclsh-pinned test).
         Err(e) => match advance_after_body(vm, &plan, err(e.message)) {
             TryOutcome::Push(req) => {
-                vm.pending.try_phase = Some(req);
+                vm.pending.try_phase = Some(*req);
                 ok(Value::empty())
             }
             TryOutcome::Deliver(c) => c,
@@ -422,14 +422,14 @@ fn advance_after_body(vm: &mut Vm, plan: &Rc<TryPlan>, body_comp: Completion<Val
             }
             let evaluation = vm.script_evaluation(std::slice::from_ref(&plan.handlers[b].script));
             match vm.prepare_script_commands_as(&plan.handlers[b].script.to_str(), evaluation) {
-                Ok(prepared) if prepared.prefix.is_some() => TryOutcome::Push(TryReq {
+                Ok(prepared) if prepared.prefix.is_some() => TryOutcome::Push(Box::new(TryReq {
                     script: prepared.prefix.expect("checked above"),
                     state: TryState {
                         plan: Rc::clone(plan),
                         phase: TryPhase::Handler { body_opts },
                         fatal_tail: prepared.fatal_tail,
                     },
-                }),
+                })),
                 Ok(prepared) => {
                     let completion = prepared
                         .fatal_tail
@@ -500,14 +500,14 @@ fn finish_body_or_handler(
             .map_or_else(|| ok(Value::empty()), |tail| vm.raise_fatal_tail(tail));
         return advance_after_finally(vm, outcome, completion);
     };
-    TryOutcome::Push(TryReq {
+    TryOutcome::Push(Box::new(TryReq {
         script,
         state: TryState {
             plan: Rc::clone(plan),
             phase: TryPhase::Finally { outcome },
             fatal_tail: prepared.fatal_tail,
         },
-    })
+    }))
 }
 
 /// `finally` just completed as `fc`: only its own non-`Ok` completion

@@ -67,19 +67,21 @@ enum Entry {
     Stdin,
 }
 
-/// Run `src` on a VM configured as `tclvm --tcl-version` configures one.
+/// Run `src` on a VM configured as `tclvm --tcl-version` configures one, and
+/// as it runs the script file or its stdin.
 fn vm_output(src: &str, release: TclVersion, entry: Entry) -> String {
     let profile = tcl_registry::model::resolve_environment(release.dialect_name()).unit_profile();
     let capture = Capture::default();
     let mut vm = Vm::with_output(Box::new(capture.clone()));
     vm.set_dialect_profile(profile);
     vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));
-    let completion = match entry {
-        Entry::File => vm.eval_source_directly(src),
-        Entry::Stdin => vm.eval_source(src),
+    match entry {
+        Entry::File => {
+            let completion = vm.eval_source_directly(src).expect("script compiles");
+            assert!(completion.code.is_ok(), "{}", completion.result.to_str());
+        }
+        Entry::Stdin => vm.eval_source_commands(src, |_, message| panic!("{message}")),
     }
-    .expect("script compiles");
-    assert!(completion.code.is_ok(), "{}", completion.result.to_str());
     let out = capture.0.borrow().clone();
     String::from_utf8(out).expect("utf-8")
 }
@@ -526,6 +528,209 @@ const EVAL_TEXT_READ: &str = "proc: t1=<> t2=<> t3=<> t4=<> t5=<{}>\ntop: <>\n";
 const EVAL_TEXT_86: &str =
     "proc: t1=<> t2=<abcdefghijkl> t3=<abcdefghijkl> t4=<abcdefghijkl> t5=<{}>\ntop: <>\n";
 
+/// 8.4 compiles a script whole before any of it runs: a procedure body when
+/// it is first called, a script a command evaluates, each chunk of stdin. A
+/// compile procedure's error (`catch {} a b`, `expr {1 +}`, `if 1`, `incr`)
+/// or a parse error anywhere fails the compile, so nothing in the script
+/// runs, and the error carries a `while compiling` frame per nested script,
+/// the context line a compile procedure adds and `(compiling body of proc
+/// …)`. A `catch` whose script fails to compile leaves it to run, catching
+/// the failure; an untaken constant `if` or `while` compiles no body; `eval`
+/// and `uplevel` run their scripts directly.
+const COMPILE_FAILURES: &str = r#"set ::errorInfo {}
+proc show {name} {
+    set c [catch {$name} m]
+    set info $::errorInfo
+    set cut [string last "\n    invoked from within" $info]
+    puts "$name $c <$m>\n<[string range $info 0 [expr {$cut - 1}]]>"
+}
+proc p1 {} { puts a
+  if 1 { puts b; catch {} a b } }
+proc p2 {} { while 1 { catch {} a b; break } }
+proc p3 {} { for {} 1 {} { puts x
+   catch {} a b; break } }
+proc p4 {} { foreach x {1} { catch {} a b } }
+proc p5 {} { catch { catch {} a b } }
+proc p6 {} { set y [if 1 {catch {} a b}] }
+proc p7 {} { if {1 +} {} }
+proc p8 {} { set x [expr {1 + }] }
+proc p9 {} { incr }
+proc p10 {} { if 1 {} else }
+proc p11 {} { break x }
+proc p12 {} { foreach x }
+proc p13 {} { if 1 {} elseif }
+proc p14 {} { set x "[catch {} a b]" }
+proc p15 {} { puts a; set x {a}b }
+proc p16 {} {puts a
+set x [list a
+}
+proc p17 {} { while 0 { catch {} a b } }
+proc p18 {} { if 0 { catch {} a b } }
+proc p19 {} { set s {catch {} a b}; eval $s}
+proc p20 {} { foreach x {1} { if {$x} then { expr {1 * * 2} } } }
+foreach p {p1 p2 p3 p4 p5 p6 p7 p8 p9 p10 p11 p12 p13 p14 p15 p16 p17 p18 p19 p20} { show $p }
+set c [catch {if 1 {puts b; catch {} a b}} m]; puts "top $c <$m>\n<$::errorInfo>"
+set c [catch {eval {puts e; catch {} a b}} m]; puts "eval $c <$m>\n<$::errorInfo>"
+set c [catch {uplevel #0 {puts u; catch {} a b}} m]; puts "uplevel $c <$m>\n<$::errorInfo>"
+"#;
+
+const COMPILE_FAILURES_84: &str = r#"p1 1 <wrong # args: should be "catch command ?varName?">
+<wrong # args: should be "catch command ?varName?"
+    while compiling
+"catch {} a b "
+    ("if" then script line 1)
+    while compiling
+"if 1 { puts b; catch {} a b } "
+    (compiling body of proc "p1", line 2)>
+p2 1 <wrong # args: should be "catch command ?varName?">
+<wrong # args: should be "catch command ?varName?"
+    while compiling
+"catch {} a b"
+    ("while" body line 1)
+    while compiling
+"while 1 { catch {} a b; break } "
+    (compiling body of proc "p2", line 1)>
+p3 1 <wrong # args: should be "catch command ?varName?">
+<wrong # args: should be "catch command ?varName?"
+    while compiling
+"catch {} a b"
+    ("for" body line 2)
+    while compiling
+"for {} 1 {} { puts x
+   catch {} a b; break } "
+    (compiling body of proc "p3", line 1)>
+p4 1 <wrong # args: should be "catch command ?varName?">
+<wrong # args: should be "catch command ?varName?"
+    while compiling
+"catch {} a b "
+    ("foreach" body line 1)
+    while compiling
+"foreach x {1} { catch {} a b } "
+    (compiling body of proc "p4", line 1)>
+p5 0 <1>
+<>
+p6 1 <wrong # args: should be "catch command ?varName?">
+<wrong # args: should be "catch command ?varName?"
+    while compiling
+"catch {} a b"
+    ("if" then script line 1)
+    while compiling
+"if 1 {catch {} a b}"
+    while compiling
+"set y [if 1 {catch {} a b}] "
+    (compiling body of proc "p6", line 1)>
+p7 1 <syntax error in expression "1 +": premature end of expression>
+<syntax error in expression "1 +": premature end of expression
+    ("if" test expression)
+    while compiling
+"if {1 +} {} "
+    (compiling body of proc "p7", line 1)>
+p8 1 <syntax error in expression "1 + ": premature end of expression>
+<syntax error in expression "1 + ": premature end of expression
+    while compiling
+"expr {1 + }"
+    while compiling
+"set x [expr {1 + }] "
+    (compiling body of proc "p8", line 1)>
+p9 1 <wrong # args: should be "incr varName ?increment?">
+<wrong # args: should be "incr varName ?increment?"
+    while compiling
+"incr "
+    (compiling body of proc "p9", line 1)>
+p10 1 <wrong # args: no script following "else" argument>
+<wrong # args: no script following "else" argument
+    while compiling
+"if 1 {} else "
+    (compiling body of proc "p10", line 1)>
+p11 1 <wrong # args: should be "break">
+<wrong # args: should be "break"
+    while compiling
+"break x "
+    (compiling body of proc "p11", line 1)>
+p12 1 <wrong # args: should be "foreach varList list ?varList list ...? command">
+<wrong # args: should be "foreach varList list ?varList list ...? command"
+    while compiling
+"foreach x "
+    (compiling body of proc "p12", line 1)>
+p13 1 <wrong # args: no expression after "elseif" argument>
+<wrong # args: no expression after "elseif" argument
+    while compiling
+"if 1 {} elseif "
+    (compiling body of proc "p13", line 1)>
+p14 1 <wrong # args: should be "catch command ?varName?">
+<wrong # args: should be "catch command ?varName?"
+    while compiling
+"catch {} a b"
+    while compiling
+"set x "[catch {} a b]" "
+    (compiling body of proc "p14", line 1)>
+p15 1 <extra characters after close-brace>
+<extra characters after close-brace
+    while compiling
+"set x {a}b "
+    (compiling body of proc "p15", line 1)>
+p16 1 <missing close-bracket>
+<missing close-bracket
+    while compiling
+"set x [list a
+"
+    (compiling body of proc "p16", line 2)>
+p17 0 <>
+<missing close-bracket
+    while compiling
+"set x [list a
+"
+    (compiling body of proc "p16", line 2)>
+p18 0 <>
+<missing close-bracket
+    while compiling
+"set x [list a
+"
+    (compiling body of proc "p16", line 2)>
+p19 1 <wrong # args: should be "catch command ?varName?">
+<wrong # args: should be "catch command ?varName?"
+    while executing
+"catch {} a b"
+    ("eval" body line 1)
+    invoked from within
+"eval $s"
+    (procedure "p19" line 1)>
+p20 1 <syntax error in expression "1 * * 2": unexpected operator *>
+<syntax error in expression "1 * * 2": unexpected operator *
+    while compiling
+"expr {1 * * 2} "
+    ("if" then script line 1)
+    while compiling
+"if {$x} then { expr {1 * * 2} } "
+    ("foreach" body line 1)
+    while compiling
+"foreach x {1} { if {$x} then { expr {1 * * 2} } } "
+    (compiling body of proc "p20", line 1)>
+top 1 <wrong # args: should be "catch command ?varName?">
+<wrong # args: should be "catch command ?varName?"
+    while compiling
+"catch {} a b"
+    ("if" then script line 1)
+    while compiling
+"if 1 {puts b; catch {} a b}">
+e
+eval 1 <wrong # args: should be "catch command ?varName?">
+<wrong # args: should be "catch command ?varName?"
+    while executing
+"catch {} a b"
+    ("eval" body line 1)
+    invoked from within
+"eval {puts e; catch {} a b}">
+u
+uplevel 1 <wrong # args: should be "catch command ?varName?">
+<wrong # args: should be "catch command ?varName?"
+    while executing
+"catch {} a b"
+    ("uplevel" body line 1)
+    invoked from within
+"uplevel #0 {puts u; catch {} a b}">
+"#;
+
 /// Which variables a procedure's compiled locals include, as 8.6 shows it:
 /// a script `eval` compiles in the frame compiles `catch $b r` only where
 /// `r` is already one (`TclFindCompiledLocal`), and a compiled `catch` reads
@@ -673,6 +878,11 @@ matchstr=- trim=- trimright=- isalpha=C isascii=C isint=- replnew=C replall=- \
 replnone=- mapkey=C mapval=C maplong=- mappairs=C mapnone=- cat=- repeat=-\n";
 
 const VECTORS: &[Vector] = &[
+    Vector {
+        name: "what 8.4 refuses to compile",
+        script: COMPILE_FAILURES,
+        want: &[(TclVersion::V8_4, COMPILE_FAILURES_84, COMPILE_FAILURES_84)],
+    },
     Vector {
         name: "a procedure's compiled locals",
         script: COMPILED_LOCALS,
