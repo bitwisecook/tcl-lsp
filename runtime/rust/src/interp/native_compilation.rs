@@ -225,7 +225,14 @@ impl Interp {
             return Code::Error;
         }
         let namespace_token = self.current_ns();
-        let namespace = self.namespaces().qualified_name(namespace_token);
+        let namespace = {
+            let namespaces = self.namespaces();
+            if namespaces.native_context_path(namespace_token).is_some() {
+                namespaces.qualified_name(namespace_token)
+            } else {
+                b"<unavailable namespace>".to_vec()
+            }
+        };
         // This field is diagnostic display only; actual ownership remains the
         // retained interpreter and namespace token, including for opaque bytes.
         let namespace = std::str::from_utf8(&namespace)
@@ -1748,6 +1755,53 @@ fn source_shape(word: &parse::Word<'_>) -> Shape {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn host_refusal_preserves_an_unmaterialized_original_jim_namespace() {
+        // Software refusal control: no original Jim command or frame parity claim.
+        let mut interp = Interp::with_native_core(
+            crate::interp::default_host(),
+            crate::environment::profile_for_dialect("jimtcl"),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap();
+        let context = interp.native_jim_object_context().unwrap();
+        let original = obj::Owned::fresh(obj::new_wide_int_obj(42));
+        let pointer = original.as_ptr();
+        crate::native_source::bind_context(pointer, &context).unwrap();
+        let before = obj::native_object_snapshot(pointer).unwrap();
+        let original_type = obj::obj_type_ptr(pointer);
+        assert!(before.resident.is_none());
+        let namespace = interp
+            .namespaces_mut()
+            .retain_unmaterialized_jim_namespace(original);
+        let caller = interp.current_ns();
+        interp.enter_namespace_activation(namespace);
+        interp.frames.borrow_mut().push(namespace);
+        interp.set_current_ns(namespace);
+        let references = unsafe { (*pointer).ref_count };
+        assert_eq!(
+            interp.refuse_host_command("first host boundary"),
+            Code::Error
+        );
+        let first = interp.native_host_command_refusal().unwrap();
+        assert_eq!(first.reason, "first host boundary");
+        assert_eq!(first.namespace.as_ref(), "<unavailable namespace>");
+        assert_eq!(first.namespace_token, namespace as u64);
+        assert_eq!(first.interpreter, interp.native_command_interpreter);
+        assert_eq!(first.frame, interp.frames.borrow().current_level());
+        assert!(interp.namespaces().native_context_path(namespace).is_none());
+        assert!(interp.namespaces().jim_namespace_bytes(namespace).is_none());
+        let after = obj::native_object_snapshot(pointer).unwrap();
+        assert!(after.resident.is_none());
+        assert_eq!(obj::obj_type_ptr(pointer), original_type);
+        assert_eq!(unsafe { (*pointer).ref_count }, references);
+        assert_eq!(interp.refuse_host_command("later cleanup"), Code::Error);
+        assert_eq!(interp.native_host_command_refusal().unwrap(), first);
+        let popped = interp.pop_native_call_frame();
+        interp.set_current_ns(caller);
+        interp.leave_namespace_activation(popped);
+    }
 
     #[cfg(have_tommath)]
     #[test]

@@ -58,7 +58,7 @@ pub(super) fn apply(
         interp.list_element_location(original.as_ptr(), 1)
     } else {
         interp
-            .arg_loc(parts[1].as_ptr())
+            .arg_location(parts[1].as_ptr())
             .and_then(|(file, line)| file.map(|file| (file, line)))
     };
     let (source, body_line_base) = location.map_or((None, 0), |(file, line)| {

@@ -773,6 +773,94 @@ mod tests {
     }
 
     #[test]
+    fn original_jim_alias_prefix_query_reaches_lookup_with_a_stringless_namespace() {
+        let mut interp = Interp::with_native_core(
+            crate::interp::default_host(),
+            crate::environment::profile_for_dialect("jimtcl"),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap();
+        interp
+            .install_alias(b"a", b"return".to_vec(), vec![b"PREFIX".to_vec()])
+            .unwrap();
+        let command = name(b"a");
+        let prefix = match interp
+            .original_alias_prefix_value_at(GLOBAL, command.as_ptr())
+            .unwrap()
+        {
+            tcl_runtime_api::AliasPrefixLookup::Prefix(prefix) => prefix,
+            _ => panic!("actual alias prefix was unavailable"),
+        };
+        let namespace = Owned::fresh(obj::new_wide_int_obj(42));
+        let context = interp.native_jim_object_context().unwrap();
+        crate::native_source::bind_context(namespace.as_ptr(), &context).unwrap();
+        let lookup = interp
+            .namespaces_mut()
+            .retain_unmaterialized_jim_namespace(Owned::retain(namespace.as_ptr()));
+        let warm = interp
+            .original_alias_prefix_value_at(lookup, command.as_ptr())
+            .unwrap();
+        assert!(
+            matches!(warm, tcl_runtime_api::AliasPrefixLookup::Prefix(actual) if actual == prefix)
+        );
+        assert_eq!(
+            obj::with_jim_command_cache(command.as_ptr(), |cache| cache.namespace.as_ptr()),
+            Some(namespace.as_ptr())
+        );
+        obj::invalidate_string(namespace.as_ptr());
+        assert!(interp.namespaces().jim_namespace_bytes(lookup).is_none());
+        let references = unsafe { (*namespace.as_ptr()).ref_count };
+        let hot = interp
+            .original_alias_prefix_value_at(lookup, command.as_ptr())
+            .unwrap();
+        assert!(
+            matches!(hot, tcl_runtime_api::AliasPrefixLookup::Prefix(actual) if actual == prefix)
+        );
+        assert!(!obj::has_string_rep(namespace.as_ptr()));
+        assert_eq!(unsafe { (*namespace.as_ptr()).ref_count }, references);
+        assert!(interp.namespaces().native_context_path(lookup).is_none());
+        let cold = name(b"a");
+        let reached = interp
+            .original_alias_prefix_value_at(lookup, cold.as_ptr())
+            .unwrap();
+        assert!(
+            matches!(reached, tcl_runtime_api::AliasPrefixLookup::Prefix(actual) if actual == prefix)
+        );
+        assert_eq!(
+            interp.namespaces().jim_namespace_bytes(lookup),
+            Some(b"42".as_slice())
+        );
+        let missing = name(b"NO_SUCH_ALIAS");
+        assert!(matches!(
+            interp
+                .original_alias_prefix_value_at(lookup, missing.as_ptr())
+                .unwrap(),
+            tcl_runtime_api::AliasPrefixLookup::MissingCommand
+        ));
+        let ordinary = name(b"return");
+        assert!(matches!(
+            interp
+                .original_alias_prefix_value_at(lookup, ordinary.as_ptr())
+                .unwrap(),
+            tcl_runtime_api::AliasPrefixLookup::NotAlias
+        ));
+        assert!(interp.native_execution_refusal().is_none());
+        // A genuinely withdrawn context owner cannot borrow the global alias.
+        let original = Owned::fresh(obj::new_wide_int_obj(43));
+        let retired = interp
+            .namespaces_mut()
+            .retain_unmaterialized_jim_namespace(original);
+        let owner = interp
+            .namespaces_mut()
+            .take_jim_namespace_owner(retired)
+            .unwrap();
+        drop(owner);
+        assert!(interp
+            .original_alias_prefix_value_at(retired, cold.as_ptr())
+            .is_err());
+    }
+
+    #[test]
     fn original_jim_namespace_receipt_does_not_keep_a_withdrawn_native_owner_alive() {
         let mut interp = jim();
         let _context = interp.native_jim_object_context().unwrap();

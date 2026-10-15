@@ -5023,6 +5023,24 @@ fn emit_retained_invocation_warnings<S: std::hash::BuildHasher, H: std::hash::Bu
                 .map(|shape| (shape.command, shape.effective, None)),
         );
     }
+    // Readonly source bodies retain conditional header metadata separately
+    // from executed handler candidates. The actual Module owner is mandatory.
+    if candidates.is_empty()
+        && context.source.module().is_some()
+        && let Some(assistance) =
+            crate::registry_invocation::original_registry_invocation_assistance_with_metadata_context(
+                context.registry,
+                context.source.metadata,
+                tokens,
+            )
+    {
+        candidates.extend(
+            assistance
+                .candidates
+                .into_iter()
+                .map(|shape| (shape.command, shape.effective, None)),
+        );
+    }
     if let Some(hosted) =
         crate::registry_invocation::hosted_source_taint_invocation(context.registry, tokens)
             .filter(|_| context.source.metadata.is_some())
@@ -8206,6 +8224,102 @@ pub fn find_setter_constraint_warnings<
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn original_module_sink_candidates_keep_conditional_source_and_refuse_foreign_owners() {
+        let environment = tcl_registry::model::ingress::resolve_environment("tcl8.6");
+        let context = environment.default_context_registry();
+        let registry = context.commands();
+        let profile = environment.unit_profile();
+        let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let build = |source| {
+            crate::compilation_unit::CompilationUnit::build_with_analysis_input(
+                source,
+                crate::compilation_unit::UnitBuildOptions {
+                    registry,
+                    defer_top_level: false,
+                    config,
+                    dialect: Some(profile),
+                    external_call_sites: None,
+                    declared_commands: None,
+                },
+                None,
+                &input,
+            )
+            .with_interprocedural(registry, Some(profile))
+        };
+        let source = "proc pass {x} {return $x}; proc danger {} {set u [gets stdin]; set p [pass $u]; exec $p}";
+        let unit = build(source);
+        let (body, procedure) = unit
+            .ir_module
+            .original_source_procedure_bodies()
+            .find(|(_, procedure)| {
+                procedure
+                    .body_source
+                    .as_deref()
+                    .is_some_and(|source| source.contains("exec $p"))
+            })
+            .unwrap();
+        assert_eq!(
+            procedure.body_kind,
+            crate::ir::ProcedureBodyKind::OriginalDeclaration
+        );
+        assert!(!unit.ir_module.procedures.contains_key(body));
+        assert!(unit.ir_module.source_entry.native_entry.is_none());
+        let warnings = |unit: &crate::compilation_unit::CompilationUnit,
+                        registry: &CommandRegistry| {
+            let solved =
+                crate::taint_interproc::solve_interprocedural_taints(unit, registry, Some(profile));
+            let mut warnings = Vec::new();
+            let _ = crate::compiler_checks::push_taint_and_module_checks(
+                unit,
+                registry,
+                Some(profile),
+                &solved,
+                None,
+                &mut warnings,
+            );
+            warnings
+        };
+        assert!(
+            warnings(&unit, registry)
+                .iter()
+                .any(|warning| warning.code == DiagCode::T100)
+        );
+        let mut missing = unit.clone();
+        missing.ir_module.retained_source_bindings = None;
+        assert!(
+            !warnings(&missing, registry)
+                .iter()
+                .any(|warning| warning.code == DiagCode::T100)
+        );
+        let mut changed = unit.clone();
+        changed.ir_module.source = tcl_lexer::SourceImage::document("proc danger {} {return SAFE}");
+        assert!(
+            !warnings(&changed, registry)
+                .iter()
+                .any(|warning| warning.code == DiagCode::T100)
+        );
+        let foreign = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
+        assert!(
+            !warnings(&unit, foreign)
+                .iter()
+                .any(|warning| warning.code == DiagCode::T100)
+        );
+        let shadowed =
+            build("proc exec args {return SAFE}; proc danger {} {set u [gets stdin]; exec $u}");
+        assert!(
+            !warnings(&shadowed, registry)
+                .iter()
+                .any(|warning| warning.code == DiagCode::T100)
+        );
+    }
+
     use super::*;
     use crate::sccp::SccpResult;
     use tcl_dialect::model::{Family, SurfaceLayer};

@@ -31,10 +31,13 @@ impl Interp {
         let caller_namespace = self.current_ns();
         let caller_frame = super::native_arguments::OriginalArgumentFrame::capture(self);
         let reached = self.native_string_bytes(&allocation.checked_ptr()?);
-        scope.check().map_err(|first| {
-            self.refuse_native_execution(first);
-            ValueError::CommandProtocolUnavailable("Jim namespace operation currency")
-        })?;
+        scope
+            .currency()
+            .ensure_current_or_refuse()
+            .map_err(|first| {
+                self.refuse_native_execution(first);
+                ValueError::CommandProtocolUnavailable("Jim namespace operation currency")
+            })?;
         if self.current_ns() != caller_namespace
             || caller_frame.check_frame(self).is_err()
             || !self
@@ -261,6 +264,59 @@ mod tests {
             "Jim",
             tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
         )))
+    }
+
+    #[test]
+    fn jim_namespace_error_unwind_does_not_prepare_an_unused_c_namespace_display() {
+        // Software frame control: the selected Jim error stack omits the C eval frame.
+        let mut interp = Interp::with_native_core(
+            crate::interp::default_host(),
+            crate::environment::profile_for_dialect("jimtcl"),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap();
+        let context = interp.native_jim_object_context().unwrap();
+        let original = Owned::fresh(obj::new_wide_int_obj(42));
+        let pointer = original.as_ptr();
+        crate::native_source::bind_context(pointer, &context).unwrap();
+        let original_type = obj::obj_type_ptr(pointer);
+        let namespace = interp
+            .namespaces_mut()
+            .retain_unmaterialized_jim_namespace(original);
+        let _namespace_owner = interp
+            .namespaces_mut()
+            .take_jim_namespace_owner(namespace)
+            .unwrap();
+        let body = Owned::fresh(obj::new_string_bytes(b"$missing"));
+        let references = unsafe { (*pointer).ref_count };
+        let caller = interp.current_ns();
+        assert_eq!(
+            interp.ns_eval_in_token(
+                namespace,
+                &[],
+                None,
+                true,
+                Some((
+                    tcl_registry::native_eval_object::EvalObjectPurpose::NamespaceBody,
+                    body.as_ptr(),
+                )),
+                None,
+            ),
+            Code::Error
+        );
+        assert_eq!(interp.current_ns(), caller);
+        assert!(obj::native_object_snapshot(pointer)
+            .unwrap()
+            .resident
+            .is_none());
+        assert_eq!(obj::obj_type_ptr(pointer), original_type);
+        assert_eq!(unsafe { (*pointer).ref_count }, references);
+        assert!(interp.namespaces().native_context_path(namespace).is_none());
+        assert!(interp.native_execution_refusal().is_none());
+        assert_eq!(
+            interp.result_bytes(),
+            b"can't read \"missing\": no such variable"
+        );
     }
 
     #[test]

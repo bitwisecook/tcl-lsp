@@ -4283,16 +4283,9 @@ impl Interp {
                 "original Jim alias prefix issuer",
             ));
         }
-        if self
-            .namespaces
-            .borrow()
-            .jim_namespace_bytes(lookup)
-            .is_none()
-        {
-            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                "original Jim alias lookup namespace",
-            ));
-        }
+        // The original lookup owns the actual namespace holder/frame checks.
+        // A same-pointer Jim cache hit needs no name bytes; a cold lookup
+        // reaches its genuine namespace getter before the command getter.
         let Some((command, _)) = self.resolve_original_command_at(lookup, original_name)? else {
             return Ok(tcl_runtime_api::AliasPrefixLookup::MissingCommand);
         };
@@ -7465,7 +7458,7 @@ impl Interp {
                 None => self.eval_framed(body, frame),
             },
         };
-        if code == Code::Error && add_eval_frame {
+        if code == Code::Error && add_eval_frame && !self.uses_jim_error_stack() {
             // `(in namespace eval "::ns" script line N)` — the body's own frame.
             let fqn = self.namespaces.borrow().qualified_name(target);
             self.append_namespace_eval_frame(&fqn);

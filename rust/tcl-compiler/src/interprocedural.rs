@@ -918,7 +918,7 @@ fn build_interprocedural_analysis_inner(
     );
 
     let global_instance_classes =
-        global_instance_classes_with(ir_module, registry, reach.invocations());
+        global_instance_classes_with(ir_module, registry, reach.invocations(), &summary_bodies);
     let tainted_global_writes = units.map_or_else(
         || tainted_global_writes(ir_module, registry, &global_instance_classes),
         |units| {
@@ -988,6 +988,7 @@ pub(crate) fn global_instance_classes(
         ir_module,
         registry,
         &EagerInvocations::of(ir_module, registry),
+        &summary_procedure_bodies(ir_module, registry),
     )
 }
 
@@ -1017,6 +1018,7 @@ pub(crate) fn global_instance_classes_with(
     ir_module: &crate::ir::Module,
     registry: &tcl_registry::CommandRegistry,
     invocations: &EagerInvocations,
+    source_bodies: &HashMap<ProcedureId, &crate::ir::Procedure>,
 ) -> HashMap<ProcedureId, crate::taint::InstanceClassState> {
     let source = crate::taint::TaintSourceContext::for_module(registry, ir_module);
     // Each statement retains its own original words and lookup horizon.
@@ -1045,11 +1047,16 @@ pub(crate) fn global_instance_classes_with(
         }
     }
     sites.sort_by_key(|(statement, _, _)| statement.span().start());
-    ir_module
-        .procedures
-        .keys()
-        .map(|id| {
-            let eager = invocations.named(id);
+    source_bodies
+        .iter()
+        .map(|(id, procedure)| {
+            // Callable bodies keep their actual eager horizon. A readonly
+            // declaration can only borrow setup preceding its own source site.
+            let eager = if ir_module.procedures.contains_key(id) {
+                invocations.named(id)
+            } else {
+                Some(procedure.span.start())
+            };
             let mut classes = crate::taint::InstanceClassState::new();
             for &(statement, tokens, direct) in &sites {
                 if eager.is_some_and(|call| statement.span().start() >= call) {
@@ -4775,6 +4782,58 @@ mod tests {
     }
 
     use super::*;
+
+    #[test]
+    fn original_declaration_receivers_keep_owned_ids_and_preceding_setup() {
+        let environment = tcl_registry::model::ingress::resolve_environment("tk");
+        let context = environment.default_context_registry();
+        let registry = context.commands();
+        let profile = environment.unit_profile();
+        let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let build = |source| {
+            let mut lowerer = crate::lowering::Lowerer::with_config(registry, config)
+                .with_resolved_analysis_input(input.clone());
+            lowerer.lower(source);
+            lowerer.finish_module(source)
+        };
+        let module = build("entry .before; proc danger {} {return OK}; entry .after");
+        let (id, procedure) = module.original_source_procedure_bodies().next().unwrap();
+        let id = *id;
+        assert_eq!(
+            procedure.body_kind,
+            crate::ir::ProcedureBodyKind::OriginalDeclaration
+        );
+        assert!(procedure.publication.is_none());
+        assert!(!module.procedures.contains_key(&id));
+        assert!(module.source_entry.native_entry.is_none());
+        let classes = global_instance_classes(&module, registry);
+        assert!(classes[&id].contains_key(".before"));
+        assert!(!classes[&id].contains_key(".after"));
+        assert!(!module.procedures.contains_key(&id));
+
+        let later = build("proc danger {} {return OK}; entry .later");
+        let later_id = *later.original_source_procedure_bodies().next().unwrap().0;
+        assert!(global_instance_classes(&later, registry)[&later_id].is_empty());
+        assert!(!classes.contains_key(&later_id));
+        let mut missing = module.clone();
+        missing.retained_source_bindings = None;
+        assert!(!global_instance_classes(&missing, registry).contains_key(&id));
+        let mut changed = module.clone();
+        changed.source =
+            tcl_lexer::SourceImage::document("entry .changed; proc danger {} {return OK}");
+        assert!(!global_instance_classes(&changed, registry).contains_key(&id));
+        let mut foreign = module.clone();
+        foreign.procedure_ids = later.procedure_ids.clone();
+        assert!(!global_instance_classes(&foreign, registry).contains_key(&id));
+        let foreign = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
+        assert!(!global_instance_classes(&module, foreign).contains_key(&id));
+    }
 
     #[test]
     fn original_declaration_summaries_keep_actual_cards_without_callable_publication() {

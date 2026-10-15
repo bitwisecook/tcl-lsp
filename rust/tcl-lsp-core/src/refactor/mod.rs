@@ -424,6 +424,21 @@ impl<'a> FrameWalk<'a> {
         )
     }
 
+    /// Complete original command geometry from its unchanged whole words.
+    /// Reporting token spans can omit a variable closer; these source extents
+    /// supply no command relocation, frame or capture permission.
+    pub(crate) fn command_span_offsets(
+        &self,
+        source: &str,
+        command: &SegmentedCommand,
+    ) -> Option<(u32, u32)> {
+        self.analysis
+            .matches_original_source_image(&tcl_lexer::SourceImage::document(source), self.config)
+            .then_some(())?;
+        let words = self.native_words(source, command)?;
+        Some((words.first()?.span().start(), words.last()?.span().end()))
+    }
+
     /// Exact word and expression components under the selected conditional
     /// grammar. Braced data is never scanned as a variable or script.
     pub(crate) fn components(
@@ -1234,6 +1249,37 @@ mod original_frame_walk_tests {
             panic!("one original partial command")
         };
         assert!(walk.variable_references(malformed, command).is_none());
+    }
+
+    #[test]
+    fn original_command_extents_include_variable_closers_without_taking_body_delimiters() {
+        for (source, expected) in [
+            ("puts ${$literal}\nputs done", "puts ${$literal}"),
+            ("puts ${}\nputs done", "puts ${}"),
+            ("puts ${value}suffix\nputs done", "puts ${value}suffix"),
+            ("puts \"${value}\"\nputs done", "puts \"${value}\""),
+        ] {
+            let analysis = tcl_compiler::analyser::Analyser::new()
+                .analyse(source, "tcl")
+                .clone();
+            let walk = FrameWalk::new(source, &analysis).unwrap();
+            let commands = walk.segment_document(source);
+            let (start, end) = walk.command_span_offsets(source, &commands[0]).unwrap();
+            assert_eq!(&source[start as usize..end as usize], expected);
+            assert!(
+                walk.command_span_offsets(&format!("#{source}"), &commands[0])
+                    .is_none()
+            );
+        }
+        let source = "if {1} {puts ${value}}\nputs done";
+        let analysis = tcl_compiler::analyser::Analyser::new()
+            .analyse(source, "tcl")
+            .clone();
+        let walk = FrameWalk::new(source, &analysis).unwrap();
+        let commands = walk.segment_nested("puts ${value}", 8);
+        let (start, end) = walk.command_span_offsets(source, &commands[0]).unwrap();
+        assert_eq!(&source[start as usize..end as usize], "puts ${value}");
+        assert_eq!(source.as_bytes()[end as usize], b'}');
     }
 
     #[test]

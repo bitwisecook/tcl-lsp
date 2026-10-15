@@ -89,7 +89,7 @@ use tcl_registry::{ArgRole, CommandRegistry, Traits};
 use tcl_dialect::BracedVarStyle;
 use tcl_lexer::LexerConfig;
 
-use super::{RefactorEdit, Refactoring, command_span_offsets};
+use super::{RefactorEdit, Refactoring};
 use crate::code_actions::{ActionCommand, ActionKind};
 
 /// The base name the generated proc gets before collision-avoidance.
@@ -127,11 +127,15 @@ pub fn extract_proc(
             .into_iter()
             .filter(|command| !command.name().is_empty())
             .collect();
+    let extents = commands
+        .iter()
+        .map(|command| walk.command_span_offsets(source, command))
+        .collect::<Option<Vec<_>>>()?;
     let selected: Vec<&SegmentedCommand> = commands
         .iter()
-        .filter(|command| {
-            let (start, end) = command_span_offsets(source, command);
-            start >= sel_start && end <= sel_end
+        .zip(extents)
+        .filter_map(|(command, (start, end))| {
+            (start >= sel_start && end <= sel_end).then_some(command)
         })
         .collect();
     if selected.is_empty() {
@@ -427,8 +431,15 @@ fn plan_extraction(
     let roles = classify_variables(source, selected, &walk)?;
 
     // The selection's own byte range, snapped to the commands it covers.
-    let block_start = command_span_offsets(source, selected[0]).0;
-    let block_end = command_span_offsets(source, selected[selected.len() - 1]).1;
+    let unavailable_extent = || "the original selected command extent is unavailable".to_owned();
+    let block_start = walk
+        .command_span_offsets(source, selected[0])
+        .ok_or_else(unavailable_extent)?
+        .0;
+    let block_end = walk
+        .command_span_offsets(source, selected[selected.len() - 1])
+        .ok_or_else(unavailable_extent)?
+        .1;
     let block = source
         .get(block_start as usize..block_end as usize)
         .ok_or_else(|| "the selected range is unreadable".to_string())?;
@@ -499,14 +510,20 @@ fn plan_extraction(
     }
     let name = unique_proc_name(source, analysis, registry)?;
     let indent = line_indent_at(source, block_start);
-    let definition = render_definition(&name, &by_value, &by_name, block, &indent);
-    let call = render_call(&name, &by_value, &by_name);
+    let unavailable_reference = || {
+        "a captured variable has no complete reference under the original source grammar".to_owned()
+    };
+    let definition = render_definition(&name, &by_value, &by_name, block, &indent, config)
+        .ok_or_else(unavailable_reference)?;
+    let call = render_call_for_config(&name, &by_value, &by_name, config)
+        .ok_or_else(unavailable_reference)?;
 
     // Place the definition immediately before the enclosing *top-level*
     // command, so it lands after the file's `package require` / `namespace`
     // prologue rather than at line 0 — and, when the selection is inside a
     // proc, before that proc rather than inside it.
-    let insert_at = top_level_command_start(source, scope_commands, scope, block_start, config);
+    let insert_at = top_level_command_start(source, scope_commands, scope, block_start, &walk)
+        .ok_or_else(|| "the original insertion command extent is unavailable".to_owned())?;
     Ok(Plan {
         edits: vec![
             RefactorEdit {
@@ -706,7 +723,9 @@ fn classify_command(
     let unavailable = || format!("the original variable roles of '{head}' are unavailable");
     let words = walk.source_words(source, command).ok_or_else(unavailable)?;
     let selected_roles = words.roles().ok_or_else(unavailable)?;
-    let (command_start, command_end) = command_span_offsets(source, command);
+    let (command_start, command_end) = walk
+        .command_span_offsets(source, command)
+        .ok_or_else(unavailable)?;
     let binds_at = words
         .written_argument_roles()
         .into_iter()
@@ -823,7 +842,9 @@ fn reject_enclosing_definition_body(
         return Ok(());
     }
     for command in walk.segment_document(source) {
-        let (start, end) = command_span_offsets(source, &command);
+        let (start, end) = walk
+            .command_span_offsets(source, &command)
+            .ok_or_else(|| "the original enclosing declaration extent is unavailable".to_owned())?;
         if scope.start < start || scope.end > end {
             continue;
         }
@@ -857,28 +878,33 @@ fn top_level_command_start(
     scope_commands: &[SegmentedCommand],
     scope: Scope,
     offset: u32,
-    config: LexerConfig,
-) -> u32 {
+    walk: &super::FrameWalk<'_>,
+) -> Option<u32> {
     // A selection already at top level inserts before its own first command.
     let anchor = if scope.start == 0 {
         scope_commands
             .iter()
-            .map(|command| command_span_offsets(source, command).0)
+            .map(|command| {
+                walk.command_span_offsets(source, command)
+                    .map(|extent| extent.0)
+            })
+            .collect::<Option<Vec<_>>>()?
+            .into_iter()
             .filter(|start| *start <= offset)
             .max()
             .unwrap_or(offset)
     } else {
-        segment_commands_with_offset_and_config(source, 0, config)
+        walk.segment_document(source)
+            .iter()
+            .map(|command| walk.command_span_offsets(source, command))
+            .collect::<Option<Vec<_>>>()?
             .into_iter()
-            .filter(|command| {
-                let (start, end) = command_span_offsets(source, command);
-                start <= offset && offset < end
-            })
-            .map(|command| command_span_offsets(source, &command).0)
+            .filter(|&(start, end)| start <= offset && offset < end)
+            .map(|(start, _)| start)
             .min()
             .unwrap_or(offset)
     };
-    line_start_of(source, anchor)
+    Some(line_start_of(source, anchor))
 }
 
 /// The byte offset of the start of the line containing `offset`.
@@ -907,20 +933,19 @@ fn render_definition(
     by_name: &[String],
     block: &str,
     block_indent: &str,
-) -> String {
+    config: LexerConfig,
+) -> Option<String> {
     use std::fmt::Write as _;
     let mut params: Vec<String> = by_value.to_vec();
     params.extend(by_name.iter().map(|var| format!("{var}Name")));
     let mut body = String::new();
     for var in by_name {
-        // The `$<var>Name` read is a *reference* and needs the brace form for a
-        // non-bare name; the `upvar` target is a plain word, so it needs list
-        // quoting instead (a name may carry an unbalanced brace — on 8.x
-        // `${a{b}` names `a{b`).
+        // The parameter read must reproduce its exact name under the selected
+        // source grammar. The target is name data and stays list-quoted.
         let _ = writeln!(
             body,
             "    upvar 1 {} {}",
-            var_ref(&format!("{var}Name")),
+            tcl_syntax::naming::scalar_source_reference(&format!("{var}Name"), config, false)?,
             word(var)
         );
     }
@@ -935,23 +960,7 @@ fn render_definition(
     // The parameter list is a Tcl *list*, so each name goes in as a properly
     // quoted element rather than raw text.
     let param_list = tcl_syntax::list::join_list(params.iter());
-    format!("proc {name} {{{param_list}}} {{\n{body}}}\n\n")
-}
-
-/// A `$` reference to `name`, braced unless the name can be written bare.
-///
-/// `${…}` is the spelling that survives every name this repository's scanners
-/// can produce, on both release rules: the 9.x scanner ends the name at the
-/// *matching* `}`, so `${a{b}c}` reads `a{b}c`, and the 8.x scanner ends it at
-/// the first `}`, so `${a{b}` reads `a{b}`'s 8.x form `a{b`. Emitting the bare
-/// `$a{b}c` instead would parse as `$a` followed by literal text on **both**
-/// releases — the same mistake the minifier made.
-fn var_ref(name: &str) -> String {
-    if tcl_syntax::naming::is_bare_var_name(name) {
-        format!("${name}")
-    } else {
-        format!("${{{name}}}")
-    }
+    Some(format!("proc {name} {{{param_list}}} {{\n{body}}}\n\n"))
 }
 
 /// `name` as a single command word, list-quoted when it cannot stand raw.
@@ -963,11 +972,34 @@ fn word(name: &str) -> String {
 ///
 /// A by-value parameter is passed as `$var`; a by-name one is passed as the
 /// *name* itself, which is what `upvar` in the proc binds against.
-fn render_call(name: &str, by_value: &[String], by_name: &[String]) -> String {
+fn render_call_for_config(
+    name: &str,
+    by_value: &[String],
+    by_name: &[String],
+    config: LexerConfig,
+) -> Option<String> {
     let mut words = vec![name.to_string()];
-    words.extend(by_value.iter().map(|var| var_ref(var)));
+    for var in by_value {
+        words.push(tcl_syntax::naming::scalar_source_reference(
+            var, config, false,
+        )?);
+    }
     words.extend(by_name.iter().map(|var| word(var)));
-    words.join(" ")
+    Some(words.join(" "))
+}
+
+#[cfg(test)]
+fn render_call(name: &str, by_value: &[String], by_name: &[String]) -> String {
+    render_call_for_config(
+        name,
+        by_value,
+        by_name,
+        LexerConfig {
+            braced_var: BracedVarStyle::Tcl9Nesting,
+            ..LexerConfig::default()
+        },
+    )
+    .expect("fixed call-rendering fixture has a complete reference")
 }
 
 /// A proc name not already taken by a workspace symbol or a registry command.
@@ -1970,6 +2002,69 @@ puts done";
         assert!(action.apply(source).contains("proc extracted_proc {x}"));
         analysis.resolved_input = None;
         assert!(extract_proc(source, selection, &analysis, &registry).is_none());
+    }
+
+    #[test]
+    fn logical_extraction_scalar_proposals_keep_selected_grammar_and_refuse_unwritable_names() {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let driver = tcl_registry::model::ingress::resolve_known_environment("tcl9.1")
+            .unwrap()
+            .default_context_registry();
+        for (style, source_word, expected) in [
+            (BracedVarStyle::FirstClose, r"a\{b", Some("${a{b}")),
+            (BracedVarStyle::FirstClose, r"a\{b\}c", None),
+            (BracedVarStyle::Tcl9Nesting, r"a\{b\}c", Some("${a{b}c}")),
+            (BracedVarStyle::Tcl9Nesting, r"a\{b", None),
+        ] {
+            let selected = format!("set {source_word}");
+            let source = format!("{selected}\nputs done\n");
+            let config = LexerConfig {
+                braced_var: style,
+                ..LexerConfig::for_profile(Some(profile))
+            };
+            let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                driver.clone(),
+                config,
+            );
+            let analysis = tcl_compiler::analyser::Analyser::new()
+                .with_resolved_input(input)
+                .analyse(&source, "reporting label");
+            assert!(analysis.allows_lexical_declaration_advice());
+            let action = extract_proc(
+                &source,
+                (0, u32::try_from(selected.len()).unwrap()),
+                &analysis,
+                driver.commands(),
+            )
+            .unwrap();
+            if let Some(reference) = expected {
+                assert!(
+                    action.disabled.is_none(),
+                    "{style:?} {source_word}: {:?}",
+                    action.disabled
+                );
+                let rewritten = action.apply(&source);
+                assert!(
+                    rewritten.contains(&format!("extracted_proc {reference}")),
+                    "{rewritten}"
+                );
+                assert!(
+                    rewritten.contains(&selected),
+                    "the original selected body is retained"
+                );
+            } else {
+                assert!(action.edits.is_empty());
+                assert!(
+                    action
+                        .disabled
+                        .as_deref()
+                        .unwrap()
+                        .contains("original source grammar")
+                );
+            }
+        }
     }
 
     #[test]

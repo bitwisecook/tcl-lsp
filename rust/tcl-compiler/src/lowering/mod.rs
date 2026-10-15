@@ -3754,6 +3754,13 @@ impl<'r> Lowerer<'r> {
         {
             return Some(Box::new(statement));
         }
+        if !self.target.is_bytecode()
+            && !self.target.is_trace_visible()
+            && let Some(statement) =
+                self.try_lower_original_operand_evaluation_update(seg, namespace, &tokens)
+        {
+            return Some(statement);
+        }
         let resolved_name = if self.target.is_bytecode() {
             let target = tokens
                 .source_binding
@@ -3844,6 +3851,45 @@ impl<'r> Lowerer<'r> {
         }
 
         Some(self.lower_default_boxed(seg, namespace))
+    }
+
+    /// Retain an attempted update's original read plan without admitting its
+    /// failed argv, handler or any body. Ordinary handler lowering stays gated.
+    fn try_lower_original_operand_evaluation_update(
+        &mut self,
+        seg: &SegmentedCommand,
+        namespace: &str,
+        tokens: &CommandTokens,
+    ) -> Option<Box<Statement>> {
+        let selected = crate::registry_invocation::original_operand_evaluation_update(
+            self.registry,
+            self.invocation_metadata_context()?,
+            tokens,
+            self.source_bindings.as_deref()?,
+        )?;
+        let command = LoweringCommand {
+            span: seg.span,
+            name: selected.descriptor_key().label(),
+            resolution_namespace: namespace,
+            args: seg.args(),
+            single_token_word: &seg.single_token_word,
+            expand_word: seg.expand_word.as_deref(),
+            tokens: Some(tokens.clone()),
+            arg_kinds: &Self::arg_kinds(seg),
+            dialect: self.dialect,
+            lexer_config: self.config,
+        };
+        let lowered = crate::lowering_hooks::try_lower_operand_evaluation_update_with_binding(
+            &command,
+            &selected,
+            &self.aliases,
+            self.registry,
+            self.dialect_context
+                .as_deref()
+                .map(tcl_registry::model::ContextRegistry::context),
+            self.safe_on_uninit(command.name, command.args),
+        )?;
+        Some(Box::new(self.finish_resolved_lowering(seg, lowered)))
     }
 
     /// Keep declaration construction out of ordinary command descent frames.

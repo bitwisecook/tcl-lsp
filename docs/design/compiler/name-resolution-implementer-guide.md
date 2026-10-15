@@ -173,6 +173,17 @@ remain literal; compound substitutions, arrays and commands decline rather than
 becoming raw stored text. These immutable syntax views supply no current Module,
 physical read, Native entry or executable erasure proof.
 
+A rejected before-handler operand retains attempted update syntax through
+`OriginalOperandEvaluationUpdate`. Issuance requires the actual failure point,
+positive Execution purpose, full source input/Registry, closed original
+descriptor and direct written layout, with a static original write-name word and
+no expression/body/frame/deferred-script grammar. The scalar hook preserves
+original words, head, namespace and guard without admitting the handler/body or
+attaching post-dispatch expression topology. Syntactic arity describes written
+slots rather than completed argv. Original Native read/trace/store guards and
+generic fallback remain independent; the receipt grants no successful update,
+committed store or executable erasure.
+
 `is_static_variable_source_word` is an unquoted source construction policy for
 a fixed ASCII identifier subset. Use it only when emitting that representation;
 it does not classify all accepted Tcl names or parse variable references.
@@ -7216,6 +7227,16 @@ owner returns no Module replay: DB retains the original baseline taints, and the
 function-only projection cannot reconstruct Module-owned procedure or global
 receiver facts from reporting labels. These conditional source facts grant no
 Native object, entered callback/frame or sanitiser certainty.
+
+Conditional receiver setup uses the actual owner-validated summary body IDs,
+including retained `OriginalDeclaration` bodies. `global_instance_classes_with`
+limits each readonly body's setup to statements preceding that declaration;
+callable eager horizons and Native publication/admission stay independent.
+Retained sink warnings first use execution candidates, then query
+`original_registry_invocation_assistance_with_metadata_context` only when those
+candidates are absent and an actual matching Module owner is present. This
+closed original-source header advice supplies a conditional source candidate,
+not an executed dispatch or Native/effect admission.
 
 `context_diagnostic_actions_in_analysis` independently checks the diagnostic
 code and range, complete source/configuration, and both current Registry owners.

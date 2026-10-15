@@ -80,7 +80,7 @@ pub struct NativeHostCommandRefusal {
     pub interpreter: crate::native_compilation::NativeInterpreterIdentity,
     /// Logical frame, without a lease on a later activation.
     pub frame: usize,
-    /// Current constructed namespace display.
+    /// Available namespace display, or an explicit unavailable marker; not identity.
     pub namespace: std::sync::Arc<str>,
     /// Actual namespace token, distinguishing name reuse.
     pub namespace_token: u64,

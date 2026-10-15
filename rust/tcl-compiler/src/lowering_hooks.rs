@@ -228,6 +228,51 @@ pub(crate) fn try_lower_logical_hook_with_binding(
     Some(finish_hook_statement(statement, binding))
 }
 
+/// Lower only the immutable attempted operand plan issued independently of
+/// handler entry. Do not attach handler/body or expression-evaluation topology.
+pub(crate) fn try_lower_operand_evaluation_update_with_binding(
+    cmd: &LoweringCommand<'_>,
+    selected: &crate::registry_invocation::OriginalOperandEvaluationUpdate,
+    aliases: &CommandAliasMap,
+    registry: &CommandRegistry,
+    context: Option<&tcl_registry::model::ResolvedContext>,
+    safe_on_uninit: bool,
+) -> Option<ResolvedLowering> {
+    let statement = dispatch_lowering_hook(
+        selected.lowering_hook(),
+        cmd,
+        aliases,
+        registry,
+        context,
+        safe_on_uninit,
+    )?;
+    if matches!(
+        statement,
+        Statement::Call { .. }
+            | Statement::Barrier { .. }
+            | Statement::AssignExpr { .. }
+            | Statement::ExprEval { .. }
+    ) {
+        return None;
+    }
+    let tokens = cmd.tokens.as_ref()?;
+    let name = crate::registry_invocation::static_command_word(
+        tokens,
+        cmd.lexer_config.escapes,
+        tcl_syntax::word_rules::WordValueRules::from_config(&cmd.lexer_config),
+    )?;
+    let binding = CommandBindingIdentity::in_rooted_namespace(
+        cmd.resolution_namespace,
+        name,
+        selected.descriptor_key().label(),
+    )
+    .with_namespace_context(crate::registry_invocation::compiled_namespace_context(
+        tokens,
+    ))
+    .with_guard(crate::registry_invocation::command_binding_guard(tokens));
+    Some(finish_hook_statement(statement, binding))
+}
+
 /// Attach checked original expression topology for analysis. Every original
 /// command-binding site remains retained; this creates no executable admission.
 fn attach_conditional_expression_topology(
