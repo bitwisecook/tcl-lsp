@@ -606,6 +606,49 @@ impl Value {
     pub(crate) fn is_same_object(&self, other: &Self) -> bool {
         Rc::ptr_eq(&self.0, &other.0)
     }
+
+    /// `tcl::unsupported::representation` of this value under `release`: its
+    /// rep as C names the type, its handle count and its address. A boolean
+    /// read from a word (`yes`) is C's `boolean` (`booleanString` before 9.0);
+    /// one a comparison made is C's `int`.
+    pub(crate) fn representation(&self, release: tcl_dialect::TclVersion) -> String {
+        use tcl_cmd_core::representation::{Internal, Representation, describe};
+        let string = self.0.string.borrow().clone();
+        let address = |p: *const ()| p as usize;
+        let (type_name, internal) = match &*self.0.intrep.borrow() {
+            IntRep::Str => (None, Internal::None),
+            IntRep::Int(n) => (Some("int"), Internal::Words(*n as usize, 0)),
+            IntRep::Double(x) => (Some("double"), Internal::Double(*x)),
+            IntRep::Bool(b) => {
+                let word = string.as_deref().is_some_and(|s| s != "0" && s != "1");
+                let name = match (word, release >= tcl_dialect::TclVersion::V9_0) {
+                    (false, _) => "int",
+                    (true, true) => "boolean",
+                    (true, false) => "booleanString",
+                };
+                (Some(name), Internal::Words(usize::from(*b), 0))
+            }
+            IntRep::List(items) | IntRep::ParsedList(items) => (
+                Some("list"),
+                Internal::Words(address(Rc::as_ptr(items).cast()), 0),
+            ),
+            IntRep::Dict(rep) => (
+                Some("dict"),
+                Internal::Words(address(Rc::as_ptr(rep).cast()), 0),
+            ),
+        };
+        let text = describe(
+            &Representation {
+                type_name,
+                ref_count: Rc::strong_count(&self.0),
+                address: address(Rc::as_ptr(&self.0).cast()),
+                internal,
+                string: string.as_deref().map(str::as_bytes),
+            },
+            release,
+        );
+        String::from_utf8(text).expect("a cut at a character boundary keeps UTF-8")
+    }
 }
 
 /// The bytes `items` measure to with a separator between each, stopping once

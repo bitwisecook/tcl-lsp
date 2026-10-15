@@ -30,6 +30,19 @@ use crate::value::Value;
 
 pub(crate) fn register(vm: &mut Vm) {
     vm.register("info", cmd_info);
+    vm.register("::tcl::unsupported::representation", cmd_representation);
+}
+
+/// `::tcl::unsupported::representation value` — the value's own rep, count
+/// and address in C's sentence.
+fn cmd_representation(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let [value] = args else {
+        let invoked = vm
+            .invoked_name()
+            .unwrap_or("tcl::unsupported::representation");
+        return err(format!("wrong # args: should be \"{invoked} value\""));
+    };
+    ok(Value::string(value.representation(vm.runtime_version())))
 }
 
 /// `info`'s subcommand set, alphabetical as `TclMakeEnsemble` sorts it — the

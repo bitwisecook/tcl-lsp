@@ -31,9 +31,64 @@ use crate::interp::{new_string, obj_bytes, Code, Interp};
 use crate::list;
 use crate::obj::TclObj;
 
-/// Register `info`.
+/// Register `info` and `::tcl::unsupported::representation`.
 pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"info", info_cmd);
+    interp.register_builtin(b"::tcl::unsupported::representation", representation_cmd);
+}
+
+/// `::tcl::unsupported::representation value` — the object's own type,
+/// count, address and reps, in C's sentence. Nothing is generated: a value
+/// with no string representation reports none.
+fn representation_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    use tcl_cmd_core::representation::{describe, Internal, Representation};
+    if argv.len() != 2 {
+        let mut msg = b"wrong # args: should be \"".to_vec();
+        msg.extend_from_slice(&obj_bytes(argv[0]));
+        msg.extend_from_slice(b" value\"");
+        return interp.set_error(&msg);
+    }
+    let value = argv[1];
+    // SAFETY: `value` is a live argument object; its type descriptor, when
+    // set, is a `'static` `TclObjType` with a NUL-terminated name, and a
+    // non-null `bytes` holds `length` bytes.
+    let text = unsafe {
+        let obj = &*value;
+        let type_name = (!obj.type_ptr.is_null()).then(|| {
+            core::ffi::CStr::from_ptr((*obj.type_ptr).name)
+                .to_str()
+                .unwrap_or("?")
+        });
+        let internal = if obj.type_ptr.is_null() {
+            Internal::None
+        } else if core::ptr::eq(obj.type_ptr, &crate::obj::TCL_DOUBLE_TYPE) {
+            Internal::Double(f64::from_bits(obj.internal_rep))
+        } else {
+            // The 8-byte internal rep is `twoPtrValue` on wasm32 and its
+            // first word on a 64-bit host.
+            let low = obj.internal_rep as usize;
+            let high = if usize::BITS == 32 {
+                (obj.internal_rep >> 32) as usize
+            } else {
+                0
+            };
+            Internal::Words(low, high)
+        };
+        let string = (!obj.bytes.is_null())
+            .then(|| core::slice::from_raw_parts(obj.bytes as *const u8, obj.length as usize));
+        describe(
+            &Representation {
+                type_name,
+                ref_count: usize::try_from(obj.ref_count).unwrap_or(0),
+                address: value as usize,
+                internal,
+                string,
+            },
+            interp.runtime_version(),
+        )
+    };
+    interp.set_result_bytes(&text);
+    Code::Ok
 }
 
 fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {

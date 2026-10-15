@@ -61,6 +61,7 @@ pub mod path;
 pub mod platform;
 pub mod prefix;
 pub mod regex;
+pub mod representation;
 pub mod scan;
 pub mod sort;
 pub mod string;

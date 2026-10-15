@@ -614,6 +614,27 @@ fn c_style_exp(rust_e: &str) -> String {
 }
 
 /// Magnitude digits for a float verb (sign handled by `pad_number`).
+/// C's `%g` at its default precision, with the sign: what `snprintf` writes
+/// for a finite or infinite double (`1.23457e+08`, `-0`, `inf`).
+pub(crate) fn c_default_g(x: f64) -> String {
+    let spec = Spec {
+        flags: FmtFlags::empty(),
+        width: None,
+        precision: None,
+        verb: b'g',
+        width_star: false,
+        precision_star: false,
+        arg_index: None,
+        size: None,
+    };
+    let digits = float_digits(x, &spec);
+    if x.is_sign_negative() {
+        format!("-{digits}")
+    } else {
+        digits
+    }
+}
+
 fn float_digits(x: f64, spec: &Spec) -> String {
     let prec = spec.precision.unwrap_or(6);
     let m = x.abs();
