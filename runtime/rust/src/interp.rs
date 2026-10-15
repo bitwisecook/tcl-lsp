@@ -78,6 +78,7 @@ pub(crate) use native_dictionary::DictionaryScopeRead;
 pub(crate) mod namespace_address;
 mod native_ensemble_objects;
 mod native_error_variables;
+pub(crate) use native_error_variables::OriginalJimErrorCodeCapture;
 mod native_execution_constants;
 mod native_hidden_invocation;
 mod native_index_lookup;
@@ -12774,27 +12775,44 @@ impl Interp {
         tcl_runtime_api::jim_return_state::JimReturnReceipt<obj::Owned>,
         tcl_runtime_api::NativeExecutionError,
     > {
-        let scope = native_operation_currency::NativeOperationScope::enter(self)?;
-        let error_code = self
+        let captured = self
             .clone()
-            .read_original_jim_global_error_code()
-            .map_err(|_| {
-                self.native_execution_refusal().unwrap_or_else(|| {
+            .capture_original_jim_error_code()
+            .map_err(|error| {
+                error
+                    .native_execution_refusal()
+                    .cloned()
+                    .unwrap_or_else(|| {
+                        self.clone().refuse_completion_value_access(
+                            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                                "original Jim error-code receipt capture",
+                            ),
+                        )
+                    })
+            })?;
+        self.jim_return_receipt_with_captured_error_code(&captured)
+    }
+
+    pub(crate) fn jim_return_receipt_with_captured_error_code(
+        &self,
+        captured: &OriginalJimErrorCodeCapture,
+    ) -> Result<
+        tcl_runtime_api::jim_return_state::JimReturnReceipt<obj::Owned>,
+        tcl_runtime_api::NativeExecutionError,
+    > {
+        let scope = native_operation_currency::NativeOperationScope::enter(self)?;
+        let error_code = captured.retain_for_receipt(self).map_err(|error| {
+            error
+                .native_execution_refusal()
+                .cloned()
+                .unwrap_or_else(|| {
                     self.clone().refuse_completion_value_access(
                         tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                            "original Jim error-code receipt getter",
+                            "original Jim captured error-code receipt",
                         ),
                     )
                 })
-            })?;
-        scope.currency().ensure_current_or_refuse()?;
-        let error_code = error_code
-            .map(|original| -> Result<_, tcl_syntax::value::ValueError> {
-                obj::check_native_liveness(original)?;
-                Ok(obj::Owned::retain(original))
-            })
-            .transpose()
-            .map_err(|error| self.clone().refuse_completion_value_access(error))?;
+        })?;
         if let Err(first) = scope.currency().ensure_current_or_refuse() {
             drop(error_code);
             let _ = scope.currency().ensure_current_or_refuse();
@@ -12808,6 +12826,20 @@ impl Interp {
                 return Err(self.native_execution_refusal().unwrap_or(first));
             }
         };
+        if let Err(error) = captured.original(self) {
+            drop(error_code);
+            drop(stack_trace);
+            return Err(error
+                .native_execution_refusal()
+                .cloned()
+                .unwrap_or_else(|| {
+                    self.clone().refuse_completion_value_access(
+                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "original Jim captured error-code publication",
+                        ),
+                    )
+                }));
+        }
         Ok(tcl_runtime_api::jim_return_state::JimReturnReceipt {
             pending: tcl_runtime_api::jim_return_state::JimReturnState {
                 code: self.return_code.get().as_int() as i32,
@@ -12816,6 +12848,51 @@ impl Interp {
             error_code,
             stack_trace,
         })
+    }
+
+    pub(crate) fn jim_option_pairs_with_captured_error_code(
+        &self,
+        captured: &OriginalJimErrorCodeCapture,
+        exit: Code,
+    ) -> Result<
+        Vec<(
+            &'static [u8],
+            tcl_runtime_api::completion_options::OptionValue<obj::Owned>,
+        )>,
+        tcl_runtime_api::NativeExecutionError,
+    > {
+        let scope = native_operation_currency::NativeOperationScope::enter(self)?;
+        let current = || {
+            captured.check_context(self).map_err(|error| {
+                error
+                    .native_execution_refusal()
+                    .cloned()
+                    .unwrap_or_else(|| {
+                        self.clone().refuse_completion_value_access(
+                            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                                "original Jim captured options context",
+                            ),
+                        )
+                    })
+            })
+        };
+        current()?;
+        let exit = tcl_runtime_api::Code::from_int(exit.as_int() as i32);
+        let pairs =
+            if tcl_runtime_api::jim_return_state::JimReturnReceipt::<()>::uses_error_metadata(exit)
+            {
+                self.jim_return_receipt_with_captured_error_code(captured)?
+                    .option_pairs(exit)
+            } else {
+                tcl_runtime_api::jim_return_state::JimReturnState {
+                    code: self.return_code.get().as_int() as i32,
+                    level: i64::try_from(self.return_level.get()).unwrap_or(i64::MAX),
+                }
+                .option_pairs(exit)
+            };
+        scope.currency().ensure_current_or_refuse()?;
+        current()?;
+        Ok(pairs)
     }
 
     /// The current accumulated `errorInfo` (for `catch`'s `-errorinfo`): the

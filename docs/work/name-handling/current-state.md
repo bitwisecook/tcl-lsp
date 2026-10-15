@@ -1,5 +1,9 @@
 # Current centralised naming work
 
+## Jim captured output-option metadata
+
+Reviewed Runtime catch/Try now capture the actual quiet global errorCode header once at the original reached stage and transport it neutrally through output-variable writes. Shared return-state base pairs and raw-Error metadata selection keep nonError options independent of unused retired headers/stack traces; Error options acquire the actual late receipt. Context/currentness and fresh publication cleanup remain checked. Two original SDK captures retain6+12rows with fresh clean5bac/provider247unchanged/original79suite, including safe nonError controls; no Runtime Rust control has executed. Compiled Try, full allocation counts and public Import acceptance remain unfinished; public Import stays refused.
+
 ## Canonical package path admission
 
 The reviewed CAS naming consumer now retains actual Paths beside checked canonical Unicode names and matches ignore entries by actual OsStr identity. Existing admitted Unicode hash bytes/order stay unchanged. Opaque names and unavailable config/inventory/metadata/content produce Result errors through store/install/CLI verify; missing representation is not an empty tree or a mismatch. All existing CAS assertions remain through a test-only successful-input adapter; two new controls are unexecuted. This does not restrict actual OS copying/extraction or establish concurrent snapshot/copy/publication identity. Those lifetimes and zip provider decoding remain separate unfinished purposes.

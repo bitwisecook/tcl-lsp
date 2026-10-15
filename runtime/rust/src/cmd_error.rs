@@ -101,6 +101,16 @@ fn catch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if interp.host_refusal_pending() {
         return Code::Error;
     }
+    let jim = dialect.family() == Some(tcl_dialect::model::Family::Jim);
+    let jim_error_code = if jim {
+        interp.reset_jim_error_capture();
+        match interp.capture_original_jim_error_code() {
+            Ok(captured) => Some(captured),
+            Err(error) => return interp.report_cmd_error(error),
+        }
+    } else {
+        None
+    };
     // An `exit` in the body is uncatchable (C's `Tcl_Exit`): re-propagate it
     // instead of turning it into a caught return code.
     if interp.exit_pending() {
@@ -118,7 +128,6 @@ fn catch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // catch return value (read the value before clearing the result). `var_set`
     // retains it into the result var, so it survives the later `set_result`.
     let result = crate::obj::Owned::retain(interp.get_obj_result());
-    let jim = dialect.family() == Some(tcl_dialect::model::Family::Jim);
     let options = if !jim && selected.options_var_at.is_some() {
         match completion_options(interp, code) {
             Ok(options) => Some(crate::obj::Owned::fresh(options)),
@@ -161,8 +170,14 @@ fn catch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             continue;
         }
         let jim_options = if jim && Some(index) == selected.options_var_at {
-            match completion_options(interp, code) {
-                Ok(options) => Some(crate::obj::Owned::fresh(options)),
+            match jim_options_object_with_captured_error_code(
+                interp,
+                jim_error_code
+                    .as_ref()
+                    .expect("Jim getter reached after body"),
+                code,
+            ) {
+                Ok(options) => Some(options),
                 Err(error) => return interp.refuse_native_execution(error),
             }
         } else {
@@ -229,15 +244,34 @@ fn set_var_or_elem(interp: &mut Interp, name: &[u8], obj: *mut TclObj) -> Result
     }
 }
 
-/// Retain genuine Jim return-state options or return the first Host cause.
-/// `try` receives an owned List whose members retain their original headers;
-/// no getter refusal can produce a placeholder completion object.
-pub(crate) fn jim_options_object(
+/// Publish options from the one earlier getter at the actual raw-exit stage.
+pub(crate) fn jim_options_object_with_captured_error_code(
     interp: &mut Interp,
-    receipt: tcl_runtime_api::jim_return_state::JimReturnReceipt<obj::Owned>,
+    captured: &crate::interp::OriginalJimErrorCodeCapture,
     code: Code,
 ) -> Result<obj::Owned, tcl_runtime_api::NativeExecutionError> {
-    Ok(obj::Owned::fresh(jim_options_raw(interp, receipt, code)?))
+    let pairs = interp.jim_option_pairs_with_captured_error_code(captured, code)?;
+    let result = jim_options_pairs_raw(interp, pairs)?;
+    let original = obj::NativeObjectLifetime::retain(result);
+    if let Err(error) = captured.check_context(interp) {
+        if let Ok(result) = original.checked_ptr() {
+            drop_fresh(result);
+        }
+        return Err(error
+            .native_execution_refusal()
+            .cloned()
+            .unwrap_or_else(|| {
+                interp.refuse_completion_value_access(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "original Jim options publication context",
+                    ),
+                )
+            }));
+    }
+    let result = original
+        .checked_ptr()
+        .map_err(|error| interp.refuse_completion_value_access(error))?;
+    Ok(obj::Owned::fresh(result))
 }
 
 fn jim_options_raw(
@@ -245,11 +279,17 @@ fn jim_options_raw(
     receipt: tcl_runtime_api::jim_return_state::JimReturnReceipt<obj::Owned>,
     code: Code,
 ) -> Result<*mut TclObj, tcl_runtime_api::NativeExecutionError> {
+    jim_options_pairs_raw(interp, receipt.option_pairs(api_code(code)))
+}
+
+fn jim_options_pairs_raw(
+    interp: &mut Interp,
+    pairs: Vec<(&'static [u8], OptionValue<obj::Owned>)>,
+) -> Result<*mut TclObj, tcl_runtime_api::NativeExecutionError> {
     if let Some(error) = interp.native_execution_refusal() {
         return Err(error);
     }
-    let values: Vec<_> = receipt
-        .option_pairs(api_code(code))
+    let values: Vec<_> = pairs
         .into_iter()
         .flat_map(|(key, value)| {
             [

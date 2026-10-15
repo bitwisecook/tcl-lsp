@@ -77,13 +77,37 @@ fn trap_matches(
     interp: &Interp,
     ops: &mut crate::return_options::NativeReturnOps,
     pattern: &Owned,
-    error_code: Option<&Owned>,
+    error_code: &crate::interp::OriginalJimErrorCodeCapture,
 ) -> Result<bool, CmdError> {
-    let Some(error_code) = error_code else {
+    let Some(original_code) = error_code.original(interp)? else {
         return Ok(false);
     };
     let pattern = ops.list(pattern)?;
-    let code = ops.list(error_code)?;
+    let source =
+        crate::interp::native_arguments::OriginalArguments::enter(interp, &[original_code])?;
+    let source_current = || {
+        error_code.original(interp)?;
+        source.check_original_for(interp, 0, original_code)
+    };
+    let protocol = tcl_syntax::native_string::NativeStringProtocol::Jim084;
+    let code = crate::list::list_elements_native_using(
+        original_code,
+        protocol,
+        &source_current,
+        &|error| source.retain_refusal(error.into()),
+    )?;
+    let backing = crate::list::native_list_backing(original_code).ok_or(
+        ValueError::CommandProtocolUnavailable("original Jim trap error-code List"),
+    )?;
+    let originals = crate::interp::native_arguments::OriginalArguments::enter(interp, &code)?;
+    let current = || {
+        source_current()?;
+        originals.check_for(interp)?;
+        backing
+            .check_original_header(original_code)
+            .map_err(|error| originals.retain_refusal(error.into()))
+    };
+    current()?;
     if pattern.len() > code.len() {
         return Ok(false);
     }
@@ -91,18 +115,20 @@ fn trap_matches(
     let representation = dialect
         .string_length_representation()
         .ok_or(ValueError::CharacterModelUnavailable)?;
-    let protocol = tcl_syntax::native_string::NativeStringProtocol::Jim084;
-    for (left, right) in pattern.iter().zip(&code) {
+    for (index, left) in pattern.iter().take(code.len()).enumerate() {
         let left_bytes = ops.bytes(left)?;
-        let right_bytes = ops.bytes(right)?;
+        current()?;
+        let right_bytes = originals.bytes_using(index, &current)?;
+        let right = originals.original(index)?;
         let counts = (
             obj::native_character_count(left.as_ptr(), protocol, representation)?,
-            obj::native_character_count(right.as_ptr(), protocol, representation)?,
+            obj::native_character_count(right, protocol, representation)?,
         );
+        current()?;
         if tcl_syntax::raw_string::RawString::from_bytes(left_bytes)
             .jim084_compare(
                 counts.0,
-                &tcl_syntax::raw_string::RawString::from_bytes(right_bytes),
+                &tcl_syntax::raw_string::RawString::from_bytes(right_bytes.to_vec()),
                 counts.1,
                 false,
             )
@@ -125,7 +151,7 @@ fn clauses(
     ops: &mut crate::return_options::NativeReturnOps,
     rest: &[Owned],
     body_code: Code,
-    error_code: Option<&Owned>,
+    error_code: &crate::interp::OriginalJimErrorCodeCapture,
 ) -> Result<(Option<Handler>, Option<Owned>), CmdError> {
     let mut selected = None;
     let mut finally = None;
@@ -257,16 +283,16 @@ pub(crate) fn command(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return Code::Error;
     }
     interp.reset_jim_error_capture();
-    let body_error_code = match interp.jim_return_receipt() {
-        Ok(receipt) => receipt.error_code,
-        Err(first) => return interp.refuse_native_execution(first),
+    let body_error_code = match interp.capture_original_jim_error_code() {
+        Ok(captured) => captured,
+        Err(error) => return interp.report_cmd_error(error),
     };
     let (handler, finally) = match clauses(
         interp,
         &mut ops,
         &original[body_at + 1..],
         code,
-        body_error_code.as_ref(),
+        &body_error_code,
     ) {
         Ok(clauses) => clauses,
         Err(error) => return interp.report_cmd_error(error),
@@ -292,12 +318,11 @@ pub(crate) fn command(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             .is_none_or(|name| bind(interp, name, &result));
         let options_bound = if result_bound {
             if let Some(name) = handler.vars.get(1) {
-                let mut receipt = match interp.jim_return_receipt() {
-                    Ok(receipt) => receipt,
-                    Err(first) => return interp.refuse_native_execution(first),
-                };
-                receipt.error_code = body_error_code;
-                let options = match crate::cmd_error::jim_options_object(interp, receipt, code) {
+                let options = match crate::cmd_error::jim_options_object_with_captured_error_code(
+                    interp,
+                    &body_error_code,
+                    code,
+                ) {
                     Ok(options) => options,
                     Err(error) => return interp.refuse_native_execution(error),
                 };

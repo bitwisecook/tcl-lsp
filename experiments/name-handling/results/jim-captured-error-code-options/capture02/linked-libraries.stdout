@@ -1,0 +1,8 @@
+	linux-vdso.so.1 (0x00007f9a55ab5000)
+	libm.so.6 => /lib/x86_64-linux-gnu/libm.so.6 (0x00007f9a5593e000)
+	libssl.so.3 => /lib/x86_64-linux-gnu/libssl.so.3 (0x00007f9a55830000)
+	libcrypto.so.3 => /lib/x86_64-linux-gnu/libcrypto.so.3 (0x00007f9a551f6000)
+	libz.so.1 => /lib/x86_64-linux-gnu/libz.so.1 (0x00007f9a551d6000)
+	libc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x00007f9a54fe0000)
+	/lib64/ld-linux-x86-64.so.2 (0x00007f9a55ab7000)
+	libzstd.so.1 => /lib/x86_64-linux-gnu/libzstd.so.1 (0x00007f9a54f16000)

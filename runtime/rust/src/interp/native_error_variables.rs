@@ -6,9 +6,49 @@ use tcl_registry::special_vars::{NativeErrorStorageVariable as Variable, NativeE
 use tcl_syntax::value::ValueError;
 
 #[cfg(test)]
+mod jim_captured_error_code_tests;
+#[cfg(test)]
 mod jim_global_getter_tests;
 #[cfg(test)]
 mod jim_global_key_tests;
+
+/// The one reached Jim global getter, retained without a native object hold.
+/// Missing data does not establish variable absence or normal completion.
+pub(crate) struct OriginalJimErrorCodeCapture {
+    arguments: super::native_arguments::OriginalArguments,
+    frame: super::native_arguments::OriginalArgumentFrame,
+    original: Option<obj::NativeObjectLifetime>,
+}
+
+impl OriginalJimErrorCodeCapture {
+    pub(crate) fn check_context(&self, actual: &Interp) -> Result<(), tcl_cmd_core::CmdError> {
+        self.frame.check(actual, &self.arguments)
+    }
+
+    pub(crate) fn original(
+        &self,
+        actual: &Interp,
+    ) -> Result<Option<*mut obj::TclObj>, tcl_cmd_core::CmdError> {
+        self.check_context(actual)?;
+        let original = self
+            .original
+            .as_ref()
+            .map(obj::NativeObjectLifetime::checked_ptr)
+            .transpose()
+            .map_err(|error| self.arguments.retain_refusal(error.into()))?;
+        self.arguments.check_for(actual)?;
+        Ok(original)
+    }
+
+    pub(crate) fn retain_for_receipt(
+        &self,
+        actual: &Interp,
+    ) -> Result<Option<obj::Owned>, tcl_cmd_core::CmdError> {
+        let retained = self.original(actual)?.map(obj::Owned::retain);
+        self.original(actual)?;
+        Ok(retained)
+    }
+}
 
 #[derive(Default, Clone)]
 pub(super) struct NativeErrorObjects {
@@ -74,6 +114,38 @@ pub(super) struct NativeErrorTraceState {
 }
 
 impl Interp {
+    pub(crate) fn capture_original_jim_error_code(
+        &mut self,
+    ) -> Result<OriginalJimErrorCodeCapture, tcl_cmd_core::CmdError> {
+        let arguments = super::native_arguments::OriginalArguments::enter(self, &[])?;
+        let frame = super::native_arguments::OriginalArgumentFrame::capture(self);
+        let reached = self.read_original_jim_global_error_code();
+        frame.check(self, &arguments)?;
+        let original = reached.map_err(|_| {
+            tcl_cmd_core::CmdError::from_execution_refusal(
+                self.native_execution_refusal().unwrap_or_else(|| {
+                    self.refuse_completion_value_access(ValueError::CommandProtocolUnavailable(
+                        "original Jim error-code capture getter",
+                    ))
+                }),
+            )
+        })?;
+        let original = original
+            .map(|original| {
+                obj::check_native_liveness(original)?;
+                Ok(obj::NativeObjectLifetime::retain(original))
+            })
+            .transpose()
+            .map_err(|error: ValueError| arguments.retain_refusal(error.into()))?;
+        let captured = OriginalJimErrorCodeCapture {
+            arguments,
+            frame,
+            original,
+        };
+        captured.original(self)?;
+        Ok(captured)
+    }
+
     /// JimCatchTryHelper uses the original name created in the actual top frame.
     pub(crate) fn reset_original_jim_catch_error_code(&mut self) -> Result<(), super::Code> {
         if self

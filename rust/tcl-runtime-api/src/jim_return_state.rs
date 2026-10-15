@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Jim private return state, independent of the latest command completion.
 
-use crate::{Code, completion_options::OptionValue};
+use crate::{completion_options::OptionValue, Code};
 
 /// Interpreter-local counters written by Jim's return command.
 /// Ordinary commands and catch/try settlement leave these counters unchanged.
@@ -14,6 +14,20 @@ pub struct JimReturnState {
 }
 
 impl JimReturnState {
+    /// Base options observe the raw exit code and live private counters only.
+    #[must_use]
+    pub fn option_pairs<V>(&self, exit: Code) -> Vec<(&'static [u8], OptionValue<V>)> {
+        let code = if exit == Code::Return {
+            i64::from(self.code)
+        } else {
+            exit.as_int()
+        };
+        vec![
+            (b"-code".as_slice(), OptionValue::Integer(code)),
+            (b"-level".as_slice(), OptionValue::Integer(self.level)),
+        ]
+    }
+
     /// Decrement at an actual procedure boundary receiving raw Return.
     /// The selected code takes effect when the remaining level reaches zero.
     pub fn settle_procedure(&mut self, raw: Code) -> Code {
@@ -36,10 +50,18 @@ impl JimReturnState {
 pub struct JimReturnReceipt<V> {
     /// Live return counters, including counters retained after an ordinary command.
     pub pending: JimReturnState,
-    /// Actual global errorCode object; absent if the variable has been removed.
+    /// Actual global value returned by the getter. None does not prove absence.
     pub error_code: Option<V>,
     /// Actual explicit or captured stackTrace object.
     pub stack_trace: V,
+}
+
+impl<V> JimReturnReceipt<V> {
+    /// Only a raw Error exit reaches the original error-metadata publication.
+    #[must_use]
+    pub const fn uses_error_metadata(exit: Code) -> bool {
+        matches!(exit, Code::Error)
+    }
 }
 
 impl<V: Clone> JimReturnReceipt<V> {
@@ -47,19 +69,8 @@ impl<V: Clone> JimReturnReceipt<V> {
     /// Error metadata belongs only to raw Error, even when pending code is Error.
     #[must_use]
     pub fn option_pairs(&self, exit: Code) -> Vec<(&'static [u8], OptionValue<V>)> {
-        let code = if exit == Code::Return {
-            i64::from(self.pending.code)
-        } else {
-            exit.as_int()
-        };
-        let mut pairs = vec![
-            (b"-code".as_slice(), OptionValue::Integer(code)),
-            (
-                b"-level".as_slice(),
-                OptionValue::Integer(self.pending.level),
-            ),
-        ];
-        if exit == Code::Error {
+        let mut pairs = self.pending.option_pairs(exit);
+        if Self::uses_error_metadata(exit) {
             pairs.push((b"-errorinfo", OptionValue::Value(self.stack_trace.clone())));
             if let Some(code) = &self.error_code {
                 pairs.push((b"-errorcode", OptionValue::Value(code.clone())));

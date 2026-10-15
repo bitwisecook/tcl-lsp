@@ -1,0 +1,1 @@
+set ::errorCode SAVED; set ::keep $::errorCode; error BOOM
