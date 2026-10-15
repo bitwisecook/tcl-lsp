@@ -20,8 +20,12 @@
 //! resumer: the errorInfo frames and TIP 348 `-errorstack` entries from
 //! inside the coroutine, then the resume command's own frame.
 //!
+//! A `coroinject` command that fails is raised at the suspend point, where
+//! the coroutine's own `catch` can take it, rather than tearing the
+//! coroutine down.
+//!
 //! Every expectation is the same script's result under tclsh 8.6.18, 9.0.4
-//! and 9.1.0. errorInfo is matched by its frames rather than compared
+//! and 9.1.0 (9.0.4 and 9.1.0 for `coroinject`). errorInfo is matched by its frames rather than compared
 //! verbatim, since the VM's command spellings differ from C's in ways that
 //! do not depend on coroutines.
 
@@ -30,6 +34,8 @@ use tcl_dialect::TclVersion;
 use tcl_vm::{CompileService, Vm};
 
 const COROUTINE_RELEASES: [TclVersion; 3] = [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1];
+/// `coroinject` arrived in 9.0.
+const INJECT_RELEASES: [TclVersion; 2] = [TclVersion::V9_0, TclVersion::V9_1];
 
 /// The result of `src` under the `version` pin; panics if it errors.
 fn result_for(version: TclVersion, src: &str) -> String {
@@ -118,5 +124,49 @@ fn caught_error_inside_the_coroutine_leaves_the_resumer_clean() {
         r#"coroutine cx apply {{} { catch {error inner}; yield ok; error outer }}
 list [catch cx m o] $m [string match {outer*error outer*"cx"} [dict get $o -errorinfo]] [string first {"error inner"} [dict get $o -errorinfo]]"#,
         r"1 outer 1 -1",
+    );
+}
+
+/// A failing injected command completes the parked `yield` with its error,
+/// so the coroutine's own `catch` takes it and the coroutine runs on.
+#[test]
+fn injected_error_is_raised_at_the_yield() {
+    assert_releases(
+        &INJECT_RELEASES,
+        r"proc bad {args} { error injected }
+coroutine c apply {{} { set r [catch {yield} m]; yield [list caught $r $m]; return done }}
+coroinject c bad
+list [c] [info commands c] [c] [info commands c]",
+        "{caught 1 injected} c done {}",
+    );
+}
+
+/// Uncaught, the injected command's frames come first, then the `yield` it
+/// completed and the coroutine's own frames, then the resume command.
+#[test]
+fn uncaught_injected_error_keeps_both_traces() {
+    assert_releases(
+        &INJECT_RELEASES,
+        r#"proc bad {args} { error injected }
+proc mid {args} { bad }
+coroutine c apply {{} { yield; yield; return done }}
+coroinject c mid
+list [catch c m o] $m [info commands c] [string match {injected*(procedure "bad" line 1)*invoked from within*(procedure "mid" line 1)*invoked from within*"mid yield {}"*invoked from within*"yield"*invoked from within*"c"} [dict get $o -errorinfo]] [string match {INNER * CALL bad CALL {mid yield {}} CALL *} [dict get $o -errorstack]]"#,
+        "1 injected {} 1 1",
+    );
+}
+
+/// An injected `break` or `continue` is the `yield`'s own completion: the
+/// enclosing loop breaks, and outside a loop `continue` is the usual error.
+#[test]
+fn injected_break_and_continue_complete_at_the_yield() {
+    assert_releases(
+        &INJECT_RELEASES,
+        r"coroutine c apply {{} { while 1 { yield x }; return out }}
+coroinject c apply {{args} {return -code break}}
+coroutine e apply {{} { yield x; return e-done }}
+coroinject e apply {{args} {return -code continue}}
+list [catch c m] $m [catch e m2] $m2",
+        r#"0 out 1 {invoked "continue" outside of a loop}"#,
     );
 }

@@ -1677,6 +1677,21 @@ impl Vm {
         }
     }
 
+    /// Raise `c` at a resumed coroutine's suspend point, as if its `yield`
+    /// had completed with it (a failed `coroinject` command): the coroutine's
+    /// own catch ranges see it, and it keeps running, or suspends again,
+    /// from there.
+    pub(crate) fn raise_in_coroutine(
+        &mut self,
+        acts: &mut Vec<Frame>,
+        c: Completion<Value>,
+    ) -> RunExit {
+        match self.settle_completion(acts, c) {
+            Some(done) => RunExit::Done(done),
+            None => self.drive(acts, DriveMode::CoroDriver),
+        }
+    }
+
     /// Tear down a deleted coroutine's frozen continuation without running it
     /// (no `finally` runs, as in C). Its call frames are destroyed, firing
     /// their locals' `unset` traces (coroutine-4.3), and a `package require`
