@@ -2038,7 +2038,7 @@ mod original_reference_atom_tests {
             ("jim", true, false),
         ] {
             let config = tcl_lexer::LexerConfig::for_profile(Some(
-                crate::environment_ingress::resolve_known_environment(dialect)
+                tcl_registry::model::ingress::resolve_known_environment(dialect)
                     .expect("selected original reference grammar environment")
                     .unit_profile(),
             ));

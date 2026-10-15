@@ -27,6 +27,7 @@ use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and
 use tcl_lexer::{LexerConfig, LineIndex};
 use tcl_registry::{ArgRole, CommandRegistry};
 
+use super::equality_source::scalar_string_disjunction as try_or_chain;
 use super::{
     RefactorEdit, Refactoring, configured_command_span_offsets, find_command_at, line_indent,
     reindent_body,
@@ -77,8 +78,8 @@ pub fn data_group_tcl(dg: &DataGroupDefinition) -> String {
 
 /// `true` when `value` looks like an IPv4/IPv6 address or CIDR range.
 ///
-/// Quote stripping belongs to the caller (see [`infer_value_type`]); this
-/// only tolerates the whitespace a quoted literal can still carry.
+/// The caller supplies completed literal data; whitespace is tolerated by
+/// this type heuristic without decoding source delimiters.
 fn is_ip_or_cidr(value: &str) -> bool {
     let v = value.trim();
     is_ip_address(v) || is_ip_network(v)
@@ -113,11 +114,8 @@ fn is_integer(value: &str) -> bool {
 
 /// Infer the data-group value type from a list of keys/values.
 ///
-/// `values` are the records as they will be written to the data group,
-/// which both call sites have already normalised with [`strip_quotes`] —
-/// stripping again here would peel a second pair off a value whose quotes
-/// *are* part of the record, and type the group as `ip`/`integer` when the
-/// record itself is the quoted string.
+/// Values are completed literal data. Quote characters that belong to a
+/// record remain part of its value and cannot supply another decoding layer.
 fn infer_value_type(values: &[String]) -> &'static str {
     if values.is_empty() {
         return "string";
@@ -129,16 +127,6 @@ fn infer_value_type(values: &[String]) -> &'static str {
         return "integer";
     }
     "string"
-}
-
-fn strip_quotes(s: &str) -> &str {
-    let s = s.trim();
-    let b = s.as_bytes();
-    if b.len() >= 2 && b[0] == b'"' && b[b.len() - 1] == b'"' {
-        &s[1..s.len() - 1]
-    } else {
-        s
-    }
 }
 
 /// Derive a clean data-group name from a descriptive string:
@@ -165,94 +153,13 @@ fn normalise_dg_name(name: &str) -> String {
 
 // Equality-condition parsing
 
-/// Recognised equality operators.
-// registry-axis-ok: irreducible — `eq` / `ne` are expr comparison-operator
-// spellings (`tcl_syntax::expr::operators`'s own vocabulary), read here as
-// parsed condition text; they coincide with `::tcl::mathop::eq` / `ne`'s
-// bare registration only by spelling; until never
-const EQ_OPS: &[&str] = &["==", "!=", "eq", "ne"];
-
-/// Parse a simple equality test `(var, value, negated)`.  Used by the
-/// datagroup transform; mirrors the shape of
-/// `if_to_switch::parse_eq_test` minus the operator capture.
-fn parse_eq(cond: &str, config: LexerConfig) -> Option<(ScalarVariableSourceSyntax, String, bool)> {
-    let mut cond = cond.trim();
-    if cond.starts_with('{') && cond.ends_with('}') && cond.len() >= 2 {
-        cond = cond[1..cond.len() - 1].trim();
-    }
-    let mut negated = false;
-    if let Some(rest) = cond.strip_prefix('!') {
-        let inner = rest.trim();
-        if inner.starts_with('(') && inner.ends_with(')') && inner.len() >= 2 {
-            cond = inner[1..inner.len() - 1].trim();
-            negated = true;
-        }
-    }
-
-    // `$var OP value`.
-    for op in EQ_OPS {
-        let needle = format!(" {op} ");
-        if let Some(pos) = cond.find(&needle)
-            && let Some(var) = scalar_variable_source_syntax(cond[..pos].trim(), config)
-        {
-            // registry-axis-ok: irreducible — expr operator text, not a
-            // command name; until never
-            let is_ne = *op == "ne" || *op == "!=";
-            return Some((
-                var,
-                cond[pos + needle.len()..].trim().to_owned(),
-                negated ^ is_ne,
-            ));
-        }
-    }
-    // `value OP $var`.
-    for op in EQ_OPS {
-        let needle = format!(" {op} ");
-        if let Some(pos) = cond.rfind(&needle)
-            && let Some(var) =
-                scalar_variable_source_syntax(cond[pos + needle.len()..].trim(), config)
-        {
-            // registry-axis-ok: irreducible — expr operator text, not a
-            // command name; until never
-            let is_ne = *op == "ne" || *op == "!=";
-            return Some((var, cond[..pos].trim().to_owned(), negated ^ is_ne));
-        }
-    }
-    None
-}
-
-/// Detect `$var eq "a" || $var eq "b" || …` chains.
-fn try_or_chain(
+fn parse_eq(
     condition: &str,
     config: LexerConfig,
-) -> Option<(ScalarVariableSourceSyntax, Vec<String>)> {
-    let mut cond = condition.trim();
-    if cond.starts_with('{') && cond.ends_with('}') && cond.len() >= 2 {
-        cond = cond[1..cond.len() - 1].trim();
-    }
-    let parts: Vec<&str> = cond.split("||").collect();
-    if parts.len() < 2 {
-        return None;
-    }
-    let mut target_var: Option<ScalarVariableSourceSyntax> = None;
-    let mut values = Vec::new();
-    for part in parts {
-        let (var, value, negated) = parse_eq(part.trim(), config)?;
-        if negated {
-            return None;
-        }
-        match &target_var {
-            None => target_var = Some(var),
-            Some(v) if v.name() != var.name() => return None,
-            _ => {}
-        }
-        values.push(value);
-    }
-    let target_var = target_var?;
-    if values.len() < 2 {
-        return None;
-    }
-    Some((target_var, values))
+    context: &tcl_syntax::expr::parser::ExprParseContext,
+) -> Option<(ScalarVariableSourceSyntax, String, bool)> {
+    super::equality_source::scalar_string_equality(condition, config, context)
+        .map(super::equality_source::ScalarStringEquality::into_parts)
 }
 
 // set/return body parsing
@@ -423,12 +330,8 @@ fn render_if_extraction(
         return None;
     }
 
-    let stripped_values: Vec<String> = chain
-        .values
-        .iter()
-        .map(|v| strip_quotes(v).to_owned())
-        .collect();
-    let value_type = infer_value_type(&stripped_values);
+    let keys = chain.values.clone();
+    let value_type = infer_value_type(&keys);
     let dg_name = resolve_dg_name(dg_name, &format!("{}_whitelist", chain.target_var.name()));
 
     let indent = command_indent(source, cmd, line_index).to_owned();
@@ -439,7 +342,7 @@ fn render_if_extraction(
 
     let (data_group, replacement) = if bodies_identical && !chain.bodies.is_empty() {
         membership_extraction(
-            &stripped_values,
+            &keys,
             value_type,
             &dg_name,
             chain.target_var.reference(),
@@ -456,7 +359,7 @@ fn render_if_extraction(
             .zip(chain.bodies.iter().cloned())
             .collect();
         let (set_var, use_return, value_entries) = extract_set_or_return_values(&pairs, config)?;
-        let records = zip_records(&stripped_values, &value_entries, config)?;
+        let records = zip_records(&keys, &value_entries, config)?;
         let dg = DataGroupDefinition {
             name: dg_name.clone(),
             value_type: "string".to_owned(),
@@ -517,29 +420,30 @@ fn parse_if_chain(
     let args: Vec<&str> = texts.get(1..)?.iter().map(String::as_str).collect();
     let resolved = registry.resolve_call("if", &args, None)?;
     let plan = resolved.clause_plan(&args, None)?;
-    if_chain_from_plan(texts, &plan, config)
+    let mut context = tcl_syntax::expr::parser::ExprParseContext::for_profile(registry.profile()?);
+    context.lexer_grammar = config.grammar_over(context.lexer_grammar);
+    if_chain_from_plan(texts, &plan, config, &context)
 }
 
 fn if_chain_from_plan(
     texts: &[String],
     plan: &tcl_registry::clause_grammar::ClausePlan,
     config: LexerConfig,
+    context: &tcl_syntax::expr::parser::ExprParseContext,
 ) -> Option<IfChain> {
     let args: Vec<&str> = texts.get(1..)?.iter().map(String::as_str).collect();
     if plan.defect.is_some() {
         return None;
     }
 
-    // OR-chain in a single condition: `if {$x eq "a" || $x eq "b"} {…}` is
-    // one clause whose *condition* carries the `||`, which the grammar
-    // reads as one opaque `Expr` operand — tried on the head clause first
-    // and, when it matches, returned regardless of what follows, exactly
-    // as the retired word walk did.
-    if let Some(head) = plan.clauses.first()
+    // A single-clause OR chain supplies one shared body. Mixed clause shapes
+    // require their own control-flow treatment and remain unsupported here.
+    if plan.clauses.len() == 1
+        && let Some(head) = plan.clauses.first()
         && !head.is_default
         && let Some(cond_idx) = head.operand(ArgRole::Expr)
         && let Some(body_idx) = head.operand(ArgRole::Body)
-        && let Some((target_var, values)) = try_or_chain(args[cond_idx], config)
+        && let Some((target_var, values)) = try_or_chain(args[cond_idx], config, context)
     {
         return Some(IfChain {
             target_var,
@@ -560,7 +464,7 @@ fn if_chain_from_plan(
             continue;
         }
         let condition = args[clause.operand(ArgRole::Expr)?];
-        let (var, value, negated) = parse_eq(condition, config)?;
+        let (var, value, negated) = parse_eq(condition, config, context)?;
         if negated {
             return None;
         }
@@ -582,7 +486,7 @@ fn if_chain_from_plan(
 
 /// Build a membership-test (`class match`) extraction.
 fn membership_extraction(
-    stripped_values: &[String],
+    keys: &[String],
     value_type: &str,
     dg_name: &str,
     subject_reference: &str,
@@ -590,10 +494,7 @@ fn membership_extraction(
     else_body: Option<&str>,
     indent: &str,
 ) -> (DataGroupDefinition, String) {
-    let records: Vec<(String, String)> = stripped_values
-        .iter()
-        .map(|v| (v.clone(), String::new()))
-        .collect();
+    let records: Vec<(String, String)> = keys.iter().map(|v| (v.clone(), String::new())).collect();
     let dg = DataGroupDefinition {
         name: dg_name.to_owned(),
         value_type: value_type.to_owned(),
@@ -917,7 +818,11 @@ pub fn extract_to_datagroup_with_analysis(
         tcl_registry::hooks::LoweringHookId::If => {
             let plan =
                 words.with_source_schema(&current.context(), |schema| schema.clause_plan())??;
-            let chain = if_chain_from_plan(&cmd.texts, &plan, current.config())?;
+            let mut expression = tcl_syntax::expr::parser::ExprParseContext::for_profile(
+                analysis.resolved_input.as_ref()?.unit_profile(),
+            );
+            expression.lexer_grammar = current.config().grammar_over(expression.lexer_grammar);
+            let chain = if_chain_from_plan(&cmd.texts, &plan, current.config(), &expression)?;
             render_if_extraction(rendering, chain, dg_name, line_index, mapping)
         }
         tcl_registry::hooks::LoweringHookId::Switch => {
@@ -1101,31 +1006,55 @@ mod tests {
         let first = LexerConfig::for_dialect("tcl8.6");
         let nested = LexerConfig::for_dialect("tcl9.1");
         let jim = LexerConfig::for_dialect("jim");
-        assert!(parse_eq("${a{b}c} eq one", first).is_none());
+        let first_context = tcl_syntax::expr::parser::ExprParseContext::for_profile(
+            tcl_registry::model::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let nested_context = tcl_syntax::expr::parser::ExprParseContext::for_profile(
+            tcl_registry::model::resolve_environment("tcl9.1").analyser_profile(),
+        );
+        let jim_context = tcl_syntax::expr::parser::ExprParseContext::for_profile(
+            tcl_registry::model::resolve_environment("jim").analyser_profile(),
+        );
+        assert!(parse_eq(r#"${a{b}c} eq "one""#, first, &first_context).is_none());
         assert_eq!(
-            parse_eq("${a{b}c} eq one", nested).unwrap().0.name(),
+            parse_eq(r#"${a{b}c} eq "one""#, nested, &nested_context)
+                .unwrap()
+                .0
+                .name(),
             "a{b}c"
         );
-        assert!(parse_eq("$café eq one", first).is_none());
-        assert_eq!(parse_eq("one eq $café", jim).unwrap().0.name(), "café");
-        let (subject, values) = try_or_chain("${a b} eq one || \"${a b}\" eq two", first).unwrap();
+        assert!(parse_eq(r#"$café eq "one""#, first, &first_context).is_none());
+        assert_eq!(
+            parse_eq(r#""one" eq $café"#, jim, &jim_context)
+                .unwrap()
+                .0
+                .name(),
+            "café"
+        );
+        let (subject, values) = try_or_chain(
+            r#"${a b} eq "one" || "${a b}" eq "two""#,
+            first,
+            &first_context,
+        )
+        .unwrap();
         assert_eq!(subject.name(), "a b");
         assert_eq!(subject.reference(), "${a b}");
         assert_eq!(values, ["one", "two"]);
-        assert!(try_or_chain("$x eq one || $y eq two", first).is_none());
-        assert!(try_or_chain("$x eq one || !($x eq two)", first).is_none());
+        assert!(try_or_chain(r#"$x eq "one" || $y eq "two""#, first, &first_context).is_none());
+        assert!(try_or_chain(r#"$x eq "one" || !($x eq "two")"#, first, &first_context).is_none());
         for subject in ["$a(k)", "${a(k)}", "${missing", "\"$x[set y]\""] {
-            assert!(parse_eq(&format!("{subject} eq one"), first).is_none());
+            assert!(parse_eq(&format!("{subject} eq \"one\""), first, &first_context).is_none());
         }
     }
 
     use super::*;
-    use tcl_dialect::model::{Family, SurfaceLayer};
 
     fn reg() -> CommandRegistry {
-        let mut r = CommandRegistry::build_default();
-        r.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
-        r
+        tcl_registry::model::resolve_environment("f5-irules")
+            .default_context_registry()
+            .commands()
+            .as_ref()
+            .clone()
     }
 
     /// This module's transforms only ever fire meaningfully over iRules
@@ -1175,7 +1104,8 @@ mod tests {
     fn supplied_datagroup_advice_keeps_actual_output_availability_and_arm_horizons() {
         // naming.compiler.original-analysis-metadata-context
         // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
-        let source = "if {$x eq one} {set answer FIRST} elseif {$x eq two} {set answer SECOND}";
+        let source =
+            "if {$x eq \"one\"} {set answer FIRST} elseif {$x eq \"two\"} {set answer SECOND}";
         let registry = authored_output_registry();
         let analysis = super::super::test_logical_analysis(source, "tcl9.0", registry.clone());
         let index = LineIndex::new(source);
@@ -1208,7 +1138,7 @@ mod tests {
     fn supplied_datagroup_advice_keeps_written_clauses_and_current_document_owner() {
         // naming.core.original-dispatch-region-context
         // docs/design/analysis/name-resolution-proofs/core-original-dispatch-region-context.md
-        let tail = "choose {$x eq one} {puts SAME} elseif {$x eq two} {puts SAME}";
+        let tail = "choose {$x eq \"one\"} {puts SAME} elseif {$x eq \"two\"} {puts SAME}";
         let source = format!("interp alias {{}} choose {{}} if\n{tail}");
         let registry = authored_output_registry();
         let analysis = super::super::test_logical_analysis(&source, "tcl9.0", registry.clone());
@@ -1218,7 +1148,7 @@ mod tests {
             extract_to_datagroup_with_analysis(&source, cursor, "answers", &analysis, &index)
                 .is_some()
         );
-        let captured = "interp alias {} choose {} if {$x eq one}\nchoose {puts SAME} elseif {$x eq two} {puts SAME}";
+        let captured = "interp alias {} choose {} if {$x eq \"one\"}\nchoose {puts SAME} elseif {$x eq \"two\"} {puts SAME}";
         let captured_analysis = super::super::test_logical_analysis(captured, "tcl9.0", registry);
         assert!(
             extract_to_datagroup_with_analysis(
@@ -1265,7 +1195,7 @@ mod tests {
     fn supplied_datagroup_alias_does_not_restore_a_removed_output_handler() {
         // naming.compiler.original-analysis-metadata-context
         // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
-        let source = "rename if saved_if\ninterp alias {} choose {} saved_if\nchoose {$x eq one} {puts SAME} elseif {$x eq two} {puts SAME}";
+        let source = "rename if saved_if\ninterp alias {} choose {} saved_if\nchoose {$x eq \"one\"} {puts SAME} elseif {$x eq \"two\"} {puts SAME}";
         let registry = authored_output_registry();
         let analysis = super::super::test_logical_analysis(source, "tcl9.0", registry);
         let cursor = u32::try_from(source.rfind("choose").unwrap()).unwrap();
@@ -1510,11 +1440,8 @@ mod tests {
         );
     }
 
-    /// `infer_value_type` is handed values its callers have already run
-    /// through `strip_quotes`, so a value that still carries quotes is a
-    /// string literal, not a number.  (Before the fix a second strip here
-    /// peeled that pair off and typed the group `integer`, disagreeing with
-    /// the record actually written out.)
+    /// Completed record data keeps literal quotes and cannot be decoded again
+    /// to infer a numeric type from different bytes.
     #[test]
     fn infer_value_type_does_not_restrip() {
         assert_eq!(
@@ -1533,8 +1460,7 @@ mod tests {
             infer_value_type(&["\"10.0.0.0/8\"".to_owned(), "\"192.168.0.0/16\"".to_owned()]),
             "string"
         );
-        // Whitespace inside a quoted literal survives the caller's strip;
-        // the predicates still tolerate it.
+        // Whitespace remains completed data; the type heuristics tolerate it.
         assert_eq!(infer_value_type(&[" 80 ".to_owned()]), "integer");
         assert_eq!(infer_value_type(&[" 10.0.0.0/8 ".to_owned()]), "ip");
     }
@@ -1739,5 +1665,94 @@ mod completed_literal_record_tests {
                 );
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod shared_expression_data_tests {
+    use super::*;
+
+    #[test]
+    fn data_group_conditions_share_configured_expression_topology_and_completed_literals() {
+        for dialect in ["tcl8.6", "tcl9.1", "jim"] {
+            let environment = tcl_registry::model::resolve_environment(dialect);
+            let config = LexerConfig::for_profile(Some(environment.analyser_profile()));
+            let mut context = tcl_syntax::expr::parser::ExprParseContext::for_profile(
+                environment.analyser_profile(),
+            );
+            context.lexer_grammar = config.grammar_over(context.lexer_grammar);
+            let (subject, values) =
+                try_or_chain(r#"($x eq "a||b") || ($x eq {$literal})"#, config, &context)
+                    .expect("actual OR nodes preserve literal operator and sigil data");
+            assert_eq!(subject.name(), "x");
+            assert_eq!(values, ["a||b", "$literal"]);
+            let (_, values) =
+                try_or_chain(r#"$x eq {"80"} || $x eq { 80 }"#, config, &context).unwrap();
+            assert_eq!(values, ["\"80\"", " 80 "]);
+            assert_eq!(infer_value_type(&values), "string");
+            assert!(parse_eq(r#"$x == "GET""#, config, &context).is_some());
+            for condition in [
+                r#"$x == "01""#,
+                r#"$x eq one"#,
+                r#"$x eq "$dynamic""#,
+                r#"{$x eq "one"}"#,
+            ] {
+                assert!(
+                    parse_eq(condition, config, &context).is_none(),
+                    "{dialect}: {condition}"
+                );
+            }
+            assert!(try_or_chain(r#"$x eq "one" || $y eq "two""#, config, &context).is_none());
+            let mut incompatible = config;
+            incompatible.expand_syntax = !config.expand_syntax;
+            assert!(parse_eq(r#"$x eq "one""#, incompatible, &context).is_none());
+        }
+        let environment = tcl_registry::model::resolve_environment("f5-irules");
+        let registry = environment.default_context_registry();
+        let config = LexerConfig::from_grammar(environment.grammar());
+        let source = r#"if {$x eq {"80"} || $x eq { 80 }} {puts SAME}"#;
+        let action = extract_to_datagroup_from_if(
+            source,
+            0,
+            "literal_keys",
+            registry.commands(),
+            &LineIndex::new(source),
+            config,
+        )
+        .expect("standalone source proposal has independently retained expression axes");
+        let group = action.data_group.as_ref().unwrap();
+        assert_eq!(
+            group.records,
+            [
+                ("\"80\"".to_owned(), String::new()),
+                (" 80 ".to_owned(), String::new())
+            ]
+        );
+        assert_eq!(group.value_type, "string");
+        let unavailable = CommandRegistry::build_default();
+        assert!(
+            extract_to_datagroup_from_if(
+                source,
+                0,
+                "literal_keys",
+                &unavailable,
+                &LineIndex::new(source),
+                config,
+            )
+            .is_none()
+        );
+        let mixed =
+            r#"if {$x eq "one" || $x eq "two"} {puts FIRST} elseif {$x eq "three"} {puts SECOND}"#;
+        assert!(
+            extract_to_datagroup_from_if(
+                mixed,
+                0,
+                "literal_keys",
+                registry.commands(),
+                &LineIndex::new(mixed),
+                config,
+            )
+            .is_none()
+        );
     }
 }

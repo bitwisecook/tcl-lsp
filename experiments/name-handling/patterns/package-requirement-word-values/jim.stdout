@@ -1,0 +1,8 @@
+{package vsatisfies 8.6 8.6} 1 {package, unknown command "vsatisfies": should be forget, names, provide, require}
+{package vsatisfies 8.6 {8.6}} 1 {package, unknown command "vsatisfies": should be forget, names, provide, require}
+{package vsatisfies 8.6 "8.6"} 1 {package, unknown command "vsatisfies": should be forget, names, provide, require}
+{package vsatisfies 8.6 8\u002e6} 1 {package, unknown command "vsatisfies": should be forget, names, provide, require}
+{package vsatisfies 8.6 {{8.6}}} 1 {package, unknown command "vsatisfies": should be forget, names, provide, require}
+{package vsatisfies 8.6 {"8.6"}} 1 {package, unknown command "vsatisfies": should be forget, names, provide, require}
+{package vsatisfies 8.6 \"8.6\"} 1 {package, unknown command "vsatisfies": should be forget, names, provide, require}
+{package vsatisfies 8.6 $unavailable_requirement} 1 {can't read "unavailable_requirement": no such variable}

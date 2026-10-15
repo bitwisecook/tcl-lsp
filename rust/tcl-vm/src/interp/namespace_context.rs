@@ -263,6 +263,11 @@ mod tests {
         let header = Rc::downgrade(&vm.frames.last().unwrap().activation);
         let _ = vm.refuse_host_command("FIRST_ORIGINAL_JIM_CONTEXT_CLEANUP".into());
         let retained = vm.execution_refusal.clone().unwrap();
+        let NativeExecutionError::HostCommandRefusal(failure) = &retained else {
+            panic!("expected the original host refusal");
+        };
+        assert_eq!(failure.namespace.as_ref(), "<unavailable namespace>");
+        assert_eq!(failure.namespace_token, None);
         active.retire_call(&mut vm, false);
         active.retire_namespace(&mut vm, false);
         assert_eq!(vm.frames.len(), 1);
@@ -274,5 +279,26 @@ mod tests {
         let result = active.finish(&mut vm, ok(Value::empty()));
         assert_eq!(result.code, Code::Error);
         assert_eq!(vm.execution_refusal, Some(retained));
+    }
+
+    #[test]
+    fn original_jim_expression_refusal_keeps_unmaterialized_namespace_context() {
+        let mut vm = interpreter();
+        let original = Value::int(42);
+        let context = enter_original(&mut vm, &original);
+        let before = original.native_object_snapshot();
+        let _ = vm.refuse_expression_bytes(
+            b"1 @ 2",
+            tcl_runtime_api::NativeExpressionRefusal::UnsupportedGrammar,
+        );
+        let Some(NativeExecutionError::ExpressionRefusal(failure)) = &vm.execution_refusal else {
+            panic!("expected the original expression refusal");
+        };
+        assert_eq!(failure.source.bytes(), b"1 @ 2");
+        assert_eq!(failure.namespace.as_ref(), "<unavailable namespace>");
+        assert_eq!(failure.namespace_token, None);
+        assert!(context.resolved_token().is_none());
+        assert_eq!(original.native_object_snapshot(), before);
+        assert!(original.resident_string_bytes().is_none());
     }
 }

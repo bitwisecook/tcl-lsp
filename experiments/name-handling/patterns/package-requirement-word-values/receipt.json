@@ -1,0 +1,78 @@
+{
+  "source_sha256": "959084e68a172a20f740d7e49bc1665bedabf68b34e86aaa9414c4109143b189",
+  "runs": [
+    {
+      "provider": "8.4.20",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "executable_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "original_library": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "original_init_sha256": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b",
+      "started_utc": "2026-10-15T05:48:54.099624+00:00",
+      "finished_utc": "2026-10-15T05:48:54.101968+00:00",
+      "exit_code": 0,
+      "stdout_sha256": "b359765c7212e630b63ef6e7d0d62016c824fe0d88e6584603b0c3fe3e971cd9",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "8.5.19",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "executable_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "original_library": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "original_init_sha256": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1",
+      "started_utc": "2026-10-15T05:48:54.103390+00:00",
+      "finished_utc": "2026-10-15T05:48:54.106322+00:00",
+      "exit_code": 0,
+      "stdout_sha256": "b359765c7212e630b63ef6e7d0d62016c824fe0d88e6584603b0c3fe3e971cd9",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "8.6.18",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "executable_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "original_library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "original_init_sha256": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35",
+      "started_utc": "2026-10-15T05:48:54.107743+00:00",
+      "finished_utc": "2026-10-15T05:48:54.112223+00:00",
+      "exit_code": 0,
+      "stdout_sha256": "b359765c7212e630b63ef6e7d0d62016c824fe0d88e6584603b0c3fe3e971cd9",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "9.0.4",
+      "executable": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "executable_sha256": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "original_library": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "original_init_sha256": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a",
+      "started_utc": "2026-10-15T05:48:54.114451+00:00",
+      "finished_utc": "2026-10-15T05:48:54.124378+00:00",
+      "exit_code": 0,
+      "stdout_sha256": "b359765c7212e630b63ef6e7d0d62016c824fe0d88e6584603b0c3fe3e971cd9",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "9.1.0",
+      "executable": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "executable_sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "original_library": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "original_init_sha256": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f",
+      "started_utc": "2026-10-15T05:48:54.128311+00:00",
+      "finished_utc": "2026-10-15T05:48:54.135340+00:00",
+      "exit_code": 0,
+      "stdout_sha256": "b359765c7212e630b63ef6e7d0d62016c824fe0d88e6584603b0c3fe3e971cd9",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "jim",
+      "executable": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "executable_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "original_library": null,
+      "original_init_sha256": null,
+      "started_utc": "2026-10-15T05:48:54.139082+00:00",
+      "finished_utc": "2026-10-15T05:48:54.142122+00:00",
+      "exit_code": 0,
+      "stdout_sha256": "09a84dd551e8b11d9d82371df37de86bfbe8a866310127ce1855ef93ff3b8ce1",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "scope": "Original public package vsatisfies literal word evaluation only. Captured before new Rust expectations; no Source analysis/current binding/Native admission or package loading proof."
+}

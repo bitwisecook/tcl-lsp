@@ -1,0 +1,10 @@
+LIST {{dir with space} {{brace}} {"quoted"} {} plain\ path { trailing }} 0 6
+ELEMENT 14 {dir with space}
+ELEMENT 7 {{brace}}
+ELEMENT 8 {"quoted"}
+ELEMENT 0 {}
+ELEMENT 10 {plain path}
+ELEMENT 10 { trailing }
+LIST {\U00010000} 0 1
+ELEMENT 1 �
+LIST \{unfinished 1 {unmatched open brace in list}

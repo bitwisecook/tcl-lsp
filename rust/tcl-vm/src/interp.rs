@@ -24183,6 +24183,25 @@ impl Vm {
         }
     }
 
+    fn native_refusal_namespace(&self) -> (std::sync::Arc<str>, Option<u64>) {
+        let namespace = self
+            .resolution_stacks
+            .ns_stack
+            .last()
+            .and_then(Option::as_ref)
+            .map_or_else(
+                || "<unavailable namespace>".to_owned(),
+                |name| tcl_syntax::native_string::resident_name_label(name.as_bytes()),
+            );
+        let token = self
+            .resolution_stacks
+            .ns_id_stack
+            .last()
+            .and_then(NamespaceExecutionContext::resolved_token)
+            .map(|token| u64::from(token.0));
+        (namespace.into(), token)
+    }
+
     /// This empty internal unwind carrier is never a guest error. The engine
     /// prioritises the separate typed refusal before completion settlement.
     fn refuse_expression(
@@ -24199,6 +24218,7 @@ impl Vm {
         reason: tcl_runtime_api::NativeExpressionRefusal,
     ) -> TclError {
         if self.execution_refusal.is_none() {
+            let (namespace, namespace_token) = self.native_refusal_namespace();
             let failure = tcl_runtime_api::NativeExpressionFailure {
                 reason,
                 source: tcl_lexer::SourceImage::native(source),
@@ -24209,8 +24229,8 @@ impl Vm {
                     interpreter: u64::try_from(self.cur.0).expect("interpreter slot fits u64"),
                 },
                 frame: self.current_level(),
-                namespace: self.current_ns().into(),
-                namespace_token: u64::from(self.current_ns_id().0),
+                namespace,
+                namespace_token,
             };
             self.retain_native_execution_refusal(
                 tcl_runtime_api::NativeExecutionError::ExpressionRefusal(Box::new(failure)),
@@ -24281,6 +24301,7 @@ impl Vm {
         if let Some(first) = self.execution_refusal.clone() {
             return first;
         }
+        let (namespace, namespace_token) = self.native_refusal_namespace();
         let first = tcl_runtime_api::NativeExecutionError::HostCommandRefusal(Box::new(
             tcl_runtime_api::NativeHostCommandRefusal {
                 reason,
@@ -24291,8 +24312,8 @@ impl Vm {
                     interpreter: u64::try_from(self.cur.0).expect("interpreter slot fits u64"),
                 },
                 frame: self.current_level(),
-                namespace: self.current_ns().into(),
-                namespace_token: u64::from(self.current_ns_id().0),
+                namespace,
+                namespace_token,
             },
         ));
         self.retain_native_execution_refusal(first)

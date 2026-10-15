@@ -31,15 +31,15 @@
 
 use std::net::{Ipv4Addr, Ipv6Addr};
 
-use regex::Regex;
 use serde_json::{Value, json};
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::{LexerConfig, LineIndex};
 use tcl_lsp_core::SourceSyntaxStructure;
+use tcl_lsp_core::refactor::equality_source::{scalar_string_disjunction, scalar_string_equality};
 use tcl_lsp_core::refactor::{
     OriginalExactSwitchSource, extract_to_datagroup_with_analysis,
-    original_exact_switch_source_at_analysis, scalar_variable_source_syntax,
+    original_exact_switch_source_at_analysis,
 };
 use tcl_registry::ArgRole;
 
@@ -101,6 +101,9 @@ fn suggest_for_analysis(source: &str, analysis: &AnalysisResult) -> Vec<Value> {
         return Vec::new();
     };
     let context = input.context_registry();
+    let mut expression =
+        tcl_syntax::expr::parser::ExprParseContext::for_profile(input.unit_profile());
+    expression.lexer_grammar = config.grammar_over(expression.lexer_grammar);
     let line_index = LineIndex::new(source);
     let mut out = Vec::new();
 
@@ -130,7 +133,7 @@ fn suggest_for_analysis(source: &str, analysis: &AnalysisResult) -> Vec<Value> {
                 }).flatten()
             });
             if let Some(plan) = plan {
-                cand = analyse_if_chain(&command.texts, line, &plan, config);
+                cand = analyse_if_chain(&command.texts, line, &plan, config, &expression);
             }
         }
         if let Some(c) = cand.as_mut() {
@@ -147,21 +150,10 @@ fn suggest_for_analysis(source: &str, analysis: &AnalysisResult) -> Vec<Value> {
 
 // ── Value-type inference ──────────────────────────────────────────────
 
-/// Strip a single layer of surrounding double quotes (after trimming).
-fn strip_quotes(s: &str) -> &str {
-    let s = s.trim();
-    let b = s.as_bytes();
-    if b.len() >= 2 && b[0] == b'"' && b[b.len() - 1] == b'"' {
-        &s[1..s.len() - 1]
-    } else {
-        s
-    }
-}
-
 /// `true` when `value` looks like an IPv4/IPv6 address or CIDR range,
 /// reproducing `ipaddress.ip_network` / `ip_address` acceptance.
 fn is_ip_or_cidr(value: &str) -> bool {
-    let v = strip_quotes(value);
+    let v = value.trim();
     is_ip_network(v) || is_ip_address(v)
 }
 
@@ -188,7 +180,7 @@ fn is_ip_network(v: &str) -> bool {
 }
 
 fn is_integer(value: &str) -> bool {
-    let v = strip_quotes(value).trim();
+    let v = value.trim();
     !v.is_empty() && v.parse::<i64>().is_ok()
 }
 
@@ -198,11 +190,10 @@ fn infer_value_type(values: &[String]) -> &'static str {
     if values.is_empty() {
         return "string";
     }
-    let stripped: Vec<&str> = values.iter().map(|v| strip_quotes(v)).collect();
-    if stripped.iter().all(|v| is_ip_or_cidr(v)) {
+    if values.iter().all(|v| is_ip_or_cidr(v)) {
         return "ip";
     }
-    if stripped.iter().all(|v| is_integer(v)) {
+    if values.iter().all(|v| is_integer(v)) {
         return "integer";
     }
     "string"
@@ -234,101 +225,29 @@ fn normalise_dg_name(name: &str) -> String {
 fn any_cidr(values: &[String]) -> bool {
     values
         .iter()
-        .filter(|v| is_ip_or_cidr(strip_quotes(v)))
+        .filter(|v| is_ip_or_cidr(v))
         .any(|v| v.contains('/'))
 }
 
 // ── Equality-condition parsing ────────────────────────────────────────
 
-/// Lazily-compiled regexes for the forward/reverse equality conditions.
-struct EqRegexes {
-    forward: Regex,
-    reverse: Regex,
-    or_split: Regex,
+fn parse_eq(
+    condition: &str,
+    config: LexerConfig,
+    context: &tcl_syntax::expr::parser::ExprParseContext,
+) -> Option<(String, String, bool)> {
+    let (subject, value, negated) =
+        scalar_string_equality(condition, config, context)?.into_parts();
+    Some((subject.name().to_owned(), value, negated))
 }
 
-fn eq_regexes() -> &'static EqRegexes {
-    static RE: std::sync::OnceLock<EqRegexes> = std::sync::OnceLock::new();
-    RE.get_or_init(|| EqRegexes {
-        // `$var OP value` / `"$var" OP value`.
-        forward: Regex::new(r#"(?x) ^ \s* (.+?) \s+ (eq|==|ne|!=) \s+ (.+?) \s* $ "#)
-            .expect("forward eq regex"),
-        // `value OP $var` / `value OP "$var"`.
-        reverse: Regex::new(r#"(?x) ^ \s* (.+) \s+ (eq|==|ne|!=) \s+ (.+?) \s* $ "#)
-            .expect("reverse eq regex"),
-        or_split: Regex::new(r"\s*\|\|\s*").expect("or-split regex"),
-    })
-}
-
-/// Parse a simple equality test into `(var, value, negated)` (unwraps
-/// `{ … }`, handles a leading `!( … )` negation).
-fn parse_eq(cond: &str, config: LexerConfig) -> Option<(String, String, bool)> {
-    let mut cond = cond.trim();
-    if cond.len() >= 2 && cond.starts_with('{') && cond.ends_with('}') {
-        cond = cond[1..cond.len() - 1].trim();
-    }
-
-    let mut negated = false;
-    if let Some(rest) = cond.strip_prefix('!') {
-        let inner = rest.trim();
-        if inner.len() >= 2 && inner.starts_with('(') && inner.ends_with(')') {
-            cond = inner[1..inner.len() - 1].trim();
-            negated = true;
-        }
-    }
-
-    let res = eq_regexes();
-    if let Some(m) = res.forward.captures(cond)
-        && let Some(subject) = scalar_variable_source_syntax(m.get(1)?.as_str().trim(), config)
-    {
-        let op = m.get(2)?.as_str();
-        let is_ne = op == "ne" || op == "!=";
-        let value = m.get(3)?.as_str().trim().to_owned();
-        return Some((subject.name().to_owned(), value, negated ^ is_ne));
-    }
-    if let Some(m) = res.reverse.captures(cond)
-        && let Some(subject) = scalar_variable_source_syntax(m.get(3)?.as_str().trim(), config)
-    {
-        let op = m.get(2)?.as_str();
-        // registry-axis-ok: irreducible — same expr-operator text; until
-        // never
-        let is_ne = op == "ne" || op == "!=";
-        let value = m.get(1)?.as_str().trim().to_owned();
-        return Some((subject.name().to_owned(), value, negated ^ is_ne));
-    }
-    None
-}
-
-/// Detect `$var eq "a" || $var eq "b" || …` chains — returns the shared
-/// variable and its compared values.
-fn try_or_chain(condition: &str, config: LexerConfig) -> Option<(String, Vec<String>)> {
-    let mut cond = condition.trim();
-    if cond.len() >= 2 && cond.starts_with('{') && cond.ends_with('}') {
-        cond = cond[1..cond.len() - 1].trim();
-    }
-    let parts: Vec<&str> = eq_regexes().or_split.split(cond).collect();
-    if parts.len() < 2 {
-        return None;
-    }
-    let mut target_var: Option<String> = None;
-    let mut values = Vec::new();
-    for part in parts {
-        let (var, value, negated) = parse_eq(part.trim(), config)?;
-        if negated {
-            return None;
-        }
-        match &target_var {
-            None => target_var = Some(var),
-            Some(v) if *v != var => return None,
-            _ => {}
-        }
-        values.push(value);
-    }
-    let target_var = target_var?;
-    if values.len() < 2 {
-        return None;
-    }
-    Some((target_var, values))
+fn try_or_chain(
+    condition: &str,
+    config: LexerConfig,
+    context: &tcl_syntax::expr::parser::ExprParseContext,
+) -> Option<(String, Vec<String>)> {
+    let (subject, values) = scalar_string_disjunction(condition, config, context)?;
+    Some((subject.name().to_owned(), values))
 }
 
 // ── Body-shape analysis ───────────────────────────────────────────────
@@ -368,11 +287,7 @@ fn classify_body_shape(bodies: &[String], config: LexerConfig) -> &'static str {
     let mut use_return: Option<bool> = None;
 
     for body in bodies {
-        let mut text = body.trim();
-        if text.len() >= 2 && text.starts_with('{') && text.ends_with('}') {
-            text = text[1..text.len() - 1].trim();
-        }
-        match parse_set_or_return(text, config) {
+        match parse_set_or_return(body, config) {
             Some(SetOrReturn::Set(var)) => match &target_var {
                 None => {
                     target_var = Some(var);
@@ -428,6 +343,7 @@ fn analyse_if_chain(
     line: u32,
     plan: &tcl_registry::ClausePlan,
     config: LexerConfig,
+    context: &tcl_syntax::expr::parser::ExprParseContext,
 ) -> Option<Candidate> {
     if texts.len() < 3 {
         return None;
@@ -441,10 +357,16 @@ fn analyse_if_chain(
     let mut values: Vec<String> = Vec::new();
     let mut bodies: Vec<String> = Vec::new();
 
-    if let Some((var, or_values)) = try_or_chain(&texts[1], config) {
+    if plan.clauses.len() == 1
+        && let Some(clause) = plan.clauses.first()
+        && !clause.is_default
+        && let Some(condition) = clause.operand(ArgRole::Expr)
+        && let Some(body) = clause.operand(ArgRole::Body)
+        && let Some((var, or_values)) = try_or_chain(args[condition], config, context)
+    {
         target_var = Some(var);
         values = or_values;
-        bodies.push(texts[2].clone());
+        bodies.push(args[body].to_owned());
     } else {
         for clause in &plan.clauses {
             if clause.is_default {
@@ -453,7 +375,7 @@ fn analyse_if_chain(
             let body = args[clause.operand(ArgRole::Body)?].to_owned();
             let condition = args[clause.operand(ArgRole::Expr)?];
 
-            let (var, value, negated) = parse_eq(condition, config)?;
+            let (var, value, negated) = parse_eq(condition, config, context)?;
             if negated {
                 return None;
             }
@@ -472,9 +394,8 @@ fn analyse_if_chain(
         return None;
     }
 
-    let stripped: Vec<String> = values.iter().map(|v| strip_quotes(v).to_owned()).collect();
-    let value_type = infer_value_type(&stripped);
-    let has_cidr = any_cidr(&stripped);
+    let value_type = infer_value_type(&values);
+    let has_cidr = any_cidr(&values);
     let shape = body_shape(&bodies, config);
     let value_count = values.len();
 
@@ -483,7 +404,7 @@ fn analyse_if_chain(
         pattern_type: "if_chain",
         suggested_name: normalise_dg_name(&format!("{target_var}_whitelist")),
         variable: target_var,
-        values: stripped,
+        values,
         inferred_type: value_type,
         has_cidr,
         body_shape: shape,
@@ -574,11 +495,20 @@ mod tests {
         }
         let first = LexerConfig::for_dialect("tcl8.6");
         let jim = LexerConfig::for_dialect("jim");
-        assert!(parse_eq("$café eq one", first).is_none());
-        assert_eq!(parse_eq("one\teq\t$café", jim).unwrap().0, "café");
-        assert!(parse_eq("${missing eq one", first).is_none());
-        assert!(try_or_chain("$x eq one || $y eq two", first).is_none());
-        assert!(try_or_chain("$x eq one || !($x eq two)", first).is_none());
+        let first_context = tcl_syntax::expr::parser::ExprParseContext::for_profile(
+            tcl_registry::model::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let jim_context = tcl_syntax::expr::parser::ExprParseContext::for_profile(
+            tcl_registry::model::resolve_environment("jim").analyser_profile(),
+        );
+        assert!(parse_eq(r#"$café eq "one""#, first, &first_context).is_none());
+        assert_eq!(
+            parse_eq("\"one\"\teq\t$café", jim, &jim_context).unwrap().0,
+            "café"
+        );
+        assert!(parse_eq(r#"${missing eq "one""#, first, &first_context).is_none());
+        assert!(try_or_chain(r#"$x eq "one" || $y eq "two""#, first, &first_context).is_none());
+        assert!(try_or_chain(r#"$x eq "one" || !($x eq "two")"#, first, &first_context).is_none());
     }
 
     use super::*;
@@ -837,5 +767,54 @@ mod original_arm_parser_purpose_tests {
                 "{source}"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod shared_expression_report_tests {
+    use super::*;
+
+    #[test]
+    fn data_group_reports_use_completed_literal_data_and_actual_or_nodes() {
+        for dialect in ["tcl8.6", "tcl9.1", "jim"] {
+            let source = r#"if {($x eq "a||b") || ($x eq {$literal})} {puts SAME}"#;
+            let analysis = crate::tools::analyse(source, dialect);
+            let reports = suggest_for_analysis(source, &analysis);
+            assert_eq!(reports.len(), 1, "{dialect}");
+            assert_eq!(reports[0]["variable"], "x");
+            assert_eq!(reports[0]["values"], json!(["a||b", "$literal"]));
+            assert_eq!(reports[0]["value_count"], 2);
+            let source = r#"if {$x eq {"80"} || $x eq { 80 }} {puts SAME}"#;
+            let analysis = crate::tools::analyse(source, dialect);
+            let reports = suggest_for_analysis(source, &analysis);
+            assert_eq!(reports.len(), 1, "{dialect}");
+            assert_eq!(reports[0]["values"], json!(["\"80\"", " 80 "]));
+            assert_eq!(reports[0]["inferred_type"], "string");
+            for source in [
+                r#"if {$x == "01" || $x == "02"} {puts SAME}"#,
+                r#"if {$x eq "$dynamic" || $x eq "two"} {puts SAME}"#,
+                r#"if {$x eq "one" || $x eq "two"} {puts FIRST} elseif {$x eq "three"} {puts SECOND}"#,
+            ] {
+                let analysis = crate::tools::analyse(source, dialect);
+                assert!(
+                    suggest_for_analysis(source, &analysis).is_empty(),
+                    "{dialect}: {source}"
+                );
+            }
+        }
+        assert_eq!(
+            classify_body_shape(
+                &["{return one}".to_owned(), "return two".to_owned()],
+                LexerConfig::for_dialect("tcl8.6")
+            ),
+            "complex"
+        );
+        assert_eq!(
+            classify_body_shape(
+                &["return one".to_owned(), "return two".to_owned()],
+                LexerConfig::for_dialect("tcl8.6")
+            ),
+            "return_mapping"
+        );
     }
 }

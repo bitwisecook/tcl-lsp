@@ -134,8 +134,7 @@ fn original_dispatch_site(
 
 use super::helpers::{
     PhiUndefMemo, UndefSuppression, block_dominated_by, build_phi_undef_index,
-    collect_existence_guards, find_dotted_quads, is_ident_continue, is_word_byte, phi_can_undef,
-    source_slice,
+    collect_existence_guards, find_dotted_quads, is_word_byte, phi_can_undef, source_slice,
 };
 use crate::analyser::bounds_checks::HeaderFact;
 use crate::analyser::state::Analyser;

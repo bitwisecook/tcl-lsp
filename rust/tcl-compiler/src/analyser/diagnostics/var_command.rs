@@ -3179,7 +3179,7 @@ mod original_ensemble_head_tests {
     fn ensemble_heads_use_original_whole_scalar_and_literal_component_geometry() {
         for (dialect, nested) in [("tcl8.6", false), ("tcl9.1", true), ("jim", false)] {
             let config = tcl_lexer::LexerConfig::for_profile(Some(
-                crate::environment_ingress::resolve_known_environment(dialect)
+                tcl_registry::model::ingress::resolve_known_environment(dialect)
                     .expect("selected original reference grammar environment")
                     .unit_profile(),
             ));

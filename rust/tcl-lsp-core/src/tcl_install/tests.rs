@@ -295,3 +295,31 @@ fn project_config_path_is_dot_tcl_lsp_ini() {
         PathBuf::from("/ws/project/.tcl-lsp.ini")
     );
 }
+
+#[test]
+fn discovery_list_data_preserves_literal_paths_and_refuses_release_ambiguity() {
+    assert_eq!(
+        tcllibpath_value_dirs(
+            r#"{dir with space} {{brace}} {"quoted"} {} plain\ path { trailing }"#
+        ),
+        [
+            "dir with space",
+            "{brace}",
+            "\"quoted\"",
+            "",
+            "plain path",
+            " trailing "
+        ]
+        .map(PathBuf::from)
+    );
+    assert_eq!(tcllibpath_value_dirs(r"a\u0020b"), [PathBuf::from("a b")]);
+    assert_eq!(
+        tcllibpath_value_dirs(r"{\U00010000}"),
+        [PathBuf::from(r"\U00010000")]
+    );
+    for raw in [r"\U00010000", "{unfinished", "\"unfinished", "{path}tail"] {
+        assert!(tcllibpath_value_dirs(raw).is_empty(), "{raw:?}");
+    }
+    assert!(tcllibpath_value_dirs("").is_empty());
+    assert!(tcllibpath_value_dirs(" \t\n").is_empty());
+}

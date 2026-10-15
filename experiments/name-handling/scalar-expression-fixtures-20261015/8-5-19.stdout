@@ -1,0 +1,12 @@
+PATCHLEVEL 8.5.19
+OLD_BARE 1 {invalid bareword "one"
+in expression "$x eq one";
+should be "$one" or "{one}" or "one(...)" or ...}
+QUOTED 0 1
+SPACED_NAME 0 1
+NESTED_NAME 1 {invalid bareword "c"
+in expression "${a{b}c} eq "one"";
+should be "$c" or "{c}" or "c(...)" or ...}
+UNICODE_NAME 1 {invalid character "é"
+in expression "$café eq "one""}
+LITERAL_OR 0 1

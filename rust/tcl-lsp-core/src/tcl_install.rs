@@ -178,17 +178,37 @@ fn version_from_path(lib: &Path) -> String {
     String::new()
 }
 
-/// The directories on `$TCLLIBPATH` (a Tcl list — whitespace- or
-/// brace-separated). Empty when unset.
+/// The directories on `$TCLLIBPATH`, decoded as Tcl list data.
+///
+/// Discovery precedes selection of a C Tcl installation. Unset, malformed, or
+/// release-dependent list values supply no discovery candidates.
 #[must_use]
 pub fn tcllibpath_dirs() -> Vec<PathBuf> {
     let Ok(raw) = std::env::var("TCLLIBPATH") else {
         return Vec::new();
     };
-    raw.split_whitespace()
-        .map(|s| s.trim_matches(['{', '}']))
-        .filter(|s| !s.is_empty())
-        .map(PathBuf::from)
+    tcllibpath_value_dirs(&raw)
+}
+
+fn tcllibpath_value_dirs(raw: &str) -> Vec<PathBuf> {
+    let mut agreed = None;
+    for version in tcl_dialect::TclVersion::ALL {
+        let grammar = tcl_dialect::model::DialectPoint::for_tcl_version(version).grammar();
+        let Ok(elements) = tcl_syntax::list::split_list_in(raw, grammar.escapes) else {
+            return Vec::new();
+        };
+        if let Some(previous) = &agreed {
+            if previous != &elements {
+                return Vec::new();
+            }
+        } else {
+            agreed = Some(elements);
+        }
+    }
+    agreed
+        .unwrap_or_default()
+        .into_iter()
+        .map(|element| PathBuf::from(element.as_ref()))
         .collect()
 }
 

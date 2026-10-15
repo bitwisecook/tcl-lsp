@@ -1,0 +1,7 @@
+PATCHLEVEL 8.4.20
+OLD_BARE 1 {syntax error in expression "$x eq one": variable references require preceding $}
+QUOTED 0 1
+SPACED_NAME 0 1
+NESTED_NAME 1 {syntax error in expression "${a{b}c} eq "one"": extra tokens at end of expression}
+UNICODE_NAME 1 {syntax error in expression "$café eq "one"": extra tokens at end of expression}
+LITERAL_OR 0 1

@@ -917,14 +917,18 @@ eligibility keep their separate owners. Quoted IR word extents retain their
 original opening fragment and full configuration through the shared quote
 closer, independently of trailing component geometry.
 
-Selected if-to-switch conditions use the configured shared expression AST, with
-independent axes from the actual retained profile and full lexical overlay.
-Static string values stay separate from original scalar source syntax. Numeric
-operators require the selected shared numeral grammar to prove the fixed value
-nonnumeric; potential numeric coercion and dynamic values decline. Pattern data
-roundtrips through the selected word and list owners; current source, selected
-If, control-flow and edit guards remain independent. Data-group expression
-consumers retain their separate context and semantic obligations.
+If-to-switch, DataGroup extraction and MCP DataGroup reports share the configured
+scalar/string equality source projection. The actual retained unit profile supplies
+independent expression axes and the current lexical configuration overlays them;
+explicit Standalone extraction requires a profile retained by its supplied Registry.
+Missing profile information remains unavailable. Fixed values are completed data,
+including literal quotes, sigils and operator-looking bytes. The actual OR tree
+supplies equality leaves; mixed OR ladders decline instead of dropping later arms.
+Numeric operators require the selected shared numeral grammar to prove the fixed
+value nonnumeric; potential numeric coercion and dynamic values decline.
+If-to-switch pattern data additionally roundtrips through the selected word and
+list owners. Current source, effects, selected clause roles, control-flow and edit
+guards remain independent. MCP report confidence cannot grant edit eligibility.
 
 Original body reference advice retains the actual Script container, current full
 input and configuration before shared executable-part and expression traversal.
@@ -943,3 +947,22 @@ source Context and realm. Unavailable or changed selections withdraw advice;
 scoped and explicit Standalone purposes retain their independent owners. Logical
 iRules template values preserve complete literal data, while genuine source
 decoding remains owned by its actual original context and selected schema.
+
+Module metadata may retain its genuine explicit Standalone purpose at the same
+original point after current Module/store/origin/configuration and known-history
+checks. A supplied input stays terminal and unprofiled unavailability is not a
+source substitute. Distinct readonly Logical control schemas retain actual full
+input, held body and direct literal words, selected current/plain/no-frame
+semantics and same-invocation body roles without granting entered evaluation.
+
+Package requirement words decode through the shared static Unicode value owner
+after complete configured original-word correspondence. Literal braces and
+quotes remain data; dynamic, expanded, malformed or unavailable original words
+leave the conditional guard unknown. Existing source-free word and bracket
+helpers retain their separate limitations.
+
+Tcl discovery reads TCLLIBPATH as original list data before selecting a C
+installation. Shared list decoding must agree across the central C release
+escape grammars and retain complete values, including empty elements. Malformed
+or release-dependent data declines; no filesystem normalization or Native/source
+identity follows from this environment projection.

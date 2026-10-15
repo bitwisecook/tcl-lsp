@@ -5072,8 +5072,11 @@ mod tests {
             let key = header.name().clone();
             let original = project_original_command_arities(&db, project);
             assert_eq!(original.get(&key), Some(&vec![(minimum, 3)]), "{dialect}");
-            let slot = OriginalCommandSlot::new(&db, key.policy(), key.slot().clone());
-            let selected = original_command_arity(&db, project, slot);
+            let selected = original_command_arity(
+                &db,
+                project,
+                OriginalCommandSlot::new(&db, key.policy(), key.slot().clone()),
+            );
             assert_eq!(selected.as_deref(), Some(&vec![(minimum, 3)]), "{dialect}");
             file.set_text(&mut db)
                 .to("proc mixed {a {b B} c} {return A_LONGER_BODY}".to_owned());
@@ -5083,7 +5086,11 @@ mod tests {
                 "{dialect}"
             );
             assert_eq!(
-                original_command_arity(&db, project, slot),
+                original_command_arity(
+                    &db,
+                    project,
+                    OriginalCommandSlot::new(&db, key.policy(), key.slot().clone()),
+                ),
                 selected,
                 "{dialect}"
             );
@@ -8577,11 +8584,15 @@ p\uD801 ordinary";
 
         let headers = item_sigs(&db, a);
         let header = headers[0].original_declaration.as_ref().unwrap().name();
-        let slot = OriginalCommandSlot::new(&db, header.policy(), header.slot().clone());
 
         // Cold: `helper` is a 2-param proc → arity (2, 2).
         assert_eq!(
-            original_command_arity(&db, project, slot).map(|arities| (*arities).clone()),
+            original_command_arity(
+                &db,
+                project,
+                OriginalCommandSlot::new(&db, header.policy(), header.slot().clone()),
+            )
+            .map(|arities| (*arities).clone()),
             Some(vec![(2, 2)]),
             "cold: helper has arity (2, 2)"
         );
@@ -8591,7 +8602,11 @@ p\uD801 ordinary";
         // unchanged), so the arity table backdates and does NOT recompute.
         a.set_text(&mut db)
             .to("proc helper {x y} { set z 99999 }\n".to_owned());
-        let _ = original_command_arity(&db, project, slot);
+        let _ = original_command_arity(
+            &db,
+            project,
+            OriginalCommandSlot::new(&db, header.policy(), header.slot().clone()),
+        );
         assert_eq!(
             runs(&log),
             0,
@@ -8602,7 +8617,11 @@ p\uD801 ordinary";
         // recomputes exactly once and the new arity (1, 1) flows through.
         a.set_text(&mut db)
             .to("proc helper {x} { set z 99999 }\n".to_owned());
-        let arities = original_command_arity(&db, project, slot);
+        let arities = original_command_arity(
+            &db,
+            project,
+            OriginalCommandSlot::new(&db, header.policy(), header.slot().clone()),
+        );
         assert_eq!(
             runs(&log),
             1,

@@ -1,0 +1,8 @@
+{package vsatisfies 8.6 8.6} 0 1
+{package vsatisfies 8.6 {8.6}} 0 1
+{package vsatisfies 8.6 "8.6"} 0 1
+{package vsatisfies 8.6 8\u002e6} 0 1
+{package vsatisfies 8.6 {{8.6}}} 1 {expected version number but got "{8.6}"}
+{package vsatisfies 8.6 {"8.6"}} 1 {expected version number but got ""8.6""}
+{package vsatisfies 8.6 \"8.6\"} 1 {expected version number but got ""8.6""}
+{package vsatisfies 8.6 $unavailable_requirement} 1 {can't read "unavailable_requirement": no such variable}

@@ -22,85 +22,12 @@ use tcl_compiler::analyser::AnalysisResult;
 use tcl_lexer::{LexerConfig, LineIndex};
 use tcl_registry::ArgRole;
 
-use super::datagroup::{ScalarVariableSourceSyntax, scalar_variable_source_syntax};
+use super::datagroup::ScalarVariableSourceSyntax;
+use super::equality_source::scalar_string_equality as parse_eq_test;
 
 use super::source_rewrite::{RewriteObligation, select};
 use super::{RefactorEdit, Refactoring, reindent_body};
 use crate::code_actions::ActionKind;
-
-/// A selected scalar/string equality; numeric comparison has a separate value policy.
-struct EqTest {
-    subject: ScalarVariableSourceSyntax,
-    value: String,
-    negated: bool,
-}
-
-fn parse_eq_test(
-    condition: &str,
-    config: LexerConfig,
-    context: &tcl_syntax::expr::parser::ExprParseContext,
-) -> Option<EqTest> {
-    use tcl_syntax::expr::{BinOp, ExprNode, UnaryOp};
-    let parsed = tcl_syntax::expr::parser::parse_expr_with_syntax_context(condition, context);
-    let mut node = &parsed;
-    let mut negated = false;
-    while let ExprNode::Unary {
-        op: UnaryOp::Not,
-        operand,
-    } = node
-    {
-        negated = !negated;
-        node = operand;
-    }
-    let ExprNode::Binary { op, left, right } = node else {
-        return None;
-    };
-    let numeric_operator = match op {
-        BinOp::StrEq => false,
-        BinOp::StrNe => {
-            negated = !negated;
-            false
-        }
-        BinOp::Eq => true,
-        BinOp::Ne => {
-            negated = !negated;
-            true
-        }
-        _ => return None,
-    };
-    let (subject, value) = scalar_and_fixed_string(left, right, config)
-        .or_else(|| scalar_and_fixed_string(right, left, config))?;
-    if numeric_operator
-        && tcl_syntax::number::Numbers::Target(context.lexer_grammar.numbers)
-            .is_number_in_any_release(&value)
-    {
-        return None;
-    }
-    Some(EqTest {
-        subject,
-        value,
-        negated,
-    })
-}
-
-fn scalar_and_fixed_string(
-    subject: &tcl_syntax::expr::ExprNode,
-    value: &tcl_syntax::expr::ExprNode,
-    config: LexerConfig,
-) -> Option<(ScalarVariableSourceSyntax, String)> {
-    use tcl_syntax::expr::ExprNode;
-    let (ExprNode::Var { text: subject, .. } | ExprNode::String { text: subject, .. }) = subject
-    else {
-        return None;
-    };
-    let ExprNode::String { text: value, .. } = value else {
-        return None;
-    };
-    Some((
-        scalar_variable_source_syntax(subject, config)?,
-        tcl_syntax::expr::fixed_string_operand(value)?.to_owned(),
-    ))
-}
 
 /// Render literal pattern data through the shared list and source-word owners.
 fn render_switch_pattern(value: &str, config: LexerConfig) -> Option<String> {

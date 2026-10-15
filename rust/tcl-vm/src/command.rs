@@ -5309,7 +5309,7 @@ mod tests {
             assert_eq!(failure.interpreter.interpreter, 0);
             assert_eq!(failure.frame, usize::from(body.starts_with("proc p")));
             assert_eq!(failure.namespace.as_ref(), "");
-            assert_eq!(failure.namespace_token, 0);
+            assert_eq!(failure.namespace_token, Some(0));
             for (name, expected) in [
                 ("early", "1"),
                 ("late", "0"),

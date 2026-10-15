@@ -2170,7 +2170,7 @@ mod tests {
             ("tcl9.1", false, true),
             ("jim", true, false),
         ] {
-            let profile = crate::environment_ingress::resolve_known_environment(dialect)
+            let profile = tcl_registry::model::ingress::resolve_known_environment(dialect)
                 .expect("selected original reference grammar environment")
                 .unit_profile();
             let config = LexerConfig::for_file_grammar(profile.grammar);

@@ -611,7 +611,7 @@ mod execution_transport_tests {
                 },
                 frame: 9,
                 namespace: "::retained".into(),
-                namespace_token: 43,
+                namespace_token: Some(43),
             },
         ));
         for first in [

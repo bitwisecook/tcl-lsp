@@ -293,10 +293,9 @@ impl Lowerer<'_> {
         let label = if original_declaration {
             format!("::original-declaration-body#{}", self.body_unit_count)
         } else {
-            format!(
-                "{}::installed-body#{}",
-                installed.namespace.trim_end_matches("::"),
-                self.body_unit_count
+            tcl_syntax::naming::qualify(
+                &installed.namespace,
+                &format!("installed-body#{}", self.body_unit_count),
             )
         };
         self.body_unit_count += 1;

@@ -1531,7 +1531,7 @@ mod tests {
                 },
                 frame: 3,
                 namespace: "::original".into(),
-                namespace_token: 17,
+                namespace_token: Some(17),
             },
         ));
         let original = CmdError::from_execution_refusal(cause.clone());

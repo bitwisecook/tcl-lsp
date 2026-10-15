@@ -1,0 +1,131 @@
+{
+  "utc": "2026-10-15T05:51:48.992738+00:00",
+  "probe_sha256": "e4aad910b6919a26c0e98acc31cf83f0f423bd5bf51dcecca2ccc5db1d7ece45",
+  "scope": "Original actual C5/Jim fixed known nonnumeric String comparison vs unknown scalar examples before new consumer assertions: == GET agrees with textual eq/exactmatching, while actual numeric-string coercion remains distinct. Does not infer nonnumeric classification without actual shared numeral owner, F5, sourceframe or rewrite equivalence.",
+  "rows": [
+    {
+      "provider_label": "8.4.20",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+        "/tmp/name-string-comparison-nonnumeric-oracles-20261015/probe.tcl"
+      ],
+      "selected_original_library": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "original_files_before": {
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/library/init.tcl": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b"
+      },
+      "original_files_after": {
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/library/init.tcl": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b"
+      },
+      "exit_code": 0,
+      "stdout_file": "8-4-20.stdout",
+      "stderr_file": "8-4-20.stderr",
+      "stdout_sha256": "ebe91e7b15341b023934cc2ed90c278f3f8b6461ebb034b0f08b17aaecd0df20",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider_label": "8.5.19",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+        "/tmp/name-string-comparison-nonnumeric-oracles-20261015/probe.tcl"
+      ],
+      "selected_original_library": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "original_files_before": {
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/library/init.tcl": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1"
+      },
+      "original_files_after": {
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/library/init.tcl": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1"
+      },
+      "exit_code": 0,
+      "stdout_file": "8-5-19.stdout",
+      "stderr_file": "8-5-19.stderr",
+      "stdout_sha256": "ed7ee6eba25419e28b0996b8fd5017da4e5a0b24cecaa3b5f5f2991629c4a119",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider_label": "8.6.18",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "/tmp/name-string-comparison-nonnumeric-oracles-20261015/probe.tcl"
+      ],
+      "selected_original_library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "original_files_before": {
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35"
+      },
+      "original_files_after": {
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35"
+      },
+      "exit_code": 0,
+      "stdout_file": "8-6-18.stdout",
+      "stderr_file": "8-6-18.stderr",
+      "stdout_sha256": "93a36116098323e7b19c84ba75182ef7127b3fa54bb2eab52a966ee45cb23321",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider_label": "9.0.4",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+        "/tmp/name-string-comparison-nonnumeric-oracles-20261015/probe.tcl"
+      ],
+      "selected_original_library": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "original_files_before": {
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/library/init.tcl": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a"
+      },
+      "original_files_after": {
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/library/init.tcl": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a"
+      },
+      "exit_code": 0,
+      "stdout_file": "9-0-4.stdout",
+      "stderr_file": "9-0-4.stderr",
+      "stdout_sha256": "c4e691a12ffd8f6e995482466f9474127433356f05dc457db9f3eef25a34a012",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider_label": "9.1.0",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+        "/tmp/name-string-comparison-nonnumeric-oracles-20261015/probe.tcl"
+      ],
+      "selected_original_library": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "original_files_before": {
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/library/init.tcl": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f"
+      },
+      "original_files_after": {
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/library/init.tcl": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f"
+      },
+      "exit_code": 0,
+      "stdout_file": "9-1-0.stdout",
+      "stderr_file": "9-1-0.stderr",
+      "stdout_sha256": "07669050ad2072e5259fac20cda97fa0f41a8ebd04d7e19ca4df317cee1070e7",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider_label": "Jim",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "/tmp/name-string-comparison-nonnumeric-oracles-20261015/probe.tcl"
+      ],
+      "selected_original_library": null,
+      "original_files_before": {
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891"
+      },
+      "original_files_after": {
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891"
+      },
+      "exit_code": 0,
+      "stdout_file": "Jim.stdout",
+      "stderr_file": "Jim.stderr",
+      "stdout_sha256": "3ac48f1c0412aba707200fd7bcf6e5867ea7f3ec56a15e2aaf721d618304a6e0",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

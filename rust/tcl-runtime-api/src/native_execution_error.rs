@@ -33,10 +33,11 @@ pub struct NativeExpressionFailure {
     pub interpreter: crate::native_compilation::NativeInterpreterIdentity,
     /// Logical frame at refusal. Not a lease on a future activation.
     pub frame: usize,
-    /// Constructed namespace display at refusal.
+    /// Resident namespace label or unavailable marker; never lookup identity.
     pub namespace: std::sync::Arc<str>,
-    /// Namespace token distinguishes deletion/recreation at the same name.
-    pub namespace_token: u64,
+    /// Existing backend namespace/context token, when the backend has one.
+    /// This snapshot supplies no coordinate or lookup authority.
+    pub namespace_token: Option<u64>,
 }
 
 /// Immutable context where a compile service could not honour its contract.
@@ -82,8 +83,9 @@ pub struct NativeHostCommandRefusal {
     pub frame: usize,
     /// Available namespace display, or an explicit unavailable marker; not identity.
     pub namespace: std::sync::Arc<str>,
-    /// Actual namespace token, distinguishing name reuse.
-    pub namespace_token: u64,
+    /// Existing backend namespace/context token, when the backend has one.
+    /// This snapshot supplies no coordinate or lookup authority.
+    pub namespace_token: Option<u64>,
 }
 
 /// Neutral host execution failure. Guest `catch` and `try` cannot observe it.

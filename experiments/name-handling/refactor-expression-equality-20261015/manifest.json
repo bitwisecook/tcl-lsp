@@ -1,0 +1,131 @@
+{
+  "utc": "2026-10-15T05:28:12.916313+00:00",
+  "probe_sha256": "3921d0fca13d901b26a52dcc3d790146c09af1f3c800a043b0770d9adf99d617",
+  "scope": "Original actual six-provider comparisons before future expr-consumer migration/conformance assertions: numeric Eq is distinct from exact string matching for 01/space/1e0; literal operator/sigil bytes remain data, and a braced literal condition is not an equality syntax owner. No F5/Native/Rust/edit/evaluation-equivalence grant.",
+  "rows": [
+    {
+      "provider_label": "8.4.20",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+        "/tmp/name-refactor-equality-source-oracles-20261015/probe.tcl"
+      ],
+      "selected_original_library": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "original_files_before": {
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/library/init.tcl": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b"
+      },
+      "original_files_after": {
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/library/init.tcl": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b"
+      },
+      "exit_code": 0,
+      "stdout_file": "8-4-20.stdout",
+      "stderr_file": "8-4-20.stderr",
+      "stdout_sha256": "a66397d006301036af10d778ec30c3971c51a3375938f1f1ec4e14ae88ba0921",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider_label": "8.5.19",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+        "/tmp/name-refactor-equality-source-oracles-20261015/probe.tcl"
+      ],
+      "selected_original_library": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "original_files_before": {
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/library/init.tcl": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1"
+      },
+      "original_files_after": {
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/library/init.tcl": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1"
+      },
+      "exit_code": 0,
+      "stdout_file": "8-5-19.stdout",
+      "stderr_file": "8-5-19.stderr",
+      "stdout_sha256": "fba54c52cee06bbda5470a75f35571a650397b008dd4652fba7233c40e67d64f",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider_label": "8.6.18",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "/tmp/name-refactor-equality-source-oracles-20261015/probe.tcl"
+      ],
+      "selected_original_library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "original_files_before": {
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35"
+      },
+      "original_files_after": {
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35"
+      },
+      "exit_code": 0,
+      "stdout_file": "8-6-18.stdout",
+      "stderr_file": "8-6-18.stderr",
+      "stdout_sha256": "19f11eeffe33b45b6ebddb8320005598a6e4319c85e36f4bc2c035afbd1dfe96",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider_label": "9.0.4",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+        "/tmp/name-refactor-equality-source-oracles-20261015/probe.tcl"
+      ],
+      "selected_original_library": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "original_files_before": {
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/library/init.tcl": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a"
+      },
+      "original_files_after": {
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/library/init.tcl": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a"
+      },
+      "exit_code": 0,
+      "stdout_file": "9-0-4.stdout",
+      "stderr_file": "9-0-4.stderr",
+      "stdout_sha256": "62f408c2096f85006674680598860b6426f4088f128f3db92685c7374f4b13b2",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider_label": "9.1.0",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+        "/tmp/name-refactor-equality-source-oracles-20261015/probe.tcl"
+      ],
+      "selected_original_library": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "original_files_before": {
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/library/init.tcl": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f"
+      },
+      "original_files_after": {
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/library/init.tcl": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f"
+      },
+      "exit_code": 0,
+      "stdout_file": "9-1-0.stdout",
+      "stderr_file": "9-1-0.stderr",
+      "stdout_sha256": "a9447c0921e09a4b4eafb18f98de01ac1a382098eea441c6471d8eb482e56ccf",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider_label": "Jim",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "/tmp/name-refactor-equality-source-oracles-20261015/probe.tcl"
+      ],
+      "selected_original_library": null,
+      "original_files_before": {
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891"
+      },
+      "original_files_after": {
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891"
+      },
+      "exit_code": 0,
+      "stdout_file": "Jim.stdout",
+      "stderr_file": "Jim.stderr",
+      "stdout_sha256": "69891ebb526038b01a92ab8db28e1f60520ec1765a28234ae6784a37453d9fed",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

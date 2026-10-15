@@ -3016,6 +3016,31 @@ fn scan_positioned_reachability(
     };
     scan_normal_procedure_caller(tokens, ctx, facts);
     scan_positioned_candidate_callbacks(tokens, ctx, facts);
+    let source_calls = if ctx
+        .source_module
+        .source_metadata_input
+        .as_ref()
+        .is_some_and(crate::analyser::ResolvedAnalysisInput::has_logical_source_name_context)
+    {
+        crate::registry_invocation::original_logical_procedure_calls_for_module(
+            tokens,
+            ctx.source_module,
+            ctx.registry,
+        )
+    } else {
+        crate::registry_invocation::original_authored_procedure_calls_for_module(
+            tokens,
+            ctx.source_module,
+            ctx.registry,
+        )
+    };
+    if let Some(calls) = source_calls {
+        for call in calls {
+            if call.accepts_arguments() && ctx.known.contains(&call.id()) {
+                facts.direct_calls.insert(call.id());
+            }
+        }
+    }
     if let Some(context) = ctx.metadata_context()
         && let Some((reads, writes)) =
             crate::registry_invocation::possible_normal_handler_effect_regions_with_metadata_context(
@@ -6608,6 +6633,102 @@ mod tests {
         assert!(
             traits.contains(&ProcArgTrait::ForwardedToCallee),
             "expected ForwardedToCallee for x, got {traits:?}",
+        );
+    }
+
+    #[test]
+    fn original_logical_source_call_edges_keep_body_ids_without_execution_grants() {
+        let environment = tcl_registry::model::ingress::resolve_environment("tcl");
+        let context = environment.default_context_registry();
+        let registry = context.commands();
+        let profile = environment.unit_profile();
+        let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        assert!(input.has_logical_source_name_context());
+        let source = "proc target {} {return OK}; proc caller {} {target}";
+        let mut lowerer = crate::lowering::Lowerer::with_config(registry, config)
+            .with_resolved_analysis_input(input);
+        lowerer.lower(source);
+        let module = lowerer.finish_module(source);
+        let select = |offset| {
+            let rows: Vec<_> = module
+                .original_source_procedure_bodies()
+                .filter(|(_, procedure)| {
+                    procedure
+                        .declaration_site
+                        .as_ref()
+                        .is_some_and(|site| site.offset == offset)
+                })
+                .collect();
+            assert_eq!(
+                rows.len(),
+                1,
+                "one authored declaration at the original site"
+            );
+            assert!(module.procedure_ids.owns(*rows[0].0));
+            *rows[0].0
+        };
+        let target = select(0);
+        let caller = select(u32::try_from(source.find("proc caller").unwrap()).unwrap());
+        let caller_body = module
+            .original_source_procedure_bodies()
+            .find(|(id, _)| **id == caller)
+            .unwrap()
+            .1;
+        let tokens = caller_body
+            .body
+            .retained_source_tokens_for_statement(&caller_body.body.statements[0])
+            .unwrap();
+        let calls = crate::registry_invocation::original_logical_procedure_calls_for_module(
+            tokens, &module, registry,
+        )
+        .expect("actual conditional original call and declaration owners");
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].id(), target);
+        assert!(calls[0].accepts_arguments());
+        assert!(
+            crate::registry_invocation::normal_representation_invocation_with_metadata_context(
+                registry, None, tokens,
+            )
+            .is_none()
+        );
+        let identities =
+            crate::realm::document_realm_bindings_for_module(&module, registry).unwrap();
+        let analysis = build_interprocedural_analysis(
+            &module,
+            registry,
+            Some(profile),
+            ObjectTypeMap::none(),
+            &identities,
+            None,
+        );
+        let summary = &analysis.procedures[&caller];
+        assert!(summary.direct_calls.contains(&target));
+        assert!(summary.calls.contains(&target));
+        assert!(summary.has_unknown_calls);
+        assert!(!summary.pure);
+        assert!(!summary.completes);
+        assert!(module.procedures.get(&target).is_none());
+        let mut changed = tokens.clone();
+        changed.argv_texts[0] = "different".to_owned();
+        assert!(
+            crate::registry_invocation::original_logical_procedure_calls_for_module(
+                &changed, &module, registry,
+            )
+            .is_none()
+        );
+        let mut stale = module.clone();
+        stale.source = tcl_lexer::SourceImage::document("proc different {} {return OK}");
+        assert!(
+            crate::registry_invocation::original_logical_procedure_calls_for_module(
+                tokens, &stale, registry,
+            )
+            .is_none()
         );
     }
 

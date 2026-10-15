@@ -1,0 +1,7 @@
+PATCHLEVEL 0.84-9-g5bac7c9
+OLD_BARE 1 {syntax error in expression: "$x eq one"}
+QUOTED 0 1
+SPACED_NAME 0 1
+NESTED_NAME 1 {syntax error in expression: "${a{b}c} eq "one""}
+UNICODE_NAME 0 1
+LITERAL_OR 0 1

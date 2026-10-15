@@ -1,0 +1,131 @@
+{
+  "utc": "2026-10-15T05:49:45.531479+00:00",
+  "probe_sha256": "2d6e1ea29045b6820bbc976f226d6e13dc8257c4f345ea88845f7eac9fa29867",
+  "scope": "Original actual C5/Jim fixed expression source fixture validity before future DG parser fixture setup migration. Bare one is distinct from quoted literal source; real scalar/name grammar differences retain provider outcomes. No software, F5, frame or Native/edit authority.",
+  "rows": [
+    {
+      "provider_label": "8.4.20",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+        "/tmp/name-scalar-expression-fixture-oracles-20261015/probe.tcl"
+      ],
+      "selected_original_library": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "original_files_before": {
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/library/init.tcl": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b"
+      },
+      "original_files_after": {
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/library/init.tcl": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b"
+      },
+      "exit_code": 0,
+      "stdout_file": "8-4-20.stdout",
+      "stderr_file": "8-4-20.stderr",
+      "stdout_sha256": "876e31936242500d33c4ad85f82fec0e19236a8ad95f509abd7efe498583889a",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider_label": "8.5.19",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+        "/tmp/name-scalar-expression-fixture-oracles-20261015/probe.tcl"
+      ],
+      "selected_original_library": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "original_files_before": {
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/library/init.tcl": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1"
+      },
+      "original_files_after": {
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/library/init.tcl": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1"
+      },
+      "exit_code": 0,
+      "stdout_file": "8-5-19.stdout",
+      "stderr_file": "8-5-19.stderr",
+      "stdout_sha256": "b0a034dbd5cec79fa2b8b7afaaa1b3b4ae4abfc123ec8cf657eac9634947bcfa",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider_label": "8.6.18",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "/tmp/name-scalar-expression-fixture-oracles-20261015/probe.tcl"
+      ],
+      "selected_original_library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "original_files_before": {
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35"
+      },
+      "original_files_after": {
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35"
+      },
+      "exit_code": 0,
+      "stdout_file": "8-6-18.stdout",
+      "stderr_file": "8-6-18.stderr",
+      "stdout_sha256": "ff07838a784a2641953f176b0468d3e1861ad4bd46ccf7ce27a4b63c5b335030",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider_label": "9.0.4",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+        "/tmp/name-scalar-expression-fixture-oracles-20261015/probe.tcl"
+      ],
+      "selected_original_library": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "original_files_before": {
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/library/init.tcl": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a"
+      },
+      "original_files_after": {
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/library/init.tcl": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a"
+      },
+      "exit_code": 0,
+      "stdout_file": "9-0-4.stdout",
+      "stderr_file": "9-0-4.stderr",
+      "stdout_sha256": "da5b288b04c7f4775fcb8b599fbae172819ef420a923aeb2e1e7cd725aa86422",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider_label": "9.1.0",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+        "/tmp/name-scalar-expression-fixture-oracles-20261015/probe.tcl"
+      ],
+      "selected_original_library": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "original_files_before": {
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/library/init.tcl": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f"
+      },
+      "original_files_after": {
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/library/init.tcl": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f"
+      },
+      "exit_code": 0,
+      "stdout_file": "9-1-0.stdout",
+      "stderr_file": "9-1-0.stderr",
+      "stdout_sha256": "0d70ad8bae86a3631d386dba7a9a68563c3c91a8b85fd1c3f4847397cb19127f",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider_label": "Jim",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "/tmp/name-scalar-expression-fixture-oracles-20261015/probe.tcl"
+      ],
+      "selected_original_library": null,
+      "original_files_before": {
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891"
+      },
+      "original_files_after": {
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891"
+      },
+      "exit_code": 0,
+      "stdout_file": "Jim.stdout",
+      "stderr_file": "Jim.stderr",
+      "stdout_sha256": "d866378a948a0376d53204aa28c693367c6acfbbb2d3acefa7e9a8dbdd02098e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

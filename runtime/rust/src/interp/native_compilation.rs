@@ -245,7 +245,7 @@ impl Interp {
             interpreter: self.native_command_interpreter,
             frame: self.frames.borrow().current_level(),
             namespace: namespace.into(),
-            namespace_token: namespace_token as u64,
+            namespace_token: Some(namespace_token as u64),
         };
         self.native_compilation.borrow_mut().host_command_refusal = Some(Box::new(failure));
         Code::Error
@@ -1787,7 +1787,7 @@ mod tests {
         let first = interp.native_host_command_refusal().unwrap();
         assert_eq!(first.reason, "first host boundary");
         assert_eq!(first.namespace.as_ref(), "<unavailable namespace>");
-        assert_eq!(first.namespace_token, namespace as u64);
+        assert_eq!(first.namespace_token, Some(namespace as u64));
         assert_eq!(first.interpreter, interp.native_command_interpreter);
         assert_eq!(first.frame, interp.frames.borrow().current_level());
         assert!(interp.namespaces().native_context_path(namespace).is_none());

@@ -223,10 +223,34 @@ impl SourceInvocationBinding {
         {
             return None;
         }
-        let module_metadata = InvocationMetadataContext::for_module(registry, module)?;
-        let module_input = module_metadata.source_analysis_input()?;
-        let metadata =
-            self.original_word_metadata_for_input(tokens, module_input, registry, purpose)?;
+        let metadata = if module.source_metadata_input.is_some() {
+            let module_metadata = InvocationMetadataContext::for_module(registry, module)?;
+            let module_input = module_metadata.source_analysis_input()?;
+            self.original_word_metadata_for_input(tokens, module_input, registry, purpose)?
+        } else {
+            let entry = &module.source_entry;
+            if !entry.metadata_context.is_standalone()
+                || entry.unknown_entry
+                || entry.native_entry.is_some()
+                || entry.logical_source_input.is_some()
+                || entry.vendor_source_input.is_some()
+                || entry.hosted_execution_context.is_some()
+                || self
+                    .original_word_config(tokens, registry, purpose)?
+                    .nested()
+                    .normalized()
+                    != module.native_lexer_config().nested().normalized()
+            {
+                return None;
+            }
+            self.original_word_metadata_for_owner(
+                tokens,
+                &crate::registry_invocation::OwnedInvocationMetadataContext::Standalone,
+                registry,
+                purpose,
+            )
+            .ok()??
+        };
         if !original_module_origin(&self.invocation_site()?.source, module) {
             return None;
         }
@@ -1150,6 +1174,91 @@ mod tests {
             None,
             &input,
         )
+    }
+
+    #[test]
+    fn original_module_metadata_preserves_explicit_standalone_without_supplied_fallback() {
+        use crate::registry_invocation::OwnedInvocationMetadataContext;
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
+        let standalone =
+            CompilationUnit::build_for_profile("set value ORIGINAL", &registry, false, profile);
+        let module = &standalone.ir_module;
+        assert!(module.source_metadata_input.is_none());
+        assert!(module.source_entry.metadata_context.is_standalone());
+        assert!(module.source_entry.native_entry.is_none());
+        let script = &module.top_level;
+        let tokens = script
+            .retained_source_tokens_for_statement(&script.statements[0])
+            .unwrap();
+        let binding = tokens.source_binding.as_ref().unwrap();
+        let metadata = binding
+            .original_invocation_metadata_for_module(tokens, module, &registry)
+            .expect("actual retained standalone Module and original point");
+        assert!(metadata.is_standalone());
+        assert!(metadata.source_analysis_input().is_none());
+        assert!(
+            crate::registry_invocation::admitted_native_compiler_invocation(
+                &registry, None, tokens
+            )
+            .is_none()
+        );
+        for change in 0..4 {
+            let mut changed = module.clone();
+            match change {
+                0 => changed.source_entry.unknown_entry = true,
+                1 => {
+                    changed.source_entry.metadata_context =
+                        OwnedInvocationMetadataContext::Unavailable
+                }
+                2 => changed.lexer_config.strict_quoting = !changed.lexer_config.strict_quoting,
+                3 => changed.source = tcl_lexer::SourceImage::document("set value CHANGED"),
+                _ => unreachable!(),
+            }
+            assert!(
+                binding
+                    .original_invocation_metadata_for_module(tokens, &changed, &registry)
+                    .is_none()
+            );
+        }
+        let foreign_profile =
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").analyser_profile();
+        let foreign =
+            tcl_registry::CommandRegistry::build_default().project_for_profile(foreign_profile);
+        assert_ne!(
+            registry.snapshot().semantic_key(),
+            foreign.snapshot().semantic_key()
+        );
+        assert!(
+            binding
+                .original_invocation_metadata_for_module(tokens, module, &foreign)
+                .is_none()
+        );
+        let mut changed_tokens = tokens.clone();
+        changed_tokens.argv_texts[1] = "changed".into();
+        assert!(
+            binding
+                .original_invocation_metadata_for_module(&changed_tokens, module, &registry)
+                .is_none()
+        );
+
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl").default_context_registry();
+        let supplied = unit("set value ORIGINAL", &context);
+        let script = &supplied.ir_module.top_level;
+        let tokens = script
+            .retained_source_tokens_for_statement(&script.statements[0])
+            .unwrap();
+        let binding = tokens.source_binding.as_ref().unwrap();
+        let mut missing = supplied.ir_module.clone();
+        missing.source_metadata_input = None;
+        missing.source_entry.metadata_context = OwnedInvocationMetadataContext::Standalone;
+        assert!(
+            binding
+                .original_invocation_metadata_for_module(tokens, &missing, context.commands())
+                .is_none()
+        );
     }
 
     #[test]

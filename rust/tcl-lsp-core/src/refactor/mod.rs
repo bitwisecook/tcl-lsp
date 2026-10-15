@@ -52,6 +52,7 @@
 
 mod brace_expr;
 mod datagroup;
+pub mod equality_source;
 mod extract_proc;
 mod extract_variable;
 mod if_to_switch;

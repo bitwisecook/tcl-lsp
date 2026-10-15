@@ -197,22 +197,20 @@ fn retain_expression_span(
         tcl_syntax::expr::parser::parse_expr_with_syntax_context(value, parser)
             .vars_with_config(config),
     );
-    let (tokens, _) = tcl_lexer::expr_lexer::tokenise_expr_bytes_with_failures(
+    let (tokens, _) = tcl_lexer::tokenise_expr_bytes_with_failures(
         bytes,
         &parser.lexer_grammar,
         parser.expr_grammar_base,
         parser.f5_word_grammar,
     );
-    for term in tcl_lexer::expr_lexer::expression_terms(bytes, &tokens, config)? {
+    for term in tcl_lexer::expression_terms(bytes, &tokens, config)? {
         let content = Span::new(
             span.start().checked_add(term.value.start)?,
             span.start().checked_add(term.value.end)?,
         );
         match term.kind {
-            tcl_lexer::expr_lexer::ExprTermKind::Command => {
-                work.push(SourceRegion::Script(content))
-            }
-            tcl_lexer::expr_lexer::ExprTermKind::EscapedString => {
+            tcl_lexer::ExprTermKind::Command => work.push(SourceRegion::Script(content)),
+            tcl_lexer::ExprTermKind::EscapedString => {
                 let arena = tcl_lexer::ExecutablePartArena::decompose(
                     image.clone(),
                     content,

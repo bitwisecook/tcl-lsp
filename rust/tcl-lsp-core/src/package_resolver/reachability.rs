@@ -861,10 +861,42 @@ fn parse_vsatisfies(script: &str, config: LexerConfig) -> Guard {
     if !is_tcl_version_subject(script, &words[2], config) {
         return Guard::Unknown;
     }
-    let requirements: Vec<String> = words[3..]
+    let Ok(length) = u32::try_from(script.len()) else {
+        return Guard::Unknown;
+    };
+    let Ok(plan) = tcl_lexer::native_script_words_in_with_purpose(
+        SourceImage::document(script),
+        Span::new(0, length),
+        config,
+        tcl_lexer::SourceSegmentationPurpose::NestedScript,
+    ) else {
+        return Guard::Unknown;
+    };
+    let [command] = plan.commands.as_slice() else {
+        return Guard::Unknown;
+    };
+    if plan.fatal_tail.is_some()
+        || command.words.len() != words.len()
+        || command
+            .words
+            .iter()
+            .zip(words)
+            .any(|(original, tokens)| original.tokens() != tokens.as_slice())
+    {
+        return Guard::Unknown;
+    }
+    let Some(requirements) = command.words[3..]
         .iter()
-        .map(|w| word_raw(script, w).trim_matches(['{', '}', '"']).to_owned())
-        .collect();
+        .map(|word| {
+            String::from_utf8(tcl_syntax::word_rules::original_static_word_unicode_value(
+                word,
+            )?)
+            .ok()
+        })
+        .collect::<Option<Vec<_>>>()
+    else {
+        return Guard::Unknown;
+    };
     if requirements.iter().any(|r| !is_requirement_word(r)) {
         return Guard::Unknown;
     }

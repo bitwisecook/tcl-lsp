@@ -2810,6 +2810,13 @@ impl<'r> Lowerer<'r> {
         .map(|selected| {
             crate::registry_invocation::SourceStructuredInvocation::Logical(Box::new(selected))
         })
+        .or_else(|| {
+            crate::registry_invocation::original_logical_source_structured_invocation(
+                self.registry,
+                metadata,
+                tokens,
+            )
+        })
     }
 
     /// Build a `CommandTokens` snapshot from a segmented command, decomposing

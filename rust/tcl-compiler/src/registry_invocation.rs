@@ -128,7 +128,7 @@ pub use vendor_source_barriers::VendorSourceCatalogueBarriers;
 mod hosted_structure;
 pub(crate) use hosted_structure::{
     SourceStructuredInvocation, original_hosted_structured_invocation,
-    original_native_source_structured_invocation,
+    original_logical_source_structured_invocation, original_native_source_structured_invocation,
 };
 mod logical_frame;
 pub(crate) use logical_frame::{
@@ -1385,6 +1385,7 @@ pub(crate) enum SelectedLoweringBindingIdentity<'a> {
     Logical(tcl_registry::CanonicalCommandDescriptorKey<'a>),
     HostedSchema(tcl_registry::CanonicalCommandDescriptorKey<'a>),
     NativeSourceSchema(tcl_registry::CanonicalCommandDescriptorKey<'a>),
+    LogicalSourceSchema(tcl_registry::CanonicalCommandDescriptorKey<'a>),
     AuthoredSourceSchema(tcl_registry::CanonicalCommandDescriptorKey<'a>),
 }
 
@@ -1395,6 +1396,7 @@ impl<'a> SelectedLoweringBindingIdentity<'a> {
             Self::Logical(key)
             | Self::HostedSchema(key)
             | Self::NativeSourceSchema(key)
+            | Self::LogicalSourceSchema(key)
             | Self::AuthoredSourceSchema(key) => key,
         }
     }
@@ -1405,6 +1407,7 @@ impl<'a> SelectedLoweringBindingIdentity<'a> {
             Self::Logical(key)
             | Self::HostedSchema(key)
             | Self::NativeSourceSchema(key)
+            | Self::LogicalSourceSchema(key)
             | Self::AuthoredSourceSchema(key) => key.label(),
         };
         tcl_syntax::naming::unroot_rooted_key(name).unwrap_or(name)

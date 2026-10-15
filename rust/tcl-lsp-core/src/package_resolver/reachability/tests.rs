@@ -485,3 +485,43 @@ fn pathological_nesting_terminates() {
 }
 
 mod written_head_tests;
+
+#[test]
+fn original_requirement_words_preserve_literal_wrappers_and_configured_values() {
+    for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        let config = tcl_lexer::LexerConfig::for_dialect(dialect);
+        for requirement in ["8.6", "{8.6}", r#""8.6""#, r"8\u002e6"] {
+            let script = format!("package vsatisfies [package provide Tcl] {requirement}");
+            let guard = super::parse_vsatisfies(&script, config);
+            assert!(
+                matches!(guard, super::Guard::TclSatisfies { requirements, negated: false }
+                    if requirements == ["8.6"]),
+                "{dialect}: {script}"
+            );
+        }
+        for requirement in [
+            "{{8.6}}",
+            r#"{"8.6"}"#,
+            r#"\"8.6\""#,
+            "$requirement",
+            "[list 8.6]",
+            "{*}{8.6}",
+            r#""8.${minor}""#,
+        ] {
+            let script = format!("package vsatisfies [package provide Tcl] {requirement}");
+            assert!(
+                matches!(
+                    super::parse_vsatisfies(&script, config),
+                    super::Guard::Unknown
+                ),
+                "{dialect}: {script}"
+            );
+        }
+    }
+    for requirement in ["{{8.6}}", r#"{"8.6"}"#, r#"\"8.6\""#] {
+        let source = format!(
+            "if {{[package vsatisfies [package provide Tcl] {requirement}]}} {{return}}\npackage ifneeded retained 1.0 {{source retained.tcl}}"
+        );
+        assert_eq!(only(&source, V86), Availability::Conditional, "{source}");
+    }
+}
