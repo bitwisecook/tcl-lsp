@@ -87,7 +87,8 @@ impl SourceReceiverMethodEntry {
         match input {
             SignatureSourceNameInput::OriginalWord(_)
             | SignatureSourceNameInput::OriginalValue(_) => {}
-            SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+            SignatureSourceNameInput::OriginalVariableRoot(_)
+            | SignatureSourceNameInput::OriginalLogicalListField(_) => return None,
         }
         input
             .policy()

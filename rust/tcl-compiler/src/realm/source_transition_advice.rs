@@ -119,11 +119,24 @@ impl super::CommandBindingRealm {
     ) -> Vec<crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence> {
         use crate::command_binding::OriginalLogicalVariableScope;
         use crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence;
-        let Some(cards) = self.original_logical_procedure_body_cards(input) else {
+        if !input.has_logical_source_name_context()
+            || self.bindings.original_logical_source_name_advice_input() != Some(input)
+            || !self.matches_resolved_analysis_input(input)
+        {
+            return Vec::new();
+        }
+        let Some(image) = self.original_source_image() else {
             return Vec::new();
         };
+        if !self.matches_original_source_image(image, input.lexer_config()) {
+            return Vec::new();
+        }
         let mut result = Vec::new();
-        for card in cards {
+        for card in self
+            .original_logical_procedure_body_cards(input)
+            .into_iter()
+            .flatten()
+        {
             let Some(fields) = card
                 .formal_topology()
                 .and_then(|topology| topology.original_name_fields())
@@ -151,6 +164,15 @@ impl super::CommandBindingRealm {
                     result.push(occurrence);
                 }
             }
+        }
+        let context = input.borrowed_context_registry();
+        let purpose = crate::command_binding::OriginalSourceCataloguePurpose::CompletePrefix;
+        let prepared = self.source_advice.get_or_prepare_for(context, purpose, || {
+            self.bindings
+                .original_source_transition_advice_tape_for(context, purpose)
+        });
+        if let Some(tape) = prepared.as_ref().as_ref() {
+            result.extend(tape.logical_lambda_formal_occurrences(input, image));
         }
         result
     }

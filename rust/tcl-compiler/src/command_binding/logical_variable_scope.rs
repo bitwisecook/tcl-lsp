@@ -37,6 +37,7 @@ enum LogicalVariableFrameRecipe {
         procedure: Option<Arc<OriginalLogicalProcedureBody>>,
     },
     Formal(Arc<OriginalLogicalProcedureBody>),
+    LambdaFormal(Arc<OriginalDeclaredLogicalBodyContext>),
 }
 
 /// Actual source scope and complete original interpretation. This is a naming
@@ -50,6 +51,33 @@ pub(crate) struct OriginalLogicalVariableScope {
 }
 
 impl OriginalLogicalVariableScope {
+    pub(crate) fn lambda_formal(
+        input: &ResolvedAnalysisInput,
+        scope: Arc<OriginalDeclaredLogicalBodyContext>,
+        field: &crate::signature_scan::scope::OriginalLogicalListField,
+    ) -> Option<Self> {
+        let lambda = scope.lambda_source()?;
+        if scope.frame_recipe() != OriginalDeclaredSourceBodyFrame::Lambda
+            || !Arc::ptr_eq(scope.body_arc(), lambda.body())
+            || !field.matches_lambda(lambda, input)
+        {
+            return None;
+        }
+        let advice = lambda.current_advice(input)?;
+        let result = Self {
+            input: input.clone(),
+            original: Arc::from(lambda.original_words()),
+            earlier_unknown_mutations: !advice.uncertain_operations().is_empty(),
+            frame: LogicalVariableFrameRecipe::LambdaFormal(scope),
+        };
+        result
+            .matches_name(
+                field.source_span(),
+                &SignatureSourceNameInput::OriginalLogicalListField(field.clone()),
+            )
+            .then_some(result)
+    }
+
     pub(crate) fn formal(
         input: &ResolvedAnalysisInput,
         procedure: Arc<OriginalLogicalProcedureBody>,
@@ -137,6 +165,14 @@ impl OriginalLogicalVariableScope {
                     card.matches_source(image, input)
                         && self.original.as_ref() == std::slice::from_ref(card.formal_original())
                 }
+                LogicalVariableFrameRecipe::LambdaFormal(scope) => {
+                    scope.matches_input(input)
+                        && scope.lambda_source().is_some_and(|lambda| {
+                            Arc::ptr_eq(scope.body_arc(), lambda.body())
+                                && lambda.matches_source(image, input)
+                                && self.original.as_ref() == lambda.original_words()
+                        })
+                }
                 LogicalVariableFrameRecipe::Declared { scope, procedure } => {
                     scope.matches_input(input)
                         && scope.owns_words(&self.original)
@@ -170,6 +206,11 @@ impl OriginalLogicalVariableScope {
                         .any(|field| field.span == span && &field.input == name)
                 });
         }
+        if let LogicalVariableFrameRecipe::LambdaFormal(scope) = &self.frame {
+            return matches!(name, SignatureSourceNameInput::OriginalLogicalListField(field)
+                if field.source_span() == span
+                    && scope.lambda_source().is_some_and(|lambda| field.matches_lambda(lambda, &self.input)));
+        }
         Self::original_words_match_name(&self.original, &self.input, span, name)
     }
 
@@ -184,6 +225,7 @@ impl OriginalLogicalVariableScope {
         };
         let rules = tcl_syntax::word_rules::WordValueRules::from_config(&input.lexer_config());
         match name {
+            SignatureSourceNameInput::OriginalLogicalListField(_) => false,
             SignatureSourceNameInput::OriginalWord(key) => original.iter().any(|word| {
                 (word.span() == span
                     || word
@@ -231,11 +273,18 @@ impl OriginalLogicalVariableScope {
         SignatureNamespaceScope::C(match &self.frame {
             LogicalVariableFrameRecipe::Document(_) => tcl_core_types::ByteNamespacePath::root(),
             LogicalVariableFrameRecipe::Formal(card) => card.scope().namespace_recipe().clone(),
+            LogicalVariableFrameRecipe::LambdaFormal(scope) => scope.namespace_recipe().clone(),
             LogicalVariableFrameRecipe::Declared { scope, .. } => scope.namespace_recipe().clone(),
         })
     }
 
     pub(crate) fn local_frame(&self) -> Option<SourceOriginalVariableFrame> {
+        if let LogicalVariableFrameRecipe::LambdaFormal(scope) = &self.frame {
+            return SourceOriginalVariableFrame::from_logical_lambda_source(
+                Arc::clone(scope.lambda_source()?),
+                &self.input,
+            );
+        }
         if let LogicalVariableFrameRecipe::Declared { scope, .. } = &self.frame
             && scope.frame_recipe() == OriginalDeclaredSourceBodyFrame::Lambda
         {
@@ -258,7 +307,9 @@ impl OriginalLogicalVariableScope {
     pub(crate) fn namespace_storage(&self) -> bool {
         match &self.frame {
             LogicalVariableFrameRecipe::Document(_) => true,
-            LogicalVariableFrameRecipe::Formal(_) => false,
+            LogicalVariableFrameRecipe::Formal(_) | LogicalVariableFrameRecipe::LambdaFormal(_) => {
+                false
+            }
             LogicalVariableFrameRecipe::Declared { scope, .. } => !matches!(
                 scope.frame_recipe(),
                 OriginalDeclaredSourceBodyFrame::Procedure
@@ -330,7 +381,8 @@ impl OriginalLogicalVariableScope {
 
     pub(crate) fn local_name_is_byte_unique(&self, name: &[u8]) -> bool {
         let (parameters_text, original_parameters) = match &self.frame {
-            LogicalVariableFrameRecipe::Declared { scope, .. }
+            LogicalVariableFrameRecipe::LambdaFormal(scope)
+            | LogicalVariableFrameRecipe::Declared { scope, .. }
                 if scope.frame_recipe() == OriginalDeclaredSourceBodyFrame::Lambda =>
             {
                 let Some(formals) = scope
@@ -364,15 +416,8 @@ impl OriginalLogicalVariableScope {
         if parameters != original_parameters {
             return false;
         }
-        let protocol = policy.recipe();
-        let mut seen = std::collections::HashSet::new();
-        parameters.iter().all(|formal| {
-            let input = protocol.combined_variable_input(formal.name.as_bytes());
-            input.element().is_none()
-                && matches!(protocol.variable_root_geometry(tcl_syntax::naming::NativeNameContext::root(), input.root().selected()),
-                    tcl_syntax::naming::NativeVariableRootGeometry::Local(simple) if simple.as_bytes() == formal.name.as_bytes())
-                && seen.insert(formal.name.as_bytes())
-        }) && !name.contains(&0)
+        super::logical_definition::local_formals_are_unique(&parameters, policy)
+            && !name.contains(&0)
     }
 }
 

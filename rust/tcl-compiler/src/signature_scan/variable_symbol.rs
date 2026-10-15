@@ -72,7 +72,7 @@ pub enum OriginalVariableSymbolReceiver {
     NamespaceAlias,
     /// Namespace variable setter without a local link at the true global frame.
     NamespaceVariableWithoutLink,
-    /// Name child of an independently retained original `ParamList` topology.
+    /// Name child of an independently retained original formal topology.
     FormalDeclaration,
 }
 
@@ -104,7 +104,8 @@ impl OriginalVariableSymbolReceiver {
                 match input {
                     SignatureSourceNameInput::OriginalWord(_)
                     | SignatureSourceNameInput::OriginalValue(_) => {}
-                    SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+                    SignatureSourceNameInput::OriginalVariableRoot(_)
+                    | SignatureSourceNameInput::OriginalLogicalListField(_) => return None,
                 }
                 form.input_form(protocol, input.bytes())
             }
@@ -112,7 +113,8 @@ impl OriginalVariableSymbolReceiver {
                 match input {
                     SignatureSourceNameInput::OriginalWord(_)
                     | SignatureSourceNameInput::OriginalValue(_) => {}
-                    SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+                    SignatureSourceNameInput::OriginalVariableRoot(_)
+                    | SignatureSourceNameInput::OriginalLogicalListField(_) => return None,
                 }
                 let bytes = if self == Self::NamespaceVariableWithoutLink && protocol.is_jim084() {
                     protocol.namespace_tail_bytes(input.bytes())
@@ -129,6 +131,11 @@ impl OriginalVariableSymbolReceiver {
         input: &SignatureSourceNameInput,
     ) -> Option<tcl_syntax::naming::NativeVariableInputForm<'_>> {
         if self == Self::NamespaceVariableWithoutLink {
+            let (SignatureSourceNameInput::OriginalWord(_)
+            | SignatureSourceNameInput::OriginalValue(_)) = input
+            else {
+                return None;
+            };
             // The namespace setter selects a tail for its target, while the
             // independent written operand retains its qualifier for an edit.
             Some(tcl_syntax::naming::NativeVariableInputForm::Combined(
@@ -543,6 +550,11 @@ pub(crate) fn original_variable_alias_local_name(
     input: &SignatureSourceNameInput,
     purpose: crate::registry_invocation::DeclarationVariableAliasPurpose,
 ) -> Option<NameBytes> {
+    let (SignatureSourceNameInput::OriginalWord(_) | SignatureSourceNameInput::OriginalValue(_)) =
+        input
+    else {
+        return None;
+    };
     use crate::registry_invocation::DeclarationVariableAliasPurpose as Purpose;
     use tcl_syntax::naming::NativeNameContext;
     let protocol = input.policy().recipe();
@@ -632,6 +644,35 @@ pub struct SignatureSourceVariableOccurrence {
 }
 
 impl SignatureSourceVariableOccurrence {
+    pub(crate) fn from_logical_lambda_formal(
+        field: crate::signature_scan::scope::OriginalLogicalListField,
+        scope: crate::command_binding::OriginalLogicalVariableScope,
+    ) -> Option<Self> {
+        let span = field.source_span();
+        let simple = NameBytes::from(field.source_units());
+        let input = SignatureSourceNameInput::OriginalLogicalListField(field);
+        if !scope.matches_name(span, &input) || !scope.local_name_is_byte_unique(simple.as_bytes())
+        {
+            return None;
+        }
+        let symbol = SignatureSourceVariableSymbol::from_original_local_input(
+            &input,
+            scope.local_frame()?,
+            simple,
+        );
+        Some(Self {
+            span,
+            input,
+            namespace: None,
+            receiver: OriginalVariableSymbolReceiver::FormalDeclaration,
+            symbol,
+            declaration: true,
+            alias: None,
+            formal: None,
+            logical_scope: Some(scope),
+        })
+    }
+
     pub(crate) fn from_logical_source(
         span: tcl_lexer::Span,
         input: SignatureSourceNameInput,
@@ -933,6 +974,12 @@ impl SignatureSourceVariableOccurrence {
     /// span. Formal fields retain their authentic list-child extent.
     #[must_use]
     pub fn rename_span(&self) -> Option<tcl_lexer::Span> {
+        if matches!(
+            self.input,
+            SignatureSourceNameInput::OriginalLogicalListField(_)
+        ) {
+            return None;
+        }
         self.rename_changes_spelling().then_some(())?;
         (self.renamed_input(self.symbol.rename_tail()?)?.as_slice() == self.input.bytes())
             .then_some(())?;
@@ -970,7 +1017,8 @@ impl SignatureSourceVariableOccurrence {
                 .ok()?
                 .original_literal_extent(0, extent)
             }
-            SignatureSourceNameInput::OriginalValue(_) => None,
+            SignatureSourceNameInput::OriginalValue(_)
+            | SignatureSourceNameInput::OriginalLogicalListField(_) => None,
         }
     }
 
@@ -1006,6 +1054,12 @@ impl SignatureSourceVariableOccurrence {
     #[must_use]
     pub fn renamed_input(&self, new_native_tail: &[u8]) -> Option<Vec<u8>> {
         use tcl_syntax::naming::NativeVariableInputForm;
+        if matches!(
+            self.input,
+            SignatureSourceNameInput::OriginalLogicalListField(_)
+        ) {
+            return None;
+        }
         let target = self.symbol.renamed(new_native_tail)?;
         if let Some(formal) = &self.formal {
             return formal.renamed_input(new_native_tail);

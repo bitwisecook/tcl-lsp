@@ -28,6 +28,7 @@ pub(crate) fn original_input_matches_source(
             return root.source_image() == &image && root.lexer_config() == config;
         }
         SignatureSourceNameInput::OriginalWord(_) | SignatureSourceNameInput::OriginalValue(_) => {}
+        SignatureSourceNameInput::OriginalLogicalListField(_) => return false,
     }
     let Some(realm) = analysis.retained_command_realm() else {
         return false;

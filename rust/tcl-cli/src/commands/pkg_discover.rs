@@ -415,7 +415,8 @@ fn original_document_requirements(
             match input {
                 tcl_compiler::signature_scan::scope::SignatureSourceNameInput::OriginalWord(_)
                 | tcl_compiler::signature_scan::scope::SignatureSourceNameInput::OriginalValue(_) => {}
-                tcl_compiler::signature_scan::scope::SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+                tcl_compiler::signature_scan::scope::SignatureSourceNameInput::OriginalVariableRoot(_)
+                | tcl_compiler::signature_scan::scope::SignatureSourceNameInput::OriginalLogicalListField(_) => return None,
             }
             let value=std::str::from_utf8(input.bytes()).ok()?;
             (value.is_ascii() && manifest_atom(value)).then(||value.to_owned())

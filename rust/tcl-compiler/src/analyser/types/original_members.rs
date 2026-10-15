@@ -70,7 +70,8 @@ impl OriginalSourceMemberDeclaration {
                     .then_some(())?;
                 None
             }
-            SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+            SignatureSourceNameInput::OriginalVariableRoot(_)
+            | SignatureSourceNameInput::OriginalLogicalListField(_) => return None,
         };
         Some(Self {
             site: site.clone(),
@@ -514,7 +515,8 @@ impl OriginalSourceMemberEffect {
             match input {
                 SignatureSourceNameInput::OriginalWord(_)
                 | SignatureSourceNameInput::OriginalValue(_) => {}
-                SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+                SignatureSourceNameInput::OriginalVariableRoot(_)
+                | SignatureSourceNameInput::OriginalLogicalListField(_) => return None,
             }
         }
         let first = inputs.first()?;
@@ -810,7 +812,8 @@ impl OriginalSourceMemberLedger {
         match input {
             SignatureSourceNameInput::OriginalWord(_)
             | SignatureSourceNameInput::OriginalValue(_) => {}
-            SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+            SignatureSourceNameInput::OriginalVariableRoot(_)
+            | SignatureSourceNameInput::OriginalLogicalListField(_) => return None,
         }
         self.methods(side)?.into_iter().find(|method| {
             method
@@ -869,7 +872,8 @@ impl OriginalSourceMemberLedger {
         match input {
             SignatureSourceNameInput::OriginalWord(_)
             | SignatureSourceNameInput::OriginalValue(_) => {}
-            SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+            SignatureSourceNameInput::OriginalVariableRoot(_)
+            | SignatureSourceNameInput::OriginalLogicalListField(_) => return None,
         }
         self.inherited_visibility_for_bytes(
             side,

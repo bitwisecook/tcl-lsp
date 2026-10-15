@@ -1429,7 +1429,8 @@ impl OriginalCommandOperands {
         match first {
             SignatureSourceNameInput::OriginalWord(_)
             | SignatureSourceNameInput::OriginalValue(_) => {}
-            SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+            SignatureSourceNameInput::OriginalVariableRoot(_)
+            | SignatureSourceNameInput::OriginalLogicalListField(_) => return None,
         }
         selected.all(|input| input == first).then_some(first)
     }
@@ -1698,7 +1699,8 @@ impl ModuleCommandBindings {
         match input {
             SignatureSourceNameInput::OriginalWord(_)
             | SignatureSourceNameInput::OriginalValue(_) => {}
-            SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+            SignatureSourceNameInput::OriginalVariableRoot(_)
+            | SignatureSourceNameInput::OriginalLogicalListField(_) => return None,
         }
         let scope = if input.bytes().starts_with(b"::") {
             SignatureNamespaceScope::root(Some(input.policy()))
@@ -1782,7 +1784,8 @@ impl ModuleCommandBindings {
         match input {
             SignatureSourceNameInput::OriginalWord(_)
             | SignatureSourceNameInput::OriginalValue(_) => {}
-            SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+            SignatureSourceNameInput::OriginalVariableRoot(_)
+            | SignatureSourceNameInput::OriginalLogicalListField(_) => return None,
         }
         let scope = if input.bytes().starts_with(b"::") {
             SignatureNamespaceScope::root(Some(input.policy()))
@@ -1865,7 +1868,8 @@ impl ModuleCommandBindings {
         match input {
             SignatureSourceNameInput::OriginalWord(_)
             | SignatureSourceNameInput::OriginalValue(_) => {}
-            SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+            SignatureSourceNameInput::OriginalVariableRoot(_)
+            | SignatureSourceNameInput::OriginalLogicalListField(_) => return None,
         }
         self.original_command_paths_for_bytes(current, input.bytes(), input.policy())
     }
@@ -1881,7 +1885,8 @@ impl ModuleCommandBindings {
         match input {
             SignatureSourceNameInput::OriginalWord(_)
             | SignatureSourceNameInput::OriginalValue(_) => {}
-            SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+            SignatureSourceNameInput::OriginalVariableRoot(_)
+            | SignatureSourceNameInput::OriginalLogicalListField(_) => return None,
         }
         self.original_command_slot_paths_for_bytes(current, input.bytes(), input.policy())?
             .into_iter()
@@ -2231,7 +2236,8 @@ impl ModuleCommandBindings {
         match input {
             SignatureSourceNameInput::OriginalWord(_)
             | SignatureSourceNameInput::OriginalValue(_) => {}
-            SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+            SignatureSourceNameInput::OriginalVariableRoot(_)
+            | SignatureSourceNameInput::OriginalLogicalListField(_) => return None,
         }
         let policy = input.policy();
         if self
@@ -2792,7 +2798,8 @@ impl ModuleCommandBindings {
         match input {
             SignatureSourceNameInput::OriginalWord(_)
             | SignatureSourceNameInput::OriginalValue(_) => {}
-            SignatureSourceNameInput::OriginalVariableRoot(_) => return false,
+            SignatureSourceNameInput::OriginalVariableRoot(_)
+            | SignatureSourceNameInput::OriginalLogicalListField(_) => return false,
         }
         self.original_command_slot_paths_for_bytes(current, input.bytes(), input.policy())
             .is_some_and(|paths| {

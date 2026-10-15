@@ -788,7 +788,8 @@ impl OriginalClassInstanceMethodRoster {
         match input {
             SignatureSourceNameInput::OriginalWord(_)
             | SignatureSourceNameInput::OriginalValue(_) => {}
-            SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+            SignatureSourceNameInput::OriginalVariableRoot(_)
+            | SignatureSourceNameInput::OriginalLogicalListField(_) => return None,
         }
         if input.policy() != self.policy {
             return None;
@@ -1796,7 +1797,8 @@ pub(super) fn publication_slot(
 ) -> Option<ByteCommandSlot> {
     match input {
         SignatureSourceNameInput::OriginalWord(_) | SignatureSourceNameInput::OriginalValue(_) => {}
-        SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+        SignatureSourceNameInput::OriginalVariableRoot(_)
+        | SignatureSourceNameInput::OriginalLogicalListField(_) => return None,
     }
     let recipe = input.policy().recipe();
     let context = scope.context()?;
@@ -2195,7 +2197,8 @@ impl OriginalSourceCommandWorld {
             match input {
                 SignatureSourceNameInput::OriginalWord(_)
                 | SignatureSourceNameInput::OriginalValue(_) => {}
-                SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+                SignatureSourceNameInput::OriginalVariableRoot(_)
+                | SignatureSourceNameInput::OriginalLogicalListField(_) => return None,
             }
             let parts = policy
                 .recipe()
@@ -2290,7 +2293,8 @@ impl OriginalSourceCommandWorld {
             match input {
                 SignatureSourceNameInput::OriginalWord(_)
                 | SignatureSourceNameInput::OriginalValue(_) => {}
-                SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+                SignatureSourceNameInput::OriginalVariableRoot(_)
+                | SignatureSourceNameInput::OriginalLogicalListField(_) => return None,
             }
             let parts = policy
                 .recipe()

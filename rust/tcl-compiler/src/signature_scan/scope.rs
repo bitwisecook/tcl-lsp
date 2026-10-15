@@ -5,7 +5,8 @@
 //! Authored namespace geometry for signature assistance, without runtime tokens.
 
 pub use super::name_value::{
-    SignatureSourceNameInput, SignatureSourceNameValue, SignatureSourceStaticListContainer,
+    OriginalLogicalListField, SignatureSourceNameInput, SignatureSourceNameValue,
+    SignatureSourceStaticListContainer,
 };
 pub use super::original_name::SignatureSourceNameKey;
 
@@ -113,7 +114,8 @@ impl SignatureNamespaceScope {
         match input {
             SignatureSourceNameInput::OriginalWord(_)
             | SignatureSourceNameInput::OriginalValue(_) => {}
-            SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+            SignatureSourceNameInput::OriginalVariableRoot(_)
+            | SignatureSourceNameInput::OriginalLogicalListField(_) => return None,
         }
         let policy = input.policy();
         let context = self.context_for_policy(policy)?;
@@ -594,7 +596,8 @@ impl SignatureSourceLookup {
         match input {
             SignatureSourceNameInput::OriginalWord(_)
             | SignatureSourceNameInput::OriginalValue(_) => {}
-            SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+            SignatureSourceNameInput::OriginalVariableRoot(_)
+            | SignatureSourceNameInput::OriginalLogicalListField(_) => return None,
         }
         namespace.context_for_policy(input.policy())?;
         Some(Self {

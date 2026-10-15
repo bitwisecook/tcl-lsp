@@ -34,7 +34,9 @@ impl super::ModuleCommandBindings {
         match input {
             crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(_)
             | crate::signature_scan::scope::SignatureSourceNameInput::OriginalValue(_) => {}
-            crate::signature_scan::scope::SignatureSourceNameInput::OriginalVariableRoot(_) => {
+            crate::signature_scan::scope::SignatureSourceNameInput::OriginalVariableRoot(_)
+            | crate::signature_scan::scope::SignatureSourceNameInput::OriginalLogicalListField(_) =>
+            {
                 return None;
             }
         }

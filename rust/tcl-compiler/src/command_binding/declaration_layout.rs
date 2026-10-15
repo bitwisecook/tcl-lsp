@@ -380,7 +380,10 @@ fn original_alias_template_input_is_current(
         crate::signature_scan::scope::SignatureSourceNameInput::OriginalVariableRoot(root) => {
             root.source_image() == image && root.lexer_config() == row.config
         }
-        crate::signature_scan::scope::SignatureSourceNameInput::OriginalValue(_) => false,
+        crate::signature_scan::scope::SignatureSourceNameInput::OriginalValue(_)
+        | crate::signature_scan::scope::SignatureSourceNameInput::OriginalLogicalListField(_) => {
+            false
+        }
     }
 }
 

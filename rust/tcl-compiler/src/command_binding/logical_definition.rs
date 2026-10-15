@@ -317,6 +317,24 @@ pub(super) fn static_formals(
     Some(parameters)
 }
 
+/// Conditional source-local names only; formal parsing and argument binding
+/// remain independent requirements of the held declaration or lambda owner.
+pub(super) fn local_formals_are_unique(
+    parameters: &[tcl_syntax::formal_params::FormalParameter],
+    policy: tcl_syntax::naming::NamePolicyProtocol,
+) -> bool {
+    use tcl_syntax::naming::{NativeNameContext, NativeVariableRootGeometry};
+    let protocol = policy.recipe();
+    let mut seen = std::collections::HashSet::new();
+    parameters.iter().all(|formal| {
+        let input = protocol.combined_variable_input(formal.name.as_bytes());
+        input.element().is_none()
+            && matches!(protocol.variable_root_geometry(NativeNameContext::root(), input.root().selected()),
+                NativeVariableRootGeometry::Local(simple) if simple.as_bytes() == formal.name.as_bytes())
+            && seen.insert(formal.name.as_bytes())
+    })
+}
+
 /// Map names in the independently selected Logical recipe to original list
 /// geometry. Escaped parent values keep names but withhold source extents.
 pub(super) fn formal_name_sources(

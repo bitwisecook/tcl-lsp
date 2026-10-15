@@ -91,7 +91,7 @@ impl OriginalLogicalLambdaBody {
         })
     }
 
-    fn current_advice(
+    pub(crate) fn current_advice(
         &self,
         input: &ResolvedAnalysisInput,
     ) -> Option<&crate::command_binding::OriginalSourceCommandTransitionAdvice> {
@@ -194,6 +194,11 @@ impl OriginalLogicalLambdaBody {
     ) -> Option<tcl_syntax::word_rules::OriginalSourceListElement> {
         self.frame_source(input)?;
         let formals = self.formal_parameters()?;
+        super::super::logical_definition::local_formals_are_unique(
+            formals.parameters(),
+            self.name_policy(),
+        )
+        .then_some(())?;
         let expected = formals.parameters().get(parameter)?;
         let specifiers = formals.parameter_field().elements()?;
         let fields = specifiers.get(parameter)?.elements()?;
@@ -205,6 +210,7 @@ impl OriginalLogicalLambdaBody {
             || field.original_word() != self.lambda()
             || self.lambda.image().bytes().get(span.as_range())? != expected.name.as_bytes()
             || formals.name_sources().get(parameter)?.source_span() != Some(span)
+            || expected.name.as_bytes().contains(&0)
         {
             return None;
         }

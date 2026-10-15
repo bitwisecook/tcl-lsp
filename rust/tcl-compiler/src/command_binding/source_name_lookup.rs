@@ -515,7 +515,8 @@ impl SourceInvocationBinding {
                 )?;
                 rows.collect()
             }
-            SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+            SignatureSourceNameInput::OriginalVariableRoot(_)
+            | SignatureSourceNameInput::OriginalLogicalListField(_) => return None,
         };
         self.original_lookup_from_rows(input, rows)
     }
@@ -537,7 +538,8 @@ impl SourceInvocationBinding {
         match input {
             SignatureSourceNameInput::OriginalWord(_)
             | SignatureSourceNameInput::OriginalValue(_) => {}
-            SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+            SignatureSourceNameInput::OriginalVariableRoot(_)
+            | SignatureSourceNameInput::OriginalLogicalListField(_) => return None,
         }
         let rows = super::declaration_layout::original_declaration_layouts(
             self.declaration_layout_observations.as_deref()?,
@@ -605,7 +607,8 @@ impl SourceInvocationBinding {
         match input {
             SignatureSourceNameInput::OriginalWord(_)
             | SignatureSourceNameInput::OriginalValue(_) => {}
-            SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+            SignatureSourceNameInput::OriginalVariableRoot(_)
+            | SignatureSourceNameInput::OriginalLogicalListField(_) => return None,
         }
         let mut unanimous = None;
         let mut naming_scope = None;

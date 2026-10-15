@@ -137,6 +137,12 @@ impl OriginalNamespaceEdits<'_> {
             SignatureSourceNameInput::OriginalWord(key) => key.policy(),
             SignatureSourceNameInput::OriginalValue(value) => value.policy(),
             SignatureSourceNameInput::OriginalVariableRoot(root) => root.policy(),
+            SignatureSourceNameInput::OriginalLogicalListField(_) => {
+                return Err(self.refusal(
+                    Some(span),
+                    "the source formal field has no namespace edit purpose",
+                ));
+            }
         };
         let recipe = policy.recipe();
         let combined;
@@ -179,6 +185,12 @@ impl OriginalNamespaceEdits<'_> {
             SignatureSourceNameInput::OriginalWord(key) => key.policy(),
             SignatureSourceNameInput::OriginalValue(value) => value.policy(),
             SignatureSourceNameInput::OriginalVariableRoot(root) => root.policy(),
+            SignatureSourceNameInput::OriginalLogicalListField(_) => {
+                return Err(self.refusal(
+                    Some(span),
+                    "the source formal field has no namespace edit purpose",
+                ));
+            }
         };
         if policy != self.symbol.policy() {
             return Ok(());

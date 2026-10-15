@@ -818,13 +818,36 @@ impl LogicalSourceListNameInput {
 /// One unchanged Logical lambda formal name, retaining the whole selected
 /// call and list path. Unicode source units supply no Native value, word key,
 /// namespace/command role, cell or edit permission.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct OriginalLogicalListField {
+#[derive(Debug, Clone)]
+pub struct OriginalLogicalListField {
     lambda: std::sync::Arc<crate::command_binding::OriginalLogicalLambdaBody>,
     source: std::sync::Arc<crate::command_binding::SourceOriginId>,
     path: [usize; 3],
     field: tcl_syntax::word_rules::OriginalSourceListElement,
     span: Span,
+}
+
+impl PartialEq for OriginalLogicalListField {
+    fn eq(&self, other: &Self) -> bool {
+        std::sync::Arc::ptr_eq(&self.source, &other.source)
+            && self.lambda == other.lambda
+            && self.path == other.path
+            && self.field == other.field
+            && self.span == other.span
+    }
+}
+
+impl Eq for OriginalLogicalListField {}
+
+impl std::hash::Hash for OriginalLogicalListField {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        use std::hash::Hash;
+        std::sync::Arc::as_ptr(&self.source).hash(state);
+        self.path.hash(state);
+        self.span.hash(state);
+        self.source_units().hash(state);
+        self.policy().hash(state);
+    }
 }
 
 impl OriginalLogicalListField {
@@ -905,6 +928,8 @@ pub enum SignatureSourceNameInput {
     OriginalWord(SignatureSourceNameKey),
     /// Original fragment/list-child value, with no complete-word edit geometry.
     OriginalValue(SignatureSourceNameValue),
+    /// Conditional Logical formal source units, without a Native value or edit.
+    OriginalLogicalListField(OriginalLogicalListField),
 }
 
 impl SignatureSourceNameInput {
@@ -918,7 +943,7 @@ impl SignatureSourceNameInput {
                 ordinals: Vec::new(),
             }),
             Self::OriginalValue(value) => value.original_static_list_container(),
-            Self::OriginalVariableRoot(_) => None,
+            Self::OriginalVariableRoot(_) | Self::OriginalLogicalListField(_) => None,
         }
     }
     fn original_list_value(&self) -> Option<SignatureSourceNameValue> {
@@ -929,7 +954,7 @@ impl SignatureSourceNameInput {
                 key.policy(),
             ),
             Self::OriginalValue(value) => Some(value.clone()),
-            Self::OriginalVariableRoot(_) => None,
+            Self::OriginalVariableRoot(_) | Self::OriginalLogicalListField(_) => None,
         }
     }
 
@@ -1047,6 +1072,7 @@ impl SignatureSourceNameInput {
     pub(crate) fn lineage_nodes_in(&self, remaining: &mut usize) -> bool {
         match self {
             Self::OriginalValue(value) => value.lineage_nodes_in(remaining),
+            Self::OriginalLogicalListField(_) => false,
             Self::OriginalWord(_) | Self::OriginalVariableRoot(_) => {
                 let Some(next) = remaining.checked_sub(1) else {
                     return false;
@@ -1062,7 +1088,9 @@ impl SignatureSourceNameInput {
     ) -> Option<&crate::command_binding::original_name_value::OriginalProducedNameValue> {
         match self {
             Self::OriginalValue(value) => value.produced_value(),
-            Self::OriginalWord(_) | Self::OriginalVariableRoot(_) => None,
+            Self::OriginalWord(_)
+            | Self::OriginalVariableRoot(_)
+            | Self::OriginalLogicalListField(_) => None,
         }
     }
     pub(crate) fn is_current(&self, context: &crate::var_resolve::ResolveContext) -> bool {
@@ -1080,15 +1108,18 @@ impl SignatureSourceNameInput {
                     == Some(root.policy())
             }
             Self::OriginalValue(value) => value.is_current(context),
+            Self::OriginalLogicalListField(_) => false,
         }
     }
-    /// Exact original source-produced units.
+    /// Original naming units. Logical formal fields expose Unicode source
+    /// units; their Native value and execution projections remain unavailable.
     #[must_use]
     pub fn bytes(&self) -> &[u8] {
         match self {
             Self::OriginalWord(key) => key.bytes(),
             Self::OriginalVariableRoot(root) => root.bytes(),
             Self::OriginalValue(value) => value.bytes(),
+            Self::OriginalLogicalListField(field) => field.source_units(),
         }
     }
     /// Independently selected naming policy.
@@ -1098,6 +1129,7 @@ impl SignatureSourceNameInput {
             Self::OriginalWord(key) => key.policy(),
             Self::OriginalVariableRoot(root) => root.policy(),
             Self::OriginalValue(value) => value.policy(),
+            Self::OriginalLogicalListField(field) => field.policy(),
         }
     }
     /// Complete word authority is absent for readonly produced values.
@@ -1105,7 +1137,9 @@ impl SignatureSourceNameInput {
     pub fn original_word_key(&self) -> Option<&SignatureSourceNameKey> {
         match self {
             Self::OriginalWord(key) => Some(key),
-            Self::OriginalValue(_) | Self::OriginalVariableRoot(_) => None,
+            Self::OriginalValue(_)
+            | Self::OriginalVariableRoot(_)
+            | Self::OriginalLogicalListField(_) => None,
         }
     }
 }
@@ -1565,6 +1599,41 @@ mod logical_formal_field_tests {
             assert_eq!(field.policy(), owner.name_policy());
             assert!(field.matches_source(&SourceImage::document(source), &input));
             assert!(field.matches_lambda(&owner, &input));
+            let name = SignatureSourceNameInput::OriginalLogicalListField(field.clone());
+            let mut native = crate::var_resolve::ResolveContext::for_namespace("::");
+            native.execution_name_policy = Some(
+                tcl_syntax::naming::ExecutionNamePolicy::NativeRecipe(field.policy()),
+            );
+            assert!(!name.is_current(&native));
+            assert!(!name.lineage_within(usize::MAX));
+            assert!(name.produced_value().is_none());
+            assert!(name.original_word_key().is_none());
+            assert!(name.original_static_list_container().is_none());
+            assert!(name.original_list_element(0).is_none());
+            assert!(name.original_list_elements().is_none());
+            assert!(name.original_list_elements_with_source_spans().is_none());
+            assert!(
+                name.original_static_value_source_extent(0..name.bytes().len())
+                    .is_none()
+            );
+            assert!(
+                crate::signature_scan::scope::SignatureNamespaceScope::root(Some(field.policy()))
+                    .child_from_input(&name)
+                    .is_none()
+            );
+            assert!(
+                crate::signature_scan::scope::SignatureSourceLookup::from_input(
+                    crate::signature_scan::scope::SignatureNamespaceScope::root(Some(
+                        field.policy()
+                    )),
+                    &name,
+                )
+                .is_none()
+            );
+            assert!(crate::signature_scan::formal_parameters::SignatureSourceFormalParameterValue::from_original_input(
+                &name,
+                tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
+            ).is_none());
             let mut foreign_allocation = field.clone();
             foreign_allocation.source =
                 Arc::new(crate::command_binding::SourceOriginId::authored_image(
@@ -1572,8 +1641,13 @@ mod logical_formal_field_tests {
                 ));
             assert_eq!(foreign_allocation.source, field.source);
             assert!(!Arc::ptr_eq(&foreign_allocation.source, &field.source));
+            assert_ne!(foreign_allocation, field);
             assert!(!foreign_allocation.matches_source(owner.lambda().image(), &input));
             assert!(!foreign_allocation.matches_lambda(&owner, &input));
+            let mut set = std::collections::HashSet::new();
+            assert!(set.insert(field.clone()));
+            assert!(!set.insert(owner.formal_name_field(&input, ordinal).unwrap()));
+            assert!(set.insert(foreign_allocation));
             let mut foreign = input.clone();
             foreign.config.strict_quoting = !foreign.config.strict_quoting;
             assert!(!field.matches_source(&SourceImage::document(source), &foreign));

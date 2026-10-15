@@ -5408,6 +5408,117 @@ info exists ::N::v\uD800";
     }
 
     #[test]
+    fn logical_lambda_formals_join_body_source_symbols_without_native_or_edit_authority() {
+        use crate::signature_scan::scope::SignatureSourceNameInput;
+        use crate::signature_scan::variable_symbol::{
+            OriginalVariableSymbolReceiver, SignatureSourceVariableSlot,
+        };
+        for source in [
+            "apply {{first {second DEFAULT} args} {set first NEXT; return $first}} ONE",
+            "namespace eval N {apply {{first {second DEFAULT} args} {return $first}} ONE}",
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl");
+            let config = analysis.body_lexer_config.unwrap();
+            let image = tcl_lexer::SourceImage::document(source);
+            for name in ["first", "second", "args"] {
+                let offset = u32::try_from(source.find(name).unwrap()).unwrap();
+                let declaration = analysis
+                    .original_variable_symbol_in_source(&image, config, offset)
+                    .unwrap_or_else(|| panic!("actual source formal {name}: {source}"));
+                assert!(declaration.is_declaration());
+                assert_eq!(
+                    declaration.receiver(),
+                    OriginalVariableSymbolReceiver::FormalDeclaration
+                );
+                assert!(matches!(
+                    declaration.original_name_input(),
+                    SignatureSourceNameInput::OriginalLogicalListField(_)
+                ));
+                assert!(matches!(
+                    declaration.symbol().slot(),
+                    SignatureSourceVariableSlot::Local { .. }
+                ));
+                assert!(declaration.rename_span().is_none());
+                assert!(declaration.renamed_input(b"renamed").is_none());
+                assert!(!analysis.original_variable_rename_is_complete(declaration.symbol()));
+                let mut wrong = config;
+                wrong.strict_quoting = !wrong.strict_quoting;
+                assert!(
+                    analysis
+                        .original_variable_symbol_in_source(&image, wrong, offset)
+                        .is_none()
+                );
+                assert!(
+                    analysis
+                        .original_variable_symbol_in_source(
+                            &tcl_lexer::SourceImage::document(&source.replace("ONE", "TWO")),
+                            config,
+                            offset,
+                        )
+                        .is_none()
+                );
+                if name == "first" {
+                    let read = analysis
+                        .original_variable_symbol_in_source(
+                            &image,
+                            config,
+                            u32::try_from(source.rfind("$first").unwrap() + 1).unwrap(),
+                        )
+                        .expect("actual body source read");
+                    assert_eq!(declaration.symbol(), read.symbol());
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn logical_lambda_formal_source_symbols_refuse_invalid_layouts_and_keep_activations_distinct() {
+        for source in [
+            "apply {{first} {return $first}}",
+            "apply {{first first} {return $first}} ONE TWO",
+            r"apply {{{fi\u0072st}} {return}} ONE",
+            "proc apply args {}; apply {{first} {return $first}} ONE",
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl");
+            let offset = u32::try_from(
+                source
+                    .find("first")
+                    .unwrap_or_else(|| source.find("fi\\u0072st").unwrap()),
+            )
+            .unwrap();
+            assert!(
+                analysis
+                    .original_variable_symbol_at_offset(offset)
+                    .is_none(),
+                "{source}"
+            );
+        }
+        let source = "apply {{item} {return $item}} ONE; apply {{item} {return $item}} TWO";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let offsets = source
+            .match_indices("item")
+            .map(|(offset, _)| u32::try_from(offset).unwrap())
+            .collect::<Vec<_>>();
+        let first = analysis
+            .original_variable_symbol_at_offset(offsets[0])
+            .unwrap();
+        let first_read = analysis
+            .original_variable_symbol_at_offset(offsets[1])
+            .unwrap();
+        let second = analysis
+            .original_variable_symbol_at_offset(offsets[2])
+            .unwrap();
+        let second_read = analysis
+            .original_variable_symbol_at_offset(offsets[3])
+            .unwrap();
+        assert_eq!(first.symbol(), first_read.symbol());
+        assert_eq!(second.symbol(), second_read.symbol());
+        assert_ne!(first.symbol(), second.symbol());
+        assert!(!analysis.original_variable_rename_is_complete(first.symbol()));
+        assert!(!analysis.original_variable_rename_is_complete(second.symbol()));
+    }
+
+    #[test]
     fn original_formal_variable_symbols_keep_list_children_and_binding_topology() {
         use crate::signature_scan::variable_symbol::{
             OriginalVariableSymbolReceiver, SignatureSourceVariableSlot,

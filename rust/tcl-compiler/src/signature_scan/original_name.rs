@@ -875,7 +875,8 @@ impl SourceNamespacePattern {
         match input {
             super::scope::SignatureSourceNameInput::OriginalWord(_)
             | super::scope::SignatureSourceNameInput::OriginalValue(_) => {}
-            super::scope::SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+            super::scope::SignatureSourceNameInput::OriginalVariableRoot(_)
+            | super::scope::SignatureSourceNameInput::OriginalLogicalListField(_) => return None,
         }
         if input.policy() != self.input.policy() {
             return None;

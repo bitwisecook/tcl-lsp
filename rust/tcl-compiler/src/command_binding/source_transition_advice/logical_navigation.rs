@@ -627,6 +627,56 @@ impl OriginalSourceTransitionAdviceTape {
 }
 
 impl OriginalSourceTransitionAdviceTape {
+    pub(crate) fn logical_lambda_formal_occurrences(
+        &self,
+        input: &ResolvedAnalysisInput,
+        image: &tcl_lexer::SourceImage,
+    ) -> Vec<crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence> {
+        use crate::command_binding::{
+            OriginalDeclaredSourceBodyFrame, OriginalLogicalVariableScope,
+        };
+        use crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence;
+        let mut result = Vec::new();
+        for scope in self
+            .logical_variable_scopes
+            .values()
+            .filter_map(Option::as_ref)
+        {
+            let Some(lambda) = scope.lambda_source() else {
+                continue;
+            };
+            if scope.frame_recipe() != OriginalDeclaredSourceBodyFrame::Lambda
+                || !scope.matches_input(input)
+                || !Arc::ptr_eq(scope.body_arc(), lambda.body())
+                || !lambda.matches_source(image, input)
+            {
+                continue;
+            }
+            let Some(formals) = lambda.formal_parameters() else {
+                continue;
+            };
+            for ordinal in 0..formals.parameters().len() {
+                let Some(field) = lambda.formal_name_field(input, ordinal) else {
+                    continue;
+                };
+                let Some(formal_scope) =
+                    OriginalLogicalVariableScope::lambda_formal(input, Arc::clone(scope), &field)
+                else {
+                    continue;
+                };
+                if let Some(occurrence) =
+                    SignatureSourceVariableOccurrence::from_logical_lambda_formal(
+                        field,
+                        formal_scope,
+                    )
+                {
+                    result.push(occurrence);
+                }
+            }
+        }
+        result
+    }
+
     pub(crate) fn logical_variable_scope_at(
         &self,
         input: &ResolvedAnalysisInput,

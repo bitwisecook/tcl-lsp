@@ -408,7 +408,8 @@ impl SignatureSourceFormalParameterValue {
         match input {
             SignatureSourceNameInput::OriginalWord(_)
             | SignatureSourceNameInput::OriginalValue(_) => {}
-            SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+            SignatureSourceNameInput::OriginalVariableRoot(_)
+            | SignatureSourceNameInput::OriginalLogicalListField(_) => return None,
         }
         let protocol = input.policy().recipe();
         if dialect.native_name_protocol().or_else(|| {

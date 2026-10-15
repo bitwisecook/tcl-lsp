@@ -39,7 +39,8 @@ impl OriginalSourcePropertyMetadata {
             match input {
                 SignatureSourceNameInput::OriginalWord(_)
                 | SignatureSourceNameInput::OriginalValue(_) => {}
-                SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+                SignatureSourceNameInput::OriginalVariableRoot(_)
+                | SignatureSourceNameInput::OriginalLogicalListField(_) => return None,
             }
         }
         let key = declaration.name_input();
@@ -123,7 +124,8 @@ impl OriginalSourcePropertyMetadata {
         match selector {
             SignatureSourceNameInput::OriginalWord(_)
             | SignatureSourceNameInput::OriginalValue(_) => {}
-            SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+            SignatureSourceNameInput::OriginalVariableRoot(_)
+            | SignatureSourceNameInput::OriginalLogicalListField(_) => return None,
         }
         if selector.policy() != self.input.policy() {
             return None;
@@ -142,7 +144,8 @@ impl OriginalSourcePropertyMetadata {
         match selector {
             SignatureSourceNameInput::OriginalWord(_)
             | SignatureSourceNameInput::OriginalValue(_) => {}
-            SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+            SignatureSourceNameInput::OriginalVariableRoot(_)
+            | SignatureSourceNameInput::OriginalLogicalListField(_) => return None,
         }
         if selector.policy() != self.input.policy() {
             return None;
@@ -266,7 +269,8 @@ impl OriginalSourcePropertyLedger {
         match input {
             SignatureSourceNameInput::OriginalWord(_)
             | SignatureSourceNameInput::OriginalValue(_) => {}
-            SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+            SignatureSourceNameInput::OriginalVariableRoot(_)
+            | SignatureSourceNameInput::OriginalLogicalListField(_) => return None,
         }
         self.properties(side)?
             .into_iter()

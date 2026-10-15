@@ -41,7 +41,8 @@ impl OriginalReceiverVariableInventory {
             match input {
                 SignatureSourceNameInput::OriginalWord(_)
                 | SignatureSourceNameInput::OriginalValue(_) => {}
-                SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+                SignatureSourceNameInput::OriginalVariableRoot(_)
+                | SignatureSourceNameInput::OriginalLogicalListField(_) => return None,
             }
         }
         if arguments.iter().any(|input| input.policy() != self.policy) {
