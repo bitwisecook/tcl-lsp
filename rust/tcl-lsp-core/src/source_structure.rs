@@ -267,28 +267,47 @@ fn variable_in_structure<'a>(
     reference_from_arena(source, &arena, cursor)
 }
 
-/// Exact selected variable component end, including its original array or
-/// brace closer. Syntax geometry grants no name lookup, frame or edit owner.
-pub(crate) fn source_variable_reference_end(
-    image: &SourceImage,
-    config: LexerConfig,
-    start: u32,
+/// Partial cursor syntax from the current source's innermost genuinely owned
+/// lexical script region. Missing source/phase correspondence stays unavailable;
+/// no completed name, variable frame or selected binding follows.
+pub(crate) fn original_variable_cursor_prefix(
+    source: &str,
+    analysis: &AnalysisResult,
     cursor: u32,
-) -> Option<u32> {
-    let arena = tcl_lexer::ExecutablePartArena::decompose(
-        image.clone(),
-        Span::new(0, u32::try_from(image.len()).ok()?),
-        tcl_lexer::SubstFlags::default(),
-        config,
-    )
-    .ok()?;
-    let mut parts = arena.all_parts().filter(|part| {
-        part.span.start() == start
-            && part.span.end() >= cursor
-            && matches!(part.part, tcl_lexer::ExecutablePart::Variable { .. })
-    });
-    let end = parts.next()?.span.end();
-    parts.next().is_none().then_some(end)
+) -> Result<
+    Option<tcl_lexer::word_parts::VariableCursorPrefix>,
+    tcl_lexer::word_parts::VariableCursorUnavailable,
+> {
+    use tcl_lexer::word_parts::{VariableCursorUnavailable, variable_cursor_prefix_in};
+    let config = analysis
+        .body_lexer_config
+        .ok_or(VariableCursorUnavailable::SourceGeometry)?;
+    let image = SourceImage::document(source);
+    if !analysis.matches_original_source_image(&image, config) || cursor as usize > source.len() {
+        return Err(VariableCursorUnavailable::SourceGeometry);
+    }
+    let structure = SourceStructure::capture(source, Some(analysis), config)
+        .ok_or(VariableCursorUnavailable::LexicalStream)?;
+    let region = structure
+        .scripts
+        .iter()
+        .filter(|(span, _)| span.start() <= cursor && cursor <= span.end())
+        .min_by_key(|(span, _)| span.len())
+        .map(|(span, _)| *span)
+        .ok_or(VariableCursorUnavailable::SourceGeometry)?;
+    let prefix = variable_cursor_prefix_in(&image, region, cursor, config)?;
+    if prefix.is_some() {
+        return Ok(prefix);
+    }
+    // Complete selected expression references retain an independent original
+    // component even when their enclosing word is braced source syntax.
+    let Some(reference) = cursor
+        .checked_sub(1)
+        .and_then(|at| original_variable_reference_at(source, analysis, at))
+    else {
+        return Ok(None);
+    };
+    variable_cursor_prefix_in(&image, reference.whole_span, cursor, config)
 }
 
 /// Reborrowed original variable geometry for one immutable analysis source.

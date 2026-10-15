@@ -36,6 +36,9 @@
 //! the first authentic syntax error before dispatch. The command grouper still
 //! owns whole-word boundaries; decomposition owns only their components.
 
+mod cursor;
+pub use cursor::{VariableCursorPrefix, VariableCursorUnavailable, variable_cursor_prefix_in};
+
 use std::borrow::Cow;
 
 use tcl_dialect::EscapeSyntax;

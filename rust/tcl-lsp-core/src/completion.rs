@@ -392,17 +392,26 @@ fn variable_trigger_completions(
     character: u32,
     analysis: &AnalysisResult,
 ) -> Option<Vec<CompletionItem>> {
-    let (trigger, partial) = variable_trigger(source, line, character)?;
-    if let Some(items) =
-        original_variables::items(source, line, character, analysis, &partial, trigger)
-    {
+    let index = tcl_lexer::LineIndex::new(source);
+    let cursor = crate::definition::byte_offset_at(&index, source, line, character);
+    let position = index.position_at_utf16(cursor, source);
+    if position.line != line || position.character.get() != character {
+        return Some(Vec::new());
+    }
+    let prefix =
+        match crate::source_structure::original_variable_cursor_prefix(source, analysis, cursor) {
+            Ok(Some(prefix)) => prefix,
+            Ok(None) => return None,
+            Err(_) => return Some(Vec::new()),
+        };
+    if let Some(items) = original_variables::items(source, line, character, analysis, &prefix) {
         return Some(items);
     }
     if !analysis.allows_retained_logical_declaration_advice() {
         return Some(Vec::new());
     }
-    Some(variable_completions(
-        source, line, character, analysis, &partial, trigger,
+    Some(variable_completions_in_source(
+        source, line, character, analysis, &prefix,
     ))
 }
 
@@ -619,41 +628,28 @@ pub fn completions(
 /// braced triggers.  Returns `None` when the cursor is not in
 /// a variable-completion context.
 ///
-/// Walks left from the cursor over identifier-continuation
-/// characters (alphanumeric, `_`, `:`), then checks whether the
-/// character preceding that run forms a recognised trigger:
-/// `$` for plain triggers, `${` for braced triggers.
+/// Test convenience for source-only trigger fixtures; production retains the
+/// analysis's original image, full configuration and enclosing script phase.
+#[cfg(test)]
 fn variable_trigger(source: &str, line: u32, character: u32) -> Option<(char, String)> {
-    let line_text = source.split('\n').nth(line as usize)?;
-    let chars: Vec<char> = line_text.chars().collect();
-    let col = utf16_col_to_char_col(line_text, character).min(chars.len());
-
-    // Run of identifier-continuation chars immediately before the cursor —
-    // that is the partial.  `(` is included so an array reference (`$arr(na`)
-    // is captured whole; the array branch in `variable_completions` then
-    // splits on it.
-    let mut start = col;
-    while start > 0
-        && (chars[start - 1].is_alphanumeric()
-            || chars[start - 1] == '_'
-            || chars[start - 1] == ':'
-            || chars[start - 1] == '(')
-    {
-        start -= 1;
-    }
-    let partial: String = chars[start..col].iter().collect();
-
-    // What sits immediately before the partial run?
-    if start == 0 {
+    let index = tcl_lexer::LineIndex::new(source);
+    let cursor = crate::definition::byte_offset_at(&index, source, line, character);
+    let position = index.position_at_utf16(cursor, source);
+    if position.line != line || position.character.get() != character {
         return None;
     }
-    if chars[start - 1] == '$' {
-        return Some(('$', partial));
-    }
-    if start >= 2 && chars[start - 2] == '$' && chars[start - 1] == '{' {
-        return Some(('{', partial));
-    }
-    None
+    let image = tcl_lexer::SourceImage::document(source);
+    let prefix = tcl_lexer::word_parts::variable_cursor_prefix_in(
+        &image,
+        tcl_lexer::Span::new(0, u32::try_from(source.len()).ok()?),
+        cursor,
+        tcl_lexer::LexerConfig::default(),
+    )
+    .ok()??;
+    Some((
+        if prefix.is_braced() { '{' } else { '$' },
+        source.get(prefix.partial_span().as_range())?.to_owned(),
+    ))
 }
 
 /// Word-partial extraction for proc-name completion.
@@ -708,6 +704,7 @@ fn qualified_var_name(name: &str, qualify_globals: Option<&FxHashSet<String>>) -
     }
 }
 
+#[cfg(test)]
 fn variable_completions(
     source: &str,
     line: u32,
@@ -716,16 +713,29 @@ fn variable_completions(
     partial: &str,
     trigger: char,
 ) -> Vec<CompletionItem> {
+    let index = tcl_lexer::LineIndex::new(source);
+    let cursor = crate::definition::byte_offset_at(&index, source, line, character);
+    let Ok(Some(prefix)) =
+        crate::source_structure::original_variable_cursor_prefix(source, analysis, cursor)
+    else {
+        return Vec::new();
+    };
+    if source.get(prefix.partial_span().as_range()) != Some(partial)
+        || prefix.is_braced() != (trigger == '{')
+    {
+        return Vec::new();
+    }
+    variable_completions_in_source(source, line, character, analysis, &prefix)
+}
+
+fn variable_completions_in_source(
+    source: &str,
+    line: u32,
+    character: u32,
+    analysis: &AnalysisResult,
+    prefix: &tcl_lexer::word_parts::VariableCursorPrefix,
+) -> Vec<CompletionItem> {
     let line_text = source.split('\n').nth(line as usize).unwrap_or("");
-    let chars: Vec<char> = line_text.chars().collect();
-    let line_len = chars.len();
-    let cursor_col = utf16_col_to_char_col(line_text, character).min(line_len);
-
-    // Locate the `$` that opens this reference (scan left from the cursor).
-    let dollar = chars[..cursor_col].iter().rposition(|&c| c == '$');
-    let has_open_brace =
-        trigger == '{' || dollar.is_some_and(|d| d + 1 < line_len && chars[d + 1] == '{');
-
     let line_index = tcl_lexer::LineIndex::new(source);
     let byte_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
     let Some(config) = analysis.body_lexer_config else {
@@ -737,32 +747,23 @@ fn variable_completions(
     else {
         return Vec::new();
     };
-    if image.bytes() != source.as_bytes() || !analysis.matches_original_source_image(image, config)
+    if image.bytes() != source.as_bytes()
+        || !analysis.matches_original_source_image(image, config)
+        || !prefix.matches_source(image, config)
+        || prefix.reference_span().end() != byte_offset
     {
         return Vec::new();
     }
-    let Some(dollar) = dollar else {
+    let Some(partial) = source.get(prefix.partial_span().as_range()) else {
         return Vec::new();
     };
-    let byte_column = line_text
-        .chars()
-        .take(dollar)
-        .map(char::len_utf8)
-        .sum::<usize>();
-    let Some(start) = u32::try_from(byte_column)
-        .ok()
-        .and_then(|column| line_index.line_start(line).checked_add(column))
-    else {
-        return Vec::new();
-    };
-    let end =
-        crate::source_structure::source_variable_reference_end(image, config, start, byte_offset)
-            .unwrap_or(byte_offset);
-    let finish = line_index.position_at_utf16(end, source);
-    if finish.line != line {
+    let begin = line_index.position_at_utf16(prefix.reference_span().start(), source);
+    let finish = line_index.position_at_utf16(prefix.container_span().end(), source);
+    if begin.line != line || finish.line != line {
         return Vec::new();
     }
-    let edit_start = Some(char_col_to_utf16(line_text, dollar));
+    let has_open_brace = prefix.is_braced();
+    let edit_start = Some(begin.character.get());
     let edit_end = finish.character.get();
     let end = utf16_col_to_char_col(line_text, edit_end);
 
@@ -770,11 +771,8 @@ fn variable_completions(
         return Vec::new();
     };
 
-    // Array-element completion: `$arr(` / `$arr(prefix` — offer the recorded
-    // indices of `arr` as `$arr(index)`.  A `(` in the partial always
-    // resolves here (to suggestions or an empty list); it never falls
-    // through to plain-name completion.
-    if partial.contains('(') {
+    // An explicit index is distinct from parentheses inside a braced name.
+    if prefix.index_span().is_some() {
         return array_element_completions(
             line_text,
             &advice,
@@ -6974,6 +6972,67 @@ mod configured_receiver_completion_tests {
             assert_eq!(edit.end_char, expected_end, "{environment}");
             assert_eq!(edit.new_text, "${alpha}");
         }
+    }
+
+    #[test]
+    fn variable_cursor_completion_keeps_braced_dollars_spaces_and_edit_extent() {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let selected = tcl_registry::model::ingress::resolve_environment("tcl9.1");
+        let config = tcl_lexer::LexerConfig::for_profile(Some(selected.analyser_profile()));
+        for (name, partial) in [
+            ("cash$name", "cash$"),
+            ("a b", "a "),
+            ("scalar(open", "scalar("),
+        ] {
+            let source = format!("set {{{name}}} VALUE\nputs ${{{name}}}suffix");
+            let analysis = Analyser::new()
+                .with_resolved_input(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                    profile,
+                    profile,
+                    selected.default_context_registry(),
+                    config,
+                ))
+                .analyse(&source, "display only");
+            let cursor = 7 + partial.encode_utf16().count() as u32;
+            let items = variable_trigger_completions(&source, 1, cursor, &analysis).unwrap();
+            let spelling = format!("${{{name}}}");
+            let item = items
+                .iter()
+                .find(|item| item.insert_text == spelling)
+                .expect("original declared braced-name candidate");
+            let edit = item.text_edit.as_ref().unwrap();
+            assert_eq!(edit.start_char, 5);
+            assert_eq!(edit.end_char, 8 + name.encode_utf16().count() as u32);
+            assert_eq!(edit.new_text, spelling);
+            let mut missing = analysis.clone();
+            missing.resolved_input = None;
+            assert!(
+                variable_trigger_completions(&source, 1, cursor, &missing)
+                    .unwrap()
+                    .is_empty()
+            );
+            assert!(
+                variable_trigger_completions(&format!("#{source}"), 1, cursor, &analysis)
+                    .unwrap()
+                    .is_empty()
+            );
+        }
+    }
+
+    #[test]
+    fn variable_cursor_completion_rejects_non_utf16_boundaries() {
+        let source = "set alpha 1\nputs ${😀alpha}";
+        let analysis = Analyser::new().analyse(source, "tcl9.1");
+        assert!(
+            variable_trigger_completions(source, 1, 8, &analysis)
+                .unwrap()
+                .is_empty()
+        );
+        assert!(
+            variable_trigger_completions(source, 1, 1000, &analysis)
+                .unwrap()
+                .is_empty()
+        );
     }
 
     #[test]

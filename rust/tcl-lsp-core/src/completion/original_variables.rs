@@ -22,8 +22,7 @@ pub(super) fn items(
     line: u32,
     character: u32,
     analysis: &AnalysisResult,
-    partial: &str,
-    trigger: char,
+    prefix: &tcl_lexer::word_parts::VariableCursorPrefix,
 ) -> Option<Vec<CompletionItem>> {
     if analysis.allows_retained_logical_declaration_advice() {
         return None;
@@ -37,21 +36,15 @@ pub(super) fn items(
     }
     let index = tcl_lexer::LineIndex::new(source);
     let cursor = crate::definition::byte_offset_at(&index, source, line, character);
-    let prefix = if trigger == '{' { 2 } else { 1 };
-    let Some(start) = u32::try_from(partial.len() + prefix)
-        .ok()
-        .and_then(|length| cursor.checked_sub(length))
-    else {
-        return Some(Vec::new());
-    };
-    let expected = if trigger == '{' { "${" } else { "$" };
-    if source.get(start as usize..start as usize + prefix) != Some(expected) {
+    if !prefix.matches_source(&image, config) || prefix.reference_span().end() != cursor {
         return Some(Vec::new());
     }
-    let end = crate::source_structure::source_variable_reference_end(&image, config, start, cursor)
-        .unwrap_or(cursor);
-    let begin = index.position_at_utf16(start, source);
-    let finish = index.position_at_utf16(end, source);
+    let Some(partial) = source.get(prefix.partial_span().as_range()) else {
+        return Some(Vec::new());
+    };
+    let expected = if prefix.is_braced() { "${" } else { "$" };
+    let begin = index.position_at_utf16(prefix.reference_span().start(), source);
+    let finish = index.position_at_utf16(prefix.container_span().end(), source);
     if begin.line != line || finish.line != line {
         return Some(Vec::new());
     }
@@ -59,10 +52,24 @@ pub(super) fn items(
         source,
         analysis,
         cursor,
-        trigger == '{',
-        partial.contains('('),
-        Some(Span::new(start, cursor)),
+        prefix.is_braced(),
+        prefix.index_span().is_some(),
+        Some(prefix.reference_span()),
     );
+    // Braces retain a combined name: the actual candidate owner decides whether
+    // its parentheses denote an element rather than treating typed '(' as one.
+    if prefix.is_braced() {
+        candidates.extend(reference_candidates(
+            source,
+            analysis,
+            cursor,
+            true,
+            true,
+            Some(prefix.reference_span()),
+        ));
+        candidates.sort_by(|left, right| left.insert_text.cmp(&right.insert_text));
+        candidates.dedup_by(|left, right| left.insert_text == right.insert_text);
+    }
     for item in &mut candidates {
         item.text_edit = Some(CompletionEdit {
             start_char: begin.character.get(),
