@@ -241,7 +241,7 @@ impl Engine for RuntimeEngine {
     fn compile(&mut self, unit: CompileUnit<'_>) -> Result<Self::Handle, EngineError> {
         let _grammar = self.claim_grammar();
         self.units += 1;
-        let procedure = format!("::spectcl::unit::{}", self.units);
+        let procedure = tcl_syntax::naming::compiled_unit_procedure_name(self.units);
         let parameters = unit
             .parameters
             .iter()

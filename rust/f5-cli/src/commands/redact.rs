@@ -97,7 +97,7 @@ pub fn run_redact(
     output: Option<&Path>,
 ) -> anyhow::Result<u8> {
     let opts = crate::cli::PassphraseArgs::default().to_options();
-    let (_uri, source) = match read_path(path, false, &opts) {
+    let (_uri, source) = match read_path(path, true, &opts) {
         Ok(pair) => pair,
         Err(e) => {
             eprintln!("error: {e}");

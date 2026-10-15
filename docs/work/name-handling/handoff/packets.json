@@ -63,5 +63,10 @@
     "file": "validation-8df-batch-f.tar.gz",
     "sha256": "46e8a20a7f64bd8e747d32fb1c77010e4b1485dd58cecb2d8da64a14eb770213",
     "status": "Actual frozen8df ordinary992:677PASS314FAIL1TIMEOUT; all967 predecessor controls retained,10 gains,1 priorPASS MCP regression,0drops;25new15PASS10FAIL. Original2286 PASS71.317924863s/180. Runtime preflight2ELFs build0/0tests only. No active605 or Native full-plan acceptance."
+  },
+  {
+    "file": "validation-vm-8df-full133.tar.gz",
+    "sha256": "8e0410b86533fbe819c6e68b0c153c6266b2504cd9e9006fb6ca4d209cc1fde9",
+    "status": "Actual frozen8df original selected Native VM133:133PASS0FAILerrors[]; source{},compiled_input{},artifact{}; all132 predecessor selectors retained plus actualSharedEmpty; all6 predecessor failures nowPASS. Original provider/source/harness/selectedbody/budget guards preserved under exact reviewed2d-to-8df successor. Scope excludes later605/6d sources and is not fullVM/backend coverage."
   }
 ]

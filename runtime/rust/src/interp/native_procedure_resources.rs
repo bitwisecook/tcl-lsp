@@ -21,6 +21,7 @@ pub(crate) struct NativeProcedureResources {
 pub(crate) struct OriginalJimImportSource {
     body: obj::NativeObjectLifetime,
     context: Weak<crate::native_source::NativeJimObjectContext>,
+    origin: Rc<crate::native_source::NativeJimSourceOrigin>,
 }
 
 impl OriginalJimImportSource {
@@ -37,6 +38,7 @@ impl OriginalJimImportSource {
         Ok(Self {
             body: obj::NativeObjectLifetime::retain(body.as_ptr()),
             context: Rc::downgrade(context),
+            origin: crate::native_source::retain_original_source_origin(body.as_ptr(), context)?,
         })
     }
 }
@@ -480,6 +482,21 @@ impl ProcDef {
         &self,
         actual: &Interp,
     ) -> Result<(), tcl_syntax::value::ValueError> {
+        if self.original_jim_import_origin(actual)?.is_some() {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "original Jim Import traversal receipts",
+            ));
+        }
+        Ok(())
+    }
+
+    pub(super) fn original_jim_import_origin(
+        &self,
+        actual: &Interp,
+    ) -> Result<
+        Option<Rc<crate::native_source::NativeJimSourceOrigin>>,
+        tcl_syntax::value::ValueError,
+    > {
         self.check_native_liveness()?;
         if let Some(source) = self
             .native_resources
@@ -487,22 +504,28 @@ impl ProcDef {
             .borrow()
             .as_ref()
         {
+            let context = actual.native_jim_object_context()?;
             if self.body.checked_ptr()? != source.body.checked_ptr()?
-                || !source.context.upgrade().is_some_and(|context| {
-                    actual
-                        .native_jim_object_context()
-                        .is_ok_and(|current| Rc::ptr_eq(&context, &current))
-                })
+                || !source
+                    .context
+                    .upgrade()
+                    .is_some_and(|owner| Rc::ptr_eq(&owner, &context))
             {
                 return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                     "original Import source declaration context",
                 ));
             }
-            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                "original Jim Import traversal receipts",
-            ));
+            let origin =
+                crate::native_source::original_source_origin(source.body.checked_ptr()?, &context)?;
+            if !origin.is_some_and(|origin| origin.is_root() && Rc::ptr_eq(&origin, &source.origin))
+            {
+                return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original Import current Source birth",
+                ));
+            }
+            return Ok(Some(Rc::clone(&source.origin)));
         }
-        Ok(())
+        Ok(None)
     }
 
     pub(crate) fn check_native_liveness(&self) -> Result<(), tcl_syntax::value::ValueError> {

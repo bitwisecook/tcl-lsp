@@ -18,6 +18,13 @@
 
 //! Suggested new names for scaffolds and configuration, independently of lookup.
 
+/// Construct the proposed procedure spelling for a compiled engine unit.
+/// Callers retain sequence allocation, collision policy and binding ownership.
+#[must_use]
+pub fn compiled_unit_procedure_name(sequence: u32) -> String {
+    format!("::spectcl::unit::{sequence}")
+}
+
 /// Construction policy shared with editor scaffolds. Different package labels
 /// may produce the same spelling; callers own collision checks before creation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

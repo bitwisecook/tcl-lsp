@@ -87,12 +87,6 @@ pub fn extract_original_irules_source_object_references(
     }
     let mut out = Vec::new();
     for command in context.commands() {
-        if matches!(command.words().source(),
-            tcl_compiler::registry_invocation::source_structure::OriginalRegistrySource::Vendor(metadata)
-                if metadata.authored_barriers().has_nominal_command_name_hazard())
-        {
-            continue;
-        }
         let Some(operands) = command
             .words()
             .with_source_schema(context.context_registry(), |schema| {
@@ -101,6 +95,52 @@ pub fn extract_original_irules_source_object_references(
         else {
             continue;
         };
+        if let tcl_compiler::registry_invocation::source_structure::OriginalRegistrySource::Vendor(
+            metadata,
+        ) = command.words().source()
+            && metadata
+                .authored_barriers()
+                .has_nominal_command_name_hazard()
+        {
+            let words = command.words();
+            let original_projection = |argument: usize, kinds: &[&'static str], attachment| {
+                Some((
+                    argument,
+                    *words.origins().get(argument.checked_add(1)?)?,
+                    words.original_argument_word(argument)?.clone(),
+                    kinds.to_vec(),
+                    attachment,
+                ))
+            };
+            let expected = operands
+                .iter()
+                .map(|operand| {
+                    original_projection(operand.argument(), operand.kinds(), operand.attachment())
+                })
+                .collect::<Option<Vec<_>>>();
+            let Some(expected) = expected else {
+                continue;
+            };
+            let alternatives = metadata.authored_barriers().nominal_alias_source_projections(
+                context.context_registry(),
+                words,
+                |schema, origins| {
+                    crate::original_source_object_operands(schema, rule_module).iter().map(|operand| {
+                        let tcl_compiler::registry_invocation::NominalAliasSourceOperandOrigin::InvocationArgument(argument) = origins.get(operand.argument())? else {
+                            return None;
+                        };
+                        original_projection(*argument, operand.kinds(), operand.attachment())
+                    }).collect::<Option<Vec<_>>>()
+                },
+            );
+            if !alternatives.is_some_and(|alternatives| {
+                alternatives
+                    .iter()
+                    .all(|alternative| alternative == &expected)
+            }) {
+                continue;
+            }
+        }
         for operand in operands {
             let ordinal = operand.argument();
             let words = command.words();
@@ -298,6 +338,29 @@ mod tests {
             vec!["/Common/web_pool".to_owned()],
             "a failed alias cannot take the real pool command away"
         );
+    }
+
+    #[test]
+    fn nominal_alias_alternatives_preserve_only_the_same_original_object_projection() {
+        for prefix in ["", " -list"] {
+            let source = format!(
+                "interp alias {{}} members {{}} active_members{prefix}\nwhen HTTP_REQUEST {{set n [members /Common/active]}}"
+            );
+            assert_eq!(ref_names(&source), ["/Common/active"], "{source}");
+        }
+        for prelude in [
+            // Equal bytes captured at the alias are a different original word.
+            "interp alias {} members {} pool /Common/active",
+            "interp alias {} members {} active_members $dynamic",
+            "interp alias {} members {} members",
+            "interp alias {} active_members {} members; interp alias {} members {} active_members",
+            "proc active_members args {}; interp alias {} members {} active_members",
+            "interp alias {} members {} unknown_handler",
+            "interp alias {} members {} active_members; interp alias {} members {} puts",
+        ] {
+            let source = format!("{prelude}\nwhen HTTP_REQUEST {{set n [members /Common/active]}}");
+            assert!(ref_names(&source).is_empty(), "{source}");
+        }
     }
 
     #[test]

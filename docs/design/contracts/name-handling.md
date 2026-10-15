@@ -1181,3 +1181,23 @@ body preparation and frame entry. Safe traversal additionally requires the
 actual argument, iterator, alias-cycle and lifetime receipts; until the owner
 can supply them, the marked original entry refuses. Ordinary replacements do
 not acquire provenance from spelling or source equality.
+
+## Config source and preview fidelity
+
+`ConfigInput` retains actual plain input bytes or the `UcsScfSource` owner of
+selected archive members. Preview text does not establish that the original
+bytes can be represented. `require_faithful()` validates those bytes, including
+selected raw member names that would collide after replacement decoding. A
+valid UTF-8 replacement character is ordinary source data. Genuine repeated
+archive paths retain the original last-occurrence selection.
+
+F5 source transformations check that retained owner before emitting text or
+creating output artifacts. Mutating queries retain all positional and
+structured side-input owners because a different source can supply a new name
+or edit value. A read-only query can use preview text. Dynamically queried
+archive file-provider values have a separate provenance requirement; these
+input owners do not certify those provider values.
+
+`compiled_unit_procedure_name(u32)` constructs the shared fixed procedure
+spelling for a new compiled unit. The engine owns the counter, publication and
+opaque unit receipts; the generated string cannot replace them.

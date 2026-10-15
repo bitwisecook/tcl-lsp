@@ -110,7 +110,7 @@ pub fn procedures(
                 .map(|helper| NativeScriptedProcedure {
                     command: helper.name(),
                     parameters: helper.parameters(),
-                    body: helper.body(),
+                    body: helper.static_extension_source().body(),
                     namespace_helper: Some(helper),
                 }),
         )
@@ -153,7 +153,7 @@ mod tests {
         for (actual, original) in roster.iter().zip(originals) {
             assert_eq!(actual.command, original.name());
             assert_eq!(actual.parameters, original.parameters());
-            assert_eq!(actual.body, original.body());
+            assert_eq!(actual.body, original.static_extension_source().body());
             assert_eq!(actual.namespace_helper.unwrap().kind(), original.kind());
         }
         for version in TclVersion::ALL {

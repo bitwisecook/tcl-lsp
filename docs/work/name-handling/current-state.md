@@ -1,6 +1,6 @@
 # Current centralised naming work
 
-Development source `60500bb16` is pushed on `work`; the next reviewed tranche is being checkpointed. The isolated validation worktree remains frozen at `8df9a91699c0907ae3e0aefa1b10396feb967e8f`. Source acceptance always names that exact commit. Incoming `rust` was inspected through `d0a644c69` without merging; concurrent upstream changes still require integration.
+Development source `6d7081b73` is pushed on `work`; the next reviewed tranche is being checkpointed. The isolated validation worktree remains frozen at `8df9a91699c0907ae3e0aefa1b10396feb967e8f`. Source acceptance always names that exact commit. Incoming `rust` was inspected through `d0a644c69` without merging; concurrent upstream changes still require integration.
 
 ## Latest sealed ordinary result
 
@@ -23,7 +23,7 @@ Exact F channels and comparison are in `handoff/validation-8df-batch-f.tar.gz`; 
 
 ## Native execution and provider limits
 
-F Runtime engine lib+namespace-query preflight builds2ELFs successfully (136.923226s,source{},0tests); full Runtime174 remains unexecuted while an exact reviewed source rebind is prepared. The immutable VM133 original-plan rebind is reviewed and **running**, not sealed: `/workspace/name-session/vm-f-rebind` and `vm-f-replay133`. It preserves all historical source/provider/artifact/compiled-input guards and all133 original selector bodies/assertions/budgets. A running test count is not acceptance. Do not advance the frozen worktree or share its Cargo target until capture seals.
+F Runtime engine lib+namespace-query preflight builds2ELFs successfully (136.923226s,source{},0tests); full Runtime174 is **running**, not sealed, under its reviewed immutable source rebind. The VM133 original-plan replay is **sealed133PASS/0FAIL**, errors[] and all source/compiled-input/artifact drift maps{}: `/workspace/name-session/vm-f-rebind` and `vm-f-replay133`. It preserves all historical source/provider/artifact/compiled-input guards and all133 original selector bodies/assertions/budgets. VM133 retains all132 predecessor controls, including all six formerly failing controls now PASS, plus the original SharedEmpty control. Portable exact channels are in `handoff/validation-vm-8df-full133.tar.gz`. A running Runtime test count is not acceptance. Do not advance the frozen worktree or share its Cargo target until capture seals.
 
 Original C5 binary/library/init/tcltest pairings are verified at `f-provider-preflight.json`. The sole provisioned untracked validation `tmp` symlink points exactly to `/workspace/tcl-lsp/tmp`; unknown extra paths are not generally admitted. Latest execution-time upstream Jim check11:39:05UTC identifies5bac7c99ad65864c87da513e22e2f01703fa4e03, binary c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891. Original Source-provider capture01 seals211rows/7successful stages/27helper bodies, original namespace79/79 and unchanged89provider files. Static and raw helpers have four genuine body differences; byte offsets derived from original source are not physical runtime receipts.
 
@@ -123,3 +123,9 @@ The next source tranche implements original Logical alias target/source-frame/te
 Build feedback remains separate: C failed E0308 in a new fixture return annotation (3ELFs/0tests); D was terminated after root caught a wrong worktree target (-15/0tests); E failed3E0502 borrowed-key errors in a new DB test (4ELFs/0tests). Each retained source drift{}. Repairs preserve the actual fixture holder and reissue a current DB coordinate after mutations. F is rebuilding isolated source `8df9a9169` under an explicit worktree-target guard. Exact failed channels are in `handoff/successor-build-feedback.tar.gz`. No successor Rust execution acceptance yet.
 
 The user-requested simplified architecture/API artifact is being prepared separately; implementation continues. F5 UCS/source provenance and remaining taint source/read consumers, structured-header substitutions and a genuine independent rename admission remain unfinished.
+
+## Next source awaiting fresh build
+
+The next reviewed tranche adds exact original constructor argument-value joins, conditional alias source schema agreement for MCP object candidates, actual VM static Source helper construction, shared three-engine compiled-unit proposal spelling, discovered manifest requirement construction and opaque F5 config/UCS source fidelity. Original Compiler/MCP assertions remain unchanged. Runtime Source/Script/Expression origin births are carried by their actual constructors; Import traversal remains refused while frame/iterator/alias receipt transport is implemented. These source peers and added controls are unexecuted. Runtime active `interp.rs` and `interp/native_script.rs` transport edits are excluded from the checkpoint until complete. Query file-provider values, host filesystem byte names and remaining unexamined surfaces remain separate unfinished obligations.
+
+Runtime174 execution-time Jim check11:57:32UTC still identifies5bac7c99ad65864c87da513e22e2f01703fa4e03 with original binary/config/harness checks passing before the build. No final Runtime174 result is sealed yet. The latest original VM133 result is sealed in the portable archive, with no source/compiled-input/artifact drift.

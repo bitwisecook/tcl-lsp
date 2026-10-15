@@ -820,3 +820,172 @@ separate; these hashes do not certify concurrent changes.
 | `rust/tcl-spec-studio/web/src/releases.ts` | `c7e664ca3ac101a94737d7cbd32cea76a541c9b5c4cb3f11a16f30d9a8fc91f9` |
 | `rust/tcl-spec-studio/web/src/importReleases.ts` | `7ddb91e0d1d45d11333ef6e99080cf0ec7555c787f37e1c2b282debd9c39856b` |
 | `rust/tcl-spec-studio-wasm/src/snapshots.rs` | `8d7250e535bafd5f1897e2ac32b6eb1a411638fba1c9d23789a1b8beeff675bb` |
+
+## Additional host path and ownership audit
+
+The selected host-path scan exposes a representation obligation beyond the
+bounded command/variable roster. This is source evidence, not an observed
+interpreter conformance result or a completed host migration.
+
+| Actual call site | Shared owner and retained context | Disposition and verification still required |
+| --- | --- | --- |
+| `rust/tcl-host-native/src/lib.rs::Filesystem::read_dir` (implementation near line 383), consumed by `runtime/rust/src/cmd_fs.rs::walk` and `rust/tcl-vm/src/cmd_file.rs::{cmd_glob,glob_join}` | `tcl-platform::Filesystem::read_dir` currently exposes `Vec<String>`; the native implementation uses `OsString::to_string_lossy`. Existing `read_bytes`/`open_source_bytes` retain a separate actual byte-path door but cannot recover directory names already rendered. Runtime treats returned strings as original child-path bytes; VM uses them for matching, recursion and metadata probes. | Unfinished host path-name transport. Distinct opaque filesystem names and literal replacement-character names can collapse before the actual path operation. Extend the existing host/path/system-encoding owner with authentic representation rather than reconstructing bytes from display text. Original C/Jim path encoding and exact host/provider controls remain unexecuted by this audit. This does not establish a Tcl command/variable identity bug. |
+| `rust/tcl-host-native/src/lib.rs::{Env::cwd,Env::current_exe,Filesystem::readlink}` implementations | Actual `PathBuf` values are converted with `to_string_lossy` through String-only platform doors. | Remaining host name representation audit; trace each downstream semantic path operation before deciding which boundary needs a byte/encoding owner. No replacement-character heuristic, blanket Unicode assumption or new private path normaliser is justified. |
+
+The debugger source scan confirms a reporting boundary: VM `debug_snapshot`
+selects actual local binding IDs before rendering labels, while replay
+`VmBackend::evaluate` admits only one matching captured label after configured
+shared reference parsing. It rejects label collisions and does not issue a live
+cell or evaluated Tcl expression. This bounded finding does not complete DAP,
+editor or VM debug-hook lifecycle coverage.
+
+The reviewed package-manifest APIs are genuine public declarations in the
+existing manifest DSL owner, not Tcl runtime command issuers. A read-only exact
+owner-manifest proposal was sent to root for `RequirementKind`,
+`OriginalRequirementDeclaration` and its name/kind/span accessors,
+`OriginalManifestRequirements` and declarations/remove,
+`original_manifest_requirements`, and `append_manifest_requirement`. The fixed
+manifest grammar, complete validation, original command extents and exact
+append roundtrip remain the applicable context; no internal visibility
+exception is needed. Root owns the machinechecked contract update.
+
+A bounded source peer of VM static-helper Source adoption found the typed
+`NamespaceHelpers` roster now retains the actual static-extension body through
+`NativeJimNamespaceHelper::static_extension_source`, and the receiving installer
+uses the existing Value Source owner before real Proc publication. One lazy
+actual filename object is shared under the receiving Jim object context; exact
+slot presence is checked before these allocations. Descriptor data alone grants
+no Source, Proc, frame or lookup authority. Independent NamespaceInfo and
+NamespaceEnsemble library installation order remains a separate purpose, and
+Import execution/refusal remains independent. New source-header checks were
+reviewed but not built or executed by this auditor.
+
+| Additional audited path | SHA-256 at this review |
+| --- | --- |
+| `rust/tcl-platform/src/lib.rs` | `7dc60681a4127c56ecf8b47d6d7c7107ea83d74ca4988c2fda7baffc53818158` |
+| `rust/tcl-host-native/src/lib.rs` | `3d3f8ec0b5b1b6b7716573cf3d2bb6e8e0e6aa1289af9dd0c0552f0cac6d6483` |
+| `runtime/rust/src/cmd_fs.rs` | `23e477126275515b9ce5fcf0384cdeb8fc657cce895888c720262daaa4187c73` |
+| `rust/tcl-vm/src/cmd_file.rs` | `6db0e575edaed344e2802f8903d6dca86ead76b8dc1f454e2ee04a927695c494` |
+| `rust/tcl-vm/src/debug.rs` | `1615209c9f92872547735408eed2fdd14fcb72101810898ef48f16db41cbddde` |
+| `rust/tcl-registry/src/native_scripted_distribution.rs` | `20b793c550735f7b3e0afcdea908f487985ee12d9c6df2e0a69024e914fd4b2c` |
+| `rust/tcl-vm/src/cmd_namespace/native_jim_helpers.rs` | `6a46fb4eb1bc0827a3f509979ceb17230ac3a4a9da01b3bff2ba2a0b95e35a15` |
+
+Additional engine generation consumer: `runtime/rust/src/engine.rs::compile`,
+`tcl-engine-tclvm/src/lib.rs::compile`, and
+`tcl-engine-wasm/src/lib.rs::compile` each privately spell the established
+`::spectcl::unit::N` new procedure name. This is duplicated generation policy,
+not a current command identity reconstructed from a display label: Runtime
+invocation retains its original interpreter/generation, VM retains a registered
+command token, and WASM retains its unit receipt. The existing shared naming
+generation owner can own this fixed authoring convention, while backend
+publication, counter width/overflow, currentness, collision and replacement
+semantics remain separate. The WASM
+`compiled_receipts_refuse_foreign_and_replaced_handles_before_effects` control
+is relevant and was not executed here. No engine-unit naming API was found in
+`tcl-engine-api` or the inspected shared naming generation module. The subsequent bounded source peer confirms all three call sites now consume
+`tcl_syntax::naming::compiled_unit_procedure_name(sequence: u32)` in the existing
+shared generation owner. Their original counter allocation/overflow behavior and
+actual publication/handle guards remain unchanged. This generation policy is
+source-migrated; backend controls remain execution-pending and no test was run
+by this auditor.
+
+| Engine generation path | SHA-256 at this review |
+| --- | --- |
+| `runtime/rust/src/engine.rs` | `7a7d760ac2f6e3ab467f9d0d707fb28ccba4247c78799b7cf7a8141c732ce0ab` |
+| `rust/tcl-engine-tclvm/src/lib.rs` | `93a9d7e47b1f45a2f8b2278902c9a484d3f1fb5c7469481c70648ef0c4433f0b` |
+| `rust/tcl-engine-wasm/src/lib.rs` | `274589c73956beaca9d3c131beebb933a3008e828db6febf597c88b282046ddd` |
+| `rust/tcl-engine-wasm/src/session.rs` | `fd37770243adbb03760557659823cc33a7b4330eb8e9049ebeedfb4bc678583d` |
+
+The latest Runtime Import Source-birth proposal was source-peered separately.
+It retains original constructor births through genuine Script Source tokens
+and Expression command-term construction; ordinary Source copies intentionally
+retain locations without donating birth identity. Its Import marker still
+unconditionally refuses traversal and supplies no positive execution grant.
+One source-peer blocker was sent to the Runtime implementer: the initial
+Expression fallback in `original_source_origin(value, supplied_context)` checked
+the original object pointer but omitted the explicit same-context guard present
+on the Source and Script paths. A foreign current Jim context must not recover
+an Expression origin. The implementer repaired that guard: the Expression
+projection now compares its actual original object context with the supplied
+context, propagating stale/missing context refusal. A private exact-primary
+Source-backing projection also removes transient filename reference clones from
+birth capture/projection. The bounded source peer now passes; foreign-context
+and copy controls remain unexecuted by this auditor, and Import traversal is
+still refused.
+
+| Shared generation source after migration | SHA-256 at source peer |
+| --- | --- |
+| `rust/tcl-syntax/src/naming/scaffold.rs` | `61f986964810d769e0145c8f633b3773e63a5f9eba4c570fd02fcff26f47c494` |
+| `rust/tcl-syntax/src/naming.rs` | `52303b006ac9a8a3147ad424d5b7d358ead344af0fce2946b6c06e860876168b` |
+| `runtime/rust/src/engine.rs` | `e7841708d0eb435066e7e16b4d7134a387aa5104cfb9814938c6971ded982b88` |
+| `rust/tcl-engine-tclvm/src/lib.rs` | `6314de24e46c84b225b7089a16fa80034af86d6918950046c084a123a49c92be` |
+| `rust/tcl-engine-wasm/src/lib.rs` | `c8fb148a790074b92e128d544428eebbc30939a1498906f2e6edf06bc13f8593` |
+
+## Additional source-peer dispositions
+
+The F5 source-fidelity tranche now transports actual original plain source and
+selected UCS member path/content bytes through `ConfigInput` and `UcsScfSource`.
+Preview text remains distinct. `read_path(strict=true)` checks original selected
+archive members as well as plain input. The exact archive selection retains
+existing identical-path last-occurrence semantics, but also retains any
+non-UTF8 raw-path loser whose rendered key participated in the selected source,
+so a collision with a valid replacement-character path cannot certify fidelity.
+Rename, conversion, extraction, merge, redaction/unredaction and split gate
+source artifacts on faithful input; split checks before creating its output
+directory. Query retains all original positional and structured side-input
+owners and validates every one before any mutation/diff output. This all-input
+check is necessary because target URIs alone do not identify edit donors.
+Read-only reports retain previews; genuine literal U+FFFD is accepted. The
+bounded source peer passes after repairing a missing rename options binding,
+the path-collision guard and query donor guard. New original-byte, selected
+archive, collision and named/structured donor controls remain uncompiled and
+unexecuted by this auditor. This closes the inspected source-ingress gap in
+source, not every F5/query provider or appliance operation.
+
+One exact remaining query provider-data obligation is
+`f5-cli/src/commands/query.rs::make_files_reader`: `FileOp::Content` converts
+actual selected archive bytes to lossy `Value::Str`, and `Inventory` exposes
+rendered member paths. Such provider values can feed an edit while the ordinary
+SCF source owner remains faithful. The current `ConfigInput` transformation
+guard cannot recover those separately read provider bytes. This needs authentic
+provider-data/preview provenance or a checked textual decode at that provider
+purpose; it is not covered by the positional/side-input source migration.
+
+The MCP candidate regression's nominal alias source-projection batch also
+passes bounded source peer. Registry retains typed same-interpreter Global
+alias target/prefix ordinals from actual transition operands; compiler keeps
+declaration-captured words distinct from following invocation operands and
+uses the existing source-schema owner under a separate composition purpose.
+Target named hazards, self cycles, dynamic prefix and missing schema decline.
+The iRules consumer retains candidates only when every alternative agrees on
+the mapped original operand ordinal/origin/full NativeWord (image, channel,
+span and config), object kinds and attachment. Equal bytes captured elsewhere
+do not qualify. Independent unknown source-transition obligations remain
+unchanged; this issues no executed Alias, Native argv, Normal or absence proof.
+New positive/negative controls and original MCP regression assertions have not
+been executed by this auditor.
+
+| Additional source-peer path | SHA-256 at review |
+| --- | --- |
+| `rust/tcl-bigip-io/src/ucs.rs` | `b91b194dd46b62082b38f4ae3af47287d48433bb2cb2e5cd4205aac5a45829e8` |
+| `rust/tcl-bigip-io/src/paths.rs` | `f717ba8d3d8e385257103e816d50dafbdb1e071f67ea334b9ffd3c2d68ab5612` |
+| `rust/tcl-bigip-io/src/lib.rs` | `3451497b08df5616fdd424ed5c201d6b4b9f0c49afea3de1983c858c5db43b0f` |
+| `rust/tcl-bigip-io/tests/ucs.rs` | `1f1d5675e37d502a409928d2eb2460d0e311e2164286723a32929d3f4308fb8c` |
+| `rust/f5-cli/src/commands/query.rs` | `52c14eb9e51cc49aff32f1cebe43c05a06254c62440a297cee4a328d725d4da0` |
+| `rust/f5-cli/src/commands/rename.rs` | `c8700fce64ec6bbf3ab6c93a08233ce5e85f1f3fdf2188c4c38213750ebabdf9` |
+| `rust/f5-cli/src/commands/split.rs` | `29e938a11464cd5826367bbf73bb688dd8edb0994a5c718213f11b4de5ede44b` |
+| `rust/f5-cli/src/commands/extract.rs` | `da9be39ccc7cd120b2f11bd90fb7a0055d78609327c5cf15bc350f9602997d11` |
+| `rust/f5-cli/src/commands/convert.rs` | `1849f811d731b155ad39f630d862768e0607673348cf46b67470a6c6b9f7696c` |
+| `rust/f5-cli/src/commands/merge.rs` | `2cc9dea8f48092801144217992160c407eee832f1cfab29ab7e70551d9da05d3` |
+| `rust/f5-cli/src/commands/redact.rs` | `98adedc31e8051d2932c6e9a7d2bbb82aaaeecf6c5d096c72b9808a3b41bcda8` |
+| `rust/f5-cli/src/commands/unredact.rs` | `54955b97cd371882229663608322022fc634eb18da69bde8efd78e5c92bc845e` |
+| `rust/f5-cli/tests/cli.rs` | `6432005d9b3c89bbe736af98c13200d9434d0ecc3a5548f39bbec53a559d37d5` |
+| `rust/tcl-registry/src/source_name_ownership.rs` | `1a7076744a555e730e4f86da663a809a4d515066933df115df7cba4e083f2ced` |
+| `rust/tcl-compiler/src/registry_invocation/vendor_source_barriers.rs` | `f7dcb44c895127afa64e0c428d7ea35621c4bdd346e4c02d008246d7084df93f` |
+| `rust/tcl-compiler/src/registry_invocation/vendor_advice.rs` | `40579076fb3fb98cadf021cd2c62d33d3f462b1f2199ccf2f03039d51ae074a0` |
+| `rust/tcl-irules/src/walker.rs` | `f9368551dd97a134c3eb7f0f45ef33e044de0f177b7f0f23b339dea29806f400` |
+| `runtime/rust/src/native_source.rs` | `24e0244de421026b7a952c9c8305530bf00df8ef5827501182f3d276024f751a` |
+| `runtime/rust/src/native_script.rs` | `ca52d44616327edafe54091de3dbc20891c3dc6f0cac638945320795debcfc0d` |
+| `runtime/rust/src/expr.rs` | `58b112361119d35d3962cdbf01f6608fdb2d9deedbce2a8ffc056a7bc264e6fa` |
+| `runtime/rust/src/native_script_tests.rs` | `7f33e6e2f2a7bb2c2d72df7d104c1d193f27a211353c4aaa86f5ede1473e8dc1` |
+| `runtime/rust/src/interp/native_procedure_resources.rs` | `4e459ba605f855c83f3b3b680e2c40e6f45733107522a3442d8c5a5f53099223` |

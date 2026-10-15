@@ -48,3 +48,5 @@ how/why comments must describe only the current codebase; git retains history.
 `validation-551f-batch-a.tar.gz` retains the first successor frozen ordinary build/replays, all967 selected controls and direct ordinary272 comparison, plus the separate failed Runtime build (zero tests). Source551f only; subsequent code is unexecuted.
 
 `validation-8df-batch-f.tar.gz` retains the complete992-control replay/build/comparison:677PASS/314FAIL/1TIMEOUT,10gains/1MCP priorPASS regression/0drops against all967 predecessors. Runtime2ELF preflight is build-only; full Native acceptance remains separate.
+
+`validation-vm-8df-full133.tar.gz` retains the reviewed exact source-rebind packet and actual133/133PASS replay with all original source/provider/harness/artifact/compiled-input guards; all six predecessor failures pass. Frozen8df only, not later helpers or full backend/host acceptance.

@@ -10090,6 +10090,7 @@ impl Analyser {
     /// neither tier proves that a custom manufacturer executes or completes.
     fn class_factory_for_command(
         &self,
+        args: &[String],
         arg_tokens: &[Token],
         call_off: u32,
     ) -> Option<ClassFactory> {
@@ -10102,15 +10103,8 @@ impl Analyser {
             if call
                 .obligations()
                 .contains(&SourceCommandTransitionObligation::UnknownEarlierMutation)
-                || call.arguments().len() != arg_tokens.len()
                 || (0..arg_tokens.len()).any(|index| call.written_argument(index) != Some(index))
-                || call.original_words().len() != arg_tokens.len() + 1
-                || !call
-                    .original_words()
-                    .iter()
-                    .skip(1)
-                    .zip(arg_tokens)
-                    .all(|(word, token)| word.tokens().first() == Some(token))
+                || !super::original_definer::constructor_arguments_match(&call, args, arg_tokens)
             {
                 return None;
             }
@@ -10131,12 +10125,11 @@ impl Analyser {
         if request.has_earlier_unknown_mutations()
             || request.has_lookup_operand_effects()
             || request.argument_count() != Some(arg_tokens.len())
-            || !request
-                .original_words()
-                .iter()
-                .skip(1)
-                .zip(arg_tokens)
-                .all(|(word, token)| word.tokens().first() == Some(token))
+            || !super::original_definer::logical_arguments_match(
+                request.original_words(),
+                args,
+                arg_tokens,
+            )
         {
             return None;
         }
@@ -10356,7 +10349,7 @@ impl Analyser {
         let user_factory = if registry_definer.is_some() {
             None
         } else {
-            Some(self.class_factory_for_command(arg_tokens, cmd_tok.span.start())?)
+            Some(self.class_factory_for_command(args, arg_tokens, cmd_tok.span.start())?)
         };
         let manufacturer = match user_factory.as_ref() {
             None => tcl_registry::CommandRegistry::manufacturer_method_for_descriptor(
@@ -12058,7 +12051,11 @@ mod tests {
             .unwrap();
             assert_eq!(
                 analyser
-                    .class_factory_for_command(segment.arg_tokens(), segment.argv[0].span.start())
+                    .class_factory_for_command(
+                        segment.args(),
+                        segment.arg_tokens(),
+                        segment.argv[0].span.start(),
+                    )
                     .is_some(),
                 expected,
                 "{source}",
@@ -12068,13 +12065,29 @@ mod tests {
                 changed.swap(0, 1);
                 assert!(
                     analyser
-                        .class_factory_for_command(&changed, segment.argv[0].span.start())
+                        .class_factory_for_command(
+                            segment.args(),
+                            &changed,
+                            segment.argv[0].span.start()
+                        )
+                        .is_none()
+                );
+                let mut changed = segment.args().to_vec();
+                changed[0] = "new".to_owned();
+                assert!(
+                    analyser
+                        .class_factory_for_command(
+                            &changed,
+                            segment.arg_tokens(),
+                            segment.argv[0].span.start()
+                        )
                         .is_none()
                 );
                 analyser.source.push(' ');
                 assert!(
                     analyser
                         .class_factory_for_command(
+                            segment.args(),
                             segment.arg_tokens(),
                             segment.argv[0].span.start()
                         )

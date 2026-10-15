@@ -37,6 +37,109 @@ fn decode(hex: &str) -> Vec<u8> {
 }
 
 #[test]
+fn actual_source_birth_reaches_original_tokens_without_copy_donation() {
+    let dialect = tcl_registry::InvocationDialect::of_profile(
+        crate::environment::profile_for_dialect("jimtcl"),
+    );
+    let config = tcl_lexer::LexerConfig::from_grammar(dialect.execution_point().unwrap().grammar());
+    let context = NativeJimObjectContext::new(dialect).unwrap();
+    let original = Owned::fresh(obj::new_string_bytes(b"foreach x [inventory] {consume $x}"));
+    native_source::install_source(
+        original.as_ptr(),
+        NativeJimSourceInfo {
+            filename: Owned::fresh(obj::new_string_bytes(b"SOURCE")),
+            line: 61,
+        },
+        &context,
+    )
+    .unwrap();
+    let root = native_source::retain_original_source_origin(original.as_ptr(), &context).unwrap();
+    let copy = Owned::fresh(obj::duplicate(original.as_ptr()));
+    assert!(
+        native_source::original_source_origin(copy.as_ptr(), &context)
+            .unwrap()
+            .is_none()
+    );
+    let backing = prepare(original.as_ptr(), &context, config).unwrap();
+    assert!(Rc::ptr_eq(backing.source_origin().unwrap(), &root));
+    assert!(Rc::ptr_eq(
+        &native_source::original_source_origin(original.as_ptr(), &context)
+            .unwrap()
+            .unwrap(),
+        &root
+    ));
+    for token in backing.ordinary().unwrap().objects.tokens() {
+        if let JimScriptObjectKind::Source(_) = token.kind {
+            let origin = native_source::original_source_origin(token.value.as_ptr(), &context)
+                .unwrap()
+                .unwrap();
+            assert!(origin.same_root(&root));
+            assert!(!origin.is_root());
+            assert_eq!(origin.kind(), Some(token.kind));
+            assert!(origin.belongs_to(token.value.as_ptr()));
+            let copy = Owned::fresh(obj::duplicate(token.value.as_ptr()));
+            assert!(
+                native_source::original_source_origin(copy.as_ptr(), &context)
+                    .unwrap()
+                    .is_none()
+            );
+        }
+    }
+}
+
+#[cfg(have_tommath)]
+#[test]
+fn actual_expression_command_source_retains_its_birth_and_interpreter() {
+    let mut interp = crate::interp::Interp::with_native_core(
+        crate::interp::default_host(),
+        crate::environment::profile_for_dialect("jimtcl"),
+        tcl_registry::special_vars::NativeBootstrapInputs::default(),
+    )
+    .unwrap();
+    let context = interp.native_jim_object_context().unwrap();
+    let original = Owned::fresh(obj::new_string_bytes(b"[list 1]"));
+    native_source::install_source(
+        original.as_ptr(),
+        NativeJimSourceInfo {
+            filename: Owned::fresh(obj::new_string_bytes(b"SOURCE")),
+            line: 61,
+        },
+        &context,
+    )
+    .unwrap();
+    let root = native_source::retain_original_source_origin(original.as_ptr(), &context).unwrap();
+    assert_eq!(
+        crate::builtins::eval_bool_expr(&mut interp, original.as_ptr()),
+        Ok(true)
+    );
+    let observed = native_source::original_source_origin(original.as_ptr(), &context)
+        .unwrap()
+        .unwrap();
+    assert!(Rc::ptr_eq(&observed, &root));
+    let objects = crate::expr::native_jim_expression_objects(original.as_ptr()).unwrap();
+    let (_, command) = objects.at(0, None).unwrap();
+    let command_origin = native_source::original_source_origin(command.as_ptr(), &context)
+        .unwrap()
+        .unwrap();
+    assert!(command_origin.same_root(&root));
+    assert_eq!(
+        command_origin.kind(),
+        Some(JimScriptObjectKind::Source(
+            tcl_lexer::JimScriptTokenKind::Command
+        ))
+    );
+    let foreign = NativeJimObjectContext::new(interp.native_invocation_dialect()).unwrap();
+    assert!(native_source::original_source_origin(original.as_ptr(), &foreign).is_err());
+    assert!(native_source::original_source_origin(command.as_ptr(), &foreign).is_err());
+    let copy = Owned::fresh(obj::duplicate(original.as_ptr()));
+    assert!(
+        native_source::original_source_origin(copy.as_ptr(), &context)
+            .unwrap()
+            .is_none()
+    );
+}
+
+#[test]
 fn original_script_storage_matches_156_native_windows() {
     crate::counters::reset();
     {

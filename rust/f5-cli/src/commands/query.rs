@@ -55,7 +55,7 @@ use std::collections::BTreeMap;
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
 
-use tcl_bigip_io::{read_path, read_ucs_member, resolve_passphrase};
+use tcl_bigip_io::{read_path_source, read_ucs_member, resolve_passphrase};
 use tcl_bigip_query::value::Value;
 use tcl_bigip_query::{QueryError, QueryOptions, QueryResult, output, run_query};
 
@@ -465,6 +465,11 @@ fn parse_input_args(args: &InputArgs) -> Result<ParsedInputArgs, String> {
     })
 }
 
+struct LoadedSideInputs {
+    inputs: Vec<tcl_bigip_query::SideInput>,
+    original: Vec<tcl_bigip_io::ConfigInput>,
+}
+
 /// Read each side-input file and build the `$NAME`-bound [`SideInput`]s.
 ///
 /// Each binding reads its file, collides-checks the URI against positional
@@ -475,8 +480,9 @@ fn load_side_inputs(
     parsed: &ParsedInputArgs,
     path_for_uri: &[(String, String)],
     opts: &tcl_bigip_io::PassphraseOptions,
-) -> Result<Vec<tcl_bigip_query::SideInput>, (String, u8)> {
+) -> Result<LoadedSideInputs, (String, u8)> {
     let mut side_inputs: Vec<tcl_bigip_query::SideInput> = Vec::new();
+    let mut original = Vec::new();
     let mut side_names: std::collections::HashMap<String, String> =
         std::collections::HashMap::new();
     let mut side_uris: std::collections::HashSet<String> = std::collections::HashSet::new();
@@ -495,7 +501,7 @@ fn load_side_inputs(
             } else {
                 tcl_bigip_query::InputSpec::new(kind)
             };
-            load_one_side_input(
+            original.push(load_one_side_input(
                 nm,
                 pth,
                 flag,
@@ -505,7 +511,7 @@ fn load_side_inputs(
                 &mut side_inputs,
                 &mut side_names,
                 &mut side_uris,
-            )?;
+            )?);
         }
     }
 
@@ -525,7 +531,7 @@ fn load_side_inputs(
                 2,
             ));
         }
-        load_one_side_input(
+        original.push(load_one_side_input(
             nm,
             pth,
             &format!("--input {kind}"),
@@ -535,9 +541,12 @@ fn load_side_inputs(
             &mut side_inputs,
             &mut side_names,
             &mut side_uris,
-        )?;
+        )?);
     }
-    Ok(side_inputs)
+    Ok(LoadedSideInputs {
+        inputs: side_inputs,
+        original,
+    })
 }
 
 /// Load a single side-input file, threading the collision-tracking state.
@@ -554,7 +563,7 @@ fn load_one_side_input(
     side_inputs: &mut Vec<tcl_bigip_query::SideInput>,
     side_names: &mut std::collections::HashMap<String, String>,
     side_uris: &mut std::collections::HashSet<String>,
-) -> Result<(), (String, u8)> {
+) -> Result<tcl_bigip_io::ConfigInput, (String, u8)> {
     if let Some(prior_uri) = side_names.get(nm) {
         return Err((
             format!(
@@ -564,8 +573,9 @@ fn load_one_side_input(
             2,
         ));
     }
-    let (uri, src) =
-        read_path(pth, false, opts).map_err(|e| (format!("{flag} {nm}={pth}: {e}"), 2))?;
+    let input = read_path_source(pth, opts).map_err(|e| (format!("{flag} {nm}={pth}: {e}"), 2))?;
+    let uri = input.uri().to_owned();
+    let src = input.source().to_owned();
     if path_for_uri.iter().any(|(u, _)| *u == uri) {
         return Err((
             format!("{flag} {nm}={pth}: URI {uri} is already loaded as a positional input"),
@@ -586,7 +596,7 @@ fn load_one_side_input(
         source: src,
         spec,
     });
-    Ok(())
+    Ok(input)
 }
 
 /// Render the `--help-inputs` catalogue.
@@ -765,6 +775,7 @@ pub fn run_query_verb(
     let opts = crate::cli::PassphraseArgs::default().to_options();
     let mut sources: Vec<(String, String)> = Vec::with_capacity(path_strs.len());
     let mut path_for_uri: Vec<(String, String)> = Vec::new();
+    let mut original_inputs = Vec::new();
     for path_str in &path_strs {
         // `--in-place` rewriting a UCS archive would mean repacking the
         // gzipped tar and losing other artefacts — refuse.
@@ -775,17 +786,16 @@ pub fn run_query_verb(
             );
             return Ok(2);
         }
-        // Strict UTF-8 for mutating in-place writes: if any byte can't be
-        // decoded, raise instead of silently swapping it for U+FFFD —
-        // otherwise the read…rewrite…write round-trip would permanently
-        // overwrite the unreadable bytes.
-        let (uri, src) = match read_path(path_str, flags.in_place, &opts) {
-            Ok(pair) => pair,
-            Err(e) => {
-                eprintln!("error: {e}");
+        let input = match read_path_source(path_str, &opts) {
+            Ok(input) => input,
+            Err(error) => {
+                eprintln!("error: {error}");
                 return Ok(2);
             }
         };
+        let uri = input.uri().to_owned();
+        let src = input.source().to_owned();
+        original_inputs.push(input);
         if let Some((_, prev)) = path_for_uri.iter().find(|(u, _)| *u == uri) {
             let label = if path_str == "-" {
                 "stdin"
@@ -850,7 +860,10 @@ pub fn run_query_verb(
 
     // Load every structured side-input into `$NAME`-bound `SideInput`s.
     let side_inputs = match load_side_inputs(&parsed_inputs, &path_for_uri, &opts) {
-        Ok(s) => s,
+        Ok(loaded) => {
+            original_inputs.extend(loaded.original);
+            loaded.inputs
+        }
         Err((msg, code)) => {
             eprintln!("error: {msg}");
             return Ok(code);
@@ -887,6 +900,12 @@ pub fn run_query_verb(
     };
 
     if result.has_mutation {
+        for input in &original_inputs {
+            if let Err(error) = input.require_faithful() {
+                eprintln!("error: {error}");
+                return Ok(2);
+            }
+        }
         return emit_mutation(&result, &path_for_uri, flags, format);
     }
 

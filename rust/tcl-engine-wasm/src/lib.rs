@@ -423,7 +423,7 @@ impl Engine for WasmEngine {
             .units
             .checked_add(1)
             .ok_or(EngineError::Unsupported("so many compiled units"))?;
-        let procedure = format!("::spectcl::unit::{key}");
+        let procedure = tcl_syntax::naming::compiled_unit_procedure_name(key);
         let parameters: Vec<String> = unit
             .parameters
             .iter()

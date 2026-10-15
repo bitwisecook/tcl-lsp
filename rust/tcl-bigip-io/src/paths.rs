@@ -30,7 +30,8 @@ use std::path::Path;
 use tcl_bigip::parser::{BigipConfig, parse_bigip_conf};
 
 use crate::ucs::{
-    DEFAULT_PASSPHRASE_ENV, UcsError, is_pgp_bytes, is_ucs_bytes, ucs_archive_to_scf,
+    DEFAULT_PASSPHRASE_ENV, UcsError, UcsScfSource, is_pgp_bytes, is_ucs_bytes,
+    ucs_archive_to_scf_source,
 };
 
 /// An error resolving a path input. Rendered as `error: {msg}` (exit 2) by the
@@ -139,6 +140,47 @@ fn looks_like_ucs(raw: &[u8], is_ucs_ext: bool, is_stdin: bool) -> bool {
     false
 }
 
+/// Original input bytes and their config preview, before any source edit.
+#[derive(Debug, Clone)]
+pub struct ConfigInput {
+    uri: String,
+    source: ConfigSource,
+}
+
+#[derive(Debug, Clone)]
+enum ConfigSource {
+    Text { bytes: Vec<u8>, preview: String },
+    Archive(UcsScfSource),
+}
+
+impl ConfigInput {
+    #[must_use]
+    pub fn uri(&self) -> &str {
+        &self.uri
+    }
+
+    #[must_use]
+    pub fn source(&self) -> &str {
+        match &self.source {
+            ConfigSource::Text { preview, .. } => preview,
+            ConfigSource::Archive(source) => source.text(),
+        }
+    }
+
+    /// Admit source transformations only from the retained original bytes.
+    ///
+    /// # Errors
+    /// Returns undecodable plain input or selected archive member bytes.
+    pub fn require_faithful(&self) -> Result<(), PathError> {
+        match &self.source {
+            ConfigSource::Text { bytes, .. } => std::str::from_utf8(bytes)
+                .map(|_| ())
+                .map_err(|error| PathError::Io(format!("invalid UTF-8 in input: {error}"))),
+            ConfigSource::Archive(source) => source.require_faithful().map_err(Into::into),
+        }
+    }
+}
+
 /// Return `(uri, source)` for `path_str`. `-` reads stdin.
 ///
 /// `.ucs` archives (plain or OpenPGP-encrypted) — and gzip / `OpenPGP` streams
@@ -150,6 +192,21 @@ pub fn read_path(
     strict: bool,
     opts: &PassphraseOptions,
 ) -> Result<(String, String), PathError> {
+    let input = read_path_source(path_str, opts)?;
+    if strict {
+        input.require_faithful()?;
+    }
+    Ok((input.uri().to_owned(), input.source().to_owned()))
+}
+
+/// Read a config while retaining its original source for later edit admission.
+///
+/// # Errors
+/// Returns input, decryption or archive failure. Preview decoding is separate.
+pub fn read_path_source(
+    path_str: &str,
+    opts: &PassphraseOptions,
+) -> Result<ConfigInput, PathError> {
     let provider = move || resolve_passphrase(opts);
 
     if path_str == "-" {
@@ -158,10 +215,20 @@ pub fn read_path(
             .read_to_end(&mut raw)
             .map_err(|e| PathError::Io(format!("failed to read stdin: {e}")))?;
         if looks_like_ucs(&raw, false, true) {
-            let scf = ucs_archive_to_scf(&raw, &provider, false, "stdin")?;
-            return Ok(("stdin://input".to_owned(), scf));
+            let source = ucs_archive_to_scf_source(&raw, &provider, false, "stdin")?;
+            return Ok(ConfigInput {
+                uri: "stdin://input".to_owned(),
+                source: ConfigSource::Archive(source),
+            });
         }
-        return Ok(("stdin://input".to_owned(), decode(&raw, strict)?));
+        let preview = String::from_utf8_lossy(&raw).into_owned();
+        return Ok(ConfigInput {
+            uri: "stdin://input".to_owned(),
+            source: ConfigSource::Text {
+                bytes: raw,
+                preview,
+            },
+        });
     }
 
     let path = Path::new(path_str);
@@ -172,25 +239,25 @@ pub fn read_path(
     let raw = std::fs::read(&abs)
         .map_err(|e| PathError::Io(format!("failed to read {path_str}: {e}")))?;
     if looks_like_ucs(&raw, is_ucs_suffix(path), false) {
-        let scf = ucs_archive_to_scf(&raw, &provider, false, path_str)?;
-        return Ok((file_uri(&abs), scf));
+        let source = ucs_archive_to_scf_source(&raw, &provider, false, path_str)?;
+        return Ok(ConfigInput {
+            uri: file_uri(&abs),
+            source: ConfigSource::Archive(source),
+        });
     }
     if is_ucs_suffix(path) {
         return Err(PathError::Ucs(format!(
             "{path_str}: not a valid UCS archive"
         )));
     }
-    Ok((file_uri(&abs), decode(&raw, strict)?))
-}
-
-/// Decode bytes to text: lossy replacement, or strict (error on invalid UTF-8).
-fn decode(raw: &[u8], strict: bool) -> Result<String, PathError> {
-    if strict {
-        String::from_utf8(raw.to_vec())
-            .map_err(|e| PathError::Io(format!("invalid UTF-8 in input: {e}")))
-    } else {
-        Ok(String::from_utf8_lossy(raw).into_owned())
-    }
+    let preview = String::from_utf8_lossy(&raw).into_owned();
+    Ok(ConfigInput {
+        uri: file_uri(&abs),
+        source: ConfigSource::Text {
+            bytes: raw,
+            preview,
+        },
+    })
 }
 
 /// A resolved config input: its URI key, the post-decode source text (the

@@ -22,12 +22,48 @@ pub(crate) struct NativeJimScript {
     pub(crate) storage: JimScriptStorage<Owned>,
     pub(crate) in_use: Cell<usize>,
     context: Weak<NativeJimObjectContext>,
+    origin: Option<Rc<native_source::NativeJimSourceOrigin>>,
+    token_origins: Vec<Option<Rc<native_source::NativeJimSourceOrigin>>>,
 }
 
 impl NativeJimScript {
     pub(crate) fn ordinary(&self) -> Result<&JimOrdinaryScript<Owned>, ValueError> {
         self.storage.ordinary()
     }
+
+    pub(crate) fn source_origin(&self) -> Option<&Rc<native_source::NativeJimSourceOrigin>> {
+        self.origin.as_ref()
+    }
+
+    pub(crate) fn token_origin(
+        &self,
+        index: usize,
+    ) -> Option<&Rc<native_source::NativeJimSourceOrigin>> {
+        self.token_origins.get(index).and_then(Option::as_ref)
+    }
+}
+
+pub(crate) fn source_origin(
+    value: *mut TclObj,
+    context: &Rc<NativeJimObjectContext>,
+) -> Result<Option<Rc<native_source::NativeJimSourceOrigin>>, ValueError> {
+    obj::check_native_liveness(value)?;
+    if obj::obj_type_ptr(value) != &JIM_SCRIPT_TYPE {
+        return Ok(None);
+    }
+    // SAFETY: the exact live Script descriptor owns this header.
+    let header = unsafe { &*(obj::internal_rep(value) as usize as *const ScriptHeader) };
+    if !Weak::ptr_eq(&header.0.context, &Rc::downgrade(context)) {
+        return Err(ValueError::CommandProtocolUnavailable(
+            "Jim Script original interpreter",
+        ));
+    }
+    Ok(header
+        .0
+        .origin
+        .as_ref()
+        .filter(|origin| origin.belongs_to(value))
+        .cloned())
 }
 
 struct ScriptHeader(Rc<NativeJimScript>);
@@ -112,6 +148,7 @@ pub(crate) fn prepare(
         }
         return Ok(Rc::clone(&header.0));
     }
+    let origin = native_source::original_source_origin(original, context)?;
     let bytes = crate::dict::native_object_bytes(
         original,
         tcl_syntax::native_string::NativeStringProtocol::Jim084,
@@ -140,10 +177,12 @@ pub(crate) fn prepare(
             Ok(value)
         }
         JimScriptObjectConstruction::Source {
-            bytes, line_delta, ..
+            kind,
+            bytes,
+            line_delta,
         } => {
             let value = Owned::fresh(obj::new_string_bytes(bytes));
-            native_source::install_source(
+            native_source::install_source_from(
                 value.as_ptr(),
                 NativeJimSourceInfo {
                     filename: info.filename.clone(),
@@ -152,6 +191,12 @@ pub(crate) fn prepare(
                         .wrapping_add(i32::from_ne_bytes(line_delta.to_ne_bytes())),
                 },
                 context,
+                origin.as_ref().map(|origin| {
+                    (
+                        origin,
+                        tcl_syntax::jim_script_objects::JimScriptObjectKind::Source(kind),
+                    )
+                }),
             )?;
             Ok(value)
         }
@@ -162,6 +207,11 @@ pub(crate) fn prepare(
             .wrapping_add(i32::from_ne_bytes(delta.to_ne_bytes())),
         tcl_lexer::JimScriptLine::Zero => 0,
     };
+    let token_origins = objects
+        .tokens()
+        .iter()
+        .map(|token| native_source::original_source_origin(token.value.as_ptr(), context))
+        .collect::<Result<Vec<_>, _>>()?;
     let baseline = info.line;
     info.line = info
         .line
@@ -176,6 +226,8 @@ pub(crate) fn prepare(
         }),
         in_use: Cell::new(1),
         context: Rc::downgrade(context),
+        origin,
+        token_origins,
     });
     install_header(original, ScriptHeader(Rc::clone(&backing)));
     Ok(backing)
@@ -224,6 +276,8 @@ pub(crate) fn prepare_substitution(
         },
         in_use: Cell::new(1),
         context: Rc::downgrade(context),
+        origin: None,
+        token_origins: Vec::new(),
     });
     install_header(original, ScriptHeader(Rc::clone(&backing)));
     Ok(backing)

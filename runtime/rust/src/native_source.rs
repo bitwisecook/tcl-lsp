@@ -230,6 +230,83 @@ pub(crate) struct NativeJimSourceInfo {
 struct NativeJimSource {
     info: NativeJimSourceInfo,
     context: Weak<NativeJimObjectContext>,
+    origin: Option<Rc<NativeJimSourceOrigin>>,
+}
+
+/// An actual source constructor birth. Copies retain source locations without
+/// inheriting the original execution tree.
+pub(crate) struct NativeJimSourceOrigin {
+    root: Rc<()>,
+    original: *mut TclObj,
+    parent: Option<Rc<Self>>,
+    kind: Option<tcl_syntax::jim_script_objects::JimScriptObjectKind>,
+}
+
+impl NativeJimSourceOrigin {
+    pub(crate) fn same_root(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.root, &other.root)
+    }
+
+    pub(crate) fn is_root(&self) -> bool {
+        self.parent.is_none()
+    }
+
+    pub(crate) fn kind(&self) -> Option<tcl_syntax::jim_script_objects::JimScriptObjectKind> {
+        self.kind
+    }
+
+    pub(crate) fn belongs_to(&self, original: *mut TclObj) -> bool {
+        self.original == original
+    }
+}
+
+/// Capture a real Source birth before its selected declaration is published.
+pub(crate) fn retain_original_source_origin(
+    value: *mut TclObj,
+    context: &Rc<NativeJimObjectContext>,
+) -> Result<Rc<NativeJimSourceOrigin>, ValueError> {
+    let source = original_source_backing(value, context)?.ok_or(
+        ValueError::CommandProtocolUnavailable("original Source constructor birth"),
+    )?;
+    // SAFETY: the exact live Source primary owns this backing. No reference to
+    // its fields survives the sole constructor-birth mutation.
+    let source = unsafe { &mut *source };
+    if source.origin.is_some() {
+        return Err(ValueError::CommandProtocolUnavailable(
+            "original Source constructor already selected",
+        ));
+    }
+    let origin = Rc::new(NativeJimSourceOrigin {
+        root: Rc::new(()),
+        original: value,
+        parent: None,
+        kind: None,
+    });
+    source.origin = Some(Rc::clone(&origin));
+    Ok(origin)
+}
+
+pub(crate) fn original_source_origin(
+    value: *mut TclObj,
+    context: &Rc<NativeJimObjectContext>,
+) -> Result<Option<Rc<NativeJimSourceOrigin>>, ValueError> {
+    let source = original_source_backing(value, context)?;
+    let Some(source) = source else {
+        if let Some(origin) = crate::native_script::source_origin(value, context)? {
+            return Ok(Some(origin));
+        }
+        #[cfg(have_tommath)]
+        return crate::expr::native_jim_source_origin(value, context);
+        #[cfg(not(have_tommath))]
+        return Ok(None);
+    };
+    // SAFETY: original_source_backing authenticated this exact live primary.
+    let source = unsafe { &*source };
+    Ok(source
+        .origin
+        .as_ref()
+        .filter(|origin| origin.belongs_to(value))
+        .cloned())
 }
 
 thread_local! {
@@ -327,6 +404,14 @@ pub(crate) fn original_source_info(
     value: *mut TclObj,
     context: &Rc<NativeJimObjectContext>,
 ) -> Result<Option<NativeJimSourceInfo>, ValueError> {
+    // SAFETY: original_source_backing authenticates the exact live primary.
+    Ok(original_source_backing(value, context)?.map(|source| unsafe { &*source }.info.clone()))
+}
+
+fn original_source_backing(
+    value: *mut TclObj,
+    context: &Rc<NativeJimObjectContext>,
+) -> Result<Option<*mut NativeJimSource>, ValueError> {
     obj::check_native_liveness(value)?;
     if obj::obj_type_ptr(value) == &JIM_SOURCE_TYPE {
         // SAFETY: the exact primary descriptor owns this live boxed source.
@@ -336,7 +421,9 @@ pub(crate) fn original_source_info(
                 "Jim original source interpreter",
             ));
         }
-        return Ok(Some(source.info.clone()));
+        return Ok(Some(
+            obj::internal_rep(value) as usize as *mut NativeJimSource
+        ));
     }
     Ok(None)
 }
@@ -362,6 +449,18 @@ pub(crate) fn install_source(
     info: NativeJimSourceInfo,
     context: &Rc<NativeJimObjectContext>,
 ) -> Result<(), ValueError> {
+    install_source_from(value, info, context, None)
+}
+
+pub(crate) fn install_source_from(
+    value: *mut TclObj,
+    info: NativeJimSourceInfo,
+    context: &Rc<NativeJimObjectContext>,
+    parent: Option<(
+        &Rc<NativeJimSourceOrigin>,
+        tcl_syntax::jim_script_objects::JimScriptObjectKind,
+    )>,
+) -> Result<(), ValueError> {
     if !obj::has_string_rep(value) || value == info.filename.as_ptr() || obj::is_shared(value) {
         return Err(ValueError::CommandProtocolUnavailable(
             "Jim original Source storage",
@@ -371,6 +470,14 @@ pub(crate) fn install_source(
     let backing = Box::new(NativeJimSource {
         info,
         context: Rc::downgrade(context),
+        origin: parent.map(|(parent, kind)| {
+            Rc::new(NativeJimSourceOrigin {
+                root: Rc::clone(&parent.root),
+                original: value,
+                parent: Some(Rc::clone(parent)),
+                kind: Some(kind),
+            })
+        }),
     });
     obj::change_type(
         value,
@@ -403,6 +510,7 @@ extern "C" fn source_dup(original: *mut TclObj, duplicate: *mut TclObj) {
     let backing = Box::new(NativeJimSource {
         info: original.info.clone(),
         context: original.context.clone(),
+        origin: None,
     });
     if let Some(context) = original.context.upgrade() {
         bind_context(duplicate, &context).expect("fresh Source duplicate retains original context");

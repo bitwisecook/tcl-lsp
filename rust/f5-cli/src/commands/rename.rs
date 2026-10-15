@@ -93,10 +93,8 @@ pub fn run_rename(
         return Ok(2);
     }
 
-    // Strict UTF-8 for in-place writes — a silent U+FFFD replacement followed
-    // by an in-place rewrite would permanently overwrite the unreadable bytes.
     let opts = crate::cli::PassphraseArgs::default().to_options();
-    let (uri, source) = match read_path(path, in_place, &opts) {
+    let (uri, source) = match read_path(path, true, &opts) {
         Ok(pair) => pair,
         Err(e) => {
             eprintln!("error: {e}");

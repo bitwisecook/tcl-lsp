@@ -44,10 +44,11 @@ pub mod ucs;
 
 pub use openpgp::{OpenPgpError, decrypt_symmetric};
 pub use paths::{
-    LoadedConfig, PassphraseOptions, PathError, load_paths, read_path, resolve_passphrase,
+    ConfigInput, LoadedConfig, PassphraseOptions, PathError, load_paths, read_path,
+    read_path_source, resolve_passphrase,
 };
 pub use ucs::{
-    DEFAULT_PASSPHRASE_ENV, MemberScope, PassphraseProvider, UcsError, UcsFileEntry,
+    DEFAULT_PASSPHRASE_ENV, MemberScope, PassphraseProvider, UcsError, UcsFileEntry, UcsScfSource,
     decrypt_if_encrypted, is_pgp_bytes, is_ucs_bytes, list_ucs_members, read_ucs_member,
-    ucs_archive_to_scf, ucs_to_scf,
+    ucs_archive_to_scf, ucs_archive_to_scf_source, ucs_to_scf, ucs_to_scf_source,
 };

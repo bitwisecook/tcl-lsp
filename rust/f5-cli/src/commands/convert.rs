@@ -27,7 +27,7 @@ use std::path::Path;
 
 use tcl_bigip::convert::scf_to_as3;
 use tcl_bigip::parser::parse_bigip_conf;
-use tcl_bigip_io::ucs::{is_pgp_bytes, is_ucs_bytes, ucs_archive_to_scf};
+use tcl_bigip_io::ucs::{is_pgp_bytes, is_ucs_bytes, ucs_archive_to_scf_source};
 use tcl_bigip_io::{read_path, resolve_passphrase};
 use tcl_cli_support::{OutputTarget, write_text_output};
 
@@ -76,14 +76,18 @@ fn run_ucs2scf(
     }
     let opts = passphrase.to_options();
     let provider = || resolve_passphrase(&opts);
-    let text = match ucs_archive_to_scf(&data, &provider, false, path) {
+    let text = match ucs_archive_to_scf_source(&data, &provider, false, path) {
         Ok(t) => t,
         Err(e) => {
             eprintln!("error: {e}");
             return Ok(2);
         }
     };
-    write_text_output(&OutputTarget::from_arg(output), &text)?;
+    if let Err(error) = text.require_faithful() {
+        eprintln!("error: {error}");
+        return Ok(2);
+    }
+    write_text_output(&OutputTarget::from_arg(output), text.text())?;
     Ok(0)
 }
 
@@ -97,7 +101,7 @@ fn run_scf2as3(
     passphrase: &PassphraseArgs,
 ) -> anyhow::Result<u8> {
     let opts = passphrase.to_options();
-    let (_uri, source) = match read_path(path, false, &opts) {
+    let (_uri, source) = match read_path(path, true, &opts) {
         Ok(v) => v,
         Err(e) => {
             eprintln!("error: {e}");

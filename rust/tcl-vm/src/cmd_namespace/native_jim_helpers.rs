@@ -108,7 +108,7 @@ mod tests {
                 };
                 assert_eq!(
                     procedure.body_src.resident_string_bytes().unwrap().as_ref(),
-                    helper.body().as_bytes()
+                    helper.static_extension_source().body().as_bytes()
                 );
             }
             for library in libraries {
@@ -138,6 +138,44 @@ mod tests {
                     .unwrap(),
                 replacement
             );
+        }
+    }
+
+    #[test]
+    fn installed_namespace_helpers_retain_actual_static_sources_and_one_filename() {
+        let mut vm =
+            crate::native_fixture::interpreter(crate::environment::profile_for_dialect("jimtcl"));
+        vm.install_scripted_library(NativeScriptedLibrary::NamespaceHelpers);
+        let context = vm.native_jim_object_context().unwrap();
+        let mut filename: Option<Value> = None;
+        for kind in tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind::ALL {
+            let helper = vm
+                .actual_native_invocation_dialect()
+                .native_jim_namespace_helper(kind)
+                .unwrap();
+            let source = helper.static_extension_source();
+            let Some(crate::command::Command::Proc(procedure)) = vm.lookup_command(helper.name())
+            else {
+                panic!("actual installed helper {}", helper.name());
+            };
+            let original = &procedure.body_src;
+            assert!(original.native_jim_source_cache_present());
+            assert_eq!(original.native_object_type_name(), "source");
+            assert_eq!(original.native_object_reference_count(), 1);
+            assert_eq!(
+                original.resident_string_bytes().unwrap().as_ref(),
+                source.body().as_bytes()
+            );
+            let info = original.pin_native_jim_source_info(&context).unwrap();
+            assert_eq!(info.line, source.first_line());
+            assert_eq!(
+                info.filename.resident_string_bytes().unwrap().as_ref(),
+                source.filename()
+            );
+            match &filename {
+                None => filename = Some(info.filename.native_lifetime_lease().into_value()),
+                Some(filename) => assert!(filename.is_same_object(&info.filename)),
+            }
         }
     }
 

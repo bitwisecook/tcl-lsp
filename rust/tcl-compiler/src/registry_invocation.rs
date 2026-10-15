@@ -123,7 +123,7 @@ pub(crate) use source_taint::{
 mod vendor_advice;
 mod vendor_source_barriers;
 pub use vendor_advice::{VendorRegistryInvocationShape, vendor_registry_invocation_shape};
-pub use vendor_source_barriers::VendorSourceCatalogueBarriers;
+pub use vendor_source_barriers::{NominalAliasSourceOperandOrigin, VendorSourceCatalogueBarriers};
 
 mod hosted_structure;
 pub(crate) use hosted_structure::{

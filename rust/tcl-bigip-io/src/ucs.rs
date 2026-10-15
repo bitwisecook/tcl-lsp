@@ -167,9 +167,50 @@ fn is_macos_cruft(name: &str) -> bool {
             .is_some_and(|base| base.starts_with("._") || base == ".DS_Store")
 }
 
+#[derive(Debug, Clone)]
+struct OriginalUcsMember {
+    name: String,
+    path: Vec<u8>,
+    bytes: Vec<u8>,
+}
+
+/// Extracted preview and the original selected archive members.
+#[derive(Debug, Clone)]
+pub struct UcsScfSource {
+    text: String,
+    members: Vec<OriginalUcsMember>,
+}
+
+impl UcsScfSource {
+    /// Display text may contain replacement characters for invalid input.
+    #[must_use]
+    pub fn text(&self) -> &str {
+        &self.text
+    }
+
+    /// Require exact UTF-8 for the actual selected member names and contents.
+    ///
+    /// # Errors
+    /// Returns the selected member whose original bytes cannot be represented.
+    pub fn require_faithful(&self) -> Result<(), UcsError> {
+        for member in &self.members {
+            std::str::from_utf8(&member.path).map_err(|error| {
+                UcsError::new(format!("invalid UTF-8 in UCS member path: {error}"))
+            })?;
+            std::str::from_utf8(&member.bytes).map_err(|error| {
+                UcsError::new(format!(
+                    "invalid UTF-8 in UCS member {}: {error}",
+                    member.name
+                ))
+            })?;
+        }
+        Ok(())
+    }
+}
+
 /// Read every regular-file member of a gzip-tar into `(name, bytes)`, with the
 /// leading `./` / `/` stripped from each name. Members keep archive order.
-fn read_members(ucs_bytes: &[u8]) -> Result<Vec<(String, Vec<u8>)>, UcsError> {
+fn read_original_members(ucs_bytes: &[u8]) -> Result<Vec<OriginalUcsMember>, UcsError> {
     let gz = GzDecoder::new(Cursor::new(ucs_bytes));
     let mut archive = Archive::new(gz);
     let entries = archive
@@ -181,6 +222,7 @@ fn read_members(ucs_bytes: &[u8]) -> Result<Vec<(String, Vec<u8>)>, UcsError> {
         if !entry.header().entry_type().is_file() {
             continue;
         }
+        let original_path = entry.path_bytes().into_owned();
         let name = entry
             .path()
             .map_err(|e| UcsError::new(format!("invalid UCS archive: {e}")))?
@@ -197,9 +239,20 @@ fn read_members(ucs_bytes: &[u8]) -> Result<Vec<(String, Vec<u8>)>, UcsError> {
         entry
             .read_to_end(&mut data)
             .map_err(|e| UcsError::new(format!("invalid UCS archive: {e}")))?;
-        members.push((lstrip_dot_slash(&name).to_owned(), data));
+        members.push(OriginalUcsMember {
+            name: lstrip_dot_slash(&name).to_owned(),
+            path: original_path,
+            bytes: data,
+        });
     }
     Ok(members)
+}
+
+fn read_members(ucs_bytes: &[u8]) -> Result<Vec<(String, Vec<u8>)>, UcsError> {
+    Ok(read_original_members(ucs_bytes)?
+        .into_iter()
+        .map(|member| (member.name, member.bytes))
+        .collect())
 }
 
 /// Extract `ucs_bytes` and return a concatenated SCF text.
@@ -208,12 +261,20 @@ fn read_members(ucs_bytes: &[u8]) -> Result<Vec<(String, Vec<u8>)>, UcsError> {
 /// the canonical order are appended at the end (in deterministic alphabetical
 /// order). Members not present in the archive are silently skipped.
 pub fn ucs_to_scf(ucs_bytes: &[u8], include_extras: bool) -> Result<String, UcsError> {
-    let members = read_members(ucs_bytes)?;
+    Ok(ucs_to_scf_source(ucs_bytes, include_extras)?.text)
+}
+
+/// Extract selected SCF members while retaining their original bytes.
+///
+/// # Errors
+/// Returns invalid archive input; source fidelity is checked separately.
+pub fn ucs_to_scf_source(ucs_bytes: &[u8], include_extras: bool) -> Result<UcsScfSource, UcsError> {
+    let members = read_original_members(ucs_bytes)?;
     // Build a name → last-occurrence index map (last write wins:
     // a later member with the same name wins).
     let mut by_name: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
-    for (i, (name, _)) in members.iter().enumerate() {
-        by_name.insert(name.as_str(), i);
+    for (i, member) in members.iter().enumerate() {
+        by_name.insert(member.name.as_str(), i);
     }
 
     let decode = |bytes: &[u8]| -> String { String::from_utf8_lossy(bytes).trim_end().to_owned() };
@@ -226,7 +287,7 @@ pub fn ucs_to_scf(ucs_bytes: &[u8], include_extras: bool) -> Result<String, UcsE
                 return;
             }
             if let Some(&idx) = by_name.get(name) {
-                let text = decode(&members[idx].1);
+                let text = decode(&members[idx].bytes);
                 chunks.push(format!("#\n# {name}\n#\n{text}\n"));
                 seen.insert(name.to_owned());
             }
@@ -297,7 +358,21 @@ pub fn ucs_to_scf(ucs_bytes: &[u8], include_extras: bool) -> Result<String, UcsE
         emit(name, &mut chunks, &mut seen);
     }
 
-    Ok(chunks.join("\n"))
+    let text = chunks.join("\n");
+    let selected = members
+        .iter()
+        .enumerate()
+        .filter(|(index, member)| {
+            seen.contains(&member.name)
+                && (by_name.get(member.name.as_str()) == Some(index)
+                    || std::str::from_utf8(&member.path).is_err())
+        })
+        .map(|(_, member)| member.clone())
+        .collect();
+    Ok(UcsScfSource {
+        text,
+        members: selected,
+    })
 }
 
 /// Return plaintext UCS bytes, decrypting `raw` first if it is `OpenPGP`.
@@ -335,11 +410,24 @@ pub fn ucs_archive_to_scf(
     include_extras: bool,
     label: &str,
 ) -> Result<String, UcsError> {
+    Ok(ucs_archive_to_scf_source(raw, provider, include_extras, label)?.text)
+}
+
+/// Decrypt and extract with the actual selected source members retained.
+///
+/// # Errors
+/// Returns decryption or archive failure before any source fidelity decision.
+pub fn ucs_archive_to_scf_source(
+    raw: &[u8],
+    provider: &PassphraseProvider<'_>,
+    include_extras: bool,
+    label: &str,
+) -> Result<UcsScfSource, UcsError> {
     let data = decrypt_if_encrypted(raw, provider, label)?;
     if !is_ucs_bytes(&data) {
         return Err(UcsError::new(format!("{label}: not a valid UCS archive")));
     }
-    ucs_to_scf(&data, include_extras)
+    ucs_to_scf_source(&data, include_extras)
 }
 
 /// Return the bytes of a single file member from a UCS archive.

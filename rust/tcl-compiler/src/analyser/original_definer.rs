@@ -204,6 +204,49 @@ fn original_argument_projection(
         .then(|| (value.to_owned(), token))
 }
 
+/// Compare advisory arguments with the retained constructor's actual values
+/// and original words. Captured-prefix operands keep their own source tokens.
+pub(super) fn constructor_arguments_match(
+    call: &crate::command_binding::OriginalSourceConstructorCall,
+    arguments: &[String],
+    tokens: &[Token],
+) -> bool {
+    let values = call.arguments();
+    if values.len() != arguments.len() || tokens.len() != arguments.len() {
+        return false;
+    }
+    values
+        .iter()
+        .enumerate()
+        .zip(arguments.iter().zip(tokens))
+        .all(|((index, value), (argument, token))| {
+            call.argument_word(index)
+                .zip(value.literal_bytes())
+                .and_then(|(word, value)| original_argument_projection(word, value))
+                .is_some_and(|(value, original)| value == *argument && original == *token)
+        })
+}
+
+/// Logical external headers retain source values, independently of Native argv.
+pub(super) fn logical_arguments_match(
+    original: &[tcl_lexer::NativeWord],
+    arguments: &[String],
+    tokens: &[Token],
+) -> bool {
+    if original.len().checked_sub(1) != Some(arguments.len()) || tokens.len() != arguments.len() {
+        return false;
+    }
+    original
+        .iter()
+        .skip(1)
+        .zip(arguments.iter().zip(tokens))
+        .all(|(word, (argument, token))| {
+            tcl_syntax::word_rules::original_static_word_unicode_value(word)
+                .and_then(|value| original_argument_projection(word, value.as_bytes()))
+                .is_some_and(|(value, original)| value == *argument && original == *token)
+        })
+}
+
 #[derive(Clone, Copy)]
 pub(super) struct ClassDefinerCall<'a> {
     pub(super) cmd_name: &'a str,
@@ -256,6 +299,37 @@ impl Analyser {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn constructor_argument_projection_keeps_captured_values_and_original_tokens_together() {
+        for source in [
+            "oo::class create C {}; C create object",
+            "oo::class create C {}; interp alias {} Maker {} C create; Maker object",
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl8.6");
+            let offset = u32::try_from(source.rfind("; ").unwrap() + 2).unwrap();
+            let original = OriginalClassCallSource::capture(source, &analysis, offset).unwrap();
+            assert!(constructor_arguments_match(
+                &original.call,
+                &original.arguments,
+                &original.tokens,
+            ));
+            let mut changed = original.arguments.clone();
+            changed[0] = "new".to_owned();
+            assert!(!constructor_arguments_match(
+                &original.call,
+                &changed,
+                &original.tokens,
+            ));
+            let mut changed = original.tokens.clone();
+            changed.swap(0, 1);
+            assert!(!constructor_arguments_match(
+                &original.call,
+                &original.arguments,
+                &changed,
+            ));
+        }
+    }
 
     #[test]
     fn original_class_definers_preserve_moves_captured_prefixes_and_declaration_sites() {

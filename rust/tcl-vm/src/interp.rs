@@ -23264,7 +23264,7 @@ impl Vm {
         parameter_source: &str,
         source: &str,
     ) -> Option<(String, NativeRegisteredCommandToken)> {
-        self.register_selected_bootstrap_procedure(name, parameter_source, source, None)
+        self.register_selected_bootstrap_procedure(name, parameter_source, source, None, &mut None)
     }
 
     fn register_selected_bootstrap_procedure(
@@ -23273,6 +23273,7 @@ impl Vm {
         parameter_source: &str,
         source: &str,
         helper: Option<tcl_registry::native_jim_lookup::NativeJimNamespaceHelper>,
+        source_filename: &mut Option<Value>,
     ) -> Option<(String, NativeRegisteredCommandToken)> {
         // Library declarations belong to the retained native root namespace.
         self.push_ns_token(NameBytes::default(), ROOT_NS);
@@ -23281,6 +23282,7 @@ impl Vm {
             parameter_source,
             source,
             helper,
+            source_filename,
         );
         self.pop_ns();
         installed
@@ -23292,6 +23294,7 @@ impl Vm {
         parameter_source: &str,
         source: &str,
         helper: Option<tcl_registry::native_jim_lookup::NativeJimNamespaceHelper>,
+        source_filename: &mut Option<Value>,
     ) -> Option<(String, NativeRegisteredCommandToken)> {
         let _scope = native_operation_currency::NativeOperationScope::enter(self).ok()?;
         let grammar = self.native_invocation_dialect().parameter_grammar()?;
@@ -23304,6 +23307,31 @@ impl Vm {
         let (params, has_args) =
             crate::command::parse_params_value(self, &parameter_value, name.as_bytes())
                 .expect("audited native library formal declaration");
+        if let Some(helper) = helper {
+            let source = helper.static_extension_source();
+            let adopted = (|| -> Result<(), tcl_syntax::value::ValueError> {
+                let context = self.native_jim_object_context()?;
+                if source_filename.is_none() {
+                    let filename = Value::new_native_string_bytes(source.filename());
+                    filename.bind_native_jim_context(&context)?;
+                    *source_filename = Some(filename);
+                }
+                source_value.install_native_jim_source(
+                    crate::value::NativeJimSourceInfo {
+                        filename: source_filename
+                            .as_ref()
+                            .expect("selected source filename")
+                            .clone(),
+                        line: source.first_line(),
+                    },
+                    &context,
+                )
+            })();
+            if let Err(error) = adopted {
+                let _ = self.original_name_cmd_error(error.into());
+                return None;
+            }
+        }
         let table_key = self
             .jim_command_table_key_for_original(
                 name.as_bytes(),
@@ -23409,12 +23437,14 @@ impl Vm {
             return;
         }
         let mut installed = Vec::new();
+        let mut source_filename = None;
         for procedure in procedures {
             if let Some(binding) = self.register_selected_bootstrap_procedure(
                 procedure.command,
                 procedure.parameters,
                 procedure.body,
                 procedure.namespace_helper,
+                &mut source_filename,
             ) {
                 installed.push(binding);
             }

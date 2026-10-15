@@ -24,7 +24,6 @@
 //! advice and cannot reassign original Native operands by occurrence order.
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
-use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
 use anyhow::Context;
@@ -32,7 +31,7 @@ use serde::Serialize;
 use tcl_compiler::analyser::Analyser;
 use tcl_compiler::optimiser::optimise_source_multipass_admitting_with_analysis_input;
 use tcl_compiler::optimiser::profiles::{OptimisationProfile, profile_to_disabled};
-use tcl_pkg::manifest::{ManifestAst, load_manifest, load_manifest_text};
+use tcl_pkg::manifest::{ManifestAst, RequirementKind, append_manifest_requirement, load_manifest};
 use tcl_pkg::version::Version;
 
 use crate::cli::PkgCommon;
@@ -548,14 +547,18 @@ fn append_requirements(
 ) -> anyhow::Result<()> {
     let original = std::fs::read_to_string(path)
         .with_context(|| format!("cannot read manifest {}", path.display()))?;
-    let mut proposed = original.trim_end_matches(['\r', '\n']).to_owned();
+    let mut proposed = original;
     for (name, (_, minimum)) in additions {
-        proposed.push('\n');
-        write!(&mut proposed, "require {name} {minimum}").expect("writing to a String cannot fail");
-    }
-    proposed.push('\n');
-    load_manifest_text(&proposed, Some(&path.to_string_lossy()))
+        proposed = append_manifest_requirement(
+            &proposed,
+            Some(&path.to_string_lossy()),
+            name,
+            minimum,
+            None,
+            RequirementKind::Runtime,
+        )
         .context("discovered requirements would produce an invalid manifest")?;
+    }
     std::fs::write(path, proposed)
         .with_context(|| format!("cannot update manifest {}", path.display()))
 }
@@ -851,6 +854,49 @@ mod tests {
         let additions = collect_additions(&reports);
         assert_eq!(additions["json"].1, "1.10");
         assert_eq!(additions["http"].1, "2.9");
+    }
+
+    #[test]
+    fn appended_discovery_requirements_preserve_original_source_and_refuse_partial_edits() {
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let directory = std::env::temp_dir().join(format!(
+            "tcl-discover-append-{}-{stamp}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("tclpkg.tcl");
+        let original = "package demo\r\nversion 1.0\r\n# retain trailing bytes\r\n\r\n";
+        std::fs::write(&path, original).unwrap();
+        let additions = collect_additions(&[report("json::write", "1.2"), report("tls", "1.7")]);
+        append_requirements(&path, &additions).unwrap();
+        let edited = std::fs::read_to_string(&path).unwrap();
+        assert!(edited.starts_with(original));
+        assert!(edited.contains("require json::write 1.2\n"));
+        assert!(edited.contains("require tls 1.7\n"));
+        let parsed = load_manifest(&path).unwrap();
+        assert_eq!(
+            parsed
+                .requires
+                .iter()
+                .map(|row| row.name.as_str())
+                .collect::<Vec<_>>(),
+            ["json::write", "tls"]
+        );
+        std::fs::write(&path, original).unwrap();
+        let mut refused = additions;
+        refused.insert(
+            "zzz".to_owned(),
+            (
+                Version::parse("1.0").unwrap(),
+                "1.0; require injected 9.0".to_owned(),
+            ),
+        );
+        assert!(append_requirements(&path, &refused).is_err());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
+        std::fs::remove_dir_all(directory).unwrap();
     }
 
     #[test]

@@ -19,6 +19,20 @@ struct OriginalNominalCommandNameHazard {
     coordinate: NameBytes,
 }
 
+/// Source operands composed by a possible alias, without Native argv identity.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum NominalAliasSourceOperandOrigin {
+    /// Effective post-head operand of the authentic following source command.
+    InvocationArgument(usize),
+    /// A distinct original word captured by the source alias declaration.
+    CapturedSourceWord(NativeWord),
+}
+
+pub(super) struct OriginalNominalAliasSourceAlternative {
+    pub(super) target: VendorSourceNameInput,
+    pub(super) prefix: Vec<NativeWord>,
+}
+
 /// Authored root-script transition evidence before one original hosted head.
 /// These records can withdraw nominal source advice. They supply no command
 /// existence, runtime table, Native name recipe, successful commit or execution.
@@ -31,6 +45,7 @@ pub struct VendorSourceCatalogueBarriers {
     schemas: Vec<super::VendorRegistryInvocationShape>,
     unknown_transitions: bool,
     nominal_name_hazards: Vec<OriginalNominalCommandNameHazard>,
+    regions: Vec<tcl_lexer::Span>,
 }
 impl VendorSourceCatalogueBarriers {
     /// Actual original head whose authored applicability was checked.
@@ -62,6 +77,74 @@ impl VendorSourceCatalogueBarriers {
     #[must_use]
     pub fn has_nominal_command_name_hazard(&self) -> bool {
         !self.nominal_name_hazards.is_empty()
+    }
+
+    /// Project every named replacement as a separate conditional source schema.
+    /// Only finite literal same-interpreter aliases have this purpose. Original
+    /// invocation operands and captured words remain distinct; no alias entry,
+    /// Native argv, handler, Normal result or discharged uncertainty follows.
+    pub fn nominal_alias_source_projections<T>(
+        &self,
+        context: &ContextRegistry,
+        following: &super::source_structure::OriginalRegistryWords,
+        mut project: impl FnMut(
+            &tcl_registry::ResolvedInvocation<'_, '_>,
+            &[NominalAliasSourceOperandOrigin],
+        ) -> Option<T>,
+    ) -> Option<Vec<T>> {
+        if !self.matches_context(context)
+            || !following.matches_source(self.head.source_image(), self.head.lexer_config())
+            || !matches!(following.source(),
+                super::source_structure::OriginalRegistrySource::Vendor(metadata)
+                    if metadata.authored_barriers() == self)
+        {
+            return None;
+        }
+        let mut projections = Vec::new();
+        for hazard in &self.nominal_name_hazards {
+            let replacement = hazard.operand.alias_replacement()?;
+            let target = VendorSourceNameInput::from_original_word(
+                hazard
+                    .original
+                    .get(replacement.target_argument().checked_add(1)?)?,
+                self.head.policy(),
+            );
+            let coordinate = target.root_command_coordinate()?;
+            if coordinate == hazard.coordinate {
+                return None;
+            }
+            // An existing source replacement of the target could compose a
+            // different alias or a cycle. Never resolve that from label text.
+            for region in &self.regions {
+                let target_barriers =
+                    capture_region(context, &self.head, &[vec![coordinate.clone()]], *region)?;
+                if target_barriers.has_nominal_command_name_hazard() {
+                    return None;
+                }
+            }
+            let prefix = replacement
+                .prefix_arguments()
+                .iter()
+                .map(|argument| hazard.original.get(argument.checked_add(1)?).cloned())
+                .collect::<Option<Vec<_>>>()?;
+            let origins = prefix
+                .iter()
+                .cloned()
+                .map(NominalAliasSourceOperandOrigin::CapturedSourceWord)
+                .chain(
+                    (0..following.arguments().len())
+                        .map(NominalAliasSourceOperandOrigin::InvocationArgument),
+                )
+                .collect::<Vec<_>>();
+            let alternative = OriginalNominalAliasSourceAlternative { target, prefix };
+            projections.push(super::vendor_advice::with_vendor_alias_source_schema(
+                context,
+                &alternative,
+                following,
+                |schema| project(schema, &origins),
+            )?);
+        }
+        Some(projections)
     }
     /// Same complete source image, channel and semantic lexer configuration.
     #[must_use]
@@ -112,6 +195,7 @@ pub(super) fn capture_in_script_body(
             .nominal_name_hazards
             .extend(local.nominal_name_hazards);
         receipt.unknown_transitions |= local.unknown_transitions;
+        receipt.regions.extend(local.regions);
     }
     Some(receipt)
 }
@@ -136,6 +220,7 @@ fn capture_region(
         schemas: Vec::new(),
         unknown_transitions: false,
         nominal_name_hazards: Vec::new(),
+        regions: vec![region],
     };
     let mut barriers = BTreeSet::new();
     for command in plan.commands {

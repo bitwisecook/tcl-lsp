@@ -167,6 +167,29 @@ pub struct NominalSourceCommandNameHazard {
     descriptor: &'static crate::CommandSpec,
     argument: usize,
     name: Vec<u8>,
+    alias_replacement: Option<NominalSourceAliasReplacement>,
+}
+
+/// Original literal operands of one possible same-interpreter source alias.
+/// This is a conditional schema alternative, never an installed alias.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NominalSourceAliasReplacement {
+    target: usize,
+    prefix: Vec<usize>,
+}
+
+impl NominalSourceAliasReplacement {
+    /// Original post-head target operand.
+    #[must_use]
+    pub const fn target_argument(&self) -> usize {
+        self.target
+    }
+
+    /// Original post-head captured operands, in their declared order.
+    #[must_use]
+    pub fn prefix_arguments(&self) -> &[usize] {
+        &self.prefix
+    }
 }
 
 impl PartialEq for NominalSourceCommandNameHazard {
@@ -174,6 +197,7 @@ impl PartialEq for NominalSourceCommandNameHazard {
         std::ptr::eq(self.descriptor, other.descriptor)
             && self.argument == other.argument
             && self.name == other.name
+            && self.alias_replacement == other.alias_replacement
     }
 }
 impl Eq for NominalSourceCommandNameHazard {}
@@ -195,6 +219,12 @@ impl NominalSourceCommandNameHazard {
     #[must_use]
     pub fn name(&self) -> &[u8] {
         &self.name
+    }
+
+    /// Possible source replacement operands from the same actual transition.
+    #[must_use]
+    pub const fn alias_replacement(&self) -> Option<&NominalSourceAliasReplacement> {
+        self.alias_replacement.as_ref()
     }
 }
 
@@ -228,30 +258,61 @@ impl crate::CommandRegistry {
         let mut subjects = Vec::new();
         for transition in transitions.command_bindings() {
             match transition {
-                CommandBindingTransition::Define { name, .. } => subjects.push(name),
-                CommandBindingTransition::Move { from, to } => subjects.extend([from, to]),
+                CommandBindingTransition::Define { name, .. } => subjects.push((name, None)),
+                CommandBindingTransition::Move { from, to } => {
+                    subjects.extend([(from, None), (to, None)]);
+                }
                 CommandBindingTransition::Delete { interpreter, name } => {
                     if interpreter
                         .as_ref()
                         .is_none_or(|path| path.literal() == Some(""))
                     {
-                        subjects.push(name);
+                        subjects.push((name, None));
                     }
                 }
                 CommandBindingTransition::Alias {
                     source_interpreter,
                     alias,
-                    ..
+                    target_interpreter,
+                    target,
+                    arguments,
+                    target_lookup,
                 } => {
                     if source_interpreter.literal() == Some("") {
-                        subjects.push(alias);
+                        let exact_argument = |subject: &crate::TransitionSubject| {
+                            let ordinal = subject.argument_index()?;
+                            let expected = subject
+                                .literal()
+                                .map(str::as_bytes)
+                                .or_else(|| subject.native_bytes())?;
+                            let actual = words.arguments().get(ordinal)?;
+                            (actual
+                                .literal()
+                                .map(str::as_bytes)
+                                .or_else(|| actual.native_bytes())
+                                == Some(expected))
+                            .then_some(ordinal)
+                        };
+                        let replacement = (|| {
+                            (target_interpreter.literal() == Some("")
+                                && *target_lookup == crate::AliasTargetLookup::Global)
+                                .then_some(())?;
+                            Some(NominalSourceAliasReplacement {
+                                target: exact_argument(target)?,
+                                prefix: arguments
+                                    .iter()
+                                    .map(exact_argument)
+                                    .collect::<Option<Vec<_>>>()?,
+                            })
+                        })();
+                        subjects.push((alias, replacement));
                     }
                 }
                 CommandBindingTransition::Unknown { .. } => {}
             }
         }
         let mut hazards = Vec::new();
-        for subject in subjects {
+        for (subject, alias_replacement) in subjects {
             let Some(argument) = subject.argument_index() else {
                 continue;
             };
@@ -274,6 +335,7 @@ impl crate::CommandRegistry {
                 descriptor,
                 argument,
                 name: name.to_vec(),
+                alias_replacement,
             };
             if !hazards.contains(&hazard) {
                 hazards.push(hazard);
@@ -328,6 +390,80 @@ mod tests {
                 hazard.descriptor(),
                 context.commands().get("rename").unwrap()
             )));
+        }
+    }
+
+    #[test]
+    fn nominal_alias_replacements_keep_original_target_and_prefix_ordinals() {
+        use crate::InvocationWord::{Dynamic, Expanded, Literal};
+        let context = crate::model::ingress::static_context_for("f5-irules");
+        for (arguments, replacement) in [
+            (
+                vec![
+                    Literal("alias"),
+                    Literal(""),
+                    Literal("members"),
+                    Literal(""),
+                    Literal("active_members"),
+                    Literal("-list"),
+                ],
+                true,
+            ),
+            (
+                vec![
+                    Literal("alias"),
+                    Literal(""),
+                    Literal("members"),
+                    Literal(""),
+                    Dynamic,
+                ],
+                false,
+            ),
+            (
+                vec![
+                    Literal("alias"),
+                    Literal(""),
+                    Literal("members"),
+                    Literal(""),
+                    Literal("active_members"),
+                    Dynamic,
+                ],
+                false,
+            ),
+            (
+                vec![
+                    Literal("alias"),
+                    Literal(""),
+                    Literal("members"),
+                    Literal("child"),
+                    Literal("active_members"),
+                ],
+                false,
+            ),
+            (
+                vec![
+                    Literal("alias"),
+                    Literal(""),
+                    Literal("members"),
+                    Literal(""),
+                    Literal("active_members"),
+                    Expanded,
+                ],
+                false,
+            ),
+        ] {
+            let hazards = context.commands().nominal_source_command_name_hazards(
+                crate::InvocationWords::structured(Literal("interp"), &arguments),
+            );
+            assert!(hazards.iter().all(|hazard| hazard.name() == b"members"));
+            let actual = hazards
+                .first()
+                .and_then(|hazard| hazard.alias_replacement());
+            assert_eq!(actual.is_some(), replacement, "{arguments:?}");
+            if let Some(actual) = actual {
+                assert_eq!(actual.target_argument(), 4);
+                assert_eq!(actual.prefix_arguments(), &[5]);
+            }
         }
     }
 

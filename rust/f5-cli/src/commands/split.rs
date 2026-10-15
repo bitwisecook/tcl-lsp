@@ -40,7 +40,8 @@ const DEFAULT_PARTITION: &str = "_no_partition";
 pub fn run_split(input: &Path, output: &Path, format: &FormatArgs) -> anyhow::Result<u8> {
     let bytes =
         std::fs::read(input).with_context(|| format!("failed to read {}", input.display()))?;
-    let source = String::from_utf8_lossy(&bytes).into_owned();
+    let source = String::from_utf8(bytes)
+        .with_context(|| format!("invalid UTF-8 in {}", input.display()))?;
 
     std::fs::create_dir_all(output)
         .with_context(|| format!("failed to create {}", output.display()))?;

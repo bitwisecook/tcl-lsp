@@ -61,6 +61,28 @@ struct CachedExpr {
     node: Option<Rc<tcl_syntax::expr::NativeExprNode>>,
     dialect: tcl_registry::InvocationDialect,
     jim: Option<Rc<tcl_syntax::expr::native_objects::JimExpressionObjects<Owned>>>,
+    source_origin: Option<Rc<crate::native_source::NativeJimSourceOrigin>>,
+}
+
+pub(crate) fn native_jim_source_origin(
+    value: *mut TclObj,
+    context: &Rc<crate::native_source::NativeJimObjectContext>,
+) -> Result<Option<Rc<crate::native_source::NativeJimSourceOrigin>>, tcl_syntax::value::ValueError>
+{
+    let Some(backing) = expression_backing(value) else {
+        return Ok(None);
+    };
+    let origin = backing
+        .source_origin
+        .as_ref()
+        .filter(|origin| origin.belongs_to(value))
+        .cloned();
+    if origin.is_some() && !Rc::ptr_eq(&crate::native_source::context(value)?, context) {
+        return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "Jim Expression original interpreter",
+        ));
+    }
+    Ok(origin)
 }
 
 /// C expression source cache; its resident spelling is never regenerated.
@@ -179,6 +201,7 @@ pub(crate) fn prepare_expr_cache(
                 dialect,
                 parser_policy,
                 jim: None,
+                source_origin: None,
             }),
         );
     }
@@ -207,6 +230,7 @@ pub(crate) fn cache_expr(
             dialect,
             parser_policy,
             jim: None,
+            source_origin: None,
         }),
     );
 }
@@ -229,6 +253,7 @@ pub(crate) fn install_jim_expression(
 ) -> Result<(), tcl_syntax::value::ValueError> {
     use tcl_syntax::expr::native_objects::{JimExpressionObjects, JimExpressionTermValue};
     let context = crate::native_source::context(value)?;
+    let source_origin = crate::native_source::original_source_origin(value, &context)?;
     let objects =
         JimExpressionObjects::prepare(input.source, input.preparation, |term, payload| {
             let value = Owned::fresh(match payload {
@@ -242,13 +267,21 @@ pub(crate) fn install_jim_expression(
             });
             crate::native_source::bind_context(value.as_ptr(), &context)?;
             if term.kind == tcl_lexer::ExprTermKind::Command {
-                crate::native_source::install_source(
+                crate::native_source::install_source_from(
                     value.as_ptr(),
                     crate::native_source::NativeJimSourceInfo {
                         filename: input.info.filename.clone(),
                         line: input.info.line.wrapping_add_unsigned(term.line_delta),
                     },
                     &context,
+                    source_origin.as_ref().map(|origin| {
+                        (
+                            origin,
+                            tcl_syntax::jim_script_objects::JimScriptObjectKind::Source(
+                                tcl_lexer::JimScriptTokenKind::Command,
+                            ),
+                        )
+                    }),
                 )?;
             }
             Ok(value)
@@ -260,6 +293,7 @@ pub(crate) fn install_jim_expression(
             parser_policy: input.parser_policy,
             node: Some(Rc::new(input.node.clone())),
             jim: Some(Rc::new(objects)),
+            source_origin,
         }),
     );
     Ok(())

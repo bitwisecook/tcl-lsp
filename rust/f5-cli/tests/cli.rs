@@ -246,3 +246,124 @@ fn diff_scalar_modify() {
         "diff-mod.text.golden",
     );
 }
+
+#[test]
+fn source_transforms_refuse_invalid_name_bytes_before_artifacts() {
+    let dir = std::env::temp_dir().join(format!("f5-source-fidelity-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let input = dir.join("input.conf");
+    let output = dir.join("output.conf");
+    let split = dir.join("split");
+    let original = b"ltm pool /Common/old { description \"\xff\" }\n";
+    std::fs::write(&input, original).unwrap();
+    let input_arg = input.to_str().unwrap();
+    let output_arg = output.to_str().unwrap();
+    let expression = r#"rename("/Common/old", "/Common/new")"#;
+    for args in [
+        vec!["rename", "/Common/old", "/Common/new", input_arg],
+        vec!["rename", "/Common/old", "/Common/new", input_arg, "--write"],
+        vec![
+            "rename",
+            "/Common/old",
+            "/Common/new",
+            input_arg,
+            "--output",
+            output_arg,
+        ],
+        vec![
+            "rename",
+            "/Common/old",
+            "/Common/new",
+            input_arg,
+            "--in-place",
+        ],
+        vec!["query", expression, input_arg],
+        vec!["query", "--write", expression, input_arg],
+        vec!["query", "--in-place", expression, input_arg],
+        vec!["split", input_arg, split.to_str().unwrap()],
+    ] {
+        let result = Command::new(env!("CARGO_BIN_EXE_f5-query"))
+            .args(&args)
+            .output()
+            .unwrap();
+        assert!(!result.status.success(), "{args:?}");
+        assert!(result.stdout.is_empty(), "{args:?}");
+        assert!(
+            String::from_utf8_lossy(&result.stderr).contains("invalid UTF-8"),
+            "{args:?}: {:?}",
+            result.stderr
+        );
+        assert_eq!(std::fs::read(&input).unwrap(), original);
+        assert!(!output.exists());
+        assert!(!split.exists());
+    }
+    let report = Command::new(env!("CARGO_BIN_EXE_f5-query"))
+        .args(["query", ".ltm.pool[].name", input_arg])
+        .output()
+        .unwrap();
+    assert!(report.status.success(), "{:?}", report.stderr);
+    assert!(
+        String::from_utf8(report.stdout)
+            .unwrap()
+            .contains("/Common/old")
+    );
+    std::fs::write(
+        &input,
+        "ltm pool /Common/old { description \"\u{fffd}\" }\n",
+    )
+    .unwrap();
+    let literal = Command::new(env!("CARGO_BIN_EXE_f5-query"))
+        .args(["rename", "/Common/old", "/Common/new", input_arg, "--write"])
+        .output()
+        .unwrap();
+    assert!(literal.status.success(), "{:?}", literal.stderr);
+    let text = String::from_utf8(literal.stdout).unwrap();
+    assert!(text.contains("/Common/new"));
+    assert!(text.contains('\u{fffd}'));
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn mutating_queries_require_faithful_named_and_structured_donors() {
+    let dir = std::env::temp_dir().join(format!("f5-query-donor-fidelity-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let target = dir.join("target.conf");
+    let donor = dir.join("donor.conf");
+    let json = dir.join("donor.json");
+    let original = "ltm pool /Common/old { }\n";
+    std::fs::write(&target, original).unwrap();
+    std::fs::write(&donor, b"ltm pool /Common/\xff { }\n").unwrap();
+    std::fs::write(&json, b"{\"name\":\"/Common/\xff\"}").unwrap();
+    for (flag, binding, expression, extra) in [
+        (
+            "--name",
+            format!("donor={}", donor.display()),
+            r#"rename("/Common/old", $donor.ltm.pool[].name)"#,
+            Some(donor.as_path()),
+        ),
+        (
+            "--input-json",
+            format!("donor={}", json.display()),
+            r#"rename("/Common/old", $donor.name)"#,
+            None,
+        ),
+    ] {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_f5-query"));
+        command
+            .args(["query", "--write", flag, &binding, expression])
+            .arg(&target);
+        if let Some(extra) = extra {
+            command.arg(extra);
+        }
+        let output = command.output().unwrap();
+        assert!(!output.status.success());
+        assert!(output.stdout.is_empty());
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains("invalid UTF-8"),
+            "{:?}",
+            output.stderr
+        );
+        assert_eq!(std::fs::read_to_string(&target).unwrap(), original);
+    }
+    std::fs::remove_dir_all(dir).unwrap();
+}

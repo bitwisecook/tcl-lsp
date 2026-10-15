@@ -47,14 +47,14 @@ pub fn run_unredact(
     }
 
     let opts = crate::cli::PassphraseArgs::default().to_options();
-    let (_map_uri, map_text) = match read_path(map_file, false, &opts) {
+    let (_map_uri, map_text) = match read_path(map_file, true, &opts) {
         Ok(pair) => pair,
         Err(e) => {
             eprintln!("error: {e}");
             return Ok(2);
         }
     };
-    let (_uri, source) = match read_path(path, false, &opts) {
+    let (_uri, source) = match read_path(path, true, &opts) {
         Ok(pair) => pair,
         Err(e) => {
             eprintln!("error: {e}");

@@ -281,6 +281,14 @@ pub fn append_manifest_requirement(
     }
     let mut command = directive.to_owned();
     for word in &words[1..] {
+        if tcl_syntax::word_rules::lexical_ascii_source_word(word, manifest_lexer_config())
+            .as_deref()
+            == Some(word.as_str())
+        {
+            command.push(' ');
+            command.push_str(word);
+            continue;
+        }
         let fragment = tcl_syntax::backslash::literal_quoted_source_fragment(
             word,
             manifest_lexer_config().escapes,
@@ -943,6 +951,22 @@ dev-require {test name} 1.0\n";
                 });
             }
         }
+    }
+
+    #[test]
+    fn appended_requirements_preserve_verified_bare_source_spelling() {
+        let original = "package demo\nversion 1.0\n";
+        let edited = append_manifest_requirement(
+            original,
+            None,
+            "json::write",
+            "1.7",
+            None,
+            RequirementKind::Runtime,
+        )
+        .unwrap();
+        assert_eq!(edited, format!("{original}\nrequire json::write 1.7\n"));
+        assert_eq!(load(&edited).unwrap().requires[0].name, "json::write");
     }
 
     #[test]

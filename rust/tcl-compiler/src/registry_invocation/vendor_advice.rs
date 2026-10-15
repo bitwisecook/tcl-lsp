@@ -219,25 +219,92 @@ fn with_vendor_source_schema<T>(
     }
     // The original input owns the authored coordinate purpose. Compatibility
     // Registry spelling lookup is not the parser for a written Tcl head.
+    let arguments = original
+        .iter()
+        .skip(1)
+        .map(|word| {
+            if word.group().expand {
+                return InvocationWord::Expanded;
+            }
+            tcl_syntax::naming::vendor_source_literal_units(
+                head.policy(),
+                word,
+                VendorSourceNamePurpose::SourceName,
+            )
+            .and_then(|value| std::str::from_utf8(value).ok())
+            .map_or(InvocationWord::Dynamic, InvocationWord::Literal)
+        })
+        .collect::<Vec<_>>();
+    with_vendor_source_arguments(registry, context, head, &arguments, apply)
+}
+
+/// A distinct source composition: the target and captured words belong to the
+/// alias declaration, while the following argv keeps its own original owner.
+pub(super) fn with_vendor_alias_source_schema<T>(
+    context: &ContextRegistry,
+    alternative: &super::vendor_source_barriers::OriginalNominalAliasSourceAlternative,
+    following: &super::source_structure::OriginalRegistryWords,
+    apply: impl FnOnce(&tcl_registry::ResolvedInvocation<'_, '_>) -> Option<T>,
+) -> Option<T> {
+    let target = &alternative.target;
+    if !following.matches_source(target.source_image(), target.lexer_config())
+        || !following.matches_registry(context.commands())
+        || following.context() != Some(context.context())
+    {
+        return None;
+    }
+    let mut arguments = alternative
+        .prefix
+        .iter()
+        .map(|word| {
+            if word.image() != target.source_image()
+                || word.config() != target.lexer_config()
+                || word.group().expand
+            {
+                return None;
+            }
+            let literal = tcl_syntax::naming::vendor_source_literal_units(
+                target.policy(),
+                word,
+                VendorSourceNamePurpose::SourceName,
+            )?;
+            Some(InvocationWord::Literal(std::str::from_utf8(literal).ok()?))
+        })
+        .collect::<Option<Vec<_>>>()?;
+    arguments.extend(
+        following
+            .arguments()
+            .iter()
+            .map(|word| super::source_structure::source_schema_word(word.as_registry_word())),
+    );
+    with_vendor_source_arguments(
+        context.commands(),
+        context.context(),
+        target,
+        &arguments,
+        apply,
+    )
+}
+
+fn with_vendor_source_arguments<T>(
+    registry: &tcl_registry::CommandRegistry,
+    context: &ResolvedContext,
+    head: &VendorSourceNameInput,
+    arguments: &[InvocationWord<'_>],
+    apply: impl FnOnce(&tcl_registry::ResolvedInvocation<'_, '_>) -> Option<T>,
+) -> Option<T> {
+    if tcl_dialect::model::bigip_execution_context::BigIpExecutionContext::for_environment(
+        &context.environment.id,
+    ) != Some(head.policy().context())
+    {
+        return None;
+    }
     let coordinate = head.root_command_coordinate()?;
     let command = std::str::from_utf8(coordinate.as_bytes()).ok()?;
-    let mut words = vec![InvocationWord::Literal(command)];
-    words.extend(original.iter().skip(1).map(|word| {
-        if word.group().expand {
-            return InvocationWord::Expanded;
-        }
-        tcl_syntax::naming::vendor_source_literal_units(
-            head.policy(),
-            word,
-            VendorSourceNamePurpose::SourceName,
-        )
-        .and_then(|value| std::str::from_utf8(value).ok())
-        .map_or(InvocationWord::Dynamic, InvocationWord::Literal)
-    }));
     let selected = tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(
         registry,
         Some(context),
-        tcl_registry::InvocationWords::structured(words[0], &words[1..]),
+        tcl_registry::InvocationWords::structured(InvocationWord::Literal(command), arguments),
         tcl_dialect::model::InvocationRealm::RuleLoader,
     );
     apply(&selected.resolved()?)

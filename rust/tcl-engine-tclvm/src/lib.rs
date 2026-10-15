@@ -2131,7 +2131,7 @@ impl Engine for TclVmEngine {
         // recurses raises — the budget or the nesting limit — and its
         // caller declines. Nothing in the sandbox defines a command, so no
         // body can shadow a unit.
-        let procedure = format!("::spectcl::unit::{}", self.units);
+        let procedure = tcl_syntax::naming::compiled_unit_procedure_name(self.units);
         self.vm
             .try_define_procedure(&procedure, unit.parameters, unit.body)
             .map_err(|error| match error {
