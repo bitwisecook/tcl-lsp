@@ -4843,7 +4843,7 @@ mod original_collection_source_tests {
             Some(context.context().authoring_query()),
         );
         assert_eq!(
-            leaf_handler_source_completion(selected.resolved().unwrap()),
+            leaf_handler_source_completion(&selected.resolved().unwrap()),
             Some(tcl_registry::registry::InvocationCompletion::FallsThrough)
         );
         for argument in [
@@ -4864,7 +4864,7 @@ mod original_collection_source_tests {
                 .expect("actual available Tcl8.6 Apply schema");
             assert!(schema.authored_source_lambda_call().is_some());
             assert_eq!(schema.authored_source_script_arguments(), Some(vec![0]));
-            assert!(leaf_handler_source_completion(schema).is_none());
+            assert!(leaf_handler_source_completion(&schema).is_none());
         }
     }
 

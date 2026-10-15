@@ -33,6 +33,7 @@ pub struct OriginalBpfSource {
     region: Span,
     purpose: tcl_lexer::SourceSegmentationPurpose,
     registry: Option<tcl_registry::RegistrySnapshot>,
+    module_context: Option<tcl_compiler::ir::SourceBpfModuleContext>,
 }
 
 impl OriginalBpfSource {
@@ -43,6 +44,10 @@ impl OriginalBpfSource {
             image: module.source.clone(),
             config: module.native_lexer_config(),
             registry: module.registry_snapshot.clone(),
+            module_context: module
+                .registry_snapshot
+                .as_ref()
+                .and_then(|snapshot| module.source_bpf_module_context(snapshot.registry())),
             purpose: tcl_lexer::SourceSegmentationPurpose::WholeInput,
             region: Span::new(
                 0,
@@ -54,6 +59,7 @@ impl OriginalBpfSource {
     fn from_body(
         word: &NativeWord,
         registry: Option<tcl_registry::RegistrySnapshot>,
+        module_context: Option<tcl_compiler::ir::SourceBpfModuleContext>,
     ) -> Option<Self> {
         let value = tcl_syntax::word_rules::original_static_word_source_bytes(word)?;
         let region = word.content_span().ok()?;
@@ -62,6 +68,7 @@ impl OriginalBpfSource {
             image: word.image().clone(),
             config: word.config(),
             registry,
+            module_context,
             region,
             purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
         })
@@ -298,7 +305,11 @@ impl OriginalBpfSource {
         args: &[String],
         index: usize,
     ) -> Option<Self> {
-        Self::from_body(&self.argument(tokens, args, index)?, self.registry.clone())
+        Self::from_body(
+            &self.argument(tokens, args, index)?,
+            self.registry.clone(),
+            self.module_context.clone(),
+        )
     }
 
     fn check_registry(
@@ -307,10 +318,10 @@ impl OriginalBpfSource {
         missing: crate::diag::BpfDiag,
         span: Span,
     ) -> Result<(), crate::diag::BpfError> {
-        if self
-            .registry
-            .as_ref()
-            .is_some_and(|original| original.semantic_key() == registry.snapshot().semantic_key())
+        if self.module_context.is_some()
+            && self.registry.as_ref().is_some_and(|original| {
+                original.semantic_key() == registry.snapshot().semantic_key()
+            })
         {
             Ok(())
         } else {

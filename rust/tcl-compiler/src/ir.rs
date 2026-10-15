@@ -42,7 +42,7 @@ pub use byte_source_namespace::OriginalByteSourceNamespace;
 mod method_identity;
 pub use method_identity::{MethodCoordinate, MethodInventory};
 mod source_bpf_command;
-pub use source_bpf_command::SourceBpfCommand;
+pub use source_bpf_command::{SourceBpfCommand, SourceBpfModuleContext};
 mod procedure_identity;
 pub use procedure_identity::{
     ProcedureBodyKind, ProcedureId, ProcedureIdIssuer, ProcedureInventory,

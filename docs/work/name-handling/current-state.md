@@ -1,5 +1,11 @@
 # Current centralised naming work
 
+## Immediate L7 source freeze
+
+L6 c4509d722 failed101 in367.976860755s during Compiler test compilation: two new leaf-source helper calls lacked immutable borrows. It retained5testELFs, ran0tests and source drift{}. Exact borrow repairs preserve all production code, Tcl fixtures and assertions. Next source also captures actual BPF Module positioned-context origin and Registry/current-source correspondence (whole phase use still required), central C error-variable metadata reuse, and genuine Lambda body-source transport through existing selected lambda/list/container owners.
+
+Full Lambda transport intentionally evolves one newly added, unexecuted6257 capability assertion: the exact retained literal Apply fixture now has a genuine source body, while its original dynamic fixture still refuses. The unchanged selector/Tcl fixtures, exact earlier beforeimage and test-hash disposition are retained in experiments/name-handling/results/lambda-source-body-geometry-20261015. This is source geometry/API capability evidence, not an oracle answer or Native/frame/Normal grant. Prior original929/1027 regression assertions and budgets remain unchanged; all new controls remain unexecuted.
+
 ## Current Runtime error/output consumers
 
 The next reviewed source checkpoint reuses the original global errorCode object setter for catch/Try resets and supplied Return -errorcode; catch/Try output-name setters retain actual original names and first-key/cache ownership. Actual getter/empty-name/result-to-options order and before/after currency checks remain. Original Jim output-setter guest failure stops later outputs while preserving the original catch completion0 or Try failure1; Native/Host refusal remains terminal and the C branch is unchanged.

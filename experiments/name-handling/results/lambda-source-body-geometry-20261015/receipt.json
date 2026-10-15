@@ -1,0 +1,21 @@
+{
+  "kind": "source-owner-capability-evolution",
+  "base_commit": "a14bce9fc",
+  "path": "rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs",
+  "base_file_sha256": "6257a98316b39988f8f145b0472b9736eecbddca66d338e71d3366a49077ef31",
+  "before_test": "before-test.rs",
+  "before_test_sha256": "9358ec027050212c921ff9e45927026af14262c0eef4a85820a8b9cab2443c6e",
+  "selector": "registry_invocation::source_scoped_body::script_purpose_tests::complete_body_coverage_refuses_unrepresented_lambda_containers",
+  "source_fixtures": [
+    "apply {{} {puts hidden}}",
+    "apply $lambda"
+  ],
+  "disposition": "literal complete coverage None becomes genuine represented body Some; dynamic remains None; selector and fixtures retained",
+  "source_peer": "audit concrete source/API peer PASS c39cf0 draft before capability test evolution",
+  "cargo_or_test_execution": false,
+  "oracle_execution": false,
+  "limitations": [
+    "New actual owner geometry assertions remain unexecuted.",
+    "No Native lambda/frame/completion or rename authority."
+  ]
+}

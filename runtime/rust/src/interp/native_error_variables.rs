@@ -1,4 +1,4 @@
-//! C hidden error-variable traces retain private objects independently of globals.
+//! Original error-variable storage and native global-name publication.
 
 use super::{new_string, Interp, TraceAccess, GLOBAL};
 use crate::obj;
@@ -704,11 +704,14 @@ impl Interp {
         if !self.uses_c84_global_error_info() {
             return;
         }
-        let stored =
-            self.store_captured_byte_variable(GLOBAL, None, b"::errorCode", None, original);
+        let global = Variable::ErrorCode.global_name().as_bytes();
+        let stored = self.store_captured_byte_variable(GLOBAL, None, global, None, original);
         if stored.is_ok() && self.has_variable_traces() {
-            let home = self.trace_identity(b"::errorCode");
-            let access = self.trace_access(b"errorCode", b"errorCode", None, &home, false);
+            let home = self.trace_identity(global);
+            let bare = tcl_registry::special_vars::NativeBootstrapVariable::ErrorCode
+                .name()
+                .as_bytes();
+            let access = self.trace_access(bare, bare, None, &home, false);
             if let Err(first) = self.fire_var_trace_resolved(&home, &access, b"write") {
                 self.refuse_native_execution(first);
             }
@@ -1099,7 +1102,10 @@ impl Interp {
                     exc.native.info_len = length;
                     exc.native.legacy_copy = true;
                 }
-                let _ = self.var_set(b"::errorInfo", original.as_ptr());
+                let _ = self.var_set(
+                    Variable::ErrorInfo.global_name().as_bytes(),
+                    original.as_ptr(),
+                );
                 // Rearm the reached flags before classifying callback cleanup.
                 {
                     let mut exc = self.exc.borrow_mut();
@@ -1109,7 +1115,8 @@ impl Interp {
                 self.check_c84_error_info_result(currency, &original)?;
                 if !self.exc.borrow().native.global_code_set {
                     let code = obj::Owned::fresh(new_string(b"NONE"));
-                    let _ = self.var_set(b"::errorCode", code.as_ptr());
+                    let _ =
+                        self.var_set(Variable::ErrorCode.global_name().as_bytes(), code.as_ptr());
                     drop(code);
                     self.check_c84_error_info_result(currency, &original)?;
                 }
@@ -1121,7 +1128,8 @@ impl Interp {
             } else {
                 // The generated static global name selects the existing C
                 // variable owner; the captured physical cell survives the worker.
-                let name = obj::Owned::fresh(new_string(b"::errorInfo"));
+                let name =
+                    obj::Owned::fresh(new_string(Variable::ErrorInfo.global_name().as_bytes()));
                 let selected = self.capture_original_c_variable_for(
                     name.as_ptr(),
                     tcl_syntax::native_variable_name::NativeVariableNameLookupPurpose::QuietWrite,
@@ -1203,7 +1211,10 @@ impl Interp {
         self.check_native_error_object(currency, Variable::ErrorInfo, &original)?;
         // The current private field lends its actual pointer. The selected
         // variable setter and trace saved state own their independent roles.
-        let _ = self.var_set(b"::errorInfo", original.as_ptr());
+        let _ = self.var_set(
+            Variable::ErrorInfo.global_name().as_bytes(),
+            original.as_ptr(),
+        );
         self.check_native_error_object(currency, Variable::ErrorInfo, &original)?;
         drop(original);
         currency.ensure_current_or_refuse()

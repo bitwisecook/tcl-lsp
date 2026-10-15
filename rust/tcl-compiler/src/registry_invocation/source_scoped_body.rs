@@ -1134,6 +1134,42 @@ fn source_operand_body(
     })
 }
 
+fn source_lambda_body(
+    words: &super::source_structure::OriginalRegistryWords,
+    context: &ContextRegistry,
+    argument: usize,
+) -> Option<ScriptBodyGeometry> {
+    let selected =
+        words.with_source_schema(context, |schema| schema.authored_source_lambda_call())??;
+    if selected.lambda_argument != argument {
+        return None;
+    }
+    let word = words.operands().get(argument)?.as_ref()?.word()?;
+    let parent = original_word_script_body_geometry(word)?;
+    let value = tcl_syntax::word_rules::original_static_word_source_bytes(word)?;
+    if word.image().bytes().get(parent.content.as_range())? != value.as_slice() {
+        return None;
+    }
+    let fields = tcl_syntax::word_rules::original_static_word_list_elements(word)?;
+    if !(2..=3).contains(&fields.len()) {
+        return None;
+    }
+    let body = fields.get(1)?;
+    let content = body.source_span()?;
+    if content.start() < parent.content.start()
+        || content.end() > parent.content.end()
+        || word.image().bytes().get(content.as_range())? != body.value().as_bytes()
+    {
+        return None;
+    }
+    Some(ScriptBodyGeometry {
+        container: word.clone(),
+        extent: content,
+        container_extent: parent.extent,
+        content,
+    })
+}
+
 fn source_case_invocation(
     schema: &tcl_registry::ResolvedInvocation<'_, '_>,
 ) -> Option<(
@@ -1158,18 +1194,16 @@ pub(super) fn source_script_bodies_for_mutation_coverage(
             })
             .flatten()
     };
-    // This Body inventory does not represent lambda-container bodies.
-    // Missing representation cannot certify complete evaluated coverage.
+    let case = words.with_source_schema(context, source_case_invocation)?;
+    let list_argument = case.and_then(|(_, layout)| layout.clause_list_index);
+    let mut expected = Vec::new();
     for &(argument, role) in roles {
         if role == ArgRole::LambdaLiteral
             && timing_at(argument)? != tcl_registry::ScriptTiming::ReferenceOnly
         {
-            return None;
+            expected.push(source_lambda_body(words, context, argument)?.content);
         }
     }
-    let case = words.with_source_schema(context, source_case_invocation)?;
-    let list_argument = case.and_then(|(_, layout)| layout.clause_list_index);
-    let mut expected = Vec::new();
     if let Some((case, layout)) = case
         && let Some(argument) = layout.clause_list_index
         && timing_at(argument)? != tcl_registry::ScriptTiming::ReferenceOnly
@@ -1292,6 +1326,12 @@ pub(super) fn source_script_bodies_for(
         .filter(|(_, role)| *role == ArgRole::Body)
         .count();
     for &(argument, role) in words.roles().unwrap_or_default() {
+        if role == ArgRole::LambdaLiteral && admits(argument) {
+            if let Some(body) = source_lambda_body(words, context, argument) {
+                retain(body);
+            }
+            continue;
+        }
         // A concatenating schema marks the first fragment as Body; the
         // remaining actual argv still belongs to that one constructed script.
         // Only one complete original word can supply a contiguous body here.
@@ -1593,8 +1633,79 @@ mod script_purpose_tests {
                     .iter()
                     .any(|(_, role)| *role == ArgRole::LambdaLiteral)
             );
-            assert!(source_script_bodies_for_mutation_coverage(&words, &context).is_none());
-            assert!(words.source_script_bodies(&context).is_empty());
+            let coverage = source_script_bodies_for_mutation_coverage(&words, &context);
+            if source == "apply {{} {puts hidden}}" {
+                let coverage = coverage.expect("genuine unchanged lambda body is represented");
+                assert_eq!(coverage.len(), 1);
+                assert_eq!(
+                    source.get(coverage[0].content_span().as_range()),
+                    Some("puts hidden")
+                );
+                assert_eq!(
+                    coverage[0].original_container(),
+                    words.original_argument_word(0).unwrap()
+                );
+                assert!(coverage[0].matches_source(&SourceImage::document(source), config));
+            } else {
+                assert!(coverage.is_none());
+                assert!(words.source_script_bodies(&context).is_empty());
+            }
+        }
+    }
+
+    #[test]
+    fn original_lambda_bodies_retain_actual_list_container_and_unchanged_source() {
+        for (source, expected) in [
+            ("apply {{} {puts visible}}", Some("puts visible")),
+            ("apply {{} break}", Some("break")),
+            ("apply {{x} {return $x} ::N} value", Some("return $x")),
+            (r#"apply {{} "puts visible"}"#, Some("puts visible")),
+            (r"apply {{} puts\ visible}", None),
+            (r"apply {{} {puts visible}tail}", None),
+            ("apply {{} {puts hidden} ::N extra}", None),
+            ("apply {{}}", None),
+            ("apply $lambda", None),
+            ("apply {*}{ {} {puts hidden} }", None),
+        ] {
+            let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+            let context = tcl_registry::model::context_for_profile(profile);
+            let config = LexerConfig::for_file_grammar(profile.grammar);
+            let input = crate::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                Arc::clone(&context),
+                config,
+            );
+            let syntax = super::super::source_structure::OriginalSourceRegistryContext::capture(
+                source, input,
+            );
+            let command =
+                crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+                    .remove(0);
+            let Some(words) = syntax.words(&command) else {
+                assert!(expected.is_none(), "missing original schema: {source}");
+                continue;
+            };
+            let bodies = source_script_bodies_for_mutation_coverage(&words, &context);
+            match expected {
+                Some(expected) => {
+                    let bodies = bodies.expect("complete unchanged original lambda body");
+                    assert_eq!(bodies.len(), 1, "{source}");
+                    let body = &bodies[0];
+                    assert_eq!(source.get(body.content_span().as_range()), Some(expected));
+                    assert_eq!(
+                        body.original_container(),
+                        words.original_argument_word(0).unwrap()
+                    );
+                    assert!(body.matches_source(&SourceImage::document(source), config));
+                    assert_eq!(body.original_container().config(), config);
+                    let foreign = tcl_registry::model::context_for_profile(
+                        tcl_dialect::DialectProfile::find("tcl8.4").unwrap(),
+                    );
+                    assert!(source_script_bodies_for_mutation_coverage(&words, &foreign).is_none());
+                }
+                None => assert!(bodies.is_none(), "{source}"),
+            }
         }
     }
 

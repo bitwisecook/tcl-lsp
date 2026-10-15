@@ -25,9 +25,59 @@ use tcl_lexer::{
     LexerConfig, NativeWord, SourceImage, SourceMap, SourceSegmentationPurpose, Span, TokenType,
 };
 use tcl_registry::bpf_op::BpfOpKind;
-use tcl_registry::{CommandRegistry, CommandSpec, RegistrySemanticKey};
+use tcl_registry::{CommandRegistry, CommandSpec, RegistrySemanticKey, RegistrySnapshot};
 
-use super::{CommandTokens, WordExpr, WordPart};
+use super::{CommandTokens, Module, WordExpr, WordPart};
+
+/// Actual retained Module source/context before closed-DSL phase construction.
+/// This authenticates the original input, independently of mutable IR fields,
+/// command inventory, transformation authority and Native execution.
+#[derive(Debug, Clone)]
+pub struct SourceBpfModuleContext {
+    source: SourceImage,
+    config: LexerConfig,
+    registry: RegistrySnapshot,
+    retained: Arc<crate::command_binding::RetainedSourceModuleBindings>,
+}
+
+impl SourceBpfModuleContext {
+    /// Check the actual retained Module owner, including source channel, whole
+    /// configuration, entry and namespace context. Script correspondence and
+    /// complete phase coverage remain separate obligations.
+    #[must_use]
+    pub fn matches_module(&self, module: &Module, registry: &CommandRegistry) -> bool {
+        module
+            .retained_source_bindings
+            .as_ref()
+            .is_some_and(|retained| Arc::ptr_eq(retained, &self.retained))
+            && self.source == module.source
+            && self.config == module.native_lexer_config()
+            && self.registry.semantic_key() == registry.snapshot().semantic_key()
+            && self
+                .retained
+                .positioned_for_module(module, registry)
+                .is_some()
+    }
+}
+
+impl Module {
+    /// Retain the genuine original input owner for closed-DSL source phases.
+    /// Missing or stale metadata cannot be reconstructed from Module labels.
+    #[must_use]
+    pub fn source_bpf_module_context(
+        &self,
+        registry: &CommandRegistry,
+    ) -> Option<SourceBpfModuleContext> {
+        let retained = self.retained_source_bindings.as_ref()?;
+        retained.positioned_for_module(self, registry)?;
+        Some(SourceBpfModuleContext {
+            source: self.source.clone(),
+            config: self.native_lexer_config(),
+            registry: self.registry_snapshot.clone()?,
+            retained: Arc::clone(retained),
+        })
+    }
+}
 
 /// A selected closed-DSL source command or explicitly generated operation.
 /// An owning phase must separately authenticate its current source/configuration
@@ -446,6 +496,33 @@ mod tests {
             &fixture.args,
             registry,
         )
+    }
+
+    #[test]
+    fn original_bpf_module_context_refuses_replaced_source_configuration_or_registry() {
+        let registry = tcl_registry::model::ingress::static_context_for("bpf").commands();
+        let module = crate::lowering::lower_to_ir_with_dialect(
+            "drop",
+            registry,
+            LexerConfig::for_profile(registry.profile()),
+            registry.profile(),
+        );
+        let context = module.source_bpf_module_context(registry).unwrap();
+        assert!(context.matches_module(&module, registry));
+        for mutate in [
+            (|module: &mut Module| module.source = SourceImage::document("pass"))
+                as fn(&mut Module),
+            |module| module.source = SourceImage::native(module.source.bytes()),
+            |module| module.lexer_config.strict_quoting = !module.lexer_config.strict_quoting,
+            |module| module.registry_snapshot = None,
+            |module| module.retained_source_bindings = None,
+        ] {
+            let mut changed = module.clone();
+            mutate(&mut changed);
+            assert!(!context.matches_module(&changed, registry));
+            assert!(changed.source_bpf_module_context(registry).is_none());
+        }
+        assert!(!context.matches_module(&module, &CommandRegistry::build_default()));
     }
 
     #[test]
