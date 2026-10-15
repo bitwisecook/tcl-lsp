@@ -744,7 +744,7 @@ fn written_span(
     config: LexerConfig,
 ) -> Option<crate::Span> {
     let last = tokens.get(word.tokens.end.checked_sub(1)?)?;
-    let end = match crate::native_word::complete_group_span(src, word.span, *last, config) {
+    let end = match crate::native_word::complete_group_span(src, word, *last, config) {
         Ok(span) => span.end(),
         // An incomplete variable still needs its original bytes inspected for
         // the native syntax message, rather than becoming a geometry refusal.

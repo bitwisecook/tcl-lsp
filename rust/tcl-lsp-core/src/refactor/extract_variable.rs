@@ -64,7 +64,8 @@ pub fn extract_variable(
     // unavailable edit licence does not make a malformed selection a candidate.
     let value = logical_value_word(selected, config.nested())?;
     let command = super::find_original_command_at(source, start, analysis)?;
-    let (command_start, command_end) = super::command_span_offsets(source, &command);
+    let walk = super::FrameWalk::new(source, analysis)?;
+    let (command_start, command_end) = walk.command_span_offsets(source, &command)?;
     if start < command_start || end > command_end {
         return None;
     }
@@ -342,6 +343,42 @@ mod tests {
             action
                 .apply(source)
                 .contains("set length [string length $name]")
+        );
+    }
+
+    #[test]
+    fn logical_extraction_keeps_complete_original_scalar_value_closers() {
+        let source = "puts ${source}\nputs done\n";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let end = u32::try_from("puts ${source}".len()).unwrap();
+        let action = extract_variable(
+            source,
+            (5, end),
+            "value",
+            &analysis,
+            &LineIndex::new(source),
+        )
+        .expect("a complete original scalar value word");
+        assert!(action.disabled.is_none(), "{:?}", action.disabled);
+        assert_eq!(
+            action.apply(source),
+            "set value ${source}\nputs $value\nputs done\n"
+        );
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        assert!(
+            extract_variable(source, (5, end), "value", &missing, &LineIndex::new(source))
+                .is_none()
+        );
+        assert!(
+            extract_variable(
+                "puts ${changed}\nputs done\n",
+                (5, end),
+                "value",
+                &analysis,
+                &LineIndex::new(source)
+            )
+            .is_none()
         );
     }
 

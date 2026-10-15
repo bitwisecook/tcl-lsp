@@ -3252,10 +3252,7 @@ impl Namespaces {
     /// The fully-qualified name of `ns` (`::a::b`; global is `::`).
     #[must_use]
     pub fn qualified_name(&self, ns: NsId) -> Vec<u8> {
-        if self
-            .variable_name_protocol
-            .is_some_and(|protocol| protocol.is_jim084())
-        {
+        if ns != GLOBAL && self.arena[ns].jim_namespace.is_some() {
             let namespace = self
                 .jim_namespace_bytes(ns)
                 .expect("Jim namespace reporting requires an already reached namespace getter");

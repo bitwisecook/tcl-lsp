@@ -88,17 +88,62 @@ impl Interp {
                 "Jim namespace canonical issuer",
             ))?
             .recipe();
+        let scope = super::native_operation_currency::NativeOperationScope::enter(self).map_err(
+            |first| {
+                self.refuse_native_execution(first);
+                ValueError::CommandProtocolUnavailable("Jim canonical namespace entry")
+            },
+        )?;
+        obj::check_native_liveness(original)?;
+        obj::check_native_liveness(namespace.as_ptr())?;
+        let original_allocation = obj::NativeObjectLifetime::retain(original);
+        let namespace_allocation = obj::NativeObjectLifetime::retain(namespace.as_ptr());
         let current = self.current_ns();
+        let frame = super::native_arguments::OriginalArgumentFrame::capture(self);
+        let check = |actual: &mut Interp| {
+            scope.currency().ensure_current_or_refuse().map_err(|_| {
+                ValueError::CommandProtocolUnavailable("Jim canonical namespace currency")
+            })?;
+            let checked = (|| {
+                frame.check_frame(actual)?;
+                if actual.current_ns() != current {
+                    return Err(ValueError::CommandProtocolUnavailable(
+                        "Jim canonical namespace caller",
+                    ));
+                }
+                original_allocation.checked_ptr()?;
+                namespace_allocation.checked_ptr()?;
+                Ok(())
+            })();
+            if let Err(error) = &checked {
+                if let Some(first) = error.native_access_refusal() {
+                    actual.refuse_native_execution(first.into());
+                }
+            }
+            checked
+        };
+        let original_bytes = self.native_string_bytes(&original);
+        check(self)?;
+        let original_bytes = original_bytes?;
+        if let Some(absolute) = protocol
+            .jim_namespace_absolute_canonical_input(&original_bytes)
+            .map_err(|_| {
+                ValueError::CommandProtocolUnavailable("Jim absolute namespace canonical name")
+            })?
+        {
+            return Ok(Owned::fresh(obj::new_string_bytes(absolute.selected())));
+        }
         let is_current = self
             .namespaces()
             .jim_namespace_original_owner(current)
             .is_some_and(|holder| holder.as_ptr() == namespace.as_ptr());
         let namespace_bytes = if is_current {
-            self.materialize_jim_namespace(current)?
+            self.materialize_jim_namespace(current)
         } else {
-            self.native_string_bytes(&namespace.as_ptr())?
+            self.native_string_bytes(&namespace.as_ptr())
         };
-        let original_bytes = self.native_string_bytes(&original)?;
+        check(self)?;
+        let namespace_bytes = namespace_bytes?;
         let path = tcl_core_types::ByteNamespacePath::root();
         let context = NativeNameContext::with_jim_namespace(&path, &namespace_bytes);
         let construction = protocol
@@ -106,7 +151,7 @@ impl Interp {
             .map_err(|_| {
                 ValueError::CommandProtocolUnavailable("Jim namespace canonical construction")
             })?;
-        match construction {
+        let result = (|| match construction {
             NativeJimNamespaceConstruction::RetainOriginal => Ok(Owned::retain(original)),
             NativeJimNamespaceConstruction::FreshString => {
                 let projection = protocol
@@ -143,7 +188,9 @@ impl Interp {
                 )?;
                 Ok(Owned::retain(prepared.value().as_ptr()))
             }
-        }
+        })();
+        check(self)?;
+        result
     }
 
     #[cfg(test)]
@@ -237,6 +284,131 @@ impl Interp {
 
 #[cfg(test)]
 mod tests {
+    thread_local! {
+        static CANONICAL_NAMESPACE: std::cell::Cell<*mut TclObj> = const {
+            std::cell::Cell::new(std::ptr::null_mut())
+        };
+        static CANONICAL_NAME_OBSERVATIONS: std::cell::RefCell<Vec<bool>> = const {
+            std::cell::RefCell::new(Vec::new())
+        };
+    }
+
+    extern "C" fn update_canonical_probe_name(value: *mut TclObj) {
+        let resident = CANONICAL_NAMESPACE.with(|namespace| obj::has_string_rep(namespace.get()));
+        CANONICAL_NAME_OBSERVATIONS.with(|observations| observations.borrow_mut().push(resident));
+        let bytes: &[u8] = if obj::internal_rep(value) == 0 {
+            b"::target\0tail"
+        } else {
+            b"child\0tail"
+        };
+        // SAFETY: the actual updater owns the String slot of this live original object.
+        unsafe { obj::set_string_rep(value, bytes) };
+    }
+
+    static CANONICAL_PROBE_NAME: obj::TclObjType = obj::TclObjType {
+        name: c"canonical-name-probe".as_ptr(),
+        free_int_rep_proc: None,
+        dup_int_rep_proc: None,
+        update_string_proc: Some(update_canonical_probe_name),
+        set_from_any_proc: None,
+    };
+
+    #[test]
+    fn original_canonical_name_getter_precedes_relative_namespace_and_skips_absolute_namespace() {
+        let evidence = include_str!(
+            "../../tests/data/native_jim_namespace_canonical/getter-order-20261015.tsv"
+        );
+        let row = |kind: &str, label: &str| {
+            evidence
+                .lines()
+                .find(|line| {
+                    let mut fields = line.split('|');
+                    fields.next() == Some(kind) && fields.next() == Some(label)
+                })
+                .unwrap()
+                .split('|')
+                .collect::<Vec<_>>()
+        };
+        for (label, absolute, root) in [
+            ("ABSOLUTE", true, false),
+            ("RELATIVE", false, false),
+            ("ROOT_RELATIVE", false, true),
+        ] {
+            let mut interp = Interp::with_native_core(
+                crate::interp::default_host(),
+                crate::environment::profile_for_dialect("jimtcl"),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            let context = interp.native_jim_object_context().unwrap();
+            let namespace = if root {
+                Owned::fresh(obj::new_string_bytes(b""))
+            } else {
+                Owned::fresh(obj::new_wide_int_obj(42))
+            };
+            crate::native_source::bind_context(namespace.as_ptr(), &context).unwrap();
+            let token = interp
+                .namespaces_mut()
+                .retain_unmaterialized_jim_namespace(Owned::retain(namespace.as_ptr()));
+            let caller = interp.current_ns();
+            interp.set_current_ns(token);
+            let name = Owned::fresh(obj::alloc_typed(
+                &CANONICAL_PROBE_NAME,
+                u64::from(!absolute),
+            ));
+            crate::native_source::bind_context(name.as_ptr(), &context).unwrap();
+            CANONICAL_NAMESPACE.with(|slot| slot.set(namespace.as_ptr()));
+            CANONICAL_NAME_OBSERVATIONS.with(|observations| observations.borrow_mut().clear());
+            let references = unsafe { (*namespace.as_ptr()).ref_count };
+            let namespace_type = obj::obj_type_ptr(namespace.as_ptr());
+            assert_eq!(
+                obj::has_string_rep(namespace.as_ptr()),
+                row("NAMESPACE_BEFORE", label)[2] == "1"
+            );
+            assert!(!obj::has_string_rep(name.as_ptr()));
+            let result = interp
+                .jim_canonical_namespace_object(&namespace, name.as_ptr())
+                .unwrap();
+            assert_eq!(
+                CANONICAL_NAME_OBSERVATIONS.with(|observations| observations.borrow().clone()),
+                vec![row("NAMESPACE_AT_NAME_GETTER", label)[2] == "1"]
+            );
+            assert_eq!(
+                obj::has_string_rep(namespace.as_ptr()),
+                row("NAMESPACE_AFTER", label)[2] == "1"
+            );
+            assert_eq!(obj::obj_type_ptr(namespace.as_ptr()), namespace_type);
+            assert_eq!(
+                obj::obj_type_ptr(name.as_ptr()),
+                &CANONICAL_PROBE_NAME as *const obj::TclObjType
+            );
+            assert_eq!(unsafe { (*namespace.as_ptr()).ref_count }, references);
+            assert_eq!(
+                result.as_ptr() == name.as_ptr(),
+                row("RESULT_IDENTITY", label)[3] == "31"
+            );
+            assert_eq!(
+                interp.namespaces().native_context_path(token).is_some(),
+                !absolute
+            );
+            let expected = row("RESULT", label)[3]
+                .as_bytes()
+                .chunks_exact(2)
+                .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+                .collect::<Vec<_>>();
+            assert_eq!(
+                interp
+                    .native_string_bytes(&result.as_ptr())
+                    .unwrap()
+                    .as_ref(),
+                expected
+            );
+            assert!(interp.native_execution_refusal().is_none());
+            interp.set_current_ns(caller);
+            CANONICAL_NAMESPACE.with(|slot| slot.set(std::ptr::null_mut()));
+        }
+    }
+
     #[test]
     fn jim_top_namespace_owns_the_original_context_empty_object() {
         let mut interp = super::Interp::new();

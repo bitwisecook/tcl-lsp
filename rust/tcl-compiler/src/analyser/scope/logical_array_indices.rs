@@ -239,7 +239,7 @@ mod tests {
         assert!(
             analysis
                 .logical_variable_scope_advice(
-                    &SourceImage::document(format!("#{source}")),
+                    &SourceImage::document(&format!("#{source}")),
                     config,
                     0
                 )

@@ -4065,7 +4065,7 @@ mod tests {
         assert!(
             analysis
                 .logical_variable_scope_advice(
-                    &tcl_lexer::SourceImage::document(format!("#{source}")),
+                    &tcl_lexer::SourceImage::document(&format!("#{source}")),
                     config,
                     0
                 )

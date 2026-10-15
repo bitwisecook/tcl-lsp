@@ -79,7 +79,7 @@ use tcl_dialect::NumberSyntax;
 use tcl_lexer::LexerConfig;
 use tcl_registry::{ArgRole, CommandRegistry};
 
-use super::{RefactorEdit, Refactoring, command_span_offsets};
+use super::{RefactorEdit, Refactoring};
 use crate::code_actions::ActionKind;
 
 /// Inline the proc called at byte offset `cursor`.
@@ -144,7 +144,8 @@ pub fn inline_proc_in_program(
         analysis, source, &namespace, head, head_off, resolution,
     )?;
     let title = format!("Inline proc '{}'", proc_def.name);
-    let (call_start, call_end) = command_span_offsets(source, &call);
+    let walk = super::FrameWalk::new(source, analysis)?;
+    let (call_start, call_end) = walk.command_span_offsets(source, &call)?;
 
     match plan_inline(source, &call, proc_def, analysis, registry, config) {
         Ok(new_text) => Some(Refactoring {

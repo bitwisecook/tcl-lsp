@@ -23,10 +23,21 @@ arena token; its counted name is not parsed into C parent/child edges.
 name bytes or a C-tree coordinate. Only a reached guarded getter records the
 actual bytes on that same context; changing policy cannot turn a Jim-only
 context into a C path. Weak procedure/frame owners preserve native role
-retirement independently of allocation leases.
-`namespace canonical` returns the original root-relative operand, creates a
-fresh absolute suffix string, or duplicates and appends to the actual current
-object. `namespace eval` retains the original name and single body object;
+retirement independently of allocation leases. Namespace display follows the actual
+retained object or tree kind across policy changes: nonGLOBAL Jim objects
+require already reached bytes, physical C namespaces keep their tree geometry,
+and the permanent real GLOBAL C root remains independent. Display supplies no
+current operation or namespace coordinate.
+`namespace canonical` acquires the original name before namespace bytes. Its
+absolute branch returns a fresh CString-extent suffix without obtaining the
+namespace String. Relative construction reaches the guarded actual namespace
+getter, then returns the original root-relative operand or duplicates and
+appends to the actual current object. `Interp::jim_canonical_namespace_object`
+retains original operation currency, physical frame and allocation checks
+around reached getters and construction. The pure Syntax absolute projection
+supplies no namespace holder or caller-frame authority; the existing contextual
+canonical entry still requires actual namespace bytes. This direct canonical contract supplies no public `namespace which`
+helper-head lookup or getter-order proof. `namespace eval` retains the original name and single body object;
 multiple body operands use the selected native concat owner. Namespace helper
 frames own local variables, while qualified globals use the root flat table.
 `namespace which -variable` constructs the canonical qualified name even when

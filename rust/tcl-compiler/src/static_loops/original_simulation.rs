@@ -323,7 +323,18 @@ impl StaticSimulation<'_> {
             }
             _ => None,
         };
-        let value = static_expression_contents(&evaluation, environment)?;
+        let grammar = preparation
+            .map(|preparation| preparation.witness.context().lexer_grammar)
+            .or_else(|| {
+                self.policy
+                    .preparation_context()
+                    .map(|context| context.lexer_grammar)
+            });
+        let value = static_expression_contents(
+            &evaluation,
+            environment,
+            grammar.map(tcl_lexer::LexerConfig::from_grammar),
+        )?;
         let order = self.evaluation_order.get();
         self.evaluation_order.set(order.checked_add(1)?);
         if !evaluation.native_value_effects_are_proved() {
@@ -388,6 +399,7 @@ fn static_integer(value: &StaticValue, policy: FoldPolicy) -> Option<i64> {
 fn static_expression_contents(
     evaluation: &crate::tcl_expr_eval::FoldEvaluation,
     environment: &StaticEnv,
+    config: Option<tcl_lexer::LexerConfig>,
 ) -> Option<StaticValue> {
     use crate::tcl_expr_eval::NativeExpressionResultDependency as Dependency;
     match &evaluation.result_dependency {
@@ -400,7 +412,9 @@ fn static_expression_contents(
             if let Some(bytes) = existing_bytes {
                 return Some(StaticValue::Str(bytes.clone()));
             }
-            environment.get(&simple_var_ref(reference)?).cloned()
+            let name =
+                tcl_syntax::naming::whole_scalar_variable_reference_name(reference, config?)?;
+            environment.get(name).cloned()
         }
         None => match evaluation.value {
             TclValue::Int(value) => Some(StaticValue::Int(value)),
@@ -844,6 +858,66 @@ mod tests {
             policy,
         )
         .map(|analysis| analysis.values)
+    }
+
+    #[test]
+    fn selected_operand_contents_keep_the_complete_scalar_reference_grammar() {
+        use tcl_syntax::expr::parser::{CheckedExprParse, parse_expr_checked_with_context};
+        for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let environment =
+                tcl_registry::model::ingress::resolve_known_environment(environment).unwrap();
+            let context = environment.default_context_registry();
+            let profile = environment.unit_profile();
+            let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+            let policy = FoldPolicy::for_retained_entry(
+                context.commands(),
+                Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                &config,
+            );
+            let parse_context = policy.preparation_context().unwrap();
+            for name in ["$literal", "[literal]", "with space", " with space "] {
+                let source = format!("1?${{{name}}}:0");
+                let CheckedExprParse::Parsed(expression) =
+                    parse_expr_checked_with_context(&source, &parse_context)
+                else {
+                    panic!("fixed complete scalar expression: {source}");
+                };
+                let initial = StaticEnv::from([(name.to_owned(), StaticValue::Int(0))]);
+                let empty = empty_script();
+                let summary = summarise_static_for_selected(
+                    &empty,
+                    StaticForCondition {
+                        purpose: SimulationPurpose::Analysis,
+                        expression: &expression,
+                        bindings: None,
+                    },
+                    &empty,
+                    &empty,
+                    &initial,
+                    1,
+                    policy,
+                )
+                .expect("the selected zero operand ends the loop without changing its name");
+                assert_eq!(summary.values.get(name), Some(&StaticValue::Int(0)));
+                if policy.native_family == Some(tcl_dialect::model::Family::Jim) {
+                    let evaluated =
+                        crate::tcl_expr_eval::analyse_tcl_expr_with_resolved_math_bindings(
+                            &expression,
+                            &env_as_tcl_env(&initial),
+                            policy,
+                            &|_, _| None,
+                            None,
+                        )
+                        .unwrap();
+                    assert!(static_expression_contents(&evaluated, &initial, None).is_none());
+                    assert!(summary.expression_obligations.iter().any(|obligation| matches!(
+                        &obligation.result_dependency,
+                        Some(crate::tcl_expr_eval::NativeExpressionResultDependency::SelectedOperand { reference, existing_bytes: None, .. })
+                        if reference == &format!("${{{name}}}")
+                    )));
+                }
+            }
+        }
     }
 
     #[test]

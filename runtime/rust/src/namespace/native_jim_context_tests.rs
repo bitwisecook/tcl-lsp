@@ -94,3 +94,72 @@ fn unmaterialized_namespace_retains_the_actual_frame_after_its_procedure_role_re
         .is_some());
     assert!(interp.native_execution_refusal().is_none());
 }
+
+#[test]
+fn qualified_displays_follow_the_actual_namespace_kind_across_policy_changes() {
+    // Software observation: old displays grant no current operation or coordinate.
+    let c_profile = crate::environment::profile_for_dialect("tcl8.6");
+    let mut interp = Interp::with_native_core(
+        crate::interp::default_host(),
+        c_profile,
+        tcl_registry::special_vars::NativeBootstrapInputs::default(),
+    )
+    .unwrap();
+    let c_namespace = interp.publish_namespace_address(b"::physical_c").unwrap();
+    assert_eq!(
+        interp.namespaces().qualified_name(c_namespace),
+        b"::physical_c"
+    );
+    interp.set_dialect_profile(crate::environment::profile_for_dialect("jimtcl"));
+    assert_eq!(
+        interp.namespaces().qualified_name(c_namespace),
+        b"::physical_c"
+    );
+    assert!(interp
+        .namespaces()
+        .native_context_path(c_namespace)
+        .is_none());
+    let context = interp.native_jim_object_context().unwrap();
+    let original = Owned::fresh(obj::new_wide_int_obj(42));
+    crate::native_source::bind_context(original.as_ptr(), &context).unwrap();
+    let jim_namespace = interp
+        .namespaces_mut()
+        .retain_unmaterialized_jim_namespace(Owned::retain(original.as_ptr()));
+    assert!(interp
+        .namespaces()
+        .native_context_path(jim_namespace)
+        .is_none());
+    assert_eq!(
+        interp
+            .materialize_jim_namespace(jim_namespace)
+            .unwrap()
+            .as_ref(),
+        b"42"
+    );
+    let references = unsafe { (*original.as_ptr()).ref_count };
+    let original_type = obj::obj_type_ptr(original.as_ptr());
+    assert_eq!(interp.namespaces().qualified_name(jim_namespace), b"::42");
+    interp.set_dialect_profile(c_profile);
+    let names = interp.namespaces();
+    assert_eq!(names.qualified_name(jim_namespace), b"::42");
+    assert_eq!(names.qualified_name(c_namespace), b"::physical_c");
+    assert_eq!(names.qualified_name(super::GLOBAL), b"::");
+    assert!(names.native_context_path(jim_namespace).is_none());
+    assert!(names
+        .native_c_command_context_path(jim_namespace, tcl_dialect::TclVersion::V8_6)
+        .is_none());
+    assert!(names
+        .namespace_name_token(interp.native_callable_interpreter(), jim_namespace)
+        .is_none());
+    assert_eq!(
+        obj::native_object_snapshot(original.as_ptr())
+            .unwrap()
+            .resident
+            .unwrap()
+            .as_ref(),
+        b"42"
+    );
+    assert_eq!(obj::obj_type_ptr(original.as_ptr()), original_type);
+    assert_eq!(unsafe { (*original.as_ptr()).ref_count }, references);
+    assert!(interp.native_execution_refusal().is_none());
+}

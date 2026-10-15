@@ -4323,7 +4323,7 @@ fn augment_loop_var_handles(
                     object_classes,
                 );
             }
-            true
+            false
         },
     );
 }
@@ -4386,7 +4386,7 @@ fn augment_snit_handles(
         analysis,
         &mut |command, _, _| {
             bind_original_handle_construction(source, analysis, command, &context, object_classes);
-            true
+            false
         },
     );
     let Some(walk) = crate::refactor::FrameWalk::new(source, analysis) else {
@@ -4475,7 +4475,7 @@ fn selected_member_handle_regions(
                     }
                 }
             }
-            true
+            false
         },
     );
     let mut regions = Vec::new();
@@ -10637,6 +10637,33 @@ each $items {}";
 selected_each hidden $items {}";
         let analysis = crate::refactor::test_logical_analysis(replaced, "tcl9.0", registry);
         augment_loop_var_handles(replaced, &analysis, &collections, &mut handles);
+        assert!(handles.is_empty());
+    }
+
+    #[test]
+    fn original_semantic_handle_collectors_keep_later_selected_commands_and_inert_data() {
+        let source = "puts preface\nforeach first $items {}\nset inert {foreach leaked $items {}}\nforeach second $items {}";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
+        let collections = ObjectClassMap::from([(
+            "items".to_owned(),
+            std::collections::HashSet::from(["::Element".to_owned()]),
+        )]);
+        let mut handles = ObjectClassMap::default();
+        augment_loop_var_handles(source, &analysis, &collections, &mut handles);
+        assert!(handles.contains_key("first"), "{handles:?}");
+        assert!(handles.contains_key("second"), "{handles:?}");
+        assert!(!handles.contains_key("leaked"));
+        handles.clear();
+        augment_loop_var_handles(
+            &source.replace("preface", "changed"),
+            &analysis,
+            &collections,
+            &mut handles,
+        );
+        assert!(handles.is_empty());
+        let mut missing = analysis;
+        missing.resolved_input = None;
+        augment_loop_var_handles(source, &missing, &collections, &mut handles);
         assert!(handles.is_empty());
     }
 

@@ -16,13 +16,17 @@ pub fn find_original_command_at(
     cursor: u32,
     analysis: &AnalysisResult,
 ) -> Option<SegmentedCommand> {
+    let walk = super::FrameWalk::new(source, analysis)?;
     let config = analysis.body_lexer_config?;
     let structure =
         crate::source_structure::SourceStructure::capture(source, Some(analysis), config)?;
     let mut selected: Option<SegmentedCommand> = None;
     let mut selected_width = u32::MAX;
     for command in structure.commands {
-        let (start, end) = super::command_span_offsets(source, &command);
+        if cursor < command.span.start() {
+            continue;
+        }
+        let (start, end) = walk.command_span_offsets(source, &command)?;
         if cursor < start || cursor > end {
             continue;
         }
@@ -66,6 +70,19 @@ mod tests {
                 "complete source currency remains required for {engine}"
             );
         }
+    }
+
+    #[test]
+    fn original_command_cursor_keeps_complete_prefix_before_an_unavailable_tail() {
+        let source = "puts ${source}\nputs ${unfinished";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let command = find_original_command_at(source, 0, &analysis)
+            .expect("the earlier complete original command");
+        assert_eq!(command.name(), "puts");
+        let walk = super::super::FrameWalk::new(source, &analysis).unwrap();
+        let (start, end) = walk.command_span_offsets(source, &command).unwrap();
+        assert_eq!(&source[start as usize..end as usize], "puts ${source}");
+        assert!(find_original_command_at(&format!("#{source}"), 0, &analysis).is_none());
     }
 
     #[test]

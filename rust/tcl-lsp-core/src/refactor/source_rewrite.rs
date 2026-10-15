@@ -77,7 +77,10 @@ fn original_command_at(
     } else {
         walk.segment_nested(region, offset)
     } {
-        let (start, end) = super::command_span_offsets(source, &command);
+        if cursor < command.span.start() {
+            continue;
+        }
+        let (start, end) = walk.command_span_offsets(source, &command)?;
         if cursor < start || cursor > end {
             continue;
         }

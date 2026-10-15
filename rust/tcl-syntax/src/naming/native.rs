@@ -1607,6 +1607,30 @@ impl NativeNameProtocol {
         })
     }
 
+    /// Select Jim's absolute canonicalisation without reading namespace bytes.
+    /// Relative operands return `None` and require the actual namespace object.
+    /// This byte projection supplies no namespace holder or frame authority.
+    ///
+    /// # Errors
+    /// Refuses a non-Jim recipe.
+    pub fn jim_namespace_absolute_canonical_input(
+        self,
+        original: &[u8],
+    ) -> Result<Option<NativeNameProjection<'_>>, NameProjectionUnavailable> {
+        if !self.is_jim084() {
+            return Err(NameProjectionUnavailable::PurposeNotModelled);
+        }
+        Ok(original.starts_with(b"::").then(|| {
+            projection(
+                self,
+                NativeNamePurpose::JimNamespaceCanonical,
+                original,
+                Cow::Borrowed(c_string_extent(strip_jim_root(original))),
+                None,
+            )
+        }))
+    }
+
     /// Jim helper canonicalisation preserves relative object bytes, while an
     /// absolute operand strips leading colons and consumes `CString` extent.
     /// This differs from command publication and command lookup qualification.
@@ -1624,16 +1648,17 @@ impl NativeNameProtocol {
         let namespace = context
             .jim_namespace_object
             .ok_or(NameProjectionUnavailable::MissingJimNamespaceObject)?;
-        let selected = if original.starts_with(b"::") {
-            Cow::Borrowed(c_string_extent(strip_jim_root(original)))
-        } else if namespace.is_empty() {
-            Cow::Borrowed(original)
-        } else {
-            let mut name = namespace.to_vec();
-            name.extend_from_slice(b"::");
-            name.extend_from_slice(original);
-            Cow::Owned(name)
-        };
+        let selected =
+            if let Some(absolute) = self.jim_namespace_absolute_canonical_input(original)? {
+                absolute.selected
+            } else if namespace.is_empty() {
+                Cow::Borrowed(original)
+            } else {
+                let mut name = namespace.to_vec();
+                name.extend_from_slice(b"::");
+                name.extend_from_slice(original);
+                Cow::Owned(name)
+            };
         Ok(projection(
             self,
             NativeNamePurpose::JimNamespaceCanonical,
@@ -1654,6 +1679,24 @@ impl NativeNameProtocol {
         original: &[u8],
     ) -> Result<[NativeJimNamespaceCommandQueryCandidate; 2], NameProjectionUnavailable> {
         let canonical = self.jim_namespace_canonical_input(context, original)?;
+        self.jim_namespace_command_query_candidates_from_canonical(&canonical)
+    }
+
+    /// Construct Jim's query candidates from its selected canonical projection.
+    /// Namespace and entered-frame authentication remain with the caller.
+    ///
+    /// # Errors
+    /// Refuses a projection from another engine or naming purpose.
+    pub fn jim_namespace_command_query_candidates_from_canonical(
+        self,
+        canonical: &NativeNameProjection<'_>,
+    ) -> Result<[NativeJimNamespaceCommandQueryCandidate; 2], NameProjectionUnavailable> {
+        if !self.is_jim084()
+            || canonical.protocol() != self
+            || canonical.purpose() != NativeNamePurpose::JimNamespaceCanonical
+        {
+            return Err(NameProjectionUnavailable::PurposeNotModelled);
+        }
         let candidate = |name: &[u8]| {
             let mut rooted = b"::".to_vec();
             rooted.extend_from_slice(name);
@@ -1662,7 +1705,10 @@ impl NativeNameProtocol {
                 reported: NameBytes::from(rooted.as_slice()),
             }
         };
-        Ok([candidate(canonical.selected()), candidate(original)])
+        Ok([
+            candidate(canonical.selected()),
+            candidate(canonical.original()),
+        ])
     }
 
     /// Select Jim's original-object canonicalisation branch before construction.
@@ -4282,6 +4328,71 @@ fn jim_helper_canonicalisation_keeps_relative_object_extent() {
             .jim_namespace_canonical_input(context, b"p")
             .is_err()
     );
+}
+
+#[test]
+fn jim_absolute_canonical_projection_needs_no_namespace_bytes() {
+    let jim = NativeNameProtocol::Jim084;
+    for (original, expected) in [
+        (b":::p\0q".as_slice(), b"p".as_slice()),
+        (b"::::".as_slice(), b"".as_slice()),
+        (b"::p\xff".as_slice(), b"p\xff".as_slice()),
+    ] {
+        let canonical = jim
+            .jim_namespace_absolute_canonical_input(original)
+            .unwrap()
+            .unwrap();
+        assert_eq!(canonical.original(), original);
+        assert_eq!(canonical.selected(), expected);
+        assert_eq!(
+            canonical.purpose(),
+            NativeNamePurpose::JimNamespaceCanonical
+        );
+        assert!(canonical.context().is_none());
+        let candidates = jim
+            .jim_namespace_command_query_candidates_from_canonical(&canonical)
+            .unwrap();
+        let mut expected_rooted = b"::".to_vec();
+        expected_rooted.extend_from_slice(expected);
+        assert_eq!(candidates[0].lookup.as_bytes(), expected_rooted);
+        assert_eq!(candidates[0].reported, candidates[0].lookup);
+        let mut original_rooted = b"::".to_vec();
+        original_rooted.extend_from_slice(original);
+        assert_eq!(candidates[1].lookup.as_bytes(), original_rooted);
+        assert_eq!(candidates[1].reported, candidates[1].lookup);
+        // The existing contextual entry still requires an actual namespace.
+        assert!(
+            jim.jim_namespace_canonical_input(
+                NativeNameContext::new(&ByteNamespacePath::root()),
+                original,
+            )
+            .is_err()
+        );
+    }
+    for relative in [b"p".as_slice(), b":p", b"", b"p\0q"] {
+        assert!(
+            jim.jim_namespace_absolute_canonical_input(relative)
+                .unwrap()
+                .is_none()
+        );
+    }
+    let wrong_purpose = jim.package_key(b"::p");
+    assert!(
+        jim.jim_namespace_command_query_candidates_from_canonical(&wrong_purpose)
+            .is_err()
+    );
+    for version in TclVersion::ALL {
+        let c = NativeNameProtocol::C(version);
+        assert!(c.jim_namespace_absolute_canonical_input(b"::p").is_err());
+        let canonical = jim
+            .jim_namespace_absolute_canonical_input(b"::p")
+            .unwrap()
+            .unwrap();
+        assert!(
+            c.jim_namespace_command_query_candidates_from_canonical(&canonical)
+                .is_err()
+        );
+    }
 }
 
 #[test]

@@ -382,7 +382,7 @@ fn grouped_word_geometry<'a>(
     {
         return Err(NativeWordError::MisalignedGroup);
     }
-    let operand = complete_group_span(source, word.span, *last, config)?;
+    let operand = complete_group_span(source, word, *last, config)?;
     let mut start = operand.start();
     if word.expand {
         let mut preceding = word.tokens.start;
@@ -436,19 +436,23 @@ pub(crate) fn complete_token_span(
     Ok(crate::ranges::token_word_span(source, token))
 }
 
-/// A final escape fragment has no opening quote of its own. Retain both the
-/// grouped word's delimiter and a final delimited component's own closer.
+/// Braced and quoted groups own their outer delimiter. Bare concatenations
+/// retain the final component's closer without widening their first component.
 pub(crate) fn complete_group_span(
     source: &[u8],
-    group: Span,
+    group: &WordSpan,
     last: Token,
     config: LexerConfig,
 ) -> Result<Span, NativeWordError> {
+    let group_end = match group.kind {
+        WordKind::Braced | WordKind::Quoted => crate::word_span_at(source, group.span).end(),
+        WordKind::Bare => group.span.end(),
+    };
     Ok(Span::new(
-        group.start(),
+        group.span.start(),
         complete_token_span(source, last, config)?
             .end()
-            .max(crate::word_span_at(source, group).end()),
+            .max(group_end),
     ))
 }
 
@@ -516,6 +520,52 @@ mod tests {
                 assert!(word.parts().is_ok(), "{dialect}: {source:?}");
             }
         }
+    }
+
+    #[test]
+    fn nested_bare_groups_keep_variable_and_literal_closers_inside_the_body() {
+        let source = "if {1} {puts ${a{b}c}}\nputs done\n";
+        let image = SourceImage::document(source);
+        let body = Span::new(8, 21);
+        for braced_var in [
+            tcl_dialect::BracedVarStyle::FirstClose,
+            tcl_dialect::BracedVarStyle::Tcl9Nesting,
+        ] {
+            let config = LexerConfig {
+                braced_var,
+                ..LexerConfig::default()
+            };
+            let plan = crate::native_script_words_in(image.clone(), body, config).unwrap();
+            assert!(plan.fatal_tail.is_none());
+            let [command] = plan.commands.as_slice() else {
+                panic!("one original child command")
+            };
+            let word = &command.words[1];
+            assert_eq!(word.group().kind, WordKind::Bare);
+            assert_eq!(word.word_span(), Span::new(13, 21));
+            assert_eq!(word.written_bytes(), b"${a{b}c}");
+            assert_eq!(command.span, body);
+            assert!(
+                command
+                    .words
+                    .iter()
+                    .all(|word| word.span().end() <= body.end())
+            );
+            let repeated =
+                crate::native_script_words_in(image.clone(), command.span, config).unwrap();
+            assert_eq!(repeated.commands, plan.commands);
+            assert_eq!(word.config(), config);
+            assert_eq!(word.image(), &image);
+        }
+        let source = SourceImage::document("if {1} {puts [set value]tail]} ");
+        let body = Span::new(8, 29);
+        let plan = crate::native_script_words_in(source, body, LexerConfig::default()).unwrap();
+        assert!(plan.fatal_tail.is_none());
+        assert_eq!(
+            plan.commands[0].words[1].written_bytes(),
+            b"[set value]tail]"
+        );
+        assert_eq!(plan.commands[0].words[1].span().end(), body.end());
     }
 
     #[test]

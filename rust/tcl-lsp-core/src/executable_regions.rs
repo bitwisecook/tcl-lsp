@@ -66,6 +66,8 @@ impl RegionProbe {
 
 /// Visit original potential source regions under the same retained analysis.
 /// Body applicability stays conditional; this supplies no execution or frame.
+/// Returning `true` stops the complete traversal at the current command;
+/// collectors return `false` to continue through later roots and child regions.
 pub(crate) fn visit_analysis_executable_commands(
     source: &str,
     analysis: &AnalysisResult,
