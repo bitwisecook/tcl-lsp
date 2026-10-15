@@ -16,6 +16,8 @@ use tcl_lexer::NativeWord;
 pub enum OriginalDeclaredSourceBodyFrame {
     /// A genuine deferred procedure body retains its declaration namespace.
     Procedure,
+    /// An anonymous lambda retains its own source call, formals and namespace.
+    Lambda,
     /// A genuine namespace body retains its independently selected name input.
     Namespace,
     /// A genuine original selected-frame body requests the Logical root.
@@ -29,12 +31,18 @@ pub enum OriginalDeclaredSourceBodyFrame {
 pub struct OriginalDeclaredLogicalBodyContext {
     scope: Arc<OriginalSourceScriptBody>,
     body: Arc<OriginalSourceScriptBody>,
-    scope_name: OriginalLogicalSourceNameInput,
+    origin: OriginalLogicalBodyOrigin,
     namespace: ByteNamespacePath,
     frame: OriginalDeclaredSourceBodyFrame,
     input: ResolvedAnalysisInput,
     parent: Option<Arc<Self>>,
     selected_frame: Option<OriginalLogicalSourceFrameSelection>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum OriginalLogicalBodyOrigin {
+    Named(OriginalLogicalSourceNameInput),
+    Lambda(Arc<super::OriginalLogicalLambdaBody>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -134,7 +142,8 @@ impl OriginalDeclaredLogicalBodyContext {
                                         | tcl_registry::Traits::DEFERS_BODY,
                                 )
                         }
-                        OriginalDeclaredSourceBodyFrame::Global => false,
+                        OriginalDeclaredSourceBodyFrame::Global
+                        | OriginalDeclaredSourceBodyFrame::Lambda => false,
                         OriginalDeclaredSourceBodyFrame::Namespace => {
                             schema.semantics.body_kind == tcl_registry::BodyKind::Structural
                                 && schema
@@ -150,9 +159,39 @@ impl OriginalDeclaredLogicalBodyContext {
         let result = Self {
             body: Arc::clone(&scope),
             scope,
-            scope_name,
+            origin: OriginalLogicalBodyOrigin::Named(scope_name),
             namespace,
             frame,
+            input: input.clone(),
+            parent,
+            selected_frame: None,
+        };
+        result.matches_input(input).then_some(result)
+    }
+
+    pub(crate) fn capture_lambda(
+        lambda: Arc<super::OriginalLogicalLambdaBody>,
+        input: &ResolvedAnalysisInput,
+        parent: Option<Arc<Self>>,
+    ) -> Option<Self> {
+        let (_, _, content, namespace) = lambda.frame_source(input)?;
+        let crate::signature_scan::scope::SignatureNamespaceScope::C(namespace) = namespace else {
+            return None;
+        };
+        if parent.as_ref().is_some_and(|parent| {
+            !parent.matches_input(input)
+                || !parent.owns_words(lambda.original_words())
+                || content.start() < parent.body().content_span().start()
+                || content.end() > parent.body().content_span().end()
+        }) {
+            return None;
+        }
+        let result = Self {
+            scope: Arc::clone(lambda.body()),
+            body: Arc::clone(lambda.body()),
+            origin: OriginalLogicalBodyOrigin::Lambda(lambda),
+            namespace,
+            frame: OriginalDeclaredSourceBodyFrame::Lambda,
             input: input.clone(),
             parent,
             selected_frame: None,
@@ -196,6 +235,14 @@ impl OriginalDeclaredLogicalBodyContext {
         let context = input.context_registry();
         self.input == *input
             && input.has_logical_source_name_context()
+            && match &self.origin {
+                OriginalLogicalBodyOrigin::Named(_) => self.frame != OriginalDeclaredSourceBodyFrame::Lambda,
+                OriginalLogicalBodyOrigin::Lambda(lambda) => lambda.matches_source(self.scope.original_container().image(), input)
+                    && matches!(self.frame, OriginalDeclaredSourceBodyFrame::Lambda | OriginalDeclaredSourceBodyFrame::Global)
+                    && Arc::ptr_eq(lambda.body(), &self.scope)
+                    && (lambda.namespace() == &crate::signature_scan::scope::SignatureNamespaceScope::C(self.namespace.clone())
+                        || self.selected_frame.as_ref().is_some_and(|selected| selected.matches(input))),
+            }
             && self.selected_frame.as_ref().is_none_or(|frame| {
                 let selected = frame.body.content_span();
                 let current = self.body.content_span();
@@ -241,10 +288,20 @@ impl OriginalDeclaredLogicalBodyContext {
         &self.body
     }
 
-    /// Genuine original name input selected by the owning source worker.
+    /// Genuine written declaration name. Anonymous lambda scopes have none.
     #[must_use]
-    pub const fn scope_name_input(&self) -> &OriginalLogicalSourceNameInput {
-        &self.scope_name
+    pub const fn scope_name_input(&self) -> Option<&OriginalLogicalSourceNameInput> {
+        match &self.origin {
+            OriginalLogicalBodyOrigin::Named(name) => Some(name),
+            OriginalLogicalBodyOrigin::Lambda(_) => None,
+        }
+    }
+
+    pub(crate) fn lambda_source(&self) -> Option<&Arc<super::OriginalLogicalLambdaBody>> {
+        match &self.origin {
+            OriginalLogicalBodyOrigin::Lambda(lambda) => Some(lambda),
+            OriginalLogicalBodyOrigin::Named(_) => None,
+        }
     }
 
     /// Constructed Logical source components; no native namespace identity.

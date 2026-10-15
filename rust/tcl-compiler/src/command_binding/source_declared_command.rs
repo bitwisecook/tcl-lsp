@@ -638,7 +638,7 @@ mod tests {
             );
             assert_eq!(receipt.descriptor().name, name);
             assert_eq!(
-                scope.scope_name_input().original_word().image(),
+                scope.scope_name_input().unwrap().original_word().image(),
                 &tcl_lexer::SourceImage::document(&source)
             );
         }

@@ -175,6 +175,10 @@ impl OriginalLogicalLambdaBody {
         ))
     }
 
+    pub(crate) fn original_words(&self) -> &[NativeWord] {
+        &self.producer
+    }
+
     pub(crate) fn lambda(&self) -> &NativeWord {
         &self.lambda
     }

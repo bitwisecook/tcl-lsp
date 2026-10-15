@@ -660,6 +660,7 @@ impl OriginalSourceTransitionAdviceTape {
                         .filter_map(Option::as_ref)
                         .filter(|card| {
                             std::ptr::eq(card.scope().scope_body(), scope.scope_body())
+                                && card.scope().scope_name_input().is_some()
                                 && card.scope().scope_name_input() == scope.scope_name_input()
                                 && card.scope().namespace_recipe() == scope.namespace_recipe()
                                 && card.scope().frame_recipe() == scope.frame_recipe()

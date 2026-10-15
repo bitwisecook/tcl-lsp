@@ -76,7 +76,7 @@ impl LogicalSourceProcedureDeclaration {
         self.matches_source(&self.image, &self.input)
             .then_some(())?;
         let scope = self.body.scope();
-        let name = scope.scope_name_input();
+        let name = scope.scope_name_input()?;
         if tcl_syntax::word_rules::original_static_word_unicode_value(name.original_word())
             .as_deref()
             != Some(name.bytes())
@@ -165,7 +165,10 @@ impl LogicalSourceProcedureDeclaration {
 
 fn original_header_matches(body: &OriginalLogicalProcedureBody, procedure: &ProcDef) -> bool {
     !procedure.params_computed
-        && body.scope().scope_name_input().original_word().group().span == procedure.name_span
+        && body
+            .scope()
+            .scope_name_input()
+            .is_some_and(|name| name.original_word().group().span == procedure.name_span)
         && body.scope().scope_body().original_container().group().span == procedure.body_span
         && body
             .parameters()

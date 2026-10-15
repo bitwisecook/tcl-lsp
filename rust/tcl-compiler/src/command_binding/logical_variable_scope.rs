@@ -236,6 +236,14 @@ impl OriginalLogicalVariableScope {
     }
 
     pub(crate) fn local_frame(&self) -> Option<SourceOriginalVariableFrame> {
+        if let LogicalVariableFrameRecipe::Declared { scope, .. } = &self.frame
+            && scope.frame_recipe() == OriginalDeclaredSourceBodyFrame::Lambda
+        {
+            return SourceOriginalVariableFrame::from_logical_lambda_source(
+                Arc::clone(scope.lambda_source()?),
+                &self.input,
+            );
+        }
         let card = match &self.frame {
             LogicalVariableFrameRecipe::Declared {
                 procedure: Some(card),
@@ -251,9 +259,11 @@ impl OriginalLogicalVariableScope {
         match &self.frame {
             LogicalVariableFrameRecipe::Document(_) => true,
             LogicalVariableFrameRecipe::Formal(_) => false,
-            LogicalVariableFrameRecipe::Declared { scope, .. } => {
-                scope.frame_recipe() != OriginalDeclaredSourceBodyFrame::Procedure
-            }
+            LogicalVariableFrameRecipe::Declared { scope, .. } => !matches!(
+                scope.frame_recipe(),
+                OriginalDeclaredSourceBodyFrame::Procedure
+                    | OriginalDeclaredSourceBodyFrame::Lambda
+            ),
         }
     }
 
@@ -319,12 +329,25 @@ impl OriginalLogicalVariableScope {
     }
 
     pub(crate) fn local_name_is_byte_unique(&self, name: &[u8]) -> bool {
-        let card = match &self.frame {
+        let (parameters_text, original_parameters) = match &self.frame {
+            LogicalVariableFrameRecipe::Declared { scope, .. }
+                if scope.frame_recipe() == OriginalDeclaredSourceBodyFrame::Lambda =>
+            {
+                let Some(formals) = scope
+                    .lambda_source()
+                    .and_then(|lambda| lambda.formal_parameters())
+                else {
+                    return false;
+                };
+                (formals.parameter_field().value(), formals.parameters())
+            }
             LogicalVariableFrameRecipe::Declared {
                 procedure: Some(card),
                 ..
             }
-            | LogicalVariableFrameRecipe::Formal(card) => card,
+            | LogicalVariableFrameRecipe::Formal(card) => {
+                (card.parameters_text(), card.parameters())
+            }
             _ => return false,
         };
         let Some(policy) =
@@ -333,12 +356,12 @@ impl OriginalLogicalVariableScope {
             return false;
         };
         let Some(parameters) = super::logical_definition::static_formals(
-            card.parameters_text(),
+            parameters_text,
             self.input.lexer_config().list_parse,
         ) else {
             return false;
         };
-        if parameters != card.parameters() {
+        if parameters != original_parameters {
             return false;
         }
         let protocol = policy.recipe();
@@ -358,6 +381,7 @@ fn same_procedure_scope(
     scope: &OriginalDeclaredLogicalBodyContext,
 ) -> bool {
     std::ptr::eq(card.scope().scope_body(), scope.scope_body())
+        && card.scope().scope_name_input().is_some()
         && card.scope().scope_name_input() == scope.scope_name_input()
         && card.scope().namespace_recipe() == scope.namespace_recipe()
         && card.scope().frame_recipe() == scope.frame_recipe()

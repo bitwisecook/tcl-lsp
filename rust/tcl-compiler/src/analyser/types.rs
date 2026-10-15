@@ -3779,11 +3779,13 @@ impl AnalysisResult {
                             .base()
                             .checked_add(u32::try_from(frame.source().text.bytes().len()).ok()?)?
                     || image.bytes().get(span.start() as usize) != Some(&b'{')
-                    || !frame.source_cursor_is_direct(image, offset)
                 {
                     return None;
                 }
-                return Some(frame);
+                let selected = self
+                    .retained_command_realm()?
+                    .original_logical_variable_frame_at_offset(input, image, offset)?;
+                return (selected == frame).then_some(selected);
             }
             return self
                 .retained_command_realm()?

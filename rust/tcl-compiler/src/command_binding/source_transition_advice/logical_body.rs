@@ -72,7 +72,7 @@ impl OriginalLogicalProcedureBody {
         self.earlier_unknown_mutations
     }
     pub(crate) fn name(&self) -> Option<&str> {
-        std::str::from_utf8(self.scope.scope_name_input().bytes()).ok()
+        std::str::from_utf8(self.scope.scope_name_input()?.bytes()).ok()
     }
     pub(crate) fn matches_source(
         &self,
@@ -80,8 +80,10 @@ impl OriginalLogicalProcedureBody {
         input: &crate::analyser::ResolvedAnalysisInput,
     ) -> bool {
         self.summary_coordinate.namespace == *self.scope.namespace_recipe()
-            && self.summary_coordinate.simple.as_bytes()
-                == tcl_syntax::naming::written_command_tail(self.scope.scope_name_input().bytes())
+            && self.scope.scope_name_input().is_some_and(|name| {
+                self.summary_coordinate.simple.as_bytes()
+                    == tcl_syntax::naming::written_command_tail(name.bytes())
+            })
             && self.site.source.source_image() == image
             && self.scope.matches_input(input)
             && self
@@ -160,9 +162,18 @@ impl OriginalSourceTransitionAdviceTape {
             || !scope.matches_input(input)
             || scope.body().content_span() != Span::new(*start, *end)
             || !scope.body().matches_source(image, input.lexer_config())
-            || scope.frame_recipe() != OriginalDeclaredSourceBodyFrame::Procedure
+            || !matches!(
+                scope.frame_recipe(),
+                OriginalDeclaredSourceBodyFrame::Procedure
+                    | OriginalDeclaredSourceBodyFrame::Lambda
+            )
         {
             return None;
+        }
+        if scope.frame_recipe() == OriginalDeclaredSourceBodyFrame::Lambda {
+            return crate::command_binding::SourceOriginalVariableFrame::from_logical_lambda_source(
+                Arc::clone(scope.lambda_source()?), input,
+            ).filter(|frame| frame.source_region_cursor_is_direct(image, scope.body(), offset));
         }
         let mut cards = self
             .logical_procedure_bodies
@@ -170,6 +181,7 @@ impl OriginalSourceTransitionAdviceTape {
             .flatten()
             .filter(|card| {
                 std::ptr::eq(card.scope().scope_body(), scope.scope_body())
+                    && card.scope().scope_name_input().is_some()
                     && card.scope().scope_name_input() == scope.scope_name_input()
                     && card.scope().namespace_recipe() == scope.namespace_recipe()
                     && card.scope().frame_recipe() == scope.frame_recipe()
@@ -180,7 +192,7 @@ impl OriginalSourceTransitionAdviceTape {
         crate::command_binding::SourceOriginalVariableFrame::from_logical_procedure_source(
             card, input,
         )
-        .filter(|frame| frame.source_cursor_is_direct(image, offset))
+        .filter(|frame| frame.source_region_cursor_is_direct(image, scope.body(), offset))
     }
 }
 
@@ -313,11 +325,55 @@ impl LogicalBodyWalk<'_, '_> {
         parent: Option<&Arc<OriginalDeclaredLogicalBodyContext>>,
         depth: usize,
     ) -> Option<()> {
-        if schema.semantics.traits.contains(Traits::DEFERS_BODY) {
+        if schema.authored_source_lambda_call().is_some() {
+            self.lambda(tape, graph, invocation, schema, parent, depth)
+        } else if schema.semantics.traits.contains(Traits::DEFERS_BODY) {
             self.procedure(tape, graph, invocation, schema, parent, depth)
         } else {
             self.namespace(tape, graph, invocation, schema, parent, depth)
         }
+    }
+
+    fn lambda(
+        &mut self,
+        tape: &mut OriginalSourceTransitionAdviceTape,
+        graph: &AdviceGraph,
+        invocation: AdviceInvocation<'_>,
+        schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+        parent: Option<&Arc<OriginalDeclaredLogicalBodyContext>>,
+        depth: usize,
+    ) -> Option<()> {
+        if depth > MAX_DEPTH {
+            return None;
+        }
+        let AdviceNamingPolicy::Logical(input) = self.context.policy else {
+            return None;
+        };
+        let mut advice = boxed_body_advice(self.context, invocation, graph, schema)?;
+        advice.logical_body = parent.map(|parent| Arc::clone(parent.body_arc()));
+        advice.logical_scope = parent.cloned();
+        let words = boxed_region_words(self.context, &advice)?;
+        let policy = self.context.dialect.authored_name_policy()?;
+        let purpose =
+            crate::signature_scan::original_name::OriginalSourceNamePurpose::for_analysis_input(
+                input, None, policy,
+            );
+        let lambda = Arc::new(crate::command_binding::OriginalLogicalLambdaBody::capture(
+            input,
+            *words,
+            invocation.native,
+            purpose,
+        )?);
+        let scope = Arc::new(OriginalDeclaredLogicalBodyContext::capture_lambda(
+            lambda,
+            input,
+            parent.cloned(),
+        )?);
+        let mut branch = graph.clone();
+        branch.logical_namespace = Some(scope.namespace_recipe().clone());
+        branch.handles.clear();
+        branch.class_handles.clear();
+        self.script(tape, &mut branch, &scope, depth.checked_add(1)?)
     }
 
     fn procedure(
@@ -909,7 +965,8 @@ impl LogicalBodyWalk<'_, '_> {
         depth: usize,
     ) -> Option<()> {
         let (advice, schema) = selected;
-        if schema.semantics.traits.contains(Traits::DEFERS_BODY)
+        if schema.authored_source_lambda_call().is_some()
+            || schema.semantics.traits.contains(Traits::DEFERS_BODY)
             || schema.semantics.traits.contains(Traits::DECLARES_NAMESPACE)
         {
             // Each changing source scope retains its own selected name/body.
@@ -1004,6 +1061,137 @@ mod tests {
         )
         .remove(0);
         source_registry_words(source, analysis, &segment)
+    }
+
+    #[test]
+    fn logical_cursor_regions_keep_selected_same_frame_bodies_and_inert_data_distinct() {
+        for source in [
+            "proc p {} {while 1 {set nested 1; }}",
+            "proc p {} {if 1 {set nested 1; }}",
+            "apply {{} {while 1 {set nested 1; }}}",
+            "apply {{} {if 1 {set nested 1; }}}",
+        ] {
+            let analysis = analyse_source(source);
+            let image = tcl_lexer::SourceImage::document(source);
+            let config = analysis.body_lexer_config.unwrap();
+            let offset = u32::try_from(source.find("nested").unwrap()).unwrap();
+            let frame = analysis
+                .original_variable_frame_in_source(&image, config, offset)
+                .expect(source);
+            assert!(frame.source().text.try_text().unwrap().contains("nested"));
+            let mut changed = config;
+            changed.strict_quoting = !changed.strict_quoting;
+            assert!(
+                analysis
+                    .original_variable_frame_in_source(&image, changed, offset)
+                    .is_none()
+            );
+        }
+        for source in [
+            "proc p {} {set data {inert}}",
+            "apply {{} {set data {inert}}}",
+            "proc p {} {namespace eval N {set inert 1}}",
+            "apply {{} {namespace eval N {set inert 1}}}",
+            "proc p {} {apply {{required} {set inert 1}}}",
+        ] {
+            let analysis = analyse_source(source);
+            let image = tcl_lexer::SourceImage::document(source);
+            let offset = u32::try_from(source.find("inert").unwrap()).unwrap();
+            assert!(
+                analysis
+                    .original_variable_frame_in_source(
+                        &image,
+                        analysis.body_lexer_config.unwrap(),
+                        offset
+                    )
+                    .is_none(),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn logical_lambda_children_use_their_own_scope_and_keep_outer_unknown_effects() {
+        for source in [
+            "apply {{} {set local 1; puts $local}}",
+            "namespace eval Caller {apply {{} {set local 1; puts $local}}}",
+        ] {
+            let analysis = analyse_source(source);
+            let input = analysis.resolved_input.as_ref().unwrap();
+            let words = words_at(source, &analysis, "set local 1")
+                .expect("genuine explicit lambda child inventory");
+            let OriginalRegistrySource::SourceTransitions(advice) = words.source() else {
+                panic!("Logical source owner");
+            };
+            let scope = advice
+                .logical_source_scope()
+                .expect("actual distinct lambda source scope");
+            assert_eq!(
+                scope.frame_recipe(),
+                crate::command_binding::OriginalDeclaredSourceBodyFrame::Lambda
+            );
+            assert!(scope.scope_name_input().is_none());
+            assert!(scope.namespace_recipe().is_root());
+            assert!(scope.lambda_source().is_some());
+            assert!(scope.matches_input(input));
+            assert!(advice.original_head().native_input().is_none());
+            let mut foreign = input.clone();
+            foreign.config.strict_quoting = !foreign.config.strict_quoting;
+            assert!(!scope.matches_input(&foreign));
+            let image = tcl_lexer::SourceImage::document(source);
+            let config = input.lexer_config();
+            let write = u32::try_from(source.find("local 1").unwrap()).unwrap();
+            let read = u32::try_from(source.find("$local").unwrap() + 1).unwrap();
+            let write = analysis
+                .original_variable_symbol_in_source(&image, config, write)
+                .expect("source-only lambda local declaration");
+            let read = analysis
+                .original_variable_symbol_in_source(&image, config, read)
+                .expect("source-only lambda local reference");
+            assert_eq!(write.symbol(), read.symbol());
+            assert!(matches!(
+                read.symbol().slot(),
+                crate::signature_scan::variable_symbol::SignatureSourceVariableSlot::Local { .. }
+            ));
+            assert!(!analysis.original_variable_rename_is_complete(read.symbol()));
+        }
+        for (source, child, later) in [
+            (
+                "apply {{} {rename ::set {}}}; set after 1",
+                "rename ::set {}",
+                "set after 1",
+            ),
+            (
+                "namespace eval N {apply {{} {namespace eval X {proc introduced {} {}}}}; set after 1}",
+                "namespace eval X {proc introduced {} {}}",
+                "set after 1",
+            ),
+        ] {
+            let analysis = analyse_source(source);
+            assert!(words_at(source, &analysis, child).is_some(), "{source}");
+            if let Some(later) = words_at(source, &analysis, later) {
+                let OriginalRegistrySource::SourceTransitions(advice) = later.source() else {
+                    panic!("original Logical later call");
+                };
+                assert!(
+                    advice.obligations().contains(
+                        &super::SourceCommandTransitionObligation::UnknownEarlierMutation
+                    ) || !advice.uncertain_operations.is_empty(),
+                    "lambda inventory cannot close outer effects: {source}"
+                );
+            }
+        }
+        for source in [
+            "apply {{argument} {set local 1}}",
+            r"apply {{{argument D\u0045FAULT}} {set local 1}}",
+            "proc apply args {}; apply {{} {set local 1}}",
+        ] {
+            let analysis = analyse_source(source);
+            assert!(
+                words_at(source, &analysis, "set local 1").is_none(),
+                "{source}"
+            );
+        }
     }
 
     #[test]

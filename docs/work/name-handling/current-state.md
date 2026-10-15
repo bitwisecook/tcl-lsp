@@ -1,5 +1,11 @@
 # Current centralised naming work
 
+## Lambda child binding inventory and selected-region correction
+
+Reviewed source walking now retains explicit named versus anonymous Lambda scope origins, actual live-horizon conditional child binding graphs and the canonical lambda call/frame/namespace/argc owner. Named consumers refuse anonymous names. Parent Apply unknown/world/observer effects remain unchanged; child inventory proves no outer absence or resulting state. Actual body word occurrences reuse the same alias/unknown barriers. Formal nested-field signature inputs and Native/edit/normal grants remain unavailable.
+
+The prior whole-frame cursor scanner move could conservatively refuse genuine nested selected while/if regions. Its availability-preserved claim is withdrawn. The reviewed correction requires the independently owned nearest OriginalSourceScriptBody, matching actual SourceOrigin/config/frame containment, and shares the same scanner; Lambda cursor also joins the actual Tape frame. New nested/inert/outer-mutation controls are unexecuted. These source changes are newer than frozen6294 L14 and do not inherit its results.
+
 ## L13 compilation and minimal status repair
 
 L13 frozen0fd42b29f reaches production VM compilation and stops before tests: actual Jim original-variable assignment returns a Value on success while the existing C arm returns unit. The reviewed one-line map discards the unused successful Jim value, matching the existing ignored-success purpose; errors/currentness/getters/publication stay unchanged. A fresh build is required. Next freeze retains this exact repaired source before adopting further child-graph/completion-constructor/callback drafts; original selected assertions and budgets remain unchanged.

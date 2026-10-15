@@ -556,29 +556,36 @@ impl SourceOriginalVariableFrame {
         })
     }
 
-    /// A cursor in this exact retained body, excluding inert braced operands.
-    /// This establishes lexical source membership, never body entry.
-    pub(crate) fn source_cursor_is_direct(
+    /// Direct cursor membership in an independently selected same-frame source
+    /// region. The caller retains its scope/frame recipe; this checks only the
+    /// actual region owner and its containment in this held frame source.
+    pub(crate) fn source_region_cursor_is_direct(
         &self,
         image: &tcl_lexer::SourceImage,
+        region: &crate::registry_invocation::OriginalSourceScriptBody,
         offset: u32,
     ) -> bool {
+        let crate::registry_invocation::source_structure::OriginalRegistrySource::SourceTransitions(
+            advice,
+        ) = region.source_words().source()
+        else {
+            return false;
+        };
+        let span = region.content_span();
         let Some(end) = u32::try_from(self.source.text.bytes().len())
             .ok()
             .and_then(|len| self.source.base().checked_add(len))
         else {
             return false;
         };
-        self.source.origin.source_image() == image
-            && self.source.base() <= offset
-            && offset <= end
-            && direct_script_cursor(
-                image,
-                self.config,
-                tcl_lexer::Span::new(self.source.base(), end),
-                offset,
-                0,
-            )
+        Arc::ptr_eq(&advice.site().source, &self.source.origin)
+            && region.matches_source(image, self.config)
+            && self.source.origin.source_image() == image
+            && self.source.base() <= span.start()
+            && span.end() <= end
+            && span.start() <= offset
+            && offset <= span.end()
+            && direct_script_cursor(image, self.config, span, offset, 0)
     }
 
     /// Conditional procedure, method or lambda layout selected by its source
