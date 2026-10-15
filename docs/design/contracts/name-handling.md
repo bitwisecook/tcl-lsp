@@ -903,3 +903,16 @@ set of independently certified capsules; authentic full-unit analysis precedes
 body filtering and rebasing. Empty or uncertified source routes and other
 existing fallback guards keep whole-unit solving. Reusing the same conservative
 analysis establishes no physical quietness, executed body or Native permission.
+
+Method source navigation separately checks the original operand-effects footprint.
+A command substitution or opaque operand can change even an absolute command
+before lookup, so that occurrence remains unresolved instead of borrowing a local
+header. A literal argument remains data; earlier unknown mutations retain their
+independent unresolved alternatives for a conditional source edge.
+
+Explicit Standalone data-group case selection projects shared checked Unicode
+source values as conditional Registry literals. Dynamic and expanded operands
+remain unknown; original source geometry, actual operation selection and edit
+eligibility keep their separate owners. Quoted IR word extents retain their
+original opening fragment and full configuration through the shared quote
+closer, independently of trailing component geometry.

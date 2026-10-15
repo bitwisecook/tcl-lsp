@@ -45,7 +45,7 @@ no variable exists. Procedure namespace objects derive from the counted flat
 publication key. Jim command enumeration and imports use the shared native
 name/glob owners and do not require a C namespace node to exist.
 
-The public selected Jim `namespace which`, `namespace code` and `namespace origin` adapters check
+The public selected Jim `namespace which`, `namespace code`, `namespace origin` and `namespace inscope` adapters check
 their original arity before ordinary fresh-helper-head lookup. Registry owns
 immutable source descriptors through `InvocationDialect::native_jim_namespace_helper`;
 these bytes supply no installed callable. Runtime installs real selected procedures
@@ -57,7 +57,12 @@ plain branch reaches caller namespace current and constructs a genuine List with
 the original argument. Public lookup, direct cold lookup and direct hot literal
 cache have independent getter stages. Origin reaches its genuine original helper for canonical, Exists, Info alias
 and selected tailcall operations; a manual Runtime alias/name loop cannot
-substitute for those reached calls. Snapshots gain no getter, and other scripted
+substitute for those reached calls. Inscope checks its exact minimum-two public
+arity and reaches the selected helper with untouched original operands; that
+helper tailcalls namespace eval with the original name, argument and real args
+List. C retains its independent namespace/concatenation/evaluation path. Original
+Inscope argv/header observations establish no reentrant or final-free chronology.
+Snapshots gain no getter, and other scripted
 namespace helpers remain separate. Original Code and Which observations establish
 their measured source scope; Runtime parity requires its own execution.
 
