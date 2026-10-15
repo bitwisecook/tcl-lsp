@@ -505,7 +505,38 @@ abcdef {X c} {}\ntop: {X c} ab {} abcdef\n";
 const MIXED_86_STDIN: &str = "proc: {X c} {a X b c} X {} {} abcdef {a b} {} {a b c X} Xcdef abcdef \
 abcdef {X c} {}\ntop: {X c} {} {} abcdef\n";
 
+/// A script held in a variable is compiled by `eval` at run time as a unit
+/// of its own, in the procedure's frame, even where its text is known: a
+/// `catch` there compiles its script only where each variable is already a
+/// compiled local of the procedure (`$zz` read anywhere in the body makes it
+/// one), so folding the text into the body must not make it one.
+const EVAL_TEXT: &str = r#"proc L {} { list string range abcdefghijkl 0 [set e end-2147483649] }
+proc t1 {b} { set s {catch $b zz}; eval $s; eval $b }
+proc t2 {b} { set r 1; set s {catch $b r}; eval $s; set r }
+proc t3 {b} { set s {catch $b zz}; eval $s; return $zz }
+proc t4 {b} { set s {catch $b}; eval $s; eval $b }
+proc t5 {b} { set s {catch $b zz yy}; eval $s; list $zz }
+foreach p {t1 t2 t3 t4 t5} { lappend out "$p=<[$p [L]]>" }
+puts "proc: $out"
+set s {catch $b zz}; set b [L]; eval $s; puts "top: <[eval $b]>"
+"#;
+
+const EVAL_TEXT_READ: &str = "proc: t1=<> t2=<> t3=<> t4=<> t5=<{}>\ntop: <>\n";
+
+const EVAL_TEXT_86: &str =
+    "proc: t1=<> t2=<abcdefghijkl> t3=<abcdefghijkl> t4=<abcdefghijkl> t5=<{}>\ntop: <>\n";
+
 const VECTORS: &[Vector] = &[
+    Vector {
+        name: "a script eval compiles from a variable",
+        script: EVAL_TEXT,
+        want: &[
+            (TclVersion::V8_5, EVAL_TEXT_READ, EVAL_TEXT_READ),
+            (TclVersion::V8_6, EVAL_TEXT_86, EVAL_TEXT_86),
+            (TclVersion::V9_0, EVAL_TEXT_READ, EVAL_TEXT_READ),
+            (TclVersion::V9_1, EVAL_TEXT_READ, EVAL_TEXT_READ),
+        ],
+    },
     Vector {
         name: "a literal index beside one read at run time",
         script: MIXED,
