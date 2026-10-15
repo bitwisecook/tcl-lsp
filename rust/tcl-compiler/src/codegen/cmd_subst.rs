@@ -2507,13 +2507,19 @@ mod tests {
         let mut ctx = CodegenCtx::new(true, &[], &registry);
         ctx.emit_cmd_subst_arg("{}", true);
         assert_eq!(ctx.instructions[0].op, Op::PUSH1);
-        assert!(ctx.instructions[0].push_verbatim);
+        assert_eq!(
+            ctx.instructions[0].literal_rep,
+            tcl_bytecode::LiteralRep::Verbatim
+        );
         assert_eq!(ctx.literals.entries(), &["{}".to_owned()]);
 
         let mut ctx = CodegenCtx::new(true, &[], &registry);
         ctx.emit_cmd_subst_arg("$x", true);
         assert_eq!(ctx.instructions[0].op, Op::PUSH1);
-        assert!(ctx.instructions[0].push_verbatim);
+        assert_eq!(
+            ctx.instructions[0].literal_rep,
+            tcl_bytecode::LiteralRep::Verbatim
+        );
         assert_eq!(ctx.literals.entries(), &["$x".to_owned()]);
     }
 

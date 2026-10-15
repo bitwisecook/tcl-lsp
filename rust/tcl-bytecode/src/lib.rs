@@ -1177,7 +1177,6 @@ impl From<bool> for SourceCommandBoundary {
 
 /// A single bytecode instruction (labels unresolved until layout).
 #[derive(Debug, Clone, PartialEq)]
-#[allow(clippy::struct_excessive_bools)] // independent out-of-band flags, not a state machine
 pub struct Instruction {
     /// Opcode.
     pub op: Op,
@@ -1241,15 +1240,7 @@ pub struct Instruction {
     /// out-of-band (like `foreach_vars`) so the 9-byte on-disk operand form and
     /// disassembly stay byte-stable. `None` for every other opcode.
     pub dict_vars: Option<Vec<String>>,
-    /// `PUSH1`/`PUSH4` only: the literal is a *verbatim* (braced / constant)
-    /// word and must be pushed exactly as-is, suppressing the runtime word
-    /// substitution that the VM otherwise applies to `${…}` / `[…]` markers
-    /// (see `tcl-vm::subst::subst_word`). This is the Rust analogue of the
-    /// reference VM's brace/`_RAW_PREFIX` `PUSH` handling, carried out-of-band
-    /// so the literal pool and disassembly stay byte-stable (keeps identity
-    /// stable).
-    pub push_verbatim: bool,
-    /// `PUSH1`/`PUSH4` only: the representation the pushed literal carries.
+    /// `PUSH1`/`PUSH4` only: how the VM pushes the literal ([`LiteralRep`]).
     /// Carried out-of-band so the literal pool and disassembly stay
     /// byte-stable.
     pub literal_rep: LiteralRep,
@@ -1345,8 +1336,7 @@ impl Instruction {
             foreach_vars: None,
             foreach_collect: false,
             dict_vars: None,
-            push_verbatim: false,
-            literal_rep: LiteralRep::String,
+            literal_rep: LiteralRep::Word,
             evaluation: tcl_runtime_api::CommandEvaluation::Compiled,
             release_binding: None,
             release_hold: None,
@@ -1360,12 +1350,17 @@ impl Instruction {
     }
 }
 
-/// The representation a pushed literal carries.
+/// How the VM pushes a literal.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum LiteralRep {
-    /// Its string.
+    /// A word the VM substitutes as it pushes it (see
+    /// `tcl-vm::subst::subst_word`).
     #[default]
-    String,
+    Word,
+    /// Its string exactly as it is, with no word substitution: a braced or
+    /// constant word, or a value the compiler finished. The analogue of the
+    /// reference VM's brace/`_RAW_PREFIX` `PUSH` handling.
+    Verbatim,
     /// A list the compiler built from literal words, spelt canonically: C's
     /// `TclCompileListCmd` pushes such a list as its list object, a canonical
     /// list.

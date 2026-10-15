@@ -47,7 +47,7 @@ use std::sync::{Arc, Mutex};
 use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_dialect::TclVersion;
 use tcl_lexer::script_is_complete;
-use tcl_vm::{CompileService, Value, Vm};
+use tcl_vm::{Code, CompileService, Completion, Value, Vm};
 
 /// The `CompileService` the VM uses for runtime `eval` / command substitution
 /// (and for the top-level script the driver runs): the real Rust compiler
@@ -271,6 +271,16 @@ fn run_script(vm: &mut Vm, src: &str, file: Option<&str>) -> i32 {
     if let Some(code) = vm.take_exit() {
         return code;
     }
+    // A file whose first command does not parse runs nothing, but fails as
+    // any script file does: naming that command and where in the file it is.
+    let result = match (result, file) {
+        (Err(e), Some(_)) => Ok(Completion::new(
+            Code::Error,
+            Value::string(e.message),
+            Value::empty(),
+        )),
+        (result, _) => result,
+    };
     let settled = result.map(|comp| match file {
         Some(path) => vm.settle_top_level_script(path, comp),
         None => vm.settle_top_level(comp),

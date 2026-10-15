@@ -161,3 +161,34 @@ fn a_long_path_is_cut_as_each_release_cuts_it() {
     }
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn a_command_that_does_not_parse_reports_where_in_the_file_it_is() {
+    // 8.4 and 8.5 quote the rest of the script from the malformed command on.
+    let dir = scratch("parse");
+    let cases = [
+        (
+            "first.tcl",
+            "set x {\n",
+            "",
+            "missing close-brace\n    while executing\n\"set x {\"\n    (file \"PATH\" line 1)\n",
+        ),
+        (
+            "later.tcl",
+            "puts a\n\nset x \"abc\n",
+            "a\n",
+            "missing \"\n    while executing\n\"set x \"\"\n    (file \"PATH\" line 3)\n",
+        ),
+    ];
+    for (name, source, stdout, stderr) in cases {
+        let path = write(&dir, name, source);
+        for release in ["8.6", "9.0", "9.1"] {
+            assert_eq!(
+                run(&path, release),
+                (stdout.to_owned(), stderr.to_owned(), true),
+                "{release}: {source}"
+            );
+        }
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}

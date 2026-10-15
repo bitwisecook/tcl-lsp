@@ -2781,11 +2781,10 @@ impl Vm {
                     .unwrap_or_default();
                 // A verbatim (braced / constant) literal suppresses all word
                 // substitution — it is pushed exactly as the codegen interned
-                // it (the codegen sets this flag for braced words / `proc`
-                // bodies / constant assignments).
+                // it (braced words / `proc` bodies / constant assignments).
                 if instr.literal_rep == tcl_bytecode::LiteralRep::List {
                     f.stack.push(Value::list_literal(&raw));
-                } else if instr.push_verbatim {
+                } else if instr.literal_rep == tcl_bytecode::LiteralRep::Verbatim {
                     f.stack.push(Value::string(raw));
                 } else {
                     match crate::subst::subst_word(&raw, self, instr.evaluation) {

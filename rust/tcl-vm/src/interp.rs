@@ -897,6 +897,28 @@ struct GuardedCommands {
     host: HashSet<u64>,
 }
 
+/// The seams a debugger or embedder watches execution through
+/// ([`InterpState::debug`]).
+#[derive(Default)]
+struct DebugSeams {
+    /// Optional debug hook fired once per source command (the execution-control
+    /// seam a step debugger drives). `None` in normal runs — the only
+    /// per-instruction cost is an `Option` check.
+    hook: Option<crate::debug::DebugHook>,
+    /// Optional shared cell tracking the source line of the instruction being
+    /// dispatched — the lightweight sibling of the debug hook, for an embedder
+    /// that needs "what line is the interpreter on" (the `SpecTcl`
+    /// pack-evaluation loader attributes captured registrations with it)
+    /// without paying for a per-command [`crate::debug::DebugSnapshot`].
+    /// `None` in normal runs — one `Option` check per instruction.
+    line_watch: Option<std::rc::Rc<std::cell::Cell<u32>>>,
+    /// The `(line, span-start)` key of the last command the debug hook fired
+    /// for, so it fires once per source command rather than per instruction
+    /// (`startCommand` is emitted only conditionally, so it cannot be the
+    /// boundary marker).
+    last_key: Option<u64>,
+}
+
 pub struct InterpState {
     /// The Tcl release whose number/expr grammar this VM emulates —
     /// threaded from `DialectProfile::vm_runtime_version` (dialect-profile
@@ -1178,22 +1200,8 @@ pub struct InterpState {
     /// which hides nothing; `set_runtime_version` pins the matching plain-Tcl
     /// profile and `set_dialect_profile` pins a vendor one.
     pin: tcl_registry::model::PinnedContext,
-    /// Optional debug hook fired once per source command (the execution-control
-    /// seam a step debugger drives). `None` in normal runs — the only
-    /// per-instruction cost is an `Option` check.
-    debug_hook: Option<crate::debug::DebugHook>,
-    /// Optional shared cell tracking the source line of the instruction being
-    /// dispatched — the lightweight sibling of the debug hook, for an embedder
-    /// that needs "what line is the interpreter on" (the `SpecTcl`
-    /// pack-evaluation loader attributes captured registrations with it)
-    /// without paying for a per-command [`crate::debug::DebugSnapshot`].
-    /// `None` in normal runs — one `Option` check per instruction.
-    line_watch: Option<std::rc::Rc<std::cell::Cell<u32>>>,
-    /// The `(line, span-start)` key of the last command the debug hook fired
-    /// for, so it fires once per source command rather than per instruction
-    /// (`startCommand` is emitted only conditionally, so it cannot be the
-    /// boundary marker).
-    last_debug_key: Option<u64>,
+    /// The seams a debugger or embedder watches execution through.
+    debug: DebugSeams,
     /// Set by the `exit` command to the requested process code. The VM library
     /// never terminates the process itself — a standalone driver (the `tclvm`
     /// CLI) translates this into `std::process::exit`, while an embedder (the
@@ -2225,7 +2233,6 @@ impl InterpState {
     /// A fresh interpreter state writing `puts` output to `out` — no commands
     /// registered yet ([`Vm::with_shared_output`] / [`Vm::fork_child`] follow
     /// up with `register_builtins`).
-    #[allow(clippy::too_many_lines)] // One initialiser per interpreter field.
     fn fresh(out: Rc<RefCell<Box<dyn Write>>>) -> Self {
         let (guards, unpinned, command_surface_point) = Self::fresh_semantic_environment();
         Self {
@@ -2288,9 +2295,7 @@ impl InterpState {
             compiler: None,
             pack_facts: Vec::new(),
             pin: tcl_registry::model::PinnedContext::for_profile(unpinned),
-            debug_hook: None,
-            line_watch: None,
-            last_debug_key: None,
+            debug: DebugSeams::default(),
             pending_exit: None,
             eval_cache: HashMap::new(),
             eval_cache_plain: HashMap::new(),
@@ -2704,8 +2709,8 @@ impl Vm {
     /// Install a debug hook fired once per source command (the execution-control
     /// seam a step debugger drives). Pass `None` to detach.
     pub fn set_debug_hook(&mut self, hook: Option<crate::debug::DebugHook>) {
-        self.debug_hook = hook;
-        self.last_debug_key = None;
+        self.debug.hook = hook;
+        self.debug.last_key = None;
     }
 
     /// Install a shared cell the VM keeps set to the source line of the
@@ -2714,13 +2719,13 @@ impl Vm {
     /// attribution (a registered command reads the cell to learn which line
     /// invoked it). Pass `None` to detach.
     pub fn set_line_watch(&mut self, watch: Option<std::rc::Rc<std::cell::Cell<u32>>>) {
-        self.line_watch = watch;
+        self.debug.line_watch = watch;
     }
 
     /// Publish `line` to the line watch, when one is installed.
     #[inline]
     pub(crate) fn note_line(&self, line: u32) {
-        if let Some(watch) = &self.line_watch {
+        if let Some(watch) = &self.debug.line_watch {
             watch.set(line);
         }
     }
@@ -2756,17 +2761,17 @@ impl Vm {
         span_start: Option<u32>,
         cmd_text: &str,
     ) -> bool {
-        if self.debug_hook.is_none() {
+        if self.debug.hook.is_none() {
             return false;
         }
         let Some(start) = span_start else {
             return false;
         };
         let key = (u64::from(line) << 32) | u64::from(start);
-        if self.last_debug_key == Some(key) {
+        if self.debug.last_key == Some(key) {
             return false;
         }
-        self.last_debug_key = Some(key);
+        self.debug.last_key = Some(key);
         self.fire_debug_hook(line, cmd_text)
     }
 
@@ -2809,17 +2814,17 @@ impl Vm {
     /// Fire the debug hook (if installed) for the command at `line` / `cmd_text`.
     /// Returns `true` when the hook asked to stop the run.
     pub(crate) fn fire_debug_hook(&mut self, line: u32, cmd_text: &str) -> bool {
-        if self.debug_hook.is_none() {
+        if self.debug.hook.is_none() {
             return false;
         }
         let snapshot = self.debug_snapshot(line, cmd_text);
         // Take the hook out so the closure can borrow `self`-derived data
         // (already captured in `snapshot`) without aliasing the field.
-        let mut hook = self.debug_hook.take();
+        let mut hook = self.debug.hook.take();
         let action = hook
             .as_mut()
             .map_or(crate::debug::DebugAction::Continue, |h| h(&snapshot));
-        self.debug_hook = hook;
+        self.debug.hook = hook;
         action == crate::debug::DebugAction::Stop
     }
 
