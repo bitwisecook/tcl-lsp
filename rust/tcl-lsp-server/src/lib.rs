@@ -26,6 +26,8 @@
 //! LSP methods without a wired provider return
 //! [`tower_lsp_server::jsonrpc::ErrorCode::MethodNotFound`].
 
+// Retained analysis receipts require deeper auto-trait evaluation.
+#![recursion_limit = "256"]
 #![deny(missing_docs)]
 #![forbid(unsafe_code)]
 
