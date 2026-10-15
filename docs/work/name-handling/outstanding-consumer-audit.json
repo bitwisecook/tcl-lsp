@@ -13150,9 +13150,9 @@
     "Parent-authorized bounded original C5/Jim snapshot-pattern and sixteen original source-form snapshot controls were added; compiled Rust controls remain unexecuted. No Native allocation/cell identity, F5 result, new GitHub read or proof/census digest renewal follows."
   ],
   "current_refresh": {
-    "checkpoint_utc": "2026-10-15T17:09:15.709401+00:00",
-    "checkpoint_basis": "Mainc34d10caa; frozen L15 is isolated4faff, not newer Main",
-    "current_status": "L15 build23ELFs0errors/source{}; original2286 firstPASS75.412753406s/180; selected1491 replay running with all1027K retained. K complete ordinary696PASS330FAIL1TIMEOUT, Runtime173PASS1FAIL, VM133PASS0FAIL remain latest complete selected results.",
+    "checkpoint_utc": "2026-10-15T17:43:44.395487+00:00",
+    "checkpoint_basis": "Mainfe86525a0 plus Roottracking; isolatedL15frozen4faff complete with separately sealed permissionrepairs",
+    "current_status": "L15 combined1491:1076strictPASS412FAIL1TIMEOUT2NOT_ACCEPTED_RUN_COUNT after6unchangedpermissionrepairPASS; initial6EPERMabort kept. All1027K retained8gains2priorPASSarrayregressions0drops; original2286FIRSTPASS75.412753406/180; newerMainunexecuted.",
     "canonical_status": "current-state.md",
     "live_independent_audit": "audit-next.md",
     "portable_work": "handoff/README.md",

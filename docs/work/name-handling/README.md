@@ -1,6 +1,6 @@
 # Centralised name handling on work
 
-Current continuation: frozenK ordinary1027 seals696PASS/330FAIL/1TIMEOUT; NativeK Runtime174 seals173PASS/1FAIL and VM133 seals133PASS/0FAIL. FrozenL15 at4faff builds23ELFs exit0/source{} and original#2286 FIRST PASS75.412753406s/180. Selected1491 replay is RUNNING, retaining all1027 K controls. Newer Main source has no L15 acceptance. Full proof checker fails2128 structural errors; other required gates remain unfinished. The current [snapshot](current-state.md) overrides historical descriptions below.
+Current continuation: frozen4faff L15 built23ELFs and retained1491 selected attempts/all1027K controls,8gains/2priorPASSarrayregressions/0drops. Combined after exact independent permission repairs:1076strictPASS412FAIL1TIMEOUT2NOT_ACCEPTED_RUN_COUNT. Original2286FIRSTPASS75.412753406s/180. Newer Main source remains unexecuted;47packet hashes verified, required gates unfinished. The timed [27-function lower bound](consumer-progress.json) is15implementation-needed/12reviewed-unverified with unexamined scope unbounded. Read the current [snapshot](current-state.md) before historical text below.
 
 Complete one coherent set of name representations, lookup policies and
 purpose-specific queries across the entire codebase. The starting report is

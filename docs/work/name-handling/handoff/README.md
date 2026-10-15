@@ -93,3 +93,11 @@ full host/backend coverage and required repository gates remain unaccepted.
 ## Successor L9–L14 feedback and bounded source receipts
 
 `successor-l9-l14-build-and-source-receipts.tar.gz` retains failed zero-test build/setup captures, exact source-before/after inventories, the actual failing full proof-check result, provider-preserving cache retirement and bounded original-test-body/API receipts. Its SHA256 and all43 packet hashes are verified in packets.json/SHA256SUMS. It supplies no execution acceptance for newer Main. L15 at4faff is a separately frozen23ELF successful build with selected1491 replay running; its complete replay is not yet sealed.
+
+## Current reviewed consumer receipts
+
+`reviewed-source-consumers-and-count-snapshot.tar.gz` retains exact bounded source/API/original-test-body receipts and timed count corrections/beforeimages. The27-function15/12 snapshot is a lower bound, not a full census. New code has no Rust execution acceptance. All44 packet digests are verified; complete L15 replay is still running and is captured separately when sealed.
+
+## L15 selected replay and separate permission repairs
+
+Concatenate both `validation-4faff-l15-ordinary1491.tar.gz.part-*` files before extracting; the exact archive SHA is557a0f6fc99c61dbdb8bb0f1f4e3ccb66a5bed046dda9cf578695988fffbeab0. The raw1491 attempts include6abort/2nested-harness guard refusals; the latter remain unaccepted. `l15-permission-repair-and-source-followups.tar.gz` retains independent unchanged-selector6PASS repairs outside the sandbox and the original failed attempts remain in the first archive. Combinedlatest1076PASS412FAIL1TIMEOUT2NOT_ACCEPTED_RUN_COUNT. All47 packet digests verify. No newer Main or full Native/repository acceptance follows.

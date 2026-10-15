@@ -213,5 +213,25 @@
     "file": "successor-l9-l14-build-and-source-receipts.tar.gz",
     "sha256": "fe543cc6c88be1c48a24dbda2fbda2dc4baa7ec3d3be2dc90597fc304d1a763f",
     "status": "Actual isolated L9-L14 compilation/setup failures, zero semantic tests, unchanged source; full normal proof checker exit1 with2128 structural errors and0unlinkedtests; inactive Main target retirement retained with unchanged actual providers. Includes bounded source/API/static-body receipts only, not acceptance of newer Main or public Logical formal field admission. L15 is separately executing ordinary replay after23ELF build0."
+  },
+  {
+    "file": "reviewed-source-consumers-and-count-snapshot.tar.gz",
+    "sha256": "0aa2998800607bf21a027dfa0cd9e9bc40249ab5f355d204b1660883c383f2d5",
+    "status": "Bounded source/API/static original-test-body receipts for reviewed Core URI and array cursor, Studio nested Tcl list, package metadata/presence/delete and Docker CMD, actual Jim handler and C84 CString setter, Compiler evaluated-role boundaries; no Rust execution acceptance. Timed known-function count27=15implementation-needed12reviewed-unverified remains a lower bound with unbounded unexamined scope; beforeimages/corrections retained. No public Logical formal field admission."
+  },
+  {
+    "file": "validation-4faff-l15-ordinary1491.tar.gz.part-01",
+    "sha256": "9ad4f9d123a33196edeec5b04508aa73453dbcdb8a4c1d1185ee8925190d7d86",
+    "status": "Ordered part of L15 exact selected1491 capture archive SHA256 557a0f6fc99c61dbdb8bb0f1f4e3ccb66a5bed046dda9cf578695988fffbeab0; concatenate both numbered parts before extraction. Actual isolated4faff23ELF build0/source{};1491 exactselected attempts preserve all1027K controls/budgets:1070 strictPASS412FAIL6ABORT1TIMEOUT2NOT_ACCEPTED_RUN_COUNT. Rawexit0count1072 is not PASS count. Two actual nested Host harness outputs fail unchanged one-run guard; six wait_timeout signal-handler writes EPERM thenabort, no summaries. Allsource/artifacts unchanged/no missingselector/emptyfilters;8predecessorgains2priorPASSarray-completionregressions0drops. Original2286FIRSTPASS75.412753406/180. NewerMain/Native/fullgates remainseparate. Includes exactone-line source reproduction from6294, laterboundedsource/auditreceipts and103issueclassifications; these have no Rust acceptance."
+  },
+  {
+    "file": "validation-4faff-l15-ordinary1491.tar.gz.part-02",
+    "sha256": "3ccf2e9618ca79b6eaf361a8dde29779abf4b5de7e41d2af8325e9205027feb2",
+    "status": "Ordered part of L15 exact selected1491 capture archive SHA256 557a0f6fc99c61dbdb8bb0f1f4e3ccb66a5bed046dda9cf578695988fffbeab0; concatenate both numbered parts before extraction. Actual isolated4faff23ELF build0/source{};1491 exactselected attempts preserve all1027K controls/budgets:1070 strictPASS412FAIL6ABORT1TIMEOUT2NOT_ACCEPTED_RUN_COUNT. Rawexit0count1072 is not PASS count. Two actual nested Host harness outputs fail unchanged one-run guard; six wait_timeout signal-handler writes EPERM thenabort, no summaries. Allsource/artifacts unchanged/no missingselector/emptyfilters;8predecessorgains2priorPASSarray-completionregressions0drops. Original2286FIRSTPASS75.412753406/180. NewerMain/Native/fullgates remainseparate. Includes exactone-line source reproduction from6294, laterboundedsource/auditreceipts and103issueclassifications; these have no Rust acceptance."
+  },
+  {
+    "file": "l15-permission-repair-and-source-followups.tar.gz",
+    "sha256": "beefcf217ae1380adfd17c5ec2cf710210ebdf5dc502dbd28fc5e82255900a15",
+    "status": "Independent unchanged4faff permission-repair6controls PASS after original wait_timeout signal-handler EPERM aborts, alloriginalfailures retained separately. Combined1491 latest:1076strictPASS412FAIL1TIMEOUT2NOT_ACCEPTED_RUN_COUNT; Hostnestedharnessguard rejections remainnotaccepted. Sameoriginalselectors/assertions/budgets/source/artifact/runner guards. Includes later bounded source receipts, no newer Main Rust acceptance."
   }
 ]

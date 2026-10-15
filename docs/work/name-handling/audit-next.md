@@ -6,6 +6,19 @@ oracle execution, generated drift check or repository gate ran in this review.
 Concurrent implementation changes need their own final source binding and
 execution receipts. Root owns Git, shared tracking and issue actions.
 
+The current bounded call-site ledger identifies **27 known remaining live
+functions: 15 need implementation and 12 have reviewed implementations awaiting
+validation**. These are disjoint function/purpose rows, not files, workgroups,
+historical sample failures or a repository-wide total. The unexamined scope is
+unbounded. No current-source accepted row is established in this ledger;
+source peers do not reduce the remaining total. The timed source-hash ledger is
+`/workspace/name-session/audit-count-current.json`, SHA-256
+`c5020f1eeed0a89fdfba120afc3e52b896b07bb7929e16bd27dba9ebdd881610`.
+URI and Studio are among the twelve awaiting validation. Isolated L15 built all
+23 selected packages with zero source drift and its original #2286 first run
+passed in75.412753406 seconds against180; the1491-control replay is still running.
+Neither result accepts later Main implementations.
+
 ## Actionable consumers
 
 **Correction and subsequent source fix to earlier child-inventory peers:**
@@ -3117,40 +3130,42 @@ manufacture arbitrary original ObjType capability, and shared equality internal
 callback/currentness, all reference-count stages, signals and compiled paths
 remain outside this acceptance.
 
-An additional Studio output consumer is distinct from its Rust-expression
-parsers: render_spectcl::relation_term_word decodes OptionTerm fields then joins
-them with spaces as inner Tcl-list data. Outer term/list quoting in
-option_conflict_rows does not protect those inner elements. By source inspection,
-OptionValue("-mode", "two words") produces three inner fields, while the loader's
-relation_term requires two; literal backslashes also need the actual list-value
-constructor purpose. Existing simple-term rendering assertions do not establish
-loader roundtrip for these values. This is an unfinished live source constructor,
-not an executed failure or permission to replace the Rust expression grammar.
-PackStore::accepts compares against the meaning of the already rendered block,
-rather than the requested draft, so that caller check does not independently
-prove inner-value fidelity. The canonical registration exporter is separate and
-does check bare/brace source admission; its synthesized word's braced flag alone
-is not evidence of a substitution bug.
+Studio's inner relation-list constructor now passes bounded source peer at
+render_spectcl.rs SHA-256
+`ace35795f68c28d7311965e353b71f506e57a3b6614241964330ee19eaefe966`.
+The earlier space join could turn OptionValue("-mode", "two words") into three
+inner fields although relation_term requires two. The current constructor uses
+the shared list::join_list owner; existing outer source-word construction keeps
+its separate purpose. A new actual render_pack/evaluate_pack regression compares
+requested OptionRelation values after loading, covering spaces, backslashes,
+empty and metacharacter data. All46 prior test bodies are independently exact;
+the new test is unexecuted. PackStore's already-rendered meaning comparison is
+not an independent requested-draft fidelity proof. Registry OptionTerm::spelling
+currently feeds Relation::describe presentation labels in the inspected callers,
+not this source constructor; no extra live source-write consumer is inferred.
 
-Document links have a separate final path-to-URI boundary. Live Native,
-Hosted and Logical links reach document_links::file_uri_for_path, which changes
-every backslash to a slash before private percent-encoding. An actual POSIX
-backslash component consequently selects a different target even when every
-source byte is valid Unicode. Windows compatibility needs an actual selected
-path/platform purpose. Pack includes additionally convert actual dir.join(name)
-lossily before that helper. Upstream original word/value/context receipts remain
-genuine; the unfinished consumer is the final navigation candidate conversion,
-not source execution or filesystem absence. Reuse the existing URI filesystem
-path owner rather than another private path parser. No executed counterexample
-or source migration is claimed.
+Document links' final navigation conversion now passes bounded source peer at
+links SHA-256
+`68ee0d19069842845049e62669ae6b4bfd22963e2a14ea0d51cfe77c26a41351`
+and shared Core file_uri owner
+`fba670c6627f965f3a375ddd5baa49c62e37513abe20d8b9a2916df8d679b4ae`.
+Live resolve_path and pack-directory joins retain actual Path values, with checked
+Unicode/NUL/root admission and explicit escaping purpose. POSIX backslash and
+double-slash remain path data; Windows UNC/separator handling is platform-selected.
+The early draft's POSIX double-slash authority trap was corrected before final
+peer. The old file_uri_for_path helper survives only as a cfg(test) standalone
+Windows-purpose adapter. Incoming URI repair, filesystem selection and execution
+remain independent. All74 prior test bodies are independently exact; six new
+controls are unexecuted. This is implemented-unverified, not a current Rust pass.
 
 The coordinator's retained full proof-checker capture for frozen6294 reports
 exit1:7069 candidates,31924 files,2606 questions,2128 structural errors and zero
 unlinked records. This is not a green census or permission to refresh inventory
-as acceptance. Its next isolated ordinary source adds only the reviewed retained
-test-helper TokenType qualifier repair; later Main graph, constructor and callback
-changes cannot inherit that isolated build or replay. This audit executed no
-checker, Rust build or semantic test for either source.
+as acceptance. Isolated L15 added only the reviewed retained test-helper TokenType
+qualifier repair to its frozen predecessor and built all23 selected packages;
+later Main graph, constructor and callback changes cannot inherit that isolated
+build or the still-running replay. This audit executed no checker, Rust build or
+semantic test for either source.
 
 The private Logical formal-field carrier passes bounded source/API peer after an
 allocation-currentness correction. It retains the canonical lambda, actual
@@ -3175,3 +3190,42 @@ extension-stage control also compares its Try subset with sealed shared
 capture07. Rust controls remain unexecuted; this does not equate Runtime's
 extension ABI to Jim ObjType or accept all first-match/reference/count/compiled
 stages.
+
+Further bounded source peers pass for evaluated-role consumers: CLI package
+requirements retain the same current Word/Value admission and refuse lexical
+Root through an exhaustive match; Compiler method/publication/import/forget
+selectors now apply that purpose explicitly, with namespace selection delegated
+to the existing child_from_input owner. The genuine same-bytes/policy Root
+counterfactual is distinct from accepted Word/Value operands. Singleton refused
+import/forget inputs preserve state in the new control; mixed-input atomicity is
+not claimed. Public Logical formal-field admission and remaining inferred
+Native/edit/value sinks remain independent obligations.
+
+Venv config/presence/delete source review passes at the combined manifest's
+e83f5045/04c67f5a/7c36cd9a/79163cb8 source hashes. Marked ordered TOML decoding is
+strict, malformed marked input never falls back to legacy lines, and updates
+replace exact selected keys only after reserved-duplicate validation. Complete
+source is staged before writes. POSIX re-source and deactivation require all
+eight retained fields and four presence tags in the exact empty-or-x domain;
+one original baseline preserves unset versus empty without prefix accumulation.
+Deletion compares only successfully observed actual canonical PathBuf values;
+unknown observations return errors before removal, with force retaining its
+explicit bypass. Export attributes, dynamic wrapper/Fish/Docker grammars and
+concurrent filesystem changes are outside this peer. New controls are unexecuted.
+
+Jim Try's shared handler declaration passes bounded source peer at Runtime
+1f9eb774, Registry79ca3078 and VM445a24ae. The real static declaration identity,
+order and typed ordinal remain separate from the existing original-header enum
+getter/cache adapter and its unchanged flags/noun. The VM adapter now selects
+the actual native dialect rather than borrowing its independent source dialect.
+C's handler table is unchanged. Same-declaration cache and same-bytes foreign
+table controls are unexecuted; full callback/reference/count parity is not granted.
+
+Variable completion's replacement extent passes bounded source peer at lexer
+91ed97e9/Coreee092701/Nativeconsumer460d66d9. Only the shared typed scanner's exact
+current-reference missing-brace/parenthesis issue can select the cursor-prefix
+extent; nested or other syntax failures remain unavailable. Complete references
+include their actual closer, and the full original container remains separately
+retained. Both consumers preserve original source/frame/candidate guards. No
+fake closer, value, candidate identity or edit permission is issued; the new
+geometry control is unexecuted and all158 prior test bodies remain unchanged.
