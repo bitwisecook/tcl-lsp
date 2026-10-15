@@ -73,5 +73,10 @@
     "file": "validation-runtime-8df-full174.tar.gz",
     "sha256": "0bdf920a1d7dbbbb88b2bb863bd449fdc42188203dc4f7cc8b3f79856e71c339",
     "status": "Actual frozen8df original selected Runtime174:171PASS3FAILerrors[]; source{},compiled_input{},artifact{}; all original174 selectors/assertions/budgets retained (one approved unused-mut local lint-only source delta), exact historical/source/provider/artifact guards. Fail variable-inventory originalkey, namespaceDelete, retainedImportJim. No later05d/current-source or fullRuntime acceptance."
+  },
+  {
+    "file": "successor-g-build-feedback.tar.gz",
+    "sha256": "d4c9f29ee1326e259ec5f695ff80680c0a9b63fa9aaf4f38067dc693eb94512e",
+    "status": "Actual frozencb0e ordinary G build101 E0599 original_definer Vec<u8>::as_bytes type error,0ELFs0tests/source{}. Source/provider untouched; F compiled artifact retirement occurred only after sealed133/174Native captures. Typed repair requires fresh rebuild."
   }
 ]

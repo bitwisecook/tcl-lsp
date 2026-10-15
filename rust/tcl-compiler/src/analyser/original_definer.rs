@@ -242,7 +242,7 @@ pub(super) fn logical_arguments_match(
         .zip(arguments.iter().zip(tokens))
         .all(|(word, (argument, token))| {
             tcl_syntax::word_rules::original_static_word_unicode_value(word)
-                .and_then(|value| original_argument_projection(word, value.as_bytes()))
+                .and_then(|value| original_argument_projection(word, &value))
                 .is_some_and(|(value, original)| value == *argument && original == *token)
         })
 }
