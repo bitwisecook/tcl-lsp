@@ -203,6 +203,20 @@ pub fn is_pure_list(obj: *mut TclObj) -> bool {
     obj::obj_type_ptr(obj) == &TCL_LIST_TYPE && unsafe { list_ref(obj) }.canonical
 }
 
+/// Read `obj` as a character-indexed read does (C's `Tcl_GetUnicodeFromObj`),
+/// which converts it to a string: a canonical list is one no longer, so a
+/// later evaluation parses and compiles its string. The list rep is kept,
+/// read from that string, as C would parse it again.
+pub(crate) fn read_as_string(obj: *mut TclObj) {
+    if !is_pure_list(obj) {
+        return;
+    }
+    // The string the list renders to, which the list is now read from.
+    let _ = obj::bytes_of(obj);
+    // SAFETY: `is_pure_list` checked the list type.
+    unsafe { list_mut(obj) }.canonical = false;
+}
+
 pub fn list_elements(obj: *mut TclObj) -> Result<Vec<*mut TclObj>, ListError> {
     ensure_list(obj)?;
     // SAFETY: list rep guaranteed.

@@ -146,8 +146,14 @@ impl ValueOps for Interp {
         bytes_to_str(&obj_bytes(*v))
     }
 
+    fn as_chars(&mut self, v: &*mut TclObj) -> Rc<str> {
+        list::read_as_string(*v);
+        self.as_str(v)
+    }
+
     fn char_len(&mut self, v: &*mut TclObj) -> usize {
-        string_char_len(&bytes_to_str(&obj_bytes(*v)), self.runtime_version())
+        let chars = self.as_chars(v);
+        string_char_len(&chars, self.runtime_version())
     }
 
     /// `Tcl_GetWideIntFromObj` through the runtime's one typed-read owner, so a

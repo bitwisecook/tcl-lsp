@@ -232,6 +232,48 @@ const SELECTED_86_FILE: &str = "<> {<a b c>} <> <> <abcdef> <abcdef> <> {<a b c>
 const SELECTED_86_STDIN: &str = "<> {<a b c>} <> <> <abcdef> <abcdef> <> {<a b c>} <abcdef> \
 {<a b c>} <> <> {<a b c>}";
 
+/// 8.6 converts a value its character-indexed string commands read to a
+/// string (`Tcl_GetUnicodeFromObj`), so a canonical list read so is one no
+/// longer and a later `eval` compiles it; an empty `string map`, `string
+/// equal` and `llength` leave it a list.
+const CHARS: &str = r#"proc L {} { list string range abcdefghijkl 0 [set e end-2147483649] }
+proc show {tag v} { upvar 1 out out; lappend out "$tag=<[eval $v]>" }
+set out {}
+set l [L]; string length $l; show length $l
+set l [L]; string index $l 0; show index $l
+set l [L]; string range $l 0 1; show range $l
+set l [L]; string first a $l; show first $l
+set l [L]; string last $l abc; show last $l
+set l [L]; string reverse $l; show reverse $l
+set l [L]; string map {zz y} $l; show map $l
+set l [L]; string map {} $l; show emptymap $l
+set l [L]; string length $l; llength $l; show relisted $l
+set l [L]; string equal $l x; show equal $l
+set l [L]; llength $l; show llength $l
+proc p {} {
+    set out {}
+    set l [L]; string length $l; show length $l
+    set l [L]; set v [string index $l 0]; show index $l
+    set l [L]; set v [string range $l 0 1]; show range $l
+    set l [L]; set v [string first a $l]; show first $l
+    set l [L]; set v [string reverse $l]; show reverse $l
+    set l [L]; set v [string map {a b} $l]; show map $l
+    set l [L]; string equal $l x; show equal $l
+    return $out
+}
+lappend out proc [p]
+"#;
+
+const CHARS_READ: &str = "length=<> index=<> range=<> first=<> last=<> reverse=<> map=<> \
+emptymap=<> relisted=<> equal=<> llength=<> proc {length=<> index=<> range=<> first=<> \
+reverse=<> map=<> equal=<>}";
+
+const CHARS_86: &str = "length=<abcdefghijkl> index=<abcdefghijkl> range=<abcdefghijkl> \
+first=<abcdefghijkl> last=<abcdefghijkl> reverse=<abcdefghijkl> map=<abcdefghijkl> \
+emptymap=<> relisted=<abcdefghijkl> equal=<> llength=<> proc {length=<abcdefghijkl> \
+index=<abcdefghijkl> range=<abcdefghijkl> first=<abcdefghijkl> reverse=<abcdefghijkl> \
+map=<abcdefghijkl> equal=<>}";
+
 const VECTORS: &[Vector] = &[
     Vector {
         name: "a literal index",
@@ -262,6 +304,16 @@ const VECTORS: &[Vector] = &[
             (TclVersion::V8_6, SELECTED_86_FILE, SELECTED_86_STDIN),
             (TclVersion::V9_0, SELECTED_READ, SELECTED_READ),
             (TclVersion::V9_1, SELECTED_READ, SELECTED_READ),
+        ],
+    },
+    Vector {
+        name: "a canonical list read by character",
+        script: CHARS,
+        want: &[
+            (TclVersion::V8_5, CHARS_READ, CHARS_READ),
+            (TclVersion::V8_6, CHARS_86, CHARS_86),
+            (TclVersion::V9_0, CHARS_READ, CHARS_READ),
+            (TclVersion::V9_1, CHARS_READ, CHARS_READ),
         ],
     },
 ];
