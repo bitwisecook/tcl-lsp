@@ -1,6 +1,6 @@
 # Outstanding naming-consumer audit
 
-Audit resumed at the user’s request. Six disjoint lanes continue actual source/operational/generated/guidance review. The 2026-10-15 22:51 UTC checkpoint retains **6,565 provisional purpose records / 771 hash-verified members**, not a repository migration total. Root has mapped its 329 records to a separate proposed work-unit catalogue; independent and cross-owner reconciliation remain unfinished. See [the current audit status](audit-status.md). Source/build freeze and original validation limits remain.
+Audit resumed at the user’s request. Six disjoint lanes continue actual source/operational/generated/guidance review. The 2026-10-15 23:06 UTC checkpoint retains **6,758 provisional purpose records / 960 hash-verified members**, not a repository migration total. Root has mapped its 329 records to a separate proposed work-unit catalogue; independent and cross-owner reconciliation remain unfinished. See [the current audit status](audit-status.md). Source/build freeze and original validation limits remain.
 
 Current refresh — 2026-10-15 21:49 UTC: separate portable repository audit retains
 5,717 provisional purposes / 484 verified members, not remaining migrations.
