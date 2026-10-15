@@ -100,8 +100,25 @@ fn read_var(vm: &mut Vm, name: &str) -> Result<Value, TclError> {
 
 /// Compile + run a command-substitution body, surfacing a non-`OK` completion
 /// as an error rather than silently using the error message as the value.
-fn eval_subst(vm: &mut Vm, inner: &str, evaluation: CommandEvaluation) -> Result<Value, TclError> {
+/// The script starts on `first_line` of the code around it, where an error's
+/// line is that code's.
+fn eval_subst(
+    vm: &mut Vm,
+    inner: &str,
+    evaluation: CommandEvaluation,
+    first_line: Option<u32>,
+) -> Result<Value, TclError> {
     let c = vm.eval_source_as(inner, evaluation)?;
+    // A compiled command substitutes its words inline: the error's command is
+    // logged, and the command around it is not logged again. Evaluated
+    // directly, the substitution is a script of its own (C's nested
+    // `TclEvalEx`), whose caller logs its command too.
+    if c.code == tcl_runtime_api::Code::Error && evaluation == CommandEvaluation::Compiled {
+        vm.mark_error_logged();
+        if let Some(first_line) = first_line {
+            vm.set_error_line(first_line + vm.error_line().saturating_sub(1));
+        }
+    }
     match c.code {
         tcl_runtime_api::Code::Ok => Ok(c.result),
         tcl_runtime_api::Code::Error => Err(TclError::new(c.result.to_str().to_string())),
@@ -488,9 +505,21 @@ pub fn subst_word(
     word: &str,
     vm: &mut Vm,
     evaluation: CommandEvaluation,
+    statement: Option<(&str, u32)>,
 ) -> Result<Value, TclError> {
     let b = word.as_bytes();
     let n = b.len();
+    // The line a substitution at `offset` in the word starts on, within the
+    // statement (its text and first line) holding the word.
+    let line_at = |offset: usize| {
+        statement.map(|(text, line)| {
+            let before = text
+                .find(word)
+                .map_or(0, |at| text[..at].matches('\n').count())
+                + word[..offset].matches('\n').count();
+            line + u32::try_from(before).unwrap_or(0)
+        })
+    };
 
     // A whole-word braced literal suppresses all substitution: strip the outer
     // braces and return the content verbatim.
@@ -503,7 +532,7 @@ pub fn subst_word(
         && let Ok(end) = command_end(b, 0, vm.lexer_config())
         && end == n - 1
     {
-        return eval_subst(vm, &word[1..end], evaluation);
+        return eval_subst(vm, &word[1..end], evaluation, line_at(1));
     }
     // Fast path: the whole word is one `${name}`.
     //
@@ -587,7 +616,9 @@ pub fn subst_word(
             }
             tcl_lexer::word_parts::WordPart::Command(script) => {
                 let inner = String::from_utf8_lossy(script).into_owned();
-                out.push_str(&eval_subst(vm, &inner, evaluation)?.to_str());
+                let offset = (script.as_ptr() as usize).saturating_sub(b.as_ptr() as usize);
+                let first_line = line_at(offset.min(n));
+                out.push_str(&eval_subst(vm, &inner, evaluation, first_line)?.to_str());
             }
             // C reports a parse error before the command runs at all: it
             // parses every word of a command before evaluating any of them, so

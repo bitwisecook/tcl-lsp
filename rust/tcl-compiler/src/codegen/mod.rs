@@ -793,6 +793,20 @@ impl<'r> CodegenCtx<'r> {
                 // boundary of the enclosing IR/source command used to locate
                 // that outer command's continuation.
                 instruction.source_command_boundary = SourceCommandBoundary::InlineReplay;
+            } else if instruction.source_cmd_text == enclosing_text
+                && instruction
+                    .error_info_command
+                    .as_ref()
+                    .is_none_or(|command| !command.nested)
+            {
+                // errorInfo names the body command, which an enclosing
+                // substitution's stamp then keeps.
+                instruction.error_info_command = Some(tcl_bytecode::ErrorInfoCommand {
+                    text: text.to_owned(),
+                    line,
+                    nested: true,
+                    enclosing: Vec::new(),
+                });
             }
         }
     }
@@ -851,6 +865,150 @@ impl<'r> CodegenCtx<'r> {
 
     /// The whole Tcl command represented by [`Self::current_span`], or empty
     /// when the span belongs only to compiler-generated control machinery.
+    /// C logs a command's source through any whitespace before its
+    /// terminator (`error x }` names `error x `); `None` when there is none.
+    fn trailing_space_error_info(&self, text: &str) -> Option<tcl_bytecode::ErrorInfoCommand> {
+        let span = self.current_span.filter(|_| !text.is_empty())?;
+        let trailing = self.space_after(span);
+        (!trailing.is_empty()).then(|| tcl_bytecode::ErrorInfoCommand {
+            text: format!("{text}{trailing}"),
+            line: self.span_line(),
+            nested: false,
+            enclosing: Vec::new(),
+        })
+    }
+
+    /// The word separators between `span` and the terminator after it, by
+    /// this dialect's grammar.
+    fn space_after(&self, span: Span) -> &str {
+        let separators = self.lexer_config().word_separators;
+        let rest = self.source.get(self.command_end(span)..).unwrap_or("");
+        let end = rest
+            .bytes()
+            .position(|byte| !separators.is_separator(byte))
+            .unwrap_or(rest.len());
+        &rest[..end]
+    }
+
+    /// [`Self::source_text`] through the whitespace before the command's
+    /// terminator, as C's `errorInfo` names a command.
+    pub(crate) fn error_info_source_text(&self, span: Span) -> String {
+        let start = span.start() as usize;
+        let text = self.source.get(start..self.command_end(span)).unwrap_or("");
+        format!("{text}{}", self.space_after(span))
+    }
+
+    /// Where the command at `span` ends: a quoted last word's span ends inside
+    /// its closing `"` (see [`Self::span_text`]).
+    fn command_end(&self, span: Span) -> usize {
+        let end = span.end() as usize;
+        if self.source.as_bytes().get(end) == Some(&b'"') {
+            end + 1
+        } else {
+            end
+        }
+    }
+
+    /// Name the command inside the substitution `spelling` (`[cmd …]`) in
+    /// the `errorInfo` of every instruction emitted for it from `start`, as
+    /// C logs the inner command rather than the enclosing statement. A more
+    /// deeply nested substitution's stamp is kept. The line is that of the
+    /// inner command's first word when its `tokens` place it.
+    pub(crate) fn stamp_substitution_error_info(
+        &mut self,
+        start: usize,
+        spelling: &str,
+        tokens: Option<&crate::ir::CommandTokens>,
+    ) {
+        let Some(inner) = spelling
+            .strip_prefix('[')
+            .and_then(|rest| rest.strip_suffix(']'))
+        else {
+            return;
+        };
+        let separators = self.lexer_config().word_separators;
+        let text = inner.trim_start_matches(|c: char| {
+            c == '\n' || u8::try_from(c).is_ok_and(|byte| separators.is_separator(byte))
+        });
+        if text.trim().is_empty() {
+            return;
+        }
+        let statement = self.command_span_text();
+        let before = statement
+            .find(spelling)
+            .map_or(0, |at| statement[..at].matches('\n').count())
+            + inner[..inner.len() - text.len()].matches('\n').count();
+        let line = tokens
+            .and_then(|tokens| tokens.argv.first())
+            .map(|word| self.source_line(*word))
+            .filter(|&line| line != 0)
+            .unwrap_or_else(|| self.span_line() + u32::try_from(before).unwrap_or(0));
+        // Evaluated directly, each substitution is a script of its own that
+        // the enclosing one logs again as the error leaves it.
+        let direct = self.direct_statement_error_info();
+        // An inlined body inside the substitution names its own commands.
+        for instruction in self
+            .instructions
+            .iter_mut()
+            .skip(start)
+            .filter(|instruction| instruction.source_cmd_text == statement)
+        {
+            match instruction.error_info_command.as_mut() {
+                Some(command) if command.nested => {
+                    if direct.is_some() {
+                        let at = command.enclosing.len().saturating_sub(1);
+                        command.enclosing.insert(at, (text.to_owned(), line));
+                    }
+                }
+                _ => {
+                    instruction.error_info_command = Some(tcl_bytecode::ErrorInfoCommand {
+                        text: text.to_owned(),
+                        line,
+                        nested: true,
+                        enclosing: direct.iter().cloned().collect(),
+                    });
+                }
+            }
+        }
+    }
+
+    /// The command `errorInfo` names for the statement being emitted when
+    /// the release evaluates it without compiling it.
+    fn direct_statement_error_info(&self) -> Option<(String, u32)> {
+        self.current_span
+            .filter(|span| self.current_span_is_command && self.direct_commands.contains(span))
+            .map(|span| (self.error_info_source_text(span), self.span_line()))
+    }
+
+    /// A substitution of several commands runs as a script of its own: in a
+    /// directly evaluated statement, the statement logs its error again.
+    pub(crate) fn stamp_substitution_script(&mut self, start: usize) {
+        let Some(statement) = self.direct_statement_error_info() else {
+            return;
+        };
+        let text = self.command_span_text();
+        for instruction in self
+            .instructions
+            .iter_mut()
+            .skip(start)
+            .filter(|instruction| instruction.source_cmd_text == text)
+        {
+            if instruction
+                .error_info_command
+                .as_ref()
+                .is_none_or(|command| !command.nested)
+            {
+                let (text, line) = instruction.error_info_text();
+                instruction.error_info_command = Some(tcl_bytecode::ErrorInfoCommand {
+                    text: text.to_owned(),
+                    line,
+                    nested: true,
+                    enclosing: vec![statement.clone()],
+                });
+            }
+        }
+    }
+
     fn command_span_text(&self) -> String {
         if self.current_span_is_command {
             self.span_text()
@@ -906,6 +1064,7 @@ impl<'r> CodegenCtx<'r> {
         instr.evaluation = self.command_evaluation();
         instr.source_cmd_text = self.command_span_text();
         instr.source_line = self.span_line();
+        instr.error_info_command = self.trailing_space_error_info(&instr.source_cmd_text);
         if !instr.source_cmd_text.is_empty() {
             instr
                 .source_command_namespace
@@ -926,6 +1085,7 @@ impl<'r> CodegenCtx<'r> {
         instr.evaluation = self.command_evaluation();
         instr.source_cmd_text = self.command_span_text();
         instr.source_line = self.span_line();
+        instr.error_info_command = self.trailing_space_error_info(&instr.source_cmd_text);
         if !instr.source_cmd_text.is_empty() {
             instr
                 .source_command_namespace

@@ -660,6 +660,74 @@ impl TclVersion {
         !matches!(self, Self::V8_4)
     }
 
+    /// Whether `return` keeps its options in a dictionary (TIP 90, Tcl 8.5):
+    /// `-level`, `-options` and any other pair are accepted. 8.4 reads its
+    /// words as `-code`/`-errorinfo`/`-errorcode` pairs while two remain and
+    /// rejects any other name.
+    #[must_use]
+    pub const fn has_return_options_dictionary(self) -> bool {
+        !matches!(self, Self::V8_4)
+    }
+
+    /// Whether an `expr` operator subexpression whose operands are all
+    /// literals is folded at compile time, so its error is a fold failure:
+    /// raised where the subexpression is evaluated, with `errorInfo` already
+    /// holding the message (`invoked from within` the command). Measured on
+    /// tclsh 8.4.20 (no folding) and 8.5.19 onward.
+    #[must_use]
+    pub const fn raises_folded_expr_errors(self) -> bool {
+        !matches!(self, Self::V8_4)
+    }
+
+    /// Whether the error a completion code becomes where it cannot be taken
+    /// (`invoked "break" outside of a loop`, `command returned bad code`)
+    /// sets an errorCode: `TCL RESULT UNEXPECTED` at a procedure boundary,
+    /// `TCL UNEXPECTED_RESULT_CODE n` at top level. Measured on tclsh 8.5.19
+    /// (`NONE`) and 8.6.18.
+    #[must_use]
+    pub const fn has_unexpected_result_error_codes(self) -> bool {
+        !matches!(self, Self::V8_4 | Self::V8_5)
+    }
+
+    /// Whether an error from an `enter` or `leave` execution trace adds an
+    /// `(enter trace on "cmd")` frame in place of logging the traced command
+    /// (`TEOV_RunEnterTraces`, 8.6). Measured on tclsh 8.5.19 and 8.6.18.
+    #[must_use]
+    pub const fn has_execution_trace_error_frames(self) -> bool {
+        !matches!(self, Self::V8_4 | Self::V8_5)
+    }
+
+    /// Whether the bytecode compiler emits only the wide (4-byte operand)
+    /// instruction forms, which then drop their width suffix (`invokeStk`,
+    /// `loadScalar`). Measured in `-errorstack` on tclsh 9.1.0.
+    #[must_use]
+    pub const fn emits_wide_instructions_only(self) -> bool {
+        matches!(self, Self::V9_1)
+    }
+
+    /// Whether an error's `(file "…" line N)` frame marks a path cut at 150
+    /// bytes with `...`. 8.4 cuts it silently (`%.150s`, `tclIOUtil.c`).
+    #[must_use]
+    pub const fn marks_truncated_file_path(self) -> bool {
+        !matches!(self, Self::V8_4)
+    }
+
+    /// Whether `return`'s own option errors (`bad completion code`, `bad -level
+    /// value`, an `-options` value that is not a dictionary) set `TCL RESULT
+    /// ILLEGAL_…` errorCode words. Measured on tclsh 8.5.19 and 8.6.18: they
+    /// arrive at 8.6; earlier releases leave `NONE`.
+    #[must_use]
+    pub const fn has_return_option_error_codes(self) -> bool {
+        !matches!(self, Self::V8_4 | Self::V8_5)
+    }
+
+    /// Whether `return -options` rejects an odd-sized list. 8.5 merges its
+    /// complete pairs and ignores the last word; 8.6 rejects it.
+    #[must_use]
+    pub const fn rejects_odd_return_options(self) -> bool {
+        !matches!(self, Self::V8_4 | Self::V8_5)
+    }
+
     /// Whether `package` requirements are TIP 268 ranges (`min-max`, `min-`)
     /// and `-exact` is spelled `exactly V` in diagnostics. 8.4 reads a
     /// requirement as one bare version, rejecting `1-2` as a bad version.

@@ -26,9 +26,11 @@
 //! Modes (resolved like `tclsh`):
 //!
 //! - `tclvm <file.tcl> [args…]` — compile and run a script file; `args` become
-//!   the script's `argv` (`argv0` is the file, `argc` the count).
+//!   the script's `argv` (`argv0` is the file, `argc` the count). An error
+//!   leaving it reports its errorInfo and exits 1.
 //! - `tclvm -c "<script>"` — evaluate an inline script string.
-//! - `tclvm` with piped stdin — run the piped script.
+//! - `tclvm` with piped stdin — read and evaluate it a command at a time,
+//!   reporting an error's message and going on, without prompts or echo.
 //! - `tclvm` on a TTY — an interactive REPL (`info complete`-aware line
 //!   accumulation via `tcl_lexer::script_is_complete`).
 //!
@@ -41,7 +43,7 @@
 //! recursion surfaces as a catchable Tcl error rather than a native stack
 //! overflow.
 
-use std::io::{IsTerminal, Read, Write};
+use std::io::{IsTerminal, Write};
 use std::sync::{Arc, Mutex};
 
 use tcl_compiler::compile_service::BytecodeCompileService;
@@ -257,28 +259,9 @@ fn set_argv(vm: &mut Vm, argv0: &str, argv: &[String]) {
 }
 
 /// Compile and run a whole script once, reporting any error to stderr. Returns
-/// the process exit code. `direct` runs it as `tclsh` runs the script file it
-/// is given ([`Vm::eval_source_directly`]).
-fn run_script(vm: &mut Vm, src: &str, direct: bool) -> i32 {
-    let result = if direct {
-        vm.eval_source_directly(src)
-    } else {
-        vm.eval_source(src)
-    };
-    finish(vm, result)
-}
-
-/// Run the commands piped to stdin as `tclsh` runs them
-/// ([`Vm::eval_source_commands`]): each error reported to stderr, the run
-/// going on after it, the exit code `exit`'s or 0.
-fn run_stdin(vm: &mut Vm, src: &str) -> i32 {
-    vm.eval_source_commands(src, Vm::report_stderr_text);
-    vm.take_exit().unwrap_or(0)
-}
-
-/// The process exit code for a script's `result`, its error reported to
-/// stderr.
-fn finish(vm: &mut Vm, result: Result<tcl_vm::Completion<Value>, tcl_vm::TclError>) -> i32 {
+/// the process exit code.
+fn run_script(vm: &mut Vm, src: &str) -> i32 {
+    let result = vm.eval_source(src);
     // `exit` records a pending code on the VM rather than killing the process
     // (so embedders survive); the standalone CLI performs the real termination.
     if let Some(code) = vm.take_exit() {
@@ -297,6 +280,33 @@ fn finish(vm: &mut Vm, result: Result<tcl_vm::Completion<Value>, tcl_vm::TclErro
     }
 }
 
+/// Run the script file `tclsh` is given as `Tcl_Main` does: a completion
+/// other than `ok` reports its `-errorinfo` to stderr.
+fn run_file(vm: &mut Vm, path: &str, src: &str) -> i32 {
+    let result = vm.eval_file(path, src, true);
+    if let Some(code) = vm.take_exit() {
+        return code;
+    }
+    if result.code.is_ok() {
+        return 0;
+    }
+    let options = vm.return_options(&result);
+    let info = options
+        .as_list()
+        .ok()
+        .and_then(|pairs| {
+            pairs
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .find(|pair| &*pair[0].to_str() == "-errorinfo")
+                .map(|pair| pair[1].to_str().to_string())
+        })
+        .unwrap_or_default();
+    vm.report_stderr_text(&info);
+    1
+}
+
 fn run() -> i32 {
     let (mode, options) = parse_args();
     #[cfg(not(feature = "static-extensions"))]
@@ -311,12 +321,12 @@ fn run() -> i32 {
         }
         Mode::Command(script) => {
             let mut vm = new_vm(&options);
-            run_script(&mut vm, &script, false)
+            run_script(&mut vm, &script)
         }
         Mode::Repl => {
             let stdin = std::io::stdin();
             let mut out = std::io::stdout();
-            repl_loop(&mut new_vm(&options), &mut stdin.lock(), &mut out)
+            repl_loop(&mut new_vm(&options), &mut stdin.lock(), &mut out, true)
         }
         Mode::File { path, argv } => {
             let src = match std::fs::read_to_string(&path) {
@@ -328,22 +338,20 @@ fn run() -> i32 {
             };
             let mut vm = new_vm(&options);
             set_argv(&mut vm, &path, &argv);
-            run_script(&mut vm, &src, true)
+            run_file(&mut vm, &path, &src)
         }
         Mode::Stdin => {
-            if std::io::stdin().is_terminal() {
-                let stdin = std::io::stdin();
-                let mut out = std::io::stdout();
-                repl_loop(&mut new_vm(&options), &mut stdin.lock(), &mut out)
-            } else {
-                let mut src = String::new();
-                if let Err(e) = std::io::stdin().read_to_string(&mut src) {
-                    eprintln!("tclvm: cannot read stdin: {e}");
-                    return 1;
-                }
-                let mut vm = new_vm(&options);
-                run_stdin(&mut vm, &src)
-            }
+            // Like `tclsh`, read stdin a command at a time; only a terminal
+            // gets prompts and has results echoed.
+            let stdin = std::io::stdin();
+            let interactive = stdin.is_terminal();
+            let mut out = std::io::stdout();
+            repl_loop(
+                &mut new_vm(&options),
+                &mut stdin.lock(),
+                &mut out,
+                interactive,
+            )
         }
     }
 }
@@ -353,12 +361,23 @@ fn run() -> i32 {
 /// command (`tcl_lexer::script_is_complete`, the `info complete` oracle),
 /// evaluates it in the persistent global frame, and writes a non-empty result.
 /// Variables and procs persist across evaluations because each line runs in the
-/// same VM. Prompts (`% ` primary, `> ` continuation) and results go to `out`;
-/// errors go to stderr. Always returns 0 (EOF is a clean exit).
-fn repl_loop<R: std::io::BufRead, W: Write>(vm: &mut Vm, reader: &mut R, out: &mut W) -> i32 {
+/// same VM, with no command active, as `Tcl_Main` evaluates them. When
+/// `interactive`, prompts (`% ` primary, `> ` continuation) and results go to
+/// `out`; errors go to stderr. Always returns 0 (EOF is a clean exit).
+fn repl_loop<R: std::io::BufRead, W: Write>(
+    vm: &mut Vm,
+    reader: &mut R,
+    out: &mut W,
+    interactive: bool,
+) -> i32 {
+    let prompt = |out: &mut W, text: &str| {
+        if interactive {
+            let _ = write!(out, "{text}");
+            let _ = out.flush();
+        }
+    };
     let mut buffer = String::new();
-    let _ = write!(out, "% ");
-    let _ = out.flush();
+    prompt(out, "% ");
 
     let mut line = String::new();
     loop {
@@ -373,42 +392,38 @@ fn repl_loop<R: std::io::BufRead, W: Write>(vm: &mut Vm, reader: &mut R, out: &m
         // (continuation prompt) until the command is complete.
         if buffer.trim().is_empty() {
             buffer.clear();
-            let _ = write!(out, "% ");
-            let _ = out.flush();
+            prompt(out, "% ");
             continue;
         }
         if !script_is_complete(&buffer) {
-            let _ = write!(out, "> ");
-            let _ = out.flush();
+            prompt(out, "> ");
             continue;
         }
 
-        let result = vm.eval_source(&buffer);
+        let comp = vm.eval_interactive(&buffer);
         // `exit` in the REPL ends the session with the requested code.
         if let Some(code) = vm.take_exit() {
-            let _ = writeln!(out);
+            if interactive {
+                let _ = writeln!(out);
+            }
             return code;
         }
-        match result.map(|comp| vm.settle_top_level(comp)) {
-            Ok(comp) if comp.code.is_ok() => {
-                let result = comp.result.to_str();
-                if !result.is_empty() {
-                    let _ = vm.write_stdout_text(&result, true);
-                }
-            }
-            Ok(comp) => {
-                vm.report_stderr_text(&comp.result.to_str());
-            }
-            Err(e) => {
-                vm.report_stderr_text(&e.message);
+        if !comp.code.is_ok() {
+            vm.publish_caught_error(&comp);
+            vm.report_stderr_text(&comp.result.to_str());
+        } else if interactive {
+            let result = comp.result.to_str();
+            if !result.is_empty() {
+                let _ = vm.write_stdout_text(&result, true);
             }
         }
         buffer.clear();
-        let _ = write!(out, "% ");
-        let _ = out.flush();
+        prompt(out, "% ");
     }
     // A trailing newline so the shell prompt starts on its own line after EOF.
-    let _ = writeln!(out);
+    if interactive {
+        let _ = writeln!(out);
+    }
     0
 }
 
@@ -456,7 +471,7 @@ mod tests {
         let mut vm = build_vm(Box::new(capture.clone()), options);
         let mut reader = std::io::Cursor::new(input.as_bytes().to_vec());
         let mut out = capture;
-        repl_loop(&mut vm, &mut reader, &mut out);
+        repl_loop(&mut vm, &mut reader, &mut out, true);
         let output = bytes.borrow().clone();
         String::from_utf8(output).expect("utf-8")
     }

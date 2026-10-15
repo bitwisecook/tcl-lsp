@@ -56,6 +56,16 @@ fn cond_bool(vm: &mut Vm, cond: &Value) -> Result<bool, Completion<Value>> {
     }
 }
 
+/// An error leaving a loop's test or body. A loop the release compiles runs
+/// them inline, so the command that failed in them is the one logged and the
+/// loop adds no frame or line of its own.
+fn loop_error(vm: &mut Vm, compiled: bool, c: Completion<Value>) -> Completion<Value> {
+    if compiled && c.code == Code::Error {
+        vm.mark_error_logged();
+    }
+    c
+}
+
 /// Evaluate a body as a transparent script in the current frame. The full
 /// completion is returned so the caller can act on `break`/`continue`/`return`.
 ///
@@ -153,6 +163,7 @@ fn cmd_if(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 
 /// `while test body`.
 fn cmd_while(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let compiled = vm.pending.release_compiled.take().is_some();
     if args.len() != 2 {
         return err("wrong # args: should be \"while test command\"");
     }
@@ -165,12 +176,13 @@ fn cmd_while(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         match cond_bool(vm, &cond) {
             Ok(true) => {}
             Ok(false) => break,
-            Err(c) => return c,
+            Err(c) => return loop_error(vm, compiled, c),
         }
         let c = eval_body(vm, &body);
         match c.code {
             Code::Ok | Code::Continue => {}
             Code::Break => break,
+            Code::Error if compiled => return loop_error(vm, compiled, c),
             Code::Error => {
                 // The uncompiled `while` adds a `("while" body line N)` frame.
                 vm.append_body_frame("while");
@@ -186,6 +198,7 @@ fn cmd_while(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 
 /// `for start test next body`.
 fn cmd_for(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let compiled = vm.pending.release_compiled.take().is_some();
     if args.len() != 4 {
         return err("wrong # args: should be \"for start test next command\"");
     }
@@ -206,12 +219,13 @@ fn cmd_for(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         match cond_bool(vm, &cond) {
             Ok(true) => {}
             Ok(false) => break,
-            Err(c) => return c,
+            Err(c) => return loop_error(vm, compiled, c),
         }
         let c = eval_body(vm, &body);
         match c.code {
             Code::Ok | Code::Continue => {} // `continue` still runs `next`
             Code::Break => break,
+            Code::Error if compiled => return loop_error(vm, compiled, c),
             Code::Error => {
                 vm.append_body_frame("for");
                 return c;

@@ -205,6 +205,9 @@ fn regsub_command_call(vm: &mut Vm, words: &[Vec<u8>]) -> Result<Vec<u8>, Comple
     if comp.code.is_ok() {
         Ok(comp.result.to_str().as_bytes().to_vec())
     } else {
+        if comp.code == Code::Error {
+            vm.log_callback_command(&argv, &comp.result.to_str());
+        }
         Err(comp)
     }
 }

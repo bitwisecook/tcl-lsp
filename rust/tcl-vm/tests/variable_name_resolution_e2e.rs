@@ -534,13 +534,24 @@ fn vm_matches_the_pinned_variable_name_vectors() {
     }
 }
 
+/// Vectors whose 8.4 and 8.5 answers differ from 8.6's: those releases leave
+/// `errorCode` `NONE` where 8.6 sets `TCL UPVAR …`/`TCL LOOKUP …` words, and
+/// 8.4 words the inverted link and accepts the element name differently.
+const FROM_8_6_ONLY: &[&str] =
+    &["upvar validates namespace targets and rejects inverted proc links"];
+
 /// The release-invariant vectors must also hold at 8.4, 8.5 and 9.1 — the VM is
 /// release-parameterised, and only the two `${{}}` vectors have a per-release
 /// answer (8.x closes the name at the first `}`, 9.x nests).
 #[test]
 fn release_invariant_vectors_hold_at_every_release() {
     for v in VECTORS.iter().filter(|v| v.want_8x == v.want_90) {
-        for version in [TclVersion::V8_4, TclVersion::V8_5, TclVersion::V9_1] {
+        let releases: &[TclVersion] = if FROM_8_6_ONLY.contains(&v.name) {
+            &[TclVersion::V9_1]
+        } else {
+            &[TclVersion::V8_4, TclVersion::V8_5, TclVersion::V9_1]
+        };
+        for &version in releases {
             assert_eq!(
                 vm_output(v.script, version),
                 v.want_8x,

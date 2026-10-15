@@ -53,6 +53,11 @@ pub(crate) struct CallFrame {
     /// The compiled body of the procedure this frame activates, whose locals
     /// a script compiled in the frame can reach (C's `localCachePtr`).
     pub compiled_body: Option<Rc<FunctionAsm>>,
+    /// A `tailcall` scheduled on this procedure frame from a body `uplevel`
+    /// redirected here (C's `framePtr->tailcallPtr`): the namespace its
+    /// command resolves in and its words. It replaces the procedure's result
+    /// once the procedure completes `ok`.
+    pub tailcall: Option<(String, Vec<Value>)>,
 }
 
 impl CallFrame {
@@ -66,6 +71,7 @@ impl CallFrame {
             call_argv,
             ns_eval: None,
             compiled_body: None,
+            tailcall: None,
         }
     }
 }

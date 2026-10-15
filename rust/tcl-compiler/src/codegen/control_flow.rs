@@ -283,6 +283,10 @@ impl CodegenCtx<'_> {
             LoweringHookId::For => matches!(words.as_slice(), [_, test, next, body]
                     if test.simple() && next.simple() && body.simple())
             .then_some(0),
+            // `TclCompileWhileCmd` compiles a braced test with any body.
+            LoweringHookId::While => {
+                matches!(words.as_slice(), [test, _] if test.simple()).then_some(0)
+            }
             _ => None,
         }?;
         let shape = Self::invocation_shape(&arg_refs, |index| args[index].1);
@@ -1387,7 +1391,7 @@ impl CodegenCtx<'_> {
         );
         self.instructions[throw].error_stack_context = Some(ErrorStackContext::CommandResult {
             head: command.to_owned(),
-            error_info_command: source_command.trim().to_owned(),
+            error_info_command: source_command.trim_start().to_owned(),
         });
     }
 
@@ -1933,7 +1937,7 @@ impl CodegenCtx<'_> {
                 &args.iter().map(String::as_str).collect::<Vec<_>>(),
             ) == Some(InlineCodegenHookId::Error)
         {
-            let error_info_command = self.source_text(stmt.span());
+            let error_info_command = self.error_info_source_text(stmt.span());
             if let Some(arg) = args.first() {
                 self.emit_value(arg, false);
             } else {
