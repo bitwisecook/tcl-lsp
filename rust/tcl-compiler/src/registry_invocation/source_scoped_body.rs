@@ -943,6 +943,31 @@ impl OriginalSourceDefinitionMemberRegion {
             return None;
         }
         (self.original_command_words_at(first.span().start())? == original).then_some(())?;
+        if let super::source_structure::OriginalRegistrySource::SourceTransitions(advice) =
+            self.parent.source.source()
+            && let Some(input) = advice.logical_source_input()
+        {
+            let context = input.context_registry();
+            (input.has_logical_source_name_context()
+                && self.context == *context.context()
+                && self.parent.matches_context(&context)
+                && self
+                    .parent
+                    .matches_source(first.image(), input.lexer_config())
+                && advice.matches_source(first.image(), input.lexer_config())
+                && advice.matches_context(&context)
+                && advice.site().source.source_image() == first.image()
+                && original.iter().all(|word| {
+                    word.image() == first.image() && word.config() == input.lexer_config()
+                }))
+            .then_some(())?;
+            return original
+                .iter()
+                .map(|word| {
+                    tcl_syntax::word_rules::original_static_word_unicode_value(word).map(Some)
+                })
+                .collect();
+        }
         let captured = self
             .parent
             .source

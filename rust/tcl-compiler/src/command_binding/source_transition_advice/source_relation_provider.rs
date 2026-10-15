@@ -347,7 +347,7 @@ impl AdviceInvocationContext<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{analyser::Analyser, signature_scan::scope::SignatureSourceNameKey};
+    use crate::analyser::Analyser;
 
     fn original_operands(
         source: &str,
@@ -374,10 +374,12 @@ mod tests {
         let policy = tcl_registry::InvocationDialect::of_profile(input.unit_profile())
             .authored_name_policy()?;
         let name = SignatureSourceNameInput::OriginalWord(
-            SignatureSourceNameKey::from_original_native_word(
+            crate::signature_scan::original_name::OriginalSourceNamePurpose::for_analysis_input(
+                input, None, policy,
+            )
+            .key(
                 reference.original_word(),
                 tcl_syntax::word_rules::WordValueRules::from_config(&input.lexer_config()),
-                policy,
             )?,
         );
         let lookup = SignatureSourceLookup::from_input(
@@ -400,6 +402,59 @@ mod tests {
                 &lookup,
                 analysis.resolved_registry()?,
             )
+    }
+
+    #[test]
+    fn logical_class_relation_operands_keep_original_unicode_and_complete_member_values() {
+        for (source, expected) in [
+            (
+                "oo::class create Meta {superclass {oo::class}}",
+                Some("oo::class"),
+            ),
+            ("oo::class create Meta {superclass café}", Some("café")),
+            (
+                "oo::class create Meta {superclass oo::class $unknown}",
+                None,
+            ),
+            ("oo::class create Meta {superclass [unknown]}", None),
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl");
+            let operands = original_operands(source, &analysis);
+            assert_eq!(
+                operands.as_ref().map(|(_, _, name, _)| name.bytes()),
+                expected.map(str::as_bytes),
+                "{source}"
+            );
+            if let Some((body, member, name, lookup)) = operands {
+                let input = analysis.resolved_input.as_ref().unwrap();
+                assert!(input.has_logical_source_name_context());
+                let original = name.original_word_key().unwrap().original_word();
+                assert!(
+                    crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
+                        original,
+                        tcl_syntax::word_rules::WordValueRules::from_config(&original.config()),
+                        name.policy(),
+                    )
+                    .is_none()
+                );
+                if expected == Some("oo::class") {
+                    let provider = analysis
+                        .retained_command_realm()
+                        .unwrap()
+                        .source_bindings_ref()
+                        .original_class_relation_provider(
+                            &body,
+                            &member,
+                            &name,
+                            &lookup,
+                            analysis.resolved_registry().unwrap(),
+                        )
+                        .unwrap();
+                    assert!(provider.matches_analysis(&analysis));
+                    assert!(provider.matches_relation(&name, &lookup));
+                }
+            }
+        }
     }
 
     #[test]
