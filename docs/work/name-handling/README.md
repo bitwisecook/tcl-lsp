@@ -1,6 +1,6 @@
 # Centralised name handling on work
 
-Current continuation: pushed `60500bb16`; frozen8df ordinary992 seals677PASS/314FAIL/1TIMEOUT, all967 predecessors retained with10gains/1MCP regression/0drops. Native Runtime174 seals171PASS/3FAIL and VM133 seals133PASS/0FAIL, all drift maps{}; newer source still requires fresh execution. The current [snapshot](current-state.md) overrides historical capture descriptions below.
+Current continuation: pushed `1a78dde36`; frozen8df ordinary992 seals677PASS/314FAIL/1TIMEOUT, all967 predecessors retained with10gains/1MCP regression/0drops. Native Runtime174 seals171PASS/3FAIL and VM133 seals133PASS/0FAIL, all drift maps{}; newer source still requires fresh execution. The current [snapshot](current-state.md) overrides historical capture descriptions below.
 
 Complete one coherent set of name representations, lookup policies and
 purpose-specific queries across the entire codebase. The starting report is

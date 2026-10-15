@@ -189,10 +189,7 @@ fn generated_requirements(
                 .checked_add(usize::from(ordinal))?;
             (argument == layout.body).then_some(())?;
             let word = native.get(argument.checked_add(1)?)?;
-            let body =
-                crate::registry_invocation::source_scoped_body::original_written_script_body_span(
-                    word,
-                )?;
+            let body = crate::registry_invocation::original_written_script_body_span(word)?;
             pending.extend(
                 original_plan(template, body, config)?
                     .into_iter()

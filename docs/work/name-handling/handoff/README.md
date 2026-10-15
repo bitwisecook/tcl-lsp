@@ -52,3 +52,5 @@ how/why comments must describe only the current codebase; git retains history.
 `validation-vm-8df-full133.tar.gz` retains the reviewed exact source-rebind packet and actual133/133PASS replay with all original source/provider/harness/artifact/compiled-input guards; all six predecessor failures pass. Frozen8df only, not later helpers or full backend/host acceptance.
 
 `validation-runtime-8df-full174.tar.gz` seals171PASS/3FAIL with exact original174 selectors and all source/provider/compiled-input/artifact guards. Two failures stop at the variable-key owner before Import semantics; namespace Delete is the third. Source8df only.
+
+`successor-hi-build-feedback.tar.gz` retains failed H (six test-compilation errors, three ELFs) and I (one private-module path error, zero ELFs), both zero tests and unchanged source. H repairs are captured in1a78; I uses the already existing public re-export in the next checkpoint. Fresh execution remains required.
