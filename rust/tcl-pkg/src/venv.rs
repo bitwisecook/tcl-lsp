@@ -25,6 +25,7 @@
 //! `$PATH` and sets `$TCLLIBPATH`; the wrapper always sets `TCLLIBPATH` so
 //! non-interactive use works without activation.
 
+use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 
 use chrono::Utc;
@@ -33,6 +34,75 @@ use crate::errors::TclPkgError;
 
 fn venv_error(message: impl Into<String>, hint: Option<&str>) -> TclPkgError {
     TclPkgError::venv(message, hint.map(ToString::to_string))
+}
+
+/// Prepend one actual Unicode path to a Tcl environment-list value, preserving
+/// the inherited source verbatim. Each supported list grammar must retain its
+/// own original suffix interpretation. This constructs environment text only;
+/// it supplies no external system-encoding or filesystem lookup guarantee.
+pub fn prepare_tcllibpath(
+    directory: &Path,
+    inherited: Option<&OsStr>,
+) -> Result<OsString, TclPkgError> {
+    let directory = directory.to_str().ok_or_else(|| {
+        venv_error(
+            "TCLLIBPATH directory has no Unicode list-source representation",
+            None,
+        )
+    })?;
+    let inherited = match inherited {
+        Some(value) => value.to_str().ok_or_else(|| {
+            venv_error(
+                "inherited TCLLIBPATH has no Unicode list-source representation",
+                None,
+            )
+        })?,
+        None => "",
+    };
+    if directory.as_bytes().contains(&0) || inherited.as_bytes().contains(&0) {
+        return Err(venv_error("TCLLIBPATH cannot contain NUL", None));
+    }
+    let mut output = tcl_syntax::list::list_element(directory);
+    if !inherited.is_empty() {
+        output.push(' ');
+        output.push_str(inherited);
+    }
+    for &escapes in tcl_dialect::EscapeSyntax::ALL {
+        for syntax in [
+            tcl_dialect::ListParse::Strict,
+            tcl_dialect::ListParse::Lenient,
+        ] {
+            let original =
+                tcl_syntax::list::split_list_bytes_in(inherited.as_bytes(), syntax, escapes)
+                    .map_err(|_| {
+                        venv_error(
+                            "inherited TCLLIBPATH is not a complete supported Tcl list",
+                            None,
+                        )
+                    })?;
+            let combined = tcl_syntax::list::split_list_bytes_in(
+                output.as_bytes(),
+                syntax,
+                escapes,
+            )
+            .map_err(|_| {
+                venv_error(
+                    "TCLLIBPATH directory cannot be represented in the supported Tcl list grammars",
+                    None,
+                )
+            })?;
+            if combined.len() != original.len() + 1
+                || combined.first().map(|value| value.as_ref()) != Some(directory.as_bytes())
+                || combined.iter().skip(1).ne(original.iter())
+            {
+                return Err(venv_error(
+                    "TCLLIBPATH construction changed a supported Tcl list interpretation",
+                    None,
+                ));
+            }
+        }
+    }
+    Ok(OsString::from(output))
 }
 
 /// Find a suitable `tclsh` on PATH (preferring newer versions), or `None`.
@@ -358,6 +428,70 @@ mod tests {
                 .unwrap()
                 .as_nanos()
         ))
+    }
+
+    #[test]
+    fn tcllibpath_source_preserves_each_original_suffix_interpretation() {
+        for directory in [
+            "/plain/lib",
+            "/space and {braces}/lib",
+            "/quote\"[literal];$value\\tail/lib",
+            "/café/lib",
+            "/trailing\\",
+            "/line\nbreak",
+        ] {
+            for inherited in [
+                None,
+                Some(""),
+                Some("  {old path} \t\n"),
+                Some(r"old\x4142 other\400"),
+                Some(r#"{old\n} \"literal\" "#),
+            ] {
+                let output =
+                    prepare_tcllibpath(Path::new(directory), inherited.map(OsStr::new)).unwrap();
+                let text = output.to_str().unwrap();
+                if let Some(original) = inherited {
+                    assert!(text.ends_with(original));
+                }
+                for &escapes in tcl_dialect::EscapeSyntax::ALL {
+                    let actual = tcl_syntax::list::split_list_bytes_in(
+                        text.as_bytes(),
+                        tcl_dialect::ListParse::Strict,
+                        escapes,
+                    )
+                    .unwrap();
+                    let original = tcl_syntax::list::split_list_bytes_in(
+                        inherited.unwrap_or("").as_bytes(),
+                        tcl_dialect::ListParse::Strict,
+                        escapes,
+                    )
+                    .unwrap();
+                    assert_eq!(actual[0].as_ref(), directory.as_bytes());
+                    assert_eq!(&actual[1..], original.as_slice());
+                }
+            }
+        }
+        assert_eq!(
+            prepare_tcllibpath(Path::new("/plain/lib"), None).unwrap(),
+            OsString::from("/plain/lib")
+        );
+        for original in ["{unclosed", "\"unclosed", "{closed}junk", "valid\0invalid"] {
+            assert!(
+                prepare_tcllibpath(Path::new("/plain/lib"), Some(OsStr::new(original))).is_err()
+            );
+        }
+        assert!(prepare_tcllibpath(Path::new("bad\0path"), None).is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn tcllibpath_source_refuses_opaque_os_values_without_treating_them_as_absent() {
+        use std::os::unix::ffi::OsStringExt;
+        let opaque = OsString::from_vec(b"original-\xff".to_vec());
+        assert!(prepare_tcllibpath(Path::new("/plain/lib"), Some(&opaque)).is_err());
+        assert!(prepare_tcllibpath(Path::new(&opaque), None).is_err());
+        assert!(prepare_tcllibpath(Path::new("/plain/lib"), None).is_ok());
+        assert!(prepare_tcllibpath(Path::new("/plain/lib"), Some(OsStr::new(""))).is_ok());
     }
 
     #[test]

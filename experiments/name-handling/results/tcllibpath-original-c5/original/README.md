@@ -1,0 +1,9 @@
+# Original C Tcl environment-list observations
+
+Question: can one genuine list element preserve the original directory and each inherited suffix value when TCLLIBPATH contains spaces, braces, brackets, semicolons, dollars, backslashes and Unicode? What does unquoted concatenation do, and do older escape grammars change the suffix?
+
+The plain original interpreter file-mode probe completed 30 invocations: 20 native-constructor rows passed their exact directory/sentinel/cardinality/element checks; 10 invalid-list rows recorded original strict list errors and skipped construction. There were no setup failures. All five selected interpreters reported their pinned patchlevels, exact original script-library path and system encoding `utf-8`. The captured provider/source/library before/after hash maps have no drift. No tcltest harness or Rust implementation was run.
+
+For `old\x4142`, original 8.4.20 and 8.5.19 produced `oldB`; 8.6.18, 9.0.4 and 9.1.0 produced `oldA42`. The original suffix source remained unchanged. Raw path-plus-space concatenation split the actual test directory into four elements before any suffix, while native list construction retained the whole directory and reached its real sentinel file.
+
+`result.json` records invocation, exact inputs, environment context, provider/source/configuration/library hashes, raw channel hashes, completion and limits; per-case stdout/stderr remain byte-valued. Original `probe.tcl` and execution driver are retained. The driver initially classified invalid-list rows with a generic semantic-pass flag; metadata now reports their observed original errors separately, without changing any execution channel. This observation supports source environment-list construction and the exact captured UTF-8 provider contexts only. It grants no arbitrary receiver encoding, filesystem lookup, native identity, wrapper or command-currentness guarantee.

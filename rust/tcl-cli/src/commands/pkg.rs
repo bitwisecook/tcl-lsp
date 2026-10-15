@@ -1398,11 +1398,13 @@ fn run_run(extra: &[String], common: &PkgCommon) -> anyhow::Result<u8> {
         .args(extra.iter().cloned());
     let lib_dir = parent.join("lib");
     if lib_dir.is_dir() {
-        let existing = std::env::var("TCLLIBPATH").unwrap_or_default();
-        let value = if existing.is_empty() {
-            lib_dir.to_string_lossy().into_owned()
-        } else {
-            format!("{} {existing}", lib_dir.display())
+        let existing = std::env::var_os("TCLLIBPATH");
+        let value = match tcl_pkg::venv::prepare_tcllibpath(&lib_dir, existing.as_deref()) {
+            Ok(value) => value,
+            Err(error) => {
+                eprintln!("error: {error}");
+                return Ok(1);
+            }
         };
         profile = profile.set_env("TCLLIBPATH", value);
     }

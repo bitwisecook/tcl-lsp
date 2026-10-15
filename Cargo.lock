@@ -4605,6 +4605,7 @@ dependencies = [
  "tcl-pkg-model",
  "tcl-registry",
  "tcl-sandbox",
+ "tcl-syntax",
  "tcl-userdirs",
  "toml",
  "ureq",

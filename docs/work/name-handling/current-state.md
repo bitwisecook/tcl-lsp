@@ -1,5 +1,9 @@
 # Current centralised naming work
 
+## TCLLIBPATH source producers
+
+Both direct CLI environment producers now use the shared pkg::venv constructor over actual Path/var_os inputs, preserve original inherited list source and verify each supported grammar retains its own original suffix interpretation. Opaque, NUL and malformed inputs refuse explicitly instead of lossily becoming empty. The dependency lock adds only the existing workspace syntax crate. Original paired C5 evidence records30completed invocations:20constructor checks and10actual invalid-list errors, no setup failure/provider drift, exact utf-8 system contexts. Portable original126-entry and outer129-entry hash inventories verify. New Rust helper/CLI controls are unexecuted. External encoding, current-executable transport and generated shell/fish/Docker consumers remain unfinished.
+
 ## Logical Apply source namespace transport
 
 The reviewed Logical Apply producer now retains a distinct whole original list-field roster, exact two/three-field namespace recipe and full original call/input/configuration/body applicability. Scope retains the actual immutable receipt after namespace projection. Native snapshot purpose remains unchanged; no lambda activation/formal/frame/cell/normal grant or generic body-inventory coverage is inferred. Two new positive/adversarial controls are unexecuted. Existing raw parameter/display fallbacks and actual lambda frame/formal consumers remain separate unfinished work.

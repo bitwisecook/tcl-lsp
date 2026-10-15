@@ -1,0 +1,38 @@
+{
+  "release": "8.5",
+  "patchlevel": "8.5.19",
+  "tag": "core-8-5-19",
+  "case": "invalid-junk",
+  "binary": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+  "binary_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+  "library": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+  "script_sha256": "d39a2ffb803945a2216c04a81d29442c6ec2e1e78b10929e4de32d530e331209",
+  "input_path": "/workspace/name-session/tcllibpath-original-c5/fixture/café space {braces} [literal];$value\\tail/lib",
+  "suffix_present": true,
+  "suffix": "{closed}junk",
+  "invocation": [
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+    "/workspace/name-session/tcllibpath-original-c5/probe.tcl"
+  ],
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+    "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix",
+    "LANG": "C.UTF-8",
+    "LC_ALL": "C.UTF-8",
+    "LC_CTYPE": "C.UTF-8",
+    "INPUT_PATH": "/workspace/name-session/tcllibpath-original-c5/fixture/café space {braces} [literal];$value\\tail/lib",
+    "INPUT_SUFFIX": "{closed}junk",
+    "HAS_INPUT_SUFFIX": "1",
+    "EXPECTED_PATCHLEVEL": "8.5.19",
+    "EXPECTED_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library"
+  },
+  "exit_code": 0,
+  "completed": true,
+  "elapsed_seconds": 0.003380126003321493,
+  "stdout_sha256": "449528a5b8002c2e394b08686280658d526145ff8c9dce0e6ccdf66ffef25573",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "setup_failure": false,
+  "original_list_status": 1,
+  "constructor_invariants_checked": false,
+  "observed_completion": "original list-shape error recorded; constructor skipped"
+}

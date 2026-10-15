@@ -305,11 +305,13 @@ fn run_in_venv(path: &Path, command: &[String]) -> anyhow::Result<u8> {
     }
 
     let lib_dir = venv_path.join("lib");
-    let existing = std::env::var("TCLLIBPATH").unwrap_or_default();
-    let tcllibpath = if existing.is_empty() {
-        lib_dir.to_string_lossy().into_owned()
-    } else {
-        format!("{} {existing}", lib_dir.display())
+    let existing = std::env::var_os("TCLLIBPATH");
+    let tcllibpath = match tcl_pkg::venv::prepare_tcllibpath(&lib_dir, existing.as_deref()) {
+        Ok(value) => value,
+        Err(error) => {
+            eprintln!("error: {error}");
+            return Ok(1);
+        }
     };
     let bin_dir = venv_path.join("bin");
     let path_env = std::env::var_os("PATH").unwrap_or_default();
