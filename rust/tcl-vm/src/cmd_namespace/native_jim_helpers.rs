@@ -232,6 +232,80 @@ mod tests {
             replacement
         );
     }
+    #[test]
+    fn original_import_entry_requires_a_genuine_traversal_receipt_after_rename() {
+        for (setup, invocation) in [
+            ("", "{namespace import} ::missing::*"),
+            ("", "namespace import ::missing::*"),
+            (
+                "rename {namespace import} retainedImport",
+                "retainedImport ::missing::*",
+            ),
+        ] {
+            let mut vm = crate::native_fixture::interpreter(
+                crate::environment::profile_for_dialect("jimtcl"),
+            );
+            vm.install_scripted_library(NativeScriptedLibrary::NamespaceHelpers);
+            let Some(crate::command::Command::Proc(original)) =
+                vm.lookup_command("namespace import")
+            else {
+                panic!("installed original Import declaration");
+            };
+            assert!(original.requires_original_jim_import_traversal());
+            let original = original.declaration();
+            let header = original.body_src.native_object_type_name().to_owned();
+            assert_eq!(vm.eval_source(setup).unwrap().code, Code::Ok);
+            let failure = vm.eval_source(invocation).unwrap_err();
+            assert!(failure.is_host(), "{invocation}");
+            assert_eq!(vm.current_level(), 0, "Import never entered a frame");
+            assert_eq!(original.body_src.native_object_type_name(), header);
+        }
+    }
+
+    #[test]
+    fn import_provenance_is_not_acquired_from_user_spelling_or_copied_source() {
+        let mut vm =
+            crate::native_fixture::interpreter(crate::environment::profile_for_dialect("jimtcl"));
+        vm.install_scripted_library(NativeScriptedLibrary::NamespaceHelpers);
+        let helper = vm
+            .actual_native_invocation_dialect()
+            .native_jim_namespace_helper(
+                tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind::Import,
+            )
+            .unwrap();
+        assert!(
+            vm.register_bootstrap_procedure("copiedImport", helper.parameters(), helper.body())
+                .is_some()
+        );
+        let Some(crate::command::Command::Proc(copied)) = vm.lookup_command("copiedImport") else {
+            panic!("ordinary copied procedure");
+        };
+        assert!(!copied.requires_original_jim_import_traversal());
+        assert_eq!(
+            copied.body_src.resident_string_bytes().unwrap().as_ref(),
+            helper.body().as_bytes()
+        );
+        let completion = vm.eval_source(
+            "rename {namespace import} retainedImport; proc {namespace import} {args} {return USER}; namespace import ignored"
+        ).unwrap();
+        assert_eq!(completion.code, Code::Ok);
+        assert_eq!(
+            completion.result.resident_string_bytes().unwrap().as_ref(),
+            b"USER"
+        );
+        let Some(crate::command::Command::Proc(replacement)) =
+            vm.lookup_command("namespace import")
+        else {
+            panic!("ordinary replacement procedure");
+        };
+        assert!(!replacement.requires_original_jim_import_traversal());
+        let Some(crate::command::Command::Proc(retained)) = vm.lookup_command("retainedImport")
+        else {
+            panic!("renamed original procedure");
+        };
+        assert!(retained.requires_original_jim_import_traversal());
+    }
+
     struct Originals {
         caller: Value,
         head: Value,

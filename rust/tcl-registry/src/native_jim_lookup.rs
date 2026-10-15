@@ -73,6 +73,30 @@ pub struct NativeJimNamespaceHelper {
     parameters: &'static str,
     body: &'static str,
 }
+/// Original static nshelper extension's source input, without a live Source or Proc role.
+#[derive(Debug, Clone, Copy)]
+pub struct NativeJimNamespaceHelperStaticSource {
+    body: &'static str,
+    first_line: i32,
+}
+impl NativeJimNamespaceHelperStaticSource {
+    /// Exact body bytes actually evaluated by the original generated static extension.
+    #[must_use]
+    pub const fn body(self) -> &'static str {
+        self.body
+    }
+    /// Original static-extension source filename, independent of a raw source-file path.
+    #[must_use]
+    pub const fn filename(self) -> &'static [u8] {
+        b"nshelper.tcl"
+    }
+    /// Original body's signed Source baseline, including its leading newline.
+    #[must_use]
+    pub const fn first_line(self) -> i32 {
+        self.first_line
+    }
+}
+
 impl NativeJimNamespaceHelper {
     /// Original selected source family, independent of physical helper publication.
     #[must_use]
@@ -96,6 +120,31 @@ impl NativeJimNamespaceHelper {
             .iter()
             .find(|entry| entry.scripted_helper_kind() == Some(self.kind))
     }
+    /// Select the original generated static extension's exact body and Source location.
+    /// This descriptor supplies no installed binding, native header or entered frame.
+    #[must_use]
+    pub fn static_extension_source(self) -> NativeJimNamespaceHelperStaticSource {
+        use NativeJimNamespaceHelperKind as Kind;
+        let body = match self.kind {
+            Kind::Code => include_str!("native_scripts/jim_namespace_code_static.tcl"),
+            Kind::Import => include_str!("native_scripts/jim_namespace_import_static.tcl"),
+            Kind::Info => include_str!("native_scripts/jim_namespace_info.tcl"),
+            Kind::Ensemble => include_str!("native_scripts/jim_namespace_ensemble.tcl"),
+            _ => self.body,
+        };
+        let first_line = match self.kind {
+            Kind::Delete => 7,
+            Kind::Origin => 17,
+            Kind::Which => 32,
+            Kind::Code => 49,
+            Kind::Inscope => 57,
+            Kind::Import => 61,
+            Kind::Info => 87,
+            Kind::Upvar => 138,
+            Kind::Ensemble => 147,
+        };
+        NativeJimNamespaceHelperStaticSource { body, first_line }
+    }
     /// Original compound registration spelling; public lookup keeps the actual selector.
     #[must_use]
     pub const fn name(self) -> &'static str {
@@ -106,7 +155,7 @@ impl NativeJimNamespaceHelper {
     pub const fn parameters(self) -> &'static str {
         self.parameters
     }
-    /// Original helper body; actual procedure/frame publication is backend-owned.
+    /// Authored raw nshelper.tcl body; this does not select the static extension's input.
     #[must_use]
     pub const fn body(self) -> &'static str {
         self.body
@@ -217,7 +266,7 @@ impl crate::InvocationDialect {
                 kind,
                 name: "namespace ensemble",
                 parameters: "subcommand args",
-                body: include_str!("native_scripts/jim_namespace_ensemble.tcl"),
+                body: include_str!("native_scripts/jim_namespace_ensemble_source.tcl"),
             },
             NativeJimNamespaceHelperKind::Info => NativeJimNamespaceHelper {
                 kind,
@@ -362,6 +411,61 @@ pub fn native_jim_namespace_origin<B: NativeJimNamespaceOriginBackend>(
 
 #[cfg(test)]
 mod namespace_helper_source_tests {
+    #[test]
+    fn static_extension_and_raw_source_purposes_retain_their_actual_original_bodies() {
+        let observed =
+            include_str!("../tests/data/native_jim_namespace_helper_sources/original-20261015.tsv");
+        let environment = crate::model::ingress::resolve_known_environment("jim").unwrap();
+        let dialect = crate::InvocationDialect::of_profile(environment.unit_profile());
+        let decode = |hex: &str| -> Vec<u8> {
+            hex.as_bytes()
+                .chunks_exact(2)
+                .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+                .collect()
+        };
+        for (index, kind) in super::NativeJimNamespaceHelperKind::ALL
+            .into_iter()
+            .enumerate()
+        {
+            let helper = dialect.native_jim_namespace_helper(kind).unwrap();
+            let source = helper.static_extension_source();
+            for (phase, body) in [
+                ("STATIC", source.body()),
+                ("RAW_ONLY", helper.body()),
+                ("RAW_AFTER_STATIC", helper.body()),
+            ] {
+                let prefix = format!("BYTES|{phase}|{index}|BODY|");
+                let expected = observed
+                    .lines()
+                    .find_map(|line| line.strip_prefix(&prefix))
+                    .unwrap();
+                assert_eq!(
+                    body.as_bytes(),
+                    decode(expected),
+                    "{phase}/{}",
+                    helper.name()
+                );
+                let prefix = format!("HELPER|{phase}|{index}|");
+                let name = observed
+                    .lines()
+                    .find_map(|line| line.strip_prefix(&prefix))
+                    .unwrap()
+                    .split('|')
+                    .next()
+                    .unwrap();
+                assert_eq!(helper.name().as_bytes(), decode(name));
+            }
+            let prefix = format!("SOURCE|STATIC|{index}|BODY|");
+            let expected = observed
+                .lines()
+                .find_map(|line| line.strip_prefix(&prefix))
+                .unwrap();
+            let (line, filename) = expected.split_once('|').unwrap();
+            assert_eq!(source.first_line(), line.parse::<i32>().unwrap());
+            assert_eq!(source.filename(), decode(filename));
+        }
+    }
+
     #[test]
     fn which_helper_descriptor_keeps_the_original_pinned_declaration() {
         let environment = crate::model::ingress::resolve_known_environment("jim").unwrap();

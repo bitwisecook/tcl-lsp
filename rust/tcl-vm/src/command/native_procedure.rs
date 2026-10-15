@@ -13,6 +13,7 @@ use tcl_runtime_api::native_procedure_roles::{
 #[derive(Default)]
 pub(crate) struct NativeProcedureResources {
     roles: NativeProcedureRoleLedger,
+    original_jim_import: bool,
     objects: RefCell<Option<Vec<Value>>>,
     foreign_body: RefCell<Option<crate::compiled::CompiledUnit>>,
     statics: RefCell<Option<Rc<crate::vars::StaticVariables>>>,
@@ -117,8 +118,21 @@ fn retain_procedure_original(original: &mut Value, objects: &mut Vec<Value>) {
 }
 
 impl NativeProcedureCommand {
-    pub(crate) fn new(mut declaration: ProcDef) -> Self {
-        declaration.native_resources = Rc::new(NativeProcedureResources::default());
+    pub(crate) fn new(declaration: ProcDef) -> Self {
+        Self::new_with_namespace_helper(declaration, None)
+    }
+
+    pub(crate) fn new_with_namespace_helper(
+        mut declaration: ProcDef,
+        helper: Option<tcl_registry::native_jim_lookup::NativeJimNamespaceHelper>,
+    ) -> Self {
+        declaration.native_resources = Rc::new(NativeProcedureResources {
+            original_jim_import: helper.is_some_and(|helper| {
+                helper.kind()
+                    == tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind::Import
+            }),
+            ..NativeProcedureResources::default()
+        });
         *declaration.native_resources.foreign_body.borrow_mut() = declaration.body.take();
         *declaration.native_resources.statics.borrow_mut() = declaration.statics.take();
         *declaration.native_resources.location.borrow_mut() = Some(NativeProcedureLocation {
@@ -231,6 +245,12 @@ impl Deref for NativeProcedureCommand {
 }
 
 impl ProcDef {
+    /// Only the actual selected-library publisher marks this declaration. Renames
+    /// retain it; newly declared procedures cannot acquire it from source text.
+    pub(crate) fn requires_original_jim_import_traversal(&self) -> bool {
+        self.native_resources.original_jim_import
+    }
+
     pub(crate) fn native_reference_count(&self) -> usize {
         self.native_resources.references()
     }

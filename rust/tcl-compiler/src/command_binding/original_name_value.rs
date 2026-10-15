@@ -1006,6 +1006,23 @@ impl super::SourceInvocationBinding {
         self.original_word_vector_config(tokens)
     }
 
+    /// The same checked original argument vector's retained bytes and channel.
+    /// Compiler-only syntax keeps its own image without issuing an invocation.
+    pub(crate) fn original_argument_source_image(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+    ) -> Option<&tcl_lexer::SourceImage> {
+        self.original_argument_lexer_config(tokens)?;
+        let source = if let Some(original) = &self.original_written_words {
+            &original.site.source
+        } else if let Some(original) = &self.original_compiler_words {
+            &original.site.source
+        } else {
+            &self.invocation_site()?.source
+        };
+        Some(source.source_image())
+    }
+
     fn original_word_vector_config(
         &self,
         tokens: &crate::ir::CommandTokens,

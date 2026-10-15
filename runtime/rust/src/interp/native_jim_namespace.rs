@@ -12,6 +12,16 @@ impl Interp {
         &mut self,
         namespace: crate::namespace::NsId,
     ) -> Result<std::rc::Rc<[u8]>, ValueError> {
+        self.materialize_jim_namespace_using(namespace, &|| Ok(()))
+    }
+
+    /// The same actual namespace holder with a caller check at every reached getter stage.
+    pub(crate) fn materialize_jim_namespace_using<E: From<ValueError>>(
+        &mut self,
+        namespace: crate::namespace::NsId,
+        check: &impl Fn() -> Result<(), E>,
+    ) -> Result<std::rc::Rc<[u8]>, E> {
+        check()?;
         let scope = super::native_operation_currency::NativeOperationScope::enter(self).map_err(
             |first| {
                 self.refuse_native_execution(first);
@@ -30,32 +40,42 @@ impl Interp {
         drop(original);
         let caller_namespace = self.current_ns();
         let caller_frame = super::native_arguments::OriginalArgumentFrame::capture(self);
-        let reached = self.native_string_bytes(&allocation.checked_ptr()?);
-        scope
-            .currency()
-            .ensure_current_or_refuse()
-            .map_err(|first| {
-                self.refuse_native_execution(first);
-                ValueError::CommandProtocolUnavailable("Jim namespace operation currency")
-            })?;
-        if self.current_ns() != caller_namespace
-            || caller_frame.check_frame(self).is_err()
-            || !self
-                .namespaces()
-                .jim_namespace_original_owner(namespace)
-                .is_some_and(|owner| {
-                    std::rc::Weak::ptr_eq(&original_birth, &std::rc::Rc::downgrade(&owner))
-                })
-        {
-            let error = ValueError::CommandProtocolUnavailable("Jim namespace getter frame owner");
-            self.refuse_native_execution(
-                error
-                    .native_access_refusal()
-                    .expect("native refusal")
-                    .into(),
-            );
-            return Err(error);
-        }
+        let actual = self.clone();
+        let current = || -> Result<(), E> {
+            check()?;
+            scope
+                .currency()
+                .ensure_current_or_refuse()
+                .map_err(|first| {
+                    actual.clone().refuse_native_execution(first);
+                    ValueError::CommandProtocolUnavailable("Jim namespace operation currency")
+                })?;
+            allocation.checked_ptr()?;
+            if actual.current_ns() != caller_namespace
+                || caller_frame.check_frame(&actual).is_err()
+                || !actual
+                    .namespaces()
+                    .jim_namespace_original_owner(namespace)
+                    .is_some_and(|owner| {
+                        std::rc::Weak::ptr_eq(&original_birth, &std::rc::Rc::downgrade(&owner))
+                    })
+            {
+                let error =
+                    ValueError::CommandProtocolUnavailable("Jim namespace getter frame owner");
+                actual.clone().refuse_native_execution(
+                    error
+                        .native_access_refusal()
+                        .expect("native refusal")
+                        .into(),
+                );
+                return Err(error.into());
+            }
+            Ok(())
+        };
+        current()?;
+        let reached =
+            self.native_object_string_bytes_using(allocation.checked_ptr()?, &current, &E::from);
+        current()?;
         let bytes = reached?;
         crate::namespace::Namespaces::record_jim_namespace_materialized(
             &mut self.namespaces_mut(),
@@ -63,6 +83,7 @@ impl Interp {
             allocation.checked_ptr()?,
             std::rc::Rc::clone(&bytes),
         )?;
+        current()?;
         Ok(bytes)
     }
 
@@ -207,7 +228,8 @@ impl Interp {
             let check =
                 |actual: &Interp| original_namespace.check_current_arguments(actual, arguments);
             check(self)?;
-            let bytes = self.native_string_bytes(&original);
+            arguments.check_original_for(self, 2, original)?;
+            let bytes = arguments.bytes_using(2, &|| check(self));
             check(self)?;
             let bytes = bytes?;
             let protocol = self
@@ -257,10 +279,15 @@ impl Interp {
                 .get(2)
                 .copied()
                 .unwrap_or_else(|| original_namespace.original_ptr());
+            let actual = self.clone();
+            let current = || check(&actual);
+            if argv.len() != 2 {
+                arguments.check_original_for(self, 2, original)?;
+            }
             let bytes = if argv.len() == 2 {
-                self.materialize_jim_namespace(namespace)
+                self.materialize_jim_namespace_using(namespace, &current)
             } else {
-                self.native_string_bytes(&original)
+                arguments.bytes_using(2, &current)
             };
             check(self)?;
             let bytes = bytes?;
@@ -271,7 +298,8 @@ impl Interp {
                     .ok_or(ValueError::CommandProtocolUnavailable(
                         "Jim parent root comparison declaration",
                     ))?;
-                let comparison = self.native_jim_compare_immediate(original, &literal, 0);
+                let comparison =
+                    self.native_jim_compare_immediate_checked(original, &literal, 0, &current);
                 check(self)?;
                 if comparison? {
                     return Ok(Code::Ok);

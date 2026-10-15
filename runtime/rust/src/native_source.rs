@@ -322,10 +322,12 @@ pub(crate) fn context(value: *mut TclObj) -> Result<Rc<NativeJimObjectContext>, 
         })
 }
 
-pub(crate) fn pin_source_info(
+/// Inspect the actual Source primary without falling back to an unlocated script.
+pub(crate) fn original_source_info(
     value: *mut TclObj,
     context: &Rc<NativeJimObjectContext>,
-) -> Result<NativeJimSourceInfo, ValueError> {
+) -> Result<Option<NativeJimSourceInfo>, ValueError> {
+    obj::check_native_liveness(value)?;
     if obj::obj_type_ptr(value) == &JIM_SOURCE_TYPE {
         // SAFETY: the exact primary descriptor owns this live boxed source.
         let source = unsafe { &*(obj::internal_rep(value) as usize as *const NativeJimSource) };
@@ -334,7 +336,17 @@ pub(crate) fn pin_source_info(
                 "Jim original source interpreter",
             ));
         }
-        return Ok(source.info.clone());
+        return Ok(Some(source.info.clone()));
+    }
+    Ok(None)
+}
+
+pub(crate) fn pin_source_info(
+    value: *mut TclObj,
+    context: &Rc<NativeJimObjectContext>,
+) -> Result<NativeJimSourceInfo, ValueError> {
+    if let Some(info) = original_source_info(value, context)? {
+        return Ok(info);
     }
     if let Some(info) = crate::native_script::source_info(value, context)? {
         return Ok(info);

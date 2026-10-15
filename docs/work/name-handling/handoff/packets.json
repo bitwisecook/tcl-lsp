@@ -58,5 +58,10 @@
     "file": "successor-build-feedback.tar.gz",
     "sha256": "4b1ce7711d86bde2d813631eb1d50c7bc4678bf606cccee604468979eb7a9d24",
     "status": "Actual isolated successor build feedback B101/4errors/0ELFs, C101/1error/3ELFs, Dterminated-15/wrong-target/0ELFs, E101/3errors/4ELFs; all0tests/source{}. Repairs require independent rebuild, no Native or successor acceptance."
+  },
+  {
+    "file": "validation-8df-batch-f.tar.gz",
+    "sha256": "46e8a20a7f64bd8e747d32fb1c77010e4b1485dd58cecb2d8da64a14eb770213",
+    "status": "Actual frozen8df ordinary992:677PASS314FAIL1TIMEOUT; all967 predecessor controls retained,10 gains,1 priorPASS MCP regression,0drops;25new15PASS10FAIL. Original2286 PASS71.317924863s/180. Runtime preflight2ELFs build0/0tests only. No active605 or Native full-plan acceptance."
   }
 ]

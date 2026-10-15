@@ -59,6 +59,81 @@ fn temp_dir(tag: &str) -> PathBuf {
     dir
 }
 
+#[test]
+fn pkg_remove_uses_exact_manifest_declarations_and_preserves_neighbouring_commands() {
+    let dir = temp_dir("pkg-remove-declarations");
+    let manifest = dir.join("tclpkg.tcl");
+    let source = "package demo; version 1.0\n\
+require foo-bar 1.0; require foo::bar 1.0; require foo.bar 1.0\n\
+require \"f\\x6fo\" \\\n    1.0; provides foo\n\
+dev-require {test name} 1.0\n";
+    std::fs::write(&manifest, source).unwrap();
+    let (stdout, stderr, code) = run_in(&dir, &["pkg", "remove", "foo", "--json"]);
+    assert_eq!(code, 0, "{stderr}");
+    let output: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    assert_eq!(output["directives_removed"], 1);
+    let edited = std::fs::read_to_string(&manifest).unwrap();
+    assert_eq!(
+        edited,
+        source.replace("require \"f\\x6fo\" \\\n    1.0", "")
+    );
+    let (_stdout, stderr, code) = run_in(&dir, &["pkg", "remove", "test name"]);
+    assert_eq!(code, 0, "{stderr}");
+    assert!(
+        !std::fs::read_to_string(&manifest)
+            .unwrap()
+            .contains("dev-require")
+    );
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn pkg_remove_refuses_unmatched_names_and_invalid_manifests_without_writing() {
+    let dir = temp_dir("pkg-remove-refusal");
+    let manifest = dir.join("tclpkg.tcl");
+    for source in [
+        "package demo\nversion 1.0\nrequire foo-bar 1.0\n",
+        "package demo\nrequire foo 1.0\n",
+        "package demo\nversion 1.0\nrequire foo {unclosed\n",
+    ] {
+        std::fs::write(&manifest, source).unwrap();
+        let (_stdout, stderr, code) = run_in(&dir, &["pkg", "remove", "foo"]);
+        assert_eq!(code, 1, "{stderr}");
+        assert_eq!(std::fs::read_to_string(&manifest).unwrap(), source);
+    }
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn pkg_add_preserves_literal_name_and_source_argv_and_remove_selects_the_same_name() {
+    let dir = temp_dir("pkg-add-literal-words");
+    let manifest = dir.join("tclpkg.tcl");
+    let original = "package demo\nversion 1.0\n";
+    std::fs::write(&manifest, original).unwrap();
+    let package = "foo; require injected 9.0 [literal]$value";
+    let url = "https://example.test/a b;[literal]$value\\tail";
+    let (_stdout, stderr, code) = run_in(&dir, &["pkg", "add", package, "1.2", "--source", url]);
+    assert_eq!(code, 0, "{stderr}");
+    let source = std::fs::read_to_string(&manifest).unwrap();
+    let parsed = tcl_pkg::manifest::load_manifest_text(&source, None).unwrap();
+    assert_eq!(parsed.requires.len(), 1);
+    assert_eq!(parsed.requires[0].name, package);
+    assert_eq!(parsed.requires[0].source_url.as_deref(), Some(url));
+    let (_stdout, stderr, code) = run_in(&dir, &["pkg", "remove", package]);
+    assert_eq!(code, 0, "{stderr}");
+    assert!(
+        tcl_pkg::manifest::load_manifest(&manifest)
+            .unwrap()
+            .requires
+            .is_empty()
+    );
+    std::fs::write(&manifest, original).unwrap();
+    let (_stdout, stderr, code) = run_in(&dir, &["pkg", "add", "foo", "1.0; require injected 9.0"]);
+    assert_eq!(code, 1, "{stderr}");
+    assert_eq!(std::fs::read_to_string(&manifest).unwrap(), original);
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
 /// `pkg discover --dialect` is validated by the one resolver: a language id
 /// that only selects an environment and an environment a workspace pack
 /// declares are accepted, and an unknown name is refused.

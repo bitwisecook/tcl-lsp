@@ -1,0 +1,33 @@
+{
+  "checked_utc": "2026-10-15T11:19:02.448661+00:00",
+  "local_revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+  "tracked_source_status": "",
+  "configure_invocation": "Invoked as: ./configure --prefix=/workspace/tcl-lsp/tmp/jimtcl-oracle/install",
+  "makefile_flags": [
+    "CC =  cc",
+    "AS_CFLAGS += -I. -fno-unwind-tables -fno-asynchronous-unwind-tables -DUSE_UTF8 -DHAVE_OPENPTY",
+    "CFLAGS ?= ",
+    "LDFLAGS = ",
+    "LDLIBS += -lm -lssl -lcrypto  -lz ",
+    "LIBS += ",
+    "prefix ?= /workspace/tcl-lsp/tmp/jimtcl-oracle/install"
+  ],
+  "jim_defines": [
+    "#define JIM_DOCS 1",
+    "#define JIM_INSTALL 1",
+    "#define JIM_IPV6 1",
+    "#define JIM_MATH_FUNCTIONS 1",
+    "#define JIM_REFERENCES 1",
+    "#define JIM_REGEXP 1",
+    "#define JIM_SSL 1",
+    "#define JIM_STATICLIB 1",
+    "#define JIM_TAINT 1",
+    "#define JIM_UTF8 1",
+    "#define JIM_VERSION 84"
+  ],
+  "toolchain_owner": "scripts/dev/ensure-jim-oracle.sh",
+  "toolchain_owner_sha256": "a3b693b8b0c3f505a645036c407781303cff013531492f9f2549930e69dddc07",
+  "static_source_derivation": "C string literal decoding only from exact original _nshelper.c Jim_EvalSource argument; no comment-stripping reimplementation",
+  "static_source_sha256": "aca7dfec38b5269dd66d432e92c7729d377c2cede13002becb46a500a53aa70a",
+  "raw_source_sha256": "97c67e98b1bef86c9564044dbed0d5110b38ba0fd416980663101f65b0066627"
+}

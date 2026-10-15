@@ -17,7 +17,7 @@ pub(super) struct OriginalClassDefinerSource {
 }
 
 impl OriginalClassDefinerSource {
-    fn capture(source: &str, analysis: &AnalysisResult, offset: u32) -> Option<Self> {
+    pub(super) fn capture(source: &str, analysis: &AnalysisResult, offset: u32) -> Option<Self> {
         // naming.source.original-class-constructor-call
         // docs/design/analysis/name-resolution-proofs/source-original-class-constructor-call.md
         let declaration =
@@ -52,6 +52,28 @@ impl OriginalClassDefinerSource {
             arguments,
             tokens,
         })
+    }
+
+    pub(super) fn matches_arguments(&self, arguments: &[String], tokens: &[Token]) -> bool {
+        self.arguments == arguments && self.tokens == tokens
+    }
+
+    /// The retained factory's Registry descriptor supplies source grammar only.
+    pub(super) fn registry_descriptor(
+        &self,
+        context: &tcl_registry::model::ContextRegistry,
+    ) -> Option<&'static tcl_registry::CommandSpec> {
+        self.declaration
+            .factory()
+            .matches_context(context)
+            .then_some(())?;
+        let descriptor = context
+            .context()
+            .resolve_spec(context.commands(), self.declaration.factory().command())?;
+        descriptor
+            .definition_body
+            .is_some_and(|grammar| std::ptr::eq(grammar, self.grammar))
+            .then_some(descriptor)
     }
 
     pub(super) fn native_argument_input(

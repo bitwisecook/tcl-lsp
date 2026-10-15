@@ -373,14 +373,16 @@ impl Interp {
 
     /// Publish the actual selected distribution helper, preserving an existing slot.
     pub(crate) fn install_stock_jim_namespace_helpers(&mut self) {
+        let mut source_filename = None;
         for kind in tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind::ALL {
-            self.install_stock_jim_namespace_helper(kind);
+            self.install_stock_jim_namespace_helper(kind, &mut source_filename);
         }
     }
 
     fn install_stock_jim_namespace_helper(
         &mut self,
         kind: tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind,
+        source_filename: &mut Option<crate::obj::Owned>,
     ) {
         let Some(helper) = self
             .native_invocation_dialect()
@@ -433,14 +435,66 @@ impl Interp {
                         return None;
                     }
                 };
-                let body = crate::obj::Owned::fresh(super::new_string(helper.body().as_bytes()));
-                let reached = self.install_proc_original_storage_publication(
+                let source = helper.static_extension_source();
+                let context = match self.native_jim_object_context() {
+                    Ok(context) => context,
+                    Err(error) => {
+                        self.report_cmd_error(error.into());
+                        return None;
+                    }
+                };
+                if source_filename.is_none() {
+                    let filename = crate::obj::Owned::fresh(super::new_string(source.filename()));
+                    if let Err(error) =
+                        crate::native_source::bind_context(filename.as_ptr(), &context)
+                    {
+                        self.report_cmd_error(error.into());
+                        return None;
+                    }
+                    *source_filename = Some(filename);
+                }
+                let body = crate::obj::Owned::fresh(super::new_string(source.body().as_bytes()));
+                if let Err(error) = crate::native_source::install_source(
+                    body.as_ptr(),
+                    crate::native_source::NativeJimSourceInfo {
+                        filename: source_filename
+                            .as_ref()
+                            .expect("installed source filename")
+                            .clone(),
+                        line: source.first_line(),
+                    },
+                    &context,
+                ) {
+                    self.report_cmd_error(error.into());
+                    return None;
+                }
+                if let Err(first) = scope.currency().ensure_current_or_refuse() {
+                    self.refuse_native_execution(first);
+                    return None;
+                }
+                let import_source = if kind
+                    == tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind::Import
+                {
+                    match super::native_procedure_resources::OriginalJimImportSource::capture(
+                        &body, &context,
+                    ) {
+                        Ok(source) => Some(source),
+                        Err(error) => {
+                            self.report_cmd_error(error.into());
+                            return None;
+                        }
+                    }
+                } else {
+                    None
+                };
+                let reached = self.install_proc_original_storage_publication_using(
                     helper.name().as_bytes(),
                     parameters,
                     Some(parameters_obj.as_ptr()),
                     body.as_ptr(),
                     None,
                     None,
+                    import_source,
                 );
                 drop(body);
                 drop(parameters_obj);
@@ -522,7 +576,8 @@ impl Interp {
         namespace.check_current_arguments(self, arguments)?;
         let context = self.native_jim_object_context()?;
         namespace.check_current_arguments(self, arguments)?;
-        let original = arguments.bytes(1);
+        let original =
+            arguments.bytes_using(1, &|| namespace.check_current_arguments(self, arguments));
         namespace.check_current_arguments(self, arguments)?;
         let name = self
             .native_invocation_dialect()
@@ -1344,6 +1399,101 @@ impl Interp {
 mod tests {
     use super::super::obj_bytes;
     use super::*;
+
+    #[test]
+    fn original_import_source_refusal_follows_the_actual_definition_through_rename() {
+        for moved in [false, true] {
+            let mut interpreter = Interp::with_native_core(
+                crate::interp::default_host(),
+                crate::environment::profile_for_dialect("jimtcl"),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            if moved {
+                assert_eq!(
+                    interpreter.eval_str(b"rename {namespace import} retained_original_import"),
+                    Code::Ok
+                );
+            }
+            assert_eq!(
+                interpreter.eval_str(if moved {
+                    b"retained_original_import"
+                } else {
+                    b"{namespace import}"
+                }),
+                Code::Error
+            );
+            assert_eq!(
+                interpreter.native_access_refusal(),
+                Some(
+                    tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                        "original Jim Import traversal receipts",
+                    ),
+                )
+            );
+        }
+        let mut interpreter = Interp::with_native_core(
+            crate::interp::default_host(),
+            crate::environment::profile_for_dialect("jimtcl"),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap();
+        assert_eq!(
+            interpreter.eval_str(b"proc {namespace import} {args} {return USER}"),
+            Code::Ok
+        );
+        assert_eq!(interpreter.eval_str(b"{namespace import}"), Code::Ok);
+        assert_eq!(interpreter.result_bytes(), b"USER");
+    }
+
+    #[test]
+    fn installed_jim_helpers_retain_the_static_body_source_and_shared_filename() {
+        let interpreter = Interp::with_native_core(
+            crate::interp::default_host(),
+            crate::environment::profile_for_dialect("jimtcl"),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap();
+        let context = interpreter.native_jim_object_context().unwrap();
+        let mut filename = None;
+        for kind in tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind::ALL {
+            let helper = interpreter
+                .native_invocation_dialect()
+                .native_jim_namespace_helper(kind)
+                .unwrap();
+            let source = helper.static_extension_source();
+            let generation = interpreter
+                .namespaces()
+                .resolve_generation(GLOBAL, helper.name().as_bytes())
+                .unwrap();
+            let Some(Command::Proc(command)) = interpreter.raw_command_by_generation(generation)
+            else {
+                panic!("actual original helper procedure missing");
+            };
+            let declaration = command.declaration();
+            let original = declaration.body.checked_ptr().unwrap();
+            let ty = crate::obj::obj_type_ptr(original);
+            // SAFETY: the live original body owns its static Source descriptor.
+            let name = unsafe { std::ffi::CStr::from_ptr((*ty).name) }
+                .to_str()
+                .unwrap();
+            assert_eq!(name, "source");
+            assert!(crate::obj::has_string_rep(original));
+            // SAFETY: the checked original body still has its actual installed resource role.
+            assert_eq!(unsafe { (*original).ref_count }, 1);
+            assert_eq!(crate::obj::bytes_of(original), source.body().as_bytes());
+            let info = crate::native_source::pin_source_info(original, &context).unwrap();
+            assert_eq!(info.line, source.first_line());
+            assert_eq!(
+                crate::obj::bytes_of(info.filename.as_ptr()),
+                source.filename()
+            );
+            match filename {
+                None => filename = Some(info.filename.as_ptr()),
+                Some(original_filename) => assert_eq!(info.filename.as_ptr(), original_filename),
+            }
+        }
+    }
 
     fn invoke(interpreter: &mut Interp, words: &[&[u8]]) -> (Code, Vec<u8>) {
         let argv: Vec<_> = words

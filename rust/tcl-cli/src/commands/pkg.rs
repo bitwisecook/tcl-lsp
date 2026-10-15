@@ -34,7 +34,9 @@ use serde_json::{Map, Value, json};
 use tcl_pkg::cas::ContentAddressableStore;
 use tcl_pkg::installer;
 use tcl_pkg::lockfile::{LockFile, LockedPackage, SourceSpec, read_lockfile, write_lockfile};
-use tcl_pkg::manifest::load_manifest;
+use tcl_pkg::manifest::{
+    RequirementKind, append_manifest_requirement, load_manifest, original_manifest_requirements,
+};
 use tcl_pkg::registry::RegistryClient;
 use tcl_pkg::resolver::{ExcludeSpec, PackageRef, ReplaceSpec, ResolveInput, resolve};
 use tcl_pkg::ui;
@@ -937,17 +939,7 @@ fn run_add(
 ) -> anyhow::Result<u8> {
     let mpath = manifest_path(common);
     let colour = ui::use_colour_for_json(common.json);
-    if let Err(e) = load_manifest(&mpath) {
-        eprintln!("error: {e}");
-        return Ok(1);
-    }
     let min_ver = min_version.unwrap_or("0.0.1");
-    let directive = if dev { "dev-require" } else { "require" };
-    let mut new_line = format!("{directive} {package} {min_ver}");
-    if let Some(url) = source {
-        new_line.push_str(" -source ");
-        new_line.push_str(url);
-    }
     let text = match std::fs::read_to_string(&mpath) {
         Ok(t) => t,
         Err(e) => {
@@ -955,7 +947,19 @@ fn run_add(
             return Ok(1);
         }
     };
-    let new_text = format!("{}\n{new_line}\n", text.trim_end_matches('\n'));
+    let kind = if dev {
+        RequirementKind::Development
+    } else {
+        RequirementKind::Runtime
+    };
+    let new_text =
+        match append_manifest_requirement(&text, mpath.to_str(), package, min_ver, source, kind) {
+            Ok(edited) => edited,
+            Err(error) => {
+                eprintln!("error: {error}");
+                return Ok(1);
+            }
+        };
     if let Err(e) = std::fs::write(&mpath, new_text) {
         eprintln!("error: {e}");
         return Ok(1);
@@ -995,20 +999,18 @@ fn run_remove(package: &str, common: &PkgCommon) -> anyhow::Result<u8> {
             return Ok(1);
         }
     };
-    let mut count = 0;
-    let mut kept: Vec<String> = Vec::new();
-    for line in text.split_inclusive('\n') {
-        if line_is_requirement_for(line, package) {
-            count += 1;
-        } else {
-            kept.push(line.to_string());
+    let declarations = match original_manifest_requirements(&text, mpath.to_str()) {
+        Ok(declarations) => declarations,
+        Err(error) => {
+            eprintln!("error: {error}");
+            return Ok(1);
         }
-    }
-    if count == 0 {
+    };
+    let Some((new_text, count)) = declarations.remove(package) else {
         eprintln!("error: package '{package}' not found in manifest");
         return Ok(1);
-    }
-    if let Err(e) = std::fs::write(&mpath, kept.concat()) {
+    };
+    if let Err(e) = std::fs::write(&mpath, new_text) {
         eprintln!("error: {e}");
         return Ok(1);
     }
@@ -1031,33 +1033,6 @@ fn run_remove(package: &str, common: &PkgCommon) -> anyhow::Result<u8> {
         );
     }
     Ok(0)
-}
-
-/// Whether `line` is a `require`/`dev-require` directive for `package`
-/// (matches `^\s*(?:require|dev-require)\s+<pkg>\b.*$`).
-fn line_is_requirement_for(line: &str, package: &str) -> bool {
-    let trimmed = line.trim_start();
-    for prefix in ["require", "dev-require"] {
-        if let Some(rest) = trimmed.strip_prefix(prefix) {
-            let mut chars = rest.chars();
-            if let Some(c) = chars.next()
-                && c.is_whitespace()
-            {
-                let after = rest.trim_start();
-                if let Some(tail) = after.strip_prefix(package) {
-                    // Require a word boundary after the package name.
-                    if tail.chars().next().is_none_or(|c| !is_word_char(c)) {
-                        return true;
-                    }
-                }
-            }
-        }
-    }
-    false
-}
-
-fn is_word_char(c: char) -> bool {
-    c.is_alphanumeric() || c == '_'
 }
 
 fn run_update(packages: &[String], common: &PkgCommon) -> anyhow::Result<u8> {

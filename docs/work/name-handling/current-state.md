@@ -1,3 +1,44 @@
+# Current centralised naming work
+
+Development source `60500bb16` is pushed on `work`; the next reviewed tranche is being checkpointed. The isolated validation worktree remains frozen at `8df9a91699c0907ae3e0aefa1b10396feb967e8f`. Source acceptance always names that exact commit. Incoming `rust` was inspected through `d0a644c69` without merging; concurrent upstream changes still require integration.
+
+## Latest sealed ordinary result
+
+F built all14 ordinary test ELFs successfully with one Cargo job (exit0, errors[], tracked source drift{}). Its complete selected replay ran992 controls: **677 PASS,314 FAIL,1 TIMEOUT**. All967 first-batch controls remain; exact comparison gives10 gains, **1 prior-PASS regression**,0 drops. The25 added controls give15PASS/10FAIL. Every selected scope retains original budgets, exact single-test checks, nonempty filters, unchanged source/ELFs and no missing selectors. Original#2286 ran first and PASS71.317924863s under its unchanged180-second budget; the issue remains OPEN.
+
+| Scope | PASS | FAIL | TIMEOUT |
+| --- | ---: | ---: | ---: |
+| Compiler502 |295|206|1|
+| Core251 |169|82|0|
+| DB82 |70|12|0|
+| iRules20 |19|1|0|
+| MCP43 |33|10|0|
+| Server15 |12|3|0|
+| Registry15 |15|0|0|
+| Syntax7 / Source42 / Studio3 / SpecTcl1 / Lexer11 |64|0|0|
+
+The MCP regression is `irule_gen::tests::scaffold_deduplicates_events_and_sets_up_registry_classified_pools`; repair is assigned to LSP. All three predecessor iRules object reachability/tombstone/literal-candidate failures now pass. Four new Compiler collection controls fail; a separately captured original-ELF diagnostic identifies upfront source validation of three explicitly non-invocation markers as an additional refusal. The narrow shared-predicate correction is source reviewed but unexecuted. New Logical source/formal/frame positives and two original completion controls remain failing; no guard or assertion is relaxed.
+
+Exact F channels and comparison are in `handoff/validation-8df-batch-f.tar.gz`; live capture `/workspace/name-session/replay-f-*`, comparison `ordinary-f-comparison.json`. No result accepts later605 source. B/C/D/E build failures retain their independent channels and repairs.
+
+## Native execution and provider limits
+
+F Runtime engine lib+namespace-query preflight builds2ELFs successfully (136.923226s,source{},0tests); full Runtime174 remains unexecuted while an exact reviewed source rebind is prepared. The immutable VM133 original-plan rebind is reviewed and **running**, not sealed: `/workspace/name-session/vm-f-rebind` and `vm-f-replay133`. It preserves all historical source/provider/artifact/compiled-input guards and all133 original selector bodies/assertions/budgets. A running test count is not acceptance. Do not advance the frozen worktree or share its Cargo target until capture seals.
+
+Original C5 binary/library/init/tcltest pairings are verified at `f-provider-preflight.json`. The sole provisioned untracked validation `tmp` symlink points exactly to `/workspace/tcl-lsp/tmp`; unknown extra paths are not generally admitted. Latest execution-time upstream Jim check11:39:05UTC identifies5bac7c99ad65864c87da513e22e2f01703fa4e03, binary c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891. Original Source-provider capture01 seals211rows/7successful stages/27helper bodies, original namespace79/79 and unchanged89provider files. Static and raw helpers have four genuine body differences; byte offsets derived from original source are not physical runtime receipts.
+
+## Reviewed implementation awaiting current-source execution
+
+Next source integrates original manufacturer/factory/Registry-definer owners; original nested index and lexical header/return children; shared manifest declaration/append construction; actual Runtime nested getter holders and static Source bodies. Both Runtime and VM attach original Import provenance before publication and fail closed at the actual owned procedure entry until authentic finite traversal receipts exist. Rename retains that provenance; user replacements and copied source do not acquire it. This is an explicit unfinished positive path, not an implemented safe Import traversal. Compiler factory argument/layout joins, general Logical rename admission, source-only conditional body inventories, helper source-publication proposals, taint read ownership, UCS fidelity, every remaining host/backend/editor/generated consumer and all unexamined rows remain work.
+
+The requested simplified private architecture/API Page is complete, including six diagrams, dialect, SSA/SCCP and array/dictionary/type explanations. The private link is not published in repository documentation. Studio web123/123 and TypeScript checks concern their captured earlier source; later Rust/DSL/generated changes need fresh drift validation. Independent audit now retains449 exact issue records (97OPEN/352CLOSED),329 explicit prior state rows with no drift and13 additional closed naming omissions; unclassified search hits remain unfinished. No issue was closed. F5 pending questions and unreached execution contexts remain unaccepted.
+
+Formatter88, integration55/15, full Native/host suites, normal owner/proof CLI, generated drift, `make rust-check` and `make prep-pr` are not green or remain unrun. Development pushes are authorised; no PR or merge is justified. Root owns Git/shared tracking/build leases.
+
+---
+
+The following sections retain historical source/capture bounds; the snapshot above takes precedence for current activity.
+
 # Current name-handling state
 
 ## Active implementation

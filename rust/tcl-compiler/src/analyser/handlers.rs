@@ -637,11 +637,11 @@ fn literal_list_words(text: &str, tok: Token) -> Option<Vec<(String, Token)>> {
 }
 
 /// One piece of a manufacturer prologue word, as
-/// [`Analyser::manufacturer_injected_members`] accounts for it.
+/// [`Analyser::manufacturer_injected_template`] accounts for it.
 #[derive(Debug, PartialEq, Eq)]
 enum ProloguePiece<'a> {
     /// A `[…]` command substitution — one prologue member to read.
-    Substitution,
+    Substitution(Token),
     /// A `$name` / `${name}` variable read.
     VarRead(&'a str),
     /// Whitespace, a statement separator, or an escaped separator — text
@@ -653,98 +653,52 @@ enum ProloguePiece<'a> {
     Opaque,
 }
 
-/// Split a manufacturer prologue word into the pieces its reader must
-/// account for.
-///
-/// Operates on the word's round-tripped source text (the segmenter's own
-/// per-word reconstruction), which preserves every substitution verbatim.
-/// A single `Opaque` piece is enough for the caller to abstain, so the scan
-/// stops at the first one.
-fn prologue_pieces(word: &str, braced_var: tcl_dialect::BracedVarStyle) -> Vec<ProloguePiece<'_>> {
+/// Read original executable components without treating literal text as a
+/// substituted parameter. Unsupported components withdraw the whole template.
+fn prologue_pieces(original: &tcl_lexer::NativeWord) -> Vec<ProloguePiece<'_>> {
+    let arena = original.executable_parts();
+    let source_map = tcl_lexer::SourceMap::from_image(original.image());
     let mut pieces = Vec::new();
-    let mut rest = word;
-    while !rest.is_empty() {
-        let first = rest.as_bytes()[0];
-        if first.is_ascii_whitespace() || first == b';' {
-            rest = &rest[1..];
-            if !matches!(pieces.last(), Some(ProloguePiece::Separator)) {
-                pieces.push(ProloguePiece::Separator);
-            }
-            continue;
-        }
-        // A backslash escape of a separator (`\;` — the idiomatic way to
-        // end the injected statement inside one word) joins, like the
-        // separator it escapes.
-        if first == b'\\' {
-            let escaped = rest.as_bytes().get(1).copied();
-            if escaped.is_some_and(|c| c.is_ascii_whitespace() || c == b';' || c == b'n') {
-                rest = &rest[2..];
-                if !matches!(pieces.last(), Some(ProloguePiece::Separator)) {
-                    pieces.push(ProloguePiece::Separator);
+    for part in arena.list(arena.root()) {
+        let piece = match part.part {
+            tcl_lexer::ExecutablePart::Text(_) => {
+                if arena.text(part).is_some_and(|text| {
+                    text.iter()
+                        .all(|byte| byte.is_ascii_whitespace() || *byte == b';')
+                }) {
+                    ProloguePiece::Separator
+                } else {
+                    ProloguePiece::Opaque
                 }
-                continue;
             }
-            pieces.push(ProloguePiece::Opaque);
+            tcl_lexer::ExecutablePart::Variable { name, index: None } => arena
+                .bytes(name)
+                .and_then(|bytes| std::str::from_utf8(bytes).ok())
+                .map_or(ProloguePiece::Opaque, ProloguePiece::VarRead),
+            tcl_lexer::ExecutablePart::Command { body } => {
+                let mut groups = original.tokens().iter().filter(|token| {
+                    token.kind == TokenType::Cmd
+                        && token.span.start() == part.span.start()
+                        && Some(source_map.token_text(**token).as_bytes()) == arena.bytes(body)
+                });
+                match (groups.next(), groups.next()) {
+                    (Some(group), None) => ProloguePiece::Substitution(*group),
+                    _ => ProloguePiece::Opaque,
+                }
+            }
+            tcl_lexer::ExecutablePart::Variable { index: Some(_), .. }
+            | tcl_lexer::ExecutablePart::Expression { .. }
+            | tcl_lexer::ExecutablePart::ParseError(_) => ProloguePiece::Opaque,
+        };
+        let opaque = piece == ProloguePiece::Opaque;
+        if piece != ProloguePiece::Separator || pieces.last() != Some(&piece) {
+            pieces.push(piece);
+        }
+        if opaque {
             break;
         }
-        if first == b'[' {
-            let Some(end) = matching_bracket(rest) else {
-                pieces.push(ProloguePiece::Opaque);
-                break;
-            };
-            pieces.push(ProloguePiece::Substitution);
-            rest = &rest[end + 1..];
-            continue;
-        }
-        if first == b'$' {
-            let after = &rest[1..];
-            if let Some(braced) = after.strip_prefix('{') {
-                // The `${…}` closer comes from the shared owner under this
-                // document's release rule.
-                let tcl_lexer::BracedVarEnd::Closed(close) =
-                    tcl_lexer::braced_var_name_end(braced.as_bytes(), 0, braced_var)
-                else {
-                    pieces.push(ProloguePiece::Opaque);
-                    break;
-                };
-                pieces.push(ProloguePiece::VarRead(&braced[..close]));
-                rest = &braced[close + 1..];
-                continue;
-            }
-            let len = after
-                .find(|c: char| !(c.is_alphanumeric() || c == '_' || c == ':'))
-                .unwrap_or(after.len());
-            if len == 0 {
-                pieces.push(ProloguePiece::Opaque);
-                break;
-            }
-            pieces.push(ProloguePiece::VarRead(&after[..len]));
-            rest = &after[len..];
-            continue;
-        }
-        pieces.push(ProloguePiece::Opaque);
-        break;
     }
     pieces
-}
-
-/// Byte offset of the `]` closing the `[` at the start of `text`, honouring
-/// nesting.  `None` when it is unbalanced.
-fn matching_bracket(text: &str) -> Option<usize> {
-    let mut depth = 0usize;
-    for (offset, ch) in text.char_indices() {
-        match ch {
-            '[' => depth += 1,
-            ']' => {
-                depth -= 1;
-                if depth == 0 {
-                    return Some(offset);
-                }
-            }
-            _ => {}
-        }
-    }
-    None
 }
 
 /// Read one prologue member statement from a manufacturer override into the
@@ -7852,13 +7806,8 @@ impl Analyser {
         &self,
         deferred: &super::types::DeferredClassCreation,
     ) -> Option<(String, ClassDef)> {
-        let resolved = self.resolve_class_creation(
-            &deferred.cmd_name,
-            &deferred.args,
-            &deferred.arg_tokens,
-            &deferred.scope_path,
-            deferred.cmd_tok,
-        )?;
+        let resolved =
+            self.resolve_class_creation(&deferred.args, &deferred.arg_tokens, deferred.cmd_tok)?;
         let raw_name = deferred.args.get(resolved.layout.name_arg)?;
         let namespace = self.command_resolution_namespace(&deferred.scope_path);
         let qualified = qualify(&namespace, raw_name);
@@ -8084,7 +8033,9 @@ impl Analyser {
         }
         let (namespace, _) = crate::naming::key_holder_and_tail(caller);
         let candidates = crate::naming::bareword_resolution_candidates(namespace, seg.name());
-        let Some(factory) = self.class_factory_for_candidates(&candidates, seg.arg_tokens()) else {
+        let Some(factory) =
+            self.static_summary_factory_for_candidates(&candidates, seg.arg_tokens())
+        else {
             return false;
         };
         let Some(method) = seg.args().first() else {
@@ -10057,31 +10008,33 @@ impl Analyser {
         // the override's parameters — the builtin `create Name Body`
         // layout's `Body` position, which is what the prologue is composed
         // into.
-        let (word_index, prologue) =
-            next_seg.args().iter().enumerate().rev().find(|(_, word)| {
-                crate::var_refs::scan_var_ref_forms_with_config(word, self.lexer_config())
+        let image = tcl_lexer::SourceImage::document(&self.source);
+        let config = self.file_lexer_config();
+        let tokens = crate::ir::CommandTokens::from_segmented(
+            &tcl_lexer::SourceMap::from_image(&image),
+            config,
+            &next_seg,
+        );
+        let original = crate::registry_invocation::original_native_compiler_words(
+            &image,
+            tokens.words(),
+            tokens.argv.first()?.start(),
+            config,
+        )?;
+        let prologue = original.iter().skip(1).rev().find(|word| {
+            word.try_text().ok().is_some_and(|text| {
+                crate::var_refs::scan_var_ref_forms_with_config(text, config)
                     .iter()
                     .any(|name| params.contains(&name.as_str()))
-            })?;
-        // `Cmd` sub-tokens of that word, in source order — the word is
-        // `next`'s last argument, so every command substitution at or after
-        // its first token belongs to it.
-        let word_start = next_seg.argv.get(word_index + 1)?.span.start();
-        let mut groups = next_seg
-            .all_tokens
-            .iter()
-            .filter(|tok| tok.kind == TokenType::Cmd && tok.span.start() >= word_start);
+            })
+        })?;
         let mut injected: Vec<FactoryMember> = Vec::new();
-        for piece in prologue_pieces(prologue, self.braced_var()) {
+        for piece in prologue_pieces(prologue) {
             match piece {
                 ProloguePiece::Separator => {}
                 ProloguePiece::VarRead(name) if params.contains(&name) => {}
-                ProloguePiece::Substitution => {
-                    injected.push(self.injected_member_from_group(
-                        meta,
-                        *groups.next()?,
-                        &params,
-                    )?);
+                ProloguePiece::Substitution(group) => {
+                    injected.push(self.injected_member_from_group(meta, group, &params)?);
                 }
                 // Literal prologue text, a read of something that is not a
                 // manufacturer parameter, or an unreadable fragment: the
@@ -10132,76 +10085,82 @@ impl Analyser {
         template_injected_member(&seg, params, self.lexer_config())
     }
 
-    /// The [`ClassFactory`] the command `cmd_name` names, when that command
-    /// is a user-defined `TclOO` metaclass — this file's own, else one the
-    /// **workspace factory index** proves is written in another document.
-    ///
-    /// The cross-document tier is what makes the multi-file case work:
-    /// `::tk::Megawidget create IconList FocusableWidget {…}` in a file that
-    /// never mentions `::tk::Megawidget`'s definition is, on shape alone,
-    /// indistinguishable from `interp create` or `image create`, so the walk
-    /// records nothing without the index.  With it, the call is classified from
-    /// the metaclass's *own* declaration — its `create` override's parameter
-    /// list and prologue — exactly as the same-file case is.
-    ///
-    /// The abstention it narrows is **kept everywhere it was earned**:
-    ///
-    /// * a dynamic command word (`$meta create …`) names nothing statically
-    ///   and is rejected before any lookup;
-    /// * the name is resolved through Tcl's real current-namespace-then-global
-    ///   candidate order ([`crate::naming::bareword_resolution_candidates`]),
-    ///   and only an **exact** candidate hit counts — a same-tailed metaclass
-    ///   in an unrelated namespace never manufactures a class here, the same
-    ///   discipline [`super::class_hierarchy::resolve_class_name`] applies
-    ///   same-file;
-    /// * with no index entry, nothing is recorded and nothing is diagnosed.
-    ///
-    /// A cross-document factory's injected literals carry tokens that index
-    /// the *metaclass's* document, so they are re-homed onto a token of this
-    /// call ([`ClassFactory::resolve_in_other_document`]) — and an injection
-    /// whose member word actually reads those tokens (a `retraction` member,
-    /// registry data) collapses to "inheritance unknown" rather than being
-    /// applied against a substituted span.
+    /// Readonly factory metadata for the original source-selected class.
+    /// Foreign headers require the source graph's separate occupancy facet;
+    /// neither tier proves that a custom manufacturer executes or completes.
     fn class_factory_for_command(
         &self,
-        cmd_name: &str,
         arg_tokens: &[Token],
-        scope_path: &[usize],
         call_off: u32,
     ) -> Option<ClassFactory> {
-        if crate::naming::is_dynamic_word(cmd_name) {
+        use crate::command_binding::SourceCommandTransitionObligation;
+        if let Some(call) = crate::registry_invocation::source_structure::source_constructor_call_at(
+            &self.source,
+            &self.result,
+            call_off,
+        ) {
+            if call
+                .obligations()
+                .contains(&SourceCommandTransitionObligation::UnknownEarlierMutation)
+                || call.arguments().len() != arg_tokens.len()
+                || (0..arg_tokens.len()).any(|index| call.written_argument(index) != Some(index))
+                || call.original_words().len() != arg_tokens.len() + 1
+                || !call
+                    .original_words()
+                    .iter()
+                    .skip(1)
+                    .zip(arg_tokens)
+                    .all(|(word, token)| word.tokens().first() == Some(token))
+            {
+                return None;
+            }
+            let declaration = call.class_declaration();
+            let class = if self.result.allows_retained_logical_declaration_advice() {
+                declaration.logical_source_class(&self.result)?
+            } else {
+                declaration.source_class(&self.result)?.metadata()
+            };
+            return class.factory.clone();
+        }
+        let request =
+            crate::registry_invocation::source_structure::source_logical_command_candidates_at(
+                &self.source,
+                &self.result,
+                call_off,
+            )?;
+        if request.has_earlier_unknown_mutations()
+            || request.has_lookup_operand_effects()
+            || request.argument_count() != Some(arg_tokens.len())
+            || !request
+                .original_words()
+                .iter()
+                .skip(1)
+                .zip(arg_tokens)
+                .all(|(word, token)| word.tokens().first() == Some(token))
+        {
             return None;
         }
-        let namespace = self.command_resolution_namespace(scope_path);
-        let candidates = crate::naming::bareword_resolution_candidates(&namespace, cmd_name);
-        if let Some(factory) = self.class_factory_for_candidates(&candidates, arg_tokens) {
-            return Some(factory);
-        }
-        // A `rename`d metaclass command: the factory record is
-        // keyed on the name the metaclass was *created* with, never the name
-        // a later call spells, so `rename ::R::M ::R::Mk` then `::R::Mk
-        // create …` must resolve `::R::Mk` back to `::R::M` before the
-        // lookup above can ever hit — through the very same `rename` /
-        // `interp alias` chain-walk the W307/W308 method check and the
-        // LSP's navigation providers already use, so this can never
-        // recognise a rename those do not (or vice versa).
-        let renamed = candidates.iter().find_map(|candidate| {
-            super::indirection::walk(&self.result, candidate, call_off, &|n| {
-                crate::naming::normalise_qualified_name(n)
-            })
-        })?;
-        // The retained terminal report is a comparison key, never new source
-        // input. Unaddressable authored slots need an original positioned
-        // receipt instead of this String-only factory inventory.
-        renamed.lookup_spelling()?;
-        self.class_factory_for_candidates(&[renamed.target], arg_tokens)
+        let input = self.result.resolved_input.as_ref()?;
+        let policy = tcl_registry::InvocationDialect::of_profile(input.unit_profile())
+            .authored_name_policy()?;
+        let index = self.workspace_class_factories.as_ref()?;
+        let foreign = request
+            .external_header_coordinates()?
+            .iter()
+            .find_map(|coordinate| {
+                // Project an existing slot outward to the legacy index only
+                // when the shared recipe preserves every component boundary.
+                let key = tcl_syntax::naming::native_command_source_spelling(
+                    policy.recipe(),
+                    coordinate,
+                )?;
+                index.get(&key)
+            })?;
+        self.foreign_factory_at_call(foreign, arg_tokens)
     }
 
-    /// The local-then-workspace factory lookup [`Self::class_factory_for_command`]
-    /// runs once for the command's own resolution candidates and once more
-    /// for its rename target's, factored out so the two
-    /// attempts can never drift apart.
-    fn class_factory_for_candidates(
+    /// Factory metadata used by static-body result summaries.
+    fn static_summary_factory_for_candidates(
         &self,
         candidates: &[String],
         arg_tokens: &[Token],
@@ -10218,6 +10177,14 @@ impl Analyser {
         let foreign = candidates
             .iter()
             .find_map(|candidate| index.get(candidate))?;
+        self.foreign_factory_at_call(foreign, arg_tokens)
+    }
+
+    fn foreign_factory_at_call(
+        &self,
+        foreign: &ClassFactory,
+        arg_tokens: &[Token],
+    ) -> Option<ClassFactory> {
         // Tokens in the foreign factory index the metaclass's document. The
         // creation call's own subcommand word (`create`) is the nearest real
         // token in *this* document that the injected member genuinely came
@@ -10359,34 +10326,37 @@ impl Analyser {
     /// here, so the main recorder only handles the resulting structural data.
     fn resolve_class_creation(
         &self,
-        cmd_name: &str,
         args: &[String],
         arg_tokens: &[Token],
-        scope_path: &[usize],
         cmd_tok: Token,
     ) -> Option<ResolvedClassCreation> {
         if args.is_empty() || arg_tokens.is_empty() {
             return None;
         }
         let context = self.analysis_context();
-        let registry_definer = context
-            .context()
-            .resolve_spec(context.commands(), cmd_name)
-            .filter(|spec| spec.traits.contains(tcl_registry::Traits::IS_OO_METACLASS))
-            .filter(|spec| {
-                spec.definition_body.is_some_and(|grammar| {
+        let original_definer = super::original_definer::OriginalClassDefinerSource::capture(
+            &self.source,
+            &self.result,
+            cmd_tok.span.start(),
+        );
+        let registry_definer = if let Some(original) = &original_definer {
+            original.matches_arguments(args, arg_tokens).then_some(())?;
+            let descriptor = original.registry_descriptor(&context)?;
+            (descriptor
+                .traits
+                .contains(tcl_registry::Traits::IS_OO_METACLASS)
+                && descriptor.definition_body.is_some_and(|grammar| {
                     grammar.family == tcl_registry::definer::DefinerFamily::TclOo
-                })
-            });
+                }))
+            .then_some(())?;
+            Some(descriptor)
+        } else {
+            None
+        };
         let user_factory = if registry_definer.is_some() {
             None
         } else {
-            Some(self.class_factory_for_command(
-                cmd_name,
-                arg_tokens,
-                scope_path,
-                cmd_tok.span.start(),
-            )?)
+            Some(self.class_factory_for_command(arg_tokens, cmd_tok.span.start())?)
         };
         let manufacturer = match user_factory.as_ref() {
             None => tcl_registry::CommandRegistry::manufacturer_method_for_descriptor(
@@ -10462,7 +10432,7 @@ impl Analyser {
             user_factory,
             registry_metaclass,
             layout,
-        }) = self.resolve_class_creation(cmd_name, args, arg_tokens, scope_path, cmd_tok)
+        }) = self.resolve_class_creation(args, arg_tokens, cmd_tok)
         else {
             // Anonymous class manufacturers have no source-level class name
             // to put in `all_classes`; ordinary instance manufacturers have
@@ -11996,6 +11966,155 @@ mod tests {
 
     fn dynamic_command_name_may_equal(word: &str, candidate: &str) -> bool {
         command_name_pattern_with_closer(word, candidate, tcl_lexer::BracedVarStyle::FirstClose)
+    }
+
+    #[test]
+    fn original_registry_class_definers_require_the_selected_source_and_complete_arguments() {
+        for (source, expected) in [
+            ("oo::class create Made {}", true),
+            ("proc oo::class args {}; oo::class create Made {}", false),
+        ] {
+            let mut analyser = Analyser::new();
+            analyser.analyse_and_retain_result_for_test(source, "tcl");
+            analyser.registry = Some(analyser.profile_registry());
+            let segment = crate::segmenter::segment_commands_with_offset_and_config(
+                source,
+                0,
+                analyser.file_lexer_config(),
+            )
+            .pop()
+            .unwrap();
+            assert_eq!(
+                analyser
+                    .resolve_class_creation(segment.args(), segment.arg_tokens(), segment.argv[0])
+                    .is_some_and(|creation| creation.registry_metaclass.is_some()),
+                expected,
+                "{source}",
+            );
+            if expected {
+                let mut changed = segment.args().to_vec();
+                changed[0] = "new".to_owned();
+                assert!(
+                    analyser
+                        .resolve_class_creation(&changed, segment.arg_tokens(), segment.argv[0])
+                        .is_none()
+                );
+                analyser.source.push(' ');
+                assert!(
+                    analyser
+                        .resolve_class_creation(
+                            segment.args(),
+                            segment.arg_tokens(),
+                            segment.argv[0]
+                        )
+                        .is_none()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn original_factory_headers_require_the_actual_graph_occupancy_and_arguments() {
+        for (source, key, expected) in [
+            ("External create Made {}", "::External", true),
+            ("puts create Made {}", "::puts", false),
+            (
+                "proc External args {}; External create Made {}",
+                "::External",
+                false,
+            ),
+            (
+                "interp alias {} External {} puts; External create Made {}",
+                "::External",
+                false,
+            ),
+            (
+                "unknown_effect; External create Made {}",
+                "::External",
+                false,
+            ),
+            ("External create [set name] {}", "::External", false),
+        ] {
+            let mut analyser = Analyser::new();
+            analyser.analyse_and_retain_result_for_test(source, "tcl");
+            analyser.registry = Some(analyser.profile_registry());
+            analyser.workspace_class_factories = Some(std::sync::Arc::new(
+                [(
+                    key.to_owned(),
+                    ClassFactory {
+                        root_metaclass: "::oo::class".to_owned(),
+                        ..ClassFactory::default()
+                    },
+                )]
+                .into_iter()
+                .collect(),
+            ));
+            let segment = crate::segmenter::segment_commands_with_offset_and_config(
+                source,
+                0,
+                analyser.file_lexer_config(),
+            )
+            .pop()
+            .unwrap();
+            assert_eq!(
+                analyser
+                    .class_factory_for_command(segment.arg_tokens(), segment.argv[0].span.start())
+                    .is_some(),
+                expected,
+                "{source}",
+            );
+            if expected {
+                let mut changed = segment.arg_tokens().to_vec();
+                changed.swap(0, 1);
+                assert!(
+                    analyser
+                        .class_factory_for_command(&changed, segment.argv[0].span.start())
+                        .is_none()
+                );
+                analyser.source.push(' ');
+                assert!(
+                    analyser
+                        .class_factory_for_command(
+                            segment.arg_tokens(),
+                            segment.argv[0].span.start()
+                        )
+                        .is_none()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn manufacturer_prologue_components_keep_original_reference_and_group_geometry() {
+        for (source, expected) in [
+            ("next $a:b", vec!["a", "opaque"]),
+            ("next ${a:b}", vec!["a:b"]),
+            ("next {$body}", vec!["opaque"]),
+            (
+                "next \"[list superclass {a]b}]\\;$body\"",
+                vec!["group", "separator", "body"],
+            ),
+        ] {
+            let image = tcl_lexer::SourceImage::document(source);
+            let config = tcl_lexer::LexerConfig::default();
+            let plan = tcl_lexer::native_script_words_in(
+                image,
+                Span::new(0, u32::try_from(source.len()).unwrap()),
+                config,
+            )
+            .unwrap();
+            let observed = prologue_pieces(&plan.commands[0].words[1]);
+            let labels = observed
+                .iter()
+                .map(|piece| match piece {
+                    ProloguePiece::VarRead(name) => *name,
+                    ProloguePiece::Separator => "separator",
+                    ProloguePiece::Substitution(_) => "group",
+                    ProloguePiece::Opaque => "opaque",
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(labels, expected, "{source}");
+        }
     }
 
     #[test]

@@ -4740,6 +4740,27 @@ impl Interp {
         native: Option<NativeProcEntry>,
         statics: Option<Rc<crate::frame::StaticVariables>>,
     ) -> Option<OriginalProcedurePublication> {
+        self.install_proc_original_storage_publication_using(
+            name,
+            params,
+            parameters_obj,
+            body_obj,
+            native,
+            statics,
+            None,
+        )
+    }
+
+    fn install_proc_original_storage_publication_using(
+        &mut self,
+        name: &[u8],
+        params: Vec<Param>,
+        parameters_obj: Option<*mut TclObj>,
+        body_obj: *mut TclObj,
+        native: Option<NativeProcEntry>,
+        statics: Option<Rc<crate::frame::StaticVariables>>,
+        import_source: Option<native_procedure_resources::OriginalJimImportSource>,
+    ) -> Option<OriginalProcedurePublication> {
         let scope = match native_operation_currency::NativeOperationScope::enter(self) {
             Ok(scope) => scope,
             Err(first) => {
@@ -4754,6 +4775,7 @@ impl Interp {
             body_obj,
             native,
             statics,
+            import_source,
         );
         if let Err(first) = scope.currency().ensure_current_or_refuse() {
             self.refuse_native_execution(first);
@@ -4778,6 +4800,7 @@ impl Interp {
         body_obj: *mut TclObj,
         native: Option<NativeProcEntry>,
         statics: Option<Rc<crate::frame::StaticVariables>>,
+        import_source: Option<native_procedure_resources::OriginalJimImportSource>,
     ) -> Option<OriginalProcedurePublication> {
         if self.host_refusal_pending() {
             return None;
@@ -4793,7 +4816,7 @@ impl Interp {
             name,
             params,
             parameters_obj,
-            (body_obj, chosen),
+            (body_obj, chosen, import_source),
             native,
             statics,
         )
@@ -4813,7 +4836,7 @@ impl Interp {
             name,
             params,
             parameters_obj,
-            body,
+            (body.0, body.1, None),
             native,
             statics,
         )
@@ -4825,7 +4848,11 @@ impl Interp {
         name: &[u8],
         params: Vec<Param>,
         parameters_obj: Option<*mut TclObj>,
-        body: (*mut TclObj, obj::Owned),
+        body: (
+            *mut TclObj,
+            obj::Owned,
+            Option<native_procedure_resources::OriginalJimImportSource>,
+        ),
         native: Option<NativeProcEntry>,
         statics: Option<Rc<crate::frame::StaticVariables>>,
     ) -> Option<OriginalProcedurePublication> {
@@ -4864,7 +4891,11 @@ impl Interp {
         name: &[u8],
         params: Vec<Param>,
         parameters_obj: Option<*mut TclObj>,
-        body: (*mut TclObj, obj::Owned),
+        body: (
+            *mut TclObj,
+            obj::Owned,
+            Option<native_procedure_resources::OriginalJimImportSource>,
+        ),
         native: Option<NativeProcEntry>,
         statics: Option<Rc<crate::frame::StaticVariables>>,
     ) -> Option<OriginalProcedurePublication> {
@@ -4904,7 +4935,7 @@ impl Interp {
             name,
             params,
             parameters_obj,
-            body,
+            (body.0, body.1, None),
             native,
             statics,
         )
@@ -4916,7 +4947,11 @@ impl Interp {
         name: (&[u8], Option<Rc<obj::Owned>>),
         params: Vec<Param>,
         parameters_obj: Option<*mut TclObj>,
-        body: (*mut TclObj, obj::Owned),
+        body: (
+            *mut TclObj,
+            obj::Owned,
+            Option<native_procedure_resources::OriginalJimImportSource>,
+        ),
         native: Option<NativeProcEntry>,
         statics: Option<Rc<crate::frame::StaticVariables>>,
     ) -> Option<OriginalProcedurePublication> {
@@ -4957,7 +4992,11 @@ impl Interp {
         name: (&[u8], Option<Rc<obj::Owned>>),
         params: Vec<Param>,
         parameters_obj: Option<*mut TclObj>,
-        body: (*mut TclObj, obj::Owned),
+        body: (
+            *mut TclObj,
+            obj::Owned,
+            Option<native_procedure_resources::OriginalJimImportSource>,
+        ),
         native: Option<NativeProcEntry>,
         statics: Option<Rc<crate::frame::StaticVariables>>,
     ) -> Option<OriginalProcedurePublication> {
@@ -4967,7 +5006,7 @@ impl Interp {
         if self.host_refusal_pending() {
             return None;
         }
-        let (original_body, body) = body;
+        let (original_body, body, import_source) = body;
         if self.native_invocation_dialect().native_string_protocol()
             == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
         {
@@ -5046,6 +5085,13 @@ impl Interp {
             },
         );
         let def = command.declaration();
+        if let Some(import_source) = import_source {
+            if let Err(error) = def.retain_original_jim_import_source(import_source) {
+                self.report_cmd_error(error.into());
+                return None;
+            }
+        }
+
         let original_binding = command.observe_original_binding();
         let report = self.namespaces().jim_command_table_key_at(
             self.current_ns.get(),
@@ -17375,6 +17421,11 @@ impl Interp {
         usage_called: &[u8],
         mut meta: CallMeta,
     ) -> Code {
+        if let Some(procedure) = meta.c_procedure {
+            if let Err(error) = procedure.require_original_jim_import_traversal(self) {
+                return self.report_cmd_error(error.into());
+            }
+        }
         let issuer_dispatch = self.native_dispatch_depth.get();
         let original_artifact = if let Some(procedure) = meta.c_procedure {
             let original = match procedure

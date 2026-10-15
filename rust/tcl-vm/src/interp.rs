@@ -17590,6 +17590,26 @@ impl Vm {
             })
     }
 
+    pub(crate) fn require_original_jim_import_traversal(
+        &mut self,
+        proc: &ProcDef,
+    ) -> Result<(), TclError> {
+        if proc.requires_original_jim_import_traversal() {
+            let reason = if proc.native_reference_count() == 0 {
+                "native procedure declaration has retired"
+            } else {
+                "original Jim namespace import traversal receipt is unavailable"
+            };
+            let _ = self.refuse_host_command(reason.into());
+            return Err(TclError::from_execution_failure(
+                self.execution_refusal
+                    .clone()
+                    .expect("Import traversal refusal retained"),
+            ));
+        }
+        Ok(())
+    }
+
     pub(crate) fn ensure_proc_traced(
         &mut self,
         command: crate::command::NativeProcedureCommand,
@@ -17614,6 +17634,7 @@ impl Vm {
                     .expect("procedure retirement refusal retained"),
             ));
         }
+        self.require_original_jim_import_traversal(&proc)?;
         let body = if !protocol.retains_prepared_body() {
             self.prepare_native_jim_script_unit(
                 &proc.body_src,
@@ -17719,6 +17740,7 @@ impl Vm {
         .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
             "native procedure activation issuer",
         ))?;
+        self.require_original_jim_import_traversal(&proc)?;
         if protocol.retains_prepared_body()
             && self.current_native_procedure_body(&proc).is_none()
             && protocol.recompilation_action(
@@ -23203,8 +23225,17 @@ impl Vm {
 
     pub(crate) fn define_proc_binding_with_jim_key(
         &mut self,
+        proc: ProcDef,
+        table_key: Option<jim_table_keys::OriginalJimCommandKey>,
+    ) -> (crate::command::NativeProcedureCommand, String) {
+        self.define_proc_binding_with_jim_key_and_namespace_helper(proc, table_key, None)
+    }
+
+    fn define_proc_binding_with_jim_key_and_namespace_helper(
+        &mut self,
         mut proc: ProcDef,
         table_key: Option<jim_table_keys::OriginalJimCommandKey>,
+        helper: Option<tcl_registry::native_jim_lookup::NativeJimNamespaceHelper>,
     ) -> (crate::command::NativeProcedureCommand, String) {
         if self.uses_native_jim_lookup() && proc.native_jim_namespace.is_none() {
             if let Some(token) = proc.execution_namespace.context().resolved_token() {
@@ -23215,7 +23246,8 @@ impl Vm {
             namespace: proc.command_ns_id,
             simple: proc.simple_name.clone(),
         };
-        let binding = crate::command::NativeProcedureCommand::new(proc);
+        let binding =
+            crate::command::NativeProcedureCommand::new_with_namespace_helper(proc, helper);
         let publication = self.register_command_in_slot_with_jim_key(
             slot,
             Command::Proc(binding.clone()),
@@ -23232,10 +23264,24 @@ impl Vm {
         parameter_source: &str,
         source: &str,
     ) -> Option<(String, NativeRegisteredCommandToken)> {
+        self.register_selected_bootstrap_procedure(name, parameter_source, source, None)
+    }
+
+    fn register_selected_bootstrap_procedure(
+        &mut self,
+        name: &str,
+        parameter_source: &str,
+        source: &str,
+        helper: Option<tcl_registry::native_jim_lookup::NativeJimNamespaceHelper>,
+    ) -> Option<(String, NativeRegisteredCommandToken)> {
         // Library declarations belong to the retained native root namespace.
         self.push_ns_token(NameBytes::default(), ROOT_NS);
-        let installed =
-            self.register_bootstrap_procedure_in_current_namespace(name, parameter_source, source);
+        let installed = self.register_bootstrap_procedure_in_current_namespace(
+            name,
+            parameter_source,
+            source,
+            helper,
+        );
         self.pop_ns();
         installed
     }
@@ -23245,6 +23291,7 @@ impl Vm {
         name: &str,
         parameter_source: &str,
         source: &str,
+        helper: Option<tcl_registry::native_jim_lookup::NativeJimNamespaceHelper>,
     ) -> Option<(String, NativeRegisteredCommandToken)> {
         let _scope = native_operation_currency::NativeOperationScope::enter(self).ok()?;
         let grammar = self.native_invocation_dialect().parameter_grammar()?;
@@ -23263,7 +23310,7 @@ impl Vm {
                 tcl_syntax::naming::NativeNamePurpose::CommandPublication,
             )
             .ok()?;
-        self.define_proc_binding_with_jim_key(
+        self.define_proc_binding_with_jim_key_and_namespace_helper(
             ProcDef {
                 native_resources: Rc::default(),
                 name: registered.clone(),
@@ -23293,6 +23340,7 @@ impl Vm {
                 call_identity: None,
             },
             table_key,
+            helper,
         );
         let token = NativeRegisteredCommandToken {
             owner: self.owner_nonce,
@@ -23362,10 +23410,11 @@ impl Vm {
         }
         let mut installed = Vec::new();
         for procedure in procedures {
-            if let Some(binding) = self.register_bootstrap_procedure(
+            if let Some(binding) = self.register_selected_bootstrap_procedure(
                 procedure.command,
                 procedure.parameters,
                 procedure.body,
+                procedure.namespace_helper,
             ) {
                 installed.push(binding);
             }

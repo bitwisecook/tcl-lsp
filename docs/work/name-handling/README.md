@@ -1,6 +1,6 @@
 # Centralised name handling on work
 
-Current continuation: published `551f3b2c1`; fresh complete ordinary build succeeds, original #2286 first PASS68.978s/180s and both readonly Authored controls PASS. Full replays are running, unsealed, while the reviewed second batch awaits Rust validation. Read [current-state.md](current-state.md) before the historical capture descriptions below.
+Current continuation: pushed `60500bb16`; frozen8df ordinary992 seals677PASS/314FAIL/1TIMEOUT, all967 predecessors retained with10gains/1MCP regression/0drops. Runtime preflight builds2ELFs with0tests; full Runtime174 is unexecuted and VM133 is running unsealed. The current [snapshot](current-state.md) overrides historical capture descriptions below.
 
 Complete one coherent set of name representations, lookup policies and
 purpose-specific queries across the entire codebase. The starting report is

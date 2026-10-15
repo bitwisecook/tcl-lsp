@@ -1,0 +1,1034 @@
+{
+  "STATIC": [
+    {
+      "ordinal": 0,
+      "name": "namespace delete",
+      "present": true,
+      "command_flags": 1,
+      "formals": {
+        "path": "static/0-formals.bin",
+        "bytes": 4,
+        "sha256": "090772cf4068973daad3f715eb788d39fe2c02be42efd86de81f0e59198d6237",
+        "filename_hex": "",
+        "first_line": 1,
+        "header": {
+          "resident": true,
+          "type": "list",
+          "reference_count": 1
+        }
+      },
+      "body": {
+        "path": "static/0-body.bin",
+        "bytes": 224,
+        "sha256": "37ed8f51ca7fdbc8092797dca20be250857b3a2e7975088395650d4c3472793e",
+        "filename_hex": "6e7368656c7065722e74636c",
+        "first_line": 7,
+        "header": {
+          "resident": true,
+          "type": "source",
+          "reference_count": 1
+        }
+      },
+      "derived_source_slice": {
+        "source": "static-evaluated-source.tcl",
+        "source_sha256": "aca7dfec38b5269dd66d432e92c7729d377c2cede13002becb46a500a53aa70a",
+        "declaration_start": 6,
+        "body_start": 38,
+        "body_end_exclusive": 262,
+        "limitation": "Exact retained source-byte slice verified against observed body/line; not a native byte-offset or live procedure identity receipt"
+      }
+    },
+    {
+      "ordinal": 1,
+      "name": "namespace origin",
+      "present": true,
+      "command_flags": 1,
+      "formals": {
+        "path": "static/1-formals.bin",
+        "bytes": 4,
+        "sha256": "82a3537ff0dbce7eec35d69edc3a189ee6f17d82f353a553f9aa96cb0be3ce89",
+        "filename_hex": "",
+        "first_line": 1,
+        "header": {
+          "resident": true,
+          "type": "list",
+          "reference_count": 1
+        }
+      },
+      "body": {
+        "path": "static/1-body.bin",
+        "bytes": 309,
+        "sha256": "8bde267846a5779f4211cafb24ef520da7130dc52fa77f6362292a8bfe918f31",
+        "filename_hex": "6e7368656c7065722e74636c",
+        "first_line": 17,
+        "header": {
+          "resident": true,
+          "type": "source",
+          "reference_count": 1
+        }
+      },
+      "derived_source_slice": {
+        "source": "static-evaluated-source.tcl",
+        "source_sha256": "aca7dfec38b5269dd66d432e92c7729d377c2cede13002becb46a500a53aa70a",
+        "declaration_start": 265,
+        "body_start": 297,
+        "body_end_exclusive": 606,
+        "limitation": "Exact retained source-byte slice verified against observed body/line; not a native byte-offset or live procedure identity receipt"
+      }
+    },
+    {
+      "ordinal": 2,
+      "name": "namespace which",
+      "present": true,
+      "command_flags": 1,
+      "formals": {
+        "path": "static/2-formals.bin",
+        "bytes": 20,
+        "sha256": "d4de3f74701ace7817a3fa953f8ea02debe9c3b9fb6d020fc029a90816e0af1e",
+        "filename_hex": "",
+        "first_line": 1,
+        "header": {
+          "resident": true,
+          "type": "list",
+          "reference_count": 1
+        }
+      },
+      "body": {
+        "path": "static/2-body.bin",
+        "bytes": 358,
+        "sha256": "24a2a789ddcf8ef69782f9bf52c2830ed3c5e5ded9aae179359ca2e4a2ef6067",
+        "filename_hex": "6e7368656c7065722e74636c",
+        "first_line": 32,
+        "header": {
+          "resident": true,
+          "type": "source",
+          "reference_count": 1
+        }
+      },
+      "derived_source_slice": {
+        "source": "static-evaluated-source.tcl",
+        "source_sha256": "aca7dfec38b5269dd66d432e92c7729d377c2cede13002becb46a500a53aa70a",
+        "declaration_start": 609,
+        "body_start": 656,
+        "body_end_exclusive": 1014,
+        "limitation": "Exact retained source-byte slice verified against observed body/line; not a native byte-offset or live procedure identity receipt"
+      }
+    },
+    {
+      "ordinal": 3,
+      "name": "namespace code",
+      "present": true,
+      "command_flags": 1,
+      "formals": {
+        "path": "static/3-formals.bin",
+        "bytes": 3,
+        "sha256": "b25f03dedd69be07f356a06fe35c1b0ddc0de77dcd9066c4be0c6bbde14b23ff",
+        "filename_hex": "",
+        "first_line": 1,
+        "header": {
+          "resident": true,
+          "type": "list",
+          "reference_count": 1
+        }
+      },
+      "body": {
+        "path": "static/3-body.bin",
+        "bytes": 138,
+        "sha256": "0b47ed9bbe645bdb586f5d71e8c876e93daa9697376132c154c93778e1cdd471",
+        "filename_hex": "6e7368656c7065722e74636c",
+        "first_line": 49,
+        "header": {
+          "resident": true,
+          "type": "source",
+          "reference_count": 1
+        }
+      },
+      "derived_source_slice": {
+        "source": "static-evaluated-source.tcl",
+        "source_sha256": "aca7dfec38b5269dd66d432e92c7729d377c2cede13002becb46a500a53aa70a",
+        "declaration_start": 1018,
+        "body_start": 1047,
+        "body_end_exclusive": 1185,
+        "limitation": "Exact retained source-byte slice verified against observed body/line; not a native byte-offset or live procedure identity receipt"
+      }
+    },
+    {
+      "ordinal": 4,
+      "name": "namespace inscope",
+      "present": true,
+      "command_flags": 1,
+      "formals": {
+        "path": "static/4-formals.bin",
+        "bytes": 13,
+        "sha256": "4fa548abbbb42e7b10de49ec89f173329371baa7ba3dabfd7ef1789b7599b5c1",
+        "filename_hex": "",
+        "first_line": 1,
+        "header": {
+          "resident": true,
+          "type": "list",
+          "reference_count": 1
+        }
+      },
+      "body": {
+        "path": "static/4-body.bin",
+        "bytes": 43,
+        "sha256": "82aeff8d9ee801e53d37190f1496db89127783f1d5a5c31ef19396476964b975",
+        "filename_hex": "6e7368656c7065722e74636c",
+        "first_line": 57,
+        "header": {
+          "resident": true,
+          "type": "source",
+          "reference_count": 1
+        }
+      },
+      "derived_source_slice": {
+        "source": "static-evaluated-source.tcl",
+        "source_sha256": "aca7dfec38b5269dd66d432e92c7729d377c2cede13002becb46a500a53aa70a",
+        "declaration_start": 1188,
+        "body_start": 1230,
+        "body_end_exclusive": 1273,
+        "limitation": "Exact retained source-byte slice verified against observed body/line; not a native byte-offset or live procedure identity receipt"
+      }
+    },
+    {
+      "ordinal": 5,
+      "name": "namespace import",
+      "present": true,
+      "command_flags": 1,
+      "formals": {
+        "path": "static/5-formals.bin",
+        "bytes": 4,
+        "sha256": "090772cf4068973daad3f715eb788d39fe2c02be42efd86de81f0e59198d6237",
+        "filename_hex": "",
+        "first_line": 1,
+        "header": {
+          "resident": true,
+          "type": "list",
+          "reference_count": 1
+        }
+      },
+      "body": {
+        "path": "static/5-body.bin",
+        "bytes": 585,
+        "sha256": "37f9be9a702f22963fc6ca9784a7d757592305a0abeebf61aa9b57cbfb32c6f3",
+        "filename_hex": "6e7368656c7065722e74636c",
+        "first_line": 61,
+        "header": {
+          "resident": true,
+          "type": "source",
+          "reference_count": 1
+        }
+      },
+      "derived_source_slice": {
+        "source": "static-evaluated-source.tcl",
+        "source_sha256": "aca7dfec38b5269dd66d432e92c7729d377c2cede13002becb46a500a53aa70a",
+        "declaration_start": 1276,
+        "body_start": 1308,
+        "body_end_exclusive": 1893,
+        "limitation": "Exact retained source-byte slice verified against observed body/line; not a native byte-offset or live procedure identity receipt"
+      }
+    },
+    {
+      "ordinal": 6,
+      "name": "namespace info",
+      "present": true,
+      "command_flags": 1,
+      "formals": {
+        "path": "static/6-formals.bin",
+        "bytes": 15,
+        "sha256": "af98312cc915b15ab9ddab29f8dd6b673ced5f30d1c4415f6ab3bd6aa4a349ab",
+        "filename_hex": "",
+        "first_line": 1,
+        "header": {
+          "resident": true,
+          "type": "list",
+          "reference_count": 1
+        }
+      },
+      "body": {
+        "path": "static/6-body.bin",
+        "bytes": 909,
+        "sha256": "04238aa5931ab38eb21d16f1714af4eb11be0a00cfa01f5f23006c1c90abe53b",
+        "filename_hex": "6e7368656c7065722e74636c",
+        "first_line": 87,
+        "header": {
+          "resident": true,
+          "type": "source",
+          "reference_count": 1
+        }
+      },
+      "derived_source_slice": {
+        "source": "static-evaluated-source.tcl",
+        "source_sha256": "aca7dfec38b5269dd66d432e92c7729d377c2cede13002becb46a500a53aa70a",
+        "declaration_start": 1897,
+        "body_start": 1938,
+        "body_end_exclusive": 2847,
+        "limitation": "Exact retained source-byte slice verified against observed body/line; not a native byte-offset or live procedure identity receipt"
+      }
+    },
+    {
+      "ordinal": 7,
+      "name": "namespace upvar",
+      "present": true,
+      "command_flags": 1,
+      "formals": {
+        "path": "static/7-formals.bin",
+        "bytes": 7,
+        "sha256": "3b7327691db164831cea75d9dca9fc8f5c83eb93dfe64c0e530f4a71c0b90c51",
+        "filename_hex": "",
+        "first_line": 1,
+        "header": {
+          "resident": true,
+          "type": "list",
+          "reference_count": 1
+        }
+      },
+      "body": {
+        "path": "static/7-body.bin",
+        "bytes": 182,
+        "sha256": "8291e18a163ef8f6d30f67361bffb850b8fe3d23f083bfcc4c9df7df17bdefa4",
+        "filename_hex": "6e7368656c7065722e74636c",
+        "first_line": 138,
+        "header": {
+          "resident": true,
+          "type": "source",
+          "reference_count": 1
+        }
+      },
+      "derived_source_slice": {
+        "source": "static-evaluated-source.tcl",
+        "source_sha256": "aca7dfec38b5269dd66d432e92c7729d377c2cede13002becb46a500a53aa70a",
+        "declaration_start": 2850,
+        "body_start": 2884,
+        "body_end_exclusive": 3066,
+        "limitation": "Exact retained source-byte slice verified against observed body/line; not a native byte-offset or live procedure identity receipt"
+      }
+    },
+    {
+      "ordinal": 8,
+      "name": "namespace ensemble",
+      "present": true,
+      "command_flags": 1,
+      "formals": {
+        "path": "static/8-formals.bin",
+        "bytes": 15,
+        "sha256": "59a004cbf5628d72587788758a570bbe9a3fb365cc8ffcf63377133690393afd",
+        "filename_hex": "",
+        "first_line": 1,
+        "header": {
+          "resident": true,
+          "type": "list",
+          "reference_count": 1
+        }
+      },
+      "body": {
+        "path": "static/8-body.bin",
+        "bytes": 304,
+        "sha256": "1899e9af1ef2c79fd4e84556dc4eea26e69d7008d762098fbc487d5b0b10fd72",
+        "filename_hex": "6e7368656c7065722e74636c",
+        "first_line": 147,
+        "header": {
+          "resident": true,
+          "type": "source",
+          "reference_count": 1
+        }
+      },
+      "derived_source_slice": {
+        "source": "static-evaluated-source.tcl",
+        "source_sha256": "aca7dfec38b5269dd66d432e92c7729d377c2cede13002becb46a500a53aa70a",
+        "declaration_start": 3069,
+        "body_start": 3114,
+        "body_end_exclusive": 3418,
+        "limitation": "Exact retained source-byte slice verified against observed body/line; not a native byte-offset or live procedure identity receipt"
+      }
+    }
+  ],
+  "RAW_AFTER_STATIC": [
+    {
+      "ordinal": 0,
+      "name": "namespace delete",
+      "present": true,
+      "command_flags": 1,
+      "formals": {
+        "path": "raw_after_static/0-formals.bin",
+        "bytes": 4,
+        "sha256": "090772cf4068973daad3f715eb788d39fe2c02be42efd86de81f0e59198d6237",
+        "filename_hex": "",
+        "first_line": 1,
+        "header": {
+          "resident": true,
+          "type": "list",
+          "reference_count": 1
+        }
+      },
+      "body": {
+        "path": "raw_after_static/0-body.bin",
+        "bytes": 224,
+        "sha256": "37ed8f51ca7fdbc8092797dca20be250857b3a2e7975088395650d4c3472793e",
+        "filename_hex": "2f776f726b73706163652f74636c2d6c73702f746d702f6a696d74636c2d6f7261636c652f6e7368656c7065722e74636c",
+        "first_line": 7,
+        "header": {
+          "resident": true,
+          "type": "source",
+          "reference_count": 1
+        }
+      },
+      "derived_source_slice": {
+        "source": "raw-nshelper-source.tcl",
+        "source_sha256": "97c67e98b1bef86c9564044dbed0d5110b38ba0fd416980663101f65b0066627",
+        "declaration_start": 132,
+        "body_start": 164,
+        "body_end_exclusive": 388,
+        "limitation": "Exact retained source-byte slice verified against observed body/line; not a native byte-offset or live procedure identity receipt"
+      }
+    },
+    {
+      "ordinal": 1,
+      "name": "namespace origin",
+      "present": true,
+      "command_flags": 1,
+      "formals": {
+        "path": "raw_after_static/1-formals.bin",
+        "bytes": 4,
+        "sha256": "82a3537ff0dbce7eec35d69edc3a189ee6f17d82f353a553f9aa96cb0be3ce89",
+        "filename_hex": "",
+        "first_line": 1,
+        "header": {
+          "resident": true,
+          "type": "list",
+          "reference_count": 1
+        }
+      },
+      "body": {
+        "path": "raw_after_static/1-body.bin",
+        "bytes": 309,
+        "sha256": "8bde267846a5779f4211cafb24ef520da7130dc52fa77f6362292a8bfe918f31",
+        "filename_hex": "2f776f726b73706163652f74636c2d6c73702f746d702f6a696d74636c2d6f7261636c652f6e7368656c7065722e74636c",
+        "first_line": 17,
+        "header": {
+          "resident": true,
+          "type": "source",
+          "reference_count": 1
+        }
+      },
+      "derived_source_slice": {
+        "source": "raw-nshelper-source.tcl",
+        "source_sha256": "97c67e98b1bef86c9564044dbed0d5110b38ba0fd416980663101f65b0066627",
+        "declaration_start": 391,
+        "body_start": 423,
+        "body_end_exclusive": 732,
+        "limitation": "Exact retained source-byte slice verified against observed body/line; not a native byte-offset or live procedure identity receipt"
+      }
+    },
+    {
+      "ordinal": 2,
+      "name": "namespace which",
+      "present": true,
+      "command_flags": 1,
+      "formals": {
+        "path": "raw_after_static/2-formals.bin",
+        "bytes": 20,
+        "sha256": "d4de3f74701ace7817a3fa953f8ea02debe9c3b9fb6d020fc029a90816e0af1e",
+        "filename_hex": "",
+        "first_line": 1,
+        "header": {
+          "resident": true,
+          "type": "list",
+          "reference_count": 1
+        }
+      },
+      "body": {
+        "path": "raw_after_static/2-body.bin",
+        "bytes": 358,
+        "sha256": "24a2a789ddcf8ef69782f9bf52c2830ed3c5e5ded9aae179359ca2e4a2ef6067",
+        "filename_hex": "2f776f726b73706163652f74636c2d6c73702f746d702f6a696d74636c2d6f7261636c652f6e7368656c7065722e74636c",
+        "first_line": 32,
+        "header": {
+          "resident": true,
+          "type": "source",
+          "reference_count": 1
+        }
+      },
+      "derived_source_slice": {
+        "source": "raw-nshelper-source.tcl",
+        "source_sha256": "97c67e98b1bef86c9564044dbed0d5110b38ba0fd416980663101f65b0066627",
+        "declaration_start": 735,
+        "body_start": 782,
+        "body_end_exclusive": 1140,
+        "limitation": "Exact retained source-byte slice verified against observed body/line; not a native byte-offset or live procedure identity receipt"
+      }
+    },
+    {
+      "ordinal": 3,
+      "name": "namespace code",
+      "present": true,
+      "command_flags": 1,
+      "formals": {
+        "path": "raw_after_static/3-formals.bin",
+        "bytes": 3,
+        "sha256": "b25f03dedd69be07f356a06fe35c1b0ddc0de77dcd9066c4be0c6bbde14b23ff",
+        "filename_hex": "",
+        "first_line": 1,
+        "header": {
+          "resident": true,
+          "type": "list",
+          "reference_count": 1
+        }
+      },
+      "body": {
+        "path": "raw_after_static/3-body.bin",
+        "bytes": 156,
+        "sha256": "f08b80161ae745683a6e2411cf19f451d0ea09d26f04124aae30221d9f8f9afd",
+        "filename_hex": "2f776f726b73706163652f74636c2d6c73702f746d702f6a696d74636c2d6f7261636c652f6e7368656c7065722e74636c",
+        "first_line": 49,
+        "header": {
+          "resident": true,
+          "type": "source",
+          "reference_count": 1
+        }
+      },
+      "derived_source_slice": {
+        "source": "raw-nshelper-source.tcl",
+        "source_sha256": "97c67e98b1bef86c9564044dbed0d5110b38ba0fd416980663101f65b0066627",
+        "declaration_start": 1144,
+        "body_start": 1173,
+        "body_end_exclusive": 1329,
+        "limitation": "Exact retained source-byte slice verified against observed body/line; not a native byte-offset or live procedure identity receipt"
+      }
+    },
+    {
+      "ordinal": 4,
+      "name": "namespace inscope",
+      "present": true,
+      "command_flags": 1,
+      "formals": {
+        "path": "raw_after_static/4-formals.bin",
+        "bytes": 13,
+        "sha256": "4fa548abbbb42e7b10de49ec89f173329371baa7ba3dabfd7ef1789b7599b5c1",
+        "filename_hex": "",
+        "first_line": 1,
+        "header": {
+          "resident": true,
+          "type": "list",
+          "reference_count": 1
+        }
+      },
+      "body": {
+        "path": "raw_after_static/4-body.bin",
+        "bytes": 43,
+        "sha256": "82aeff8d9ee801e53d37190f1496db89127783f1d5a5c31ef19396476964b975",
+        "filename_hex": "2f776f726b73706163652f74636c2d6c73702f746d702f6a696d74636c2d6f7261636c652f6e7368656c7065722e74636c",
+        "first_line": 57,
+        "header": {
+          "resident": true,
+          "type": "source",
+          "reference_count": 1
+        }
+      },
+      "derived_source_slice": {
+        "source": "raw-nshelper-source.tcl",
+        "source_sha256": "97c67e98b1bef86c9564044dbed0d5110b38ba0fd416980663101f65b0066627",
+        "declaration_start": 1332,
+        "body_start": 1374,
+        "body_end_exclusive": 1417,
+        "limitation": "Exact retained source-byte slice verified against observed body/line; not a native byte-offset or live procedure identity receipt"
+      }
+    },
+    {
+      "ordinal": 5,
+      "name": "namespace import",
+      "present": true,
+      "command_flags": 1,
+      "formals": {
+        "path": "raw_after_static/5-formals.bin",
+        "bytes": 4,
+        "sha256": "090772cf4068973daad3f715eb788d39fe2c02be42efd86de81f0e59198d6237",
+        "filename_hex": "",
+        "first_line": 1,
+        "header": {
+          "resident": true,
+          "type": "list",
+          "reference_count": 1
+        }
+      },
+      "body": {
+        "path": "raw_after_static/5-body.bin",
+        "bytes": 696,
+        "sha256": "507751d9e049d2890ea7e08e30a7460408785e299ef05aec97187a7454a2121d",
+        "filename_hex": "2f776f726b73706163652f74636c2d6c73702f746d702f6a696d74636c2d6f7261636c652f6e7368656c7065722e74636c",
+        "first_line": 61,
+        "header": {
+          "resident": true,
+          "type": "source",
+          "reference_count": 1
+        }
+      },
+      "derived_source_slice": {
+        "source": "raw-nshelper-source.tcl",
+        "source_sha256": "97c67e98b1bef86c9564044dbed0d5110b38ba0fd416980663101f65b0066627",
+        "declaration_start": 1420,
+        "body_start": 1452,
+        "body_end_exclusive": 2148,
+        "limitation": "Exact retained source-byte slice verified against observed body/line; not a native byte-offset or live procedure identity receipt"
+      }
+    },
+    {
+      "ordinal": 6,
+      "name": "namespace info",
+      "present": true,
+      "command_flags": 1,
+      "formals": {
+        "path": "raw_after_static/6-formals.bin",
+        "bytes": 15,
+        "sha256": "af98312cc915b15ab9ddab29f8dd6b673ced5f30d1c4415f6ab3bd6aa4a349ab",
+        "filename_hex": "",
+        "first_line": 1,
+        "header": {
+          "resident": true,
+          "type": "list",
+          "reference_count": 1
+        }
+      },
+      "body": {
+        "path": "raw_after_static/6-body.bin",
+        "bytes": 1059,
+        "sha256": "c983fe7921e2bf68959e2aa65b016e7f5195da95ca59bbe138a135bc07335f7c",
+        "filename_hex": "2f776f726b73706163652f74636c2d6c73702f746d702f6a696d74636c2d6f7261636c652f6e7368656c7065722e74636c",
+        "first_line": 87,
+        "header": {
+          "resident": true,
+          "type": "source",
+          "reference_count": 1
+        }
+      },
+      "derived_source_slice": {
+        "source": "raw-nshelper-source.tcl",
+        "source_sha256": "97c67e98b1bef86c9564044dbed0d5110b38ba0fd416980663101f65b0066627",
+        "declaration_start": 2223,
+        "body_start": 2264,
+        "body_end_exclusive": 3323,
+        "limitation": "Exact retained source-byte slice verified against observed body/line; not a native byte-offset or live procedure identity receipt"
+      }
+    },
+    {
+      "ordinal": 7,
+      "name": "namespace upvar",
+      "present": true,
+      "command_flags": 1,
+      "formals": {
+        "path": "raw_after_static/7-formals.bin",
+        "bytes": 7,
+        "sha256": "3b7327691db164831cea75d9dca9fc8f5c83eb93dfe64c0e530f4a71c0b90c51",
+        "filename_hex": "",
+        "first_line": 1,
+        "header": {
+          "resident": true,
+          "type": "list",
+          "reference_count": 1
+        }
+      },
+      "body": {
+        "path": "raw_after_static/7-body.bin",
+        "bytes": 182,
+        "sha256": "8291e18a163ef8f6d30f67361bffb850b8fe3d23f083bfcc4c9df7df17bdefa4",
+        "filename_hex": "2f776f726b73706163652f74636c2d6c73702f746d702f6a696d74636c2d6f7261636c652f6e7368656c7065722e74636c",
+        "first_line": 138,
+        "header": {
+          "resident": true,
+          "type": "source",
+          "reference_count": 1
+        }
+      },
+      "derived_source_slice": {
+        "source": "raw-nshelper-source.tcl",
+        "source_sha256": "97c67e98b1bef86c9564044dbed0d5110b38ba0fd416980663101f65b0066627",
+        "declaration_start": 3326,
+        "body_start": 3360,
+        "body_end_exclusive": 3542,
+        "limitation": "Exact retained source-byte slice verified against observed body/line; not a native byte-offset or live procedure identity receipt"
+      }
+    },
+    {
+      "ordinal": 8,
+      "name": "namespace ensemble",
+      "present": true,
+      "command_flags": 1,
+      "formals": {
+        "path": "raw_after_static/8-formals.bin",
+        "bytes": 15,
+        "sha256": "59a004cbf5628d72587788758a570bbe9a3fb365cc8ffcf63377133690393afd",
+        "filename_hex": "",
+        "first_line": 1,
+        "header": {
+          "resident": true,
+          "type": "list",
+          "reference_count": 1
+        }
+      },
+      "body": {
+        "path": "raw_after_static/8-body.bin",
+        "bytes": 325,
+        "sha256": "ae926d7b1779368b4b4617b12ce701a3ea12fc473ba952574737d0c21d0a3a55",
+        "filename_hex": "2f776f726b73706163652f74636c2d6c73702f746d702f6a696d74636c2d6f7261636c652f6e7368656c7065722e74636c",
+        "first_line": 147,
+        "header": {
+          "resident": true,
+          "type": "source",
+          "reference_count": 1
+        }
+      },
+      "derived_source_slice": {
+        "source": "raw-nshelper-source.tcl",
+        "source_sha256": "97c67e98b1bef86c9564044dbed0d5110b38ba0fd416980663101f65b0066627",
+        "declaration_start": 3545,
+        "body_start": 3590,
+        "body_end_exclusive": 3915,
+        "limitation": "Exact retained source-byte slice verified against observed body/line; not a native byte-offset or live procedure identity receipt"
+      }
+    }
+  ],
+  "RAW_ONLY": [
+    {
+      "ordinal": 0,
+      "name": "namespace delete",
+      "present": true,
+      "command_flags": 1,
+      "formals": {
+        "path": "raw_only/0-formals.bin",
+        "bytes": 4,
+        "sha256": "090772cf4068973daad3f715eb788d39fe2c02be42efd86de81f0e59198d6237",
+        "filename_hex": "",
+        "first_line": 1,
+        "header": {
+          "resident": true,
+          "type": "list",
+          "reference_count": 1
+        }
+      },
+      "body": {
+        "path": "raw_only/0-body.bin",
+        "bytes": 224,
+        "sha256": "37ed8f51ca7fdbc8092797dca20be250857b3a2e7975088395650d4c3472793e",
+        "filename_hex": "2f776f726b73706163652f74636c2d6c73702f746d702f6a696d74636c2d6f7261636c652f6e7368656c7065722e74636c",
+        "first_line": 7,
+        "header": {
+          "resident": true,
+          "type": "source",
+          "reference_count": 1
+        }
+      },
+      "derived_source_slice": {
+        "source": "raw-nshelper-source.tcl",
+        "source_sha256": "97c67e98b1bef86c9564044dbed0d5110b38ba0fd416980663101f65b0066627",
+        "declaration_start": 132,
+        "body_start": 164,
+        "body_end_exclusive": 388,
+        "limitation": "Exact retained source-byte slice verified against observed body/line; not a native byte-offset or live procedure identity receipt"
+      }
+    },
+    {
+      "ordinal": 1,
+      "name": "namespace origin",
+      "present": true,
+      "command_flags": 1,
+      "formals": {
+        "path": "raw_only/1-formals.bin",
+        "bytes": 4,
+        "sha256": "82a3537ff0dbce7eec35d69edc3a189ee6f17d82f353a553f9aa96cb0be3ce89",
+        "filename_hex": "",
+        "first_line": 1,
+        "header": {
+          "resident": true,
+          "type": "list",
+          "reference_count": 1
+        }
+      },
+      "body": {
+        "path": "raw_only/1-body.bin",
+        "bytes": 309,
+        "sha256": "8bde267846a5779f4211cafb24ef520da7130dc52fa77f6362292a8bfe918f31",
+        "filename_hex": "2f776f726b73706163652f74636c2d6c73702f746d702f6a696d74636c2d6f7261636c652f6e7368656c7065722e74636c",
+        "first_line": 17,
+        "header": {
+          "resident": true,
+          "type": "source",
+          "reference_count": 1
+        }
+      },
+      "derived_source_slice": {
+        "source": "raw-nshelper-source.tcl",
+        "source_sha256": "97c67e98b1bef86c9564044dbed0d5110b38ba0fd416980663101f65b0066627",
+        "declaration_start": 391,
+        "body_start": 423,
+        "body_end_exclusive": 732,
+        "limitation": "Exact retained source-byte slice verified against observed body/line; not a native byte-offset or live procedure identity receipt"
+      }
+    },
+    {
+      "ordinal": 2,
+      "name": "namespace which",
+      "present": true,
+      "command_flags": 1,
+      "formals": {
+        "path": "raw_only/2-formals.bin",
+        "bytes": 20,
+        "sha256": "d4de3f74701ace7817a3fa953f8ea02debe9c3b9fb6d020fc029a90816e0af1e",
+        "filename_hex": "",
+        "first_line": 1,
+        "header": {
+          "resident": true,
+          "type": "list",
+          "reference_count": 1
+        }
+      },
+      "body": {
+        "path": "raw_only/2-body.bin",
+        "bytes": 358,
+        "sha256": "24a2a789ddcf8ef69782f9bf52c2830ed3c5e5ded9aae179359ca2e4a2ef6067",
+        "filename_hex": "2f776f726b73706163652f74636c2d6c73702f746d702f6a696d74636c2d6f7261636c652f6e7368656c7065722e74636c",
+        "first_line": 32,
+        "header": {
+          "resident": true,
+          "type": "source",
+          "reference_count": 1
+        }
+      },
+      "derived_source_slice": {
+        "source": "raw-nshelper-source.tcl",
+        "source_sha256": "97c67e98b1bef86c9564044dbed0d5110b38ba0fd416980663101f65b0066627",
+        "declaration_start": 735,
+        "body_start": 782,
+        "body_end_exclusive": 1140,
+        "limitation": "Exact retained source-byte slice verified against observed body/line; not a native byte-offset or live procedure identity receipt"
+      }
+    },
+    {
+      "ordinal": 3,
+      "name": "namespace code",
+      "present": true,
+      "command_flags": 1,
+      "formals": {
+        "path": "raw_only/3-formals.bin",
+        "bytes": 3,
+        "sha256": "b25f03dedd69be07f356a06fe35c1b0ddc0de77dcd9066c4be0c6bbde14b23ff",
+        "filename_hex": "",
+        "first_line": 1,
+        "header": {
+          "resident": true,
+          "type": "list",
+          "reference_count": 1
+        }
+      },
+      "body": {
+        "path": "raw_only/3-body.bin",
+        "bytes": 156,
+        "sha256": "f08b80161ae745683a6e2411cf19f451d0ea09d26f04124aae30221d9f8f9afd",
+        "filename_hex": "2f776f726b73706163652f74636c2d6c73702f746d702f6a696d74636c2d6f7261636c652f6e7368656c7065722e74636c",
+        "first_line": 49,
+        "header": {
+          "resident": true,
+          "type": "source",
+          "reference_count": 1
+        }
+      },
+      "derived_source_slice": {
+        "source": "raw-nshelper-source.tcl",
+        "source_sha256": "97c67e98b1bef86c9564044dbed0d5110b38ba0fd416980663101f65b0066627",
+        "declaration_start": 1144,
+        "body_start": 1173,
+        "body_end_exclusive": 1329,
+        "limitation": "Exact retained source-byte slice verified against observed body/line; not a native byte-offset or live procedure identity receipt"
+      }
+    },
+    {
+      "ordinal": 4,
+      "name": "namespace inscope",
+      "present": true,
+      "command_flags": 1,
+      "formals": {
+        "path": "raw_only/4-formals.bin",
+        "bytes": 13,
+        "sha256": "4fa548abbbb42e7b10de49ec89f173329371baa7ba3dabfd7ef1789b7599b5c1",
+        "filename_hex": "",
+        "first_line": 1,
+        "header": {
+          "resident": true,
+          "type": "list",
+          "reference_count": 1
+        }
+      },
+      "body": {
+        "path": "raw_only/4-body.bin",
+        "bytes": 43,
+        "sha256": "82aeff8d9ee801e53d37190f1496db89127783f1d5a5c31ef19396476964b975",
+        "filename_hex": "2f776f726b73706163652f74636c2d6c73702f746d702f6a696d74636c2d6f7261636c652f6e7368656c7065722e74636c",
+        "first_line": 57,
+        "header": {
+          "resident": true,
+          "type": "source",
+          "reference_count": 1
+        }
+      },
+      "derived_source_slice": {
+        "source": "raw-nshelper-source.tcl",
+        "source_sha256": "97c67e98b1bef86c9564044dbed0d5110b38ba0fd416980663101f65b0066627",
+        "declaration_start": 1332,
+        "body_start": 1374,
+        "body_end_exclusive": 1417,
+        "limitation": "Exact retained source-byte slice verified against observed body/line; not a native byte-offset or live procedure identity receipt"
+      }
+    },
+    {
+      "ordinal": 5,
+      "name": "namespace import",
+      "present": true,
+      "command_flags": 1,
+      "formals": {
+        "path": "raw_only/5-formals.bin",
+        "bytes": 4,
+        "sha256": "090772cf4068973daad3f715eb788d39fe2c02be42efd86de81f0e59198d6237",
+        "filename_hex": "",
+        "first_line": 1,
+        "header": {
+          "resident": true,
+          "type": "list",
+          "reference_count": 1
+        }
+      },
+      "body": {
+        "path": "raw_only/5-body.bin",
+        "bytes": 696,
+        "sha256": "507751d9e049d2890ea7e08e30a7460408785e299ef05aec97187a7454a2121d",
+        "filename_hex": "2f776f726b73706163652f74636c2d6c73702f746d702f6a696d74636c2d6f7261636c652f6e7368656c7065722e74636c",
+        "first_line": 61,
+        "header": {
+          "resident": true,
+          "type": "source",
+          "reference_count": 1
+        }
+      },
+      "derived_source_slice": {
+        "source": "raw-nshelper-source.tcl",
+        "source_sha256": "97c67e98b1bef86c9564044dbed0d5110b38ba0fd416980663101f65b0066627",
+        "declaration_start": 1420,
+        "body_start": 1452,
+        "body_end_exclusive": 2148,
+        "limitation": "Exact retained source-byte slice verified against observed body/line; not a native byte-offset or live procedure identity receipt"
+      }
+    },
+    {
+      "ordinal": 6,
+      "name": "namespace info",
+      "present": true,
+      "command_flags": 1,
+      "formals": {
+        "path": "raw_only/6-formals.bin",
+        "bytes": 15,
+        "sha256": "af98312cc915b15ab9ddab29f8dd6b673ced5f30d1c4415f6ab3bd6aa4a349ab",
+        "filename_hex": "",
+        "first_line": 1,
+        "header": {
+          "resident": true,
+          "type": "list",
+          "reference_count": 1
+        }
+      },
+      "body": {
+        "path": "raw_only/6-body.bin",
+        "bytes": 1059,
+        "sha256": "c983fe7921e2bf68959e2aa65b016e7f5195da95ca59bbe138a135bc07335f7c",
+        "filename_hex": "2f776f726b73706163652f74636c2d6c73702f746d702f6a696d74636c2d6f7261636c652f6e7368656c7065722e74636c",
+        "first_line": 87,
+        "header": {
+          "resident": true,
+          "type": "source",
+          "reference_count": 1
+        }
+      },
+      "derived_source_slice": {
+        "source": "raw-nshelper-source.tcl",
+        "source_sha256": "97c67e98b1bef86c9564044dbed0d5110b38ba0fd416980663101f65b0066627",
+        "declaration_start": 2223,
+        "body_start": 2264,
+        "body_end_exclusive": 3323,
+        "limitation": "Exact retained source-byte slice verified against observed body/line; not a native byte-offset or live procedure identity receipt"
+      }
+    },
+    {
+      "ordinal": 7,
+      "name": "namespace upvar",
+      "present": true,
+      "command_flags": 1,
+      "formals": {
+        "path": "raw_only/7-formals.bin",
+        "bytes": 7,
+        "sha256": "3b7327691db164831cea75d9dca9fc8f5c83eb93dfe64c0e530f4a71c0b90c51",
+        "filename_hex": "",
+        "first_line": 1,
+        "header": {
+          "resident": true,
+          "type": "list",
+          "reference_count": 1
+        }
+      },
+      "body": {
+        "path": "raw_only/7-body.bin",
+        "bytes": 182,
+        "sha256": "8291e18a163ef8f6d30f67361bffb850b8fe3d23f083bfcc4c9df7df17bdefa4",
+        "filename_hex": "2f776f726b73706163652f74636c2d6c73702f746d702f6a696d74636c2d6f7261636c652f6e7368656c7065722e74636c",
+        "first_line": 138,
+        "header": {
+          "resident": true,
+          "type": "source",
+          "reference_count": 1
+        }
+      },
+      "derived_source_slice": {
+        "source": "raw-nshelper-source.tcl",
+        "source_sha256": "97c67e98b1bef86c9564044dbed0d5110b38ba0fd416980663101f65b0066627",
+        "declaration_start": 3326,
+        "body_start": 3360,
+        "body_end_exclusive": 3542,
+        "limitation": "Exact retained source-byte slice verified against observed body/line; not a native byte-offset or live procedure identity receipt"
+      }
+    },
+    {
+      "ordinal": 8,
+      "name": "namespace ensemble",
+      "present": true,
+      "command_flags": 1,
+      "formals": {
+        "path": "raw_only/8-formals.bin",
+        "bytes": 15,
+        "sha256": "59a004cbf5628d72587788758a570bbe9a3fb365cc8ffcf63377133690393afd",
+        "filename_hex": "",
+        "first_line": 1,
+        "header": {
+          "resident": true,
+          "type": "list",
+          "reference_count": 1
+        }
+      },
+      "body": {
+        "path": "raw_only/8-body.bin",
+        "bytes": 325,
+        "sha256": "ae926d7b1779368b4b4617b12ce701a3ea12fc473ba952574737d0c21d0a3a55",
+        "filename_hex": "2f776f726b73706163652f74636c2d6c73702f746d702f6a696d74636c2d6f7261636c652f6e7368656c7065722e74636c",
+        "first_line": 147,
+        "header": {
+          "resident": true,
+          "type": "source",
+          "reference_count": 1
+        }
+      },
+      "derived_source_slice": {
+        "source": "raw-nshelper-source.tcl",
+        "source_sha256": "97c67e98b1bef86c9564044dbed0d5110b38ba0fd416980663101f65b0066627",
+        "declaration_start": 3545,
+        "body_start": 3590,
+        "body_end_exclusive": 3915,
+        "limitation": "Exact retained source-byte slice verified against observed body/line; not a native byte-offset or live procedure identity receipt"
+      }
+    }
+  ]
+}

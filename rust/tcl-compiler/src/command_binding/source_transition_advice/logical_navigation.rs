@@ -142,6 +142,12 @@ impl OriginalLogicalCommandCandidates {
         self.original.first()
     }
 
+    /// Complete original syntax, without evaluated argv or invocation authority.
+    #[must_use]
+    pub fn original_words(&self) -> &[NativeWord] {
+        &self.original
+    }
+
     /// Original syntactic argv cardinality. Expansion keeps the count unknown;
     /// no successful argument evaluation or runtime argv follows.
     #[must_use]

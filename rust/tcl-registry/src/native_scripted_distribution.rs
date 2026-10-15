@@ -35,12 +35,15 @@ pub struct NativeScriptedProcedure {
     pub parameters: &'static str,
     /// Original body bytes with unchanged indentation and boundary newlines.
     pub body: &'static str,
+    /// Selected original namespace declaration; this grants no installed execution authority.
+    pub namespace_helper: Option<crate::native_jim_lookup::NativeJimNamespaceHelper>,
 }
 
 const JIM_NAMESPACE_INFO: &[NativeScriptedProcedure] = &[NativeScriptedProcedure {
     command: "namespace info",
     parameters: "cmd {pattern *}",
     body: include_str!("native_scripts/jim_namespace_info.tcl"),
+    namespace_helper: None,
 }];
 
 const JIM_NAMESPACE_ENSEMBLE: &[NativeScriptedProcedure] = &[
@@ -48,11 +51,13 @@ const JIM_NAMESPACE_ENSEMBLE: &[NativeScriptedProcedure] = &[
         command: "ensemble",
         parameters: "command args",
         body: include_str!("native_scripts/jim_ensemble.tcl"),
+        namespace_helper: None,
     },
     NativeScriptedProcedure {
         command: "namespace ensemble",
         parameters: "subcommand args",
         body: include_str!("native_scripts/jim_namespace_ensemble.tcl"),
+        namespace_helper: None,
     },
 ];
 
@@ -93,6 +98,7 @@ pub fn procedures(
             command: procedure.command,
             parameters: procedure.parameters,
             body: procedure.body,
+            namespace_helper: None,
         })
         .chain(namespace_info.iter().copied())
         .chain(namespace.iter().copied())
@@ -105,6 +111,7 @@ pub fn procedures(
                     command: helper.name(),
                     parameters: helper.parameters(),
                     body: helper.body(),
+                    namespace_helper: Some(helper),
                 }),
         )
 }
@@ -147,6 +154,7 @@ mod tests {
             assert_eq!(actual.command, original.name());
             assert_eq!(actual.parameters, original.parameters());
             assert_eq!(actual.body, original.body());
+            assert_eq!(actual.namespace_helper.unwrap().kind(), original.kind());
         }
         for version in TclVersion::ALL {
             assert_eq!(

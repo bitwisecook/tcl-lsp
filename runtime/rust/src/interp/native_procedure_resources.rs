@@ -13,6 +13,32 @@ pub(crate) struct NativeProcedureResources {
     objects: RefCell<Option<Vec<Owned>>>,
     statics: RefCell<Option<Rc<crate::frame::StaticVariables>>>,
     compiled_names: RefCell<Option<Vec<Option<tcl_core_types::NameBytes>>>>,
+    original_jim_import_source: RefCell<Option<OriginalJimImportSource>>,
+}
+
+/// The actual Source body created by the original Import installer. This
+/// retains allocation safety, without a native body or procedure reference.
+pub(crate) struct OriginalJimImportSource {
+    body: obj::NativeObjectLifetime,
+    context: Weak<crate::native_source::NativeJimObjectContext>,
+}
+
+impl OriginalJimImportSource {
+    pub(super) fn capture(
+        body: &Owned,
+        context: &Rc<crate::native_source::NativeJimObjectContext>,
+    ) -> Result<Self, tcl_syntax::value::ValueError> {
+        obj::check_native_liveness(body.as_ptr())?;
+        crate::native_source::original_source_info(body.as_ptr(), context)?.ok_or(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "original Import actual Source primary",
+            ),
+        )?;
+        Ok(Self {
+            body: obj::NativeObjectLifetime::retain(body.as_ptr()),
+            context: Rc::downgrade(context),
+        })
+    }
 }
 
 impl NativeProcedureRoleOwner for ProcDef {
@@ -25,12 +51,18 @@ impl NativeProcedureRoleOwner for ProcDef {
         let statics = owner.native_resources.statics.borrow_mut().take();
         let names = owner.native_local_names.borrow_mut().take();
         let compiled_names = owner.native_resources.compiled_names.borrow_mut().take();
+        let import_source = owner
+            .native_resources
+            .original_jim_import_source
+            .borrow_mut()
+            .take();
         // No owner borrow spans a primary free hook, which can release another
         // declaration reference or enter the interpreter.
         drop(namespace);
         drop(statics);
         drop(names);
         drop(compiled_names);
+        drop(import_source);
         drop(objects);
     }
 }
@@ -257,6 +289,7 @@ fn create_declaration(
             objects: RefCell::new(Some(objects)),
             statics: RefCell::new(statics),
             compiled_names: RefCell::new(None),
+            original_jim_import_source: RefCell::new(None),
         },
     })
 }
@@ -426,6 +459,52 @@ pub(crate) struct NativeProcedureDefinition {
 }
 
 impl ProcDef {
+    pub(super) fn retain_original_jim_import_source(
+        &self,
+        source: OriginalJimImportSource,
+    ) -> Result<(), tcl_syntax::value::ValueError> {
+        self.check_native_liveness()?;
+        if self.body.checked_ptr()? != source.body.checked_ptr()? {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "original Import source declaration body",
+            ));
+        }
+        *self
+            .native_resources
+            .original_jim_import_source
+            .borrow_mut() = Some(source);
+        Ok(())
+    }
+
+    pub(super) fn require_original_jim_import_traversal(
+        &self,
+        actual: &Interp,
+    ) -> Result<(), tcl_syntax::value::ValueError> {
+        self.check_native_liveness()?;
+        if let Some(source) = self
+            .native_resources
+            .original_jim_import_source
+            .borrow()
+            .as_ref()
+        {
+            if self.body.checked_ptr()? != source.body.checked_ptr()?
+                || !source.context.upgrade().is_some_and(|context| {
+                    actual
+                        .native_jim_object_context()
+                        .is_ok_and(|current| Rc::ptr_eq(&context, &current))
+                })
+            {
+                return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original Import source declaration context",
+                ));
+            }
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "original Jim Import traversal receipts",
+            ));
+        }
+        Ok(())
+    }
+
     pub(crate) fn check_native_liveness(&self) -> Result<(), tcl_syntax::value::ValueError> {
         if self.native_resources.roles.is_retired() {
             return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(

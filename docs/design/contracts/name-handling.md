@@ -1148,3 +1148,36 @@ Logical variable scope witnesses retain the actual full input, image/channel/con
 Shared dynamic command-name overlap uses an authentic configured original word and explicit Logical authored-C purpose. Unknown substitutions remain wildcard; literal colon-edge constraints next to unknowns are discarded conservatively, while wholly static names canonicalise once through their owner. The caller independently owns schema, original operand ordinal and source currentness; possible overlap does not select a command binding.
 
 Studio archive previews retain unsupported-encoding provenance through staging, release validation and snapshot JSON. A release with unrepresentable source is refused before semantic inference, preserving literal Unicode replacement characters separately from lossy previews. Byte-preserving VM WASM ingress uses the actual Document SourceImage and existing evaluation owner; original unsupported-source refusals remain terminal.
+
+## Manifest dependency source edits
+
+`original_manifest_requirements` uses the manifest owner's complete validated
+grammar and retains each dependency's decoded name, kind and original command
+span. `OriginalManifestRequirements::remove` selects exact dependency names and
+removes only those command spans from the borrowed source. A name prefix or a
+rendered directive line is not a declaration identity.
+
+`append_manifest_requirement` constructs literal source with the shared escape
+owner under the manifest's fixed lexer configuration. It checks the exact
+directive argument vector, validates the resulting dependency and confirms that
+the full edited AST equals the original AST plus that dependency before
+returning text. This API constructs manifest source; it neither evaluates Tcl
+substitutions nor establishes a runtime command or variable binding.
+
+## Original namespace helper source providers
+
+The Registry's original Jim helper roster distinguishes raw helper body text
+from `static_extension_source()`, which describes the original static loader's
+body, filename and first line. Those providers differ for Code, Import, Info
+and Ensemble. Inert metadata does not create a live Source object. An actual
+installer must create the body through its runtime Source owner, retain the
+real shared filename object and interpreter context, and publish the genuine
+procedure only after its required provenance is attached.
+
+A helper's displayed name, copied body or source descriptor does not prove
+that it is the original installed procedure. The private Import resource
+provenance follows the actual procedure through rename and is checked before
+body preparation and frame entry. Safe traversal additionally requires the
+actual argument, iterator, alias-cycle and lifetime receipts; until the owner
+can supply them, the marked original entry refuses. Ordinary replacements do
+not acquire provenance from spelling or source equality.

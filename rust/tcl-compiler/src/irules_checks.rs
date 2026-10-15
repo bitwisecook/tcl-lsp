@@ -949,6 +949,9 @@ fn classify_stmt_for_collect_flow(
     base_offset: i64,
 ) -> Option<()> {
     let registry = source.registry;
+    if !stmt.is_executable_invocation() {
+        return Some(());
+    }
     if let Some(tokens) = stmt.tokens() {
         tokens
             .source_binding
@@ -1638,8 +1641,22 @@ where
 {
     let mut states = in_states.to_vec();
     for stmt in &script.statements {
+        if states.is_empty() {
+            break;
+        }
+        if fd.unreached.contains(&stmt.span()) {
+            continue;
+        }
+        // Written argv evaluates before dispatch, including return values and
+        // structured headers. Braced bodies keep their own script phases.
+        states = (fd.dedupe)(
+            states
+                .iter()
+                .map(|state| (fd.leaf)(state, script, stmt, fd.out))
+                .collect(),
+        );
         // `None` ⇒ the statement terminates every current path (`return`).
-        match flow_step(script, stmt, &states, fd, return_sink.as_deref_mut()) {
+        match flow_step(stmt, &states, fd, return_sink.as_deref_mut()) {
             None => {
                 // Hand the at-return states to the enclosing catch (if any) so
                 // flow resumes past it, then terminate this script's path.
@@ -1656,9 +1673,8 @@ where
 
 /// Transfer one structured statement over the flow-state set, or `None` when
 /// it (`return`) terminates the current paths.  Control-flow arms recurse
-/// through [`walk_flow`]; leaf statements go through `leaf`.
+/// through [`walk_flow`] after their written argv has been evaluated.
 fn flow_step<S, L, D>(
-    script: &Script,
     stmt: &Statement,
     states: &[S],
     fd: &mut FlowDispatch<'_, L, D>,
@@ -1669,9 +1685,6 @@ where
     L: Fn(&S, &Script, &Statement, &mut Vec<IrulesCheckWarning>) -> S,
     D: Fn(Vec<S>) -> Vec<S>,
 {
-    if fd.unreached.contains(&stmt.span()) {
-        return Some(states.to_vec());
-    }
     let one = std::slice::from_ref;
     if let Some(region) = stmt
         .tokens()
@@ -1754,13 +1767,7 @@ where
         ),
         // A grouping block (namespace/uplevel body) runs in sequence.
         Statement::Block { body, .. } => walk_flow(body, states, fd, return_sink),
-        _ => {
-            let mut next = Vec::with_capacity(states.len());
-            for st in states {
-                next.push((fd.leaf)(st, script, stmt, fd.out));
-            }
-            (fd.dedupe)(next)
-        }
+        _ => states.to_vec(),
     })
 }
 
@@ -4488,6 +4495,50 @@ mod original_event_owner_tests {
                     .any(|warning| warning.code == DiagCode::Irule1201),
                 "{text}"
             );
+        }
+    }
+
+    #[test]
+    fn source_flow_evaluates_original_header_and_return_arguments_before_dispatch() {
+        let surface = Some(SurfaceQuery::any_release(Family::F5Irules));
+        for tail in [
+            "return [HTTP::header value X]",
+            "if [HTTP::header exists X] {}",
+            "while [HTTP::header exists X] {break}",
+            "foreach name [HTTP::header names] {}",
+            "switch [HTTP::header value X] {yes {}}",
+        ] {
+            let text = format!("when HTTP_REQUEST {{HTTP::respond 200; {tail}}}");
+            let (unit, _) = supplied(&text, false);
+            let warnings = find_http_flow_warnings(&unit, surface);
+            assert_eq!(
+                warnings
+                    .iter()
+                    .filter(|warning| warning.code == DiagCode::Irule1201)
+                    .count(),
+                1,
+                "{text}: {warnings:?}"
+            );
+        }
+
+        let (unit, _) = supplied(
+            "when HTTP_REQUEST {catch {return [HTTP::respond 200]}; HTTP::header value X}",
+            false,
+        );
+        assert!(
+            find_http_flow_warnings(&unit, surface)
+                .iter()
+                .any(|warning| warning.code == DiagCode::Irule1201)
+        );
+
+        for tail in [
+            "return {[HTTP::header value X]}",
+            "if 0 {HTTP::header value X}",
+            "return; HTTP::header value X",
+        ] {
+            let text = format!("when HTTP_REQUEST {{HTTP::respond 200; {tail}}}");
+            let (unit, _) = supplied(&text, false);
+            assert!(find_http_flow_warnings(&unit, surface).is_empty(), "{text}");
         }
     }
 

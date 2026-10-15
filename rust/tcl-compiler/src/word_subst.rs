@@ -159,6 +159,28 @@ pub struct LiftedCall {
 struct LiftedCallCollection {
     calls: Vec<LiftedCall>,
     incomplete: bool,
+    original_image: Option<tcl_lexer::SourceImage>,
+}
+
+impl LiftedCallCollection {
+    fn for_original_parent(tokens: &CommandTokens, config: tcl_lexer::LexerConfig) -> Self {
+        let original_image = (|| {
+            let binding = tokens.source_binding.as_ref()?;
+            (binding.original_argument_lexer_config(tokens)? == config).then_some(())?;
+            let image = binding.original_argument_source_image(tokens)?;
+            crate::registry_invocation::original_native_compiler_words(
+                image,
+                tokens.words(),
+                tokens.argv.first()?.start(),
+                config,
+            )?;
+            Some(image.clone())
+        })();
+        Self {
+            original_image,
+            ..Self::default()
+        }
+    }
 }
 
 /// Original syntax regions that may contribute memo-summary dependencies.
@@ -360,7 +382,7 @@ pub(crate) fn checked_argument_lifted_calls(
     tokens: &CommandTokens,
     config: tcl_lexer::LexerConfig,
 ) -> Option<Vec<LiftedCall>> {
-    let mut collected = LiftedCallCollection::default();
+    let mut collected = LiftedCallCollection::for_original_parent(tokens, config);
     collect_command_words(tokens.words(), config, None, 0, &mut collected);
     if collected.incomplete {
         return None;
@@ -618,7 +640,7 @@ fn checked_original_source_lifted_calls(
         if !seen.insert(offset) {
             continue;
         }
-        let mut collected = LiftedCallCollection::default();
+        let mut collected = LiftedCallCollection::for_original_parent(&parent, config);
         collect_command_words(&parent.word_exprs, config, None, 0, &mut collected);
         collect_original_expression_calls(&parent, config, registry, context, &mut collected)?;
         if collected.incomplete {
@@ -1222,6 +1244,7 @@ fn lift(
         return out;
     }
     let config = tokens.native_lexer_config(config);
+    out = LiftedCallCollection::for_original_parent(tokens, config);
     collect_command_words(&tokens.word_exprs, config, surface, 0, &mut out);
     for lifted in &mut out.calls {
         if let Some(nested) = &mut lifted.tokens {
@@ -1491,10 +1514,8 @@ fn collect_word(
                         push_substitution(spelling, source, config, surface, depth, out);
                     }
                     WordPart::Opaque { .. } => out.incomplete = true,
-                    WordPart::Variable { spelling, .. }
-                        if variable_index_may_run_command(spelling, config) =>
-                    {
-                        out.incomplete = true;
+                    WordPart::Variable { spelling, source } => {
+                        collect_variable_index(spelling, source, config, surface, depth, out);
                     }
                     _ => {}
                 }
@@ -1506,18 +1527,101 @@ fn collect_word(
         // `word_exprs` rather than the argument text is the whole point of
         // knowing that. Whether the command it is an argument *to* re-parses
         // it as an expression is `collect_command_words`' question, not this
-        // one. `Literal`, `Variable` and `Opaque` carry no substitution.
+        // one. Variable indices have their own configured component owner.
         WordExpr::Literal { .. } | WordExpr::BracedLiteral { .. } => {}
-        WordExpr::Variable { spelling, .. } => {
-            out.incomplete |= variable_index_may_run_command(spelling, config);
+        WordExpr::Variable { spelling, source } => {
+            collect_variable_index(spelling, source, config, surface, depth, out);
         }
         WordExpr::Opaque { .. } => out.incomplete = true,
     }
 }
 
-// Only an index is substituted. Braced names may contain a literal `[`.
-// Index command traversal is not part of this collector, so retain an opaque
-// effect residual when its original extent could contain a command.
+/// Original variable components retain their own substituted index lists.
+/// Only the checked original parent supplies this arena's image and channel.
+/// Lexical children retain separate source-binding and dispatch requirements.
+fn collect_variable_index(
+    spelling: &str,
+    source: &SourceSite,
+    config: tcl_lexer::LexerConfig,
+    surface: Option<&DocumentCommandSurface<'_>>,
+    depth: u32,
+    out: &mut LiftedCallCollection,
+) {
+    use tcl_lexer::ExecutablePart;
+    if !variable_index_may_run_command(spelling, config) {
+        return;
+    }
+    let Ok(length) = u32::try_from(spelling.len()) else {
+        out.incomplete = true;
+        return;
+    };
+    if source.provenance != Provenance::Source || source.span.len() != length {
+        out.incomplete = true;
+        return;
+    }
+    let Some(image) = out.original_image.clone() else {
+        out.incomplete = true;
+        return;
+    };
+    if image.bytes().get(source.span.as_range()) != Some(spelling.as_bytes()) {
+        out.incomplete = true;
+        return;
+    }
+    let extent = source.span;
+    let Ok(arena) = tcl_lexer::ExecutablePartArena::decompose(
+        image.clone(),
+        extent,
+        tcl_lexer::word_parts::SubstFlags::default(),
+        config,
+    ) else {
+        out.incomplete = true;
+        return;
+    };
+    let [root] = arena.list(arena.root()) else {
+        out.incomplete = true;
+        return;
+    };
+    if root.span != extent || !matches!(root.part, ExecutablePart::Variable { .. }) {
+        out.incomplete = true;
+        return;
+    }
+    let mut pending = vec![arena.list(arena.root()).iter()];
+    while let Some(parts) = pending.last_mut() {
+        let Some(part) = parts.next() else {
+            pending.pop();
+            continue;
+        };
+        match part.part {
+            ExecutablePart::Variable {
+                index: Some(index), ..
+            } => pending.push(arena.list(index).iter()),
+            ExecutablePart::Command { .. } => {
+                let Some(raw) = image
+                    .bytes()
+                    .get(part.span.as_range())
+                    .and_then(|bytes| std::str::from_utf8(bytes).ok())
+                else {
+                    out.incomplete = true;
+                    return;
+                };
+                push_substitution(
+                    raw,
+                    &SourceSite::source(part.span),
+                    config,
+                    surface,
+                    depth,
+                    out,
+                );
+            }
+            ExecutablePart::Expression { .. } | ExecutablePart::ParseError(_) => {
+                out.incomplete = true
+            }
+            ExecutablePart::Variable { index: None, .. } | ExecutablePart::Text(_) => {}
+        }
+    }
+}
+
+// Braced names and escaped index brackets are separate from executable children.
 fn variable_index_may_run_command(spelling: &str, config: tcl_lexer::LexerConfig) -> bool {
     if !spelling.starts_with('$') {
         return true;
@@ -1948,11 +2052,18 @@ mod tests {
         input: &crate::analyser::ResolvedAnalysisInput,
     ) -> CommandTokens {
         let image = tcl_lexer::SourceImage::document(source);
+        original_logical_tokens_in_image(&image, input)
+    }
+
+    fn original_logical_tokens_in_image(
+        image: &tcl_lexer::SourceImage,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> CommandTokens {
         let config = input.lexer_config();
         let registry = input.borrowed_context_registry().commands();
         let bindings =
             crate::command_binding::SourceCommandBindings::analyse_image_in_frame_with_options(
-                &image,
+                image,
                 &crate::var_resolve::VariableExecutionFrame::Unknown,
                 config,
                 registry,
@@ -1960,7 +2071,7 @@ mod tests {
             )
             .unwrap();
         let segments =
-            crate::segmenter::segment_commands_image_with_offset_and_config(&image, 0, config)
+            crate::segmenter::segment_commands_image_with_offset_and_config(image, 0, config)
                 .unwrap();
         let [segment] = segments.as_slice() else {
             panic!("one original command")
@@ -3323,6 +3434,86 @@ mod tests {
             })
             .expect("puts argument word");
         assert!(whole_word_command_tokens(word, config).is_none());
+    }
+
+    #[test]
+    fn original_argument_index_children_keep_order_source_and_inherited_bindings() {
+        let mut prepared = crate::analyser::Analyser::new();
+        let input = prepared.prepare_analysis_input("tcl").unwrap();
+        let config = input.lexer_config();
+        let registry = input.borrowed_context_registry().commands();
+        let metadata = crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+            registry, &input,
+        )
+        .unwrap();
+        let source = r#"puts "pre$a([first]$b([inner])[last])post[tail]""#;
+        let tokens = original_logical_tokens(source, &input);
+        let calls = checked_original_argument_lifted_calls(&tokens, registry, metadata).unwrap();
+        assert_eq!(
+            calls
+                .iter()
+                .map(|call| call.command.as_str())
+                .collect::<Vec<_>>(),
+            ["first", "inner", "last", "tail"]
+        );
+        for call in &calls {
+            assert_eq!(
+                source.get(call.span.as_range()),
+                Some(format!("[{}]", call.command).as_str())
+            );
+            let child = call.tokens.as_ref().unwrap();
+            assert_eq!(
+                child
+                    .source_binding
+                    .as_ref()
+                    .unwrap()
+                    .original_argument_lexer_config(child),
+                Some(config)
+            );
+            assert!(
+                original_call_context(
+                    child,
+                    config,
+                    registry,
+                    OriginalLiftedCallContext::Metadata(metadata)
+                )
+                .is_some()
+            );
+        }
+        for source in [
+            r"puts $a(\[literal\])",
+            "puts ${a[not_a_command]}",
+            "puts {$a([not_a_command])}",
+        ] {
+            let tokens = original_logical_tokens(source, &input);
+            assert!(
+                checked_original_argument_lifted_calls(&tokens, registry, metadata)
+                    .unwrap()
+                    .is_empty(),
+                "{source}"
+            );
+        }
+        let native_image =
+            tcl_lexer::SourceImage::native(std::sync::Arc::<[u8]>::from(source.as_bytes()));
+        let native = original_logical_tokens_in_image(&native_image, &input);
+        let collection = LiftedCallCollection::for_original_parent(&native, config);
+        assert_eq!(collection.original_image.as_ref(), Some(&native_image));
+        assert_eq!(
+            checked_original_argument_lifted_calls(&native, registry, metadata)
+                .unwrap()
+                .len(),
+            4
+        );
+        let mut unowned = tokens.clone();
+        unowned.source_binding = None;
+        unowned.nested_bindings.clear();
+        assert!(checked_argument_lifted_calls(&unowned, config).is_none());
+        let mut missing = tokens.clone();
+        missing.nested_bindings.clear();
+        assert!(checked_original_argument_lifted_calls(&missing, registry, metadata).is_none());
+        let mut foreign = tokens;
+        foreign.argv_texts[1].push('!');
+        assert!(checked_original_argument_lifted_calls(&foreign, registry, metadata).is_none());
     }
 
     #[test]
