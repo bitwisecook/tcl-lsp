@@ -35,6 +35,117 @@ pub struct OriginalSourceFormalName {
     quoted_marker: bool,
 }
 
+/// Conditional Unicode source formals from a genuine lambda-list field.
+/// The complete roster stays retained; these are not Native formal objects,
+/// installed locals, argument bindings or editable declaration inputs.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct LogicalSourceFormalParameters {
+    input: super::name_value::LogicalSourceListNameInput,
+    parameters: Vec<tcl_syntax::formal_params::FormalParameter>,
+    names: Vec<OriginalSourceFormalName>,
+}
+
+impl LogicalSourceFormalParameters {
+    pub(crate) fn from_lambda_fields(
+        fields: &[super::name_value::LogicalSourceListNameInput],
+        dialect: tcl_registry::InvocationDialect,
+    ) -> Option<Self> {
+        super::name_value::LogicalSourceListNameInput::complete_unchanged_roster(fields)?;
+        if !matches!(fields.len(), 2 | 3) {
+            return None;
+        }
+        let input = fields.first()?;
+        if dialect.authored_name_policy() != Some(input.policy())
+            || dialect.parameter_grammar() == Some(tcl_dialect::ParameterGrammar::Jim)
+            || !matches!(
+                input.policy().recipe(),
+                tcl_syntax::naming::NativeNameProtocol::C(_)
+            )
+        {
+            return None;
+        }
+        let parameter_field = input.original_field();
+        let parameters = tcl_syntax::formal_params::parse_formal_parameters_in(
+            parameter_field.value(),
+            tcl_dialect::ParameterGrammar::Tcl,
+        )
+        .ok()?;
+        if dialect.parameter_grammar().is_none()
+            && tcl_syntax::formal_params::parse_formal_parameters_in(
+                parameter_field.value(),
+                tcl_dialect::ParameterGrammar::Jim,
+            )
+            .ok()?
+                != parameters
+        {
+            return None;
+        }
+        let specifiers = parameter_field.elements()?;
+        if specifiers.len() != parameters.len() {
+            return None;
+        }
+        let mut names = Vec::with_capacity(parameters.len());
+        for (specifier, parameter) in specifiers.iter().zip(&parameters) {
+            if specifier
+                .original_word()
+                .image()
+                .bytes()
+                .get(specifier.source_span()?.as_range())?
+                != specifier.value().as_bytes()
+            {
+                return None;
+            }
+            let fields = specifier.elements()?;
+            if fields.iter().any(|field| {
+                field.source_span().is_none_or(|span| {
+                    field.original_word().image().bytes().get(span.as_range())
+                        != Some(field.value().as_bytes())
+                })
+            }) {
+                return None;
+            }
+            let name = fields.first()?;
+            if fields.len() != 1 + usize::from(parameter.default.is_some())
+                || name.value() != parameter.name
+                || fields.get(1).map(|field| field.value()) != parameter.default.as_deref()
+            {
+                return None;
+            }
+            // The full configured source-list owner supplies geometry. The
+            // shared semantic parse must agree; cooked names cannot donate
+            // an interior source range or an original formal-name input.
+            let span = name.source_span()?;
+            if name.original_word().image().bytes().get(span.as_range())?
+                != parameter.name.as_bytes()
+            {
+                return None;
+            }
+            names.push(OriginalSourceFormalName::new(
+                parameter.name.as_bytes().to_vec(),
+                Some(span),
+                false,
+            ));
+        }
+        Some(Self {
+            input: input.clone(),
+            parameters,
+            names,
+        })
+    }
+
+    pub(crate) fn parameters(&self) -> &[tcl_syntax::formal_params::FormalParameter] {
+        &self.parameters
+    }
+
+    pub(crate) fn name_sources(&self) -> &[OriginalSourceFormalName] {
+        &self.names
+    }
+
+    pub(crate) fn parameter_field(&self) -> &tcl_syntax::word_rules::OriginalSourceListElement {
+        self.input.original_field()
+    }
+}
+
 impl OriginalSourceFormalName {
     pub(crate) fn new(name: Vec<u8>, span: Option<tcl_lexer::Span>, quoted_marker: bool) -> Self {
         Self {

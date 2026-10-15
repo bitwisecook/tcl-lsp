@@ -1,5 +1,11 @@
 # Current centralised naming work
 
+## Logical lambda parameter source fields and L10 feedback
+
+The reviewed Logical Apply source owner now retains configured nested formal-name/default fields from the same genuine whole list roster, verifies shared semantic formal parsing and exact source/body/input correspondence, and supplies original names/spans to the handler. Unknown grammar requires explicit Tcl/Jim agreement. Actual third-field source data also supplies namespace-reference spelling independently of Native naming. Native snapshots and generic lambda inventory exclusions remain; no activation, local frame, formal binding, cell, normal completion or editing permission follows. One new control is unexecuted. Legacy unsupported/dynamic parsers and the genuine lambda source-frame issuer remain unfinished.
+
+L10 frozene4b589316 failed101 in470.180864114s with15testELFs/0tests/source drift{}. Three old variable-write tests still called the retired six-argument cursor interface. A two-line test-only visibility/import repair reuses the existing genuine typed-cursor ingress adapter; original test bodies, source positions and assertions remain unchanged. No successor semantic tests have run; the next selected build uses keep-going to collect independent package compilation failures together.
+
 ## Actual archive path consumers
 
 Tar and zip extraction now pass actual library-owned Path values directly through the existing component guard into filesystem targets, removing a lossy local String conversion. Original traversal/link/limit/order checks remain. The new GNUtar opaque-name versus genuine U+FFFD sibling control is unexecuted; original test bodies remain unchanged. Zip initial provider decoding and CAS canonical-hash names are separate unfinished consumers.

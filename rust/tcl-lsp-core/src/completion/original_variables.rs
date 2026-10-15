@@ -536,7 +536,7 @@ mod tests {
     use super::*;
     use tcl_compiler::analyser::Analyser;
 
-    fn items(
+    pub(super) fn items(
         source: &str,
         line: u32,
         character: u32,
@@ -819,6 +819,7 @@ mod tests {
 
 #[cfg(test)]
 mod write_advice_tests {
+    use super::tests::items;
     use super::*;
     use tcl_compiler::analyser::Analyser;
 

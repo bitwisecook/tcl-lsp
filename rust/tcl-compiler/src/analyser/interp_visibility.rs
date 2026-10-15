@@ -466,6 +466,7 @@ pub(super) struct OriginalInterpreterLambdaBody {
 struct OriginalLogicalLambdaNamespace {
     words: Arc<crate::registry_invocation::source_structure::OriginalRegistryWords>,
     fields: Vec<crate::signature_scan::name_value::LogicalSourceListNameInput>,
+    formals: Option<Arc<crate::signature_scan::formal_parameters::LogicalSourceFormalParameters>>,
 }
 
 impl OriginalInterpreterLambdaBody {
@@ -517,6 +518,9 @@ impl OriginalInterpreterLambdaBody {
             tcl_syntax::word_rules::WordValueRules::from_config(&input.lexer_config()),
         )?;
         let namespace = SignatureNamespaceScope::from_logical_lambda_list(&fields)?;
+        let formals = crate::signature_scan::formal_parameters::LogicalSourceFormalParameters::from_lambda_fields(
+            &fields, crate::command_binding::source_analysis_entry::source_input_dialect(input),
+        ).map(Arc::new);
         Some(Self {
             input: input.clone(),
             lambda,
@@ -527,12 +531,46 @@ impl OriginalInterpreterLambdaBody {
             logical: Some(OriginalLogicalLambdaNamespace {
                 words: Arc::new(words),
                 fields,
+                formals,
             }),
         })
     }
 
     pub(super) fn has_logical_source_namespace(&self) -> bool {
         self.logical.is_some()
+    }
+
+    pub(super) fn logical_formals_for_body_token(
+        &self,
+        source: &str,
+        input: &ResolvedAnalysisInput,
+        token: Token,
+        parameter_token: Token,
+    ) -> Option<&crate::signature_scan::formal_parameters::LogicalSourceFormalParameters> {
+        self.for_body_token(source, input, token)?;
+        let formals = self.logical.as_ref()?.formals.as_deref()?;
+        let field = formals.parameter_field();
+        let content = field.source_span()?;
+        if parameter_token
+            .span
+            .start()
+            .checked_add(u32::from(parameter_token.content_offset))
+            != Some(content.start())
+            || parameter_token.span.end() != content.end()
+        {
+            return None;
+        }
+        Some(formals)
+    }
+
+    pub(super) fn logical_namespace_field_for_body_token(
+        &self,
+        source: &str,
+        input: &ResolvedAnalysisInput,
+        token: Token,
+    ) -> Option<&crate::signature_scan::name_value::LogicalSourceListNameInput> {
+        self.for_body_token(source, input, token)?;
+        self.logical.as_ref()?.fields.get(2)
     }
 
     pub(super) fn for_body_token(
@@ -2057,6 +2095,99 @@ mod tests {
             .iter()
             .filter_map(super::super::Diagnostic::conditional_interpreter_visibility)
             .collect()
+    }
+
+    #[test]
+    fn logical_lambda_formal_fields_keep_actual_defaults_names_and_current_source() {
+        let source = "apply {{a {b B} args} {return $a} {$literal}} ONE";
+        let mut analyser = Analyser::new();
+        analyser.analyse_and_retain_result_for_test(source, "tcl");
+        let input = analyser.resolved_analysis_input();
+        let command = crate::segmenter::segment_commands_with_offset_and_config(
+            source,
+            0,
+            input.lexer_config(),
+        )
+        .remove(0);
+        let receipt = analyser
+            .original_interp_apply_body(command.argv[0], command.arg_tokens(), &[])
+            .unwrap();
+        let elements = analyser
+            .parse_apply_lambda_elements(command.args(), command.arg_tokens())
+            .unwrap();
+        let formals = receipt
+            .logical_formals_for_body_token(source, &input, elements[1].0, elements[0].0)
+            .expect("selected source-only formals from the same complete lambda roster");
+        assert_eq!(
+            formals
+                .parameters()
+                .iter()
+                .map(|p| (p.name.as_str(), p.default.as_deref()))
+                .collect::<Vec<_>>(),
+            [("a", None), ("b", Some("B")), ("args", None)]
+        );
+        for (name, expected) in formals.name_sources().iter().zip(["a", "b", "args"]) {
+            assert_eq!(name.name(), expected.as_bytes());
+            assert_eq!(&source[name.source_span().unwrap().as_range()], expected);
+        }
+        assert_eq!(formals.parameter_field().original_word(), &receipt.lambda);
+        let mut foreign = elements[0].0;
+        foreign.span = Span::new(0, 0);
+        assert!(
+            receipt
+                .logical_formals_for_body_token(source, &input, elements[1].0, foreign)
+                .is_none()
+        );
+        let mut changed = input.clone();
+        changed.config.strict_quoting = !changed.config.strict_quoting;
+        assert!(
+            receipt
+                .logical_formals_for_body_token(source, &changed, elements[1].0, elements[0].0)
+                .is_none()
+        );
+        assert!(
+            receipt
+                .logical_formals_for_body_token(
+                    &source.replace("{b B}", "{b C}"),
+                    &input,
+                    elements[1].0,
+                    elements[0].0
+                )
+                .is_none()
+        );
+        let reference = analyser
+            .result
+            .namespace_refs
+            .iter()
+            .find(|reference| reference.original_name == "$literal")
+            .expect("literal list-field data is not a variable substitution");
+        assert_eq!(&source[reference.span.as_range()], "$literal");
+        assert_eq!(reference.qualified_name, "::$literal");
+        assert!(reference.original_name_input.is_none());
+        for source in [
+            r"apply {{{na\u006de}} {return}}",
+            r"apply {{{a D\u0045FAULT}} {return}}",
+            "apply {{{a B C}} {return}}",
+            "apply {{{a(k)}} {return}}",
+            "apply {{{n::a}} {return}}",
+        ] {
+            let mut analyser = Analyser::new();
+            analyser.analyse_and_retain_result_for_test(source, "tcl");
+            let input = analyser.resolved_analysis_input();
+            let command = crate::segmenter::segment_commands_with_offset_and_config(
+                source,
+                0,
+                input.lexer_config(),
+            )
+            .remove(0);
+            let receipt = analyser
+                .original_interp_apply_body(command.argv[0], command.arg_tokens(), &[])
+                .expect("namespace geometry remains independent of formal validity");
+            assert!(
+                receipt.logical.as_ref().unwrap().formals.is_none(),
+                "{source}"
+            );
+        }
     }
 
     #[test]

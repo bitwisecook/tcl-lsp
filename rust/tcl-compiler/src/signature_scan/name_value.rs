@@ -790,7 +790,7 @@ impl LogicalSourceListNameInput {
         &self.fields[self.ordinal]
     }
 
-    pub(super) fn complete_unchanged_roster(inputs: &[Self]) -> Option<()> {
+    pub(crate) fn complete_unchanged_roster(inputs: &[Self]) -> Option<()> {
         let first = inputs.first()?;
         if first.fields.len() != inputs.len() {
             return None;

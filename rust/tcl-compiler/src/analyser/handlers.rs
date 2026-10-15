@@ -3335,10 +3335,68 @@ impl Analyser {
             }
             _ => "::".to_string(),
         };
-        self.record_apply_namespace_reference(&elements, &body_ns, arg_tokens);
         let original_namespace = original.as_ref().and_then(|original| {
             original.for_body_token(&self.source, &self.resolved_analysis_input(), body_tok)
         });
+        let logical_formals = original.as_ref().and_then(|original| {
+            original
+                .logical_formals_for_body_token(
+                    &self.source,
+                    &self.resolved_analysis_input(),
+                    body_tok,
+                    params_tok,
+                )
+                .and_then(|formals| {
+                    Some((
+                        formals
+                            .parameters()
+                            .iter()
+                            .map(|parameter| crate::signature_scan::types::ParamDef {
+                                name: parameter.name.clone(),
+                                has_default: parameter.default.is_some(),
+                                default_value: parameter.default.clone(),
+                            })
+                            .collect::<Vec<_>>(),
+                        formals
+                            .name_sources()
+                            .iter()
+                            .map(|name| name.source_span())
+                            .collect::<Option<Vec<_>>>()?,
+                    ))
+                })
+        });
+        if let Some(original) = original
+            .as_ref()
+            .filter(|original| original.has_logical_source_namespace())
+        {
+            if let Some(field) = original.logical_namespace_field_for_body_token(
+                &self.source,
+                &self.resolved_analysis_input(),
+                body_tok,
+            ) && let Some((namespace, _)) = original_namespace.as_ref()
+                && !namespace.is_root()
+                && let Some(span) = field.original_field().source_span()
+                && !span.is_empty()
+            {
+                self.result
+                    .namespace_refs
+                    .push(super::types::NamespaceRef::from_original(
+                        Some(crate::signature_scan::scope::SignatureNamespaceScope::root(
+                            Some(field.policy()),
+                        )),
+                        Some(field.policy()),
+                        field.original_field().value(),
+                        span,
+                        0,
+                        false,
+                        namespace
+                            .source_spelling(Some(field.policy()))
+                            .unwrap_or_else(|| body_ns.clone()),
+                    ));
+            }
+        } else {
+            self.record_apply_namespace_reference(&elements, &body_ns, arg_tokens);
+        }
         let logical_namespace_source = original
             .filter(|original| {
                 original_namespace.is_some() && original.has_logical_source_namespace()
@@ -3354,7 +3412,10 @@ impl Analyser {
             })
             .unwrap_or(body_ns);
 
-        let params = parse_param_list(params_text, self.word_rules());
+        let (params, original_param_spans) = match logical_formals {
+            Some((parameters, spans)) => (parameters, Some(spans)),
+            None => (parse_param_list(params_text, self.word_rules()), None),
+        };
         let body_text: std::sync::Arc<str> = std::sync::Arc::from(body_text);
         let body_span = body_tok.span;
         // Anonymous, but keyed by source position so two lambdas never collide
@@ -3395,7 +3456,8 @@ impl Analyser {
         // Parameters become locals, each anchored to its name in the param-list
         // literal so go-to-definition / references / rename on a
         // formal resolve to the parameter, not the `apply` call.
-        let param_spans = param_name_spans_for_token(&self.source, params_tok);
+        let param_spans = original_param_spans
+            .unwrap_or_else(|| param_name_spans_for_token(&self.source, params_tok));
         for (i, p) in params.iter().enumerate() {
             self.define_var(
                 &p.name,
