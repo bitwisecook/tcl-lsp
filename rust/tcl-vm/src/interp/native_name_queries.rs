@@ -13,6 +13,63 @@ pub(super) struct QueryNamespace {
     dying: bool,
     dead: bool,
 }
+/// Evidence of this selected operation retaining the already entered birth.
+/// It never changes the original query's lifecycle snapshot.
+pub(super) struct SelectedNamespaceRetirement {
+    namespace: NsId,
+}
+
+pub(super) struct PendingNamespaceRetirement {
+    namespace: NsId,
+    selected: NsId,
+}
+
+impl PendingNamespaceRetirement {
+    pub(super) fn complete(
+        self,
+        vm: &Vm,
+        original: &QueryNamespace,
+        retired: NsId,
+    ) -> Option<SelectedNamespaceRetirement> {
+        if self.selected != retired {
+            return None;
+        }
+        let receipt = SelectedNamespaceRetirement {
+            namespace: self.namespace,
+        };
+        receipt.current(vm, original).then_some(receipt)
+    }
+}
+
+impl SelectedNamespaceRetirement {
+    pub(super) fn current(&self, vm: &Vm, original: &QueryNamespace) -> bool {
+        if original.id != self.namespace || original.dying || original.dead {
+            return false;
+        }
+        let world = vm.name_world.borrow();
+        world.is_live()
+            && !world.dying_namespaces.contains(&self.namespace)
+            && world.dead_namespaces.contains(&self.namespace)
+            && world
+                .ns_deferral
+                .counts
+                .get(&self.namespace)
+                .is_some_and(|count| *count > 0)
+            && world.ns_deferral.owners.get(&self.namespace) == Some(&self.namespace)
+            && world
+                .ns_deferral
+                .retained
+                .get(&self.namespace)
+                .is_some_and(|record| {
+                    record.root == self.namespace
+                        && record
+                            .subtree
+                            .values()
+                            .any(|member| *member == self.namespace)
+                })
+    }
+}
+
 impl QueryNamespace {
     pub(super) fn capture(vm: &Vm, id: NsId) -> Result<Self, CmdError> {
         if !vm.native_namespace_token_has_owner(id) {
@@ -27,6 +84,28 @@ impl QueryNamespace {
             dead: world.dead_namespaces.contains(&id),
         })
     }
+    pub(super) fn prepare_selected_retirement(
+        &self,
+        vm: &Vm,
+        selected: NsId,
+    ) -> Option<PendingNamespaceRetirement> {
+        if self.dying || self.dead || !self.current(vm) {
+            return None;
+        }
+        let world = vm.name_world.borrow();
+        let mut member = self.id;
+        for _ in 0..world.ns_parents.len() {
+            if member == selected {
+                return Some(PendingNamespaceRetirement {
+                    namespace: self.id,
+                    selected,
+                });
+            }
+            member = world.ns_parents.get(member.0 as usize).copied().flatten()?;
+        }
+        None
+    }
+
     pub(super) fn current(&self, vm: &Vm) -> bool {
         if !vm.native_namespace_token_has_owner(self.id) {
             return false;

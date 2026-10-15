@@ -42,6 +42,8 @@ pub struct RetainedSourceModuleBindings {
     observed: ModuleCommandBindings,
     positioned: Arc<SourceCommandBindings>,
     procedures: std::collections::BTreeMap<crate::ir::ProcedureId, OriginalProcedureSource>,
+    installed_procedures:
+        std::collections::BTreeMap<crate::ir::ProcedureId, OriginalProcedureSource>,
     methods: std::collections::BTreeMap<crate::ir::ProcedureId, OriginalMethodSource>,
 }
 
@@ -176,6 +178,17 @@ impl RetainedSourceModuleBindings {
                 .original_source_procedure_bodies()
                 .map(|(name, procedure)| (name.clone(), OriginalProcedureSource::retain(procedure)))
                 .collect(),
+            installed_procedures: module
+                .installed_procedure_body_units
+                .keys()
+                .filter(|id| module.procedure_ids.owns(**id))
+                .filter_map(|id| {
+                    module
+                        .body_units
+                        .get(id)
+                        .map(|procedure| (*id, OriginalProcedureSource::retain(procedure)))
+                })
+                .collect(),
             methods: module
                 .methods
                 .iter()
@@ -266,6 +279,19 @@ impl RetainedSourceModuleBindings {
         let mut current = OriginalProcedureSource::retain(procedure);
         current.qualified_name.clone_from(&original.qualified_name);
         current == *original
+    }
+
+    /// Installed analysis source under its separately issued body ID.
+    pub(crate) fn matches_installed_procedure_summary(
+        &self,
+        id: crate::ir::ProcedureId,
+        procedure: &Procedure,
+    ) -> bool {
+        procedure.body_kind == crate::ir::ProcedureBodyKind::Installed
+            && self
+                .installed_procedures
+                .get(&id)
+                .is_some_and(|original| OriginalProcedureSource::retain(procedure) == *original)
     }
 
     /// Original issued method header and body coordinates, without a receiver entry.

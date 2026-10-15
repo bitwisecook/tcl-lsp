@@ -497,19 +497,43 @@ impl Interp {
             Err(error) => return self.report_cmd_error(error),
         };
         let code = (|| {
-            let context = match self.native_jim_object_context() {
-                Ok(context) => context,
-                Err(error) => return self.report_cmd_error(error.into()),
-            };
-            let head = crate::obj::Owned::fresh(super::new_string(helper.name().as_bytes()));
-            if let Err(error) = crate::native_source::bind_context(head.as_ptr(), &context) {
-                return self.report_cmd_error(error.into());
-            }
+            let namespace = super::native_jim_lookup::OriginalJimLookupNamespace::capture(
+                self,
+                self.current_ns(),
+            )?;
+            let head = self.original_jim_namespace_helper_head(&arguments, &namespace)?;
             let mut words = vec![head.as_ptr()];
             words.extend_from_slice(&argv[2..]);
-            self.dispatch(&words)
+            namespace.check_current_arguments(self, &arguments)?;
+            Ok(self.dispatch(&words))
         })();
+        let code = match code {
+            Ok(code) => code,
+            Err(error) => self.report_cmd_error(error),
+        };
         arguments.finish(code)
+    }
+
+    fn original_jim_namespace_helper_head(
+        &self,
+        arguments: &super::native_arguments::OriginalArguments,
+        namespace: &super::native_jim_lookup::OriginalJimLookupNamespace,
+    ) -> Result<crate::obj::Owned, tcl_cmd_core::CmdError> {
+        namespace.check_current_arguments(self, arguments)?;
+        let context = self.native_jim_object_context()?;
+        namespace.check_current_arguments(self, arguments)?;
+        let original = arguments.bytes(1);
+        namespace.check_current_arguments(self, arguments)?;
+        let name = self
+            .native_invocation_dialect()
+            .native_namespace_scripted_helper(&original?)
+            .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "Jim namespace helper original selector",
+            ))?;
+        let head = crate::obj::Owned::fresh(super::new_string(&name));
+        crate::native_source::bind_context(head.as_ptr(), &context)?;
+        namespace.check_current_arguments(self, arguments)?;
+        Ok(head)
     }
 
     fn ensure_stock_namespace(

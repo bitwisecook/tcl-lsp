@@ -2020,23 +2020,28 @@ fn project_source_diagnostics_for_analysis(
         })
         .collect::<HashMap<_, _>>();
     let mut logical_sites = BTreeMap::new();
-    for (span, _) in &analysis.unresolved_command_sites {
+    for candidate in tcl_compiler::registry_invocation::source_structure::source_logical_command_candidates(
+        text, analysis,
+    ).into_iter().flatten() {
+        let Some(head) = candidate.original_head() else {
+            continue;
+        };
+        let span = head.span();
         let key = (span.start(), span.end());
         if original_sites.contains_key(&key) {
             // A present original Native source owner is terminal even when it
             // cannot supply a project signature.
             continue;
         }
-        let Some(candidate) = tcl_compiler::registry_invocation::source_structure::source_logical_command_candidates_at(
-            text, analysis, span.start(),
-        ) else { continue; };
+        let Some(coordinates) = candidate.external_header_coordinates() else {
+            continue;
+        };
         if candidate.has_earlier_unknown_mutations()
             || candidate.has_lookup_operand_effects()
-            || candidate.original_head().map(tcl_lexer::NativeWord::span) != Some(*span)
         {
             continue;
         }
-        let Some(arities) = candidate.coordinates().iter().find_map(|slot| {
+        let Some(arities) = coordinates.iter().find_map(|slot| {
             logical_source_command_arity(
                 db,
                 project,
@@ -8689,6 +8694,78 @@ p\uD801 ordinary";
             arity[0].span.start(),
             u32::try_from(source.rfind("helper").unwrap()).unwrap()
         );
+    }
+
+    #[test]
+    fn project_direct_logical_headers_preserve_source_occupants() {
+        let db = TclDatabase::default();
+        let cfg = AnalyserConfig::new(
+            &db,
+            Vec::new(),
+            NonAsciiMode::Default,
+            Vec::new(),
+            None,
+            None,
+            0,
+            Vec::new(),
+            Vec::new(),
+        );
+        let definitions = SourceFile::new(
+            &db,
+            "proc puts {x y} {}; proc helper {x y} {}; proc delegated {x y} {}".to_owned(),
+            "tcl".to_owned(),
+            None,
+        );
+        for source in [
+            "puts ONE",
+            "proc helper {x} {}; helper ONE",
+            "interp alias {} delegated {} puts; delegated ONE",
+        ] {
+            let calls = SourceFile::new(&db, source.to_owned(), "tcl".to_owned(), None);
+            let project = Project::new(&db, vec![definitions, calls]);
+            let diagnostics = project_diagnostics(&db, calls, cfg, project);
+            assert!(
+                !diagnostics
+                    .iter()
+                    .any(|diagnostic| matches!(diagnostic.code, DiagCode::E002 | DiagCode::E003)),
+                "{source}: {diagnostics:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn project_direct_logical_headers_do_not_restore_deleted_local_slots() {
+        let db = TclDatabase::default();
+        let cfg = AnalyserConfig::new(
+            &db,
+            Vec::new(),
+            NonAsciiMode::Default,
+            Vec::new(),
+            None,
+            None,
+            0,
+            Vec::new(),
+            Vec::new(),
+        );
+        let source = "namespace eval A {proc helper {x} {}; rename helper {}; helper ONE}";
+        let calls = SourceFile::new(&db, source.to_owned(), "tcl".to_owned(), None);
+        for (headers, expected) in [
+            ("namespace eval A {proc helper {x y} {}}; proc helper {x} {}", 0),
+            ("namespace eval A {proc helper {x} {}}; proc helper {x y} {}", 1),
+        ] {
+            let definitions = SourceFile::new(&db, headers.to_owned(), "tcl".to_owned(), None);
+            let project = Project::new(&db, vec![definitions, calls]);
+            let diagnostics = project_diagnostics(&db, calls, cfg, project);
+            let arity = diagnostics
+                .iter()
+                .filter(|diagnostic| matches!(diagnostic.code, DiagCode::E002 | DiagCode::E003))
+                .collect::<Vec<_>>();
+            assert_eq!(arity.len(), expected, "{headers}: {diagnostics:?}");
+            if let Some(diagnostic) = arity.first() {
+                assert_eq!(diagnostic.code, DiagCode::E002);
+                assert_eq!(diagnostic.span.start(), u32::try_from(source.find("helper ONE").unwrap()).unwrap());
+            }
+        }
     }
 
     #[test]

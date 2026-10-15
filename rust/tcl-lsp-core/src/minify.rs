@@ -644,7 +644,7 @@ fn lexical_aggressive(
     symbol_map.command_aliases = cmd_aliases;
     let (renamed, arg_aliases) = alias_repeated_arguments(&renamed, dialect, &mut claimed_names);
     symbol_map.argument_aliases = arg_aliases;
-    let (renamed, str_aliases) = alias_string_literals(&renamed, dialect, &mut claimed_names);
+    let (renamed, str_aliases) = alias_string_literals(&renamed, input, &mut claimed_names);
     symbol_map.string_aliases = str_aliases;
 
     // Emit unique-prefix keyword abbreviations.
@@ -1194,18 +1194,6 @@ fn maybe_rename(
 /// Whether `b` is `[A-Za-z0-9_]`.
 fn is_word_byte(b: Option<u8>) -> bool {
     matches!(b, Some(c) if c.is_ascii_alphanumeric() || c == b'_')
-}
-
-/// Whether a following byte would extend a bare `$name` reference, so a
-/// preceding `${name}` cannot safely drop its braces.
-///
-/// Beyond the `[A-Za-z0-9_]` name characters this includes `(` (an array
-/// index — `${x}(k)` is scalar `$x` + literal `(k)`, but `$x(k)` is an array
-/// element) and `:` (a namespace separator — `$x` + `::y` vs the variable
-/// `x::y`). Keeping the braces when any of these follow is always safe;
-/// dropping them changes the reference.
-fn extends_dollar_ref(b: Option<u8>) -> bool {
-    is_word_byte(b) || matches!(b, Some(b'(' | b':'))
 }
 
 /// Byte-span slice of `source`.
@@ -2026,11 +2014,7 @@ fn build_lcp_array(text: &[u8], sa: &[usize]) -> Vec<usize> {
 /// occurrences) across the quoted-string segments of `source`,
 /// returning `substring -> source byte offsets`.  Steps 1–5 of
 /// `_alias_string_literals`.
-fn string_alias_candidates(
-    source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
-) -> BTreeMap<Vec<u8>, Vec<usize>> {
-    let segments = collect_string_literals(source, dialect);
+fn string_alias_candidates(segments: &[StringLiteralFragment]) -> BTreeMap<Vec<u8>, Vec<usize>> {
     if segments.is_empty() {
         return BTreeMap::new();
     }
@@ -2038,8 +2022,9 @@ fn string_alias_candidates(
     // source byte offset (`usize::MAX` for sentinels).
     let mut concat: Vec<u8> = Vec::new();
     let mut concat_to_src: Vec<usize> = Vec::new();
-    for &(src_offset, ref seg) in &segments {
-        for (j, b) in seg.bytes().enumerate() {
+    for fragment in segments {
+        let src_offset = fragment.span.start() as usize;
+        for (j, b) in fragment.text.bytes().enumerate() {
             concat.push(b);
             concat_to_src.push(src_offset + j);
         }
@@ -2097,10 +2082,11 @@ fn string_alias_candidates(
 /// aliasing pass. (+ `_collect_string_literals`).
 fn alias_string_literals(
     source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
+    input: &tcl_compiler::analyser::ResolvedAnalysisInput,
     claimed: &mut HashSet<String>,
 ) -> (String, BTreeMap<String, String>) {
-    let occ = string_alias_candidates(source, dialect);
+    let fragments = collect_string_literals(source, input);
+    let occ = string_alias_candidates(&fragments);
     if occ.is_empty() {
         return (source.to_owned(), BTreeMap::new());
     }
@@ -2119,12 +2105,19 @@ fn alias_string_literals(
     }
     scored.sort_by(|a, b| b.0.cmp(&a.0).then(b.1.len().cmp(&a.1.len())));
 
-    let src_bytes = source.as_bytes();
     let mut r#gen = NameGenerator::new();
     let mut claimed_bytes: HashSet<usize> = HashSet::new();
-    let mut aliases: Vec<(Vec<u8>, String, Vec<usize>)> = Vec::new();
+    let mut aliases: Vec<(String, String, Vec<Edit>)> = Vec::new();
     for (_, sub, offsets) in scored {
-        if !braces_balanced(&sub) {
+        let Ok(sub_string) = std::str::from_utf8(&sub) else {
+            continue;
+        };
+        let preamble_word = format!("{{{sub_string}}}");
+        if standalone_alias_word(&preamble_word, input.lexer_config())
+            .and_then(|word| tcl_syntax::word_rules::original_static_word_unicode_value(&word))
+            .as_deref()
+            != Some(sub.as_slice())
+        {
             continue;
         }
         let free: Vec<usize> = offsets
@@ -2142,15 +2135,22 @@ fn alias_string_literals(
         let count = free.len();
         let original_cost = count * sub.len();
         let preamble_cost = 4 + alias.len() + 1 + 1 + sub.len() + 1 + 1;
-        let mut aliased_cost = preamble_cost;
-        for &off in &free {
-            let end = off + sub.len();
-            if extends_dollar_ref(src_bytes.get(end).copied()) {
-                aliased_cost += alias.len() + 3;
-            } else {
-                aliased_cost += alias.len() + 1;
-            }
-        }
+        let proposals = free
+            .iter()
+            .map(|&off| {
+                let end = off.checked_add(sub.len())?;
+                let fragment = fragments.iter().find(|fragment| {
+                    fragment.span.start() as usize <= off && end <= fragment.span.end() as usize
+                })?;
+                let replacement =
+                    alias_string_reference(source, fragment, off, end, &alias, sub_string)?;
+                Some((off, sub.len(), replacement))
+            })
+            .collect::<Option<Vec<_>>>();
+        let Some(proposals) = proposals else {
+            continue;
+        };
+        let aliased_cost = preamble_cost + proposals.iter().map(|edit| edit.2.len()).sum::<usize>();
         if aliased_cost >= original_cost {
             continue;
         }
@@ -2160,7 +2160,7 @@ fn alias_string_literals(
                 claimed_bytes.insert(p);
             }
         }
-        aliases.push((sub, alias, free));
+        aliases.push((sub_string.to_owned(), alias, proposals));
     }
     if aliases.is_empty() {
         return (source.to_owned(), BTreeMap::new());
@@ -2170,109 +2170,139 @@ fn alias_string_literals(
     let mut preamble = String::new();
     let mut edits: Vec<Edit> = Vec::new();
     let mut map = BTreeMap::new();
-    for (sub, alias, offsets) in &aliases {
-        let sub_str = String::from_utf8_lossy(sub).into_owned();
-        let _ = writeln!(preamble, "set {alias} {{{sub_str}}}");
-        for &off in offsets {
-            let end = off + sub.len();
-            let replacement = if extends_dollar_ref(src_bytes.get(end).copied()) {
-                format!("${{{alias}}}")
-            } else {
-                format!("${alias}")
-            };
-            edits.push((off, sub.len(), replacement));
-        }
-        map.insert(sub_str, alias.clone());
+    for (sub, alias, proposals) in aliases {
+        let _ = writeln!(preamble, "set {alias} {{{sub}}}");
+        edits.extend(proposals);
+        map.insert(sub, alias);
     }
     let body = apply_edits(source, edits);
     (format!("{preamble}{body}"), map)
 }
 
-/// Collect `(abs_offset, text)` of `ESC` segments inside
-/// double-quoted strings, descending into braced / command-subst
-/// tokens.
-fn collect_string_literals(
-    top_source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
-) -> Vec<(usize, String)> {
-    let mut segments: Vec<(usize, String)> = Vec::new();
-    let mut stack: Vec<(String, u32)> = vec![(top_source.to_owned(), 0)];
-    while let Some((text, base)) = stack.pop() {
-        let sm = SourceMap::new(&text);
-        let Ok(tokens) =
-            Lexer::with_config(&text, LexerConfig::for_profile(Some(dialect))).tokenise_all()
-        else {
-            continue;
-        };
-        let mut is_command_word = true;
-        let mut in_quoted = false;
-        for tok in &tokens {
-            match tok.kind {
-                TokenType::Eof => break,
-                TokenType::Eol => {
-                    is_command_word = true;
-                    in_quoted = false;
-                    continue;
-                }
-                TokenType::Sep => {
-                    is_command_word = false;
-                    in_quoted = false;
-                    continue;
-                }
-                TokenType::Str => {
-                    let inner = sm.token_text(*tok);
-                    if inner.len() >= 2 {
-                        stack.push((inner.to_owned(), base + tok.span.start() + 1));
-                    }
-                    is_command_word = false;
-                    in_quoted = false;
-                    continue;
-                }
-                TokenType::Cmd => {
-                    let inner = sm.token_text(*tok);
-                    if inner.len() >= 2 {
-                        stack.push((inner.to_owned(), base + tok.span.start() + 1));
-                    }
-                    is_command_word = false;
-                    continue;
-                }
-                _ => {}
-            }
-            let mut abs_off = (base + tok.span.start()) as usize;
-            if is_command_word {
-                is_command_word = false;
-                in_quoted = false;
-                continue;
-            }
-            if !in_quoted && top_source.as_bytes().get(abs_off) == Some(&b'"') {
-                in_quoted = true;
-                abs_off += 1;
-            }
-            if in_quoted && tok.kind == TokenType::Esc {
-                let inner = sm.token_text(*tok);
-                if inner.len() >= 2 {
-                    segments.push((abs_off, inner.to_owned()));
-                }
-            }
-            if !matches!(tok.kind, TokenType::Esc | TokenType::Var | TokenType::Cmd) {
-                in_quoted = false;
-            }
-        }
-    }
-    segments
+struct StringLiteralFragment {
+    span: Span,
+    text: String,
+    config: LexerConfig,
+    following_end: usize,
 }
 
-/// Whether `s` has equal numbers of `{` and `}` bytes.
-fn braces_balanced(s: &[u8]) -> bool {
-    let mut balance: i64 = 0;
-    for &c in s {
-        match c {
-            b'{' => balance += 1,
-            b'}' => balance -= 1,
-            _ => {}
+/// Original quoted text components from the selected source-role inventory.
+fn collect_string_literals(
+    source: &str,
+    input: &tcl_compiler::analyser::ResolvedAnalysisInput,
+) -> Vec<StringLiteralFragment> {
+    let analysis = original::analysis_with_input(source, input);
+    let Some(identities) = analysis.retained_command_realm() else {
+        return Vec::new();
+    };
+    let context = input.context_registry();
+    let env = MinifyEnv {
+        input,
+        dialect: input.unit_profile(),
+        config: input.lexer_config(),
+        registry: context.commands(),
+        context: &context,
+        identities,
+    };
+    let Some(commands) = lexical_metadata::commands(source, env) else {
+        return Vec::new();
+    };
+    let mut fragments = Vec::new();
+    for command in commands {
+        for word in command.words.into_iter().skip(1) {
+            if word.group().kind != tcl_lexer::WordKind::Quoted {
+                continue;
+            }
+            let Ok(content) = word.content_span() else {
+                continue;
+            };
+            let arena = word.executable_parts();
+            for component in arena.list(arena.root()) {
+                let span = component.span;
+                if matches!(component.part, tcl_lexer::ExecutablePart::Text(_))
+                    && let Some(text) = source.get(span.as_range())
+                    && text.len() >= 2
+                {
+                    fragments.push(StringLiteralFragment {
+                        span,
+                        text: text.to_owned(),
+                        config: word.config(),
+                        following_end: content.end() as usize,
+                    });
+                }
+            }
         }
     }
-    balance == 0
+    fragments.sort_by_key(|fragment| fragment.span.start());
+    fragments.dedup_by_key(|fragment| fragment.span);
+    fragments
+}
+
+fn standalone_alias_word(source: &str, config: LexerConfig) -> Option<tcl_lexer::NativeWord> {
+    let image = tcl_lexer::SourceImage::document(source);
+    let plan = tcl_lexer::native_script_words_in(
+        image,
+        Span::new(0, u32::try_from(source.len()).ok()?),
+        config,
+    )
+    .ok()?;
+    if plan.fatal_tail.is_some() || plan.commands.len() != 1 {
+        return None;
+    }
+    let mut words = plan.commands.into_iter().next()?.words;
+    if words.len() != 1 || words[0].word_span().as_range() != (0..source.len()) {
+        return None;
+    }
+    words.pop()
+}
+
+/// Hypothetical value comparison supplies syntax only; alias movement keeps its
+/// separate aggressive-authoring admission.
+fn alias_string_reference(
+    source: &str,
+    fragment: &StringLiteralFragment,
+    start: usize,
+    end: usize,
+    alias: &str,
+    value: &str,
+) -> Option<String> {
+    let prefix = source.get(fragment.span.start() as usize..start)?;
+    let suffix = source.get(end..fragment.span.end() as usize)?;
+    if source.get(start..end)? != value {
+        return None;
+    }
+    let config = fragment.config;
+    let replacement = [false, true].into_iter().find_map(|braced| {
+        let candidate = tcl_syntax::naming::scalar_source_reference(alias, config, braced)?;
+        let following = source.get(end..fragment.following_end)?;
+        let joined = format!("{candidate}{following}");
+        let reference = tcl_lexer::scan_var_ref(joined.as_bytes(), 0, config).ok()??;
+        (reference.next == candidate.len()
+            && reference.name == alias.as_bytes()
+            && reference.index.is_none())
+        .then_some(candidate)
+    })?;
+    let original = standalone_alias_word(&format!("\"{}\"", fragment.text), config)?;
+    let original_value = tcl_syntax::word_rules::original_static_word_unicode_value(&original)?;
+    let proposed = standalone_alias_word(&format!("\"{prefix}{replacement}{suffix}\""), config)?;
+    let mut selected = false;
+    let proposed_value = tcl_syntax::word_rules::original_word_unicode_value_with_variables(
+        &proposed,
+        |arena, part| {
+            let tcl_lexer::ExecutablePart::Variable { name, index: None } = part.part else {
+                return None;
+            };
+            if selected
+                || arena.bytes(name)? != alias.as_bytes()
+                || part.span.as_range() != (1 + prefix.len()..1 + prefix.len() + replacement.len())
+            {
+                return None;
+            }
+            selected = true;
+            Some(value.as_bytes().to_vec())
+        },
+    )?;
+    (selected && original_value == proposed_value).then_some(replacement)
 }
 
 /// Whether braces in `s` are properly nested (depth never negative,
@@ -4507,6 +4537,79 @@ mod tests {
             agg("puts \"the quick brown fox jumps\"\nputs \"the quick brown fox runs\"\n"),
             "set a {the quick brown fox };puts ${a}jumps;puts ${a}runs",
         );
+    }
+
+    #[test]
+    fn string_alias_reference_preserves_original_six_provider_suffix_values() {
+        // Controlled original providers: experiments/name-handling/results/minifier-alias-reference/oracles/controlled,
+        // manifest 756df4fa5b54ea09a6c2310da741cfc215a94a4481b4a8e972c5f23179e0461b.
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let profile = tcl_dialect::DialectProfile::find(dialect).unwrap();
+            let config = LexerConfig::for_profile(Some(profile));
+            for (suffix, braced) in [
+                ("::tail", true),
+                (":tail", false),
+                ("x", true),
+                ("(k)", true),
+                ("é", dialect == "jim"),
+            ] {
+                let source = format!("ALIAS{suffix}");
+                let fragment = StringLiteralFragment {
+                    span: Span::new(0, u32::try_from(source.len()).unwrap()),
+                    text: source.clone(),
+                    config,
+                    following_end: source.len(),
+                };
+                let expected = if braced { "${a}" } else { "$a" };
+                assert_eq!(
+                    alias_string_reference(&source, &fragment, 0, 5, "a", "ALIAS").as_deref(),
+                    Some(expected),
+                    "{dialect}: {suffix}",
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn string_alias_reference_rejects_escaped_insertion_and_split_unicode() {
+        let config = LexerConfig::for_profile(Some(tcl_dialect::DialectProfile::plain_tcl()));
+        for (source, start, end, value) in [(r"\ALIAS!", 1, 6, "ALIAS"), ("éALIAS!", 1, 7, "ALIAS")]
+        {
+            let fragment = StringLiteralFragment {
+                span: Span::new(0, u32::try_from(source.len()).unwrap()),
+                text: source.to_owned(),
+                config,
+                following_end: source.len(),
+            };
+            assert!(alias_string_reference(source, &fragment, start, end, "a", value).is_none());
+        }
+    }
+
+    #[test]
+    fn string_alias_inventory_keeps_data_braces_inert_and_real_body_geometry() {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let registry = CommandRegistry::build_default();
+        let source =
+            "set data {puts \"inert repeated text\"}\nproc p {} {puts \"live repeated text\"}\n";
+        let analysis = original::analysis_for_profile(source, profile, &registry);
+        let fragments = collect_string_literals(source, analysis.resolved_input.as_ref().unwrap());
+        assert!(!fragments.is_empty());
+        assert!(
+            fragments
+                .iter()
+                .all(|fragment| !fragment.text.contains("inert"))
+        );
+        assert!(
+            fragments
+                .iter()
+                .any(|fragment| fragment.text == "live repeated text")
+        );
+        for fragment in fragments {
+            assert_eq!(
+                source.get(fragment.span.as_range()),
+                Some(fragment.text.as_str())
+            );
+        }
     }
 
     #[test]

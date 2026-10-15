@@ -360,6 +360,22 @@ pub fn delete_original<O: NamespaceDeleteBackend>(
     ops: &mut O,
     names: &[O::Value],
 ) -> Result<Option<usize>, tcl_syntax::value::ValueError> {
+    delete_original_with_selected_retirement(ops, names, |ops, namespace| {
+        ops.delete_selected_namespace(namespace)
+    })
+}
+
+/// Run the same two-pass original-name deletion with its actual selected
+/// retirement operation. The callback receives only a namespace selected by
+/// the second lookup; it supplies no name, lookup or target-selection evidence.
+///
+/// # Errors
+/// Preserves original validation, lookup and selected retirement refusals.
+pub fn delete_original_with_selected_retirement<O: NamespaceDeleteBackend>(
+    ops: &mut O,
+    names: &[O::Value],
+    mut retire: impl FnMut(&mut O, NsId) -> Result<(), tcl_syntax::value::ValueError>,
+) -> Result<Option<usize>, tcl_syntax::value::ValueError> {
     use tcl_syntax::value::ValueError;
     let policy = ops
         .name_policy_protocol()
@@ -385,7 +401,7 @@ pub fn delete_original<O: NamespaceDeleteBackend>(
         if let Some(namespace) =
             ops.find_namespace_bytes_checked(Namespaces::current(ops), &bytes)?
         {
-            ops.delete_selected_namespace(namespace)?;
+            retire(ops, namespace)?;
         }
     }
     Ok(None)

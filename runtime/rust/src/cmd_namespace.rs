@@ -7217,3 +7217,7 @@ mod native_jim_parent_tests;
 #[cfg(test)]
 #[path = "cmd_namespace/native_jim_text_result_tests.rs"]
 mod native_jim_text_result_tests;
+
+#[cfg(test)]
+#[path = "cmd_namespace/native_jim_helper_literal_head_tests.rs"]
+mod native_jim_helper_literal_head_tests;

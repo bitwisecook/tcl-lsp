@@ -304,6 +304,7 @@ fn parameters(formals: &str) -> Result<Vec<String>, Inexpressible> {
 /// A lexed script: its tokens and its commands.
 struct Lexed<'a> {
     source: &'a str,
+    config: LexerConfig,
     map: SourceMap<'a>,
     tokens: Vec<Token>,
     commands: Vec<CommandSpan>,
@@ -321,6 +322,7 @@ impl<'a> Lexed<'a> {
         let commands = group_commands(&tokens, source, config);
         Ok(Self {
             source,
+            config,
             map: SourceMap::new(source),
             tokens,
             commands,
@@ -437,7 +439,7 @@ fn check_command(
         for (kind, text) in lexed.fragments(word) {
             match kind {
                 TokenType::Cmd => scan_script(text, depth + 1)?,
-                TokenType::Var if text.contains("::") => {
+                TokenType::Var if tcl_syntax::naming::is_qualified(text.as_bytes()) => {
                     return Err(Inexpressible::Variable(text.to_owned()));
                 }
                 _ => {}
@@ -567,13 +569,13 @@ fn expression(
     };
     if word.kind == WordKind::Braced {
         return match lexed.literal(word) {
-            Some(text) => expression_text(&text, depth),
+            Some(text) => expression_text(&text, depth, lexed.config),
             None => Ok(()),
         };
     }
     for (kind, fragment) in lexed.fragments(word) {
         if matches!(kind, TokenType::Esc | TokenType::Str) {
-            expression_text(fragment, depth)?;
+            expression_text(fragment, depth, lexed.config)?;
         }
     }
     Ok(())
@@ -583,7 +585,10 @@ fn expression(
 /// read, each variable is a plain local, and each function is one the scan lists.
 /// A string in quotes is read for its variables and nothing else, and one in
 /// braces is not read.
-fn expression_text(text: &str, depth: u32) -> Result<(), Inexpressible> {
+fn expression_text(text: &str, depth: u32, config: LexerConfig) -> Result<(), Inexpressible> {
+    if depth > MAX_DEPTH {
+        return Err(Inexpressible::Unreadable);
+    }
     for inner in bracketed(text) {
         scan_script(inner, depth + 1)?;
     }
@@ -599,11 +604,29 @@ fn expression_text(text: &str, depth: u32) -> Result<(), Inexpressible> {
             }
             b'{' if !quoted => index = skip_braced(bytes, index),
             b'$' => {
-                let (name, next) = variable_name(text, index + 1);
-                if name.contains("::") {
+                let reference = tcl_lexer::word_parts::scan_var_ref(bytes, index, config)
+                    .map_err(|_| Inexpressible::Unreadable)?;
+                let Some(reference) = reference else {
+                    index += 1;
+                    continue;
+                };
+                if tcl_syntax::naming::is_qualified(reference.name) {
+                    let name = std::str::from_utf8(reference.name)
+                        .map_err(|_| Inexpressible::Unreadable)?;
                     return Err(Inexpressible::Variable(name.to_owned()));
                 }
-                index = next;
+                if let Some(inner) = reference.index {
+                    if let tcl_lexer::word_parts::WordBody::Parts(parts) =
+                        tcl_lexer::word_parts::decompose(
+                            inner,
+                            tcl_lexer::word_parts::SubstFlags::default(),
+                            config,
+                        )
+                    {
+                        check_index_parts(&parts, depth + 1)?;
+                    }
+                }
+                index = reference.next;
             }
             byte if !quoted && (byte.is_ascii_alphabetic() || byte == b'_') => {
                 let start = index;
@@ -618,6 +641,39 @@ fn expression_text(text: &str, depth: u32) -> Result<(), Inexpressible> {
                 }
             }
             _ => index += 1,
+        }
+    }
+    Ok(())
+}
+
+fn check_index_parts(
+    parts: &[tcl_lexer::word_parts::WordPart<'_>],
+    depth: u32,
+) -> Result<(), Inexpressible> {
+    use tcl_lexer::word_parts::WordPart;
+    if depth > MAX_DEPTH {
+        return Err(Inexpressible::Unreadable);
+    }
+    for part in parts {
+        match part {
+            WordPart::Variable(reference) => {
+                if tcl_syntax::naming::is_qualified(reference.name) {
+                    let name = std::str::from_utf8(reference.name)
+                        .map_err(|_| Inexpressible::Unreadable)?;
+                    return Err(Inexpressible::Variable(name.to_owned()));
+                }
+                if let Some(inner) = &reference.index {
+                    check_index_parts(inner, depth + 1)?;
+                }
+            }
+            WordPart::Command(inner) => {
+                let inner = std::str::from_utf8(inner).map_err(|_| Inexpressible::Unreadable)?;
+                scan_script(inner, depth + 1)?;
+            }
+            WordPart::Expression(_) | WordPart::ParseError(_) => {
+                return Err(Inexpressible::Unreadable);
+            }
+            WordPart::Text(_) => {}
         }
     }
     Ok(())
@@ -642,21 +698,6 @@ fn skip_braced(bytes: &[u8], start: usize) -> usize {
         index += 1;
     }
     bytes.len()
-}
-
-/// The variable a `$` at `start - 1` names, and where it ends: `${…}` to its
-/// closing brace, otherwise the run of word characters and `:`.
-fn variable_name(text: &str, start: usize) -> (&str, usize) {
-    let rest = &text[start.min(text.len())..];
-    if let Some(inner) = rest.strip_prefix('{') {
-        let close = inner.find('}').unwrap_or(inner.len());
-        return (&inner[..close], start + 1 + close + 1);
-    }
-    let length = rest
-        .bytes()
-        .take_while(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b':'))
-        .count();
-    (&rest[..length], start + length)
 }
 
 /// The indices, among `args`, of the words `name` takes as variable names.
@@ -936,6 +977,32 @@ mod tests {
             empty.body.contains("set __spec_result {}"),
             "{}",
             empty.body
+        );
+    }
+
+    #[test]
+    fn expression_references_use_the_original_lexer_grammar() {
+        for name in ["a{b}::x", "::g", "a:::b"] {
+            let definition = format!("proc vendor::f {{}} {{expr {{${{{name}}}}}}}");
+            assert_eq!(
+                derived(&definition),
+                Err(Inexpressible::Variable(name.into()))
+            );
+        }
+        for reference in ["$a($::g)", "$a($b($::g))", "$a({$::g})"] {
+            let definition = format!("proc vendor::f {{}} {{expr {{{reference}}}}}");
+            assert_eq!(
+                derived(&definition),
+                Err(Inexpressible::Variable("::g".into()))
+            );
+        }
+        for reference in ["${a{b}}", "$a($b)", "${}"] {
+            let definition = format!("proc vendor::f {{}} {{expr {{{reference}}}}}");
+            assert!(derived(&definition).is_ok(), "{reference}");
+        }
+        assert_eq!(
+            expression_text("${unfinished", 0, LexerConfig::default()),
+            Err(Inexpressible::Unreadable)
         );
     }
 

@@ -10712,7 +10712,7 @@
       "consumer": "`compilation_unit.rs::build_procedure_units`, CompilationUnit.procedures",
       "retained_inherited_semantic_disposition": [
         "Original lexer/Registry/frame metadata and bounded memo validation",
-        "CFG→IR `.get(qname)`; constants, tainted writes, cache seeds and output FunctionUnit map keyed String.",
+        "CFG\u2192IR `.get(qname)`; constants, tainted writes, cache seeds and output FunctionUnit map keyed String.",
         "Preserve exact cache context/rebase/source validations; same-display-different-body tests."
       ],
       "current_sources": [
@@ -11658,7 +11658,7 @@
       ],
       "section": "Closed issues / merged prior work to preserve",
       "actionable_ids": [],
-      "record": "| [#2166](https://github.com/bitwisecook/tcl-lsp/issues/2166) | CLOSED | Jim dialect/editor/CLI surface supports proc statics and two-word method names; comments reference jimsh 0.76–0.84. This does not fulfil latest-Jim oracle rerun requirement. |",
+      "record": "| [#2166](https://github.com/bitwisecook/tcl-lsp/issues/2166) | CLOSED | Jim dialect/editor/CLI surface supports proc statics and two-word method names; comments reference jimsh 0.76\u20130.84. This does not fulfil latest-Jim oracle rerun requirement. |",
       "authority": "existing verified issue-search snapshot; no new GitHub read in this audit"
     },
     {
@@ -12204,7 +12204,7 @@
       ],
       "section": "Wider issue-search inventory",
       "actionable_ids": [],
-      "record": "| [#276](https://github.com/bitwisecook/tcl-lsp/issues/276) | CLOSED | WASM runtime: tracking — upstream Tcl 9 I/O tcltest suite parity |",
+      "record": "| [#276](https://github.com/bitwisecook/tcl-lsp/issues/276) | CLOSED | WASM runtime: tracking \u2014 upstream Tcl 9 I/O tcltest suite parity |",
       "authority": "existing verified issue-search snapshot; no new GitHub read in this audit"
     },
     {
@@ -12213,7 +12213,7 @@
       ],
       "section": "Wider issue-search inventory",
       "actionable_ids": [],
-      "record": "| [#280](https://github.com/bitwisecook/tcl-lsp/issues/280) | CLOSED | tcltest 2.5 bootstrap fails on WASM runtime — blocks upstream tcltest sweeps |",
+      "record": "| [#280](https://github.com/bitwisecook/tcl-lsp/issues/280) | CLOSED | tcltest 2.5 bootstrap fails on WASM runtime \u2014 blocks upstream tcltest sweeps |",
       "authority": "existing verified issue-search snapshot; no new GitHub read in this audit"
     },
     {
@@ -12222,7 +12222,7 @@
       ],
       "section": "Wider issue-search inventory",
       "actionable_ids": [],
-      "record": "| [#281](https://github.com/bitwisecook/tcl-lsp/issues/281) | CLOSED | clock: remaining tcltest gaps — scan -format, clock-5 free-form, mathop ensemble |",
+      "record": "| [#281](https://github.com/bitwisecook/tcl-lsp/issues/281) | CLOSED | clock: remaining tcltest gaps \u2014 scan -format, clock-5 free-form, mathop ensemble |",
       "authority": "existing verified issue-search snapshot; no new GitHub read in this audit"
     },
     {
@@ -12402,7 +12402,7 @@
       ],
       "section": "Wider issue-search inventory",
       "actionable_ids": [],
-      "record": "| [#1051](https://github.com/bitwisecook/tcl-lsp/issues/1051) | CLOSED | Multi-word `eval` (word-concatenation form) draws false E002/W210 — the analyser reads only the first argument as the script |",
+      "record": "| [#1051](https://github.com/bitwisecook/tcl-lsp/issues/1051) | CLOSED | Multi-word `eval` (word-concatenation form) draws false E002/W210 \u2014 the analyser reads only the first argument as the script |",
       "authority": "existing verified issue-search snapshot; no new GitHub read in this audit"
     },
     {
@@ -12411,7 +12411,7 @@
       ],
       "section": "Wider issue-search inventory",
       "actionable_ids": [],
-      "record": "| [#1056](https://github.com/bitwisecook/tcl-lsp/issues/1056) | CLOSED | VM: `namespace inscope` space-joins its trailing args — C Tcl list-appends them (`concat script [list args…]`) |",
+      "record": "| [#1056](https://github.com/bitwisecook/tcl-lsp/issues/1056) | CLOSED | VM: `namespace inscope` space-joins its trailing args \u2014 C Tcl list-appends them (`concat script [list args\u2026]`) |",
       "authority": "existing verified issue-search snapshot; no new GitHub read in this audit"
     },
     {
@@ -12420,7 +12420,7 @@
       ],
       "section": "Wider issue-search inventory",
       "actionable_ids": [],
-      "record": "| [#1058](https://github.com/bitwisecook/tcl-lsp/issues/1058) | CLOSED | runtime/rust: command-resolution conformance vector fails — braced proc name corrupts dispatch (`invalid command name \"if\"`) |",
+      "record": "| [#1058](https://github.com/bitwisecook/tcl-lsp/issues/1058) | CLOSED | runtime/rust: command-resolution conformance vector fails \u2014 braced proc name corrupts dispatch (`invalid command name \"if\"`) |",
       "authority": "existing verified issue-search snapshot; no new GitHub read in this audit"
     },
     {
@@ -12429,7 +12429,7 @@
       ],
       "section": "Wider issue-search inventory",
       "actionable_ids": [],
-      "record": "| [#1064](https://github.com/bitwisecook/tcl-lsp/issues/1064) | CLOSED | Go-to-definition ignores `rename` for procs and classes (single-file path) — `resolve_class_target_at` / `lookup_alias` need the rename hop |",
+      "record": "| [#1064](https://github.com/bitwisecook/tcl-lsp/issues/1064) | CLOSED | Go-to-definition ignores `rename` for procs and classes (single-file path) \u2014 `resolve_class_target_at` / `lookup_alias` need the rename hop |",
       "authority": "existing verified issue-search snapshot; no new GitHub read in this audit"
     },
     {
@@ -12483,7 +12483,7 @@
       ],
       "section": "Wider issue-search inventory",
       "actionable_ids": [],
-      "record": "| [#1098](https://github.com/bitwisecook/tcl-lsp/issues/1098) | CLOSED | Block-scoped `export`/`unexport` inside `self { … }` abstains — `set_member_visibility` flips both instance and class-side tables by bare name |",
+      "record": "| [#1098](https://github.com/bitwisecook/tcl-lsp/issues/1098) | CLOSED | Block-scoped `export`/`unexport` inside `self { \u2026 }` abstains \u2014 `set_member_visibility` flips both instance and class-side tables by bare name |",
       "authority": "existing verified issue-search snapshot; no new GitHub read in this audit"
     },
     {
@@ -12618,7 +12618,7 @@
       ],
       "section": "Wider issue-search inventory",
       "actionable_ids": [],
-      "record": "| [#1262](https://github.com/bitwisecook/tcl-lsp/issues/1262) | CLOSED | Dynamic variable-name provenance stops at the written word — no per-site constant-value record survives analysis |",
+      "record": "| [#1262](https://github.com/bitwisecook/tcl-lsp/issues/1262) | CLOSED | Dynamic variable-name provenance stops at the written word \u2014 no per-site constant-value record survives analysis |",
       "authority": "existing verified issue-search snapshot; no new GitHub read in this audit"
     },
     {
@@ -12699,7 +12699,7 @@
       ],
       "section": "Wider issue-search inventory",
       "actionable_ids": [],
-      "record": "| [#1442](https://github.com/bitwisecook/tcl-lsp/issues/1442) | CLOSED | `namespace origin` in tcl-vm returns the *caller's* qualification, never the import source or the resolved command — and `namespace which -variable` answers with proc locals |",
+      "record": "| [#1442](https://github.com/bitwisecook/tcl-lsp/issues/1442) | CLOSED | `namespace origin` in tcl-vm returns the *caller's* qualification, never the import source or the resolved command \u2014 and `namespace which -variable` answers with proc locals |",
       "authority": "existing verified issue-search snapshot; no new GitHub read in this audit"
     },
     {
@@ -12807,7 +12807,7 @@
       ],
       "section": "Wider issue-search inventory",
       "actionable_ids": [],
-      "record": "| [#1582](https://github.com/bitwisecook/tcl-lsp/issues/1582) | CLOSED | tclvm: `upvar` linking a proc local to a namespace variable is silently accepted — C raises \"can't create namespace variable that refers to procedure variable\" |",
+      "record": "| [#1582](https://github.com/bitwisecook/tcl-lsp/issues/1582) | CLOSED | tclvm: `upvar` linking a proc local to a namespace variable is silently accepted \u2014 C raises \"can't create namespace variable that refers to procedure variable\" |",
       "authority": "existing verified issue-search snapshot; no new GitHub read in this audit"
     },
     {
@@ -12843,7 +12843,7 @@
       ],
       "section": "Wider issue-search inventory",
       "actionable_ids": [],
-      "record": "| [#1604](https://github.com/bitwisecook/tcl-lsp/issues/1604) | CLOSED | compiler: ~20 free-text `${…}` scanners hard-code the 8.x first-`}` rule (and ~15 more use a last-`}` rule) across optimiser/dataflow/taint/analyser — #1568's class, outside its declared scope |",
+      "record": "| [#1604](https://github.com/bitwisecook/tcl-lsp/issues/1604) | CLOSED | compiler: ~20 free-text `${\u2026}` scanners hard-code the 8.x first-`}` rule (and ~15 more use a last-`}` rule) across optimiser/dataflow/taint/analyser \u2014 #1568's class, outside its declared scope |",
       "authority": "existing verified issue-search snapshot; no new GitHub read in this audit"
     },
     {
@@ -12852,7 +12852,7 @@
       ],
       "section": "Wider issue-search inventory",
       "actionable_ids": [],
-      "record": "| [#1610](https://github.com/bitwisecook/tcl-lsp/issues/1610) | CLOSED | registry: `ENSEMBLE_CREATE_OPTIONS` serves both `namespace ensemble create` and `configure`, but the real option sets differ — completion offers a guaranteed error and hides a valid option |",
+      "record": "| [#1610](https://github.com/bitwisecook/tcl-lsp/issues/1610) | CLOSED | registry: `ENSEMBLE_CREATE_OPTIONS` serves both `namespace ensemble create` and `configure`, but the real option sets differ \u2014 completion offers a guaranteed error and hides a valid option |",
       "authority": "existing verified issue-search snapshot; no new GitHub read in this audit"
     },
     {
@@ -12861,7 +12861,7 @@
       ],
       "section": "Wider issue-search inventory",
       "actionable_ids": [],
-      "record": "| [#1612](https://github.com/bitwisecook/tcl-lsp/issues/1612) | CLOSED | analyser: `namespace export` records patterns past an invalid one — C aborts the loop at the first bad pattern |",
+      "record": "| [#1612](https://github.com/bitwisecook/tcl-lsp/issues/1612) | CLOSED | analyser: `namespace export` records patterns past an invalid one \u2014 C aborts the loop at the first bad pattern |",
       "authority": "existing verified issue-search snapshot; no new GitHub read in this audit"
     },
     {
@@ -12870,7 +12870,7 @@
       ],
       "section": "Wider issue-search inventory",
       "actionable_ids": [],
-      "record": "| [#1613](https://github.com/bitwisecook/tcl-lsp/issues/1613) | CLOSED | runtime: `namespace exists`/`parent`/`children` still take the lossy `&str` route — byte-valued machinery now exists, convert them |",
+      "record": "| [#1613](https://github.com/bitwisecook/tcl-lsp/issues/1613) | CLOSED | runtime: `namespace exists`/`parent`/`children` still take the lossy `&str` route \u2014 byte-valued machinery now exists, convert them |",
       "authority": "existing verified issue-search snapshot; no new GitHub read in this audit"
     },
     {
@@ -12879,7 +12879,7 @@
       ],
       "section": "Wider issue-search inventory",
       "actionable_ids": [],
-      "record": "| [#1616](https://github.com/bitwisecook/tcl-lsp/issues/1616) | CLOSED | VM: quoted variable names in `set` are stored under their unsubstituted source spelling — `set \"a\\\\\" K` creates `a\\\\` (3 bytes) where tclsh creates `a\\` (2 bytes) |",
+      "record": "| [#1616](https://github.com/bitwisecook/tcl-lsp/issues/1616) | CLOSED | VM: quoted variable names in `set` are stored under their unsubstituted source spelling \u2014 `set \"a\\\\\" K` creates `a\\\\` (3 bytes) where tclsh creates `a\\` (2 bytes) |",
       "authority": "existing verified issue-search snapshot; no new GitHub read in this audit"
     },
     {
@@ -12888,7 +12888,7 @@
       ],
       "section": "Wider issue-search inventory",
       "actionable_ids": [],
-      "record": "| [#1625](https://github.com/bitwisecook/tcl-lsp/issues/1625) | CLOSED | Extension→dialect registration is only partially generator-driven: 6 drifted hand-maintained surfaces (.tmsh can't activate VS Code; .irules not indexed or recognised by f5-cli; Sublime per-dialect scopes wrong) |",
+      "record": "| [#1625](https://github.com/bitwisecook/tcl-lsp/issues/1625) | CLOSED | Extension\u2192dialect registration is only partially generator-driven: 6 drifted hand-maintained surfaces (.tmsh can't activate VS Code; .irules not indexed or recognised by f5-cli; Sublime per-dialect scopes wrong) |",
       "authority": "existing verified issue-search snapshot; no new GitHub read in this audit"
     },
     {
@@ -12960,7 +12960,7 @@
       ],
       "section": "Wider issue-search inventory",
       "actionable_ids": [],
-      "record": "| [#2142](https://github.com/bitwisecook/tcl-lsp/issues/2142) | CLOSED | A `try` statement erases the definiteness of names bound before it: W210 after `try … finally`, and O109 deletes the `finally` body's store |",
+      "record": "| [#2142](https://github.com/bitwisecook/tcl-lsp/issues/2142) | CLOSED | A `try` statement erases the definiteness of names bound before it: W210 after `try \u2026 finally`, and O109 deletes the `finally` body's store |",
       "authority": "existing verified issue-search snapshot; no new GitHub read in this audit"
     },
     {
@@ -12978,7 +12978,7 @@
       ],
       "section": "Wider issue-search inventory",
       "actionable_ids": [],
-      "record": "| [#2168](https://github.com/bitwisecook/tcl-lsp/issues/2168) | CLOSED | A computed `rename` still miscompiles a shadowed builtin — and O102 proves the names in the same run without feeding them back |",
+      "record": "| [#2168](https://github.com/bitwisecook/tcl-lsp/issues/2168) | CLOSED | A computed `rename` still miscompiles a shadowed builtin \u2014 and O102 proves the names in the same run without feeding them back |",
       "authority": "existing verified issue-search snapshot; no new GitHub read in this audit"
     },
     {
@@ -13313,6 +13313,13 @@
       "MCP pool plus IRules literal/reachable-region/tombstone source object consumers",
       "Minifier alias-reference emission, live legacy alias inventory and recursive parameter source geometry",
       "Runtime/VM helper/import/incarnation/current-holder consumers and required full gates"
-    ]
+    ],
+    "active_continuation": {
+      "checkpoint": "2d456966b",
+      "status": "Parallel first migration batch implemented; fresh validation pending; no completion claim",
+      "audit": "audit-next.md",
+      "historical_bindings": "source238 only; changed files require fresh source review",
+      "required_gates": "rust-check and prep-pr unrun"
+    }
   }
 }

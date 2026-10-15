@@ -41,6 +41,7 @@ pub struct OriginalLogicalCommandCandidates {
     scope: LogicalNavigationScope,
     candidates: Vec<ByteCommandSlot>,
     earlier_unknown_mutations: bool,
+    external_header_candidates: Option<Vec<ByteCommandSlot>>,
 }
 
 impl OriginalLogicalCommandCandidates {
@@ -69,6 +70,7 @@ impl OriginalLogicalCommandCandidates {
             input: input.clone(),
             original: Arc::from(original),
             scope: LogicalNavigationScope::Declared(Arc::clone(scope)),
+            external_header_candidates: external_header_candidates(graph, &written, &candidates),
             candidates,
             earlier_unknown_mutations: !graph.uncertain_operations.is_empty(),
         })
@@ -92,11 +94,13 @@ impl OriginalLogicalCommandCandidates {
             return None;
         }
         let written = tcl_syntax::word_rules::original_static_word_unicode_value(head)?;
+        let candidates = logical_coordinates(graph, &root, &written)?;
         Some(Self {
             input: input.clone(),
             original: Arc::from(original),
             scope,
-            candidates: logical_coordinates(graph, &root, &written)?,
+            external_header_candidates: external_header_candidates(graph, &written, &candidates),
+            candidates,
             earlier_unknown_mutations: !graph.uncertain_operations.is_empty(),
         })
     }
@@ -121,6 +125,14 @@ impl OriginalLogicalCommandCandidates {
     #[must_use]
     pub fn coordinates(&self) -> &[ByteCommandSlot] {
         &self.candidates
+    }
+
+    /// Conditional external header coordinates admitted by the source graph.
+    /// Selected source occupants are terminal and deleted alternatives cannot
+    /// regain a header. Failed lookup representation grants no advice or absence.
+    #[must_use]
+    pub fn external_header_coordinates(&self) -> Option<&[ByteCommandSlot]> {
+        self.external_header_candidates.as_deref()
     }
 
     /// Whether an earlier unmodelled source operation adds an applicability premise.
@@ -152,6 +164,24 @@ impl OriginalLogicalCommandCandidates {
                 .all(|word| word.image() == image && word.config() == input.lexer_config())
             && self.scope.owns_words(&self.original, input)
     }
+}
+
+fn external_header_candidates(
+    graph: &AdviceGraph,
+    written: &[u8],
+    candidates: &[ByteCommandSlot],
+) -> Option<Vec<ByteCommandSlot>> {
+    let selected = graph.lookup_head_key(written)?;
+    if graph.cells.contains_key(&selected) {
+        return None;
+    }
+    Some(
+        candidates
+            .iter()
+            .filter(|slot| !graph.cells.contains_key(*slot))
+            .cloned()
+            .collect(),
+    )
 }
 
 /// One literal absolute source command coordinate in an authentic original
@@ -525,6 +555,17 @@ impl OriginalSourceTransitionAdviceTape {
 }
 
 impl OriginalSourceTransitionAdviceTape {
+    pub(crate) fn logical_navigation_inventory(
+        &self,
+        input: &ResolvedAnalysisInput,
+        image: &tcl_lexer::SourceImage,
+    ) -> Vec<OriginalLogicalCommandCandidates> {
+        self.logical_navigation
+            .keys()
+            .filter_map(|offset| self.logical_navigation_at(input, image, *offset))
+            .collect()
+    }
+
     pub(crate) fn logical_navigation_at(
         &self,
         input: &ResolvedAnalysisInput,
@@ -554,6 +595,82 @@ mod tests {
             analysis,
             u32::try_from(source.find(needle)?).ok()?,
         )
+    }
+
+    #[test]
+    fn logical_occurrence_inventory_keeps_original_scopes_and_partial_coverage() {
+        use crate::registry_invocation::source_structure::source_logical_command_candidates;
+        let source = "proc caller {} {namespace eval A {helper}; namespace eval B {helper}}; oo::class create C {method m {} {relative}}";
+        let mut analysis = Analyser::new().analyse(source, "tcl");
+        let inventory = source_logical_command_candidates(source, &analysis).unwrap();
+        for offset in source.match_indices("helper").map(|(offset, _)| offset) {
+            let offset = u32::try_from(offset).unwrap();
+            let per_site = source_logical_command_candidates_at(source, &analysis, offset).unwrap();
+            let held = inventory
+                .iter()
+                .find(|candidate| {
+                    candidate
+                        .original_head()
+                        .is_some_and(|head| head.span().start() == offset)
+                })
+                .unwrap();
+            assert!(held == &per_site);
+        }
+        let method = u32::try_from(source.find("relative").unwrap()).unwrap();
+        assert!(!inventory.iter().any(|candidate| {
+            candidate
+                .original_head()
+                .is_some_and(|head| head.span().start() == method)
+        }));
+        assert!(source_logical_command_candidates(&format!("{source} "), &analysis).is_none());
+        let config = analysis.body_lexer_config.unwrap();
+        analysis.body_lexer_config.as_mut().unwrap().strict_quoting = !config.strict_quoting;
+        assert!(source_logical_command_candidates(source, &analysis).is_none());
+        analysis.body_lexer_config = Some(config);
+        analysis.resolved_input = None;
+        assert!(source_logical_command_candidates(source, &analysis).is_none());
+        let native = Analyser::new().analyse(source, "tcl8.6");
+        assert!(source_logical_command_candidates(source, &native).is_none());
+    }
+
+    #[test]
+    fn logical_external_headers_preserve_selected_source_occupants() {
+        for (source, needle, allowed) in [
+            ("missing ONE", "missing ONE", true),
+            ("puts ONE", "puts ONE", false),
+            ("proc helper {} {}; helper ONE", "helper ONE", false),
+            (
+                "interp alias {} helper {} puts; helper ONE",
+                "helper ONE",
+                false,
+            ),
+            ("rename puts {}; puts ONE", "puts ONE", false),
+            (
+                "namespace eval A {proc helper {} {}; proc caller {} {helper ONE}}",
+                "helper ONE",
+                false,
+            ),
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl");
+            let candidate = query(source, &analysis, needle).unwrap();
+            assert_eq!(candidate.external_header_coordinates().is_some(), allowed, "{source}");
+        }
+    }
+
+    #[test]
+    fn logical_external_headers_skip_deleted_local_slots_and_refuse_unknown_paths() {
+        let source = "namespace eval A {proc helper {} {}; rename helper {}; proc caller {} {helper ONE}}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let candidate = query(source, &analysis, "helper ONE").unwrap();
+        assert_eq!(candidate.coordinates().len(), 2);
+        assert_eq!(
+            candidate.external_header_coordinates().unwrap(),
+            &[AdviceNamingPolicy::logical_slot(b"::helper").unwrap()]
+        );
+        assert!(!candidate.has_earlier_unknown_mutations());
+        let source = "namespace eval A {namespace path $paths; proc caller {} {helper ONE}}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        assert!(query(source, &analysis, "helper ONE").is_none());
     }
 
     #[test]

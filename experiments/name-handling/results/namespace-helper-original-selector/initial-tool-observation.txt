@@ -1,0 +1,7 @@
+upv 1 {invalid command name "namespace upv"}
+orig 1 {invalid command name "namespace orig"}
+whic 1 {invalid command name "namespace whic"}
+del 1 {invalid command name "namespace del"}
+insc 1 {wrong # args: should be "namespace inscope name arg ?arg ...?"}
+cod 1 {invalid command name "namespace cod"}
+SHORT

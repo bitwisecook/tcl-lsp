@@ -1317,6 +1317,18 @@ pub fn source_logical_command_candidates_at(
     realm.original_logical_navigation_candidates(input, offset)
 }
 
+/// Represented readonly Logical occurrences from the complete current source.
+/// Missing frames or grammar contribute no receipt; empty results establish no
+/// command census, installed target or absence.
+#[must_use]
+pub fn source_logical_command_candidates(
+    source: &str,
+    analysis: &AnalysisResult,
+) -> Option<Vec<crate::command_binding::OriginalLogicalCommandCandidates>> {
+    let (input, realm) = logical_source_candidate_context(source, analysis)?;
+    realm.original_logical_navigation_inventory(input)
+}
+
 /// One literal absolute Logical command head from an authentic retained
 /// original body. Caller namespace and method frame remain unavailable; this
 /// coordinate supplies no installed lookup, call binding or absence proof.

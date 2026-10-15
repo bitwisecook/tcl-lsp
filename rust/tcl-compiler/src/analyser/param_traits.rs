@@ -364,10 +364,17 @@ impl<'p> ScanCtx<'p, '_> {
     }
 
     fn nested(&self, token: &tcl_lexer::Token, text: &str) -> Self {
-        let source_base = self.source_base.and_then(|base| {
-            base.checked_add(token.span.start())?
-                .checked_add(u32::from(token.content_offset))
-        });
+        self.nested_at(
+            token
+                .span
+                .start()
+                .checked_add(u32::from(token.content_offset)),
+            text,
+        )
+    }
+
+    fn nested_at(&self, offset: Option<u32>, text: &str) -> Self {
+        let source_base = self.source_base.and_then(|base| base.checked_add(offset?));
         let source_base = self.executed_source.map_or(source_base, |source| {
             let base = source_base?;
             crate::command_binding::ExecutedScriptSource::contiguous(
@@ -647,16 +654,48 @@ fn scan_segment<'p>(
         })
         .collect();
     let values = ctx.argument_values(source, seg, aliases);
-    // A whole-word `Cmd` token's `texts` entry is the bracketed
-    // substitution; strip the outer `[` / `]` and recurse into its script.
-    for (word, tok) in seg.texts.iter().zip(seg.argv.iter()) {
-        if depth < MAX_DEPTH
-            && tok.kind == TokenType::Cmd
-            && let Some(inner) = word.strip_prefix('[').and_then(|w| w.strip_suffix(']'))
-            && !inner.trim().is_empty()
+    if depth < MAX_DEPTH {
+        let config = ctx.config.nested();
+        let tokens = crate::ir::CommandTokens::from_segmented(
+            &tcl_lexer::SourceMap::new(source),
+            config,
+            seg,
+        );
+        if let Some(words) = tokens
+            .original_words_match_argv_text()
+            .then(|| {
+                crate::registry_invocation::original_native_compiler_words(
+                    &tcl_lexer::SourceImage::document(source),
+                    tokens.words(),
+                    seg.span.start(),
+                    config,
+                )
+            })
+            .flatten()
         {
-            let nested = ctx.nested(tok, inner);
-            scan_commands_bounded(inner, &nested, traits, aliases, depth + 1);
+            for word in words.iter() {
+                let arena = word.executable_parts();
+                let mut bodies: Vec<_> = arena
+                    .all_parts()
+                    .filter_map(|part| match part.part {
+                        tcl_lexer::ExecutablePart::Command { body } => Some(body),
+                        _ => None,
+                    })
+                    .collect();
+                bodies.sort_by_key(|body| body.start());
+                for body in bodies {
+                    let Some(inner) = arena
+                        .bytes(body)
+                        .and_then(|bytes| std::str::from_utf8(bytes).ok())
+                    else {
+                        continue;
+                    };
+                    if !inner.trim().is_empty() {
+                        let nested = ctx.nested_at(Some(body.start()), inner);
+                        scan_commands_bounded(inner, &nested, traits, aliases, depth + 1);
+                    }
+                }
+            }
         }
     }
     let body_aliases = aliases.clone();
@@ -2109,6 +2148,33 @@ mod tests {
             "plain value read must record no trait, got {:?}",
             traits.get("x"),
         );
+    }
+
+    #[test]
+    fn command_substitution_geometry_keeps_quoted_compound_and_index_bodies() {
+        for body in [
+            "return \"[set $v]\"",
+            "return before[set $v]after",
+            "return $array([set $v])",
+            "return [list [set $v]]",
+        ] {
+            let traits = infer(&["v"], body);
+            assert_trait(&traits, "v", ProcArgTrait::DynamicNameLocal);
+            assert_trait(&traits, "v", ProcArgTrait::VarRead);
+        }
+        for body in ["return {[set $v]}", "return \\[set\\ $v\\]"] {
+            let traits = infer(&["v"], body);
+            assert!(traits.get("v").is_none_or(HashSet::is_empty), "{body}");
+        }
+    }
+
+    #[test]
+    fn command_substitution_geometry_preserves_index_and_root_alias_order() {
+        let traits = infer(&["v"], "return \"$array([set alias $v])[set $alias]\"");
+        assert_trait(&traits, "v", ProcArgTrait::DynamicNameLocal);
+        assert_trait(&traits, "v", ProcArgTrait::VarRead);
+        let reversed = infer(&["v"], "return \"[set $alias]$array([set alias $v])\"");
+        assert!(reversed.get("v").is_none_or(HashSet::is_empty));
     }
 
     #[test]

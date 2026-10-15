@@ -77,7 +77,7 @@ impl NativeJimNamespaceHelper {
     pub const fn usage(self) -> &'static str {
         self.usage
     }
-    /// Original compound registration spelling and fresh public fallback head.
+    /// Original compound registration spelling; public lookup keeps the actual selector.
     #[must_use]
     pub const fn name(self) -> &'static str {
         self.name

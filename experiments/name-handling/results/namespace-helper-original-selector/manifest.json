@@ -1,0 +1,76 @@
+{
+  "started_utc": "2026-10-15T08:25:04.782923+00:00",
+  "compile_command": [
+    "cc",
+    "-std=c99",
+    "-I/workspace/tcl-lsp/tmp/jimtcl-oracle",
+    "/tmp/name-jim-namespace-helper-prefix-sdk-20261015/probe.c",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/libjim.a",
+    "-lm",
+    "-lssl",
+    "-lcrypto",
+    "-lz",
+    "-ldl",
+    "-o",
+    "/tmp/name-jim-namespace-helper-prefix-sdk-20261015/probe"
+  ],
+  "compile_exit": 0,
+  "provider_before_sha256": {
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/libjim.a": "2e75f1e259dc7896fa6996ebe2ad0fb5de2864770a772a0d102b2b6306280c61",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim.h": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim-namespace.c": "22bb6fb5fcea8ce8ec7e3eecbfe5ebd5ee290b9b725101ff4e4a1c0e9abed7f3",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim-config.h": "d092046fe07c2ec14b77da74304135da24725d766e1c9fd74ee32eeb07702221",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/Makefile": "1cfb962be629942512ee101d010f6c273fe9e2593fcf3f08a2565422fcf7d29c",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/nshelper.tcl": "97c67e98b1bef86c9564044dbed0d5110b38ba0fd416980663101f65b0066627"
+  },
+  "probe_sha256": "a7f04107f964614b34b4c3aca9c9dff8b02cea1ca20b5283e5c7a9d8015743c6",
+  "driver_sha256": "378473313e2d06fe4cbdb61a6b0320a27c625f7a543ebfc2beb8105f1fc414c1",
+  "upstream_receipt_sha256": "c7267297d33c04031c60f461e16280325594d01cf4e0b094f77be9cf29351a31",
+  "process_exit": 0,
+  "timed_out": false,
+  "executable_sha256": "3ebd5718266688e27f8aae4e36bc7dd409b5d34285ccaedb55c44390cb4a5ded",
+  "stdout_sha256": "07284058c14a095fe27997aaa15ab7982285f8c94495ce8a2b653ca1271cc98a",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rows": 200,
+  "provider_after_sha256": {
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/libjim.a": "2e75f1e259dc7896fa6996ebe2ad0fb5de2864770a772a0d102b2b6306280c61",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim.h": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim-namespace.c": "22bb6fb5fcea8ce8ec7e3eecbfe5ebd5ee290b9b725101ff4e4a1c0e9abed7f3",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim-config.h": "d092046fe07c2ec14b77da74304135da24725d766e1c9fd74ee32eeb07702221",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/Makefile": "1cfb962be629942512ee101d010f6c273fe9e2593fcf3f08a2565422fcf7d29c",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/nshelper.tcl": "97c67e98b1bef86c9564044dbed0d5110b38ba0fd416980663101f65b0066627"
+  },
+  "finished_utc": "2026-10-15T08:25:04.879100+00:00",
+  "scope": "Original Jim namespace-helper-prefix direct primitive12cases24COLD/REUSEphases. Actual namespace/name/header/getter/resultidentity sampled before resultgetter. No Runtime/VM/fullSDK/lifecycle parity; no namespace existence lookup inferred.",
+  "case_count": 12,
+  "phase_count": 24,
+  "excluded_trials": [],
+  "initial_exploratory_observation": {
+    "scope": "Reconstructed from first inline tool transcript after execution; not independently retained executed-file originals. Separate C capture is primary measured evidence.",
+    "provenance_sha256": "f5eb0fd491fcd3a5e3767339aaf2e07bac3e5e372abff4b5a739a3fd2e6e0e82"
+  },
+  "source_references_captured_after_execution": {
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim-subcmd.c": "80f274c72d403c5d7906e22da58cc8f79fd7541e42f34e90e34cc7c5c5248ecb",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim-subcmd.h": "5c6a06e86def9ccb8f1e57e5ce7ce9892edd8005092d037044d5319bed86a87a"
+  },
+  "source_reference_scope": "Post-capture source references only, not new pre-run hash observations; actual pinned unchanged provider hashes and upstream bridge are separately recorded.",
+  "retained_files_sha256": {
+    "capture.py": "378473313e2d06fe4cbdb61a6b0320a27c625f7a543ebfc2beb8105f1fc414c1",
+    "check-upstream.py": "5485afd1601661bb2f110aa07a637c83c987acc5df3fbed8b76e5cd3cfaa0679",
+    "compile.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "compile.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "initial-tool-input.tcl": "28ee2c15314031b252f30a89c0c14b2a9fdc5c367f3360b7ca08130f2b3d0e5a",
+    "initial-tool-observation.txt": "62272cae2204ea347bcdfd461db648db0feeb8d10b33d8b33b674169c2caa484",
+    "initial-tool-provenance.json": "f5eb0fd491fcd3a5e3767339aaf2e07bac3e5e372abff4b5a739a3fd2e6e0e82",
+    "probe.c": "a7f04107f964614b34b4c3aca9c9dff8b02cea1ca20b5283e5c7a9d8015743c6",
+    "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout.tsv": "07284058c14a095fe27997aaa15ab7982285f8c94495ce8a2b653ca1271cc98a",
+    "upstream-check/local.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "upstream-check/local.stdout": "d6871c3697d0a50df0677833206c147f4873986bb59a4317c8509cb433365243",
+    "upstream-check/receipt.json": "c7267297d33c04031c60f461e16280325594d01cf4e0b094f77be9cf29351a31",
+    "upstream-check/remote.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "upstream-check/remote.stdout": "b462d0ddec77db10702025a9671e50c806eb85e8302b25428dc376895bb87de9"
+  }
+}

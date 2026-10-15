@@ -50,7 +50,7 @@ impl OriginalJimLookupNamespace {
             frame: super::native_arguments::OriginalArgumentFrame::capture(interpreter),
         })
     }
-    fn check_current_arguments(
+    pub(super) fn check_current_arguments(
         &self,
         actual: &Interp,
         arguments: &OriginalArguments,
@@ -59,10 +59,8 @@ impl OriginalJimLookupNamespace {
         OriginalJimLookupNamespace::check(self, actual)?;
         if actual.current_ns() != self.namespace {
             return Err(arguments.retain_refusal(
-                ValueError::CommandProtocolUnavailable(
-                    "original Jim variable inventory current namespace",
-                )
-                .into(),
+                ValueError::CommandProtocolUnavailable("original Jim lookup current namespace")
+                    .into(),
             ));
         }
         Ok(())

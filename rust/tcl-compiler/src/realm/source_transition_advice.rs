@@ -624,6 +624,34 @@ impl super::CommandBindingRealm {
             .logical_navigation_at(input, image, offset)
     }
 
+    /// Reborrow represented original Logical occurrences from the current tape.
+    /// This partial inventory supplies no command census or absence proof.
+    pub(crate) fn original_logical_navigation_inventory(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> Option<Vec<crate::command_binding::OriginalLogicalCommandCandidates>> {
+        let image = self.original_source_image()?;
+        if !input.has_logical_source_name_context()
+            || self.bindings.original_logical_source_name_advice_input() != Some(input)
+            || !self.matches_resolved_analysis_input(input)
+            || !self.matches_original_source_image(image, input.lexer_config())
+        {
+            return None;
+        }
+        let context = input.borrowed_context_registry();
+        let purpose = crate::command_binding::OriginalSourceCataloguePurpose::CompletePrefix;
+        let prepared = self.source_advice.get_or_prepare_for(context, purpose, || {
+            self.bindings
+                .original_source_transition_advice_tape_for(context, purpose)
+        });
+        Some(
+            prepared
+                .as_ref()
+                .as_ref()?
+                .logical_navigation_inventory(input, image),
+        )
+    }
+
     /// Absolute source syntax from a genuine original body, independently of
     /// the body frame's unavailable namespace recipe or reached handler.
     pub(crate) fn original_logical_absolute_navigation_candidate(

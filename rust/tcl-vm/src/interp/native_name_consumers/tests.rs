@@ -957,3 +957,83 @@ fn original_jim_dictionary_tuple_checks_real_retirement_before_adopting_children
         }
     }
 }
+
+#[test]
+fn selected_namespace_retirement_keeps_only_the_actual_entered_incarnation() {
+    for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        let mut vm =
+            crate::native_fixture::interpreter(crate::environment::profile_for_dialect(dialect));
+        let entered = vm.activate_namespace_operand(b"::kept").unwrap();
+        vm.push_ns_token("kept", entered);
+        let strict = QueryNamespace::capture(&vm, entered).unwrap();
+        let scope = OriginalNameConsumerScope::enter(&mut vm).unwrap();
+        let names = [Value::string("::kept")];
+        assert!(
+            tcl_cmd_core::namespace::delete_original_with_selected_retirement(
+                &mut vm,
+                &names,
+                |vm, selected| scope.retire_selected_namespace(vm, selected),
+            )
+            .unwrap()
+            .is_none()
+        );
+        assert!(
+            !strict.current(&vm),
+            "generic query currency remains strict"
+        );
+        scope.check(&mut vm).unwrap();
+        let replacement = vm.activate_namespace_operand(b"::kept").unwrap();
+        assert_ne!(entered, replacement);
+        scope.check(&mut vm).unwrap();
+        vm.pop_ns();
+        vm.push_ns_token("kept", replacement);
+        assert!(
+            scope.check(&mut vm).is_err(),
+            "same spelling cannot replace entered birth"
+        );
+    }
+}
+
+#[test]
+fn unrelated_namespace_retirement_cannot_issue_the_entered_operation_receipt() {
+    let mut vm =
+        crate::native_fixture::interpreter(crate::environment::profile_for_dialect("tcl8.6"));
+    let entered = vm.activate_namespace_operand(b"::entered").unwrap();
+    let other = vm.activate_namespace_operand(b"::other").unwrap();
+    vm.push_ns_token("entered", entered);
+    let scope = OriginalNameConsumerScope::enter(&mut vm).unwrap();
+    tcl_cmd_core::namespace::NamespaceDeleteBackend::delete_selected_namespace(&mut vm, entered)
+        .unwrap();
+    assert!(scope.retire_selected_namespace(&mut vm, other).is_err());
+    assert_eq!(
+        tcl_runtime_api::Namespaces::find_namespace_bytes_checked(
+            &vm,
+            tcl_core_types::ROOT_NS,
+            b"::other",
+        )
+        .unwrap(),
+        Some(other)
+    );
+}
+
+#[test]
+fn selected_ancestor_retirement_retains_the_actual_entered_child() {
+    for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        let mut vm =
+            crate::native_fixture::interpreter(crate::environment::profile_for_dialect(dialect));
+        let ancestor = vm.activate_namespace_operand(b"::ancestor").unwrap();
+        let entered = vm.activate_namespace_operand(b"::ancestor::child").unwrap();
+        vm.push_ns_token("ancestor::child", entered);
+        let strict = QueryNamespace::capture(&vm, entered).unwrap();
+        let scope = OriginalNameConsumerScope::enter(&mut vm).unwrap();
+        scope.retire_selected_namespace(&mut vm, ancestor).unwrap();
+        assert!(!strict.current(&vm));
+        scope.check(&mut vm).unwrap();
+        let replacement = vm.activate_namespace_operand(b"::ancestor::child").unwrap();
+        assert_ne!(entered, replacement);
+        scope.check(&mut vm).unwrap();
+        vm.pop_ns();
+        vm.push_ns_token("ancestor::child", replacement);
+        assert!(scope.check(&mut vm).is_err());
+    }
+}

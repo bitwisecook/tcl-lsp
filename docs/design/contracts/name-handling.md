@@ -1136,3 +1136,7 @@ shared static Unicode values. BindingPrefix words retain captured literal values
 without reparsing source. Original context/schema/ordinal/span/UTF-8/NUL guards
 remain; dynamic, expanded or unavailable source grants no candidate or fallback,
 object lookup, handler, Native permission or observed outcome.
+
+Positive Logical occurrence catalogues use `source_logical_command_candidates` over the current retained tape, complete input, source image and configuration. The catalogue is partial and independent of unresolved/W123 reporting; missing representation establishes no absence. `external_header_coordinates` selects conditional project-header candidates through actual graph occupancy. A selected builtin, local or alias is terminal, and retained deleted alternatives cannot regain a project header. Earlier unknown mutations and operand effects keep their independent refusal guards.
+
+Readonly Authored coverage retains both declaration and Installed inventories. Declaration bodies use their declaration-only CFG and summary owners. Installed rows use their actual issued body ID, FunctionUnit, prepared CFG and separately retained Installed source snapshot; no declaration or Native execution receipt is inferred.

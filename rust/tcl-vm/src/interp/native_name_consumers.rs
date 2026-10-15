@@ -3,7 +3,7 @@
 
 use super::{
     NamespaceExecutionContext, Vm,
-    native_name_queries::QueryNamespace,
+    native_name_queries::{QueryNamespace, SelectedNamespaceRetirement},
     native_name_world::NativeNameWorld,
     native_operation_currency::{NativeOperationCurrency, NativeOperationScope},
 };
@@ -29,6 +29,7 @@ pub(super) struct OriginalNameConsumerState {
     frame: Option<(Rc<ActivationIdentity>, usize)>,
     namespace: NamespaceExecutionContext,
     namespace_owner: RefCell<Option<QueryNamespace>>,
+    selected_retirement: RefCell<Option<SelectedNamespaceRetirement>>,
     selected_namespace: Option<QueryNamespace>,
     world: Rc<RefCell<NativeNameWorld>>,
 }
@@ -75,6 +76,7 @@ impl OriginalNameConsumerState {
             frame,
             namespace,
             namespace_owner: RefCell::new(namespace_owner),
+            selected_retirement: RefCell::new(None),
             selected_namespace,
             world,
         })
@@ -90,11 +92,14 @@ impl OriginalNameConsumerState {
     ) -> Result<(), CmdError> {
         let world_current = Rc::ptr_eq(&self.world, &vm.name_world)
             && self.world.borrow().is_live()
-            && self
-                .namespace_owner
-                .borrow()
-                .as_ref()
-                .is_none_or(|owner| owner.current(vm))
+            && self.namespace_owner.borrow().as_ref().is_none_or(|owner| {
+                owner.current(vm)
+                    || self
+                        .selected_retirement
+                        .borrow()
+                        .as_ref()
+                        .is_some_and(|receipt| receipt.current(vm, owner))
+            })
             && self
                 .selected_namespace
                 .as_ref()
@@ -178,6 +183,44 @@ impl OriginalNameConsumerScope {
         };
         scope.check(vm)?;
         Ok(scope)
+    }
+
+    /// Retire exactly the namespace selected by the C deletion worker. Only
+    /// its live entered birth may become retained under the selected subtree;
+    /// unrelated callbacks and every frame/world/header check remain strict.
+    pub(crate) fn retire_selected_namespace(
+        &self,
+        vm: &mut Vm,
+        selected: NsId,
+    ) -> Result<(), tcl_syntax::value::ValueError> {
+        self.check(vm).map_err(|_| {
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "selected namespace retirement original scope",
+            )
+        })?;
+        let pending = self
+            .state
+            .namespace_owner
+            .borrow()
+            .as_ref()
+            .and_then(|owner| owner.prepare_selected_retirement(vm, selected));
+        tcl_cmd_core::namespace::NamespaceDeleteBackend::delete_selected_namespace(vm, selected)?;
+        if let Some(pending) = pending {
+            let receipt = self
+                .state
+                .namespace_owner
+                .borrow()
+                .as_ref()
+                .and_then(|owner| pending.complete(vm, owner, selected));
+            if let Some(receipt) = receipt {
+                *self.state.selected_retirement.borrow_mut() = Some(receipt);
+            }
+        }
+        self.check(vm).map_err(|_| {
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "selected namespace retirement original scope",
+            )
+        })
     }
 
     pub(crate) fn check(&self, vm: &mut Vm) -> Result<(), CmdError> {

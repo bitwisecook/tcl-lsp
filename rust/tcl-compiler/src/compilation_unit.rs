@@ -4552,6 +4552,23 @@ impl CompilationUnit {
         }
     }
 
+    /// Prepared CFG for an actual Installed analysis body, without declaration evidence.
+    pub(crate) fn installed_procedure_cfg_for_body(
+        &self,
+        id: crate::ir::ProcedureId,
+    ) -> Option<&CfgFunction> {
+        (self.ir_module.procedure_ids.owns(id)
+            && self
+                .ir_module
+                .installed_procedure_body_units
+                .contains_key(&id)
+            && self.ir_module.body_units.get(&id)?.body_kind
+                == crate::ir::ProcedureBodyKind::Installed
+            && self.body_units.get(&id)?.body_id == Some(id))
+        .then_some(())?;
+        self.source_body_cfgs.get(&id)
+    }
+
     /// Actual original declaration, independently of whether it entered the runtime.
     #[must_use]
     pub fn original_procedure_for_body(

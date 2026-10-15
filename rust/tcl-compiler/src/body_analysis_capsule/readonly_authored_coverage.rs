@@ -37,8 +37,6 @@ impl ReadonlyAuthoredCoverage {
             let procedure = module.body_units.get(&id)?;
             if !module.procedure_ids.owns(id)
                 || function.body_id != Some(id)
-                || unit.original_procedure_cfg_for_body(id) != Some(&function.cfg)
-                || !retained.matches_original_procedure_summary(id, procedure)
                 || module
                     .original_native_declaration_body_units
                     .contains_key(&id)
@@ -54,11 +52,18 @@ impl ReadonlyAuthoredCoverage {
             }
             if let Some(card) = module.original_authored_declaration_body_units.get(&id) {
                 if module.installed_procedure_body_units.contains_key(&id)
+                    || unit.original_procedure_cfg_for_body(id) != Some(&function.cfg)
+                    || !retained.matches_original_procedure_summary(id, procedure)
                     || !card.matches_procedure(module, procedure)
                 {
                     return None;
                 }
                 continue;
+            }
+            if unit.installed_procedure_cfg_for_body(id) != Some(&function.cfg)
+                || !retained.matches_installed_procedure_summary(id, procedure)
+            {
+                return None;
             }
             let allocation = module.installed_procedure_body_units.get(&id)?;
             let mut records = inventory
@@ -184,6 +189,7 @@ mod tests {
     #[test]
     fn readonly_authored_coverage_refuses_missing_foreign_and_mismatched_owners() {
         let (context, unit) = fixture();
+        assert!(ReadonlyAuthoredCoverage::capture(&unit, context.commands()).is_some());
         let mut absent = unit.clone();
         absent
             .ir_module
@@ -214,6 +220,9 @@ mod tests {
             .params_raw
             .push_str(" foreign");
         assert!(ReadonlyAuthoredCoverage::capture(&body, context.commands()).is_none());
+        let mut cfg = unit.clone();
+        cfg.body_units.get_mut(&id).unwrap().body_id = None;
+        assert!(ReadonlyAuthoredCoverage::capture(&cfg, context.commands()).is_none());
         let foreign = CommandRegistry::build_default();
         assert!(ReadonlyAuthoredCoverage::capture(&unit, &foreign).is_none());
         assert_eq!(

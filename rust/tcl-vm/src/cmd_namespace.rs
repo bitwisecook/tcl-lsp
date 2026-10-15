@@ -419,9 +419,35 @@ fn cmd_namespace_in(
                                 return crate::command::completion_from_cmd_error(vm, error);
                             }
                         },
-                        None => std::rc::Rc::from(
-                            vm.namespace_object_bytes(vm.current_ns_id()).as_bytes(),
-                        ),
+                        None => {
+                            if let crate::interp::NamespaceExecutionContext::OriginalJim(context) =
+                                vm.current_namespace_execution_context()
+                            {
+                                if let Err(error) = context.materialize(vm) {
+                                    return crate::command::completion_from_cmd_error(vm, error);
+                                }
+                                if let Err(error) = original_names.check(vm) {
+                                    return crate::command::completion_from_cmd_error(vm, error);
+                                }
+                            }
+                            let original = match vm
+                                .with_jim_current_namespace(|original| Ok(original.clone()))
+                            {
+                                Ok(original) => original,
+                                Err(error) => {
+                                    return crate::command::completion_from_cmd_error(
+                                        vm,
+                                        error.into(),
+                                    );
+                                }
+                            };
+                            match original_names.read(vm, &original) {
+                                Ok(bytes) => bytes,
+                                Err(error) => {
+                                    return crate::command::completion_from_cmd_error(vm, error);
+                                }
+                            }
+                        }
                     };
                     return match name_policy.recipe().jim_namespace_parent_bytes(&original) {
                         Ok(bytes) => ok(Value::from_native_string_bytes(bytes)),
@@ -602,7 +628,11 @@ fn cmd_namespace_in(
             // Jim's authored helper performs its separate sequential flat operation.
             "delete" => {
                 if !name_policy.recipe().is_jim084() {
-                    return match tcl_cmd_core::namespace::delete_original(vm, rest) {
+                    return match tcl_cmd_core::namespace::delete_original_with_selected_retirement(
+                        vm,
+                        rest,
+                        |vm, selected| original_names.retire_selected_namespace(vm, selected),
+                    ) {
                         Ok(None) => ok(Value::empty()),
                         Ok(Some(index)) => {
                             let written = match original_names.read(vm, &rest[index]) {
@@ -2827,5 +2857,51 @@ mod original_jim_namespace_text_result_tests {
         assert_eq!(completion.code, Code::Ok);
         assert!(completion.result.is_same_object(&tail));
         assert!(vm.refused_completion().is_none());
+    }
+}
+
+#[cfg(test)]
+mod original_jim_parent_current_holder_tests {
+    use super::*;
+
+    #[test]
+    fn parent_reaches_the_original_current_holder_only_for_its_no_argument_form() {
+        for explicit in [false, true] {
+            let mut vm = crate::native_fixture::interpreter(
+                crate::environment::profile_for_dialect("jimtcl"),
+            );
+            let original = Value::int(42);
+            let context =
+                crate::interp::OriginalJimNamespaceContext::for_lambda(&mut vm, &original).unwrap();
+            vm.push_call_frame(Some("parent_current_holder_control".into()), Vec::new());
+            vm.install_jim_procedure_namespace_owner(None, original.clone());
+            vm.push_procedure_namespace_context(crate::interp::ProcedureNamespace::OriginalJim(
+                context.clone(),
+            ));
+            assert!(original.resident_string_bytes().is_none());
+            let mut arguments = vec![Value::string("parent")];
+            if explicit {
+                arguments.push(Value::string("absent"));
+            }
+            let completion = cmd_namespace(&mut vm, &arguments);
+            assert_eq!(completion.code, Code::Ok);
+            assert_eq!(
+                completion.result.resident_string_bytes().unwrap().as_ref(),
+                b"::"
+            );
+            assert_eq!(original.resident_string_bytes().is_some(), !explicit);
+            assert_eq!(
+                vm.current_namespace_execution_context()
+                    .resolved_token()
+                    .is_some(),
+                !explicit
+            );
+            if !explicit {
+                assert_eq!(original.resident_string_bytes().unwrap().as_ref(), b"42");
+            }
+            assert!(vm.execution_refusal.is_none());
+            vm.pop_ns();
+            vm.pop_call_frame();
+        }
     }
 }
