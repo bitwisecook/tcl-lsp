@@ -853,7 +853,7 @@ fn variable_completions_in_source(
         return Vec::new();
     };
     let begin = line_index.position_at_utf16(prefix.reference_span().start(), source);
-    let finish = line_index.position_at_utf16(prefix.container_span().end(), source);
+    let finish = line_index.position_at_utf16(prefix.completion_replacement_span().end(), source);
     if begin.line != line || finish.line != line {
         return Vec::new();
     }

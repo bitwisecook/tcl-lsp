@@ -44,7 +44,7 @@ pub(super) fn items(
     };
     let expected = if prefix.is_braced() { "${" } else { "$" };
     let begin = index.position_at_utf16(prefix.reference_span().start(), source);
-    let finish = index.position_at_utf16(prefix.container_span().end(), source);
+    let finish = index.position_at_utf16(prefix.completion_replacement_span().end(), source);
     if begin.line != line || finish.line != line {
         return Some(Vec::new());
     }

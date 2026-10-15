@@ -20,7 +20,7 @@
 
 use super::{
     ArrayIndexEnd, BracedVarEnd, LexerConfig, SubstFlags, TemplateVariableSyntax, WordPart,
-    braced_var_name_end, scan_array_index, scan_var_ref, shallow_spanned_parts,
+    braced_var_name_end, scan_array_index, scan_var_ref_with_term, shallow_spanned_parts,
 };
 use crate::{ParseIssueKind, SourceImage, Span, TokenType};
 
@@ -233,6 +233,8 @@ pub enum VariableCursorUnavailable {
     IndexSubstitution,
     /// Nested variable cursor syntax exceeds the shared decomposition budget.
     IndexNesting,
+    /// Following source has an error other than this reference's missing closer.
+    ReferenceSyntax,
 }
 
 /// A variable prefix in an actual configured lexical source region. The
@@ -243,6 +245,7 @@ pub struct VariableCursorPrefix {
     config: LexerConfig,
     reference: Span,
     container: Span,
+    replacement: Span,
     partial: Span,
     root: Span,
     index: Option<Span>,
@@ -264,6 +267,13 @@ impl VariableCursorPrefix {
     #[must_use]
     pub const fn container_span(&self) -> Span {
         self.container
+    }
+    /// Original completion range. A complete reference includes its real
+    /// closer; a proven missing closer replaces only `$` through the cursor.
+    /// This geometry grants no candidate identity or transformation authority.
+    #[must_use]
+    pub const fn completion_replacement_span(&self) -> Span {
+        self.replacement
     }
     /// Original prefix after `$` or `${`, including a separate index if present.
     #[must_use]
@@ -414,10 +424,20 @@ fn prefix_at(
                 return Ok(None);
             }
         }
-        let container_end = match scan_var_ref(source, at, config) {
-            Ok(Some(reference)) => reference.next,
-            Ok(None) => at + 1,
-            Err(_) => enclosing_end,
+        let (container_end, replacement_end) = match scan_var_ref_with_term(source, at, config) {
+            Ok(Some(reference)) => (reference.next, reference.next),
+            Ok(None) => (at + 1, at + 1),
+            Err(error)
+                if (braced
+                    && error.kind == ParseIssueKind::MissingVariableBrace
+                    && error.term == at + 1)
+                    || (index.is_some()
+                        && error.kind == ParseIssueKind::MissingParenthesis
+                        && error.term == root_end) =>
+            {
+                (enclosing_end, cursor)
+            }
+            Err(_) => return Err(VariableCursorUnavailable::ReferenceSyntax),
         };
         if container_end < cursor || container_end > region.end() as usize {
             return Err(VariableCursorUnavailable::SourceGeometry);
@@ -427,6 +447,7 @@ fn prefix_at(
             config,
             reference: span(at, cursor)?,
             container: span(at, container_end)?,
+            replacement: span(at, replacement_end)?,
             partial: span(name, cursor)?,
             root: span(name, root_end)?,
             index,
@@ -703,6 +724,51 @@ mod tests {
             ),
             Err(VariableCursorUnavailable::IndexSubstitution)
         );
+    }
+
+    #[test]
+    fn completion_replacement_distinguishes_missing_closers_from_original_containers() {
+        let config = LexerConfig::default();
+        for (marked, replacement) in [
+            ("puts $arr(k<|> more stuff\n", "$arr(k"),
+            ("puts ${a<|> b\n", "${a"),
+            ("puts $arr(k<|>suffix)\n", "$arr(ksuffix)"),
+        ] {
+            let (image, prefix) = at(marked, config);
+            let prefix = prefix.unwrap();
+            assert_eq!(
+                &image.bytes()[prefix.completion_replacement_span().as_range()],
+                replacement.as_bytes()
+            );
+            if marked.contains("suffix)") {
+                assert_eq!(
+                    prefix.completion_replacement_span(),
+                    prefix.container_span()
+                );
+            } else {
+                assert_eq!(
+                    prefix.completion_replacement_span(),
+                    prefix.reference_span()
+                );
+                assert!(prefix.container_span().end() > prefix.reference_span().end());
+            }
+        }
+        for marked in [
+            "puts $arr(k<|>[unterminated",
+            "puts $arr(k<|>${unterminated",
+        ] {
+            let cursor = marked.find("<|>").unwrap();
+            let image = SourceImage::document(marked.replacen("<|>", "", 1));
+            assert_eq!(
+                variable_cursor_prefix_in(
+                    &image,
+                    Span::new(0, image.len() as u32),
+                    cursor as u32,
+                    config,
+                ),
+                Err(VariableCursorUnavailable::ReferenceSyntax)
+            );
+        }
     }
 
     #[test]
