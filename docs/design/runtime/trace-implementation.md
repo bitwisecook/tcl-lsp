@@ -121,6 +121,24 @@ the same owner. The Tcl 9.0.4 transcripts and direct consumer checks are in
 `namespace_surface_e2e.rs`, and `opcode_c_parity.rs`; arena/storage retirement
 invariants are unit-tested beside the owners.
 
+The global `env` array carries one native entry in the same table, C's
+`EnvTraceProc`: `rebootstrap_host_globals` installs a
+`VarTraceCallback::HostEnv` read/write/unset/array trace on the fresh array
+of every interpreter (children included; the safe and confinement scrubs
+remove it with the array). An element write sets the host variable and an
+element unset removes it; an element read refreshes the element from the host
+(raw, no write-back) or fails with C's `no such variable`; any `array`
+subcommand re-syncs the whole array from the host in place; a whole-array
+unset leaves the host alone and takes the hook with it. Because it lives in
+the trace table, every store path, the 9.x element-alias recovery and the
+active-cell suppression treat it as any array-level trace, but it is hidden
+from `trace info`, cannot be removed by `trace remove`, and fires ahead of the
+script traces in its group. `var_trace_may_fire` keeps the untraced fast path
+for ordinary variables while the hook is the only trace: an access then needs
+the trace walk only when its name contains `env`, or once a link has reached
+the hooked array or one of its elements under another name. Witnesses:
+`rust/tcl-vm/tests/env_host_sync_e2e.rs`.
+
 Command/execution traces remain the command-side tables described below. The
 VM also needs one extra piece of state that the tree-walker does not: because
 it executes compiled proc bodies,

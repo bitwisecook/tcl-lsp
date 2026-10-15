@@ -1073,8 +1073,7 @@ pub struct InterpState {
     /// Variable traces keyed by the stable variable-cell identity. Newest
     /// trace last; fired newest-first.
     var_traces: HashMap<VarId, Vec<VarTrace>>,
-    /// Source of [`VarTrace::id`]s; never reused within an interpreter.
-    next_var_trace_id: u64,
+    var_trace_book: VarTraceBook,
     /// `trace add command` registrations (`rename`/`delete` ops), keyed by the
     /// command's table key.  Entries follow the command through `rename` and
     /// are dropped when it is deleted or overwritten (M16.3).
@@ -1585,14 +1584,45 @@ struct VarTrace {
     id: u64,
     /// Operations this trace fires on (`read`/`write`/`unset`/`array`).
     ops: Vec<String>,
-    /// The command prefix invoked as `command name1 name2 op`.
-    command: String,
-    /// Registered through the deprecated 8.x `trace variable` form (C's
-    /// `TCL_TRACE_OLD_STYLE`), which calls the callback with the single
-    /// `rwua` letter rather than the operation name. It is deliberately not
-    /// part of the `trace remove`/`trace vdelete` match, exactly as C masks
-    /// the flag out there.
-    old_style: bool,
+    callback: VarTraceCallback,
+}
+
+impl VarTrace {
+    fn is_native(&self) -> bool {
+        matches!(self.callback, VarTraceCallback::HostEnv)
+    }
+}
+
+/// Bookkeeping kept beside the variable-trace table.
+#[derive(Default)]
+struct VarTraceBook {
+    /// Source of [`VarTrace::id`]s; never reused within an interpreter.
+    next_id: u64,
+    /// The `::env` array cell the last bootstrap hooked to the host
+    /// environment. Cell ids are never reused, so a stale id names no live
+    /// cell; [`Vm::only_env_hook`] checks the hook is still there.
+    env_hook: Option<VarId>,
+    /// Set once a link reaches the hooked array, or one of its elements,
+    /// under a name not containing `env`: from then on the spelling of an
+    /// access no longer rules the hook out (see [`Vm::var_trace_may_fire`]).
+    env_hook_aliased: bool,
+}
+
+/// What a variable trace runs when it fires.
+#[derive(Clone)]
+enum VarTraceCallback {
+    /// A `trace add variable` command prefix, invoked as
+    /// `command name1 name2 op`. `old_style` marks a registration through the
+    /// deprecated 8.x `trace variable` form (C's `TCL_TRACE_OLD_STYLE`), which
+    /// calls the callback with the single `rwua` letter rather than the
+    /// operation name. It is deliberately not part of the `trace remove`/
+    /// `trace vdelete` match, exactly as C masks the flag out there.
+    Script { command: String, old_style: bool },
+    /// C's `EnvTraceProc`: the array-level trace `TclSetupEnv` puts on the
+    /// global `env` array to keep it in step with the host environment.
+    /// Scripts can neither see nor remove it, and it runs before the script
+    /// traces of its group.
+    HostEnv,
 }
 
 /// The resolved storage cell used by both trace registration and firing.
@@ -1632,7 +1662,7 @@ enum TraceGroup {
 /// or an already-taken entry, which nothing can remove any more.
 enum Step {
     Live(u64),
-    Taken(String, bool),
+    Taken(VarTraceCallback),
 }
 
 /// One variable-trace access, kept together across cell selection and firing.
@@ -2217,7 +2247,7 @@ impl InterpState {
             package_unknown: None,
             package_prefer: initial_package_prefer(),
             var_traces: HashMap::new(),
-            next_var_trace_id: 0,
+            var_trace_book: VarTraceBook::default(),
             cmd_traces: HashMap::new(),
             exec_traces: HashMap::new(),
             rename_windows: Vec::new(),
@@ -2606,6 +2636,7 @@ impl Vm {
         for (name, value) in snapshot.environment() {
             let _ = self.write_array_raw("::env", name, Value::string(value.as_str()));
         }
+        self.install_env_hook();
         self.limits.confined_stores = confined;
     }
 
@@ -3013,7 +3044,10 @@ impl Vm {
         }
         if (domains.contains(GuardDomain::CommandTrace)
             && !(self.cmd_traces.is_empty() && self.exec_traces.is_empty()))
-            || (domains.contains(GuardDomain::VariableTrace) && !self.var_traces.is_empty())
+            // The host-environment hook every interpreter carries is not a
+            // script trace; counting it would refuse every guard.
+            || (domains.contains(GuardDomain::VariableTrace)
+                && !(self.var_traces.is_empty() || self.only_env_hook()))
         {
             return Err(GuardError::PrerequisiteUnsatisfied);
         }
@@ -8558,18 +8592,189 @@ impl Vm {
         let Some(key) = self.trace_cell(name).and_then(|cell| cell.id) else {
             return;
         };
-        self.next_var_trace_id += 1;
-        let id = self.next_var_trace_id;
+        self.var_trace_book.next_id += 1;
+        let id = self.var_trace_book.next_id;
         if !self.var_traces.contains_key(&key) {
             self.var_arena.pin(key);
         }
         self.var_traces.entry(key).or_default().push(VarTrace {
             id,
             ops,
-            command,
-            old_style,
+            callback: VarTraceCallback::Script { command, old_style },
         });
         self.invalidate_guard_domain(GuardDomain::VariableTrace);
+    }
+
+    /// Hook the global `env` array to the host environment, as C's
+    /// `TclSetupEnv` does for every interpreter it creates: one array-level
+    /// read/write/unset/array trace ([`VarTraceCallback::HostEnv`]).
+    fn install_env_hook(&mut self) {
+        let Some(id) = self
+            .resolve_var_from("::env", self.current_level())
+            .and_then(|resolved| resolved.id)
+        else {
+            return;
+        };
+        self.var_trace_book.next_id += 1;
+        let trace = VarTrace {
+            id: self.var_trace_book.next_id,
+            ops: ["read", "write", "unset", "array"]
+                .map(str::to_owned)
+                .to_vec(),
+            callback: VarTraceCallback::HostEnv,
+        };
+        if !self.var_traces.contains_key(&id) {
+            self.var_arena.pin(id);
+        }
+        self.var_traces.entry(id).or_default().insert(0, trace);
+        self.var_trace_book.env_hook = Some(id);
+        self.var_trace_book.env_hook_aliased = false;
+        self.invalidate_guard_domain(GuardDomain::VariableTrace);
+    }
+
+    /// Whether the host-environment hook is the only variable trace
+    /// registered.
+    fn only_env_hook(&self) -> bool {
+        self.var_traces.len() == 1
+            && self.var_trace_book.env_hook.is_some_and(|id| {
+                self.var_traces
+                    .get(&id)
+                    .is_some_and(|list| list.iter().all(VarTrace::is_native))
+            })
+    }
+
+    /// Whether an access to `name` can reach a variable trace at all, the
+    /// shortcut every access takes before resolving trace cells. While the
+    /// host-environment hook is the only trace, an access reaches it only
+    /// through a name containing `env` (`env`, `::env`, a `global env` link)
+    /// or through a link made under another name, which
+    /// [`Self::note_env_hook_link`] records; ordinary variables keep the
+    /// untraced fast path.
+    fn var_trace_may_fire(&self, name: &str) -> bool {
+        if self.var_traces.is_empty() {
+            return false;
+        }
+        !self.only_env_hook() || self.var_trace_book.env_hook_aliased || name.contains("env")
+    }
+
+    /// Record a link to the hooked `env` array or one of its elements made
+    /// under a name the spelling check in [`Self::var_trace_may_fire`] would
+    /// not recognise.
+    fn note_env_hook_link(&mut self, binding: &VarBinding, target: VarId) {
+        let Some(env) = self.var_trace_book.env_hook else {
+            return;
+        };
+        if self.var_trace_book.env_hook_aliased || binding.name.contains("env") {
+            return;
+        }
+        let Some(target) = self.var_arena.resolve(target) else {
+            return;
+        };
+        self.var_trace_book.env_hook_aliased = target == env
+            || self
+                .var_arena
+                .element_parent(target)
+                .is_some_and(|(array, _)| array == env);
+    }
+
+    /// C's `EnvTraceProc` (`tclEnv.c`) for the array cell `array`: an
+    /// `array` operation re-syncs the whole array from the host; an element
+    /// write sets the host variable, an element unset removes it, and an
+    /// element read refreshes the element from the host or fails with C's
+    /// `no such variable` when the host lacks it. A whole-array unset
+    /// (`key` empty) leaves the host alone. Every store into the array here
+    /// is raw: no script trace runs and nothing is written back.
+    ///
+    /// Not modelled: 9.x's `encoding error` for a value the system encoding
+    /// cannot represent, and 8.4/8.5's re-sync deleting and re-creating the
+    /// whole variable (and with it every script trace on it).
+    fn run_env_hook(&mut self, op: &str, array: Option<VarId>, key: &str) -> Result<(), String> {
+        let host = self.host_rc();
+        let env = host.env();
+        if op == "array" {
+            if let Some(array) = array {
+                self.resync_env_array(array, env);
+            }
+            return Ok(());
+        }
+        if key.is_empty() {
+            return Ok(());
+        }
+        match op {
+            "write" => {
+                if let Some(value) = array.and_then(|array| self.read_resolved_elem(array, key)) {
+                    env.set(key, &value.to_str());
+                }
+            }
+            "read" => {
+                let Some(value) = env.get(key) else {
+                    return Err("no such variable".to_owned());
+                };
+                if let Some(array) = array
+                    && self
+                        .read_resolved_elem(array, key)
+                        .is_none_or(|current| *current.to_str() != *value)
+                {
+                    let _ = self.write_elem_raw_at(array, key, Value::string(value));
+                }
+            }
+            "unset" => env.unset(key),
+            _ => {}
+        }
+        Ok(())
+    }
+
+    /// `TclSetupEnv`'s in-place re-sync (8.6+): every host variable is
+    /// written into the array and every defined element the host lacks is
+    /// removed, with no traces and no write-back.
+    fn resync_env_array(&mut self, array: VarId, env: &dyn tcl_platform::Env) {
+        let mut host = env.vars();
+        host.sort_unstable();
+        let stale: Vec<String> = match self.var_arena.get(array).map(crate::vars::VarCell::state) {
+            Some(Local::Array(elements)) => elements
+                .iter()
+                .filter(|(key, raw)| {
+                    host.binary_search_by(|(name, _)| name.as_str().cmp(key.as_str()))
+                        .is_err()
+                        && self.var_arena.resolve(**raw).is_some_and(|id| {
+                            matches!(
+                                self.var_arena.get(id).map(crate::vars::VarCell::state),
+                                Some(Local::Scalar(_))
+                            )
+                        })
+                })
+                .map(|(key, _)| key.clone())
+                .collect(),
+            _ => return,
+        };
+        for key in stale {
+            self.remove_elem_raw_at(array, &key);
+        }
+        for (key, value) in host {
+            if self
+                .read_resolved_elem(array, &key)
+                .is_none_or(|current| *current.to_str() != *value)
+            {
+                let _ = self.write_elem_raw_at(array, &key, Value::string(value));
+            }
+        }
+    }
+
+    /// Remove element `key` of the array cell `array` with no callbacks,
+    /// retiring any traces the element carried.
+    fn remove_elem_raw_at(&mut self, array: VarId, key: &str) {
+        let raw = match self.var_arena.get(array).map(crate::vars::VarCell::state) {
+            Some(Local::Array(elements)) => elements.get(key).copied(),
+            _ => None,
+        };
+        let Some(raw) = raw else {
+            return;
+        };
+        let Some(id) = self.var_arena.resolve(raw) else {
+            return;
+        };
+        self.drop_var_traces(id);
+        self.unbind_array_element(array, key, raw, id);
     }
 
     /// Remove one `trace remove variable` callback matching `ops` + `command`.
@@ -8586,10 +8791,10 @@ impl Vm {
         let mut removed = false;
         let mut emptied = false;
         if let Some(list) = self.var_traces.get_mut(&key) {
-            if let Some(index) = list
-                .iter()
-                .rposition(|t| t.ops == ops && t.command == command)
-            {
+            if let Some(index) = list.iter().rposition(|t| {
+                t.ops == ops
+                    && matches!(&t.callback, VarTraceCallback::Script { command: c, .. } if c == command)
+            }) {
                 list.remove(index);
                 removed = true;
             }
@@ -9109,7 +9314,12 @@ impl Vm {
         self.var_traces.get(&key).map_or_else(Vec::new, |list| {
             list.iter()
                 .rev()
-                .map(|t| (t.ops.clone(), t.command.clone()))
+                .filter_map(|t| match &t.callback {
+                    VarTraceCallback::Script { command, .. } => {
+                        Some((t.ops.clone(), command.clone()))
+                    }
+                    VarTraceCallback::HostEnv => None,
+                })
                 .collect()
         })
     }
@@ -9197,7 +9407,11 @@ impl Vm {
         if let Some(id) = selected {
             self.var_arena.retain_operation(id);
         }
-        let trace = self.fire_elem_traces_from_cell(name, key, "read", cell);
+        let trace = if self.var_trace_may_fire(name) {
+            self.fire_elem_traces_from_cell(name, key, "read", cell)
+        } else {
+            Ok(())
+        };
         let value = if trace.is_ok() {
             selected.map_or_else(
                 || self.get_array_elem_from(start, name, key),
@@ -9413,7 +9627,7 @@ impl Vm {
         taken: Option<TakenVarTraces>,
         located: Option<VarTraceCell>,
     ) -> Result<(), Completion<Value>> {
-        if self.var_traces.is_empty() && taken.is_none() {
+        if taken.is_none() && !self.var_trace_may_fire(name) {
             return Ok(());
         }
         let (base, elem) = elem_ref(name).map_or_else(
@@ -9567,15 +9781,19 @@ impl Vm {
             // at once, and C's walk then skips it — so the id is re-found in
             // the table before every callback rather than trusting a snapshot.
             // A taken list is nobody's to remove any more, so it fires whole.
+            // The native host-environment hook goes ahead of the script
+            // traces, so a callback already sees the host updated.
+            fn ordered(list: &[VarTrace]) -> impl Iterator<Item = &VarTrace> {
+                let native = list.iter().filter(|t| t.is_native());
+                native.chain(list.iter().rev().filter(|t| !t.is_native()))
+            }
             let steps: Vec<Step> = match &group {
                 TraceGroup::Live(key) => self.var_traces.get(key).map_or_else(Vec::new, |list| {
-                    list.iter().rev().map(|t| Step::Live(t.id)).collect()
+                    ordered(list).map(|t| Step::Live(t.id)).collect()
                 }),
-                TraceGroup::Taken(list) => list
-                    .iter()
-                    .rev()
+                TraceGroup::Taken(list) => ordered(list)
                     .filter(|t| t.ops.iter().any(|o| o == op))
-                    .map(|t| Step::Taken(t.command.clone(), t.old_style))
+                    .map(|t| Step::Taken(t.callback.clone()))
                     .collect(),
             };
             let live_key = match &group {
@@ -9589,11 +9807,24 @@ impl Vm {
                         .get(&live_key.expect("live trace group has a key"))
                         .and_then(|list| list.iter().find(|t| t.id == id))
                         .filter(|t| t.ops.iter().any(|o| o == op))
-                        .map(|t| (t.command.clone(), t.old_style)),
-                    Step::Taken(command, old_style) => Some((command, old_style)),
+                        .map(|t| t.callback.clone()),
+                    Step::Taken(callback) => Some(callback),
                 };
-                let Some((command, old_style)) = entry else {
+                let Some(callback) = entry else {
                     continue;
+                };
+                let (command, old_style) = match callback {
+                    VarTraceCallback::Script { command, old_style } => (command, old_style),
+                    VarTraceCallback::HostEnv => {
+                        let Err(message) = self.run_env_hook(op, live_key, &name2) else {
+                            continue;
+                        };
+                        if op == "unset" {
+                            continue;
+                        }
+                        self.seed_error_info(message.clone());
+                        return Err(self.var_trace_failure(op, name, err(message)));
+                    }
                 };
                 let script = format!(
                     "{} {} {} {}",
@@ -9607,7 +9838,7 @@ impl Vm {
                     Ok(c) => Some(c),
                     Err(error) => Some(crate::command::completion_from_tcl_error(error)),
                 };
-                if let Some(mut failure) = failed {
+                if let Some(failure) = failed {
                     let was_error = failure.code == Code::Error;
                     match op {
                         "write" | "read" | "array" => {
@@ -9616,32 +9847,7 @@ impl Vm {
                                     command.as_str(),
                                 ));
                             }
-                            // C's `TclCallVarTraces` logs a `(write|read trace
-                            // on "name")` frame, then clears ERR_ALREADY_LOGGED
-                            // so the command that triggered the trace logs its
-                            // own `invoked from within` frame as the error
-                            // unwinds (set-2.4 / set-4.4).
-                            self.append_var_trace_frame(op, name);
-                            let verb = match op {
-                                "write" => "set",
-                                "array" => "trace array",
-                                _ => "read",
-                            };
-                            let message = failure.result.to_str().to_string();
-                            failure.code = Code::Error;
-                            failure.result =
-                                Value::string(format!("can't {verb} \"{name}\": {message}"));
-                            if op != "array" {
-                                let kind = if op == "write" { "WRITE" } else { "READ" };
-                                let code =
-                                    tcl_syntax::list::join_list(["TCL", kind, "VARNAME", name]);
-                                failure.options = crate::command::with_return_option(
-                                    &crate::command::completion_options(&failure),
-                                    "-errorcode",
-                                    Value::string(code),
-                                );
-                            }
-                            return Err(failure);
+                            return Err(self.var_trace_failure(op, name, failure));
                         }
                         _ => {} // unset trace errors are ignored
                     }
@@ -9649,6 +9855,44 @@ impl Vm {
             }
         }
         Ok(())
+    }
+
+    /// Wrap a failed read/write/array callback as the access's own error.
+    ///
+    /// C's `TclCallVarTraces` logs a `(write|read trace on "name")` frame,
+    /// then clears `ERR_ALREADY_LOGGED` so the command that triggered the
+    /// trace logs its own `invoked from within` frame as the error unwinds
+    /// (set-2.4 / set-4.4). From 8.6 the failed access then sets the bare
+    /// `TCL READ|WRITE VARNAME` code (`tclVar.c` 9.0.4:1472, :2073); 8.4 and
+    /// 8.5 keep whatever code the callback left.
+    fn var_trace_failure(
+        &mut self,
+        op: &str,
+        name: &str,
+        mut failure: Completion<Value>,
+    ) -> Completion<Value> {
+        self.append_var_trace_frame(op, name);
+        let verb = match op {
+            "write" => "set",
+            "array" => "trace array",
+            _ => "read",
+        };
+        let message = failure.result.to_str().to_string();
+        failure.code = Code::Error;
+        failure.result = Value::string(format!("can't {verb} \"{name}\": {message}"));
+        if op != "array" && self.runtime_version >= tcl_dialect::TclVersion::V8_6 {
+            let code = if op == "write" {
+                "TCL WRITE VARNAME"
+            } else {
+                "TCL READ VARNAME"
+            };
+            failure.options = crate::command::with_return_option(
+                &crate::command::completion_options(&failure),
+                "-errorcode",
+                Value::string(code),
+            );
+        }
+        failure
     }
 
     fn module_proc(&self, qname: &str, parameters: &str, body: &str) -> Option<CompiledUnit> {
@@ -10911,6 +11155,7 @@ impl Vm {
     ) -> Option<VarId> {
         let id = self.var_arena.alloc_link(target, origin)?;
         self.install_new_var(binding, id);
+        self.note_env_hook_link(binding, target);
         Some(id)
     }
 
@@ -11230,7 +11475,7 @@ impl Vm {
             return Err(err(format!("can't set \"{name}\": variable is array")));
         }
         self.write_scalar_raw(name, value);
-        if self.var_traces.is_empty() {
+        if !self.var_trace_may_fire(name) {
             return Ok(());
         }
         self.fire_var_traces(name, "write")
@@ -11725,7 +11970,7 @@ impl Vm {
             let (base, key) = (base.to_owned(), key.to_owned());
             return self.store_elem_result(&base, &key, value);
         }
-        if self.var_traces.is_empty() {
+        if !self.var_trace_may_fire(name) {
             // With no traces nothing can have moved the cell: the read-back is
             // the stored value, so skip the second resolution.
             self.set_var(name, value.clone())?;
@@ -11782,7 +12027,7 @@ impl Vm {
         key: &str,
         value: Value,
     ) -> Result<Value, Completion<Value>> {
-        if self.var_traces.is_empty() {
+        if !self.var_trace_may_fire(name) {
             self.set_array_elem(name, key, value.clone())?;
             return Ok(value);
         }
@@ -11901,9 +12146,20 @@ impl Vm {
             Some(Local::Array(_)) => {}
             Some(Local::Link(_)) | None => return Ok(()),
         }
-        let existing = match self.var_arena.get(base_id).map(crate::vars::VarCell::state) {
+        self.write_elem_raw_at(base_id, key, value)
+    }
+
+    /// Store `value` into element `key` of the array cell `array`, creating
+    /// the element if need be, with no trace firing.
+    fn write_elem_raw_at(
+        &mut self,
+        array: VarId,
+        key: &str,
+        value: Value,
+    ) -> Result<(), Completion<Value>> {
+        let existing = match self.var_arena.get(array).map(crate::vars::VarCell::state) {
             Some(Local::Array(elements)) => elements.get(key).copied(),
-            _ => None,
+            _ => return Ok(()),
         };
         if let Some(id) = existing.and_then(|id| self.var_arena.resolve(id)) {
             let _ = self.var_arena.replace_state(id, Local::Scalar(value));
@@ -11911,11 +12167,11 @@ impl Vm {
         }
         let Some(id) = self
             .var_arena
-            .alloc_element(Local::Scalar(value), base_id, key.to_owned())
+            .alloc_element(Local::Scalar(value), array, key.to_owned())
         else {
             return Err(err("too many variable cells"));
         };
-        if self.var_arena.array_insert(base_id, key.to_owned(), id) {
+        if self.var_arena.array_insert(array, key.to_owned(), id) {
             self.var_arena.bind(id);
         } else {
             self.var_arena.discard_unbound(id);
@@ -11933,7 +12189,7 @@ impl Vm {
         value: Value,
     ) -> Result<(), Completion<Value>> {
         self.write_array_raw(name, key, value)?;
-        if self.var_traces.is_empty() {
+        if !self.var_trace_may_fire(name) {
             return Ok(());
         }
         self.fire_var_traces(&format!("{name}({key})"), "write")
@@ -14519,6 +14775,36 @@ mod family_b_tests {
         }
     }
 
+    /// While the host-environment hook is the only variable trace, an
+    /// access keeps the untraced fast path unless its spelling or an alias
+    /// can reach the hooked array.
+    #[test]
+    fn the_lone_env_hook_leaves_other_variables_on_the_fast_path() {
+        let mut vm = Vm::new();
+        assert!(vm.only_env_hook());
+        assert_eq!(vm.var_trace_info("env"), Vec::new());
+        assert!(!vm.var_trace_may_fire("x"));
+        assert!(!vm.var_trace_may_fire("a(k)"));
+        assert!(vm.var_trace_may_fire("env(HOME)"));
+        assert!(vm.var_trace_may_fire("::env"));
+
+        vm.push_call_frame(Some("p".to_owned()), vec![Value::string("p")]);
+        assert!(vm.link_upvar(0, "env", "env").is_ok());
+        assert!(
+            !vm.var_trace_may_fire("x"),
+            "a link spelled env needs no flag"
+        );
+        assert!(vm.link_upvar(0, "env(HOME)", "home").is_ok());
+        assert!(vm.var_trace_may_fire("home"));
+        assert!(vm.var_trace_may_fire("x"));
+        vm.pop_call_frame();
+
+        let mut vm = Vm::new();
+        vm.add_var_trace("y", vec!["write".to_owned()], "callback".to_owned(), false);
+        assert!(!vm.only_env_hook());
+        assert!(vm.var_trace_may_fire("x"));
+    }
+
     #[test]
     fn raw_scalar_replacement_retires_array_element_trace_cells() {
         let mut vm = Vm::new();
@@ -14535,7 +14821,7 @@ mod family_b_tests {
         vm.write_scalar_raw("a", Value::string("scalar"));
 
         assert_eq!(vm.get_var("a").unwrap().to_str().as_ref(), "scalar");
-        assert!(vm.var_traces.is_empty());
+        assert!(vm.only_env_hook());
         assert_eq!(vm.var_arena.len(), baseline + 1);
     }
 
@@ -14553,7 +14839,7 @@ mod family_b_tests {
         vm.push_call_frame(Some("p".to_owned()), vec![Value::string("p")]);
         assert!(vm.unset(GLOBAL_FRAME, "a"));
 
-        assert!(vm.var_traces.is_empty());
+        assert!(vm.only_env_hook());
         assert_eq!(vm.var_arena.len(), baseline);
         vm.pop_call_frame();
     }
@@ -14572,7 +14858,7 @@ mod family_b_tests {
         vm.push_call_frame(Some("p".to_owned()), vec![Value::string("p")]);
 
         assert!(vm.unset_elem(GLOBAL_FRAME, "a", "k"));
-        assert!(vm.var_traces.is_empty());
+        assert!(vm.only_env_hook());
         assert_eq!(vm.var_arena.len(), baseline + 1, "the empty array remains");
         assert_eq!(vm.array_keys(GLOBAL_FRAME, "a"), Some(Vec::new()));
         vm.pop_call_frame();
@@ -14594,7 +14880,7 @@ mod family_b_tests {
 
         assert!(!vm.unset(GLOBAL_FRAME, "x"));
         assert!(!vm.unset_elem(GLOBAL_FRAME, "a", "k"));
-        assert!(vm.var_traces.is_empty());
+        assert!(vm.only_env_hook());
         assert_eq!(vm.var_arena.len(), baseline + 1, "the empty array remains");
         vm.pop_call_frame();
     }
