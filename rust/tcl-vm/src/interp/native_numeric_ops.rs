@@ -256,6 +256,24 @@ impl<'a> OriginalNumericOps<'a> {
         })
     }
 
+    /// Keep the original consumer's caller checks through nested List getters.
+    pub(crate) fn list_with_original_caller_check(
+        &self,
+        value: &Value,
+        protocol: tcl_syntax::native_string::NativeStringProtocol,
+        additional: impl Fn(&mut Vm) -> Result<(), CmdError>,
+    ) -> Result<crate::NativeListItems, CmdError> {
+        self.list_using(value, protocol, |actual| {
+            self.current_for_value(actual)?;
+            let reached = additional(&mut self.vm.borrow_mut());
+            if let Err(error) = &reached {
+                self.retain_failure(error);
+            }
+            reached?;
+            self.current_for_value(actual)
+        })
+    }
+
     pub(crate) fn list_for_expression(
         &self,
         value: &Value,

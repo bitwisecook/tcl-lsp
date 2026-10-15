@@ -38,10 +38,6 @@ pub(crate) struct OriginalJimErrorCodeCapture {
 }
 
 impl OriginalJimErrorCodeCapture {
-    pub(crate) fn has_original(&self) -> bool {
-        self.original.is_some()
-    }
-
     pub(crate) fn check(&self, vm: &mut Vm) -> Result<(), CmdError> {
         self.caller.check(vm)
     }

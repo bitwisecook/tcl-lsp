@@ -75,6 +75,14 @@ struct Handler {
     script: Value,
     /// Whether the body is the fall-through marker `-`.
     is_dash: bool,
+    /// Match selected at this actual Jim clause ordinal after the body.
+    jim_matches: Option<bool>,
+    jim_variables: Option<OriginalJimTryVariables>,
+}
+
+struct OriginalJimTryVariables {
+    result: Option<crate::value::NativeObjectLifetimeLease>,
+    options: Option<crate::value::NativeObjectLifetimeLease>,
 }
 
 /// A `try`'s handlers + `finally` script, parsed once up front and shared
@@ -175,6 +183,86 @@ fn errorcode_prefix_match(
     Ok(true)
 }
 
+fn original_jim_errorcode_prefix_match(
+    vm: &mut Vm,
+    pattern: &Value,
+    errorcode: &Value,
+    captured: &crate::interp::native_jim_lookup::OriginalJimErrorCodeCapture,
+) -> Result<bool, Completion<Value>> {
+    use crate::interp::{
+        native_name_consumers::OriginalNameConsumerScope, native_numeric_ops::OriginalNumericOps,
+    };
+    use tcl_syntax::native_string::NativeStringProtocol;
+    let scope = OriginalNameConsumerScope::enter(vm)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+    let reached = (|| -> Result<bool, tcl_cmd_core::CmdError> {
+        captured.check(vm)?;
+        scope.current_for_value(vm, pattern)?;
+        scope.current_for_value(vm, errorcode)?;
+        let (pattern_members, code_members) = {
+            let objects = OriginalNumericOps::in_original_scope(vm, scope.operation_scope())?;
+            let pattern_members = objects.list_with_original_caller_check(
+                pattern,
+                NativeStringProtocol::Jim084,
+                |vm| captured.check(vm),
+            )?;
+            let code_members = objects.list_with_original_caller_check(
+                errorcode,
+                NativeStringProtocol::Jim084,
+                |vm| captured.check(vm),
+            )?;
+            (pattern_members, code_members)
+        };
+        let current = |vm: &mut Vm| -> Result<(), tcl_cmd_core::CmdError> {
+            captured.check(vm)?;
+            scope.current_for_value(vm, pattern)?;
+            scope.current_for_value(vm, errorcode)?;
+            pattern_members.check_generation()?;
+            code_members.check_generation()?;
+            scope.require(
+                vm,
+                pattern.native_list_attachment_matches(&pattern_members)
+                    && errorcode.native_list_attachment_matches(&code_members),
+                "original Jim trap List backing",
+            )
+        };
+        current(vm)?;
+        if pattern_members.len() > code_members.len() {
+            return Ok(false);
+        }
+        for (left, right) in pattern_members.iter().zip(code_members.iter()) {
+            current(vm)?;
+            scope.current_for_value(vm, left)?;
+            scope.current_for_value(vm, right)?;
+            let equal = tcl_syntax::native_equality::full_native_equality(vm, left, right)?;
+            current(vm)?;
+            scope.current_for_value(vm, left)?;
+            scope.current_for_value(vm, right)?;
+            if !equal {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    })();
+    if let Err(error) = &reached {
+        if let Some(first) = error.native_execution_refusal() {
+            vm.retain_tcl_host_failure(crate::error::TclHostFailure::Execution(first.clone()));
+        } else if let Some(first) = error.native_access_refusal() {
+            vm.retain_tcl_host_failure(crate::error::TclHostFailure::ValueAccess(first));
+        }
+    }
+    let finished = scope.finish(vm);
+    match reached {
+        Err(first) => {
+            let _ = finished;
+            Err(crate::command::completion_from_cmd_error(vm, first))
+        }
+        Ok(value) => finished
+            .map(|_| value)
+            .map_err(|error| crate::command::completion_from_cmd_error(vm, error)),
+    }
+}
+
 /// Bind a handler's `[resultVar ?optionsVar?]` variables. A failed set becomes
 /// the handler outcome (and skips the body), matching C's `handlerFailed`.
 fn bind_handler_vars(
@@ -182,69 +270,143 @@ fn bind_handler_vars(
     vars: &Value,
     result: &Value,
     opts: &Value,
-    body_code: Code,
-    captured_error_code: Option<&crate::interp::native_jim_lookup::OriginalJimErrorCodeCapture>,
 ) -> Result<(), Completion<Value>> {
     let names = ValueOps::list_elements(vm, vars)
         .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
-    let Some(policy) = vm.name_policy_protocol() else {
+    let Some(_policy) = vm.name_policy_protocol() else {
         return Err(vm.refuse_host_command("try variable binding protocol is unavailable".into()));
     };
-    // `var_set`, not `set_var`: a handler variable written as an array element
-    // (`on error {x(y)}`) must resolve `x(y)` to the element — and fail if the
-    // base `x` is a scalar (`can't set "x(y)": variable isn't array`), which C's
-    // `handlerFailed` turns into the handler outcome, skipping the body.
     if let Some(rv) = names.first() {
-        let name = if policy.recipe().is_jim084() {
-            let captured = captured_error_code.ok_or_else(|| {
-                vm.refuse_host_command("original Jim error-code capture is unavailable".into())
-            })?;
-            vm.native_name_operand_bytes_checked_using(rv, &|vm| captured.check(vm))
-                .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?
-        } else {
-            ValueOps::native_string_bytes(vm, rv)
-                .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?
-        };
-        if !(policy.recipe().is_jim084() && name.is_empty())
-            && let Err(e) = if policy.recipe().is_jim084() {
-                vm.store_original_named_variable(rv, result.clone())
-                    .map(|_| ())
-            } else {
-                vm.set_var_bytes(&name, result.clone())
-            }
-        {
-            return Err(e);
-        }
+        let name = ValueOps::native_string_bytes(vm, rv)
+            .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
+        vm.set_var_bytes(&name, result.clone())?;
     }
     if let Some(ov) = names.get(1) {
-        let name = if policy.recipe().is_jim084() {
-            let captured = captured_error_code.ok_or_else(|| {
-                vm.refuse_host_command("original Jim error-code capture is unavailable".into())
-            })?;
-            vm.native_name_operand_bytes_checked_using(ov, &|vm| captured.check(vm))
-                .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?
-        } else {
-            ValueOps::native_string_bytes(vm, ov)
-                .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?
-        };
-        if !(policy.recipe().is_jim084() && name.is_empty()) {
-            let options = if policy.recipe().is_jim084() {
-                let captured = captured_error_code.ok_or_else(|| {
-                    vm.refuse_host_command("original Jim error-code capture is unavailable".into())
-                })?;
-                vm.current_jim_options_for_exit_code_with_error_code(body_code, captured)
-                    .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?
-            } else {
-                opts.clone()
-            };
-            if policy.recipe().is_jim084() {
-                vm.store_original_named_variable(ov, options)?;
-            } else {
-                vm.set_var_bytes(&name, options)?;
-            }
-        }
+        let name = ValueOps::native_string_bytes(vm, ov)
+            .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
+        vm.set_var_bytes(&name, opts.clone())?;
     }
     Ok(())
+}
+
+fn capture_original_jim_try_variables(
+    vm: &mut Vm,
+    vars: &Value,
+    captured: &crate::interp::native_jim_lookup::OriginalJimErrorCodeCapture,
+) -> Result<OriginalJimTryVariables, Completion<Value>> {
+    use crate::interp::{
+        native_name_consumers::OriginalNameConsumerScope, native_numeric_ops::OriginalNumericOps,
+    };
+    let scope = OriginalNameConsumerScope::enter(vm)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+    let reached = (|| -> Result<OriginalJimTryVariables, tcl_cmd_core::CmdError> {
+        captured.check(vm)?;
+        scope.current_for_value(vm, vars)?;
+        let members = OriginalNumericOps::in_original_scope(vm, scope.operation_scope())?
+            .list_with_original_caller_check(
+                vars,
+                tcl_syntax::native_string::NativeStringProtocol::Jim084,
+                |vm| captured.check(vm),
+            )?;
+        members.check_generation()?;
+        captured.check(vm)?;
+        scope.current_for_value(vm, vars)?;
+        scope.require(
+            vm,
+            vars.native_list_attachment_matches(&members),
+            "original Jim selected handler variable List",
+        )?;
+        let result = members.first().map(Value::native_lifetime_lease);
+        let options = members.get(1).map(Value::native_lifetime_lease);
+        for original in [&result, &options].into_iter().flatten() {
+            scope.current_for_value(vm, original.value())?;
+        }
+        Ok(OriginalJimTryVariables { result, options })
+    })();
+    if let Err(error) = &reached {
+        if let Some(first) = error.native_execution_refusal() {
+            vm.retain_tcl_host_failure(crate::error::TclHostFailure::Execution(first.clone()));
+        } else if let Some(first) = error.native_access_refusal() {
+            vm.retain_tcl_host_failure(crate::error::TclHostFailure::ValueAccess(first));
+        }
+    }
+    let finished = scope.finish(vm);
+    match reached {
+        Err(first) => {
+            let _ = finished;
+            Err(crate::command::completion_from_cmd_error(vm, first))
+        }
+        Ok(names) => finished
+            .map(|_| names)
+            .map_err(|error| crate::command::completion_from_cmd_error(vm, error)),
+    }
+}
+
+fn bind_original_jim_handler_vars(
+    vm: &mut Vm,
+    names: &OriginalJimTryVariables,
+    body_code: Code,
+    captured: &crate::interp::native_jim_lookup::OriginalJimErrorCodeCapture,
+) -> Result<(), Completion<Value>> {
+    use crate::interp::native_name_consumers::OriginalNameConsumerScope;
+    captured
+        .check(vm)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+    let scope = OriginalNameConsumerScope::enter(vm)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+    let check = |vm: &mut Vm, original: &Value| -> Result<(), tcl_cmd_core::CmdError> {
+        captured.check(vm)?;
+        scope.current_for_value(vm, original)
+    };
+    let reached = (|| -> Result<(), Completion<Value>> {
+        if let Some(name) = &names.result {
+            let name = name.value();
+            let bytes = vm
+                .native_name_operand_bytes_checked_using(name, &|vm| check(vm, name))
+                .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+            if !bytes.is_empty() {
+                let result = vm
+                    .with_native_interp_result(Value::native_lifetime_lease)
+                    .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
+                check(vm, name)
+                    .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+                scope
+                    .current_for_value(vm, result.value())
+                    .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+                vm.store_original_named_variable(name, result.into_value())?;
+                check(vm, name)
+                    .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+            }
+        }
+        if let Some(name) = &names.options {
+            let name = name.value();
+            let bytes = vm
+                .native_name_operand_bytes_checked_using(name, &|vm| check(vm, name))
+                .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+            if !bytes.is_empty() {
+                let options = vm
+                    .current_jim_options_for_exit_code_with_error_code(body_code, captured)
+                    .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+                check(vm, name)
+                    .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+                vm.store_original_named_variable(name, options)?;
+                check(vm, name)
+                    .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+            }
+        }
+        captured
+            .check(vm)
+            .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+        Ok(())
+    })();
+    let finished = scope.finish(vm);
+    match reached {
+        Err(first) => {
+            let _ = finished;
+            Err(first)
+        }
+        Ok(()) => finished.map_err(|error| crate::command::completion_from_cmd_error(vm, error)),
+    }
 }
 
 /// `try`'s handler-type words, in C table order (`TryObjCmd`'s `handlerNames`,
@@ -418,18 +580,23 @@ fn original_handler_code(
     Ok(selected)
 }
 
-/// Parse a `try`'s handler (`on`/`trap`) and `finally` clauses, validating the
-/// grammar (a bad clause errors before the body runs). Returns the handlers and
-/// the optional `finally` script.
+/// Parse clauses; Jim resolves each match at its reached post-body ordinal.
 fn parse_clauses(
     vm: &mut Vm,
     rest: &[Value],
     body_code: Option<Code>,
+    captured_error_code: Option<&crate::interp::native_jim_lookup::OriginalJimErrorCodeCapture>,
 ) -> Result<(Vec<Handler>, Option<Value>), Completion<Value>> {
     let mut handlers: Vec<Handler> = Vec::new();
     let mut finally: Option<Value> = None;
     let mut j = 0;
+    let mut first_jim_match = false;
     while j < rest.len() {
+        if let Some(captured) = captured_error_code {
+            captured
+                .check(vm)
+                .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+        }
         let Some(policy) = vm.name_policy_protocol() else {
             return Err(vm.refuse_host_command("try clause protocol is unavailable".into()));
         };
@@ -482,11 +649,59 @@ fn parse_clauses(
                         crate::command::completion_from_cmd_error(vm, error.into())
                     })?;
                 }
+                let jim_matches = if jim {
+                    let captured = captured_error_code.ok_or_else(|| {
+                        vm.refuse_host_command("original Jim clause capture is unavailable".into())
+                    })?;
+                    captured
+                        .check(vm)
+                        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+                    let matched = if is_trap {
+                        match captured
+                            .original(vm)
+                            .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?
+                        {
+                            Some(original) => original_jim_errorcode_prefix_match(
+                                vm,
+                                &rest[j + 1],
+                                &original,
+                                captured,
+                            )?,
+                            None => false,
+                        }
+                    } else {
+                        body_code.is_some_and(|body| code == body.as_int())
+                    };
+                    captured
+                        .check(vm)
+                        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+                    Some(matched)
+                } else {
+                    None
+                };
+                let jim_variables = if jim_matches == Some(true) && !first_jim_match {
+                    first_jim_match = true;
+                    let captured = captured_error_code.ok_or_else(|| {
+                        vm.refuse_host_command("original Jim clause capture is unavailable".into())
+                    })?;
+                    Some(capture_original_jim_try_variables(
+                        vm,
+                        &rest[j + 2],
+                        captured,
+                    )?)
+                } else {
+                    None
+                };
                 let script = rest[j + 3].clone();
-                let script_bytes = ValueOps::native_string_bytes(vm, &script)
-                    .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
-                let is_dash = !policy.recipe().is_jim084()
-                    && tcl_core_types::c_string_extent(&script_bytes) == b"-";
+                let is_dash = if jim {
+                    false
+                } else {
+                    let script_bytes =
+                        ValueOps::native_string_bytes(vm, &script).map_err(|error| {
+                            crate::command::completion_from_cmd_error(vm, error.into())
+                        })?;
+                    tcl_core_types::c_string_extent(&script_bytes) == b"-"
+                };
                 handlers.push(Handler {
                     code,
                     is_trap,
@@ -494,6 +709,8 @@ fn parse_clauses(
                     vars: rest[j + 2].clone(),
                     script,
                     is_dash,
+                    jim_matches,
+                    jim_variables,
                 });
                 j += 4;
             }
@@ -512,6 +729,11 @@ fn parse_clauses(
             tcl_registry::NativeTryClauseFailure::BadFallthrough,
             b"last non-finally clause must not have a body of \"-\"".to_vec(),
         ));
+    }
+    if let Some(captured) = captured_error_code {
+        captured
+            .check(vm)
+            .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
     }
     Ok((handlers, finally))
 }
@@ -612,7 +834,7 @@ fn cmd_try(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         }
         (Vec::new(), None, Some(rest.to_vec()))
     } else {
-        match parse_clauses(vm, rest, None) {
+        match parse_clauses(vm, rest, None, None) {
             Ok((handlers, finally)) => (handlers, finally, None),
             Err(error) => return error,
         }
@@ -703,19 +925,12 @@ fn advance_after_body(
                 return TryOutcome::Deliver(crate::command::completion_from_cmd_error(vm, error));
             }
         };
-        // The reached quiet getter can publish its own dictionary diagnostic.
-        // Jim binds the message from the actual result after that getter.
-        body_comp.result =
-            match vm.with_native_interp_result(|result| result.native_lifetime_lease()) {
-                Ok(value) => value.into_value(),
-                Err(error) => {
-                    return TryOutcome::Deliver(crate::command::completion_from_cmd_error(
-                        vm,
-                        error.into(),
-                    ));
-                }
-            };
-        let (handlers, finally) = match parse_clauses(vm, clauses, Some(body_comp.code)) {
+        let (handlers, finally) = match parse_clauses(
+            vm,
+            clauses,
+            Some(body_comp.code),
+            Some(&captured_error_code),
+        ) {
             Ok(parsed) => parsed,
             Err(error) => return TryOutcome::Deliver(error),
         };
@@ -730,6 +945,19 @@ fn advance_after_body(
         });
         return advance_after_body(vm, &parsed, body_comp);
     }
+    if plan.jim {
+        // Settlement and finally observe the result left by all reached clauses.
+        // This is a memory-only view; message binding reads again after its name getter.
+        body_comp.result = match vm.with_native_interp_result(Value::native_lifetime_lease) {
+            Ok(actual) => actual.into_value(),
+            Err(error) => {
+                return TryOutcome::Deliver(crate::command::completion_from_cmd_error(
+                    vm,
+                    error.into(),
+                ));
+            }
+        };
+    }
     if plan.ignored_body {
         return finish_body_or_handler(vm, plan, body_comp);
     }
@@ -738,19 +966,7 @@ fn advance_after_body(
     if vm.exit_pending() {
         return TryOutcome::Deliver(body_comp);
     }
-    let errorcode = if plan.jim && plan.handlers.iter().any(|handler| handler.is_trap) {
-        let Some(captured) = &plan.body_error_code else {
-            return TryOutcome::Deliver(
-                vm.refuse_host_command("original Jim error-code capture is unavailable".into()),
-            );
-        };
-        match captured.original(vm) {
-            Ok(value) => value.unwrap_or_else(Value::empty),
-            Err(error) => {
-                return TryOutcome::Deliver(crate::command::completion_from_cmd_error(vm, error));
-            }
-        }
-    } else if body_comp.code == Code::Error && !plan.jim {
+    let errorcode = if body_comp.code == Code::Error && !plan.jim {
         match crate::command::resolved_error_code(vm, &body_comp) {
             Ok(value) => value,
             Err(error) => {
@@ -775,14 +991,14 @@ fn advance_after_body(
     };
     let mut matched = None;
     for (index, handler) in plan.handlers.iter().enumerate() {
-        let applies = if handler.is_trap
-            && (plan.jim || body_comp.code == Code::Error)
-            && (!plan.jim
-                || plan
-                    .body_error_code
-                    .as_ref()
-                    .is_some_and(|capture| capture.has_original()))
-        {
+        let applies = if plan.jim {
+            let Some(matched) = handler.jim_matches else {
+                return TryOutcome::Deliver(
+                    vm.refuse_host_command("original Jim clause match is unavailable".into()),
+                );
+            };
+            matched
+        } else if handler.is_trap && body_comp.code == Code::Error {
             match errorcode_prefix_match(vm, &handler.pattern, &errorcode) {
                 Ok(applies) => applies,
                 Err(completion) => return TryOutcome::Deliver(completion),
@@ -814,14 +1030,25 @@ fn enter_matched_handler(
     body_opts: Value,
     errorcode: &Value,
 ) -> TryOutcome {
-    match bind_handler_vars(
-        vm,
-        &plan.handlers[handler_index].vars,
-        &body_comp.result,
-        &body_opts,
-        body_comp.code,
-        plan.body_error_code.as_deref(),
-    ) {
+    let binding = if plan.jim {
+        let (Some(captured), Some(names)) = (
+            plan.body_error_code.as_deref(),
+            plan.handlers[handler_index].jim_variables.as_ref(),
+        ) else {
+            return TryOutcome::Deliver(vm.refuse_host_command(
+                "original Jim selected handler names are unavailable".into(),
+            ));
+        };
+        bind_original_jim_handler_vars(vm, names, body_comp.code, captured)
+    } else {
+        bind_handler_vars(
+            vm,
+            &plan.handlers[handler_index].vars,
+            &body_comp.result,
+            &body_opts,
+        )
+    };
+    match binding {
         Ok(()) => {
             // The body's exception is now handled: publish `errorInfo`/
             // `errorCode` (so the handler reads the body's error) and reset the
@@ -1065,6 +1292,9 @@ fn cmd_throw(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     );
     Completion::new(Code::Error, msg.clone(), options)
 }
+
+#[cfg(test)]
+mod jim_reached_message_tests;
 
 #[cfg(test)]
 mod native_fixture_tests {
