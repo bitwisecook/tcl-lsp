@@ -1135,6 +1135,7 @@ impl CodegenCtx<'_> {
             })
             .collect();
         let release_compiled = self.release_compiled(cmd, &words);
+        let release_binding = self.release_invoke_binding(cmd, &words);
         self.emit_cmd_word(cmd, false);
         for (i, a) in args.iter().enumerate() {
             let braced = self.cmd_arg_braced.get(i).copied().unwrap_or(false);
@@ -1151,6 +1152,7 @@ impl CodegenCtx<'_> {
         };
         let invoke = self.emit_comment(op, vec![Operand::Imm(arg_count)], cmd);
         self.instructions[invoke].release_compiled = release_compiled;
+        self.instructions[invoke].release_binding = release_binding;
         self.emit(Op::POP, vec![]);
         *used_generic_invoke = true;
     }

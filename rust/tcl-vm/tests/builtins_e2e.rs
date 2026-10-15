@@ -95,6 +95,8 @@ impl tcl_platform::Env for SyntheticEnv {
 
     fn set(&self, _key: &str, _value: &str) {}
 
+    fn unset(&self, _key: &str) {}
+
     fn vars(&self) -> Vec<(String, String)> {
         self.0
             .iter()

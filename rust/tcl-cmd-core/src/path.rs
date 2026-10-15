@@ -1087,6 +1087,7 @@ mod tests {
             (user == "root").then(|| "/root/".to_owned())
         }
         fn set(&self, _: &str, _: &str) {}
+        fn unset(&self, _: &str) {}
         fn vars(&self) -> Vec<(String, String)> {
             Vec::new()
         }

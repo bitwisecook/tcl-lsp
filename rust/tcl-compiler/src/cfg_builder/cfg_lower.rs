@@ -308,6 +308,7 @@ impl CfgBuilder<'_> {
         let end_block = self.new_block("if_end");
         self.branch_command_joins
             .insert(block_name.to_owned(), end_block.clone());
+        let owner = self.command_boundary_sites.get(block_name).cloned();
         let mut dispatch = block_name.to_owned();
 
         for clause in clauses {
@@ -338,7 +339,7 @@ impl CfgBuilder<'_> {
                 condition_base: clause.condition_base,
             });
 
-            if let Some(tail) = self.lower_script(&clause.body, &then_block) {
+            if let Some(tail) = self.lower_body(owner.as_ref(), &clause.body, &then_block) {
                 self.ensure_goto(&tail, &end_block, Some(clause.body_span));
             }
 
@@ -346,7 +347,7 @@ impl CfgBuilder<'_> {
         }
 
         if let Some(eb) = else_body {
-            if let Some(tail) = self.lower_script(eb, &dispatch) {
+            if let Some(tail) = self.lower_body(owner.as_ref(), eb, &dispatch) {
                 self.ensure_goto(&tail, &end_block, *else_span);
             }
         } else {
@@ -417,6 +418,7 @@ impl CfgBuilder<'_> {
         let header = self.new_block("for_header");
         let body_block = self.new_block("for_body");
         let step_block = self.new_block("for_step");
+        let owner = self.command_boundary_sites.get(&init_tail).cloned();
         let end_block = self.new_block("for_end");
 
         self.ensure_goto(&init_tail, &header, Some(*init_span));
@@ -444,7 +446,7 @@ impl CfgBuilder<'_> {
         // `break` exits to `end_block`; `continue` runs the step at `step_block`.
         self.loop_stack
             .push((end_block.clone(), step_block.clone()));
-        let body_tail = self.lower_script(body, &body_block);
+        let body_tail = self.lower_body(owner.as_ref(), body, &body_block);
         self.loop_stack.pop();
         if let Some(tail) = body_tail {
             self.ensure_goto(&tail, &step_block, Some(*body_span));
@@ -466,7 +468,7 @@ impl CfgBuilder<'_> {
         // remain sound); `loop_nodes` + the init exit versions are unchanged, so
         // the solver enumerates the loop from the same state.
         let rotate = self.faithful_exceptions && self.for_runs_at_least_once(stmt);
-        let step_tail = self.lower_script(next, &step_block);
+        let step_tail = self.lower_body(owner.as_ref(), next, &step_block);
         if let Some(step_tail) = step_tail {
             if rotate {
                 self.block_mut(&header).terminator = Some(Terminator::Branch {
@@ -537,6 +539,7 @@ impl CfgBuilder<'_> {
         let header = self.new_block("while_header");
         let body_block = self.new_block("while_body");
         let end_block = self.new_block("while_end");
+        let owner = self.command_boundary_sites.get(block_name).cloned();
 
         self.ensure_goto(block_name, &header, Some(*condition_span));
 
@@ -563,7 +566,7 @@ impl CfgBuilder<'_> {
 
         // `break` exits to `end_block`; `continue` re-tests at `header`.
         self.loop_stack.push((end_block.clone(), header.clone()));
-        let body_tail = self.lower_script(body, &body_block);
+        let body_tail = self.lower_body(owner.as_ref(), body, &body_block);
         self.loop_stack.pop();
         if let Some(tail) = body_tail {
             self.ensure_goto(&tail, &header, Some(*body_span));
@@ -595,6 +598,7 @@ impl CfgBuilder<'_> {
         let body_block = self.new_block("foreach_body");
         let end_block = self.new_block("foreach_end");
         self.copy_command_boundary(block_name, &header);
+        let owner = self.command_boundary_sites.get(block_name).cloned();
 
         self.ensure_goto(block_name, &header, Some(*span));
 
@@ -665,7 +669,7 @@ impl CfgBuilder<'_> {
             // `continue` re-checks via the latch; `break` exits the loop.
             self.loop_stack
                 .push((end_block.clone(), latch_block.clone()));
-            let body_tail = self.lower_script(body, &body_block);
+            let body_tail = self.lower_body(owner.as_ref(), body, &body_block);
             self.loop_stack.pop();
             if let Some(tail) = body_tail {
                 self.ensure_goto(&tail, &latch_block, Some(*body_span));
@@ -699,7 +703,7 @@ impl CfgBuilder<'_> {
 
         // `break` exits to `end_block`; `continue` advances at `header`.
         self.loop_stack.push((end_block.clone(), header.clone()));
-        let body_tail = self.lower_script(body, &body_block);
+        let body_tail = self.lower_body(owner.as_ref(), body, &body_block);
         self.loop_stack.pop();
         if let Some(tail) = body_tail {
             self.ensure_goto(&tail, &header, Some(*body_span));
@@ -901,6 +905,7 @@ impl CfgBuilder<'_> {
 
         let body_name = "switch_arm_body";
         let body_targets: Vec<String> = arms.iter().map(|_| self.new_block(body_name)).collect();
+        let owner = self.command_boundary_sites.get(block_name).cloned();
 
         // Resolve fallthrough: fallthrough arms jump to the next
         // non-fallthrough body, or to default.
@@ -975,7 +980,7 @@ impl CfgBuilder<'_> {
                 continue;
             }
             if let Some(ref body) = arm.body
-                && let Some(tail) = self.lower_script(body, &body_targets[i])
+                && let Some(tail) = self.lower_body(owner.as_ref(), body, &body_targets[i])
             {
                 self.ensure_goto(&tail, &end_block, arm.body_span);
             }
@@ -983,7 +988,7 @@ impl CfgBuilder<'_> {
 
         // Default body.
         if let Some(db) = default_body {
-            if let Some(tail) = self.lower_script(db, &default_block) {
+            if let Some(tail) = self.lower_body(owner.as_ref(), db, &default_block) {
                 self.ensure_goto(&tail, &end_block, *default_span);
             }
         } else {
@@ -2078,6 +2083,7 @@ impl CfgBuilder<'_> {
         let body_block = self.new_block("catch_body");
         let end_block = self.new_block("catch_end");
         self.copy_command_boundary(block_name, &body_block);
+        let owner = self.command_boundary_sites.get(block_name).cloned();
         self.ensure_goto(block_name, &body_block, Some(*span));
 
         // Same throw-block bookkeeping as `lower_try`: install a fresh list
@@ -2096,7 +2102,7 @@ impl CfgBuilder<'_> {
                 .then_some(super::SplitRegion::Catch),
         );
         let outer_split_points = std::mem::take(&mut self.split_points);
-        let raw_body_tail = self.lower_script(body, &body_block);
+        let raw_body_tail = self.lower_body(owner.as_ref(), body, &body_block);
         let split_points = std::mem::replace(&mut self.split_points, outer_split_points);
         self.split_region = outer_region;
         let body_terminal = self.last_terminal_block.take();

@@ -267,7 +267,7 @@ fn run_script(vm: &mut Vm, src: &str) -> i32 {
     if let Some(code) = vm.take_exit() {
         return code;
     }
-    match result {
+    match result.map(|comp| vm.settle_top_level(comp)) {
         Ok(comp) if comp.code.is_ok() => 0,
         Ok(comp) => {
             vm.report_stderr_text(&comp.result.to_str());

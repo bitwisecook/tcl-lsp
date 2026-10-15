@@ -2101,6 +2101,7 @@ fn substitute_irreturn(script: &Script, result_var: &str) -> Script {
                 command_binding_sites.push(CommandBindingSite {
                     span: *span,
                     binding: binding.clone(),
+                    shape: tcl_registry::release_compilation::InvocationShape::default(),
                 });
             }
             let v = value.clone().unwrap_or_default();

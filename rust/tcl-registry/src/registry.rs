@@ -10860,6 +10860,11 @@ mod tests {
             // `commands/tcl/tcl_unsupported_corotype.rs`.
             "::tcl::unsupported::corotype",
             "tcl::unsupported::corotype",
+            // `::tcl::unsupported::representation value` — describes the
+            // value it was handed and runs nothing. See
+            // `commands/tcl/tcl_unsupported_representation.rs`.
+            "::tcl::unsupported::representation",
+            "tcl::unsupported::representation",
         ]
         .into_iter()
         .collect();

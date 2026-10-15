@@ -382,6 +382,8 @@ pub(crate) struct CfgBuilder<'a> {
     command_boundary_continuations: HashMap<String, String>,
     /// Head dispatch block to join block for a branch-lowered `if`/`switch`.
     branch_command_joins: HashMap<String, String>,
+    /// The script bodies structured commands evaluate.
+    body_scripts: Vec<crate::cfg::BodyScript>,
     /// Caller-frame injection the function currently being built is subject
     /// to: the union of every called procedure's
     /// [`UpvarInfo::caller_frame_barrier`].  Drained into
@@ -526,6 +528,7 @@ impl<'a> CfgBuilder<'a> {
             command_boundary_sites: HashMap::new(),
             command_boundary_continuations: HashMap::new(),
             branch_command_joins: HashMap::new(),
+            body_scripts: Vec::new(),
             caller_frame_barrier: crate::dynamic_names::DynamicNameBarrier::default(),
             alias_observed_vars: std::collections::BTreeSet::new(),
             depth: 0,
@@ -2106,6 +2109,7 @@ impl<'a> CfgBuilder<'a> {
             .into_iter()
             .map(|(head, join)| (self.bid(&head), self.bid(&join)))
             .collect();
+        func.body_scripts = std::mem::take(&mut self.body_scripts);
         func.caller_frame_barrier = self.caller_frame_barrier;
         func.declared_frame_effects = self.command_bindings.declared_frame_effects();
         func.alias_observed_vars = std::mem::take(&mut self.alias_observed_vars);
@@ -2276,6 +2280,7 @@ impl<'a> CfgBuilder<'a> {
             self.command_binding_sites.push(CommandBindingSite {
                 span: *span,
                 binding: binding.clone(),
+                shape: tcl_registry::release_compilation::InvocationShape::default(),
             });
         }
         // No value, a braced one, or a literal word: nothing can raise before
@@ -2381,12 +2386,13 @@ impl<'a> CfgBuilder<'a> {
                     .get(current)
                     .is_some_and(|site| site.span == *span);
                 if !self.faithful_exceptions && owns_inline_region {
+                    let owner = self.command_boundary_sites.get(current).cloned();
                     let body_block = self.new_block("inline_block_body");
                     let continuation = self.new_block("inline_block_end");
                     self.ensure_goto(current, &body_block, Some(*span));
                     self.command_boundary_continuations
                         .insert(current.to_owned(), continuation.clone());
-                    if let Some(tail) = self.lower_script(body, &body_block) {
+                    if let Some(tail) = self.lower_body(owner.as_ref(), body, &body_block) {
                         self.ensure_goto(&tail, &continuation, Some(*span));
                     }
                     Some(continuation)
@@ -2423,6 +2429,29 @@ impl<'a> CfgBuilder<'a> {
         {
             self.command_boundary_sites.insert(block.to_owned(), site);
         }
+    }
+
+    /// Lower `body`, a script the structured command `owner` evaluates, into
+    /// `entry`, recording the blocks that run it.
+    fn lower_body(
+        &mut self,
+        owner: Option<&CommandBindingSite>,
+        body: &Script,
+        entry: &str,
+    ) -> Option<String> {
+        let block_count = |builder: &Self| {
+            u32::try_from(builder.block_ids.len()).expect("CFG block count fits in u32")
+        };
+        let nested_from = block_count(self);
+        let tail = self.lower_script(body, entry);
+        if let Some(site) = owner {
+            self.body_scripts.push(crate::cfg::BodyScript {
+                owner: site.clone(),
+                entry: self.bid(entry),
+                nested: nested_from..block_count(self),
+            });
+        }
+        tail
     }
 
     /// Propagate an established owner to a helper block which emits the same

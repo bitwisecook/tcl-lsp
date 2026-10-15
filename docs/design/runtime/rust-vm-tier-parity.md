@@ -8,7 +8,7 @@ fix unlocks it). `gap` = ran but the counts differ. Columns: **C P/S/F** vs
 **VM P/S/F**. Grouped by the capability ladder
 ([`tcl-test-tiers.md`](tcl-test-tiers.md)).
 
-**Tally: 56 MATCH · 78 gap · 35 crash · 0 timeout · 0 incomplete** of 169 stems.
+**Tally: 59 MATCH · 78 gap · 31 crash · 1 timeout · 0 incomplete** of 169 stems.
 
 ## Tier 1 — Parsing
 
@@ -26,7 +26,7 @@ fix unlocks it). `gap` = ran but the counts differ. Columns: **C P/S/F** vs
 |---|---|---|---|
 | basic | 70/77/0 | 58/78/11 | gap |
 | compile | 138/33/0 | ERROR | CRASH |
-| execute | 79/78/0 | ERROR | CRASH |
+| execute | 79/78/0 | 73/78/6 | gap |
 | eval | 12/0/0 | 12/0/0 | MATCH |
 | obj | 8/76/0 | 8/76/0 | MATCH |
 | nre | 5/23/0 | 3/23/2 | gap |
@@ -45,16 +45,16 @@ fix unlocks it). `gap` = ran but the counts differ. Columns: **C P/S/F** vs
 | set | 63/1/0 | 63/1/0 | MATCH |
 | set-old | 153/0/0 | 94/0/59 | gap |
 | append | 49/3/0 | 49/3/0 | MATCH |
-| incr | 69/0/0 | 61/0/8 | gap |
+| incr | 69/0/0 | 60/0/9 | gap |
 | incr-old | 14/0/0 | 13/0/1 | gap |
-| upvar | 62/8/0 | 45/8/17 | gap |
-| uplevel | 57/0/0 | 55/0/2 | gap |
+| upvar | 62/8/0 | 49/8/13 | gap |
+| uplevel | 57/0/0 | 56/0/1 | gap |
 | get | 6/17/0 | 6/17/0 | MATCH |
 | namespace | 311/3/0 | ERROR | CRASH |
 | namespace-old | 126/0/0 | ERROR | CRASH |
 | resolver | 0/10/0 | 0/10/0 | MATCH |
-| trace | 273/17/0 | ERROR | CRASH |
-| rename | 11/8/0 | ERROR | CRASH |
+| trace | 273/17/0 | 260/17/13 | gap |
+| rename | 11/8/0 | 11/8/0 | MATCH |
 | info | 282/5/0 | 112/6/169 | gap |
 | cmdInfo | 0/12/0 | 0/12/0 | MATCH |
 | indexObj | 0/65/0 | 0/65/0 | MATCH |
@@ -68,23 +68,23 @@ fix unlocks it). `gap` = ran but the counts differ. Columns: **C P/S/F** vs
 | abstractlist | 0/123/0 | 0/123/0 | MATCH |
 | assocd | 0/11/0 | 0/11/0 | MATCH |
 | concat | 9/0/0 | 9/0/0 | MATCH |
-| dict | 367/6/0 | 336/6/31 | gap |
+| dict | 367/6/0 | 339/6/28 | gap |
 | dstring | 0/46/0 | 0/46/0 | MATCH |
-| format | 269/0/0 | 253/0/16 | gap |
+| format | 269/0/0 | 269/0/0 | MATCH |
 | join | 10/0/0 | 10/0/0 | MATCH |
-| lindex | 47/37/0 | 46/37/1 | gap |
+| lindex | 47/37/0 | 47/37/0 | MATCH |
 | linsert | 28/0/0 | 28/0/0 | MATCH |
 | list | 78/0/0 | 78/0/0 | MATCH |
 | listObj | 42/17/0 | 42/17/0 | MATCH |
 | listRep | 4/227/0 | 4/227/0 | MATCH |
 | llength | 6/0/0 | 6/0/0 | MATCH |
-| lmap | 66/0/0 | 59/0/7 | gap |
+| lmap | 66/0/0 | 61/0/5 | gap |
 | lpop | 17/2/0 | 17/2/0 | MATCH |
-| lrange | 1764/2/0 | 1760/2/4 | gap |
+| lrange | 1764/2/0 | 1762/2/2 | gap |
 | lrepeat | 11/1/0 | 11/1/0 | MATCH |
 | lreplace | 3579/0/0 | 3579/0/0 | MATCH |
 | lsearch | 165/0/0 | 165/0/0 | MATCH |
-| lseq | 131/5/0 | 91/6/39 | gap |
+| lseq | 131/5/0 | 106/6/24 | gap |
 | lset | 0/89/0 | 0/89/0 | MATCH |
 | range | ERROR | ERROR | CRASH |
 | reg | 34/1107/0 | 33/1107/1 | gap |
@@ -92,10 +92,10 @@ fix unlocks it). `gap` = ran but the counts differ. Columns: **C P/S/F** vs
 | scan | 184/1/0 | 169/1/15 | gap |
 | split | 18/0/0 | 18/0/0 | MATCH |
 | stack | 3/0/0 | 0/0/3 | gap |
-| string | 693/12/0 | 679/12/14 | gap |
+| string | 693/12/0 | 683/12/10 | gap |
 | stringObj | 0/81/0 | 0/81/0 | MATCH |
-| cmdIL | 163/5/0 | 132/7/29 | gap |
-| cmdMZ | 96/1/0 | 62/3/32 | gap |
+| cmdIL | 163/5/0 | 144/7/17 | gap |
+| cmdMZ | 96/1/0 | 68/3/26 | gap |
 
 ## Tier 5 — Control flow & procs
 
@@ -103,18 +103,18 @@ fix unlocks it). `gap` = ran but the counts differ. Columns: **C P/S/F** vs
 |---|---|---|---|
 | apply | 38/4/0 | 30/4/8 | gap |
 | error | 309/8/0 | 306/8/3 | gap |
-| expr | 2137/31/0 | 2052/32/84 | gap |
+| expr | 2137/31/0 | 2053/32/83 | gap |
 | expr-old | 430/31/0 | 429/31/1 | gap |
-| for | 64/24/0 | 58/24/6 | gap |
+| for | 64/24/0 | 56/24/8 | gap |
 | for-old | 9/0/0 | 8/0/1 | gap |
-| foreach | 43/0/0 | 38/0/5 | gap |
+| foreach | 43/0/0 | 39/0/4 | gap |
 | if | 73/0/0 | 71/0/2 | gap |
 | if-old | 33/0/0 | 33/0/0 | MATCH |
 | mathop | 385/0/0 | 368/0/17 | gap |
 | proc | 29/9/0 | 29/9/0 | MATCH |
-| proc-old | 74/0/0 | 64/0/10 | gap |
+| proc-old | 74/0/0 | 66/0/8 | gap |
 | result | 4/22/0 | 3/22/1 | gap |
-| switch | 113/0/0 | 100/0/13 | gap |
+| switch | 113/0/0 | 104/0/9 | gap |
 | unknown | 7/0/0 | 7/0/0 | MATCH |
 | while | 46/0/0 | 45/0/1 | gap |
 | while-old | 15/0/0 | 15/0/0 | MATCH |
@@ -132,7 +132,7 @@ fix unlocks it). `gap` = ran but the counts differ. Columns: **C P/S/F** vs
 
 | stem | C P/S/F | VM P/S/F | status |
 |---|---|---|---|
-| source | 23/0/0 | 9/0/14 | gap |
+| source | 23/0/0 | 11/0/12 | gap |
 
 ## Tier 8 — Interpreters
 
@@ -174,7 +174,7 @@ fix unlocks it). `gap` = ran but the counts differ. Columns: **C P/S/F** vs
 | async | 0/12/0 | 0/12/0 | MATCH |
 | autoMkindex | 10/1/0 | 1/1/9 | gap |
 | bigdata | 0/113/0 | ERROR | CRASH |
-| binary | 660/90/0 | 606/91/53 | gap |
+| binary | 660/90/0 | 608/91/51 | gap |
 | clock | 8724/7/0 | ERROR | CRASH |
 | clock-ivm | 8736/7/0 | ERROR | CRASH |
 | clock-no-tzdata | ERROR | ERROR | CRASH |
@@ -186,7 +186,7 @@ fix unlocks it). `gap` = ran but the counts differ. Columns: **C P/S/F** vs
 | exec | 95/50/0 | ERROR | CRASH |
 | fCmd | 58/248/0 | ERROR | CRASH |
 | fileName | 118/188/0 | ERROR | CRASH |
-| fileSystem | 97/43/0 | 55/60/25 | gap |
+| fileSystem | 97/43/0 | 59/60/21 | gap |
 | fileSystemEncoding | 1/0/0 | 0/0/1 | gap |
 | history | 62/0/0 | 48/0/14 | gap |
 | http | 346/6/0 | ERROR | CRASH |
@@ -206,9 +206,9 @@ fix unlocks it). `gap` = ran but the counts differ. Columns: **C P/S/F** vs
 | msgcat | 135/0/0 | 117/0/18 | gap |
 | mutex | 0/12/0 | 0/12/0 | MATCH |
 | notify | 0/23/0 | 0/23/0 | MATCH |
-| package | 395/8/0 | ERROR | CRASH |
+| package | 395/8/0 | 362/8/33 | gap |
 | pid | 5/0/0 | 0/5/0 | gap |
-| pkgMkIndex | 25/2/0 | 1/8/18 | gap |
+| pkgMkIndex | 25/2/0 | 8/8/11 | gap |
 | platform | 7/2/0 | 6/3/0 | gap |
 | process | 17/1/0 | 0/1/17 | gap |
 | pwd | 3/0/0 | 2/0/1 | gap |
@@ -218,7 +218,7 @@ fix unlocks it). `gap` = ran but the counts differ. Columns: **C P/S/F** vs
 | socket | 172/17/0 | ERROR | CRASH |
 | tcltest | 122/5/0 | ERROR | CRASH |
 | thread | 0/52/0 | 0/52/0 | MATCH |
-| timer | 54/0/0 | 29/0/25 | gap |
+| timer | 54/0/0 | TIMEOUT | TIMEOUT |
 | tm | 21/0/0 | 18/0/3 | gap |
 | unixFCmd | 0/49/0 | 0/49/0 | MATCH |
 | unixFile | 0/7/0 | 0/7/0 | MATCH |
@@ -228,7 +228,7 @@ fix unlocks it). `gap` = ran but the counts differ. Columns: **C P/S/F** vs
 | unload | 7/20/0 | 0/20/7 | gap |
 | utf | 148/251/0 | 138/251/10 | gap |
 | utfext | 0/842/0 | ERROR | CRASH |
-| util | 310/152/0 | 293/152/17 | gap |
+| util | 310/152/0 | 304/152/6 | gap |
 | winConsole | 0/46/0 | 0/46/0 | MATCH |
 | winDde | 0/50/0 | 0/50/0 | MATCH |
 | winFCmd | 0/173/0 | ERROR | CRASH |

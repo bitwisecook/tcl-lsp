@@ -220,3 +220,106 @@ fn tcloo_info_vectors_match_real_tclsh_when_available() {
         }
     }
 }
+
+/// `tcl::unsupported::representation` (format-20.1's probe) with addresses
+/// and counts masked, as tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0 print
+/// it. A constant `dict create` stays a dict through `format %s`; a double's
+/// internal rep is its `%g` from 9.0 and its bits before.
+const REPRESENTATION_SCRIPT: &str = r"if {[catch {tcl::unsupported::representation x} m]} {
+    puts $m
+} else {
+    proc rep {v} {
+        set d [tcl::unsupported::representation $v]
+        regsub -all {0x[0-9a-f]+|\(nil\)} [regsub {refcount of [0-9]+} $d {refcount of N}] P
+    }
+    set x [dict create a b c d]
+    format %s $x
+    puts [string match {value is a dict *} [tcl::unsupported::representation $x]]
+    puts [rep [expr {1.5 * 2}]]
+    puts [rep [list a b]]
+    set i 42
+    incr i
+    puts [rep $i]
+    puts [rep abcdefghijklmnopq]
+    catch {tcl::unsupported::representation} m
+    puts $m
+    catch {::tcl::unsupported::representation a b} m
+    puts $m
+}
+";
+
+const REPRESENTATION_ABSENT: &str = r#"invalid command name "tcl::unsupported::representation""#;
+const REPRESENTATION_86: &str = r#"1
+value is a double with a refcount of N, object pointer at P, internal representation P:P, no string representation
+value is a list with a refcount of N, object pointer at P, internal representation P:P, no string representation
+value is a int with a refcount of N, object pointer at P, internal representation P:P, no string representation
+value is a pure string with a refcount of N, object pointer at P, string representation "abcdefghijklm..."
+wrong # args: should be "tcl::unsupported::representation value"
+wrong # args: should be "::tcl::unsupported::representation value""#;
+const REPRESENTATION_90: &str = r#"1
+value is a double with a refcount of N, object pointer at P, internal representation 3, no string representation
+value is a list with a refcount of N, object pointer at P, internal representation P:P, no string representation
+value is a int with a refcount of N, object pointer at P, internal representation P:P, no string representation
+value is a pure string with a refcount of N, object pointer at P, string representation "abcdefghijklm..."
+wrong # args: should be "tcl::unsupported::representation value"
+wrong # args: should be "::tcl::unsupported::representation value""#;
+
+fn representation_vectors() -> [(TclVersion, &'static str, &'static str, &'static str); 5] {
+    [
+        (
+            TclVersion::V8_4,
+            REPRESENTATION_ABSENT,
+            "TCL_LSP_TCLSH84",
+            "tclsh8.4",
+        ),
+        (
+            TclVersion::V8_5,
+            REPRESENTATION_ABSENT,
+            "TCL_LSP_TCLSH85",
+            "tclsh8.5",
+        ),
+        (
+            TclVersion::V8_6,
+            REPRESENTATION_86,
+            "TCL_LSP_TCLSH86",
+            "tclsh8.6",
+        ),
+        (
+            TclVersion::V9_0,
+            REPRESENTATION_90,
+            "TCL_LSP_TCLSH90",
+            "tclsh9.0",
+        ),
+        (
+            TclVersion::V9_1,
+            REPRESENTATION_90,
+            "TCL_LSP_TCLSH91",
+            "tclsh9.1",
+        ),
+    ]
+}
+
+#[test]
+fn representation_reports_the_value_as_each_release_does() {
+    for (version, expected, _, _) in representation_vectors() {
+        assert_eq!(
+            vm_output(REPRESENTATION_SCRIPT, version),
+            expected,
+            "{version:?}"
+        );
+    }
+}
+
+#[test]
+fn representation_vectors_match_real_tclsh_when_available() {
+    let mut ran = 0;
+    for (version, expected, env, tclsh) in representation_vectors() {
+        if let Some(actual) = tclsh_output(env, &[tclsh], REPRESENTATION_SCRIPT) {
+            assert_eq!(actual, expected, "{version:?}");
+            ran += 1;
+        }
+    }
+    if ran == 0 {
+        eprintln!("skipping: no versioned tclsh binaries found");
+    }
+}
