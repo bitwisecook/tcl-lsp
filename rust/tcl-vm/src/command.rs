@@ -2555,7 +2555,7 @@ fn cmd_uplevel(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // no frame swap — so defer it to the explicit stack (yieldable), like `eval`
     // (coroutine-1.7/1.8/1.12). Every other level swaps to a
     // different frame that must be restored afterwards, which a transparent
-    // script frame cannot carry, so those keep the nested-drive `eval_at_level`.
+    // script frame cannot carry, so those keep the nested-drive `eval_at_level_as`.
     let evaluation = crate::value::script_evaluation(rest);
     if target == cur {
         return match vm.compile_script_cached_as(&script, evaluation) {

@@ -225,6 +225,16 @@ pub(crate) struct Frame {
     /// child activations, including a proc boundary that turned
     /// `return -code continue` into `TCL_CONTINUE`.
     try_ctx: Option<Box<crate::cmd_try::TryState>>,
+    /// Set on a **package** activation: one discovery script (`package
+    /// unknown` callback or selected `package ifneeded` loader) of a `package
+    /// require`. On completion, `Vm::unwind` hands the require to
+    /// `cmd_package::finish_phase`, which pushes the next script or delivers
+    /// the require's own completion — the `try_ctx` pattern.
+    package: Option<Box<crate::cmd_package::RequireState>>,
+    /// The call frames set aside while this activation runs at a lower level
+    /// (a package script runs at `#0`), re-attached when it completes. Kept
+    /// on the activation so it survives a coroutine suspension.
+    level_restore: Option<Box<crate::interp::LevelShift>>,
     /// Execution-trace leave contexts this activation settles on completion
     /// (M16.3): each traced dispatch that deferred its body to this frame. A
     /// try command transfers its context between phase frames, hence a Vec.
@@ -421,6 +431,8 @@ impl Frame {
             subst: None,
             each_loop: None,
             try_ctx: None,
+            package: None,
+            level_restore: None,
             exec_leave: Vec::new(),
             cleanup_proc: None,
             // A unit compiled from only the clean prefix of a malformed body
@@ -627,6 +639,10 @@ enum Tick {
         req: crate::cmd_try::TryReq,
         initial_options: Value,
     },
+    /// Run one discovery script of a `package require` on the explicit stack
+    /// (yieldable) via a package activation ([`Vm::package_frame`]). Drained
+    /// from `Vm.pending.package`.
+    PushPackage(crate::cmd_package::PackageReq),
     /// `tailcall cmd ?arg …?` — the current proc finishes and `cmd args` runs in
     /// its place (in the caller's activation), its result becoming the proc's.
     /// `words` is `[cmd, arg, …]` (the `tailcall` prefix word already dropped).
@@ -1352,6 +1368,17 @@ impl Vm {
         self.drive(acts, DriveMode::CoroDriver)
     }
 
+    /// A **package** activation ([`Frame::package`]): the discovery script
+    /// runs at level `#0`, as C's `TCL_EVAL_GLOBAL` evaluation does, with the
+    /// caller's frames carried on the activation until it completes.
+    fn package_frame(&mut self, req: crate::cmd_package::PackageReq) -> Frame {
+        let mut frame = Frame::from_compiled_unit(req.script);
+        frame.fatal_tail = req.fatal_tail;
+        frame.package = Some(Box::new(req.state));
+        frame.level_restore = Some(Box::new(self.enter_level(0)));
+        frame
+    }
+
     fn push_frame(&mut self, acts: &mut Vec<Frame>, mut frame: Frame) {
         if let Some(ctx) = self.pending_exec_leave.take() {
             frame.exec_leave.push(ctx);
@@ -1445,6 +1472,11 @@ impl Vm {
                 initial_options,
             } => {
                 self.push_frame(acts, Frame::new_try(req, initial_options));
+                TickAction::Resume
+            }
+            Tick::PushPackage(req) => {
+                let frame = self.package_frame(req);
+                self.push_frame(acts, frame);
                 TickAction::Resume
             }
             Tick::Tailcall(words) => TickAction::Tailcall(words),
@@ -1632,6 +1664,29 @@ impl Vm {
         }
     }
 
+    /// Tear down a deleted coroutine's frozen continuation without running it
+    /// (no `finally` runs, as in C). Its call frames are destroyed, firing
+    /// their locals' `unset` traces (coroutine-4.3), and a `package require`
+    /// parked inside it is retired so its circular-dependency marker does not
+    /// outlive it.
+    pub(crate) fn retire_parked_coroutine(
+        &mut self,
+        acts: &mut [Frame],
+        parked: &mut crate::interp::ParkedFlow,
+    ) {
+        self.swap_flow(parked);
+        for frame in acts.iter_mut().rev() {
+            if let Some(shift) = frame.level_restore.take() {
+                self.leave_level(*shift);
+            }
+            if let Some(state) = frame.package.take() {
+                crate::cmd_package::abandon_require(self, &state);
+            }
+        }
+        self.finish_coroutine_flow();
+        self.swap_flow(parked);
+    }
+
     /// A completion is about to cross from a child activation into its parent.
     /// A stale parent owns the boundary, so replace even an OK/return completion
     /// with its provenance error before catch or loop settlement sees it.
@@ -1652,8 +1707,26 @@ impl Vm {
         acts: &mut Vec<Frame>,
         c: Completion<Value>,
     ) -> Option<Completion<Value>> {
+        self.log_failed_command(acts.last(), &c);
+        let c = match self
+            .absorb_catch_range(acts.last_mut().expect("activation stack is non-empty"), c)
+        {
+            Ok(()) => return None,
+            Err(c) => c,
+        };
+        if matches!(c.code, Code::Break | Code::Continue)
+            && Self::catch_loop_completion(acts.last_mut().expect("still non-empty"), c.code)
+        {
+            return None;
+        }
+        self.unwind(acts, c)
+    }
+
+    /// Log an error completion against the command `frame` just dispatched
+    /// (C's `TclLogCommandInfo`).
+    fn log_failed_command(&mut self, frame: Option<&Frame>, c: &Completion<Value>) {
         if c.code == Code::Error
-            && let Some((text, line, context)) = acts.last().and_then(|frame| {
+            && let Some((text, line, context)) = frame.and_then(|frame| {
                 frame
                     .asm
                     .instructions
@@ -1678,18 +1751,6 @@ impl Vm {
             let message = c.result.to_str().to_string();
             self.log_command_info_with_context(&text, context, &message, line);
         }
-        let c = match self
-            .absorb_catch_range(acts.last_mut().expect("activation stack is non-empty"), c)
-        {
-            Ok(()) => return None,
-            Err(c) => c,
-        };
-        if matches!(c.code, Code::Break | Code::Continue)
-            && Self::catch_loop_completion(acts.last_mut().expect("still non-empty"), c.code)
-        {
-            return None;
-        }
-        self.unwind(acts, c)
     }
 
     /// If the instruction that just produced a `break`/`continue` completion is
@@ -1896,13 +1957,18 @@ impl Vm {
             } else if let Some(previous) = act.replay_namespace_restore.take() {
                 self.leave_replay_namespace(previous);
             }
-            // `catch` and `try` still have command-owned completion work below:
-            // catch absorbs its body's completion, while try may advance through
-            // several handler/finally phase activations. Their execution-trace
-            // leave contexts therefore settle only after that work is complete.
-            // Every other activation settles here, preserving the established
-            // proc-boundary and apply-cleanup ordering.
-            let defer_exec_leave = act.catch.is_some() || act.try_ctx.is_some();
+            if let Some(shift) = act.level_restore.take() {
+                self.leave_level(*shift);
+            }
+            // `catch`, `try` and `package require` still have command-owned
+            // completion work below: catch absorbs its body's completion, while
+            // try and package require may advance through several phase
+            // activations. Their execution-trace leave contexts therefore
+            // settle only after that work is complete. Every other activation
+            // settles here, preserving the established proc-boundary and
+            // apply-cleanup ordering.
+            let defer_exec_leave =
+                act.catch.is_some() || act.try_ctx.is_some() || act.package.is_some();
             if !defer_exec_leave && !act.exec_leave.is_empty() {
                 c = self.settle_exec_leaves(&mut act.exec_leave, c);
             }
@@ -1926,27 +1992,15 @@ impl Vm {
                 }
                 c = self.finish_catch(c, ctx.resvar.as_ref(), ctx.optvar.as_ref());
             }
-            // A try-phase activation (body/handler/`finally`) just completed:
-            // `advance_try` decides whether another phase follows (pushed here,
-            // directly — `act` itself is already gone, unlike `each_loop`'s
-            // parent-stays-put pattern) or the whole `try` is done, in which
-            // case `c` becomes its completion and unwinding continues below
-            // exactly as for any other completed activation.
-            if let Some(mut ctx) = act.try_ctx.take() {
-                if c.code == Code::Ok
-                    && let Some(tail) = ctx.fatal_tail.take()
-                {
-                    c = self.raise_fatal_tail(tail);
+            // A try or package phase pushes its next phase here, directly —
+            // `act` itself is already gone, unlike `each_loop`'s
+            // parent-stays-put pattern.
+            match self.advance_phased_command(&mut act, acts, c) {
+                std::ops::ControlFlow::Break(next) => {
+                    acts.push(next);
+                    return None;
                 }
-                match crate::cmd_try::advance_try(self, *ctx, c) {
-                    crate::cmd_try::TryOutcome::Push(req) => {
-                        let mut next = Frame::new_try(req, Value::empty());
-                        next.exec_leave.append(&mut act.exec_leave);
-                        acts.push(next);
-                        return None;
-                    }
-                    crate::cmd_try::TryOutcome::Deliver(fc) => c = fc,
-                }
+                std::ops::ControlFlow::Continue(done) => c = done,
             }
             // Settle a traced catch only after its body completion has been
             // absorbed into catch's successful integer result. A traced try
@@ -2028,6 +2082,53 @@ impl Vm {
                 }
             }
         }
+    }
+
+    /// A try-phase or package activation `act` just completed with `c`: break
+    /// with the activation for the command's next phase (carrying its trace
+    /// contexts), or continue with the whole command's completion, which then
+    /// unwinds exactly as for any other completed activation. Any other
+    /// activation's completion passes through.
+    fn advance_phased_command(
+        &mut self,
+        act: &mut Frame,
+        acts: &[Frame],
+        mut c: Completion<Value>,
+    ) -> std::ops::ControlFlow<Frame, Completion<Value>> {
+        // `advance_try` decides whether another `try` phase (handler or
+        // `finally`) follows.
+        if let Some(mut ctx) = act.try_ctx.take() {
+            if c.code == Code::Ok
+                && let Some(tail) = ctx.fatal_tail.take()
+            {
+                c = self.raise_fatal_tail(tail);
+            }
+            match crate::cmd_try::advance_try(self, *ctx, c) {
+                crate::cmd_try::TryOutcome::Push(req) => {
+                    let mut next = Frame::new_try(req, Value::empty());
+                    next.exec_leave.append(&mut act.exec_leave);
+                    return std::ops::ControlFlow::Break(next);
+                }
+                crate::cmd_try::TryOutcome::Deliver(fc) => c = fc,
+            }
+        }
+        // A require runs its loader after its `package unknown` callback. A
+        // failed require is the parent's failed command, which no inner frame
+        // has logged.
+        if let Some(state) = act.package.take() {
+            match crate::cmd_package::finish_phase(self, *state, c) {
+                crate::cmd_package::RequireStep::Run(req) => {
+                    let mut next = self.package_frame(*req);
+                    next.exec_leave.append(&mut act.exec_leave);
+                    return std::ops::ControlFlow::Break(next);
+                }
+                crate::cmd_package::RequireStep::Done(done) => {
+                    c = done;
+                    self.log_failed_command(acts.last(), &c);
+                }
+            }
+        }
+        std::ops::ControlFlow::Continue(c)
     }
 
     /// Unwind one proc activation `act`: on error add its `(procedure "name" line
@@ -5102,7 +5203,8 @@ impl Vm {
                     | Tick::PushCatch(_)
                     | Tick::PushSubst { .. }
                     | Tick::PushEachLoop { .. }
-                    | Tick::PushTry { .. } => self.pending_exec_leave = Some(ctx),
+                    | Tick::PushTry { .. }
+                    | Tick::PushPackage(_) => self.pending_exec_leave = Some(ctx),
                     // Control shapes with no owning frame (a traced `yield` /
                     // `tailcall` builtin itself): settle with an empty ok —
                     // their real result forms elsewhere.
@@ -5301,6 +5403,11 @@ impl Vm {
                 req,
                 initial_options: f.last_options.clone(),
             }));
+        }
+        // A `package require` defers each discovery script to a package
+        // frame (see `Frame::package`).
+        if let Some(req) = self.pending.package.take() {
+            return Ok(Some(Tick::PushPackage(req)));
         }
         Self::deliver_sync(f, res)
     }
@@ -5669,6 +5776,13 @@ impl Vm {
         // its final completion.
         if let Some(req) = self.pending.try_phase.take() {
             return self.run_activation(Frame::new_try(req, Value::empty()));
+        }
+        // A `package require` deferred its discovery script: as for `try`,
+        // one nested drive carries every following script to the require's
+        // completion.
+        if let Some(req) = self.pending.package.take() {
+            let frame = self.package_frame(req);
+            return self.run_activation(frame);
         }
         res
     }

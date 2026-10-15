@@ -642,6 +642,34 @@ impl TclVersion {
         !matches!(self, Self::V8_4)
     }
 
+    /// Whether `package` requirements are TIP 268 ranges (`min-max`, `min-`)
+    /// and `-exact` is spelled `exactly V` in diagnostics. 8.4 reads a
+    /// requirement as one bare version, rejecting `1-2` as a bad version.
+    #[must_use]
+    pub const fn has_package_requirement_ranges(self) -> bool {
+        !matches!(self, Self::V8_4)
+    }
+
+    /// The `errorCode` words a `package` diagnostic sets on this release, or
+    /// `None` where C leaves `errorCode` at `NONE`. Measured on tclsh 8.4.20
+    /// through 9.1.0: the `TCL PACKAGE` and `TCL VALUE VERSION…` families
+    /// arrive at 8.6, `package present`'s lookup code at 8.5.
+    #[must_use]
+    pub const fn package_error_code(
+        self,
+        diagnostic: PackageDiagnostic,
+    ) -> Option<&'static [&'static str]> {
+        let structured = match diagnostic {
+            PackageDiagnostic::NotPresent => !matches!(self, Self::V8_4),
+            _ => !matches!(self, Self::V8_4 | Self::V8_5),
+        };
+        if structured {
+            Some(diagnostic.error_code_words())
+        } else {
+            None
+        }
+    }
+
     /// Whether this release exposes TIP 348 structured error stacks.
     ///
     /// Tcl 8.6 introduced both `info errorstack` and the `-errorstack` return
@@ -988,6 +1016,49 @@ impl<'v> ParsedVersion<'v> {
     }
 }
 
+/// A `package` diagnostic whose `errorCode` is release policy
+/// ([`TclVersion::package_error_code`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PackageDiagnostic {
+    /// An `ifneeded` or `package unknown` script ended with a non-error,
+    /// non-ok code.
+    BadResult,
+    /// A loader provided a different version than the one it was selected for.
+    WrongProvide,
+    /// A loader returned without providing the package.
+    Unprovided,
+    /// A loader required the package it is providing.
+    Circularity,
+    /// The provided version does not satisfy the request, or a second
+    /// `package provide` names another version.
+    VersionConflict,
+    /// No provider satisfies `package require`.
+    Unfound,
+    /// A word is not a valid version number.
+    InvalidVersion,
+    /// A requirement has more than one `-`.
+    InvalidVersionRange,
+    /// `package present` found nothing provided; the code words are followed
+    /// by the package name.
+    NotPresent,
+}
+
+impl PackageDiagnostic {
+    const fn error_code_words(self) -> &'static [&'static str] {
+        match self {
+            Self::BadResult => &["TCL", "PACKAGE", "BADRESULT"],
+            Self::WrongProvide => &["TCL", "PACKAGE", "WRONGPROVIDE"],
+            Self::Unprovided => &["TCL", "PACKAGE", "UNPROVIDED"],
+            Self::Circularity => &["TCL", "PACKAGE", "CIRCULARITY"],
+            Self::VersionConflict => &["TCL", "PACKAGE", "VERSIONCONFLICT"],
+            Self::Unfound => &["TCL", "PACKAGE", "UNFOUND"],
+            Self::InvalidVersion => &["TCL", "VALUE", "VERSION"],
+            Self::InvalidVersionRange => &["TCL", "VALUE", "VERSIONRANGE"],
+            Self::NotPresent => &["TCL", "LOOKUP", "PACKAGE"],
+        }
+    }
+}
+
 /// The reason a package requirement failed Tcl's version grammar.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RequirementValidationError<'v> {
@@ -1023,6 +1094,11 @@ pub fn validate_requirement_for(
     requirement: &str,
     release: TclVersion,
 ) -> Result<(), RequirementValidationError<'_>> {
+    if !release.has_package_requirement_ranges() {
+        return validate_version_for(requirement, release)
+            .then_some(())
+            .ok_or(RequirementValidationError::InvalidVersion(requirement));
+    }
     validate_requirement_with_suffix_policy(requirement, release.allows_package_version_suffix())
 }
 
@@ -1513,9 +1589,15 @@ mod tests {
             assert!(!release.allows_package_version_suffix());
             assert!(!super::validate_version_for("1.2+platform", release));
             assert!(super::validate_requirement_for("1.2+platform", release).is_err());
+            // 8.4 has no ranges and reports the whole word (tclsh 8.4.20).
+            let reported = if release == TclVersion::V8_4 {
+                "1-2+platform"
+            } else {
+                "2+platform"
+            };
             assert_eq!(
                 super::validate_requirement_for("1-2+platform", release),
-                Err(RequirementValidationError::InvalidVersion("2+platform"))
+                Err(RequirementValidationError::InvalidVersion(reported))
             );
             assert!(!super::version_satisfies_for(
                 "1.2",
@@ -2028,6 +2110,36 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn package_error_codes_follow_the_measured_release_boundaries() {
+        use super::PackageDiagnostic;
+        for version in TclVersion::ALL {
+            assert_eq!(
+                version.package_error_code(PackageDiagnostic::BadResult),
+                (version >= TclVersion::V8_6).then_some(&["TCL", "PACKAGE", "BADRESULT"][..]),
+                "{version:?}"
+            );
+            assert_eq!(
+                version.package_error_code(PackageDiagnostic::NotPresent),
+                (version >= TclVersion::V8_5).then_some(&["TCL", "LOOKUP", "PACKAGE"][..]),
+                "{version:?}"
+            );
+            assert_eq!(
+                version.has_package_requirement_ranges(),
+                version != TclVersion::V8_4,
+                "{version:?}"
+            );
+        }
+        assert_eq!(
+            super::validate_requirement_for("1-2", TclVersion::V8_4),
+            Err(super::RequirementValidationError::InvalidVersion("1-2"))
+        );
+        assert_eq!(
+            super::validate_requirement_for("1-2", TclVersion::V8_5),
+            Ok(())
+        );
     }
 
     #[test]

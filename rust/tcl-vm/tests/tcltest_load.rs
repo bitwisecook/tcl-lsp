@@ -197,6 +197,29 @@ fn upstream_package_badresult_definitions_pass_after_real_startup() {
     );
 }
 
+/// Run Tcl 9.0.4's package-3.54 verbatim: a coroutine suspends inside the
+/// `package ifneeded` loader and its resume completes the require (#2200).
+#[test]
+fn upstream_package_require_coroutine_support_passes_after_real_startup() {
+    let Some((ok, error, output)) = run_upstream_definitions(
+        "package.test",
+        "test package-3.54 {",
+        "test package-4.1 {",
+        "tcltest-package-coroutine",
+    ) else {
+        eprintln!("skipping: no Tcl 9.0.4 source tree available");
+        return;
+    };
+    assert!(
+        ok,
+        "focused upstream package.test failed: {error}\n{output}"
+    );
+    assert!(
+        output.contains("Total\t1\tPassed\t1\tSkipped\t0\tFailed\t0"),
+        "missing parseable upstream package-3.54 summary: {output:?}"
+    );
+}
+
 /// Execute a bounded slice of one pinned upstream test file through the real
 /// Tcl 9.0.4 `init.tcl` and `tcltest` package.
 fn run_upstream_definitions(
