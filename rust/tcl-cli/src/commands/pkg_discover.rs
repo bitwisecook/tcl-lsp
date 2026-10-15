@@ -411,7 +411,12 @@ fn original_document_requirements(
         let policy = raw.original_name.as_ref().map(|name| name.input().policy());
         let requirements:Vec<_>=(0..raw.original_requirements.len()).map(|ordinal| {
             let input=raw.original_requirements.get(ordinal)?.as_ref()?;
-            if Some(input.policy())!=policy || matches!(input,tcl_compiler::signature_scan::scope::SignatureSourceNameInput::OriginalVariableRoot(_)) { return None; }
+            if Some(input.policy()) != policy { return None; }
+            match input {
+                tcl_compiler::signature_scan::scope::SignatureSourceNameInput::OriginalWord(_)
+                | tcl_compiler::signature_scan::scope::SignatureSourceNameInput::OriginalValue(_) => {}
+                tcl_compiler::signature_scan::scope::SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+            }
             let value=std::str::from_utf8(input.bytes()).ok()?;
             (value.is_ascii() && manifest_atom(value)).then(||value.to_owned())
         }).collect();
