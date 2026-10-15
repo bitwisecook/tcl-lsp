@@ -208,6 +208,7 @@ fn bind_handler_vars(
         if !(policy.recipe().is_jim084() && name.is_empty())
             && let Err(e) = if policy.recipe().is_jim084() {
                 vm.store_original_named_variable(rv, result.clone())
+                    .map(|_| ())
             } else {
                 vm.set_var_bytes(&name, result.clone())
             }

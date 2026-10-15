@@ -1,5 +1,9 @@
 # Current centralised naming work
 
+## L13 compilation and minimal status repair
+
+L13 frozen0fd42b29f reaches production VM compilation and stops before tests: actual Jim original-variable assignment returns a Value on success while the existing C arm returns unit. The reviewed one-line map discards the unused successful Jim value, matching the existing ignored-success purpose; errors/currentness/getters/publication stay unchanged. A fresh build is required. Next freeze retains this exact repaired source before adopting further child-graph/completion-constructor/callback drafts; original selected assertions and budgets remain unchanged.
+
 ## VM Return original global setter
 
 The reviewed VM Return -errorcode consumer now transports its actual prepared Value through the existing original global root-frame/bare-key store owner, sharing reset lifetime/restoration/currentness checks. Guest setter status and terminal Host refusal retain their separate original purposes; C behaviour is unchanged. This two-path source review and formatting check supplies no Rust execution or full Return conformance. The existing quiet-capture tranche is captured separately, and later custom clause/trap getters can still require a later actual-result capture before Try message binding.
