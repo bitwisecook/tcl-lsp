@@ -18,7 +18,10 @@ mod logical_variable_operands;
 pub(crate) use logical_variable_operands::OriginalLogicalVariableOperands;
 
 mod procedure;
-pub use procedure::{OriginalProcedureSourceDescriptor, original_procedure_source_descriptor};
+pub use procedure::{
+    OriginalLogicalProcedureArguments, OriginalProcedureSourceDescriptor,
+    original_logical_procedure_arguments, original_procedure_source_descriptor,
+};
 
 /// One original whole word containing exactly one complete child command.
 /// This readonly lexical projection grants no command selection or execution.

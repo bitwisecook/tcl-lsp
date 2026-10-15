@@ -437,6 +437,124 @@ pub fn original_static_word_unicode_value(word: &tcl_lexer::NativeWord) -> Optio
     original_word_unicode_value_with_variables(word, |_, _| None)
 }
 
+/// Source value shape in a variable-name argument, without a variable place.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum OriginalVariableNameWordForm {
+    /// A substitution-free Unicode source value. Element splitting describes
+    /// this value only; it supplies no source boundary or runtime lookup.
+    Static {
+        /// Decoded source value, independently of Native string encoding.
+        value: Vec<u8>,
+        /// The shared value-name grammar partitions this as an element name.
+        element: bool,
+    },
+    /// Possible evaluated array shape: literal root and delimiters surround
+    /// dynamic index source. Values, effects, errors and name policy stay unknown.
+    CompoundArray {
+        /// Decoded literal root data, without namespace or frame lookup.
+        root: Vec<u8>,
+    },
+    /// The source does not retain a literal scalar or array-root name.
+    Dynamic,
+}
+
+/// Original source-display geometry for one variable-name operand.
+/// The whole word retains its image/channel, grouping and full configuration;
+/// literal extents always address original bytes, never cooked-value offsets.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OriginalVariableNameWordGeometry {
+    original: tcl_lexer::NativeWord,
+    form: OriginalVariableNameWordForm,
+    literals: Vec<tcl_lexer::Span>,
+}
+
+impl OriginalVariableNameWordGeometry {
+    /// The unchanged original operand and its complete syntax owner.
+    #[must_use]
+    pub const fn original_word(&self) -> &tcl_lexer::NativeWord {
+        &self.original
+    }
+
+    /// Source value form, without a selected variable, cell or operation.
+    #[must_use]
+    pub const fn form(&self) -> &OriginalVariableNameWordForm {
+        &self.form
+    }
+
+    /// Contiguous original literal fragments of an admitted name shape.
+    /// Substitution introducers and script/index children are excluded.
+    #[must_use]
+    pub fn literal_spans(&self) -> &[tcl_lexer::Span] {
+        &self.literals
+    }
+}
+
+/// Describe original Document syntax in a variable-name argument position.
+/// The caller must independently retain that argument role and its source
+/// context. This supplies no C compiler operand, name policy, physical cell,
+/// selected handler, evaluated index, completed read or edit authority.
+#[must_use]
+pub fn original_variable_name_word_geometry(
+    word: &tcl_lexer::NativeWord,
+) -> Option<OriginalVariableNameWordGeometry> {
+    use tcl_lexer::{ExecutablePart, SourceChannel, Span, WordKind};
+    if word.image().channel() != SourceChannel::Document || word.group().expand {
+        return None;
+    }
+    word.image().try_text().ok()?;
+    let mut literals: Vec<Span> = Vec::new();
+    let mut prefix = Vec::new();
+    let mut suffix = Vec::new();
+    let mut dynamic = false;
+    if word.group().kind == WordKind::Braced {
+        literals.push(word.content_span().ok()?);
+    } else {
+        let arena = word.executable_parts();
+        for component in arena.list(arena.root()) {
+            match &component.part {
+                ExecutablePart::Text(_) => {
+                    let value = original_unicode_text_component(arena, component)?;
+                    if !dynamic {
+                        prefix.extend_from_slice(&value);
+                    }
+                    suffix.extend_from_slice(&value);
+                    if let Some(previous) = literals.last_mut()
+                        && previous.end() == component.span.start()
+                    {
+                        *previous = Span::new(previous.start(), component.span.end());
+                    } else {
+                        literals.push(component.span);
+                    }
+                }
+                ExecutablePart::Variable { .. } | ExecutablePart::Command { .. } => {
+                    dynamic = true;
+                    suffix.clear();
+                }
+                _ => return None,
+            }
+        }
+    }
+    let form = if !dynamic {
+        let value = original_static_word_unicode_value(word)?;
+        let element = crate::naming::split_element_ref_bytes(&value).is_some();
+        OriginalVariableNameWordForm::Static { value, element }
+    } else if suffix.last() == Some(&b')')
+        && let Some(open) = prefix.iter().position(|byte| *byte == b'(')
+    {
+        OriginalVariableNameWordForm::CompoundArray {
+            root: prefix[..open].to_vec(),
+        }
+    } else {
+        literals.clear();
+        OriginalVariableNameWordForm::Dynamic
+    };
+    Some(OriginalVariableNameWordGeometry {
+        original: word.clone(),
+        form,
+        literals,
+    })
+}
+
 /// Unicode source value with each substitution resolved from its original component.
 /// The callback retains the complete image, grammar and scalar/array form;
 /// unavailable commands, indices or values never become replacement text.
@@ -768,6 +886,72 @@ mod original_metadata_tests {
         let length = u32::try_from(image.len()).unwrap();
         let plan = tcl_lexer::native_script_words_in(image, Span::new(0, length), config).unwrap();
         plan.commands[0].words[0].clone()
+    }
+
+    #[test]
+    fn variable_name_display_geometry_retains_source_components_and_value_shape_separately() {
+        let config = LexerConfig {
+            base_line: 17,
+            ..LexerConfig::default()
+        };
+        for (source, value, element) in [
+            (r"a\ b", "a b", false),
+            ("{a b}", "a b", false),
+            (r"a\(key\)", "a(key)", true),
+            ("{a($index)}", "a($index)", true),
+            ("{名 字}", "名 字", false),
+        ] {
+            let original = word(SourceImage::document(source), config);
+            let geometry = original_variable_name_word_geometry(&original).unwrap();
+            assert_eq!(geometry.original_word(), &original);
+            assert_eq!(geometry.original_word().config(), config);
+            assert_eq!(
+                geometry.form(),
+                &OriginalVariableNameWordForm::Static {
+                    value: value.as_bytes().to_vec(),
+                    element,
+                }
+            );
+            let expected = if source.starts_with('{') {
+                &source[1..source.len() - 1]
+            } else {
+                source
+            };
+            let spans = geometry.literal_spans();
+            assert_eq!(spans.len(), 1);
+            assert_eq!(&source[spans[0].as_range()], expected);
+        }
+        for (source, fragments) in [
+            ("a($index[choose])", vec!["a(", ")"]),
+            (r"a\x28$index\x29", vec![r"a\x28", r"\x29"]),
+        ] {
+            let original = word(SourceImage::document(source), config);
+            let geometry = original_variable_name_word_geometry(&original).unwrap();
+            assert_eq!(
+                geometry.form(),
+                &OriginalVariableNameWordForm::CompoundArray {
+                    root: b"a".to_vec()
+                }
+            );
+            assert_eq!(
+                geometry
+                    .literal_spans()
+                    .iter()
+                    .map(|span| &source[span.as_range()])
+                    .collect::<Vec<_>>(),
+                fragments
+            );
+        }
+        for source in ["${root}($index)", "a${root}($index)", "a($index)tail"] {
+            let original = word(SourceImage::document(source), config);
+            let geometry = original_variable_name_word_geometry(&original).unwrap();
+            assert_eq!(geometry.form(), &OriginalVariableNameWordForm::Dynamic);
+            assert!(geometry.literal_spans().is_empty());
+        }
+        let original = word(SourceImage::native(b"a($index)".to_vec()), config);
+        assert!(original_variable_name_word_geometry(&original).is_none());
+        let expanded = word(SourceImage::document("{*}a($index)"), config);
+        assert!(original_variable_name_word_geometry(&expanded).is_none());
     }
 
     #[test]

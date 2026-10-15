@@ -8386,8 +8386,11 @@ impl Analyser {
         depth: u32,
     ) -> Option<bool> {
         let context = self.retained_static_source_context()?;
-        let registry = context.commands().as_ref();
-        let spec = registry.get(arm.controller.name())?;
+        let words = crate::registry_invocation::source_structure::source_registry_words(
+            &self.source,
+            &self.result,
+            &arm.controller,
+        )?;
         match self.control_arm_semantics_for(arm)? {
             tcl_registry::registry::ControlArmSemantics::Always => return Some(true),
             tcl_registry::registry::ControlArmSemantics::Selected => {}
@@ -8401,7 +8404,9 @@ impl Analyser {
                 return Some(true);
             }
         }
-        match spec.lowering_hook? {
+        let hook =
+            words.with_source_schema(&context, |schema| schema.semantics.lowering_hook)??;
+        match hook {
             tcl_registry::hooks::LoweringHookId::If => {
                 self.if_body_is_selected(proc_qname, arm, env, depth)
             }
@@ -8422,40 +8427,12 @@ impl Analyser {
     ) -> Option<tcl_registry::registry::ControlArmSemantics> {
         let input = self.result.resolved_input.as_ref()?;
         let context = self.retained_static_source_context()?;
-        let words = crate::registry_invocation::source_structure::source_registry_words_at(
+        let words = crate::registry_invocation::source_structure::source_registry_words(
             &self.source,
             &self.result,
-            arm.controller.argv.first()?.span.start(),
+            &arm.controller,
         )?;
-        if words.origins().len() != arm.controller.argv.len()
-            || words.origins().iter().enumerate().any(|(ordinal, origin)| {
-                *origin != crate::registry_invocation::InvocationWordOrigin::Written(ordinal)
-            })
-        {
-            return None;
-        }
-        let mut bodies = words
-            .source_script_bodies_for(
-                &context,
-                crate::registry_invocation::OriginalSourceScriptPurpose::PotentialEvaluation,
-            )
-            .into_iter()
-            .filter(|body| body.extent_span() == arm.body_span);
-        let body = bodies.next()?;
-        if bodies.next().is_some() {
-            return None;
-        }
-        let mut ordinals = words
-            .operands()
-            .iter()
-            .enumerate()
-            .filter_map(|(ordinal, operand)| {
-                (operand.as_ref()?.word()? == body.original_container()).then_some(ordinal)
-            });
-        let ordinal = ordinals.next()?;
-        if ordinals.next().is_some() {
-            return None;
-        }
+        let ordinal = self.control_arm_body_index(arm)?;
         words.with_source_schema(&context, |schema| {
             if input.has_logical_source_name_context() {
                 schema.authored_logical_source_control_arm_semantics(ordinal)
@@ -8473,48 +8450,63 @@ impl Analyser {
     /// trait when a command mixes immediate and deferred scripts.
     fn control_arm_body_index(&self, arm: &ControlArm) -> Option<usize> {
         let context = self.retained_static_source_context()?;
-        let registry = context.commands().as_ref();
-        let args: Vec<&str> = arm.controller.args().iter().map(String::as_str).collect();
-        let direct = arm
-            .controller
-            .arg_tokens()
-            .iter()
-            .position(|token| token.span == arm.body_span);
-        let body_index = direct
-            .or_else(|| {
-                let (_, invocation) = registry.case_invocation(
-                    arm.controller.name(),
-                    &args,
-                    Some(context.context().authoring_query()),
-                )?;
-                let index = invocation.clause_list_index?;
-                let container = arm.controller.arg_tokens().get(index)?.span;
-                (container.start() <= arm.body_span.start()
-                    && arm.body_span.end() <= container.end())
-                .then_some(index)
+        let config = self.file_lexer_config();
+        let tokens = crate::ir::CommandTokens::from_segmented(
+            &self.cached_source_map(),
+            config,
+            &arm.controller,
+        );
+        let origin = self.head_identities.source_bindings().source_origin()?;
+        let original = origin.original_lexical_command(
+            tokens.words(),
+            arm.controller.argv.first()?.span.start(),
+            config,
+        )?;
+        let actual = original.command();
+        if actual.span != arm.controller.span
+            || actual.argv != arm.controller.argv
+            || actual.texts != arm.controller.texts
+            || actual.word_fragments != arm.controller.word_fragments
+            || actual.single_token_word != arm.controller.single_token_word
+            || actual.expand_word != arm.controller.expand_word
+            || actual.is_partial != arm.controller.is_partial
+            || actual.partial_delimiter != arm.controller.partial_delimiter
+        {
+            return None;
+        }
+        let words = crate::registry_invocation::source_structure::source_registry_words(
+            &self.source,
+            &self.result,
+            &arm.controller,
+        )?;
+        if words.origins().len() != arm.controller.argv.len()
+            || words.origins().iter().enumerate().any(|(ordinal, origin)| {
+                *origin != crate::registry_invocation::InvocationWordOrigin::Written(ordinal)
             })
-            // …or one body nested inside a lambda literal, whose span likewise
-            // belongs to a list element rather than to the argv word
-            // (`apply {{} {…}}`).
-            .or_else(|| {
-                registry
-                    .arg_indices_for_role(
-                        arm.controller.name(),
-                        &args,
-                        tcl_registry::ArgRole::LambdaLiteral,
-                    )
-                    .into_iter()
-                    .find(|index| {
-                        arm.controller
-                            .arg_tokens()
-                            .get(*index)
-                            .is_some_and(|token| {
-                                token.span.start() <= arm.body_span.start()
-                                    && arm.body_span.end() <= token.span.end()
-                            })
-                    })
-            })?;
-        Some(body_index)
+        {
+            return None;
+        }
+        let mut bodies = words
+            .source_script_bodies_for(
+                &context,
+                crate::registry_invocation::OriginalSourceScriptPurpose::PotentialEvaluation,
+            )
+            .into_iter()
+            .chain(words.original_lambda_body_geometry(&context))
+            .filter(|body| body.extent_span() == arm.body_span);
+        let body = bodies.next()?;
+        if bodies.next().is_some() {
+            return None;
+        }
+        let mut ordinals = words
+            .operands()
+            .iter()
+            .enumerate()
+            .filter_map(|(ordinal, operand)| {
+                (operand.as_ref()?.word()? == body.original_container()).then_some(ordinal)
+            });
+        let ordinal = ordinals.next()?;
+        ordinals.next().is_none().then_some(ordinal)
     }
 
     /// Whether a body argument this walk could **not** read makes the arm set
@@ -8798,36 +8790,48 @@ impl Analyser {
         depth: u32,
     ) -> Option<bool> {
         let context = self.retained_static_source_context()?;
-        let registry = context.commands().as_ref();
-        let args: Vec<&str> = arm.controller.args().iter().map(String::as_str).collect();
-        let exprs = registry.arg_indices_for_role(
-            arm.controller.name(),
-            &args,
-            tcl_registry::ArgRole::Expr,
-        );
-        let bodies = registry.arg_indices_for_role(
-            arm.controller.name(),
-            &args,
-            tcl_registry::ArgRole::Body,
-        );
-        let wanted = arm
-            .controller
-            .arg_tokens()
-            .iter()
-            .position(|token| token.span == arm.body_span)?;
-        for (branch, expr_idx) in exprs.iter().copied().enumerate() {
-            let selected = self.static_expr_value(
-                arm.controller.args().get(expr_idx)?,
-                proc_qname,
-                env,
-                &mut Vec::new(),
-                depth,
-            )?;
-            if selected {
-                return Some(bodies.get(branch).copied() == Some(wanted));
+        let words = crate::registry_invocation::source_structure::source_registry_words(
+            &self.source,
+            &self.result,
+            &arm.controller,
+        )?;
+        let wanted = self.control_arm_body_index(arm)?;
+        let clauses = words.with_source_schema(&context, |schema| {
+            if schema.semantics.lowering_hook != Some(tcl_registry::hooks::LoweringHookId::If) {
+                return None;
+            }
+            let plan = schema.clause_plan()?;
+            if plan.defect.is_some() || plan.clauses.is_empty() {
+                return None;
+            }
+            plan.clauses
+                .iter()
+                .map(|clause| {
+                    if clause.timing != tcl_registry::clause_grammar::ClauseTiming::Selected
+                        || clause.operands(tcl_registry::ArgRole::Body).count() != 1
+                        || clause.operands(tcl_registry::ArgRole::Expr).count() > 1
+                    {
+                        return None;
+                    }
+                    Some((
+                        clause.operand(tcl_registry::ArgRole::Expr),
+                        clause.operand(tcl_registry::ArgRole::Body)?,
+                    ))
+                })
+                .collect::<Option<Vec<_>>>()
+        })??;
+        for (condition, body) in clauses {
+            let Some(condition) = condition else {
+                return Some(body == wanted);
+            };
+            let original = words.original_argument_word(condition)?;
+            let source = original.image().try_text().ok()?;
+            let expression = source.get(original.content_span().ok()?.as_range())?;
+            if self.static_expr_value(expression, proc_qname, env, &mut Vec::new(), depth)? {
+                return Some(body == wanted);
             }
         }
-        Some(exprs.len() < bodies.len() && bodies.last().copied() == Some(wanted))
+        Some(false)
     }
 
     /// Whether the body at `arm.body_span` is the one the `switch` runs, when
@@ -12438,6 +12442,94 @@ mod tests {
             arm.body_span = actual_span;
             analyser.source.push(' ');
             assert!(analyser.control_arm_semantics_for(&arm).is_none());
+        }
+    }
+
+    #[test]
+    fn control_arm_positions_require_actual_original_body_containers() {
+        for (source, expected) in [
+            (
+                "if {0} {set x 1} else {set x 2}",
+                vec![(1, Some(false)), (3, Some(true))],
+            ),
+            (
+                "switch x {x {set a 1} default {set a 2}}",
+                vec![(1, None), (1, None)],
+            ),
+            ("apply {{} {puts body}}", vec![(0, None)]),
+        ] {
+            let mut analyser = Analyser::new();
+            analyser.analyse_and_retain_result_for_test(source, "tcl8.6");
+            let config = analyser.file_lexer_config();
+            let controller =
+                crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+                    .remove(0);
+            let context = analyser.retained_static_source_context().unwrap();
+            let words = crate::registry_invocation::source_structure::source_registry_words_at(
+                source,
+                &analyser.result,
+                0,
+            )
+            .unwrap();
+            let bodies = words
+                .source_script_bodies_for(
+                    &context,
+                    crate::registry_invocation::OriginalSourceScriptPurpose::PotentialEvaluation,
+                )
+                .into_iter()
+                .chain(words.original_lambda_body_geometry(&context))
+                .collect::<Vec<_>>();
+            assert_eq!(bodies.len(), expected.len(), "{source}");
+            for (body, (ordinal, selected)) in bodies.iter().zip(expected) {
+                let mut arm = ControlArm {
+                    controller: controller.clone(),
+                    body_span: body.extent_span(),
+                };
+                assert_eq!(
+                    analyser.control_arm_body_index(&arm),
+                    Some(ordinal),
+                    "{source}"
+                );
+                if let Some(selected) = selected {
+                    assert_eq!(
+                        analyser.control_body_is_selected(
+                            "",
+                            &arm,
+                            &std::collections::HashMap::new(),
+                            0
+                        ),
+                        Some(selected),
+                        "{source}"
+                    );
+                }
+                let mut foreign = arm.clone();
+                foreign.controller.texts[0] = "another-head".to_owned();
+                assert!(analyser.control_arm_body_index(&foreign).is_none());
+                let mut foreign = arm.clone();
+                foreign.controller.texts[1] = "altered-argument".to_owned();
+                assert!(analyser.control_arm_body_index(&foreign).is_none());
+                let mut foreign = arm.clone();
+                foreign.controller.argv[1].span = Span::new(0, 0);
+                assert!(analyser.control_arm_body_index(&foreign).is_none());
+                arm.body_span = body.container_extent_span();
+                if arm.body_span != body.extent_span() {
+                    assert!(
+                        analyser.control_arm_body_index(&arm).is_none(),
+                        "container is not its script child"
+                    );
+                }
+                arm.body_span = Span::new(body.content_span().start(), body.content_span().start());
+                assert!(
+                    analyser.control_arm_body_index(&arm).is_none(),
+                    "interior point cannot donate body authority"
+                );
+            }
+            analyser.source.push(' ');
+            let arm = ControlArm {
+                controller,
+                body_span: bodies[0].extent_span(),
+            };
+            assert!(analyser.control_arm_body_index(&arm).is_none());
         }
     }
 

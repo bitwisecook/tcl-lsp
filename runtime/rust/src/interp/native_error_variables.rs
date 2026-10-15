@@ -6,6 +6,8 @@ use tcl_registry::special_vars::{NativeErrorStorageVariable as Variable, NativeE
 use tcl_syntax::value::ValueError;
 
 #[cfg(test)]
+mod jim_global_getter_tests;
+#[cfg(test)]
 mod jim_global_key_tests;
 
 #[derive(Default, Clone)]
@@ -117,6 +119,48 @@ impl Interp {
                     .as_bytes(),
             ));
             actual.assign_original_named_variable(name.as_ptr(), value)
+        });
+        caller
+            .check_frame(self)
+            .map_err(|error| self.report_cmd_error(error.into()))?;
+        reached
+    }
+
+    /// A failed quiet read yields no value; it establishes no variable absence.
+    pub(crate) fn read_original_jim_global_error_code(
+        &mut self,
+    ) -> Result<Option<*mut obj::TclObj>, super::Code> {
+        if self
+            .native_invocation_dialect()
+            .native_jim_lookup_protocol()
+            .is_none()
+        {
+            return Err(self.report_cmd_error(
+                ValueError::CommandProtocolUnavailable("original Jim global error-code getter")
+                    .into(),
+            ));
+        }
+        let caller = super::native_arguments::OriginalArgumentFrame::capture(self);
+        let reached = self.with_event_global_frame(|actual| {
+            if actual.frames.borrow().current_frame_index() != 0 {
+                return Err(actual.report_cmd_error(
+                    ValueError::CommandProtocolUnavailable("original Jim top variable frame")
+                        .into(),
+                ));
+            }
+            let name = obj::Owned::fresh(new_string(
+                tcl_registry::special_vars::NativeBootstrapVariable::ErrorCode
+                    .name()
+                    .as_bytes(),
+            ));
+            match actual.read_original_named_variable_reported(
+                name.as_ptr(),
+                super::native_jim_lookup::OriginalJimVariableReport::Silent,
+            ) {
+                Ok(value) => Ok(Some(value)),
+                Err(code) if actual.host_refusal_pending() => Err(code),
+                Err(_) => Ok(None),
+            }
         });
         caller
             .check_frame(self)

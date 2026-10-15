@@ -781,15 +781,18 @@ impl<'a> FrameWalk<'a> {
                 tcl_registry::BodyKind::Plain
             }
         {
-            regions.extend(
-                words
-                    .source_script_bodies_for_mutation_coverage(&context)?
-                    .into_iter()
-                    .map(|body| {
-                        let span = body.content_span();
-                        (span.start() as usize, span.end() as usize)
-                    }),
-            );
+            let bodies = words.source_script_bodies_for_mutation_coverage(&context)?;
+            if !structural
+                && bodies
+                    .iter()
+                    .any(|body| !body.inherits_immediate_caller_source_context(&context))
+            {
+                return None;
+            }
+            regions.extend(bodies.into_iter().map(|body| {
+                let span = body.content_span();
+                (span.start() as usize, span.end() as usize)
+            }));
         }
         if structural {
             regions.extend(crate::references::frame_shifted_dispatch_regions(

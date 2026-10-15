@@ -1,0 +1,11 @@
+{
+  "kind": "original-variable-cursor-test-ingress",
+  "source": "rust/tcl-lsp-core/src/completion/original_variables.rs",
+  "before_sha256": "03900461e0434fcef7c804d258b35ddfe9644c9a7555133cb4c51726cf6bf9ac",
+  "after_sha256": "1a23ba2239bf9f4029f17ef5f64e0543a04fc4c475545bf6f9e3509eaf3d6a89",
+  "original_test_functions": 7,
+  "changed_original_test_bodies": [],
+  "new_test_functions": [],
+  "cargo_or_test_execution": false,
+  "ingress": "Test-local legacy signature delegates to actual original_variable_cursor_prefix over unchanged source/full current analysis/config. Exact UTF16 coordinate roundtrip and original partial/trigger agreement required; unavailable/invalid returns empty. Native-only items Logical eligibility remains None, matching existing production purpose. No invented prefix/closing syntax or fixture/assertion changes."
+}

@@ -1,0 +1,1 @@
+namespace eval ReadKey {proc p {} {set errorCode LOCAL; read_selected_error_code}; p}

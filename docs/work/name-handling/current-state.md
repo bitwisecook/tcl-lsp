@@ -1,5 +1,11 @@
 # Current centralised naming work
 
+## Corrected source and L7 build feedback
+
+L7 frozen66d24a8ac failed101 in596.675043022s with15testELFs/0tests/source drift{}. Its11diagnostics are old Core completion tests still calling the retired six-argument cursor API. The test-local adapter now issues the genuine typed cursor from unchanged actual source/currentconfig and checks exact UTF16/partial/trigger correspondence. Seven original test bodies/fixtures/assertions/positions remain byte-exact; production is unchanged. The unsafe generic Lambda publication was not replayed or accepted; corrected source below requires a fresh build.
+
+The reviewed successor also captures actual Logical procedure-role declaration/card/wholeargv/currentinput/formal agreement, source-only variable-name display geometry and typed semantic consumers. All234 prior Syntax/Core semantic test bodies remain byte-exact. Report-map fields cannot supersede authentic captured signature/card identity; new private corruption/source/currentness negatives use real owner invariants. All new controls remain unexecuted. OO member original-word transport and remaining navigation/refactor/codegen consumers are unfinished.
+
 ## Immediate L7 source freeze
 
 L6 c4509d722 failed101 in367.976860755s during Compiler test compilation: two new leaf-source helper calls lacked immutable borrows. It retained5testELFs, ran0tests and source drift{}. Exact borrow repairs preserve all production code, Tcl fixtures and assertions. Next source also captures actual BPF Module positioned-context origin and Registry/current-source correspondence (whole phase use still required), central C error-variable metadata reuse, and genuine Lambda body-source transport through existing selected lambda/list/container owners.

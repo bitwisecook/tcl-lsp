@@ -28,6 +28,7 @@
 // real filesystem paths, so `Path::extension` would be the wrong tool.
 #![allow(clippy::case_sensitive_file_extension_comparisons)]
 
+use std::ffi::OsString;
 use std::io::{Cursor, Read};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -357,13 +358,13 @@ pub fn fetch_git(url: &str, dest: &Path, rev: Option<&str>) -> Result<String, Tc
     let git = crate::venv::which("git").unwrap_or_else(|| std::path::PathBuf::from("git"));
     let parent = dest.parent().unwrap_or_else(|| Path::new("."));
 
-    let mut clone_args: Vec<String> = vec!["clone".into(), "--depth".into(), "1".into()];
+    let mut clone_args: Vec<OsString> = vec!["clone".into(), "--depth".into(), "1".into()];
     if let Some(r) = &rev {
         clone_args.push("--branch".into());
-        clone_args.push(r.clone());
+        clone_args.push(r.as_str().into());
     }
-    clone_args.push(url.clone());
-    clone_args.push(dest.to_string_lossy().into_owned());
+    clone_args.push(url.as_str().into());
+    clone_args.push(dest.as_os_str().to_owned());
 
     // git fetches over the network, so this is the one trusted tool that runs
     // with network granted. The environment is still scrubbed of credentials
@@ -436,6 +437,68 @@ mod tests {
         );
         assert!(fetch_path("/no/such/dir/xyz", &base.join("d2")).is_err());
         let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn local_git_fetch_preserves_distinct_non_unicode_destination_paths() {
+        use std::os::unix::ffi::OsStringExt as _;
+        let base = std::env::temp_dir().join(format!(
+            "tclpkg-git-os-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let source = base.join("source");
+        std::fs::create_dir_all(&source).unwrap();
+        let git = crate::venv::which("git").expect("git required for local source fixture");
+        for args in [
+            vec!["init", "--quiet"],
+            vec!["add", "fixture.tcl"],
+            vec![
+                "-c",
+                "user.name=PackageFixture",
+                "-c",
+                "user.email=package-fixture@example.invalid",
+                "-c",
+                "core.hooksPath=/dev/null",
+                "commit",
+                "--quiet",
+                "--no-gpg-sign",
+                "-m",
+                "fixture",
+            ],
+        ] {
+            if args[0] == "add" {
+                std::fs::write(source.join("fixture.tcl"), b"original source bytes").unwrap();
+            }
+            let profile = git_profile("local-git-fixture", &git, &source).args(args);
+            let result = crate::exec::execute(&profile, &SandboxPolicy::default()).unwrap();
+            assert!(
+                result.success,
+                "{}",
+                String::from_utf8_lossy(&result.stderr)
+            );
+        }
+        let url = source
+            .to_str()
+            .expect("Unicode source URL for local fixture");
+        for name in [b"destination-\xff".to_vec(), b"destination-\xfe".to_vec()] {
+            let destination = base.join(OsString::from_vec(name));
+            let revision = fetch_git(url, &destination, None).unwrap();
+            assert!(
+                !revision.is_empty(),
+                "revision query must use the same actual destination"
+            );
+            assert_eq!(
+                std::fs::read(destination.join("fixture.tcl")).unwrap(),
+                b"original source bytes"
+            );
+            assert!(!destination.join(".git").exists());
+        }
+        std::fs::remove_dir_all(base).unwrap();
     }
 
     #[test]

@@ -64,6 +64,13 @@ impl OriginalMaterializedSourceLookup<'_> {
 pub(crate) struct OriginalSourceProcedureArgumentRoles<'a> {
     _binding: &'a SourceInvocationBinding,
     _tokens: &'a CommandTokens,
+    target: Option<super::SourceCommandTarget>,
+}
+
+impl OriginalSourceProcedureArgumentRoles<'_> {
+    pub(crate) fn target(&self) -> Option<&super::SourceCommandTarget> {
+        self.target.as_ref()
+    }
 }
 
 impl SourceInvocationBinding {
@@ -169,6 +176,10 @@ impl SourceInvocationBinding {
         Some(OriginalSourceProcedureArgumentRoles {
             _binding: self,
             _tokens: tokens,
+            target: targets
+                .iter()
+                .all(|target| target == first)
+                .then(|| first.clone()),
         })
     }
 

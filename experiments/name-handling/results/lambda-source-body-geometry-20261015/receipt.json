@@ -10,12 +10,15 @@
     "apply {{} {puts hidden}}",
     "apply $lambda"
   ],
-  "disposition": "literal complete coverage None becomes genuine represented body Some; dynamic remains None; selector and fixtures retained",
-  "source_peer": "audit concrete source/API peer PASS c39cf0 draft before capability test evolution",
+  "disposition": "Original6257 coverageNone assertions restored byte-exact. Genuine lambda geometry uses separate explicit purpose API; generic syntax/evaluation inventories remain empty and complete coverage refuses until actual lambda frame/namespace context is retained.",
+  "source_peer": "Geometry peer PASS; later caller audit identified generic same-frame assumptions, so generic publication withdrawn pending independent frame owner.",
   "cargo_or_test_execution": false,
   "oracle_execution": false,
   "limitations": [
     "New actual owner geometry assertions remain unexecuted.",
-    "No Native lambda/frame/completion or rename authority."
-  ]
+    "No Native lambda/frame/completion or rename authority.",
+    "Generic lambda body admission remains refused; geometry supplies no current/entered lambda frame or namespace."
+  ],
+  "correction_source_peer": "Audit final source/API PASS body40aa1407 and handlerscbaedff: generic publication withdrawn, explicit geometry purpose, mixed-role inheritance refusal and complete supplied-controller correspondence.",
+  "restored_test_sha256": "9358ec027050212c921ff9e45927026af14262c0eef4a85820a8b9cab2443c6e"
 }

@@ -183,5 +183,20 @@
     "file": "successor-l4-l5-build-feedback.tar.gz",
     "sha256": "ec3c198b51d644c1227ef9e725216a03ecee4bf92df0e42fca16b08bf5b002f0",
     "status": "L4 d70c production resident-byte ownership mismatch101/0ELFs/0tests; L5 f462 newtest missing LexerConfig qualifier101/5ELFs/0tests; both source drift{}. Repairs need fresh build, no semantic acceptance."
+  },
+  {
+    "file": "variable-cursor-test-ingress-receipt.json",
+    "sha256": "0359799e3bc003e96fddcb9ec76ba596c98727d889fc8fc73cbe2d9f7e53e901",
+    "status": "Static source/API/test-ingress receipt only; original measured assertions retained; no Rust execution or semantic acceptance."
+  },
+  {
+    "file": "semantic-source-geometry-receipt.json",
+    "sha256": "cbf53b3a80bd02bfa665e4e6a7761e1d7b0c62c55793c15cd9cfe997c04226df",
+    "status": "Static source/API/test-ingress receipt only; original measured assertions retained; no Rust execution or semantic acceptance."
+  },
+  {
+    "file": "logical-procedure-role-source-review.tar.gz",
+    "sha256": "01778659ed5906836c5881bacc6cccde53c3194ef52780394f28899c9e93ce79",
+    "status": "Static source/API/test-ingress receipt only; original measured assertions retained; no Rust execution or semantic acceptance."
   }
 ]

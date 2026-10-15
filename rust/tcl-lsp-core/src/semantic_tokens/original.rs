@@ -597,9 +597,19 @@ pub(super) fn registry_overrides(
         }
     }
     insert_source_roles(
+        command,
         roles,
         &words.arguments,
         |ordinal| original_argument_token(command, words, ordinal),
+        |ordinal| {
+            let operand = words.operands.get(ordinal)?.as_ref()?;
+            command
+                .argv
+                .iter()
+                .any(|token| token.span == operand.span)
+                .then_some(())?;
+            operand.word.as_ref()
+        },
         &mut overrides,
     );
     insert_format_overrides(ctx, command, words, &mut overrides);
@@ -622,6 +632,7 @@ pub(super) fn declared_overrides(
     let mut overrides = FxHashMap::default();
     if let Some(roles) = words.supplied_argument_roles() {
         insert_source_roles(
+            command,
             &roles,
             words.arguments(),
             |ordinal| {
@@ -629,20 +640,38 @@ pub(super) fn declared_overrides(
                 let token = *word.tokens().first()?;
                 (command.argv.get(ordinal.checked_add(1)?)?.span == token.span).then_some(token)
             },
+            |ordinal| words.argument_word(ordinal),
             &mut overrides,
         );
     }
     overrides
 }
 
-fn insert_source_roles(
+fn insert_source_roles<'word>(
+    command: &SegmentedCommand,
     roles: &[(usize, tcl_registry::ArgRole)],
     arguments: &[tcl_compiler::registry_invocation::EffectiveInvocationWord],
     token_at: impl Fn(usize) -> Option<tcl_lexer::Token>,
+    word_at: impl Fn(usize) -> Option<&'word tcl_lexer::NativeWord>,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
     use tcl_registry::ArgRole;
     for &(ordinal, role) in roles {
+        if matches!(role, ArgRole::VarWrite | ArgRole::VarRead) {
+            if let Some(word) = word_at(ordinal) {
+                super::retag_original_variable_argument(
+                    command,
+                    word,
+                    if role == ArgRole::VarWrite {
+                        ArgOverride::VarDecl
+                    } else {
+                        ArgOverride::VarRef
+                    },
+                    overrides,
+                );
+            }
+            continue;
+        }
         let Some(token) = token_at(ordinal) else {
             continue;
         };
@@ -656,8 +685,6 @@ fn insert_source_roles(
             ArgRole::Expr if token.kind == tcl_lexer::TokenType::Str => {
                 Some(ArgOverride::ExprScript)
             }
-            ArgRole::VarWrite if static_value => Some(ArgOverride::VarDecl),
-            ArgRole::VarRead if static_value => Some(ArgOverride::VarRef),
             ArgRole::LoopVarList if static_value => Some(ArgOverride::LoopVarList),
             ArgRole::ParamList if static_value => Some(ArgOverride::ParamList),
             ArgRole::CommandPrefix | ArgRole::CommandName | ArgRole::CommandNameProbe

@@ -2247,93 +2247,52 @@ fn original_self_accessor(ctx: ScriptCtx<'_>, head: Token) -> bool {
     }) == Some(true)
 }
 
-/// Variable names a command declares / writes (`ArgRole::VarWrite`) →
-/// `Variable` + `declaration`.  The registry marks the write target of `set`
-/// / `incr` / `append` / `lappend` / `lassign` / `global` / `variable` / … ,
-/// which the query [`CommandRegistry::arg_indices_for_role`] resolves
-/// (including subcommand and dynamic-resolver commands such as `dict set`).
-/// The argument is *known* to be a variable-name spot — not from the word's
-/// text, but from a declared role: the static registry `ArgRole::VarWrite` /
-/// `ArgRole::VarRead`, a `# tcl-lsp: stub … :var` / `:var_read` declaration, or
-/// a user-proc parameter the analyser inferred to alias a caller variable
-/// through the selected procedure role index. A **written** target retags as a
-/// `Variable` declaration; a **read** reference as a plain `Variable` (it names
-/// an existing variable, not a new one).  The only remaining question is token
-/// geometry.  A word that lexes as a single unquoted [`TokenType::Esc`] token —
-/// a scalar (`x`), a literal array element (`arr(key)`), or a namespaced name
-/// (`::ns::arr(key)`) — is retagged as one whole-word token, matching how the
-/// `$arr(key)` read highlights.  A word with an inner substitution
-/// (`arr($i)`, `$dynamic`) is multi-token (`single_token_word` is `false`), so
-/// it is left to the default classifier and its inner `$var` sub-tokens survive.
-fn retag_variable_argument(
-    seg: &tcl_compiler::segmenter::SegmentedCommand,
-    i: usize,
-    ov: ArgOverride,
+/// Paint literal name fragments only under the caller's retained variable role.
+/// Original word geometry supplies display extents, independently of runtime
+/// names, variable places, cells or successful argument evaluation.
+fn retag_original_variable_argument(
+    command: &tcl_compiler::segmenter::SegmentedCommand,
+    original: &tcl_lexer::NativeWord,
+    kind: ArgOverride,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
-    let Some(word) = seg.argv.get(i + 1) else {
+    use tcl_syntax::word_rules::OriginalVariableNameWordForm;
+    if !original
+        .tokens()
+        .iter()
+        .all(|token| command.all_tokens.contains(token))
+    {
+        return;
+    }
+    let Some(geometry) = tcl_syntax::word_rules::original_variable_name_word_geometry(original)
+    else {
         return;
     };
-    if seg.single_token_word.get(i + 1) == Some(&true) {
-        // `Str` — a brace-quoted word — is a variable *name* here just as
-        // much as a bareword is: braces suppress every substitution, so
-        // `set {$n} 1` declares the variable literally called `$n` and
-        // `[set {$n}]` reads it (tclsh 9.0.4 / 8.6.14: `info exists {$n}`
-        // → 1 while `info exists n` → 0).  Falling through would paint the
-        // word as a plain `string`, hiding a declaration and inviting the
-        // reader to see the `$n` inside as a substitution.
-        // It is the quoting that makes such a name writable at all, so
-        // this is the *only* spelling those variables ever have.
-        if matches!(word.kind, TokenType::Esc | TokenType::Str) && !word.in_quote {
-            overrides.entry(word.span.start()).or_insert(ov);
-        }
+    if matches!(geometry.form(), OriginalVariableNameWordForm::Dynamic) {
         return;
     }
-    // A multi-token word in a variable-name position is an **array element
-    // whose index is a substitution** — `set env($lo)`, `unset
-    // UnknownPending($name)`, `set auto_index([foo])`.  A literal index
-    // (`env(PATH)`) is a single token and took the branch above; this one
-    // stays multi-token, and skipping it would let its literal fragments
-    // fall through to the default classification and paint as `string` —
-    // pervasive in Tcl's own `init.tcl` / `package.tcl`.
-    //
-    // The representative `argv` token spans the whole word (segmenter:
-    // `multi_token_word_argv_spans_full_word`), so paint every *literal*
-    // fragment of it — the array name and the parens — as the variable; the
-    // `$index` / `[cmd]` tokens inside classify themselves.
-    let text = seg.texts.get(i + 1).map_or("", String::as_str);
-    if word.in_quote || !text.contains('(') || !text.ends_with(')') {
-        return;
-    }
-    for t in &seg.all_tokens {
-        if matches!(t.kind, TokenType::Esc)
-            && t.span.start() >= word.span.start()
-            && t.span.end() <= word.span.end()
-        {
-            overrides.entry(t.span.start()).or_insert(ov);
-        }
-    }
-}
-
-/// A command name passed as an argument — the registry `CommandPrefix` role
-/// (`tk selection … -command`, a stub `:command_prefix`), or a proc parameter
-/// the analyser inferred to be a `Command` (`$cmd` used as a head, or flowing
-/// into a command-name position).  Retag the literal at the
-/// call site as a `Function`, gated by the same single-token `Esc` geometry as
-/// the variable retag, so `dispatch mycmd …` paints `mycmd` as a command.
-fn retag_command_argument(
-    seg: &tcl_compiler::segmenter::SegmentedCommand,
-    i: usize,
-    overrides: &mut FxHashMap<u32, ArgOverride>,
-) {
-    if let Some(tok) = seg.argv.get(i + 1)
-        && seg.single_token_word.get(i + 1) == Some(&true)
-        && matches!(tok.kind, TokenType::Esc)
-        && !tok.in_quote
+    if original.group().kind == tcl_lexer::WordKind::Quoted
+        || original.tokens().iter().any(|token| token.in_quote)
     {
-        overrides
-            .entry(tok.span.start())
-            .or_insert(ArgOverride::CommandRef);
+        if matches!(geometry.form(), OriginalVariableNameWordForm::Static { .. })
+            && let [token] = original.tokens()
+            && token.kind == TokenType::Esc
+        {
+            overrides.entry(token.span.start()).or_insert(kind);
+        }
+        return;
+    }
+    for token in geometry.original_word().tokens() {
+        let literal = token.kind == TokenType::Esc
+            && geometry
+                .literal_spans()
+                .iter()
+                .any(|span| span.start() <= token.span.start() && token.span.end() <= span.end());
+        let braced = token.kind == TokenType::Str
+            && matches!(geometry.form(), OriginalVariableNameWordForm::Static { .. });
+        if literal || braced {
+            overrides.entry(token.span.start()).or_insert(kind);
+        }
     }
 }
 
@@ -3513,7 +3472,7 @@ fn collect_script(
             }
         }
         if ctx.lexical {
-            insert_lexical_user_overrides(ctx, &seg, resolved_head, &arg_texts, &mut overrides);
+            insert_lexical_user_overrides(ctx, &seg, &arg_texts, &mut overrides);
         }
         let declared = ctx.analysis.and_then(|analysis| {
             tcl_compiler::registry_invocation::source_structure::source_declared_command_words(
@@ -3721,7 +3680,6 @@ fn collect_script(
 fn insert_lexical_user_overrides(
     ctx: ScriptCtx<'_>,
     command: &tcl_compiler::segmenter::SegmentedCommand,
-    head: &str,
     arguments: &[&str],
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
@@ -3744,24 +3702,6 @@ fn insert_lexical_user_overrides(
         Some(ctx.context.authoring_query()),
         overrides,
     );
-    let Some(procedure_roles) = ctx.proc_roles else {
-        return;
-    };
-    for (roles, kind) in [
-        (&procedure_roles.write, ArgOverride::VarDecl),
-        (&procedure_roles.read, ArgOverride::VarRef),
-    ] {
-        if let Some(indices) = roles.get(head) {
-            for &index in indices {
-                retag_variable_argument(command, index as usize, kind, overrides);
-            }
-        }
-    }
-    if let Some(indices) = procedure_roles.command.get(head) {
-        for &index in indices {
-            retag_command_argument(command, index as usize, overrides);
-        }
-    }
 }
 
 /// Retain only the actual selected outer source grammar and the independent
@@ -3799,10 +3739,35 @@ fn insert_original_proc_role_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) -> Vec<(tcl_lexer::Span, TokenKind, u32)> {
-    use tcl_syntax::formal_params::FormalByteArgumentBinding;
-    let Some(analysis) = ctx.analysis.filter(|_| !ctx.lexical) else {
+    let Some(analysis) = ctx.analysis else {
         return Vec::new();
     };
+    if ctx.lexical {
+        let Some(prototype) = tcl_compiler::registry_invocation::source_structure::original_logical_procedure_arguments(ctx.full_source, analysis, seg) else {
+            return Vec::new();
+        };
+        if !prototype.matches_source(
+            &tcl_lexer::SourceImage::document(ctx.full_source),
+            ctx.config,
+        ) || !prototype.matches_registry(ctx.registry)
+            || analysis.resolved_input.as_ref() != Some(prototype.resolved_input())
+        {
+            return Vec::new();
+        }
+        let metadata = prototype.declaration().metadata();
+        return insert_original_procedure_argument_role_geometry(
+            seg,
+            prototype.bindings(),
+            prototype.arguments(),
+            prototype.operands(),
+            [
+                &proc_var_write_indices(metadata),
+                &proc_var_read_indices(metadata),
+                &proc_command_indices(metadata),
+            ],
+            overrides,
+        );
+    }
     let Some(prototype) =
         tcl_compiler::registry_invocation::source_structure::original_procedure_arguments(
             ctx.full_source,
@@ -3812,6 +3777,13 @@ fn insert_original_proc_role_overrides(
     else {
         return Vec::new();
     };
+    if !prototype.matches_source(
+        &tcl_lexer::SourceImage::document(ctx.full_source),
+        ctx.config,
+    ) || !prototype.matches_registry(ctx.registry)
+    {
+        return Vec::new();
+    }
     let declaration = prototype.declaration();
     let roles = ctx
         .proc_roles
@@ -3829,23 +3801,39 @@ fn insert_original_proc_role_overrides(
                 declaration.metadata(),
             )
         });
+    insert_original_procedure_argument_role_geometry(
+        seg,
+        prototype.bindings(),
+        prototype.arguments(),
+        prototype.operands(),
+        [&roles.write, &roles.read, &roles.command],
+        overrides,
+    )
+}
+
+fn insert_original_procedure_argument_role_geometry(
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    bindings: &[tcl_syntax::formal_params::FormalByteArgumentBinding],
+    arguments: &[tcl_compiler::registry_invocation::EffectiveInvocationWord],
+    operands: &[Option<
+        tcl_compiler::registry_invocation::source_structure::OriginalOperandSource,
+    >],
+    roles: [&[u32]; 3],
+    overrides: &mut FxHashMap<u32, ArgOverride>,
+) -> Vec<(Span, TokenKind, u32)> {
+    use tcl_syntax::formal_params::FormalByteArgumentBinding;
     let mut extents = Vec::new();
     for (parameters, kind, modifier, override_kind) in [
         (
-            &roles.write,
+            roles[0],
             TokenKind::Variable,
             MOD_DECLARATION,
             ArgOverride::VarDecl,
         ),
-        (&roles.read, TokenKind::Variable, 0, ArgOverride::VarRef),
-        (
-            &roles.command,
-            TokenKind::Function,
-            0,
-            ArgOverride::CommandRef,
-        ),
+        (roles[1], TokenKind::Variable, 0, ArgOverride::VarRef),
+        (roles[2], TokenKind::Function, 0, ArgOverride::CommandRef),
     ] {
-        for binding in prototype.bindings() {
+        for binding in bindings {
             let (parameter, argument) = match binding {
                 FormalByteArgumentBinding::Value {
                     parameter,
@@ -3865,35 +3853,35 @@ fn insert_original_proc_role_overrides(
             {
                 continue;
             }
-            let Some(operand) = prototype.operands().get(argument).and_then(Option::as_ref) else {
+            let Some(operand) = operands.get(argument).and_then(Option::as_ref) else {
                 continue;
             };
-            let Some(input) = operand.input() else {
-                continue;
-            };
-            if prototype
-                .arguments()
-                .get(argument)
-                .and_then(|value| value.literal_bytes())
-                != Some(input.bytes())
-            {
-                continue;
-            }
             if let Some(word) = operand.word() {
-                if word
-                    .tokens()
-                    .iter()
-                    .any(|token| matches!(token.kind, TokenType::Cmd | TokenType::Var))
+                if !seg.argv.iter().any(|token| token.span == operand.span()) {
+                    continue;
+                }
+                if matches!(override_kind, ArgOverride::VarDecl | ArgOverride::VarRef) {
+                    retag_original_variable_argument(seg, word, override_kind, overrides);
+                } else if tcl_syntax::word_rules::original_static_word_unicode_value(word).is_some()
+                    && word
+                        .tokens()
+                        .iter()
+                        .all(|token| seg.all_tokens.contains(token))
                 {
-                    continue;
+                    for token in word
+                        .tokens()
+                        .iter()
+                        .filter(|token| matches!(token.kind, TokenType::Esc | TokenType::Str))
+                    {
+                        overrides.entry(token.span.start()).or_insert(override_kind);
+                    }
                 }
-                let Some(token) = seg.argv.iter().find(|token| token.span == operand.span()) else {
-                    continue;
-                };
-                if matches!(token.kind, TokenType::Esc | TokenType::Str) {
-                    overrides.entry(token.span.start()).or_insert(override_kind);
-                }
-            } else {
+            } else if let Some(input) = operand.input()
+                && arguments
+                    .get(argument)
+                    .and_then(|value| value.literal_bytes())
+                    == Some(input.bytes())
+            {
                 extents.push((operand.span(), kind, modifier));
             }
         }
@@ -10378,6 +10366,72 @@ mod original_procedure_topology_colour_tests {
                         && kind == TokenKind::Variable as u32
                         && mods == MOD_DECLARATION)
             );
+        }
+    }
+}
+
+#[cfg(test)]
+mod original_variable_argument_geometry_colour_tests {
+    use super::*;
+    use tcl_compiler::analyser::{Analyser, AnalysisResult};
+
+    fn declarations_at(source: &str, analysis: &AnalysisResult, spelling: &str) -> bool {
+        let start = u32::try_from(source.rfind(spelling).unwrap()).unwrap();
+        let expected = LineIndex::new(source).position_at_utf16(start, source);
+        tests::decode_semantic(&full_with_cu_and_analysis(
+            source,
+            analysis.resolved_profile().unwrap(),
+            analysis.resolved_registry().unwrap(),
+            None,
+            Some(analysis),
+        ))
+        .iter()
+        .any(|&(line, column, _, kind, modifiers)| {
+            line == expected.line
+                && column == expected.character.get()
+                && kind == TokenKind::Variable as u32
+                && modifiers == MOD_DECLARATION
+        })
+    }
+
+    #[test]
+    fn variable_argument_colours_require_actual_role_and_original_literal_root_geometry() {
+        for profile in ["tcl", "tcl8.6"] {
+            for (source, spelling) in [
+                (r"set a\x28$index\x29 1", r"a\x28"),
+                ("set arr($index) 1", "arr("),
+                (r"set a\ b 1", r"a\ b"),
+                ("set {a b} 1", "{a b}"),
+                ("set \"a b\" 1", "\"a b\""),
+            ] {
+                let analysis = Analyser::new().analyse(source, profile);
+                assert!(
+                    declarations_at(source, &analysis, spelling),
+                    "{profile}: {source}"
+                );
+                let mut missing = analysis.clone();
+                missing.body_lexer_config = None;
+                assert!(
+                    !declarations_at(source, &missing, spelling),
+                    "{profile}: {source}"
+                );
+            }
+            for (source, spelling) in [
+                ("puts arr($index)", "arr("),
+                ("set a${root}($index) 1", "a${root}"),
+                ("set arr($index)tail 1", "arr("),
+                ("proc set args {}; set arr($index) 1", "arr("),
+                (
+                    "interp alias {} assign {} set fixed; assign destination",
+                    "destination",
+                ),
+            ] {
+                let analysis = Analyser::new().analyse(source, profile);
+                assert!(
+                    !declarations_at(source, &analysis, spelling),
+                    "{profile}: {source}"
+                );
+            }
         }
     }
 }

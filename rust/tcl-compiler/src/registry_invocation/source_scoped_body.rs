@@ -462,6 +462,12 @@ impl OriginalSourceScriptBody {
         }
         self.source.with_source_schema(context, |schema| {
             let roles = self.source.roles().unwrap_or_default();
+            if roles
+                .iter()
+                .any(|(_, role)| *role == ArgRole::LambdaLiteral)
+            {
+                return false;
+            }
             let mut bodies = roles
                 .iter()
                 .filter(|(_, role)| *role == ArgRole::Body)
@@ -1137,14 +1143,14 @@ fn source_operand_body(
 fn source_lambda_body(
     words: &super::source_structure::OriginalRegistryWords,
     context: &ContextRegistry,
-    argument: usize,
 ) -> Option<ScriptBodyGeometry> {
     let selected =
         words.with_source_schema(context, |schema| schema.authored_source_lambda_call())??;
-    if selected.lambda_argument != argument {
-        return None;
-    }
-    let word = words.operands().get(argument)?.as_ref()?.word()?;
+    let word = words
+        .operands()
+        .get(selected.lambda_argument)?
+        .as_ref()?
+        .word()?;
     let parent = original_word_script_body_geometry(word)?;
     let value = tcl_syntax::word_rules::original_static_word_source_bytes(word)?;
     if word.image().bytes().get(parent.content.as_range())? != value.as_slice() {
@@ -1168,6 +1174,26 @@ fn source_lambda_body(
         container_extent: parent.extent,
         content,
     })
+}
+
+impl super::source_structure::OriginalRegistryWords {
+    /// Exact unchanged lambda-list body geometry under its selected source schema.
+    /// This separate projection supplies no caller frame, namespace, parameter
+    /// binding, body entry or generic script-inventory coverage.
+    #[must_use]
+    pub fn original_lambda_body_geometry(
+        &self,
+        context: &ContextRegistry,
+    ) -> Option<OriginalSourceScriptBody> {
+        let body = source_lambda_body(self, context)?;
+        Some(OriginalSourceScriptBody {
+            source: Arc::new(self.clone()),
+            container: body.container,
+            extent: body.extent,
+            container_extent: body.container_extent,
+            content: body.content,
+        })
+    }
 }
 
 fn source_case_invocation(
@@ -1194,16 +1220,18 @@ pub(super) fn source_script_bodies_for_mutation_coverage(
             })
             .flatten()
     };
-    let case = words.with_source_schema(context, source_case_invocation)?;
-    let list_argument = case.and_then(|(_, layout)| layout.clause_list_index);
-    let mut expected = Vec::new();
+    // This Body inventory does not represent lambda-container bodies.
+    // Missing representation cannot certify complete evaluated coverage.
     for &(argument, role) in roles {
         if role == ArgRole::LambdaLiteral
             && timing_at(argument)? != tcl_registry::ScriptTiming::ReferenceOnly
         {
-            expected.push(source_lambda_body(words, context, argument)?.content);
+            return None;
         }
     }
+    let case = words.with_source_schema(context, source_case_invocation)?;
+    let list_argument = case.and_then(|(_, layout)| layout.clause_list_index);
+    let mut expected = Vec::new();
     if let Some((case, layout)) = case
         && let Some(argument) = layout.clause_list_index
         && timing_at(argument)? != tcl_registry::ScriptTiming::ReferenceOnly
@@ -1326,12 +1354,6 @@ pub(super) fn source_script_bodies_for(
         .filter(|(_, role)| *role == ArgRole::Body)
         .count();
     for &(argument, role) in words.roles().unwrap_or_default() {
-        if role == ArgRole::LambdaLiteral && admits(argument) {
-            if let Some(body) = source_lambda_body(words, context, argument) {
-                retain(body);
-            }
-            continue;
-        }
         // A concatenating schema marks the first fragment as Body; the
         // remaining actual argv still belongs to that one constructed script.
         // Only one complete original word can supply a contiguous body here.
@@ -1633,23 +1655,8 @@ mod script_purpose_tests {
                     .iter()
                     .any(|(_, role)| *role == ArgRole::LambdaLiteral)
             );
-            let coverage = source_script_bodies_for_mutation_coverage(&words, &context);
-            if source == "apply {{} {puts hidden}}" {
-                let coverage = coverage.expect("genuine unchanged lambda body is represented");
-                assert_eq!(coverage.len(), 1);
-                assert_eq!(
-                    source.get(coverage[0].content_span().as_range()),
-                    Some("puts hidden")
-                );
-                assert_eq!(
-                    coverage[0].original_container(),
-                    words.original_argument_word(0).unwrap()
-                );
-                assert!(coverage[0].matches_source(&SourceImage::document(source), config));
-            } else {
-                assert!(coverage.is_none());
-                assert!(words.source_script_bodies(&context).is_empty());
-            }
+            assert!(source_script_bodies_for_mutation_coverage(&words, &context).is_none());
+            assert!(words.source_script_bodies(&context).is_empty());
         }
     }
 
@@ -1686,12 +1693,12 @@ mod script_purpose_tests {
                 assert!(expected.is_none(), "missing original schema: {source}");
                 continue;
             };
-            let bodies = source_script_bodies_for_mutation_coverage(&words, &context);
+            let body = words.original_lambda_body_geometry(&context);
+            assert!(source_script_bodies_for_mutation_coverage(&words, &context).is_none());
+            assert!(words.source_script_bodies(&context).is_empty());
             match expected {
                 Some(expected) => {
-                    let bodies = bodies.expect("complete unchanged original lambda body");
-                    assert_eq!(bodies.len(), 1, "{source}");
-                    let body = &bodies[0];
+                    let body = body.expect("explicit unchanged original lambda geometry");
                     assert_eq!(source.get(body.content_span().as_range()), Some(expected));
                     assert_eq!(
                         body.original_container(),
@@ -1702,9 +1709,9 @@ mod script_purpose_tests {
                     let foreign = tcl_registry::model::context_for_profile(
                         tcl_dialect::DialectProfile::find("tcl8.4").unwrap(),
                     );
-                    assert!(source_script_bodies_for_mutation_coverage(&words, &foreign).is_none());
+                    assert!(words.original_lambda_body_geometry(&foreign).is_none());
                 }
-                None => assert!(bodies.is_none(), "{source}"),
+                None => assert!(body.is_none(), "{source}"),
             }
         }
     }
@@ -1794,6 +1801,51 @@ mod script_purpose_tests {
             );
         }
     }
+    #[test]
+    fn mixed_lambda_roles_cannot_donate_immediate_caller_source_context() {
+        for (roles, inherits) in [
+            (&[(0, ArgRole::Body)][..], true),
+            (
+                &[(0, ArgRole::Body), (1, ArgRole::LambdaLiteral)][..],
+                false,
+            ),
+        ] {
+            let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+            let mut registry = CommandRegistry::build_default();
+            registry.insert(CommandSpec {
+                name: "mixed-script",
+                arity: Arity::exact(2),
+                arg_roles: roles,
+                ..CommandSpec::DEFAULT
+            });
+            let context = Arc::new(
+                tcl_registry::model::context_for_profile(profile)
+                    .with_command_store(Arc::new(registry)),
+            );
+            let config = LexerConfig::for_file_grammar(profile.grammar);
+            let input = crate::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                Arc::clone(&context),
+                config,
+            );
+            let source = "mixed-script {puts current} {{} {puts lambda}}";
+            let syntax = super::super::source_structure::OriginalSourceRegistryContext::capture(
+                source, input,
+            );
+            let command =
+                crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+                    .remove(0);
+            let words = syntax.words(&command).unwrap();
+            let bodies = words.source_script_bodies(&context);
+            assert_eq!(bodies.len(), 1);
+            assert_eq!(
+                bodies[0].inherits_immediate_caller_source_context(&context),
+                inherits
+            );
+        }
+    }
+
     #[test]
     fn original_definition_parent_uses_actual_plain_current_immediate_body_metadata() {
         // naming.core.original-executable-region-context

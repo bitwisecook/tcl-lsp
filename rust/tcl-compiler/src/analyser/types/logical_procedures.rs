@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Original Logical procedure names for readonly insertion advice.
+//! Original Logical procedure headers for readonly source advice.
 
 use super::{AnalysisResult, ProcDef};
 use crate::analyser::ResolvedAnalysisInput;
@@ -51,18 +51,7 @@ impl LogicalSourceProcedureDeclaration {
         }
         let cards = realm.original_logical_procedure_body_cards(&input)?;
         let mut cards = cards.into_iter().filter(|card| {
-            card.matches_source(image, &input)
-                && card.scope().scope_name_input().original_word().group().span
-                    == procedure.name_span
-                && card.scope().scope_body().original_container().group().span
-                    == procedure.body_span
-                && card
-                    .parameters()
-                    .iter()
-                    .map(|parameter| (parameter.name.as_str(), parameter.default.as_deref()))
-                    .eq(procedure.params.iter().map(|parameter| {
-                        (parameter.name.as_str(), parameter.default_value.as_deref())
-                    }))
+            card.matches_source(image, &input) && original_header_matches(card, procedure)
         });
         let body = cards.next()?;
         cards.next().is_none().then_some(Self {
@@ -151,15 +140,18 @@ impl LogicalSourceProcedureDeclaration {
         image == &self.image && input == &self.input && self.body.matches_source(image, input)
     }
 
-    fn matches(&self, analysis: &AnalysisResult, procedure: &ProcDef) -> bool {
-        if !analysis.allows_retained_logical_declaration_advice()
-            || analysis.resolved_input.as_ref() != Some(&self.input)
-            || !analysis.matches_original_source_image(&self.image, self.input.lexer_config())
-            || !analysis
+    fn matches_context(&self, analysis: &AnalysisResult) -> bool {
+        analysis.allows_retained_logical_declaration_advice()
+            && analysis.resolved_input.as_ref() == Some(&self.input)
+            && analysis.matches_original_source_image(&self.image, self.input.lexer_config())
+            && analysis
                 .retained_command_realm()
                 .is_some_and(|realm| realm.matches_resolved_analysis_input(&self.input))
-            || !self.body.matches_source(&self.image, &self.input)
-        {
+            && self.body.matches_source(&self.image, &self.input)
+    }
+
+    fn matches(&self, analysis: &AnalysisResult, procedure: &ProcDef) -> bool {
+        if !self.matches_context(analysis) {
             return false;
         }
         let mut current = procedure.clone();
@@ -171,7 +163,38 @@ impl LogicalSourceProcedureDeclaration {
     }
 }
 
+fn original_header_matches(body: &OriginalLogicalProcedureBody, procedure: &ProcDef) -> bool {
+    !procedure.params_computed
+        && body.scope().scope_name_input().original_word().group().span == procedure.name_span
+        && body.scope().scope_body().original_container().group().span == procedure.body_span
+        && body
+            .parameters()
+            .iter()
+            .map(|parameter| (parameter.name.as_str(), parameter.default.as_deref()))
+            .eq(procedure
+                .params
+                .iter()
+                .map(|parameter| (parameter.name.as_str(), parameter.default_value.as_deref())))
+}
+
 impl AnalysisResult {
+    /// Same original card and captured signature, independent of reporting maps.
+    pub(crate) fn logical_source_procedure_declaration_for_body(
+        &self,
+        body: &Arc<OriginalLogicalProcedureBody>,
+    ) -> Option<&LogicalSourceProcedureDeclaration> {
+        let mut declarations = self
+            .logical_procedure_declarations
+            .iter()
+            .filter(|declaration| {
+                Arc::ptr_eq(&declaration.body, body)
+                    && declaration.matches_context(self)
+                    && original_header_matches(body, &declaration.metadata)
+            });
+        let declaration = declarations.next()?;
+        declarations.next().is_none().then_some(declaration)
+    }
+
     /// Current actual procedure metadata must agree with the genuine header card.
     /// Reporting names are excluded from selection and insertion.
     #[must_use]
@@ -200,6 +223,48 @@ impl AnalysisResult {
 mod tests {
     use super::*;
     use crate::analyser::Analyser;
+
+    #[test]
+    fn logical_procedure_card_signature_is_independent_of_presentation_metadata() {
+        let source = "proc helper {value} {}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let body = Arc::clone(&analysis.logical_procedure_declarations[0].body);
+        assert!(
+            analysis
+                .logical_source_procedure_declaration_for_body(&body)
+                .is_some()
+        );
+        let mut reporting = analysis.clone();
+        reporting
+            .all_procs
+            .get_mut("::helper")
+            .unwrap()
+            .params
+            .clear();
+        assert_eq!(
+            reporting
+                .logical_source_procedure_declaration_for_body(&body)
+                .unwrap()
+                .metadata()
+                .params[0]
+                .name,
+            "value"
+        );
+        let mut changed = analysis.clone();
+        changed.logical_procedure_declarations[0].metadata.params[0].name = "other".into();
+        assert!(
+            changed
+                .logical_source_procedure_declaration_for_body(&body)
+                .is_none()
+        );
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        assert!(
+            missing
+                .logical_source_procedure_declaration_for_body(&body)
+                .is_none()
+        );
+    }
 
     #[test]
     fn logical_procedure_body_geometry_keeps_actual_input_and_original_word() {

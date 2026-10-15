@@ -50,21 +50,7 @@ impl SourceFormalCountProjection {
         text: &str,
         parameters: &[tcl_syntax::formal_params::FormalParameter],
     ) -> Self {
-        if text.as_bytes().contains(&0)
-            || parameters.iter().any(|parameter| {
-                parameter.name.as_bytes().contains(&0)
-                    || parameter
-                        .default
-                        .as_ref()
-                        .is_some_and(|value| value.as_bytes().contains(&0))
-            })
-            || [ParameterGrammar::Tcl, ParameterGrammar::Jim]
-                .into_iter()
-                .any(|grammar| {
-                    !tcl_syntax::formal_params::parse_formal_parameters_in(text, grammar)
-                        .is_ok_and(|parsed| parsed == parameters)
-                })
-        {
+        if !logical_formals_agree(text, parameters) {
             return SourceFormalCount::unknown_projection();
         }
         let shape = |grammar| {
@@ -169,5 +155,83 @@ impl SourceFormalCount {
             origin: SourceFormalCountOrigin::Unknown,
             grammar: None,
         }
+    }
+}
+
+fn logical_formals_agree(
+    text: &str,
+    parameters: &[tcl_syntax::formal_params::FormalParameter],
+) -> bool {
+    !text.as_bytes().contains(&0)
+        && !parameters.iter().any(|parameter| {
+            parameter.name.as_bytes().contains(&0)
+                || parameter
+                    .default
+                    .as_ref()
+                    .is_some_and(|value| value.as_bytes().contains(&0))
+        })
+        && [ParameterGrammar::Tcl, ParameterGrammar::Jim]
+            .into_iter()
+            .all(|grammar| {
+                tcl_syntax::formal_params::parse_formal_parameters_in(text, grammar)
+                    .is_ok_and(|parsed| parsed == parameters)
+            })
+}
+
+/// Conditional source-role ordinals agreed by both formal grammars. This does
+/// not select an engine or activate a formal/caller link.
+pub(crate) fn logical_formal_argument_bindings(
+    text: &str,
+    parameters: &[tcl_syntax::formal_params::FormalParameter],
+    argument_count: usize,
+) -> Option<Vec<tcl_syntax::formal_params::FormalByteArgumentBinding>> {
+    use tcl_syntax::formal_params::{ByteFormalParameter, bind_formal_argument_bytes};
+    logical_formals_agree(text, parameters).then_some(())?;
+    let mut names = std::collections::HashSet::new();
+    parameters
+        .iter()
+        .all(|parameter| names.insert(&parameter.name))
+        .then_some(())?;
+    let parameters = parameters
+        .iter()
+        .map(|parameter| ByteFormalParameter {
+            name: parameter.name.as_bytes().to_vec(),
+            default: parameter
+                .default
+                .as_ref()
+                .map(|value| value.as_bytes().to_vec()),
+        })
+        .collect::<Vec<_>>();
+    let tcl =
+        bind_formal_argument_bytes(&parameters, argument_count, ParameterGrammar::Tcl).ok()?;
+    let jim =
+        bind_formal_argument_bytes(&parameters, argument_count, ParameterGrammar::Jim).ok()?;
+    (tcl == jim).then_some(tcl)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tcl_syntax::formal_params::parse_formal_parameters_in;
+
+    #[test]
+    fn logical_source_role_ordinals_require_exact_dual_grammar_agreement() {
+        for (text, count, expected) in [
+            ("value {optional DEFAULT} args", 1, true),
+            ("value {optional DEFAULT} args", 4, true),
+            ("{optional DEFAULT} required", 1, false),
+            ("&value", 1, false),
+            ("value value", 2, false),
+        ] {
+            let parameters = parse_formal_parameters_in(text, ParameterGrammar::Tcl).unwrap();
+            assert_eq!(
+                logical_formal_argument_bindings(text, &parameters, count).is_some(),
+                expected,
+                "{text}"
+            );
+        }
+        let parameters = parse_formal_parameters_in("value", ParameterGrammar::Tcl).unwrap();
+        assert!(logical_formal_argument_bindings("different", &parameters, 1).is_none());
+        assert!(logical_formal_argument_bindings("value", &parameters, 0).is_none());
     }
 }

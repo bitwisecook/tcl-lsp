@@ -536,6 +536,36 @@ mod tests {
     use super::*;
     use tcl_compiler::analyser::Analyser;
 
+    fn items(
+        source: &str,
+        line: u32,
+        character: u32,
+        analysis: &AnalysisResult,
+        partial: &str,
+        trigger: char,
+    ) -> Option<Vec<CompletionItem>> {
+        if analysis.allows_retained_logical_declaration_advice() {
+            return None;
+        }
+        let index = tcl_lexer::LineIndex::new(source);
+        let cursor = crate::definition::byte_offset_at(&index, source, line, character);
+        let position = index.position_at_utf16(cursor, source);
+        if position.line != line || position.character.get() != character {
+            return Some(Vec::new());
+        }
+        let Ok(Some(prefix)) =
+            crate::source_structure::original_variable_cursor_prefix(source, analysis, cursor)
+        else {
+            return Some(Vec::new());
+        };
+        if source.get(prefix.partial_span().as_range()) != Some(partial)
+            || trigger != if prefix.is_braced() { '{' } else { '$' }
+        {
+            return Some(Vec::new());
+        }
+        super::items(source, line, character, analysis, &prefix)
+    }
+
     #[test]
     fn variable_completion_requires_positive_logical_input_for_scope_advice() {
         // naming.minifier.complete-logical-metadata

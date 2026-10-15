@@ -1,0 +1,48 @@
+{
+  "base_commit": "a14bce9fcab686ed383508cf685ebd1a0984f56b",
+  "kind": "original-source-geometry-and-role-consumer-migration",
+  "cargo_or_test_execution": false,
+  "files": [
+    {
+      "path": "rust/tcl-syntax/src/word_rules.rs",
+      "before_sha256": "72b8e54a4e64e85934609072c64bd71265a888e7b83c56fa0b37c9e5d1377208",
+      "after_sha256": "38494d0b3a34d1f15a3fbcc927cd4069e048e84dbeee9d83fb18c53c8da089b5",
+      "retained_test_functions": 18,
+      "missing_tests": [],
+      "changed_original_test_bodies": [],
+      "new_test_functions": [
+        "variable_name_display_geometry_retains_source_components_and_value_shape_separately#0"
+      ]
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/semantic_tokens.rs",
+      "before_sha256": "2ef9ff7c89d20c95b0e1bb37c6edcc8261a233f2712ea9cdea8d868c67e58e56",
+      "after_sha256": "0a44ab41a87190dc0f6d9f70faeb8b6b19b9f110750fafac986f20ae41367aac",
+      "retained_test_functions": 188,
+      "missing_tests": [],
+      "changed_original_test_bodies": [],
+      "new_test_functions": [
+        "variable_argument_colours_require_actual_role_and_original_literal_root_geometry#0"
+      ]
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/semantic_tokens/original.rs",
+      "before_sha256": "cd7507460929cc3fee28bc9c514bde906556d98f9890c76b0d7edaee51294133",
+      "after_sha256": "c11a5dd145e39d872ab6b94d101a9d1053a6fe181a61304730579725f9396219",
+      "retained_test_functions": 28,
+      "missing_tests": [],
+      "changed_original_test_bodies": [],
+      "new_test_functions": []
+    }
+  ],
+  "ingress_changes": [
+    "No existing test body or test helper ingress changed in this tranche.",
+    "Production source-variable role consumers retain actual NativeWords and use shared source-only geometry; Logical procedure-role consumers use the genuine separate source owner instead of report head/maps.",
+    "Native binding purposes, captured-prefix no-anchor and expanded input/value checks remain independent."
+  ],
+  "limitations": [
+    "Static original test-body equality is not execution acceptance.",
+    "Unsupported/nonleaf handler phases remain unavailable; existing expected positive controls are preserved even when the stronger owner cannot issue them.",
+    "No expected semantic answers were generated from the implementation."
+  ]
+}
