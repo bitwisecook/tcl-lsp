@@ -56,11 +56,13 @@ pub struct OriginalSourceFileRewrite {
 }
 
 impl OriginalSourceFileRewrite {
+    /// Original source range to replace, including delimiters when necessary.
     #[must_use]
     pub const fn span(&self) -> tcl_lexer::Span {
         self.span
     }
 
+    /// Source text prepared for that range under the retained lexer configuration.
     #[must_use]
     pub fn replacement(&self) -> &str {
         &self.replacement
