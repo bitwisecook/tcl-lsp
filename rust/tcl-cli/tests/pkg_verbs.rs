@@ -1526,3 +1526,51 @@ fn venv_deletion_requires_successful_actual_active_path_identity() {
     assert!(!target.exists());
     std::fs::remove_dir_all(base).unwrap();
 }
+
+#[test]
+fn docker_cmd_source_preserves_complete_original_exec_argv() {
+    let dir = temp_dir("docker-cmd-argv");
+    for entry in [
+        "main.tcl",
+        "literal\"], \"other\"]\nRUN injected\n#",
+        "space [literal] $VALUE \\ café\r\nscript.tcl",
+        "",
+    ] {
+        let output = Command::new(env!("CARGO_BIN_EXE_tcl"))
+            .current_dir(&dir)
+            .args([
+                "docker",
+                "create",
+                "--no-packages",
+                "--force",
+                "--entrypoint",
+                entry,
+            ])
+            .output()
+            .unwrap();
+        assert!(output.status.success(), "{:?}", output.stderr);
+        let source = std::fs::read_to_string(dir.join("Dockerfile")).unwrap();
+        let instructions = source
+            .lines()
+            .filter_map(|line| line.strip_prefix("CMD "))
+            .collect::<Vec<_>>();
+        assert_eq!(instructions.len(), 1);
+        let argv: Vec<String> = serde_json::from_str(instructions[0]).unwrap();
+        assert_eq!(argv, ["tclsh", entry]);
+        assert!(!source.lines().any(|line| line == "RUN injected"));
+        if entry == "main.tcl" {
+            assert!(source.trim_end().ends_with("CMD [\"tclsh\", \"main.tcl\"]"));
+        }
+    }
+
+    let path = dir.join("Dockerfile");
+    let before = std::fs::read(&path).unwrap();
+    let invalid = tcl_pkg::docker::DockerfileSpec {
+        install_packages: false,
+        entrypoint: Some("bad\0argv".into()),
+        ..Default::default()
+    };
+    assert!(tcl_pkg::docker::write_dockerfile(&path, &invalid, true).is_err());
+    assert_eq!(std::fs::read(&path).unwrap(), before);
+    std::fs::remove_dir_all(dir).unwrap();
+}

@@ -404,6 +404,33 @@ fn native_extension_check(extensions: &[String]) -> Result<Vec<String>, TclPkgEr
     ])
 }
 
+fn cmd_instruction(arguments: &[&str]) -> Result<String, TclPkgError> {
+    if arguments
+        .iter()
+        .any(|argument| argument.as_bytes().contains(&0))
+    {
+        return Err(docker_error("Docker CMD arguments cannot contain NUL"));
+    }
+    let elements = arguments
+        .iter()
+        .map(serde_json::to_string)
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| docker_error(format!("cannot encode Docker CMD argv: {error}")))?;
+    let source = format!("[{}]", elements.join(", "));
+    let decoded: Vec<String> = serde_json::from_str(&source)
+        .map_err(|error| docker_error(format!("invalid Docker CMD argv: {error}")))?;
+    if decoded
+        .iter()
+        .map(String::as_str)
+        .ne(arguments.iter().copied())
+    {
+        return Err(docker_error(
+            "Docker CMD serialization changed original argv",
+        ));
+    }
+    Ok(format!("CMD {source}"))
+}
+
 /// Generate a complete Dockerfile from a [`DockerfileSpec`].
 pub fn generate_dockerfile(spec: &DockerfileSpec) -> Result<String, TclPkgError> {
     let mut lines: Vec<String> = Vec::new();
@@ -498,9 +525,9 @@ pub fn generate_dockerfile(spec: &DockerfileSpec) -> Result<String, TclPkgError>
     }
 
     if let Some(entry) = &spec.entrypoint {
-        lines.push(format!("CMD [\"tclsh\", \"{entry}\"]"));
+        lines.push(cmd_instruction(&["tclsh", entry])?);
     } else {
-        lines.push("CMD [\"tclsh\"]".to_string());
+        lines.push(cmd_instruction(&["tclsh"])?);
     }
     lines.push(String::new());
 
