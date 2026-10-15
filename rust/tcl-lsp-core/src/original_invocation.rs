@@ -166,7 +166,16 @@ fn from_source_words(
             .map(|operand| {
                 operand.as_ref().map(|operand| OriginalOperandSource {
                     span: operand.span(),
-                    input: operand.input().cloned(),
+                    input: operand
+                        .input()
+                        .filter(|input| {
+                            matches!(
+                                input,
+                                tcl_compiler::signature_scan::scope::SignatureSourceNameInput::OriginalWord(_)
+                                    | tcl_compiler::signature_scan::scope::SignatureSourceNameInput::OriginalValue(_)
+                            )
+                        })
+                        .cloned(),
                     word: operand.word().cloned(),
                 })
             })

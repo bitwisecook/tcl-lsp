@@ -978,6 +978,11 @@ fn metadata_candidate(
     selector: &SignatureSourceNameInput,
     side: MemberSide,
 ) -> Option<OriginalMethodCandidate> {
+    let (SignatureSourceNameInput::OriginalWord(_) | SignatureSourceNameInput::OriginalValue(_)) =
+        selector
+    else {
+        return None;
+    };
     // Class-object own metadata supplies no maker or object-mixin order.
     let order = match side {
         MemberSide::ClassObject => vec![root],
@@ -1129,6 +1134,37 @@ mod tests {
         result.all_classes.clear();
         result.superseded_classes.clear();
         result
+    }
+
+    #[test]
+    fn lexical_variable_name_units_do_not_select_a_method_operand() {
+        let result = analysis("oo::class create C {method ping {} {}}; set ping VALUE");
+        let class = result.original_class_declarations().next().unwrap();
+        let method = class
+            .metadata()
+            .original_members
+            .methods(MemberSide::Instance)
+            .unwrap()
+            .into_iter()
+            .find(|method| method.original_name_input().bytes() == b"ping")
+            .unwrap();
+        let records = [("", class)];
+        let selector = method.original_name_input();
+        assert!(metadata_candidate(&[], &records, 0, selector, MemberSide::Instance).is_some());
+        let image = SourceImage::document("$ping");
+        let config = result.body_lexer_config.unwrap();
+        let plan = tcl_lexer::native_script_words_in(image, Span::new(0, 5), config).unwrap();
+        let word = &plan.commands[0].words[0];
+        let root = tcl_compiler::signature_scan::variable_name::SignatureSourceVariableRoot::from_original_word(
+            word,
+            word.span(),
+            tcl_syntax::word_rules::WordValueRules::from_config(&config),
+            selector.policy(),
+        ).unwrap();
+        let root = SignatureSourceNameInput::OriginalVariableRoot(root);
+        assert_eq!(root.bytes(), selector.bytes());
+        assert_eq!(root.policy(), selector.policy());
+        assert!(metadata_candidate(&[], &records, 0, &root, MemberSide::Instance).is_none());
     }
 
     #[test]

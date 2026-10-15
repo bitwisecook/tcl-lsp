@@ -118,6 +118,11 @@ fn original_method_body_region(
     declaration: &OriginalSourceMethodMetadata,
     words: &[tcl_lexer::NativeWord],
 ) -> Result<Span, OriginalMemberRenameRefusal> {
+    let (SignatureSourceNameInput::OriginalWord(_) | SignatureSourceNameInput::OriginalValue(_)) =
+        declaration.original_name_input()
+    else {
+        return Err(OriginalMemberRenameRefusal::UneditableDeclaration);
+    };
     let body = declaration
         .body_word()
         .filter(|body| !body.group().expand && words.contains(body))
@@ -331,6 +336,11 @@ pub fn original_member_rename_edits(
     let input = identity
         .input()
         .ok_or(OriginalMemberRenameRefusal::UneditableDeclaration)?;
+    let (SignatureSourceNameInput::OriginalWord(_) | SignatureSourceNameInput::OriginalValue(_)) =
+        input
+    else {
+        return Err(OriginalMemberRenameRefusal::UneditableDeclaration);
+    };
     let wanted = tcl_syntax::backslash::native_source_literal_bytes(
         new_name.as_bytes(),
         SourceImage::document(new_name).channel(),
@@ -461,6 +471,12 @@ fn original_member_rename_units(
         .class_instance_method_roster(definition)
         .ok_or(OriginalMemberRenameRefusal::UnknownRoster)?;
     let input = method.declaration().original_name_input();
+    let (SignatureSourceNameInput::OriginalWord(_) | SignatureSourceNameInput::OriginalValue(_)) =
+        input
+    else {
+        return Err(OriginalMemberRenameRefusal::UneditableDeclaration);
+    };
+
     if roster.policy() != input.policy()
         || input
             .policy()

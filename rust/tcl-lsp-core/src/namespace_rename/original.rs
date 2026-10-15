@@ -37,6 +37,14 @@ impl OriginalNamespaceEdits<'_> {
         &mut self,
         input: &SignatureSourceNameInput,
     ) -> Result<(), RenameRefusal> {
+        let (SignatureSourceNameInput::OriginalWord(_)
+        | SignatureSourceNameInput::OriginalValue(_)) = input
+        else {
+            return Err(self.refusal(
+                None,
+                "the command name has no original operand value purpose",
+            ));
+        };
         let wanted =
             self.symbol.scope().context().ok_or_else(|| {
                 self.refusal(None, "the selected namespace has no native geometry")
@@ -81,6 +89,14 @@ impl OriginalNamespaceEdits<'_> {
         current: NativeNameContext<'_>,
         span: Span,
     ) -> Result<(), RenameRefusal> {
+        let (SignatureSourceNameInput::OriginalWord(_)
+        | SignatureSourceNameInput::OriginalValue(_)) = input
+        else {
+            return Err(self.refusal(
+                None,
+                "the command name has no original operand value purpose",
+            ));
+        };
         let slot = input
             .policy()
             .recipe()
@@ -117,7 +133,12 @@ impl OriginalNamespaceEdits<'_> {
         current: NativeNameContext<'_>,
         span: Span,
     ) -> Result<(), RenameRefusal> {
-        let recipe = input.policy().recipe();
+        let policy = match input {
+            SignatureSourceNameInput::OriginalWord(key) => key.policy(),
+            SignatureSourceNameInput::OriginalValue(value) => value.policy(),
+            SignatureSourceNameInput::OriginalVariableRoot(root) => root.policy(),
+        };
+        let recipe = policy.recipe();
         let combined;
         let root = match input {
             SignatureSourceNameInput::OriginalVariableRoot(root)
@@ -154,7 +175,12 @@ impl OriginalNamespaceEdits<'_> {
         current: NativeNameContext<'_>,
         span: Span,
     ) -> Result<(), RenameRefusal> {
-        if input.policy() != self.symbol.policy() {
+        let policy = match input {
+            SignatureSourceNameInput::OriginalWord(key) => key.policy(),
+            SignatureSourceNameInput::OriginalValue(value) => value.policy(),
+            SignatureSourceNameInput::OriginalVariableRoot(root) => root.policy(),
+        };
+        if policy != self.symbol.policy() {
             return Ok(());
         }
         let wanted = self.symbol.scope().context().ok_or_else(|| {

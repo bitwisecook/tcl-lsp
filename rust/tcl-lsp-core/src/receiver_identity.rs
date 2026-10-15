@@ -13,6 +13,7 @@ use tcl_compiler::command_binding::{
 };
 use tcl_compiler::ir::CommandTokens;
 use tcl_compiler::segmenter::SegmentedCommand;
+use tcl_compiler::signature_scan::scope::SignatureSourceNameInput;
 use tcl_lexer::{SourceMap, Span};
 
 /// Original class and member selected by a retained temporal receiver receipt.
@@ -119,6 +120,12 @@ fn original_method<'a>(
     generation: Option<u64>,
 ) -> Option<RetainedReceiverMethod<'a>> {
     let (selector, selector_input, editable_selector) = selection;
+    let (SignatureSourceNameInput::OriginalWord(_) | SignatureSourceNameInput::OriginalValue(_)) =
+        selector_input
+    else {
+        return None;
+    };
+
     if let Some(allocation) = entry.declaring_object() {
         let receiver_class = original_class(analysis, source, receiver_target)?;
         let metadata = original_own_method_metadata(analysis, source, allocation, entry)?;
@@ -186,6 +193,11 @@ fn original_method_in_class<'a>(
     selector_input: &tcl_compiler::signature_scan::scope::SignatureSourceNameInput,
     editable_selector: bool,
 ) -> Option<RetainedReceiverMethod<'a>> {
+    let (SignatureSourceNameInput::OriginalWord(_) | SignatureSourceNameInput::OriginalValue(_)) =
+        selector_input
+    else {
+        return None;
+    };
     if !matches!(entry.declaration().source.kind(), SourceOriginKind::Authored(bytes) if bytes.as_ref() == source.as_bytes())
         || !matches!(
             entry.frame(),

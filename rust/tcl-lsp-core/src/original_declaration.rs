@@ -233,6 +233,11 @@ impl OriginalDeclarationIdentity {
         class: &SourceDeclarationMetadata<ClassDef>,
         method: &OriginalSourceMethodMetadata,
     ) -> Option<Self> {
+        let (SignatureSourceNameInput::OriginalWord(_)
+        | SignatureSourceNameInput::OriginalValue(_)) = method.original_name_input()
+        else {
+            return None;
+        };
         let class_identity = Self::for_class(uri, source, analysis, class)?;
         if !class.metadata().original_members.declarations().any(|row| {
             row.side() == method.side()
@@ -265,6 +270,11 @@ impl OriginalDeclarationIdentity {
         owner: &tcl_compiler::command_binding::OriginalSourceObjectConfigurationTarget,
         method: &OriginalSourceMethodMetadata,
     ) -> Option<Self> {
+        let (SignatureSourceNameInput::OriginalWord(_)
+        | SignatureSourceNameInput::OriginalValue(_)) = method.original_name_input()
+        else {
+            return None;
+        };
         let (image, config) = Self::current(source, analysis)?;
         let word = method.declaration().original_word();
         if word.image() != &image
@@ -325,6 +335,11 @@ impl OriginalDeclarationIdentity {
         class: &SourceDeclarationMetadata<ClassDef>,
         property: &OriginalSourcePropertyMetadata,
     ) -> Option<Self> {
+        let (SignatureSourceNameInput::OriginalWord(_)
+        | SignatureSourceNameInput::OriginalValue(_)) = property.original_name_input()
+        else {
+            return None;
+        };
         let class_identity = Self::for_class(uri, source, analysis, class)?;
         if !class
             .metadata()

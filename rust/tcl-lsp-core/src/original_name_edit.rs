@@ -23,8 +23,11 @@ pub(crate) fn original_input_matches_source(
     if !analysis.matches_original_source_image(&image, config) {
         return false;
     }
-    if let SignatureSourceNameInput::OriginalVariableRoot(root) = input {
-        return root.source_image() == &image && root.lexer_config() == config;
+    match input {
+        SignatureSourceNameInput::OriginalVariableRoot(root) => {
+            return root.source_image() == &image && root.lexer_config() == config;
+        }
+        SignatureSourceNameInput::OriginalWord(_) | SignatureSourceNameInput::OriginalValue(_) => {}
     }
     let Some(realm) = analysis.retained_command_realm() else {
         return false;
@@ -286,6 +289,11 @@ pub fn original_name_input_edits(
 ) -> Option<Vec<OriginalNameSourceEdit>> {
     let mut containers: Vec<ContainerEdits<'_>> = Vec::new();
     for (input, wanted) in requests {
+        let (SignatureSourceNameInput::OriginalWord(_)
+        | SignatureSourceNameInput::OriginalValue(_)) = input
+        else {
+            return None;
+        };
         let container = input.original_static_list_container()?;
         let word = container.parent_word();
         let policy = input.policy();

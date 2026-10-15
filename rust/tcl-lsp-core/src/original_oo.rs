@@ -345,6 +345,12 @@ pub(crate) fn own_object_completion_methods<'a>(
     };
     let mut candidates = Vec::new();
     for entry in entries.values() {
+        let (tcl_compiler::signature_scan::scope::SignatureSourceNameInput::OriginalWord(_)
+        | tcl_compiler::signature_scan::scope::SignatureSourceNameInput::OriginalValue(_)) =
+            entry.original_name_input()
+        else {
+            return ControlFlow::Break(None);
+        };
         let Some(metadata) = crate::receiver_identity::original_own_method_metadata(
             analysis,
             source,
@@ -365,6 +371,11 @@ pub(crate) fn own_object_completion_methods<'a>(
 /// Source method names, kept distinct even when their display text collides.
 pub(crate) fn method_word(method: &OriginalSourceMethodMetadata) -> Option<String> {
     let input = method.original_name_input();
+    let (tcl_compiler::signature_scan::scope::SignatureSourceNameInput::OriginalWord(_)
+    | tcl_compiler::signature_scan::scope::SignatureSourceNameInput::OriginalValue(_)) = input
+    else {
+        return None;
+    };
     let declaration = method.declaration().original_word();
     if !method
         .name_purpose()
