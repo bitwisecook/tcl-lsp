@@ -439,15 +439,27 @@ const TCL_WS: &[char] = &[' ', '\t', '\n', '\r', '\u{0b}', '\u{0c}'];
 /// The value-size limit, when the result would be over it.
 pub fn concat<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Value, CmdError> {
     value_size::charge(ops, |ops, cap| value_size::joined(ops, args, 1, cap))?;
-    let mut parts: Vec<String> = Vec::new();
-    for v in args {
-        let s = ops.as_str(v);
-        let t = trim_concat_element(&s);
-        if !t.is_empty() {
-            parts.push(t.to_string());
+    let texts: Vec<String> = args.iter().map(|v| ops.as_str(v).to_string()).collect();
+    Ok(ops.new_string(concat_strings(texts.iter().map(String::as_str))))
+}
+
+/// `parts` joined as `Tcl_ConcatObj` joins strings: each trimmed
+/// ([`trim_concat_element`]), the empty ones dropped, the rest separated by
+/// single spaces.
+#[must_use]
+pub fn concat_strings<'p>(parts: impl IntoIterator<Item = &'p str>) -> String {
+    let mut joined = String::new();
+    for part in parts {
+        let part = trim_concat_element(part);
+        if part.is_empty() {
+            continue;
         }
+        if !joined.is_empty() {
+            joined.push(' ');
+        }
+        joined.push_str(part);
     }
-    Ok(ops.new_string(parts.join(" ")))
+    joined
 }
 
 /// Trim leading/trailing whitespace from one `concat` element, matching C's

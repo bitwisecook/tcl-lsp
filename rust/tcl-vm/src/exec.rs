@@ -30,8 +30,8 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use tcl_bytecode::{
-    ErrorRegion, ErrorStackContext, FunctionAsm, INDEX_END, INDEX_END_BAND, Instruction, ModuleAsm,
-    Op, Operand,
+    ErrorRegion, ErrorRegionFrame, ErrorStackContext, FunctionAsm, INDEX_END, INDEX_END_BAND,
+    Instruction, ModuleAsm, Op, Operand,
 };
 use tcl_runtime_api::{Code, CommandEvaluation, Completion, FatalTail, ScriptCompileTarget};
 use tcl_syntax::expr::{BinOp, UnaryOp};
@@ -181,6 +181,10 @@ pub(crate) struct Frame {
     /// Whether this activation owns a `Vm` call-frame (a proc body) that must be
     /// popped, and whose boundary absorbs `Return`.
     is_proc: bool,
+    /// Whether the release compiled this activation's script as part of a
+    /// procedure body: the body of a command it compiled into one, which this
+    /// VM runs as an activation of its own.
+    part_of_procedure: bool,
     /// A *transparent* script activation (`eval`/`uplevel`/`catch`/`subst` body
     /// run on the explicit stack so a `yield` inside it stays yieldable). It owns
     /// no `Vm` call-frame; on completion its result is delivered to the parent
@@ -369,6 +373,8 @@ pub(crate) struct EachLoopReq {
     pub(crate) iterations: usize,
     pub(crate) body: crate::compiled::CompiledUnit,
     pub(crate) invocation: Option<(String, u32)>,
+    /// Whether the release compiled the loop, which then logs no error frame.
+    pub(crate) compiled: bool,
 }
 
 /// [`EachLoopReq`]'s live iteration state, carried on the activation
@@ -379,6 +385,7 @@ struct EachLoopState {
     groups: Vec<EachLoopGroup>,
     iterations: usize,
     body: crate::compiled::CompiledUnit,
+    compiled: bool,
     /// The next iteration to run (`0..iterations`); set to `iterations` early
     /// by a `break` to end the loop on the next tick without running more
     /// bodies.
@@ -450,6 +457,7 @@ impl Frame {
             last_result: Value::empty(),
             last_options: Value::empty(),
             is_proc,
+            part_of_procedure: false,
             is_script: false,
             replay_namespace_restore: None,
             body_label: None,
@@ -571,6 +579,7 @@ impl Frame {
             groups: req.groups,
             iterations: req.iterations,
             body: req.body,
+            compiled: req.compiled,
             it: 0,
             collected: Vec::new(),
         }));
@@ -1527,6 +1536,7 @@ impl Vm {
         if let Some(unit) = self.pending.release_dispatch {
             initial.inherit_release_unit(unit);
         }
+        initial.part_of_procedure = self.pending.procedure_body.dispatch && !initial.is_proc;
         let mut acts: Vec<Frame> = vec![initial];
         match self.drive(&mut acts, DriveMode::Plain) {
             RunExit::Done(c) => c,
@@ -1586,6 +1596,11 @@ impl Vm {
         if let Some(unit) = inherited {
             frame.inherit_release_unit(unit);
         }
+        let procedure_body = std::mem::take(&mut self.pending.procedure_body.deferred)
+            || acts
+                .last()
+                .is_some_and(|parent| parent.each_loop.is_some() && parent.part_of_procedure);
+        frame.part_of_procedure = procedure_body && !frame.is_proc;
         acts.push(frame);
     }
 
@@ -2113,6 +2128,7 @@ impl Vm {
             .error_regions
             .iter()
             .filter(|r| r.start <= s && e <= r.end)
+            .filter(|r| !(r.compiled_in_procedure && act.part_of_procedure))
             .collect();
         // Innermost first: a deeper body has the larger start (ties broken by the
         // smaller end). Each appends its body frame then its enclosing command's
@@ -2120,7 +2136,14 @@ impl Vm {
         covering.sort_by(|a, b| b.start.cmp(&a.start).then(a.end.cmp(&b.end)));
         for r in covering {
             let body_line = self.error_line().saturating_sub(r.line_base).max(1);
-            self.append_body_frame_line(&r.label, body_line);
+            match &r.frame {
+                ErrorRegionFrame::Body(label) => self.append_body_frame_line(label, body_line),
+                ErrorRegionFrame::Line(text) => {
+                    self.append_frame_text(&format!("{text} line {body_line}"));
+                }
+                ErrorRegionFrame::Fixed(text) => self.append_frame_text(text),
+                ErrorRegionFrame::None => self.clear_error_logged(),
+            }
             // C evaluates the body as a script of its own, so the enclosing
             // command is a logged command in the error stack too.
             self.log_command_info(&r.cmd_text, "", r.cmd_line);
@@ -2445,7 +2468,7 @@ impl Vm {
             // unwinding (an error, or an uncaught `return`).
             if acts.last().is_some_and(|p| p.each_loop.is_some()) {
                 let parent = acts.last_mut().expect("each_loop parent present");
-                match Self::fold_each_loop(parent, c) {
+                match self.fold_each_loop_body(parent, c) {
                     EachLoopFold::Resume => return None,
                     EachLoopFold::Unwind(nc) => {
                         c = nc;
@@ -2996,12 +3019,20 @@ impl Vm {
     /// body frame and logs the invoking command; `Return`/`Other` propagate
     /// immediately, uncollected, exactly as
     /// C Tcl's `EachloopCmd` passes a body `return` straight out of the loop.
+    /// [`Self::fold_each_loop`], an error leaving a loop the release compiled
+    /// logging nothing of the loop's own.
+    fn fold_each_loop_body(&mut self, parent: &mut Frame, c: Completion<Value>) -> EachLoopFold {
+        if c.code == Code::Error && parent.each_loop.as_ref().is_some_and(|st| st.compiled) {
+            self.mark_error_logged();
+        }
+        Self::fold_each_loop(parent, c)
+    }
+
     fn fold_each_loop(parent: &mut Frame, c: Completion<Value>) -> EachLoopFold {
         if matches!(c.code, Code::Error | Code::Return | Code::Other(_)) {
-            let name = parent.each_loop.as_ref().expect("each_loop state").name;
-            parent.each_loop = None;
-            if c.code == Code::Error {
-                parent.body_label = Some(name);
+            let state = parent.each_loop.take().expect("each_loop state");
+            if c.code == Code::Error && !state.compiled {
+                parent.body_label = Some(state.name);
             }
             return EachLoopFold::Unwind(c);
         }
@@ -3123,6 +3154,7 @@ impl Vm {
         // Only the activation the previous invocation deferred inherits its
         // unit; it was installed before this tick.
         self.pending.release_unit = None;
+        self.pending.procedure_body.deferred = false;
         // A subst activation is scanner-driven, not bytecode-driven: run the next
         // scan step (native literal/`$` runs, pausing at each top-level `[…]`)
         // instead of the instruction dispatch below.
@@ -4874,8 +4906,10 @@ impl Vm {
                     return Tick::Return(err("invoke: stack underflow"));
                 }
                 let words = f.stack.split_off(f.stack.len() - argc);
+                let in_procedure_body = f.is_proc || f.part_of_procedure;
                 let release_compiled = instr.release_compiled.filter(|compiled| {
-                    self.frame_compiled_locals_named(compiled.frame_local_words, &words)
+                    (in_procedure_body || !compiled.in_procedure_only)
+                        && self.frame_compiled_locals_named(compiled.frame_local_words, &words)
                 });
                 if let Some(word) = release_compiled
                     .and_then(|compiled| compiled.script_word)
@@ -4903,7 +4937,14 @@ impl Vm {
                         .release_binding
                         .is_some_and(|binding| binding.binds(unit.in_procedure))
                 });
+                let procedure_body = in_procedure_body && release_compiled.is_some();
+                let outer_body =
+                    std::mem::replace(&mut self.pending.procedure_body.dispatch, procedure_body);
                 let dispatched = self.dispatch_words_in_unit(f, &words, entered.as_ref(), unit);
+                self.pending.procedure_body.dispatch = outer_body;
+                if matches!(dispatched, Ok(Some(_))) {
+                    self.pending.procedure_body.deferred = procedure_body;
+                }
                 self.pending.release_compiled = None;
                 self.pending.top_level_command = false;
                 match dispatched {

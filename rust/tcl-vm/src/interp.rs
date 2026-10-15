@@ -817,6 +817,16 @@ enum CommandSemantics {
     Tracking,
 }
 
+/// Whether the invocation being dispatched is one the release compiled into
+/// a procedure body ([`PendingControl::procedure_body`]).
+#[derive(Debug, Default, Clone, Copy)]
+pub(crate) struct ProcedureBodyDispatch {
+    /// For the activations the command runs its body in as it runs.
+    pub(crate) dispatch: bool,
+    /// For the activation the command deferred to the explicit stack.
+    pub(crate) deferred: bool,
+}
+
 /// Deferred control requests handed from builtins to the explicit VM stack.
 #[derive(Default)]
 pub(crate) struct PendingControl {
@@ -838,6 +848,9 @@ pub(crate) struct PendingControl {
     /// The same unit, for the activation the dispatched invocation deferred
     /// to the explicit stack.
     pub(crate) release_unit: Option<crate::release_units::InheritedUnit>,
+    /// Whether the invocation being dispatched is one the release compiled
+    /// into a procedure body, whose body it then compiled as part of it.
+    pub(crate) procedure_body: ProcedureBodyDispatch,
     /// How the emulated release compiles the command the invoke dispatching
     /// now runs ([`tcl_bytecode::Instruction::release_compiled`]); a control
     /// builtin that reads its words as that compiled command does takes it
@@ -12599,6 +12612,23 @@ impl Vm {
         self.append_body_frame_line(label, self.error_line);
     }
 
+    /// Append a `(<text> line N)` frame, `N` the innermost logged command's
+    /// line, and clear `error_logged` so the enclosing command then logs its
+    /// own `invoked from within` frame.
+    pub(crate) fn append_frame_line(&mut self, text: &str) {
+        self.append_frame_text(&format!("{text} line {}", self.error_line));
+    }
+
+    /// Append a `(<text>)` frame and clear `error_logged` so the enclosing
+    /// command then logs its own `invoked from within` frame.
+    pub(crate) fn append_frame_text(&mut self, text: &str) {
+        let info = self.error_info.get_or_insert_with(String::new);
+        info.push_str("\n    (");
+        info.push_str(text);
+        info.push(')');
+        self.error_logged = false;
+    }
+
     /// Append a `("<label>" body line N)` frame with an explicit `line` — for an
     /// *inlined* body (`FunctionAsm::error_regions`), whose body-relative line is
     /// the innermost command's line minus the body's `line_base` (the uncompiled
@@ -13290,6 +13320,7 @@ impl Vm {
         } else if tcl_registry::release_compilation::evaluates_script_directly(
             self.runtime_version,
             "source",
+            1,
         ) {
             (
                 CommandEvaluation::Direct,
@@ -13485,6 +13516,7 @@ impl Vm {
         if tcl_registry::release_compilation::evaluates_script_directly(
             self.runtime_version,
             command,
+            words.len(),
         ) {
             CommandEvaluation::Direct
         } else {

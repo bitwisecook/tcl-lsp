@@ -28,6 +28,8 @@ use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
 
 use tcl_registry::InlineBodyErrorContext;
 
+use crate::cfg::BodyErrorContext;
+
 use crate::cfg::{Function as CfgFunction, Terminator};
 use crate::ir::Procedure as IrProcedure;
 use crate::ir::Statement;
@@ -1056,9 +1058,32 @@ fn finalize_function(
     // builder retained becomes a region keyed by the enclosing command's source
     // span. Source text is used only for Tcl's `invoked from within` payload;
     // the body-frame identity comes from semantic metadata, never re-parsing.
+    // A structured command the release compiles where it stands adds no
+    // frame; one it runs — evaluating it directly, or declining to compile
+    // it there — adds the frame its command does.
+    // A script an inlined `eval` runs is compiled apart from the procedure
+    // body holding it, as a script outside one.
+    let compiled_apart = |span: tcl_lexer::Span| {
+        cfg.inline_body_error_sites.iter().any(|eval| {
+            matches!(eval.context, BodyErrorContext::Registry(_))
+                && eval.span != span
+                && eval.region.start() <= span.start()
+                && span.end() <= eval.region.end()
+        })
+    };
+    let compiled_here = |site: &crate::cfg::InlineBodyErrorSite| {
+        !ctx.direct_commands.contains(&site.span)
+            && !ctx.direct_body_commands.contains(&site.span)
+            && if ctx.compiles_locals() && !compiled_apart(site.span) {
+                site.compiled.in_procedure
+            } else {
+                site.compiled.outside_procedure
+            }
+    };
     let error_regions = cfg
         .inline_body_error_sites
         .iter()
+        .filter(|site| !compiled_here(site))
         .filter_map(|site| {
             let span = site.span;
             let cmd_text = ctx.error_info_source_text(span);
@@ -1066,13 +1091,49 @@ fn finalize_function(
                 return None;
             }
             let cmd_line = ctx.source_line(span);
+            let (frame, base_line) = match site.context {
+                BodyErrorContext::Registry(context) => (
+                    tcl_bytecode::ErrorRegionFrame::Body(
+                        inline_body_frame_label(context).to_owned(),
+                    ),
+                    cmd_line,
+                ),
+                BodyErrorContext::LoopBody(label) => (
+                    tcl_bytecode::ErrorRegionFrame::Body(label.to_owned()),
+                    ctx.source_line(site.region),
+                ),
+                BodyErrorContext::Clause(text) => (
+                    tcl_bytecode::ErrorRegionFrame::Fixed(text.to_owned()),
+                    ctx.source_line(site.region),
+                ),
+                BodyErrorContext::Arm(pattern) => {
+                    let pattern = ctx
+                        .source
+                        .get(pattern.start() as usize..pattern.end() as usize);
+                    let text = tcl_cmd_core::switch::arm_frame_text(
+                        pattern.unwrap_or("").as_bytes(),
+                        ctx.vm_release(),
+                    );
+                    (
+                        tcl_bytecode::ErrorRegionFrame::Line(
+                            String::from_utf8_lossy(&text).into_owned(),
+                        ),
+                        ctx.source_line(site.region),
+                    )
+                }
+                BodyErrorContext::Script => (
+                    tcl_bytecode::ErrorRegionFrame::None,
+                    ctx.source_line(site.region),
+                ),
+            };
             Some(tcl_bytecode::ErrorRegion {
-                start: span.start(),
-                end: span.end(),
-                label: inline_body_frame_label(site.context).to_string(),
+                start: site.region.start(),
+                end: site.region.end(),
+                frame,
                 cmd_text,
-                line_base: cmd_line.saturating_sub(1),
+                line_base: base_line.saturating_sub(1),
                 cmd_line,
+                compiled_in_procedure: site.compiled.in_procedure,
             })
         })
         .collect();
@@ -1133,7 +1194,10 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
         .inline_body_error_sites
         .iter()
         .filter(|site| {
-            site.context == tcl_registry::InlineBodyErrorContext::SameFrameScriptEvaluation
+            site.context
+                == BodyErrorContext::Registry(
+                    tcl_registry::InlineBodyErrorContext::SameFrameScriptEvaluation,
+                )
         })
         .map(|site| (site.span.start(), site.span.end()))
         .collect();
@@ -1152,15 +1216,101 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
 
     let bodies = BodyTree::new(cfg);
     for i in 0..block_order.len() {
-        ctx.direct_body = cfg
-            .block_id(&block_order[i])
-            .is_some_and(|block| bodies.block_evaluated_directly(ctx, block));
+        let block = cfg.block_id(&block_order[i]);
+        ctx.direct_body = block.is_some_and(|block| bodies.block_evaluated_directly(ctx, block));
+        if ctx.direct_body
+            && let Some(block) = block.and_then(|block| cfg.blocks.get(&block))
+        {
+            let condition_owner = match &block.terminator {
+                Some(crate::cfg::Terminator::Branch {
+                    span: Some(span), ..
+                }) => cfg.condition_owners.get(span).map(|owner| owner.command),
+                _ => None,
+            };
+            ctx.direct_body_commands.extend(
+                block
+                    .statements
+                    .iter()
+                    .map(crate::ir::Statement::span)
+                    .chain(condition_owner),
+            );
+        }
         emit_block(ctx, cfg, &mut state, &fe, &loop_ctx, &block_order, i);
     }
     ctx.direct_body = false;
+    intern_dead_compiled_locals(ctx, cfg, &state.laid_out);
 
     emit_function_tail(ctx, cfg, &mut state);
     finalize_function(ctx, cfg, &block_order, &loop_ctx)
+}
+
+/// Make compiled locals of the variables of the code C compiles though this
+/// compiler laid none of it out: the clauses of a `for` whose test is a
+/// literal constant false, and the commands after one that never completes
+/// (`return`, an endless loop). C's `if` and `while` alone leave the script
+/// a literal constant test never runs uncompiled.
+fn intern_dead_compiled_locals(
+    ctx: &mut CodegenCtx,
+    cfg: &CfgFunction,
+    laid_out: &std::collections::HashSet<String>,
+) {
+    if !ctx.compiles_locals() || laid_out.len() == cfg.blocks.len() {
+        return;
+    }
+    let predecessors = cfg.predecessors();
+    let mut stack: Vec<crate::cfg::BlockId> = std::iter::once(cfg.entry)
+        .chain(
+            cfg.blocks
+                .keys()
+                .copied()
+                .filter(|block| predecessors.get(block).is_none_or(HashSet::is_empty)),
+        )
+        .collect();
+    let mut compiled: HashSet<crate::cfg::BlockId> = HashSet::new();
+    while let Some(block) = stack.pop() {
+        if !compiled.insert(block) {
+            continue;
+        }
+        let Some(data) = cfg.blocks.get(&block) else {
+            continue;
+        };
+        let successors = match &data.terminator {
+            Some(Terminator::Branch {
+                condition,
+                true_target,
+                false_target,
+                span,
+                ..
+            }) if span
+                .and_then(|span| cfg.condition_owners.get(&span))
+                .is_some_and(|owner| owner.skips_constant_dead_script) =>
+            {
+                match ordering::fold_const_branch(condition) {
+                    Some(true) => vec![*true_target],
+                    Some(false) => vec![*false_target],
+                    None => vec![*true_target, *false_target],
+                }
+            }
+            _ => data.successors(),
+        };
+        stack.extend(successors);
+    }
+    let mut dead: Vec<crate::cfg::BlockId> = compiled
+        .into_iter()
+        .filter(|block| !laid_out.contains(cfg.block_name(*block)))
+        .collect();
+    dead.sort_unstable();
+    for block in dead {
+        let scripts: Vec<String> = cfg.blocks[&block]
+            .statements
+            .iter()
+            .filter(|statement| statement.is_executable_invocation())
+            .map(|statement| ctx.error_info_source_text(statement.span()))
+            .collect();
+        for script in scripts {
+            ctx.intern_script_locals(&script);
+        }
+    }
 }
 
 /// Stamp what a release that keeps the commands running bytecode compiled
@@ -1282,6 +1432,7 @@ impl<'c> BodyTree<'c> {
         tcl_registry::release_compilation::evaluates_script_directly(
             ctx.vm_release(),
             &self.bodies[index].owner.binding.name,
+            1,
         )
     }
 
@@ -1441,7 +1592,11 @@ mod tests {
         let mut cfg = trivial_cfg();
         cfg.inline_body_error_sites.push(InlineBodyErrorSite {
             span,
-            context: InlineBodyErrorContext::SameFrameScriptEvaluation,
+            context: crate::cfg::BodyErrorContext::Registry(
+                InlineBodyErrorContext::SameFrameScriptEvaluation,
+            ),
+            region: span,
+            compiled: crate::cfg::CompiledAt::NEVER,
         });
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(false, &[], &registry);
@@ -1452,7 +1607,10 @@ mod tests {
         let [region] = asm.error_regions.as_slice() else {
             panic!("semantic inline-body context should emit exactly one error region");
         };
-        assert_eq!(region.label, "eval");
+        assert_eq!(
+            region.frame,
+            tcl_bytecode::ErrorRegionFrame::Body("eval".to_owned())
+        );
         assert_eq!(region.cmd_text, source);
 
         let mut source_less = CodegenCtx::new(false, &[], &registry);

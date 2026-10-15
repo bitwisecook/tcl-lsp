@@ -386,10 +386,8 @@ fn cmd_eval(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let script = if let [single] = args {
         single.to_str().to_string()
     } else {
-        args.iter()
-            .map(|v| v.to_str().to_string())
-            .collect::<Vec<_>>()
-            .join(" ")
+        let texts: Vec<_> = args.iter().map(Value::to_str).collect();
+        tcl_cmd_core::list::concat_strings(texts.iter().map(|text| &**text))
     };
     // Defer the body to the *explicit* stack so a `yield` inside it stays
     // yieldable: compile it and hand it to the trampoline via
@@ -2637,11 +2635,12 @@ fn cmd_uplevel(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     if rest.is_empty() {
         return err("wrong # args: should be \"uplevel ?level? command ?arg ...?\"");
     }
-    let script = rest
-        .iter()
-        .map(|v| v.to_str().to_string())
-        .collect::<Vec<_>>()
-        .join(" ");
+    let script = if let [single] = rest {
+        single.to_str().to_string()
+    } else {
+        let texts: Vec<_> = rest.iter().map(Value::to_str).collect();
+        tcl_cmd_core::list::concat_strings(texts.iter().map(|text| &**text))
+    };
     // The body runs on the explicit stack (yieldable), like `eval`
     // (coroutine-1.7/1.8/1.12). Any other level than the current one runs in
     // that frame's namespace, the frames above it carried on the activation

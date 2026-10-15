@@ -152,6 +152,82 @@ pub(crate) fn switch_is_flattened(
         && !cfg_lower::subject_may_scan_as_option(stmt, registry, config)
 }
 
+/// Where the registry's release compiles the control command `command` of
+/// `args`, the word texts after it, each braced where `tokens` says so
+/// ([`tcl_registry::release_compilation::compiles_control`]); compiled
+/// everywhere where the release or the command is not modelled.
+pub(crate) fn release_compiles_control(
+    registry: &CommandRegistry,
+    command: &str,
+    args: &[String],
+    tokens: Option<&CommandTokens>,
+) -> crate::cfg::CompiledAt {
+    let Some(release) =
+        tcl_registry::value_transfer::TargetSemantics::of(registry.profile()).release
+    else {
+        return crate::cfg::CompiledAt::ALWAYS;
+    };
+    let words: Vec<tcl_registry::release_compilation::CompileWord<'_>> = args
+        .iter()
+        .enumerate()
+        .map(|(index, text)| {
+            let braced = tokens.is_some_and(|tokens| {
+                tokens.argv_kinds.get(index + 1) == Some(&TokenType::Str)
+                    && tokens
+                        .single_token_word
+                        .get(index + 1)
+                        .copied()
+                        .unwrap_or(false)
+            });
+            tcl_registry::release_compilation::CompileWord {
+                text,
+                literal: !tcl_syntax::naming::word_is_dynamic(text, braced),
+            }
+        })
+        .collect();
+    let compiles = |in_procedure| {
+        tcl_registry::release_compilation::compiles_control(release, command, &words, in_procedure)
+            .unwrap_or(true)
+    };
+    crate::cfg::CompiledAt {
+        in_procedure: compiles(true),
+        outside_procedure: compiles(false),
+    }
+}
+
+/// Whether the registry's release compiles the `switch` `stmt` with its
+/// compile procedure ([`tcl_registry::release_compilation::compiles_control`]),
+/// where its release and command are known.
+pub(crate) fn release_compiles_switch(
+    stmt: &Statement,
+    registry: &CommandRegistry,
+) -> Option<bool> {
+    let Statement::Switch {
+        raw_args,
+        raw_arg_braced,
+        command,
+        ..
+    } = stmt
+    else {
+        return None;
+    };
+    let release = tcl_registry::value_transfer::TargetSemantics::of(registry.profile()).release?;
+    let words: Vec<tcl_registry::release_compilation::CompileWord<'_>> = raw_args
+        .iter()
+        .enumerate()
+        .map(
+            |(index, text)| tcl_registry::release_compilation::CompileWord {
+                text,
+                literal: !tcl_syntax::naming::word_is_dynamic(
+                    text,
+                    raw_arg_braced.get(index).copied().unwrap_or(false),
+                ),
+            },
+        )
+        .collect();
+    tcl_registry::release_compilation::compiles_control(release, command, &words, true)
+}
+
 mod cfg_lower;
 pub mod global_write_info;
 pub mod upvar_info;
@@ -2355,6 +2431,7 @@ impl<'a> CfgBuilder<'a> {
 
     fn lower_script_statement(&mut self, stmt: &Statement, current: &str) -> Option<String> {
         self.mark_command_boundary(current, stmt);
+        self.record_body_error_sites(stmt);
         match stmt {
             Statement::If { .. } => Some(self.lower_if(stmt, current)),
             Statement::For { .. } => self.lower_for_or_frozen(stmt, current),
@@ -2381,7 +2458,9 @@ impl<'a> CfgBuilder<'a> {
                     self.inline_body_error_sites
                         .push(crate::cfg::InlineBodyErrorSite {
                             span: *span,
-                            context: *context,
+                            context: crate::cfg::BodyErrorContext::Registry(*context),
+                            region: *span,
+                            compiled: crate::cfg::CompiledAt::NEVER,
                         });
                 }
                 let owns_inline_region = self
@@ -2417,6 +2496,97 @@ impl<'a> CfgBuilder<'a> {
                 Some(current.to_owned())
             }
         }
+    }
+
+    /// Whether this build lowers the `switch` `stmt` to a chain of branches
+    /// ([`switch_is_flattened`]); for bytecode, only a form the release
+    /// compiles, any other running as the command.
+    fn flattens_switch(&self, stmt: &Statement) -> bool {
+        switch_is_flattened(stmt, self.registry, &self.config)
+            && (self.faithful_exceptions
+                || release_compiles_switch(stmt, self.registry) != Some(false))
+    }
+
+    /// Record the `errorInfo` frame each body of the structured control
+    /// command `stmt` adds where the release runs the command rather than
+    /// compiling it, and where it compiles it ([`InlineBodyErrorSite`]).
+    fn record_body_error_sites(&mut self, stmt: &Statement) {
+        use crate::cfg::{BodyErrorContext, CompiledAt};
+        let mut sites: Vec<(BodyErrorContext, Span)> = Vec::new();
+        let compiled = match stmt {
+            Statement::Foreach {
+                body_span,
+                is_lmap,
+                is_dict_iteration: false,
+                is_array_iteration: false,
+                raw_args,
+                raw_tokens,
+                ..
+            } => {
+                let command = if *is_lmap { "lmap" } else { "foreach" };
+                sites.push((BodyErrorContext::LoopBody(command), *body_span));
+                release_compiles_control(self.registry, command, raw_args, raw_tokens.as_ref())
+            }
+            Statement::While {
+                body_span,
+                raw_args,
+                raw_tokens,
+                ..
+            } => {
+                sites.push((BodyErrorContext::LoopBody("while"), *body_span));
+                release_compiles_control(self.registry, "while", raw_args, raw_tokens.as_ref())
+            }
+            Statement::For {
+                init_span,
+                next_span,
+                body_span,
+                raw_args,
+                raw_tokens,
+                ..
+            } => {
+                sites.push((
+                    BodyErrorContext::Clause("\"for\" initial command"),
+                    *init_span,
+                ));
+                sites.push((
+                    BodyErrorContext::Clause("\"for\" loop-end command"),
+                    *next_span,
+                ));
+                sites.push((BodyErrorContext::LoopBody("for"), *body_span));
+                release_compiles_control(self.registry, "for", raw_args, raw_tokens.as_ref())
+            }
+            Statement::If {
+                clauses, else_span, ..
+            } => {
+                sites.extend(
+                    clauses
+                        .iter()
+                        .map(|clause| (BodyErrorContext::Script, clause.body_span)),
+                );
+                sites.extend(else_span.map(|span| (BodyErrorContext::Script, span)));
+                CompiledAt::ALWAYS
+            }
+            Statement::Switch { arms, .. } if self.flattens_switch(stmt) => {
+                sites.extend(arms.iter().filter_map(|arm| {
+                    arm.body_span
+                        .map(|body| (BodyErrorContext::Arm(arm.pattern_span), body))
+                }));
+                CompiledAt::ALWAYS
+            }
+            _ => return,
+        };
+        let span = stmt.span();
+        self.inline_body_error_sites
+            .extend(
+                sites
+                    .into_iter()
+                    .map(|(context, region)| crate::cfg::InlineBodyErrorSite {
+                        span,
+                        context,
+                        region,
+                        compiled,
+                    }),
+            );
     }
 
     /// Associate `block` with the explicit structured-command site retained by

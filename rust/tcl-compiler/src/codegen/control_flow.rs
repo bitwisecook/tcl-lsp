@@ -24,6 +24,7 @@
 use tcl_bytecode::ErrorStackContext;
 use tcl_registry::completion::CompletionCode;
 use tcl_registry::hooks::{InlineCodegenHookId, LoweringHookId};
+use tcl_registry::release_compilation::CompileWord;
 use tcl_registry::{CommandRegistry, Traits, TryClauseKind};
 use tcl_runtime_api::completion_options::ControlOptionPolicy;
 
@@ -244,10 +245,10 @@ impl CodegenCtx<'_> {
         if resolved.spec.name != command {
             return None;
         }
-        let hook = resolved.lowering_hook?;
         let binding = self.command_binding_identity(command, resolved.spec.name);
-        let frame_local_words = match hook {
-            LoweringHookId::Catch => {
+        let mut in_procedure_only = false;
+        let frame_local_words = match resolved.lowering_hook {
+            Some(LoweringHookId::Catch) => {
                 let admitted = self.release_admits_arity(command, args.len());
                 let mask = admitted
                     .then(|| self.release_compiles_catch(&words))
@@ -273,21 +274,45 @@ impl CodegenCtx<'_> {
                 }
                 mask
             }
-            LoweringHookId::Try => {
+            Some(LoweringHookId::Try) => {
                 let compiled = self.release_compiles_try(command, &words, &arg_refs);
                 if compiled {
                     self.intern_try_variables(command, &arg_refs);
                 }
                 compiled.then_some(0)
             }
-            LoweringHookId::For => matches!(words.as_slice(), [_, test, next, body]
+            // `TclCompileSwitchCmd` compiles each body of a form it takes,
+            // making its locals, and the command logs no error of its own.
+            Some(LoweringHookId::Switch) => {
+                let compile_words: Vec<CompileWord<'_>> = words
+                    .iter()
+                    .map(|word| CompileWord {
+                        text: word.text,
+                        literal: word.simple(),
+                    })
+                    .collect();
+                let bodies = tcl_registry::release_compilation::compiled_switch_scripts(
+                    self.vm_release(),
+                    &compile_words,
+                )?;
+                if self.compiles_locals() {
+                    for body in bodies {
+                        self.intern_script_locals(body);
+                    }
+                }
+                Some(0)
+            }
+            Some(LoweringHookId::For) => matches!(words.as_slice(), [_, test, next, body]
                     if test.simple() && next.simple() && body.simple())
             .then_some(0),
             // `TclCompileWhileCmd` compiles a braced test with any body.
-            LoweringHookId::While => {
+            Some(LoweringHookId::While) => {
                 matches!(words.as_slice(), [test, _] if test.simple()).then_some(0)
             }
-            _ => None,
+            _ => {
+                in_procedure_only = !self.compiles_locals();
+                self.release_compiles_each_loop(command, &words)
+            }
         }?;
         let shape = Self::invocation_shape(&arg_refs, |index| args[index].1);
         self.require_invocation_binding(&binding, &shape);
@@ -297,7 +322,48 @@ impl CodegenCtx<'_> {
                 .is_some_and(|script| !script.simple())
                 .then_some(1),
             frame_local_words,
+            in_procedure_only,
         })
+    }
+
+    /// `foreach`, `lmap`, `dict for` and `dict map` the release compiles: in
+    /// a procedure body, whose locals their loop variables and the body's
+    /// become, and the command logs no error of its own. A script compiled
+    /// apart from a procedure body compiles one only where it runs as part of
+    /// one ([`tcl_bytecode::ReleaseCompiled::in_procedure_only`]).
+    fn release_compiles_each_loop(
+        &mut self,
+        command: &str,
+        words: &[ReleaseWord<'_>],
+    ) -> Option<u8> {
+        let compile_words: Vec<CompileWord<'_>> = words
+            .iter()
+            .map(|word| CompileWord {
+                text: word.text,
+                literal: word.simple(),
+            })
+            .collect();
+        let compiled = tcl_registry::release_compilation::compiles_control(
+            self.vm_release(),
+            command,
+            &compile_words,
+            true,
+        )?;
+        if !compiled {
+            return None;
+        }
+        if !self.compiles_locals() {
+            return Some(0);
+        }
+        for name in
+            tcl_registry::release_compilation::compiled_loop_variables(command, &compile_words)
+        {
+            self.intern_compiled_local(&name);
+        }
+        if let Some(body) = words.last() {
+            self.intern_script_locals(body.text);
+        }
+        Some(0)
     }
 
     /// Whether the release's signature of `command` admits `count` arguments.
@@ -601,6 +667,31 @@ impl CodegenCtx<'_> {
             vec![Operand::Imm(0), Operand::Imm(res_slot)];
     }
 
+    /// Lower the body word that ends the current command for inline emission,
+    /// its statements placed where the word holds them in the source so each
+    /// reports its own command text and line.
+    fn lower_inline_body(&self, body_text: &str) -> crate::ir::Module {
+        let mut body_ir =
+            crate::lowering::lower_to_ir_with_config(body_text, self.registry, self.lexer_config());
+        let offset = self.current_span.and_then(|span| {
+            let command = self.source_text(span);
+            let command = command.trim_end();
+            let braced = format!("{{{body_text}}}");
+            let before = if command.ends_with(&braced) {
+                command.len() - braced.len() + 1
+            } else {
+                command.strip_suffix(body_text)?.len()
+            };
+            u32::try_from(before)
+                .ok()
+                .map(|before| span.start() + before)
+        });
+        if let Some(offset) = offset {
+            crate::lattice_rebase::rebase_script(&mut body_ir.top_level, i64::from(offset));
+        }
+        body_ir
+    }
+
     /// Emit a compiled `dict for {k v} DICT { body }` inline, matching C Tcl's
     /// low-level bytecode: `beginCatch4` → `dictFirst <iter>` → `jumpTrue`
     /// (skip empty) → store k/v → inline body → `dictNext` → `jumpFalse` (loop)
@@ -627,8 +718,7 @@ impl CodegenCtx<'_> {
             return false;
         }
         // The body must be a straight-line sequence of simple commands.
-        let body_ir =
-            crate::lowering::lower_to_ir_with_config(body_text, self.registry, self.lexer_config());
+        let body_ir = self.lower_inline_body(body_text);
         if !body_ir.procedures.is_empty()
             || !body_ir.methods.is_empty()
             || !is_straight_line_body(&body_ir.top_level, self.registry)
@@ -741,8 +831,7 @@ impl CodegenCtx<'_> {
         if !self.is_proc {
             return false;
         }
-        let body_ir =
-            crate::lowering::lower_to_ir_with_config(body_text, self.registry, self.lexer_config());
+        let body_ir = self.lower_inline_body(body_text);
         if !body_ir.procedures.is_empty()
             || !body_ir.methods.is_empty()
             || body_ir.top_level.statements.is_empty()
@@ -886,8 +975,7 @@ impl CodegenCtx<'_> {
         if vars.iter().any(|v| is_qualified(v) || v.contains('(')) {
             return false;
         }
-        let body_ir =
-            crate::lowering::lower_to_ir_with_config(body_text, self.registry, self.lexer_config());
+        let body_ir = self.lower_inline_body(body_text);
         if !body_ir.procedures.is_empty()
             || !body_ir.methods.is_empty()
             || body_ir.top_level.statements.is_empty()
@@ -994,8 +1082,7 @@ impl CodegenCtx<'_> {
         if !self.compiles_locals() || is_qualified(dict_var) || dict_var.contains('(') {
             return false;
         }
-        let body_ir =
-            crate::lowering::lower_to_ir_with_config(body_text, self.registry, self.lexer_config());
+        let body_ir = self.lower_inline_body(body_text);
         if !body_ir.procedures.is_empty()
             || !body_ir.methods.is_empty()
             || body_ir.top_level.statements.is_empty()
@@ -2060,6 +2147,7 @@ mod tests {
             Some(tcl_bytecode::ReleaseCompiled {
                 script_word: Some(1),
                 frame_local_words: 0b100,
+                in_procedure_only: false,
             })
         );
         assert_eq!(
@@ -2132,6 +2220,7 @@ mod tests {
         let literal = Some(tcl_bytecode::ReleaseCompiled {
             script_word: None,
             frame_local_words: 0,
+            in_procedure_only: false,
         });
         assert_eq!(compiled(true, "try", &falls_through), literal);
         assert_eq!(compiled(false, "try", &falls_through), None);

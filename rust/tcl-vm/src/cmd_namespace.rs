@@ -46,12 +46,14 @@ use tcl_dialect::model::surface_admits;
 /// {…}`) for `info level N`.
 fn eval_in_ns(
     vm: &mut Vm,
+    command: &str,
     written: &str,
     body: &str,
     evaluation: CommandEvaluation,
     call_argv: Vec<Value>,
 ) -> Completion<Value> {
     let target = vm.namespace_display_for_written(written);
+    let frame_ns = target.clone();
     // A token in its *synchronous* delete window is no longer found by
     // `TclGetNamespaceForQualName`, so `NamespaceEvalCmd` tries to create it —
     // and `Tcl_CreateNamespace` still sees the child entry, which
@@ -91,6 +93,15 @@ fn eval_in_ns(
         Ok(c) => c,
         Err(e) => err(e.message),
     };
+    if completion.code == Code::Error {
+        let fqn = display_ns(&frame_ns);
+        let text = tcl_cmd_core::namespace::script_frame_text(
+            command,
+            fqn.as_bytes(),
+            vm.runtime_version(),
+        );
+        vm.append_frame_line(&String::from_utf8_lossy(&text));
+    }
     settle_control_options(completion, ControlOptionPolicy::FRESH_FORWARDED)
 }
 
@@ -801,12 +812,12 @@ fn ns_inscope(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     let written = ns.to_str().to_string();
     let body = match inscope_script(vm, script, extra) {
         Ok(body) => body,
-        Err(error) => return crate::command::completion_from_cmd_error(error),
+        Err(error) => return vm.cmd_error(error),
     };
     let evaluation = vm.script_evaluation(&[script.clone(), Value::list(extra.to_vec())]);
     let mut call_argv = vec![Value::string("namespace"), Value::string("inscope")];
     call_argv.extend(rest.iter().cloned());
-    eval_in_ns(vm, &written, &body, evaluation, call_argv)
+    eval_in_ns(vm, "inscope", &written, &body, evaluation, call_argv)
 }
 
 /// The script `namespace inscope ns script ?arg ...?` evaluates:
@@ -860,14 +871,15 @@ fn ns_eval(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         return err("wrong # args: should be \"namespace eval name arg ?arg ...?\"");
     }
     let written = ns.to_str().to_string();
-    // Multiple body args are concatenated with spaces, as a script.
-    let body = body_parts
-        .iter()
-        .map(|v| v.to_str().to_string())
-        .collect::<Vec<_>>()
-        .join(" ");
-    let evaluation = vm.script_evaluation(body_parts);
+    // Multiple body args are concatenated (`Tcl_ConcatObj`), as a script.
+    let body = if let [single] = body_parts {
+        single.to_str().to_string()
+    } else {
+        let texts: Vec<_> = body_parts.iter().map(Value::to_str).collect();
+        tcl_cmd_core::list::concat_strings(texts.iter().map(|text| &**text))
+    };
+    let evaluation = vm.script_evaluation_for("namespace eval", body_parts);
     let mut call_argv = vec![Value::string("namespace"), Value::string("eval")];
     call_argv.extend(rest.iter().cloned());
-    eval_in_ns(vm, &written, &body, evaluation, call_argv)
+    eval_in_ns(vm, "eval", &written, &body, evaluation, call_argv)
 }

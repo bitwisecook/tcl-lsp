@@ -1405,6 +1405,10 @@ pub struct ReleaseCompiled {
     /// reaches only that frame's (`TclFindCompiledLocal` without a
     /// `procPtr`), so it compiles the command only where every one is.
     pub frame_local_words: u8,
+    /// Whether the release compiles the command only in a procedure body, so
+    /// a script compiled apart from one compiles it only where it runs as the
+    /// body of a command the release compiled into a procedure body.
+    pub in_procedure_only: bool,
 }
 
 impl Instruction {
@@ -1703,7 +1707,7 @@ impl FunctionAsm {
 }
 
 /// An inlined command body's instruction range and the `errorInfo` frame the
-/// enclosing command (`eval`/`while`/`for`/`foreach`) would add when its body
+/// enclosing command (`eval`, a loop, `if`, `switch`) would add when its body
 /// errors — the compiled analogue of C's per-command `CmdFrame`. Populated by
 /// codegen when it folds a literal body inline (so the LSP keeps its inlined
 /// view), consumed by the executor as an error unwinds (see
@@ -1717,9 +1721,8 @@ pub struct ErrorRegion {
     pub start: u32,
     /// End byte offset of the enclosing command's source span (exclusive).
     pub end: u32,
-    /// The body-frame label — `eval`/`while`/`for`/`foreach` — quoted in the
-    /// `("LABEL" body line N)` frame.
-    pub label: String,
+    /// The frame the body adds before the command is logged.
+    pub frame: ErrorRegionFrame,
     /// The enclosing command's surface text, for its `invoked from within "…"`
     /// frame (truncated to 150 bytes by the logger, as in C).
     pub cmd_text: String,
@@ -1730,6 +1733,23 @@ pub struct ErrorRegion {
     /// The enclosing command's own source line — the line its `invoked from
     /// within` frame contributes to any further-out (proc) frame.
     pub cmd_line: u32,
+    /// Whether the release compiles the command in a procedure body, so the
+    /// region adds no frame where its script runs as part of one.
+    pub compiled_in_procedure: bool,
+}
+
+/// The `errorInfo` frame an [`ErrorRegion`] adds, `N` the failing command's
+/// line within the body.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ErrorRegionFrame {
+    /// `("LABEL" body line N)`: `eval`, `foreach`, `while`, `for`, `lmap`.
+    Body(String),
+    /// `(TEXT line N)`: a `switch` arm's `"PATTERN" arm`.
+    Line(String),
+    /// `(TEXT)`: `"for" initial command`.
+    Fixed(String),
+    /// None: the command is logged alone (`if`).
+    None,
 }
 
 /// Assembly for an entire module.

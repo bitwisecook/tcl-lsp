@@ -35,18 +35,23 @@ pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"uplevel", uplevel_cmd);
 }
 
-/// Join `args` with single spaces (the multi-arg `eval`/`uplevel` body form). A
-/// single arg is used verbatim.
-fn join_body(args: &[*mut TclObj]) -> Vec<u8> {
+/// `args` joined as `Tcl_ConcatObj` joins strings (the multi-arg `eval`,
+/// `uplevel` and `namespace eval` body form). A single arg is used verbatim.
+pub(crate) fn join_body(args: &[*mut TclObj]) -> Vec<u8> {
     if let [one] = args {
         return obj_bytes(*one);
     }
     let mut out = Vec::new();
-    for (i, &a) in args.iter().enumerate() {
-        if i > 0 {
+    for &a in args {
+        let bytes = obj_bytes(a);
+        let part = crate::list::trim_concat_element_bytes(&bytes);
+        if part.is_empty() {
+            continue;
+        }
+        if !out.is_empty() {
             out.push(b' ');
         }
-        out.extend_from_slice(&obj_bytes(a));
+        out.extend_from_slice(part);
     }
     out
 }
@@ -81,7 +86,7 @@ fn eval_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // A single body argument keeps its object identity, so a literal from a
     // sourced file evaluates as `type source` (TIP 280 LABC); multiple args are
     // concatenated into a fresh dynamic script (`type eval`).
-    let code = interp.with_script_evaluation("eval", |interp| {
+    let code = interp.with_script_evaluation("eval", argv.len() - 1, |interp| {
         if argv.len() == 2 {
             interp.eval_body_obj(argv[1])
         } else if let Some(list) = concat_lists(&argv[1..]) {
@@ -116,7 +121,7 @@ fn uplevel_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if body_start >= argv.len() {
         return interp.wrong_args(usage);
     }
-    let code = interp.with_script_evaluation("uplevel", |interp| {
+    let code = interp.with_script_evaluation("uplevel", argv.len() - body_start, |interp| {
         if body_start == argv.len() - 1 {
             interp.eval_uplevel_obj(target, argv[body_start])
         } else if let Some(list) = concat_lists(&argv[body_start..]) {

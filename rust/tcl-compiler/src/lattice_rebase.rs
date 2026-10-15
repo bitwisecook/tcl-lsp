@@ -75,6 +75,10 @@ pub(crate) fn rebase_function_unit(fu: &mut FunctionUnit, delta: i64) {
     // mapping and explorer views.
     for site in &mut fu.cfg.inline_body_error_sites {
         shift(&mut site.span, delta);
+        shift(&mut site.region, delta);
+        if let crate::cfg::BodyErrorContext::Arm(pattern) = &mut site.context {
+            shift(pattern, delta);
+        }
     }
     for site in &mut fu.cfg.command_binding_sites {
         shift(&mut site.span, delta);

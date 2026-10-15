@@ -519,6 +519,7 @@ fn cmd_dict_with(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
 }
 
 fn cmd_dict_for(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+    let compiled = vm.pending.release_compiled.take().is_some();
     let [vars, dict, body] = rest else {
         return err("wrong # args: should be \"dict for {keyVar valueVar} dictionary script\"");
     };
@@ -546,6 +547,7 @@ fn cmd_dict_for(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
             Ok(c) => match c.code {
                 Code::Ok | Code::Continue => {}
                 Code::Break => break,
+                Code::Error => return each_body_error(vm, compiled, "dict for", c),
                 _ => return c,
             },
             Err(e) => return err(e.message),
@@ -554,11 +556,28 @@ fn cmd_dict_for(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     settle_control_options(ok(Value::empty()), ControlOptionPolicy::FRESH_SETTLED)
 }
 
+/// A `dict for` or `dict map` body's error: the command the release runs adds
+/// its `("dict for" body line N)` frame, and one it compiled logs nothing.
+fn each_body_error(
+    vm: &mut Vm,
+    compiled: bool,
+    command: &'static str,
+    c: Completion<Value>,
+) -> Completion<Value> {
+    if compiled {
+        vm.mark_error_logged();
+    } else {
+        vm.append_body_frame(command);
+    }
+    c
+}
+
 /// `dict map {keyVar valueVar} dictionary body` — like `dict for`, but collect
 /// each iteration's body result into a new dictionary keyed by the (possibly
 /// body-modified) `keyVar`. `continue` drops the pair, `break` stops, and an
 /// error/`return` propagates.
 fn cmd_dict_map(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+    let compiled = vm.pending.release_compiled.take().is_some();
     let [vars, dict, body] = rest else {
         return err(
             "wrong # args: should be \"dict map {keyVarName valueVarName} dictionary script\"",
@@ -604,6 +623,7 @@ fn cmd_dict_map(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
                         ControlOptionPolicy::FRESH_SETTLED,
                     );
                 }
+                Code::Error => return each_body_error(vm, compiled, "dict map", c),
                 _ => return c,
             },
             Err(e) => return err(e.message),

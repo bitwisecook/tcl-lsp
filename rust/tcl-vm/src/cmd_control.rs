@@ -210,7 +210,7 @@ fn cmd_for(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     );
     let c = eval_body(vm, &init);
     if c.code != Code::Ok {
-        return c;
+        return clause_error(vm, compiled, c, "\"for\" initial command");
     }
     loop {
         if let Some(c) = vm.limit_check_tick() {
@@ -238,10 +238,25 @@ fn cmd_for(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             // A `break` in the step clause ends the loop cleanly (C's
             // `Tcl_ForObjCmd`: `case TCL_BREAK: result = TCL_OK`).
             Code::Break => break,
-            _ => return c,
+            _ => return clause_error(vm, compiled, c, "\"for\" loop-end command"),
         }
     }
     ok(Value::empty())
+}
+
+/// A `for` clause's error: the command the release runs adds the clause's
+/// frame, and one it compiled logs nothing.
+fn clause_error(
+    vm: &mut Vm,
+    compiled: bool,
+    c: Completion<Value>,
+    frame: &str,
+) -> Completion<Value> {
+    if c.code == Code::Error && !compiled {
+        vm.append_frame_text(frame);
+        return c;
+    }
+    loop_error(vm, compiled, c)
 }
 
 // foreach / lmap
@@ -269,6 +284,7 @@ fn cmd_lmap(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// command dispatch (the compiler's inline `LMAP_COLLECT` loop only lowers a
 /// bare-statement `lmap`), and needs the same yieldability.
 fn each_loop(vm: &mut Vm, args: &[Value], collect: bool) -> Completion<Value> {
+    let compiled = vm.pending.release_compiled.take().is_some();
     let name = if collect { "lmap" } else { "foreach" };
     // (name-stripped) N×(varlist, list) pairs + body ⇒ an odd arg count ≥ 3.
     if args.len() < 3 || args.len() % 2 != 1 {
@@ -317,6 +333,7 @@ fn each_loop(vm: &mut Vm, args: &[Value], collect: bool) -> Completion<Value> {
         iterations,
         body: script,
         invocation: None,
+        compiled,
     });
     ok(Value::empty())
 }

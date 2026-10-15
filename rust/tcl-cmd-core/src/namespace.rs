@@ -740,9 +740,45 @@ fn resolve_target_bytes<O: Namespaces + ?Sized>(
     }
 }
 
+/// The text of the `(in namespace eval "FQN" script line N)` frame an error
+/// leaving a `namespace eval` (`command` `eval`) or `namespace inscope`
+/// script adds, before ` line N`: the name cut at 200 bytes, with `...` after
+/// a cut from 8.5 (`NsEval_Callback`; 8.4's `%.200s` adds none).
+#[must_use]
+pub fn script_frame_text(command: &str, fqn: &[u8], release: tcl_dialect::TclVersion) -> Vec<u8> {
+    const LIMIT: usize = 200;
+    let mut text = format!("in namespace {command} \"").into_bytes();
+    text.extend_from_slice(&fqn[..fqn.len().min(LIMIT)]);
+    if fqn.len() > LIMIT && release != tcl_dialect::TclVersion::V8_4 {
+        text.extend_from_slice(b"...");
+    }
+    text.extend_from_slice(b"\" script");
+    text
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_namespace_script_frame_cuts_a_long_name_as_the_release_does() {
+        let long = vec![b'n'; 201];
+        let text =
+            |release| String::from_utf8(script_frame_text("eval", &long, release)).expect("utf-8");
+        let cut = "n".repeat(200);
+        assert_eq!(
+            text(tcl_dialect::TclVersion::V8_4),
+            format!("in namespace eval \"{cut}\" script")
+        );
+        assert_eq!(
+            text(tcl_dialect::TclVersion::V9_0),
+            format!("in namespace eval \"{cut}...\" script")
+        );
+        assert_eq!(
+            script_frame_text("inscope", b"::a", tcl_dialect::TclVersion::V8_6),
+            b"in namespace inscope \"::a\" script".to_vec()
+        );
+    }
 
     #[test]
     fn qualifiers_and_tail_match_c() {

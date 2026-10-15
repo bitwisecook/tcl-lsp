@@ -73,10 +73,18 @@ fn catch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // the enclosing frame in a proc (so `info frame` depth and the body-relative
     // `errorLine` for `MakeProcError` stay correct), while a top-level or dynamic
     // body still evaluates as its own frame.
-    if catch_compiles_script_word(interp, argv) {
+    let evaluates_script_word = catch_compiles_script_word(interp, argv);
+    if evaluates_script_word {
         crate::list::read_as_other_type(argv[1]);
     }
     let code = interp.eval_control_body(argv[1]);
+    // The compiled `catch` evaluates the script word's value (`INST_EVAL_STK`),
+    // a script of its own, and an error leaving it logs the `catch` before the
+    // range catches it.
+    if code == Code::Error && evaluates_script_word {
+        interp.clear_error_logged();
+        interp.log_current_command();
+    }
     // An `exit` in the body is uncatchable (C's `Tcl_Exit`): re-propagate it
     // instead of turning it into a caught return code.
     if interp.exit_pending() {

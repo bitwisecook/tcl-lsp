@@ -915,7 +915,7 @@ impl CfgBuilder<'_> {
         // case-insensitive match has to run through the generic `switch`
         // command (the VM/runtime `cmd_switch`). So must one whose subject a
         // release's option scan may read (`switch_is_flattened`).
-        if !super::switch_is_flattened(stmt, self.registry, &self.config) {
+        if !self.flattens_switch(stmt) {
             return self.lower_opaque_switch(stmt, block_name);
         }
 
@@ -2554,9 +2554,18 @@ mod tests {
     }
 
     /// The operands of the first dispatch branch of the `switch` in `source`,
-    /// lowered and built under `dialect`'s own registry; `None` where the
-    /// statement stayed one opaque statement.
+    /// lowered and built for analysis under `dialect`'s own registry; `None`
+    /// where the statement stayed one opaque statement.
     fn dispatch_operands(source: &str, dialect: &str) -> Option<(ExprNode, ExprNode)> {
+        dispatch_operands_built(source, dialect, true)
+    }
+
+    /// [`dispatch_operands`], built for analysis (`faithful`) or for codegen.
+    fn dispatch_operands_built(
+        source: &str,
+        dialect: &str,
+        faithful: bool,
+    ) -> Option<(ExprNode, ExprNode)> {
         use tcl_registry::model::ingress::{resolve_environment, static_context_for};
         let registry = static_context_for(dialect).commands();
         let profile = resolve_environment(dialect).analyser_profile();
@@ -2566,8 +2575,14 @@ mod tests {
             LexerConfig::for_profile(registry.profile()),
             Some(profile),
         );
-        let func =
-            build_cfg_function_for_registry("::test", &module.top_level, false, registry, false);
+        let builder = crate::cfg_builder::CfgBuilder::new(false, registry)
+            .with_lexer_config(LexerConfig::for_profile(registry.profile()));
+        let mut builder = if faithful {
+            builder.with_faithful_exceptions()
+        } else {
+            builder
+        };
+        let func = builder.build_function("::test", &module.top_level);
         match &func.blocks[&func.entry].terminator {
             Some(Terminator::Branch {
                 condition:
@@ -2596,7 +2611,7 @@ mod tests {
         };
         for (source, subject, pattern) in [
             (r#"switch a\nb {"a\nb" {puts hit}}"#, "a\nb", "a\nb"),
-            (r#"switch "a\tb" a\tb {puts hit}"#, "a\tb", "a\tb"),
+            (r#"switch -- "a\tb" a\tb {puts hit}"#, "a\tb", "a\tb"),
             (r#"switch {a\b} {"a\\b" {puts hit}}"#, r"a\b", r"a\b"),
             ("switch {a\\\nb} {{a b} {puts hit}}", "a b", "a b"),
             (r"switch a\$b {a\$b {puts hit}}", "a$b", "a$b"),
@@ -2690,6 +2705,28 @@ mod tests {
                     "{dialect}: {source}"
                 );
             }
+        }
+    }
+
+    /// Codegen flattens a `switch` only where the release's compile procedure
+    /// compiles it: never in 8.4, and from 8.5 the two-word form or options
+    /// that `--` closes.
+    #[test]
+    fn codegen_flattens_the_switch_the_release_compiles() {
+        for (dialect, source, flattened) in [
+            ("tcl8.4", "switch $x {a {puts A}}", false),
+            ("tcl8.4", "switch -- $x a {puts A}", false),
+            ("tcl8.5", "switch $x {a {puts A}}", true),
+            ("tcl8.6", "switch -exact $x {a {puts A}}", false),
+            ("tcl8.6", "switch -exact -- $x {a {puts A}}", true),
+            ("tcl8.6", "switch $x a {puts A}", false),
+            ("tcl9.0", "switch -- $x a {puts A} b {puts B}", true),
+        ] {
+            assert_eq!(
+                dispatch_operands_built(source, dialect, false).is_some(),
+                flattened,
+                "{dialect}: {source}"
+            );
         }
     }
 
