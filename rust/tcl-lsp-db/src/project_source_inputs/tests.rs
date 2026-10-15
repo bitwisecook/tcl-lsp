@@ -139,6 +139,44 @@ fn configured_project_headers_keep_pack_definers_and_withdraw_changed_source_met
 }
 
 #[test]
+fn configured_proc_source_headers_defer_body_effects_and_keep_unknown_hook_effects() {
+    let mut db = TclDatabase::default();
+    let packs = procedure_pack(true);
+    let _registry = tcl_spectcl::install::registry_for_dialect_with_packs("tcl", &packs);
+    set_overlay_epoch(&mut db, tcl_registry::overlay_epoch());
+    let config = configuration(&db, packs.key);
+    let source = "project_source356::define provided {one} {rename puts {}}; puts VALUE";
+    let file = SourceFile::new(&db, source.to_owned(), "tcl".to_owned(), None);
+    let headers = item_sigs_for_config(&db, file, config);
+    assert!(
+        headers
+            .iter()
+            .any(|header| header.logical_source_coordinate.is_some())
+    );
+    let analysis = file_analysis(&db, file, config);
+    let call = tcl_compiler::registry_invocation::source_structure::source_registry_words_at(
+        source,
+        &analysis,
+        u32::try_from(source.rfind("puts VALUE").unwrap()).unwrap(),
+    )
+    .unwrap();
+    let tcl_compiler::registry_invocation::source_structure::OriginalRegistrySource::SourceTransitions(advice) = call.source() else {
+        panic!("actual retained source transition owner");
+    };
+    assert!(advice.uncertain_operations().iter().any(|operation| {
+        operation
+            .first()
+            .is_some_and(|head| head.span().start() == 0)
+    }));
+    let body_operation = u32::try_from(source.find("rename puts").unwrap()).unwrap();
+    assert!(advice.uncertain_operations().iter().all(|operation| {
+        operation
+            .first()
+            .is_none_or(|head| head.span().start() != body_operation)
+    }));
+}
+
+#[test]
 fn supplied_callback_headers_use_the_librarys_checked_input_and_body_free_signature() {
     // naming.database.original-project-callback-projection
     // docs/design/analysis/name-resolution-proofs/database-original-project-callback-projection.md

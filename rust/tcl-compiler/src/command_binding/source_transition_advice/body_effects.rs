@@ -194,6 +194,16 @@ impl AdviceInvocationContext<'_> {
         {
             graph.widen(invocation.native);
         }
+        self.apply_source_lookup_residual_effects(graph, invocation, schema);
+    }
+
+    pub(super) fn apply_source_lookup_residual_effects(
+        &self,
+        graph: &mut AdviceGraph,
+        invocation: AdviceInvocation<'_>,
+        schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+    ) {
+        let transitions = schema.state_transitions();
         let effects = schema.effects();
         // Transition effect coverage removes an already represented trace
         // write from the generic footprint. Source observer state still
@@ -1257,7 +1267,8 @@ impl BodyWalk<'_, '_> {
             && !schema
                 .semantics
                 .traits
-                .contains(tcl_registry::Traits::DEFERS_BODY);
+                .contains(tcl_registry::Traits::DEFERS_BODY)
+            && schema.authored_source_procedure_arguments().is_none();
         let advice = boxed_body_advice(self.context, invocation, graph, &schema)?;
         if self.expressions(graph, &advice, &schema, depth).is_none() {
             graph.widen(&native.words);

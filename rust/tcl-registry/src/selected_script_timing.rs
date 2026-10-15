@@ -20,6 +20,24 @@ impl SelectedScriptMetadata<'_> {
         invocation: &ResolvedInvocation<'_, '_>,
         index: usize,
     ) -> Option<ScriptTiming> {
+        let default = if invocation
+            .semantics
+            .traits
+            .contains(crate::Traits::DEFERS_BODY)
+        {
+            ScriptTiming::Deferred
+        } else {
+            ScriptTiming::SameInvocation
+        };
+        self.timing_at_with_default(invocation, index, default)
+    }
+
+    pub(crate) fn timing_at_with_default(
+        self,
+        invocation: &ResolvedInvocation<'_, '_>,
+        index: usize,
+        default: ScriptTiming,
+    ) -> Option<ScriptTiming> {
         let arguments = invocation.words.arguments();
         let count = arguments.exact_argv_len()?;
         let offset = invocation.semantics.argument_offset;
@@ -32,15 +50,6 @@ impl SelectedScriptMetadata<'_> {
         {
             return None;
         }
-        let default = if invocation
-            .semantics
-            .traits
-            .contains(crate::Traits::DEFERS_BODY)
-        {
-            ScriptTiming::Deferred
-        } else {
-            ScriptTiming::SameInvocation
-        };
         let (_, _, resolver) = self.descriptors();
         let timings = resolver.map(|resolver| resolver(arguments.slice_from(offset)));
         let timing = timings

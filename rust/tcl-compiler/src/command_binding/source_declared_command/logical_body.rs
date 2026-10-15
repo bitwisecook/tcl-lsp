@@ -136,11 +136,26 @@ impl OriginalDeclaredLogicalBodyContext {
                 schema.facts().arity_accepts_frozen_arguments() == Some(true)
                     && match frame {
                         OriginalDeclaredSourceBodyFrame::Procedure => {
-                            schema.semantics.body_kind == tcl_registry::BodyKind::Structural
-                                && schema.semantics.traits.contains(
-                                    tcl_registry::Traits::DEFINES_PROCEDURE
-                                        | tcl_registry::Traits::DEFERS_BODY,
-                                )
+                            if schema.semantics.procedure_definition.is_some() {
+                                schema.semantics.body_kind == tcl_registry::BodyKind::Structural
+                                    && schema.semantics.traits.contains(
+                                        tcl_registry::Traits::DEFINES_PROCEDURE
+                                            | tcl_registry::Traits::DEFERS_BODY,
+                                    )
+                            } else {
+                                schema
+                                    .authored_source_procedure_arguments()
+                                    .is_some_and(|shape| {
+                                        scope.source_words().original_argument_word(shape.name)
+                                            == Some(scope_name.original_word())
+                                            && scope
+                                                .source_words()
+                                                .original_argument_word(shape.body)
+                                                == Some(scope.original_container())
+                                            && schema.authored_source_script_timing_at(shape.body)
+                                                == Some(tcl_registry::ScriptTiming::Deferred)
+                                    })
+                            }
                         }
                         OriginalDeclaredSourceBodyFrame::Global
                         | OriginalDeclaredSourceBodyFrame::Lambda => false,

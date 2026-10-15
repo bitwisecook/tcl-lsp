@@ -1923,7 +1923,8 @@ impl AdviceInvocationContext<'_> {
             && !schema
                 .semantics
                 .traits
-                .contains(tcl_registry::Traits::DEFERS_BODY);
+                .contains(tcl_registry::Traits::DEFERS_BODY)
+            && schema.authored_source_procedure_arguments().is_none();
         if (receipt.is_none() && !transitions.facts().is_empty())
             || transitions.widens(tcl_registry::StateTransitionDomain::CommandBindings)
             || transitions.widens(tcl_registry::StateTransitionDomain::CommandResolution)
@@ -1939,6 +1940,11 @@ impl AdviceInvocationContext<'_> {
             inventory.extend_inventory(projected.inventory);
         } else if !declared {
             graph.widen(native);
+        }
+        if schema.semantics.procedure_definition.is_none()
+            && schema.authored_source_procedure_arguments().is_some()
+        {
+            self.apply_source_lookup_residual_effects(graph, invocation, schema);
         }
         Some(inventory)
     }

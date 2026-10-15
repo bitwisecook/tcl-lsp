@@ -327,7 +327,7 @@ impl LogicalBodyWalk<'_, '_> {
     ) -> Option<()> {
         if schema.authored_source_lambda_call().is_some() {
             self.lambda(tape, graph, invocation, schema, parent, depth)
-        } else if schema.semantics.traits.contains(Traits::DEFERS_BODY) {
+        } else if schema.authored_source_procedure_arguments().is_some() {
             self.procedure(tape, graph, invocation, schema, parent, depth)
         } else {
             self.namespace(tape, graph, invocation, schema, parent, depth)
@@ -408,11 +408,7 @@ impl LogicalBodyWalk<'_, '_> {
     ) -> Option<Box<PreparedLogicalBodyBranch>> {
         // naming.source.original-declared-command-word-contract
         // docs/design/analysis/name-resolution-proofs/source-original-declared-command-word-contract.md
-        if !schema.semantics.traits.contains(Traits::DEFERS_BODY)
-            || schema.facts().arity_accepts_frozen_arguments() != Some(true)
-        {
-            return None;
-        }
+        let positions = schema.authored_source_procedure_arguments()?;
         let transitions = schema.state_transitions();
         let mut definitions =
             transitions
@@ -463,7 +459,6 @@ impl LogicalBodyWalk<'_, '_> {
             input,
             parent.cloned(),
         )?);
-        let positions = schema.authored_source_procedure_arguments()?;
         let formal = invocation.arguments.get(positions.parameters)?;
         let parameters_text = std::str::from_utf8(formal.value.as_deref()?).ok()?;
         if tcl_syntax::word_rules::original_static_word_unicode_value(&formal.original).as_deref()
@@ -848,7 +843,8 @@ impl LogicalBodyWalk<'_, '_> {
         let immediate_body = roles
             .iter()
             .any(|(_, role)| *role == tcl_registry::ArgRole::Body)
-            && !schema.semantics.traits.contains(Traits::DEFERS_BODY);
+            && !schema.semantics.traits.contains(Traits::DEFERS_BODY)
+            && schema.authored_source_procedure_arguments().is_none();
         if !complete || immediate_body {
             self.context.apply_schema_transition(
                 graph,
@@ -966,7 +962,7 @@ impl LogicalBodyWalk<'_, '_> {
     ) -> Option<()> {
         let (advice, schema) = selected;
         if schema.authored_source_lambda_call().is_some()
-            || schema.semantics.traits.contains(Traits::DEFERS_BODY)
+            || schema.authored_source_procedure_arguments().is_some()
             || schema.semantics.traits.contains(Traits::DECLARES_NAMESPACE)
         {
             // Each changing source scope retains its own selected name/body.

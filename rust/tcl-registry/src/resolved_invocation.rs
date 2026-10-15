@@ -3274,16 +3274,24 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
     /// Source-only procedure declaration shape from the selected descriptor.
     /// Original argv cardinality and authored role consensus stay mandatory;
     /// native parameter acceptance and successful definition remain separate.
+    /// Configured Proc hooks also require their exact selected publication
+    /// transition and deferred source timing, without a native descriptor.
     #[must_use]
     pub fn authored_source_procedure_arguments(&self) -> Option<AuthoredSourceProcedureArguments> {
         // naming.compiler.original-analysis-metadata-context
         // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
-        self.semantics.procedure_definition?;
+        let native_definition = self.semantics.procedure_definition.is_some();
+        let authored_hook =
+            self.semantics.analyser_hook == Some(crate::hooks::AnalyserHookId::Proc);
+        if !native_definition && !authored_hook {
+            return None;
+        }
         if self.semantics.frame_effect.is_some()
-            || !self
-                .semantics
-                .traits
-                .contains(Traits::DEFINES_PROCEDURE | Traits::DEFERS_BODY)
+            || (native_definition
+                && !self
+                    .semantics
+                    .traits
+                    .contains(Traits::DEFINES_PROCEDURE | Traits::DEFERS_BODY))
             || !self
                 .semantics
                 .arity
@@ -3303,11 +3311,50 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
             let first = positions.next()?;
             (first < count && positions.next().is_none()).then_some(first)
         };
-        Some(AuthoredSourceProcedureArguments {
+        let positions = AuthoredSourceProcedureArguments {
             name: ordinal(ArgRole::Name)?,
             parameters: ordinal(ArgRole::ParamList)?,
             body: ordinal(ArgRole::Body)?,
-        })
+        };
+        if !native_definition {
+            use crate::state_transition::{
+                CommandBindingDefinitionKind, CommandBindingTransition, StateTransitionDomain,
+                TransitionSubject,
+            };
+            let offset = self.semantics.argument_offset;
+            if count != offset.checked_add(3)?
+                || positions.name != offset
+                || positions.parameters != offset.checked_add(1)?
+                || positions.body != offset.checked_add(2)?
+            {
+                return None;
+            }
+            let name = TransitionSubject::from_argument(self.words.arguments(), positions.name)?;
+            let transitions = self.state_transitions();
+            if transitions.widens(StateTransitionDomain::CommandBindings)
+                || transitions.widens(StateTransitionDomain::CommandResolution)
+            {
+                return None;
+            }
+            let mut definitions = transitions.command_bindings();
+            match (definitions.next(), definitions.next()) {
+                (
+                    Some(CommandBindingTransition::Define {
+                        name: selected,
+                        kind: CommandBindingDefinitionKind::Procedure,
+                    }),
+                    None,
+                ) if *selected == name => {}
+                _ => return None,
+            }
+            (self.semantics.script_metadata.timing_at_with_default(
+                self,
+                positions.body,
+                crate::ScriptTiming::Deferred,
+            ) == Some(crate::ScriptTiming::Deferred))
+            .then_some(())?;
+        }
+        Some(positions)
     }
 
     /// Readonly roles in an independently retained Logical source model.
@@ -3413,6 +3460,16 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
     /// This does not identify a body role, entered callback or executing frame.
     #[must_use]
     pub fn authored_source_script_timing_at(&self, argument: usize) -> Option<crate::ScriptTiming> {
+        if self.semantics.procedure_definition.is_none()
+            && let Some(positions) = self.authored_source_procedure_arguments()
+            && argument == positions.body
+        {
+            return self.semantics.script_metadata.timing_at_with_default(
+                self,
+                argument,
+                crate::ScriptTiming::Deferred,
+            );
+        }
         self.semantics.script_metadata.timing_at(self, argument)
     }
 
@@ -6594,6 +6651,117 @@ mod tests {
         assert!(selected.words.arguments().exact_argv_len().is_none());
         assert!(selected.authored_source_procedure_arguments().is_none());
         assert!(!selected.facts().arg_roles_complete);
+    }
+
+    #[test]
+    fn authored_proc_hook_declaration_requires_exact_source_roles_and_transition() {
+        const ROLES: &[(u8, ArgRole)] = &[
+            (0, ArgRole::Name),
+            (1, ArgRole::ParamList),
+            (2, ArgRole::Body),
+        ];
+        const CONFLICTING_ROLES: &[(u8, ArgRole)] = &[
+            (0, ArgRole::Name),
+            (1, ArgRole::Body),
+            (2, ArgRole::ParamList),
+        ];
+        for (hook, transition, roles, expected) in [
+            (
+                Some(crate::hooks::AnalyserHookId::Proc),
+                Some(CommandTableEffect::DefinesProcedure),
+                ROLES,
+                true,
+            ),
+            (
+                None,
+                Some(CommandTableEffect::DefinesProcedure),
+                ROLES,
+                false,
+            ),
+            (Some(crate::hooks::AnalyserHookId::Proc), None, ROLES, false),
+            (
+                Some(crate::hooks::AnalyserHookId::Proc),
+                Some(CommandTableEffect::DefinesProcedure),
+                CONFLICTING_ROLES,
+                false,
+            ),
+        ] {
+            let mut registry = CommandRegistry::build_default();
+            registry.insert(CommandSpec {
+                name: "source-definer",
+                arity: Arity::exact(3),
+                arg_roles: roles,
+                analyser_hook: hook,
+                command_table_effect: transition,
+                ..CommandSpec::DEFAULT
+            });
+            let selected = registry
+                .resolve_invocation("source-definer", &["provided", "one", ""], None)
+                .unwrap();
+            assert_eq!(
+                selected.authored_source_procedure_arguments().is_some(),
+                expected
+            );
+            if expected {
+                assert_eq!(
+                    selected.authored_source_script_timing_at(2),
+                    Some(crate::ScriptTiming::Deferred)
+                );
+                assert_eq!(
+                    selected.semantics.script_metadata.timing_at(&selected, 2),
+                    Some(crate::ScriptTiming::SameInvocation)
+                );
+            }
+            assert!(selected.semantics.procedure_definition.is_none());
+            assert!(selected.facts().procedure_definition.is_none());
+            assert!(
+                selected
+                    .facts_after_success()
+                    .procedure_definition
+                    .is_none()
+            );
+            assert!(selected.semantics.native_compilation.is_none());
+            let wrong_arity = registry
+                .resolve_invocation("source-definer", &["provided", "one"], None)
+                .unwrap();
+            assert!(wrong_arity.authored_source_procedure_arguments().is_none());
+            let arguments = [crate::InvocationWord::Expanded];
+            let expanded = registry
+                .resolve_structured_invocation(
+                    crate::InvocationWords::structured(
+                        crate::InvocationWord::Literal("source-definer"),
+                        &arguments,
+                    ),
+                    None,
+                )
+                .resolved()
+                .unwrap();
+            assert!(expanded.authored_source_procedure_arguments().is_none());
+        }
+        let registry = {
+            fn immediate(_: crate::InvocationArguments<'_>) -> Vec<(u8, crate::ScriptTiming)> {
+                vec![(2, crate::ScriptTiming::SameInvocation)]
+            }
+            let mut registry = CommandRegistry::build_default();
+            registry.insert(CommandSpec {
+                name: "conflicting-source-definer",
+                arity: Arity::exact(3),
+                arg_roles: ROLES,
+                analyser_hook: Some(crate::hooks::AnalyserHookId::Proc),
+                command_table_effect: Some(CommandTableEffect::DefinesProcedure),
+                script_timing_resolver: Some(immediate),
+                ..CommandSpec::DEFAULT
+            });
+            registry
+        };
+        let selected = registry
+            .resolve_invocation("conflicting-source-definer", &["provided", "one", ""], None)
+            .unwrap();
+        assert!(selected.authored_source_procedure_arguments().is_none());
+        assert_eq!(
+            selected.authored_source_script_timing_at(2),
+            Some(crate::ScriptTiming::SameInvocation)
+        );
     }
 
     #[test]
