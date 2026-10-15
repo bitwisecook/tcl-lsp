@@ -710,13 +710,17 @@ pub(crate) fn caller_frame_reference_spans_from_bindings(
     name: &str,
     bindings: &[CallerFrameBinding],
 ) -> Vec<Span> {
-    if bindings.is_empty() {
+    if bindings.is_empty()
+        || crate::original_context::CurrentSourceContext::capture(source, analysis).is_none()
+    {
         return Vec::new();
     }
     let mut spans: Vec<Span> = bindings.iter().map(|b| b.arg_span).collect();
     if analysis.allows_lexical_declaration_advice() {
         let (start, end, _) = enclosing_frame_region(&analysis.global_scope, cursor_off, source);
-        spans.extend(substituted_read_spans(source, analysis, start, end, name));
+        spans.extend(substituted_read_spans(
+            source, analysis, start, end, cursor_off, name,
+        ));
     } else {
         spans.extend(original_caller_read_spans(analysis, source, bindings, name));
     }
@@ -813,6 +817,7 @@ fn original_caller_read_spans(
 ///
 /// Counting only the immediately-preceding byte would call the even-run rows
 /// escaped and silently drop real references.
+#[cfg(test)]
 fn dollar_is_escaped(bytes: &[u8], at: usize) -> bool {
     let run = bytes[..at]
         .iter()
@@ -822,54 +827,84 @@ fn dollar_is_escaped(bytes: &[u8], at: usize) -> bool {
     run % 2 == 1
 }
 
-/// Spans of every `$name` / `${name}` occurrence in `source[start..end]` that
-/// Tcl actually substitutes.
-///
-/// The inertness proofs ([`crate::inert_text`]) are the same ones
-/// [`crate::definition::lookup_var_read_at`] applies, so a `$name`-shaped run
-/// inside a comment or a brace-quoted data word is not counted here either
-/// — and a backslash-escaped `$`
-/// ([`dollar_is_escaped`]) is no substitution at all.
+/// Actual scalar substitutions in the selected original caller source frame.
+/// Original components own escaping, inertness and complete name geometry;
+/// array roots cannot supply a same-named scalar read.
 fn substituted_read_spans(
     source: &str,
     analysis: &AnalysisResult,
     start: usize,
     end: usize,
+    cursor_off: u32,
     name: &str,
 ) -> Vec<Span> {
+    let Some(current) = crate::original_context::CurrentSourceContext::capture(source, analysis)
+    else {
+        return Vec::new();
+    };
+    let frame = crate::definition::source_frame_extent(analysis, cursor_off);
+    let Some(walk) = crate::refactor::FrameWalk::new(source, analysis) else {
+        return Vec::new();
+    };
+    let config = current.config();
     let mut out = Vec::new();
-    if start >= end || end > source.len() {
-        return out;
-    }
-    let bytes = source.as_bytes();
-    for (form, offset_to_name) in [(format!("${name}"), 1), (format!("${{{name}}}"), 2)] {
-        let mut from = start;
-        while let Some(rel) = source[from..end].find(&form) {
-            let at = from + rel;
-            from = at + 1;
-            if dollar_is_escaped(bytes, at) {
-                continue;
+    crate::executable_regions::visit_analysis_executable_commands(
+        source,
+        analysis,
+        &mut |command, _, _| {
+            let Some(head) = command.argv.first() else {
+                return false;
+            };
+            if crate::definition::source_frame_extent(analysis, head.span.start()) != frame {
+                return false;
             }
-            let after = at + form.len();
-            // A bare `$name` must not be the prefix of a longer name; the
-            // braced form is already delimited by its own `}`.
-            if offset_to_name == 1
-                && bytes
-                    .get(after)
-                    .is_some_and(|b| b.is_ascii_alphanumeric() || *b == b'_' || *b == b':')
-            {
-                continue;
+            let Some(arenas) = walk.components(source, command) else {
+                return false;
+            };
+            for arena in arenas {
+                for part in arena.all_parts() {
+                    if !matches!(part.part, tcl_lexer::ExecutablePart::Variable { .. })
+                        || usize::try_from(part.span.start()).map_or(true, |at| at < start)
+                        || usize::try_from(part.span.end()).map_or(true, |at| at > end)
+                    {
+                        continue;
+                    }
+                    let Some(spelling) = source.get(part.span.as_range()) else {
+                        continue;
+                    };
+                    if tcl_syntax::naming::whole_scalar_variable_reference_name(spelling, config)
+                        != Some(name)
+                    {
+                        continue;
+                    }
+                    let Some(reference) = tcl_lexer::word_parts::scan_var_ref(
+                        source.as_bytes(),
+                        part.span.as_range().start,
+                        config,
+                    )
+                    .ok()
+                    .flatten() else {
+                        continue;
+                    };
+                    if u32::try_from(reference.next).ok() != Some(part.span.end()) {
+                        continue;
+                    }
+                    let Some(range) = reference.name_range_in(source.as_bytes()) else {
+                        continue;
+                    };
+                    let (Ok(first), Ok(last)) =
+                        (u32::try_from(range.start), u32::try_from(range.end))
+                    else {
+                        continue;
+                    };
+                    out.push(Span::new(first, last));
+                }
             }
-            let name_start = u32::try_from(at + offset_to_name).unwrap_or(u32::MAX);
-            if crate::definition::offset_is_inert(source, analysis, name_start) != Some(false) {
-                continue;
-            }
-            out.push(Span::new(
-                name_start,
-                name_start + u32::try_from(name.len()).unwrap_or(0),
-            ));
-        }
-    }
+            false
+        },
+    );
+    out.sort_by_key(|span| (span.start(), span.end()));
+    out.dedup();
     out
 }
 
@@ -2309,5 +2344,60 @@ mod original_binding_region_purpose_tests {
             analysis
                 .matches_original_source_image(&tcl_lexer::SourceImage::document(source), config)
         );
+    }
+}
+
+#[cfg(test)]
+mod original_logical_caller_read_geometry_tests {
+    use super::*;
+    use tcl_compiler::analyser::{Analyser, ResolvedAnalysisInput};
+
+    #[test]
+    fn logical_caller_scalar_reads_use_original_components_and_selected_brace_grammar() {
+        let source = "proc caller {} {puts $a(k); puts ${a}; puts {$a}; puts \"$a\"; puts $aa; proc hidden {} {puts $a}}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let cursor = u32::try_from(source.find("${a}").unwrap()).unwrap();
+        let spans = substituted_read_spans(source, &analysis, 0, source.len(), cursor, "a");
+        assert_eq!(spans.len(), 2, "{spans:?}");
+        assert!(spans.iter().all(|span| &source[span.as_range()] == "a"));
+        assert!(
+            substituted_read_spans(
+                &format!("{source}\n# changed"),
+                &analysis,
+                0,
+                source.len(),
+                cursor,
+                "a"
+            )
+            .is_empty()
+        );
+
+        let source = "proc caller {} {puts ${a{b}c}}";
+        for (style, name) in [
+            (tcl_dialect::BracedVarStyle::FirstClose, "a{b"),
+            (tcl_dialect::BracedVarStyle::Tcl9Nesting, "a{b}c"),
+        ] {
+            let input = Analyser::new().prepare_analysis_input("tcl").unwrap();
+            let mut config = input.lexer_config();
+            config.braced_var = style;
+            let input = ResolvedAnalysisInput::new(
+                input.analyser_profile(),
+                input.unit_profile(),
+                input.context_registry(),
+                config,
+            );
+            let analysis = Analyser::new()
+                .with_resolved_input(input)
+                .analyse(source, "tcl");
+            let cursor = u32::try_from(source.find("${").unwrap()).unwrap();
+            let spans = substituted_read_spans(source, &analysis, 0, source.len(), cursor, name);
+            assert_eq!(spans.len(), 1, "{style:?}: {spans:?}");
+            assert_eq!(&source[spans[0].as_range()], name);
+            let mut missing = analysis.clone();
+            missing.resolved_input = None;
+            assert!(
+                substituted_read_spans(source, &missing, 0, source.len(), cursor, name).is_empty()
+            );
+        }
     }
 }

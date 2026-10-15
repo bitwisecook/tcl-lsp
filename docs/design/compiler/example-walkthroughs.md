@@ -601,7 +601,7 @@ pub struct FunctionUnit {
     pub name: String,                  // qualified name, e.g. ::top, ::foo::bar
     pub cfg: cfg::Function,
     pub ssa: SsaFunction,
-    pub def_use: Arc<DefUseResult>,
+    pub def_use: DefUseFacts,
     pub sccp: SccpResult,              // lattice values, executable blocks, branches
     pub types: Arc<HashMap<ValueKey, TypeLattice>>,
     pub return_type: TypeLattice,
@@ -630,9 +630,12 @@ pub struct CompilationUnit {
 }
 ```
 
-The `Arc`-shared fields (`def_use`, `types`, `taints`, `rendered_props`) are
-span-free, so a memoised unit taken from the incremental cache and rebased to
-a new offset keeps the very same lattice without a deep copy.
+The immutable def-use symbol/version graph inside `DefUseFacts` and the
+`Arc`-shared lattice fields (`types`, `taints`, `rendered_props`) are span-free.
+A rebased unit can share those pure facts without a deep copy; the def-use
+wrapper retains the complete cell inventory and checks each queried symbol’s
+selected key against the current SSA. Existing dependency certificates and restoration govern cache
+reuse independently of this graph sharing.
 
 ---
 

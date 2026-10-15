@@ -699,11 +699,14 @@ mod tests {
                     .def_use
                     .chains
                     .iter()
-                    .any(|((key, _), chain)| key == cell
-                        && chain
-                            .uses
-                            .iter()
-                            .any(|site| site.kind == UseKind::Terminator)),
+                    .any(
+                        |((key, _), chain)| function.def_use.cell_key(&function.ssa, *key)
+                            == Some(cell)
+                            && chain
+                                .uses
+                                .iter()
+                                .any(|site| site.kind == UseKind::Terminator)
+                    ),
                 "{name}: {:?}",
                 function.def_use
             );

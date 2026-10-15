@@ -751,6 +751,8 @@ The compiled `tcl-runtime` WASM artefact is not checked in; it is built from
 `runtime/rust/` on demand, so a fresh checkout picks up the right binary
 without anyone committing one.
 
+The original Jim command entry selects and retains the actual command before resetting the interpreter result. A source String has its own earlier Script-entry reset; a vector or pure List does not acquire that source stage. Previous-result cleanup can replace a table binding, but the selected command reference remains the original allocation. On a miss, diagnostic publication and original frame/namespace checks precede lookup of the interpreter's actual retained Unknown header. The checked borrow refuses a withdrawn role instead of constructing a same-spelled replacement, and no getter or native reference is added merely to observe that header. Original retiring-result slot reads, unknown evaluation-frame/recursion/error-stack behavior and Jim trace execution remain separate contracts; the scoped worker-selection controls establish no full Native callback chronology.
+
 ## 7. Rust API surface
 
 Everything lives in `runtime/rust/src/namespace.rs`, on `impl Namespaces`.

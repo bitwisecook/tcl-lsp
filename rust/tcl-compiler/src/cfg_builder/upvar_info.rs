@@ -894,20 +894,17 @@ fn walk_stmt(
                         continue;
                     };
                     match spec.layout {
-                        FrameArgLayout::AliasPairs | FrameArgLayout::OpaqueCallerVars => {
-                            record_frame_effect(
+                        FrameArgLayout::AliasPairs => {
+                            record_resolved_alias_pairs(
+                                &invocation,
                                 spec,
-                                &invocation.arguments,
                                 params,
                                 registry,
-                                FrameCommandContext {
-                                    bindings: Some(bindings),
-                                    dialect: bindings.invocation_dialect(),
-                                },
-                                namespace,
+                                bindings.invocation_dialect(),
                                 info,
                             );
                         }
+                        FrameArgLayout::OpaqueCallerVars => {}
                         FrameArgLayout::ScriptInCurrentFrame
                         | FrameArgLayout::ScriptInSelectedFrame => {
                             record_resolved_frame_body(
@@ -1399,6 +1396,76 @@ fn record_plain_call(command: &str, info: &mut UpvarInfo) {
 fn widen_beyond_caller(info: &mut UpvarInfo) {
     info.caller_frame_opaque_writes = true;
     info.frame_reach = FrameReach::PastTheCaller;
+}
+
+fn record_resolved_alias_pairs(
+    invocation: &ResolvedBindingInvocation,
+    spec: FrameEffectSpec,
+    parameters: &[String],
+    registry: &CommandRegistry,
+    dialect: Option<tcl_registry::InvocationDialect>,
+    info: &mut UpvarInfo,
+) {
+    use tcl_registry::frame_effect::FrameArgumentResolution;
+    let (level, start) = match invocation.frame_alias_layout(spec, registry, dialect) {
+        FrameArgumentResolution::Valid {
+            level,
+            level_word_len,
+        } => (level, level_word_len),
+        FrameArgumentResolution::Invalid => return,
+        FrameArgumentResolution::Unknown => {
+            widen_beyond_caller(info);
+            return;
+        }
+    };
+    if !level.is_caller_frame() {
+        if !level.is_global_frame() && !level.is_current_frame() {
+            widen_beyond_caller(info);
+        }
+        return;
+    }
+    for source in (start..invocation.arguments.len()).step_by(2) {
+        let Some(destination) = source
+            .checked_add(1)
+            .filter(|index| *index < invocation.arguments.len())
+        else {
+            info.has_unresolvable_caller_target = true;
+            return;
+        };
+        let local = invocation
+            .literal_argument(destination)
+            .filter(|name| is_literal_name(name));
+        let target = invocation
+            .literal_argument(source)
+            .filter(|name| is_literal_name(name));
+        if local.is_none() {
+            info.unnameable_local_aliases
+                .insert(invocation.arguments[source].clone());
+        }
+        if let Some(target) = target {
+            if let Some(local) = local {
+                info.literal_targets
+                    .insert(local.to_owned(), target.to_owned());
+            } else {
+                info.uplevel_literal_writes.insert(target.to_owned());
+            }
+        } else if let Some(parameter) = invocation.scalar_parameter_argument(source, parameters) {
+            if parameter == "args" {
+                if let Some(local) = local {
+                    info.args_tail_upvar.push(local.to_owned());
+                } else {
+                    info.has_unresolvable_caller_target = true;
+                }
+            } else if let Some(local) = local {
+                info.param_targets
+                    .insert(local.to_owned(), parameter.to_owned());
+            } else {
+                info.uplevel_param_writes.insert(parameter.to_owned());
+            }
+        } else {
+            info.has_unresolvable_caller_target = true;
+        }
+    }
 }
 
 /// `upvar ?level? otherVar myVar …` — classify each pair against the frame
@@ -2181,6 +2248,65 @@ mod tests {
             namespace,
             &module,
         )
+    }
+
+    #[test]
+    fn native_frame_aliases_distinguish_written_scalar_reads_from_literal_values() {
+        let environment = crate::environment_ingress::resolve_environment("tcl9.0");
+        let context = environment.default_context_registry();
+        let registry = context.commands();
+        let profile = environment.unit_profile();
+        let (_owner, native) =
+            crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: crate::environment_ingress::authoring_native_compilation(),
+            native_entry: Some(std::sync::Arc::new(native)),
+            ..Default::default()
+        };
+        for (source, parameter) in [
+            ("proc helper {source} {upvar 1 $source local}", true),
+            ("proc helper {source} {upvar 1 \"$source\" local}", true),
+            ("proc helper {source} {upvar 1 {$source} local}", false),
+            (
+                "interp alias {} captured {} upvar 1 {$source}; proc helper {source} {captured local}",
+                false,
+            ),
+        ] {
+            let module = crate::compilation_unit::CompilationUnit::build_with_context_registry(
+                source,
+                crate::compilation_unit::UnitBuildOptions {
+                    registry,
+                    defer_top_level: false,
+                    config: tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+                    dialect: Some(profile),
+                    external_call_sites: None,
+                    declared_commands: None,
+                },
+                Some(&entry),
+                std::sync::Arc::clone(&context),
+            )
+            .ir_module;
+            let id = crate::interprocedural::test_body_identity::fixture_id(
+                &module.procedures,
+                "::helper",
+            );
+            assert!(module.procedure_ids.owns(id));
+            let summaries = crate::cfg_builder::detect_upvar_procs_with_registry(&module, registry);
+            let summary = &summaries[&id];
+            assert_eq!(
+                summary.param_targets.get("local").map(String::as_str),
+                parameter.then_some("source"),
+                "{source}"
+            );
+            if !parameter {
+                assert!(summary.param_targets.is_empty(), "{source}");
+                assert!(
+                    summary.has_unresolvable_caller_target || summary.caller_frame_opaque_writes,
+                    "{source}"
+                );
+            }
+        }
     }
 
     #[test]

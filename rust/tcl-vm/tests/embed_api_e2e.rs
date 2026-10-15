@@ -29,7 +29,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use tcl_compiler::compile_service::BytecodeCompileService;
-use tcl_vm::{Code, CompileService, Completion, NativeCommand, Value, Vm};
+use tcl_vm::{Code, CompileService, Completion, NativeCommand, TclError, Value, Vm};
 
 fn vm() -> Vm {
     let mut vm = Vm::new();
@@ -408,12 +408,20 @@ fn retain_commands_reduces_the_table_to_a_whitelist() {
     );
 }
 
+fn guest_error(error: &TclError) -> &Completion<Value> {
+    let completion = error
+        .guest_completion()
+        .expect("guest fixture error, not host refusal");
+    assert_eq!(completion.code, Code::Error, "{completion:?}");
+    completion
+}
+
 /// Run `script` on the VM and answer its result, or its error as `error: …`.
 fn run(vm: &mut Vm, script: &str) -> String {
     match vm.eval_source(script) {
         Ok(completion) if completion.code.is_ok() => completion.result.to_str().to_string(),
         Ok(completion) => format!("error: {}", completion.result.to_str()),
-        Err(error) => format!("error: {}", error.message),
+        Err(error) => format!("error: {}", guest_error(&error).result.to_str()),
     }
 }
 
@@ -453,24 +461,31 @@ fn a_package_the_host_provides_is_refused_as_package_provide_refuses_it() {
         .expect_err("a different version conflicts");
     assert_eq!(
         run(&mut vm, "package provide hostpkg 2.0"),
-        format!("error: {}", conflict.message),
+        format!("error: {}", guest_error(&conflict).result.to_str()),
         "the message is the script command's"
     );
     assert_eq!(
-        conflict.message,
+        guest_error(&conflict).result.to_str().as_ref(),
         "conflicting versions provided for package \"hostpkg\": 1.0, then 2.0"
     );
-    assert_eq!(
-        conflict.error_code.as_deref(),
-        Some("TCL PACKAGE VERSIONCONFLICT")
-    );
+    let options = guest_error(&conflict)
+        .options
+        .as_list()
+        .expect("original return options");
+    assert_eq!(options.len() % 2, 0, "return options are key/value pairs");
+    let error_codes: Vec<_> = options
+        .chunks_exact(2)
+        .filter(|pair| pair[0].to_str().as_ref() == "-errorcode")
+        .map(|pair| pair[1].to_str().to_string())
+        .collect();
+    assert_eq!(error_codes, ["TCL PACKAGE VERSIONCONFLICT"]);
 
     let invalid = vm
         .package_provide("other", "1..2")
         .expect_err("a malformed version is refused");
     assert_eq!(
         run(&mut vm, "package provide other 1..2"),
-        format!("error: {}", invalid.message),
+        format!("error: {}", guest_error(&invalid).result.to_str()),
         "as the script command refuses it"
     );
     assert_eq!(
@@ -695,11 +710,12 @@ fn embedding_entry_refuses_an_earlier_original_cause_before_new_variable_or_pack
             _ => unreachable!(),
         }
         .expect_err("earlier original cause wins before another operation");
+        let tcl_vm::TclHostFailure::Execution(actual) = error.into_completion().unwrap_err() else {
+            panic!("the original failure must remain in the execution channel");
+        };
         assert_eq!(
-            error.into_completion().unwrap_err(),
-            tcl_vm::TclHostFailure::Execution(
-                tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(original)
-            ),
+            actual,
+            tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(original)
         );
         assert_eq!(
             vm.get_var("kept").unwrap().string_bytes().as_ref(),
@@ -834,11 +850,12 @@ fn caught_publication_preserves_first_typed_host_cause_before_any_guest_access()
     let error = vm
         .publish_caught_error(&failure("unentered", Value::empty()))
         .unwrap_err();
+    let tcl_vm::TclHostFailure::Execution(actual) = error.into_completion().unwrap_err() else {
+        panic!("the original failure must remain in the execution channel");
+    };
     assert_eq!(
-        error.into_completion().unwrap_err(),
-        tcl_vm::TclHostFailure::Execution(
-            tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(original)
-        )
+        actual,
+        tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(original)
     );
     assert_eq!(
         vm.get_var("kept")

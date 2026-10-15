@@ -707,10 +707,11 @@ mod tests {
     use std::ffi::{c_int, c_void};
     use std::rc::Rc;
 
+    use tcl_core_types::NameBytes;
     use tcl_dialect::model::Provenance;
     use tcl_engine_api::{
-        Budget, CommandRegistrar, CompletionCode, Engine, EngineError, HostCommand, HostOutcome,
-        Value,
+        Budget, CommandPublicationService, CommandRegistrar, CompletionCode, Engine, EngineError,
+        HostCommand, HostOutcome, Value,
     };
 
     use super::{
@@ -996,6 +997,7 @@ mod tests {
         log: Vec<String>,
         /// What an evaluation answers; a budget when none is set.
         eval: Option<HostOutcome>,
+        published_command: Option<(NameBytes, Rc<dyn HostCommand>)>,
     }
 
     impl Engine for TwinEngine {
@@ -1015,6 +1017,7 @@ mod tests {
             let name = std::str::from_utf8(&publication.key.simple).map_err(|_| {
                 EngineError::ExecutionRefusal("test engine requires Unicode".into())
             })?;
+            self.published_command = Some((NameBytes::from(name), Rc::clone(&command)));
             self.define_command(name, command)
         }
 
@@ -1181,12 +1184,12 @@ mod tests {
         });
         // SAFETY: `evalret_init` is written against the shim's own exports.
         unsafe { interp.load_static(evalret_init) }.expect("loads");
-        // The engine here has no command table, so the command is the one the
-        // state holds, run through the door of the engine in hand.
-        let command: Rc<dyn HostCommand> = Rc::new(super::ShimCommand {
-            state: Rc::clone(&interp.state),
-            name: "evalret".to_owned(),
-        });
+        let (name, command) = interp
+            .engine_mut()
+            .published_command
+            .take()
+            .expect("the actual load publishes its bound native command");
+        assert_eq!(name.as_bytes(), b"evalret");
         (interp, command)
     }
 

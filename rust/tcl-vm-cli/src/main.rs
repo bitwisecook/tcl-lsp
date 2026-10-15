@@ -485,7 +485,7 @@ mod tests {
         let number = Value::int(17);
         assert!(number.resident_string_bytes().is_none());
         vm.set_var("number", number.clone()).unwrap();
-        let original = Value::from_string_bytes(b"DISPLAY\0TAIL");
+        let original = Value::from_string_bytes(b"DISPLAY\0TAIL".as_slice());
         vm.set_var("original", original.clone()).unwrap();
         let mut reader = std::io::Cursor::new(b"set number\nset original\n");
         let mut out = capture;
@@ -494,8 +494,14 @@ mod tests {
         assert!(output.windows(2).any(|window| window == b"17"));
         assert!(output.windows(12).any(|window| window == b"DISPLAY\0TAIL"));
         assert_eq!(number.resident_string_bytes().unwrap().as_ref(), b"17");
-        assert!(vm.get_var("number").unwrap().is_same_object(&number));
-        assert!(vm.get_var("original").unwrap().is_same_object(&original));
+        assert_eq!(
+            vm.get_var("number").unwrap().native_object_identity(),
+            number.native_object_identity()
+        );
+        assert_eq!(
+            vm.get_var("original").unwrap().native_object_identity(),
+            original.native_object_identity()
+        );
     }
 
     #[test]

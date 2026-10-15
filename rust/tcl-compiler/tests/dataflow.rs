@@ -227,9 +227,7 @@ fn def_use_if_merge_creates_phi_chain() {
         .chains
         .iter()
         .filter(|(k, c)| {
-            fu.ssa
-                .var_symbol("a")
-                .is_some_and(|symbol| k.0 == *fu.ssa.cell_key(symbol))
+            fu.ssa.var_symbol("a").is_some_and(|symbol| k.0 == symbol)
                 && c.definition.kind == DefKind::Phi
         })
         .collect();

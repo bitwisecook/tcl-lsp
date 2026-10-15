@@ -2121,16 +2121,23 @@ struct CachedBodyCompileService {
 
 impl CachedBodyCompileService {
     fn inject(&self, mut module: tcl_bytecode::ModuleAsm) -> tcl_bytecode::ModuleAsm {
+        let mut ids = module.procedures.keys();
+        let Some(id) = ids.next().copied() else {
+            return module;
+        };
+        if ids.next().is_some() {
+            return module;
+        }
         let matches = module
             .procedure_provenance
-            .get(&self.qname)
+            .get(&id)
             .is_some_and(|provenance| {
                 provenance.name == self.qname && provenance.body == self.body_src
             });
-        if matches && let Some(original) = module.procedures.get(&self.qname) {
+        if matches && let Some(original) = module.procedures.get(&id) {
             let mut body = self.body.clone();
             body.plain_command_dispatch = original.plain_command_dispatch;
-            module.procedures.insert(self.qname.clone(), body);
+            module.procedures.insert(id, body);
         }
         module
     }
@@ -2281,8 +2288,8 @@ impl CompileService for CachedBodyCompileService {
 }
 
 /// Build a VM whose pre-compiled body cache holds one entry: a hand-built
-/// assembly returning `marker`, filed under the compiler's rooted `qname` and
-/// admitted only alongside the exact compiler-authored `body_src` provenance.
+/// assembly returning `marker`, joined to the sole compiler-issued body ID and
+/// admitted only alongside its exact compiler-authored `body_src` provenance.
 fn vm_with_cached_body(qname: &str, body_src: &str, marker: &str) -> Vm {
     use tcl_bytecode::{FunctionAsm, Instruction, LiteralTable, LocalVarTable, Op};
 
@@ -2316,13 +2323,10 @@ fn vm_with_cached_body(qname: &str, body_src: &str, marker: &str) -> Vm {
 
 /// `proc` runs the body the compiler already emitted for it.
 ///
-/// `ModuleAsm::procedures` and its exact source provenance are keyed by the
-/// compiler's **rooted** qname (`::p`), while the VM command table uses the
-/// unrooted constructed key (`p`). Admission removes that root exactly once and
-/// matches the raw parameters and body before using the emitted procedure unit.
-///
-/// The qualified case takes the same route: the runtime key is `a::p`, the
-/// compiler's `::a::p`.
+/// `ModuleAsm::procedures` and its exact source provenance share the compiler's
+/// original body ID. The rooted reporting name remains provenance metadata;
+/// it cannot select an emitted body. Both ordinary and qualified definitions
+/// must admit the original body under its independently retained context.
 #[test]
 fn a_proc_runs_the_body_the_compiler_emitted_for_it() {
     let mut vm = vm_with_cached_body("::p", "return SOURCE", "PRECOMPILED");
@@ -2567,5 +2571,8 @@ fn original_trace_facades_keep_the_full_pending_host_cause() {
         panic!("the actual Host command cause must remain complete")
     };
     assert_eq!(payload.reason, "original VM variable trace refusal");
-    assert_eq!(Traces::fire(&mut vm, "x", "read"), Err(first));
+    assert_eq!(
+        Traces::fire(&mut vm, "x", "read").expect_err("full original Host cause"),
+        first
+    );
 }

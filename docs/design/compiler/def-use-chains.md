@@ -4,10 +4,14 @@
 
 Def-use chains link each SSA variable definition to all statements that
 read (use) it.  They are built in two passes over the SSA function
-after SSA construction by `build_def_use_chains(&ssa, Some(&cfg))`
+after SSA construction by `build_def_use_chains(&ssa, Some(&cfg), config)`
 (`rust/tcl-compiler/src/def_use.rs`), and stored as `FunctionUnit::def_use`,
-an `Arc<DefUseResult>` shared rather than deep-copied because the result is
-span-free and therefore survives offset rebasing untouched.
+a `DefUseFacts` wrapper. Its immutable symbol/version graph is shared in an
+`Arc<DefUseResult>`; the wrapper separately retains the complete cell-key
+inventory for facts and equality; each physical query checks its selected key
+against the current SSA.
+Offset rebasing can retain the span-free graph, while dependency certificates
+and checked current cell correspondence independently govern reuse.
 
 The CFG argument is optional and carries the terminator reads — branch
 conditions and `return` values — that the SSA function itself does not
@@ -16,16 +20,16 @@ record.  Passing `None` yields chains without them.
 ## Data Structure
 
 ```rust
-// A *name*-keyed value key — distinct from `ssa::ValueKey`, which is
-// `(Symbol, Version)` over the SSA function's interned variable names.
-pub type SsaValueKey = (String, Version);
+// The same function-local coordinate as SSA; no display-name lookup.
+pub type SsaValueKey = crate::ssa::ValueKey; // (Symbol, Version)
+pub type StorageValueKey = (VariableCellKey, Version);
 
 pub struct DefUseResult {
     pub chains: HashMap<SsaValueKey, DefUseChain>,
 }
 
 pub struct DefUseChain {
-    pub key: SsaValueKey,       // (variable_name, ssa_version)
+    pub key: SsaValueKey,       // (symbol, ssa_version)
     pub definition: DefSite,    // where the value is defined
     pub uses: Vec<UseSite>,     // all sites that read it
 }
@@ -38,11 +42,11 @@ pub struct DefSite {
 
 pub struct UseSite {
     pub block: String,          // for PhiIncoming: the *predecessor* block
-    pub kind: UseKind,          // Operand | PhiIncoming | Terminator
+    pub kind: UseKind,          // Operand | VariableName | PhiIncoming | Terminator
     pub statement_index: i32,   // -1 for phi-incoming and terminator uses
-    pub variable: String,       // for phi: the phi variable
+    pub variable: Symbol,       // for phi: the receiving phi symbol
     pub phi_version: Version,   // for phi: the phi's version
-    pub class: UseClass,        // Substituted | Quoted
+    pub class: UseClass,        // Substituted | Quoted | Name
 }
 ```
 
@@ -61,6 +65,7 @@ and in which frame, is the callee's business.
 |---|---|---|
 | `Substituted` | A genuine read here | everyone |
 | `Quoted` | Carried only by a brace-quoted word nothing evaluates in this frame | liveness / dead-store only |
+| `Name` | A cell is named by an argument without a substituted value operand | liveness and read-before-set; value forwarding cannot rewrite that argument |
 
 The class is carried on the `SsaStatement` as the `quoted_uses` subset of
 `uses`, and `build_def_use_chains` copies it onto each `UseSite`.
@@ -130,19 +135,19 @@ than lowered.
 ## Derivation from SSA
 
 1. **Pass 1 — definitions**: Walk every block.  For each phi node,
-   record `(name, phi.version)` with `DefKind::Phi` and
+   record `(phi.name, phi.version)` with `DefKind::Phi` and
    `statement_index: -1`.  For each statement, record each
-   `(name, ver)` in `stmt.defs` with `DefKind::Statement` and the
-   statement's index.  Each `Symbol` is resolved to its display name
-   through `SsaFunction::var_name`, since the chains are name-keyed.
+   `(symbol, ver)` in `stmt.defs` with `DefKind::Statement` and the
+   statement's index. The kernel retains those exact function-local symbols;
+   display names do not select chains.
 
 2. **Pass 2 — uses**: Walk every block again.
    - Each phi incoming edge `(pred_block, incoming_ver)` records a
      `UseKind::PhiIncoming` use, filed against the *predecessor* block
      and always `UseClass::Substituted`.
-   - Each statement operand `(name, ver)` in `stmt.uses` records a
+   - Each statement operand `(symbol, ver)` in `stmt.uses` records a
      `UseKind::Operand` use, classed `Quoted` when the symbol is in the
-     statement's `quoted_uses`.
+     statement's `quoted_uses`; variable-name uses retain `UseKind::VariableName` and `UseClass::Name`.
    - When the CFG was supplied, `add_terminator_uses` records a
      `UseKind::Terminator` use for each name a `Terminator::Branch`
      condition or a `Terminator::Return` value reads.
@@ -157,12 +162,19 @@ than lowered.
 | `chain.is_dead()` | No uses at all — candidate for dead-store elimination |
 | `chain.use_count()` | Number of use sites |
 | `chain.has_phi_use()` | At least one use is a phi incoming edge |
-| `result.is_dead(name, ver)` | `true` if the SSA value has no uses |
-| `result.uses_of(name, ver)` | All use sites for a given SSA value (an empty slice when none) |
-| `result.reaching_defs(name)` | All SSA definitions of a variable across the function |
-| `result.chain_for(name, ver)` | The chain for one SSA value, if it exists |
+| `result.is_dead(symbol, ver)` | `true` if the SSA value has no uses |
+| `result.uses_of(symbol, ver)` | All use sites for a given SSA value (an empty slice when none) |
+| `result.reaching_defs(symbol)` | All SSA definitions of a variable across the function |
+| `result.chain_for(symbol, ver)` | The chain for one SSA value, if it exists |
 | `result.dead_chains()` | Every chain with no uses |
 | `result.total_defs()` / `result.total_uses()` | Whole-function counts |
+
+`DefUseFacts::{cell_key,symbol,physical_value_key,chain_for_cell}` check the
+selected retained key against the supplied current `SsaFunction`. A changed or
+missing cell identity refuses physical interpretation even when the immutable
+symbol/version graph is reusable. `Deref` exposes that pure shared graph;
+callers needing storage use the checked adapters. Graph equality or a display
+name supplies no current source, frame, represented read or effect permission.
 
 ## Consumer Contracts
 

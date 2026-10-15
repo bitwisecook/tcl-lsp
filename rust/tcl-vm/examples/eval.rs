@@ -46,9 +46,10 @@ fn main() {
             "=== ::top ===\n{}",
             tcl_compiler::codegen::format::format_function_asm(&asm.top_level)
         );
-        for (name, f) in &asm.procedures {
+        for f in asm.procedures.values() {
             eprintln!(
-                "=== proc {name} ===\n{}",
+                "=== proc {} ===\n{}",
+                f.name,
                 tcl_compiler::codegen::format::format_function_asm(f)
             );
         }

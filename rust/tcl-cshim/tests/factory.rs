@@ -22,7 +22,7 @@
 
 use std::ffi::{c_int, c_void};
 
-use tcl_cshim::{Interp, InterpState, Obj, ffi};
+use tcl_cshim::{Interp, InterpState, Obj, ObjRef, ffi};
 use tcl_engine_tclvm::TclVmEngine;
 
 #[cfg(cshim_c_tests)]
@@ -271,7 +271,7 @@ unsafe extern "C" fn original_getter(
     unsafe {
         let first = *words.add(1);
         let second = *words.add(2);
-        if first != second || ffi::tcl_is_shared(first) == 0 {
+        if first != second || (&*first).refcount() <= 1 {
             return ffi::TCL_ERROR;
         }
         let code = if client_data.is_null() {
@@ -488,6 +488,7 @@ fn list_members_and_original_callback_results_keep_the_same_physical_objects() {
 
 #[derive(Default)]
 struct RetainedOriginal {
+    retained: Option<ObjRef>,
     object: *mut Obj,
     string: *mut std::ffi::c_char,
 }
@@ -507,7 +508,7 @@ unsafe extern "C" fn retain_original(
         let state = &mut *data.cast::<RetainedOriginal>();
         let object = *words.add(1);
         if state.object.is_null() {
-            ffi::tcl_incr_ref_count(object);
+            state.retained = Some(ObjRef::adopt(object));
             state.object = object;
             state.string = ffi::tcl_get_string(object);
         } else if state.object != object
@@ -524,10 +525,7 @@ unsafe extern "C" fn retain_original(
 unsafe extern "C" fn release_original(data: *mut c_void) {
     // SAFETY: this owns the registered allocation and its one retained reference.
     unsafe {
-        let state = Box::from_raw(data.cast::<RetainedOriginal>());
-        if !state.object.is_null() {
-            ffi::tcl_decr_ref_count(state.object);
-        }
+        drop(Box::from_raw(data.cast::<RetainedOriginal>()));
     }
 }
 

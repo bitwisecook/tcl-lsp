@@ -29,6 +29,19 @@ use tcl_vm::{
     ProcedureCompileTarget, ProcedureDispatch, ScriptCompileTarget, Value, Vm,
 };
 
+fn sole_compiled_procedure(module: &tcl_bytecode::ModuleAsm) -> &tcl_bytecode::FunctionAsm {
+    assert_eq!(
+        module.procedures.len(),
+        1,
+        "fixture must compile one original procedure"
+    );
+    module
+        .procedures
+        .values()
+        .next()
+        .expect("one compiler-issued body")
+}
+
 struct OptimisedOnlyCompilerSvc(BytecodeCompileService);
 
 struct DishonestPlainCompilerSvc(BytecodeCompileService);
@@ -38,6 +51,55 @@ struct ScriptOnlyCompilerSvc(BytecodeCompileService);
 /// Test-only executable pipeline which opts into the public IR inliner before
 /// CFG/codegen. Production `BytecodeCompileService` deliberately does not.
 struct InliningCompilerSvc(BytecodeCompileService);
+
+impl InliningCompilerSvc {
+    fn compile_script_with_ir(
+        &self,
+        target: ScriptCompileTarget<'_>,
+        profile: &'static DialectProfile,
+    ) -> Result<(tcl_bytecode::ModuleAsm, tcl_compiler::ir::Module), CompileError> {
+        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
+        let config = LexerConfig::from_grammar(profile.grammar);
+        let ir = lower_script_module_for_bytecode(
+            target.source,
+            target.namespace,
+            registry,
+            config,
+            Some(profile),
+            false,
+        );
+        let ir = inline_module(ir, registry);
+        let cfg = build_cfg_codegen(&ir, false);
+        let module = codegen_module(&cfg, &ir, registry)?;
+        Ok((module, ir))
+    }
+}
+
+fn compiled_body_at_declaration<'a>(
+    ir: &tcl_compiler::ir::Module,
+    module: &'a tcl_bytecode::ModuleAsm,
+    declaration: usize,
+    report_name: &str,
+) -> &'a tcl_bytecode::FunctionAsm {
+    let span = ir.top_level.statements[declaration].span();
+    let mut bodies = ir
+        .procedures
+        .iter()
+        .filter(|(_, procedure)| procedure.span == span);
+    let (id, procedure) = bodies.next().expect("body at the original declaration");
+    assert!(
+        bodies.next().is_none(),
+        "one body at the original declaration"
+    );
+    assert_eq!(
+        procedure.qualified_name, report_name,
+        "fixture reporting name"
+    );
+    module
+        .procedures
+        .get(id)
+        .expect("same-module compiled body")
+}
 
 struct CountingCompilerSvc {
     inner: BytecodeCompileService,
@@ -765,19 +827,8 @@ impl CompileService for InliningCompilerSvc {
         target: ScriptCompileTarget<'_>,
         profile: &'static DialectProfile,
     ) -> Result<Self::Module, CompileError> {
-        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
-        let config = LexerConfig::from_grammar(profile.grammar);
-        let ir = lower_script_module_for_bytecode(
-            target.source,
-            target.namespace,
-            registry,
-            config,
-            Some(profile),
-            false,
-        );
-        let ir = inline_module(ir, registry);
-        let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, registry).expect("original source namespace"))
+        self.compile_script_with_ir(target, profile)
+            .map(|(module, _)| module)
     }
 
     fn compile_traced_for_profile(
@@ -1009,11 +1060,18 @@ fn explicit_inline_codegen_pipeline_invalidates_after_user_proc_redefinition() {
     let profile = tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
     let source = "proc target {} {return OLD}; proc caller {} {target}";
     let service = InliningCompilerSvc(BytecodeCompileService::for_profile(profile));
-    let module = service
-        .compile_for_profile(source, profile)
+    let (module, ir) = service
+        .compile_script_with_ir(
+            ScriptCompileTarget {
+                source,
+                namespace: "",
+            },
+            profile,
+        )
         .expect("explicit inline pipeline compiles");
     assert_eq!(
-        module.procedures["::caller"].procedure_bindings,
+        compiled_body_at_declaration(&ir, &module, ir.top_level.statements.len() - 1, "::caller")
+            .procedure_bindings,
         [tcl_runtime_api::ProcedureBindingIdentity::new(
             "target",
             "::target",
@@ -1068,11 +1126,23 @@ fn inlined_bare_procedure_call_revalidates_resolution_after_local_shadow() {
         "proc ::N::caller {} {target}",
     );
     let service = InliningCompilerSvc(BytecodeCompileService::for_profile(profile));
-    let module = service
-        .compile_for_profile(source, profile)
+    let (module, ir) = service
+        .compile_script_with_ir(
+            ScriptCompileTarget {
+                source,
+                namespace: "",
+            },
+            profile,
+        )
         .expect("explicit inline pipeline compiles");
     assert_eq!(
-        module.procedures["::N::caller"].procedure_bindings,
+        compiled_body_at_declaration(
+            &ir,
+            &module,
+            ir.top_level.statements.len() - 1,
+            "::N::caller"
+        )
+        .procedure_bindings,
         [tcl_runtime_api::ProcedureBindingIdentity::in_namespace(
             "N",
             "target",
@@ -1128,10 +1198,17 @@ fn inlined_namespaced_body_revalidates_commands_in_its_defining_namespace() {
         "proc caller {} {::n::callee}\n",
     );
     let service = InliningCompilerSvc(BytecodeCompileService::for_profile(profile));
-    let module = service
-        .compile_for_profile(source, profile)
+    let (module, ir) = service
+        .compile_script_with_ir(
+            ScriptCompileTarget {
+                source,
+                namespace: "",
+            },
+            profile,
+        )
         .expect("explicit inline pipeline compiles");
-    let caller = &module.procedures["::caller"];
+    let caller =
+        compiled_body_at_declaration(&ir, &module, ir.top_level.statements.len() - 1, "::caller");
     assert!(
         caller
             .procedure_bindings
@@ -1209,15 +1286,29 @@ fn active_inlined_namespaced_boundary_replays_in_its_defining_namespace() {
         "proc caller_e {} {::e::callee}\n",
     );
     let service = InliningCompilerSvc(BytecodeCompileService::for_profile(profile));
-    let module = service
-        .compile_for_profile(source, profile)
+    let (module, ir) = service
+        .compile_script_with_ir(
+            ScriptCompileTarget {
+                source,
+                namespace: "",
+            },
+            profile,
+        )
         .expect("explicit inline pipeline compiles");
-    for (caller_name, callee_name, namespace) in [
+    for (index, (caller_name, callee_name, namespace)) in [
         ("::caller_n", "::n::callee", "n"),
         ("::caller_m", "::m::callee", "m"),
         ("::caller_e", "::e::callee", "e"),
-    ] {
-        let caller = &module.procedures[caller_name];
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let caller = compiled_body_at_declaration(
+            &ir,
+            &module,
+            ir.top_level.statements.len() - 3 + index,
+            caller_name,
+        );
         assert!(
             caller
                 .procedure_bindings
@@ -1565,10 +1656,17 @@ fn foreign_proc_provenance_name_must_match_its_module_entry() {
     let mut malformed = service
         .compile("proc wrong {} {return POISON}")
         .expect("malformed source module starts valid");
+    assert_eq!(malformed.procedures.len(), 1, "one original procedure");
+    let id = *malformed
+        .procedures
+        .keys()
+        .next()
+        .expect("compiler-issued body");
     let provenance = malformed
         .procedure_provenance
-        .get_mut("::wrong")
-        .expect("wrong provenance exists");
+        .get_mut(&id)
+        .expect("original procedure provenance exists");
+    assert_eq!(provenance.name, "::wrong");
     provenance.name = "::target".to_owned();
     provenance.body = "return CLAIMED".to_owned();
     let valid = service
@@ -2030,7 +2128,7 @@ fn active_proc_frame_redispatches_after_nested_command_mutation() {
         .compile("proc p {} {mutate; set x [expr {1+2}]; return $x}")
         .expect("module compiles");
     assert!(
-        compiled.procedures["::p"]
+        sole_compiled_procedure(&compiled)
             .command_bindings
             .iter()
             .any(|binding| binding.name == "expr" && binding.identity == "expr"),
@@ -2117,13 +2215,13 @@ fn active_proc_frame_revalidates_a_cfg_consumed_while_head() {
         .compile("proc p {} {mutate; while {0} {}}")
         .expect("module compiles");
     assert!(
-        compiled.procedures["::p"]
+        sole_compiled_procedure(&compiled)
             .command_bindings
             .iter()
             .any(|binding| binding.name == "while" && binding.identity == "while")
     );
     assert!(
-        compiled.procedures["::p"]
+        sole_compiled_procedure(&compiled)
             .instructions
             .iter()
             .any(|instruction| {
@@ -2157,13 +2255,13 @@ fn active_proc_frame_revalidates_a_cfg_consumed_eval_head() {
         .compile(source)
         .expect("module compiles");
     assert!(
-        compiled.procedures["::p"]
+        sole_compiled_procedure(&compiled)
             .command_bindings
             .iter()
             .any(|binding| binding.name == "eval" && binding.identity == "eval")
     );
     assert!(
-        compiled.procedures["::p"]
+        sole_compiled_procedure(&compiled)
             .instructions
             .iter()
             .any(|instruction| {
@@ -2250,7 +2348,7 @@ fn fused_expr_alias_uses_the_alias_binding_identity() {
         .compile("interp alias {} e {} expr; proc p {} {set x [e {1+2}]; return $x}")
         .expect("module compiles");
     assert!(
-        compiled.procedures["::p"]
+        sole_compiled_procedure(&compiled)
             .command_bindings
             .iter()
             .any(|binding| binding.name == "e" && binding.identity == "expr"),
@@ -2491,7 +2589,7 @@ fn non_expr_codegen_hook_redispatches_after_replacement() {
         .compile("proc p {} {mutate; llength {a b c}}")
         .expect("module compiles");
     assert!(
-        compiled.procedures["::p"]
+        sole_compiled_procedure(&compiled)
             .command_bindings
             .iter()
             .any(|binding| binding.name == "llength" && binding.identity == "llength")
@@ -3066,7 +3164,7 @@ fn argument_substitution_mutation_keeps_entered_token_then_deopts_at_next_comman
         .compile("proc p {} {set first [llength [mutate]]; return $first}")
         .expect("literal nested command compiles");
     assert!(
-        marker_module.procedures["::p"]
+        sole_compiled_procedure(&marker_module)
             .instructions
             .iter()
             .any(|instruction| {
@@ -3082,7 +3180,7 @@ fn argument_substitution_mutation_keeps_entered_token_then_deopts_at_next_comman
         "compiler lost the typed literal entered-command marker"
     );
     assert!(
-        !marker_module.procedures["::p"]
+        !sole_compiled_procedure(&marker_module)
             .instructions
             .iter()
             .any(|instruction| {
@@ -3095,7 +3193,7 @@ fn argument_substitution_mutation_keeps_entered_token_then_deopts_at_next_comman
         .compile("proc p {} {set first [llength {*}[mutate]]; return $first}")
         .expect("expanded literal nested command compiles");
     assert!(
-        !expanded_marker_module.procedures["::p"]
+        !sole_compiled_procedure(&expanded_marker_module)
             .instructions
             .iter()
             .any(
@@ -3109,7 +3207,7 @@ fn argument_substitution_mutation_keeps_entered_token_then_deopts_at_next_comman
         .compile("proc p {} {set first [string equal -nocase [mutate] X]; return $first}")
         .expect("literal string ensemble command compiles");
     assert!(
-        invoke_replace_marker_module.procedures["::p"]
+        sole_compiled_procedure(&invoke_replace_marker_module)
             .instructions
             .iter()
             .any(|instruction| {
@@ -3237,7 +3335,7 @@ fn non_expr_lowering_hook_redispatches_after_replacement() {
         .compile("proc p {} {mutate; set x OLD}")
         .expect("module compiles");
     assert!(
-        compiled.procedures["::p"]
+        sole_compiled_procedure(&compiled)
             .command_bindings
             .iter()
             .any(|binding| binding.name == "set" && binding.identity == "set"),
@@ -3262,7 +3360,7 @@ fn escaped_head_stays_on_live_dispatch_after_replacement() {
         .compile(r"proc p {} {mutate; se\x74 x OLD}")
         .expect("module compiles");
     assert!(
-        !compiled.procedures["::p"]
+        !sole_compiled_procedure(&compiled)
             .command_bindings
             .iter()
             .any(|binding| binding.name == "set"),

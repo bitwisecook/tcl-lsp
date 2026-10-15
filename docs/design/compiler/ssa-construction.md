@@ -19,9 +19,9 @@ Source: `rust/tcl-compiler/src/ssa.rs` (`build_ssa`, `Phi`, `SsaBlock`, `SsaFunc
   name interned per `SsaFunction` in first-seen order, so the hot
   per-statement maps key on a copyable id instead of hashing and cloning a
   `String`; `SsaFunction::var_name` resolves a symbol back to its display
-  name and `var_symbol` goes the other way.  (`def_use::SsaValueKey` is a
-  *different*, name-keyed `(String, Version)` pair used by the def-use
-  chains — see below.)
+  name and `var_symbol` goes the other way. `def_use::SsaValueKey` uses
+  the same `(Symbol, Version)` coordinate; current storage interpretation
+  remains a separate checked `DefUseFacts` query.
 - A variable read resolves to the version currently in scope at that
   program point.
 - At merge points (where multiple paths converge), phi nodes select the
@@ -159,12 +159,13 @@ skip that function.
 ### Def-use chain derivation
 
 After SSA construction, def-use chains are built with
-`build_def_use_chains(&ssa, Some(&cfg))` from
+`build_def_use_chains(&ssa, Some(&cfg), config)` from
 `rust/tcl-compiler/src/def_use.rs` and stored as `FunctionUnit::def_use`.
-The chains map each `def_use::SsaValueKey` — a name-keyed `(String,
-Version)`, since the chains are consumed by name-oriented diagnostics — to
-its definition site and all use sites, enabling precise dead-store detection
-and copy propagation.
+The immutable chains map each `def_use::SsaValueKey` — the same
+`(Symbol, Version)` as SSA — to its definition and use sites. `DefUseFacts`
+retains the pure graph and complete original cell inventory for equality;
+physical consumers check each selected key against the current SSA through its
+cell/value/chain adapters before using storage identity.
 
 Phi nodes participate in def-use chains in two roles:
 - **As definitions**: The phi's `(name, version)` is a `DefKind::Phi` def.

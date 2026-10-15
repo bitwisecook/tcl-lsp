@@ -3249,7 +3249,7 @@ fn build_unit_with_keys_and_input<'db>(
         &mut |body_id: tcl_compiler::ir::ProcedureId,
               _display: &str,
               ia: &InterproceduralAnalysis| {
-            let key = memo_key(db, &lattice_keys, Some(body_id))?;
+            memo_key(db, &lattice_keys, Some(body_id))?;
             let actual = interprocedural_owner.get_or_insert_with(|| {
                 let mut actual = (*retained).clone();
                 actual.interproc = Some(ia.clone());
@@ -3265,7 +3265,7 @@ fn build_unit_with_keys_and_input<'db>(
             // is span-free (the offset rebase never touches it), so the unit can
             // share the cached lattice rather than deep-copying it per procedure
             // per build.
-            Some(taint_cascade(db, key, summary_key))
+            Some(taint_cascade(db, summary_key))
         },
     );
     (unit, lattice_keys)
@@ -3329,11 +3329,10 @@ pub struct TaintSummaryKey<'db> {
 #[salsa::tracked(lru = 512, returns(clone))]
 pub fn taint_cascade<'db>(
     db: &'db dyn TclDb,
-    lattice_key: FnLatticeKey<'db>,
     summary_key: TaintSummaryKey<'db>,
 ) -> Arc<HashMap<ValueKey, TaintLattice>> {
     let capsule = summary_key.capsule(db);
-    let registry = lattice_registry(db, lattice_key);
+    let registry = capsule.registry_snapshot().shared_registry();
     let taints = capsule.unit().interproc.as_ref().map_or_else(
         || (*capsule.function().taints).clone(),
         |analysis| {
@@ -3371,14 +3370,13 @@ fn summary_deps_key<'db>(
 #[salsa::tracked(lru = 512, returns(clone))]
 pub fn proc_summary_cascade<'db>(
     db: &'db dyn TclDb,
-    lattice_key: FnLatticeKey<'db>,
     deps_key: SummaryDepsKey<'db>,
 ) -> Arc<ReturnTaintSummary> {
     let inputs = deps_key.inputs(db);
     let capsule = inputs.capsule();
     let known = inputs.known().iter().copied().collect();
     let summaries = inputs.summaries().iter().cloned().collect();
-    let registry = lattice_registry(db, lattice_key);
+    let registry = capsule.registry_snapshot().shared_registry();
     Arc::new(
         tcl_compiler::taint_interproc::infer_proc_summary(
             capsule.unit(),
@@ -3542,9 +3540,6 @@ fn solve_checks_for_unit<'db>(
                 )
                 .expect("solver supplied its actual procedure and function")
             };
-            let Some(lattice_key) = memo_key(db, lattice_keys, Some(body_id)) else {
-                return fresh();
-            };
             if analysis != retained.interproc.as_ref() {
                 return fresh();
             }
@@ -3556,7 +3551,7 @@ fn solve_checks_for_unit<'db>(
                 return fresh();
             };
             let dependencies = summary_deps_key(db, capsule, summaries, known, dialect);
-            (*proc_summary_cascade(db, lattice_key, dependencies)).clone()
+            (*proc_summary_cascade(db, dependencies)).clone()
         },
     );
 
@@ -3742,11 +3737,10 @@ pub struct OptDepsKey<'db> {
 #[salsa::tracked(lru = 512, returns(clone))]
 pub fn function_optimisations<'db>(
     db: &'db dyn TclDb,
-    key: FnLatticeKey<'db>,
     deps: OptDepsKey<'db>,
 ) -> Arc<Vec<Optimisation>> {
-    let registry = lattice_registry(db, key);
     let capsule = deps.capsule(db);
+    let registry = capsule.registry_snapshot().shared_registry();
     Arc::new(
         capsule.original_body_optimisations(&registry, capsule.unit().ir_module.dialect_profile),
     )
@@ -3855,17 +3849,17 @@ fn solve_optimisations<'db>(
     let mut group_base: u32 = 0;
 
     // Per-procedure memoised raw optimisations, rebased to absolute spans.
-    for qname in &source_bodies {
-        let Some(&key) = lattice_keys.get(qname) else {
+    for body_id in &source_bodies {
+        if !lattice_keys.contains_key(body_id) {
             continue;
-        };
-        let Some(proc) = cu.original_procedure_for_body(*qname) else {
+        }
+        let Some(proc) = cu.original_procedure_for_body(*body_id) else {
             continue;
         };
         let body_offset = proc.span.start();
-        let deps = OptDepsKey::new(db, capsules[qname].clone());
+        let deps = OptDepsKey::new(db, capsules[body_id].clone());
         let mut max_group: Option<u32> = None;
-        for opt in function_optimisations(db, key, deps).iter() {
+        for opt in function_optimisations(db, deps).iter() {
             let mut opt = opt.clone();
             opt.span =
                 tcl_lexer::Span::new(opt.span.start() + body_offset, opt.span.end() + body_offset);
@@ -8287,7 +8281,7 @@ p\uD801 ordinary";
         );
 
         // Edit only `b`'s body — `a`/`c` summaries are cache hits; only `b`'s
-        // `proc_summary_cascade` re-executes (its `FnLatticeKey` changed).
+        // `proc_summary_cascade` re-executes when its original summary inputs change.
         file.set_text(&mut db).to("proc a {} { set x 11111 }\n\
              proc b {} { set y 99999999 }\n\
              proc c {} { set z 33333 }\n"
@@ -8333,7 +8327,7 @@ p\uD801 ordinary";
         let dialect = file.dialect(db);
         let registry = db.registry(dialect);
         let declared = declared_command_surface(db, file);
-        let (cu, keys) = build_unit_with_keys(
+        let (cu, _) = build_unit_with_keys(
             db,
             file.text(db),
             unit_build_options(db, file, cfg, registry, None, &declared),
@@ -8381,7 +8375,7 @@ p\uD801 ordinary";
         )
         .expect("actual current compiler owners");
         let dependencies = summary_deps_key(db, capsule, &summaries, &known, dialect);
-        let summary = proc_summary_cascade(db, keys[&caller_id], dependencies);
+        let summary = proc_summary_cascade(db, dependencies);
         SummaryDependencyProbe {
             caller_name: caller,
             caller_body: body,

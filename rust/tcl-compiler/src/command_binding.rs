@@ -13974,6 +13974,8 @@ pub(crate) struct ResolvedBindingInvocation {
     /// [`Self::arguments`] retains their source spelling for diagnostics and
     /// token metadata alignment.
     literal_arguments: Vec<Option<String>>,
+    /// Genuine written scalar substitutions; captured alias values have none.
+    source_scalar_arguments: Vec<Option<String>>,
     /// Exact effective argv length after alias-prefix insertion. Expansion or
     /// another indeterminate source word leaves this unknown.
     exact_argument_count: Option<usize>,
@@ -14006,6 +14008,49 @@ pub(crate) enum ResolvedFrameBody {
 }
 
 impl ResolvedBindingInvocation {
+    pub(crate) fn frame_alias_layout(
+        &self,
+        spec: tcl_registry::frame_effect::FrameEffectSpec,
+        registry: &CommandRegistry,
+        dialect: Option<tcl_registry::InvocationDialect>,
+    ) -> tcl_registry::frame_effect::FrameArgumentResolution {
+        if self.exact_argument_count != Some(self.arguments.len()) {
+            return tcl_registry::frame_effect::FrameArgumentResolution::Unknown;
+        }
+        let words = self
+            .literal_arguments
+            .iter()
+            .map(|value| {
+                value.as_deref().map_or(
+                    tcl_registry::InvocationWord::Dynamic,
+                    tcl_registry::InvocationWord::Literal,
+                )
+            })
+            .collect::<Vec<_>>();
+        let mut arguments =
+            tcl_registry::InvocationArguments::Structured(&words).with_profile(registry.profile());
+        if let Some(dialect) = dialect {
+            arguments = arguments.with_dialect(dialect);
+        }
+        spec.successful_layout(arguments).layout
+    }
+
+    pub(crate) fn literal_argument(&self, index: usize) -> Option<&str> {
+        self.literal_arguments.get(index)?.as_deref()
+    }
+
+    pub(crate) fn scalar_parameter_argument<'a>(
+        &'a self,
+        index: usize,
+        parameters: &[String],
+    ) -> Option<&'a str> {
+        let name = self.source_scalar_arguments.get(index)?.as_deref()?;
+        parameters
+            .iter()
+            .any(|parameter| parameter == name)
+            .then_some(name)
+    }
+
     /// Explicit standalone frame-body shape under the caller's catalogue.
     /// A deliberate unprofiled query keeps its own-surface route; it does not
     /// manufacture an analysis input, native entry or default context.
@@ -14574,12 +14619,35 @@ impl ModuleCommandBindings {
                     | tcl_registry::InvocationArgument::Missing => None,
                 })
                 .collect();
+            let source_scalar_arguments = arguments
+                .iter()
+                .enumerate()
+                .map(|(index, _)| {
+                    let written = index.checked_sub(target.prepended.len())?;
+                    let tokens = tokens.as_ref()?;
+                    let word = tokens.words().get(written.checked_add(1)?)?;
+                    if word.legacy_text() != *args.get(written)? {
+                        return None;
+                    }
+                    let config = tokens
+                        .source_binding
+                        .as_ref()?
+                        .original_lexer_config_for_tokens(tokens)?;
+                    let (spelling, source) = word.sole_variable_substitution()?;
+                    if source.provenance != crate::ir::Provenance::Source {
+                        return None;
+                    }
+                    tcl_syntax::naming::whole_scalar_variable_reference_name(spelling, config)
+                        .map(str::to_owned)
+                })
+                .collect();
             resolved.push(ResolvedBindingInvocation {
                 command: target.command.clone(),
                 source_span,
                 facts,
                 arguments,
                 literal_arguments,
+                source_scalar_arguments,
                 exact_argument_count,
             });
         });
@@ -23778,6 +23846,7 @@ mod selected_replay_formal_tests {
             source_span: tcl_lexer::Span::new(0, 1),
             facts: Box::new(facts),
             literal_arguments: arguments.iter().cloned().map(Some).collect(),
+            source_scalar_arguments: vec![None; arguments.len()],
             exact_argument_count: Some(arguments.len()),
             arguments,
         }

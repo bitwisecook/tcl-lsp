@@ -38,17 +38,46 @@ use tcl_compiler::lowering::lower_to_ir_for_bytecode;
 use tcl_registry::CommandRegistry;
 use tcl_vm::{Code, Vm};
 
-/// Compile `src` and return the AOT body of proc `qname` (e.g. `::p`).
+/// Select the final original declaration in these procedure-only fixtures.
+fn final_declared_body<'a>(
+    ir: &tcl_compiler::ir::Module,
+    module: &'a tcl_bytecode::ModuleAsm,
+    report_name: &str,
+) -> &'a FunctionAsm {
+    let declaration = ir
+        .top_level
+        .statements
+        .last()
+        .expect("original declaration")
+        .span();
+    let mut bodies = ir
+        .procedures
+        .iter()
+        .filter(|(_, procedure)| procedure.span == declaration);
+    let (id, procedure) = bodies
+        .next()
+        .expect("body of the final original declaration");
+    assert!(
+        bodies.next().is_none(),
+        "one body at this original declaration"
+    );
+    assert_eq!(
+        procedure.qualified_name, report_name,
+        "fixture reporting name"
+    );
+    module
+        .procedures
+        .get(id)
+        .expect("same-module compiled body")
+}
+
+/// Compile `src` and return the AOT body of its final original declaration.
 fn compiled_proc_body(src: &str, qname: &str) -> FunctionAsm {
     let registry = CommandRegistry::build_default();
     let ir = lower_to_ir_for_bytecode(src, &registry);
     let cfg = build_cfg_codegen(&ir, false);
     let module = codegen_module(&cfg, &ir, &registry).expect("original source namespace");
-    module
-        .procedures
-        .get(qname)
-        .unwrap_or_else(|| panic!("{qname} not compiled — got {:?}", module.procedures.keys()))
-        .clone()
+    final_declared_body(&ir, &module, qname).clone()
 }
 
 /// Run a proc body compiled by [`compiled_proc_body`] on a fresh VM.
@@ -171,7 +200,7 @@ fn inline_catch_absorbs_child_proc_error() {
     vm.set_compiler(Box::new(BytecodeCompileService::default()));
     assert!(vm.run_module(&module).code.is_ok());
     // Now run the AOT inline-catch body with `boom` registered.
-    let body = module.procedures.get("::p").expect("::p");
+    let body = final_declared_body(&ir, &module, "::p");
     let c = vm.run_function(body);
     assert_eq!(c.code, Code::Ok, "{}", c.result.to_str());
     assert_eq!(&*c.result.to_str(), "1 kaboom");
@@ -243,7 +272,7 @@ fn inline_catch_publishes_error_info() {
     let ir = lower_to_ir_for_bytecode(src, &registry);
     let cfg = build_cfg_codegen(&ir, false);
     let module = codegen_module(&cfg, &ir, &registry).expect("original source namespace");
-    let body = module.procedures.get("::p").expect("::p");
+    let body = final_declared_body(&ir, &module, "::p");
     let mut vm = Vm::new();
     let c = vm.run_function(body);
     assert_eq!(c.code, Code::Ok, "{}", c.result.to_str());

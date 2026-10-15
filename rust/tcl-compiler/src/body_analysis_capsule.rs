@@ -17,6 +17,7 @@ use tcl_registry::CommandRegistry;
 pub struct BodyAnalysisCapsule {
     unit: Arc<CompilationUnit>,
     body: ProcedureId,
+    registry: tcl_registry::RegistrySnapshot,
     neutral: Option<Arc<ClosedBodyProjection>>,
 }
 
@@ -151,6 +152,7 @@ impl BodyAnalysisCapsule {
         Some(Self {
             unit,
             body,
+            registry: registry.snapshot(),
             neutral,
         })
     }
@@ -159,6 +161,12 @@ impl BodyAnalysisCapsule {
     #[must_use]
     pub fn unit(&self) -> &CompilationUnit {
         &self.unit
+    }
+
+    /// Exact immutable Registry used to validate this retained source owner.
+    #[must_use]
+    pub fn registry_snapshot(&self) -> &tcl_registry::RegistrySnapshot {
+        &self.registry
     }
 
     /// The Module-issued body coordinate retained by this capsule.
@@ -235,16 +243,17 @@ impl BodyAnalysisCapsule {
 
 impl PartialEq for BodyAnalysisCapsule {
     fn eq(&self, other: &Self) -> bool {
-        match (&self.neutral, &other.neutral) {
-            (Some(left), Some(right)) => {
-                left.declaration == right.declaration
-                    && left.body == right.body
-                    && ((self.body == other.body && Arc::ptr_eq(&self.unit, &other.unit))
-                        || left == right)
+        self.registry == other.registry
+            && match (&self.neutral, &other.neutral) {
+                (Some(left), Some(right)) => {
+                    left.declaration == right.declaration
+                        && left.body == right.body
+                        && ((self.body == other.body && Arc::ptr_eq(&self.unit, &other.unit))
+                            || left == right)
+                }
+                (None, None) => self.body == other.body && Arc::ptr_eq(&self.unit, &other.unit),
+                _ => false,
             }
-            (None, None) => self.body == other.body && Arc::ptr_eq(&self.unit, &other.unit),
-            _ => false,
-        }
     }
 }
 
@@ -252,6 +261,7 @@ impl Eq for BodyAnalysisCapsule {}
 
 impl Hash for BodyAnalysisCapsule {
     fn hash<H: Hasher>(&self, state: &mut H) {
+        self.registry.hash(state);
         if let Some(projection) = &self.neutral {
             projection.declaration.hash(state);
             projection.body.hash(state);
@@ -997,6 +1007,27 @@ mod tests {
         assert!(std::ptr::eq(capsule.function(), &unit.procedures[&body]));
         assert_eq!(capsule.body_id(), body);
         assert_eq!(capsule, capsule.clone());
+    }
+
+    #[test]
+    fn retained_body_registry_keeps_the_actual_source_store() {
+        let (context, unit) = unit("proc helper {} {return SAFE}\nproc caller {} {helper}");
+        let body = *unit
+            .ir_module
+            .procedures
+            .unique_display("::caller")
+            .unwrap()
+            .0;
+        let capsule =
+            BodyAnalysisCapsule::retain(Arc::clone(&unit), body, context.commands()).unwrap();
+        assert!(!capsule.has_closed_analysis_correspondence());
+        assert_eq!(capsule.registry_snapshot(), &context.commands().snapshot());
+        assert!(Arc::ptr_eq(
+            &capsule.registry_snapshot().shared_registry(),
+            &context.commands().snapshot().shared_registry()
+        ));
+        let foreign = tcl_registry::model::ingress::static_context_for("tcl9.1");
+        assert!(BodyAnalysisCapsule::retain(unit, body, foreign.commands()).is_none());
     }
 
     #[test]

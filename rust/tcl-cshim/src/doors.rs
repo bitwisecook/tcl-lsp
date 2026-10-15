@@ -408,8 +408,8 @@ mod tests {
     };
 
     use super::{
-        TCL_ERROR, TCL_EVAL_DIRECT, TCL_GLOBAL_ONLY, TCL_LEAVE_ERR_MSG, TCL_OK, Verb, compose,
-        evaluate, get_variable, provide_package, root, set_variable, unset_variable,
+        TCL_ERROR, TCL_EVAL_DIRECT, TCL_GLOBAL_ONLY, TCL_LEAVE_ERR_MSG, TCL_OK, Verb, bridge_name,
+        evaluate, get_variable, provide_package, set_variable, unset_variable,
     };
     use crate::obj::{Obj, ObjRef, TclError};
     use crate::state::{DoorRef, InterpState};
@@ -558,13 +558,15 @@ mod tests {
 
     #[test]
     fn an_array_name_with_a_parenthesis_is_refused() {
-        let error = compose("a(b", Some("k"), Verb::Read).expect_err("refused");
+        let error = bridge_name("a(b", Some("k"), Verb::Read, false).expect_err("refused");
         assert!(
-            error
-                .message
-                .windows(b"cannot name the array".len())
-                .any(|word| word == b"cannot name the array"),
+            matches!(error.host.as_deref(), Some(EngineError::ExecutionRefusal(reason))
+            if reason == "the engine's combined-name door cannot preserve the selected variable operands"),
             "{error:?}"
+        );
+        assert!(
+            error.message.is_empty(),
+            "host refusal has no guest message"
         );
         assert_eq!(error.code, None);
     }
@@ -849,6 +851,7 @@ mod tests {
                 .result()
                 .get()
                 .text()
+                .expect("Unicode test object")
                 .starts_with("no engine door is open")
         );
         state.reset_result();
@@ -861,6 +864,7 @@ mod tests {
                 .result()
                 .get()
                 .text()
+                .expect("Unicode test object")
                 .starts_with("no engine door is open")
         );
         state.reset_result();
@@ -871,6 +875,7 @@ mod tests {
                 .result()
                 .get()
                 .text()
+                .expect("Unicode test object")
                 .starts_with("no engine door is open")
         );
     }
@@ -1159,7 +1164,7 @@ mod tests {
             state.refuse_host(EngineError::ExecutionRefusal("later C door refusal".into()));
             assert_eq!(state.take_host_refusal(), Some(first.clone()));
             assert_eq!(state.fatal(), None);
-            assert_eq!(state.take_return_options(), None);
+            assert!(state.take_return_options().is_none());
         }
         assert_eq!(fake.log, ["eval originalTypedFailure"]);
         assert!(first.native_execution_failure().is_some());

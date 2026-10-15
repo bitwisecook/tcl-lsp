@@ -341,6 +341,28 @@ source diagnostics use shared written component extents and registry package
 exclusions, and decline Jim's absent C implementation namespace. The dialect
 scanner uses shared written-name geometry only to produce a bounded source hint.
 
+Per-object receiver advice selects the genuine effective written operand and
+its original whole source word under the complete lexer configuration before
+shared scalar-reference recognition. Captured literal values cannot supply a
+variable read. Factory-return advice uses retained typed source words and the
+actual FunctionUnit configuration, including terminators; it does not infer a
+return variable from the last raw statement. These conditional shapes supply
+no current object, cell, completed read or Native dispatch.
+
+Body summary capsules retain the exact Registry snapshot that passed their
+actual body, source and CFG correspondence checks. Equality and hashing retain
+that snapshot. Procedure summaries, taint cascade and optimisation memo queries
+use this same owner; a lattice key is not retained solely as a second Registry
+route. Producer eligibility, source dependency certificates, complete Module
+ownership and trace/complexity refusals remain independent.
+
+Upvar summary operands preserve original written scalar-reference syntax only
+when actual whole source, full configuration and current argument agree.
+Captured prefixes remain literal values. The selected Registry successful
+frame layout and exact effective-argument cardinality precede actual formal
+membership; this source relationship supplies no entered frame or installed
+alias and preserves separate Native literal and Logical source-frame guards.
+
 Parameter-body passthrough detection reads the actual retained original whole
 operand and complete lexer configuration. A sole scalar substitution selected
 by the shared reference grammar must match both the authored parameter and
@@ -719,6 +741,20 @@ Class display names are report metadata. This query supplies conditional
 Logical incoming-call advice; Native dispatch and editing retain their own
 owners. `logical_workspace_member_provider_uses_current_source_owners_instead_of_labels`
 checks these boundaries.
+
+Logical workspace outgoing navigation retains a separate
+`OriginalLogicalCommandCandidates` for each actual source occurrence, even
+when the inventory groups equal head labels. The source issuer checks the
+original whole vector, complete current input and actual retained body scope;
+the shared authored naming owner retains ordered namespace/path candidates
+and known original import coordinates. Unknown paths and unsupported body
+scopes decline. Earlier unknown mutations remain applicability premises.
+Original procedure Name/scope and selected class factory Name/body joins issue
+readonly target coordinates independently of display names. The index retains
+every declaration at the first matching coordinate; ambiguous candidates do
+not choose an arbitrary file. The target revision and bytes must remain current
+before its original range is converted. These conditional source relationships
+supply no Native lookup, installed command, body entry or edit authority.
 
 ## Rename error names
 

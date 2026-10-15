@@ -522,6 +522,7 @@ fn check_empty_lappend(profile: &str, op: Op, initial: Option<&str>, action: &st
         top_level_body: FunctionAsm::default(),
         procedures: HashMap::new(),
         procedure_provenance: HashMap::new(),
+        manifest: None,
     };
     let result = vm.run_module(&module);
     if array && matches!(action, "unset" | "recreate") {
@@ -1153,6 +1154,7 @@ fn run_f5_module(vm: &mut Vm, asm: Asm) -> Completion<Value> {
         top_level_body: FunctionAsm::default(),
         procedures: HashMap::new(),
         procedure_provenance: HashMap::new(),
+        manifest: None,
     };
     vm.run_module(&module)
 }
@@ -1173,6 +1175,7 @@ fn bare_matches_opcode_withdraws_without_authored_policy() {
             top_level_body: FunctionAsm::default(),
             procedures: HashMap::new(),
             procedure_provenance: HashMap::new(),
+            manifest: None,
         };
         assert!(vm.try_run_module(&module).is_err(), "{name}");
     }
@@ -2409,17 +2412,18 @@ mod compiler {
     impl SeededProcCompileService {
         fn inject(&self, src: &[u8], mut module: ModuleAsm) -> ModuleAsm {
             if src == SEEDED_PROC_DEF.as_bytes() {
-                module
+                assert_eq!(module.procedures.len(), 1, "one seed procedure");
+                let id = *module
                     .procedures
-                    .get("::p")
-                    .expect("seed source must compile procedure ::p");
-                // `cmd_proc` asks the sidecar cache for its runtime-qualified
-                // (unrooted) command key. The compiler's analysis key remains
-                // rooted, so install the executable replacement under `p`.
+                    .keys()
+                    .next()
+                    .expect("compiler-issued seed body");
+                let original = module.procedures.get(&id).expect("seed body");
+                assert_eq!(original.name, "::p", "seed reporting name");
                 let mut body = self.body.clone();
                 body.plain_command_dispatch = module.plain_command_dispatch;
                 body.command_bindings.clear();
-                module.procedures.insert("::p".to_string(), body);
+                module.procedures.insert(id, body);
             }
             if src == SEEDED_METHOD_BODY.as_bytes() {
                 let mut body = self.body.clone();

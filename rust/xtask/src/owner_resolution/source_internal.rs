@@ -1844,6 +1844,9 @@ impl<'ast> Visit<'ast> for ConsumerReferences<'_> {
             self.invalid = true;
             return;
         }
+        if let syn::Pat::Type(typed) = &local.pat {
+            self.visit_type(&typed.ty);
+        }
         let name = match &local.pat {
             syn::Pat::Ident(name) => Some(name.ident.to_string()),
             syn::Pat::Type(ty) => match ty.pat.as_ref() {
@@ -2085,6 +2088,26 @@ mod tests {
             route: route.into(),
         };
         (modules, row)
+    }
+
+    #[test]
+    fn source_type_routes_follow_explicit_local_annotations_only() {
+        let owner = "pub(super) struct Ledger;";
+        for consumer in [
+            "use super::owner::Ledger; fn consume() { let value: Ledger = make(); }",
+            "fn consume() { let value: Option<super::owner::Ledger> = make(); }",
+        ] {
+            let (modules, row) = fixture(owner, consumer, "Ledger", "type");
+            assert!(modules.check_row(&row), "{consumer}");
+        }
+        for consumer in [
+            "struct Other; fn consume() { let value: Other = make(); }",
+            "use super::owner::Ledger; fn consume() { let value = make(); }",
+            "use super::owner::Ledger; fn consume() { #[cfg(test)] let value: Ledger = make(); }",
+        ] {
+            let (modules, row) = fixture(owner, consumer, "Ledger", "type");
+            assert!(!modules.check_row(&row), "{consumer}");
+        }
     }
 
     #[test]

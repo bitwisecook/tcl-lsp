@@ -1187,7 +1187,8 @@ fn uplevel_running_twice_is_noop() {
         .procedures
         .get(&fixture_id(&m.procedures, "::caller"))
         .expect("authored fixture body")
-        .body;
+        .body
+        .clone();
     assert_eq!(first.statements.len(), second.statements.len());
     assert_eq!(&first, &second, "second pass is structurally a no-op");
 }

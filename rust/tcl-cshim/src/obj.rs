@@ -734,8 +734,8 @@ impl Obj {
             self.canonical.set(true);
             return Ok(());
         }
-        let donor = Self::from_original(Rc::clone(original), state)?;
-        let string = donor.string.into_inner();
+        let mut donor = Self::from_original(Rc::clone(original), state)?;
+        let string = donor.string.get_mut().take();
         // Repeated reads preserve the C pointer while resident storage is unchanged.
         if self.string.borrow().as_deref() != string.as_deref()
             || self.storage.get() != donor.storage.get()
@@ -743,7 +743,7 @@ impl Obj {
             self.set_string(string);
         }
         self.storage.set(donor.storage.get());
-        *self.rep.borrow_mut() = donor.rep.into_inner();
+        *self.rep.borrow_mut() = std::mem::replace(donor.rep.get_mut(), Rep::None);
         self.canonical.set(donor.canonical.get());
         Ok(())
     }
