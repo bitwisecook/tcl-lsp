@@ -1458,10 +1458,7 @@ fn repeat_rows(expr: &str) -> Option<Vec<Vec<String>>> {
     Some(rows)
 }
 
-/// One `OptionTerm::…(…)` expression as an author spells the term.
-///
-/// The inverse of the loader's `relation_term`, so a relation round-trips
-/// through the exporter byte-identically to how it was authored.
+/// Construct a relation's inner Tcl list value from its Rust expression.
 fn relation_term_word(expr: &str) -> Option<String> {
     let expr = expr.trim();
     let open = expr.find('(')?;
@@ -1477,10 +1474,8 @@ fn relation_term_word(expr: &str) -> Option<String> {
         }
         _ => return None,
     };
-    // The term's *content*, unquoted: the caller brace-quotes it once, either
-    // as a standalone subject word or as one element of the term list.
-    // Quoting here as well would double-brace `{arg 0}` inside the list.
-    Some(words.join(" "))
+    // The loader parses the term as a list after reading the outer source word.
+    Some(tcl_syntax::list::join_list(&words))
 }
 
 /// The `.tclspec` axis and value words from a rendered [`EffectAxis`]
@@ -5184,6 +5179,42 @@ mod tests {
             let rows = option_conflict_rows(expr, true).expect("the relation parses");
             assert_eq!(rows[0].join(" "), expected, "{expr}");
         }
+    }
+
+    #[test]
+    fn relation_term_values_survive_nested_list_render_and_load() {
+        use tcl_registry::{OptionRelation, OptionTerm, relation::RelationKind};
+        const RELATIONS: &[OptionRelation] = &[OptionRelation {
+            kind: RelationKind::Forbids,
+            subject: Some(OptionTerm::OptionValue("-subject", "two words")),
+            terms: &[
+                OptionTerm::OptionValue("-space", "two words"),
+                OptionTerm::OptionValue("-slash", r"one\two"),
+                OptionTerm::ArgumentValue(0, ""),
+                OptionTerm::ArgumentValue(1, "{nested}"),
+                OptionTerm::ArgumentValue(2, "$name [command];"),
+                OptionTerm::ArgumentValue(3, "é"),
+                OptionTerm::ArgumentValue(4, "line\nnext"),
+                OptionTerm::ArgumentValue(5, "tail\\"),
+            ],
+            ..OptionRelation::DEFAULT
+        }];
+        let spec = tcl_registry::CommandSpec {
+            name: "probe::relations",
+            option_relations: RELATIONS,
+            ..tcl_registry::CommandSpec::DEFAULT
+        };
+        let before = draft::from_command_spec(&spec);
+        let text = render_pack(std::slice::from_ref(&before), "probe");
+        let pack = crate::spectcl::evaluate_pack(&text);
+        assert!(pack.notices.is_empty(), "{:?}\n{text}", pack.notices);
+        let reloaded = pack.command("probe::relations").unwrap().spec;
+        assert_eq!(reloaded.option_relations, RELATIONS, "{text}");
+        assert_eq!(
+            draft::from_command_spec(reloaded).get("option_relations"),
+            before.get("option_relations"),
+            "{text}",
+        );
     }
 
     #[test]

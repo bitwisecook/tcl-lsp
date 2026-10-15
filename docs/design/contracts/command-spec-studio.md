@@ -805,6 +805,12 @@ studio renders parses back to the roles the draft declared.
 
 Both deliveries are rendered on every export; the pane offers one at a time.
 
+Option-relation terms contain nested Tcl list values. The renderer constructs
+those values with the shared Syntax list encoder before applying the outer
+SpecTcl word spelling. Whitespace, backslashes, empty values and Tcl syntax
+characters remain data at both levels; the loaded relation must equal the
+original structured relation.
+
 ## The export is the pack
 
 The unit of work is the pack — an author builds a library command by
