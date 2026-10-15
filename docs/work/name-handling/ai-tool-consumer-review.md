@@ -1,5 +1,7 @@
 # Bounded MCP and AI consumer review
 
+Fresh ordinary272 on actual source238 seals956 controls: 643 PASS, 312 FAIL, 1 TIMEOUT. Its single-job fresh build passes in348.483727 seconds with14 test ELFs, errors[] and unchanged authored source, executing zero tests during the build. All12 selected scopes retain unchanged captured source/binaries, exact single runs and no missing/empty filters. Every265929 selector remains with1 gain and0 prior-PASS regressions/drops; eight additions within retained scopes are7 PASS/1 FAIL; the independent IRules19 scope is16 PASS/3 FAIL. Original#2286 runs first and passes72.400995379s under the unchanged180-second budget. Runtime174/VM133 and formatter88/integration55/15 annexes remain unexecuted plans; normal owner CLI250 still197 diagnostics.
+
 ## Current238 handoff scope
 
 MCP actual profiled source/Expr transport186, pool encoding199, configured literal RHS216 and Written object-name decoding231 are adopted. Source221 MCP43 is32 PASS/11 FAIL, including a URI hint gain;231 needs fresh replay. Model/tool reports, Rust grammar parsers and heuristic generated sample data are distinct from Tcl target lookup. The aggressive minifier remains a genuine Core alias-reference emitter with evidence/design only.
@@ -194,3 +196,5 @@ requests followed by rename; literal callback alias before/after unknown
 writer; namespace-imported cursor location before rename and unknown writer.
 Tie any conformance claim to the retained interpreter/native-context oracle
 for the exact question. Canonical proof/provider records are unchanged.
+
+Final source238 validation: [ordinary272 current snapshot](current-state.md#current272-selected-scopes); exact portable receipts and unfinished owner work are indexed in [handoff/README.md](handoff/README.md). Historical scope in this document remains bounded to its stated capture.

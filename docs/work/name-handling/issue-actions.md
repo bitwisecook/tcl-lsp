@@ -6,9 +6,9 @@ centralisation. This is temporary coordination material; remove before merge.
 
 ## #2286 — keep open
 
-Root's fresh read on15 October2026 confirms OPEN, GitHub updated2026-10-12T22:29:51Z. The unchanged original selector `analyser::diagnostics::tests::tcltest_oracle_program_keeps_missing_reads_and_setup_completion` passes in ordinary265 at70.901856808 wrapper seconds under its original180-second budget. This is the latest measured original-program result, on source221.
+Root's fresh read on15 October2026 confirms OPEN, GitHub updated2026-10-12T22:29:51Z. The unchanged original selector `analyser::diagnostics::tests::tcltest_oracle_program_keeps_missing_reads_and_setup_completion` passes in ordinary272 at72.400995379 wrapper seconds under its original180-second budget. This is the latest measured original-program result, on source238.
 
-The earlier one-versus-two C8.4 warning and180/600-second timeout receipts are bounded prior failures, not current source verdicts. Preserve those receipts, all reported programs, both original `$absent` expectations, matching interpreter init/Tcltest files, forty-case alias setup and original negative/import/shared-read controls. Current265 still has200 Compiler failures and a separate deep-forwarding timeout. A single original-program PASS does not close remaining naming consumers, import/read/refusal obligations or#2286; publish issue changes only with precise scoped acceptance.
+The earlier one-versus-two C8.4 warning and180/600-second timeout receipts are bounded prior failures, not current source verdicts. Preserve those receipts, all reported programs, both original `$absent` expectations, matching interpreter init/Tcltest files, forty-case alias setup and original negative/import/shared-read controls. Current272 still has200 Compiler failures and 1 separately measured deep-forwarding timeout. A single original-program PASS does not close remaining naming consumers, import/read/refusal obligations or#2286; publish issue changes only with precise scoped acceptance.
 
 ## #2287 — verified and closed
 
@@ -46,3 +46,5 @@ Use [issues.md](issues.md) for the related open/closed issue catalogue and
 Pending provider answers and failed setup do not establish runtime bugs. New
 issues require exact input/source/reached-stage/output evidence. F5 answers
 remain independent until returned by the appliance chat.
+
+Final source238 validation: [ordinary272 current snapshot](current-state.md#current272-selected-scopes); exact portable receipts and unfinished owner work are indexed in [handoff/README.md](handoff/README.md). Historical scope in this document remains bounded to its stated capture.

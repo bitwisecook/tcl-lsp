@@ -517,8 +517,8 @@
   "failed": [],
   "handoff_context": {
     "source_epoch": 238,
-    "checkpoint_basis": "b076a4095 push-confirmed; inspect actual later HEAD",
-    "current_status": "Source238 adopted; TEMP270 restored all3/97819 exactly; ordinary271 build failed/0 tests; ordinary272 single-job retry active, no fresh acceptance",
+    "checkpoint_basis": "4e20920a5 push-confirmed before this terminal result refresh; inspect actual later HEAD",
+    "current_status": "Source238 adopted; TEMP270 restored; ordinary271 failed0tests; fresh ordinary272 sealed956=643PASS/312FAIL/1TIMEOUT; Native174/VM133 unexecuted",
     "canonical_status": "current-state.md",
     "continuation": "continue-prompt.md",
     "portable_work": "handoff/README.md",
@@ -529,6 +529,112 @@
       "read_date": "2026-10-15",
       "updated_at": "2026-10-12T22:29:51Z",
       "scope": "Root narrow GitHub read only; all other historical states unchanged"
+    },
+    "ordinary272": {
+      "source_epoch": 238,
+      "build_exit": 0,
+      "build_seconds": 348.483727,
+      "test_artifacts": 14,
+      "total": 956,
+      "pass": 643,
+      "fail": 312,
+      "timeout": 1,
+      "scope_counts": {
+        "compiler": {
+          "count": 480,
+          "pass": 279,
+          "fail": 200,
+          "timeout": 1
+        },
+        "core": {
+          "count": 247,
+          "pass": 165,
+          "fail": 82,
+          "timeout": 0
+        },
+        "db": {
+          "count": 76,
+          "pass": 63,
+          "fail": 13,
+          "timeout": 0
+        },
+        "syntax": {
+          "count": 7,
+          "pass": 7,
+          "fail": 0,
+          "timeout": 0
+        },
+        "source": {
+          "count": 42,
+          "pass": 42,
+          "fail": 0,
+          "timeout": 0
+        },
+        "studio": {
+          "count": 3,
+          "pass": 3,
+          "fail": 0,
+          "timeout": 0
+        },
+        "spectcl": {
+          "count": 1,
+          "pass": 1,
+          "fail": 0,
+          "timeout": 0
+        },
+        "registry": {
+          "count": 12,
+          "pass": 12,
+          "fail": 0,
+          "timeout": 0
+        },
+        "mcp": {
+          "count": 43,
+          "pass": 32,
+          "fail": 11,
+          "timeout": 0
+        },
+        "server": {
+          "count": 15,
+          "pass": 12,
+          "fail": 3,
+          "timeout": 0
+        },
+        "lexer": {
+          "count": 11,
+          "pass": 11,
+          "fail": 0,
+          "timeout": 0
+        },
+        "irules": {
+          "count": 19,
+          "pass": 16,
+          "fail": 3,
+          "timeout": 0
+        }
+      },
+      "source_drift": {},
+      "binary_unchanged": true,
+      "all265929_retained": true,
+      "gains_vs265": 1,
+      "prior_pass_regressions_vs265": 0,
+      "comparison_receipt": "handoff/reviews/ordinary272-final-analysis.json",
+      "original2286_first_seconds": 72.400995379,
+      "original2286_budget_seconds": 180,
+      "scope": "selected ordinary only; no Native/VM/F5/normal-owner-CLI or whole-codebase acceptance"
+    },
+    "finite330_binding": {
+      "source_epoch": 238,
+      "rows_bound": 330,
+      "unchanged217": 309,
+      "additive238": 21,
+      "unbound": 0,
+      "receipts": [
+        "handoff/reviews/five-row-bind.json",
+        "handoff/reviews/db16-current238.json",
+        "handoff/reviews/finite330-current238.json"
+      ],
+      "scope": "Finite source/caller review, not migration count or entire codebase coverage"
     }
   }
 }

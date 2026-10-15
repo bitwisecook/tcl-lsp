@@ -1,5 +1,7 @@
 # Runtime name consumer audit
 
+Fresh ordinary272 on actual source238 seals956 controls: 643 PASS, 312 FAIL, 1 TIMEOUT. Its single-job fresh build passes in348.483727 seconds with14 test ELFs, errors[] and unchanged authored source, executing zero tests during the build. All12 selected scopes retain unchanged captured source/binaries, exact single runs and no missing/empty filters. Every265929 selector remains with1 gain and0 prior-PASS regressions/drops; eight additions within retained scopes are7 PASS/1 FAIL; the independent IRules19 scope is16 PASS/3 FAIL. Original#2286 runs first and passes72.400995379s under the unchanged180-second budget. Runtime174/VM133 and formatter88/integration55/15 annexes remain unexecuted plans; normal owner CLI250 still197 diagnostics.
+
 ## Current238 handoff scope
 
 Current238 includes the actual private/public Jim helper family and weak original namespace/frame/key/argv/list ownership, variable inventory177, staged factor184, Parent237 and Text238. Parent/Text preserve shared-empty versus paired fresh qualifiers and allocation-only rc0 append ordering. Latest full executed selected Runtime249158/158 is source133; Runtime268170 builds fail before tests and its observer is fixed222 without replay. Remaining import helper and roster/traversal/reentrant/final-free obligations stay explicit.
@@ -44,3 +46,5 @@ Scope: production `runtime/rust/src`, read on 2026-10-13. This inventories polic
 | `cmd_mathfunc.rs`, `cmd_mathop.rs`, information/trace/tooling reporting helpers | Some pure qualifier components or fixed support namespace keys; reporting derives from actual command token where available. | Keep analytical/reporting keys explicit; component parsing already shared, no command presence authority from labels. |
 
 Unresolved operation questions remain separate: raw original C-string NUL versus Tcl STRING Unicode NUL; namespace query versus ordinary scalar/element flags; retired and same-display recreated namespace tokens; rename-window display collisions; direct native byte-array/header/cell equivalence. Existing retained proofs bound these questions. F5 answers must come from the appliance chat, not C compatibility inheritance.
+
+Final source238 validation: [ordinary272 current snapshot](current-state.md#current272-selected-scopes); exact portable receipts and unfinished owner work are indexed in [handoff/README.md](handoff/README.md). Historical scope in this document remains bounded to its stated capture.

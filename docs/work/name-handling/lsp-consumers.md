@@ -1,8 +1,10 @@
 # LSP, database, server and editor name consumer audit
 
+Fresh ordinary272 on actual source238 seals956 controls: 643 PASS, 312 FAIL, 1 TIMEOUT. Its single-job fresh build passes in348.483727 seconds with14 test ELFs, errors[] and unchanged authored source, executing zero tests during the build. All12 selected scopes retain unchanged captured source/binaries, exact single runs and no missing/empty filters. Every265929 selector remains with1 gain and0 prior-PASS regressions/drops; eight additions within retained scopes are7 PASS/1 FAIL; the independent IRules19 scope is16 PASS/3 FAIL. Original#2286 runs first and passes72.400995379s under the unchanged180-second budget. Runtime174/VM133 and formatter88/integration55/15 annexes remain unexecuted plans; normal owner CLI250 still197 diagnostics.
+
 ## Current238 handoff scope
 
-Typed declaration/cursor consumers190/208/209, full inline229 and formatter230 are adopted. Source221 Core243 is161 PASS/82 FAIL; Server15 is12/3; DB76 is63/13. Current238 acceptance awaits272. Remaining live work is authentic Logical scope/occurrence transport, positive source call catalogue/occupancy and aggressive-minifier alias-reference construction; do not restore String inverse joins.
+Typed declaration/cursor consumers190/208/209, full inline229 and formatter230 are adopted. Source221 Core243 is161 PASS/82 FAIL; Server15 is12/3; DB76 is63/13. Current238 selected Core272 is165 PASS/82 FAIL across247 controls; broader editing/formatter annexes remain separate. Remaining live work is authentic Logical scope/occurrence transport, positive source call catalogue/occupancy and aggressive-minifier alias-reference construction; do not restore String inverse joins.
 
 Priority remains finishing actual naming-consumer migrations in parallel; [implementation-ledger.md](implementation-ledger.md) assigns the next owners. [current-state.md](current-state.md) records the current executed scopes; [handoff/README.md](handoff/README.md) contains explicitly unadopted continuation work.
 
@@ -384,3 +386,5 @@ Every row is retained from the accompanying sealed candidate-callsite snapshot; 
 | `rust/tcl-lsp-server/src/recovery_source.rs::package_recovery_names` | 283, 284 | `tcl_syntax::naming::NativeNameProtocol` | caller input/domain guards + positive/negative controls require reconciliation; no fresh execution |
 
 Roster: 381 tracked implementation/test source files, 232 classified non-test files, 330 lexical candidate function/module groups. These are census counts, not conformance or completed-consumer counts.
+
+Final source238 validation: [ordinary272 current snapshot](current-state.md#current272-selected-scopes); exact portable receipts and unfinished owner work are indexed in [handoff/README.md](handoff/README.md). Historical scope in this document remains bounded to its stated capture.

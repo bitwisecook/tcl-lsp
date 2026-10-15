@@ -1,5 +1,7 @@
 # Codegen and middle-end naming consumers
 
+Fresh ordinary272 on actual source238 seals956 controls: 643 PASS, 312 FAIL, 1 TIMEOUT. Its single-job fresh build passes in348.483727 seconds with14 test ELFs, errors[] and unchanged authored source, executing zero tests during the build. All12 selected scopes retain unchanged captured source/binaries, exact single runs and no missing/empty filters. Every265929 selector remains with1 gain and0 prior-PASS regressions/drops; eight additions within retained scopes are7 PASS/1 FAIL; the independent IRules19 scope is16 PASS/3 FAIL. Original#2286 runs first and passes72.400995379s under the unchanged180-second budget. Runtime174/VM133 and formatter88/integration55/15 annexes remain unexecuted plans; normal owner CLI250 still197 diagnostics.
+
 ## Current238 handoff scope
 
 Current VM269 source221 seals126 PASS/6 FAIL across132 exact controls; all260131 retained with5 gains and0 prior-PASS regressions. Adopted later fixture corrections are unexecuted. Genuine remaining naming consumers include the selected C namespace-deletion incarnation receipt and no-argument Parent current-holder read; portable drafts need API/lifetime peers. Backend/publication/ABI/WASM scopes remain independent.
@@ -93,3 +95,5 @@ The initial broad compiler match inventory is
 matches require per-callsite dispositions before any entire-codebase completion
 claim. This audit reconciles actual target entry points and representative map
 owners; it does not declare that all those additional consumers are done.
+
+Final source238 validation: [ordinary272 current snapshot](current-state.md#current272-selected-scopes); exact portable receipts and unfinished owner work are indexed in [handoff/README.md](handoff/README.md). Historical scope in this document remains bounded to its stated capture.

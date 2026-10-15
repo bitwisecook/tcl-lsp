@@ -1,5 +1,7 @@
 # Registry name-consumer audit
 
+Fresh ordinary272 on actual source238 seals956 controls: 643 PASS, 312 FAIL, 1 TIMEOUT. Its single-job fresh build passes in348.483727 seconds with14 test ELFs, errors[] and unchanged authored source, executing zero tests during the build. All12 selected scopes retain unchanged captured source/binaries, exact single runs and no missing/empty filters. Every265929 selector remains with1 gain and0 prior-PASS regressions/drops; eight additions within retained scopes are7 PASS/1 FAIL; the independent IRules19 scope is16 PASS/3 FAIL. Original#2286 runs first and passes72.400995379s under the unchanged180-second budget. Runtime174/VM133 and formatter88/integration55/15 annexes remain unexecuted plans; normal owner CLI250 still197 diagnostics.
+
 ## Current238 handoff scope
 
 Current shared owners retain selected dialect/profile, exact original operand roles/layouts, availability, formal/body schemas and distinct Native/conditional purposes. Registry26512/12 and Source26542/42 are selected unit scopes; normal owner CLI250 remains197 diagnostics. Later actual237/238 Native parent/text pure branches retain data-only semantics; no roster, object or namespace capability follows from a pure branch.
@@ -120,3 +122,5 @@ Initial adapter receipt: `experiments/name-handling/registry-name-adapters/valid
 Broader receipt: `experiments/name-handling/results/registry-descriptor-root-cache/validation.json`, 83 distinct scoped controls and exact binary/input hashes. Frozen `source-current.json` records 6391 inputs; source differences are empty. Standalone actual public Registry baseline controls demonstrated repeated-root admission across all five selected C metadata profiles before the cache/adapter repair; they do not attest original live Native execution. Broad successful tests cover registration/cache currency, vendor grouping parity, tcllib, dict, mathfunc, taint and assembly. No full Registry/workspace gate is claimed.
 
 The Registry scope is not complete until A/B/C/D are resolved or conservatively delimited with actual consumer controls, all required original Native/provider conformance is measured, and final durable documentation/comment cleanup is completed by the parent. No blanket proof/census digest renewal is justified by this audit.
+
+Final source238 validation: [ordinary272 current snapshot](current-state.md#current272-selected-scopes); exact portable receipts and unfinished owner work are indexed in [handoff/README.md](handoff/README.md). Historical scope in this document remains bounded to its stated capture.

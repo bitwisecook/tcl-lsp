@@ -13151,13 +13151,13 @@
   ],
   "current_refresh": {
     "source_epoch": 238,
-    "checkpoint_basis": "0fd101ccb push-confirmed; source238 unchanged",
-    "current_status": "Ordinary272 fresh build0/14 ELFs;11 scopes sealed, Compiler480 active; no956 total yet",
+    "checkpoint_basis": "4e20920a5 push-confirmed before this terminal result refresh; inspect actual later HEAD",
+    "current_status": "Source238 adopted; TEMP270 restored; ordinary271 failed0tests; fresh ordinary272 sealed956=643PASS/312FAIL/1TIMEOUT; Native174/VM133 unexecuted",
     "canonical_status": "current-state.md",
     "continuation": "continue-prompt.md",
     "portable_work": "handoff/README.md",
     "scope": "Original roster/search/issue records retain their captured dates and hashes; this context does not refresh every row or certify complete migration.",
-    "checkpoint_utc": "2026-10-15T09:09:53.955842+00:00",
+    "checkpoint_utc": "2026-10-15T09:12:49.821599+00:00",
     "ordinary271": {
       "build_exit": 101,
       "tests": 0,
@@ -13166,73 +13166,97 @@
       "observed_failure": "Registry and Compiler rustc SIGKILL9; errors[] is not success"
     },
     "ordinary272": {
-      "state": "active exact replay;11 scopes sealed; Compiler480 active",
       "source_epoch": 238,
       "build_exit": 0,
       "build_seconds": 348.483727,
       "test_artifacts": 14,
-      "planned_exact": 956,
-      "scopes": 12,
+      "total": 956,
+      "pass": 643,
+      "fail": 312,
+      "timeout": 1,
+      "scope_counts": {
+        "compiler": {
+          "count": 480,
+          "pass": 279,
+          "fail": 200,
+          "timeout": 1
+        },
+        "core": {
+          "count": 247,
+          "pass": 165,
+          "fail": 82,
+          "timeout": 0
+        },
+        "db": {
+          "count": 76,
+          "pass": 63,
+          "fail": 13,
+          "timeout": 0
+        },
+        "syntax": {
+          "count": 7,
+          "pass": 7,
+          "fail": 0,
+          "timeout": 0
+        },
+        "source": {
+          "count": 42,
+          "pass": 42,
+          "fail": 0,
+          "timeout": 0
+        },
+        "studio": {
+          "count": 3,
+          "pass": 3,
+          "fail": 0,
+          "timeout": 0
+        },
+        "spectcl": {
+          "count": 1,
+          "pass": 1,
+          "fail": 0,
+          "timeout": 0
+        },
+        "registry": {
+          "count": 12,
+          "pass": 12,
+          "fail": 0,
+          "timeout": 0
+        },
+        "mcp": {
+          "count": 43,
+          "pass": 32,
+          "fail": 11,
+          "timeout": 0
+        },
+        "server": {
+          "count": 15,
+          "pass": 12,
+          "fail": 3,
+          "timeout": 0
+        },
+        "lexer": {
+          "count": 11,
+          "pass": 11,
+          "fail": 0,
+          "timeout": 0
+        },
+        "irules": {
+          "count": 19,
+          "pass": 16,
+          "fail": 3,
+          "timeout": 0
+        }
+      },
+      "source_drift": {},
+      "binary_unchanged": true,
+      "all265929_retained": true,
+      "gains_vs265": 1,
+      "prior_pass_regressions_vs265": 0,
+      "comparison_receipt": "handoff/reviews/ordinary272-final-analysis.json",
       "original2286_first_seconds": 72.400995379,
       "original2286_budget_seconds": 180,
-      "completed_scopes": {
-        "core": [
-          247,
-          165,
-          82
-        ],
-        "db": [
-          76,
-          63,
-          13
-        ],
-        "mcp": [
-          43,
-          32,
-          11
-        ],
-        "server": [
-          15,
-          12,
-          3
-        ],
-        "irules": [
-          19,
-          16,
-          3
-        ],
-        "syntax": [
-          7,
-          7,
-          0
-        ],
-        "source": [
-          42,
-          42,
-          0
-        ],
-        "studio": [
-          3,
-          3,
-          0
-        ],
-        "spectcl": [
-          1,
-          1,
-          0
-        ],
-        "registry": [
-          12,
-          12,
-          0
-        ],
-        "lexer": [
-          11,
-          11,
-          0
-        ]
-      },
-      "scope": "No full956 total or Native/VM/F5/owner-CLI acceptance"
+      "scope": "selected ordinary only; no Native/VM/F5/normal-owner-CLI or whole-codebase acceptance"
     },
     "ordinary265": {
       "source_epoch": 221,
@@ -13278,7 +13302,7 @@
         "handoff/reviews/db16-current238.json",
         "handoff/reviews/finite330-current238.json"
       ],
-      "scope": "Finite source/caller binding, not migration count or full codebase closure"
+      "scope": "Finite source/caller review, not migration count or entire codebase coverage"
     },
     "priority": "Finish every naming consumer through central APIs in parallel; audits continue in parallel",
     "hourly_last_delivered_utc": "2026-10-15T08:15:00Z",

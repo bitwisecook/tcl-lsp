@@ -1,0 +1,2199 @@
+{
+  "source_epoch": 238,
+  "scope": "Actual completed selected ordinary272 only; not Native/VM/F5/all-codebase acceptance",
+  "scopes": {
+    "compiler": {
+      "count": 480,
+      "pass": 279,
+      "fail": 200,
+      "timeout": 1,
+      "result_sha256": "127c4455a52e5153e27e81d0dd91ae2d0a614d0dedc0268fd5fac0aa97ba202b",
+      "source_drift": {},
+      "binary_unchanged": true,
+      "all_exact_once": true,
+      "missing_exact": [],
+      "empty_filters": [],
+      "failures": [
+        {
+          "test": "body_analysis_capsule::readonly_authored_coverage::tests::readonly_authored_coverage_preserves_both_actual_analysis_inventories",
+          "timeout": false,
+          "seconds": 0.41542011802084744,
+          "log": "test-02.log.gz"
+        },
+        {
+          "test": "analyser::types::source_alias_coverage_tests::selected_alias_source_coverage_requires_current_input_and_all_actual_receipts",
+          "timeout": false,
+          "seconds": 2.4742655939771794,
+          "log": "test-09.log.gz"
+        },
+        {
+          "test": "analyser::variable_source_declarations::tests::original_variable_declaration_join_requires_the_owned_record_and_current_source",
+          "timeout": false,
+          "seconds": 0.4685350870131515,
+          "log": "test-10.log.gz"
+        },
+        {
+          "test": "analyser::variable_source_declarations::tests::original_variable_declaration_join_refuses_changed_definitions_and_unowned_scopes",
+          "timeout": false,
+          "seconds": 0.4173134329903405,
+          "log": "test-11.log.gz"
+        },
+        {
+          "test": "analyser::variable_source_declarations::tests::original_variable_declaration_join_keeps_source_identity_after_reporting_scope_move",
+          "timeout": false,
+          "seconds": 0.46975706997909583,
+          "log": "test-12.log.gz"
+        },
+        {
+          "test": "analyser::variable_source_declarations::tests::original_alias_declaration_join_keeps_template_obligations_and_frame",
+          "timeout": false,
+          "seconds": 3.6795540080056526,
+          "log": "test-13.log.gz"
+        },
+        {
+          "test": "registry_invocation::authored_controls::tests::authored_scalar_scopes_keep_profiled_standalone_metadata_without_supplied_fallback",
+          "timeout": false,
+          "seconds": 0.31831697598681785,
+          "log": "test-15.log.gz"
+        },
+        {
+          "test": "interprocedural::tests::original_logical_source_call_edges_keep_body_ids_without_execution_grants",
+          "timeout": false,
+          "seconds": 0.2671930880169384,
+          "log": "test-21.log.gz"
+        },
+        {
+          "test": "cfg_builder::upvar_info::tests::method_frame_summary_keeps_the_issued_header_and_actual_registry",
+          "timeout": false,
+          "seconds": 2.0739737059921026,
+          "log": "test-28.log.gz"
+        },
+        {
+          "test": "cfg_builder::upvar_info::tests::standalone_alias_pairs_keep_original_reference_grammar_and_literal_data",
+          "timeout": false,
+          "seconds": 0.2180456450150814,
+          "log": "test-29.log.gz"
+        },
+        {
+          "test": "analyser::types::logical_members::tests::logical_class_body_word_comes_from_the_actual_definition_script_factory",
+          "timeout": false,
+          "seconds": 0.5162560750031844,
+          "log": "test-36.log.gz"
+        },
+        {
+          "test": "ir::definition_script::tests::class_body_source_joins_original_name_and_body_to_the_issued_definition",
+          "timeout": false,
+          "seconds": 1.0731127320032101,
+          "log": "test-37.log.gz"
+        },
+        {
+          "test": "command_binding::source_transition_advice::logical_navigation::tests::logical_candidate_queries_retain_body_bounds_and_require_an_exact_original_head",
+          "timeout": false,
+          "seconds": 3.378218201978598,
+          "log": "test-42.log.gz"
+        },
+        {
+          "test": "body_analysis_capsule::native_source_lattice_tests::authored_source_capsules_keep_independent_standalone_analysis_purpose",
+          "timeout": false,
+          "seconds": 0.7177974320075009,
+          "log": "test-43.log.gz"
+        },
+        {
+          "test": "body_analysis_capsule::native_source_lattice_tests::authored_source_lattice_certificate_rebinds_actual_ids_and_refuses_missing_owner",
+          "timeout": false,
+          "seconds": 0.3685896800016053,
+          "log": "test-44.log.gz"
+        },
+        {
+          "test": "analyser::state::tests::w307_namespaced_ensemble_composed_name_resolution",
+          "timeout": false,
+          "seconds": 2.2221863949962426,
+          "log": "test-63.log.gz"
+        },
+        {
+          "test": "lowering::body_cache_eligible_tests::isolated_body_profile_keeps_the_original_standalone_source_purpose",
+          "timeout": false,
+          "seconds": 0.2145059190224856,
+          "log": "test-71.log.gz"
+        },
+        {
+          "test": "registry_invocation::source_name_roles::unresolved_point_metadata_tests::unresolved_point_source_metadata_keeps_unknown_execution_and_written_values",
+          "timeout": false,
+          "seconds": 0.2165743230143562,
+          "log": "test-76.log.gz"
+        },
+        {
+          "test": "registry_invocation::source_name_roles::unresolved_point_metadata_tests::unresolved_point_source_metadata_refuses_changed_owners_and_stronger_carrier_fallbacks",
+          "timeout": false,
+          "seconds": 0.21570557000814006,
+          "log": "test-77.log.gz"
+        },
+        {
+          "test": "compilation_unit::tests::memoised_source_facts_retain_nested_bom_and_lexer_overlays",
+          "timeout": false,
+          "seconds": 1.4225995689921547,
+          "log": "test-85.log.gz"
+        },
+        {
+          "test": "body_analysis_capsule::tests::logical_source_correspondence_reuses_an_unchanged_body_after_an_unrelated_edit",
+          "timeout": false,
+          "seconds": 4.130364259995986,
+          "log": "test-98.log.gz"
+        },
+        {
+          "test": "cfg_builder::tests::prepared_cfg_source_metadata_preserves_availability_and_refuses_missing_owners",
+          "timeout": false,
+          "seconds": 0.31807109600049444,
+          "log": "test-101.log.gz"
+        },
+        {
+          "test": "executable_ir::tests::file_line_analysis_cannot_be_emitted_as_a_list_cursor",
+          "timeout": false,
+          "seconds": 0.11892392998561263,
+          "log": "test-118.log.gz"
+        },
+        {
+          "test": "interprocedural::tests::a_call_naming_the_callers_own_place_keeps_it_pure",
+          "timeout": false,
+          "seconds": 1.57037888202467,
+          "log": "test-119.log.gz"
+        },
+        {
+          "test": "interprocedural::tests::a_call_running_a_body_word_may_return",
+          "timeout": false,
+          "seconds": 0.26663512698723935,
+          "log": "test-120.log.gz"
+        },
+        {
+          "test": "interprocedural::tests::a_trace_callback_is_a_call_graph_edge",
+          "timeout": false,
+          "seconds": 0.21755742697860114,
+          "log": "test-122.log.gz"
+        },
+        {
+          "test": "interprocedural::tests::an_alias_at_the_current_or_global_frame_is_a_global_alias",
+          "timeout": false,
+          "seconds": 0.36784084400278516,
+          "log": "test-123.log.gz"
+        },
+        {
+          "test": "interprocedural::tests::array_element_instance_var_write_makes_method_impure",
+          "timeout": false,
+          "seconds": 0.3170563959865831,
+          "log": "test-125.log.gz"
+        },
+        {
+          "test": "interprocedural::tests::call_by_name_param_traits_inferred",
+          "timeout": false,
+          "seconds": 0.4178271830023732,
+          "log": "test-127.log.gz"
+        },
+        {
+          "test": "interprocedural::tests::call_graph_abstains_for_a_builtin_shadowed_by_a_user_proc",
+          "timeout": false,
+          "seconds": 2.32490573998075,
+          "log": "test-128.log.gz"
+        },
+        {
+          "test": "interprocedural::tests::call_graph_abstains_for_a_dynamic_binding",
+          "timeout": false,
+          "seconds": 0.9213389249925967,
+          "log": "test-129.log.gz"
+        },
+        {
+          "test": "interprocedural::tests::call_graph_follows_a_renamed_body_command",
+          "timeout": false,
+          "seconds": 1.1686082319938578,
+          "log": "test-130.log.gz"
+        },
+        {
+          "test": "interprocedural::tests::call_graph_follows_an_aliased_body_command",
+          "timeout": false,
+          "seconds": 1.231298364000395,
+          "log": "test-131.log.gz"
+        },
+        {
+          "test": "interprocedural::tests::call_in_if_condition_is_recorded",
+          "timeout": false,
+          "seconds": 0.5161956690135412,
+          "log": "test-132.log.gz"
+        },
+        {
+          "test": "interprocedural::tests::call_in_while_condition_is_recorded",
+          "timeout": false,
+          "seconds": 0.5186578760039993,
+          "log": "test-133.log.gz"
+        },
+        {
+          "test": "interprocedural::tests::call_inside_apply_lambda_body_is_a_direct_call",
+          "timeout": false,
+          "seconds": 1.0677382560097612,
+          "log": "test-134.log.gz"
+        },
+        {
+          "test": "interprocedural::tests::call_inside_apply_lambda_body_resolves_in_explicit_namespace",
+          "timeout": false,
+          "seconds": 0.9737892000121064,
+          "log": "test-135.log.gz"
+        },
+        {
+          "test": "interprocedural::tests::call_inside_apply_lambda_body_resolves_in_lambda_namespace",
+          "timeout": false,
+          "seconds": 1.3205905419890769,
+          "log": "test-136.log.gz"
+        },
+        {
+          "test": "interprocedural::tests::call_inside_catch_in_if_condition_is_recorded",
+          "timeout": false,
+          "seconds": 1.0185471729782876,
+          "log": "test-137.log.gz"
+        },
+        {
+          "test": "interprocedural::tests::calls_captured_and_transitively_closed",
+          "timeout": false,
+          "seconds": 0.568574043980334,
+          "log": "test-138.log.gz"
+        },
+        {
+          "test": "interprocedural::tests::can_fold_gated_on_pure_and_return_shape",
+          "timeout": false,
+          "seconds": 0.36500772097497247,
+          "log": "test-139.log.gz"
+        },
+        {
+          "test": "interprocedural::tests::command_prefix_callbacks_are_call_graph_edges_in_every_shape",
+          "timeout": false,
+          "seconds": 0.2648869830009062,
+          "log": "test-140.log.gz"
+        },
+        {
+          "test": "interprocedural::tests::conditional_return_is_constant_when_all_paths_return",
+          "timeout": false,
+          "seconds": 0.41875543899368495,
+          "log": "test-142.log.gz"
+        },
+        {
+          "test": "interprocedural::tests::constant_return_inferred_for_literal_proc",
+          "timeout": false,
+          "seconds": 0.36506541701965034,
+          "log": "test-144.log.gz"
+        },
+        {
+          "test": "interprocedural::tests::cyclic_call_graph_handled",
+          "timeout": false,
+          "seconds": 0.420900122000603,
+          "log": "test-145.log.gz"
+        },
+        {
+          "test": "interprocedural::tests::deeply_nested_if_survives_collect_instance_var_writes",
+          "timeout": false,
+          "seconds": 6.496960858989041,
+          "log": "test-146.log.gz"
+        },
+        {
+          "test": "interprocedural::tests::document_alias_prefix_preserves_the_call_graph_target",
+          "timeout": false,
+          "seconds": 0.6693161609873641,
+          "log": "test-149.log.gz"
+        },
+        {
+          "test": "interprocedural::tests::document_procedure_named_like_wrapper_does_not_inherit_body_roles",
+          "timeout": false,
+          "seconds": 0.5680227319826372,
+          "log": "test-150.log.gz"
+        },
+        {
+          "test": "interprocedural::tests::forwarded_to_callee_detected",
+          "timeout": false,
+          "seconds": 0.5190753120114096,
+          "log": "test-152.log.gz"
+        },
+        {
+          "test": "interprocedural::tests::fp_nab_03_recursive_arithmetic_proc_is_pure",
+          "timeout": false,
+          "seconds": 2.376567174011143,
+          "log": "test-154.log.gz"
+        },
+        {
+          "test": "interprocedural::tests::global_alias_write_counts_as_writes_global",
+          "timeout": false,
+          "seconds": 0.5157586889981758,
+          "log": "test-155.log.gz"
+        },
+        {
+          "test": "interprocedural::tests::instance_method_callback_is_a_direct_call",
+          "timeout": false,
+          "seconds": 0.2680095809919294,
+          "log": "test-156.log.gz"
+        },
+        {
+          "test": "interprocedural::tests::instance_var_write_makes_method_impure",
+          "timeout": false,
+          "seconds": 0.267662787984591,
+          "log": "test-157.log.gz"
+        },
+        {
+          "test": "interprocedural::tests::literal_empty_global_alias_mutations_remain_visible",
+          "timeout": false,
+          "seconds": 0.3684076099889353,
+          "log": "test-159.log.gz"
+        },
+        {
+          "test": "interprocedural::tests::my_dispatch_makes_method_impure",
+          "timeout": false,
+          "seconds": 0.2675984109810088,
+          "log": "test-160.log.gz"
+        },
+        {
+          "test": "interprocedural::tests::nominal_global_alias_coverage_keeps_empty_data_separate_from_unknown_names",
+          "timeout": false,
+          "seconds": 0.019917835015803576,
+          "log": "test-163.log.gz"
+        },
+        {
+          "test": "interprocedural::tests::original_callback_reachability_distinguishes_literal_values_and_selected_builders",
+          "timeout": false,
+          "seconds": 0.2657177349901758,
+          "log": "test-165.log.gz"
+        },
+        {
+          "test": "interprocedural::tests::original_positioned_child_bodies_preserve_replacements_and_aliases",
+          "timeout": false,
+          "seconds": 0.21735398098826408,
+          "log": "test-166.log.gz"
+        },
+        {
+          "test": "interprocedural::tests::passthrough_param_detected",
+          "timeout": false,
+          "seconds": 0.31816016999073327,
+          "log": "test-168.log.gz"
+        },
+        {
+          "test": "interprocedural::tests::positioned_alias_traits_use_selected_frame_and_transition_grammar",
+          "timeout": false,
+          "seconds": 0.3695306360023096,
+          "log": "test-169.log.gz"
+        },
+        {
+          "test": "interprocedural::tests::procedure_and_method_callback_advice_requires_the_module_source_producer",
+          "timeout": false,
+          "seconds": 0.5682302929926664,
+          "log": "test-171.log.gz"
+        },
+        {
+          "test": "interprocedural::tests::pure_getter_method_is_summarised_pure",
+          "timeout": false,
+          "seconds": 0.3167569820070639,
+          "log": "test-172.log.gz"
+        },
+        {
+          "test": "interprocedural::tests::redefined_method_joins_over_every_retained_body",
+          "timeout": false,
+          "seconds": 0.36571027399622835,
+          "log": "test-174.log.gz"
+        },
+        {
+          "test": "interprocedural::tests::side_effect_classification_follows_an_aliased_head",
+          "timeout": false,
+          "seconds": 0.41799014402204193,
+          "log": "test-184.log.gz"
+        },
+        {
+          "test": "interprocedural::tests::standalone_empty_alias_declaration_and_mutation_have_distinct_write_effects",
+          "timeout": false,
+          "seconds": 0.03404084200155921,
+          "log": "test-186.log.gz"
+        },
+        {
+          "test": "interprocedural::tests::uncertain_point_binding_preserves_unknown_effect_obligation",
+          "timeout": false,
+          "seconds": 0.3192389589967206,
+          "log": "test-187.log.gz"
+        },
+        {
+          "test": "interprocedural::tests::unknown_alias_prefix_bytes_preserve_document_call_graph_target",
+          "timeout": false,
+          "seconds": 0.5190045660128817,
+          "log": "test-188.log.gz"
+        },
+        {
+          "test": "interprocedural::tests::unreadable_oo_definitions_force_methods_impure",
+          "timeout": false,
+          "seconds": 0.26848416999564506,
+          "log": "test-190.log.gz"
+        },
+        {
+          "test": "interprocedural::tests::upvar_level_word_is_read_by_argument_parity",
+          "timeout": false,
+          "seconds": 0.36784649500623345,
+          "log": "test-191.log.gz"
+        },
+        {
+          "test": "interprocedural::tests::user_proc_invoker_is_registry_driven_not_name_matched",
+          "timeout": false,
+          "seconds": 0.167204776982544,
+          "log": "test-193.log.gz"
+        },
+        {
+          "test": "interprocedural::tests::variable_decl_is_not_counted_as_instance_var_write",
+          "timeout": false,
+          "seconds": 0.3681796739983838,
+          "log": "test-194.log.gz"
+        },
+        {
+          "test": "interval_bounds::tests::append_slot_bounds_follow_each_c_runtime_release",
+          "timeout": false,
+          "seconds": 0.6180714200017974,
+          "log": "test-195.log.gz"
+        },
+        {
+          "test": "interval_bounds::tests::bounds_follow_live_command_identity_and_literal_body_quoting",
+          "timeout": false,
+          "seconds": 2.073354679014301,
+          "log": "test-196.log.gz"
+        },
+        {
+          "test": "interval_bounds::tests::divisor_ranges_keep_literal_sigils_and_array_elements_separate",
+          "timeout": false,
+          "seconds": 0.36839389699161984,
+          "log": "test-198.log.gz"
+        },
+        {
+          "test": "interval_bounds::tests::entered_operand_divisions_survive_parent_failure_and_respect_reachability",
+          "timeout": false,
+          "seconds": 0.6185502450098284,
+          "log": "test-200.log.gz"
+        },
+        {
+          "test": "interval_bounds::tests::lset_append_updates_following_length_without_an_old_length_warning",
+          "timeout": false,
+          "seconds": 1.468580626999028,
+          "log": "test-202.log.gz"
+        },
+        {
+          "test": "interval_bounds::tests::lset_loop_counter_past_append_fires_w231",
+          "timeout": false,
+          "seconds": 1.020521586004179,
+          "log": "test-203.log.gz"
+        },
+        {
+          "test": "interval_bounds::tests::lset_preserves_length_through_linear_chain_fires_w231",
+          "timeout": false,
+          "seconds": 0.8202104219817556,
+          "log": "test-204.log.gz"
+        },
+        {
+          "test": "interval_bounds::tests::provably_zero_divisor_fires_w233",
+          "timeout": false,
+          "seconds": 0.4652574699721299,
+          "log": "test-206.log.gz"
+        },
+        {
+          "test": "interval_bounds::tests::retained_bounds_context_keeps_availability_source_operands_and_store_identity",
+          "timeout": false,
+          "seconds": 0.3656713959935587,
+          "log": "test-207.log.gz"
+        },
+        {
+          "test": "interval_bounds::tests::string_index_const_var_past_end_fires_w232",
+          "timeout": false,
+          "seconds": 0.7686118630226701,
+          "log": "test-208.log.gz"
+        },
+        {
+          "test": "object_types::logical_source_candidates::tests::definition_receiver_candidates_require_the_actual_selected_definition_body",
+          "timeout": false,
+          "seconds": 0.9213657660002355,
+          "log": "test-211.log.gz"
+        },
+        {
+          "test": "object_types::logical_source_candidates::tests::report_equality_keeps_supplementary_candidate_scope_maps",
+          "timeout": false,
+          "seconds": 0.7193657099851407,
+          "log": "test-215.log.gz"
+        },
+        {
+          "test": "object_types::tests::aliasing_copies_handle_class",
+          "timeout": false,
+          "seconds": 0.3156964509980753,
+          "log": "test-217.log.gz"
+        },
+        {
+          "test": "object_types::tests::by_scope_alias_within_one_unit_still_propagates",
+          "timeout": false,
+          "seconds": 0.3192924890026916,
+          "log": "test-220.log.gz"
+        },
+        {
+          "test": "object_types::tests::by_scope_cross_unit_call_edges_still_bind",
+          "timeout": false,
+          "seconds": 0.5176327280059922,
+          "log": "test-221.log.gz"
+        },
+        {
+          "test": "object_types::tests::by_scope_does_not_import_another_units_binding_through_an_alias",
+          "timeout": false,
+          "seconds": 0.4679217399971094,
+          "log": "test-222.log.gz"
+        },
+        {
+          "test": "object_types::tests::by_scope_instance_var_alias_reads_the_class_owner",
+          "timeout": false,
+          "seconds": 0.26463950201286934,
+          "log": "test-223.log.gz"
+        },
+        {
+          "test": "object_types::tests::child_constructor_arguments_do_not_require_the_parent_assignment_handler",
+          "timeout": false,
+          "seconds": 0.573531180009013,
+          "log": "test-224.log.gz"
+        },
+        {
+          "test": "object_types::tests::collection_and_global_cell_facts_are_exported",
+          "timeout": false,
+          "seconds": 0.31618450302630663,
+          "log": "test-225.log.gz"
+        },
+        {
+          "test": "object_types::tests::collection_class_bridges_across_methods",
+          "timeout": false,
+          "seconds": 0.21455261201481335,
+          "log": "test-226.log.gz"
+        },
+        {
+          "test": "object_types::tests::collection_of_objects_is_tracked",
+          "timeout": false,
+          "seconds": 0.21466806600801647,
+          "log": "test-227.log.gz"
+        },
+        {
+          "test": "object_types::tests::colliding_method_reports_have_distinct_scoped_object_candidates",
+          "timeout": false,
+          "seconds": 0.21713285899022594,
+          "log": "test-228.log.gz"
+        },
+        {
+          "test": "object_types::tests::constructor_param_typed_from_object_arg",
+          "timeout": false,
+          "seconds": 0.2680679110053461,
+          "log": "test-229.log.gz"
+        },
+        {
+          "test": "object_types::tests::factory_return_metadata_keeps_supplied_availability_and_refuses_missing_or_foreign_input",
+          "timeout": false,
+          "seconds": 0.46774660499067977,
+          "log": "test-231.log.gz"
+        },
+        {
+          "test": "object_types::tests::generic_factory_return_candidates_flow_without_a_return_type_receipt",
+          "timeout": false,
+          "seconds": 0.6160687300143763,
+          "log": "test-232.log.gz"
+        },
+        {
+          "test": "object_types::tests::instance_var_from_constructor_param_bridges_methods",
+          "timeout": false,
+          "seconds": 0.371104957011994,
+          "log": "test-233.log.gz"
+        },
+        {
+          "test": "object_types::tests::interproc_param_flows_through_call_chain",
+          "timeout": false,
+          "seconds": 0.46574215698638,
+          "log": "test-234.log.gz"
+        },
+        {
+          "test": "object_types::tests::interproc_param_from_object_arg_is_a_handle",
+          "timeout": false,
+          "seconds": 0.3188932840130292,
+          "log": "test-235.log.gz"
+        },
+        {
+          "test": "object_types::tests::materialised_receiver_reads_do_not_enter_document_offset_queries",
+          "timeout": false,
+          "seconds": 0.36518071600585245,
+          "log": "test-236.log.gz"
+        },
+        {
+          "test": "object_types::tests::method_return_capture_types_the_handle",
+          "timeout": false,
+          "seconds": 0.3652594710001722,
+          "log": "test-237.log.gz"
+        },
+        {
+          "test": "object_types::tests::method_return_edge_does_not_import_another_units_receiver",
+          "timeout": false,
+          "seconds": 0.5711828529892955,
+          "log": "test-239.log.gz"
+        },
+        {
+          "test": "object_types::tests::normal_callable_return_types_do_not_require_a_tcloo_class",
+          "timeout": false,
+          "seconds": 1.2681921879993752,
+          "log": "test-241.log.gz"
+        },
+        {
+          "test": "object_types::tests::owner_attribution_alias_edge_binds_in_the_assigning_unit",
+          "timeout": false,
+          "seconds": 0.4153317740128841,
+          "log": "test-246.log.gz"
+        },
+        {
+          "test": "object_types::tests::owner_attribution_ctor_param_edge_binds_in_the_constructor",
+          "timeout": false,
+          "seconds": 0.2648607039882336,
+          "log": "test-247.log.gz"
+        },
+        {
+          "test": "object_types::tests::owner_attribution_instance_var_is_owned_by_the_class",
+          "timeout": false,
+          "seconds": 0.265002447005827,
+          "log": "test-248.log.gz"
+        },
+        {
+          "test": "object_types::tests::owner_attribution_param_edge_binds_in_the_callee",
+          "timeout": false,
+          "seconds": 0.3152447909815237,
+          "log": "test-249.log.gz"
+        },
+        {
+          "test": "object_types::tests::owner_attribution_return_edge_binds_in_the_assigning_unit",
+          "timeout": false,
+          "seconds": 0.41512640501605347,
+          "log": "test-250.log.gz"
+        },
+        {
+          "test": "object_types::tests::owner_spans_are_sorted_and_resolve_the_innermost_scope",
+          "timeout": false,
+          "seconds": 0.3648918549879454,
+          "log": "test-251.log.gz"
+        },
+        {
+          "test": "object_types::tests::scalar_handle_from_constructor",
+          "timeout": false,
+          "seconds": 0.2668772710021585,
+          "log": "test-260.log.gz"
+        },
+        {
+          "test": "object_types::tests::snit_named_constructor_has_nominal_name_without_a_physical_class",
+          "timeout": false,
+          "seconds": 1.0176574779907241,
+          "log": "test-261.log.gz"
+        },
+        {
+          "test": "object_types::tests::source_positioned_receiver_proofs_do_not_reuse_an_older_object_value",
+          "timeout": false,
+          "seconds": 0.2652104589797091,
+          "log": "test-262.log.gz"
+        },
+        {
+          "test": "object_types::tests::spicegentcl_configurable_device_shape_resolves",
+          "timeout": false,
+          "seconds": 0.2145492879790254,
+          "log": "test-263.log.gz"
+        },
+        {
+          "test": "object_types::tests::var_captured_widget_path_is_a_handle",
+          "timeout": false,
+          "seconds": 0.666340883995872,
+          "log": "test-265.log.gz"
+        },
+        {
+          "test": "optimiser::propagation::tests::a_computed_definition_forwards_the_constant_sccp_proved",
+          "timeout": false,
+          "seconds": 0.21516148099908605,
+          "log": "test-266.log.gz"
+        },
+        {
+          "test": "optimiser::propagation::tests::a_hint_only_forward_carries_no_replacement",
+          "timeout": false,
+          "seconds": 0.1647864710248541,
+          "log": "test-267.log.gz"
+        },
+        {
+          "test": "optimiser::propagation::tests::a_value_operand_beside_a_name_argument_still_forwards",
+          "timeout": false,
+          "seconds": 0.21499754799879156,
+          "log": "test-268.log.gz"
+        },
+        {
+          "test": "optimiser::propagation::tests::braced_expr_cmd_sub_arg_folds_under_constants",
+          "timeout": false,
+          "seconds": 0.2652820769872051,
+          "log": "test-269.log.gz"
+        },
+        {
+          "test": "optimiser::propagation::tests::braced_var_reference_also_propagated",
+          "timeout": false,
+          "seconds": 0.16466441698139533,
+          "log": "test-270.log.gz"
+        },
+        {
+          "test": "optimiser::propagation::tests::constant_int_propagates_into_call_arg",
+          "timeout": false,
+          "seconds": 0.16441500600194559,
+          "log": "test-271.log.gz"
+        },
+        {
+          "test": "optimiser::propagation::tests::depth_exhaustion_blocks_dynamic_name_load_forwarding",
+          "timeout": true,
+          "seconds": 180.04406264901627,
+          "log": "test-272.log.gz"
+        },
+        {
+          "test": "optimiser::propagation::tests::load_forwarding_fires_o102_for_single_reaching_def",
+          "timeout": false,
+          "seconds": 0.21494178200373426,
+          "log": "test-277.log.gz"
+        },
+        {
+          "test": "optimiser::propagation::tests::o100_and_o102_still_forward_a_literal_no_hidden_write_can_replace",
+          "timeout": false,
+          "seconds": 0.3153530290001072,
+          "log": "test-281.log.gz"
+        },
+        {
+          "test": "optimiser::propagation::tests::o100_multi_word_constant_renders_via_quoter",
+          "timeout": false,
+          "seconds": 0.31516256800387055,
+          "log": "test-282.log.gz"
+        },
+        {
+          "test": "optimiser::propagation::tests::o102_falls_back_to_hint_only_when_var_is_inside_interpolation",
+          "timeout": false,
+          "seconds": 0.1644496280059684,
+          "log": "test-287.log.gz"
+        },
+        {
+          "test": "optimiser::propagation::tests::o102_operand_span_fires_applicable_on_call_argv",
+          "timeout": false,
+          "seconds": 0.1646290179924108,
+          "log": "test-288.log.gz"
+        },
+        {
+          "test": "optimiser::propagation::tests::o102_operand_span_matches_braced_var_word",
+          "timeout": false,
+          "seconds": 0.21522490799543448,
+          "log": "test-289.log.gz"
+        },
+        {
+          "test": "optimiser::propagation::tests::o102_still_forwards_genuinely_local_proc_variable",
+          "timeout": false,
+          "seconds": 0.3656898790213745,
+          "log": "test-290.log.gz"
+        },
+        {
+          "test": "optimiser::propagation::tests::o102_still_forwards_top_level_global_no_proc_touches",
+          "timeout": false,
+          "seconds": 0.3653096009802539,
+          "log": "test-291.log.gz"
+        },
+        {
+          "test": "optimiser::propagation::tests::o103_bare_call_stays_hint_only",
+          "timeout": false,
+          "seconds": 0.31501462499727495,
+          "log": "test-292.log.gz"
+        },
+        {
+          "test": "optimiser::propagation::tests::o103_cmd_subst_fires_applicable_rewrite",
+          "timeout": false,
+          "seconds": 0.3153413159889169,
+          "log": "test-293.log.gz"
+        },
+        {
+          "test": "optimiser::propagation::tests::o103_cmd_subst_fires_on_set_value_target",
+          "timeout": false,
+          "seconds": 0.3650742510217242,
+          "log": "test-294.log.gz"
+        },
+        {
+          "test": "optimiser::propagation::tests::o103_folds_arg_sensitive_passthrough_cmd_subst",
+          "timeout": false,
+          "seconds": 0.26486204197863117,
+          "log": "test-300.log.gz"
+        },
+        {
+          "test": "optimiser::propagation::tests::o103_folds_arg_sensitive_passthrough_with_braced_multiword_literal",
+          "timeout": false,
+          "seconds": 0.31491239499882795,
+          "log": "test-301.log.gz"
+        },
+        {
+          "test": "optimiser::propagation::tests::o103_folds_implicit_return_proc_cmd_subst",
+          "timeout": false,
+          "seconds": 0.21582528200815432,
+          "log": "test-302.log.gz"
+        },
+        {
+          "test": "optimiser::propagation::tests::o103_folds_implicit_return_zero_arg_proc",
+          "timeout": false,
+          "seconds": 0.21476354301557876,
+          "log": "test-303.log.gz"
+        },
+        {
+          "test": "optimiser::propagation::tests::o103_folds_multi_word_string_return_list_quoted",
+          "timeout": false,
+          "seconds": 0.21458754100603983,
+          "log": "test-304.log.gz"
+        },
+        {
+          "test": "optimiser::propagation::tests::o103_folds_the_actual_procedure_selected_by_interp_alias",
+          "timeout": false,
+          "seconds": 0.31487314600963145,
+          "log": "test-305.log.gz"
+        },
+        {
+          "test": "optimiser::propagation::tests::o103_folds_variadic_args_proc_ignoring_trailing_args",
+          "timeout": false,
+          "seconds": 0.2645960209774785,
+          "log": "test-306.log.gz"
+        },
+        {
+          "test": "optimiser::propagation::tests::o103_folds_variadic_args_proc_returning_args_directly",
+          "timeout": false,
+          "seconds": 0.21477619599318132,
+          "log": "test-307.log.gz"
+        },
+        {
+          "test": "optimiser::propagation::tests::o103_still_folds_unrelated_proc_despite_unrelated_rename_elsewhere",
+          "timeout": false,
+          "seconds": 0.41542056400794536,
+          "log": "test-309.log.gz"
+        },
+        {
+          "test": "optimiser::propagation::tests::o115_collapses_redundant_nested_expr_in_value_positions",
+          "timeout": false,
+          "seconds": 0.4154417390236631,
+          "log": "test-310.log.gz"
+        },
+        {
+          "test": "optimiser::propagation::tests::o127_forwards_past_extra_terminator_use",
+          "timeout": false,
+          "seconds": 0.41518900301889516,
+          "log": "test-313.log.gz"
+        },
+        {
+          "test": "optimiser::propagation::tests::o127_forwards_single_use_computed_assignment",
+          "timeout": false,
+          "seconds": 0.31503722301567905,
+          "log": "test-314.log.gz"
+        },
+        {
+          "test": "optimiser::propagation::tests::o127_operand_selection_follows_the_actual_alias_cell",
+          "timeout": false,
+          "seconds": 0.21470055100508034,
+          "log": "test-316.log.gz"
+        },
+        {
+          "test": "optimiser::propagation::tests::o129_concat_preserves_native_trailing_backslash_space_bytes",
+          "timeout": false,
+          "seconds": 0.16454298599273898,
+          "log": "test-322.log.gz"
+        },
+        {
+          "test": "optimiser::propagation::tests::o129_fold_preserves_comment_hidden_closer",
+          "timeout": false,
+          "seconds": 0.21472495200578123,
+          "log": "test-323.log.gz"
+        },
+        {
+          "test": "optimiser::propagation::tests::o129_folds_embedded_cmd_subst_in_interpolation",
+          "timeout": false,
+          "seconds": 0.16448564099846408,
+          "log": "test-324.log.gz"
+        },
+        {
+          "test": "optimiser::propagation::tests::o129_folds_pure_builtin_cmd_subst",
+          "timeout": false,
+          "seconds": 0.16459608101285994,
+          "log": "test-325.log.gz"
+        },
+        {
+          "test": "optimiser::propagation::tests::o129_interpolation_fold_replaces_the_whole_quoted_word",
+          "timeout": false,
+          "seconds": 0.21452419401612133,
+          "log": "test-326.log.gz"
+        },
+        {
+          "test": "optimiser::propagation::tests::o129_resolves_constant_var_args_b2",
+          "timeout": false,
+          "seconds": 0.21464133699191734,
+          "log": "test-327.log.gz"
+        },
+        {
+          "test": "optimiser::propagation::tests::o129_uses_the_actual_binding_before_and_after_a_rebinder",
+          "timeout": false,
+          "seconds": 0.16477616800693795,
+          "log": "test-328.log.gz"
+        },
+        {
+          "test": "optimiser::propagation::tests::ordinary_expr_cmd_sub_arg_still_folds_under_mutation_scan",
+          "timeout": false,
+          "seconds": 0.2652487570012454,
+          "log": "test-329.log.gz"
+        },
+        {
+          "test": "optimiser::propagation::tests::resolve_proc_qname_does_not_walk_ancestor_namespaces",
+          "timeout": false,
+          "seconds": 0.2149458850035444,
+          "log": "test-335.log.gz"
+        },
+        {
+          "test": "optimiser::propagation::tests::resolve_proc_qname_relative_dotted_word_prefers_current_namespace",
+          "timeout": false,
+          "seconds": 0.2147955329855904,
+          "log": "test-336.log.gz"
+        },
+        {
+          "test": "optimiser::propagation::tests::resolve_proc_qname_walks_namespace_chain",
+          "timeout": false,
+          "seconds": 0.2146596429811325,
+          "log": "test-337.log.gz"
+        },
+        {
+          "test": "optimiser::propagation::tests::retained_const_subst_accepts_only_closed_literal_templates",
+          "timeout": false,
+          "seconds": 0.26475455702166073,
+          "log": "test-338.log.gz"
+        },
+        {
+          "test": "optimiser::propagation::tests::retained_expression_argument_folding_requires_actual_availability",
+          "timeout": false,
+          "seconds": 2.1206610389926936,
+          "log": "test-339.log.gz"
+        },
+        {
+          "test": "optimiser::propagation::tests::retained_recursive_folding_preserves_actual_availability",
+          "timeout": false,
+          "seconds": 0.41519118897849694,
+          "log": "test-340.log.gz"
+        },
+        {
+          "test": "optimiser::propagation::tests::retained_substitution_inventory_keeps_module_input_config_and_availability",
+          "timeout": false,
+          "seconds": 0.11434318200917915,
+          "log": "test-344.log.gz"
+        },
+        {
+          "test": "optimiser::propagation::tests::retained_substitution_native_object_callbacks_withdraw_builtin_erasure",
+          "timeout": false,
+          "seconds": 0.3148203600139823,
+          "log": "test-346.log.gz"
+        },
+        {
+          "test": "optimiser::propagation::tests::return_expr_folds_argument_sensitive_constant",
+          "timeout": false,
+          "seconds": 0.31487698599812575,
+          "log": "test-350.log.gz"
+        },
+        {
+          "test": "optimiser::propagation::tests::return_terminator_folds_constant_variable",
+          "timeout": false,
+          "seconds": 0.26500549900811166,
+          "log": "test-352.log.gz"
+        },
+        {
+          "test": "optimiser::propagation::tests::run_passes_dispatches_propagation",
+          "timeout": false,
+          "seconds": 0.1646990480076056,
+          "log": "test-353.log.gz"
+        },
+        {
+          "test": "optimiser::propagation::tests::static_proc_call_folds_to_constant_return",
+          "timeout": false,
+          "seconds": 0.26487343601183966,
+          "log": "test-358.log.gz"
+        },
+        {
+          "test": "optimiser::propagation::tests::string_interpolation_const_is_inlined",
+          "timeout": false,
+          "seconds": 0.16448413400212303,
+          "log": "test-359.log.gz"
+        },
+        {
+          "test": "registry_invocation::source_name_roles::tests::file_line_receiver_role_keeps_one_complete_name",
+          "timeout": false,
+          "seconds": 1.8693749649974052,
+          "log": "test-371.log.gz"
+        },
+        {
+          "test": "sccp::tests::an_opaque_switch_arm_leaves_what_it_writes_without_a_constant_or_a_settled_existence",
+          "timeout": false,
+          "seconds": 0.3149382089904975,
+          "log": "test-373.log.gz"
+        },
+        {
+          "test": "sccp::tests::an_opaque_switch_arm_that_runs_a_writer_or_a_barrier_leaves_the_name_unsettled",
+          "timeout": false,
+          "seconds": 0.4154930549848359,
+          "log": "test-374.log.gz"
+        },
+        {
+          "test": "uri_split::tests::contains_equals_query_fires",
+          "timeout": false,
+          "seconds": 0.16436316797626205,
+          "log": "test-381.log.gz"
+        },
+        {
+          "test": "uri_split::tests::contains_query_param_fires",
+          "timeout": false,
+          "seconds": 0.16446088399970904,
+          "log": "test-382.log.gz"
+        },
+        {
+          "test": "uri_split::tests::duplicate_hits_in_compound_condition_are_deduped",
+          "timeout": false,
+          "seconds": 0.1644332229916472,
+          "log": "test-384.log.gz"
+        },
+        {
+          "test": "uri_split::tests::ends_with_extension_fires",
+          "timeout": false,
+          "seconds": 0.16465957098989747,
+          "log": "test-385.log.gz"
+        },
+        {
+          "test": "uri_split::tests::glob_question_mark_is_wildcard_not_query",
+          "timeout": false,
+          "seconds": 0.21460634900722653,
+          "log": "test-387.log.gz"
+        },
+        {
+          "test": "uri_split::tests::matches_glob_path_fires",
+          "timeout": false,
+          "seconds": 0.16426957698422484,
+          "log": "test-390.log.gz"
+        },
+        {
+          "test": "uri_split::tests::matches_glob_query_fires",
+          "timeout": false,
+          "seconds": 0.16478781899786554,
+          "log": "test-391.log.gz"
+        },
+        {
+          "test": "uri_split::tests::split_inline_command_substitution_fires",
+          "timeout": false,
+          "seconds": 0.21473358199000359,
+          "log": "test-394.log.gz"
+        },
+        {
+          "test": "uri_split::tests::split_namespace_qualified_in_command_substitution_fires",
+          "timeout": false,
+          "seconds": 0.2144712370063644,
+          "log": "test-395.log.gz"
+        },
+        {
+          "test": "uri_split::tests::split_through_copy_propagation_fires",
+          "timeout": false,
+          "seconds": 0.21457077699596994,
+          "log": "test-397.log.gz"
+        },
+        {
+          "test": "uri_split::tests::split_uri_on_ampersand_fires",
+          "timeout": false,
+          "seconds": 0.21448896400397643,
+          "log": "test-400.log.gz"
+        },
+        {
+          "test": "uri_split::tests::split_uri_on_question_and_ampersand_fires",
+          "timeout": false,
+          "seconds": 0.21462119201896712,
+          "log": "test-401.log.gz"
+        },
+        {
+          "test": "uri_split::tests::split_uri_on_question_mark_fires",
+          "timeout": false,
+          "seconds": 0.26505156498751603,
+          "log": "test-402.log.gz"
+        },
+        {
+          "test": "uri_split::tests::starts_with_a_substituting_operand_is_not_read_as_a_literal",
+          "timeout": false,
+          "seconds": 0.2646985480096191,
+          "log": "test-405.log.gz"
+        },
+        {
+          "test": "uri_split::tests::starts_with_path_pattern_fires_inline",
+          "timeout": false,
+          "seconds": 0.16434991397545673,
+          "log": "test-406.log.gz"
+        },
+        {
+          "test": "uri_split::tests::starts_with_path_pattern_fires_via_variable",
+          "timeout": false,
+          "seconds": 0.21475964499404654,
+          "log": "test-407.log.gz"
+        },
+        {
+          "test": "uri_split::tests::string_first_in_if_condition_fires",
+          "timeout": false,
+          "seconds": 0.21444238201365806,
+          "log": "test-408.log.gz"
+        },
+        {
+          "test": "uri_split::tests::string_first_question_mark_fires",
+          "timeout": false,
+          "seconds": 0.21472181999706663,
+          "log": "test-409.log.gz"
+        },
+        {
+          "test": "uri_split::tests::string_match_assignment_reads_words_under_the_document_grammar",
+          "timeout": false,
+          "seconds": 0.3147362789895851,
+          "log": "test-411.log.gz"
+        },
+        {
+          "test": "uri_split::tests::string_match_in_if_condition_fires",
+          "timeout": false,
+          "seconds": 0.2145296210073866,
+          "log": "test-412.log.gz"
+        },
+        {
+          "test": "uri_split::tests::string_match_namespace_qualified_in_command_substitution_fires",
+          "timeout": false,
+          "seconds": 0.21470795999630354,
+          "log": "test-413.log.gz"
+        },
+        {
+          "test": "uri_split::tests::string_match_path_pattern_fires",
+          "timeout": false,
+          "seconds": 0.21458755800267681,
+          "log": "test-415.log.gz"
+        },
+        {
+          "test": "uri_split::tests::string_match_query_pattern_fires",
+          "timeout": false,
+          "seconds": 0.21461093300604261,
+          "log": "test-416.log.gz"
+        },
+        {
+          "test": "compilation_unit::tests::original_module_taint_replay_preserves_receivers_and_refuses_foreign_owners",
+          "timeout": false,
+          "seconds": 1.8213361990056,
+          "log": "test-446.log.gz"
+        },
+        {
+          "test": "rendered_properties::tests::original_source_result_hints_use_actual_whole_words_and_current_input",
+          "timeout": false,
+          "seconds": 0.5155792649893556,
+          "log": "test-452.log.gz"
+        },
+        {
+          "test": "interprocedural::tests::original_declaration_receivers_keep_owned_ids_and_preceding_setup",
+          "timeout": false,
+          "seconds": 0.21469348200480454,
+          "log": "test-457.log.gz"
+        },
+        {
+          "test": "static_loops::original_simulation::tests::original_exact_case_simulation_keeps_subject_names_and_literal_patterns",
+          "timeout": false,
+          "seconds": 1.7192109249881469,
+          "log": "test-462.log.gz"
+        },
+        {
+          "test": "static_loops::original_simulation::tests::original_case_simulation_refuses_changed_subject_body_and_missing_owner",
+          "timeout": false,
+          "seconds": 1.668951808998827,
+          "log": "test-463.log.gz"
+        },
+        {
+          "test": "inline_uplevel::tests::param_body_passthrough_uses_original_whole_scalar_reference",
+          "timeout": false,
+          "seconds": 1.8694244519865606,
+          "log": "test-469.log.gz"
+        },
+        {
+          "test": "analyser::class_lattice::tests::per_object_receiver_uses_original_written_scalar_word",
+          "timeout": false,
+          "seconds": 1.7692943979927804,
+          "log": "test-470.log.gz"
+        },
+        {
+          "test": "analyser::diagnostics::var_command::factory_metadata_context_tests::factory_return_scalar_names_use_whole_original_words",
+          "timeout": false,
+          "seconds": 3.123427685990464,
+          "log": "test-471.log.gz"
+        },
+        {
+          "test": "native_integer_proof::tests::def_use_physical_queries_use_the_actual_native_function_inventory",
+          "timeout": false,
+          "seconds": 2.5718479299976025,
+          "log": "test-476.log.gz"
+        }
+      ]
+    },
+    "core": {
+      "count": 247,
+      "pass": 165,
+      "fail": 82,
+      "timeout": 0,
+      "result_sha256": "4154fe9b03791dbd1f4739fc62062d1b3083c65bed62a239b3e3a6a133bccbcb",
+      "source_drift": {},
+      "binary_unchanged": true,
+      "all_exact_once": true,
+      "missing_exact": [],
+      "empty_filters": [],
+      "failures": [
+        {
+          "test": "minify::original::tests::lexical_source_headers_keep_runtime_and_metadata_separate",
+          "timeout": false,
+          "seconds": 0.618108081020182,
+          "log": "test-32.log.gz"
+        },
+        {
+          "test": "package_resolver::original_names::original_index_filename_data_tests::original_index_filename_candidates_preserve_oracle_literal_data_and_join_components",
+          "timeout": false,
+          "seconds": 0.869345382991014,
+          "log": "test-56.log.gz"
+        },
+        {
+          "test": "package_resolver::original_names::original_index_filename_data_tests::original_index_source_operand_grammar_and_real_producers_refuse_guessed_filenames",
+          "timeout": false,
+          "seconds": 8.041786888003116,
+          "log": "test-57.log.gz"
+        },
+        {
+          "test": "refactor::extract_proc::original_extract_tests::original_extract_name_collision_uses_publications_without_reporting_maps",
+          "timeout": false,
+          "seconds": 0.6193578539823648,
+          "log": "test-59.log.gz"
+        },
+        {
+          "test": "refactor::extract_proc::tests::extracted_call_passes_a_brace_bearing_name_braced",
+          "timeout": false,
+          "seconds": 0.6664088839897886,
+          "log": "test-66.log.gz"
+        },
+        {
+          "test": "refactor::extract_proc::tests::extracts_an_irule_selection_across_the_brace_separator_idiom",
+          "timeout": false,
+          "seconds": 0.4656773400201928,
+          "log": "test-68.log.gz"
+        },
+        {
+          "test": "refactor::extract_proc::tests::fp_refuses_a_computed_variable_write",
+          "timeout": false,
+          "seconds": 0.7731408980034757,
+          "log": "test-69.log.gz"
+        },
+        {
+          "test": "refactor::extract_proc::tests::fp_refuses_a_selection_containing_break",
+          "timeout": false,
+          "seconds": 0.5187801099964418,
+          "log": "test-70.log.gz"
+        },
+        {
+          "test": "refactor::extract_proc::tests::fp_refuses_a_selection_containing_continue",
+          "timeout": false,
+          "seconds": 0.5196011869993526,
+          "log": "test-71.log.gz"
+        },
+        {
+          "test": "refactor::extract_proc::tests::fp_refuses_a_selection_containing_global",
+          "timeout": false,
+          "seconds": 0.6201562919886783,
+          "log": "test-72.log.gz"
+        },
+        {
+          "test": "refactor::extract_proc::tests::fp_refuses_a_selection_containing_return",
+          "timeout": false,
+          "seconds": 0.6691526290087495,
+          "log": "test-73.log.gz"
+        },
+        {
+          "test": "refactor::extract_proc::tests::fp_refuses_a_selection_containing_upvar",
+          "timeout": false,
+          "seconds": 0.669229691993678,
+          "log": "test-74.log.gz"
+        },
+        {
+          "test": "refactor::extract_proc::tests::fp_refuses_a_selection_inside_a_namespace_eval",
+          "timeout": false,
+          "seconds": 0.5697940920072142,
+          "log": "test-75.log.gz"
+        },
+        {
+          "test": "refactor::extract_proc::tests::fp_refuses_an_array_element_write",
+          "timeout": false,
+          "seconds": 0.5175072670099325,
+          "log": "test-76.log.gz"
+        },
+        {
+          "test": "refactor::extract_proc::tests::the_documents_dialect_decides_the_captured_braced_name",
+          "timeout": false,
+          "seconds": 0.6690641719906125,
+          "log": "test-79.log.gz"
+        },
+        {
+          "test": "refactor::extract_proc::tests::tp_a_braced_literal_is_not_a_variable_read",
+          "timeout": false,
+          "seconds": 0.5189026070002001,
+          "log": "test-83.log.gz"
+        },
+        {
+          "test": "refactor::extract_proc::tests::tp_a_lambda_in_a_callback_word_is_not_a_parameter",
+          "timeout": false,
+          "seconds": 0.8695763589930721,
+          "log": "test-84.log.gz"
+        },
+        {
+          "test": "refactor::extract_proc::tests::tp_a_loop_carried_read_above_the_selection_keeps_the_upvar",
+          "timeout": false,
+          "seconds": 0.7160918799927458,
+          "log": "test-85.log.gz"
+        },
+        {
+          "test": "refactor::extract_proc::tests::tp_a_loops_pair_bindings_are_locals_not_parameters",
+          "timeout": false,
+          "seconds": 0.7680595470010303,
+          "log": "test-86.log.gz"
+        },
+        {
+          "test": "refactor::extract_proc::tests::tp_a_nested_procs_own_writes_are_not_the_selections",
+          "timeout": false,
+          "seconds": 0.617138542002067,
+          "log": "test-87.log.gz"
+        },
+        {
+          "test": "refactor::extract_proc::tests::tp_a_read_before_a_loop_binding_stays_a_value_parameter",
+          "timeout": false,
+          "seconds": 0.6696159050043207,
+          "log": "test-88.log.gz"
+        },
+        {
+          "test": "refactor::extract_proc::tests::tp_a_read_in_the_writing_command_stays_a_value_parameter",
+          "timeout": false,
+          "seconds": 0.9185015929979272,
+          "log": "test-89.log.gz"
+        },
+        {
+          "test": "refactor::extract_proc::tests::tp_a_read_inside_a_nested_procs_body_is_not_a_parameter",
+          "timeout": false,
+          "seconds": 0.6188739810022525,
+          "log": "test-90.log.gz"
+        },
+        {
+          "test": "refactor::extract_proc::tests::tp_a_role_named_read_nested_after_the_selection_keeps_the_upvar",
+          "timeout": false,
+          "seconds": 0.9201573670143262,
+          "log": "test-91.log.gz"
+        },
+        {
+          "test": "refactor::extract_proc::tests::tp_a_substituted_bracket_reads_the_caller_even_with_variables_off",
+          "timeout": false,
+          "seconds": 0.9702724459930323,
+          "log": "test-92.log.gz"
+        },
+        {
+          "test": "refactor::extract_proc::tests::tp_a_substituted_bracket_writes_through_to_the_caller",
+          "timeout": false,
+          "seconds": 0.9726799550116993,
+          "log": "test-93.log.gz"
+        },
+        {
+          "test": "refactor::extract_proc::tests::tp_a_substituting_call_can_switch_its_variable_reads_off",
+          "timeout": false,
+          "seconds": 1.12182878900785,
+          "log": "test-94.log.gz"
+        },
+        {
+          "test": "refactor::extract_proc::tests::tp_a_substituting_command_reads_through_its_braced_word",
+          "timeout": false,
+          "seconds": 1.0688846940174699,
+          "log": "test-95.log.gz"
+        },
+        {
+          "test": "refactor::extract_proc::tests::tp_a_write_inside_a_braced_expression_is_carried_by_upvar",
+          "timeout": false,
+          "seconds": 0.7695546169998124,
+          "log": "test-96.log.gz"
+        },
+        {
+          "test": "refactor::extract_proc::tests::tp_a_write_inside_a_loop_body_reaches_the_caller",
+          "timeout": false,
+          "seconds": 0.6188178220181726,
+          "log": "test-97.log.gz"
+        },
+        {
+          "test": "refactor::extract_proc::tests::tp_a_write_nested_in_a_loop_body_is_carried_by_upvar",
+          "timeout": false,
+          "seconds": 1.019046459987294,
+          "log": "test-98.log.gz"
+        },
+        {
+          "test": "refactor::extract_proc::tests::tp_a_write_nested_in_a_switch_arm_is_carried_by_upvar",
+          "timeout": false,
+          "seconds": 0.6688071749813389,
+          "log": "test-99.log.gz"
+        },
+        {
+          "test": "refactor::extract_proc::tests::tp_a_write_never_read_again_becomes_a_proc_local",
+          "timeout": false,
+          "seconds": 0.568560746993171,
+          "log": "test-100.log.gz"
+        },
+        {
+          "test": "refactor::extract_proc::tests::tp_a_write_read_after_the_selection_is_carried_by_upvar",
+          "timeout": false,
+          "seconds": 0.6677250179927796,
+          "log": "test-101.log.gz"
+        },
+        {
+          "test": "refactor::extract_proc::tests::tp_extracts_a_read_only_selection_as_value_parameters",
+          "timeout": false,
+          "seconds": 0.5700197859841865,
+          "log": "test-102.log.gz"
+        },
+        {
+          "test": "refactor::extract_proc::tests::tp_the_definition_lands_after_the_file_prologue",
+          "timeout": false,
+          "seconds": 0.5172804400208406,
+          "log": "test-103.log.gz"
+        },
+        {
+          "test": "refactor::extract_proc::tests::tp_the_generated_name_avoids_a_collision",
+          "timeout": false,
+          "seconds": 0.6198516699951142,
+          "log": "test-104.log.gz"
+        },
+        {
+          "test": "refactor::inline_proc::tests::fp_refuses_a_bareword_bound_to_a_nested_expression_operand",
+          "timeout": false,
+          "seconds": 1.0684345549962018,
+          "log": "test-120.log.gz"
+        },
+        {
+          "test": "refactor::inline_proc::tests::fp_refuses_a_body_that_assigns_a_variable",
+          "timeout": false,
+          "seconds": 0.6696369850251358,
+          "log": "test-121.log.gz"
+        },
+        {
+          "test": "refactor::inline_proc::tests::fp_refuses_a_braced_argument_whose_value_is_not_a_plain_word",
+          "timeout": false,
+          "seconds": 0.7199459119874518,
+          "log": "test-126.log.gz"
+        },
+        {
+          "test": "refactor::inline_proc::tests::fp_refuses_a_computed_parameter_list",
+          "timeout": false,
+          "seconds": 0.7176168170117307,
+          "log": "test-127.log.gz"
+        },
+        {
+          "test": "refactor::inline_proc::tests::fp_refuses_a_loop_binding_in_the_body",
+          "timeout": false,
+          "seconds": 0.8198665340023581,
+          "log": "test-129.log.gz"
+        },
+        {
+          "test": "refactor::inline_proc::tests::fp_refuses_a_non_numeric_value_in_an_expression_operand",
+          "timeout": false,
+          "seconds": 0.7180663240142167,
+          "log": "test-131.log.gz"
+        },
+        {
+          "test": "refactor::inline_proc::tests::fp_refuses_a_radix_prefix_the_target_release_lacks",
+          "timeout": false,
+          "seconds": 1.1762652109900955,
+          "log": "test-132.log.gz"
+        },
+        {
+          "test": "refactor::inline_proc::tests::fp_refuses_a_substituted_argument",
+          "timeout": false,
+          "seconds": 0.6703200299816672,
+          "log": "test-133.log.gz"
+        },
+        {
+          "test": "refactor::inline_proc::tests::fp_refuses_a_write_nested_in_a_body",
+          "timeout": false,
+          "seconds": 0.9195688689942472,
+          "log": "test-134.log.gz"
+        },
+        {
+          "test": "refactor::inline_proc::tests::fp_refuses_an_empty_body",
+          "timeout": false,
+          "seconds": 0.6177469280082732,
+          "log": "test-135.log.gz"
+        },
+        {
+          "test": "refactor::inline_proc::tests::fp_refuses_radix_invalid_digits_in_an_expr_operand",
+          "timeout": false,
+          "seconds": 0.7712011219991837,
+          "log": "test-136.log.gz"
+        },
+        {
+          "test": "refactor::inline_proc::tests::fp_refuses_too_few_arguments",
+          "timeout": false,
+          "seconds": 0.7156432239862625,
+          "log": "test-137.log.gz"
+        },
+        {
+          "test": "refactor::inline_proc::tests::fp_refuses_too_many_arguments",
+          "timeout": false,
+          "seconds": 0.7657769350043964,
+          "log": "test-138.log.gz"
+        },
+        {
+          "test": "refactor::inline_proc::tests::inline_arguments_use_complete_original_words_and_shared_literal_values",
+          "timeout": false,
+          "seconds": 3.3270583919947967,
+          "log": "test-139.log.gz"
+        },
+        {
+          "test": "refactor::inline_proc::tests::tp_a_prefix_sharing_parameter_name_is_not_corrupted",
+          "timeout": false,
+          "seconds": 0.7199140110169537,
+          "log": "test-145.log.gz"
+        },
+        {
+          "test": "refactor::original_frame_walk_tests::original_expression_components_keep_braced_literals_inert_and_quoted_reads_active",
+          "timeout": false,
+          "seconds": 0.5183956979890354,
+          "log": "test-156.log.gz"
+        },
+        {
+          "test": "semantic_tokens::selected_source_token_tests::original_member_handle_advice_preserves_literal_name_and_class_data",
+          "timeout": false,
+          "seconds": 0.7183858309872448,
+          "log": "test-167.log.gz"
+        },
+        {
+          "test": "semantic_tokens::selected_source_token_tests::original_member_handle_advice_uses_the_genuine_factory_member_body",
+          "timeout": false,
+          "seconds": 0.8219791559968144,
+          "log": "test-168.log.gz"
+        },
+        {
+          "test": "receiver_identity::current_method_cursor_tests::original_definition_method_cursor_requires_current_complete_editor_input",
+          "timeout": false,
+          "seconds": 0.6697100420133211,
+          "log": "test-175.log.gz"
+        },
+        {
+          "test": "references::tests::references_include_bare_call_to_a_proc_installed_into_oo_helpers",
+          "timeout": false,
+          "seconds": 1.7240719880210236,
+          "log": "test-176.log.gz"
+        },
+        {
+          "test": "package_resolver::standalone_filename_data_tests::standalone_indices_keep_actual_filename_values_and_default_source_grammar",
+          "timeout": false,
+          "seconds": 0.11839125800179318,
+          "log": "test-178.log.gz"
+        },
+        {
+          "test": "call_hierarchy::tests::outgoing_calls_from_method_to_top_level_proc",
+          "timeout": false,
+          "seconds": 0.5699900889885612,
+          "log": "test-185.log.gz"
+        },
+        {
+          "test": "call_hierarchy::tests::unresolved_method_outgoing_calls_excludes_my_keyword",
+          "timeout": false,
+          "seconds": 0.4674098670075182,
+          "log": "test-186.log.gz"
+        },
+        {
+          "test": "variable_symbol::declaration_cursor_join_tests::declaration_navigation_requires_the_original_cursor_symbol_and_current_source",
+          "timeout": false,
+          "seconds": 0.6688982089981437,
+          "log": "test-207.log.gz"
+        },
+        {
+          "test": "variable_symbol::declaration_cursor_join_tests::readonly_alias_relations_ignore_report_links_and_keep_actual_local_frames",
+          "timeout": false,
+          "seconds": 7.156017150991829,
+          "log": "test-208.log.gz"
+        },
+        {
+          "test": "rename::source_declaration_rename_tests::logical_variable_rename_uses_original_edit_coverage_and_refuses_alias_only_anchors",
+          "timeout": false,
+          "seconds": 0.5183174579869956,
+          "log": "test-209.log.gz"
+        },
+        {
+          "test": "rename::tests::rename_array_variable_preserves_element_index",
+          "timeout": false,
+          "seconds": 0.5188697609992232,
+          "log": "test-217.log.gz"
+        },
+        {
+          "test": "rename::tests::rename_array_variable_preserves_index_in_braced_reference",
+          "timeout": false,
+          "seconds": 0.6202430220146198,
+          "log": "test-218.log.gz"
+        },
+        {
+          "test": "declaration::tests::original_logical_declarations_join_global_aliases_without_local_root_stripping",
+          "timeout": false,
+          "seconds": 6.1926544129964896,
+          "log": "test-219.log.gz"
+        },
+        {
+          "test": "declaration::tests::upvar_local_alias_is_a_declaration",
+          "timeout": false,
+          "seconds": 0.6213495100091677,
+          "log": "test-221.log.gz"
+        },
+        {
+          "test": "declaration::tests::global_declared_inside_apply_lambda_body_is_found",
+          "timeout": false,
+          "seconds": 0.4680797740002163,
+          "log": "test-222.log.gz"
+        },
+        {
+          "test": "workspace_index::typed_variable_source_index_tests::variable_index_uses_typed_source_declarations_and_literal_alias_targets",
+          "timeout": false,
+          "seconds": 2.8772760269930586,
+          "log": "test-226.log.gz"
+        },
+        {
+          "test": "workspace_index::typed_variable_source_index_tests::unavailable_alias_source_coverage_and_missing_inputs_are_not_absence",
+          "timeout": false,
+          "seconds": 3.178981095989002,
+          "log": "test-227.log.gz"
+        },
+        {
+          "test": "rename::typed_namespace_variable_rename_tests::namespace_variable_source_edits_ignore_alias_reports_and_require_current_symbols",
+          "timeout": false,
+          "seconds": 0.5192932260106318,
+          "log": "test-228.log.gz"
+        },
+        {
+          "test": "rename::tests::colon_variable_rename_keeps_the_empty_cell_separate",
+          "timeout": false,
+          "seconds": 0.519511373975547,
+          "log": "test-229.log.gz"
+        },
+        {
+          "test": "rename::tests::tp_namespace_variable_rename_covers_declaration_alias_and_qualified_use",
+          "timeout": false,
+          "seconds": 0.9215059939888306,
+          "log": "test-230.log.gz"
+        },
+        {
+          "test": "rename::tests::namespace_variable_rename_requires_the_retained_consumer_image",
+          "timeout": false,
+          "seconds": 0.5177689690026455,
+          "log": "test-231.log.gz"
+        },
+        {
+          "test": "rename::tests::fp_namespace_variable_rename_keeps_a_differently_named_alias_spelling",
+          "timeout": false,
+          "seconds": 1.120793529000366,
+          "log": "test-232.log.gz"
+        },
+        {
+          "test": "rename::tests::tn_namespace_variable_rename_takes_the_minimal_edit_for_a_same_spelled_alias",
+          "timeout": false,
+          "seconds": 0.8188782639917918,
+          "log": "test-233.log.gz"
+        },
+        {
+          "test": "rename::tests::tp_namespace_variable_rename_rewrites_a_global_upvar_target_word",
+          "timeout": false,
+          "seconds": 0.8699906089750584,
+          "log": "test-234.log.gz"
+        },
+        {
+          "test": "rename::tests::tp_namespace_variable_rename_rewrites_a_global_alias_and_its_reads",
+          "timeout": false,
+          "seconds": 0.8175032580038533,
+          "log": "test-235.log.gz"
+        },
+        {
+          "test": "rename::tests::tn_namespace_variable_rename_leaves_a_same_tailed_sibling_cell_alone",
+          "timeout": false,
+          "seconds": 0.970662011008244,
+          "log": "test-236.log.gz"
+        },
+        {
+          "test": "rename::tests::tn_namespace_variable_rename_leaves_an_unrelated_local_alone",
+          "timeout": false,
+          "seconds": 0.8224128329893574,
+          "log": "test-238.log.gz"
+        },
+        {
+          "test": "workspace_index::tests::indexes_a_cell_alias_written_from_another_namespace",
+          "timeout": false,
+          "seconds": 1.0193722249823622,
+          "log": "test-239.log.gz"
+        },
+        {
+          "test": "workspace_index::tests::literal_colon_namespace_keys_keep_definitions_and_variables_distinct",
+          "timeout": false,
+          "seconds": 0.9696999640145805,
+          "log": "test-243.log.gz"
+        }
+      ]
+    },
+    "db": {
+      "count": 76,
+      "pass": 63,
+      "fail": 13,
+      "timeout": 0,
+      "result_sha256": "1c23063b27ef804d61485ae3f87df227d325422e57655d43e973f37875fc01d0",
+      "source_drift": {},
+      "binary_unchanged": true,
+      "all_exact_once": true,
+      "missing_exact": [],
+      "empty_filters": [],
+      "failures": [
+        {
+          "test": "tests::logical_callback_source_slots_preserve_namespace_order_and_missing_project_inputs",
+          "timeout": false,
+          "seconds": 3.2323871109983884,
+          "log": "test-02.log.gz"
+        },
+        {
+          "test": "tests::project_direct_logical_calls_keep_root_recipe_and_missing_namespace_unknown",
+          "timeout": false,
+          "seconds": 0.6700815170188434,
+          "log": "test-11.log.gz"
+        },
+        {
+          "test": "tests::project_direct_logical_calls_use_original_occurrences_and_namespace_slots",
+          "timeout": false,
+          "seconds": 6.19588018298964,
+          "log": "test-12.log.gz"
+        },
+        {
+          "test": "original_project_callback_projection_tests::legacy_project_advice_requires_positive_retained_logical_input",
+          "timeout": false,
+          "seconds": 2.3237528469762765,
+          "log": "test-18.log.gz"
+        },
+        {
+          "test": "original_tracked_metadata_tests::tracked_source_units_share_checked_input_and_memoized_procedure_grammar",
+          "timeout": false,
+          "seconds": 16.926101471006405,
+          "log": "test-26.log.gz"
+        },
+        {
+          "test": "original_uncached_metadata_tests::uncached_compiler_advice_preserves_original_diagnostic_context",
+          "timeout": false,
+          "seconds": 12.668843310995726,
+          "log": "test-27.log.gz"
+        },
+        {
+          "test": "tests::function_lattice_memoises_param_constant_procs",
+          "timeout": false,
+          "seconds": 2.4225545119843446,
+          "log": "test-53.log.gz"
+        },
+        {
+          "test": "tests::function_lattice_retains_supplied_availability_and_refuses_missing_or_foreign_input",
+          "timeout": false,
+          "seconds": 1.8711087479896378,
+          "log": "test-54.log.gz"
+        },
+        {
+          "test": "tests::function_lattice_reused_on_whole_file_shift",
+          "timeout": false,
+          "seconds": 2.724933252990013,
+          "log": "test-56.log.gz"
+        },
+        {
+          "test": "tests::function_optimisations_reused_on_unrelated_edit",
+          "timeout": false,
+          "seconds": 0.7699058710131794,
+          "log": "test-58.log.gz"
+        },
+        {
+          "test": "tests::memoised_lattices_are_shared_not_deep_copied_across_builds",
+          "timeout": false,
+          "seconds": 1.8227991700114217,
+          "log": "test-60.log.gz"
+        },
+        {
+          "test": "readonly_source_optimisation_owner_tests::source_optimisation_certificates_retain_unknown_world_hazards",
+          "timeout": false,
+          "seconds": 0.42119721398921683,
+          "log": "test-72.log.gz"
+        },
+        {
+          "test": "project_source_inputs::tests::configured_project_headers_keep_pack_definers_and_withdraw_changed_source_metadata",
+          "timeout": false,
+          "seconds": 0.46748407700215466,
+          "log": "test-75.log.gz"
+        }
+      ]
+    },
+    "syntax": {
+      "count": 7,
+      "pass": 7,
+      "fail": 0,
+      "timeout": 0,
+      "result_sha256": "632c8d08007b3bd0775871cd620d5aede3366d67e34dd48ce527535117e60a59",
+      "source_drift": {},
+      "binary_unchanged": true,
+      "all_exact_once": true,
+      "missing_exact": [],
+      "empty_filters": [],
+      "failures": []
+    },
+    "source": {
+      "count": 42,
+      "pass": 42,
+      "fail": 0,
+      "timeout": 0,
+      "result_sha256": "564ecb1ada86e846814504e3c3cc727f3b9ea840f5649e643d90409aa9fd4b82",
+      "source_drift": {},
+      "binary_unchanged": true,
+      "all_exact_once": true,
+      "missing_exact": [],
+      "empty_filters": [],
+      "failures": []
+    },
+    "studio": {
+      "count": 3,
+      "pass": 3,
+      "fail": 0,
+      "timeout": 0,
+      "result_sha256": "0f9b4360f503ed3259e8af3268ff4dea92aea53334d9cdd5cfbcb1a3abf8f3fa",
+      "source_drift": {},
+      "binary_unchanged": true,
+      "all_exact_once": true,
+      "missing_exact": [],
+      "empty_filters": [],
+      "failures": []
+    },
+    "spectcl": {
+      "count": 1,
+      "pass": 1,
+      "fail": 0,
+      "timeout": 0,
+      "result_sha256": "c83263a846ce025959797991d4149efdf68d9f47b61fa65713d8831bea76d50e",
+      "source_drift": {},
+      "binary_unchanged": true,
+      "all_exact_once": true,
+      "missing_exact": [],
+      "empty_filters": [],
+      "failures": []
+    },
+    "registry": {
+      "count": 12,
+      "pass": 12,
+      "fail": 0,
+      "timeout": 0,
+      "result_sha256": "7e0a62afba8841512dcc434a81630a2464df095abd88d0f2e50b9e07e957334e",
+      "source_drift": {},
+      "binary_unchanged": true,
+      "all_exact_once": true,
+      "missing_exact": [],
+      "empty_filters": [],
+      "failures": []
+    },
+    "mcp": {
+      "count": 43,
+      "pass": 32,
+      "fail": 11,
+      "timeout": 0,
+      "result_sha256": "6ead969967d8d1afc45b9fa9ec727eee813fc307aad5b244f4e6ef09db45dafe",
+      "source_drift": {},
+      "binary_unchanged": true,
+      "all_exact_once": true,
+      "missing_exact": [],
+      "empty_filters": [],
+      "failures": [
+        {
+          "test": "datagroup::tests::selected_if_suggestions_share_actual_scalar_reference_grammar",
+          "timeout": false,
+          "seconds": 3.324800716014579,
+          "log": "test-01.log.gz"
+        },
+        {
+          "test": "datagroup::tests::original_datagroup_suggestions_separate_heuristics_from_current_edit_eligibility",
+          "timeout": false,
+          "seconds": 3.5312646600068547,
+          "log": "test-09.log.gz"
+        },
+        {
+          "test": "datagroup::tests::original_switch_suggestions_keep_selected_alias_and_current_analysis",
+          "timeout": false,
+          "seconds": 2.8285111369914375,
+          "log": "test-12.log.gz"
+        },
+        {
+          "test": "datagroup::original_arm_parser_purpose_tests::original_datagroup_arm_parser_preserves_body_bom_and_actual_grammar_overrides",
+          "timeout": false,
+          "seconds": 0.017239449982298538,
+          "log": "test-13.log.gz"
+        },
+        {
+          "test": "datagroup::original_arm_parser_purpose_tests::if_suggestions_use_actual_selected_source_schema_and_refuse_shadowed_heads",
+          "timeout": false,
+          "seconds": 2.726481446006801,
+          "log": "test-14.log.gz"
+        },
+        {
+          "test": "datagroup::shared_expression_report_tests::data_group_reports_use_completed_literal_data_and_actual_or_nodes",
+          "timeout": false,
+          "seconds": 6.992809021001449,
+          "log": "test-15.log.gz"
+        },
+        {
+          "test": "irule_gen::tests::generated_inventory_keeps_quoted_substitutions_before_an_expr_error",
+          "timeout": false,
+          "seconds": 3.7827745539834723,
+          "log": "test-27.log.gz"
+        },
+        {
+          "test": "irule_gen::tests::executable_inventory_includes_proc_bodies_and_excludes_invalid_regions",
+          "timeout": false,
+          "seconds": 1.9221755510079674,
+          "log": "test-30.log.gz"
+        },
+        {
+          "test": "irule_gen::tests::unknown_events_and_malformed_procs_are_inert_for_generated_inventory",
+          "timeout": false,
+          "seconds": 4.985121176985558,
+          "log": "test-34.log.gz"
+        },
+        {
+          "test": "irule_gen::tests::cfg_test_generation_uses_retained_source_kind_instead_of_event_labels",
+          "timeout": false,
+          "seconds": 0.007897179981227964,
+          "log": "test-38.log.gz"
+        },
+        {
+          "test": "irule_gen::fallback_pool_source_tests::fallback_http_pool_values_remain_literal_words_and_preserve_the_test_body",
+          "timeout": false,
+          "seconds": 0.9188641970104072,
+          "log": "test-42.log.gz"
+        }
+      ]
+    },
+    "server": {
+      "count": 15,
+      "pass": 12,
+      "fail": 3,
+      "timeout": 0,
+      "result_sha256": "f6ad2f1697e12517c251b643b549d37f0be6bae8bbba12fc070429c366461439",
+      "source_drift": {},
+      "binary_unchanged": true,
+      "all_exact_once": true,
+      "missing_exact": [],
+      "empty_filters": [],
+      "failures": [
+        {
+          "test": "tests::rename_edits_span_multiple_documents",
+          "timeout": false,
+          "seconds": 2.427762236999115,
+          "log": "test-10.log.gz"
+        },
+        {
+          "test": "tests::rename_from_a_consumer_document_rewrites_the_defining_sibling",
+          "timeout": false,
+          "seconds": 2.3731651570124086,
+          "log": "test-11.log.gz"
+        },
+        {
+          "test": "tests::logical_namespace_rename_collision_uses_constructed_colon_holder",
+          "timeout": false,
+          "seconds": 1.2699237509805243,
+          "log": "test-14.log.gz"
+        }
+      ]
+    },
+    "lexer": {
+      "count": 11,
+      "pass": 11,
+      "fail": 0,
+      "timeout": 0,
+      "result_sha256": "634abb7820670852fa8a11fe59c0ec27dad74264a18b0ee0dc41b1bfba5efae9",
+      "source_drift": {},
+      "binary_unchanged": true,
+      "all_exact_once": true,
+      "missing_exact": [],
+      "empty_filters": [],
+      "failures": []
+    },
+    "irules": {
+      "count": 19,
+      "pass": 16,
+      "fail": 3,
+      "timeout": 0,
+      "result_sha256": "fb29ee53d2904c147ad66d9d5670be14e7189e481ea171dd44faa018df654d4d",
+      "source_drift": {},
+      "binary_unchanged": true,
+      "all_exact_once": true,
+      "missing_exact": [],
+      "empty_filters": [],
+      "failures": [
+        {
+          "test": "walker::tests::object_refs_follow_only_reachable_valid_execution_regions",
+          "timeout": false,
+          "seconds": 1.1676367600157391,
+          "log": "test-01.log.gz"
+        },
+        {
+          "test": "walker::tests::authored_nominal_tombstone_withdraws_object_source_schema",
+          "timeout": false,
+          "seconds": 0.7689169210207183,
+          "log": "test-05.log.gz"
+        },
+        {
+          "test": "walker::original_object_value_tests::object_candidates_decode_original_literal_values_and_refuse_live_components",
+          "timeout": false,
+          "seconds": 0.5157667949970346,
+          "log": "test-19.log.gz"
+        }
+      ]
+    }
+  },
+  "totals": {
+    "pass": 643,
+    "fail": 312,
+    "timeout": 1
+  },
+  "comparisons": {
+    "compiler": {
+      "retained": 478,
+      "dropped": [],
+      "gains": [
+        "analyser::item_tree::tests::logical_header_counts_keep_original_formals_without_selecting_an_engine"
+      ],
+      "regressions": [],
+      "additions": [
+        {
+          "test": "body_analysis_capsule::readonly_authored_coverage::tests::readonly_authored_coverage_preserves_both_actual_analysis_inventories",
+          "pass": false,
+          "timeout": false
+        },
+        {
+          "test": "body_analysis_capsule::readonly_authored_coverage::tests::readonly_authored_coverage_refuses_missing_foreign_and_mismatched_owners",
+          "pass": true,
+          "timeout": false
+        }
+      ]
+    },
+    "core": {
+      "retained": 243,
+      "dropped": [],
+      "gains": [],
+      "regressions": [],
+      "additions": [
+        {
+          "test": "refactor::inline_variable::original_interpolation_source_tests::original_inline_fragments_keep_components_and_complete_receiver_words",
+          "pass": true,
+          "timeout": false
+        },
+        {
+          "test": "refactor::inline_variable::original_interpolation_source_tests::logical_inline_quote_proposals_keep_the_current_binding_and_source_gates",
+          "pass": true,
+          "timeout": false
+        },
+        {
+          "test": "formatting::engine::original_variable_reconstruction_tests::variable_style_proposals_keep_original_array_indices_and_selected_name_grammar",
+          "pass": true,
+          "timeout": false
+        },
+        {
+          "test": "formatting::engine::original_variable_reconstruction_tests::configured_variable_reconstruction_reborrows_whole_words_and_refuses_changed_tokens",
+          "pass": true,
+          "timeout": false
+        }
+      ]
+    },
+    "db": {
+      "retained": 76,
+      "dropped": [],
+      "gains": [],
+      "regressions": [],
+      "additions": []
+    },
+    "syntax": {
+      "retained": 5,
+      "dropped": [],
+      "gains": [],
+      "regressions": [],
+      "additions": [
+        {
+          "test": "naming::native::original_jim_parent_producer_distinguishes_unchanged_counted_and_rooted_branches",
+          "pass": true,
+          "timeout": false
+        },
+        {
+          "test": "naming::native::jim_qualifiers_shared_empty_is_distinct_from_a_paired_root_counted_empty",
+          "pass": true,
+          "timeout": false
+        }
+      ]
+    },
+    "source": {
+      "retained": 42,
+      "dropped": [],
+      "gains": [],
+      "regressions": [],
+      "additions": []
+    },
+    "studio": {
+      "retained": 3,
+      "dropped": [],
+      "gains": [],
+      "regressions": [],
+      "additions": []
+    },
+    "spectcl": {
+      "retained": 1,
+      "dropped": [],
+      "gains": [],
+      "regressions": [],
+      "additions": []
+    },
+    "registry": {
+      "retained": 12,
+      "dropped": [],
+      "gains": [],
+      "regressions": [],
+      "additions": []
+    },
+    "mcp": {
+      "retained": 43,
+      "dropped": [],
+      "gains": [],
+      "regressions": [],
+      "additions": []
+    },
+    "server": {
+      "retained": 15,
+      "dropped": [],
+      "gains": [],
+      "regressions": [],
+      "additions": []
+    },
+    "lexer": {
+      "retained": 11,
+      "dropped": [],
+      "gains": [],
+      "regressions": [],
+      "additions": []
+    }
+  },
+  "original2286_first": {
+    "command": [
+      "/workspace/tcl-lsp/target/name-clean256-20261015/debug/deps/tcl_compiler-71ef5b05fc1ed890",
+      "analyser::diagnostics::tests::tcltest_oracle_program_keeps_missing_reads_and_setup_completion",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit_code": 0,
+    "seconds": 72.40099537899368,
+    "log": "test-01.log.gz",
+    "timed_out": false,
+    "test": "analyser::diagnostics::tests::tcltest_oracle_program_keeps_missing_reads_and_setup_completion",
+    "summaries": [
+      [
+        "ok",
+        "1",
+        "0"
+      ]
+    ],
+    "running_counts": [
+      "1"
+    ]
+  }
+}

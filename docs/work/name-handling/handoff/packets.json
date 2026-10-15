@@ -38,5 +38,15 @@
     "file": "lsp-minifier.tar.gz",
     "sha256": "d22fb434a83ded4999b8c8d50b54882f41c1089a7e29587d86e727bda6e7504a",
     "status": "UNIMPLEMENTED minifier design with controlled/excluded original6 oracle raw channels and12 zero stderr; no new assertions or Native authority"
+  },
+  {
+    "file": "compiler-current272-coverage-addendum.tar.gz",
+    "sha256": "7b2f1af90d48d4b1f1d874637621e506a7667a56a73c4546bf4e6418aa90dbac",
+    "status": "Actual272 readonly positive refusal/raw02-03; source-proven incompatible Installed\u2192declaration-only dependency, not an instrumented internal first guard; no code changes"
+  },
+  {
+    "file": "validation-current272.tar.gz",
+    "sha256": "476d95737174fa228b6753000a7bc6e6961b932c53013cbde91796ac93ebc673",
+    "status": "Actual selected272643PASS312FAIL1TIMEOUT; all956 exact controls/source/binary unchanged; full ordinary authored input/build receipts and raw test logs, failed271 preserved; no Native/runtime/VM/F5 acceptance"
   }
 ]

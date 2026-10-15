@@ -1,5 +1,7 @@
 # Structured procedure and body identity: proposed #1778 migration
 
+Fresh ordinary272 on actual source238 seals956 controls: 643 PASS, 312 FAIL, 1 TIMEOUT. Its single-job fresh build passes in348.483727 seconds with14 test ELFs, errors[] and unchanged authored source, executing zero tests during the build. All12 selected scopes retain unchanged captured source/binaries, exact single runs and no missing/empty filters. Every265929 selector remains with1 gain and0 prior-PASS regressions/drops; eight additions within retained scopes are7 PASS/1 FAIL; the independent IRules19 scope is16 PASS/3 FAIL. Original#2286 runs first and passes72.400995379s under the unchanged180-second budget. Runtime174/VM133 and formatter88/integration55/15 annexes remain unexecuted plans; normal owner CLI250 still197 diagnostics.
+
 ## Current238 handoff scope
 
 This is a dated13 October design proposal, not the present Module representation. Current issued procedure IDs, original Authored/Logical/Native body cards and report-label projections are adopted. Current226 readonly coverage preserves all Authored+Installed rows with unique injective actual allocation/site/origin/formals/namespace/current Module/FU/CFG pairing; it grants only Authored analytical admissibility. Remaining live source-scope/catalogue consumers are in the current ledger; no old rendered-name architecture should be reinstated.
@@ -210,3 +212,5 @@ identity and oracle-derived controls pass. #1778 covers runtime/VM/LSP indexes,
 sidecars/traces/teardown too; a compiler migration alone is not full issue closure.
 Original-argv acceptance, F5 answers and current naming-base/variable-policy
 producer work remain independent prerequisites or explicit outstanding items.
+
+Final source238 validation: [ordinary272 current snapshot](current-state.md#current272-selected-scopes); exact portable receipts and unfinished owner work are indexed in [handoff/README.md](handoff/README.md). Historical scope in this document remains bounded to its stated capture.
