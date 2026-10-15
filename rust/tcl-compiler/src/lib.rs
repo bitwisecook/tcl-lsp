@@ -78,6 +78,8 @@
 //!   green layer ([`parsing::syntax::green`])
 //!   is the lossless representation of the source text.
 
+// Retained source and runtime receipts require deeper auto-trait evaluation.
+#![recursion_limit = "256"]
 #![deny(missing_docs)]
 
 pub mod alias;
