@@ -225,7 +225,7 @@ fn tcloo_info_vectors_match_real_tclsh_when_available() {
 /// and counts masked, as tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0 print
 /// it. A constant `dict create` stays a dict through `format %s`; a double's
 /// internal rep is its `%g` from 9.0 and its bits before.
-const REPRESENTATION_SCRIPT: &str = r#"if {[catch {tcl::unsupported::representation x} m]} {
+const REPRESENTATION_SCRIPT: &str = r"if {[catch {tcl::unsupported::representation x} m]} {
     puts $m
 } else {
     proc rep {v} {
@@ -246,7 +246,7 @@ const REPRESENTATION_SCRIPT: &str = r#"if {[catch {tcl::unsupported::representat
     catch {::tcl::unsupported::representation a b} m
     puts $m
 }
-"#;
+";
 
 const REPRESENTATION_ABSENT: &str = r#"invalid command name "tcl::unsupported::representation""#;
 const REPRESENTATION_86: &str = r#"1

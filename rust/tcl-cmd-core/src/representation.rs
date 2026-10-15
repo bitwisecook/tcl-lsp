@@ -24,6 +24,8 @@
 //! how a release spells them. Addresses and counts are the engine's, so they
 //! never equal C's; the sentence around them does.
 
+use std::fmt::Write as _;
+
 use tcl_dialect::TclVersion;
 
 /// What C's `Tcl_RepresentationCmd` reads from a `Tcl_Obj`.
@@ -89,18 +91,10 @@ pub fn describe(value: &Representation<'_>, release: TclVersion) -> Vec<u8> {
             }
             Internal::Double(x) => {
                 let bits = usize::try_from(x.to_bits()).unwrap_or(usize::MAX);
-                out.push_str(&format!(
-                    ", internal representation {}:{}",
-                    word(bits),
-                    word(0)
-                ));
+                let _ = write!(out, ", internal representation {}:{}", word(bits), word(0));
             }
             Internal::Words(a, b) => {
-                out.push_str(&format!(
-                    ", internal representation {}:{}",
-                    word(a),
-                    word(b)
-                ));
+                let _ = write!(out, ", internal representation {}:{}", word(a), word(b));
             }
             Internal::None => {}
         }

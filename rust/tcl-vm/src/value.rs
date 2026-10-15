@@ -617,7 +617,10 @@ impl Value {
         let address = |p: *const ()| p as usize;
         let (type_name, internal) = match &*self.0.intrep.borrow() {
             IntRep::Str => (None, Internal::None),
-            IntRep::Int(n) => (Some("int"), Internal::Words(*n as usize, 0)),
+            IntRep::Int(n) => (
+                Some("int"),
+                Internal::Words(usize::try_from(n.cast_unsigned()).unwrap_or(usize::MAX), 0),
+            ),
             IntRep::Double(x) => (Some("double"), Internal::Double(*x)),
             IntRep::Bool(b) => {
                 let word = string.as_deref().is_some_and(|s| s != "0" && s != "1");
