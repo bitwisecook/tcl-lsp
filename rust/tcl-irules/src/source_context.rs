@@ -945,6 +945,63 @@ mod tests {
             let mut analyser = Analyser::new().with_resolved_input(input);
             analyser.set_cu_override(unit.clone());
             let analysis = analyser.analyse(source, profile.name);
+            assert!(
+                unit.ir_module
+                    .irules_event_bodies
+                    .values()
+                    .any(|event| event.event() == "HTTP_REQUEST"),
+                "{version}: the actual lowering producer retains the HTTP declaration"
+            );
+            assert!(
+                unit.ir_module.procedures.iter().any(|(id, procedure)| {
+                    tcl_compiler::source_graph::event_body_for_procedure(
+                        &unit.ir_module,
+                        id,
+                        procedure,
+                        registry,
+                    )
+                    .is_some_and(|event| event.event() == "HTTP_REQUEST")
+                }),
+                "{version}: the original HTTP declaration still owns its current lowered procedure"
+            );
+            let vectors = source_vectors_from_analysis(
+                source,
+                &analysis,
+                &SourceImage::document(source),
+                config,
+                &context,
+            )
+            .unwrap();
+            let (_, declaration) = vectors.iter().find(|(span, _)| span.start() == 0).expect(
+                "the original configured HTTP declaration retains its complete source argv",
+            );
+            assert_eq!(
+                declaration.with_source_schema(&context, |schema| schema
+                    .semantics
+                    .traits
+                    .contains(Traits::IS_EVENT_HANDLER)),
+                Some(true),
+                "{version}: the actual original declaration retains its selected source schema"
+            );
+            assert_eq!(
+                declaration.roles(),
+                Some([(1, tcl_registry::ArgRole::Body)].as_slice()),
+                "{version}: the selected source schema retains the actual original body ordinal"
+            );
+            let bodies = declaration.source_script_bodies_for(
+                &context,
+                tcl_compiler::registry_invocation::OriginalSourceScriptPurpose::PotentialEvaluation,
+            );
+            assert_eq!(
+                bodies.len(),
+                1,
+                "{version}: the original declaration retains exactly one potential body source"
+            );
+            assert_eq!(
+                source.get(bodies[0].content_span().as_range()),
+                Some(r#"pool "a\"b"; pool {茶}; pool $dynamic"#),
+                "{version}: the body owner retains the exact written original content"
+            );
             let inventory = OriginalIrulesSourceContext::from_analysis(
                 source,
                 &analysis,

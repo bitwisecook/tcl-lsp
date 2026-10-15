@@ -112,7 +112,10 @@ impl<'a> SourceSummaryContext<'a> {
             registry,
             config,
             realm: crate::realm::original_logical_realm_from_source_bindings(
-                module.retained_source_bindings.as_deref()?,
+                module
+                    .retained_source_bindings
+                    .as_deref()?
+                    .positioned_for_module(module, registry)?,
             )?,
         })
     }
@@ -971,7 +974,8 @@ mod tests {
             Some("::g")
         );
         let mut foreign = module.clone();
-        foreign.source.push(' ');
+        foreign.source =
+            tcl_lexer::SourceImage::document(&format!("{} ", module.source.try_text().unwrap()));
         assert!(
             SourceSummaryContext::for_module(&foreign, context.commands(), foreign.lexer_config)
                 .is_none()
