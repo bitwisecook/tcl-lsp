@@ -1,4 +1,21 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
 // SPDX-License-Identifier: AGPL-3.0-or-later
+
 //! Original procedure and alias query owners across reached String callbacks.
 
 use super::native_operation_currency::NativeOperationScope;
@@ -8,113 +25,6 @@ use std::rc::Rc;
 use tcl_cmd_core::CmdError;
 use tcl_runtime_api::{ProcInfo, ProcParam};
 use tcl_syntax::value::ValueError;
-
-pub(crate) enum JimNamespaceOriginResult {
-    Found(Vec<u8>),
-    Missing(Vec<u8>),
-}
-impl JimNamespaceOriginResult {
-    pub(crate) fn publish(self, interpreter: &mut Interp) -> super::Code {
-        match self {
-            Self::Found(bytes) => {
-                interpreter.set_result_bytes(&bytes);
-                super::Code::Ok
-            }
-            Self::Missing(message) => interpreter.error(&message),
-        }
-    }
-}
-
-struct JimOriginQuery<'a> {
-    interpreter: &'a mut Interp,
-    namespace: obj::Owned,
-    namespace_scope: super::native_jim_lookup::OriginalJimLookupNamespace,
-    protocol: tcl_syntax::native_jim_lookup::NativeJimLookupProtocol,
-    scope: NativeOperationScope,
-}
-impl JimOriginQuery<'_> {
-    fn check(&mut self) -> Result<(), CmdError> {
-        self.scope.currency().ensure_current_or_refuse()?;
-        self.namespace_scope.check(self.interpreter)?;
-        obj::check_native_liveness(self.namespace.as_ptr())?;
-        Ok(())
-    }
-    fn bytes(&mut self, original: &Rc<obj::Owned>) -> Result<Vec<u8>, CmdError> {
-        self.check()?;
-        let reached = self
-            .interpreter
-            .native_object_string_bytes(original.as_ptr());
-        self.check()?;
-        reached.map(|bytes| bytes.to_vec()).map_err(Into::into)
-    }
-}
-impl tcl_registry::native_jim_lookup::NativeJimNamespaceOriginBackend for JimOriginQuery<'_> {
-    type Original = Rc<obj::Owned>;
-    type Error = CmdError;
-
-    fn canonical(&mut self, original: &Self::Original) -> Result<Self::Original, Self::Error> {
-        self.check()?;
-        let reached = self
-            .interpreter
-            .jim_canonical_namespace_object(&self.namespace, original.as_ptr());
-        self.check()?;
-        Ok(Rc::new(reached?))
-    }
-    fn alias_prefix(
-        &mut self,
-        canonical: &Self::Original,
-    ) -> Result<Option<Self::Original>, Self::Error> {
-        self.check()?;
-        let is_alias = self
-            .interpreter
-            .resolve_original_command_at(crate::namespace::GLOBAL, canonical.as_ptr())?
-            .is_some_and(|(command, _)| matches!(command, Command::Alias { .. }));
-        self.check()?;
-        if !is_alias {
-            return Ok(None);
-        }
-        // The scripted helper reaches info-alias separately on this SAME object.
-        let reached = self
-            .interpreter
-            .original_alias_prefix_value_at(crate::namespace::GLOBAL, canonical.as_ptr());
-        self.check()?;
-        let failure = match reached? {
-            tcl_runtime_api::AliasPrefixLookup::Prefix(original) => {
-                return Ok(Some(Rc::new(obj::Owned::retain(original))));
-            }
-            tcl_runtime_api::AliasPrefixLookup::MissingCommand => {
-                tcl_runtime_api::NativeJimAliasLookupFailure::MissingCommand
-            }
-            tcl_runtime_api::AliasPrefixLookup::NotAlias => {
-                tcl_runtime_api::NativeJimAliasLookupFailure::NotAlias
-            }
-        };
-        let name = self.bytes(canonical)?;
-        Err(CmdError::new_bytes(failure.message(&name))
-            .with_native_string_result(tcl_syntax::native_string::NativeStringProtocol::Jim084))
-    }
-    fn command_exists(&mut self, original: &Self::Original) -> Result<bool, Self::Error> {
-        self.check()?;
-        let found = self
-            .interpreter
-            .resolve_original_command_at(crate::namespace::GLOBAL, original.as_ptr())?
-            .is_some();
-        self.check()?;
-        Ok(found)
-    }
-    fn report(&mut self, original: &Self::Original) -> Result<Vec<u8>, Self::Error> {
-        let bytes = self.bytes(original)?;
-        Ok(self.protocol.namespace_origin_result(&bytes))
-    }
-    fn same_original(&self, left: &Self::Original, right: &Self::Original) -> bool {
-        left.as_ptr() == right.as_ptr()
-    }
-    fn alias_cycle_unavailable(&mut self) -> Self::Error {
-        self.interpreter.retain_name_query_refusal(
-            "Jim namespace origin alias cycle has no bounded original result",
-        )
-    }
-}
 
 struct ProcedureQuery {
     generation: u64,
@@ -190,44 +100,6 @@ impl ProcedureQuery {
 }
 
 impl Interp {
-    pub(crate) fn original_jim_namespace_origin(
-        &mut self,
-        original: *mut TclObj,
-    ) -> Result<JimNamespaceOriginResult, CmdError> {
-        let scope = NativeOperationScope::enter(self).map_err(CmdError::from_execution_refusal)?;
-        obj::check_native_liveness(original)?;
-        let original = Rc::new(obj::Owned::retain(original));
-        let namespace = self.jim_current_namespace_object()?;
-        let namespace_scope =
-            super::native_jim_lookup::OriginalJimLookupNamespace::capture(self, self.current_ns())?;
-        let protocol = self
-            .native_invocation_dialect()
-            .native_jim_lookup_protocol()
-            .ok_or(ValueError::CommandProtocolUnavailable(
-                "Jim namespace origin helper",
-            ))?;
-        let mut query = JimOriginQuery {
-            interpreter: self,
-            namespace,
-            namespace_scope,
-            protocol,
-            scope,
-        };
-        let reached =
-            tcl_registry::native_jim_lookup::native_jim_namespace_origin(&mut query, &original);
-        query.check()?;
-        let result = match reached? {
-            tcl_registry::native_jim_lookup::NativeJimNamespaceOriginOutcome::Found(bytes) => {
-                JimNamespaceOriginResult::Found(bytes)
-            }
-            tcl_registry::native_jim_lookup::NativeJimNamespaceOriginOutcome::Missing(original) => {
-                let bytes = query.bytes(&original)?;
-                JimNamespaceOriginResult::Missing(query.protocol.namespace_origin_missing(&bytes))
-            }
-        };
-        query.check()?;
-        Ok(result)
-    }
     fn retain_name_query_error(&mut self, error: CmdError) -> CmdError {
         if let Some(cause) = error.native_execution_refusal() {
             self.refuse_native_execution(cause.clone());

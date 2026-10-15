@@ -5391,15 +5391,12 @@ mod tests {
         assert_eq!(callbacks, 0);
     }
 
-    fn semantic_bundle_has_selected_invocation(
-        unit: &crate::compilation_unit::FunctionUnit,
-    ) -> bool {
-        unit.semantic_facts.executable().invocations().any(|call| {
-            matches!(
-                call.resolution,
-                crate::executable_ir::InvocationResolution::Resolved(_)
-            )
-        })
+    fn semantic_bundle_has_source_metadata(unit: &crate::compilation_unit::FunctionUnit) -> bool {
+        unit.semantic_facts
+            .conditional_source_metadata()
+            .invocations()
+            .next()
+            .is_some()
     }
 
     #[test]
@@ -5442,7 +5439,7 @@ mod tests {
             selected.semantic_facts.metadata_context(),
             Some(current.context())
         );
-        assert!(semantic_bundle_has_selected_invocation(selected));
+        assert!(semantic_bundle_has_source_metadata(selected));
         let input = selected.source_metadata_input().unwrap();
         let older = Arc::new(
             tcl_registry::model::ingress::static_context_for("tcl8.4")
@@ -5461,7 +5458,7 @@ mod tests {
             Some(&unit.ir_module.top_level),
             crate::dispatch_proof::DispatchEntryAssumption::PristineRegistryWorld,
         );
-        assert!(!semantic_bundle_has_selected_invocation(&unavailable));
+        assert!(!semantic_bundle_has_source_metadata(&unavailable));
         let mut foreign = selected.clone();
         foreign.source_metadata_input = Some(crate::analyser::ResolvedAnalysisInput::new(
             input.analyser_profile(),
@@ -5520,7 +5517,7 @@ mod tests {
             &input,
         );
         let selected = unit.clone().with_retained_deep_semantic_analysis(registry);
-        assert!(semantic_bundle_has_selected_invocation(&selected.top_level));
+        assert!(semantic_bundle_has_source_metadata(&selected.top_level));
         assert!(
             selected
                 .top_level
@@ -5545,9 +5542,7 @@ mod tests {
         unavailable.ir_module.source_metadata_input =
             unavailable.top_level.source_metadata_input.clone();
         let unavailable = unavailable.with_retained_deep_semantic_analysis(registry);
-        assert!(!semantic_bundle_has_selected_invocation(
-            &unavailable.top_level
-        ));
+        assert!(!semantic_bundle_has_source_metadata(&unavailable.top_level));
         let mut missing = unit.clone();
         missing.top_level.source_metadata_input = None;
         let mut foreign = unit.clone();
@@ -5593,7 +5588,7 @@ mod tests {
                 Arc::new(current.with_command_store(Arc::clone(registry))),
                 input.lexer_config(),
             ));
-        assert!(semantic_bundle_has_selected_invocation(
+        assert!(semantic_bundle_has_source_metadata(
             &unit
                 .clone()
                 .with_retained_deep_semantic_analysis(registry)
@@ -5613,7 +5608,7 @@ mod tests {
             Some(&unit.ir_module.top_level),
             crate::dispatch_proof::DispatchEntryAssumption::PristineRegistryWorld,
         );
-        assert!(semantic_bundle_has_selected_invocation(&standalone));
+        assert!(semantic_bundle_has_source_metadata(&standalone));
     }
 
     fn retained_memory_fixture(
@@ -5837,7 +5832,7 @@ mod tests {
                 crate::registry_invocation::OwnedInvocationMetadataContext::Unavailable
             ));
             let selected = retained_memo_fixture_unit(req, registry);
-            assert!(semantic_bundle_has_selected_invocation(&selected));
+            assert!(semantic_bundle_has_source_metadata(&selected));
             let mut stale = selected.clone();
             stale.source_config.escapes = tcl_dialect::EscapeSyntax::Tcl86;
             assert!(stale.invocation_metadata_context(registry).is_none());
@@ -5868,7 +5863,7 @@ mod tests {
             Some(Arc::clone(&current)),
         );
         assert_eq!(requests, 1);
-        assert!(semantic_bundle_has_selected_invocation(
+        assert!(semantic_bundle_has_source_metadata(
             unit.procedures
                 .get(&fixture_id(&unit.procedures, "::p"))
                 .expect("authored fixture body")
@@ -5881,7 +5876,7 @@ mod tests {
                 .is_some()
         );
         let deep = unit.with_retained_deep_semantic_analysis(registry);
-        assert!(semantic_bundle_has_selected_invocation(
+        assert!(semantic_bundle_has_source_metadata(
             deep.procedures
                 .get(&fixture_id(&deep.procedures, "::p"))
                 .expect("authored fixture body")

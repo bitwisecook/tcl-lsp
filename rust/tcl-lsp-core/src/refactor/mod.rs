@@ -78,7 +78,9 @@ pub use source_command::find_original_command_at;
 pub use switch_to_dict::switch_to_dict;
 
 use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
-use tcl_lexer::{LexerConfig, LineIndex, Token, TokenType};
+use tcl_lexer::{LexerConfig, LineIndex};
+#[cfg(test)]
+use tcl_lexer::{Token, TokenType};
 use tcl_registry::{ArgRole, CommandRegistry};
 
 use crate::definition::LspRange;
@@ -963,7 +965,7 @@ fn walk_commands_inner(
         out.push((cmd.texts.clone(), pos.line, pos.character.get()));
         // Spans here are absolute into `full` (the segmenter was given
         // `offset`), so the lambda splitter reads from `full` too.
-        for body in body_words(ctx.full, &cmd, ctx.registry) {
+        for body in body_words(ctx.full, &cmd, ctx.registry, ctx.config.at_depth(depth)) {
             let Some(body_slice) = ctx
                 .full
                 .get(body.inner_start as usize..body.inner_end as usize)
@@ -1003,7 +1005,7 @@ fn find_command_at_inner(
             continue;
         }
         // Recurse into body arguments first — the innermost match wins.
-        for body in body_words(source, &cmd, registry) {
+        for body in body_words(source, &cmd, registry, config.at_depth(depth)) {
             if let Some(inner) = find_command_at_inner(
                 &source[body.inner_start as usize..body.inner_end as usize],
                 cursor.saturating_sub(body.inner_start),
@@ -1030,60 +1032,47 @@ struct BodyWord {
     inner_end: u32,
 }
 
-/// Yield the script-bearing words of `cmd` that [`find_command_at_inner`]
-/// may descend into, as interior byte ranges (delimiters excluded) in the
-/// outer source buffer.
-///
-/// Two registry roles qualify, both resolved from the spec — never from a
-/// command name:
-///
-/// * [`ArgRole::Body`] — a plain braced script; the whole interior is code.
-/// * [`ArgRole::LambdaLiteral`] — `apply`'s `{argList body ?ns?}` two- or
-///   three-element list, where only element 1 is code.  It is split with
-///   [`tcl_compiler::lambda_literal::split_lambda_literal`], the same
-///   splitter every other consumer uses.  Treating
-///   the whole literal as one body instead reads `argList` as a command
-///   name and swallows the real body, which is why no refactor code action
-///   fired inside an `apply` lambda.  Only a `{braced}` body element is
-///   descended
-///   ([`LambdaLiteralElements::braced_body`](tcl_compiler::lambda_literal::LambdaLiteralElements::braced_body)):
-///   a bare / double-quoted one is backslash-decoded before `apply`
-///   evaluates it, so its source slice is not the script that runs and the
-///   spans a code action derived from it would edit the wrong bytes.
-fn body_words(source: &str, cmd: &SegmentedCommand, registry: &CommandRegistry) -> Vec<BodyWord> {
+/// Yield configured lexical body ranges for the explicit standalone walks.
+/// Registry roles select the original braced word; its shared content extent
+/// supplies the script bytes. A lambda uses the same word's selected list
+/// grammar and only its braced body element, without decoding new edit offsets.
+/// These ranges supply no analysis, invocation, entered frame or edit authority.
+fn body_words(
+    source: &str,
+    cmd: &SegmentedCommand,
+    registry: &CommandRegistry,
+    config: LexerConfig,
+) -> Vec<BodyWord> {
     let name = cmd.name();
     if name.is_empty() {
         return Vec::new();
     }
+    let Some(words) = configured_command_words(source, cmd, config) else {
+        return Vec::new();
+    };
     let args: Vec<&str> = cmd.args().iter().map(String::as_str).collect();
     let mut out = Vec::new();
     for idx in registry.arg_indices_for_role(name, &args, ArgRole::Body) {
-        // `arg_indices_for_role` is 0-based over the post-name args; the
-        // representative argv token sits at `idx + 1`.
-        let Some(&tok) = cmd.argv.get(idx + 1) else {
+        let Some(word) = words.get(idx + 1) else {
             continue;
         };
-        if tok.kind != TokenType::Str {
+        if word.group().kind != tcl_lexer::WordKind::Braced || word.group().expand {
             continue;
         }
-        // The STR token's span starts on the opening `{` and ends before
-        // the closing `}` (inner-end convention).  The descended interior
-        // is one byte past the `{` up to the span end.
-        let inner_start = tok.span.start() + u32::from(tok.content_offset);
-        let inner_end = tok.span.end();
-        push_body_word(&mut out, inner_start, inner_end);
+        let Ok(content) = word.content_span() else {
+            continue;
+        };
+        push_body_word(&mut out, content.start(), content.end());
     }
     for idx in registry.arg_indices_for_role(name, &args, ArgRole::LambdaLiteral) {
-        let Some(&tok) = cmd.argv.get(idx + 1) else {
+        let Some(word) = words.get(idx + 1) else {
             continue;
         };
-        // A `$var` / `[cmd]`-computed lambda can't be split statically —
-        // the guard every `LambdaLiteral` consumer applies.
-        if tok.kind != TokenType::Str {
+        if word.group().expand {
             continue;
         }
-        let Some(body) = tcl_compiler::lambda_literal::split_lambda_literal(source, tok)
-            .and_then(|elems| elems.braced_body())
+        let Some(body) = tcl_compiler::lambda_literal::split_original_lambda_literal(word)
+            .and_then(|elements| elements.braced_body())
         else {
             continue;
         };
@@ -1109,19 +1098,13 @@ pub fn line_indent(line: &str) -> &str {
     &line[..line.len() - line.trim_start().len()]
 }
 
-/// Re-indent a (possibly braced) body to `target_indent`.
-///
-/// Used by `if_to_switch` and `extract_datagroup`: strips one layer
-/// of surrounding braces, computes
-/// the body's minimum indent, and re-emits each non-blank line at
-/// `target_indent` (preserving interior blank lines).  An empty body
-/// becomes `"{target_indent}# empty"`.
+/// Re-indent an already-decoded script value to `target_indent`.
+/// Literal command-name braces belong to the value and remain present.
+/// Empty script values become `"{target_indent}# empty"`; indentation and
+/// interior blank-line handling are independent of source-word decoding.
 #[must_use]
 pub fn reindent_body(body: &str, target_indent: &str) -> String {
-    let mut text = body.trim();
-    if text.starts_with('{') && text.ends_with('}') && text.len() >= 2 {
-        text = text[1..text.len() - 1].trim();
-    }
+    let text = body.trim();
     let lines: Vec<&str> = text.split('\n').collect();
     let min_indent = lines
         .iter()
@@ -1244,8 +1227,17 @@ mod tests {
     }
 
     #[test]
-    fn reindent_strips_braces_and_normalises() {
-        let out = reindent_body("{\n        puts hi\n    }", "    ");
+    fn reindent_uses_original_braced_word_content_and_normalises() {
+        let source = "{\n        puts hi\n    }";
+        let config = LexerConfig::default();
+        let words = tcl_lexer::native_script_words_in(
+            tcl_lexer::SourceImage::document(source),
+            tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+            config,
+        )
+        .unwrap();
+        let content = words.commands[0].words[0].content_span().unwrap();
+        let out = reindent_body(&source[content.as_range()], "    ");
         assert_eq!(out, "    puts hi");
     }
 }
@@ -1573,6 +1565,56 @@ mod standalone_original_command_extent_tests {
                 Some((0, u32::try_from(source.len()).unwrap()))
             );
             assert!(configured_command_span_offsets("puts ${changed}", &command, config).is_none());
+        }
+    }
+}
+
+#[cfg(test)]
+mod configured_original_body_word_tests {
+    use super::*;
+
+    #[test]
+    fn standalone_walks_reborrow_original_body_and_lambda_contents_under_the_selected_grammar() {
+        let registry = test_registry();
+        for config in [
+            LexerConfig::for_dialect("tcl8.6"),
+            LexerConfig::for_dialect("tcl9.0"),
+            LexerConfig::for_dialect("jim"),
+        ] {
+            for source in [
+                "if {1} {return ${value}}",
+                "apply {{} {return ${value}}}",
+                "if {1} {apply {{} {return ${value}}}}",
+            ] {
+                let cursor = u32::try_from(source.find("return").unwrap()).unwrap();
+                let command = find_command_at(source, cursor, Some("return"), &registry, config)
+                    .expect("actual braced body retains its nested original command");
+                assert_eq!(command.argv[0].span.start(), cursor);
+                let calls = walk_commands(source, &registry, config);
+                assert!(
+                    calls
+                        .iter()
+                        .any(|(words, _, _)| words.first().is_some_and(|head| head == "return"))
+                );
+            }
+            for source in [
+                "apply {{} return\\ value}",
+                "if {1} {}",
+                "if {1} \"return value\"",
+            ] {
+                let commands = segment_commands_with_offset_and_config(source, 0, config);
+                assert!(body_words(source, &commands[0], &registry, config).is_empty());
+            }
+            let source = "apply {{} {{global x}}}";
+            let commands = segment_commands_with_offset_and_config(source, 0, config);
+            let bodies = body_words(source, &commands[0], &registry, config);
+            assert_eq!(bodies.len(), 1);
+            assert_eq!(
+                &source[bodies[0].inner_start as usize..bodies[0].inner_end as usize],
+                "{global x}"
+            );
+            let original = &commands[0];
+            assert!(body_words("apply {}", original, &registry, config).is_empty());
         }
     }
 }

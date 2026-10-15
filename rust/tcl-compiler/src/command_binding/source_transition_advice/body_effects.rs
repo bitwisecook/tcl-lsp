@@ -1144,6 +1144,7 @@ impl BodyWalk<'_, '_> {
                 .inventory
                 .as_mut()
                 .unwrap_or(&mut self.authored_prefixes);
+            tape.retain_logical_body_words(self.context, &native.words, body.clone());
             tape.retain_logical_absolute_navigation(graph, &native.words, body);
         }
         if let (Some(tape), Some(scope)) = (&mut self.inventory, &self.logical_scope) {

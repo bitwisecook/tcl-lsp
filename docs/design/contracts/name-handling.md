@@ -844,3 +844,20 @@ Case and clause script values have already passed their original container-value
 projection. Their selected configured parser receives that value directly;
 peeling literal command-name braces or trimming its data again changes the
 command being named. Original operation and edit eligibility remain separate.
+
+Standalone refactor walks select configured original braced words and their
+shared content extents. Lambda descent uses the same original word's list
+grammar and braced body element. These lexical ranges supply no analysis,
+actual dispatch, entered frame or edit permission. Already-decoded clause and
+case values enter indentation without another brace peel; their literal
+command-name braces remain data. Method hierarchy display independently uses
+the current original declaration reporting key, with no caller namespace or
+call-target donation.
+
+Caller-template name data belongs to the retained actual invocation and its
+original words. Literal Written data and captured-prefix values remain distinct
+from source references; their local-scalar shape uses the held variable policy
+or agreement across source policies. These conditional parameter traits and
+alias templates establish no actual caller cell, reached alias or completed
+write. Isolated procedure-body authoring keeps its explicit Standalone purpose;
+supplied input refusal cannot borrow that ingress.

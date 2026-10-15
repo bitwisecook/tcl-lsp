@@ -6801,19 +6801,24 @@ impl<'a> ExportGate<'a> {
         native_source_known: bool,
     ) -> Self {
         if let Some(original) = original {
-            if exports_by_ns.values().flatten().any(|event| {
-                event.unknown
-                    && order
-                        .has_run(
-                            RunPoint {
-                                uri: &event.uri,
-                                at: event.at,
-                                enclosing_body: event.enclosing_body,
-                            },
-                            site.point(),
-                        )
-                        .unwrap_or(true)
-            }) {
+            if tcl_syntax::native_glob::NativeGlobProtocol::from_name_policy(
+                original.name_input().policy(),
+            )
+            .export_filter_applies()
+                && exports_by_ns.values().flatten().any(|event| {
+                    event.unknown
+                        && order
+                            .has_run(
+                                RunPoint {
+                                    uri: &event.uri,
+                                    at: event.at,
+                                    enclosing_body: event.enclosing_body,
+                                },
+                                site.point(),
+                            )
+                            .unwrap_or(true)
+                })
+            {
                 return Self::default();
             }
             let literal = subjects
@@ -6838,7 +6843,9 @@ impl<'a> ExportGate<'a> {
                             site.point(),
                         ) == ExportVerdict::Exported
                 })
-                .filter_map(|name| name.slot().simple.try_utf8().ok())
+                .filter_map(|name| {
+                    std::str::from_utf8(original.matched_imported_command_tail(name)?).ok()
+                })
                 .collect();
             return Self {
                 literal,
@@ -7712,20 +7719,23 @@ impl crate::namespace_import::NamespaceExportOracle for NamespaceExportSnapshot 
         policy: tcl_syntax::naming::NamePolicyProtocol,
         import_site: RunPoint<'_>,
     ) -> ExportVerdict {
-        if self.original_exports.iter().any(|event| {
-            event.unknown
-                && self
-                    .order
-                    .has_run(
-                        RunPoint {
-                            uri: &event.uri,
-                            at: event.at,
-                            enclosing_body: event.enclosing_body,
-                        },
-                        import_site,
-                    )
-                    .unwrap_or(true)
-        }) {
+        if tcl_syntax::native_glob::NativeGlobProtocol::from_name_policy(policy)
+            .export_filter_applies()
+            && self.original_exports.iter().any(|event| {
+                event.unknown
+                    && self
+                        .order
+                        .has_run(
+                            RunPoint {
+                                uri: &event.uri,
+                                at: event.at,
+                                enclosing_body: event.enclosing_body,
+                            },
+                            import_site,
+                        )
+                        .unwrap_or(true)
+            })
+        {
             return ExportVerdict::Unknown;
         }
         crate::namespace_import::exported_original_at_import_site(
@@ -14489,5 +14499,52 @@ mod shared_import_pattern_classification_tests {
                 );
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod selected_import_export_policy_tests {
+    use super::*;
+
+    #[test]
+    fn jim_import_search_uses_actual_tail_without_a_c_export_requirement() {
+        // Original C5/Jim probe: no export keeps C's target missing; Jim imports.
+        let source = "namespace eval ::Source {proc p {} {return SOURCE}}; namespace eval ::Target {namespace import ::Source::*; p}";
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+            let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, dialect);
+            let mut index = WorkspaceIndex::new();
+            index.add_document("original", &analysis);
+            let actual = index.resolve_wildcard_import(
+                "p",
+                &["::Target::p".to_owned(), "::p".to_owned()],
+                CallSite {
+                    uri: "original",
+                    at: u32::try_from(source.len() - 1).unwrap(),
+                    enclosing_body: None,
+                },
+            );
+            assert_eq!(
+                actual.as_deref(),
+                (dialect == "jimtcl").then_some("::Source::p"),
+                "{dialect}"
+            );
+        }
+        let source =
+            "namespace eval ::Self {proc p {} {return SELF}; namespace import ::Self::*; p}";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "jimtcl");
+        let mut index = WorkspaceIndex::new();
+        index.add_document("original", &analysis);
+        assert_eq!(
+            index.resolve_wildcard_import(
+                "p",
+                &["::Self::p".to_owned(), "::p".to_owned()],
+                CallSite {
+                    uri: "original",
+                    at: u32::try_from(source.len() - 1).unwrap(),
+                    enclosing_body: None
+                }
+            ),
+            None
+        );
     }
 }

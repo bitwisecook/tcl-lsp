@@ -20,6 +20,7 @@ pub struct OriginalAuthoredProcedureBody {
     config: LexerConfig,
     registry: RegistrySemanticKey,
     name: String,
+    reporting_label: String,
     namespace: SourceNamespaceKey,
     parameters_text: String,
     parameters: Vec<tcl_syntax::formal_params::FormalParameter>,
@@ -70,6 +71,7 @@ pub(crate) fn original_authored_procedure_body(
         config: grammar.config(),
         registry: registry.snapshot().semantic_key(),
         name: name_text,
+        reporting_label: tcl_syntax::naming::authored_source_command_spelling(&coordinate)?,
         namespace,
         parameters_text,
         parameters,
@@ -82,6 +84,11 @@ pub(crate) fn original_authored_procedure_body(
 }
 
 impl OriginalAuthoredProcedureBody {
+    pub(crate) fn reporting_label(&self, module: &Module, procedure: &Procedure) -> Option<&str> {
+        self.matches_procedure(module, procedure)
+            .then_some(self.reporting_label.as_str())
+    }
+
     pub(crate) fn site(&self) -> &CommandAllocationSite {
         &self.site
     }
@@ -184,6 +191,7 @@ impl OriginalAuthoredProcedureBody {
             && original.config == self.config
             && original.registry == self.registry
             && original.name == self.name
+            && original.reporting_label == self.reporting_label
             && original.namespace == self.namespace
             && original.parameters_text == self.parameters_text
             && original.parameters == self.parameters

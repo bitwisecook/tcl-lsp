@@ -1428,10 +1428,11 @@ fn run_body(
 /// General Tcl whose dispatch reads or writes interpreter state — a
 /// statement headed by one of these must really evaluate.
 fn is_general_tcl(word: &str) -> bool {
+    let parts = tcl_syntax::naming::written_command_parts(word.as_bytes());
     tcl_spec_hooks::SANDBOX_COMMANDS.contains(&word)
         || pack_eval::PACK_EVAL_EXTRA_COMMANDS.contains(&word)
-        || word.starts_with("tcl::")
-        || word.starts_with("::")
+        || parts.absolute
+        || parts.qualifiers.first().is_some_and(|part| *part == b"tcl")
 }
 
 /// Whether `stmt` is a **static** vocabulary row at its own level: its
@@ -2247,6 +2248,49 @@ fn fill_command_nodes(
                     acc.subcommands.push(subcommand);
                 }
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod original_head_namespace_tests {
+    use super::*;
+
+    #[test]
+    fn original_static_rows_keep_rooted_and_tcl_namespace_heads_on_the_interpreter_path() {
+        for (head, general) in [
+            ("tcl", false),
+            ("tcl:", false),
+            ("tcl::", true),
+            ("tcl:::tail", true),
+            ("tcl::nested::tail", true),
+            ("TCL::tail", false),
+            ("tcl_data::tail", false),
+            ("tcl\0::tail", false),
+            ("\0tcl::tail", false),
+            ("tcl::\0tail", true),
+            ("::\0tail", true),
+            (":::", true),
+        ] {
+            assert_eq!(is_general_tcl(head), general, "{head:?}");
+        }
+        for source in [
+            "::command p {}",
+            ":::command p {}",
+            ":: p {}",
+            "tcl::command p {}",
+            "tcl::::command p {}",
+            "tcl::nested::command p {}",
+            "set name VALUE",
+        ] {
+            let rows = statements(source, 1, FileBom::Content);
+            assert_eq!(rows.len(), 1, "{source}");
+            assert!(!static_stmt(&rows[0]), "{source}");
+        }
+        for source in ["command p {}", "tcl:command p {}", "atcl::command p {}"] {
+            let rows = statements(source, 1, FileBom::Content);
+            assert_eq!(rows.len(), 1, "{source}");
+            assert!(static_stmt(&rows[0]), "{source}");
         }
     }
 }

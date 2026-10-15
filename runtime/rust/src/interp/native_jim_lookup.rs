@@ -174,7 +174,7 @@ impl Interp {
                 ValueError::CommandProtocolUnavailable("original Jim lookup currency")
             })?;
             obj::check_native_liveness(original)?;
-            namespace_scope.check(&lookup_interpreter)
+            OriginalJimLookupNamespace::check(&namespace_scope, &lookup_interpreter)
         };
         check_lookup()?;
         // Copy only observations and an allocation lease. No native namespace

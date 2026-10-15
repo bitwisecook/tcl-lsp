@@ -470,21 +470,24 @@ mod selected_argument_gap_tests {
 
     #[test]
     fn original_registry_argument_slots_use_selected_separator_and_continuation_grammar() {
-        for (gap, expected) in [
-            (" ", true),
-            ("\r", true),
-            (" \\\n\t", true),
-            ("\n", false),
-            ("; ", false),
-            (" # comment", false),
+        for (gap, expected_active) in [
+            (" ", Some(1)),
+            ("\r", Some(1)),
+            (" \\\n\t", Some(1)),
+            ("\n", None),
+            ("; ", None),
+            (" # comment", Some(2)),
         ] {
             let source = format!("string is{gap}");
             let analysis = Analyser::new().analyse(&source, "tcl8.6");
             let cursor = u32::try_from(source.len()).unwrap();
             let selected = select(&source, &analysis, cursor);
-            assert_eq!(selected.is_some(), expected, "{gap:?}");
+            assert_eq!(
+                selected.as_ref().map(|context| context.active),
+                expected_active,
+                "{gap:?}"
+            );
             if let Some(selected) = selected {
-                assert_eq!(selected.active, 1);
                 assert_eq!(
                     selected.arguments.first().and_then(Option::as_deref),
                     Some("is")

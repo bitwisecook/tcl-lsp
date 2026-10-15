@@ -161,7 +161,8 @@ use tcl_syntax::glob::string_match;
 /// | [`Unknown`](Self::Unknown) | do not resolve (no evidence to resolve *on*) | yes — answering with a command the import may have deleted is worse than answering nothing |
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExportVerdict {
-    /// A `namespace export` covering the name had run at the import site.
+    /// The selected policy admits the name: a C export covers it, or Jim
+    /// performs no export filtering. This alone grants no command or alias.
     Exported,
     /// The exporting namespace's export list is visible **and** nothing in it
     /// covers the name at that point — a fact, not a gap.
@@ -228,6 +229,11 @@ pub trait NamespaceExportOracle {
         policy: tcl_syntax::naming::NamePolicyProtocol,
         import_site: RunPoint<'_>,
     ) -> ExportVerdict {
+        if !tcl_syntax::native_glob::NativeGlobProtocol::from_name_policy(policy)
+            .export_filter_applies()
+        {
+            return ExportVerdict::Exported;
+        }
         let Ok(name) = slot.simple.try_utf8() else {
             return ExportVerdict::Unknown;
         };
@@ -397,6 +403,11 @@ pub fn exported_original_at_import_site<'e>(
     order: &RunOrder,
     import_site: RunPoint<'_>,
 ) -> ExportVerdict {
+    if !tcl_syntax::native_glob::NativeGlobProtocol::from_name_policy(policy)
+        .export_filter_applies()
+    {
+        return ExportVerdict::Exported;
+    }
     use tcl_compiler::signature_scan::scope::SignatureNamespaceScope;
     let matching = events.filter(|(event, _)| event.policy() == policy
         && matches!(event.context(), SignatureNamespaceScope::C(path) if *path == slot.namespace))

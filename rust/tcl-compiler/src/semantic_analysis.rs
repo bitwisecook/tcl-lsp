@@ -11,8 +11,13 @@
 //! memory SSA remains opt-in.  This bundle adds the facts that can be built
 //! faithfully from the current narrow executable-IR compatibility layer:
 //! structured registry invocation outcomes, completion and effect inputs, and
-//! executable world-state SSA.  Source shapes outside that compatibility layer
-//! retain a typed decline instead of receiving guessed facts.
+//! executable world-state SSA. Source shapes outside that compatibility layer
+//! retain a typed decline. Independently owned original source occurrences may
+//! retain partial conditional registry metadata without entering executable IR.
+
+mod source_metadata;
+
+pub use source_metadata::{ConditionalSourceInvocationMetadata, ConditionalSourceMetadata};
 
 use tcl_registry::model::semantic::SemanticContext;
 use tcl_registry::{CommandRegistry, EffectFootprint, RegistrySemanticKey};
@@ -63,6 +68,7 @@ pub struct SemanticAnalysisBundle {
     metadata_context: Option<RetainedSemanticMetadataContext>,
     registry_key: Option<RegistrySemanticKey>,
     executable: ExecutableAnalysisAvailability,
+    source_metadata: ConditionalSourceMetadata,
     entry_assumption: DispatchEntryAssumption,
 }
 
@@ -210,6 +216,9 @@ impl SemanticAnalysisBundle {
                 }
             }
         }
+        if rebound.source_metadata.rebind(&transport).is_none() {
+            return false;
+        }
         rebound == *target
     }
 
@@ -278,6 +287,7 @@ impl SemanticAnalysisBundle {
         let mut bundle = Self::from_executable(None, executable, entry_assumption);
         bundle.registry_key = context.map(|_| registry.snapshot().semantic_key());
         bundle.metadata_context = context.map(RetainedSemanticMetadataContext::from_supplied);
+        bundle.source_metadata = ConditionalSourceMetadata::build(registry, context, script);
         bundle
     }
 
@@ -361,6 +371,7 @@ impl SemanticAnalysisBundle {
         let mut bundle = Self::from_executable(None, executable, entry_assumption);
         bundle.registry_key = context.map(|_| registry.snapshot().semantic_key());
         bundle.metadata_context = context.map(RetainedSemanticMetadataContext::from_supplied);
+        bundle.source_metadata = ConditionalSourceMetadata::build(registry, context, script);
         bundle
     }
 
@@ -433,6 +444,13 @@ impl SemanticAnalysisBundle {
         &self.executable
     }
 
+    /// Conditional registry metadata over represented original source occurrences.
+    /// This partial inventory is independent of executable invocation availability.
+    #[must_use]
+    pub const fn conditional_source_metadata(&self) -> &ConditionalSourceMetadata {
+        &self.source_metadata
+    }
+
     /// The mixed per-region plan for this bundle, or why no faithful plan was
     /// available.
     ///
@@ -501,6 +519,7 @@ impl SemanticAnalysisBundle {
             metadata_context: None,
             registry_key: None,
             executable,
+            source_metadata: ConditionalSourceMetadata::unavailable(),
             entry_assumption,
         }
     }

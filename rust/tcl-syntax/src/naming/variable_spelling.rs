@@ -93,10 +93,7 @@ pub fn variable_source_reference_with_tail(
     config: tcl_lexer::LexerConfig,
 ) -> Option<String> {
     let bytes = source.as_bytes();
-    let original = tcl_lexer::scan_var_ref(bytes, 0, config).ok()??;
-    if original.next != bytes.len() {
-        return None;
-    }
+    let original = tcl_lexer::word_parts::whole_var_ref(bytes, config).ok()??;
     let name_range = original.name_range_in(bytes)?;
     let root = super::variable_reference_root_bytes(bytes, config).ok()??;
     let qualifier_len = root
@@ -112,9 +109,8 @@ pub fn variable_source_reference_with_tail(
     let start = name_range.start.checked_add(qualifier_len)?;
     let end = name_range.start.checked_add(root.len())?;
     let proposal = format!("{}{tail}{}", source.get(..start)?, source.get(end..)?);
-    let parsed = tcl_lexer::scan_var_ref(proposal.as_bytes(), 0, config).ok()??;
-    let matches = parsed.next == proposal.len()
-        && parsed.name == proposed_name.as_bytes()
+    let parsed = tcl_lexer::word_parts::whole_var_ref(proposal.as_bytes(), config).ok()??;
+    let matches = parsed.name == proposed_name.as_bytes()
         && parsed.index == original.index
         && super::variable_reference_root_bytes(proposal.as_bytes(), config).ok()??
             == proposed_root.as_bytes();

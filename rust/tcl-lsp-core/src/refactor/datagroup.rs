@@ -1638,3 +1638,36 @@ mod decoded_arm_script_value_tests {
         );
     }
 }
+
+#[cfg(test)]
+mod decoded_membership_script_indentation_tests {
+    use super::*;
+
+    #[test]
+    fn membership_proposals_keep_literal_command_name_braces_from_original_case_values() {
+        let source = "switch -exact -- $x {a {{return one}} b {{return one}} c {{return one}} default {{return other}}}";
+        let registry = crate::refactor::test_registry();
+        let analysis = crate::refactor::source_rewrite::lexical_analysis(source, &registry);
+        let original =
+            source_subject::original_exact_switch_source_at_analysis(source, &analysis, 0)
+                .expect("actual original case container and scalar subject");
+        assert_eq!(original.pairs()[0].1, "{return one}");
+        assert_eq!(original.pairs()[3].1, "{return other}");
+        let keys = original.pairs()[..3]
+            .iter()
+            .map(|(key, _)| key.clone())
+            .collect::<Vec<_>>();
+        let (_, proposal) = membership_extraction(
+            &keys,
+            "string",
+            "names",
+            original.subject().reference(),
+            &original.pairs()[0].1,
+            Some(&original.pairs()[3].1),
+            "",
+        );
+        assert!(proposal.contains("    {return one}\n"), "{proposal}");
+        assert!(proposal.contains("    {return other}\n"), "{proposal}");
+        assert!(!proposal.contains("    return one\n"));
+    }
+}

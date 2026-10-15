@@ -1312,6 +1312,28 @@ impl SourceInvocationBinding {
             || self.declaration_layout_observations.is_some()
     }
 
+    /// A retained non-point source purpose keeps its own terminal validation.
+    /// This presence query supplies no selected facts or alternative source owner.
+    pub(crate) fn has_nonpoint_original_source_name_role_owner(&self) -> bool {
+        self.compiler_lookup_state.is_some()
+            || self.compiler_policy.is_some()
+            || self.original_compiler_words.is_some()
+            || self.native_compilation_admission.is_some()
+            || self.native_compiler_admission.is_some()
+            || self.native_structured_preparation.is_some()
+            || self.native_switch_preparation.is_some()
+            || self.native_operand_layout.is_some()
+            || self.conditional_expression_evaluations.is_some()
+            || !self.compiled_candidates.is_empty()
+            || !self.compiled_named_candidates.is_empty()
+            || self.native_handler_envelope.is_some()
+            || self.declaration_layout_observations.is_some()
+            || self.original_logical_source_advice.is_some()
+            || self.original_logical_declaration_targets.is_some()
+            || self.original_authored_source_body_scope.is_some()
+            || self.original_native_source_command.is_some()
+    }
+
     /// Whether an original Logical source owner requires its own terminal query.
     pub(crate) fn has_original_logical_source_advice(&self) -> bool {
         self.original_logical_source_advice.is_some()

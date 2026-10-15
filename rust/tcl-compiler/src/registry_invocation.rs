@@ -60,7 +60,8 @@ mod source_name_roles;
 pub(crate) use source_name_roles::{
     OriginalVariableNameOperand, SourceNameRoleInventory, original_assignment_name_operand,
     original_authored_substitution_name_roles, original_name_role_values,
-    original_source_name_roles, standalone_written_source_name_roles,
+    original_source_metadata_name_roles, original_source_name_roles,
+    standalone_written_source_name_roles,
 };
 mod authored_source_structure;
 pub(crate) use authored_source_structure::original_authored_source_structure;
@@ -6008,6 +6009,7 @@ pub fn invocation_argument_role_consensus<'a>(
 /// original invocation. Possible roles never establish an entered frame,
 /// successful execution, variable store or scoped command definition.
 pub(crate) struct InvocationBodyAssistance {
+    caller_template_source: Option<Box<CallerTemplateSource>>,
     pub possible_roles: Vec<(usize, tcl_registry::ArgRole)>,
     pub definite_roles: Vec<(usize, tcl_registry::ArgRole)>,
     pub possible_traits: tcl_registry::Traits,
@@ -6029,6 +6031,11 @@ pub(crate) struct InvocationBodyAssistance {
     /// May usage of formals by retained implementation candidates, excluding
     /// nominal catalogue assistance. This grants no copy, frame or effects.
     parameter_advice: ParameterRoleAdvice,
+}
+
+struct CallerTemplateSource {
+    tokens: CommandTokens,
+    invocation: ResolvedStatementInvocation,
 }
 
 #[derive(Default)]
@@ -6081,6 +6088,40 @@ struct ConditionalBodyInvocation {
 }
 
 impl InvocationBodyAssistance {
+    fn retain_caller_template_source(&mut self, tokens: &CommandTokens) {
+        self.caller_template_source = self.caller_name_template_invocation().map(|invocation| {
+            Box::new(CallerTemplateSource {
+                tokens: tokens.clone(),
+                invocation: invocation.clone(),
+            })
+        });
+    }
+
+    /// Literal data from this retained invocation's original Written operand
+    /// or actual captured prefix value. No name, frame or execution follows.
+    pub(crate) fn caller_template_literal_data(
+        &self,
+        selected: &ResolvedStatementInvocation,
+        argument: usize,
+    ) -> Option<String> {
+        std::ptr::eq(self.caller_name_template_invocation()?, selected).then_some(())?;
+        let source = self.caller_template_source.as_deref()?;
+        (&source.invocation == selected).then_some(())?;
+        match selected.effective.origins.get(argument.checked_add(1)?)? {
+            InvocationWordOrigin::Written(written) => {
+                original_literal_argument_data(&source.tokens, written.checked_sub(1)?)
+            }
+            InvocationWordOrigin::BindingPrefix(_) => {
+                let value = selected.evaluated_words.get(argument)?.literal_bytes()?;
+                (!value.contains(&0)).then_some(())?;
+                Some(std::str::from_utf8(value).ok()?.to_owned())
+            }
+            InvocationWordOrigin::ResolvedHead | InvocationWordOrigin::ExpandedElement { .. } => {
+                None
+            }
+        }
+    }
+
     pub(crate) fn parameter_role_advice(&self) -> &ParameterRoleAdvice {
         &self.parameter_advice
     }
@@ -6249,6 +6290,7 @@ fn body_assistance_with_entry<'a>(
     let context = context.into();
     let prepared = prepare_body_candidates(registry, context, tokens);
     let mut result = Box::new(InvocationBodyAssistance {
+        caller_template_source: None,
         possible_roles: Vec::new(),
         definite_roles: Vec::new(),
         possible_traits: tcl_registry::Traits::empty(),
@@ -6299,6 +6341,7 @@ fn body_assistance_with_entry<'a>(
             })
         })
         .and_then(|candidate| prepared_body_invocation(registry, context, tokens, candidate));
+    result.retain_caller_template_source(tokens);
     result
 }
 
@@ -6579,6 +6622,7 @@ pub(crate) fn segmented_body_assistance(
         };
         view.receiver_trait_invocation = Some(owned);
     }
+    view.retain_caller_template_source(&tokens);
     Some(view)
 }
 
@@ -6765,6 +6809,7 @@ pub(crate) fn unpositioned_body_assistance(
     let Some(context) = context else {
         let declared = resolved_declared_assistance(surface, &tokens)?;
         return Some(Box::new(InvocationBodyAssistance {
+            caller_template_source: None,
             possible_roles: declared.roles.clone(),
             declared_roles: declared.roles,
             definite_roles: Vec::new(),

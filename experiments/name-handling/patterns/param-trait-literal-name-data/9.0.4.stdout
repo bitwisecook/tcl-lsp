@@ -1,0 +1,9 @@
+{} 0 {WRITTEN 1}
+{ with space } 0 {WRITTEN 1}
+{$literal} 0 {WRITTEN 1}
+{[literal]} 0 {WRITTEN 1}
+literal(open 0 {WRITTEN 1}
+1abc 0 {WRITTEN 1}
+café 0 {WRITTEN 1}
+N::qualified 0 {WRITTEN 0}
+array(key) 0 {WRITTEN 0}

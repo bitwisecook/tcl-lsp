@@ -1,0 +1,28 @@
+{
+  "started_utc": "2026-10-15T04:25:10.852023+00:00",
+  "finished_utc": "2026-10-15T04:25:11.285626+00:00",
+  "remote_command": [
+    "git",
+    "ls-remote",
+    "https://github.com/msteveb/jimtcl.git",
+    "HEAD"
+  ],
+  "remote_exit": 0,
+  "local_command": [
+    "git",
+    "-C",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle",
+    "rev-parse",
+    "HEAD"
+  ],
+  "local_exit": 0,
+  "remote": "5bac7c99ad65864c87da513e22e2f01703fa4e03\tHEAD",
+  "local": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+  "matches_pinned": true,
+  "files": {
+    "local.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "local.stdout": "d6871c3697d0a50df0677833206c147f4873986bb59a4317c8509cb433365243",
+    "remote.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "remote.stdout": "b462d0ddec77db10702025a9671e50c806eb85e8302b25428dc376895bb87de9"
+  }
+}

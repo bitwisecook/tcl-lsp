@@ -232,13 +232,14 @@ fn original_body_data(
     };
     let name = written(layout.name)?;
     let body = written(layout.body)?;
-    if name != declaration.name_input().original_word() {
+    if name != declaration.name_input().original_word() || body.group().span != procedure.body_span
+    {
         return None;
     }
     let bodies = words.source_script_bodies(&input.context_registry());
-    let mut matching = bodies.iter().filter(|original| {
-        original.original_container() == body && original.extent_span() == procedure.body_span
-    });
+    let mut matching = bodies
+        .iter()
+        .filter(|original| original.original_container() == body);
     matching.next()?;
     matching.next().is_none().then_some(())?;
     let value = tcl_syntax::word_rules::original_static_word_unicode_value(body)?;
@@ -1154,7 +1155,11 @@ mod original_body_value_tests {
                 let analysis = Analyser::new().analyse(source, dialect);
                 let declaration = analysis.original_procedure_declarations().next().unwrap();
                 let (body, config) = original_body_data(source, &analysis, declaration.metadata())
-                    .expect("actual retained declaration and original Body word");
+                    .unwrap_or_else(|| {
+                        panic!(
+                            "actual retained declaration and original Body word: {dialect}/{source}"
+                        )
+                    });
                 assert_eq!(body, expected, "{dialect}/{source}");
                 assert_eq!(config, analysis.body_lexer_config.unwrap().nested());
             }

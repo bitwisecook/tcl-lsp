@@ -13,6 +13,7 @@ mod c_namespace;
 mod logical_body;
 mod logical_declaration;
 mod logical_navigation;
+mod logical_word_geometry;
 pub use logical_navigation::{
     OriginalLogicalAbsoluteCommandCandidate, OriginalLogicalCallbackCandidates,
     OriginalLogicalCommandCandidates,
@@ -687,6 +688,7 @@ pub(crate) struct OriginalSourceTransitionAdviceTape {
     logical_summary_scopes: BTreeMap<u32, Option<OriginalLogicalSummaryScope>>,
     logical_navigation: BTreeMap<u32, Option<OriginalLogicalCommandCandidates>>,
     logical_absolute_navigation: BTreeMap<u32, Option<OriginalLogicalAbsoluteCommandCandidate>>,
+    logical_body_words: BTreeMap<u32, Option<logical_word_geometry::OriginalLogicalBodyWords>>,
     logical_callbacks:
         BTreeMap<u32, Option<(Arc<[NativeWord]>, Vec<OriginalLogicalCallbackCandidates>)>>,
     class_publications: Option<OriginalSourceClassPublications>,
@@ -745,7 +747,10 @@ impl OriginalSourceTransitionAdviceTape {
             .chain(self.body_catalogue.keys())
             .copied()
             .collect::<BTreeSet<_>>();
-        let mut selected = None;
+        if self.logical_body_words.values().any(Option::is_none) {
+            return None;
+        }
+        let mut selected = self.logical_body_original_word_at_span(origin, input, span);
         for offset in offsets {
             if self.blocks_registry_source(offset) {
                 continue;
@@ -879,6 +884,9 @@ impl OriginalSourceTransitionAdviceTape {
         }
         for (offset, candidate) in other.logical_absolute_navigation {
             source_class::merge_receipt(&mut self.logical_absolute_navigation, offset, candidate);
+        }
+        for (offset, receipt) in other.logical_body_words {
+            source_class::merge_receipt(&mut self.logical_body_words, offset, receipt);
         }
         for (offset, scope) in other.logical_summary_scopes {
             source_class::merge_receipt(&mut self.logical_summary_scopes, offset, scope);

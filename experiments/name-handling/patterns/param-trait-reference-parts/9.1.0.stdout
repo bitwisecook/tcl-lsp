@@ -1,0 +1,10 @@
+digit 0 DIGIT
+empty 0 EMPTY
+odd 0 ODD
+unicode 0 ASCIIé
+nested 0 NESTED
+scalar_then_index 0 ROOT(KEY)
+array_index 0 ARRAY
+braced_array_index 0 LITERALINDEX
+escaped 0 {$1abc}
+literal 0 {$1abc}

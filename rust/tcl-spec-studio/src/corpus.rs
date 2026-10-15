@@ -287,8 +287,16 @@ fn statements(
             .iter()
             .map(|word| {
                 let (spelling, site) = word.sole_variable_substitution()?;
-                (site.provenance == tcl_compiler::ir::Provenance::Source
-                    && source.get(site.span.as_range()) == Some(spelling))
+                let start = usize::try_from(site.span.start()).ok()?;
+                if site.provenance != tcl_compiler::ir::Provenance::Source
+                    || source.as_bytes().get(start) != Some(&b'$')
+                {
+                    return None;
+                }
+                let reference =
+                    tcl_lexer::scan_var_ref(source.as_bytes(), start, config).ok()??;
+                (reference.source_span(source.as_bytes(), start, 0) == Some(site.span)
+                    && source.get(start..reference.next) == Some(spelling))
                 .then_some(())?;
                 tcl_syntax::naming::whole_scalar_variable_reference_name(spelling, config)
                     .map(str::to_owned)

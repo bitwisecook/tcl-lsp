@@ -71,3 +71,5 @@ a completed C release gate or Jim/F5 agreement.
 [Original Jim tailcall cancellation SDK capture](original-jim-tailcall-cancellation-sdk-20261015/README.md) retains two genuine-object cases/16rows, actual pending List and payload pointer observations during native deletion, and independent timed upstream provenance. Phase-specific selected-role observations do not establish Runtime public defer, argument final-free or full lifecycle acceptance.
 
 [Original Jim namespace Code SDK capture](original-jim-namespace-code-sdk-20261015/README.md) retains sixteen cases/217rows with32 actual public/direct cold/hot getter and original argument/List identity phases, actual helper replacement/deletion and timed upstream provenance. Excluded failed trials remain exact assets, without Runtime/VM or full lifecycle acceptance.
+
+[Original Jim namespace Origin SDK capture](original-jim-namespace-origin-sdk-20261015/README.md) retains22 cases/293rows with44 actual public/direct cold/hot getter, original header and alias/chain observations, helper replacement/deletion and timed upstream provenance. These selected observations accept no Runtime/VM or full lifecycle behavior.

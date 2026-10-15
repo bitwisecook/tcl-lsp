@@ -171,7 +171,7 @@ impl ConstantReturn {
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, PartialEq)]
 pub struct ProcSummary {
-    /// Fully-qualified procedure name.
+    /// Source reporting label; target selection uses the map's issued body ID.
     pub qualified_name: String,
     /// Parameter names in declaration order.
     pub params: Vec<String>,
@@ -2009,6 +2009,16 @@ fn materialise_summaries(
         let Some(proc) = bodies.get(qname) else {
             continue;
         };
+        let report_label = if proc.body_kind == crate::ir::ProcedureBodyKind::OriginalDeclaration {
+            let Some(label) =
+                ir_module.original_procedure_report_label(*qname, ir_module.resolved_registry())
+            else {
+                continue;
+            };
+            label.to_owned()
+        } else {
+            proc.qualified_name.clone()
+        };
         let mut calls_list: Vec<ProcedureId> = transitive_calls
             .get(qname)
             .cloned()
@@ -2042,7 +2052,7 @@ fn materialise_summaries(
         procedures.insert(
             qname.clone(),
             ProcSummary {
-                qualified_name: proc.qualified_name.clone(),
+                qualified_name: report_label,
                 params: proc.params.clone(),
                 arity: arity_from_names(&proc.params),
                 calls: calls_list,
@@ -4782,6 +4792,136 @@ mod tests {
     }
 
     use super::*;
+
+    fn authored_report_unit() -> (
+        std::sync::Arc<tcl_registry::model::ContextRegistry>,
+        CompilationUnit,
+    ) {
+        let environment = crate::environment_ingress::resolve_environment("tcl8.6");
+        let context = environment.default_context_registry();
+        let unit = CompilationUnit::build_for_profile(
+            "proc p {} {return ONE}; proc p {} {return TWO}",
+            context.commands(),
+            false,
+            environment.unit_profile(),
+        );
+        (context, unit)
+    }
+
+    #[test]
+    fn authored_source_report_labels_keep_real_body_ids_and_current_source() {
+        let environment = crate::environment_ingress::resolve_environment("tcl8.6");
+        let (context, unit) = authored_report_unit();
+        let registry = context.commands();
+        let module = &unit.ir_module;
+        assert_eq!(module.original_authored_declaration_body_units.len(), 2);
+        let ids: Vec<_> = module
+            .original_authored_declaration_body_units
+            .keys()
+            .copied()
+            .collect();
+        assert_ne!(ids[0], ids[1]);
+        for &id in &ids {
+            assert!(module.procedure_ids.owns(id));
+            assert_eq!(
+                module.original_procedure_report_label(id, registry),
+                Some("::p")
+            );
+            let procedure = module.body_units.get(&id).unwrap();
+            assert!(procedure.publication.is_none());
+            assert!(procedure.body.executed_source.is_none());
+            assert!(procedure.body.native_compilation_admission.is_none());
+        }
+        let identities =
+            crate::realm::document_realm_bindings_for_module(module, registry).unwrap();
+        let analysis = build_interprocedural_analysis(
+            module,
+            registry,
+            Some(environment.unit_profile()),
+            ObjectTypeMap::none(),
+            &identities,
+            None,
+        );
+        for &id in &ids {
+            assert_eq!(
+                analysis
+                    .procedures
+                    .get(&id)
+                    .expect("actual issued body summary")
+                    .qualified_name,
+                "::p"
+            );
+        }
+    }
+
+    #[test]
+    fn authored_source_report_labels_refuse_foreign_and_changed_owners() {
+        let environment = crate::environment_ingress::resolve_environment("tcl8.6");
+        let (context, unit) = authored_report_unit();
+        let registry = context.commands();
+        let module = &unit.ir_module;
+        let id = *module
+            .original_authored_declaration_body_units
+            .keys()
+            .next()
+            .unwrap();
+        let mut presentation = module.clone();
+        presentation.body_units.get_mut(&id).unwrap().qualified_name = "display changed".into();
+        assert_eq!(
+            presentation.original_procedure_report_label(id, registry),
+            Some("::p")
+        );
+        let mut changed = module.clone();
+        changed.source = tcl_lexer::SourceImage::document("proc p {} {return CHANGED}");
+        assert!(
+            changed
+                .original_procedure_report_label(id, registry)
+                .is_none()
+        );
+        let mut changed = module.clone();
+        changed
+            .body_units
+            .get_mut(&id)
+            .unwrap()
+            .params
+            .push("changed".into());
+        assert!(
+            changed
+                .original_procedure_report_label(id, registry)
+                .is_none()
+        );
+        let mut detached = module.clone();
+        detached.retained_source_bindings = None;
+        assert!(
+            detached
+                .original_procedure_report_label(id, registry)
+                .is_none()
+        );
+        let other = CompilationUnit::build_for_profile(
+            "proc p {} {return ONE}; proc p {} {return TWO}",
+            registry,
+            false,
+            environment.unit_profile(),
+        );
+        let foreign_id = *other
+            .ir_module
+            .original_authored_declaration_body_units
+            .keys()
+            .next()
+            .unwrap();
+        assert!(
+            module
+                .original_procedure_report_label(foreign_id, registry)
+                .is_none()
+        );
+        let foreign_registry =
+            crate::environment_ingress::resolve_environment("tcl9.0").default_context_registry();
+        assert!(
+            module
+                .original_procedure_report_label(id, foreign_registry.commands())
+                .is_none()
+        );
+    }
 
     #[test]
     fn original_declaration_receivers_keep_owned_ids_and_preceding_setup() {

@@ -20,17 +20,13 @@ fn analyse(source: &str, input: &ResolvedAnalysisInput) -> AnalysisResult {
         .analyse(source, input.analyser_profile().name)
 }
 
-fn selected_call(unit: &CompilationUnit) -> bool {
+fn has_source_metadata(unit: &CompilationUnit) -> bool {
     unit.top_level
         .semantic_facts
-        .executable()
+        .conditional_source_metadata()
         .invocations()
-        .any(|call| {
-            matches!(
-                call.resolution,
-                tcl_compiler::executable_ir::InvocationResolution::Resolved(_)
-            )
-        })
+        .next()
+        .is_some()
 }
 
 #[test]
@@ -53,7 +49,7 @@ fn uncached_source_units_retain_actual_availability_and_source_currency() {
         .unwrap();
     assert_eq!(unit.ir_module.source_metadata_input.as_ref(), Some(&input));
     assert_eq!(unit.ir_module.lexer_config, input.lexer_config());
-    assert!(selected_call(&unit));
+    assert!(has_source_metadata(&unit));
 
     let older = Arc::new(
         tcl_registry::model::ingress::static_context_for("tcl8.4")
@@ -64,7 +60,7 @@ fn uncached_source_units_retain_actual_availability_and_source_currency() {
     let unavailable_unit =
         compilation_unit_uncached_from_analysis(source, current.commands(), &unavailable, None)
             .unwrap();
-    assert!(!selected_call(&unavailable_unit));
+    assert!(!has_source_metadata(&unavailable_unit));
 
     let mut missing = analysis.clone();
     missing.resolved_input = None;

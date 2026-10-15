@@ -312,9 +312,13 @@ impl<'a> IndexLoader<'a> {
                 if word.group().expand {
                     InvocationWord::Expanded
                 } else {
+                    // These are decoded Unicode source values, rather than
+                    // independently produced native byte operands. Conditional
+                    // head/member/option selection needs their literal facet.
                     value
                         .as_deref()
-                        .map_or(InvocationWord::Dynamic, InvocationWord::KnownBytes)
+                        .and_then(|bytes| std::str::from_utf8(bytes).ok())
+                        .map_or(InvocationWord::Dynamic, InvocationWord::Literal)
                 }
             })
             .collect::<Vec<_>>();
@@ -434,5 +438,79 @@ mod tests {
             0,
         );
         assert!(candidates.is_empty());
+    }
+
+    #[test]
+    fn loader_value_schemas_keep_unicode_literals_and_unknown_operand_kinds() {
+        let source = r"sour\u0063e [file join $dir { café.tcl }]";
+        let config = tcl_lexer::LexerConfig::default();
+        let plan = tcl_lexer::native_script_words_in(
+            SourceImage::document(source),
+            Span::new(0, u32::try_from(source.len()).unwrap()),
+            config,
+        )
+        .unwrap();
+        let loader = IndexLoader::standalone(source, config);
+        let words = &plan.commands[0].words;
+        assert_eq!(
+            loader.with_schema(words, WordOrigin::LoaderValue, |selected| {
+                (
+                    selected.words.head_literal() == Some("source"),
+                    selected.authored_source_navigation_operand(),
+                )
+            }),
+            Some((
+                true,
+                Some(
+                    tcl_registry::source_navigation::SourceNavigationOperand::File { argument: 0 }
+                ),
+            )),
+        );
+        let child = original_single_source_command_substitution(&words[1]).unwrap();
+        assert_eq!(
+            loader.with_schema(
+                &child.command().words,
+                WordOrigin::LoaderValue,
+                |selected| {
+                    (
+                        selected.words.head_literal() == Some("file"),
+                        selected.words.arguments().get(1) == Some(InvocationWord::Dynamic),
+                        selected.words.arguments().literal_at(2) == Some(" café.tcl "),
+                        selected.authored_source_path_operation(),
+                    )
+                }
+            ),
+            Some((
+                true,
+                true,
+                true,
+                Some(tcl_registry::source_path::SourcePathInvocation {
+                    operation: tcl_registry::SourcePathOperation::Join,
+                    arguments: 1..3,
+                }),
+            )),
+        );
+        assert_eq!(
+            loader.source_filename(words, WordOrigin::LoaderValue, Path::new("/library")),
+            Some(Path::new("/library/ café.tcl ").to_path_buf()),
+        );
+        for source in ["$source path.tcl", "source {*}$paths", "source $unknown"] {
+            let plan = tcl_lexer::native_script_words_in(
+                SourceImage::document(source),
+                Span::new(0, u32::try_from(source.len()).unwrap()),
+                config,
+            )
+            .unwrap();
+            assert!(
+                IndexLoader::standalone(source, config)
+                    .source_filename(
+                        &plan.commands[0].words,
+                        WordOrigin::LoaderValue,
+                        Path::new("/library"),
+                    )
+                    .is_none(),
+                "{source}",
+            );
+        }
     }
 }

@@ -272,6 +272,117 @@ pub(crate) fn original_assignment_name_operand(
     (name.as_str() == statement_name).then_some((name, source.has_unknown_residual()))
 }
 
+/// Conditional source metadata under the actual supplied input. Existing
+/// declaration/body/compiler purposes keep terminal ownership of their route.
+/// Only an independently authenticated unresolved point can select the separate
+/// written-vocabulary view, retaining an unknown residual in every case.
+/// No runtime target, namespace, value, frame or executable fact follows.
+pub(crate) fn original_source_metadata_name_roles(
+    registry: &CommandRegistry,
+    tokens: &CommandTokens,
+    input: &crate::analyser::ResolvedAnalysisInput,
+) -> Option<SourceNameRoleInventory> {
+    if tokens.synthetic.is_some() || !tokens.original_words_match_argv_text() {
+        return None;
+    }
+    let binding = tokens.source_binding.as_ref()?;
+    binding.original_invocation_metadata_for_input(tokens, input, registry)?;
+    if input.has_logical_source_name_context()
+        || input.has_hosted_source_name_context()
+        || binding.has_nonpoint_original_source_name_role_owner()
+        || !binding.execution_is_unknown()
+        || binding.execution_targets().next().is_some()
+        || binding.proved_handler_target().is_some()
+    {
+        return original_source_name_roles(registry, tokens);
+    }
+    unresolved_point_source_name_roles(registry, tokens, input)
+}
+
+fn unresolved_point_source_name_roles(
+    registry: &CommandRegistry,
+    tokens: &CommandTokens,
+    input: &crate::analyser::ResolvedAnalysisInput,
+) -> Option<SourceNameRoleInventory> {
+    let binding = tokens.source_binding.as_ref()?;
+    let metadata = binding.original_invocation_metadata_for_input(tokens, input, registry)?;
+    let held = metadata.source_analysis_input()?;
+    let config = binding.original_lexer_config_for_tokens(tokens)?;
+    if held.lexer_config() != config {
+        return None;
+    }
+    let realm = binding.original_source_realm_for_input(tokens, input, registry)?;
+    let site = binding.invocation_site()?;
+    let (command, recorded) = binding.original_recorded_command()?;
+    if recorded.words() != tokens.words() || command.argv.first()?.span.start() != site.offset {
+        return None;
+    }
+    let words = super::original_native_compiler_words(
+        site.source.source_image(),
+        tokens.words(),
+        site.offset,
+        config,
+    )?;
+    let values = words
+        .iter()
+        .map(|word| {
+            String::from_utf8(tcl_syntax::word_rules::original_static_word_unicode_value(
+                word,
+            )?)
+            .ok()
+        })
+        .collect::<Vec<_>>();
+    if values.iter().flatten().any(|value| value.contains('\0')) {
+        return None;
+    }
+    let head = values.first()?.as_deref()?;
+    let arguments = words
+        .iter()
+        .zip(&values)
+        .skip(1)
+        .map(|(word, value)| {
+            if word.group().expand {
+                tcl_registry::InvocationWord::Expanded
+            } else {
+                value.as_deref().map_or(
+                    tcl_registry::InvocationWord::Dynamic,
+                    tcl_registry::InvocationWord::Literal,
+                )
+            }
+        })
+        .collect::<Vec<_>>();
+    let mut dialect = tcl_registry::InvocationDialect::of_profile(held.unit_profile());
+    dialect.lexer_grammar = config.grammar_over(dialect.lexer_grammar);
+    dialect.word_values = tcl_syntax::word_rules::WordValueRules::from_config(&config);
+    let context = held.borrowed_context_registry();
+    let schema = tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(
+        registry,
+        Some(context.context()),
+        tcl_registry::InvocationWords::structured(
+            tcl_registry::InvocationWord::Literal(head),
+            &arguments,
+        )
+        .with_dialect(dialect),
+        realm,
+    )
+    .resolved()?;
+    let facts = Box::new(schema.facts());
+    let (roles, roles_complete) = schema.authored_source_argument_roles();
+    let roles = roles
+        .into_iter()
+        .map(|(argument, role)| (facts.argument_offset + usize::from(argument), role))
+        .collect();
+    Some(SourceNameRoleInventory {
+        facts,
+        values: values.into_iter().skip(1).collect(),
+        unknown_residual: true,
+        roles,
+        roles_complete,
+        direct_written_arguments: !words.iter().any(|word| word.group().expand),
+        config,
+    })
+}
+
 pub(crate) fn original_source_name_roles(
     registry: &CommandRegistry,
     tokens: &CommandTokens,
@@ -847,5 +958,116 @@ mod tests {
         let mut donated = first.clone();
         donated[2] = plan.commands[1].words[2].clone();
         assert!(standalone_written_source_name_roles(&registry, &donated, None).is_none());
+    }
+}
+
+#[cfg(test)]
+mod unresolved_point_metadata_tests {
+    use super::*;
+    use std::sync::Arc;
+
+    fn module(source: &str) -> (crate::ir::Module, crate::analyser::ResolvedAnalysisInput) {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let config = tcl_lexer::LexerConfig::for_dialect("tcl8.6");
+        let input = crate::analyser::ResolvedAnalysisInput::new(profile, profile, context, config);
+        let context = input.context_registry();
+        let mut lowerer = crate::lowering::Lowerer::with_config(context.commands(), config)
+            .with_resolved_analysis_input(input.clone());
+        lowerer.lower(source);
+        (lowerer.finish_module(source), input)
+    }
+
+    fn tokens(module: &crate::ir::Module) -> &CommandTokens {
+        module
+            .top_level
+            .statements
+            .iter()
+            .find_map(|statement| {
+                module
+                    .top_level
+                    .retained_source_tokens_for_statement(statement)
+            })
+            .unwrap()
+    }
+
+    #[test]
+    fn unresolved_point_source_metadata_keeps_unknown_execution_and_written_values() {
+        for (source, expected) in [
+            ("puts VALUE", Some("VALUE")),
+            ("puts {$literal}", Some("$literal")),
+            ("puts $computed", None),
+        ] {
+            let (module, input) = module(source);
+            let registry = input.borrowed_context_registry().commands();
+            let tokens = tokens(&module);
+            let binding = tokens.source_binding.as_ref().unwrap();
+            assert!(module.source_entry.native_entry.is_none());
+            assert!(binding.execution_is_unknown(), "{source}");
+            assert!(binding.execution_targets().next().is_none(), "{source}");
+            assert!(binding.proved_handler_target().is_none(), "{source}");
+            assert!(
+                !binding.has_nonpoint_original_source_name_role_owner(),
+                "{source}"
+            );
+            let inventory = original_source_metadata_name_roles(registry, tokens, &input)
+                .expect("actual supplied unresolved point retains conditional vocabulary");
+            assert_eq!(inventory.facts().descriptor_key().label(), "puts");
+            assert_eq!(inventory.argument_literal(0).as_deref(), expected);
+            assert!(inventory.has_unknown_residual());
+            assert!(inventory.direct_written_arguments());
+            assert_eq!(inventory.config(), input.lexer_config());
+            assert!(binding.execution_is_unknown());
+            assert!(binding.execution_targets().next().is_none());
+        }
+    }
+
+    #[test]
+    fn unresolved_point_source_metadata_refuses_changed_owners_and_stronger_carrier_fallbacks() {
+        let (module, input) = module("puts VALUE");
+        let registry = input.borrowed_context_registry().commands();
+        let original = tokens(&module);
+        assert!(original_source_metadata_name_roles(registry, original, &input).is_some());
+        let mut changed = original.clone();
+        changed.argv_texts[1].push('!');
+        assert!(original_source_metadata_name_roles(registry, &changed, &input).is_none());
+        let mut detached = original.clone();
+        detached.source_binding = None;
+        assert!(original_source_metadata_name_roles(registry, &detached, &input).is_none());
+        let mut missing = original.clone();
+        missing.source_binding.as_mut().unwrap().lookup_state = None;
+        assert!(original_source_metadata_name_roles(registry, &missing, &input).is_none());
+        let mut stronger = original.clone();
+        let binding = stronger.source_binding.as_mut().unwrap();
+        binding.compiler_lookup_state = binding.lookup_state.clone();
+        assert!(binding.has_nonpoint_original_source_name_role_owner());
+        assert!(original_source_metadata_name_roles(registry, &stronger, &input).is_none());
+        let mut config = input.lexer_config();
+        config.strict_quoting ^= true;
+        let changed_input = crate::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            input.context_registry(),
+            config,
+        );
+        assert_ne!(changed_input, input);
+        assert!(original_source_metadata_name_roles(registry, original, &changed_input).is_none());
+        let older = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(Arc::clone(input.context_registry().commands())),
+        );
+        let changed_input = crate::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            older,
+            input.lexer_config(),
+        );
+        assert_ne!(changed_input, input);
+        assert!(original_source_metadata_name_roles(registry, original, &changed_input).is_none());
+        let foreign = tcl_registry::model::ingress::static_context_for("tcl9.1");
+        assert!(
+            original_source_metadata_name_roles(foreign.commands(), original, &input).is_none()
+        );
     }
 }

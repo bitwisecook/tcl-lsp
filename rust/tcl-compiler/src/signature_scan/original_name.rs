@@ -897,8 +897,9 @@ impl SourceNamespacePattern {
         })
     }
 
-    /// Match an independently retained source command against the exact import
-    /// source namespace and counted pattern tail. No imported token is issued.
+    /// Match an independently retained source command through the selected import
+    /// search. C matches a namespace and tail; Jim searches its actual flat key.
+    /// No imported token is issued.
     #[must_use]
     pub fn matches_imported_command(
         &self,
@@ -909,6 +910,34 @@ impl SourceNamespacePattern {
             || self.input.policy() != policy
         {
             return None;
+        }
+        if let (
+            tcl_syntax::naming::NativeNamespacePatternSource::Jim(_),
+            super::scope::SignatureNamespaceScope::Jim(current),
+        ) = (self.parts.source.as_ref()?, &self.context)
+        {
+            let recipe = policy.recipe();
+            if !recipe.is_jim084() || !slot.namespace.is_root() {
+                return None;
+            }
+            // The script refuses importing a name from its own namespace.
+            if recipe.namespace_qualifier_bytes(slot.simple.as_bytes()) == current.as_bytes() {
+                return Some(false);
+            }
+            let canonical = recipe
+                .jim_namespace_canonical_input(
+                    self.context.context()?,
+                    self.parts.selected.as_bytes(),
+                )
+                .ok()?;
+            return recipe
+                .jim_core_command_names(
+                    Some(canonical.selected()),
+                    &[slot.simple.as_bytes().to_vec()],
+                    false,
+                )
+                .ok()
+                .map(|names| !names.is_empty());
         }
         let Some(tcl_syntax::naming::NativeNamespacePatternSource::C(path)) =
             self.parts.source.as_ref()
@@ -925,6 +954,27 @@ impl SourceNamespacePattern {
                 slot.simple.as_bytes(),
             )
             .ok()
+    }
+
+    /// Borrow the actual imported tail from a matching retained publication.
+    /// Jim's source slot contains one flat key, not C namespace components.
+    /// This projection supplies no live alias, completed handler or Native proof.
+    #[must_use]
+    pub fn matched_imported_command_tail<'a>(
+        &self,
+        command: &'a super::scope::SignatureSourceCommand,
+    ) -> Option<&'a [u8]> {
+        if self.matches_imported_command(command.slot(), command.policy()) != Some(true) {
+            return None;
+        }
+        Some(if command.policy().recipe().is_jim084() {
+            command
+                .policy()
+                .recipe()
+                .namespace_tail_bytes(command.slot().simple.as_bytes())
+        } else {
+            command.slot().simple.as_bytes()
+        })
     }
 
     /// Original whole operand or readonly value; neither grants an edit.
@@ -951,5 +1001,63 @@ impl SourceNamespacePattern {
     #[must_use]
     pub const fn span(&self) -> Span {
         self.span
+    }
+}
+
+#[cfg(test)]
+mod original_import_publication_tests {
+    use super::SourceNamespacePattern;
+    use crate::analyser::Analyser;
+
+    #[test]
+    fn actual_import_publications_keep_selected_search_and_original_tail() {
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+            for (name, pattern) in [
+                ("p*", r"p\*"),
+                ("p?", r"p\?"),
+                ("p[", r"p\["),
+                (r"p\x", r"p\\x"),
+            ] {
+                let source = format!(
+                    "namespace eval ::Source {{proc {{{name}}} {{}} {{}}}}; namespace eval ::Target {{namespace import {{::Source::{pattern}}}}}"
+                );
+                let analysis = Analyser::new().analyse(&source, dialect);
+                let import = analysis.original_namespace_patterns().next().unwrap();
+                let publication = analysis.original_procedure_declarations().next().unwrap();
+                assert_eq!(
+                    SourceNamespacePattern::matched_imported_command_tail(
+                        import,
+                        publication.name()
+                    ),
+                    Some(name.as_bytes()),
+                    "{dialect}/{pattern}"
+                );
+                let foreign = if dialect == "jimtcl" {
+                    tcl_syntax::naming::NamePolicyProtocol::authored_tcl(
+                        tcl_dialect::TclVersion::V8_6,
+                    )
+                } else {
+                    tcl_syntax::naming::NamePolicyProtocol::authored_jim084()
+                };
+                assert_eq!(
+                    import.matches_imported_command(publication.name().slot(), foreign),
+                    None
+                );
+            }
+        }
+        let analysis = Analyser::new().analyse(
+            "namespace eval ::Self {proc p {} {}; namespace import ::Self::*}",
+            "jimtcl",
+        );
+        let import = analysis.original_namespace_patterns().next().unwrap();
+        let publication = analysis.original_procedure_declarations().next().unwrap();
+        assert_eq!(
+            import.matches_imported_command(publication.name().slot(), publication.name().policy()),
+            Some(false)
+        );
+        assert_eq!(
+            SourceNamespacePattern::matched_imported_command_tail(import, publication.name()),
+            None
+        );
     }
 }

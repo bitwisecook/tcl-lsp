@@ -3177,7 +3177,7 @@ mod original_ensemble_head_tests {
 
     #[test]
     fn ensemble_heads_use_original_whole_scalar_and_literal_component_geometry() {
-        for (dialect, nested) in [("tcl8.6", false), ("tcl9.1", true), ("jim0.84", false)] {
+        for (dialect, nested) in [("tcl8.6", false), ("tcl9.1", true), ("jimtcl", false)] {
             let config = tcl_lexer::LexerConfig::for_profile(Some(
                 tcl_dialect::DialectProfile::find(dialect).unwrap(),
             ));

@@ -65,8 +65,8 @@
 
 use std::collections::{HashMap, HashSet};
 
-use tcl_registry::arg_role::ArgRole;
 use tcl_registry::model::DocumentCommandSurface;
+use tcl_registry::{CommandRegistry, arg_role::ArgRole};
 
 use super::types::ProcArgTrait;
 use crate::segmenter::segment_commands_with_offset_and_config;
@@ -285,7 +285,14 @@ impl<'p> ScanCtx<'p, '_> {
         aliases: &Aliases<'p>,
     ) -> ArgumentValues<'p> {
         let Some(executed) = self.executed_source else {
-            return ArgumentValues::lexical(command, self.param_set, aliases, self.config);
+            return ArgumentValues::lexical(
+                source,
+                command,
+                self.param_set,
+                aliases,
+                self.config.nested(),
+                self.surface.commands(),
+            );
         };
         let bindings = self.identities.source_bindings_ref();
         let selected = (bindings.source_origin() != Some(&executed.origin))
@@ -450,23 +457,51 @@ struct ArgumentValues<'p> {
 
 impl<'p> ArgumentValues<'p> {
     fn lexical(
+        source: &str,
         command: &crate::segmenter::SegmentedCommand,
         parameters: &HashSet<&'p str>,
         aliases: &Aliases<'p>,
         config: LexerConfig,
+        registry: &CommandRegistry,
     ) -> Self {
+        let tokens = crate::ir::CommandTokens::from_segmented(
+            &tcl_lexer::SourceMap::new(source),
+            config,
+            command,
+        );
+        let original = tokens
+            .original_words_match_argv_text()
+            .then(|| {
+                crate::registry_invocation::original_native_compiler_words(
+                    &tcl_lexer::SourceImage::document(source),
+                    tokens.words(),
+                    command.span.start(),
+                    config,
+                )
+            })
+            .flatten();
+        let Some(original) = original else {
+            return Self {
+                full: vec![None; command.argv.len()],
+                components: vec![Vec::new(); command.argv.len()],
+            };
+        };
+        let mut scanner = crate::var_refs::VarReferenceScanner::with_config(
+            crate::var_refs::VarScanOptions::default(),
+            config,
+        );
         Self {
-            full: command
-                .texts
-                .iter()
-                .map(|word| resolve_param(word, parameters, aliases))
-                .collect(),
-            components: command
-                .texts
+            full: original
                 .iter()
                 .map(|word| {
-                    var_substitutions(word, config.braced_var)
-                        .into_iter()
+                    lookup_param(original_scalar_reference_name(word)?, parameters, aliases)
+                })
+                .collect(),
+            components: original
+                .iter()
+                .map(|word| {
+                    original_reference_components(word, registry, &mut scanner)
+                        .iter()
                         .filter_map(|name| lookup_param(name, parameters, aliases))
                         .collect()
                 })
@@ -518,16 +553,38 @@ impl Aliases<'_> {
     }
 }
 
-/// `true` when `name` is a plain scalar local identifier — the only shape a
-/// tracked value-copy target can take (`set n $p` records `n`, but `set
-/// arr(x)` / `set $n` do not).
-fn is_plain_local_name(name: &str) -> bool {
-    !name.is_empty()
-        && name
-            .bytes()
-            .next()
-            .is_some_and(|b| b.is_ascii_alphabetic() || b == b'_')
-        && name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')
+/// Local scalar geometry under this invocation's retained lookup policy.
+/// Unknown policy requires agreement across source policies, not a default.
+fn is_local_scalar_name(
+    name: &str,
+    selected: &crate::registry_invocation::ResolvedStatementInvocation,
+) -> bool {
+    tcl_syntax::naming::split_element_ref(name).is_none()
+        && selected
+            .dialect
+            .and_then(|dialect| dialect.variable_lookup_policy)
+            .map_or_else(
+                || {
+                    tcl_syntax::naming::source_variable_name_is_frame_local_for_all_policies(
+                        name.as_bytes(),
+                    )
+                },
+                |policy| {
+                    tcl_syntax::naming::source_variable_name_is_frame_local(name.as_bytes(), policy)
+                },
+            )
+}
+
+fn written_template_literal(
+    view: &crate::registry_invocation::InvocationBodyAssistance,
+    selected: &crate::registry_invocation::ResolvedStatementInvocation,
+    written: usize,
+) -> Option<String> {
+    let mut matching = (0..selected.arguments.len())
+        .filter(|index| selected.effective.written_argument(*index) == Some(written));
+    let argument = matching.next()?;
+    matching.next().is_none().then_some(())?;
+    view.caller_template_literal_data(selected, argument)
 }
 
 /// Single-level command scan shared by both passes.  Extracts
@@ -843,49 +900,56 @@ fn scan_deep_body<'p>(
     scan_deep(body_text, &nested, traits, &mut aliases.clone(), depth + 1);
 }
 
-/// Extract a bare variable name from ``$var`` or ``${var}``.
-/// Returns `None` when the text isn't a simple variable
-/// reference.
-///
-/// The `${…}` scan here is deliberately **not** threaded through
-/// [`tcl_lexer::braced_var_name_end`], and that is not the gap it looks
-/// like: the identifier gate below accepts only `[A-Za-z_][A-Za-z0-9_:]*`, and
-/// the two release rules can only disagree about a name containing `{`, `}`,
-/// or `\` — every one of which this rejects, under either rule. The two
-/// spellings therefore answer identically on every input, so threading a style
-/// through the six callers this reaches could not change an answer. Do not
-/// "restore consistency" by adding the parameter; add a counterexample first.
-fn extract_var_name(text: &str) -> Option<&str> {
-    let bytes = text.as_bytes();
-    if bytes.len() < 2 || bytes[0] != b'$' {
+/// A whole original scalar substitution, including one inside quotes.
+fn original_scalar_reference_name(word: &tcl_lexer::NativeWord) -> Option<&str> {
+    if word.group().expand {
         return None;
     }
-    let (name_start, name_end) = if bytes[1] == b'{' {
-        // ``${name}`` — find the closing ``}``.
-        let close = text[2..].find('}')?;
-        (2, 2 + close)
-    } else {
-        (1, bytes.len())
+    let arena = word.executable_parts();
+    let [component] = arena.list(arena.root()) else {
+        return None;
     };
-    let name = &text[name_start..name_end];
-    if name.is_empty() {
+    let tcl_lexer::ExecutablePart::Variable { index: None, .. } = component.part else {
         return None;
+    };
+    let spelling = std::str::from_utf8(arena.bytes(component.span)?).ok()?;
+    tcl_syntax::naming::whole_scalar_variable_reference_name(spelling, word.config())
+}
+
+fn original_reference_components(
+    word: &tcl_lexer::NativeWord,
+    registry: &CommandRegistry,
+    scanner: &mut crate::var_refs::VarReferenceScanner,
+) -> Vec<String> {
+    use tcl_lexer::ExecutablePart;
+    let arena = word.executable_parts();
+    let mut names = Vec::new();
+    for component in arena.all_parts() {
+        match component.part {
+            ExecutablePart::Variable { name, .. } => {
+                if let Some(name) = arena
+                    .bytes(name)
+                    .and_then(|name| std::str::from_utf8(name).ok())
+                {
+                    names.push(
+                        tcl_syntax::naming::split_element_ref(name)
+                            .map_or(name, |(root, _)| root)
+                            .to_owned(),
+                    );
+                }
+            }
+            ExecutablePart::Command { body } | ExecutablePart::Expression { expression: body } => {
+                if let Some(script) = arena
+                    .bytes(body)
+                    .and_then(|script| std::str::from_utf8(script).ok())
+                {
+                    names.extend(scanner.scan_lexical_script(script, registry));
+                }
+            }
+            ExecutablePart::Text(_) | ExecutablePart::ParseError(_) => {}
+        }
     }
-    // Verify identifier-like content (alphanumerics, underscore,
-    // colons for namespace-qualified names).
-    let mut iter = name.chars();
-    let first = iter.next().unwrap();
-    if !first.is_ascii_alphabetic() && first != '_' {
-        return None;
-    }
-    if !iter.all(|c| c.is_ascii_alphanumeric() || c == '_' || c == ':') {
-        return None;
-    }
-    // Reject anything past the closing ``}`` for the braced form.
-    if bytes[1] == b'{' && name_end + 1 < bytes.len() {
-        return None;
-    }
-    Some(name)
+    names
 }
 
 /// Trait navigation is a May projection; alias and value-copy state require
@@ -920,15 +984,8 @@ fn scan_command<'p>(
     apply_arg_role_traits(&view.declared_roles, cmd_args, braced, values, traits);
     apply_possible_evaluation_traits(advice, cmd_args, braced, values, traits);
     if let Some(selected) = view.parameter_invocation(ctx.parameters) {
-        record_selected_aliases(selected, values, traits, aliases);
-        apply_definite_writes(
-            selected,
-            &selected.written_argument_roles(),
-            cmd_args,
-            values,
-            traits,
-            aliases,
-        );
+        record_selected_aliases(view, selected, values, traits, aliases);
+        apply_definite_writes(view, selected, values, traits, aliases);
         if advice.may_execute_body() {
             aliases.clear();
         }
@@ -1019,6 +1076,7 @@ fn apply_possible_evaluation_traits<'p>(
 }
 
 fn record_selected_aliases<'p>(
+    view: &crate::registry_invocation::InvocationBodyAssistance,
     selected: &crate::registry_invocation::ResolvedStatementInvocation,
     values: &ArgumentValues<'p>,
     traits: &mut HashMap<&'p str, HashSet<ProcArgTrait>>,
@@ -1029,24 +1087,14 @@ fn record_selected_aliases<'p>(
     };
     for source in (first..selected.arguments.len()).step_by(2) {
         let destination = source + 1;
-        if let Some(Some(local)) = selected.arguments.get(destination) {
-            aliases.value_copies.remove(local);
-            aliases.upvar.remove(local);
-            aliases.retired_inputs.insert(local.clone());
-        }
-        if let Some(param) = selected
+        let input = selected
             .effective
             .written_argument(source)
-            .and_then(|original| values.argument(original))
+            .and_then(|original| values.argument(original));
+        if let Some(param) = input
+            && let Some(set) = traits.get_mut(param)
         {
-            if let Some(set) = traits.get_mut(param) {
-                set.insert(ProcArgTrait::VarRead);
-            }
-            if let Some(Some(local)) = selected.arguments.get(destination)
-                && is_plain_local_name(local)
-            {
-                aliases.upvar.insert(local.clone(), param);
-            }
+            set.insert(ProcArgTrait::VarRead);
         }
         if let Some(param) = selected
             .effective
@@ -1055,6 +1103,18 @@ fn record_selected_aliases<'p>(
             && let Some(set) = traits.get_mut(param)
         {
             mark_dynamic_name_local(set);
+        }
+        let Some(local) = view.caller_template_literal_data(selected, destination) else {
+            aliases.clear();
+            continue;
+        };
+        aliases.value_copies.remove(&local);
+        aliases.upvar.remove(&local);
+        aliases.retired_inputs.insert(local.clone());
+        if let Some(param) = input
+            && is_local_scalar_name(&local, selected)
+        {
+            aliases.upvar.insert(local, param);
         }
     }
 }
@@ -1105,9 +1165,8 @@ fn selected_alias_layout(
 }
 
 fn apply_definite_writes<'p>(
+    view: &crate::registry_invocation::InvocationBodyAssistance,
     selected: &crate::registry_invocation::ResolvedStatementInvocation,
-    roles: &[(usize, ArgRole)],
-    args: &[String],
     values: &ArgumentValues<'p>,
     traits: &mut HashMap<&'p str, HashSet<ProcArgTrait>>,
     aliases: &mut Aliases<'p>,
@@ -1122,28 +1181,25 @@ fn apply_definite_writes<'p>(
         )
         && selected.arguments.len() == 2)
         .then(|| {
-            let target = selected.arguments.first()?.as_ref()?;
-            if !is_plain_local_name(target) {
+            let target = view.caller_template_literal_data(selected, 0)?;
+            if !is_local_scalar_name(&target, selected) {
                 return None;
             }
             let param = selected
                 .effective
                 .written_argument(1)
                 .and_then(|index| values.argument(index))?;
-            Some((target.clone(), param))
+            Some((target, param))
         })
         .flatten();
-    for &(index, role) in roles {
+    for (index, role) in selected.written_argument_roles() {
         if role != ArgRole::VarWrite {
             continue;
         }
-        let Some(name) = args.get(index) else {
-            continue;
-        };
-        if extract_var_name(name).is_some() {
+        let Some(name) = written_template_literal(view, selected, index) else {
             aliases.clear();
             continue;
-        }
+        };
         if let Some(param) = aliases.upvar.get(name.as_str())
             && let Some(set) = traits.get_mut(param)
         {
@@ -1233,17 +1289,6 @@ fn apply_arg_role_traits<'p>(
     }
 }
 
-/// Resolve a bare `$param` / `${param}` argument to its parameter value,
-/// following accepted value copies. `None` when it is not a simple
-/// variable reference or names no known param.
-fn resolve_param<'p>(
-    arg: &str,
-    param_set: &HashSet<&'p str>,
-    aliases: &Aliases<'p>,
-) -> Option<&'p str> {
-    lookup_param(extract_var_name(arg)?, param_set, aliases)
-}
-
 /// Map a substituted name to a parameter value, directly or through an
 /// accepted value copy. An upvar's contents belong to the referenced cell;
 /// they are not the parameter string that named that cell.
@@ -1257,68 +1302,6 @@ fn lookup_param<'p>(
             .then(|| param_set.get(var_name).copied())
             .flatten()
     })
-}
-
-/// Yield each simple variable name substituted in `text` — `$name`, `${name}`,
-/// or the array *name* of an element reference — in source order.  Used to find
-/// the param(s) whose value flows into a (possibly compound) dynamic variable
-/// name such as `${v}($k)` (both `v` and `k`), `arr($k)` (just `k`), or the
-/// segmenter's normalised `${gas(idx)}` form (just `gas`).  Best-effort and
-/// highlighting-grade: a leading `\$` is skipped, and a name must start with a
-/// letter or `_` (so `$1` backrefs and `$` alone are ignored).
-fn var_substitutions(text: &str, braced_var: tcl_dialect::BracedVarStyle) -> Vec<&str> {
-    let bytes = text.as_bytes();
-    let mut out = Vec::new();
-    let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] != b'$' || (i > 0 && bytes[i - 1] == b'\\') {
-            i += 1;
-            continue;
-        }
-        if bytes.get(i + 1) == Some(&b'{') {
-            // `${…}` — the braced content is the variable name, but the
-            // segmenter normalises an element ref to `${gas(idx)}`, so take only
-            // the leading identifier as the name.  Advance past `${` (not past
-            // the closer) so any `$k` *inside* the braces (`${arr($k)}`) or
-            // after them (`${v}($k)`) is still scanned.
-            // The closer comes from the shared owner under this document's
-            // release rule; a first-`}` scan took the leading identifier of
-            // `a{b` where the lexer spans `a{b}c`.
-            if let tcl_lexer::BracedVarEnd::Closed(close) =
-                tcl_lexer::braced_var_name_end(bytes, i + 2, braced_var)
-            {
-                push_leading_ident(&text[i + 2..close], &mut out);
-            }
-            i += 2;
-        } else {
-            let mut j = i + 1;
-            while j < bytes.len()
-                && (bytes[j].is_ascii_alphanumeric() || bytes[j] == b'_' || bytes[j] == b':')
-            {
-                j += 1;
-            }
-            push_leading_ident(&text[i + 1..j], &mut out);
-            i = j.max(i + 1);
-        }
-    }
-    out
-}
-
-/// Push the leading identifier of `content` (up to the first non-`[A-Za-z0-9_:]`
-/// character) onto `out`, when it starts with a letter or `_`.  Used to peel the
-/// array *name* off an element reference (`gas(idx)` → `gas`).
-fn push_leading_ident<'a>(content: &'a str, out: &mut Vec<&'a str>) {
-    let end = content
-        .find(|c: char| !(c.is_ascii_alphanumeric() || c == '_' || c == ':'))
-        .unwrap_or(content.len());
-    let name = &content[..end];
-    if name
-        .bytes()
-        .next()
-        .is_some_and(|b| b.is_ascii_alphabetic() || b == b'_')
-    {
-        out.push(name);
-    }
 }
 
 /// Record the callee-local dynamic-name use of a param — its **value**
@@ -1486,19 +1469,15 @@ pub fn caller_frame_literal_targets(
                 continue;
             }
             for source in (first..selected.arguments.len()).step_by(2) {
-                let Some(name) = selected
-                    .effective
-                    .written_argument(source)
-                    .and_then(|original| seg.args().get(original))
-                else {
+                let (Some(name), Some(local)) = (
+                    view.caller_template_literal_data(selected, source),
+                    view.caller_template_literal_data(selected, source + 1),
+                ) else {
                     continue;
                 };
-                let Some(Some(local)) = selected.arguments.get(source + 1) else {
-                    continue;
-                };
-                if is_literal_caller_frame_name(name) && is_plain_local_name(local) {
+                if is_local_scalar_name(&name, selected) && is_local_scalar_name(&local, selected) {
                     targets.entry(name.clone()).or_insert(false);
-                    alias_to_target.insert(local.clone(), name.clone());
+                    alias_to_target.insert(local, name);
                 }
             }
             continue;
@@ -1507,25 +1486,14 @@ pub fn caller_frame_literal_targets(
             if role != ArgRole::VarWrite {
                 continue;
             }
-            if let Some(caller_name) = seg
-                .args()
-                .get(index)
-                .and_then(|name| alias_to_target.get(name))
+            if let Some(name) = written_template_literal(&view, selected, index)
+                && let Some(caller_name) = alias_to_target.get(&name)
             {
                 targets.insert(caller_name.clone(), true);
             }
         }
     }
     targets
-}
-
-/// A plain caller-frame scalar name: no substitution, no bracket, no
-/// namespace qualifier, no array element.  Anything else is either a
-/// different cell (`::`-qualified) or unknowable, and abstains.
-fn is_literal_caller_frame_name(word: &str) -> bool {
-    !word.is_empty()
-        && !word.contains("::")
-        && word.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
 }
 
 #[cfg(test)]
@@ -1770,13 +1738,37 @@ mod tests {
         }
     }
 
+    fn lexical_reference_values<'p>(
+        source_word: &str,
+        parameters: &[&'p str],
+        config: LexerConfig,
+    ) -> ArgumentValues<'p> {
+        let registry = CommandRegistry::build_default();
+        let source = format!("command {source_word}");
+        let commands = segment_commands_with_offset_and_config(&source, 0, config);
+        assert_eq!(commands.len(), 1);
+        let parameters = parameters.iter().copied().collect();
+        ArgumentValues::lexical(
+            &source,
+            &commands[0],
+            &parameters,
+            &Aliases::default(),
+            config,
+            &registry,
+        )
+    }
+
     #[test]
     fn extract_var_name_simple() {
-        assert_eq!(extract_var_name("$foo"), Some("foo"));
-        assert_eq!(extract_var_name("${foo}"), Some("foo"));
-        assert_eq!(extract_var_name("foo"), None);
-        assert_eq!(extract_var_name("$"), None);
-        assert_eq!(extract_var_name("$1abc"), None);
+        let parameters = ["foo", "1abc"];
+        let whole = |source| {
+            lexical_reference_values(source, &parameters, LexerConfig::default()).argument(0)
+        };
+        assert_eq!(whole("$foo"), Some("foo"));
+        assert_eq!(whole("${foo}"), Some("foo"));
+        assert_eq!(whole("foo"), None);
+        assert_eq!(whole("$"), None);
+        assert_eq!(whole("$1abc"), Some("1abc"));
     }
 
     #[test]
@@ -2153,34 +2145,95 @@ mod tests {
 
     #[test]
     fn var_substitutions_finds_compound_components() {
-        assert_eq!(
-            var_substitutions("$v", tcl_dialect::BracedVarStyle::default()),
-            vec!["v"]
+        let parameters = ["v", "k", "escaped", "1backref"];
+        let components = |source| {
+            lexical_reference_values(source, &parameters, LexerConfig::default())
+                .components
+                .remove(1)
+        };
+        assert_eq!(components("$v"), vec!["v"]);
+        assert_eq!(components("${v}($k)"), vec!["v", "k"]);
+        assert_eq!(components("$v($k)"), vec!["v", "k"]);
+        assert_eq!(components("arr($k)"), vec!["k"]);
+        assert_eq!(components("literal"), Vec::<&str>::new());
+        assert_eq!(components("\\$escaped"), Vec::<&str>::new());
+        assert_eq!(components("$1backref"), vec!["1backref"]);
+    }
+
+    #[test]
+    fn original_parameter_reference_parts_keep_configured_names_and_literal_indices() {
+        let parameters = [
+            "1abc", "", "odd name", "caf", "café", "a{b", "a{b}c", "v", "k", "arr",
+        ];
+        for (dialect, unicode, nested) in [
+            ("tcl8.6", false, false),
+            ("tcl9.1", false, true),
+            ("jimtcl", true, false),
+        ] {
+            let profile = tcl_dialect::DialectProfile::find(dialect).unwrap();
+            let config = LexerConfig::for_file_grammar(profile.grammar);
+            let values = |word| lexical_reference_values(word, &parameters, config);
+            for (word, expected) in [
+                ("$1abc", Some("1abc")),
+                ("${}", Some("")),
+                ("${odd name}", Some("odd name")),
+                ("\"$1abc\"", Some("1abc")),
+                ("{$1abc}", None),
+                ("\\$1abc", None),
+            ] {
+                assert_eq!(values(word).argument(0), expected, "{dialect}/{word}");
+            }
+            assert_eq!(values("$café").argument(0), unicode.then_some("café"));
+            assert_eq!(
+                values("$café").argument_components(0),
+                if unicode {
+                    &["café"][..]
+                } else {
+                    &["caf"][..]
+                }
+            );
+            assert_eq!(values("${a{b}c}").argument(0), nested.then_some("a{b}c"));
+            assert_eq!(
+                values("${a{b}c}").argument_components(0),
+                if nested { &["a{b}c"][..] } else { &["a{b"][..] }
+            );
+            assert_eq!(values("$arr($k)").argument_components(0), &["arr", "k"]);
+            assert_eq!(values("${arr($k)}").argument_components(0), &["arr"]);
+            assert!(values("${arr($k)}").argument(0).is_none());
+            assert!(values("{$arr($k)}").argument_components(0).is_empty());
+        }
+    }
+
+    #[test]
+    fn original_parameter_reference_parts_refuse_changed_segment_presentations() {
+        let config = LexerConfig::default();
+        let registry = CommandRegistry::build_default();
+        let original = "command $old";
+        let commands = segment_commands_with_offset_and_config(original, 0, config);
+        let parameters = HashSet::from(["old", "new"]);
+        let aliases = Aliases::default();
+        let valid = ArgumentValues::lexical(
+            original,
+            &commands[0],
+            &parameters,
+            &aliases,
+            config,
+            &registry,
         );
-        assert_eq!(
-            var_substitutions("${v}($k)", tcl_dialect::BracedVarStyle::default()),
-            vec!["v", "k"]
+        assert_eq!(valid.argument(0), Some("old"));
+        let changed = ArgumentValues::lexical(
+            "command $new",
+            &commands[0],
+            &parameters,
+            &aliases,
+            config,
+            &registry,
         );
-        assert_eq!(
-            var_substitutions("$v($k)", tcl_dialect::BracedVarStyle::default()),
-            vec!["v", "k"]
-        );
-        assert_eq!(
-            var_substitutions("arr($k)", tcl_dialect::BracedVarStyle::default()),
-            vec!["k"]
-        );
-        assert_eq!(
-            var_substitutions("literal", tcl_dialect::BracedVarStyle::default()),
-            Vec::<&str>::new()
-        );
-        assert_eq!(
-            var_substitutions("\\$escaped", tcl_dialect::BracedVarStyle::default()),
-            Vec::<&str>::new()
-        );
-        assert_eq!(
-            var_substitutions("$1backref", tcl_dialect::BracedVarStyle::default()),
-            Vec::<&str>::new()
-        );
+        assert!(changed.argument(0).is_none());
+        assert!(changed.argument_components(0).is_empty());
+        let literal = lexical_reference_values("{$old}", &["old"], config);
+        assert!(literal.argument(0).is_none());
+        assert!(literal.argument_components(0).is_empty());
     }
 
     #[test]
@@ -3049,5 +3102,95 @@ mod tests {
                 "{prelude}"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod original_name_data_tests {
+    use super::*;
+
+    fn assistance(
+        source: &str,
+        dialect: &str,
+    ) -> (
+        crate::provider_fixtures::OriginalNativeModuleFixture,
+        Box<crate::registry_invocation::InvocationBodyAssistance>,
+    ) {
+        let fixture = crate::provider_fixtures::original_native_module(source, dialect);
+        let (context, module) = &*fixture;
+        let tokens = module
+            .top_level
+            .statements
+            .iter()
+            .find_map(|statement| {
+                module
+                    .top_level
+                    .retained_source_tokens_for_statement(statement)
+            })
+            .expect("actual original source statement");
+        let view = crate::registry_invocation::invocation_body_assistance(
+            context.commands(),
+            context.as_ref(),
+            &DocumentCommandSurface::new(context.commands(), None),
+            tokens,
+        );
+        (fixture, view)
+    }
+
+    #[test]
+    fn caller_template_literal_data_keeps_name_bytes_and_held_variable_policy() {
+        for (dialect, qualified_local) in [("tcl8.4", false), ("tcl9.1", false), ("jimtcl", true)] {
+            let (_fixture, view) = assistance("set {$literal} VALUE", dialect);
+            let selected = view
+                .caller_name_template_invocation()
+                .expect("actual original selected set invocation");
+            assert_eq!(
+                view.caller_template_literal_data(selected, 0).as_deref(),
+                Some("$literal")
+            );
+            for name in [
+                "",
+                " with space ",
+                "$literal",
+                "[literal]",
+                "literal(open",
+                "1abc",
+                "café",
+            ] {
+                assert!(is_local_scalar_name(name, selected), "{dialect}/{name}");
+            }
+            assert_eq!(
+                is_local_scalar_name("N::qualified", selected),
+                qualified_local,
+                "{dialect}"
+            );
+            assert!(!is_local_scalar_name("::rooted", selected));
+            assert!(!is_local_scalar_name("array(key)", selected));
+        }
+    }
+
+    #[test]
+    fn caller_template_literal_data_refuses_foreign_changed_and_dynamic_carriers() {
+        let (_fixture, mut view) = assistance("set {$literal} VALUE", "tcl9.1");
+        let selected = view
+            .caller_name_template_invocation()
+            .expect("original selected set");
+        assert_eq!(
+            view.caller_template_literal_data(selected, 0).as_deref(),
+            Some("$literal")
+        );
+        let detached = selected.clone();
+        assert!(view.caller_template_literal_data(&detached, 0).is_none());
+        view.definite_invocation.as_mut().unwrap().arguments[0] = Some("changed".into());
+        assert!(
+            view.caller_template_literal_data(view.caller_name_template_invocation().unwrap(), 0)
+                .is_none()
+        );
+        let (_fixture, view) = assistance("set $computed VALUE", "tcl9.1");
+        assert!(
+            view.caller_name_template_invocation()
+                .and_then(|selected| view.caller_template_literal_data(selected, 0))
+                .is_none()
+        );
     }
 }

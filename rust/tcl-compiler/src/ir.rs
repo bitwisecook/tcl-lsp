@@ -3072,6 +3072,32 @@ impl Module {
             )
     }
 
+    /// Report an original body's source label after its actual issued ID and
+    /// retained Module source owner agree. Equal labels retain separate IDs;
+    /// this projection selects no callable, binding, namespace or Native entry.
+    #[must_use]
+    pub fn original_procedure_report_label(
+        &self,
+        body: ProcedureId,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<&str> {
+        self.procedure_ids.owns(body).then_some(())?;
+        let retained = self.retained_source_bindings.as_ref()?;
+        retained.positioned_for_module(self, registry)?;
+        let mut matches = self
+            .original_source_procedure_bodies()
+            .filter(|(id, _)| **id == body);
+        let (_, procedure) = matches.next()?;
+        matches.next().is_none().then_some(())?;
+        retained
+            .matches_original_procedure_summary(body, procedure)
+            .then_some(())?;
+        if let Some(card) = self.original_authored_declaration_body_units.get(&body) {
+            return card.reporting_label(self, procedure);
+        }
+        Some(&procedure.qualified_name)
+    }
+
     /// Conditional source allocation lookup; no callable publication or Native
     /// entry follows from an original declaration retained only for analysis.
     pub(crate) fn original_source_procedure_for_target(

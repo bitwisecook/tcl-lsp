@@ -638,7 +638,10 @@ mod tests {
             helper.original_head().unwrap().span().start(),
             u32::try_from(source.find("helper ONE").unwrap()).unwrap()
         );
-        let expanded = query(source, &analysis, "other").expect("actual expanded source argv");
+        let expanded_source = "other {*}$arguments";
+        let expanded_analysis = Analyser::new().analyse(expanded_source, "tcl");
+        let expanded = query(expanded_source, &expanded_analysis, "other")
+            .expect("actual expanded source argv before unknown prior effects");
         assert_eq!(expanded.argument_count(), None);
         assert!(query(source, &analysis, "helper TWO").is_none());
         let native = Analyser::new().analyse(source, "tcl8.6");

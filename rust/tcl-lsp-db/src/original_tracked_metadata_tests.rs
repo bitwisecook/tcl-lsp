@@ -241,6 +241,9 @@ fn tracked_document_input_keeps_keyed_availability_on_the_same_command_store() {
     // A source lifecycle query supplies no appliance or TMM execution receipt.
     let mut db = TclDatabase::default();
     let config = configuration(&db, 0);
+    config
+        .set_bigip_version(&mut db)
+        .to(Some("15.0.0".to_owned()));
     let file = SourceFile::new(
         &db,
         "when CLIENTSSL_HANDSHAKE {SSL::c3d cert_lifespan 24}".to_owned(),

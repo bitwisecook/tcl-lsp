@@ -1530,17 +1530,16 @@ fn ns_inscope(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `namespace origin command` — the fully-qualified original name of `command`
 /// (following `namespace import` chains to the source).
 fn ns_origin(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if let Some(helper) = interp
+        .native_invocation_dialect()
+        .native_jim_namespace_helper(
+            tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind::Origin,
+        )
+    {
+        return interp.dispatch_stock_jim_namespace_helper(argv, helper);
+    }
     if argv.len() != 3 {
         return interp.wrong_args_for_prefix(argv, 2, b"name");
-    }
-    if interp
-        .name_policy_protocol()
-        .is_some_and(|policy| policy.recipe().is_jim084())
-    {
-        return match interp.original_jim_namespace_origin(argv[2]) {
-            Ok(result) => result.publish(interp),
-            Err(error) => interp.report_cmd_error(error),
-        };
     }
     let origin = if interp
         .native_invocation_dialect()
@@ -1551,7 +1550,7 @@ fn ns_origin(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             .native_namespace_origin(argv[2])
             .map_err(tcl_cmd_core::CmdError::from)
     } else {
-        // Jim's scripted helper follows source-name aliases, not C command tokens.
+        // Non-native introspection retains its separately selected byte query.
         let name = match interp.native_string_bytes(&argv[2]) {
             Ok(name) => name,
             Err(error) => return interp.report_cmd_error(error.into()),
@@ -7311,3 +7310,7 @@ mod original_import_alias_tests {
 #[cfg(test)]
 #[path = "cmd_namespace/native_jim_code_tests.rs"]
 mod native_jim_code_tests;
+
+#[cfg(test)]
+#[path = "cmd_namespace/native_jim_origin_tests.rs"]
+mod native_jim_origin_tests;

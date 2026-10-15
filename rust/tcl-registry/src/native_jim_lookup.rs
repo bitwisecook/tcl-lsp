@@ -25,10 +25,12 @@ pub enum NativeJimNamespaceHelperKind {
     Which,
     /// Original `namespace code` distribution procedure.
     Code,
+    /// Original `namespace origin` distribution procedure.
+    Origin,
 }
 impl NativeJimNamespaceHelperKind {
     /// Pinned source families this owner currently supplies.
-    pub const ALL: [Self; 2] = [Self::Which, Self::Code];
+    pub const ALL: [Self; 3] = [Self::Which, Self::Code, Self::Origin];
 }
 
 /// Authored pinned distribution procedure source, not a published callable.
@@ -121,6 +123,28 @@ impl crate::InvocationDialect {
 		return $arg
 	}
 	list ::namespace inscope [uplevel 1 ::namespace current] $arg
+"#,
+            },
+            NativeJimNamespaceHelperKind::Origin => NativeJimNamespaceHelper {
+                kind,
+                minimum_arguments: 1,
+                maximum_arguments: 1,
+                usage: "name",
+                name: "namespace origin",
+                parameters: "name",
+                body: r#"
+	set nscanon [uplevel 1 [list ::namespace canon $name]]
+	if {[exists -alias $nscanon]} {
+		tailcall {namespace origin} [info alias $nscanon]
+	}
+	if {[exists -command $nscanon]} {
+		return ::$nscanon
+	}
+	if {[exists -command $name]} {
+		return ::$name
+	}
+
+	return -code error "invalid command name \"$name\""
 "#,
             },
         })
@@ -259,6 +283,34 @@ mod namespace_helper_source_tests {
             assert!(
                 crate::InvocationDialect::of_profile(environment.unit_profile())
                     .native_jim_namespace_helper(super::NativeJimNamespaceHelperKind::Code)
+                    .is_none()
+            );
+        }
+    }
+    #[test]
+    fn origin_helper_descriptor_keeps_original_source_and_public_arity() {
+        let environment = crate::model::ingress::resolve_known_environment("jim").unwrap();
+        let dialect = crate::InvocationDialect::of_profile(environment.unit_profile());
+        let helper = dialect
+            .native_jim_namespace_helper(super::NativeJimNamespaceHelperKind::Origin)
+            .unwrap();
+        let source = include_str!("../tests/data/native_jim_namespace_which/nshelper.tcl");
+        assert!(source.contains(&format!(
+            "proc {{{}}} {{{}}} {{{}}}",
+            helper.name(),
+            helper.parameters(),
+            helper.body()
+        )));
+        assert!(!helper.accepts_public_arguments(0));
+        assert!(helper.accepts_public_arguments(1));
+        assert!(!helper.accepts_public_arguments(2));
+        assert_eq!(helper.usage(), "name");
+        for version in tcl_dialect::TclVersion::ALL {
+            let environment =
+                crate::model::ingress::resolve_known_environment(version.dialect_name()).unwrap();
+            assert!(
+                crate::InvocationDialect::of_profile(environment.unit_profile())
+                    .native_jim_namespace_helper(super::NativeJimNamespaceHelperKind::Origin)
                     .is_none()
             );
         }

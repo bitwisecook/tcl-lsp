@@ -192,6 +192,18 @@ impl BodyAnalysisCapsule {
         self.neutral.is_some()
     }
 
+    /// Independently certified readonly source analysis, retaining its complete
+    /// captured module mutation and trace dependencies. This supplies neither
+    /// runtime quietness nor execution, handler, frame or Native authority.
+    #[must_use]
+    pub fn has_closed_readonly_source_correspondence(&self) -> bool {
+        self.neutral.as_ref().is_some_and(|projection| {
+            projection.analytical.is_some()
+                && (projection.declaration.native_source_slot.is_some()
+                    || projection.declaration.authored_source_slot.is_some())
+        })
+    }
+
     /// The exact retained source declaration.
     #[must_use]
     pub fn procedure(&self) -> &Procedure {
@@ -916,8 +928,8 @@ impl BodyLatticeInputs {
         let normalized = cached.relocated_variable_proofs(&previous.correspondence.relocation)?;
         let previous_proofs =
             crate::command_binding::BodySourceProofs::from_body(&previous.correspondence.body);
-        let normalized = if (previous.declaration.native_source_slot.is_some()
-            || previous.declaration.authored_source_slot.is_some())
+        let normalized = if previous.declaration.native_source_slot.is_some()
+            || previous.declaration.authored_source_slot.is_some()
         {
             normalized.restored_readonly_source_proofs(&previous_proofs)?
         } else {
@@ -926,15 +938,15 @@ impl BodyLatticeInputs {
         let rebound =
             normalized.relocated_variable_proofs(&current.correspondence.relocation.inverse()?)?;
         let current_proofs = crate::command_binding::BodySourceProofs::from_body(&self.body);
-        let mut rebound = if (current.declaration.native_source_slot.is_some()
-            || current.declaration.authored_source_slot.is_some())
+        let mut rebound = if current.declaration.native_source_slot.is_some()
+            || current.declaration.authored_source_slot.is_some()
         {
             rebound.restored_readonly_source_proofs(&current_proofs)?
         } else {
             rebound.restored_source_proofs(&current_proofs)?
         };
-        if (current.declaration.native_source_slot.is_some()
-            || current.declaration.authored_source_slot.is_some())
+        if current.declaration.native_source_slot.is_some()
+            || current.declaration.authored_source_slot.is_some()
         {
             rebound.body_id = Some(current.body);
         }
@@ -1525,6 +1537,7 @@ mod native_source_lattice_tests {
         let b =
             BodyAnalysisCapsule::retain(Arc::clone(&right), right_id, context.commands()).unwrap();
         assert!(a.has_closed_analysis_correspondence());
+        assert!(a.has_closed_readonly_source_correspondence());
         assert!(!a.has_closed_native_correspondence());
         assert_eq!(a, b);
         assert!(std::ptr::eq(b.unit(), right.as_ref()));
@@ -1815,6 +1828,7 @@ mod native_source_lattice_tests {
         assert!(left.ir_module.source_metadata_input.is_none());
         assert!(left.ir_module.source_entry.native_entry.is_none());
         assert!(a.has_closed_analysis_correspondence());
+        assert!(a.has_closed_readonly_source_correspondence());
         assert!(!a.has_closed_native_correspondence());
         assert!(
             a == b,

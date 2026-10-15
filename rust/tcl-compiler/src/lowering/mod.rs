@@ -6418,7 +6418,7 @@ pub fn lower_proc_body_isolated(
     config: tcl_lexer::LexerConfig,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Script {
-    let mut lowerer = Lowerer::with_config(registry, config).with_dialect(dialect);
+    let mut lowerer = Lowerer::for_standalone_source(registry, config, dialect);
     lowerer.start_module();
     lowerer.source.clone_from(&body_text.to_owned());
     let frame = crate::var_resolve::VariableExecutionFrame::Procedure {
@@ -6831,6 +6831,42 @@ mod body_cache_eligible_tests {
     use crate::interprocedural::test_body_identity::fixture_id;
 
     use super::body_cache_eligible;
+
+    #[test]
+    fn isolated_body_profile_keeps_the_original_standalone_source_purpose() {
+        let environment = crate::environment_ingress::resolve_environment("tcl9.0");
+        let context = environment.default_context_registry();
+        let registry = context.commands();
+        let profile = environment.unit_profile();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let source = "upvar 1 ${odd name} local";
+        let body = super::lower_proc_body_isolated(source, "::", registry, config, Some(profile));
+        let statement = body.statements.first().expect("original statement");
+        let tokens = body
+            .retained_source_tokens_for_statement(statement)
+            .expect("original source tokens");
+        let binding = tokens.source_binding.as_ref().expect("original binding");
+        let metadata = tcl_registry::model::semantic::SemanticContext::for_profile(profile).into();
+        assert_eq!(
+            binding.original_invocation_source_purpose(tokens, metadata, registry),
+            Some(crate::command_binding::OriginalInvocationSourcePurpose::Standalone)
+        );
+        assert!(body.executed_source.is_none());
+        assert!(body.native_compilation_admission.is_none());
+        assert!(
+            crate::registry_invocation::admitted_native_compiler_invocation(registry, None, tokens)
+                .is_none()
+        );
+        let info = crate::cfg_builder::upvar_info::collect_upvar_targets_with_registry(
+            &body,
+            &["odd name".to_owned()],
+            registry,
+        );
+        assert_eq!(
+            info.param_targets.get("local").map(String::as_str),
+            Some("odd name")
+        );
+    }
 
     #[test]
     fn plain_bodies_are_eligible() {

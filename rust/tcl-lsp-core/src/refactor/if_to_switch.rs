@@ -532,3 +532,23 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+mod decoded_clause_script_indentation_tests {
+    use super::*;
+
+    #[test]
+    fn if_conversion_keeps_literal_command_name_braces_in_selected_clause_values() {
+        let source = "if {$x eq \"a\"} {{return one}} elseif {$x eq \"b\"} {{return two}} else {{return other}}";
+        let registry = crate::refactor::test_registry();
+        let analysis = crate::refactor::source_rewrite::lexical_analysis(source, &registry);
+        let action = if_to_switch(source, 0, &analysis, &LineIndex::new(source))
+            .expect("actual selected original clause bodies");
+        assert!(action.disabled.is_none());
+        let proposal = action.apply(source);
+        for literal in ["{return one}", "{return two}", "{return other}"] {
+            assert!(proposal.contains(literal), "{proposal}");
+        }
+        assert!(!proposal.contains("        return one\n"));
+    }
+}

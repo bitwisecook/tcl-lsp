@@ -627,7 +627,23 @@ mod selected_completion_gap_tests {
             assert_eq!(replacement.is_some(), expected, "{gap:?}");
             if let Some((span, text)) = replacement {
                 assert_eq!(span, Span::empty(cursor));
-                assert_eq!(text, "create");
+                let generated = tcl_lexer::native_script_words_in(
+                    SourceImage::document(&text),
+                    Span::new(0, u32::try_from(text.len()).unwrap()),
+                    analysis.body_lexer_config.unwrap(),
+                )
+                .unwrap();
+                assert!(generated.fatal_tail.is_none());
+                let [command] = generated.commands.as_slice() else {
+                    panic!("one complete selector source word");
+                };
+                let [word] = command.words.as_slice() else {
+                    panic!("one complete selector source word");
+                };
+                assert_eq!(
+                    tcl_syntax::word_rules::original_static_word_unicode_value(word).as_deref(),
+                    Some(b"create".as_slice())
+                );
             }
         }
     }

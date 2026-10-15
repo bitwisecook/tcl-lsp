@@ -25,7 +25,13 @@ pub fn item(
     let body = body_span(identity, document.analysis).unwrap_or(identity.span());
     let index = LineIndex::new(document.source);
     Some(CallHierarchyItem {
-        name: identity.label(),
+        name: if matches!(identity.role(), OriginalDeclarationRole::Method(_)) {
+            identity
+                .reporting_key(document.analysis)
+                .unwrap_or_else(|| identity.label())
+        } else {
+            identity.label()
+        },
         detail: Some("Source declaration".to_owned()),
         range: crate::definition::span_to_range(
             document.source,

@@ -1,0 +1,78 @@
+{
+  "fixture_sha256": "1f78213e0c0f5bdf75dd030e73a45aa25f0753237a1bf02eb773eff3eb397272",
+  "scope": "Direct original interpreter scalar/reference name and array-index substitution observations; no tcltest, Compiler inference or Native source-entry proof",
+  "runs": [
+    {
+      "provider": "8.4.20",
+      "binary": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "started_utc": "2026-10-15T05:02:12.365819+00:00",
+      "finished_utc": "2026-10-15T05:02:12.368273+00:00",
+      "exit_code": 0,
+      "stdout_sha256": "15f4917a8691459116148109e86daca6b6f23c1b1e3d4be54d1fe2f08616fa50",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_library": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "original_init_sha256": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b"
+    },
+    {
+      "provider": "8.5.19",
+      "binary": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "binary_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "started_utc": "2026-10-15T05:02:12.368344+00:00",
+      "finished_utc": "2026-10-15T05:02:12.370898+00:00",
+      "exit_code": 0,
+      "stdout_sha256": "15f4917a8691459116148109e86daca6b6f23c1b1e3d4be54d1fe2f08616fa50",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_library": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "original_init_sha256": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1"
+    },
+    {
+      "provider": "8.6.18",
+      "binary": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "binary_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "started_utc": "2026-10-15T05:02:12.370947+00:00",
+      "finished_utc": "2026-10-15T05:02:12.373370+00:00",
+      "exit_code": 0,
+      "stdout_sha256": "15f4917a8691459116148109e86daca6b6f23c1b1e3d4be54d1fe2f08616fa50",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "original_init_sha256": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35"
+    },
+    {
+      "provider": "9.0.4",
+      "binary": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "binary_sha256": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "started_utc": "2026-10-15T05:02:12.373420+00:00",
+      "finished_utc": "2026-10-15T05:02:12.381279+00:00",
+      "exit_code": 0,
+      "stdout_sha256": "7349abe2a7385d349e91b5293c42ccdffe4b5e30453bf0ec4fc8fdee4a802b00",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_library": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "original_init_sha256": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a"
+    },
+    {
+      "provider": "9.1.0",
+      "binary": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "binary_sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "started_utc": "2026-10-15T05:02:12.381336+00:00",
+      "finished_utc": "2026-10-15T05:02:12.386935+00:00",
+      "exit_code": 0,
+      "stdout_sha256": "7349abe2a7385d349e91b5293c42ccdffe4b5e30453bf0ec4fc8fdee4a802b00",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_library": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "original_init_sha256": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f"
+    },
+    {
+      "provider": "jim",
+      "binary": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "binary_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "started_utc": "2026-10-15T05:02:12.386991+00:00",
+      "finished_utc": "2026-10-15T05:02:12.389980+00:00",
+      "exit_code": 0,
+      "stdout_sha256": "e66399273da2cf7862aebbca2eca7c056fcf8c80b3c2e74d6da0940809b6bf27",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_source_commit": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+      "original_source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867"
+    }
+  ]
+}

@@ -758,6 +758,46 @@ struct Declaration<'a> {
     impl_generics: Option<&'a syn::Generics>,
 }
 
+fn source_constant_is_literal(expression: &syn::Expr) -> bool {
+    match expression {
+        syn::Expr::Lit(value) => super::route_attrs_are_plain(&value.attrs),
+        syn::Expr::Reference(value) => {
+            super::route_attrs_are_plain(&value.attrs)
+                && value.mutability.is_none()
+                && source_constant_is_literal(&value.expr)
+        }
+        syn::Expr::MethodCall(value) => {
+            super::route_attrs_are_plain(&value.attrs)
+                && value.method == "as_slice"
+                && value.args.is_empty()
+                && value.turbofish.is_none()
+                && matches!(value.receiver.as_ref(), syn::Expr::Lit(literal)
+                if matches!(literal.lit, syn::Lit::ByteStr(_))
+                    && super::route_attrs_are_plain(&literal.attrs))
+        }
+        syn::Expr::Array(value) => {
+            super::route_attrs_are_plain(&value.attrs)
+                && value.elems.iter().all(source_constant_is_literal)
+        }
+        syn::Expr::Tuple(value) => {
+            super::route_attrs_are_plain(&value.attrs)
+                && value.elems.iter().all(source_constant_is_literal)
+        }
+        syn::Expr::Paren(value) => {
+            super::route_attrs_are_plain(&value.attrs) && source_constant_is_literal(&value.expr)
+        }
+        syn::Expr::Group(value) => {
+            super::route_attrs_are_plain(&value.attrs) && source_constant_is_literal(&value.expr)
+        }
+        syn::Expr::Repeat(value) => {
+            super::route_attrs_are_plain(&value.attrs)
+                && source_constant_is_literal(&value.expr)
+                && source_constant_is_literal(&value.len)
+        }
+        _ => false,
+    }
+}
+
 fn source_attrs_preserve_routes(attributes: &[syn::Attribute]) -> bool {
     attributes.iter().all(|attribute| {
         [
@@ -2072,8 +2112,11 @@ impl<'ast> Visit<'ast> for ConsumerReferences<'_> {
         self.invalid = true;
     }
     fn visit_stmt(&mut self, statement: &'ast syn::Stmt) {
-        if matches!(statement, syn::Stmt::Item(syn::Item::Use(_))) {
-            // Plain imports are scoped and shadowed before this block is visited.
+        if matches!(
+            statement,
+            syn::Stmt::Item(syn::Item::Use(_) | syn::Item::Const(_))
+        ) {
+            // Imports and literal constants are checked and shadowed for the whole block.
             return;
         }
         if matches!(statement, syn::Stmt::Item(_) | syn::Stmt::Macro(_)) {
@@ -2096,6 +2139,19 @@ impl<'ast> Visit<'ast> for ConsumerReferences<'_> {
         let type_import_shadows = self.type_import_shadows.clone();
         // Rust imports apply to the whole block, including calls before the use.
         for statement in &block.stmts {
+            if let syn::Stmt::Item(syn::Item::Const(constant)) = statement {
+                if !super::route_attrs_are_plain(&constant.attrs)
+                    || !source_constant_is_literal(&constant.expr)
+                {
+                    self.invalid = true;
+                    continue;
+                }
+                let name = constant.ident.to_string();
+                self.locals.remove(&name);
+                self.type_import_shadows.insert(name.clone());
+                self.shadowed.insert(name);
+                continue;
+            }
             if let syn::Stmt::Item(syn::Item::Use(import)) = statement {
                 let mut bindings = Vec::new();
                 if !super::route_attrs_are_plain(&import.attrs)
@@ -3094,6 +3150,56 @@ mod tests {
             !modules.check_row(&row),
             "a glob cannot manufacture an imported target identity"
         );
+    }
+    #[test]
+    fn literal_local_constants_preserve_independent_receiver_routes_and_block_scope() {
+        let owner = "pub(super) struct Ledger; impl Ledger { pub(super) fn revision(&self) {} }";
+        for body in [
+            "const NAMES: &[&[u8]] = &[b\"which\".as_slice(), b\"code\"]; for _ in NAMES { ledger.revision(); }",
+            "{ const ledger: u8 = 0; } ledger.revision();",
+            "#[doc = \"literal data\"] const VALUE: (u8, bool) = (1, true); ledger.revision();",
+        ] {
+            let caller =
+                format!("use super::owner::Ledger; fn consume(ledger: &Ledger) {{ {body} }}");
+            let (modules, row) = fixture(owner, &caller, "Ledger::revision", "parameter:ledger");
+            assert!(modules.check_row(&row), "{body}");
+        }
+    }
+
+    #[test]
+    fn local_constants_cannot_supply_calls_or_bypass_shadow_and_availability_checks() {
+        let owner = "pub(super) struct Ledger; impl Ledger { pub(super) fn revision(&self) {} pub(super) const fn capture() {} }";
+        for body in [
+            "ledger.revision(); const ledger: u8 = 0;",
+            "const ledger: u8 = 0; ledger.revision();",
+            "#[cfg(test)] const VALUE: u8 = 0; ledger.revision();",
+            "const VALUE: () = { Ledger::capture() }; ledger.revision();",
+            "const VALUE: u8 = opaque!(); ledger.revision();",
+            "const VALUE: &[u8] = b\"x\".as_mut_slice(); ledger.revision();",
+            "const VALUE: &[u8] = b\"x\".as_slice(1); ledger.revision();",
+            "const VALUE: &[u8] = b\"x\".as_slice::<u8>(); ledger.revision();",
+            "const VALUE: &[u8] = make().as_slice(); ledger.revision();",
+            "const VALUE: &[u8] = \"x\".as_slice(); ledger.revision();",
+        ] {
+            let caller =
+                format!("use super::owner::Ledger; fn consume(ledger: &Ledger) {{ {body} }}");
+            let (modules, row) = fixture(owner, &caller, "Ledger::revision", "parameter:ledger");
+            assert!(!modules.check_row(&row), "{body}");
+        }
+        let (modules, row) = fixture(
+            owner,
+            "use super::owner::Ledger; fn consume() { Ledger::capture(); const Ledger: u8 = 0; }",
+            "Ledger::capture",
+            "static",
+        );
+        assert!(!modules.check_row(&row));
+        let (modules, row) = fixture(
+            owner,
+            "use super::owner::Ledger; fn consume() { const VALUE: () = { Ledger::capture() }; }",
+            "Ledger::capture",
+            "static",
+        );
+        assert!(!modules.check_row(&row));
     }
 }
 

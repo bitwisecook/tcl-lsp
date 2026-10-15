@@ -2268,11 +2268,13 @@ pub fn project_diagnostics(
         .iter()
         .map(|(span, _)| (span.start(), span.end()))
         .collect::<std::collections::HashSet<_>>();
+    let logical_source = analysis.allows_retained_logical_declaration_advice();
     let original_sites = analysis
         .command_invocations
         .iter()
         .filter(|invocation| {
-            invocation.original_name_input.is_some()
+            !logical_source
+                && invocation.original_name_input.is_some()
                 && unresolved.contains(&(invocation.range.start(), invocation.range.end()))
         })
         .map(|invocation| {
@@ -3874,17 +3876,13 @@ fn module_has_trace_facts(module: &tcl_compiler::ir::Module) -> bool {
         || !module.deferred_writes.is_clear()
 }
 
-/// Assemble a document's optimisations from the per-procedure memo.
-///
-/// For a non-iRules module with no command mutations and a lattice key for every
-/// analysable procedure, each proc's raw optimisations come from the memoised
-/// [`function_optimisations`] (offset 0), rebased by the proc's `body_offset`; the
-/// top-level body's raw optimisations are computed on a top-level-only unit (small,
-/// not memoised), and the whole-module [`finalise_optimisations`] runs once over the
-/// assembled set.  Otherwise (iRules / command mutations / a complexity-guarded
-/// proc without a key / a memoised lattice that read another procedure) it falls
-/// back to the whole-module [`optimise_unit`] — always byte-identical, guarded by
-/// the `compiler_check` random-edit + corpus fuzzers.
+/// Assemble a document's optimisations from checked per-body memo owners.
+/// Each selected body retains its current lattice key and complete capsule;
+/// raw optimisations are computed on the authentic full unit, filtered to that
+/// body's groups and rebased before whole-module finalisation. Source mutation
+/// and trace hazards remain dependencies of an independently certified readonly
+/// source analysis. Other world hazards, missing keys, methods, cross-function
+/// lattice reads and argument-sensitive folds require the whole-unit solve.
 fn solve_optimisations<'db>(
     db: &'db dyn TclDb,
     cu: &CompilationUnit,
@@ -3928,11 +3926,9 @@ fn solve_optimisations<'db>(
         .any(|&key| function_lattice(db, key).sccp.reads_module);
     if is_irules
         || !cu.methods.is_empty()
-        || mutations != tcl_compiler::command_binding::ModuleCommandMutations::default()
         || has_arg_sensitive_target
         || !every_proc_keyed
         || reads_module
-        || module_has_trace_facts(&cu.ir_module)
     {
         return tcl_compiler::optimiser::optimise_unit(cu, registry, dialect_opt);
     }
@@ -3952,6 +3948,18 @@ fn solve_optimisations<'db>(
     let Some(capsules) = capsules else {
         return tcl_compiler::optimiser::optimise_unit(cu, registry, dialect_opt);
     };
+    // Readonly source certificates retain the actual mutation/trace facts in
+    // their dependency value. Reusing that same conservative analysis does not
+    // turn unknown source effects into a quiet runtime or entered execution.
+    let world_hazards = mutations
+        != tcl_compiler::command_binding::ModuleCommandMutations::default()
+        || module_has_trace_facts(&cu.ir_module);
+    if world_hazards
+        && (capsules.is_empty()
+            || !capsules.values().all(tcl_compiler::body_analysis_capsule::BodyAnalysisCapsule::has_closed_readonly_source_correspondence))
+    {
+        return tcl_compiler::optimiser::optimise_unit(cu, registry, dialect_opt);
+    }
     let redefined = &cu.ir_module.redefined_procedures;
     let mut raw = Vec::new();
     // Each per-proc `optimise_unit_raw` allocates group ids from 0, so the procs'
@@ -4007,9 +4015,8 @@ fn solve_optimisations<'db>(
 /// passes over: `procedures` empty so only the top-level is optimised,
 /// `interproc` / `caller_scope` retained so the top-level's O103 calls
 /// resolve against the same boundary / cross-file facts the whole-module
-/// build resolved. Trace facts are copied from the real module (the
-/// `has_trace_facts` fallback means this path only runs when there are
-/// none, but copy the real values rather than asserting that by omission).
+/// build resolved. Actual trace and deferred-write facts remain copied into
+/// this view from the complete current module.
 fn top_level_only_unit(
     cu: &CompilationUnit,
     redefined: &std::collections::HashSet<String>,
@@ -4502,7 +4509,7 @@ pub fn compiler_check_diagnostics_uncached(
     generic_patterns: Option<&[String]>,
     external_call_sites: Option<&CallSiteEvidence>,
 ) -> CompilerDiagnostics {
-    let cu = standalone_compiler_unit(text, registry, dialect, external_call_sites);
+    let cu = fresh_compiler_document_unit(text, registry, dialect, external_call_sites);
     compiler_diagnostics_from_unit(
         &cu,
         registry,
@@ -4511,30 +4518,51 @@ pub fn compiler_check_diagnostics_uncached(
     )
 }
 
-/// Explicit fresh complete-document source ingress for scalar compiler checks.
-/// This supplies source analysis independently of a supplied retained owner.
-fn standalone_compiler_unit(
+/// Fresh document source ingress over the exact caller-selected command store.
+/// This driver resolves its own complete editing input; supplied-owner callers
+/// use their independent checked route and cannot reopen this constructor.
+fn fresh_compiler_document_unit(
     text: &str,
     registry: &CommandRegistry,
     dialect: &str,
     external_call_sites: Option<&CallSiteEvidence>,
 ) -> CompilationUnit {
-    let dialect_opt = tcl_lsp_core::stated_profile_for_dialect(dialect);
+    let environment = tcl_registry::model::ingress::resolve_environment(dialect);
+    let baseline = environment.default_context_registry();
+    let context =
+        if baseline.commands().snapshot().semantic_key() == registry.snapshot().semantic_key() {
+            baseline
+        } else {
+            Arc::new(baseline.with_command_store(registry.snapshot().shared_registry()))
+        };
+    let config = tcl_lexer::LexerConfig::for_file_grammar(environment.grammar());
+    let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+        environment.analyser_profile(),
+        environment.unit_profile(),
+        context,
+        config,
+    );
     let declared = tcl_compiler::analyser::utils::document_declared_surface(text, None, dialect);
-    CompilationUnit::build_with_options(
+    let entry = tcl_compiler::command_binding::SourceAnalysisEntry::for_supplied_source(
+        registry,
+        &input,
+        config,
+        Some(input.unit_profile()),
+    );
+    CompilationUnit::build_with_analysis_input(
         text,
         UnitBuildOptions {
             registry,
             defer_top_level: false,
-            config: tcl_lexer::LexerConfig::for_file_grammar(
-                tcl_lsp_core::environment_for_dialect(dialect).grammar(),
-            ),
-            dialect: tcl_lsp_core::optional_profile_for_dialect(dialect),
+            config,
+            dialect: Some(input.unit_profile()),
             external_call_sites,
             declared_commands: Some(&declared),
         },
+        Some(&entry),
+        &input,
     )
-    .with_interprocedural(registry, dialect_opt)
+    .with_interprocedural(registry, Some(input.unit_profile()))
 }
 
 /// Build a source-advice unit from the document's complete retained analysis.
@@ -5009,32 +5037,6 @@ mod tests {
         assert!(
             bodies.next().is_none(),
             "one body at the original fixture site"
-        );
-        id
-    }
-
-    fn original_test_named_body_id(
-        unit: &CompilationUnit,
-        display: &str,
-    ) -> tcl_compiler::ir::ProcedureId {
-        let mut declarations = unit
-            .ir_module
-            .procedures
-            .iter()
-            .chain(unit.ir_module.body_units.iter())
-            .filter(|(id, _)| unit.original_procedure_for_body(**id).is_some())
-            .filter(|(_, procedure)| {
-                procedure.qualified_name == display
-                    && procedure.declaration_site.as_ref().is_some_and(|site| {
-                        site.source.source_image().bytes() == unit.source.as_bytes()
-                    })
-            });
-        let (&id, _) = declarations
-            .next()
-            .expect("original authored fixture declaration");
-        assert!(
-            declarations.next().is_none(),
-            "one authored fixture declaration"
         );
         assert!(unit.ir_module.procedure_ids.owns(id));
         id
@@ -5819,7 +5821,7 @@ p\uD801 ordinary";
             let environment = tcl_registry::model::ingress::resolve_known_environment(name)
                 .expect("actual known source policy");
             let context = environment.default_context_registry();
-            let unit = standalone_compiler_unit(source, context.commands(), name, None);
+            let unit = fresh_compiler_document_unit(source, context.commands(), name, None);
             assert_eq!(
                 unit.ir_module.lexer_config,
                 tcl_lexer::LexerConfig::for_file_grammar(environment.grammar()),
@@ -5887,12 +5889,10 @@ p\uD801 ordinary";
             let first_id = original_test_body_id(&first, offset);
             let second_id = original_test_body_id(&second, offset);
             let a = first
-                .procedures
-                .get(&first_id)
+                .function_for_body(Some(first_id))
                 .expect("procedure in first build");
             let b = second
-                .procedures
-                .get(&second_id)
+                .function_for_body(Some(second_id))
                 .expect("procedure in second build");
             assert!(
                 Arc::ptr_eq(&a.def_use, &b.def_use),
@@ -6389,15 +6389,14 @@ p\uD801 ordinary";
         drop(owner);
     }
 
-    fn semantic_bundle_has_selected_invocation(
+    fn semantic_bundle_has_source_metadata(
         unit: &tcl_compiler::compilation_unit::FunctionUnit,
     ) -> bool {
-        unit.semantic_facts.executable().invocations().any(|call| {
-            matches!(
-                call.resolution,
-                tcl_compiler::executable_ir::InvocationResolution::Resolved(_)
-            )
-        })
+        unit.semantic_facts
+            .conditional_source_metadata()
+            .invocations()
+            .next()
+            .is_some()
     }
 
     #[test]
@@ -6424,7 +6423,7 @@ p\uD801 ordinary";
         let module = lowerer.lower("puts VALUE").clone();
         let input = module.source_metadata_input.as_ref().unwrap();
         let selected = supplied_cfg_lattice_key(&db, &module, Some(input.clone()));
-        assert!(semantic_bundle_has_selected_invocation(&function_lattice(
+        assert!(semantic_bundle_has_source_metadata(&function_lattice(
             &db, selected
         )));
         let older = Arc::new(
@@ -6442,7 +6441,7 @@ p\uD801 ordinary";
             )),
         );
         assert!(selected != unavailable);
-        assert!(!semantic_bundle_has_selected_invocation(&function_lattice(
+        assert!(!semantic_bundle_has_source_metadata(&function_lattice(
             &db,
             unavailable
         )));
@@ -8536,16 +8535,18 @@ p\uD801 ordinary";
         db: &'db dyn TclDb,
         file: SourceFile,
         cfg: LexerCfgKey<'db>,
+        analysis_config: AnalyserConfig,
+        caller_offset: usize,
         caller: String,
     ) -> SummaryDependencyProbe {
         let dialect = file.dialect(db);
-        let registry = db.registry(dialect);
+        let input = document_analysis_input(db, file, analysis_config)
+            .expect("actual selected document input");
+        let registry = input.borrowed_context_registry().commands();
         let declared = declared_command_surface(db, file);
-        let (cu, _) = build_unit_with_keys(
-            db,
-            file.text(db),
-            unit_build_options(db, file, cfg, registry, None, &declared),
-        );
+        let options = supplied_unit_build_options(db, file, cfg, registry, None, &declared, &input)
+            .expect("the document's original grammar and Registry");
+        let (cu, _) = build_unit_with_keys_and_input(db, file.text(db), options, Some(&input));
         let source_bodies: Vec<_> = cu
             .ir_module
             .procedures
@@ -8563,8 +8564,8 @@ p\uD801 ordinary";
                 )
             })
             .collect();
-        let provider_id = original_test_named_body_id(&cu, "::producer");
-        let caller_id = original_test_named_body_id(&cu, &caller);
+        let provider_id = original_test_body_id(&cu, 0);
+        let caller_id = original_test_body_id(&cu, caller_offset);
         let provider = tcl_compiler::taint_interproc::infer_proc_summary(
             &cu,
             provider_id,
@@ -8634,9 +8635,25 @@ p\uD801 ordinary";
         let changed = source("return [gets stdin]");
         let file = SourceFile::new(&db, initial, "tcl".to_owned(), None);
         let config = lexer_cfg_key(&db, "tcl");
-        let before: Vec<_> = ["::quoted", "::braced"]
+        let analysis_config = cfg(&db);
+        let callers = |text: &str| {
+            [
+                ("::quoted", text.find("proc quoted ").unwrap()),
+                ("::braced", text.find("proc braced ").unwrap()),
+            ]
+        };
+        let before: Vec<_> = callers(file.text(&db))
             .into_iter()
-            .map(|caller| summary_dependency_probe(&db, file, config, caller.to_owned()))
+            .map(|(caller, offset)| {
+                summary_dependency_probe(
+                    &db,
+                    file,
+                    config,
+                    analysis_config,
+                    offset,
+                    caller.to_owned(),
+                )
+            })
             .collect();
         let runs = || {
             std::mem::take(&mut *log.lock().unwrap())
@@ -8645,15 +8662,31 @@ p\uD801 ordinary";
                 .count()
         };
         assert_eq!(runs(), 2, "two actual caller summary queries");
-        for caller in ["::quoted", "::braced"] {
-            let _ = summary_dependency_probe(&db, file, config, caller.to_owned());
+        for (caller, offset) in callers(file.text(&db)) {
+            let _ = summary_dependency_probe(
+                &db,
+                file,
+                config,
+                analysis_config,
+                offset,
+                caller.to_owned(),
+            );
         }
         assert_eq!(runs(), 0, "unchanged document retains the summary memos");
         file.set_text(&mut db).to(changed.clone());
         let config = lexer_cfg_key(&db, "tcl");
-        let after: Vec<_> = ["::quoted", "::braced"]
+        let after: Vec<_> = callers(file.text(&db))
             .into_iter()
-            .map(|caller| summary_dependency_probe(&db, file, config, caller.to_owned()))
+            .map(|(caller, offset)| {
+                summary_dependency_probe(
+                    &db,
+                    file,
+                    config,
+                    analysis_config,
+                    offset,
+                    caller.to_owned(),
+                )
+            })
             .collect();
         assert_eq!(
             runs(),
@@ -8676,9 +8709,18 @@ p\uD801 ordinary";
         let fresh = TclDatabase::default();
         let fresh_file = SourceFile::new(&fresh, changed, "tcl".to_owned(), None);
         let fresh_config = lexer_cfg_key(&fresh, "tcl");
-        for (caller, expected) in ["::quoted", "::braced"].into_iter().zip(after) {
+        let fresh_analysis_config = cfg(&fresh);
+        for ((caller, offset), expected) in callers(fresh_file.text(&fresh)).into_iter().zip(after)
+        {
             assert_eq!(
-                summary_dependency_probe(&fresh, fresh_file, fresh_config, caller.to_owned()),
+                summary_dependency_probe(
+                    &fresh,
+                    fresh_file,
+                    fresh_config,
+                    fresh_analysis_config,
+                    offset,
+                    caller.to_owned()
+                ),
                 expected
             );
         }
@@ -8854,7 +8896,7 @@ p\uD801 ordinary";
             "tcl".to_owned(),
             None,
         );
-        let source = "namespace eval A {helper ONE}; namespace eval B {helper ONE}";
+        let source = "proc callA {} {namespace eval A {helper ONE}}; proc callB {} {namespace eval B {helper ONE}}";
         let calls = SourceFile::new(&db, source.to_owned(), "tcl".to_owned(), None);
         let project = Project::new(&db, vec![definitions, calls]);
         let diagnostics = project_diagnostics(&db, calls, cfg, project);
@@ -8895,7 +8937,7 @@ p\uD801 ordinary";
             "tcl".to_owned(),
             None,
         );
-        let source = "rooted [namespace path ::Changed]";
+        let source = "rooted [set value VALUE]";
         let calls = SourceFile::new(&db, source.to_owned(), "tcl".to_owned(), None);
         let project = Project::new(&db, vec![definitions, calls]);
         let diagnostics = project_diagnostics(&db, calls, cfg, project);
@@ -11216,6 +11258,65 @@ p\uD801 ordinary";
         );
     }
     #[test]
+    fn fresh_compiler_document_retains_actual_input_and_selected_registry() {
+        let db = TclDatabase::default();
+        let analysis_config = cfg(&db);
+        for dialect in ["tcl", "tcl8.6"] {
+            let registry = db.registry(dialect);
+            let file = SourceFile::new(&db, "set value 1".to_owned(), dialect.to_owned(), None);
+            let input = document_analysis_input(&db, file, analysis_config).unwrap();
+            let fresh = fresh_compiler_document_unit(file.text(&db), registry, dialect, None);
+            assert_eq!(
+                fresh.ir_module.source_metadata_input.as_ref(),
+                Some(input.as_ref())
+            );
+            assert!(fresh.ir_module.source_entry.native_entry.is_none());
+            assert!(
+                !fresh
+                    .ir_module
+                    .source_entry
+                    .metadata_context
+                    .is_standalone()
+            );
+            assert_eq!(
+                fresh
+                    .ir_module
+                    .source_metadata_input
+                    .as_ref()
+                    .unwrap()
+                    .borrowed_context_registry()
+                    .commands()
+                    .snapshot()
+                    .semantic_key(),
+                registry.snapshot().semantic_key()
+            );
+        }
+        let registry = db.registry("tcl8.6");
+        let profile = registry.profile().unwrap();
+        let mut changed = registry.project_for_profile(profile);
+        let mut spec = changed.get("puts").unwrap().clone();
+        spec.traits.insert(tcl_registry::Traits::EVALUATES_CODE);
+        changed.insert(spec);
+        let fresh = fresh_compiler_document_unit("puts VALUE", &changed, "tcl8.6", None);
+        assert_eq!(
+            fresh
+                .ir_module
+                .source_metadata_input
+                .as_ref()
+                .unwrap()
+                .borrowed_context_registry()
+                .commands()
+                .snapshot()
+                .semantic_key(),
+            changed.snapshot().semantic_key()
+        );
+        assert_ne!(
+            changed.snapshot().semantic_key(),
+            registry.snapshot().semantic_key()
+        );
+    }
+
+    #[test]
     fn compiler_taint_replay_status_is_retained_by_memo_and_direct_paths() {
         let db = TclDatabase::default();
         let source = "set value 1";
@@ -11509,3 +11610,42 @@ mod compiler_snapshot_memo_tests {
 
 #[cfg(test)]
 mod original_project_callback_projection_tests;
+
+#[cfg(test)]
+mod readonly_source_optimisation_owner_tests {
+    use super::*;
+
+    #[test]
+    fn source_optimisation_certificates_retain_unknown_world_hazards() {
+        let db = TclDatabase::default();
+        let source = "proc a {} {puts VALUE}\nproc b {} {puts OTHER}\n";
+        let file = SourceFile::new(&db, source.to_owned(), "tcl8.6".to_owned(), None);
+        let config = lexer_cfg_key(&db, "tcl8.6");
+        let unit = compilation_unit(&db, file, config, 0).unwrap();
+        let input = unit.ir_module.source_metadata_input.as_ref().unwrap();
+        let registry = input.borrowed_context_registry().commands();
+        assert!(unit.ir_module.source_entry.native_entry.is_none());
+        assert_ne!(
+            unit.command_mutations,
+            tcl_compiler::command_binding::ModuleCommandMutations::default()
+        );
+        assert!(module_has_trace_facts(&unit.ir_module));
+        let functions = unit.all_body_function_units().collect::<Vec<_>>();
+        assert_eq!(functions.len(), 2);
+        for function in functions {
+            let id = function.body_id.unwrap();
+            let capsule = tcl_compiler::body_analysis_capsule::BodyAnalysisCapsule::retain(
+                Arc::clone(&unit),
+                id,
+                registry,
+            )
+            .unwrap();
+            assert!(capsule.has_closed_readonly_source_correspondence());
+            assert!(!capsule.has_closed_native_correspondence());
+            assert_eq!(capsule.unit().command_mutations, unit.command_mutations);
+            assert!(module_has_trace_facts(&capsule.unit().ir_module));
+            assert!(function.cfg.executed_source.is_none());
+            assert!(function.cfg.native_compilation_admission.is_none());
+        }
+    }
+}
