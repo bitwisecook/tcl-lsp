@@ -1,0 +1,23 @@
+{
+  "patch": "/tmp/name-current238-parent-text-owner-index-v2-20261015/implementation.patch",
+  "patch_sha256": "91a999e1d7978e8b513538fe2a7208802dfec518580ec78434e3e360d174b47b",
+  "verdict": "APPROVED bounded formatter234 catalogue clauses only",
+  "clauses": [
+    {
+      "path": "experiments/name-handling/results/RESULTS.md",
+      "current_file_sha256": "c3d3c5e228dddcdad8ceec7ff54e753f1d88c71c9c6490af8982f220a0fdfdf8",
+      "exact_clause": "[Original formatter variable-reference source values](../formatter-variable-reference-values-20261015/README.md) retain all six providers and matching source/init provenance, complete original channels and the capture driver. Computed array indices and combined braced literal names produce distinct ELEMENT/LITERAL observations; C9 closer-name success stays separate from C8/Jim refusals. These are lexical/source observations, without physical scalar/cell partition, whole-format equivalence, F5, Native or Rust acceptance.",
+      "target": "experiments/name-handling/formatter-variable-reference-values-20261015/README.md",
+      "target_sha256": "8dcf3c9067e9b84680c52e78b8d6888ef570ec631323e1add2a211f7ca982415"
+    },
+    {
+      "path": "experiments/name-handling/patterns/README.md",
+      "current_file_sha256": "be31448547732a2c329502feec7dfa338b9c557270997f71e9ca750329fcc026",
+      "exact_clause": "[Original formatter variable-reference source values](../formatter-variable-reference-values-20261015/README.md) retain all six providers and matching source/init provenance, complete original channels and the capture driver. Computed array indices and combined braced literal names produce distinct ELEMENT/LITERAL observations; C9 closer-name success stays separate from C8/Jim refusals. These are lexical/source observations, without physical scalar/cell partition, whole-format equivalence, F5, Native or Rust acceptance.",
+      "target": "experiments/name-handling/formatter-variable-reference-values-20261015/README.md",
+      "target_sha256": "8dcf3c9067e9b84680c52e78b8d6888ef570ec631323e1add2a211f7ca982415"
+    }
+  ],
+  "scope": "Original six providers/source-init/channels/driver; computed ELEMENT vs braced combined literal LITERAL; C9 closer-name success vs C8/Jim refusal. Lexical source/value observations only, no physical cell partition, whole-format equivalence, F5, Native or Rust acceptance. Parent/Text rows/routes remain other peers.",
+  "execution": "Read-only current source and canonical link inspection, no provider or test execution."
+}

@@ -1,0 +1,11 @@
+{
+  "status": "transport-only APPROVED; no source/provenance semantic approval for new SDK200 or helper draft",
+  "transport_manifest_sha256": "81f145fc00490bb4c5ea6137bf5ab70302b72b59359db31f64eb586be8ddc673",
+  "files_verified": 195,
+  "exact_original_byte_copies": 41,
+  "python": "AST only; no provider execution",
+  "scope": "Explicit unadopted/removable handoff artifact, not source authority or new Runtime acceptance. No provider executed during transport.",
+  "source_patches_adopted": false,
+  "new_production_patch_peer_status": "UNREVIEWED WIP; DO NOT ADOPT",
+  "runtime174_metadata_peer": "Codegen APPROVED3fc, all82 actualMainbindings; no execution"
+}

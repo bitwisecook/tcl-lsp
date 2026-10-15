@@ -1,0 +1,2329 @@
+{
+  "source_epoch": 238,
+  "rows_bound": 330,
+  "unchanged217_rows": 309,
+  "additive238_rows": 21,
+  "unbound": [],
+  "prior_full330_receipt": {
+    "sha256": "3c52beec3dc1ed8ca530bd4c86ec5291460031f2635245c00773734d73164231",
+    "source_epoch": 217,
+    "source_current_through": 221
+  },
+  "additive_receipts": {
+    "handoff/reviews/five-row-bind.json": "f42219d6fe8d9f1ca8c5cfc559926026cd3f489b5648d7b5bd19cf360792cc91",
+    "handoff/reviews/db16-current238.json": "253991cbff7422ce4ea5309a757cffe480837dceea3b54f25c3ac2306f0ddf54"
+  },
+  "rows": [
+    {
+      "inherited_index": 0,
+      "path": "editors/vscode/src/scaffold.ts",
+      "sha256": "f3942bdf5597a0378b00020540bd7692524387d226154d85963935126a0f9ecc",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 1,
+      "path": "rust/tcl-lsp-core/src/call_hierarchy.rs",
+      "sha256": "142d79c6b5255bd44a5db8413e3bd90b897690ea0ef215c80e011398c1177368",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 2,
+      "path": "rust/tcl-lsp-core/src/call_hierarchy.rs",
+      "sha256": "142d79c6b5255bd44a5db8413e3bd90b897690ea0ef215c80e011398c1177368",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 3,
+      "path": "rust/tcl-lsp-core/src/call_hierarchy.rs",
+      "sha256": "142d79c6b5255bd44a5db8413e3bd90b897690ea0ef215c80e011398c1177368",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 4,
+      "path": "rust/tcl-lsp-core/src/call_hierarchy.rs",
+      "sha256": "142d79c6b5255bd44a5db8413e3bd90b897690ea0ef215c80e011398c1177368",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 5,
+      "path": "rust/tcl-lsp-core/src/caller_frame.rs",
+      "sha256": "28a385856a47d83536354af2f6af3e47717193954e554b3e27995c00b10ef80f",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 6,
+      "path": "rust/tcl-lsp-core/src/caller_frame.rs",
+      "sha256": "28a385856a47d83536354af2f6af3e47717193954e554b3e27995c00b10ef80f",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 7,
+      "path": "rust/tcl-lsp-core/src/code_actions.rs",
+      "sha256": "d7f69648e85f5d866e36010bc6d03a6159ddfa1619191bac4dbbaf95a262eb9f",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 8,
+      "path": "rust/tcl-lsp-core/src/code_actions.rs",
+      "sha256": "d7f69648e85f5d866e36010bc6d03a6159ddfa1619191bac4dbbaf95a262eb9f",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 9,
+      "path": "rust/tcl-lsp-core/src/code_actions.rs",
+      "sha256": "d7f69648e85f5d866e36010bc6d03a6159ddfa1619191bac4dbbaf95a262eb9f",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 10,
+      "path": "rust/tcl-lsp-core/src/code_actions.rs",
+      "sha256": "d7f69648e85f5d866e36010bc6d03a6159ddfa1619191bac4dbbaf95a262eb9f",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 11,
+      "path": "rust/tcl-lsp-core/src/code_actions.rs",
+      "sha256": "d7f69648e85f5d866e36010bc6d03a6159ddfa1619191bac4dbbaf95a262eb9f",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 12,
+      "path": "rust/tcl-lsp-core/src/code_actions.rs",
+      "sha256": "d7f69648e85f5d866e36010bc6d03a6159ddfa1619191bac4dbbaf95a262eb9f",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 13,
+      "path": "rust/tcl-lsp-core/src/code_actions.rs",
+      "sha256": "d7f69648e85f5d866e36010bc6d03a6159ddfa1619191bac4dbbaf95a262eb9f",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 14,
+      "path": "rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs",
+      "sha256": "b949c498caba4694a80a4665ee9a0b852a940e3991674982865d846368690152",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 15,
+      "path": "rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs",
+      "sha256": "b949c498caba4694a80a4665ee9a0b852a940e3991674982865d846368690152",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 16,
+      "path": "rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs",
+      "sha256": "b949c498caba4694a80a4665ee9a0b852a940e3991674982865d846368690152",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 17,
+      "path": "rust/tcl-lsp-core/src/completion.rs",
+      "sha256": "fd44b29407ea8a0846371e563e550b1b9d08878e187447023e819297c3b1a685",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 18,
+      "path": "rust/tcl-lsp-core/src/completion.rs",
+      "sha256": "fd44b29407ea8a0846371e563e550b1b9d08878e187447023e819297c3b1a685",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 19,
+      "path": "rust/tcl-lsp-core/src/completion.rs",
+      "sha256": "fd44b29407ea8a0846371e563e550b1b9d08878e187447023e819297c3b1a685",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 20,
+      "path": "rust/tcl-lsp-core/src/completion.rs",
+      "sha256": "fd44b29407ea8a0846371e563e550b1b9d08878e187447023e819297c3b1a685",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 21,
+      "path": "rust/tcl-lsp-core/src/completion.rs",
+      "sha256": "fd44b29407ea8a0846371e563e550b1b9d08878e187447023e819297c3b1a685",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 22,
+      "path": "rust/tcl-lsp-core/src/completion.rs",
+      "sha256": "fd44b29407ea8a0846371e563e550b1b9d08878e187447023e819297c3b1a685",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 23,
+      "path": "rust/tcl-lsp-core/src/completion.rs",
+      "sha256": "fd44b29407ea8a0846371e563e550b1b9d08878e187447023e819297c3b1a685",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 24,
+      "path": "rust/tcl-lsp-core/src/completion.rs",
+      "sha256": "fd44b29407ea8a0846371e563e550b1b9d08878e187447023e819297c3b1a685",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 25,
+      "path": "rust/tcl-lsp-core/src/completion.rs",
+      "sha256": "fd44b29407ea8a0846371e563e550b1b9d08878e187447023e819297c3b1a685",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 26,
+      "path": "rust/tcl-lsp-core/src/completion.rs",
+      "sha256": "fd44b29407ea8a0846371e563e550b1b9d08878e187447023e819297c3b1a685",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 27,
+      "path": "rust/tcl-lsp-core/src/completion.rs",
+      "sha256": "fd44b29407ea8a0846371e563e550b1b9d08878e187447023e819297c3b1a685",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 28,
+      "path": "rust/tcl-lsp-core/src/completion.rs",
+      "sha256": "fd44b29407ea8a0846371e563e550b1b9d08878e187447023e819297c3b1a685",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 29,
+      "path": "rust/tcl-lsp-core/src/completion.rs",
+      "sha256": "fd44b29407ea8a0846371e563e550b1b9d08878e187447023e819297c3b1a685",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 30,
+      "path": "rust/tcl-lsp-core/src/completion/original_context.rs",
+      "sha256": "3965ba46ca692f83fda0f8b38305ad8b94362695d482f308b2d721c0a2d073bb",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 31,
+      "path": "rust/tcl-lsp-core/src/completion/original_variables.rs",
+      "sha256": "1a074e63735babeb03d8d913e06c489a62308ad930ee8114a17185bd1924515b",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 32,
+      "path": "rust/tcl-lsp-core/src/completion/original_variables.rs",
+      "sha256": "1a074e63735babeb03d8d913e06c489a62308ad930ee8114a17185bd1924515b",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 33,
+      "path": "rust/tcl-lsp-core/src/completion/original_workspace.rs",
+      "sha256": "4a5ea36ccb77afb2d101ba5585a9c9d3b971b48b4e95ca122d84bf5277e7d411",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 34,
+      "path": "rust/tcl-lsp-core/src/completion/original_workspace.rs",
+      "sha256": "4a5ea36ccb77afb2d101ba5585a9c9d3b971b48b4e95ca122d84bf5277e7d411",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 35,
+      "path": "rust/tcl-lsp-core/src/declaration.rs",
+      "sha256": "5bca95a7dba4d188320a5f52b57bc51bd95ad3e27d5be21742794e5d2a89be56",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 36,
+      "path": "rust/tcl-lsp-core/src/declaration.rs",
+      "sha256": "5bca95a7dba4d188320a5f52b57bc51bd95ad3e27d5be21742794e5d2a89be56",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 37,
+      "path": "rust/tcl-lsp-core/src/definition.rs",
+      "sha256": "96c9e407e2bcead0d40ce71e3f83092cd8f5460a2652f987b034566ad5107b8a",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 38,
+      "path": "rust/tcl-lsp-core/src/definition.rs",
+      "sha256": "96c9e407e2bcead0d40ce71e3f83092cd8f5460a2652f987b034566ad5107b8a",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 39,
+      "path": "rust/tcl-lsp-core/src/definition.rs",
+      "sha256": "96c9e407e2bcead0d40ce71e3f83092cd8f5460a2652f987b034566ad5107b8a",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 40,
+      "path": "rust/tcl-lsp-core/src/definition.rs",
+      "sha256": "96c9e407e2bcead0d40ce71e3f83092cd8f5460a2652f987b034566ad5107b8a",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 41,
+      "path": "rust/tcl-lsp-core/src/definition.rs",
+      "sha256": "96c9e407e2bcead0d40ce71e3f83092cd8f5460a2652f987b034566ad5107b8a",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 42,
+      "path": "rust/tcl-lsp-core/src/definition.rs",
+      "sha256": "96c9e407e2bcead0d40ce71e3f83092cd8f5460a2652f987b034566ad5107b8a",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 43,
+      "path": "rust/tcl-lsp-core/src/definition.rs",
+      "sha256": "96c9e407e2bcead0d40ce71e3f83092cd8f5460a2652f987b034566ad5107b8a",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 44,
+      "path": "rust/tcl-lsp-core/src/definition.rs",
+      "sha256": "96c9e407e2bcead0d40ce71e3f83092cd8f5460a2652f987b034566ad5107b8a",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 45,
+      "path": "rust/tcl-lsp-core/src/definition.rs",
+      "sha256": "96c9e407e2bcead0d40ce71e3f83092cd8f5460a2652f987b034566ad5107b8a",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 46,
+      "path": "rust/tcl-lsp-core/src/definition.rs",
+      "sha256": "96c9e407e2bcead0d40ce71e3f83092cd8f5460a2652f987b034566ad5107b8a",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 47,
+      "path": "rust/tcl-lsp-core/src/definition.rs",
+      "sha256": "96c9e407e2bcead0d40ce71e3f83092cd8f5460a2652f987b034566ad5107b8a",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 48,
+      "path": "rust/tcl-lsp-core/src/definition.rs",
+      "sha256": "96c9e407e2bcead0d40ce71e3f83092cd8f5460a2652f987b034566ad5107b8a",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 49,
+      "path": "rust/tcl-lsp-core/src/definition.rs",
+      "sha256": "96c9e407e2bcead0d40ce71e3f83092cd8f5460a2652f987b034566ad5107b8a",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 50,
+      "path": "rust/tcl-lsp-core/src/definition.rs",
+      "sha256": "96c9e407e2bcead0d40ce71e3f83092cd8f5460a2652f987b034566ad5107b8a",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 51,
+      "path": "rust/tcl-lsp-core/src/definition.rs",
+      "sha256": "96c9e407e2bcead0d40ce71e3f83092cd8f5460a2652f987b034566ad5107b8a",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 52,
+      "path": "rust/tcl-lsp-core/src/definition.rs",
+      "sha256": "96c9e407e2bcead0d40ce71e3f83092cd8f5460a2652f987b034566ad5107b8a",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 53,
+      "path": "rust/tcl-lsp-core/src/definition.rs",
+      "sha256": "96c9e407e2bcead0d40ce71e3f83092cd8f5460a2652f987b034566ad5107b8a",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 54,
+      "path": "rust/tcl-lsp-core/src/definition.rs",
+      "sha256": "96c9e407e2bcead0d40ce71e3f83092cd8f5460a2652f987b034566ad5107b8a",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 55,
+      "path": "rust/tcl-lsp-core/src/definition.rs",
+      "sha256": "96c9e407e2bcead0d40ce71e3f83092cd8f5460a2652f987b034566ad5107b8a",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 56,
+      "path": "rust/tcl-lsp-core/src/definition.rs",
+      "sha256": "96c9e407e2bcead0d40ce71e3f83092cd8f5460a2652f987b034566ad5107b8a",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 57,
+      "path": "rust/tcl-lsp-core/src/definition.rs",
+      "sha256": "96c9e407e2bcead0d40ce71e3f83092cd8f5460a2652f987b034566ad5107b8a",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 58,
+      "path": "rust/tcl-lsp-core/src/definition.rs",
+      "sha256": "96c9e407e2bcead0d40ce71e3f83092cd8f5460a2652f987b034566ad5107b8a",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 59,
+      "path": "rust/tcl-lsp-core/src/definition.rs",
+      "sha256": "96c9e407e2bcead0d40ce71e3f83092cd8f5460a2652f987b034566ad5107b8a",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 60,
+      "path": "rust/tcl-lsp-core/src/definition.rs",
+      "sha256": "96c9e407e2bcead0d40ce71e3f83092cd8f5460a2652f987b034566ad5107b8a",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 61,
+      "path": "rust/tcl-lsp-core/src/definition.rs",
+      "sha256": "96c9e407e2bcead0d40ce71e3f83092cd8f5460a2652f987b034566ad5107b8a",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 62,
+      "path": "rust/tcl-lsp-core/src/definition.rs",
+      "sha256": "96c9e407e2bcead0d40ce71e3f83092cd8f5460a2652f987b034566ad5107b8a",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 63,
+      "path": "rust/tcl-lsp-core/src/definition.rs",
+      "sha256": "96c9e407e2bcead0d40ce71e3f83092cd8f5460a2652f987b034566ad5107b8a",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 64,
+      "path": "rust/tcl-lsp-core/src/definition.rs",
+      "sha256": "96c9e407e2bcead0d40ce71e3f83092cd8f5460a2652f987b034566ad5107b8a",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 65,
+      "path": "rust/tcl-lsp-core/src/definition.rs",
+      "sha256": "96c9e407e2bcead0d40ce71e3f83092cd8f5460a2652f987b034566ad5107b8a",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 66,
+      "path": "rust/tcl-lsp-core/src/definition.rs",
+      "sha256": "96c9e407e2bcead0d40ce71e3f83092cd8f5460a2652f987b034566ad5107b8a",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 67,
+      "path": "rust/tcl-lsp-core/src/definition.rs",
+      "sha256": "96c9e407e2bcead0d40ce71e3f83092cd8f5460a2652f987b034566ad5107b8a",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 68,
+      "path": "rust/tcl-lsp-core/src/definition.rs",
+      "sha256": "96c9e407e2bcead0d40ce71e3f83092cd8f5460a2652f987b034566ad5107b8a",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 69,
+      "path": "rust/tcl-lsp-core/src/definition.rs",
+      "sha256": "96c9e407e2bcead0d40ce71e3f83092cd8f5460a2652f987b034566ad5107b8a",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 70,
+      "path": "rust/tcl-lsp-core/src/definition.rs",
+      "sha256": "96c9e407e2bcead0d40ce71e3f83092cd8f5460a2652f987b034566ad5107b8a",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 71,
+      "path": "rust/tcl-lsp-core/src/definition.rs",
+      "sha256": "96c9e407e2bcead0d40ce71e3f83092cd8f5460a2652f987b034566ad5107b8a",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 72,
+      "path": "rust/tcl-lsp-core/src/definition.rs",
+      "sha256": "96c9e407e2bcead0d40ce71e3f83092cd8f5460a2652f987b034566ad5107b8a",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 73,
+      "path": "rust/tcl-lsp-core/src/definition.rs",
+      "sha256": "96c9e407e2bcead0d40ce71e3f83092cd8f5460a2652f987b034566ad5107b8a",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 74,
+      "path": "rust/tcl-lsp-core/src/definition.rs",
+      "sha256": "96c9e407e2bcead0d40ce71e3f83092cd8f5460a2652f987b034566ad5107b8a",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 75,
+      "path": "rust/tcl-lsp-core/src/definition.rs",
+      "sha256": "96c9e407e2bcead0d40ce71e3f83092cd8f5460a2652f987b034566ad5107b8a",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 76,
+      "path": "rust/tcl-lsp-core/src/definition.rs",
+      "sha256": "96c9e407e2bcead0d40ce71e3f83092cd8f5460a2652f987b034566ad5107b8a",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 77,
+      "path": "rust/tcl-lsp-core/src/document_links.rs",
+      "sha256": "ecb09ac2fdf86b5740dbd68a23f8d6dd2dbadc9c8c1d5ff835f6dc62308e3057",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 78,
+      "path": "rust/tcl-lsp-core/src/document_links.rs",
+      "sha256": "ecb09ac2fdf86b5740dbd68a23f8d6dd2dbadc9c8c1d5ff835f6dc62308e3057",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 79,
+      "path": "rust/tcl-lsp-core/src/document_symbols.rs",
+      "sha256": "b4a8eccf28bc0240d48ebcf18e78e4f9345062bb48a5bbf3d0311f84afffd107",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 80,
+      "path": "rust/tcl-lsp-core/src/document_symbols.rs",
+      "sha256": "b4a8eccf28bc0240d48ebcf18e78e4f9345062bb48a5bbf3d0311f84afffd107",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 81,
+      "path": "rust/tcl-lsp-core/src/document_symbols/original.rs",
+      "sha256": "c922d09d220b037294a9dc120ad68d8adcc3b358fe20a7510aa43c96d2cb52d9",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 82,
+      "path": "rust/tcl-lsp-core/src/executable_regions.rs",
+      "sha256": "55b1b6aec6c73e320d1af3c99cb8f05146be6cb0954eed5677652302145a812c",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 83,
+      "path": "rust/tcl-lsp-core/src/formatting/engine.rs",
+      "sha256": "fbdc7fab42074c6679aeefdaabdde07d4d18348570410b034e9bd844c0a2c5f6",
+      "binding": "additive238",
+      "additive_receipt": "handoff/reviews/five-row-bind.json"
+    },
+    {
+      "inherited_index": 84,
+      "path": "rust/tcl-lsp-core/src/formatting/engine.rs",
+      "sha256": "fbdc7fab42074c6679aeefdaabdde07d4d18348570410b034e9bd844c0a2c5f6",
+      "binding": "additive238",
+      "additive_receipt": "handoff/reviews/five-row-bind.json"
+    },
+    {
+      "inherited_index": 85,
+      "path": "rust/tcl-lsp-core/src/formatting/engine.rs",
+      "sha256": "fbdc7fab42074c6679aeefdaabdde07d4d18348570410b034e9bd844c0a2c5f6",
+      "binding": "additive238",
+      "additive_receipt": "handoff/reviews/five-row-bind.json"
+    },
+    {
+      "inherited_index": 86,
+      "path": "rust/tcl-lsp-core/src/graphs.rs",
+      "sha256": "aa10f47be019d708f3fe34b98914cdfdc22118448e3c4bc07082d4ed2c44fd2f",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 87,
+      "path": "rust/tcl-lsp-core/src/graphs.rs",
+      "sha256": "aa10f47be019d708f3fe34b98914cdfdc22118448e3c4bc07082d4ed2c44fd2f",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 88,
+      "path": "rust/tcl-lsp-core/src/hover.rs",
+      "sha256": "c036363de6bddafb9c551422fe1efb0ca5cde6325c7c80c224c114b93a72effb",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 89,
+      "path": "rust/tcl-lsp-core/src/hover.rs",
+      "sha256": "c036363de6bddafb9c551422fe1efb0ca5cde6325c7c80c224c114b93a72effb",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 90,
+      "path": "rust/tcl-lsp-core/src/hover.rs",
+      "sha256": "c036363de6bddafb9c551422fe1efb0ca5cde6325c7c80c224c114b93a72effb",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 91,
+      "path": "rust/tcl-lsp-core/src/hover.rs",
+      "sha256": "c036363de6bddafb9c551422fe1efb0ca5cde6325c7c80c224c114b93a72effb",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 92,
+      "path": "rust/tcl-lsp-core/src/hover.rs",
+      "sha256": "c036363de6bddafb9c551422fe1efb0ca5cde6325c7c80c224c114b93a72effb",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 93,
+      "path": "rust/tcl-lsp-core/src/hover.rs",
+      "sha256": "c036363de6bddafb9c551422fe1efb0ca5cde6325c7c80c224c114b93a72effb",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 94,
+      "path": "rust/tcl-lsp-core/src/hover.rs",
+      "sha256": "c036363de6bddafb9c551422fe1efb0ca5cde6325c7c80c224c114b93a72effb",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 95,
+      "path": "rust/tcl-lsp-core/src/hover.rs",
+      "sha256": "c036363de6bddafb9c551422fe1efb0ca5cde6325c7c80c224c114b93a72effb",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 96,
+      "path": "rust/tcl-lsp-core/src/hover.rs",
+      "sha256": "c036363de6bddafb9c551422fe1efb0ca5cde6325c7c80c224c114b93a72effb",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 97,
+      "path": "rust/tcl-lsp-core/src/hover.rs",
+      "sha256": "c036363de6bddafb9c551422fe1efb0ca5cde6325c7c80c224c114b93a72effb",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 98,
+      "path": "rust/tcl-lsp-core/src/hover/original_registry.rs",
+      "sha256": "0f5ab579df9e4b3ad49f17be922bacc127ae85dbf8c0ac751db8f73d900c4e66",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 99,
+      "path": "rust/tcl-lsp-core/src/implementation.rs",
+      "sha256": "a334fbf2051429141022b0c30d9dab46e04816f1cd1f2204e1ed2d0c0541283a",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 100,
+      "path": "rust/tcl-lsp-core/src/implementation.rs",
+      "sha256": "a334fbf2051429141022b0c30d9dab46e04816f1cd1f2204e1ed2d0c0541283a",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 101,
+      "path": "rust/tcl-lsp-core/src/inert_text.rs",
+      "sha256": "09c0dfc115a0ee1d1178b841d2158e7e7a0616e3a9b6f8dde334b85e70d469b4",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 102,
+      "path": "rust/tcl-lsp-core/src/inlay_hints.rs",
+      "sha256": "5c65110a404413cd118c4231d13d39678ea5d2228d6f47e495ca965188b2c46d",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 103,
+      "path": "rust/tcl-lsp-core/src/inlay_hints.rs",
+      "sha256": "5c65110a404413cd118c4231d13d39678ea5d2228d6f47e495ca965188b2c46d",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 104,
+      "path": "rust/tcl-lsp-core/src/inlay_hints.rs",
+      "sha256": "5c65110a404413cd118c4231d13d39678ea5d2228d6f47e495ca965188b2c46d",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 105,
+      "path": "rust/tcl-lsp-core/src/inlay_hints.rs",
+      "sha256": "5c65110a404413cd118c4231d13d39678ea5d2228d6f47e495ca965188b2c46d",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 106,
+      "path": "rust/tcl-lsp-core/src/inlay_hints.rs",
+      "sha256": "5c65110a404413cd118c4231d13d39678ea5d2228d6f47e495ca965188b2c46d",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 107,
+      "path": "rust/tcl-lsp-core/src/inlay_hints.rs",
+      "sha256": "5c65110a404413cd118c4231d13d39678ea5d2228d6f47e495ca965188b2c46d",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 108,
+      "path": "rust/tcl-lsp-core/src/irules_context.rs",
+      "sha256": "8581ae1cee84a07e6c06fae14ba3acd156fabcacb906ea58c8581765a274a10a",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 109,
+      "path": "rust/tcl-lsp-core/src/lib.rs",
+      "sha256": "af601143313ec01d115f4c2f229269056e421cf18d702e33ce124e3266c95db7",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 110,
+      "path": "rust/tcl-lsp-core/src/lib.rs",
+      "sha256": "af601143313ec01d115f4c2f229269056e421cf18d702e33ce124e3266c95db7",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 111,
+      "path": "rust/tcl-lsp-core/src/linked_editing_range.rs",
+      "sha256": "fe29d98a5003b6979526ed64dc2a604811ac2ba1e392e60925896e73950dcbd4",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 112,
+      "path": "rust/tcl-lsp-core/src/linked_editing_range.rs",
+      "sha256": "fe29d98a5003b6979526ed64dc2a604811ac2ba1e392e60925896e73950dcbd4",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 113,
+      "path": "rust/tcl-lsp-core/src/method_symbol.rs",
+      "sha256": "c453cdd8597906927a45d045c9117cde4136367c93fbce9cafe3ec1fc4ae41ba",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 114,
+      "path": "rust/tcl-lsp-core/src/method_symbol.rs",
+      "sha256": "c453cdd8597906927a45d045c9117cde4136367c93fbce9cafe3ec1fc4ae41ba",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 115,
+      "path": "rust/tcl-lsp-core/src/minify.rs",
+      "sha256": "7985f75d83e5ac1b266d874ea8e5c28cfc2c318deb7eb43618b7166fb6fb4d93",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 116,
+      "path": "rust/tcl-lsp-core/src/minify.rs",
+      "sha256": "7985f75d83e5ac1b266d874ea8e5c28cfc2c318deb7eb43618b7166fb6fb4d93",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 117,
+      "path": "rust/tcl-lsp-core/src/minify.rs",
+      "sha256": "7985f75d83e5ac1b266d874ea8e5c28cfc2c318deb7eb43618b7166fb6fb4d93",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 118,
+      "path": "rust/tcl-lsp-core/src/minify.rs",
+      "sha256": "7985f75d83e5ac1b266d874ea8e5c28cfc2c318deb7eb43618b7166fb6fb4d93",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 119,
+      "path": "rust/tcl-lsp-core/src/minify.rs",
+      "sha256": "7985f75d83e5ac1b266d874ea8e5c28cfc2c318deb7eb43618b7166fb6fb4d93",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 120,
+      "path": "rust/tcl-lsp-core/src/minify/original.rs",
+      "sha256": "2b1233c21c5a22a5f5e8d9f3d3f0fd777db97c2041107ff2c11e90e6f50df48b",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 121,
+      "path": "rust/tcl-lsp-core/src/namespace_import.rs",
+      "sha256": "6f19c1d5a60ad9559eebb41df7561a71d25f4d961a632a330cadbf438297dd65",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 122,
+      "path": "rust/tcl-lsp-core/src/namespace_import.rs",
+      "sha256": "6f19c1d5a60ad9559eebb41df7561a71d25f4d961a632a330cadbf438297dd65",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 123,
+      "path": "rust/tcl-lsp-core/src/namespace_rename.rs",
+      "sha256": "adbf7244cbc0c11ce5b41f1e521213fe453bef5bc16716dea405d4ca7f51f1f6",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 124,
+      "path": "rust/tcl-lsp-core/src/namespace_rename.rs",
+      "sha256": "adbf7244cbc0c11ce5b41f1e521213fe453bef5bc16716dea405d4ca7f51f1f6",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 125,
+      "path": "rust/tcl-lsp-core/src/namespace_rename.rs",
+      "sha256": "adbf7244cbc0c11ce5b41f1e521213fe453bef5bc16716dea405d4ca7f51f1f6",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 126,
+      "path": "rust/tcl-lsp-core/src/namespace_rename.rs",
+      "sha256": "adbf7244cbc0c11ce5b41f1e521213fe453bef5bc16716dea405d4ca7f51f1f6",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 127,
+      "path": "rust/tcl-lsp-core/src/namespace_rename.rs",
+      "sha256": "adbf7244cbc0c11ce5b41f1e521213fe453bef5bc16716dea405d4ca7f51f1f6",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 128,
+      "path": "rust/tcl-lsp-core/src/namespace_rename.rs",
+      "sha256": "adbf7244cbc0c11ce5b41f1e521213fe453bef5bc16716dea405d4ca7f51f1f6",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 129,
+      "path": "rust/tcl-lsp-core/src/namespace_rename.rs",
+      "sha256": "adbf7244cbc0c11ce5b41f1e521213fe453bef5bc16716dea405d4ca7f51f1f6",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 130,
+      "path": "rust/tcl-lsp-core/src/namespace_rename.rs",
+      "sha256": "adbf7244cbc0c11ce5b41f1e521213fe453bef5bc16716dea405d4ca7f51f1f6",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 131,
+      "path": "rust/tcl-lsp-core/src/namespace_rename.rs",
+      "sha256": "adbf7244cbc0c11ce5b41f1e521213fe453bef5bc16716dea405d4ca7f51f1f6",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 132,
+      "path": "rust/tcl-lsp-core/src/namespace_rename/original.rs",
+      "sha256": "26a9c66e65bdb887e83f69916e7f11d01dcdf3366b34e4074d1bc88366b53659",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 133,
+      "path": "rust/tcl-lsp-core/src/namespace_rename/original.rs",
+      "sha256": "26a9c66e65bdb887e83f69916e7f11d01dcdf3366b34e4074d1bc88366b53659",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 134,
+      "path": "rust/tcl-lsp-core/src/namespace_rename/original.rs",
+      "sha256": "26a9c66e65bdb887e83f69916e7f11d01dcdf3366b34e4074d1bc88366b53659",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 135,
+      "path": "rust/tcl-lsp-core/src/namespace_rename/original.rs",
+      "sha256": "26a9c66e65bdb887e83f69916e7f11d01dcdf3366b34e4074d1bc88366b53659",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 136,
+      "path": "rust/tcl-lsp-core/src/namespace_rename/original.rs",
+      "sha256": "26a9c66e65bdb887e83f69916e7f11d01dcdf3366b34e4074d1bc88366b53659",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 137,
+      "path": "rust/tcl-lsp-core/src/namespace_rename/original.rs",
+      "sha256": "26a9c66e65bdb887e83f69916e7f11d01dcdf3366b34e4074d1bc88366b53659",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 138,
+      "path": "rust/tcl-lsp-core/src/namespace_rename/original.rs",
+      "sha256": "26a9c66e65bdb887e83f69916e7f11d01dcdf3366b34e4074d1bc88366b53659",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 139,
+      "path": "rust/tcl-lsp-core/src/namespace_rename/original.rs",
+      "sha256": "26a9c66e65bdb887e83f69916e7f11d01dcdf3366b34e4074d1bc88366b53659",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 140,
+      "path": "rust/tcl-lsp-core/src/namespace_rename/original.rs",
+      "sha256": "26a9c66e65bdb887e83f69916e7f11d01dcdf3366b34e4074d1bc88366b53659",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 141,
+      "path": "rust/tcl-lsp-core/src/namespace_symbol.rs",
+      "sha256": "2f0d6d094cc604386225ed8b7204d03e5f1ec038eb1ac8232139ccbbd94ff23b",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 142,
+      "path": "rust/tcl-lsp-core/src/namespace_symbol.rs",
+      "sha256": "2f0d6d094cc604386225ed8b7204d03e5f1ec038eb1ac8232139ccbbd94ff23b",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 143,
+      "path": "rust/tcl-lsp-core/src/namespace_symbol.rs",
+      "sha256": "2f0d6d094cc604386225ed8b7204d03e5f1ec038eb1ac8232139ccbbd94ff23b",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 144,
+      "path": "rust/tcl-lsp-core/src/namespace_symbol.rs",
+      "sha256": "2f0d6d094cc604386225ed8b7204d03e5f1ec038eb1ac8232139ccbbd94ff23b",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 145,
+      "path": "rust/tcl-lsp-core/src/namespace_symbol.rs",
+      "sha256": "2f0d6d094cc604386225ed8b7204d03e5f1ec038eb1ac8232139ccbbd94ff23b",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 146,
+      "path": "rust/tcl-lsp-core/src/namespace_symbol.rs",
+      "sha256": "2f0d6d094cc604386225ed8b7204d03e5f1ec038eb1ac8232139ccbbd94ff23b",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 147,
+      "path": "rust/tcl-lsp-core/src/namespace_symbol.rs",
+      "sha256": "2f0d6d094cc604386225ed8b7204d03e5f1ec038eb1ac8232139ccbbd94ff23b",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 148,
+      "path": "rust/tcl-lsp-core/src/namespace_symbol.rs",
+      "sha256": "2f0d6d094cc604386225ed8b7204d03e5f1ec038eb1ac8232139ccbbd94ff23b",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 149,
+      "path": "rust/tcl-lsp-core/src/namespace_symbol.rs",
+      "sha256": "2f0d6d094cc604386225ed8b7204d03e5f1ec038eb1ac8232139ccbbd94ff23b",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 150,
+      "path": "rust/tcl-lsp-core/src/namespace_symbol.rs",
+      "sha256": "2f0d6d094cc604386225ed8b7204d03e5f1ec038eb1ac8232139ccbbd94ff23b",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 151,
+      "path": "rust/tcl-lsp-core/src/namespace_symbol.rs",
+      "sha256": "2f0d6d094cc604386225ed8b7204d03e5f1ec038eb1ac8232139ccbbd94ff23b",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 152,
+      "path": "rust/tcl-lsp-core/src/namespace_symbol.rs",
+      "sha256": "2f0d6d094cc604386225ed8b7204d03e5f1ec038eb1ac8232139ccbbd94ff23b",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 153,
+      "path": "rust/tcl-lsp-core/src/namespace_symbol.rs",
+      "sha256": "2f0d6d094cc604386225ed8b7204d03e5f1ec038eb1ac8232139ccbbd94ff23b",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 154,
+      "path": "rust/tcl-lsp-core/src/namespace_symbol.rs",
+      "sha256": "2f0d6d094cc604386225ed8b7204d03e5f1ec038eb1ac8232139ccbbd94ff23b",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 155,
+      "path": "rust/tcl-lsp-core/src/namespace_symbol.rs",
+      "sha256": "2f0d6d094cc604386225ed8b7204d03e5f1ec038eb1ac8232139ccbbd94ff23b",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 156,
+      "path": "rust/tcl-lsp-core/src/namespace_symbol.rs",
+      "sha256": "2f0d6d094cc604386225ed8b7204d03e5f1ec038eb1ac8232139ccbbd94ff23b",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 157,
+      "path": "rust/tcl-lsp-core/src/original_call_hierarchy.rs",
+      "sha256": "3c49e164e85cb7d04f911bbe25161cab8c2ba7f4298324ccfbebcba211caf9ce",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 158,
+      "path": "rust/tcl-lsp-core/src/original_command_rename.rs",
+      "sha256": "661cdf577995e925598593e64c958b625aaa3428549489f217863704fa7ac788",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 159,
+      "path": "rust/tcl-lsp-core/src/original_command_rename.rs",
+      "sha256": "661cdf577995e925598593e64c958b625aaa3428549489f217863704fa7ac788",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 160,
+      "path": "rust/tcl-lsp-core/src/original_command_rename.rs",
+      "sha256": "661cdf577995e925598593e64c958b625aaa3428549489f217863704fa7ac788",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 161,
+      "path": "rust/tcl-lsp-core/src/original_command_rename.rs",
+      "sha256": "661cdf577995e925598593e64c958b625aaa3428549489f217863704fa7ac788",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 162,
+      "path": "rust/tcl-lsp-core/src/original_command_rename.rs",
+      "sha256": "661cdf577995e925598593e64c958b625aaa3428549489f217863704fa7ac788",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 163,
+      "path": "rust/tcl-lsp-core/src/original_command_rename.rs",
+      "sha256": "661cdf577995e925598593e64c958b625aaa3428549489f217863704fa7ac788",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 164,
+      "path": "rust/tcl-lsp-core/src/original_declaration.rs",
+      "sha256": "4afefb05a1cde32fe722354f54e26f337c0994971951798e982da152a2e5c92e",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 165,
+      "path": "rust/tcl-lsp-core/src/original_declaration.rs",
+      "sha256": "4afefb05a1cde32fe722354f54e26f337c0994971951798e982da152a2e5c92e",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 166,
+      "path": "rust/tcl-lsp-core/src/original_indexed_location.rs",
+      "sha256": "cfc9b8c49543bc51f9e2578268b119006ae214fbcf224c08b6966e89aed14525",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 167,
+      "path": "rust/tcl-lsp-core/src/original_indexed_location.rs",
+      "sha256": "cfc9b8c49543bc51f9e2578268b119006ae214fbcf224c08b6966e89aed14525",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 168,
+      "path": "rust/tcl-lsp-core/src/original_invocation.rs",
+      "sha256": "6028f4423daebe2a95ffb5a3a39c112c2db6effb7c15bcb3dfe3481a8d01e55c",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 169,
+      "path": "rust/tcl-lsp-core/src/original_invocation.rs",
+      "sha256": "6028f4423daebe2a95ffb5a3a39c112c2db6effb7c15bcb3dfe3481a8d01e55c",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 170,
+      "path": "rust/tcl-lsp-core/src/original_member_rename.rs",
+      "sha256": "9ca36c023863b4291721890cf9b4f8c79a89d93f3913077d6c884a7b1e299cef",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 171,
+      "path": "rust/tcl-lsp-core/src/original_member_rename.rs",
+      "sha256": "9ca36c023863b4291721890cf9b4f8c79a89d93f3913077d6c884a7b1e299cef",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 172,
+      "path": "rust/tcl-lsp-core/src/original_member_rename.rs",
+      "sha256": "9ca36c023863b4291721890cf9b4f8c79a89d93f3913077d6c884a7b1e299cef",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 173,
+      "path": "rust/tcl-lsp-core/src/original_name_edit.rs",
+      "sha256": "a6fa39eae815e79f67f1d14d51b13962db6822b4a0ffcb29fb8a0b083bac5fe3",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 174,
+      "path": "rust/tcl-lsp-core/src/original_name_edit.rs",
+      "sha256": "a6fa39eae815e79f67f1d14d51b13962db6822b4a0ffcb29fb8a0b083bac5fe3",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 175,
+      "path": "rust/tcl-lsp-core/src/original_name_edit.rs",
+      "sha256": "a6fa39eae815e79f67f1d14d51b13962db6822b4a0ffcb29fb8a0b083bac5fe3",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 176,
+      "path": "rust/tcl-lsp-core/src/original_oo.rs",
+      "sha256": "32dc8e328c8e538ea7c7d51978e6049bc3f4ca0f08c55a6ce0edb4a697089939",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 177,
+      "path": "rust/tcl-lsp-core/src/original_oo/instance_completion.rs",
+      "sha256": "0958bd0fba49f5116fa8869ef82760cf25fc6004525dcdcd8772c7efe9a34bff",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 178,
+      "path": "rust/tcl-lsp-core/src/package_resolver.rs",
+      "sha256": "6040185fbc2db49065449ad59e27494280ee0354de95c652d67fa5a55dee5c00",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 179,
+      "path": "rust/tcl-lsp-core/src/package_resolver/original_names.rs",
+      "sha256": "297dc372d9faa83bd6bbe895ab3960d03dcbe1d6b111929c7cfdacfc81b0790c",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 180,
+      "path": "rust/tcl-lsp-core/src/package_resolver/original_names.rs",
+      "sha256": "297dc372d9faa83bd6bbe895ab3960d03dcbe1d6b111929c7cfdacfc81b0790c",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 181,
+      "path": "rust/tcl-lsp-core/src/package_resolver/original_names/file_candidates.rs",
+      "sha256": "4bd1839d6d9ec9afacc9d8f7e4a05c644988b0802d47e4f252123e48de55b3d2",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 182,
+      "path": "rust/tcl-lsp-core/src/package_resolver/original_names/file_candidates.rs",
+      "sha256": "4bd1839d6d9ec9afacc9d8f7e4a05c644988b0802d47e4f252123e48de55b3d2",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 183,
+      "path": "rust/tcl-lsp-core/src/package_resolver/reachability/original.rs",
+      "sha256": "bca9478b0a8784bbd1eaeb1eee9754f2b2e68ddf8f4c959781f7e441897cf7f7",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 184,
+      "path": "rust/tcl-lsp-core/src/receiver_identity.rs",
+      "sha256": "4af4c5458026cd98689738dbd61b7a3689d49b502edfaf4654305ff016b06d96",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 185,
+      "path": "rust/tcl-lsp-core/src/receiver_identity.rs",
+      "sha256": "4af4c5458026cd98689738dbd61b7a3689d49b502edfaf4654305ff016b06d96",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 186,
+      "path": "rust/tcl-lsp-core/src/receiver_identity.rs",
+      "sha256": "4af4c5458026cd98689738dbd61b7a3689d49b502edfaf4654305ff016b06d96",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 187,
+      "path": "rust/tcl-lsp-core/src/refactor/datagroup.rs",
+      "sha256": "82c1fb758615b6b171c1fc3d6282765f6c517770e992dd5a73efbfd870414d2e",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 188,
+      "path": "rust/tcl-lsp-core/src/refactor/datagroup/source_subject.rs",
+      "sha256": "f6b7c21d939bcd2a071da2f78d630cf24a1bb208400639312b9810e695addfbc",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 189,
+      "path": "rust/tcl-lsp-core/src/refactor/datagroup/source_subject.rs",
+      "sha256": "f6b7c21d939bcd2a071da2f78d630cf24a1bb208400639312b9810e695addfbc",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 190,
+      "path": "rust/tcl-lsp-core/src/refactor/datagroup/source_subject.rs",
+      "sha256": "f6b7c21d939bcd2a071da2f78d630cf24a1bb208400639312b9810e695addfbc",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 191,
+      "path": "rust/tcl-lsp-core/src/refactor/extract_proc.rs",
+      "sha256": "8f1d277083db22379674586c792dcf853578d7d4b2e0bcb84c0d4d4339617606",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 192,
+      "path": "rust/tcl-lsp-core/src/refactor/extract_proc.rs",
+      "sha256": "8f1d277083db22379674586c792dcf853578d7d4b2e0bcb84c0d4d4339617606",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 193,
+      "path": "rust/tcl-lsp-core/src/refactor/extract_proc.rs",
+      "sha256": "8f1d277083db22379674586c792dcf853578d7d4b2e0bcb84c0d4d4339617606",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 194,
+      "path": "rust/tcl-lsp-core/src/refactor/extract_variable.rs",
+      "sha256": "50032fd8a9c7ba8ff8a76d780841486c73fbf535ad83e26af7955767f236d7ad",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 195,
+      "path": "rust/tcl-lsp-core/src/refactor/extract_variable.rs",
+      "sha256": "50032fd8a9c7ba8ff8a76d780841486c73fbf535ad83e26af7955767f236d7ad",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 196,
+      "path": "rust/tcl-lsp-core/src/refactor/if_to_switch.rs",
+      "sha256": "2fc6e159b470c2bc99ec9a962714f084a7ae9006c0190578e14057f367bc0ec0",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 197,
+      "path": "rust/tcl-lsp-core/src/refactor/inline_proc.rs",
+      "sha256": "0b73ce790dd0d35ea34638b3c7bc8434d2109931ef50fd7887063232a4a09ed1",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 198,
+      "path": "rust/tcl-lsp-core/src/refactor/inline_variable.rs",
+      "sha256": "6f0e35a1906c862f1738b44f6c5ecaec50a8164aed132f92b9fd3b3558c9595f",
+      "binding": "additive238",
+      "additive_receipt": "handoff/reviews/five-row-bind.json"
+    },
+    {
+      "inherited_index": 199,
+      "path": "rust/tcl-lsp-core/src/refactor/inline_variable.rs",
+      "sha256": "6f0e35a1906c862f1738b44f6c5ecaec50a8164aed132f92b9fd3b3558c9595f",
+      "binding": "additive238",
+      "additive_receipt": "handoff/reviews/five-row-bind.json"
+    },
+    {
+      "inherited_index": 200,
+      "path": "rust/tcl-lsp-core/src/refactor/mod.rs",
+      "sha256": "bcd9a5a6d67a68eb14346824337de6675582a80c609efd3c70a3becba25e76cd",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 201,
+      "path": "rust/tcl-lsp-core/src/refactor/mod.rs",
+      "sha256": "bcd9a5a6d67a68eb14346824337de6675582a80c609efd3c70a3becba25e76cd",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 202,
+      "path": "rust/tcl-lsp-core/src/refactor/source_command.rs",
+      "sha256": "bf7d9742793f1c904661346da8d972db29890f3e8d49fda218df6cb0e512798c",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 203,
+      "path": "rust/tcl-lsp-core/src/refactor/source_rewrite.rs",
+      "sha256": "3f65f18f88d24f9d2ddc674d6ee89666a33ede6108324c3460fb35f7be6f130b",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 204,
+      "path": "rust/tcl-lsp-core/src/refactor/source_rewrite.rs",
+      "sha256": "3f65f18f88d24f9d2ddc674d6ee89666a33ede6108324c3460fb35f7be6f130b",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 205,
+      "path": "rust/tcl-lsp-core/src/references.rs",
+      "sha256": "8b5ea057a5413e9cc98c5bf76aa1a16768e6b5aa337955e2a93783a17238ef11",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 206,
+      "path": "rust/tcl-lsp-core/src/references.rs",
+      "sha256": "8b5ea057a5413e9cc98c5bf76aa1a16768e6b5aa337955e2a93783a17238ef11",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 207,
+      "path": "rust/tcl-lsp-core/src/references.rs",
+      "sha256": "8b5ea057a5413e9cc98c5bf76aa1a16768e6b5aa337955e2a93783a17238ef11",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 208,
+      "path": "rust/tcl-lsp-core/src/references.rs",
+      "sha256": "8b5ea057a5413e9cc98c5bf76aa1a16768e6b5aa337955e2a93783a17238ef11",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 209,
+      "path": "rust/tcl-lsp-core/src/references.rs",
+      "sha256": "8b5ea057a5413e9cc98c5bf76aa1a16768e6b5aa337955e2a93783a17238ef11",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 210,
+      "path": "rust/tcl-lsp-core/src/references.rs",
+      "sha256": "8b5ea057a5413e9cc98c5bf76aa1a16768e6b5aa337955e2a93783a17238ef11",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 211,
+      "path": "rust/tcl-lsp-core/src/references.rs",
+      "sha256": "8b5ea057a5413e9cc98c5bf76aa1a16768e6b5aa337955e2a93783a17238ef11",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 212,
+      "path": "rust/tcl-lsp-core/src/references.rs",
+      "sha256": "8b5ea057a5413e9cc98c5bf76aa1a16768e6b5aa337955e2a93783a17238ef11",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 213,
+      "path": "rust/tcl-lsp-core/src/references.rs",
+      "sha256": "8b5ea057a5413e9cc98c5bf76aa1a16768e6b5aa337955e2a93783a17238ef11",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 214,
+      "path": "rust/tcl-lsp-core/src/references.rs",
+      "sha256": "8b5ea057a5413e9cc98c5bf76aa1a16768e6b5aa337955e2a93783a17238ef11",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 215,
+      "path": "rust/tcl-lsp-core/src/references.rs",
+      "sha256": "8b5ea057a5413e9cc98c5bf76aa1a16768e6b5aa337955e2a93783a17238ef11",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 216,
+      "path": "rust/tcl-lsp-core/src/references.rs",
+      "sha256": "8b5ea057a5413e9cc98c5bf76aa1a16768e6b5aa337955e2a93783a17238ef11",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 217,
+      "path": "rust/tcl-lsp-core/src/references.rs",
+      "sha256": "8b5ea057a5413e9cc98c5bf76aa1a16768e6b5aa337955e2a93783a17238ef11",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 218,
+      "path": "rust/tcl-lsp-core/src/references.rs",
+      "sha256": "8b5ea057a5413e9cc98c5bf76aa1a16768e6b5aa337955e2a93783a17238ef11",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 219,
+      "path": "rust/tcl-lsp-core/src/references.rs",
+      "sha256": "8b5ea057a5413e9cc98c5bf76aa1a16768e6b5aa337955e2a93783a17238ef11",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 220,
+      "path": "rust/tcl-lsp-core/src/references.rs",
+      "sha256": "8b5ea057a5413e9cc98c5bf76aa1a16768e6b5aa337955e2a93783a17238ef11",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 221,
+      "path": "rust/tcl-lsp-core/src/references.rs",
+      "sha256": "8b5ea057a5413e9cc98c5bf76aa1a16768e6b5aa337955e2a93783a17238ef11",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 222,
+      "path": "rust/tcl-lsp-core/src/references.rs",
+      "sha256": "8b5ea057a5413e9cc98c5bf76aa1a16768e6b5aa337955e2a93783a17238ef11",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 223,
+      "path": "rust/tcl-lsp-core/src/references.rs",
+      "sha256": "8b5ea057a5413e9cc98c5bf76aa1a16768e6b5aa337955e2a93783a17238ef11",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 224,
+      "path": "rust/tcl-lsp-core/src/references/member_metadata.rs",
+      "sha256": "71d7d4ee88ebcbdcd47fba95ebbd99ce0ad7bfb9b7b3d573b6171fdf28bb3d61",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 225,
+      "path": "rust/tcl-lsp-core/src/references/member_metadata.rs",
+      "sha256": "71d7d4ee88ebcbdcd47fba95ebbd99ce0ad7bfb9b7b3d573b6171fdf28bb3d61",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 226,
+      "path": "rust/tcl-lsp-core/src/rename.rs",
+      "sha256": "e8f16916de4022b8e4785b3957ad9a675f64dd00f6af517b1f4c07b9f2d5c761",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 227,
+      "path": "rust/tcl-lsp-core/src/rename.rs",
+      "sha256": "e8f16916de4022b8e4785b3957ad9a675f64dd00f6af517b1f4c07b9f2d5c761",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 228,
+      "path": "rust/tcl-lsp-core/src/rename.rs",
+      "sha256": "e8f16916de4022b8e4785b3957ad9a675f64dd00f6af517b1f4c07b9f2d5c761",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 229,
+      "path": "rust/tcl-lsp-core/src/rename.rs",
+      "sha256": "e8f16916de4022b8e4785b3957ad9a675f64dd00f6af517b1f4c07b9f2d5c761",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 230,
+      "path": "rust/tcl-lsp-core/src/rename.rs",
+      "sha256": "e8f16916de4022b8e4785b3957ad9a675f64dd00f6af517b1f4c07b9f2d5c761",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 231,
+      "path": "rust/tcl-lsp-core/src/rename.rs",
+      "sha256": "e8f16916de4022b8e4785b3957ad9a675f64dd00f6af517b1f4c07b9f2d5c761",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 232,
+      "path": "rust/tcl-lsp-core/src/rename.rs",
+      "sha256": "e8f16916de4022b8e4785b3957ad9a675f64dd00f6af517b1f4c07b9f2d5c761",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 233,
+      "path": "rust/tcl-lsp-core/src/rename.rs",
+      "sha256": "e8f16916de4022b8e4785b3957ad9a675f64dd00f6af517b1f4c07b9f2d5c761",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 234,
+      "path": "rust/tcl-lsp-core/src/rename.rs",
+      "sha256": "e8f16916de4022b8e4785b3957ad9a675f64dd00f6af517b1f4c07b9f2d5c761",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 235,
+      "path": "rust/tcl-lsp-core/src/rename.rs",
+      "sha256": "e8f16916de4022b8e4785b3957ad9a675f64dd00f6af517b1f4c07b9f2d5c761",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 236,
+      "path": "rust/tcl-lsp-core/src/rename.rs",
+      "sha256": "e8f16916de4022b8e4785b3957ad9a675f64dd00f6af517b1f4c07b9f2d5c761",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 237,
+      "path": "rust/tcl-lsp-core/src/rename.rs",
+      "sha256": "e8f16916de4022b8e4785b3957ad9a675f64dd00f6af517b1f4c07b9f2d5c761",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 238,
+      "path": "rust/tcl-lsp-core/src/rename_safety.rs",
+      "sha256": "ccb5359031eb7a7e6a20af0b9058602513db67579a29bd0a69b9926e2fed261e",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 239,
+      "path": "rust/tcl-lsp-core/src/rename_safety.rs",
+      "sha256": "ccb5359031eb7a7e6a20af0b9058602513db67579a29bd0a69b9926e2fed261e",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 240,
+      "path": "rust/tcl-lsp-core/src/rename_safety.rs",
+      "sha256": "ccb5359031eb7a7e6a20af0b9058602513db67579a29bd0a69b9926e2fed261e",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 241,
+      "path": "rust/tcl-lsp-core/src/rename_safety.rs",
+      "sha256": "ccb5359031eb7a7e6a20af0b9058602513db67579a29bd0a69b9926e2fed261e",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 242,
+      "path": "rust/tcl-lsp-core/src/semantic_tokens.rs",
+      "sha256": "2ef9ff7c89d20c95b0e1bb37c6edcc8261a233f2712ea9cdea8d868c67e58e56",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 243,
+      "path": "rust/tcl-lsp-core/src/semantic_tokens.rs",
+      "sha256": "2ef9ff7c89d20c95b0e1bb37c6edcc8261a233f2712ea9cdea8d868c67e58e56",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 244,
+      "path": "rust/tcl-lsp-core/src/semantic_tokens.rs",
+      "sha256": "2ef9ff7c89d20c95b0e1bb37c6edcc8261a233f2712ea9cdea8d868c67e58e56",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 245,
+      "path": "rust/tcl-lsp-core/src/semantic_tokens.rs",
+      "sha256": "2ef9ff7c89d20c95b0e1bb37c6edcc8261a233f2712ea9cdea8d868c67e58e56",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 246,
+      "path": "rust/tcl-lsp-core/src/semantic_tokens.rs",
+      "sha256": "2ef9ff7c89d20c95b0e1bb37c6edcc8261a233f2712ea9cdea8d868c67e58e56",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 247,
+      "path": "rust/tcl-lsp-core/src/semantic_tokens.rs",
+      "sha256": "2ef9ff7c89d20c95b0e1bb37c6edcc8261a233f2712ea9cdea8d868c67e58e56",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 248,
+      "path": "rust/tcl-lsp-core/src/semantic_tokens.rs",
+      "sha256": "2ef9ff7c89d20c95b0e1bb37c6edcc8261a233f2712ea9cdea8d868c67e58e56",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 249,
+      "path": "rust/tcl-lsp-core/src/semantic_tokens/original.rs",
+      "sha256": "cd7507460929cc3fee28bc9c514bde906556d98f9890c76b0d7edaee51294133",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 250,
+      "path": "rust/tcl-lsp-core/src/semantic_tokens/original.rs",
+      "sha256": "cd7507460929cc3fee28bc9c514bde906556d98f9890c76b0d7edaee51294133",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 251,
+      "path": "rust/tcl-lsp-core/src/semantic_tokens/original.rs",
+      "sha256": "cd7507460929cc3fee28bc9c514bde906556d98f9890c76b0d7edaee51294133",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 252,
+      "path": "rust/tcl-lsp-core/src/semantic_tokens/original.rs",
+      "sha256": "cd7507460929cc3fee28bc9c514bde906556d98f9890c76b0d7edaee51294133",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 253,
+      "path": "rust/tcl-lsp-core/src/semantic_tokens/receiver_source.rs",
+      "sha256": "36d6abb7e4adcbcaa1be8cd7d69d7143b2b93c2b0b8d83ee1420e21a0dca2dd5",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 254,
+      "path": "rust/tcl-lsp-core/src/signature_help.rs",
+      "sha256": "94e13e2eb905f9eeaa3a68e41c9f1018d97af570abd67e7163b2382e9ad8978c",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 255,
+      "path": "rust/tcl-lsp-core/src/signature_help.rs",
+      "sha256": "94e13e2eb905f9eeaa3a68e41c9f1018d97af570abd67e7163b2382e9ad8978c",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 256,
+      "path": "rust/tcl-lsp-core/src/signature_help.rs",
+      "sha256": "94e13e2eb905f9eeaa3a68e41c9f1018d97af570abd67e7163b2382e9ad8978c",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 257,
+      "path": "rust/tcl-lsp-core/src/signature_help.rs",
+      "sha256": "94e13e2eb905f9eeaa3a68e41c9f1018d97af570abd67e7163b2382e9ad8978c",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 258,
+      "path": "rust/tcl-lsp-core/src/snippets.rs",
+      "sha256": "a9614b42ff3a7951c09ad8b8b4f02155512dd79763d3c81c93098a5e552381a3",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 259,
+      "path": "rust/tcl-lsp-core/src/source_structure.rs",
+      "sha256": "909825bc8fb519fc304eb1a9786757b34741f47fc1e43436c7d1d7d380b79f03",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 260,
+      "path": "rust/tcl-lsp-core/src/source_structure.rs",
+      "sha256": "909825bc8fb519fc304eb1a9786757b34741f47fc1e43436c7d1d7d380b79f03",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 261,
+      "path": "rust/tcl-lsp-core/src/source_structure.rs",
+      "sha256": "909825bc8fb519fc304eb1a9786757b34741f47fc1e43436c7d1d7d380b79f03",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 262,
+      "path": "rust/tcl-lsp-core/src/source_structure.rs",
+      "sha256": "909825bc8fb519fc304eb1a9786757b34741f47fc1e43436c7d1d7d380b79f03",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 263,
+      "path": "rust/tcl-lsp-core/src/source_structure.rs",
+      "sha256": "909825bc8fb519fc304eb1a9786757b34741f47fc1e43436c7d1d7d380b79f03",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 264,
+      "path": "rust/tcl-lsp-core/src/tk_preview.rs",
+      "sha256": "972a15a4d21f7b042e8c48f5c13ee90c54a8c7942ef9ecd4bdb24696f1909162",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 265,
+      "path": "rust/tcl-lsp-core/src/tk_preview.rs",
+      "sha256": "972a15a4d21f7b042e8c48f5c13ee90c54a8c7942ef9ecd4bdb24696f1909162",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 266,
+      "path": "rust/tcl-lsp-core/src/type_definition.rs",
+      "sha256": "384ccc4b1ea166c52d01656d4bfd49c35aaf8f693d3684a1d7e92f0fccb81225",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 267,
+      "path": "rust/tcl-lsp-core/src/variable_symbol.rs",
+      "sha256": "73df6754328be2856ee2469bc6226e6fcbfc115fa7dcf4f6d3fd8a5a4b3cbde8",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 268,
+      "path": "rust/tcl-lsp-core/src/variable_symbol.rs",
+      "sha256": "73df6754328be2856ee2469bc6226e6fcbfc115fa7dcf4f6d3fd8a5a4b3cbde8",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 269,
+      "path": "rust/tcl-lsp-core/src/variable_symbol.rs",
+      "sha256": "73df6754328be2856ee2469bc6226e6fcbfc115fa7dcf4f6d3fd8a5a4b3cbde8",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 270,
+      "path": "rust/tcl-lsp-core/src/variable_symbol.rs",
+      "sha256": "73df6754328be2856ee2469bc6226e6fcbfc115fa7dcf4f6d3fd8a5a4b3cbde8",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 271,
+      "path": "rust/tcl-lsp-core/src/variable_symbol.rs",
+      "sha256": "73df6754328be2856ee2469bc6226e6fcbfc115fa7dcf4f6d3fd8a5a4b3cbde8",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 272,
+      "path": "rust/tcl-lsp-core/src/variable_symbol/rename.rs",
+      "sha256": "c092cce1049b6bb88e3d39e65301e27fbdbbde5e48113dde387c8b88cefe1647",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 273,
+      "path": "rust/tcl-lsp-core/src/vendor_declaration.rs",
+      "sha256": "7569eed12354e7bac94178963239340fa2bb180c6a3e2a926ed2938dc78dc35a",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 274,
+      "path": "rust/tcl-lsp-core/src/vendor_declaration.rs",
+      "sha256": "7569eed12354e7bac94178963239340fa2bb180c6a3e2a926ed2938dc78dc35a",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 275,
+      "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+      "sha256": "8141c3e04d59409f43317699f7d2df762fe87b5761c3ebc80157ed85d6003cf9",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 276,
+      "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+      "sha256": "8141c3e04d59409f43317699f7d2df762fe87b5761c3ebc80157ed85d6003cf9",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 277,
+      "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+      "sha256": "8141c3e04d59409f43317699f7d2df762fe87b5761c3ebc80157ed85d6003cf9",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 278,
+      "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+      "sha256": "8141c3e04d59409f43317699f7d2df762fe87b5761c3ebc80157ed85d6003cf9",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 279,
+      "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+      "sha256": "8141c3e04d59409f43317699f7d2df762fe87b5761c3ebc80157ed85d6003cf9",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 280,
+      "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+      "sha256": "8141c3e04d59409f43317699f7d2df762fe87b5761c3ebc80157ed85d6003cf9",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 281,
+      "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+      "sha256": "8141c3e04d59409f43317699f7d2df762fe87b5761c3ebc80157ed85d6003cf9",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 282,
+      "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+      "sha256": "8141c3e04d59409f43317699f7d2df762fe87b5761c3ebc80157ed85d6003cf9",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 283,
+      "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+      "sha256": "8141c3e04d59409f43317699f7d2df762fe87b5761c3ebc80157ed85d6003cf9",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 284,
+      "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+      "sha256": "8141c3e04d59409f43317699f7d2df762fe87b5761c3ebc80157ed85d6003cf9",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 285,
+      "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+      "sha256": "8141c3e04d59409f43317699f7d2df762fe87b5761c3ebc80157ed85d6003cf9",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 286,
+      "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+      "sha256": "8141c3e04d59409f43317699f7d2df762fe87b5761c3ebc80157ed85d6003cf9",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 287,
+      "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+      "sha256": "8141c3e04d59409f43317699f7d2df762fe87b5761c3ebc80157ed85d6003cf9",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 288,
+      "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+      "sha256": "8141c3e04d59409f43317699f7d2df762fe87b5761c3ebc80157ed85d6003cf9",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 289,
+      "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+      "sha256": "8141c3e04d59409f43317699f7d2df762fe87b5761c3ebc80157ed85d6003cf9",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 290,
+      "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+      "sha256": "8141c3e04d59409f43317699f7d2df762fe87b5761c3ebc80157ed85d6003cf9",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 291,
+      "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+      "sha256": "8141c3e04d59409f43317699f7d2df762fe87b5761c3ebc80157ed85d6003cf9",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 292,
+      "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+      "sha256": "8141c3e04d59409f43317699f7d2df762fe87b5761c3ebc80157ed85d6003cf9",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 293,
+      "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+      "sha256": "8141c3e04d59409f43317699f7d2df762fe87b5761c3ebc80157ed85d6003cf9",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 294,
+      "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+      "sha256": "8141c3e04d59409f43317699f7d2df762fe87b5761c3ebc80157ed85d6003cf9",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 295,
+      "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+      "sha256": "8141c3e04d59409f43317699f7d2df762fe87b5761c3ebc80157ed85d6003cf9",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 296,
+      "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+      "sha256": "8141c3e04d59409f43317699f7d2df762fe87b5761c3ebc80157ed85d6003cf9",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 297,
+      "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+      "sha256": "8141c3e04d59409f43317699f7d2df762fe87b5761c3ebc80157ed85d6003cf9",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 298,
+      "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+      "sha256": "8141c3e04d59409f43317699f7d2df762fe87b5761c3ebc80157ed85d6003cf9",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 299,
+      "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+      "sha256": "8141c3e04d59409f43317699f7d2df762fe87b5761c3ebc80157ed85d6003cf9",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 300,
+      "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+      "sha256": "8141c3e04d59409f43317699f7d2df762fe87b5761c3ebc80157ed85d6003cf9",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 301,
+      "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+      "sha256": "8141c3e04d59409f43317699f7d2df762fe87b5761c3ebc80157ed85d6003cf9",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 302,
+      "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+      "sha256": "8141c3e04d59409f43317699f7d2df762fe87b5761c3ebc80157ed85d6003cf9",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 303,
+      "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+      "sha256": "8141c3e04d59409f43317699f7d2df762fe87b5761c3ebc80157ed85d6003cf9",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 304,
+      "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+      "sha256": "8141c3e04d59409f43317699f7d2df762fe87b5761c3ebc80157ed85d6003cf9",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 305,
+      "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+      "sha256": "8141c3e04d59409f43317699f7d2df762fe87b5761c3ebc80157ed85d6003cf9",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 306,
+      "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+      "sha256": "8141c3e04d59409f43317699f7d2df762fe87b5761c3ebc80157ed85d6003cf9",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 307,
+      "path": "rust/tcl-lsp-core/src/workspace_symbols.rs",
+      "sha256": "143744311efef2c6631287ef1eef639f38ab63318200627ddbac123827703f60",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 308,
+      "path": "rust/tcl-lsp-core/src/workspace_symbols.rs",
+      "sha256": "143744311efef2c6631287ef1eef639f38ab63318200627ddbac123827703f60",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 309,
+      "path": "rust/tcl-lsp-core/src/workspace_symbols.rs",
+      "sha256": "143744311efef2c6631287ef1eef639f38ab63318200627ddbac123827703f60",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 310,
+      "path": "rust/tcl-lsp-db/src/lib.rs",
+      "sha256": "0ad01dfb7e63dcd16b427c790f1b48623dd0f2af69f9e0ddc22cf69eca3f5618",
+      "binding": "additive238",
+      "additive_receipt": "handoff/reviews/db16-current238.json"
+    },
+    {
+      "inherited_index": 311,
+      "path": "rust/tcl-lsp-db/src/lib.rs",
+      "sha256": "0ad01dfb7e63dcd16b427c790f1b48623dd0f2af69f9e0ddc22cf69eca3f5618",
+      "binding": "additive238",
+      "additive_receipt": "handoff/reviews/db16-current238.json"
+    },
+    {
+      "inherited_index": 312,
+      "path": "rust/tcl-lsp-db/src/lib.rs",
+      "sha256": "0ad01dfb7e63dcd16b427c790f1b48623dd0f2af69f9e0ddc22cf69eca3f5618",
+      "binding": "additive238",
+      "additive_receipt": "handoff/reviews/db16-current238.json"
+    },
+    {
+      "inherited_index": 313,
+      "path": "rust/tcl-lsp-db/src/lib.rs",
+      "sha256": "0ad01dfb7e63dcd16b427c790f1b48623dd0f2af69f9e0ddc22cf69eca3f5618",
+      "binding": "additive238",
+      "additive_receipt": "handoff/reviews/db16-current238.json"
+    },
+    {
+      "inherited_index": 314,
+      "path": "rust/tcl-lsp-db/src/lib.rs",
+      "sha256": "0ad01dfb7e63dcd16b427c790f1b48623dd0f2af69f9e0ddc22cf69eca3f5618",
+      "binding": "additive238",
+      "additive_receipt": "handoff/reviews/db16-current238.json"
+    },
+    {
+      "inherited_index": 315,
+      "path": "rust/tcl-lsp-db/src/lib.rs",
+      "sha256": "0ad01dfb7e63dcd16b427c790f1b48623dd0f2af69f9e0ddc22cf69eca3f5618",
+      "binding": "additive238",
+      "additive_receipt": "handoff/reviews/db16-current238.json"
+    },
+    {
+      "inherited_index": 316,
+      "path": "rust/tcl-lsp-db/src/lib.rs",
+      "sha256": "0ad01dfb7e63dcd16b427c790f1b48623dd0f2af69f9e0ddc22cf69eca3f5618",
+      "binding": "additive238",
+      "additive_receipt": "handoff/reviews/db16-current238.json"
+    },
+    {
+      "inherited_index": 317,
+      "path": "rust/tcl-lsp-db/src/lib.rs",
+      "sha256": "0ad01dfb7e63dcd16b427c790f1b48623dd0f2af69f9e0ddc22cf69eca3f5618",
+      "binding": "additive238",
+      "additive_receipt": "handoff/reviews/db16-current238.json"
+    },
+    {
+      "inherited_index": 318,
+      "path": "rust/tcl-lsp-db/src/lib.rs",
+      "sha256": "0ad01dfb7e63dcd16b427c790f1b48623dd0f2af69f9e0ddc22cf69eca3f5618",
+      "binding": "additive238",
+      "additive_receipt": "handoff/reviews/db16-current238.json"
+    },
+    {
+      "inherited_index": 319,
+      "path": "rust/tcl-lsp-db/src/lib.rs",
+      "sha256": "0ad01dfb7e63dcd16b427c790f1b48623dd0f2af69f9e0ddc22cf69eca3f5618",
+      "binding": "additive238",
+      "additive_receipt": "handoff/reviews/db16-current238.json"
+    },
+    {
+      "inherited_index": 320,
+      "path": "rust/tcl-lsp-db/src/lib.rs",
+      "sha256": "0ad01dfb7e63dcd16b427c790f1b48623dd0f2af69f9e0ddc22cf69eca3f5618",
+      "binding": "additive238",
+      "additive_receipt": "handoff/reviews/db16-current238.json"
+    },
+    {
+      "inherited_index": 321,
+      "path": "rust/tcl-lsp-db/src/lib.rs",
+      "sha256": "0ad01dfb7e63dcd16b427c790f1b48623dd0f2af69f9e0ddc22cf69eca3f5618",
+      "binding": "additive238",
+      "additive_receipt": "handoff/reviews/db16-current238.json"
+    },
+    {
+      "inherited_index": 322,
+      "path": "rust/tcl-lsp-db/src/lib.rs",
+      "sha256": "0ad01dfb7e63dcd16b427c790f1b48623dd0f2af69f9e0ddc22cf69eca3f5618",
+      "binding": "additive238",
+      "additive_receipt": "handoff/reviews/db16-current238.json"
+    },
+    {
+      "inherited_index": 323,
+      "path": "rust/tcl-lsp-db/src/lib.rs",
+      "sha256": "0ad01dfb7e63dcd16b427c790f1b48623dd0f2af69f9e0ddc22cf69eca3f5618",
+      "binding": "additive238",
+      "additive_receipt": "handoff/reviews/db16-current238.json"
+    },
+    {
+      "inherited_index": 324,
+      "path": "rust/tcl-lsp-db/src/lib.rs",
+      "sha256": "0ad01dfb7e63dcd16b427c790f1b48623dd0f2af69f9e0ddc22cf69eca3f5618",
+      "binding": "additive238",
+      "additive_receipt": "handoff/reviews/db16-current238.json"
+    },
+    {
+      "inherited_index": 325,
+      "path": "rust/tcl-lsp-db/src/lib.rs",
+      "sha256": "0ad01dfb7e63dcd16b427c790f1b48623dd0f2af69f9e0ddc22cf69eca3f5618",
+      "binding": "additive238",
+      "additive_receipt": "handoff/reviews/db16-current238.json"
+    },
+    {
+      "inherited_index": 326,
+      "path": "rust/tcl-lsp-db/src/project_source_inputs.rs",
+      "sha256": "7ef9a89ef1c3c4fcc3bdb9bcb78b06a36a0d26dc2a9e2e23d0b281e7c2a7331e",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 327,
+      "path": "rust/tcl-lsp-db/src/project_source_inputs.rs",
+      "sha256": "7ef9a89ef1c3c4fcc3bdb9bcb78b06a36a0d26dc2a9e2e23d0b281e7c2a7331e",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 328,
+      "path": "rust/tcl-lsp-db/src/project_source_inputs.rs",
+      "sha256": "7ef9a89ef1c3c4fcc3bdb9bcb78b06a36a0d26dc2a9e2e23d0b281e7c2a7331e",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    },
+    {
+      "inherited_index": 329,
+      "path": "rust/tcl-lsp-server/src/recovery_source.rs",
+      "sha256": "3b090a03dd053c6beb527332647b57760bb64d7fb8ce0c7ebc9ae62d44fa7bd6",
+      "binding": "unchanged217",
+      "additive_receipt": null
+    }
+  ],
+  "scope": "Finite original330 source/caller binding only; original rows/proofs unchanged. Not330 migrated, not complete codebase audit, not test/Native/edit/absence or proof-checker acceptance."
+}

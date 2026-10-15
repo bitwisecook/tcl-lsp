@@ -1,0 +1,83 @@
+{
+  "status": "bounded plan/source review; no execution",
+  "manifest_sha256": "b729747a8a4fc068b74d9653c6d2890fab185f7c8f3b30df45a7951b7444db43",
+  "plans": [
+    {
+      "path": "/tmp/name-current236-consumer-replay-plans-20261015/core-ordinary247-plan.json",
+      "sha256": "e0d28cdcd4ab7e374c6ddec72929d2d5a630e918cddae3f24523afad684b47b5",
+      "exact_count": 247,
+      "predecessor_exact_vector_unchanged": true,
+      "other_fields": {
+        "filters": [],
+        "temporary_diagnostics": false,
+        "scope": "Actual Main236 after adopted229inline0ac/230formatter181/231IRulesd070, ordinary271 or later fresh artifacts after ALL TEMP exact declared-path+whole-closure restoration. Entire immutable actual265 Core243 plan prefix/order/fields preserved +newinline2+formatter2; all prior206/199/165 and affected-old15 retained. This is not current-source acceptance. AllTEMP exact fullrestore before fresh ordinary Core libtest; listing singleton/run1/source0/binarysame/tracesabsent required. Separate formatter88+integration annexes remain required for changed shared formatter word capture.",
+        "constituent_plans": {
+          "/tmp/name-post208-core-replay228-20261015/core-acceptance228-plan.json": "689eaf608794ba08b22061373abdc944be47ae475965a0592d24b0422cb5ca3b",
+          "/tmp/name-post208-core-replay228-20261015/namespace-index-affected-old15-annex-plan.json": "56d7e27f4bf9322a7341d7778fbeffe225d308238371ffbe226ea1ee7d6590f4",
+          "/tmp/name-ordinary265-current210-plans-20261015/core-plan.json": "dc0fc8ad56ee8d59e0bedaff72e11cb6f5fc94be627eb00ea3b44d40c662fcbf"
+        },
+        "count": 247
+      }
+    },
+    {
+      "path": "/tmp/name-current236-consumer-replay-plans-20261015/irules-object19-annex-plan.json",
+      "sha256": "fda0ce5133dd8983423d9ff94708e5f158f55f7d731d6fcbde6980131fafc32a",
+      "exact_count": 19,
+      "predecessor_exact_vector_unchanged": true,
+      "other_fields": {
+        "filters": [],
+        "temporary_diagnostics": false,
+        "scope": "Actual Main236 after adopted229inline0ac/230formatter181/231IRulesd070, ordinary271 or later fresh artifacts after ALL TEMP exact declared-path+whole-closure restoration. All18 existing walker controls source-inventoried plusnew1; actual artifact listing singleton each required. No old executed baseline claimed. Existing MCP43 including failed poolnew must remain unchanged and rerun separately. No acceptance claim."
+      }
+    },
+    {
+      "path": "/tmp/name-current236-consumer-replay-plans-20261015/core-formatting88-annex-plan.json",
+      "sha256": "2d4596695318ebdaf97eec0f3dc1c3fbe6329c005e2bd1f4da14ef0bf591d835",
+      "exact_count": 88,
+      "predecessor_exact_vector_unchanged": true,
+      "other_fields": {
+        "filters": [],
+        "temporary_diagnostics": false,
+        "scope": "Actual Main236 after adopted229inline0ac/230formatter181/231IRulesd070, ordinary271 or later fresh artifacts after ALL TEMP exact declared-path+whole-closure restoration. 86 old formatter engine controls from actual265 authoritative listing, preserved order, plus2new. Separate annex, do not replace/drop full current Core243. Old86 compiled listing is not an executed PASS baseline. Exact singleton/listing/run1/source0/binarysame/tracesabsent required."
+      }
+    },
+    {
+      "path": "/tmp/name-current236-consumer-replay-plans-20261015/formatting_engine_residual-affected-plan.json",
+      "sha256": "9ef72f35f538b38f526600402d8f601e16d884d1b3810df35ec28c0eb42e556e",
+      "exact_count": 55,
+      "predecessor_exact_vector_unchanged": true,
+      "other_fields": {
+        "filters": [],
+        "temporary_diagnostics": false,
+        "scope": "Actual Main236 after adopted229inline0ac/230formatter181/231IRulesd070, ordinary271 or later fresh artifacts after ALL TEMP exact declared-path+whole-closure restoration. Source-inventoried affected old formatting_engine_residual controls; fresh cargo test -p tcl-lsp-core --test formatting_engine_residual --no-run --message-format=json artifact/listing singleton guard required. No previous executed baseline claimed; preserve every assertion. Not a replacement for Core acceptance or88formatter annex."
+      }
+    },
+    {
+      "path": "/tmp/name-current236-consumer-replay-plans-20261015/lsp_core_residual-affected-plan.json",
+      "sha256": "af57cba11f44b72c27860b27aad24ba817bd3cd7e5c9b82d60e40f73e218a79c",
+      "exact_count": 15,
+      "predecessor_exact_vector_unchanged": true,
+      "other_fields": {
+        "filters": [],
+        "temporary_diagnostics": false,
+        "scope": "Actual Main236 after adopted229inline0ac/230formatter181/231IRulesd070, ordinary271 or later fresh artifacts after ALL TEMP exact declared-path+whole-closure restoration. Source-inventoried affected old lsp_core_residual controls; fresh cargo test -p tcl-lsp-core --test lsp_core_residual --no-run --message-format=json artifact/listing singleton guard required. No previous executed baseline claimed; preserve every assertion. Not a replacement for Core acceptance or88formatter annex."
+      }
+    }
+  ],
+  "afterimages": [
+    {
+      "path": "/workspace/tcl-lsp/rust/tcl-lsp-core/src/refactor/inline_variable.rs",
+      "sha256": "6f0e35a1906c862f1738b44f6c5ecaec50a8164aed132f92b9fd3b3558c9595f"
+    },
+    {
+      "path": "/workspace/tcl-lsp/rust/tcl-lsp-core/src/formatting/engine.rs",
+      "sha256": "fbdc7fab42074c6679aeefdaabdde07d4d18348570410b034e9bd844c0a2c5f6"
+    },
+    {
+      "path": "/workspace/tcl-lsp/rust/tcl-irules/src/walker.rs",
+      "sha256": "8888e9f1396e75425f9222c86ccb7511249215607f8d9d86d1f2a47ee66303a7"
+    }
+  ],
+  "core_actual265_exact243_ordered_prefix": true,
+  "remaining_scope": "Formatter88 and integration55/15 separate builds; MCP43 Server15 Lexer11 preserved independent scopes; all plans require actual current artifact listing singleton/run1 and original budgets; no execution claim"
+}

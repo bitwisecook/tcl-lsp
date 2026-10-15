@@ -1,0 +1,10 @@
+{
+  "status": "transport/source-copy review APPROVED; not implementation or source/oracle conformance approval",
+  "manifest_sha256": "0c16e9a611bd73ee24d0231d5e2bf13da618c3c51010ab63eb2e4bae23ed2f56",
+  "afterfiles_verified": 35,
+  "zero_files": 12,
+  "original_byte_copies_verified": 30,
+  "scope": "Portable WIP evidence/design and exact production source snapshot, NOT a production patch or completed migration. Both original trials untouched; controlled only for corrected conformance cases.",
+  "implementation": "No Rust patch, no new assertions, no execution/adoption; implement actual minifier alias-reference consumer using held input/config and complete following-fragment checks",
+  "python": "AST parsed only; no provider execution"
+}

@@ -1,0 +1,268 @@
+{
+  "status": "additive current238 source binding only; no semantic acceptance or new production adoption",
+  "source_boundary": "Root reports TEMP270 exact3-file/full97,819-input restoration changed{}08:45:43. Current all3 DB files independently match actual270 ordinary-before snapshot. Ordinary271 may build/read but no production source change authorised.",
+  "prior_binding": "/tmp/name-db19-current158-revalidation-20261015/source205-delta.json",
+  "prior_sha256": "14fa5aaa52208193bf343e791379f6134ccaf2e37ab3e7f2c9228cc1311c2c51",
+  "ordinary_snapshot": "/workspace/name-captures/temp270-source-firstguards-20261015/ordinary-before.json.gz",
+  "ordinary_snapshot_sha256": "11b3878ba83ea64eb03814f07e08669b29dade0905255fe00140ef12f41ec17f",
+  "source_files": [
+    {
+      "path": "rust/tcl-lsp-db/src/lib.rs",
+      "sha256": "0ad01dfb7e63dcd16b427c790f1b48623dd0f2af69f9e0ddc22cf69eca3f5618",
+      "matches_actual270_ordinary_before": true,
+      "unchanged_from205": false
+    },
+    {
+      "path": "rust/tcl-lsp-db/src/project_source_inputs.rs",
+      "sha256": "7ef9a89ef1c3c4fcc3bdb9bcb78b06a36a0d26dc2a9e2e23d0b281e7c2a7331e",
+      "matches_actual270_ordinary_before": true,
+      "unchanged_from205": true
+    },
+    {
+      "path": "rust/tcl-lsp-db/src/project_call_inputs.rs",
+      "sha256": "ce76f94a3dc1f00fd2cc3ab4e599f775e11248ae7c842ced0689213a916296e8",
+      "matches_actual270_ordinary_before": true,
+      "unchanged_from205": true
+    }
+  ],
+  "reviewed_indices": [
+    310,
+    311,
+    312,
+    313,
+    314,
+    315,
+    316,
+    317,
+    318,
+    319,
+    320,
+    321,
+    322,
+    323,
+    324,
+    325
+  ],
+  "reviewed_count": 16,
+  "retired_indices": [
+    310,
+    311,
+    313
+  ],
+  "byte_correspondence": {
+    "actual205_lib_sha256": "1a40dc5fa5aa5ae7913e4e1c41abfdb741c53df51c9c2fbbc737614ae0967021",
+    "current238_lib_sha256": "0ad01dfb7e63dcd16b427c790f1b48623dd0f2af69f9e0ddc22cf69eca3f5618",
+    "production_prefix_before_cfgtest_modtests_equal": true,
+    "production_prefix_sha256": "0cffa9632a892e66e3debbd65b9797078f4b23eb8448773c0bf2a08baffbb493",
+    "all16_actual_functions_in_equal_prefix": true,
+    "only_lib_change_since205": "source228 fixture-only actual2source-body inventory selection in readonly_source_optimisation_owner_tests::source_optimisation_certificates_retain_unknown_world_hazards; top-level function excluded through genuine issued source-card keys +function_for_body, original expected2/capsule/hazard/NoNative assertions preserved",
+    "reviewed228_patch": "/tmp/name-db-readonly-source-fixture-inventory-20261015/implementation.patch",
+    "reviewed228_patch_sha256": "c9a621c587afe8ddcc45fa084da2e96572c029d3c11cdaf65b68130b78d4fcb9",
+    "current_file_equals_exact_reviewed228_afterimage": true
+  },
+  "rows": [
+    {
+      "inherited_index": 310,
+      "inherited_function": "apply_callback_arity",
+      "status": "retired-unchanged",
+      "actual_function": {
+        "name": "apply_logical_source_callback_arity",
+        "line": 2180,
+        "named_section_sha256": "5242de36135ec7b9aa6f8238335b7fc1601f18a1f95f0c891252492083b00e41"
+      },
+      "prior_guard_binding": "/tmp/name-db19-current158-revalidation-20261015/source205-delta.json",
+      "guard_change_since205": false
+    },
+    {
+      "inherited_index": 311,
+      "inherited_function": "callback_command_keys",
+      "status": "retired-unchanged",
+      "actual_function": {
+        "name": "apply_logical_source_callback_arity",
+        "line": 2180,
+        "named_section_sha256": "5242de36135ec7b9aa6f8238335b7fc1601f18a1f95f0c891252492083b00e41"
+      },
+      "prior_guard_binding": "/tmp/name-db19-current158-revalidation-20261015/source205-delta.json",
+      "guard_change_since205": false
+    },
+    {
+      "inherited_index": 312,
+      "inherited_function": "callback_source_target_signatures",
+      "status": "source-bytes-and-current-caller-binding-unchanged",
+      "actual_function": {
+        "name": "callback_source_target_signatures",
+        "line": 1833,
+        "named_section_sha256": "30417334ae14820c5dd4686c2482112aad3cda0da44d459aacb7a4ac8b4a9484"
+      },
+      "prior_guard_binding": "/tmp/name-db19-current158-revalidation-20261015/source205-delta.json",
+      "guard_change_since205": false
+    },
+    {
+      "inherited_index": 313,
+      "inherited_function": "merge_command_arities",
+      "status": "retired-unchanged",
+      "actual_function": {
+        "name": "merge_logical_source_arities",
+        "line": 1679,
+        "named_section_sha256": "431f5b843cc93d3b2797aa2a38cd77a1d7322b1b08765caf2014f4965c1f8c73"
+      },
+      "prior_guard_binding": "/tmp/name-db19-current158-revalidation-20261015/source205-delta.json",
+      "guard_change_since205": false
+    },
+    {
+      "inherited_index": 314,
+      "inherited_function": "merge_original_command_signatures",
+      "status": "source-bytes-and-current-caller-binding-unchanged",
+      "actual_function": {
+        "name": "merge_original_command_signatures",
+        "line": 1448,
+        "named_section_sha256": "f33a69caf4038389038d700c15fbb7c4bd963051522d6cb0551a0129bf8f3e09"
+      },
+      "prior_guard_binding": "/tmp/name-db19-current158-revalidation-20261015/source205-delta.json",
+      "guard_change_since205": false
+    },
+    {
+      "inherited_index": 315,
+      "inherited_function": "original_command_arity",
+      "status": "source-bytes-and-current-caller-binding-unchanged",
+      "actual_function": {
+        "name": "original_command_arity",
+        "line": 1602,
+        "named_section_sha256": "1c60226169b914280a38019739d89d4ebab1610857f4159900585b29e4f57eac"
+      },
+      "prior_guard_binding": "/tmp/name-db19-current158-revalidation-20261015/source205-delta.json",
+      "guard_change_since205": false
+    },
+    {
+      "inherited_index": 316,
+      "inherited_function": "original_command_signatures",
+      "status": "source-bytes-and-current-caller-binding-unchanged",
+      "actual_function": {
+        "name": "original_command_signatures",
+        "line": 1518,
+        "named_section_sha256": "29e16c7b3c7efa5d546bcf4676eb927a990f7c72f1491baa74f165a4a434dfb2"
+      },
+      "prior_guard_binding": "/tmp/name-db19-current158-revalidation-20261015/source205-delta.json",
+      "guard_change_since205": false
+    },
+    {
+      "inherited_index": 317,
+      "inherited_function": "original_lookup_command_arities",
+      "status": "source-bytes-and-current-caller-binding-unchanged",
+      "actual_function": {
+        "name": "original_lookup_command_arities",
+        "line": 1635,
+        "named_section_sha256": "40b36f69c59e8048f173dd3d9c3f8ef14cb0d7534644bbe5d4cbc76c4ea62fa6"
+      },
+      "prior_guard_binding": "/tmp/name-db19-current158-revalidation-20261015/source205-delta.json",
+      "guard_change_since205": false
+    },
+    {
+      "inherited_index": 318,
+      "inherited_function": "original_lookup_command_signatures",
+      "status": "source-bytes-and-current-caller-binding-unchanged",
+      "actual_function": {
+        "name": "original_lookup_command_signatures",
+        "line": 1556,
+        "named_section_sha256": "1761759ca9cd8d6e427589b1268a69002f04033f3766dd2ffb3e2edec2432dee"
+      },
+      "prior_guard_binding": "/tmp/name-db19-current158-revalidation-20261015/source205-delta.json",
+      "guard_change_since205": false
+    },
+    {
+      "inherited_index": 319,
+      "inherited_function": "original_lookup_command_signatures_using",
+      "status": "source-bytes-and-current-caller-binding-unchanged",
+      "actual_function": {
+        "name": "original_lookup_command_signatures_using",
+        "line": 1566,
+        "named_section_sha256": "cb2359d6598f021d846590edf45ba28471651ea36f5c83377b8a2e1790ad733f"
+      },
+      "prior_guard_binding": "/tmp/name-db19-current158-revalidation-20261015/source205-delta.json",
+      "guard_change_since205": false
+    },
+    {
+      "inherited_index": 320,
+      "inherited_function": "project_callback_diagnostics_with_mode",
+      "status": "source-bytes-and-current-caller-binding-unchanged",
+      "actual_function": {
+        "name": "project_callback_diagnostics_with_mode",
+        "line": 2240,
+        "named_section_sha256": "5c3bd16e257757342acd1b9bdfc07669741b595af1a3f9847edb6d9733571861"
+      },
+      "prior_guard_binding": "/tmp/name-db19-current158-revalidation-20261015/source205-delta.json",
+      "guard_change_since205": false
+    },
+    {
+      "inherited_index": 321,
+      "inherited_function": "project_diagnostics",
+      "status": "source-bytes-and-current-caller-binding-unchanged",
+      "actual_function": {
+        "name": "project_source_diagnostics_for_analysis",
+        "line": 1980,
+        "named_section_sha256": "e26d0d0d2e45094e60da9830319d709ad955a905ce9ed9823cac2a7200d61b58"
+      },
+      "prior_guard_binding": "/tmp/name-db19-current158-revalidation-20261015/source205-delta.json",
+      "guard_change_since205": false
+    },
+    {
+      "inherited_index": 322,
+      "inherited_function": "project_original_command_arities",
+      "status": "source-bytes-and-current-caller-binding-unchanged",
+      "actual_function": {
+        "name": "project_original_command_arities",
+        "line": 1474,
+        "named_section_sha256": "eca450d469f0f6b706b830941428198f30aac7f4c3ebd52eb8795fcaa961c7f2"
+      },
+      "prior_guard_binding": "/tmp/name-db19-current158-revalidation-20261015/source205-delta.json",
+      "guard_change_since205": false
+    },
+    {
+      "inherited_index": 323,
+      "inherited_function": "project_original_command_signatures",
+      "status": "source-bytes-and-current-caller-binding-unchanged",
+      "actual_function": {
+        "name": "project_original_command_signatures",
+        "line": 1436,
+        "named_section_sha256": "1848224d1bd36059fba969431b136fb4d122f05b70a97e7ee6e1373c0d6eeb82"
+      },
+      "prior_guard_binding": "/tmp/name-db19-current158-revalidation-20261015/source205-delta.json",
+      "guard_change_since205": false
+    },
+    {
+      "inherited_index": 324,
+      "inherited_function": "select_original_command_signatures",
+      "status": "source-bytes-and-current-caller-binding-unchanged",
+      "actual_function": {
+        "name": "select_original_command_signatures",
+        "line": 1527,
+        "named_section_sha256": "3a674b21a34eb674b2239ad2dbee433b55f25a11a69ff2a629dba4d84b3c178c"
+      },
+      "prior_guard_binding": "/tmp/name-db19-current158-revalidation-20261015/source205-delta.json",
+      "guard_change_since205": false
+    },
+    {
+      "inherited_index": 325,
+      "inherited_function": "semantic_tokens",
+      "status": "source-bytes-and-current-caller-binding-unchanged",
+      "actual_function": {
+        "name": "semantic_tokens",
+        "line": 4449,
+        "named_section_sha256": "35da97c3f31362ce0d93bae349f202e676064b508e42b3405bd2e509be5b20d2"
+      },
+      "prior_guard_binding": "/tmp/name-db19-current158-revalidation-20261015/source205-delta.json",
+      "guard_change_since205": false
+    }
+  ],
+  "current_obligations": [
+    "Current source worker still inventories Logical direct calls using Absent/W123 unresolved_command_sites; actual270 confirms zero directledger sites for two required positive controls. Shared partial catalogue facade/consumer are unadopted WIP, not approved replacement.",
+    "Callback namespace second receipt retains earlierUnknownMutation=true and refuses strictarity before targetquery; exact source-operation/ancestry attribution remains required. Do not clear hazard/uncertainty.",
+    "Stronger genuine source-selected builtin/local/alias/other occupancy must remain terminal before strict externalproject arity; no Registry spelling lookup or missingproject absence inference.",
+    "Actual13 remaining265 DB failures, cold/counter/Arc/fullcached-uncached obligations and separate source producer repairs remain required. Sourcebyte binding is not source-purpose completeness or semantic closure."
+  ],
+  "execution": {
+    "ordinary265": "76selectors63PASS13FAIL,4gains0priorPASSregressions vs258; immutable actualresults unchanged",
+    "TEMP270": "4exactDBcontrols allFAIL/run1/noT/source{}/binarysame/missingempty[]; diagnostic only, exactordinaryrestoration byRoot",
+    "auditor": "No Cargo/build/tests/Main edits; immutable old receipts/proofs unchanged"
+  }
+}

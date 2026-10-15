@@ -1,0 +1,364 @@
+{
+  "captured_utc": "2026-10-15T09:01:08.382825+00:00",
+  "source_epoch": 238,
+  "scope": "Additive five inherited-row current source/caller bindings only; no old evidence rewrite, code change, proof-digest change, runtime acceptance or broad migration closure.",
+  "row_indexing": "zero-based inherited_index, preserving original330 rows",
+  "restoration": {
+    "path": "/workspace/name-captures/temp270-source-firstguards-20261015/restoration-result.json",
+    "sha256": "28f321f1ae5d83c1d18a3ed90a4e00a24496973f7c9131fc78f428200ebce3c2",
+    "changed_authored_inputs": {},
+    "source_count": 97819
+  },
+  "source_files": {
+    "rust/tcl-lsp-core/src/formatting/engine.rs": {
+      "sha256": "fbdc7fab42074c6679aeefdaabdde07d4d18348570410b034e9bd844c0a2c5f6",
+      "adopted_packet_sha256": "181356f29fb0e2eae203eaad29739bcc7961721c9de658f5d4b712ede062862f",
+      "manifest_sha256": "5508c1c0d2b1f933d6bc336f808127f24dc9c6efd97d57b7e907c1b496c7c228"
+    },
+    "rust/tcl-lsp-core/src/refactor/inline_variable.rs": {
+      "sha256": "6f0e35a1906c862f1738b44f6c5ecaec50a8164aed132f92b9fd3b3558c9595f",
+      "adopted_packet_sha256": "0ac78a85e6356f8cd237bcbbe149d6565e52c3f8af50939161258a9228e5e3a9",
+      "manifest_sha256": "e2183c3675118f20a1077788e197b89f53a5ab02da9508e8ca699580fc9e6fde"
+    }
+  },
+  "original_audit": {
+    "path": "/workspace/tcl-lsp/docs/work/name-handling/outstanding-consumer-audit.json",
+    "sha256": "a3df72103d70a5daeed26ce80ea20c2a1a353924114327d93907568be7cba83c"
+  },
+  "rows": [
+    {
+      "inherited_index": 83,
+      "original_row": {
+        "path": "rust/tcl-lsp-core/src/formatting/engine.rs",
+        "function": "identify_body_args",
+        "current_line": 644,
+        "baseline_sha256": "0f824bd15a65de6e1bf7967af535f14fd71350b69ac56a6c417a0edba19a8701",
+        "current_sha256": "0f824bd15a65de6e1bf7967af535f14fd71350b69ac56a6c417a0edba19a8701",
+        "baseline_matched_sources_retained": true,
+        "visible_owner_route": "shared-adapter-candidate",
+        "actionable_ids": [],
+        "status": "semantic-review-required",
+        "scope": "Inherited 330 lexical candidates reconciled with current source identity and bounded actual semantic work; visible delegation alone does not certify caller guards."
+      },
+      "current_path": "rust/tcl-lsp-core/src/formatting/engine.rs",
+      "current_file_sha256": "fbdc7fab42074c6679aeefdaabdde07d4d18348570410b034e9bd844c0a2c5f6",
+      "status": "bounded-current238-source-caller-owner-binding-not-execution-or-global-closure",
+      "purpose": "Identify selected formatter source roles and original member-body syntax.",
+      "shared_owners": [
+        "FormattingSourceLayout",
+        "source_registry_words",
+        "actual original member-body inventory",
+        "authored_source_argument_presentation"
+      ],
+      "actual_guard_proof": [
+        "Starts with empty selected source roles/traits; full LexerConfig and semantic command-store key must match actual FormattingSourceLayout input.",
+        "Retained original command geometry or exact current whole-source slice supplies selected head/argv, never nominal head identity.",
+        "Selected original member-body vocabulary precedes unrelated global commands. Otherwise genuine selected source schema, effective-to-written origins and actual role/presentation map bodies/lambda/formals.",
+        "Missing source advice is terminal empty roles; shared lexical variable reconstruction remains separate from body-role/Native identity."
+      ],
+      "current_source_excerpts": [
+        {
+          "function": "identify_body_args",
+          "present": true,
+          "start_line": 759,
+          "end_line": 1028,
+          "excerpt": "identify_body_args.rs.txt",
+          "excerpt_sha256": "e1d84a1c5e98656b39cca324c5e0250798424a6695e619122567b981014f118a",
+          "extent": "exact source excerpt from function declaration to next top-level function/type/test marker; may include following documentation"
+        },
+        {
+          "function": "reconstruct_arg",
+          "present": true,
+          "start_line": 226,
+          "end_line": 269,
+          "excerpt": "reconstruct_arg.rs.txt",
+          "excerpt_sha256": "a898d9cc21cfa862ea8280bc8f8f5694fd392b55cacc0b9489acb42a6efa9a70",
+          "extent": "exact source excerpt from function declaration to next top-level function/type/test marker; may include following documentation"
+        },
+        {
+          "function": "parse_commands",
+          "present": true,
+          "start_line": 517,
+          "end_line": 759,
+          "excerpt": "parse_commands.rs.txt",
+          "excerpt_sha256": "82019e82eee55677e2b234ac2f15df24a83d07dc562dcb77a930d2bf91f0efa7",
+          "extent": "exact source excerpt from function declaration to next top-level function/type/test marker; may include following documentation"
+        }
+      ],
+      "retired_helpers": {},
+      "remaining_obligations": "Fresh ordinary271 old/new exact replay; independent source applicability/Native/body/binding/edit gates remain. Other naming consumers, particularly minifier alias insertion and Logical variable producer, remain open."
+    },
+    {
+      "inherited_index": 84,
+      "original_row": {
+        "path": "rust/tcl-lsp-core/src/formatting/engine.rs",
+        "function": "native_param_list_source",
+        "current_line": 263,
+        "baseline_sha256": "0f824bd15a65de6e1bf7967af535f14fd71350b69ac56a6c417a0edba19a8701",
+        "current_sha256": "0f824bd15a65de6e1bf7967af535f14fd71350b69ac56a6c417a0edba19a8701",
+        "baseline_matched_sources_retained": true,
+        "visible_owner_route": "shared-adapter-candidate",
+        "actionable_ids": [],
+        "status": "semantic-review-required",
+        "scope": "Inherited 330 lexical candidates reconciled with current source identity and bounded actual semantic work; visible delegation alone does not certify caller guards."
+      },
+      "current_path": "rust/tcl-lsp-core/src/formatting/engine.rs",
+      "current_file_sha256": "fbdc7fab42074c6679aeefdaabdde07d4d18348570410b034e9bd844c0a2c5f6",
+      "status": "bounded-current238-source-caller-owner-binding-not-execution-or-global-closure",
+      "purpose": "Construct Native formal-list formatting proposal from original exact child values.",
+      "shared_owners": [
+        "SignatureSourceNameInput::original_list_elements",
+        "Syntax list::join_list",
+        "original_static_spelling_value",
+        "original_list_values_match"
+      ],
+      "actual_guard_proof": [
+        "Every actual retained list child needs exact UTF8 view; any unavailable child refuses.",
+        "normalise_original_param_list parses proposed spelling under actual original NativeWord/config/channel/name protocol then compares retained child values/cardinality; failure reconstructs original.",
+        "Actual lambda source route selects original child0 and additionally checks whole original lambda parameter values; list spelling grants no frame/binding/read."
+      ],
+      "current_source_excerpts": [
+        {
+          "function": "native_param_list_source",
+          "present": true,
+          "start_line": 347,
+          "end_line": 362,
+          "excerpt": "native_param_list_source.rs.txt",
+          "excerpt_sha256": "bdb5b97eef52e3e1b4bb19cf39099c81fe84efe5f32ce13b43b3cb42d0ec4e37",
+          "extent": "exact source excerpt from function declaration to next top-level function/type/test marker; may include following documentation"
+        },
+        {
+          "function": "normalise_original_param_list",
+          "present": true,
+          "start_line": 436,
+          "end_line": 449,
+          "excerpt": "normalise_original_param_list.rs.txt",
+          "excerpt_sha256": "918c8a4303ac2360c60a26f1d41c3a3d9d597d6b71e59fd512382d6b489dccda",
+          "extent": "exact source excerpt from function declaration to next top-level function/type/test marker; may include following documentation"
+        },
+        {
+          "function": "render_param_list_arg",
+          "present": true,
+          "start_line": 449,
+          "end_line": 469,
+          "excerpt": "render_param_list_arg.rs.txt",
+          "excerpt_sha256": "f7d938f6ba380a4a36b967fc1b382f94617a3d79b8fd12bad9b5c6a083a13e04",
+          "extent": "exact source excerpt from function declaration to next top-level function/type/test marker; may include following documentation"
+        },
+        {
+          "function": "render_lambda_literal_arg",
+          "present": true,
+          "start_line": 1541,
+          "end_line": 1601,
+          "excerpt": "render_lambda_literal_arg.rs.txt",
+          "excerpt_sha256": "d3f818b154f1cecfa911ad231a8c17df2c6c59c20612145caf4674da976aa044",
+          "extent": "exact source excerpt from function declaration to next top-level function/type/test marker; may include following documentation"
+        }
+      ],
+      "retired_helpers": {},
+      "remaining_obligations": "Fresh ordinary271 old/new exact replay; independent source applicability/Native/body/binding/edit gates remain. Other naming consumers, particularly minifier alias insertion and Logical variable producer, remain open."
+    },
+    {
+      "inherited_index": 85,
+      "original_row": {
+        "path": "rust/tcl-lsp-core/src/formatting/engine.rs",
+        "function": "normalise_param_list",
+        "current_line": 253,
+        "baseline_sha256": "0f824bd15a65de6e1bf7967af535f14fd71350b69ac56a6c417a0edba19a8701",
+        "current_sha256": "0f824bd15a65de6e1bf7967af535f14fd71350b69ac56a6c417a0edba19a8701",
+        "baseline_matched_sources_retained": true,
+        "visible_owner_route": "shared-adapter-candidate",
+        "actionable_ids": [],
+        "status": "semantic-review-required",
+        "scope": "Inherited 330 lexical candidates reconciled with current source identity and bounded actual semantic work; visible delegation alone does not certify caller guards."
+      },
+      "current_path": "rust/tcl-lsp-core/src/formatting/engine.rs",
+      "current_file_sha256": "fbdc7fab42074c6679aeefdaabdde07d4d18348570410b034e9bd844c0a2c5f6",
+      "status": "bounded-current238-source-caller-owner-binding-not-execution-or-global-closure",
+      "purpose": "Explicit Logical formal-list formatting under supplied shared word rules.",
+      "shared_owners": [
+        "WordValueRules::collapse_braced_word",
+        "WordValueRules::split_list",
+        "Syntax list::join_list"
+      ],
+      "actual_guard_proof": [
+        "render_param_list_arg selects this branch only actual original word Some, Native input None, positive Logical flag, and complete word config equal formatter config.",
+        "Lambda branch has same actual original-word/full-config and Logical gate; Native path remains separate retained-child proposal validation.",
+        "Malformed list keeps input spelling inside unchanged outer presentation; this source-formatting branch has no Native formal/frame/edit identity claim."
+      ],
+      "current_source_excerpts": [
+        {
+          "function": "normalise_param_list",
+          "present": true,
+          "start_line": 337,
+          "end_line": 347,
+          "excerpt": "normalise_param_list.rs.txt",
+          "excerpt_sha256": "f751ff21a059c2b01eac1cbfa1dad60d550125a95d6b1e52389919919d15ea7e",
+          "extent": "exact source excerpt from function declaration to next top-level function/type/test marker; may include following documentation"
+        },
+        {
+          "function": "render_param_list_arg",
+          "present": true,
+          "start_line": 449,
+          "end_line": 469,
+          "excerpt": "render_param_list_arg.rs.txt",
+          "excerpt_sha256": "f7d938f6ba380a4a36b967fc1b382f94617a3d79b8fd12bad9b5c6a083a13e04",
+          "extent": "exact source excerpt from function declaration to next top-level function/type/test marker; may include following documentation"
+        },
+        {
+          "function": "render_lambda_literal_arg",
+          "present": true,
+          "start_line": 1541,
+          "end_line": 1601,
+          "excerpt": "render_lambda_literal_arg.rs.txt",
+          "excerpt_sha256": "d3f818b154f1cecfa911ad231a8c17df2c6c59c20612145caf4674da976aa044",
+          "extent": "exact source excerpt from function declaration to next top-level function/type/test marker; may include following documentation"
+        }
+      ],
+      "retired_helpers": {},
+      "remaining_obligations": "Fresh ordinary271 old/new exact replay; independent source applicability/Native/body/binding/edit gates remain. Other naming consumers, particularly minifier alias insertion and Logical variable producer, remain open."
+    },
+    {
+      "inherited_index": 198,
+      "original_row": {
+        "path": "rust/tcl-lsp-core/src/refactor/inline_variable.rs",
+        "function": "inline_variable",
+        "current_line": 37,
+        "baseline_sha256": "a456a2eab5d830a739f30271c56be1e5544eb21e746107f7664d8a7d9d473325",
+        "current_sha256": "a456a2eab5d830a739f30271c56be1e5544eb21e746107f7664d8a7d9d473325",
+        "baseline_matched_sources_retained": true,
+        "visible_owner_route": "classification-or-private-policy-review",
+        "actionable_ids": [],
+        "status": "semantic-review-required",
+        "scope": "Inherited 330 lexical candidates reconciled with current source identity and bounded actual semantic work; visible delegation alone does not certify caller guards."
+      },
+      "current_path": "rust/tcl-lsp-core/src/refactor/inline_variable.rs",
+      "current_file_sha256": "6f0e35a1906c862f1738b44f6c5ecaec50a8164aed132f92b9fd3b3558c9595f",
+      "status": "bounded-current238-source-caller-owner-binding-not-execution-or-global-closure",
+      "purpose": "Inline actual current binding at one genuine same-frame reference, with checked interpolation proposal.",
+      "shared_owners": [
+        "CurrentSourceContext",
+        "FrameWalk native_words/variable_references/command_span_offsets",
+        "logical_variable_scope_advice",
+        "original_inline_binding",
+        "interpolated_value_source"
+      ],
+      "actual_guard_proof": [
+        "Public current source/full input/config capture and same actual FrameWalk precede selected command. Logical selected Set written Name must be actual declaration span, sole read reselects pointer-identical VarDef; captured names cannot donate geometry.",
+        "Native branch retains original Normal definition/cell/current SSA/DefUse chain and replaceable-read/effects/observer checks; no Logical upgrade.",
+        "Actual whole value and unique containing reference NativeWord supply complete spelling. Standalone word preserves whole value; interpolation requires selected scalar component and complete proposed unexpanded receiver with equal typed components (Text coalescing only).",
+        "Binding/sole-read/current source/SSA/movement/edit authority remains independent of lexical proposal. dequote private helper is absent, not preserved via compatibility parser."
+      ],
+      "current_source_excerpts": [
+        {
+          "function": "inline_variable",
+          "present": true,
+          "start_line": 38,
+          "end_line": 137,
+          "excerpt": "inline_variable.rs.txt",
+          "excerpt_sha256": "7abbab399a3da947295fa76eb142bac21fdfd41aeea4545e74554a79e82a8a67",
+          "extent": "exact source excerpt from function declaration to next top-level function/type/test marker; may include following documentation"
+        },
+        {
+          "function": "reference_context",
+          "present": true,
+          "start_line": 380,
+          "end_line": 429,
+          "excerpt": "reference_context.rs.txt",
+          "excerpt_sha256": "e214b1253e92ef19d382bfeea9897f50511ed7899393c74eb3654928b6c98414",
+          "extent": "exact source excerpt from function declaration to next top-level function/type/test marker; may include following documentation"
+        },
+        {
+          "function": "interpolated_value_source",
+          "present": true,
+          "start_line": 429,
+          "end_line": 506,
+          "excerpt": "interpolated_value_source.rs.txt",
+          "excerpt_sha256": "ff865b499c2632b13da1f07f21e147aa6b62110db523faaca42034a9308be8cf",
+          "extent": "exact source excerpt from function declaration to next top-level function/type/test marker; may include following documentation"
+        },
+        {
+          "function": "coalesced_source_parts",
+          "present": true,
+          "start_line": 506,
+          "end_line": 528,
+          "excerpt": "coalesced_source_parts.rs.txt",
+          "excerpt_sha256": "91893a15bfd1aaa6b8649ecab501cc0be8c1f8642a48c3d17e067f89b3d6583e",
+          "extent": "exact source excerpt from function declaration to next top-level function/type/test marker; may include following documentation"
+        }
+      ],
+      "retired_helpers": {
+        "reference_token": {
+          "function": "reference_token",
+          "present": false
+        },
+        "dequote": {
+          "function": "dequote",
+          "present": false
+        }
+      },
+      "remaining_obligations": "Fresh ordinary271 old/new exact replay; independent source applicability/Native/body/binding/edit gates remain. Other naming consumers, particularly minifier alias insertion and Logical variable producer, remain open."
+    },
+    {
+      "inherited_index": 199,
+      "original_row": {
+        "path": "rust/tcl-lsp-core/src/refactor/inline_variable.rs",
+        "function": "reference_token",
+        "current_line": 398,
+        "baseline_sha256": "a456a2eab5d830a739f30271c56be1e5544eb21e746107f7664d8a7d9d473325",
+        "current_sha256": "a456a2eab5d830a739f30271c56be1e5544eb21e746107f7664d8a7d9d473325",
+        "baseline_matched_sources_retained": true,
+        "visible_owner_route": "classification-or-private-policy-review",
+        "actionable_ids": [],
+        "status": "semantic-review-required",
+        "scope": "Inherited 330 lexical candidates reconciled with current source identity and bounded actual semantic work; visible delegation alone does not certify caller guards."
+      },
+      "current_path": "rust/tcl-lsp-core/src/refactor/inline_variable.rs",
+      "current_file_sha256": "6f0e35a1906c862f1738b44f6c5ecaec50a8164aed132f92b9fd3b3558c9595f",
+      "status": "bounded-current238-source-caller-owner-binding-not-execution-or-global-closure",
+      "purpose": "Retired reference_token local token-closer geometry; current reference_context uses real selected component/whole word.",
+      "shared_owners": [
+        "FrameWalk::variable_references",
+        "FrameWalk::native_words",
+        "find_original_command_at"
+      ],
+      "actual_guard_proof": [
+        "Legacy reference_token is absent. Replacement selects unique same-name actual component containing requested selected read offset, then unique unchanged complete containing word.",
+        "A child contained within an array index cannot borrow enclosing scalar splice authority; standalone status additionally requires actual single_token_word and exact whole-word/reference span.",
+        "Actual cloned NativeWord/config transported to interpolation proposal; no manual closer repair, source default reconstruction or Scope/frame authority minted. dequote is independently retired by adopted229."
+      ],
+      "current_source_excerpts": [
+        {
+          "function": "reference_context",
+          "present": true,
+          "start_line": 380,
+          "end_line": 429,
+          "excerpt": "reference_context.rs.txt",
+          "excerpt_sha256": "e214b1253e92ef19d382bfeea9897f50511ed7899393c74eb3654928b6c98414",
+          "extent": "exact source excerpt from function declaration to next top-level function/type/test marker; may include following documentation"
+        },
+        {
+          "function": "interpolated_value_source",
+          "present": true,
+          "start_line": 429,
+          "end_line": 506,
+          "excerpt": "interpolated_value_source.rs.txt",
+          "excerpt_sha256": "ff865b499c2632b13da1f07f21e147aa6b62110db523faaca42034a9308be8cf",
+          "extent": "exact source excerpt from function declaration to next top-level function/type/test marker; may include following documentation"
+        }
+      ],
+      "retired_helpers": {
+        "reference_token": {
+          "function": "reference_token",
+          "present": false
+        },
+        "dequote": {
+          "function": "dequote",
+          "present": false
+        }
+      },
+      "remaining_obligations": "Fresh ordinary271 old/new exact replay; independent source applicability/Native/body/binding/edit gates remain. Other naming consumers, particularly minifier alias insertion and Logical variable producer, remain open."
+    }
+  ],
+  "execution": "No Cargo/test/provider execution; exact actual restored Main matches adopted packet afterimages."
+}
