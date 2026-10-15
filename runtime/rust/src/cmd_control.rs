@@ -639,6 +639,7 @@ struct EachLoopGroup {
     variable_items: Option<crate::list::NativeListBacking>,
     value_items: Option<crate::list::NativeListBacking>,
     abstract_values: Option<crate::native_arithseries::NativeEachLoopAbstractValues>,
+    source_return: Option<crate::interp::OriginalSourceCommandReturn>,
 }
 
 fn native_each_loop_members(
@@ -738,6 +739,9 @@ fn prepare_each_loop_group(
     let values = value_owner
         .as_ref()
         .map_or(pair[1], crate::obj::Owned::as_ptr);
+    let source_return = interp
+        .original_source_command_return(pair_index + 1, pair[1])
+        .map_err(|error| interp.report_cmd_error(error.into()))?;
     let value_items = if abstract_values.is_some() || recipe.live_iterators() {
         None
     } else {
@@ -763,6 +767,7 @@ fn prepare_each_loop_group(
         variable_items: Some(variable_items),
         value_items,
         abstract_values,
+        source_return,
     };
     Ok((group, lengths))
 }
@@ -822,6 +827,11 @@ fn refresh_each_loop_group(
                 Ok(items) => items,
                 Err(error) => return Err(interp.report_cmd_error(error)),
             };
+            if let Some(source) = &group.source_return {
+                source
+                    .check(interp, group.values)
+                    .map_err(|error| interp.report_cmd_error(error.into()))?;
+            }
             cursor.set_value_length(index, items.len());
             group.value_items = Some(items);
         }

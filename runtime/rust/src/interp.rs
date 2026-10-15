@@ -136,6 +136,7 @@ mod native_object_vector;
 pub(crate) mod native_operation_currency;
 pub(crate) mod native_scalar_context;
 mod native_script;
+pub(crate) use native_script::OriginalSourceCommandReturn;
 mod native_substitution;
 mod native_variable_names;
 mod native_variable_observers;
@@ -637,6 +638,7 @@ struct JimBorrowedInvocation {
     argv: Vec<*mut TclObj>,
     // The active original Script owns this filename through the evaluation scope.
     script_filename: Option<*mut TclObj>,
+    source: Option<Rc<native_script::OriginalSourceInvocation>>,
 }
 
 /// Restore the diagnostic borrow stack before the caller releases its argv.
@@ -14299,6 +14301,19 @@ impl Interp {
         self.dispatch_prebound_with_entry(argv, None, true)
     }
 
+    fn dispatch_original_source(
+        &mut self,
+        argv: &[*mut TclObj],
+        source: Option<&Rc<native_script::OriginalSourceInvocation>>,
+    ) -> Code {
+        self.dispatch_selection_with_source(
+            argv,
+            CommandDispatchSelection::Unselected,
+            true,
+            source,
+        )
+    }
+
     /// Internal forwarding retains the current ensemble rewrite until its
     /// target evaluates an ordinary command or bytecode body.
     pub(crate) fn dispatch_invoke(&mut self, argv: &[*mut TclObj]) -> Code {
@@ -14383,6 +14398,16 @@ impl Interp {
         prebound: CommandDispatchSelection,
         ordinary: bool,
     ) -> Code {
+        self.dispatch_selection_with_source(argv, prebound, ordinary, None)
+    }
+
+    fn dispatch_selection_with_source(
+        &mut self,
+        argv: &[*mut TclObj],
+        prebound: CommandDispatchSelection,
+        ordinary: bool,
+        source: Option<&Rc<native_script::OriginalSourceInvocation>>,
+    ) -> Code {
         let scope = match native_operation_currency::NativeOperationScope::enter(self) {
             Ok(scope) => scope,
             Err(first) => {
@@ -14412,7 +14437,7 @@ impl Interp {
                 }
             }
             self.native_dispatch_depth.set(depth);
-            let code = self.dispatch_prebound_inner(argv, prebound, ordinary);
+            let code = self.dispatch_prebound_inner(argv, prebound, ordinary, source);
             let code = if self.check_entered_native_operation().is_err() {
                 Code::Error
             } else {
@@ -14432,6 +14457,7 @@ impl Interp {
         argv: &[*mut TclObj],
         prebound: CommandDispatchSelection,
         ordinary: bool,
+        source: Option<&Rc<native_script::OriginalSourceInvocation>>,
     ) -> Code {
         if !self.evaluation_is_live() {
             return Code::Error;
@@ -14474,11 +14500,23 @@ impl Interp {
                             tcl_registry::native_ensemble_rewrite::EnsembleRewriteResetEvent::AfterSuccessfulOrdinaryLookup,
                         ) { return code; }
                     }
-                    self.invoke_bound(binding.command, Some(binding.generation), argv)
+                    self.invoke_bound_with_source(
+                        binding.command,
+                        Some(binding.generation),
+                        argv,
+                        None,
+                        source,
+                    )
                 }
-                CommandDispatchSelection::Unselected => self.dispatch_inner(argv, ordinary),
+                CommandDispatchSelection::Unselected => self.dispatch_inner_at_with_source(
+                    argv,
+                    ordinary,
+                    self.current_ns.get(),
+                    tcl_registry::command_lookup::CommandLookupOrigin::Ordinary,
+                    source,
+                ),
                 CommandDispatchSelection::LookupAt(lookup, origin) => {
-                    self.dispatch_inner_at(argv, ordinary, lookup, origin)
+                    self.dispatch_inner_at_with_source(argv, ordinary, lookup, origin, source)
                 }
                 CommandDispatchSelection::Missing {
                     lookup,
@@ -14487,7 +14525,7 @@ impl Interp {
                 } => self.dispatch_missing_command(argv, lookup, caller, origin),
             };
         }
-        self.dispatch_traced(argv, prebound, ordinary)
+        self.dispatch_traced(argv, prebound, ordinary, source)
     }
 
     /// Slow path: the command may carry execution (enter/leave/step) traces, or
@@ -14499,6 +14537,7 @@ impl Interp {
         argv: &[*mut TclObj],
         prebound: CommandDispatchSelection,
         ordinary: bool,
+        source: Option<&Rc<native_script::OriginalSourceInvocation>>,
     ) -> Code {
         use crate::cmd_trace::ops;
         // Inside a rename's callbacks the vacating name still resolves, but the
@@ -14581,16 +14620,21 @@ impl Interp {
         };
         if !has_enter && !has_leave && !has_step && !stepping {
             return match prebound_command {
-                Some(command) => self.invoke_bound(command, token, argv),
+                Some(command) => self.invoke_bound_with_source(command, token, argv, None, source),
                 None => match missing {
                     Some((lookup, caller, origin)) => {
                         self.dispatch_missing_command(argv, lookup, caller, origin)
                     }
                     None => match lookup_context {
-                        Some((lookup, origin)) => {
-                            self.dispatch_inner_at(argv, ordinary, lookup, origin)
-                        }
-                        None => self.dispatch_inner(argv, ordinary),
+                        Some((lookup, origin)) => self
+                            .dispatch_inner_at_with_source(argv, ordinary, lookup, origin, source),
+                        None => self.dispatch_inner_at_with_source(
+                            argv,
+                            ordinary,
+                            self.current_ns.get(),
+                            tcl_registry::command_lookup::CommandLookupOrigin::Ordinary,
+                            source,
+                        ),
                     },
                 },
             };
@@ -14623,12 +14667,18 @@ impl Interp {
             0
         };
         let mut code = match prebound_command {
-            Some(command) => self.invoke_bound(command, token, argv),
+            Some(command) => self.invoke_bound_with_source(command, token, argv, None, source),
             None => match missing {
                 Some((lookup, caller, origin)) => {
                     self.dispatch_missing_command(argv, lookup, caller, origin)
                 }
-                None => self.dispatch_inner(argv, ordinary),
+                None => self.dispatch_inner_at_with_source(
+                    argv,
+                    ordinary,
+                    self.current_ns.get(),
+                    tcl_registry::command_lookup::CommandLookupOrigin::Ordinary,
+                    source,
+                ),
             },
         };
         // (D) remove the step traces installed above (they are the last pushed).
@@ -14764,22 +14814,13 @@ impl Interp {
         outcome
     }
 
-    /// The original resolve→invoke→unknown dispatch (trace-free).
-    fn dispatch_inner(&mut self, argv: &[*mut TclObj], ordinary: bool) -> Code {
-        self.dispatch_inner_at(
-            argv,
-            ordinary,
-            self.current_ns.get(),
-            tcl_registry::command_lookup::CommandLookupOrigin::Ordinary,
-        )
-    }
-
-    fn dispatch_inner_at(
+    fn dispatch_inner_at_with_source(
         &mut self,
         argv: &[*mut TclObj],
         ordinary: bool,
         lookup: NsId,
         origin: tcl_registry::command_lookup::CommandLookupOrigin,
+        source: Option<&Rc<native_script::OriginalSourceInvocation>>,
     ) -> Code {
         // The availability gate lives in `resolve_dispatchable`, so a builtin
         // the emulated release does not carry misses here and falls through to
@@ -14791,7 +14832,7 @@ impl Interp {
                         tcl_registry::native_ensemble_rewrite::EnsembleRewriteResetEvent::AfterSuccessfulOrdinaryLookup,
                     ) { return code; }
                 }
-                return self.invoke_bound(cmd, generation, argv);
+                return self.invoke_bound_with_source(cmd, generation, argv, None, source);
             }
             Ok(None) => {}
             Err(error) => return self.report_cmd_error(error.into()),
@@ -15013,6 +15054,17 @@ impl Interp {
         argv: &[*mut TclObj],
         selected: Option<native_jim_tailcall::JimCommandReference>,
     ) -> Code {
+        self.invoke_bound_with_source(cmd, generation, argv, selected, None)
+    }
+
+    fn invoke_bound_with_source(
+        &mut self,
+        cmd: Command,
+        generation: Option<u64>,
+        argv: &[*mut TclObj],
+        selected: Option<native_jim_tailcall::JimCommandReference>,
+        source: Option<&Rc<native_script::OriginalSourceInvocation>>,
+    ) -> Code {
         let scope = match native_operation_currency::NativeOperationScope::enter(self) {
             Ok(scope) => scope,
             Err(first) => {
@@ -15033,6 +15085,11 @@ impl Interp {
             if self.check_entered_native_operation().is_err() {
                 return Code::Error;
             }
+            if let Some(source) = source {
+                if let Err(error) = source.check(self, argv) {
+                    return self.report_cmd_error(error.into());
+                }
+            }
             if let Err(error) = self.associate_native_jim_arguments(argv) {
                 return self.report_cmd_error(error.into());
             }
@@ -15043,7 +15100,7 @@ impl Interp {
                     frame.is_procedure = matches!(cmd, Command::Proc(_));
                 }
             }
-            let _jim_invocation = self.borrow_jim_invocation(argv);
+            let _jim_invocation = self.borrow_jim_invocation(argv, source);
             if self.native_invocation_dialect().native_string_protocol()
                 == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
             {
@@ -15111,6 +15168,7 @@ impl Interp {
             frame_index: previous_len,
             argv: Vec::new(),
             script_filename: Some(filename),
+            source: None,
         });
         JimEvaluationScope {
             interp: self.clone(),
@@ -15119,7 +15177,11 @@ impl Interp {
         }
     }
 
-    fn borrow_jim_invocation(&self, argv: &[*mut TclObj]) -> Option<JimInvocationScope> {
+    fn borrow_jim_invocation(
+        &self,
+        argv: &[*mut TclObj],
+        source: Option<&Rc<native_script::OriginalSourceInvocation>>,
+    ) -> Option<JimInvocationScope> {
         if !self.uses_jim_error_stack() {
             return None;
         }
@@ -15132,6 +15194,7 @@ impl Interp {
             // objects through invoke_bound's synchronous return or unwind.
             argv: argv.to_vec(),
             script_filename: None,
+            source: source.cloned(),
         });
         Some(JimInvocationScope {
             interp: self.clone(),
@@ -17381,7 +17444,7 @@ impl Interp {
                 origin: tcl_registry::command_lookup::CommandLookupOrigin::Ordinary,
             },
         };
-        self.dispatch_prebound_inner(words, selection, true)
+        self.dispatch_prebound_inner(words, selection, true, None)
     }
 
     fn drain_tailcalls(&mut self, depth: u32, mut code: Code) -> Code {

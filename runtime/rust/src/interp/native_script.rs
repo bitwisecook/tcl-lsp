@@ -12,7 +12,152 @@ use tcl_syntax::{
     value::ValueError,
 };
 
+/// Source operands from one actual Script command and its entered procedure.
+/// This owns allocation safety and constructor/frame evidence only.
+pub(super) struct OriginalSourceInvocation {
+    frame: super::native_arguments::OriginalArgumentFrame,
+    procedure: std::rc::Weak<super::ProcDef>,
+    root: std::rc::Rc<crate::native_source::NativeJimSourceOrigin>,
+    argv: Vec<crate::obj::NativeObjectLifetime>,
+    operands: Vec<Option<OriginalSourceOperand>>,
+}
+
+pub(super) struct OriginalSourceOperand {
+    source: std::rc::Rc<crate::native_source::NativeJimSourceOrigin>,
+    returned: bool,
+}
+
+/// The exact object returned by one reached Command token. This does not
+/// establish command-table membership or permit an Import traversal.
+pub(crate) struct OriginalSourceCommandReturn {
+    invocation: std::rc::Rc<OriginalSourceInvocation>,
+    index: usize,
+}
+
+impl OriginalSourceCommandReturn {
+    pub(crate) fn check(
+        &self,
+        actual: &Interp,
+        original: *mut crate::obj::TclObj,
+    ) -> Result<(), ValueError> {
+        let argv = self
+            .invocation
+            .argv
+            .iter()
+            .map(crate::obj::NativeObjectLifetime::checked_ptr)
+            .collect::<Result<Vec<_>, _>>()?;
+        self.invocation.check(actual, &argv)?;
+        if argv.get(self.index) != Some(&original) {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "original source Command return header",
+            ));
+        }
+        Ok(())
+    }
+}
+
+impl OriginalSourceInvocation {
+    fn capture(
+        actual: &Interp,
+        backing: &crate::native_script::NativeJimScript,
+        argv: &[*mut crate::obj::TclObj],
+        operands: Vec<Option<OriginalSourceOperand>>,
+    ) -> Result<Option<std::rc::Rc<Self>>, ValueError> {
+        let Some(root) = backing.source_origin() else {
+            return Ok(None);
+        };
+        let procedure = actual.frames.borrow().current_c_procedure().cloned();
+        let Some(procedure) = procedure else {
+            return Ok(None);
+        };
+        let Some(installed) = procedure.original_jim_import_origin(actual)? else {
+            return Ok(None);
+        };
+        if !installed.same_root(root)
+            || operands
+                .iter()
+                .flatten()
+                .any(|operand| !operand.source.same_root(root))
+        {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "original Import mixed source invocation",
+            ));
+        }
+        Ok(Some(std::rc::Rc::new(Self {
+            frame: super::native_arguments::OriginalArgumentFrame::capture(actual),
+            procedure: std::rc::Rc::downgrade(&procedure),
+            root: std::rc::Rc::clone(root),
+            argv: argv
+                .iter()
+                .map(|&original| crate::obj::NativeObjectLifetime::retain(original))
+                .collect(),
+            operands,
+        })))
+    }
+
+    pub(super) fn check(
+        &self,
+        actual: &Interp,
+        argv: &[*mut crate::obj::TclObj],
+    ) -> Result<(), ValueError> {
+        self.frame.check_frame(actual)?;
+        let procedure = actual.frames.borrow().current_c_procedure().cloned();
+        let Some((owner, current)) = self.procedure.upgrade().zip(procedure) else {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "original Import source invocation frame",
+            ));
+        };
+        if !std::rc::Rc::ptr_eq(&owner, &current)
+            || !owner
+                .original_jim_import_origin(actual)?
+                .is_some_and(|root| root.same_root(&self.root))
+            || argv.len() != self.argv.len()
+        {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "original Import source invocation frame",
+            ));
+        }
+        for (operand, &original) in self.argv.iter().zip(argv) {
+            if operand.checked_ptr()? != original {
+                return Err(ValueError::CommandProtocolUnavailable(
+                    "original Import source operand header",
+                ));
+            }
+        }
+        Ok(())
+    }
+}
+
 impl Interp {
+    pub(crate) fn original_source_command_return(
+        &self,
+        index: usize,
+        original: *mut crate::obj::TclObj,
+    ) -> Result<Option<OriginalSourceCommandReturn>, ValueError> {
+        let borrows = self.jim_invocation_borrows.borrow();
+        let Some(invocation) = borrows.last() else {
+            return Ok(None);
+        };
+        let Some(source) = invocation.source.as_ref() else {
+            return Ok(None);
+        };
+        source.check(self, &invocation.argv)?;
+        if invocation.argv.get(index) != Some(&original) {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "original source invocation operand index",
+            ));
+        }
+        Ok(source
+            .operands
+            .get(index)
+            .and_then(Option::as_ref)
+            .filter(|operand| operand.returned)
+            .map(|_| OriginalSourceCommandReturn {
+                invocation: std::rc::Rc::clone(source),
+                index,
+            }))
+    }
+
     /// Enter the fresh Source object selected by the sourced-byte API. Its
     /// original filename and line become the Script token owners' source info.
     pub(super) fn eval_native_jim_source_unpublished(
@@ -167,7 +312,11 @@ impl Interp {
         words: Vec<JimScriptWord>,
     ) -> Code {
         let mut argv = Vec::<Owned>::with_capacity(words.len());
+        let mut origins = Vec::with_capacity(words.len());
         for word in words {
+            let source = (word.tokens.len() == 1 && !word.expand)
+                .then(|| backing.token_origin(word.tokens.start).cloned())
+                .flatten();
             let mut parts = Vec::with_capacity(word.tokens.len());
             for token in &objects.tokens()[word.tokens.clone()] {
                 let value = match self.eval_native_jim_token(token.kind, &token.value) {
@@ -207,10 +356,20 @@ impl Interp {
                     value.as_ptr(),
                     NativeStringProtocol::Jim084,
                 ) {
-                    Ok(items) => argv.extend(items.into_iter().map(Owned::retain)),
+                    Ok(items) => {
+                        origins.extend((0..items.len()).map(|_| None));
+                        argv.extend(items.into_iter().map(Owned::retain));
+                    }
                     Err(error) => return self.report_cmd_error(error.into()),
                 }
             } else {
+                origins.push(source.map(|source| OriginalSourceOperand {
+                    returned: source.kind()
+                        == Some(JimScriptObjectKind::Source(
+                            tcl_lexer::JimScriptTokenKind::Command,
+                        )),
+                    source,
+                }));
                 argv.push(value);
             }
         }
@@ -218,7 +377,12 @@ impl Interp {
             Code::Ok
         } else {
             let pointers: Vec<_> = argv.iter().map(Owned::as_ptr).collect();
-            self.dispatch(&pointers)
+            let origin = match OriginalSourceInvocation::capture(self, backing, &pointers, origins)
+            {
+                Ok(origin) => origin,
+                Err(error) => return self.report_cmd_error(error.into()),
+            };
+            self.dispatch_original_source(&pointers, origin.as_ref())
         }
     }
 

@@ -36,6 +36,7 @@ use tcl_pkg::installer;
 use tcl_pkg::lockfile::{LockFile, LockedPackage, SourceSpec, read_lockfile, write_lockfile};
 use tcl_pkg::manifest::{
     RequirementKind, append_manifest_requirement, load_manifest, original_manifest_requirements,
+    render_manifest_header, render_manifest_requirement,
 };
 use tcl_pkg::registry::RegistryClient;
 use tcl_pkg::resolver::{ExcludeSpec, PackageRef, ReplaceSpec, ResolveInput, resolve};
@@ -300,18 +301,31 @@ fn run_init(
         );
         return Ok(1);
     }
-    let dir_name = path
-        .parent()
-        .and_then(|p| p.file_name())
-        .map_or_else(String::new, |n| n.to_string_lossy().into_owned());
-    let name = name.map_or(dir_name, ToString::to_string);
+    let name = match name {
+        Some(name) => name.to_owned(),
+        None => {
+            let Some(name) = path
+                .parent()
+                .and_then(|p| p.file_name())
+                .and_then(|name| name.to_str())
+            else {
+                eprintln!("error: project directory has no Unicode package name; supply --name");
+                return Ok(1);
+            };
+            name.to_owned()
+        }
+    };
     let version = init_version.unwrap_or("0.1.0");
     let license = init_license.unwrap_or("MIT");
     let tcl = tcl.unwrap_or(">=8.6");
 
-    let body = format!(
-        "package     {name}\nversion     {version}\nlicense     {license}\ntcl         {tcl}\n"
-    );
+    let body = match render_manifest_header(&name, version, license, tcl, path.to_str()) {
+        Ok(body) => body,
+        Err(error) => {
+            eprintln!("error: {error}");
+            return Ok(1);
+        }
+    };
     if let Err(e) = std::fs::write(&path, body) {
         eprintln!("error: {e}");
         return Ok(1);
@@ -1423,14 +1437,31 @@ fn run_freeze(common: &PkgCommon) -> anyhow::Result<u8> {
         }
         println!("{}", ui::json_output(&Value::Object(map)));
     } else {
-        for pkg in &pkgs {
-            let source_suffix = if pkg.source.url.is_empty() {
-                String::new()
-            } else {
-                format!(" -source {}", pkg.source.url)
-            };
-            let directive = if pkg.dev { "dev-require" } else { "require" };
-            println!("{directive} {} {}{source_suffix}", pkg.name, pkg.version);
+        let lines = pkgs
+            .iter()
+            .map(|pkg| {
+                render_manifest_requirement(
+                    &pkg.name,
+                    &pkg.version,
+                    (!pkg.source.url.is_empty()).then_some(pkg.source.url.as_str()),
+                    if pkg.dev {
+                        RequirementKind::Development
+                    } else {
+                        RequirementKind::Runtime
+                    },
+                    None,
+                )
+            })
+            .collect::<Result<Vec<_>, _>>();
+        let lines = match lines {
+            Ok(lines) => lines,
+            Err(error) => {
+                eprintln!("error: {error}");
+                return Ok(1);
+            }
+        };
+        for line in lines {
+            println!("{line}");
         }
     }
     Ok(0)

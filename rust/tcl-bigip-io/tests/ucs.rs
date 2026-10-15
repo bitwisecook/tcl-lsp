@@ -292,3 +292,51 @@ fn archive_path_preview_collisions_cannot_certify_source_selection() {
             .contains("member path")
     );
 }
+
+#[test]
+fn selected_member_sources_keep_first_match_bytes_and_completed_absence_separate() {
+    use tcl_bigip_io::{find_ucs_member_source, read_ucs_member_source};
+    let archive =
+        original_member_archive(&[("etc/donor", b"\xff"), ("etc/donor", "\u{fffd}".as_bytes())]);
+    let source =
+        read_ucs_member_source(&archive, "etc/donor", &|| Ok(String::new()), "fixture").unwrap();
+    assert_eq!(source.path(), "etc/donor");
+    assert_eq!(source.bytes(), b"\xff");
+    assert!(source.require_faithful().is_err());
+    assert!(
+        find_ucs_member_source(&archive, "absent", &|| Ok(String::new()), "fixture")
+            .unwrap()
+            .is_none()
+    );
+    assert!(
+        find_ucs_member_source(
+            b"invalid archive",
+            "absent",
+            &|| Ok(String::new()),
+            "fixture"
+        )
+        .is_err()
+    );
+    let archive =
+        original_member_archive(&[("etc/donor", "\u{fffd}".as_bytes()), ("etc/donor", b"\xff")]);
+    read_ucs_member_source(&archive, "etc/donor", &|| Ok(String::new()), "fixture")
+        .unwrap()
+        .require_faithful()
+        .unwrap();
+}
+
+#[test]
+fn archive_inventory_reporting_labels_cannot_replace_original_path_owners() {
+    use tcl_bigip_io::{MemberScope, list_ucs_members};
+    let archive = original_member_archive(&[("etc/donor", b"content")]);
+    let mut entries = list_ucs_members(
+        &archive,
+        &|| Ok(String::new()),
+        "fixture",
+        MemberScope::FullTree,
+    )
+    .unwrap();
+    entries[0].require_faithful_path().unwrap();
+    entries[0].path = "etc/other".to_owned();
+    assert!(entries[0].require_faithful_path().is_err());
+}

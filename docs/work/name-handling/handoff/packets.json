@@ -68,5 +68,10 @@
     "file": "validation-vm-8df-full133.tar.gz",
     "sha256": "8e0410b86533fbe819c6e68b0c153c6266b2504cd9e9006fb6ca4d209cc1fde9",
     "status": "Actual frozen8df original selected Native VM133:133PASS0FAILerrors[]; source{},compiled_input{},artifact{}; all132 predecessor selectors retained plus actualSharedEmpty; all6 predecessor failures nowPASS. Original provider/source/harness/selectedbody/budget guards preserved under exact reviewed2d-to-8df successor. Scope excludes later605/6d sources and is not fullVM/backend coverage."
+  },
+  {
+    "file": "validation-runtime-8df-full174.tar.gz",
+    "sha256": "0bdf920a1d7dbbbb88b2bb863bd449fdc42188203dc4f7cc8b3f79856e71c339",
+    "status": "Actual frozen8df original selected Runtime174:171PASS3FAILerrors[]; source{},compiled_input{},artifact{}; all original174 selectors/assertions/budgets retained (one approved unused-mut local lint-only source delta), exact historical/source/provider/artifact guards. Fail variable-inventory originalkey, namespaceDelete, retainedImportJim. No later05d/current-source or fullRuntime acceptance."
   }
 ]

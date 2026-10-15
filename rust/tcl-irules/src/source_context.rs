@@ -952,6 +952,43 @@ mod tests {
                 &context,
             )
             .unwrap();
+            let http_event = inventory
+                .events()
+                .iter()
+                .find(|event| event.event() == "HTTP_REQUEST")
+                .expect("the original configured HTTP_REQUEST declaration retains its body owner");
+            assert!(http_event.matches_source(&SourceImage::document(source), config));
+            let http_commands = inventory
+                .commands()
+                .iter()
+                .filter(|command| command.event_source() == http_event)
+                .collect::<Vec<_>>();
+            assert_eq!(
+                http_commands.len(),
+                3,
+                "{version}: every original HTTP body argv remains source advice"
+            );
+            for (command, expected) in
+                http_commands
+                    .iter()
+                    .zip([Some("a\"b".as_bytes()), Some("茶".as_bytes()), None])
+            {
+                let operand = command.words().original_argument_word(0).unwrap();
+                assert_eq!(
+                    tcl_syntax::word_rules::original_static_word_unicode_value(operand).as_deref(),
+                    expected,
+                    "{version}: complete original operand {}",
+                    command.span().start()
+                );
+                assert_eq!(
+                    command.words().with_source_schema(&context, |schema| {
+                        crate::original_source_object_operands(schema, None).len()
+                    }),
+                    Some(1),
+                    "{version}: original object slot {}",
+                    command.span().start()
+                );
+            }
             let references =
                 crate::extract_original_irules_source_object_references(source, &inventory, None);
             let names = references

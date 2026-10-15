@@ -55,7 +55,7 @@ use std::collections::BTreeMap;
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
 
-use tcl_bigip_io::{read_path_source, read_ucs_member, resolve_passphrase};
+use tcl_bigip_io::{read_path_source, resolve_passphrase};
 use tcl_bigip_query::value::Value;
 use tcl_bigip_query::{QueryError, QueryOptions, QueryResult, output, run_query};
 
@@ -106,10 +106,34 @@ fn ucs_uri_to_path(config_uri: &str) -> Option<String> {
     }
 }
 
+#[derive(Default)]
+struct QueryProviderSources {
+    entries: Vec<tcl_bigip_io::UcsFileEntry>,
+    members: Vec<tcl_bigip_io::UcsMemberSource>,
+    errors: Vec<tcl_bigip_io::UcsError>,
+}
+
+impl QueryProviderSources {
+    fn require_faithful(&self) -> Result<(), tcl_bigip_io::UcsError> {
+        if let Some(error) = self.errors.first() {
+            return Err(tcl_bigip_io::UcsError(error.to_string()));
+        }
+        for entry in &self.entries {
+            entry.require_faithful_path()?;
+        }
+        for member in &self.members {
+            member.require_faithful()?;
+        }
+        Ok(())
+    }
+}
+
+type ProviderSources = std::rc::Rc<std::cell::RefCell<QueryProviderSources>>;
+
 /// Build the `ucs_cert` reader the query engine injects: map a cert object's
 /// `config_uri` + filestore `cache-path` to an `x509_parse`-shaped value,
 /// reading the PEM out of the (possibly encrypted) UCS.
-fn make_ucs_cert_reader() -> tcl_bigip_query::eval::UcsCertReader {
+fn make_ucs_cert_reader(sources: ProviderSources) -> tcl_bigip_query::eval::UcsCertReader {
     let opts = crate::cli::PassphraseArgs::default().to_options();
     std::rc::Rc::new(
         move |config_uri: &str, cache_path: &str| -> Result<Value, QueryError> {
@@ -122,13 +146,15 @@ fn make_ucs_cert_reader() -> tcl_bigip_query::eval::UcsCertReader {
                 QueryError::builtin(format!("ucs_cert: cannot read UCS {path}: {e}"))
             })?;
             let provider = || resolve_passphrase(&opts);
-            let pem = read_ucs_member(&raw, cache_path, &provider, &path).map_err(|e| {
-                QueryError::builtin(format!(
-                    "ucs_cert: {cache_path} not found in {path} ({e}) \
+            let pem = tcl_bigip_io::read_ucs_member_source(&raw, cache_path, &provider, &path)
+                .map_err(|e| {
+                    QueryError::builtin(format!(
+                        "ucs_cert: {cache_path} not found in {path} ({e}) \
                  (a plain bigip.conf has no filestore — read the UCS itself)"
-                ))
-            })?;
-            let pem_str = String::from_utf8_lossy(&pem);
+                    ))
+                })?;
+            let pem_str = String::from_utf8_lossy(pem.bytes()).into_owned();
+            sources.borrow_mut().members.push(pem);
             tcl_bigip_query::probes::x509_parse(&pem_str)
         },
     )
@@ -137,7 +163,7 @@ fn make_ucs_cert_reader() -> tcl_bigip_query::eval::UcsCertReader {
 /// Build the `files` / `file` / `glob` / `grep` reader the query engine injects:
 /// enumerate a source's forensic UCS members (metadata) or read one member's
 /// content, decrypting the archive as needed with the shared passphrase.
-fn make_files_reader() -> tcl_bigip_query::eval::FilesReader {
+fn make_files_reader(sources: ProviderSources) -> tcl_bigip_query::eval::FilesReader {
     use tcl_bigip_io::{MemberScope, list_ucs_members};
     use tcl_bigip_query::eval::FileOp;
 
@@ -162,25 +188,37 @@ fn make_files_reader() -> tcl_bigip_query::eval::FilesReader {
                         ))
                     })?;
                     let list = entries
-                        .into_iter()
+                        .iter()
                         .map(|e| {
                             Value::object([
-                                ("path".to_owned(), Value::Str(e.path)),
+                                ("path".to_owned(), Value::Str(e.path.clone())),
                                 (
                                     "size".to_owned(),
                                     Value::Int(i64::try_from(e.size).unwrap_or(i64::MAX)),
                                 ),
-                                ("sha256".to_owned(), Value::Str(e.sha256)),
+                                ("sha256".to_owned(), Value::Str(e.sha256.clone())),
                                 ("is_text".to_owned(), Value::Bool(e.is_text)),
                             ])
                         })
                         .collect();
+                    sources.borrow_mut().entries.extend(entries);
                     Ok(Value::List(list))
                 }
-                FileOp::Content(member) => match read_ucs_member(&raw, member, &provider, &path) {
-                    Ok(bytes) => Ok(Value::Str(String::from_utf8_lossy(&bytes).into_owned())),
-                    Err(_) => Ok(Value::Null),
-                },
+                FileOp::Content(member) => {
+                    match tcl_bigip_io::find_ucs_member_source(&raw, member, &provider, &path) {
+                        Ok(Some(member)) => {
+                            let value =
+                                Value::Str(String::from_utf8_lossy(member.bytes()).into_owned());
+                            sources.borrow_mut().members.push(member);
+                            Ok(value)
+                        }
+                        Ok(None) => Ok(Value::Null),
+                        Err(error) => {
+                            sources.borrow_mut().errors.push(error);
+                            Ok(Value::Null)
+                        }
+                    }
+                }
             }
         },
     )
@@ -875,6 +913,7 @@ pub fn run_query_verb(
     // `sources` yet are skipped by the per-file loop's source check.
     let n_sources = sources.len() + side_inputs.len();
 
+    let provider_sources = ProviderSources::default();
     let query_opts = QueryOptions {
         names: resolved_names,
         partitions: resolved_partitions,
@@ -884,10 +923,10 @@ pub fn run_query_verb(
         // `ucs_cert` re-opens a cert from inside a UCS (decrypt + un-tar);
         // inject a reader using the same passphrase resolution the input
         // loader uses.
-        ucs_cert_reader: Some(make_ucs_cert_reader()),
+        ucs_cert_reader: Some(make_ucs_cert_reader(std::rc::Rc::clone(&provider_sources))),
         // `files` / `file` / `glob` / `grep` read the OS files inside a UCS;
         // inject a reader over the same passphrase resolution.
-        files_reader: Some(make_files_reader()),
+        files_reader: Some(make_files_reader(std::rc::Rc::clone(&provider_sources))),
         merge: flags.merge,
     };
 
@@ -900,6 +939,10 @@ pub fn run_query_verb(
     };
 
     if result.has_mutation {
+        if let Err(error) = provider_sources.borrow().require_faithful() {
+            eprintln!("error: {error}");
+            return Ok(2);
+        }
         for input in &original_inputs {
             if let Err(error) = input.require_faithful() {
                 eprintln!("error: {error}");
@@ -1104,7 +1147,7 @@ mod ucs_cert_tests {
     fn reader_reads_and_parses_real_cert() {
         let (archive, expected_fp) = fixture();
         let fixture = archive.path.to_str().expect("temporary UCS path");
-        let reader = make_ucs_cert_reader();
+        let reader = make_ucs_cert_reader(ProviderSources::default());
         let value = reader(&format!("file://{fixture}"), CACHE_PATH)
             .expect("reader reads + parses the cert");
         let Value::Object(map) = value else {
@@ -1132,7 +1175,7 @@ mod ucs_cert_tests {
         let (uri, src) =
             tcl_bigip_io::read_path(fixture, false, &pass).expect("UCS reads as an SCF");
         let opts = tcl_bigip_query::QueryOptions {
-            ucs_cert_reader: Some(make_ucs_cert_reader()),
+            ucs_cert_reader: Some(make_ucs_cert_reader(ProviderSources::default())),
             ..tcl_bigip_query::QueryOptions::default()
         };
         let result = tcl_bigip_query::run_query(
@@ -1161,7 +1204,7 @@ mod ucs_cert_tests {
     fn reader_errors_on_missing_member() {
         let (archive, _) = fixture();
         let fixture = archive.path.to_str().expect("temporary UCS path");
-        let reader = make_ucs_cert_reader();
+        let reader = make_ucs_cert_reader(ProviderSources::default());
         let err = reader(&format!("file://{fixture}"), "/config/filestore/nope_1").unwrap_err();
         assert!(format!("{err}").contains("ucs_cert"), "got: {err}");
     }

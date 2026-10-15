@@ -1194,10 +1194,27 @@ archive paths retain the original last-occurrence selection.
 F5 source transformations check that retained owner before emitting text or
 creating output artifacts. Mutating queries retain all positional and
 structured side-input owners because a different source can supply a new name
-or edit value. A read-only query can use preview text. Dynamically queried
-archive file-provider values have a separate provenance requirement; these
-input owners do not certify those provider values.
+or edit value. A read-only query can use preview text. Query file and certificate providers retain their actual selected member
+and entry owners separately from preview values. The mutating result path checks
+those owners and any failed archive-selection receipts as well. Completed member
+absence is distinct from provider failure. A member read preserves its existing
+first-exact, leaf and filestore preference; SCF assembly retains its separate
+last-occurrence rule. Public inventory labels cannot replace original raw paths.
 
 `compiled_unit_procedure_name(u32)` constructs the shared fixed procedure
 spelling for a new compiled unit. The engine owns the counter, publication and
 opaque unit receipts; the generated string cannot replace them.
+
+`render_manifest_header` and `render_manifest_requirement` share the manifest
+owner's literal directive constructor. Header generation validates the complete
+manifest AST; freeze constructs every source directive before emitting any of
+them. Default package names require the actual filename's Unicode value rather
+than a lossy display conversion.
+
+`SourceCommandBindings::original_class_relation_provider` observes the actual
+parent source-advice horizon using the existing invocation walk. Its receipt
+retains the genuine body, original class-reference operand, source lookup recipe
+and selected source class or Registry descriptor. Consumers must independently
+prove closed member-body relations and the actual class association before using
+that parent answer as class metadata. The receipt supplies neither body execution
+nor a substitute for later effects.

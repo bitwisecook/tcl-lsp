@@ -367,3 +367,63 @@ fn mutating_queries_require_faithful_named_and_structured_donors() {
     }
     std::fs::remove_dir_all(dir).unwrap();
 }
+
+#[test]
+fn query_archive_file_donors_keep_original_bytes_before_mutation() {
+    let dir = std::env::temp_dir().join(format!("f5-query-file-donor-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("input.ucs");
+    for (donor, faithful) in [
+        (b"new\xff".as_slice(), false),
+        ("new\u{fffd}".as_bytes(), true),
+    ] {
+        let gzip = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+        let mut archive = tar::Builder::new(gzip);
+        for (name, bytes) in [
+            (
+                "config/bigip.conf",
+                b"ltm pool /Common/old { description old }\n".as_slice(),
+            ),
+            ("etc/donor", donor),
+        ] {
+            let mut header = tar::Header::new_gnu();
+            header.set_size(u64::try_from(bytes.len()).unwrap());
+            header.set_mode(0o644);
+            header.set_cksum();
+            archive.append_data(&mut header, name, bytes).unwrap();
+        }
+        std::fs::write(&path, archive.into_inner().unwrap().finish().unwrap()).unwrap();
+        let preview = Command::new(env!("CARGO_BIN_EXE_f5-query"))
+            .args(["query", r#"file("etc/donor") | .content"#])
+            .arg(&path)
+            .output()
+            .unwrap();
+        assert!(preview.status.success(), "{:?}", preview.stderr);
+        assert!(
+            String::from_utf8(preview.stdout)
+                .unwrap()
+                .contains('\u{fffd}')
+        );
+        let result = Command::new(env!("CARGO_BIN_EXE_f5-query"))
+            .args([
+                "query",
+                "--write",
+                r#".ltm.pool[] | .description = (file("etc/donor") | .content)"#,
+            ])
+            .arg(&path)
+            .output()
+            .unwrap();
+        assert_eq!(result.status.success(), faithful, "{:?}", result.stderr);
+        if faithful {
+            assert!(
+                String::from_utf8(result.stdout)
+                    .unwrap()
+                    .contains('\u{fffd}')
+            );
+        } else {
+            assert!(result.stdout.is_empty());
+            assert!(String::from_utf8_lossy(&result.stderr).contains("invalid UTF-8"));
+        }
+    }
+    std::fs::remove_dir_all(dir).unwrap();
+}

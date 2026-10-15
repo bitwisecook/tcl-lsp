@@ -134,6 +134,108 @@ fn pkg_add_preserves_literal_name_and_source_argv_and_remove_selects_the_same_na
     std::fs::remove_dir_all(dir).unwrap();
 }
 
+#[test]
+fn pkg_init_preserves_literal_package_names_and_refuses_invalid_headers_before_writing() {
+    let dir = temp_dir("pkg-init-literal-name");
+    let path = dir.join("tclpkg.tcl");
+    let name = "demo; require injected 9.0 [literal]$value";
+    let (_stdout, stderr, code) = run_in(&dir, &["pkg", "init", "--name", name]);
+    assert_eq!(code, 0, "{stderr}");
+    let original = std::fs::read_to_string(&path).unwrap();
+    let ast = tcl_pkg::manifest::load_manifest(&path).unwrap();
+    assert_eq!(ast.name, name);
+    assert!(ast.requires.is_empty());
+    let (stdout, stderr, code) = run_in(
+        &dir,
+        &[
+            "pkg",
+            "init",
+            "--force",
+            "--name",
+            "replacement",
+            "--version",
+            "1.0; require injected 9.0",
+        ],
+    );
+    assert_eq!(code, 1, "{stderr}");
+    assert!(stdout.is_empty());
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[cfg(unix)]
+#[test]
+fn pkg_init_refuses_a_lossy_directory_package_name_and_accepts_an_explicit_name() {
+    use std::os::unix::ffi::OsStringExt as _;
+    let base = temp_dir("pkg-init-original-directory-name");
+    let dir = base.join(std::ffi::OsString::from_vec(b"project-\xff".to_vec()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let (_stdout, stderr, code) = run_in(&dir, &["pkg", "init"]);
+    assert_eq!(code, 1, "{stderr}");
+    assert!(stderr.contains("supply --name"), "{stderr}");
+    assert!(!dir.join("tclpkg.tcl").exists());
+    let (_stdout, stderr, code) = run_in(&dir, &["pkg", "init", "--name", "explicit"]);
+    assert_eq!(code, 0, "{stderr}");
+    assert_eq!(
+        tcl_pkg::manifest::load_manifest(dir.join("tclpkg.tcl"))
+            .unwrap()
+            .name,
+        "explicit"
+    );
+    std::fs::remove_dir_all(base).unwrap();
+}
+
+#[test]
+fn pkg_freeze_preserves_literal_dependencies_and_stages_all_source_before_emission() {
+    use tcl_pkg::lockfile::{LockFile, LockedPackage, SourceSpec, write_lockfile};
+    let dir = temp_dir("pkg-freeze-literal-requirements");
+    let header = "package demo\nversion 1.0\n";
+    std::fs::write(dir.join("tclpkg.tcl"), header).unwrap();
+    let package = |name: &str, version: &str, url: &str, dev| LockedPackage {
+        name: name.to_owned(),
+        version: version.to_owned(),
+        source: SourceSpec::new("path", url),
+        integrity: String::new(),
+        size: 0,
+        requires: Vec::new(),
+        provides: Vec::new(),
+        license: "MIT".to_owned(),
+        dev,
+        spec_integrity: None,
+    };
+    let name = "test name; [literal]$value";
+    let url = "https://example.test/a b;[literal]$value\\tail";
+    let mut locked = LockFile {
+        name: "demo".to_owned(),
+        packages: vec![
+            package("plain", "1.0", "", false),
+            package(name, "2.0", url, true),
+        ],
+        ..LockFile::default()
+    };
+    write_lockfile(&locked, dir.join("tclpkg.lock")).unwrap();
+    let (stdout, stderr, code) = run_in(&dir, &["pkg", "freeze"]);
+    assert_eq!(code, 0, "{stderr}");
+    assert!(stdout.contains("require plain 1.0\n"));
+    let ast = tcl_pkg::manifest::load_manifest_text(&format!("{header}{stdout}"), None).unwrap();
+    assert_eq!(ast.requires[0].name, "plain");
+    assert_eq!(ast.dev_requires[0].name, name);
+    assert_eq!(ast.dev_requires[0].source_url.as_deref(), Some(url));
+    locked
+        .packages
+        .push(package("zzz", "1.0; require injected 9.0", "", false));
+    write_lockfile(&locked, dir.join("tclpkg.lock")).unwrap();
+    let (stdout, stderr, code) = run_in(&dir, &["pkg", "freeze"]);
+    assert_eq!(code, 1, "{stderr}");
+    assert!(stdout.is_empty());
+    let (stdout, stderr, code) = run_in(&dir, &["pkg", "freeze", "--json"]);
+    assert_eq!(code, 0, "{stderr}");
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    assert_eq!(json[name], "2.0");
+    assert_eq!(json["zzz"], "1.0; require injected 9.0");
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
 /// `pkg discover --dialect` is validated by the one resolver: a language id
 /// that only selects an environment and an environment a workspace pack
 /// declares are accepted, and an unknown name is refused.

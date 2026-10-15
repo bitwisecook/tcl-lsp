@@ -989,3 +989,122 @@ been executed by this auditor.
 | `runtime/rust/src/expr.rs` | `58b112361119d35d3962cdbf01f6608fdb2d9deedbce2a8ffc056a7bc264e6fa` |
 | `runtime/rust/src/native_script_tests.rs` | `7f33e6e2f2a7bb2c2d72df7d104c1d193f27a211353c4aaa86f5ede1473e8dc1` |
 | `runtime/rust/src/interp/native_procedure_resources.rs` | `4e459ba605f855c83f3b3b680e2c40e6f45733107522a3442d8c5a5f53099223` |
+
+## Interprocedural continuation audit
+
+Production interprocedural source analysis already uses
+`scan_positioned_invocation`/`scan_positioned_reachability` for retained current
+source targets, original callback owners and issued procedure BodyIds. The
+`resolve_internal_call*` String helpers are `cfg(test)` only, not live target
+inverses. Remaining exact consumers are:
+
+| Call site | Existing owner and source context | Disposition |
+| --- | --- | --- |
+| `interprocedural.rs::scan_call_facts` near line 2340, including positioned caller near line 3151 | Positioned source already owns `ResolvedStatementInvocation`, selected target and effective original argv, but the consumer reduces it to canonical label/presented strings then uses `resolve_unpositioned`, Registry lookup for `INVOKES_USER_PROC`, callback roles and `classify_side_effects_in(..., None, None)`. | Migration required: carry existing typed selected invocation facts/context/effective operands into the effect/callback consumers. A canonical label alone must not reconstruct the selected descriptor. Preserve original source callback APIs and protective MAY unions. |
+| `interprocedural.rs::scan_retained_substitutions` near line 3193 | `lifted_calls_with_surface` deliberately returns only `.calls`; it discards the shared collector's `incomplete` flag, while this caller unconditionally sets `positioned_substitutions=true`. | Migration required: use existing complete checked lexical inventory with authentic retained parent input/image/config and propagate unsupported/truncated coverage as unknown. Existing `lift` already derives `tokens.native_lexer_config(config)`, so the caller's default-profile argument alone is not proof of configuration loss. Actual Expr/body phases remain separate source owners. No observed semantic regression is claimed. |
+| `interprocedural.rs::{scan_role_code_arguments,scan_source_for_calls}` near lines 2659/3776 | Legacy role recursion and source String reparsing remain alongside the positioned route. `possible_body_id` itself requires authentic current-token source procedure IDs. | Caller-purpose audit/migration remains: source-backed paths must consume actual body/expression/child owners; explicit standalone compatibility analysis must stay separate. Missing source cannot silently select roles through a name. Protective extra MAY edges do not prove a target or pure completion. |
+
+The new package init/freeze source renderer tranche passes bounded source peer:
+`render_manifest_header` and `render_manifest_requirement` extend the existing
+manifest owner, sharing one private literal directive renderer with exact
+parsed argv and dispatch-AST correspondence. Complete headers additionally
+validate required fields and whole-source AST equality. Requirement fragments
+explicitly do not certify the surrounding header. Init uses the actual Unicode
+directory label only when no explicit name is supplied, and renders before
+writing. Non-JSON freeze stages every checked line before any output; JSON
+remains data. These are authored manifest source APIs, not Tcl runtime names or
+package-installation permission. Literal name/URL, opaque directory, invalid
+forced header and late-version no-partial-output controls remain unexecuted by
+this auditor.
+
+The subsequent Runtime Source invocation/iterator tranche also passes bounded
+source peer. Genuine constructor receipts travel explicitly through actual
+Script dispatch/lookup/traces to the current invocation borrow; ordinary,
+unknown and internal calls supply no receipt, and the consumer inspects only
+the most recent borrow. Real entered frame/procedure/root and full original
+argv lifetime/header correspondence are checked. Only one nonexpanded actual
+Command token can mark its returned object; concatenated/expanded words do not
+inherit it. The Jim live foreach iterator rechecks the selected returned header
+after actual reached List conversion. This is constructor/result/iterator
+transport only, without returned-list membership, enumeration, traversal or
+Normal proof. Marked Import still unconditionally refuses traversal. No
+auditor build, tests or oracle execution occurred.
+
+| Additional review source | SHA-256 |
+| --- | --- |
+| `rust/tcl-compiler/src/interprocedural.rs` | `67a8b09bf1f2b9d0843eeda1b372e549f10a8df299f5642873c62d0678e76044` |
+| `rust/tcl-compiler/src/word_subst.rs` | `b78ebd227a0b7dac80db0db92ee4e5cc48e683ade8b9572af6c01ee748735757` |
+| `rust/tcl-pkg-model/src/manifest.rs` | `d38285fbf7ecdbb38260bcf60ca89a72c5194efb700d6eace9e04a9db549790d` |
+| `rust/tcl-cli/src/commands/pkg.rs` | `da0411eb8ce12e8b004ba433e8228c26b127a28aafacf023d2000140402eb38f` |
+| `rust/tcl-cli/tests/pkg_verbs.rs` | `58136f1a582bc62476183d05778cf819d7cf5e3bc9e58a52e33d6f3b10fe20b6` |
+| `runtime/rust/src/interp.rs` | `93657093c79f5969ee2c0dfe84962f3b641ae7e514cbfd73b10b416d7db52597` |
+| `runtime/rust/src/interp/native_script.rs` | `b8bd83be4b093b15f579bf0c2b21979e47eded63ad11cbcaca6848e2cb3cf7d1` |
+| `runtime/rust/src/cmd_control.rs` | `646470bccf26daa26505e3245bfb693f4483ab5403ab3e9b194f8fab89451bc9` |
+
+## Further owner transport source peers
+
+The inspected UCS file-provider donor gap is now source-migrated in a separate
+owner extension. `UcsMemberSource` retains the actual selected member and raw
+path alternatives sharing its preview, while `find_ucs_member_source`
+distinguishes completed missing-member selection from decryption/archive
+failure. The existing member-selection purpose keeps first exact match, then
+first leaf match with filestore preference; it does not borrow SCF extraction's
+last-occurrence policy. `read_ucs_member` projects bytes after a faithful-path
+check and does not require textual content. `UcsFileEntry` retains raw path
+provenance and checks that its public reporting path still agrees. Query's
+private per-run collector holds actual inventory/member owners for file and
+certificate providers before creating preview values, retaining archive
+failures separately from legacy read-only Null. Every provider and loaded
+input owner is validated before mutation output. Bounded source peer passes;
+first-duplicate, U+FFFD, missing-versus-failure, altered label and provider donor
+controls remain unexecuted by this auditor. This does not certify every query
+probe or arbitrary external value provider.
+
+The VM actual Jim core command-inventory producer passes bounded source peer:
+it retains real slot/storage/generation/key allocation leases and independent
+original table reports, uses shared reached ordinals before key getters, and
+checks actual key identity, generation, table epoch and caller context through
+getters and final actual List publication. The result contains held original
+key objects, without a rendered-name lookup. All/no-pattern remains getter-free;
+space filtering and held pattern-getter stages stay separate. The existing
+bytes-pattern API cannot represent every physical repeated original-pattern
+getter behavior, so this is explicitly not complete native inventory parity
+or Import traversal acceptance. Identity/laziness, unselected stringless key and
+replacement-with-same-key controls remain unexecuted by this auditor.
+
+The compiler's exact-parent-horizon class relation provider passes bounded
+source peer as an owner API, before analyser integration. A request must match
+genuine SourceTransitions parent allocation/seed/config, authentic definition
+body/member/reference and original word/lookup. The same source walk observes
+its live graph after fresh full parent-advice equality, with preceding/current
+operand uncertainty terminal; actual SourceClass or class-root Descriptor
+occupants qualify, aliases and absence do not. Conflicting captures withdraw.
+This observes the graph before the definition body: independent closed member
+ledger, intervening effects/definition namespace and current class/member
+association remain essential analyser obligations. It supplies conditional
+relation metadata, not a physical class object, member dispatch, execution or
+Normal proof. No compiler build/tests ran in this audit.
+
+Additional package generated-environment source consumers remain unexamined or
+unfinished: `tcl-pkg/src/venv.rs` wrapper/activation TCLLIBPATH construction near
+312/336/345 and `tcl-pkg/src/docker.rs` ENV construction near479 mix shell or
+Docker source syntax with Tcl list values. The separate proposed direct Profile
+and CLI environment transport cannot certify these generated scripts. Each
+needs actual original path/inherited environment and selected shell/Docker
+source grammar through the relevant existing owners; a generic quoting swap
+would not establish both grammars.
+
+| Further source peer | SHA-256 at review |
+| --- | --- |
+| `rust/tcl-bigip-io/src/ucs.rs` | `0bb9475ed40c3ba77be5a738bb9cdb307ad71c87e6bd7a1a5dedb56323a1bc42` |
+| `rust/tcl-bigip-io/src/lib.rs` | `94da35f61a772a6eb95cdd7532d890f24392c42241f1ee688d10597dda052d3e` |
+| `rust/f5-cli/src/commands/query.rs` | `5ee8e21f83429f2fabc508508c9d0c996bee5f8af506860e5c67c993365ec988` |
+| `rust/tcl-bigip-io/tests/ucs.rs` | `420b8365e808e0ec565c909ef1608d7a41a900feee172d53810b03b4f35631e6` |
+| `rust/f5-cli/tests/cli.rs` | `0434c392fce15aaceea39d09987246f650c43442c1e82e8fbda87a39e3428355` |
+| `rust/f5-cli/Cargo.toml` | `3a96bcd3b78b9c6978b31602fc938b45b05d21e59c3633530cfd78688dd84c79` |
+| `rust/tcl-vm/src/interp/jim_table_keys.rs` | `6350d24fb44f2c3d6d4f96f1abe0b89b31461e21f8a4fe87dd2b8521cd4b194a` |
+| `rust/tcl-vm/src/interp.rs` | `792fd98614635ebd31bf326c769ea8c80a39bfaf014123b72d6fc4cc4131ae7b` |
+| `rust/tcl-compiler/src/command_binding/source_transition_advice/source_relation_provider.rs` | `1717b99e80826dc7a5b99d9a12d80fd5fc29f66aa19c61f6b6a14bdd97e9c410` |
+| `rust/tcl-compiler/src/command_binding/source_transition_advice.rs` | `13558d2db2e87c6b08883772de1fbd73f1666ab5ded145ac26d49023f9badde5` |
+| `rust/tcl-pkg/src/venv.rs` | `aa377595924f930860a15ea6af58452eda6bdd8ff6f514cff6e7eef581145909` |
+| `rust/tcl-pkg/src/docker.rs` | `d519cf8766aa1513c72226d55249b1877e74950d6b0587a1a2c461659ffbd192` |

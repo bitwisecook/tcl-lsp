@@ -26,6 +26,8 @@ mod source_class;
 mod source_class_publications;
 mod source_class_reference;
 mod source_configured_class;
+mod source_relation_provider;
+pub use source_relation_provider::OriginalSourceClassRelationProvider;
 mod source_namespace;
 pub use source_callback::{
     OriginalSourceCallbackProcedureLookup, OriginalSourceCallbackProcedureRefusal,
@@ -1855,6 +1857,7 @@ struct AdviceInvocationContext<'a> {
     config: LexerConfig,
     dialect: InvocationDialect,
     policy: &'a AdviceNamingPolicy,
+    class_relation_query: Option<source_relation_provider::ClassRelationQuery<'a>>,
 }
 #[derive(Clone, Copy)]
 struct AdviceInvocation<'a> {
@@ -1935,6 +1938,7 @@ impl AdviceInvocationContext<'_> {
         procedure: Option<&source_procedure::OriginalSourceProcedureBody>,
         callback_scope: logical_navigation::LogicalCallbackScope<'_>,
     ) -> Option<()> {
+        self.retain_requested_class_relation(invocation, graph, schema);
         self.retain_schema_advice(tape, invocation, graph, schema)?;
         self.retain_native_expression_syntax_inventory(tape, graph, invocation, schema);
         self.retain_original_expression_catalogue(tape, graph, invocation, schema);
@@ -2469,6 +2473,15 @@ impl OriginalSourceTransitionSeed {
         context: &ContextRegistry,
         purpose: OriginalSourceCataloguePurpose,
     ) -> Option<OriginalSourceTransitionAdviceTape> {
+        self.prepare_for_class_relation(context, purpose, None)
+    }
+
+    fn prepare_for_class_relation(
+        &self,
+        context: &ContextRegistry,
+        purpose: OriginalSourceCataloguePurpose,
+        class_relation_query: Option<source_relation_provider::ClassRelationQuery<'_>>,
+    ) -> Option<OriginalSourceTransitionAdviceTape> {
         let AdviceTapeInputs {
             origin,
             config,
@@ -2484,6 +2497,7 @@ impl OriginalSourceTransitionSeed {
             config,
             dialect,
             policy: &policy,
+            class_relation_query,
         };
         for invocation in plan.commands {
             if let AdviceNamingPolicy::Logical(input) = &policy

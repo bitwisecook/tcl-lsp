@@ -248,13 +248,6 @@ fn read_original_members(ucs_bytes: &[u8]) -> Result<Vec<OriginalUcsMember>, Ucs
     Ok(members)
 }
 
-fn read_members(ucs_bytes: &[u8]) -> Result<Vec<(String, Vec<u8>)>, UcsError> {
-    Ok(read_original_members(ucs_bytes)?
-        .into_iter()
-        .map(|member| (member.name, member.bytes))
-        .collect())
-}
-
 /// Extract `ucs_bytes` and return a concatenated SCF text.
 ///
 /// When `include_extras` is true, any additional `config/*.conf` files not in
@@ -430,59 +423,130 @@ pub fn ucs_archive_to_scf_source(
     ucs_to_scf_source(&data, include_extras)
 }
 
-/// Return the bytes of a single file member from a UCS archive.
+/// One actual selected archive member, with its original source bytes.
+#[derive(Debug, Clone)]
+pub struct UcsMemberSource {
+    member: OriginalUcsMember,
+    matching_paths: Vec<Vec<u8>>,
+}
+
+impl UcsMemberSource {
+    #[must_use]
+    pub fn bytes(&self) -> &[u8] {
+        &self.member.bytes
+    }
+
+    #[must_use]
+    pub fn path(&self) -> &str {
+        &self.member.name
+    }
+
+    fn require_faithful_path(&self) -> Result<(), UcsError> {
+        for path in &self.matching_paths {
+            std::str::from_utf8(path).map_err(|error| {
+                UcsError::new(format!("invalid UTF-8 in UCS member path: {error}"))
+            })?;
+        }
+        Ok(())
+    }
+
+    /// Require original selected names and contents before textual editing.
+    ///
+    /// # Errors
+    /// Returns invalid source bytes, including colliding path previews.
+    pub fn require_faithful(&self) -> Result<(), UcsError> {
+        self.require_faithful_path()?;
+        std::str::from_utf8(&self.member.bytes).map_err(|error| {
+            UcsError::new(format!(
+                "invalid UTF-8 in UCS member {}: {error}",
+                self.member.name
+            ))
+        })?;
+        Ok(())
+    }
+}
+
+/// Read a member using the existing exact-first, leaf and filestore preference.
 ///
-/// Decrypts `raw` first when it is OpenPGP-encrypted, then extracts the member
-/// named by `member_path` — typically a BIG-IP filestore `cache-path`. Matching
-/// is tolerant: the leading `/` is optional, and the `:partition:` filename
-/// prefix is matched even when one side omits it. Returns [`UcsError`] when no
-/// member matches or the archive is corrupt.
-pub fn read_ucs_member(
+/// # Errors
+/// Returns decryption, archive or missing-member failure. Original source
+/// fidelity is retained separately from preview selection.
+pub fn read_ucs_member_source(
     raw: &[u8],
     member_path: &str,
     provider: &PassphraseProvider<'_>,
     label: &str,
-) -> Result<Vec<u8>, UcsError> {
+) -> Result<UcsMemberSource, UcsError> {
+    find_ucs_member_source(raw, member_path, provider, label)?
+        .ok_or_else(|| UcsError::new(format!("member not found in UCS archive: {member_path}")))
+}
+
+/// Select a member while distinguishing completed absence from archive failure.
+///
+/// # Errors
+/// Returns decryption or archive failure without reporting a missing member.
+pub fn find_ucs_member_source(
+    raw: &[u8],
+    member_path: &str,
+    provider: &PassphraseProvider<'_>,
+    label: &str,
+) -> Result<Option<UcsMemberSource>, UcsError> {
     let data = decrypt_if_encrypted(raw, provider, label)?;
     if !is_ucs_bytes(&data) {
         return Err(UcsError::new(format!("{label}: not a valid UCS archive")));
     }
     let want = lstrip_dot_slash(member_path.trim_start_matches('/'));
     let base = want.rsplit('/').next().unwrap_or(want);
-    // The `:partition:` prefix is informational for matching — compare the
-    // bare leaf so a stanza cache-path and the on-disk filename agree.
     let leaf = base.rsplit(':').next().unwrap_or(base);
-
-    let members = read_members(&data)?;
-    // Exact match first.
-    if let Some((_, bytes)) = members.iter().find(|(n, _)| n == want) {
-        return Ok(bytes.clone());
-    }
-    let mut candidates: Vec<&(String, Vec<u8>)> = members
+    let members = read_original_members(&data)?;
+    let selected = members
         .iter()
-        .filter(|(n, _)| {
-            let mbase = n.rsplit('/').next().unwrap_or(n);
-            mbase == base || mbase.rsplit(':').next().unwrap_or(mbase) == leaf
-        })
+        .find(|member| member.name == want)
+        .or_else(|| {
+            let candidates = members
+                .iter()
+                .filter(|member| {
+                    let mbase = member.name.rsplit('/').next().unwrap_or(&member.name);
+                    mbase == base || mbase.rsplit(':').next().unwrap_or(mbase) == leaf
+                })
+                .collect::<Vec<_>>();
+            if candidates.len() > 1 {
+                candidates
+                    .iter()
+                    .copied()
+                    .find(|member| member.name.contains("/filestore/"))
+                    .or_else(|| candidates.first().copied())
+            } else {
+                candidates.first().copied()
+            }
+        });
+    let Some(selected) = selected else {
+        return Ok(None);
+    };
+    let matching_paths = members
+        .iter()
+        .filter(|member| member.name == selected.name)
+        .map(|member| member.path.clone())
         .collect();
-    if candidates.len() > 1 {
-        // Prefer a filestore path so a same-named pair in different stores
-        // doesn't collide.
-        let narrowed: Vec<&(String, Vec<u8>)> = candidates
-            .iter()
-            .copied()
-            .filter(|(n, _)| n.contains("/filestore/"))
-            .collect();
-        if !narrowed.is_empty() {
-            candidates = narrowed;
-        }
-    }
-    match candidates.first() {
-        Some((_, bytes)) => Ok(bytes.clone()),
-        None => Err(UcsError::new(format!(
-            "member not found in UCS archive: {member_path}"
-        ))),
-    }
+    Ok(Some(UcsMemberSource {
+        member: selected.clone(),
+        matching_paths,
+    }))
+}
+
+/// Read bytes from the original selected member without decoding its contents.
+///
+/// # Errors
+/// Returns source-selection failure or an unrepresentable selected path.
+pub fn read_ucs_member(
+    raw: &[u8],
+    member_path: &str,
+    provider: &PassphraseProvider<'_>,
+    label: &str,
+) -> Result<Vec<u8>, UcsError> {
+    let selected = read_ucs_member_source(raw, member_path, provider, label)?;
+    selected.require_faithful_path()?;
+    Ok(selected.member.bytes)
 }
 
 /// Which members [`list_ucs_members`] returns.
@@ -504,6 +568,7 @@ pub enum MemberScope {
 pub struct UcsFileEntry {
     /// Archive path, leading `./` / `/` stripped (e.g. `etc/passwd`).
     pub path: String,
+    original_path: Vec<u8>,
     /// Uncompressed size in bytes.
     pub size: u64,
     /// Lowercase hex SHA-256 of the member's content — lets a reviewer diff a
@@ -512,6 +577,23 @@ pub struct UcsFileEntry {
     /// Whether the content decodes as UTF-8 with no NUL bytes (i.e. safe to
     /// show as text rather than a binary blob).
     pub is_text: bool,
+}
+
+impl UcsFileEntry {
+    /// Validate the original path and its unchanged public reporting projection.
+    ///
+    /// # Errors
+    /// Returns undecodable original names or a changed display label.
+    pub fn require_faithful_path(&self) -> Result<(), UcsError> {
+        let original = std::str::from_utf8(&self.original_path)
+            .map_err(|error| UcsError::new(format!("invalid UTF-8 in UCS member path: {error}")))?;
+        if lstrip_dot_slash(original) != self.path {
+            return Err(UcsError::new(
+                "UCS member path no longer matches its original source",
+            ));
+        }
+        Ok(())
+    }
 }
 
 /// Lowercase hex SHA-256 of `bytes`.
@@ -603,14 +685,17 @@ pub fn list_ucs_members(
     if !is_ucs_bytes(&data) {
         return Err(UcsError::new(format!("{label}: not a valid UCS archive")));
     }
-    let members = read_members(&data)?;
+    let members = read_original_members(&data)?;
     let mut out = Vec::new();
-    for (name, bytes) in &members {
+    for member in &members {
+        let name = &member.name;
+        let bytes = &member.bytes;
         if matches!(scope, MemberScope::Forensic) && !is_forensic_path(name) {
             continue;
         }
         out.push(UcsFileEntry {
             path: name.clone(),
+            original_path: member.path.clone(),
             size: bytes.len() as u64,
             sha256: sha256_hex(bytes),
             is_text: is_text_bytes(bytes),

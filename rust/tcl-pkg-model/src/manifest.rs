@@ -259,6 +259,53 @@ pub fn original_manifest_requirements<'source>(
     })
 }
 
+/// Render the initial complete manifest under its fixed declarative grammar.
+/// Original literal values are validated before any source is returned.
+pub fn render_manifest_header(
+    package: &str,
+    version: &str,
+    license: &str,
+    tcl: &str,
+    path: Option<&str>,
+) -> Result<String, TclPkgError> {
+    let mut source = String::new();
+    let mut expected = empty_manifest_ast(path);
+    for (directive, value) in [
+        ("package", package),
+        ("version", version),
+        ("license", license),
+        ("tcl", tcl),
+    ] {
+        let rendered =
+            render_manifest_directive(vec![directive.to_owned(), value.to_owned()], 12, path)?;
+        dispatch(&mut expected, &rendered.words[0], &rendered.words[1..])
+            .map_err(|error| manifest_err(&error, path))?;
+        source.push_str(&rendered.source);
+        source.push('\n');
+    }
+    validate(&expected, path)?;
+    if load_manifest_text(&source, path)? != expected {
+        return Err(manifest_err(
+            "manifest header source changes its literal values",
+            path,
+        ));
+    }
+    Ok(source)
+}
+
+/// One independently validated dependency declaration for manifest source output.
+/// This is a directive fragment; it does not claim the surrounding manifest's
+/// required package/version fields or resolve the named package.
+pub fn render_manifest_requirement(
+    package: &str,
+    minimum: &str,
+    source_url: Option<&str>,
+    kind: RequirementKind,
+    path: Option<&str>,
+) -> Result<String, TclPkgError> {
+    requirement_directive(package, minimum, source_url, kind, path).map(|rendered| rendered.source)
+}
+
 /// Append one literal requirement using the manifest's own source grammar.
 /// The complete edited source must preserve the original AST and reproduce
 /// exactly the supplied dependency before an edit is returned.
@@ -271,43 +318,11 @@ pub fn append_manifest_requirement(
     kind: RequirementKind,
 ) -> Result<String, TclPkgError> {
     let mut expected = load_manifest_text(source, path)?;
-    let directive = match kind {
-        RequirementKind::Runtime => "require",
-        RequirementKind::Development => "dev-require",
-    };
-    let mut words = vec![directive.to_owned(), package.to_owned(), minimum.to_owned()];
-    if let Some(url) = source_url {
-        words.extend(["-source".to_owned(), url.to_owned()]);
-    }
-    let mut command = directive.to_owned();
-    for word in &words[1..] {
-        if tcl_syntax::word_rules::lexical_ascii_source_word(word, manifest_lexer_config())
-            .as_deref()
-            == Some(word.as_str())
-        {
-            command.push(' ');
-            command.push_str(word);
-            continue;
-        }
-        let fragment = tcl_syntax::backslash::literal_quoted_source_fragment(
-            word,
-            manifest_lexer_config().escapes,
-        )
-        .ok_or_else(|| manifest_err("requirement has no literal source spelling", path))?;
-        command.push_str(" \"");
-        command.push_str(&fragment);
-        command.push('"');
-    }
-    let parsed = parse_script(&command).map_err(|error| manifest_err(&error, path))?;
-    if !matches!(parsed.as_slice(), [parsed] if parsed.words == words) {
-        return Err(manifest_err(
-            "requirement source does not preserve its literal words",
-            path,
-        ));
-    }
-    dispatch(&mut expected, directive, &words[1..]).map_err(|error| manifest_err(&error, path))?;
+    let rendered = requirement_directive(package, minimum, source_url, kind, path)?;
+    dispatch(&mut expected, &rendered.words[0], &rendered.words[1..])
+        .map_err(|error| manifest_err(&error, path))?;
     validate(&expected, path)?;
-    let edited = format!("{source}\n{command}\n");
+    let edited = format!("{source}\n{}\n", rendered.source);
     if load_manifest_text(&edited, path)? != expected {
         return Err(manifest_err(
             "appended requirement changes the original manifest",
@@ -317,14 +332,97 @@ pub fn append_manifest_requirement(
     Ok(edited)
 }
 
+struct RenderedDirective {
+    source: String,
+    words: Vec<String>,
+}
+
+fn requirement_directive(
+    package: &str,
+    minimum: &str,
+    source_url: Option<&str>,
+    kind: RequirementKind,
+    path: Option<&str>,
+) -> Result<RenderedDirective, TclPkgError> {
+    let directive = match kind {
+        RequirementKind::Runtime => "require",
+        RequirementKind::Development => "dev-require",
+    };
+    let mut words = vec![directive.to_owned(), package.to_owned(), minimum.to_owned()];
+    if let Some(url) = source_url {
+        words.extend(["-source".to_owned(), url.to_owned()]);
+    }
+    render_manifest_directive(words, directive.len() + 1, path)
+}
+
+fn empty_manifest_ast(path: Option<&str>) -> ManifestAst {
+    ManifestAst {
+        path: path.unwrap_or("").to_owned(),
+        ..ManifestAst::default()
+    }
+}
+
+fn render_manifest_directive(
+    words: Vec<String>,
+    head_width: usize,
+    path: Option<&str>,
+) -> Result<RenderedDirective, TclPkgError> {
+    let Some((directive, arguments)) = words.split_first() else {
+        return Err(manifest_err("missing directive words", path));
+    };
+    let mut expected = empty_manifest_ast(path);
+    dispatch(&mut expected, directive, arguments).map_err(|error| manifest_err(&error, path))?;
+    let mut command = format!("{:<head_width$}", words[0]);
+    for (index, word) in words[1..].iter().enumerate() {
+        if index != 0 {
+            command.push(' ');
+        }
+        if tcl_syntax::word_rules::lexical_ascii_source_word(word, manifest_lexer_config())
+            .as_deref()
+            == Some(word.as_str())
+        {
+            command.push_str(word);
+            continue;
+        }
+        let fragment = tcl_syntax::backslash::literal_quoted_source_fragment(
+            word,
+            manifest_lexer_config().escapes,
+        )
+        .ok_or_else(|| manifest_err("directive has no literal source spelling", path))?;
+        command.push('"');
+        command.push_str(&fragment);
+        command.push('"');
+    }
+    let parsed = parse_script(&command).map_err(|error| manifest_err(&error, path))?;
+    let [parsed] = parsed.as_slice() else {
+        return Err(manifest_err(
+            "directive source does not preserve one command",
+            path,
+        ));
+    };
+    if parsed.words != words {
+        return Err(manifest_err(
+            "directive source does not preserve its literal words",
+            path,
+        ));
+    }
+    let mut actual = empty_manifest_ast(path);
+    dispatch(&mut actual, &parsed.words[0], &parsed.words[1..])
+        .map_err(|error| manifest_err(&error, path))?;
+    if actual != expected {
+        return Err(manifest_err("directive source changes its AST", path));
+    }
+    Ok(RenderedDirective {
+        source: command,
+        words,
+    })
+}
+
 fn parse_manifest_source(
     source: &str,
     path: Option<&str>,
 ) -> Result<(ManifestAst, Vec<OriginalRequirementDeclaration>), TclPkgError> {
-    let mut ast = ManifestAst {
-        path: path.unwrap_or("").to_string(),
-        ..ManifestAst::default()
-    };
+    let mut ast = empty_manifest_ast(path);
 
     let commands = parse_script(source).map_err(|m| manifest_err(&m, path))?;
     let mut declarations = Vec::new();
@@ -967,6 +1065,73 @@ dev-require {test name} 1.0\n";
         .unwrap();
         assert_eq!(edited, format!("{original}\nrequire json::write 1.7\n"));
         assert_eq!(load(&edited).unwrap().requires[0].name, "json::write");
+    }
+
+    #[test]
+    fn rendered_headers_preserve_literal_values_and_plain_source_alignment() {
+        let plain = render_manifest_header("demo", "1.0.0", "MIT", ">=8.6", None).unwrap();
+        assert_eq!(
+            plain,
+            "package     demo\nversion     1.0.0\nlicense     MIT\ntcl         >=8.6\n"
+        );
+        for name in [
+            "two words",
+            "demo; require injected 9.0",
+            "[name]$value",
+            "a}b{c",
+            "caf\u{e9}",
+            "line\nbreak",
+        ] {
+            let source =
+                render_manifest_header(name, "1.0", "MIT OR Apache-2.0", ">=8.6", None).unwrap();
+            let ast = load(&source).unwrap();
+            assert_eq!(ast.name, name);
+            assert_eq!(ast.license, "MIT OR Apache-2.0");
+            assert!(ast.requires.is_empty());
+            assert!(ast.dev_requires.is_empty());
+        }
+        assert!(
+            render_manifest_header("demo", "1.0; require injected 9.0", "MIT", ">=8.6", None)
+                .is_err()
+        );
+        assert!(
+            render_manifest_header("demo", "1.0", "MIT\nrequire injected 9.0", ">=8.6", None)
+                .is_err()
+        );
+        assert!(
+            render_manifest_header("demo", "1.0", "MIT", ">=8.6; require injected 9.0", None)
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn rendered_dependency_fragments_keep_original_names_sources_and_kinds() {
+        let header = render_manifest_header("demo", "1.0", "MIT", ">=8.6", None).unwrap();
+        assert_eq!(
+            render_manifest_requirement("plain", "1.0", None, RequirementKind::Runtime, None)
+                .unwrap(),
+            "require plain 1.0"
+        );
+        let name = "test name; [literal]$value";
+        let url = "https://example.test/a b;[literal]$value\\tail";
+        let declaration =
+            render_manifest_requirement(name, "1.0", Some(url), RequirementKind::Development, None)
+                .unwrap();
+        let ast = load(&format!("{header}{declaration}\n")).unwrap();
+        assert!(ast.requires.is_empty());
+        assert_eq!(ast.dev_requires.len(), 1);
+        assert_eq!(ast.dev_requires[0].name, name);
+        assert_eq!(ast.dev_requires[0].source_url.as_deref(), Some(url));
+        assert!(
+            render_manifest_requirement(
+                "plain",
+                "1.0; require injected 9.0",
+                None,
+                RequirementKind::Runtime,
+                None
+            )
+            .is_err()
+        );
     }
 
     #[test]
