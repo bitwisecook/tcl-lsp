@@ -1885,3 +1885,588 @@ otherwise identical real binding/frame facets remain separate observations. Actu
 metadata validation still precedes admission. Genuine independent-module/site and
 altered-argv controls cover the index purpose; they remain unexecuted. This
 performance change supplies no source-to-physical SSA conversion.
+
+
+At checkpoint `892dd8e6a`, the ready source tranches remain source-peer reviewed
+rather than execution-accepted. The newly repaired original member producer now
+retains existing OriginalSourceNamePurpose from the actual resolved analysis input,
+source entry and policy at every Producer constructor; key construction delegates
+to that owner. The same Logical word is still refused by the unchanged Native
+constructor. This repairs the observed early member-name refusal without granting
+native words, and does not finish the pending original parameter DTO/list-value
+or namespace class-facet producers.
+
+The next SSA identity design must preserve the existing conditional location
+purposes: VariableCellKey and cell_key are not uniformly physical observations.
+Authored/ConditionalLogicalScalarStore location keys already have their own proof
+boundaries. A future Cell|Source identity projection selects an identity domain;
+the Cell arm alone proves neither Native ownership, currentness nor Normal, and
+missing Cell projection must not erase an independently valid conditional-location
+API. The whole sink migration remains pending; this audit accepts no blanket
+source-to-cell or cell-to-Native promotion.
+
+Runtime's later global Info producer is source-reviewed only. It captures the
+actual typed relay and installed Info Proc/Source/frame/namespace, actual lmap
+inputs/yields and complete finite outputs, typed actual return completion before
+frame retirement, then publishes only settled-Ok data to the newest exact relay.
+Constructed data now requires a closed actual native_jim_string_cat completion
+receipt issued after the shared kernel, complete original Source argument suffix
+and exact yielded input/fresh output. The earlier arbitrary constructor-Rc/output
+interface is removed. Neutral/Weak/Rc transport supplies no added Native roles.
+Local dictionary processing is still unavailable where required; Import entry
+still refuses and native execution/conformance has not been accepted.
+
+Source-peer hash `rust/tcl-compiler/src/analyser/original_members.rs`: `8446da657cc8da9876ad6c5fd532f425f52cbe973c212778cd231b474b147cbc`.
+
+Source-peer hash `runtime/rust/src/interp/native_jim_namespace_info.rs`: `fc1c7dc1754556998e9358dfdbde8b0c4be1ccadd46e5d4d3d3ba1b22953b4d4`.
+
+Source-peer hash `runtime/rust/src/value_ops/native_jim_cat.rs`: `2bbdd31548c0b4dca52c219f0166d775a7dc97af760f1821d93910a11bf88dcc`.
+
+
+A later Runtime self-review found a concrete completion gap missed by the earlier
+bounded peer: Info could return a known raw inventory Data when mutable lmap simply
+returned its input, without completing the selected transformation. Completion now
+requires exact Rc correspondence with a private completed_body receipt issued only
+by the actual Native lmap finish/full-coverage path. The auditor inspected that
+gate. Data provenance alone remains insufficient for transformation completion;
+local dictionary processing needs its own authentic issuer. Replaced-lmap,
+genuine/empty outcomes and native execution still require root's original-provider
+capture and fresh tests. Import entry remains unchanged.
+
+
+The second OO source-purpose tranche is source-reviewed, unexecuted. The member
+declaration issuer now accepts the actual Producer/analysis source purpose,
+requires the same naming policy, and independently reissues the exact OriginalWord
+key through that purpose. Native word admission keeps its existing protocol/escape
+checks. Readonly OriginalValue retains its separate guard; this does not invent
+Logical literal-installer list authority. The original names/body DTO also selects
+the actual analysis purpose for its formal key while keeping current image/config,
+original topology and reported-name correspondence. It still exposes parameter
+names and unchanged body only, excluding default-layout and activation authority.
+The two real declaration callers transport genuine existing owners. Literal
+installer value topology and namespace class-facet inventory remain unfinished.
+
+
+The first namespace class-facet proposal has a source-peer blocker, not acceptance.
+It retains positive common class-issuer receipts separately from a deliberately
+conflicted generic inventory, then queries by exact current advice plus registered
+factory applicability. Separate Conditional/Deferred purpose facets can legitimately
+remain distinct. However, a positive-only vector omits a refused capture of the
+same actual facet: namespace presence/occupied-destination guards run before the
+factory receipt is built, so exact advice equality alone does not prove every
+admission guard agreed. One positive plus one same-facet refusal must not become a
+positive query merely because the generic None is ignored. The compiler agent was
+asked for attempted-facet conflict/unavailability retention or actual impossibility
+evidence and a discriminating positive-plus-refusal control. No guard weakening or
+migration-complete claim is accepted.
+
+
+The original Jim namespace-info projection packet has bounded evidence admission:
+`verify.py --current-provider` passed hash/fixture/package checks without executing
+an interpreter. Fifteen retained rows and derived setup exactly match raw C-probe
+stdout/source; 247 provider inputs and linked libraries match before/after/current.
+The capture's 13:49 upstream check matches clean local 5bac7c99, static extensions
+are original, and the original namespace/testing/tcltest pairing recorded 79/79.
+Source, probe executable, invocation, process channels and completion are retained.
+Runtime GENUINE/EMPTY tests consume observed header/member/result rows. Mutable
+lmap/cat tests explicitly preserve original successful observations while testing
+a separate architecture refusal; their eventual PASS would not prove interpreter
+conformance. No Rust control was run by this audit, and localdict/Import acceptance
+remains unavailable.
+
+The Optional-location UI sink re-peer is source-accepted only. Extraction now
+checks the complete actual SSA variable_symbols roster and refuses future-name
+coverage if any lacks a location, independently of missing Source projections.
+Explorer retains its original current DefUse location correspondence and emits no
+source label fallback from an unrelated current SSA symbol. That fallback was
+withdrawn because current Source presence alone could mislabel a stale chain at a
+reused Symbol. A future source-report projection needs the actual DefUse/source
+correspondence owner. No Native/read/edit permission follows from report text.
+
+Evidence/source peer hash `experiments/name-handling/results/jim-namespace-info-projection/SHA256SUMS`: `34611a5e56c95ac52782a1fd7fd1127d6c964bfd44929b1b293f499caab85ad3`.
+
+Evidence/source peer hash `runtime/rust/src/interp/native_jim_namespace_info/tests.rs`: `367479eda380e94e8fbbcd4aba5bc3224968c4ef9f7abb0a8c0d51dc1f04c1f3`.
+
+Evidence/source peer hash `rust/tcl-lsp-core/src/refactor/extract_variable.rs`: `275c2131ddbc6dbcc4c4513e4b440604d64d12fafc17d71cd4c9c1a79e9df0e0`.
+
+Evidence/source peer hash `rust/tcl-explorer/src/serialise.rs`: `f742595ab1143a37c93b6d2296a9a7b3317eee2ec8105499cbc5ef227511bc57`.
+
+The corrected namespace class-facet tranche now passes bounded source review,
+without execution. The actual common issuer builds the complete factory purpose
+before state-dependent name/publication/namespace/occupancy admission, retaining
+an attempted facet with either the original declaration or explicit unavailability.
+Root and both body-walk capture paths retain those attempts. Same-factory conflict
+or refusal is terminal, including a later positive capture. The facade joins exact
+current input/image/config/context/vector and SourceTransitions advice plus the
+mandatory registered-factory obligation. A real issuer/occupied destination/clear
+destination control discriminates the earlier omitted-refusal defect. The generic
+class inventory historically retained positive installs only and remains unchanged;
+the new typed attempted-facet ledger is independent. Whole OO migration and these
+new tests remain unaccepted until fresh validation.
+
+Debugger REPL source transport is source-reviewed: print retains its complete
+operand and trailing bytes, while break preserves its first numeric-token grammar.
+The backend's shared whole-variable-reference admission is unchanged. New transport
+controls cover spaces, braced references, array-index spelling, literal dollar and
+empty names; they are not an execution/evaluation grant. Source-only SSA relocation
+also now refuses without an authentic rebind instead of projecting a source label
+into a location. Neither change has been executed by this audit.
+
+Runtime's rejected-selector original-object-vector ingress and shared no-pattern
+dict-keys getter change pass bounded source review only. Actual fresh head/List
+objects enter the existing vector owner; neutral cleanup checks retirement before
+freeing rc0 headers. No-pattern dict keys keeps original key values without reaching
+a String getter; the pattern path retains its existing matcher/getter order.
+The local Info dictionary design uses actual backing birth plus checked monotonic
+mutation revision at the two published mutable-backing ingress operations. Extra
+same-value/revert writes and overflow must invalidate an exactly-one-write receipt;
+constructor-local unpublished preparation has a separate lifetime. Selected-cell,
+COW-publication, getter and retirement-callback correspondence remains mandatory.
+Local Info completion and Import entry are not accepted by this design review.
+
+Hosted MAY assistance now retains a private actual source metadata receipt and
+reissues the whole selected shape before schema/value projections. Public shape
+mutation cannot reuse that receipt. It appends a source candidate only to an
+existing reached envelope, preserving unknown/absence and nominal-name hazards;
+there is no unanimous-dispatch, event-disable, Native or Normal donation. Supplied
+iRules diagnostics use actual checked-original argument children. Existing missing
+CFG phase carriers remain unavailable. Explorer's newer display fallback is now
+joined through genuine current DefUse source snapshots plus absence of a location
+projection, rather than raw current SSA source presence. These are source peers,
+not passing test results.
+
+The new Source-MAY CFG/SSA chain is still under substantive peer review. Actual
+call tokens, source allocation, full input, owned body IDs and emitted snapshot
+travel with typed source symbols, and SCCP initially widens them to unknown only.
+However phi placement/incoming maps still use Location keys, while Source symbols
+now have versions and entry/exit maps. Branch/loop reaching-source joins need an
+authentic counterfactual and integration into the same SSA identity algorithm or
+conservative all-reaching liveness. Unknown-read liveness also explicitly omits
+Source identities from the location-only classified-read vector. Linear controls
+cannot establish these joins; no full-chain migration acceptance is recorded.
+
+Incoming origin/rust commits remain unmerged and unaccepted. #2479 (`4cb264d70`)
+adds the representation formatter, static qualified/unqualified Registry aliases,
+actual Runtime/VM value observers and verifyDict behavior. Representation remains
+display data. #2480 (`1f28e44aa`) adds release binding command tables, Compiler
+instruction/body metadata and VM historical builtin dispatch. Exact live naming
+watch points are release_compilation::release_binding/evaluates_script_directly
+(raw command prefix tables) and exec::release_compiled_command (current FQN/rendered
+root stripping into historical builtin lookup and a detached entered command).
+Historical selection needs actual slot/incarnation/generation/provider ownership;
+current rendered lookup does not reconstruct it. Preserve the incoming regression
+release_running_bytecode_e2e::running_bytecode_sees_a_command_table_change_as_its_release_does.
+These are integration-watch findings, not acceptance of incoming behavior.
+
+Additional generated-guidance source review inspected ai/prompts manifest and both
+Tcl/iRules Jinja inputs, their Claude skill prompt copies, VSCode promptLoader and
+Makefile canonical-copy dependencies. The templates already distinguish source
+advice, displayed labels, frame/context/selected dialect, mutation and oracle
+applicability, and explicitly preserve refactoring refusals. promptLoader selects
+static prompt files by declared dialect IDs and user extra-prompt scope; it does
+not resolve Tcl names. The similarly named tcl-cli-support::prompt module is the
+terminal UCS passphrase reader, outside semantic name resolution. This bounded
+review found no new live resolver in those call sites. It does not establish
+generated-copy drift, complete guidance cleanup, or all AI/MCP tool consumers;
+the repository's generated gates remain required.
+
+The graph reporting tranche passes bounded source review, unexecuted. Production
+dataflow nodes and edges retain actual function-scoped Symbol/Version identities;
+optional constructors issue no invented symbol. Rows require current DefUse
+location correspondence or the actual DefUse Source snapshot. Source rows keep
+location display empty, and a separately built same-text unit's DefUse facts are
+rejected. Core and Explorer serialize symbol fields within existing function/body
+envelopes. These report identities grant no contents/read/Native authority and do
+not resolve the separate Source-SSA phi/reaching-version review. Targeted tracked
+Core/Explorer/editor searches found fromCell/toCell only in those serializers,
+with no JS/TS/HTML consumer; generated bundles and browser execution remain gates.
+
+VM K's first launch was a setup refusal before build/tests: K's notes had replaced
+the immutable original README. The separately sealed repair packet restores exact
+original/F README bytes and retains K notes as REBIND.md. All 244 new seal entries,
+243 manifest entries and 235 predecessor closure entries (explicit beforeimage
+mapping for the three replaced metadata files) were independently hash-checked.
+All 23 Python files remain byte-identical to K, with original executable mapping,
+58 source bindings, 13 successors, 133 selected function bodies and 180-second
+budgets unchanged. Final seal is 3ecf3b22933558a74c8fc882ee1dfed7d538c75b21ae91425e7942fc3a1c46f0;
+manifest is 9644f2403f3f02a6507ab5eb9e0290be00e6f829529d1ff858f4bfcca03b01aa.
+Root launched the repaired runner separately; no replay completion or acceptance
+is inferred from this metadata/source peer, and this audit ran no Cargo or tests.
+
+The next BPF scalar tranche is source-reviewed, unexecuted. Existing
+OriginalBpfSource::argument authenticates the full real command vector before the
+shared original static Unicode value owner supplies a closed DSL scalar. Builtin
+profile selection now requires that receipt too. Profile names/fields, template
+declaration names, loop count/variable and when event/priority operands consume
+actual static values while retaining existing bounds and target diagnostics.
+Body/list source geometry is unchanged. Genuine escaped-value controls and
+consistent counterfeit head/name or missing-carrier controls distinguish this
+from selecting representative strings. Generic DSL head selection/use expansion,
+mixed final instruction origins and deployment/capability consumers remain open.
+
+The iRules source-pairing design remains pending implementation and proof. An
+exact canonical EffectOnly marker can certify that the marker itself owns no
+argv; it cannot certify a complete handler inventory. Altered marker tokens or
+nonempty actual args must stay SourceRequired/unavailable. Independently typed
+conditional pairing advice still needs actual closed source Body/Expr inventory
+and honest conditional text retaining runtime obligations. Opaque eval, missing
+selected bodies and unsupported phases withdraw that advice too. Existing
+definite-empty/no-release/no-data diagnostics require their own closure and cannot
+be made true merely by retaining a positive MAY operation roster.
+
+New native host migration-required call site: tcl-host-native/src/lib.rs
+Filesystem::copy recursively consumes actual DirEntry/PathBuf children, then
+passes entry.path().to_string_lossy and destination-child.to_string_lossy back
+through its String API. Runtime cmd_fs::file_copy reaches that owner. This can
+select a real U+FFFD sibling in place of an opaque native filename, including a
+wrong destination overwrite under force; it is an actual operation, not display.
+The existing host owner can retain native Path values throughout internal
+recursion, preserving public source/target admission and symlink/directory/force
+order. This narrow transport does not solve the separate guest byte-path encoding
+or read_dir/cwd/readlink representation doors. Genuine native opaque/U+FFFD
+siblings with distinct contents, force and symlink controls remain unexecuted.
+
+Follow-up Source graph-owner review remains open beneath the reporting facade:
+the initial SourceVariableSsaSnapshot keeps direct call definition points/versions
+and original owner receipts, but no phi incoming or use relations. A changed SSA
+clone can retain its actual source allocation/direct calls while its Source joins
+or uses change. The pending phi tranche needs actual immutable graph ownership or
+the current symbol/version graph correspondence, with a same-source changed-join
+counterfactual; independent equal-text source allocation rejection alone does not
+establish this. Reporting's correct use of the facade does not complete that owner.
+
+The subsequent seven-owner Source-MAY correction passes substantive source peer,
+unexecuted. Source identity now follows the existing defsite/worklist/phi,
+incoming, rename-stack and entry/exit SSA algorithm. Conservative Quoted uses at
+later statements and actual terminators keep possible liveness without claiming
+a successful read. Snapshot correspondence now includes Source phis/incoming,
+entry/exit and actual statement use/def flags alongside original call receipts.
+Real branch/loop controls require actual CFG edges/backedge, phi paths reaching
+every source call definition, and rejection of same-source changed phi/use graphs.
+Missing Call carriers retain unknown widening. These changes repair the preceding
+source-peer blockers; SCCP supplies only Overdefined/MayBound, and Source still
+has no location/read/Native/Normal projection. Existing Authored conditional
+locations retain independent purpose guards. Fresh compilation, the complete
+controls and unchanged #2286 performance budget remain mandatory acceptance gates.
+
+Root separately reports the repaired frozen VM K replay sealed 133 PASS/0 with
+all three drift maps empty. This executes that exact frozen packet/source, and
+does not execute the newer Source-SSA, graph, BPF scalar or host-path tranches.
+
+The canonical argv-phase implementation passes bounded source peer. Exactly five
+documented widening variants qualify only with complete canonical marker token
+equality, empty args and no canonical command. Malformed carriers and Condition
+stay SourceRequired; executable classification is unchanged. Collection retains
+EffectOnly/UnknownTarget/MayBeAbsent obligations separately from positive source
+calls and withholds existing definite absence diagnostics under any obligation.
+New controls preserve positive source inventory while denying unknown absence and
+malformed-marker availability. No conditional pairing closure has been issued.
+
+A further DB self-review tightening remains pending after the preceding chain
+peer: an UnseenCall marker's kind/presence alone does not prove its location
+clobber map remains current and complete. A changed SSA with the marker retained
+but value_clobbers removed must not preserve old location constants/existence.
+The agent was asked for genuine current coverage correspondence or whole-frame
+unknown fallback, with an actual remove-map/keep-marker counterfactual. Present
+empty maps or report labels cannot prove absence of effects. Fresh validation
+and this final authority tightening are prerequisites for chain acceptance.
+
+Root's NativeFs/server three-path implementation now passes bounded source peer,
+unexecuted. copy_path retains native Path/PathBuf values throughout recursion,
+preserving public String ingress and symlink/force/directory/error order. The
+existing PathGlobSet owner validates actual Unicode basename and relative Normal
+components before rendering for matching. An opaque relative parent disables only
+path-pattern matching; a valid basename pattern still applies independently.
+Opaque basenames cannot collapse to genuine U+FFFD. New real sibling-content and
+opaque symlink-target controls plus basename/path-pattern counterfactuals distinguish
+the previous loss. read_dir, cwd, readlink, current_exe and guest path-byte ingress
+remain separate unfinished doors. In particular Runtime/VM init_auto_path_entered
+consume NativeEnv::current_exe through shared auto_path_installation, so that lossy
+executable-path report still reaches actual library-search path construction.
+
+New registered WASM textual artifact migration-required consumer:
+codegen/wasm/ir.rs::WasmModule::to_wat directly interpolates function names into
+both WAT identifiers and quoted exports, import module/name into quoted literals
+and symbolic import identifiers, and global/local labels into identifiers.
+backend.finish_function receives actual proc.qualified_name and creates direct
+parameter labels from original names. CLI compwasm --wat publishes this text.
+Tcl names containing spaces, quotes, parentheses or NUL are not necessarily WAT
+tokens/literals. Binary indexed/counted-name encoding is a distinct route and
+does not establish textual fidelity. Existing escape_wat_bytes already preserves
+quoted data bytes and can own name literals too; symbolic debug identifiers need
+actual indexed identity or checked target-token construction, never a Tcl-name
+normalizer. Existing to_wat_renders_module_function_and_body and
+to_wat_escapes_data_segments_without_changing_bytes cover ordinary labels/data,
+not this name boundary. No implementation or execution acceptance is recorded.
+
+DB's final clobber/topology tightening now passes source peer, unexecuted.
+The existing SSA producer seals the actual following marker/index, nonempty
+generated clobber map and complete location inventory; SCCP requires exact current
+correspondence. Missing, empty or changed maps widen the tracked frame instead
+of using a bare marker as coverage. Genuine retained-marker/remove-map controls
+discriminate this boundary. Source snapshots additionally retain source CFG
+terminator/successor topology and SSA entry/dominator graph; an external CFG owner
+still needs its independent checks. This resolves the preceding peer concern.
+
+The OO list-template tranche passes bounded source review, unexecuted. The actual
+selected Registry schema must own ListArguments from zero/offset zero without a
+subcommand; a distinct source-word/expansion layout leaves exact argv/result APIs
+strict. Manufacturer templates consume genuine original subgroup/full direct
+origins/word configuration and body-contained single-formal splice geometry.
+Shared static scalar decoding supplies literal values. split/lreverse/list-shadow
+and formal-boundary/array/command controls distinguish the former raw trait and
+String-scanner overclaim. Expanded source splice is no evaluated list cardinality,
+successful result, Native or Normal authority. Constructor literal-list geometry
+and standalone factory completion-summary consumers remain unfinished.
+
+Runtime's connected local Info producer passes bounded source/lifetime review,
+without native execution. It retains the actual selected cell/binding/epoch,
+original root and neutral pair lifetimes; COW preparation verifies genuine prior
+pairs before capturing revision. A closed reached-write ordinal/inserted/first-key/
+value receipt plus exactly one backing mutation gates publication. Native roles
+are not added. Zero-result completion requires actual exhausted zero-input loops
+and an observed converted empty dictionary. Range provenance comes from the private
+Core-issued completed constructor plus original Source/yield correspondence.
+Final completion still requires the actual keys/loop completed_body receipt;
+Import entry remains refused. Hash-only verify.py --current-provider independently
+passes 35 original local-dictionary observations, exact fixtures and provider/package
+closure across captures 01/02. Original upstream checks at 14:15/14:18 matched clean
+5bac7c99, and original namespace/testing/tcltest captures report 79/79 each.
+The auditor ran no interpreter or Rust controls; the new conformance/lifetime
+controls remain root's fresh execution requirement.
+
+The WAT naming migration now passes bounded source peer, unexecuted. The existing
+WAT owner builds the complete import/defined-function index namespace, independent
+global and per-function local namespaces, retaining only unique safe readable
+aliases and issuing reserved actual-index aliases otherwise. Numeric instruction
+references remain unchanged. Existing exact byte escaping now owns quoted import
+module/field and export name literals independently. Arbitrary names, duplicate
+and reserved labels, cross-import/function collisions and binary invariance have
+new controls; original ordinary semantic assertions are unchanged. An optional
+actual Wasmtime parse control remains unexecuted and must not be reported as
+successful when skipped. General backend execution is a separate gate.
+Final source-peer hash codegen/wasm/ir.rs:
+`c784269b7862bc84bb92a7f12bbc47f806ed053dff18313dea8a0e1a8d179eff`.
+
+The later constructor argv/list-field handlers tranche is source-reviewed,
+unexecuted. Actual local constructor match/direct Written origins or the current
+foreign Logical request/full vector retain original argument words through
+manufacturer layout. Caller splices use shared static list fields and require
+honest original field spans, emitting only values/display anchors. Missing original
+or cooked field geometry leaves inheritance unknown; no child NativeWord/name
+input is invented. The separate known_factory_invocation_falls_through consumer
+still accepts layout.name_arg without independently proving custom completion.
+Its explicit None original-argument input does not complete that authority
+migration, and the call site remains open. Source-peer handlers hash:
+`a18c2ab9c197463a8b654357c886720b21a4be9ad7b4cf7c3ce0d14691931ff5`.
+
+Capability/deployment BPF scalar consumers now pass bounded source peer,
+unexecuted. Public collectors and production callers require the actual opaque
+OriginalBpfSource; each selected original operand uses the same full-vector static
+scalar projection. Actual capability descriptors and attachment kind/arity/
+duplicate policies stay separate. Whole-carrier head/operand mutations, missing
+carrier, original escaped/static data and dynamic refusal controls are retained.
+Generic head selection including tamper-away, expanded policy/use fields and mixed
+instruction origins remain unfinished. A static attachment target supplies no
+actual device/host permission or observed deployment.
+
+Production compilation at frozen 227eb exposed type errors despite prior source
+peers; source peer is not compilation acceptance. Three narrow repairs have been
+reviewed without execution: Source-MAY retains the actual invocation-site
+Arc<SourceOriginId>, DefUse relocation wraps its new map in Arc, and Hosted shape
+construction borrows the actual owned InvocationFacts. No purpose/guard/assertion
+changed. Fresh repaired-source compilation remains required.
+
+The two L227eb native packets have bounded retention admission only. Independent
+hash review verified unchanged successful K runners, original README pairings,
+Runtime F179/K381 and VM F106/K245 immutable closures, source/guard receipts and
+original Runtime174 (173 exact plus the prior unused-mut correction)/VM133 all-exact
+function preservation. Added content pins cover 98278 tracked files within eleven
+explicit source/configuration roots, excluding editors/AI/docs and other roots;
+they are not a whole-repository or consumer census. The bounded K-to-L patch has
+209 paths; original provider/artifact/compiled-input/180-second guards remain.
+These packets are superseded before native execution because the related ordinary
+227eb build failed. No runner/provider/network/Cargo/list/test was executed by this
+audit. A repaired successor requires its own exact source rebind and final seal;
+old K results and L metadata cannot donate acceptance.
+
+The later Runtime helper-body route tightening is source-reviewed, unexecuted:
+only the authentic installed Info/Import owner requires original Source execution,
+checking exact selected body/context/protocol. run_proc refuses C-only artifacts
+and excludes compiled native entries without Source hooks for that domain; ordinary
+procedures remain on existing routes. Import entry remains unconditionally
+refused. No traversal or Native execution grant follows from this stricter route.
+
+The first concrete conditional collection-pairing census has an open source-peer
+blocker. It authenticates each represented event/body/schema/vector and retains
+typed conditional premises, but iterates only irules_event_bodies IDs without an
+independent complete top-level handler/deferred-source inventory. An original
+unsupported/dynamic `when $event {HTTP::collect}` beside a retained HTTP_REQUEST
+release could be omitted from that map. Missing handler representation cannot
+prove no source collection candidate. Top-level unknown/deferred constructors
+also need genuine phase coverage or refusal. The agent was asked for full original
+source handler-census correspondence and discriminating unsupported-header/body
+counterfactuals. Explicit conditional wording or a generic RequiresReview label
+does not close this gap; the new API is not source-peer accepted yet.
+
+The top-level pairing source bijection has since been added, closing omitted
+original root commands versus retained event-map entries. A subsequent peer found
+that enabled substitutions in a retained declaration header (for example dynamic
+priority) also needed phase coverage, independently of body argv. The agent now
+requires the shared static original value owner for every nonbody header word,
+excluding only the exact genuine body word. Dynamic headers remain unavailable.
+Tests/consumer adoption are still active. A further action-boundary repair is
+pending: conditional source pairing must retain explicit NoAction purpose through
+diagnostic context refresh, so a generic diagnostic code cannot mint a Core
+bootstrap/refactoring handle. No prose/code heuristic or RequiresReview label is
+an edit certificate. Final source-peer acceptance remains pending that integration.
+
+Original Jim Import source-completion evidence and genuine entered-body control
+admission pass bounded peer, without executing an interpreter. Hash-only current
+provider verification passes both captures' exact six cases/eighteen reports,
+fixture setup/report extraction, original source/library/configuration hashes and
+247-input unchanged closures. Upstream checks at 14:33/14:39 match clean5bac7c99;
+the original namespace/testing/tcltest pairing reports79/79 each. The separate cycle
+capture records successful setup, raw CYCLE_EVAL_ENTER and bounded two-second
+noncompletion, without a Tcl error or claimed inner phase. New tests enter actual
+installed Proc/body/native activation/Rest owners; five original success reports
+remain distinct from architecture cycle/replaced-inventory refusals. Actual body,
+copy, None and retired-definition selection controls are retained. No Rust test,
+public Import dispatch or finite production traversal admission follows yet.
+
+The next original BPF head migration remains in draft peer review. Per-present
+command authentication catches changed/tampered-away labels, but an empty/truncated
+Script paired with the original source of a deny/attach declaration can still
+produce a default/absence without visiting that command. Public collector purposes
+need genuine whole original script/region correspondence or must withhold default
+authority; a per-present-call owner is not a closed census. The agent was asked for
+dropped-declaration/call-kind counterfactuals and actual phase transport. Generated
+tokensNone cannot become a typed operation receipt, and transformed pipeline
+consumers remain separate unfinished work.
+
+The subsequent original BPF six-file tranche closes the bounded original-script
+census blocker in source review. The existing owner now checks the authentic
+NativeScriptWordsPlan fatal tail and complete command count against configured
+lowering and the supplied Script's order, spans and kinds, then authenticates
+every Call/Barrier's full original vector and static head. All four collectors,
+frontend declaration stripping and original profile-field input validate before
+defaults. Genuine dropped, truncated, retyped, foreign-source and changed-config
+controls are retained. NonCall fields/children/effects and transformed
+source_command_* consumers remain unfinished; this correspondence is not execution
+or capability authority. No tests were run by the audit.
+
+The selected structural control-arm tranche passes bounded source peer. Registry
+source/Logical purposes require resolved selected subcommands, exact effective
+argv cardinality/arity, complete actual roles and existing clause/case/Try grammar
+under the actual dialect. Legacy raw APIs reuse the factored hook/Try owner with
+prior behavior preserved. The analyser reborrows current full input and joins a
+unique genuine PotentialEvaluation body, exact container and direct original
+ordinal. Unsupported lambda-body inventory and concatenated scripts refuse.
+unknown_script_path_proof's selected hook is migrated; possible_if_body_spans and
+raw static completion/condition consumers remain unfinished, without any new
+Normal or execution grant. New controls are unexecuted.
+
+The four-file conditional Hosted collection source-advice tranche now passes
+bounded source peer after the earlier census/header/action blockers were fixed.
+It retains exact root lexical/event declaration bijection, static original
+nonbody header words, authentic body lexical/IR/CFG-child correspondence and
+selected schemas with empty Body/prefix/Expr inventories for the admitted leaf
+scope. Dynamic, omitted, unsupported, abrupt-tail and stale carriers refuse. The
+public borrowed advice retains actual body/schema owners and typed unresolved
+runtime/event premises; messages explicitly describe conditional source pairing,
+and the legacy definite-absence API abstains. Its typed diagnostic constructor
+checks actual entry membership and issues private NoAction purpose; currency
+refresh preserves that purpose through current, foreign and unavailable contexts.
+Core refuses the action subject before code-based bootstrap handling; Explorer
+retains an explicit conditional-source report kind. No runtime absence, edit
+certificate or test acceptance is inferred. Original assertions/selectors remain
+for fresh replay.
+
+Further live bytecode naming/source geometry consumers remain outside the bounded
+330-row roster: codegen/cmd_subst.rs::is_pure_cmd_subst manually balances brackets
+and two-byte escape skips; statements.rs assignment selection and
+emitter/terminator.rs Return emission consume it. has_command_separator manually
+scans quotes/braces/brackets and selects actual EVAL_STK versus inline invocation
+paths in cmd_subst.rs and statements.rs. Existing configured shared command-close,
+whole-word command-token and script-word owners are available; migration must
+retain real source/configuration and conservative fallback purposes.
+unroll_nested_set has no production Rust callers in the examined source roster
+(tests only), so is cleanup/dead API rather than a demonstrated live resolver.
+These are source findings, not observed semantic regressions.
+
+The shared Try recipe retains a separate value/list-purpose debt: its existing
+parse_try_control_invocation uses is_dynamic_word and default split_list over
+supplied frozen String selectors/variable-list values. A dollar in actual literal
+data can be inert. The new selected source-arm API preserves that conservative
+refusal without copying or widening it; shared value/list grammar migration
+remains unfinished.
+
+The Runtime finite Import production-entry peer remains open. One reached-control
+question has been sent to its owner: native generic foreach reaches Finish after
+both exhaustion and Break, while Import's finish currently records only current
+candidate publication and a finished flag. A mutable alias wrapper that performs
+actual publication then returns break needs an original SDK discriminator and
+explicit completion purpose; full inventory exhaustion cannot be inferred merely
+from that flag. This is a pending authority question, not an observed regression.
+The unconditional public Import guard remains; previous evidence/source hook
+peers do not authorize removing it. The exact one-import ValueOps compile repair
+was separately source-reviewed (actual trait owner tcl_syntax::value), without any
+stage/guard/control change or build acceptance.
+
+A bounded Zed executable-path consumer remains unfinished:
+editors/zed/src/lib.rs::abs_path converts actual current_dir().join(relative)
+through to_string_lossy and returns it from ensure_downloaded as the actual
+server command path. The Unicode host API needs checked representation at that
+boundary if an opaque current-directory path is possible; replacement text must
+not select a sibling executable. prune_stale_versions also lossy-projects entry
+labels for prefix/keep policy but deletes the retained actual entry.path(), so
+that policy purpose is distinct from the executable-path inverse. No Zed runtime
+behavior or platform representability was executed in this review.
+
+The F5 outstanding-operation and exact-question documents were rechecked without
+appliance execution: the retained matrix remains 108 observed, 25 unsupported
+and 267 unreached original operations; source/formal/frame/object-path and XC
+source-owner questions remain explicitly unanswered. Local origin/rust remains
+1f28e44aa (#2480) atop4cb264d70 (#2479), already listed as unintegrated and
+unaccepted. No answer or issue state was promoted. Runtime has acknowledged the
+Import iterator Break ambiguity and proposes a bounded refusal before Finish
+for both roles, preserving reached effects; exact original wrapper evidence and
+concrete repair still require independent review.
+
+The Import Break discriminator now has bounded original-provider evidence:
+hash-only verification of jim-import-source-reuse --current-provider passes all
+fifteen exact rows, scripts/fixtures, failed initial network setup and unchanged
+247-input/current linked-library closure. Fresh upstream14:56 remains clean5bac;
+original namespace/testing/tcltest pairing reports79/79. The native C wrapper
+checks the actual alias implementation, calls it with unchanged argv, then returns
+Break. Original Import returns0 after p publication while q is unvisited. The new
+Runtime genuine entered-body reuse P/Q/R/repeated-pattern controls and separate
+architecture refusal for incomplete traversal are source-admitted, unconnected
+and unexecuted at review. The guard fix/public entry remains separate.
+
+A further independent BPF obligation was identified after the geometry peer:
+OriginalBpfSource currently retains original image/config/region but not the
+Module registry snapshot. The actual semantic key must be transported and
+rechecked through original body owners before foreign registry metadata/defaults
+can be accepted. The current six-file peer covers fullvector/census geometry; it
+is not a complete registry-context admission certificate. Typed generated-operation
+carrier/rebase and transformed phase coverage remain design-only.
+
+The concrete Import Break guard and connected reuse controls pass bounded source
+peer. The actual traversal/frame/Source checks precede explicit Break refusal for
+both pattern and command iterators, before generic foreach cursor Finish. Already
+reached effects remain, Error/Return propagation and generic foreach are unchanged,
+and the public Import entry still refuses unconditionally. Reviewed import-owner
+SHA9a8b8f881fd799ea1e5c503e9d7a2f79391b2b5d6886ffb52ba2f8db04790f33;
+new tests/reuse.rs SHA9b8e0a7402ba6622f8fc5edfad39f90e815351dd5f38904684ec748fc28dd0ee.
+Original-provider partial success remains distinct from architecture refusal.
+Neither Rust execution nor production-entry acceptance follows.
+
+The BPF original-source registry context follow-up also passes bounded source
+peer: actual Module RegistrySnapshot is retained and inherited through original
+body projection, and missing/foreign semantic keys decline before command lookup
+or script/default validation. Genuine default-Registry refusals through all four
+collectors and actual child-body context controls are retained. Source owner
+SHA2296a21d74bd300c7726cbc0bae2d44ffff34050b72597ff02e07ac6a343e891.
+Private lowering/transformed consumers and typed operation carriers remain
+unfinished; new tests are unexecuted.

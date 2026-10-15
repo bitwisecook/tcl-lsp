@@ -7,8 +7,9 @@ in [continue-prompt.md](../continue-prompt.md); the [current snapshot](../curren
 separates integrated source, measured tests and remaining work.
 
 These temporary coordination packets preserve unfinished work across checkouts.
-They are **not integrated implementations or acceptance evidence**. Verify each
-archive against [packets.json](packets.json), inspect its README/manifest and exact
+Drafts are **not integrated implementations or acceptance evidence**. Validation
+packets retain only their explicitly measured source and selected-test scope;
+they do not accept later implementations. Verify each archive or ordered part against [packets.json](packets.json), inspect its README/manifest and exact
 beforeimages, then rebase only the reviewed hunks against the current branch.
 Several drafts are incomplete or awaiting architectural/lifetime review. Never
 apply a complete old afterimage over newer shared-file changes.
@@ -56,3 +57,33 @@ how/why comments must describe only the current codebase; git retains history.
 `successor-hi-build-feedback.tar.gz` retains failed H (six test-compilation errors, three ELFs) and I (one private-module path error, zero ELFs), both zero tests and unchanged source. H repairs are captured in1a78; I uses the already existing public re-export in the next checkpoint. Fresh execution remains required.
 
 `successor-j-build-feedback.tar.gz` retains J0f634 four VM epoch-field compile errors, zero ELFs/tests and unchanged source. The actual existing epoch owner is used byc448; K rebuild remains separate.
+
+## Frozen c448 validation
+
+`validation-c448-batch-k.tar.gz` retains the successful14-ELF ordinary build and
+1027 selected controls:696PASS/330FAIL/1TIMEOUT. All992F predecessors remain,
+with1gain/4prior-PASS regressions/0drops. Original#2286 ran first and passed
+73.301624588s within180seconds. Public-API diagnostic probes retain exact source,
+invocations, channels and unchanged source/artifact checks; rebuildable ELFs are
+excluded, and none supplies successor acceptance.
+
+Runtime and VM archives are ordered seven-part files to retain the exact reviewed
+packet closures below Git's per-file limit. Verify all parts with SHA256SUMS,
+then concatenate `.part-01` through `.part-07` in that order before extraction.
+The reconstructed archives must have these exact SHA256 values:
+
+| Reconstructed archive | SHA256 | Measured scope |
+| --- | --- | --- |
+| `validation-runtime-c448-full174.tar.gz` | `4b723bc64471bb3c08b25882dd026acd633b9c50664f02b377affa5405e9d372` |173PASS/1FAIL; retained Jim Import refuses original inventory-key ownership; no accepted Import semantics |
+| `validation-vm-c448-full133.tar.gz` | `4ad3c45cd2d68e79502a7a775894036e981d364a4db13890e27285e37cdbc1c6` |133PASS/0FAIL; original133 selectors/assertions/budgets/guards retained |
+
+Both captures have errors[] and source/compiled-input/artifact drift maps{}.
+The VM packet retains the initial immutableREADME setup failure separately from
+the doc-only repair; every runner/guard Python byte remains unchanged. Historical
+root-commit patches include binary archive deltas and account for most packet
+size; these exact retained bytes provide no extra semantic acceptance.
+Only after both Native seals, root retired4.3GiB of compiled outputs while109625
+source/provider inputs remained unchanged; no ENOSPC occurred. Current source,
+full host/backend coverage and required repository gates remain unaccepted.
+
+`successor-l-l2-l3-build-feedback.tar.gz` preserves the wrong-package setup separately from the corrected production compilation failures. All three ran0tests with source drift{}. The reviewed canonical import repair and source consumers require a fresh L4 build. `conditional-pairing-ingress-receipt.json` records219 unchanged original test bodies and the explicit test helper API adoption; it supplies no execution acceptance.

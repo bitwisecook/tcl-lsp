@@ -88,5 +88,90 @@
     "file": "successor-j-build-feedback.tar.gz",
     "sha256": "c5edba1d28c890e3ce9c667d85b36a81e1bb4df32933a274c12bfb0f1847af3c",
     "status": "Actual isolated J0f634 build101/4VM epoch field errors/0ELFs/0tests/source{}. Narrow existing compilation_epochs owner repair capturedc448; K rebuild still running, no current execution acceptance."
+  },
+  {
+    "file": "validation-c448-batch-k.tar.gz",
+    "sha256": "de42e898639098181bdcc3d396efc274c200739612d34f55a1f9fce54d0edaf6",
+    "status": "Actual frozen c448 ordinary1027:696PASS330FAIL1TIMEOUT; all992F predecessors retained1gain4priorPASS regressions0drops;35new22PASS13FAIL. Original2286 FIRST PASS73.301624588s/180. Build14ELFs0errors/source{}; all13 replay scopes exact/nonempty with original budgets/source/artifact guards. Includes independent public-API diagnostic probes with unchanged source/normal rlibs/ELFs, no instrumented or current-successor acceptance. Rebuildable probe binaries excluded; recorded hashes and invocations remain."
+  },
+  {
+    "file": "validation-runtime-c448-full174.tar.gz.part-01",
+    "sha256": "1e17001ad65dcbe770ecb4d326be4e019f61356f6cef293358089e21adb0feda",
+    "status": "Ordered part of exact Runtime c448 174 replay archive SHA256 4b723bc64471bb3c08b25882dd026acd633b9c50664f02b377affa5405e9d372; concatenate all numbered parts in order before extraction. Actual173PASS1FAIL/errors[]; source/compiled_input/artifact drift maps{}; original assertions/budgets/provider guards unchanged. No current-successor/full Runtime acceptance."
+  },
+  {
+    "file": "validation-runtime-c448-full174.tar.gz.part-02",
+    "sha256": "24b0bd9dff7e4b88b76f9955103d1575c8fd53c2a41c60bc78dbe79e5360c8ff",
+    "status": "Ordered part of exact Runtime c448 174 replay archive SHA256 4b723bc64471bb3c08b25882dd026acd633b9c50664f02b377affa5405e9d372; concatenate all numbered parts in order before extraction. Actual173PASS1FAIL/errors[]; source/compiled_input/artifact drift maps{}; original assertions/budgets/provider guards unchanged. No current-successor/full Runtime acceptance."
+  },
+  {
+    "file": "validation-runtime-c448-full174.tar.gz.part-03",
+    "sha256": "83eb1d0496652b2c7c5b9ebc2fd542f67261d78a4abc8ba011a73a85449cfc0f",
+    "status": "Ordered part of exact Runtime c448 174 replay archive SHA256 4b723bc64471bb3c08b25882dd026acd633b9c50664f02b377affa5405e9d372; concatenate all numbered parts in order before extraction. Actual173PASS1FAIL/errors[]; source/compiled_input/artifact drift maps{}; original assertions/budgets/provider guards unchanged. No current-successor/full Runtime acceptance."
+  },
+  {
+    "file": "validation-runtime-c448-full174.tar.gz.part-04",
+    "sha256": "d8136111c88e09c361db692e2a5c93793263f149c44cc65727b63d6d63011218",
+    "status": "Ordered part of exact Runtime c448 174 replay archive SHA256 4b723bc64471bb3c08b25882dd026acd633b9c50664f02b377affa5405e9d372; concatenate all numbered parts in order before extraction. Actual173PASS1FAIL/errors[]; source/compiled_input/artifact drift maps{}; original assertions/budgets/provider guards unchanged. No current-successor/full Runtime acceptance."
+  },
+  {
+    "file": "validation-runtime-c448-full174.tar.gz.part-05",
+    "sha256": "3adfa9f766a6310cde3c771685e4cf69299e11c1e0986e64ac14d826e88b82f9",
+    "status": "Ordered part of exact Runtime c448 174 replay archive SHA256 4b723bc64471bb3c08b25882dd026acd633b9c50664f02b377affa5405e9d372; concatenate all numbered parts in order before extraction. Actual173PASS1FAIL/errors[]; source/compiled_input/artifact drift maps{}; original assertions/budgets/provider guards unchanged. No current-successor/full Runtime acceptance."
+  },
+  {
+    "file": "validation-runtime-c448-full174.tar.gz.part-06",
+    "sha256": "d3724487284a5f167369bd0bc391032461a09fad1d40c66fc95bd771ca62766a",
+    "status": "Ordered part of exact Runtime c448 174 replay archive SHA256 4b723bc64471bb3c08b25882dd026acd633b9c50664f02b377affa5405e9d372; concatenate all numbered parts in order before extraction. Actual173PASS1FAIL/errors[]; source/compiled_input/artifact drift maps{}; original assertions/budgets/provider guards unchanged. No current-successor/full Runtime acceptance."
+  },
+  {
+    "file": "validation-runtime-c448-full174.tar.gz.part-07",
+    "sha256": "a778939e7ab50e02a74991edd40600518cb8dd43ff2afea70863451ccd67d08f",
+    "status": "Ordered part of exact Runtime c448 174 replay archive SHA256 4b723bc64471bb3c08b25882dd026acd633b9c50664f02b377affa5405e9d372; concatenate all numbered parts in order before extraction. Actual173PASS1FAIL/errors[]; source/compiled_input/artifact drift maps{}; original assertions/budgets/provider guards unchanged. No current-successor/full Runtime acceptance."
+  },
+  {
+    "file": "validation-vm-c448-full133.tar.gz.part-01",
+    "sha256": "ce5f2b7ec214955423bb656057f4eae7c722fed8f856db7aa2078dcf1ec805dc",
+    "status": "Ordered part of exact VM c448133 replay archive SHA256 4ad3c45cd2d68e79502a7a775894036e981d364a4db13890e27285e37cdbc1c6; concatenate all numbered parts in order before extraction. Actual133PASS0FAIL/errors[]; source/compiled_input/artifact drift maps{}; original assertions/budgets/provider guards unchanged. Initial immutableREADME rejection retained as failed setup; separately sealed doc-only repair retains byte-identical Python/guards. Includes post-seal target retirement: source/provider unchanged, no ENOSPC. No newer source/wholeVM/backend acceptance."
+  },
+  {
+    "file": "validation-vm-c448-full133.tar.gz.part-02",
+    "sha256": "ba3875e0cad0bdc839332d40c733165dfb2f6687ba32dcc72feac2ff62238454",
+    "status": "Ordered part of exact VM c448133 replay archive SHA256 4ad3c45cd2d68e79502a7a775894036e981d364a4db13890e27285e37cdbc1c6; concatenate all numbered parts in order before extraction. Actual133PASS0FAIL/errors[]; source/compiled_input/artifact drift maps{}; original assertions/budgets/provider guards unchanged. Initial immutableREADME rejection retained as failed setup; separately sealed doc-only repair retains byte-identical Python/guards. Includes post-seal target retirement: source/provider unchanged, no ENOSPC. No newer source/wholeVM/backend acceptance."
+  },
+  {
+    "file": "validation-vm-c448-full133.tar.gz.part-03",
+    "sha256": "6bfe2033bc7bde7b61352b54bb0c53834468992103a0c805c44063636ba1fa1f",
+    "status": "Ordered part of exact VM c448133 replay archive SHA256 4ad3c45cd2d68e79502a7a775894036e981d364a4db13890e27285e37cdbc1c6; concatenate all numbered parts in order before extraction. Actual133PASS0FAIL/errors[]; source/compiled_input/artifact drift maps{}; original assertions/budgets/provider guards unchanged. Initial immutableREADME rejection retained as failed setup; separately sealed doc-only repair retains byte-identical Python/guards. Includes post-seal target retirement: source/provider unchanged, no ENOSPC. No newer source/wholeVM/backend acceptance."
+  },
+  {
+    "file": "validation-vm-c448-full133.tar.gz.part-04",
+    "sha256": "c19305108a75cbc7741febc1742bc1d915019cb825ea5240df3f745fe61beeb7",
+    "status": "Ordered part of exact VM c448133 replay archive SHA256 4ad3c45cd2d68e79502a7a775894036e981d364a4db13890e27285e37cdbc1c6; concatenate all numbered parts in order before extraction. Actual133PASS0FAIL/errors[]; source/compiled_input/artifact drift maps{}; original assertions/budgets/provider guards unchanged. Initial immutableREADME rejection retained as failed setup; separately sealed doc-only repair retains byte-identical Python/guards. Includes post-seal target retirement: source/provider unchanged, no ENOSPC. No newer source/wholeVM/backend acceptance."
+  },
+  {
+    "file": "validation-vm-c448-full133.tar.gz.part-05",
+    "sha256": "58b57940a08f44c0e486125b8cfcf93786476150f3e288ff294f46c8b510a681",
+    "status": "Ordered part of exact VM c448133 replay archive SHA256 4ad3c45cd2d68e79502a7a775894036e981d364a4db13890e27285e37cdbc1c6; concatenate all numbered parts in order before extraction. Actual133PASS0FAIL/errors[]; source/compiled_input/artifact drift maps{}; original assertions/budgets/provider guards unchanged. Initial immutableREADME rejection retained as failed setup; separately sealed doc-only repair retains byte-identical Python/guards. Includes post-seal target retirement: source/provider unchanged, no ENOSPC. No newer source/wholeVM/backend acceptance."
+  },
+  {
+    "file": "validation-vm-c448-full133.tar.gz.part-06",
+    "sha256": "6445c1b9212b93b6134ecabc11faf5af0a04d7f55d2c1b80756c40d32b6d42c8",
+    "status": "Ordered part of exact VM c448133 replay archive SHA256 4ad3c45cd2d68e79502a7a775894036e981d364a4db13890e27285e37cdbc1c6; concatenate all numbered parts in order before extraction. Actual133PASS0FAIL/errors[]; source/compiled_input/artifact drift maps{}; original assertions/budgets/provider guards unchanged. Initial immutableREADME rejection retained as failed setup; separately sealed doc-only repair retains byte-identical Python/guards. Includes post-seal target retirement: source/provider unchanged, no ENOSPC. No newer source/wholeVM/backend acceptance."
+  },
+  {
+    "file": "validation-vm-c448-full133.tar.gz.part-07",
+    "sha256": "0b3fa53754e7f574ed795f8856193f2d1f2f71da936838ca1b4369ed6f2c9d50",
+    "status": "Ordered part of exact VM c448133 replay archive SHA256 4ad3c45cd2d68e79502a7a775894036e981d364a4db13890e27285e37cdbc1c6; concatenate all numbered parts in order before extraction. Actual133PASS0FAIL/errors[]; source/compiled_input/artifact drift maps{}; original assertions/budgets/provider guards unchanged. Initial immutableREADME rejection retained as failed setup; separately sealed doc-only repair retains byte-identical Python/guards. Includes post-seal target retirement: source/provider unchanged, no ENOSPC. No newer source/wholeVM/backend acceptance."
+  },
+  {
+    "file": "conditional-pairing-ingress-receipt.json",
+    "sha256": "c3cae0fbf8a854392d3f1a80e1d748952b57f1964aadcda973c8e0fcc58ab147",
+    "status": "Static219 original test-body equality and explicit helper-ingress API adoption receipt; no Cargo or execution acceptance."
+  },
+  {
+    "file": "successor-l-l2-l3-build-feedback.tar.gz",
+    "sha256": "8397574cc55b359cb7b0c9de0c17b2ae8d0cad8c67f68b44404138789379c6c9",
+    "status": "L227eb wrong-package setup101/0ELFs/0tests; corrected L2 five production types101/0ELFs/0tests; L3 at2e5 two diagnostics from wrong ValueOps import101/0ELFs/0tests. All source drift{}. Reviewed repairs require fresh ordinary build; no semantic acceptance."
   }
 ]
