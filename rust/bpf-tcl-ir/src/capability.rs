@@ -40,7 +40,7 @@ use tcl_registry::CanonicalCommandDescriptorKey;
 use tcl_registry::registry::CommandRegistry;
 
 use crate::diag::{BpfDiag, BpfError};
-use crate::source::{source_command_spec, source_declaration_kind};
+use crate::source::{OriginalBpfSource, source_command_spec, source_declaration_kind};
 
 /// Is `cmd` something `allow`/`deny` may name (a gated verb or a verdict)?
 fn is_governable(cmd: &str, registry: &CommandRegistry) -> bool {
@@ -86,10 +86,12 @@ impl CapabilityPolicy {
 /// Collect the capability policy from a file's top-level `allow`/`deny` decls.
 ///
 /// # Errors
-/// A bad arity, or a verb that is not capability-governable (likely a typo).
+/// Missing original static operands, a bad arity, or a verb that is not
+/// capability-governable (likely a typo).
 pub fn collect_policy(
     top_level: &Script,
     registry: &CommandRegistry,
+    source: &OriginalBpfSource,
 ) -> Result<CapabilityPolicy, BpfError> {
     let mut policy = CapabilityPolicy::default();
     for stmt in &top_level.statements {
@@ -97,6 +99,7 @@ pub fn collect_policy(
             command,
             args,
             span,
+            tokens,
             ..
         } = stmt
         else {
@@ -115,8 +118,15 @@ pub fn collect_policy(
                 format!("`{cmd}` expects: {cmd} CMD ?CMD …?"),
             ));
         }
-        for verb in args {
-            if !is_governable(verb, registry) {
+        for index in 0..args.len() {
+            let verb = source.scalar(tokens.as_ref(), args, index).ok_or_else(|| {
+                BpfError::new(
+                    BpfDiag::CapabilityDenied,
+                    *span,
+                    "capability declarations require original static command names",
+                )
+            })?;
+            if !is_governable(&verb, registry) {
                 return Err(BpfError::new(
                     BpfDiag::CapabilityDenied,
                     *span,
@@ -128,7 +138,7 @@ pub fn collect_policy(
                 ));
             }
             let descriptor = registry
-                .get_for_surface(verb, registry.own_surface_query())
+                .get_for_surface(&verb, registry.own_surface_query())
                 .expect("the governable descriptor was selected above")
                 .descriptor_key();
             if kind {
@@ -205,4 +215,72 @@ fn check_script(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod original_operand_tests {
+    use super::*;
+    use tcl_compiler::ir::WordExpr;
+
+    #[test]
+    fn policy_selection_requires_the_actual_original_head_and_operand() {
+        let registry = tcl_registry::model::ingress::static_context_for("bpf").commands();
+        for changed_head in [false, true] {
+            let mut module = crate::source::lower_bpf_source(
+                if changed_head {
+                    "skip drop"
+                } else {
+                    "deny drop"
+                },
+                registry,
+            );
+            let source = OriginalBpfSource::from_module(&module);
+            if !changed_head {
+                let policy = collect_policy(&module.top_level, registry, &source).unwrap();
+                let drop = registry
+                    .get_for_surface("drop", registry.own_surface_query())
+                    .unwrap();
+                assert!(!policy.permits(drop.descriptor_key(), false));
+            }
+            let Statement::Call {
+                command,
+                args,
+                tokens: Some(tokens),
+                ..
+            } = &mut module.top_level.statements[0]
+            else {
+                panic!("original capability command");
+            };
+            let index = if changed_head { 0 } else { 1 };
+            let replacement = if changed_head { "deny" } else { "pass" };
+            let WordExpr::Literal { text, .. } = &mut tokens.word_exprs[index] else {
+                panic!("original literal operand");
+            };
+            *text = replacement.into();
+            tokens.argv_texts[index] = replacement.into();
+            if changed_head {
+                *command = replacement.into();
+            } else {
+                args[0] = replacement.into();
+            }
+            assert_eq!(
+                collect_policy(&module.top_level, registry, &source)
+                    .unwrap_err()
+                    .code,
+                BpfDiag::CapabilityDenied
+            );
+        }
+        let mut module = crate::source::lower_bpf_source("deny drop", registry);
+        let source = OriginalBpfSource::from_module(&module);
+        let Statement::Call { tokens, .. } = &mut module.top_level.statements[0] else {
+            panic!("original capability command");
+        };
+        *tokens = None;
+        assert_eq!(
+            collect_policy(&module.top_level, registry, &source)
+                .unwrap_err()
+                .code,
+            BpfDiag::CapabilityDenied
+        );
+    }
 }

@@ -5208,7 +5208,7 @@ impl RegistryInvocationShape {
         let mut shape = metadata
             .shape()
             .with_source_schema(registry, context, |schema| {
-                Some(Self::from_facts(schema.facts(), effective))
+                Some(Self::from_facts(&schema.facts(), effective))
             })?;
         shape.hosted_source = Some(std::sync::Arc::new(metadata));
         Some(shape)

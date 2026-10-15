@@ -1,5 +1,17 @@
 # Current centralised naming work
 
+Latest build feedback: frozen227eb L stopped before compilation because Root used
+an incorrect added package name (exit101,0ELFs/0tests/source{}); corrected scoped
+package is bpf-tcl-codegen. L2 at the same source then fails101 with five actual
+production type errors in90.3475s,0ELFs/0tests/source{}. Reviewed repairs retain
+the genuine SourceOriginId owner, wrap the actual relocated map in Arc and borrow
+Hosted facts. Exact captures are name-session/batch-l{,2}-build-ordinary. Neither
+errors[] on setup nor source review is execution acceptance. Next coherent source
+also includes actual OO constructor/listfield transport and source-owned BPF
+capability/attach operands. NativeL227eb plans are sealed but explicitly superseded
+and unexecuted; they require a fresh exact source rebind after repair.
+
+
 Source checkpoint `892dd8e6a` retains genuine Logical global-write operands, source member keys, Hosted event-name operands, official HTTP_REQUEST lifecycle metadata and physical-provider namespace helper dispatch. Development source through `350b35d6f` is push-confirmed; root is preparing the next coherent checkpoint. All newer source remains unexecuted. Incoming `rust` was inspected through `d0a644c69` without merging; concurrent upstream changes still require integration.
 
 The isolated validation worktree remains frozen at `c448d18f6fdb8ffbbba89156222af4c7b8a692d9`. Its ordinary replay is sealed below. K Native Runtime174 is sealed **173PASS/1FAIL**, errors[] and source/compiled-input/artifact drift maps{}. Original variable-inventory and namespace deletion failures now pass; `retained_import_original_jim` still refuses at the missing original Jim inventory-key owner, before accepted Import semantics. Exact channels: `/workspace/name-session/runtime-k-replay174`. Original selectors/assertions/budgets and provider pairing remain. The initial VM K133 setup stopped before build/tests because the immutable historical README checksum correctly rejected K packet instructions written at that path. Root retained `/workspace/name-session/vm-k-replay133` as failed setup; a separately sealed, independently verified successor restores the historical README and retains K instructions elsewhere with every Python runner/guard byte unchanged. Its133-control replay is currently running under the sole Cargo lease, with a fresh14:01UTC Jim upstream/provider check. Neither setup failure nor source review supplies execution acceptance.

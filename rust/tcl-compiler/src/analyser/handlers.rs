@@ -598,45 +598,6 @@ fn bracketed_self_receiver(registry: &tcl_registry::CommandRegistry, head: &str)
     words.next().is_none() && registry.is_self_receiver_call(cmd, arg)
 }
 
-/// A literal list word's elements, each with the source span it occupies
-/// inside the word — the static half of `{*}` expansion.
-///
-/// Returns `None` when the word is not a literal (a substitution's runtime
-/// value is not a knowable list) or when an unbraced element itself
-/// interpolates, so a caller can abstain instead of splicing text the
-/// runtime would never produce.  An empty word yields an empty splice,
-/// which is exactly what `{*}{}` contributes.
-fn literal_list_words(text: &str, tok: Token) -> Option<Vec<(String, Token)>> {
-    if !matches!(tok.kind, TokenType::Str | TokenType::Esc) {
-        return None;
-    }
-    if tok.kind == TokenType::Esc && crate::naming::is_dynamic_word(text) {
-        return None;
-    }
-    let base = tok.span.start() + u32::from(tok.content_offset);
-    let mut words = Vec::new();
-    let mut pos = 0usize;
-    while let Some(element) = tcl_syntax::list::find_element(text, pos).ok()? {
-        let value = text.get(element.value.clone())?;
-        if !element.braced && crate::naming::is_dynamic_word(value) {
-            return None;
-        }
-        let start = base + u32::try_from(element.value.start).ok()?;
-        let end = base + u32::try_from(element.value.end).ok()?;
-        words.push((
-            value.to_string(),
-            Token {
-                kind: TokenType::Esc,
-                span: Span::new(start, end),
-                content_offset: 0,
-                in_quote: false,
-            },
-        ));
-        pos = element.next;
-    }
-    Some(words)
-}
-
 /// One piece of a manufacturer prologue word, as
 /// [`Analyser::manufacturer_injected_template`] accounts for it.
 #[derive(Debug, PartialEq, Eq)]
@@ -713,8 +674,7 @@ fn prologue_pieces(original: &tcl_lexer::NativeWord) -> Vec<ProloguePiece<'_>> {
 /// spell.
 fn resolve_factory_member(
     member: &FactoryMember,
-    args: &[String],
-    arg_tokens: &[Token],
+    original_arguments: Option<&[tcl_lexer::NativeWord]>,
 ) -> Option<InjectedMember> {
     let mut member_words: Vec<String> = Vec::new();
     let mut member_tokens: Vec<Token> = Vec::new();
@@ -725,11 +685,19 @@ fn resolve_factory_member(
                 member_tokens.push(*token);
             }
             FactoryWord::CallerSplice(arg_index) => {
-                let call_tok = *arg_tokens.get(*arg_index)?;
-                let call_text = args.get(*arg_index)?;
-                for (element, element_tok) in literal_list_words(call_text, call_tok)? {
-                    member_words.push(element);
-                    member_tokens.push(element_tok);
+                let original = original_arguments?.get(*arg_index)?;
+                for element in tcl_syntax::word_rules::original_static_word_list_elements(original)?
+                {
+                    // This token is a display anchor for an actual list field,
+                    // never an independently captured word or naming input.
+                    let span = element.source_span()?;
+                    member_words.push(element.value().to_owned());
+                    member_tokens.push(Token {
+                        kind: TokenType::Esc,
+                        span,
+                        content_offset: 0,
+                        in_quote: false,
+                    });
                 }
             }
         }
@@ -751,7 +719,7 @@ fn manufacturer_layout(
     factory: &ClassFactory,
     builtin: &tcl_registry::definer::ManufacturerMethod,
     args: &[String],
-    arg_tokens: &[Token],
+    original_arguments: Option<&[tcl_lexer::NativeWord]>,
 ) -> Option<ManufacturerLayout> {
     let Some(spec) = factory.overrides.get(&args[0]) else {
         return ManufacturerLayout::builtin(builtin);
@@ -759,7 +727,7 @@ fn manufacturer_layout(
     let injected = spec.injected.as_ref().and_then(|members| {
         members
             .iter()
-            .map(|m| resolve_factory_member(m, args, arg_tokens))
+            .map(|m| resolve_factory_member(m, original_arguments))
             .collect::<Option<Vec<_>>>()
     });
     Some(ManufacturerLayout {
@@ -8041,7 +8009,7 @@ impl Analyser {
         let Some(manufacturer) = grammar.manufacturer(method) else {
             return false;
         };
-        manufacturer_layout(&factory, manufacturer, seg.args(), seg.arg_tokens())
+        manufacturer_layout(&factory, manufacturer, seg.args(), None)
             .is_some_and(|layout| layout.name_arg < seg.args().len())
     }
 
@@ -10064,7 +10032,7 @@ impl Analyser {
         Some(FactoryMember { words })
     }
 
-    /// Readonly factory metadata for the original source-selected class.
+    /// Readonly factory metadata and its same original call arguments.
     /// Foreign headers require the source graph's separate occupancy facet;
     /// neither tier proves that a custom manufacturer executes or completes.
     fn class_factory_for_command(
@@ -10072,7 +10040,7 @@ impl Analyser {
         args: &[String],
         arg_tokens: &[Token],
         call_off: u32,
-    ) -> Option<ClassFactory> {
+    ) -> Option<(ClassFactory, Vec<tcl_lexer::NativeWord>)> {
         use crate::command_binding::SourceCommandTransitionObligation;
         if let Some(call) = crate::registry_invocation::source_structure::source_constructor_call_at(
             &self.source,
@@ -10093,7 +10061,10 @@ impl Analyser {
             } else {
                 declaration.source_class(&self.result)?.metadata()
             };
-            return class.factory.clone();
+            let original_arguments = (0..arg_tokens.len())
+                .map(|ordinal| call.argument_word(ordinal).cloned())
+                .collect::<Option<Vec<_>>>()?;
+            return Some((class.factory.clone()?, original_arguments));
         }
         let request =
             crate::registry_invocation::source_structure::source_logical_command_candidates_at(
@@ -10128,7 +10099,10 @@ impl Analyser {
                 )?;
                 index.get(&key)
             })?;
-        self.foreign_factory_at_call(foreign, arg_tokens)
+        Some((
+            self.foreign_factory_at_call(foreign, arg_tokens)?,
+            request.original_words().iter().skip(1).cloned().collect(),
+        ))
     }
 
     /// Factory metadata used by static-body result summaries.
@@ -10289,11 +10263,11 @@ impl Analyser {
             .filter(|method| {
                 method.visibility == tcl_registry::definer::MemberVisibility::Exported
             }),
-            Some(factory) => self
+            Some((factory, _)) => self
                 .definition_grammar(&factory.root_metaclass)
                 .and_then(|grammar| grammar.manufacturer(&args[0])),
         }?;
-        if user_factory.as_ref().is_some_and(|factory| {
+        if user_factory.as_ref().is_some_and(|(factory, _)| {
             !factory
                 .exported_manufacturers
                 .contains(manufacturer.keyword)
@@ -10302,10 +10276,12 @@ impl Analyser {
         }
         let layout = match user_factory.as_ref() {
             None => ManufacturerLayout::builtin(manufacturer),
-            Some(factory) => manufacturer_layout(factory, manufacturer, args, arg_tokens),
+            Some((factory, original_arguments)) => {
+                manufacturer_layout(factory, manufacturer, args, Some(original_arguments))
+            }
         }?;
         Some(ResolvedClassCreation {
-            user_factory,
+            user_factory: user_factory.map(|(factory, _)| factory),
             registry_metaclass: registry_definer,
             layout,
         })
@@ -12148,6 +12124,63 @@ mod tests {
                 })
                 .collect::<Vec<_>>();
             assert_eq!(labels, expected, "{source}");
+        }
+    }
+
+    #[test]
+    fn factory_splices_keep_original_list_data_geometry_and_grammar() {
+        let member = FactoryMember {
+            words: vec![FactoryWord::CallerSplice(0)],
+        };
+        for (source, expected) in [
+            ("maker {A B}", Some(vec!["A", "B"])),
+            (
+                "maker {A $literal [data]}",
+                Some(vec!["A", "$literal", "[data]"]),
+            ),
+            (r"maker {escaped\ name}", Some(vec!["escaped name"])),
+            ("maker {}", Some(Vec::new())),
+            ("maker $dynamic", None),
+            ("maker {*}{one two}", None),
+            (r"maker {\uD800}", None),
+            ("maker {one \"two}", None),
+        ] {
+            let config = tcl_lexer::LexerConfig {
+                expand_syntax: true,
+                ..tcl_lexer::LexerConfig::default()
+            };
+            let plan = tcl_lexer::native_script_words_in(
+                tcl_lexer::SourceImage::document(source),
+                Span::new(0, u32::try_from(source.len()).unwrap()),
+                config,
+            )
+            .unwrap();
+            let original = &plan.commands[0].words[1..];
+            let result = resolve_factory_member(&member, Some(original));
+            assert_eq!(
+                result.as_ref().map(|member| member
+                    .texts
+                    .iter()
+                    .map(String::as_str)
+                    .collect::<Vec<_>>()),
+                expected,
+                "{source}"
+            );
+            if let Some(result) = result {
+                let content = original[0].content_span().unwrap();
+                assert_eq!(result.texts.len(), result.argv.len());
+                assert!(
+                    result
+                        .argv
+                        .iter()
+                        .all(|token| content.start() <= token.span.start()
+                            && token.span.end() <= content.end())
+                );
+            }
+            assert!(
+                resolve_factory_member(&member, None).is_none(),
+                "a report-only caller cannot donate an empty splice"
+            );
         }
     }
 

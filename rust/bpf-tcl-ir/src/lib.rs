@@ -60,6 +60,7 @@ pub use loader::{
 pub use lower::lower_function;
 pub use profile::{BpfProfileSpec, FieldDef};
 pub use ringbuf::{DecodedRecord, RecordHeader, RecordSchema, RingBuffer};
+pub use source::OriginalBpfSource;
 pub use template::TemplateDef;
 pub use ty::ByteOrder;
 pub use unroll::unroll_loops;

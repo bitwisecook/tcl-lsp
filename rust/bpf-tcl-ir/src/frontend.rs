@@ -63,7 +63,7 @@ pub fn compile_module(source: &str) -> Result<BpfModule, BpfError> {
     // Reusable parameterised handlers a `use` site can splice in.
     let templates = collect_templates(&module.top_level, registry, &source)?;
     // The capability policy that sandboxes each handler's operations.
-    let policy = collect_policy(&module.top_level, registry)?;
+    let policy = collect_policy(&module.top_level, registry, &source)?;
 
     let mut programs = Vec::new();
     let mut saw_when = false;
@@ -152,7 +152,7 @@ pub fn compile_module(source: &str) -> Result<BpfModule, BpfError> {
     }
 
     // Hang the (optional) deployment target off each program it governs.
-    resolve_attach(&module.top_level, &mut programs, registry)?;
+    resolve_attach(&module.top_level, &mut programs, registry, &source)?;
 
     // Deterministic order: ascending priority (lower = runs first, F5-style),
     // then event name as a tiebreaker.
@@ -444,6 +444,40 @@ when \x58DP priority \x35 {drop}",
                 expected,
                 "{source}"
             );
+        }
+    }
+
+    #[test]
+    fn capability_and_attach_operands_use_original_static_scalar_values() {
+        let module = compile_module(
+            r#"allow \x6coad8
+attach \x78dp "eth\x30"
+when XDP {pass}"#,
+        )
+        .unwrap();
+        let attach = module.programs[0].attach.as_ref().unwrap();
+        assert_eq!(attach.kind, "xdp");
+        assert_eq!(attach.target, "eth0");
+        let literal = compile_module("attach xdp {veth$0}\nwhen XDP {pass}").unwrap();
+        assert_eq!(
+            literal.programs[0].attach.as_ref().unwrap().target,
+            "veth$0"
+        );
+        for (source, code) in [
+            (
+                r"deny \x64rop
+when XDP {drop}",
+                BpfDiag::CapabilityDenied,
+            ),
+            ("allow $verb\nwhen XDP {pass}", BpfDiag::CapabilityDenied),
+            ("attach $kind eth0\nwhen XDP {pass}", BpfDiag::BadAttach),
+            ("attach xdp $target\nwhen XDP {pass}", BpfDiag::BadAttach),
+            (
+                "attach xdp [string cat eth0]\nwhen XDP {pass}",
+                BpfDiag::BadAttach,
+            ),
+        ] {
+            assert_eq!(compile_module(source).unwrap_err().code, code, "{source}");
         }
     }
 

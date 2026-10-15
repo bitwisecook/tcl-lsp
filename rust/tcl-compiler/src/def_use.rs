@@ -279,11 +279,11 @@ impl DefUseFacts {
         &mut self,
         relocation: &crate::var_resolve::VariableProofRelocation,
     ) {
-        self.cells = self
+        self.cells = Arc::new(self
             .cells
             .iter()
             .map(|(&symbol, key)| (symbol, relocation.storage_key(key)))
-            .collect();
+            .collect());
     }
 }
 
