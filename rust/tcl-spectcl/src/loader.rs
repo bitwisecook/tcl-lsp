@@ -5716,6 +5716,12 @@ const SIDE_SWITCH_TARGETS: &[SideSwitchTarget] = &[
     SideSwitchTarget::Peer,
 ];
 
+const IRULES_SOURCE_FLOWS: &[tcl_registry::events::IrulesSourceFlowSpec] = &[
+    tcl_registry::events::IrulesSourceFlowSpec::DropsConnection,
+    tcl_registry::events::IrulesSourceFlowSpec::ReturnsDnsPacket,
+    tcl_registry::events::IrulesSourceFlowSpec::EventControl,
+];
+
 /// `result_stability Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D …}}`.
 ///
 /// The payload-carrying variant is one braced word holding the variant name
@@ -6848,6 +6854,15 @@ fn apply_command_stmt(
             if let Some(stability) = result_stability_row(stmt, log) {
                 spec.result_stability = Some(stability);
             }
+        }
+        "irules_source_flow" => {
+            spec.irules_source_flow = enum_by_name(
+                IRULES_SOURCE_FLOWS,
+                &value,
+                "iRules source flow grammar",
+                stmt.line,
+                log,
+            );
         }
         "side_switch_target" => {
             spec.side_switch_target = enum_by_name(

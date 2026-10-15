@@ -290,6 +290,7 @@ const ROW_WORDS: &[&str] = &[
     // through the same row readers a CST-loaded one does.
     "result_stability",
     "side_switch_target",
+    "irules_source_flow",
     "event_handler_priority",
     "data_collection",
     "event_requirement_form",

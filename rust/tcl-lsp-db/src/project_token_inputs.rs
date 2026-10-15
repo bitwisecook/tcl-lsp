@@ -33,9 +33,17 @@ pub fn file_token_facts_for_config(
     file: SourceFile,
     config: AnalyserConfig,
 ) -> Arc<FileTokenFacts> {
-    let Ok(input) = document_analysis_input(db, file, config) else {
-        return Arc::new(FileTokenFacts::default());
-    };
+    checked_file_token_facts_for_config(db, file, config)
+        .unwrap_or_else(|| Arc::new(FileTokenFacts::default()))
+}
+
+#[salsa::tracked(returns(clone))]
+fn checked_file_token_facts_for_config(
+    db: &dyn TclDb,
+    file: SourceFile,
+    config: AnalyserConfig,
+) -> Option<Arc<FileTokenFacts>> {
+    let input = document_analysis_input(db, file, config).ok()?;
     let result = document_analyser(db, file, config)
         .with_resolved_input((*input).clone())
         .structure_only()
@@ -45,32 +53,38 @@ pub fn file_token_facts_for_config(
         input.lexer_config(),
     ) || result.resolved_input.as_ref() != Some(input.as_ref())
     {
-        return Arc::new(FileTokenFacts::default());
+        return None;
     }
-    token_facts_from_analysis(result)
+    Some(token_facts_from_analysis(result))
 }
 
 fn project_facts(
     db: &dyn TclDb,
     project: Project,
-) -> impl Iterator<Item = Arc<FileTokenFacts>> + '_ {
-    project.files(db).iter().filter_map(move |&file| {
-        let config = configuration_for_file(db, project, file)?;
-        Some(file_token_facts_for_config(db, file, config))
-    })
+) -> Option<Vec<Arc<FileTokenFacts>>> {
+    let mut providers = HashSet::new();
+    project
+        .files(db)
+        .iter()
+        .filter(|&&file| providers.insert(file))
+        .map(|&file| {
+            let config = configuration_for_file(db, project, file)?;
+            checked_file_token_facts_for_config(db, file, config)
+        })
+        .collect()
 }
 
 /// Class source assistance merged from each member's actual input.
-/// Missing mappings and unavailable source generations contribute no cards.
+/// Missing mappings or unavailable source generations withdraw project cards.
 #[salsa::tracked(returns(clone))]
 pub fn project_class_index_for_inputs(db: &dyn TclDb, project: Project) -> Arc<ClassHierarchy> {
-    merge_project_classes(project_facts(db, project))
+    merge_project_classes(project_facts(db, project).unwrap_or_default())
 }
 
 /// Inferred source parameter roles merged on the structure-only tier.
 #[salsa::tracked(returns(clone))]
 pub fn project_proc_var_index_for_inputs(db: &dyn TclDb, project: Project) -> Arc<VarNameArgRoles> {
-    merge_project_proc_roles(project_facts(db, project))
+    merge_project_proc_roles(project_facts(db, project).unwrap_or_default())
 }
 
 /// Conditional named-instance hints, without Native allocation or dispatch.
@@ -79,7 +93,7 @@ pub fn project_named_instance_index_for_inputs(
     db: &dyn TclDb,
     project: Project,
 ) -> Arc<tcl_lsp_core::semantic_tokens::NamedInstanceMap> {
-    merge_project_named_instances(project_facts(db, project))
+    merge_project_named_instances(project_facts(db, project).unwrap_or_default())
 }
 
 /// Current document tokens with checked per-file cross-document source facts.

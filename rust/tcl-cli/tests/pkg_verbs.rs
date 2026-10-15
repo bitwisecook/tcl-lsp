@@ -180,6 +180,21 @@ fn pkg_discover_uses_analysis_and_optimisation() {
 }
 
 #[test]
+fn pkg_discover_add_retains_manifest_when_source_decoding_loses_a_name() {
+    let dir = temp_dir("pkg-discover-lossy-name");
+    let manifest = "package demo\nversion 1.0.0\nlicense MIT\n";
+    let manifest_path = dir.join("tclpkg.tcl");
+    std::fs::write(&manifest_path, manifest).unwrap();
+    std::fs::write(dir.join("main.tcl"), b"package require \xff 1.2\n").unwrap();
+    let (stdout, stderr, code) = run_in(&dir, &["pkg", "discover", "--add", "--json"]);
+    assert_ne!(code, 0);
+    assert!(stderr.contains("decoding errors"), "{stderr}");
+    assert!(stdout.is_empty());
+    assert_eq!(std::fs::read_to_string(manifest_path).unwrap(), manifest);
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
 fn pkg_discover_add_is_idempotent_and_skips_dependency_trees() {
     let dir = temp_dir("pkg-discover-add");
     std::fs::write(

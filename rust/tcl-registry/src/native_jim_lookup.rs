@@ -45,17 +45,23 @@ pub enum NativeJimNamespaceHelperKind {
     Upvar,
     /// Original private namespace-aware inventory distribution procedure.
     Info,
+    /// Original namespace import distribution procedure.
+    Import,
+    /// Original namespace ensemble distribution procedure.
+    Ensemble,
 }
 impl NativeJimNamespaceHelperKind {
     /// Pinned source families this owner currently supplies.
-    pub const ALL: [Self; 7] = [
+    pub const ALL: [Self; 9] = [
+        Self::Delete,
+        Self::Origin,
         Self::Which,
         Self::Code,
-        Self::Origin,
         Self::Inscope,
+        Self::Import,
         Self::Info,
-        Self::Delete,
         Self::Upvar,
+        Self::Ensemble,
     ];
 }
 
@@ -88,7 +94,7 @@ impl NativeJimNamespaceHelper {
     fn public_entry(self) -> Option<&'static NativeJimNamespaceSubcommand> {
         namespace_subcommands::NAMESPACE_SUBCOMMANDS
             .iter()
-            .find(|entry| entry.helper() == Some(self.kind))
+            .find(|entry| entry.scripted_helper_kind() == Some(self.kind))
     }
     /// Original compound registration spelling; public lookup keeps the actual selector.
     #[must_use]
@@ -200,6 +206,18 @@ impl crate::InvocationDialect {
 	}
 	tailcall {*}$script
 "#,
+            },
+            NativeJimNamespaceHelperKind::Import => NativeJimNamespaceHelper {
+                kind,
+                name: "namespace import",
+                parameters: "args",
+                body: include_str!("native_scripts/jim_namespace_import.tcl"),
+            },
+            NativeJimNamespaceHelperKind::Ensemble => NativeJimNamespaceHelper {
+                kind,
+                name: "namespace ensemble",
+                parameters: "subcommand args",
+                body: include_str!("native_scripts/jim_namespace_ensemble.tcl"),
             },
             NativeJimNamespaceHelperKind::Info => NativeJimNamespaceHelper {
                 kind,

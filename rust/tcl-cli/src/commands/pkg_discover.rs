@@ -154,6 +154,12 @@ pub fn run(options: &DiscoverOptions<'_>) -> anyhow::Result<u8> {
         tcl_cli_support::read_input_documents(&source_paths, &[], false)?
     };
 
+    if add {
+        for document in &documents {
+            document.require_faithful_source()?;
+        }
+    }
+
     let declared: BTreeSet<String> = manifest
         .requires
         .iter()

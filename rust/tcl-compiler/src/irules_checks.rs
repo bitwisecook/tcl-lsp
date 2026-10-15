@@ -34,6 +34,7 @@
 //! on the richer cross-event analysis in `connection_scope.rs`.
 
 use std::collections::{HashMap, HashSet};
+#[cfg(test)]
 use std::sync::OnceLock;
 use tcl_core_types::DiagCode;
 use tcl_dialect::model::Family;
@@ -50,11 +51,13 @@ use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::ir::{Script, Statement};
 use crate::lowering::lower_to_ir_with_config;
 use crate::sccp::cfg_order;
+#[cfg(test)]
 use crate::value_shapes::parse_command_substitution_with_config;
 use tcl_dialect::model::SurfaceQuery;
 
 /// Process-wide iRules command registry, used to derive the HTTP-flow command
 /// sets below.  Built once (the data is static).
+#[cfg(test)]
 fn irules_registry() -> &'static CommandRegistry {
     tcl_registry::model::ingress::static_context_for("f5-irules").commands()
 }
@@ -63,6 +66,7 @@ fn irules_registry() -> &'static CommandRegistry {
 /// `ResponseCommit` side-effect, so the bare iRules `redirect` is
 /// included alongside `HTTP::respond` / `HTTP::redirect` without a
 /// hardcoded list.
+#[cfg(test)]
 fn commits_response_commands() -> &'static HashSet<String> {
     static SET: OnceLock<HashSet<String>> = OnceLock::new();
     SET.get_or_init(|| {
@@ -80,23 +84,6 @@ fn commits_response_commands() -> &'static HashSet<String> {
     })
 }
 
-/// Registered commands that require a live HTTP transaction context.
-fn requires_http_context_commands() -> &'static HashSet<String> {
-    static SET: OnceLock<HashSet<String>> = OnceLock::new();
-    SET.get_or_init(|| {
-        let registry = irules_registry();
-        registry
-            .command_names()
-            .filter(|name| {
-                registry
-                    .get(name)
-                    .is_some_and(|spec| spec.traits.contains(Traits::REQUIRES_HTTP_CONTEXT))
-            })
-            .map(String::from)
-            .collect()
-    })
-}
-
 /// Whether `cmd` is a registered iRules getter that carries the
 /// `-normalized` option in its [`tcl_registry::CommandSpec`].
 ///
@@ -104,6 +91,7 @@ fn requires_http_context_commands() -> &'static HashSet<String> {
 /// the registry's own option list is the single source of truth, so
 /// adding `-normalized` to a new command's spec automatically
 /// extends the IRULE3102 surface.
+#[cfg(test)]
 fn supports_normalized_flag(registry: &CommandRegistry, cmd: &str) -> bool {
     registry
         .get(cmd)
@@ -296,20 +284,18 @@ pub(crate) fn format_message(cmd: &str) -> String {
     )
 }
 
-/// Return `true` when `cmd` is one of the commands that carry the
-/// `-normalized` option and `args` misses it in a getter form.
+/// A selected option vocabulary declares normalization but its exact original
+/// flag-form operands do not select that option.
 pub(crate) fn is_unnormalised_getter(
-    registry: &CommandRegistry,
-    cmd: &str,
+    options: &tcl_registry::abbrev::KeywordTable<'_>,
     args: &[String],
 ) -> bool {
-    if !supports_normalized_flag(registry, cmd) {
+    if !options.names().any(|name| name == "-normalized") || !is_getter_form(args) {
         return false;
     }
-    if args.iter().any(|a| a == "-normalized") {
-        return false;
-    }
-    is_getter_form(args)
+    !args.iter().any(|argument| {
+        options.resolve(argument) == tcl_registry::abbrev::KeywordMatch::Unique("-normalized")
+    })
 }
 
 /// Whether this point stands on the iRules surface.
@@ -330,119 +316,113 @@ fn is_irules(dialect: Option<SurfaceQuery<'_>>) -> bool {
 /// Gated: returns an empty vector unless the point stands on the iRules
 /// surface.
 ///
-/// Scan targets:
-///
-/// * `Statement::Call` whose `command` is a normalised-flag command —
-///   direct call site, typically as part of a larger expression: e.g.
-///   `if {[HTTP::uri] eq "/foo"}` after lowering becomes a call on
-///   `HTTP::uri`.
-/// * `Statement::AssignValue` whose RHS is a pure command substitution
-///   `[HTTP::uri …]` — covers `set u [HTTP::uri]`.
+/// Each invocation retains its original source binding. Nested commands use
+/// the complete argument substitution owner; braced data supplies no calls.
 #[must_use]
 pub fn find_unnormalised_getter_warnings(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
     dialect: Option<SurfaceQuery<'_>>,
 ) -> Vec<IrulesCheckWarning> {
-    let mut out: Vec<IrulesCheckWarning> = Vec::new();
     if !is_irules(dialect) {
-        return out;
+        return Vec::new();
     }
-    // naming.source.retained-explorer-consumers
-    // docs/design/analysis/name-resolution-proofs/retained-explorer-consumers.md
-    // Actual supplied source metadata is terminal; an explicit standalone
-    // Module/CFG remains a separate ingress. Neither grants getter execution.
-    let Some(source_query) = IrulesSourceQuery::capture(cu, registry) else {
-        return out;
+    let Some(source) = IrulesSourceQuery::capture(cu, registry) else {
+        return Vec::new();
     };
-
-    for fu in cu.analysable_functions() {
-        let Some(parent_config) = source_query.function_config(fu) else {
+    let mut out = Vec::new();
+    for function in cu.analysable_functions() {
+        let Some(config) = source.function_config(function) else {
             continue;
         };
-        let config = tcl_lexer::SourceSegmentationPurpose::NestedScript.config(parent_config);
-        for bn in cfg_order(&fu.cfg) {
-            if !fu.sccp.executable_blocks.contains(&bn) {
+        for block in cfg_order(&function.cfg) {
+            if !function.sccp.executable_blocks.contains(&block) {
                 continue;
             }
-            let Some(block) = fu.cfg.blocks.get(&bn) else {
+            let Some(block) = function.cfg.blocks.get(&block) else {
                 continue;
             };
-            for stmt in &block.statements {
-                match stmt {
-                    Statement::Call {
-                        command,
-                        args,
-                        span,
-                        tokens,
-                        ..
-                    } => {
-                        // Direct getter call — e.g. `if {[HTTP::uri] eq …}`
-                        // lowers to a `Call` whose command *is* the getter.
-                        if is_unnormalised_getter(registry, command, args) {
-                            out.push(IrulesCheckWarning {
-                                span: fu.abs_span(*span),
-                                code: DiagCode::Irule3102,
-                                message: format_message(command),
-                                replacement: None,
-                                fixes: Vec::new(),
-                            });
-                        }
-                        // Getter nested as a command-substitution argument —
-                        // e.g. the `[HTTP::uri]` fed into an HTTP sink in
-                        // `HTTP::respond 200 content [HTTP::uri]`.  The
-                        // substitution stays a literal `Cmd` arg on the outer
-                        // call rather than a separate statement, so flag it
-                        // here.  Prefer the argument token's own span so the
-                        // squiggle lands on the getter, not the whole call.
-                        for (i, arg) in args.iter().enumerate() {
-                            let trimmed = arg.trim();
-                            if !trimmed.starts_with('[') {
-                                continue;
-                            }
-                            let Some((cmd, sub_args)) =
-                                parse_command_substitution_with_config(trimmed, config)
-                            else {
-                                continue;
-                            };
-                            if is_unnormalised_getter(registry, &cmd, &sub_args) {
-                                let arg_span = tokens
-                                    .as_ref()
-                                    .and_then(|t| t.argv.get(i + 1).copied())
-                                    .unwrap_or(*span);
-                                out.push(IrulesCheckWarning {
-                                    span: fu.abs_span(arg_span),
-                                    code: DiagCode::Irule3102,
-                                    message: format_message(&cmd),
-                                    replacement: None,
-                                    fixes: Vec::new(),
-                                });
-                            }
-                        }
-                    }
-                    Statement::AssignValue { value, span, .. } => {
-                        let Some((cmd, sub_args)) =
-                            parse_command_substitution_with_config(value.trim(), config)
-                        else {
-                            continue;
-                        };
-                        if is_unnormalised_getter(registry, &cmd, &sub_args) {
-                            out.push(IrulesCheckWarning {
-                                span: fu.abs_span(*span),
-                                code: DiagCode::Irule3102,
-                                message: format_message(&cmd),
-                                replacement: None,
-                                fixes: Vec::new(),
-                            });
-                        }
-                    }
-                    _ => {}
-                }
+            for statement in &block.statements {
+                let Some(tokens) =
+                    crate::ir::CommandBindingSites::unanimous_statement_source_tokens(
+                        function.cfg.command_binding_sites.iter(),
+                        statement,
+                    )
+                    .filter(|tokens| tokens.synthetic.is_none())
+                else {
+                    continue;
+                };
+                let Some(warnings) = original_getter_source_warnings(tokens, &source, config)
+                else {
+                    continue;
+                };
+                out.extend(warnings.into_iter().map(|mut warning| {
+                    warning.span = function.abs_span(warning.span);
+                    warning
+                }));
             }
         }
     }
-
+    out.sort_by(|a, b| {
+        (a.span.start(), a.span.end(), &a.message).cmp(&(b.span.start(), b.span.end(), &b.message))
+    });
+    out.dedup();
     out
+}
+
+fn original_getter_source_warnings(
+    parent: &crate::ir::CommandTokens,
+    source: &IrulesSourceQuery<'_>,
+    config: tcl_lexer::LexerConfig,
+) -> Option<Vec<IrulesCheckWarning>> {
+    parent
+        .source_binding
+        .as_ref()?
+        .original_lexer_config_for_tokens(parent)?;
+    let children = crate::word_subst::checked_argument_lifted_calls(
+        parent,
+        parent.native_lexer_config(config),
+    )?;
+    let mut warnings = Vec::new();
+    for tokens in std::iter::once(parent).chain(
+        children
+            .iter()
+            .map(|child| child.tokens.as_ref())
+            .collect::<Option<Vec<_>>>()?,
+    ) {
+        let assistance =
+            crate::registry_invocation::registry_invocation_assistance_with_metadata_context(
+                source.registry,
+                source.metadata(),
+                tokens,
+            )?;
+        for candidate in &assistance.candidates {
+            let arguments =
+                crate::registry_invocation::frozen_argument_words(tokens, &candidate.effective)
+                    .iter()
+                    .map(|argument| {
+                        Some(
+                            std::str::from_utf8(argument.literal_bytes()?)
+                                .ok()?
+                                .to_owned(),
+                        )
+                    })
+                    .collect::<Option<Vec<_>>>();
+            let Some(arguments) = arguments else {
+                continue;
+            };
+            if is_unnormalised_getter(&candidate.option_keywords, &arguments) {
+                warnings.push(IrulesCheckWarning {
+                    span: Span::new(tokens.argv.first()?.start(), tokens.argv.last()?.end()),
+                    code: DiagCode::Irule3102,
+                    message: format_message(&candidate.command),
+                    replacement: None,
+                    fixes: Vec::new(),
+                });
+            }
+        }
+    }
+    Some(warnings)
 }
 
 /// One source-owner query shared by secondary iRules syntax consumers.
@@ -573,24 +553,6 @@ fn unnormalised_getter_source_config(
 // of every `if` / `switch` / `try` tracked separately, emitting at
 // branch joins where the drop survived unguarded.
 
-fn is_drop_command(cmd: &str) -> bool {
-    matches!(cmd, "drop" | "reject" | "discard")
-}
-
-fn is_dns_return(cmd: &str, _args: &[String]) -> bool {
-    // Any `DNS::return` (with or without options) requires a
-    // following `return`; option-bearing forms (`DNS::return -...`)
-    // are valid Tcl and equally affected by the missing-`return`
-    // hazard (no option-prefix gate).
-    cmd == "DNS::return"
-}
-
-/// `event disable all` is a drop guard: the subsequent statements
-/// run but no other iRule does.
-fn is_event_disable_all(cmd: &str, args: &[String]) -> bool {
-    cmd == "event" && args.len() >= 2 && args[0] == "disable" && args[1] == "all"
-}
-
 /// One drop / DNS-return flow fact along a path.  Dedup keys on the
 /// `(dropped, dns_returned)` pair only, so the first unguarded occurrence
 /// on any surviving path wins.
@@ -615,45 +577,109 @@ fn dedupe_drop_states(states: Vec<DropFlowState>) -> Vec<DropFlowState> {
     out
 }
 
-/// Leaf transfer for the drop-flow walk: `drop`/`reject`/`discard` set the
-/// dropped fact, `DNS::return` sets the DNS fact, and `event disable all`
-/// clears the dropped fact (it guards the drop).
-fn drop_flow_leaf(st: &DropFlowState, stmt: &Statement) -> DropFlowState {
-    let Statement::Call {
-        command,
-        args,
-        span,
-        ..
-    } = stmt
-    else {
-        return st.clone();
-    };
-    if is_event_disable_all(command, args) {
-        return DropFlowState {
-            dropped: false,
-            drop_cmd: String::new(),
-            drop_at: None,
-            dns_returned: st.dns_returned,
-            dns_at: st.dns_at,
-        };
+struct OriginalIrulesFlowCommand {
+    command: String,
+    span: Span,
+    drops_connection: bool,
+    returns_dns_packet: bool,
+    disables_all_events: bool,
+    may_commit_response: bool,
+    requires_http_context: bool,
+}
+
+/// Actual source owners retain typed-lowering carriers and all argv children.
+/// Missing source is distinct from an admitted command with no flow metadata.
+fn original_irules_flow_commands(
+    script: &Script,
+    statement: &Statement,
+    source: &IrulesSourceQuery<'_>,
+    config: tcl_lexer::LexerConfig,
+) -> Option<Vec<OriginalIrulesFlowCommand>> {
+    use tcl_registry::events::IrulesSourceFlowAction;
+    if !statement.is_executable_invocation() {
+        return Some(Vec::new());
     }
-    if is_drop_command(command) {
-        return DropFlowState {
-            dropped: true,
-            drop_cmd: command.clone(),
-            drop_at: Some(*span),
-            dns_returned: st.dns_returned,
-            dns_at: st.dns_at,
-        };
+    let parent = script.retained_source_tokens_for_statement(statement)?;
+    parent
+        .source_binding
+        .as_ref()?
+        .original_lexer_config_for_tokens(parent)?;
+    let children = crate::word_subst::checked_argument_lifted_calls(
+        parent,
+        parent.native_lexer_config(config),
+    )?;
+    let children = children
+        .iter()
+        .map(|child| child.tokens.as_ref())
+        .collect::<Option<Vec<_>>>()?;
+    let mut calls = Vec::new();
+    for tokens in children.into_iter().chain(std::iter::once(parent)) {
+        let possible =
+            crate::registry_invocation::registry_invocation_assistance_with_metadata_context(
+                source.registry,
+                source.metadata(),
+                tokens,
+            )?;
+        let mut drops_connection = false;
+        let mut returns_dns_packet = false;
+        let mut may_commit_response = false;
+        let mut requires_http_context = false;
+        for candidate in &possible.candidates {
+            drops_connection |= candidate.irules_source_flow_action
+                == Some(IrulesSourceFlowAction::DropsConnection);
+            returns_dns_packet |= candidate.irules_source_flow_action
+                == Some(IrulesSourceFlowAction::ReturnsDnsPacket);
+            may_commit_response |= candidate.source_may_commit_response;
+            requires_http_context |= candidate
+                .possible_traits
+                .contains(Traits::REQUIRES_HTTP_CONTEXT);
+        }
+        let disables_all_events = !possible.unknown_residual
+            && !possible.may_be_absent
+            && !possible.candidates.is_empty()
+            && possible.candidates.iter().all(|candidate| {
+                candidate.irules_source_flow_action
+                    == Some(IrulesSourceFlowAction::DisablesAllEvents)
+            });
+        if !(drops_connection
+            || returns_dns_packet
+            || may_commit_response
+            || requires_http_context
+            || disables_all_events)
+        {
+            continue;
+        }
+        let command = tokens.argv_texts.first()?.clone();
+        calls.push(OriginalIrulesFlowCommand {
+            command,
+            span: Span::new(tokens.argv.first()?.start(), tokens.argv.last()?.end()),
+            drops_connection,
+            returns_dns_packet,
+            disables_all_events,
+            may_commit_response,
+            requires_http_context,
+        });
     }
-    if is_dns_return(command, args) {
-        return DropFlowState {
-            dns_returned: true,
-            dns_at: Some(*span),
-            ..st.clone()
-        };
+    Some(calls)
+}
+
+fn drop_flow_command(state: &DropFlowState, command: &OriginalIrulesFlowCommand) -> DropFlowState {
+    let mut next = state.clone();
+    if command.disables_all_events {
+        next.dropped = false;
+        next.drop_cmd.clear();
+        next.drop_at = None;
     }
-    st.clone()
+    if command.drops_connection {
+        next.dropped = true;
+        next.drop_cmd.clone_from(&command.command);
+        next.drop_at = Some(command.span);
+    }
+    if command.returns_dns_packet {
+        next.dns_returned = true;
+        next.dns_at = Some(command.span);
+    }
+    next
 }
 
 /// Path-sensitive IRULE5002 / IRULE5004 — an unguarded `drop`/`reject`/
@@ -672,9 +698,6 @@ pub fn find_unguarded_drop_warnings(
     let Some(source) = IrulesSourceQuery::capture(cu, cu.ir_module.resolved_registry()) else {
         return out;
     };
-    let leaf = |st: &DropFlowState, stmt: &Statement, _out: &mut Vec<IrulesCheckWarning>| {
-        drop_flow_leaf(st, stmt)
-    };
     // Honour the complexity guard but walk the structured
     // IR body of each analysable original event handler.
     for fu in cu.analysable_functions() {
@@ -685,6 +708,23 @@ pub fn find_unguarded_drop_warnings(
             continue;
         };
         let proc = event.procedure;
+        let Some(config) = source.function_config(fu) else {
+            return Vec::new();
+        };
+        let missing_source = std::cell::Cell::new(false);
+        let leaf = |state: &DropFlowState,
+                    script: &Script,
+                    statement: &Statement,
+                    _out: &mut Vec<IrulesCheckWarning>| {
+            let Some(commands) = original_irules_flow_commands(script, statement, &source, config)
+            else {
+                missing_source.set(true);
+                return state.clone();
+            };
+            commands.iter().fold(state.clone(), |current, command| {
+                drop_flow_command(&current, command)
+            })
+        };
         let unreached = unreached_statements(fu);
         let finals = walk_flow(
             &proc.body,
@@ -698,6 +738,9 @@ pub fn find_unguarded_drop_warnings(
             },
             None,
         );
+        if missing_source.get() {
+            return Vec::new();
+        }
         for st in finals {
             if st.dropped
                 && let Some(span) = st.drop_at
@@ -1425,11 +1468,22 @@ pub fn find_http_flow_warnings(
         }
         let proc = event.procedure;
         let unreached = unreached_statements(fu);
-        let leaf = |st: &HttpFlowState, stmt: &Statement, out: &mut Vec<IrulesCheckWarning>| {
-            match http_flow_stmt_command(stmt) {
-                Some((cmd, span)) => apply_http_flow_command(*st, cmd, span, bare_event, out),
-                None => *st,
-            }
+        let Some(config) = source.function_config(fu) else {
+            return Vec::new();
+        };
+        let missing_source = std::cell::Cell::new(false);
+        let leaf = |state: &HttpFlowState,
+                    script: &Script,
+                    statement: &Statement,
+                    out: &mut Vec<IrulesCheckWarning>| {
+            let Some(commands) = original_irules_flow_commands(script, statement, &source, config)
+            else {
+                missing_source.set(true);
+                return *state;
+            };
+            commands.iter().fold(*state, |current, command| {
+                apply_http_flow_command(current, command, bare_event, out)
+            })
         };
         walk_flow(
             &proc.body,
@@ -1446,6 +1500,9 @@ pub fn find_http_flow_warnings(
             },
             None,
         );
+        if missing_source.get() {
+            return Vec::new();
+        }
     }
     // Distinct predecessor states can prove the same source command unsafe.
     // The proof multiplicity is internal; the editor should receive one
@@ -1475,31 +1532,16 @@ fn dedupe_flow_states(states: Vec<HttpFlowState>) -> Vec<HttpFlowState> {
     out
 }
 
-/// The command word + span a statement applies to the response flow, or `None`.
-/// Direct `Call`/`Barrier` heads, plus a whole-value `[cmd …]` command
-/// substitution assigned by `set`.
-fn http_flow_stmt_command(stmt: &Statement) -> Option<(&str, Span)> {
-    match stmt {
-        Statement::Call { command, span, .. } | Statement::Barrier { command, span, .. } => {
-            Some((command.as_str(), *span))
-        }
-        Statement::AssignValue { value, span, .. } => {
-            let inner = value.trim().strip_prefix('[')?.strip_suffix(']')?.trim();
-            inner.split_whitespace().next().map(|cmd| (cmd, *span))
-        }
-        _ => None,
-    }
-}
-
 /// Apply one command to a flow state, emitting IRULE1201/1202 as warranted.
 fn apply_http_flow_command(
     state: HttpFlowState,
-    cmd: &str,
-    span: Span,
+    command: &OriginalIrulesFlowCommand,
     event: &str,
     out: &mut Vec<IrulesCheckWarning>,
 ) -> HttpFlowState {
-    if commits_response_commands().contains(cmd) {
+    let cmd = &command.command;
+    let span = command.span;
+    if command.may_commit_response {
         if state.responded {
             out.push(IrulesCheckWarning {
                 span,
@@ -1517,7 +1559,7 @@ fn apply_http_flow_command(
             respond_at: Some(span.start()),
         };
     }
-    if state.responded && requires_http_context_commands().contains(cmd) {
+    if state.responded && command.requires_http_context {
         out.push(IrulesCheckWarning {
             span,
             code: DiagCode::Irule1201,
@@ -1591,13 +1633,13 @@ fn walk_flow<S, L, D>(
 ) -> Vec<S>
 where
     S: Clone,
-    L: Fn(&S, &Statement, &mut Vec<IrulesCheckWarning>) -> S,
+    L: Fn(&S, &Script, &Statement, &mut Vec<IrulesCheckWarning>) -> S,
     D: Fn(Vec<S>) -> Vec<S>,
 {
     let mut states = in_states.to_vec();
     for stmt in &script.statements {
         // `None` ⇒ the statement terminates every current path (`return`).
-        match flow_step(stmt, &states, fd, return_sink.as_deref_mut()) {
+        match flow_step(script, stmt, &states, fd, return_sink.as_deref_mut()) {
             None => {
                 // Hand the at-return states to the enclosing catch (if any) so
                 // flow resumes past it, then terminate this script's path.
@@ -1616,6 +1658,7 @@ where
 /// it (`return`) terminates the current paths.  Control-flow arms recurse
 /// through [`walk_flow`]; leaf statements go through `leaf`.
 fn flow_step<S, L, D>(
+    script: &Script,
     stmt: &Statement,
     states: &[S],
     fd: &mut FlowDispatch<'_, L, D>,
@@ -1623,7 +1666,7 @@ fn flow_step<S, L, D>(
 ) -> Option<Vec<S>>
 where
     S: Clone,
-    L: Fn(&S, &Statement, &mut Vec<IrulesCheckWarning>) -> S,
+    L: Fn(&S, &Script, &Statement, &mut Vec<IrulesCheckWarning>) -> S,
     D: Fn(Vec<S>) -> Vec<S>,
 {
     if fd.unreached.contains(&stmt.span()) {
@@ -1714,7 +1757,7 @@ where
         _ => {
             let mut next = Vec::with_capacity(states.len());
             for st in states {
-                next.push((fd.leaf)(st, stmt, fd.out));
+                next.push((fd.leaf)(st, script, stmt, fd.out));
             }
             (fd.dedupe)(next)
         }
@@ -1731,7 +1774,7 @@ fn flow_step_region<S, L, D>(
 ) -> Vec<S>
 where
     S: Clone,
-    L: Fn(&S, &Statement, &mut Vec<IrulesCheckWarning>) -> S,
+    L: Fn(&S, &Script, &Statement, &mut Vec<IrulesCheckWarning>) -> S,
     D: Fn(Vec<S>) -> Vec<S>,
 {
     use tcl_registry::native_compilation::PossibleBodyTopology;
@@ -1808,7 +1851,7 @@ fn flow_region_phases<S, L, D>(
 ) -> Vec<S>
 where
     S: Clone,
-    L: Fn(&S, &Statement, &mut Vec<IrulesCheckWarning>) -> S,
+    L: Fn(&S, &Script, &Statement, &mut Vec<IrulesCheckWarning>) -> S,
     D: Fn(Vec<S>) -> Vec<S>,
 {
     let mut continuing = states.to_vec();
@@ -1836,7 +1879,7 @@ fn flow_step_switch<S, L, D>(
 ) -> Vec<S>
 where
     S: Clone,
-    L: Fn(&S, &Statement, &mut Vec<IrulesCheckWarning>) -> S,
+    L: Fn(&S, &Script, &Statement, &mut Vec<IrulesCheckWarning>) -> S,
     D: Fn(Vec<S>) -> Vec<S>,
 {
     let one = std::slice::from_ref;
@@ -1869,7 +1912,7 @@ fn flow_step_try<S, L, D>(
 ) -> Vec<S>
 where
     S: Clone,
-    L: Fn(&S, &Statement, &mut Vec<IrulesCheckWarning>) -> S,
+    L: Fn(&S, &Script, &Statement, &mut Vec<IrulesCheckWarning>) -> S,
     D: Fn(Vec<S>) -> Vec<S>,
 {
     let one = std::slice::from_ref;
@@ -3891,6 +3934,13 @@ mod original_getter_source_config_tests {
     fn supplied(
         config: tcl_lexer::LexerConfig,
     ) -> (CompilationUnit, Arc<tcl_registry::model::ContextRegistry>) {
+        supplied_source("when HTTP_REQUEST {set u [HTTP::uri]}", config)
+    }
+
+    fn supplied_source(
+        source: &str,
+        config: tcl_lexer::LexerConfig,
+    ) -> (CompilationUnit, Arc<tcl_registry::model::ContextRegistry>) {
         let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
         let context = environment.default_context_registry();
         let input = ResolvedAnalysisInput::new(
@@ -3900,7 +3950,7 @@ mod original_getter_source_config_tests {
             config,
         );
         let cu = CompilationUnit::build_with_analysis_input(
-            "when HTTP_REQUEST {set u [HTTP::uri]}",
+            source,
             UnitBuildOptions {
                 registry: context.commands(),
                 defer_top_level: false,
@@ -3950,6 +4000,68 @@ mod original_getter_source_config_tests {
         );
         assert_eq!(warnings.len(), 1);
         assert_eq!(warnings[0].code, DiagCode::Irule3102);
+    }
+
+    #[test]
+    fn getter_source_keeps_original_children_and_ignores_report_values() {
+        let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
+        let config = tcl_lexer::LexerConfig::from_grammar(environment.grammar());
+        let query = Some(environment.unit_profile().surface_query());
+        for body in [
+            r#"set value "prefix[HTTP::uri]""#,
+            "set value $a([HTTP::uri])",
+            "set value 0; incr value [HTTP::uri]",
+            "[HTTP::uri]",
+        ] {
+            let (unit, context) = supplied_source(&format!("when HTTP_REQUEST {{{body}}}"), config);
+            let warnings = find_unnormalised_getter_warnings(&unit, context.commands(), query);
+            assert_eq!(warnings.len(), 1, "{body}");
+            assert!(warnings[0].message.contains("HTTP::uri -normalized"));
+        }
+        for source in [
+            "when HTTP_REQUEST {set value {prefix[HTTP::uri]}; :HTTP::uri}",
+            "proc HTTP::uri {} {return value}; when HTTP_REQUEST {HTTP::uri}",
+        ] {
+            let (unit, context) = supplied_source(source, config);
+            assert!(
+                find_unnormalised_getter_warnings(&unit, context.commands(), query).is_empty(),
+                "{source}"
+            );
+        }
+        let (mut unit, context) = supplied_source("when HTTP_REQUEST {HTTP::uri}", config);
+        assert_eq!(
+            find_unnormalised_getter_warnings(&unit, context.commands(), query).len(),
+            1
+        );
+        let mut changed = false;
+        for function in unit.procedures.values_mut() {
+            for block in function.cfg.blocks.values_mut() {
+                for statement in &mut block.statements {
+                    if let Statement::Call {
+                        command,
+                        canonical_command,
+                        args,
+                        ..
+                    }
+                    | Statement::Barrier {
+                        command,
+                        canonical_command,
+                        args,
+                        ..
+                    } = statement
+                    {
+                        *command = "HTTP::header".to_owned();
+                        *canonical_command = Some("::HTTP::header".to_owned());
+                        *args = vec!["-normalized".to_owned()];
+                        changed = true;
+                    }
+                }
+            }
+        }
+        assert!(changed);
+        let warnings = find_unnormalised_getter_warnings(&unit, context.commands(), query);
+        assert_eq!(warnings.len(), 1);
+        assert!(warnings[0].message.contains("HTTP::uri -normalized"));
     }
 
     #[test]
@@ -4334,6 +4446,49 @@ mod original_event_owner_tests {
         warnings.extend(find_hoistable_set_warnings(unit, surface));
         warnings.extend(find_generic_static_name_warnings(unit, surface, None));
         warnings
+    }
+
+    #[test]
+    fn source_flow_requires_actual_selected_commands_and_original_children() {
+        let surface = Some(SurfaceQuery::any_release(Family::F5Irules));
+        for text in [
+            "proc drop args {}; when HTTP_REQUEST {drop}",
+            "proc HTTP::respond args {}; when HTTP_REQUEST {HTTP::respond 200; HTTP::header insert X yes}",
+            "when HTTP_REQUEST {set value {prefix[drop]}; set response {[HTTP::respond 200]}; HTTP::header insert X yes}",
+        ] {
+            let (unit, _) = supplied(text, false);
+            assert!(
+                find_unguarded_drop_warnings(&unit, surface).is_empty(),
+                "{text}"
+            );
+            assert!(find_http_flow_warnings(&unit, surface).is_empty(), "{text}");
+        }
+        for text in [
+            "when HTTP_REQUEST {::drop}",
+            r#"when HTTP_REQUEST {set value "prefix[drop]"}"#,
+            "when HTTP_REQUEST {drop; event disable $target}",
+            "when HTTP_REQUEST {drop; event disable all extra}",
+        ] {
+            let (unit, _) = supplied(text, false);
+            assert!(
+                find_unguarded_drop_warnings(&unit, surface)
+                    .iter()
+                    .any(|warning| warning.code == DiagCode::Irule5002),
+                "{text}"
+            );
+        }
+        for text in [
+            r#"when HTTP_REQUEST {set value "prefix[HTTP::respond 200]"; HTTP::header insert X yes}"#,
+            "when HTTP_REQUEST {set value $a([HTTP::respond 200]); HTTP::header insert X yes}",
+        ] {
+            let (unit, _) = supplied(text, false);
+            assert!(
+                find_http_flow_warnings(&unit, surface)
+                    .iter()
+                    .any(|warning| warning.code == DiagCode::Irule1201),
+                "{text}"
+            );
+        }
     }
 
     #[test]

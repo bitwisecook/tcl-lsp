@@ -5,7 +5,7 @@ abbreviation, cache installation, public arity and helper lookup. These are
 original C API observations, using `Jim_RegisterCoreCommands`, the original
 `Jim_InitStaticExtensions` and `Jim_EvalNamespace`. No Tcltest harness is used.
 
-All three captures identify upstream and local Jim revision
+All four successful captures identify upstream and local Jim revision
 `5bac7c99ad65864c87da513e22e2f01703fa4e03` at execution time, reporting
 `0.84-9-g5bac7c9`. The compiler is Debian cc 14.2.0-19. Each manifest retains
 247 unchanged provider source, configuration, library and executable hashes,
@@ -46,7 +46,7 @@ native table addresses, prove every cache branch, or observe destructor/final-fr
 chronology. The original interpreter and library are the provider; Runtime and
 VM acceptance require separate exact controls.
 
-`transport.json` records byte-exact copies of all three original captures. Original
+`transport.json` records byte-exact copies of all four successful original captures and the separate failed setup. Original
 receipt and invocation paths remain unchanged; each `probe.elf` is the captured
 executable originally named `probe`. Each capture retains its exact C source and
 capture driver. The top-level driver can create a fresh output directory with:
@@ -58,3 +58,14 @@ python3 capture.py --sdk-dir /absolute/original/jimtcl --out /fresh/capture
 The driver checks upstream/local identity and preserves setup failures separately
 from observed completions. A new run has its own receipts and does not replace
 any retained capture.
+
+`capture04` adds seven mutable-sort cases in cold/reuse phases, for 2,501 rows
+and 89 cases. All 2,305 predecessor rows remain byte-exact. Replacing actual
+`lsort` changes `-commands`, top-level help and unknown-member enumeration to
+its actual returned order; member help does not reach sorting. An error from
+`lsort` becomes the list helper's result: `-commands` still completes OK with
+that original error object, while top-level help and unknown-member diagnostics
+format that text. The first attempt, retained under `capture04-failed-setup`,
+could not reach the configured proxy, so compilation and execution never ran.
+The successful second attempt rechecked current upstream with network access;
+its original provider hashes are unchanged and both compile/run exit zero.

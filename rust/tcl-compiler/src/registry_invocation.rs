@@ -5101,11 +5101,27 @@ pub fn frozen_argument_words(
                         .as_ref()
                         .and_then(|binding| binding.variable_context.invocation_dialect)
                     {
-                        return effective_invocation_word(
+                        let value = effective_invocation_word(
                             word,
                             dialect.lexer_grammar.escapes,
                             dialect.word_values,
                         );
+                        return if value == EffectiveInvocationWord::Dynamic {
+                            tokens
+                                .source_binding
+                                .as_ref()
+                                .and_then(|binding| {
+                                    binding.original_compound_array_argument(
+                                        tokens,
+                                        *index,
+                                        dialect.lexer_grammar.escapes,
+                                        dialect.word_values,
+                                    )
+                                })
+                                .unwrap_or(value)
+                        } else {
+                            value
+                        };
                     }
                     match invocation_word(word) {
                         InvocationWord::Literal(text) => {
@@ -5151,6 +5167,12 @@ pub struct RegistryInvocationShape {
     pub data_collection: Option<tcl_registry::events::DataCollectionOperation>,
     /// Possible source execution side; this supplies no entered body.
     pub side_switch_target: Option<tcl_registry::side_effects::SideSwitchTarget>,
+    /// Available selected options and their actual abbreviation policy.
+    pub option_keywords: tcl_registry::abbrev::KeywordTable<'static>,
+    /// Possible source flow action, without a successful effect or handler.
+    pub irules_source_flow_action: Option<tcl_registry::events::IrulesSourceFlowAction>,
+    /// Possible response commitment from this candidate's source descriptor.
+    pub source_may_commit_response: bool,
     /// Possible roles relative to the selected command or member operands.
     pub roles: Vec<(u8, tcl_registry::ArgRole)>,
     /// Selected member operands' offset in effective post-head argv, including
@@ -5173,6 +5195,9 @@ impl RegistryInvocationShape {
             operation: facts.operation,
             data_collection: facts.data_collection,
             side_switch_target: facts.side_switch_target,
+            option_keywords: facts.option_keywords.clone(),
+            irules_source_flow_action: facts.irules_source_flow_action,
+            source_may_commit_response: facts.source_may_commit_response,
             roles: facts.arg_roles.clone(),
             argument_offset: facts.argument_offset,
             roles_complete: facts.arg_roles_complete,
@@ -7146,10 +7171,7 @@ pub fn effective_invocation_word(
                 escapes,
             ))
         }
-        WordExpr::Template { .. } => evaluated_array_element_root(word, escapes)
-            .map_or(EffectiveInvocationWord::Dynamic, |root| {
-                EffectiveInvocationWord::ArrayElementName { root }
-            }),
+        WordExpr::Template { .. } => EffectiveInvocationWord::Dynamic,
         WordExpr::Variable { .. } | WordExpr::CommandSubstitution { .. } => {
             EffectiveInvocationWord::Dynamic
         }
@@ -7158,45 +7180,30 @@ pub fn effective_invocation_word(
     }
 }
 
-fn evaluated_array_element_root(word: &WordExpr, escapes: EscapeSyntax) -> Option<String> {
-    let WordExpr::Template { parts, .. } = word else {
+/// Partial variable-operand shape from one actual original C compiler word.
+/// This retains the independently selected recipe and complete source grammar;
+/// it supplies neither an evaluated whole value nor a variable handler or cell.
+pub(crate) fn original_array_element_word(
+    original: &tcl_lexer::NativeWord,
+    policy: tcl_syntax::naming::NamePolicyProtocol,
+) -> Option<EffectiveInvocationWord> {
+    let tcl_syntax::naming::NativeNameProtocol::C(version) = policy.recipe() else {
         return None;
     };
-    if parts
-        .iter()
-        .any(|part| matches!(part, WordPart::Opaque { .. }))
-    {
+    let tcl_syntax::native_variable_words::NativeVariableWordOperand::CompoundArray {
+        name, ..
+    } = tcl_syntax::native_variable_words::native_variable_word(
+        original,
+        version,
+        policy.string_protocol(),
+    )
+    .ok()?
+    else {
         return None;
-    }
-    let prefix: String = parts
-        .iter()
-        .take_while(|part| matches!(part, WordPart::Text { .. }))
-        .filter_map(|part| match part {
-            WordPart::Text { text, .. } => Some(text.as_str()),
-            _ => None,
-        })
-        .collect();
-    let suffix: String = parts
-        .iter()
-        .rev()
-        .take_while(|part| matches!(part, WordPart::Text { .. }))
-        .collect::<Vec<_>>()
-        .into_iter()
-        .rev()
-        .filter_map(|part| match part {
-            WordPart::Text { text, .. } => Some(text.as_str()),
-            _ => None,
-        })
-        .collect();
-    let prefix_bytes = tcl_syntax::backslash::decode_bytes_in(prefix.as_bytes(), escapes);
-    let suffix_bytes = tcl_syntax::backslash::decode_bytes_in(suffix.as_bytes(), escapes);
-    let prefix = std::str::from_utf8(&prefix_bytes).ok()?;
-    let suffix = std::str::from_utf8(&suffix_bytes).ok()?;
-    if !suffix.ends_with(')') {
-        return None;
-    }
-    let opening = prefix.find('(')?;
-    Some(prefix[..opening].to_owned())
+    };
+    Some(EffectiveInvocationWord::ArrayElementName {
+        root: String::from_utf8(name).ok()?,
+    })
 }
 
 /// Convert a command-token snapshot into source-aware effective argv facts.
@@ -7211,7 +7218,26 @@ pub fn effective_command_arguments(
         .get(1..)
         .unwrap_or_default()
         .iter()
-        .map(|word| effective_invocation_word(word, escapes, word_rules))
+        .enumerate()
+        .map(|(argument, word)| {
+            let value = effective_invocation_word(word, escapes, word_rules);
+            if value == EffectiveInvocationWord::Dynamic {
+                tokens
+                    .source_binding
+                    .as_ref()
+                    .and_then(|binding| {
+                        binding.original_compound_array_argument(
+                            tokens,
+                            argument + 1,
+                            escapes,
+                            word_rules,
+                        )
+                    })
+                    .unwrap_or(value)
+            } else {
+                value
+            }
+        })
         .collect()
 }
 
@@ -10306,6 +10332,66 @@ mod tests {
                 WordValueRules::TCL,
             ),
             EffectiveInvocationWord::Literal(r"\x32".to_owned())
+        );
+    }
+
+    #[test]
+    fn compound_array_word_facts_require_the_original_configured_operand() {
+        let policy =
+            tcl_syntax::naming::NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_6);
+        let config = tcl_lexer::LexerConfig::default();
+        for (source, expected) in [
+            ("set array($index) VALUE", Some("array")),
+            ("set \"array($index)\" VALUE", Some("array")),
+            (r"set array\($index) VALUE", None),
+            ("set $root($index) VALUE", None),
+            ("set array($index)suffix VALUE", None),
+        ] {
+            let image = tcl_lexer::SourceImage::document(source);
+            let plan = tcl_lexer::native_script_words_in(
+                image.clone(),
+                tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+                config,
+            )
+            .unwrap();
+            let original = &plan.commands[0].words[1];
+            assert_eq!(
+                original_array_element_word(original, policy),
+                expected.map(|root| EffectiveInvocationWord::ArrayElementName {
+                    root: root.to_owned()
+                }),
+                "{source}"
+            );
+            let segment = segment_commands(source).pop().unwrap();
+            let tokens = CommandTokens::from_segmented(
+                &tcl_lexer::SourceMap::from_image(&image),
+                config,
+                &segment,
+            );
+            assert_eq!(
+                effective_invocation_word(
+                    &tokens.words()[1],
+                    config.escapes,
+                    WordValueRules::from_config(&config)
+                ),
+                EffectiveInvocationWord::Dynamic,
+                "a representative template has no original operand owner: {source}"
+            );
+        }
+        let source = "set array($index) VALUE";
+        let image = tcl_lexer::SourceImage::document(source);
+        let config = tcl_lexer::LexerConfig::from_grammar(
+            tcl_dialect::DialectProfile::find("tcl9.0").unwrap().grammar,
+        );
+        let plan = tcl_lexer::native_script_words_in(
+            image,
+            tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+            config,
+        )
+        .unwrap();
+        assert!(
+            original_array_element_word(&plan.commands[0].words[1], policy).is_none(),
+            "mismatching original grammar cannot borrow C8.6 operand semantics"
         );
     }
 

@@ -1034,10 +1034,7 @@ fn existence_from(steps: &[(PlaceRef, ExistenceStep)], name: &str) -> Option<Exi
     if array.is_some() {
         return array;
     }
-    let base = name
-        .split_once('(')
-        .filter(|_| name.ends_with(')'))
-        .map(|(base, _)| base)?;
+    let (base, _) = tcl_syntax::naming::split_element_ref(name)?;
     steps
         .iter()
         .any(|(place, step)| place.name == base && *step == ExistenceStep::Set(Existence::Unbound))

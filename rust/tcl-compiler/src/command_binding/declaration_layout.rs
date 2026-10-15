@@ -455,6 +455,57 @@ impl SourceOriginalVariableFrame {
         })
     }
 
+    pub(super) fn from_logical_namespace_source(
+        scope: &super::OriginalDeclaredLogicalBodyContext,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> Option<Self> {
+        if scope.frame_recipe() != super::OriginalDeclaredSourceBodyFrame::Namespace
+            || !scope.matches_input(input)
+            || !super::source_analysis_entry::source_input_dialect(input)
+                .authored_name_policy()
+                .is_some_and(|policy| {
+                    policy.authority()
+                        == tcl_syntax::naming::NamePolicyAuthority::AuthoredSimulation
+                        && matches!(
+                            policy.recipe(),
+                            tcl_syntax::naming::NativeNameProtocol::C(_)
+                        )
+                })
+        {
+            return None;
+        }
+        let crate::registry_invocation::source_structure::OriginalRegistrySource::SourceTransitions(
+            advice,
+        ) = scope.scope_body().source_words().source()
+        else {
+            return None;
+        };
+        if advice.logical_source_input() != Some(input) {
+            return None;
+        }
+        let origin = &advice.site().source;
+        let image = origin.source_image();
+        let body = scope.scope_body().content_span();
+        let text = image.try_text().ok()?.get(body.as_range())?;
+        let namespace = tcl_syntax::naming::checked_namespace_path_key(scope.namespace_recipe())?;
+        Some(Self {
+            source: super::ExecutedScriptSource::contiguous_image(
+                Arc::clone(origin),
+                tcl_lexer::SourceImage::document(text),
+                body.start(),
+            )?,
+            frame: crate::var_resolve::VariableExecutionFrame::NamespaceActivation {
+                namespace,
+                identity: format!(
+                    "logical-namespace-source:{}:{}",
+                    super::SourceOriginId::activation_key(origin),
+                    body.start()
+                ),
+            },
+            config: input.lexer_config(),
+        })
+    }
+
     /// Genuine original procedure/method frame selected by its body recipe.
     #[must_use]
     pub const fn frame(&self) -> &crate::var_resolve::VariableExecutionFrame {

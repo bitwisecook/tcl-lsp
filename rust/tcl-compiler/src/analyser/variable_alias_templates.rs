@@ -38,11 +38,31 @@ impl AnalysisResult {
         if self.original_variable_alias_receipts.is_empty() {
             return Some(Vec::new());
         }
-        let bindings = self.retained_command_realm()?.source_bindings_ref();
+        let realm = self.retained_command_realm()?;
+        let bindings = realm.source_bindings_ref();
+        let input = self.resolved_input.as_ref()?;
         let mut direct = HashMap::<SourceOriginalVariableFrame, Option<HashSet<u32>>>::new();
         let mut templates = Vec::new();
         for anchor in self.original_alias_source_anchors() {
-            let Some(frame) = bindings.original_variable_frame_at_span(anchor.span, config) else {
+            let logical_scope = if input.has_logical_source_name_context() {
+                let Some(scope) = realm.original_logical_variable_scope_at(
+                    input,
+                    image,
+                    anchor.span,
+                    &anchor.input,
+                ) else {
+                    continue;
+                };
+                Some(scope)
+            } else {
+                None
+            };
+            let frame = if let Some(scope) = &logical_scope {
+                scope.alias_frame()
+            } else {
+                bindings.original_variable_frame_at_span(anchor.span, config)
+            };
+            let Some(frame) = frame else {
                 continue;
             };
             let mut candidates = self
@@ -51,13 +71,22 @@ impl AnalysisResult {
                 .filter(|alias| {
                     alias.frame() == &frame
                         && alias.invocation_offset() <= anchor.span.start()
-                        && bindings.original_variable_alias_template_matches_at_span(
-                            anchor.span,
-                            &anchor.input,
-                            anchor.receiver,
-                            alias,
-                            config,
-                        )
+                        && if let Some(scope) = &logical_scope {
+                            scope.matches_alias_template(
+                                anchor.span,
+                                &anchor.input,
+                                anchor.receiver,
+                                alias,
+                            )
+                        } else {
+                            bindings.original_variable_alias_template_matches_at_span(
+                                anchor.span,
+                                &anchor.input,
+                                anchor.receiver,
+                                alias,
+                                config,
+                            )
+                        }
                 })
                 .collect::<Vec<_>>();
             candidates.sort_by_key(|alias| alias.invocation_offset());
@@ -145,21 +174,22 @@ impl AnalysisResult {
         let Some(input) = self.resolved_input.as_ref() else {
             return true;
         };
-        let rules = tcl_registry::InvocationDialect::of_profile(input.unit_profile()).word_values;
+        let rules = tcl_syntax::word_rules::WordValueRules::from_config(&config);
         self.original_variable_alias_operands
             .iter()
             .any(|&(site, local, _, purpose)| {
                 if site <= alias.invocation_offset()
                     || site > anchor.start()
-                    || realm
-                        .source_bindings_ref()
-                        .original_variable_frame_at_span(local, config)
-                        .as_ref()
-                        != Some(alias.frame())
                 {
                     return false;
                 }
-                let local_input = realm
+                let local_input = if input.has_logical_source_name_context() {
+                    realm.original_written_word_at_span_in_source(image, local, config)
+                        .and_then(|(word, _)| crate::signature_scan::scope::SignatureSourceNameKey::from_original_logical_source_word(
+                            &word, rules, alias.target().policy(),
+                        ))
+                        .map(SignatureSourceNameInput::OriginalWord)
+                } else { realm
                     .original_written_name_input_at_span_in_source(image, local, config)
                     .or_else(|| {
                         realm
@@ -172,7 +202,14 @@ impl AnalysisResult {
                             .map(|name| {
                                 SignatureSourceNameInput::OriginalWord(name.name_input().clone())
                             })
-                    });
+                    }) };
+                let frame = if input.has_logical_source_name_context() {
+                    let Some(local_input) = local_input.as_ref() else { return true; };
+                    let Some(scope) = realm.original_logical_variable_scope_at(input, image, local, local_input) else { return true; };
+                    let Some(frame) = scope.alias_frame() else { return true; };
+                    Some(frame)
+                } else { realm.source_bindings_ref().original_variable_frame_at_span(local, config) };
+                if frame.as_ref() != Some(alias.frame()) { return false; }
                 local_input
                     .and_then(|input| original_variable_alias_local_name(&input, purpose))
                     .is_none_or(|local| &local == alias.local())
@@ -208,6 +245,55 @@ mod tests {
     use crate::signature_scan::variable_symbol::{
         OriginalVariableAliasTemplateObligation, SignatureSourceVariableSlot,
     };
+
+    #[test]
+    fn logical_alias_templates_keep_actual_procedure_and_namespace_source_frames() {
+        for source in [
+            "proc p {i} {upvar ::N::array($i) local; puts $local}; proc other {} {puts $local}",
+            "namespace eval N {namespace upvar ::other remote local; puts $local}; namespace eval N {puts $local}",
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl");
+            let image = SourceImage::document(source);
+            let config = analysis.body_lexer_config.unwrap();
+            let templates = analysis
+                .original_variable_alias_templates_in_source(&image, config)
+                .unwrap();
+            let read = u32::try_from(source.find("$local").unwrap()).unwrap();
+            let other = u32::try_from(source.rfind("$local").unwrap()).unwrap();
+            let template = templates
+                .iter()
+                .find(|template| template.span().start() == read)
+                .unwrap_or_else(|| panic!("genuine Logical source alias: {source}: {templates:?}"));
+            assert_eq!(template.local_name().as_bytes(), b"local");
+            assert!(!template.obligations().is_empty());
+            assert!(
+                templates
+                    .iter()
+                    .all(|template| template.span().start() != other)
+            );
+            assert_source_guards(source, &analysis, config, &image);
+        }
+        let source = "proc p {} {upvar ::one value; upvar ::two value; puts $value}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let templates = analysis
+            .original_variable_alias_templates_in_source(
+                &SourceImage::document(source),
+                analysis.body_lexer_config.unwrap(),
+            )
+            .unwrap();
+        let read = u32::try_from(source.find("$value").unwrap()).unwrap();
+        let template = templates
+            .iter()
+            .find(|template| template.span().start() == read)
+            .unwrap();
+        assert_eq!(
+            template
+                .target_symbol()
+                .checked_c_namespace_key()
+                .as_deref(),
+            Some("::two")
+        );
+    }
 
     #[test]
     fn original_alias_source_templates_keep_unknown_elements_and_source_order_separate() {

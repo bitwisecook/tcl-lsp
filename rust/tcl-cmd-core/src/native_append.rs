@@ -395,6 +395,37 @@ pub fn append_published_unshared_jim_object_checked<O: NativeAppendObjects>(
     check()
 }
 
+/// Append an original object onto the actual private, unshared Jim receiver.
+/// The caller retains its cleanup role and checks the live refcount-zero
+/// receiver and original operation at every reached stage. Neither header
+/// acquires a working reference or a copy-on-write decision.
+///
+/// # Errors
+/// Refuses a non-Jim recipe or a reached original storage/currentness failure.
+pub fn append_unshared_jim_object_checked<O: NativeAppendObjects>(
+    ops: &O,
+    protocol: NativeObjectAppendProtocol,
+    receiver: &O::Value,
+    source: &O::Value,
+    check: &mut impl FnMut() -> Result<(), ValueError>,
+) -> Result<(), ValueError> {
+    if !protocol.string_protocol().is_jim084() {
+        return Err(ValueError::CommandProtocolUnavailable(
+            "Jim private original-object append",
+        ));
+    }
+    let shape = checked_append_stage(ops, check, || ops.snapshot(receiver))?;
+    append_jim_string_checked(
+        ops,
+        protocol.string_protocol(),
+        receiver,
+        source,
+        &shape,
+        check,
+    )?;
+    check()
+}
+
 fn append_jim_cstring_checked<O: NativeAppendObjects>(
     ops: &O,
     protocol: NativeObjectAppendProtocol,

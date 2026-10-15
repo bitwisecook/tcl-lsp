@@ -12,12 +12,15 @@ pub enum NativeScriptedLibrary {
     NamespaceEnsemble,
     /// Original Jim namespace-aware info helper, independent of core inventory.
     NamespaceInfo,
+    /// Original Jim `nshelper.tcl` procedures, independent of primitive registration.
+    NamespaceHelpers,
 }
 
 impl NativeScriptedLibrary {
     /// Explicit distribution bootstrap roster; each library retains its own binding owners.
     pub const ALL: &'static [Self] = &[
         Self::Dictionary,
+        Self::NamespaceHelpers,
         Self::NamespaceInfo,
         Self::NamespaceEnsemble,
     ];
@@ -93,6 +96,17 @@ pub fn procedures(
         })
         .chain(namespace_info.iter().copied())
         .chain(namespace.iter().copied())
+        .chain(
+            crate::native_jim_lookup::NativeJimNamespaceHelperKind::ALL
+                .into_iter()
+                .filter(move |_| library == NativeScriptedLibrary::NamespaceHelpers)
+                .filter_map(move |kind| dialect.native_jim_namespace_helper(kind))
+                .map(|helper| NativeScriptedProcedure {
+                    command: helper.name(),
+                    parameters: helper.parameters(),
+                    body: helper.body(),
+                }),
+        )
 }
 
 impl InvocationDialect {
@@ -119,6 +133,32 @@ mod tests {
         TclVersion,
         model::{DialectPoint, Release},
     };
+
+    #[test]
+    fn namespace_helper_library_uses_the_original_descriptor_roster() {
+        let dialect = InvocationDialect::of_point(DialectPoint::canonical(Release::JIM_0_84));
+        let roster: Vec<_> = procedures(dialect, NativeScriptedLibrary::NamespaceHelpers).collect();
+        let originals: Vec<_> = crate::native_jim_lookup::NativeJimNamespaceHelperKind::ALL
+            .into_iter()
+            .map(|kind| dialect.native_jim_namespace_helper(kind).unwrap())
+            .collect();
+        assert_eq!(roster.len(), 9);
+        for (actual, original) in roster.iter().zip(originals) {
+            assert_eq!(actual.command, original.name());
+            assert_eq!(actual.parameters, original.parameters());
+            assert_eq!(actual.body, original.body());
+        }
+        for version in TclVersion::ALL {
+            assert_eq!(
+                procedures(
+                    InvocationDialect::for_version(version),
+                    NativeScriptedLibrary::NamespaceHelpers
+                )
+                .count(),
+                0
+            );
+        }
+    }
 
     #[test]
     fn original_namespace_info_library_matches_public_declaration() {

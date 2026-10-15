@@ -50,3 +50,5 @@ issues require exact input/source/reached-stage/output evidence. F5 answers
 remain independent until returned by the appliance chat.
 
 Final source238 validation: [ordinary272 current snapshot](current-state.md#current272-selected-scopes); exact portable receipts and unfinished owner work are indexed in [handoff/README.md](handoff/README.md). Historical scope in this document remains bounded to its stated capture.
+
+Expanded read-only refresh on15 October2026 exact-fetched all346 catalogue IDs, with329 explicit state rows/318 unique state-bearing IDs unchanged. Four related searches produced103 additional candidates;13 naming regressions are added to the catalogue, all CLOSED. Exact449metadata97OPEN/352CLOSED is a combined search scope, not an acceptance count. Three added regression selectors are source-verified and unexecuted; the remaining mappings stay unfinished. No issue mutations. #2286 remains OPEN: frozen551f original regression PASS68.977646515s/180s does not close complete acceptance.

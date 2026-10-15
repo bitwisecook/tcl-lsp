@@ -169,6 +169,48 @@ pub fn imported_command_candidate(pattern: &str, name: &str) -> Option<String> {
     }
 }
 
+/// Original Jim parser diagnostic using its actual head and command-list result.
+/// The caller obtains the list through its reached mutable `lsort` dispatch.
+#[must_use]
+pub fn jim_namespace_subcommand_diagnostic(
+    head: &[u8],
+    selector: &[u8],
+    joined_commands: &[u8],
+    ambiguous: bool,
+) -> Vec<u8> {
+    let mut message = tcl_core_types::c_string_extent(head).to_vec();
+    message.extend_from_slice(if ambiguous {
+        b", ambiguous command \""
+    } else {
+        b", unknown command \""
+    });
+    message.extend_from_slice(tcl_core_types::c_string_extent(selector));
+    message.extend_from_slice(b"\": should be ");
+    message.extend_from_slice(tcl_core_types::c_string_extent(joined_commands));
+    message
+}
+
+/// Original Jim top-level usage, after actual command-list production.
+#[must_use]
+pub fn jim_namespace_subcommand_usage(head: &[u8], joined_commands: &[u8]) -> Vec<u8> {
+    let mut message = b"Usage: \"".to_vec();
+    message.extend_from_slice(tcl_core_types::c_string_extent(head));
+    message.extend_from_slice(b" command ... \", where command is one of: ");
+    message.extend_from_slice(tcl_core_types::c_string_extent(joined_commands));
+    message
+}
+
+/// Original Jim missing-member synopsis; both head getters precede publication.
+#[must_use]
+pub fn jim_namespace_missing_subcommand(first_head: &[u8], second_head: &[u8]) -> Vec<u8> {
+    let mut message = b"wrong # args: should be \"".to_vec();
+    message.extend_from_slice(tcl_core_types::c_string_extent(first_head));
+    message.extend_from_slice(b" command ...\"\nUse \"");
+    message.extend_from_slice(tcl_core_types::c_string_extent(second_head));
+    message.extend_from_slice(b" -help ?command?\" for help");
+    message
+}
+
 /// What `namespace which` should resolve its name as.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WhichKind {

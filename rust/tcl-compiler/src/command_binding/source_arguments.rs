@@ -120,6 +120,7 @@ impl SourceCommandBindings {
                 word,
                 result.as_deref(),
                 name_value.as_deref(),
+                context.config,
                 state,
                 context.registry,
             ) else {
@@ -166,12 +167,17 @@ impl SourceCommandBindings {
         }
         let name_value =
             super::original_name_value::capture_word(word, state, config).map(Arc::new);
-        let frozen =
-            match frozen_arguments::freeze_word(word, None, name_value.as_deref(), state, registry)
-            {
-                Ok(frozen) => frozen,
-                Err(()) => return Some(Err(())),
-            };
+        let frozen = match frozen_arguments::freeze_word(
+            word,
+            None,
+            name_value.as_deref(),
+            config,
+            state,
+            registry,
+        ) {
+            Ok(frozen) => frozen,
+            Err(()) => return Some(Err(())),
+        };
         prepared
             .effective
             .extend(frozen_arguments::runtime_words(&frozen));

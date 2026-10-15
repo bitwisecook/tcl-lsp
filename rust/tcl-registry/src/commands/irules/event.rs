@@ -38,6 +38,7 @@ pub const fn spec() -> CommandSpec {
         // iRules dialect.
         surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
+        irules_source_flow: Some(crate::events::IrulesSourceFlowSpec::EventControl),
         hover: Some(HoverSnippet {
             summary: "Enables or disables evaluation of the specified iRule event or all iRule events on this connection.",
             synopsis: &[

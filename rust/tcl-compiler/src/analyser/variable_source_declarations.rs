@@ -174,6 +174,61 @@ mod tests {
     }
 
     #[test]
+    fn logical_alias_target_definitions_use_original_symbols_and_actual_frame_selection() {
+        for (source, target) in [
+            ("proc p {} {upvar ::ns::value alias}", "::ns::value"),
+            (
+                "namespace eval ns {proc p {} {upvar #0 value alias}}",
+                "::value",
+            ),
+            ("proc p {i} {upvar ::ns::array($i) alias}", "::ns::array"),
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl");
+            let image = SourceImage::document(source);
+            let config = analysis.body_lexer_config.unwrap();
+            let variable = analysis
+                .global_scope
+                .variables
+                .get(target)
+                .unwrap_or_else(|| {
+                    panic!(
+                        "actual source target {target}: {:?}",
+                        analysis.global_scope.variables
+                    )
+                });
+            let declaration = analysis
+                .original_variable_declaration_in_source(&image, config, variable)
+                .expect("typed original target declaration");
+            assert_eq!(
+                declaration.symbol().checked_c_namespace_key().as_deref(),
+                Some(target)
+            );
+            let mut report_only = analysis.clone();
+            let record = report_only.global_scope.variables.get_mut(target).unwrap();
+            record.name = "unrelated reporting label".to_owned();
+            assert_eq!(
+                report_only
+                    .original_variable_declaration_in_source(
+                        &image,
+                        config,
+                        report_only.global_scope.variables.get(target).unwrap(),
+                    )
+                    .unwrap()
+                    .symbol(),
+                declaration.symbol()
+            );
+        }
+        for source in [
+            "proc p {} {upvar value alias}",
+            "namespace eval ns {proc p {level} {upvar $level value alias}}",
+            "proc p {which} {upvar ::ns::$which alias}",
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl");
+            assert!(analysis.global_scope.variables.is_empty(), "{source}");
+        }
+    }
+
+    #[test]
     fn logical_cursor_frames_follow_actual_empty_bodies_and_refuse_unselected_braces() {
         let source = "proc outer {outerLocal} {\n if 1 { #IF\n }\n namespace eval A { #NS\n }\n unregistered { #UNKNOWN\n }\n proc inner {innerLocal} { #INNER\n }\n set value [ #SUB\n list $outerLocal]\n}";
         let analysis = Analyser::new().analyse(source, "tcl");
@@ -278,7 +333,7 @@ mod tests {
                 declaration.rename_span().unwrap().len(),
                 u32::try_from(name.len()).unwrap()
             );
-            assert!(analysis.original_variable_rename_is_complete(read.symbol()));
+            assert!(!analysis.original_variable_rename_is_complete(read.symbol()));
         }
         let first = analysis
             .original_variable_symbol_in_source(

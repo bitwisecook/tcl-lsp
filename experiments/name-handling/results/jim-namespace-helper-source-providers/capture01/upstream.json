@@ -1,0 +1,45 @@
+{
+  "checked_utc": "2026-10-15T11:14:47Z",
+  "request": {
+    "repo_full_name": "msteveb/jimtcl",
+    "commit_sha": "HEAD"
+  },
+  "commit": {
+    "sha": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+    "message": "Check signals in loops that dispatch no commands\n\nWhen a loop body is empty or executes the incr fast-path optimization,\nJim_EvalObj returns immediately without evaluating any actual command,\nwhich means the per-command signal check is never reached. This allows\nan async signal handler to be ignored indefinitely in such loops.\n\nAdd signal checks in Jim_EvalObj after both optimization paths return,\nensuring that async signals can interrupt loops regardless of whether\nthe body dispatches any actual command.\n\nFixes #385",
+    "url": "https://api.github.com/repos/msteveb/jimtcl/commits/5bac7c99ad65864c87da513e22e2f01703fa4e03",
+    "html_url": "https://github.com/msteveb/jimtcl/commit/5bac7c99ad65864c87da513e22e2f01703fa4e03",
+    "diff": "@@ -11588,6 +11588,9 @@ int Jim_EvalObj(Jim_Interp *interp, Jim_Obj *scriptObjPtr)\n      */\n     if (script->len == 0) {\n         Jim_DecrRefCount(interp, scriptObjPtr);\n+        /* Allow a signal to interrupt loops that dispatch no command. */\n+        if (Jim_CheckSignal(interp))\n+            return JIM_SIGNAL;\n         return JIM_OK;\n     }\n     if (script->len == 3\n@@ -11603,6 +11606,9 @@ int Jim_EvalObj(Jim_Interp *interp, Jim_Obj *scriptObjPtr)\n             Jim_InvalidateStringRep(objPtr);\n             Jim_DecrRefCount(interp, scriptObjPtr);\n             Jim_SetResult(interp, objPtr);\n+            /* Allow a signal to interrupt loops that dispatch no command. */\n+            if (Jim_CheckSignal(interp))\n+                return JIM_SIGNAL;\n             return JIM_OK;\n         }\n     }",
+    "files": [
+      {
+        "filename": "jim.c",
+        "patch": "@@ -11588,6 +11588,9 @@ int Jim_EvalObj(Jim_Interp *interp, Jim_Obj *scriptObjPtr)\n      */\n     if (script->len == 0) {\n         Jim_DecrRefCount(interp, scriptObjPtr);\n+        /* Allow a signal to interrupt loops that dispatch no command. */\n+        if (Jim_CheckSignal(interp))\n+            return JIM_SIGNAL;\n         return JIM_OK;\n     }\n     if (script->len == 3\n@@ -11603,6 +11606,9 @@ int Jim_EvalObj(Jim_Interp *interp, Jim_Obj *scriptObjPtr)\n             Jim_InvalidateStringRep(objPtr);\n             Jim_DecrRefCount(interp, scriptObjPtr);\n             Jim_SetResult(interp, objPtr);\n+            /* Allow a signal to interrupt loops that dispatch no command. */\n+            if (Jim_CheckSignal(interp))\n+                return JIM_SIGNAL;\n             return JIM_OK;\n         }\n     }"
+      }
+    ],
+    "repository_full_name": "msteveb/jimtcl",
+    "comments": null,
+    "author": {
+      "login": "msteveb",
+      "name": null,
+      "email": null,
+      "avatar_url": "https://avatars.githubusercontent.com/u/188705?v=4",
+      "id": 188705
+    },
+    "committer": {
+      "login": "msteveb",
+      "name": null,
+      "email": null,
+      "avatar_url": "https://avatars.githubusercontent.com/u/188705?v=4",
+      "id": 188705
+    },
+    "created_at": "2026-09-30T22:54:24Z",
+    "git_author_email": null,
+    "display_url": "https://github.com/msteveb/jimtcl/commit/5bac7c99ad65864c87da513e22e2f01703fa4e03",
+    "display_title": "Check signals in loops that dispatch no commands"
+  },
+  "url": "https://github.com/msteveb/jimtcl/commit/5bac7c99ad65864c87da513e22e2f01703fa4e03",
+  "title": "Check signals in loops that dispatch no commands\n\nWhen a loop body is empty or executes the incr fast-path optimization,\nJim_EvalObj returns immediately without evaluating any actual command,\nwhich means the per-command signal check is never reached. This allows\nan async signal handler to be ignored indefinitely in such loops.\n\nAdd signal checks in Jim_EvalObj after both optimization paths return,\nensuring that async signals can interrupt loops regardless of whether\nthe body dispatches any actual command.\n\nFixes #385",
+  "diff": "@@ -11588,6 +11588,9 @@ int Jim_EvalObj(Jim_Interp *interp, Jim_Obj *scriptObjPtr)\n      */\n     if (script->len == 0) {\n         Jim_DecrRefCount(interp, scriptObjPtr);\n+        /* Allow a signal to interrupt loops that dispatch no command. */\n+        if (Jim_CheckSignal(interp))\n+            return JIM_SIGNAL;\n         return JIM_OK;\n     }\n     if (script->len == 3\n@@ -11603,6 +11606,9 @@ int Jim_EvalObj(Jim_Interp *interp, Jim_Obj *scriptObjPtr)\n             Jim_InvalidateStringRep(objPtr);\n             Jim_DecrRefCount(interp, scriptObjPtr);\n             Jim_SetResult(interp, objPtr);\n+            /* Allow a signal to interrupt loops that dispatch no command. */\n+            if (Jim_CheckSignal(interp))\n+                return JIM_SIGNAL;\n             return JIM_OK;\n         }\n     }",
+  "display_url": "https://github.com/msteveb/jimtcl/commit/5bac7c99ad65864c87da513e22e2f01703fa4e03",
+  "display_title": "Check signals in loops that dispatch no commands\n\nWhen a loop body is empty or executes the incr fast-path optimization,\nJim_EvalObj returns immediately without evaluating any actual command,\nwhich means the per-command signal check is never reached. This allows\nan async signal handler to be ignored indefinitely in such loops.\n\nAdd signal checks in Jim_EvalObj after both optimization paths return,\nensuring that async signals can interrupt loops regardless of whether\nthe body dispatches any actual command.\n\nFixes #385"
+}

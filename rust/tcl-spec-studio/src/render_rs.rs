@@ -1570,6 +1570,7 @@ fn enum_type_name(catalogue: &str) -> &'static str {
         "tclType" => "TclType",
         "bodyKind" => "BodyKind",
         "scriptLookupScope" => "ScriptLookupScope",
+        "irulesSourceFlow" => "tcl_registry::events::IrulesSourceFlowSpec",
         "storageType" => "StorageType",
         "byteArrayEffect" => "ByteArrayEffect",
         "commandTableEffect" => "CommandTableEffect",

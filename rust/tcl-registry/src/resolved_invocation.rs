@@ -1646,6 +1646,13 @@ pub struct InvocationFacts {
     /// Readonly execution-side metadata from that same descriptor; body entry
     /// and original source correspondence remain separate requirements.
     pub side_switch_target: Option<crate::side_effects::SideSwitchTarget>,
+    /// Available selected option vocabulary, including its actual abbreviation
+    /// policy. This metadata establishes no accepted operands or handler.
+    pub option_keywords: crate::abbrev::KeywordTable<'static>,
+    /// Conditional flow action from the actual selected source grammar.
+    pub irules_source_flow_action: Option<crate::events::IrulesSourceFlowAction>,
+    /// Possible response commitment under this descriptor's actual context.
+    pub source_may_commit_response: bool,
     /// Effective Tcl completion descriptor.
     pub completion: CompletionDescriptor,
     /// Registry-declared dependency contract for the invocation's result.
@@ -5271,6 +5278,9 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
                 .authored_source_descriptors()
                 .command
                 .side_switch_target,
+            option_keywords: self.semantics.options.keyword_table(),
+            irules_source_flow_action: self.authored_source_irules_flow_action(),
+            source_may_commit_response: self.authored_source_may_commit_response(),
             completion: self.semantics.completion,
             result_stability: self.semantics.result_stability,
             native_result: self.semantics.native_result,

@@ -394,3 +394,25 @@ The issue metadata and exact API capture are in the isolated issue refresh
 delivery; they contain no execution acceptance and grant no issue action.
 
 Final source238 validation: [ordinary272 current snapshot](current-state.md#current272-selected-scopes); exact portable receipts and unfinished owner work are indexed in [handoff/README.md](handoff/README.md). Historical scope in this document remains bounded to its stated capture.
+
+## Expanded naming regression catalogue — 15 October 2026
+
+The expanded read-only audit exact-fetched all346 issue IDs referenced by the previous catalogue; all329 explicit state rows (318 unique issues) match GitHub. Four related searches returned103 additional uncatalogued candidates. Their449 combined exact metadata reads report97OPEN/352CLOSED, but the103 candidates remain unclassified except the naming-related additions below. This is a bounded search, not a complete issue census. Exact queries, metadata and candidate scope are retained in [audit-next-issues.json](audit-next-issues.json). No issue state changed.
+
+All following issues are CLOSED. The catalogue preserves their naming acceptance targets; it does not claim current execution. Source-verified selectors remain unexecuted in this continuation unless separately recorded. Mixed-scope issues contribute only their naming/source-ownership regressions.
+
+| Issue | Naming regression | Retained regression evidence |
+| --- | --- | --- |
+| [#1601](https://github.com/bitwisecook/tcl-lsp/issues/1601) | expr_lexer has its own release-blind first-`}` scan: `expr {${a{b}c} + 1}` fails at 9.x while `if {${a{b}c} > 3}` works — the sixth site of the #1568 defect, in the owner crate | `rust/tcl-lexer/src/expr_lexer.rs::braced_variable_closer_follows_the_release_rule` (source verified; execution pending) |
+| [#1431](https://github.com/bitwisecook/tcl-lsp/issues/1431) | `tcl-compiler` lowering hand-rolls a var/param-list splitter (`parse_param_names`, 8 call sites) that mis-splits `a\ b` and `{a b}` — the analyser, `signature_scan`, and both runtimes use the shared list codec | Regression selector mapping remains unfinished. |
+| [#1487](https://github.com/bitwisecook/tcl-lsp/issues/1487) | `try_lower_incr` has no name gate: `incr $n` lowers to `Statement::Incr { name: "${n}" }`, invisible to the dynamic-name barrier | `rust/tcl-compiler/tests/var_escape_residual2.rs::cu_dynamic_incr_name_spills_all_known` (source verified; execution pending) |
+| [#1595](https://github.com/bitwisecook/tcl-lsp/issues/1595) | WASM whole-command eval path truncates a quoted command word: `"puts hi"` interns `"puts hi` and raises `missing "` instead of `invalid command name "puts hi"` | Regression selector mapping remains unfinished. |
+| [#1779](https://github.com/bitwisecook/tcl-lsp/issues/1779) | Expand a Tcl 8.5+ {*} command-head word before INVOKE_EXPANDED | Regression selector mapping remains unfinished. |
+| [#1386](https://github.com/bitwisecook/tcl-lsp/issues/1386) | Hover's six pattern/format detectors hardcode command names and ignore argument index, contradicting semantic tokens' registry-driven marking | Regression selector mapping remains unfinished. |
+| [#1378](https://github.com/bitwisecook/tcl-lsp/issues/1378) | `switch` clause-list layout is hand-rolled in three analyser sites that mis-parse value-taking options, producing false W123 and dropping find-references hits | Regression selector mapping remains unfinished. |
+| [#1380](https://github.com/bitwisecook/tcl-lsp/issues/1380) | The `{*}` expansion barrier for structured commands is a hardcoded 9-name list against 17 registry hook IDs, so `lmap`/`dict for`/`catch` lower an un-expanded argv | Regression selector mapping remains unfinished. |
+| [#1391](https://github.com/bitwisecook/tcl-lsp/issues/1391) | W231 and W201 byte-scan raw source for facts the segmenter, registry, and taint lattice already hold | Regression selector mapping remains unfinished. |
+| [#1653](https://github.com/bitwisecook/tcl-lsp/issues/1653) | analyser: via_define stub's default metaclass is compared as if observed, costing a computed-name metaclass its factory | Regression selector mapping remains unfinished. |
+| [#1637](https://github.com/bitwisecook/tcl-lsp/issues/1637) | Pack-vs-pack collisions resolve in silence: two packs claiming one command, or one `file_extension`, drop the loser with no notice and pick the winner by pack-name sort order | Regression selector mapping remains unfinished. |
+| [#1638](https://github.com/bitwisecook/tcl-lsp/issues/1638) | SpecTcl loader paper cuts: duplicate-command notice lands on line 1 and names its own file, whitespace-bearing command names load unreported, and a version-less `speclib` takes the whole body as the pack name | `rust/tcl-spectcl/tests/pack_torture.rs::a_whitespace_bearing_command_name_loads_and_is_installable` (source verified; execution pending) |
+| [#1845](https://github.com/bitwisecook/tcl-lsp/issues/1845) | S100 fires on a braced literal argument (`lindex {$x} 0`), which substitutes nothing | Regression selector mapping remains unfinished. |

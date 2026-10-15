@@ -236,6 +236,7 @@ pub fn witness_command_spec(spec: &CommandSpec) {
         event_requirement_forms: _,
         event_emits: _, event_emission_forms: _,
         data_collection: _,
+        irules_source_flow: _,
         side_switch_target: _,
         event_handler_priority: _,
         irules_top_level_effect: _,
@@ -427,6 +428,7 @@ pub const COMMAND_SPEC: &[Field] = &[
     f("event_emits", Surface::Key("event_emits")),
     f("event_emission_forms", Surface::Key("event_emission_forms")),
     f("data_collection", Surface::Key("data_collection")),
+    f("irules_source_flow", Surface::Key("irules_source_flow")),
     f("side_switch_target", Surface::Key("side_switch_target")),
     f(
         "event_handler_priority",

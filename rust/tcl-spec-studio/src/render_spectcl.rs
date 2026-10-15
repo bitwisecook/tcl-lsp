@@ -2749,6 +2749,7 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     enum_word(out, ctx, draft, "inferred_storage_type");
     enum_word(out, ctx, draft, "body_kind");
     enum_word(out, ctx, draft, "script_lookup_scope");
+    enum_word(out, ctx, draft, "irules_source_flow");
     gap_todo(out, ctx, draft, "body_interpreter");
     gap_todo(out, ctx, draft, "body_execution");
     gap_todo(out, ctx, draft, "procedure_definition");
@@ -5310,6 +5311,54 @@ mod tests {
             gap("object_class").is_none(),
             "`object_class` is no longer a renderer gap"
         );
+    }
+
+    #[test]
+    fn source_flow_grammar_survives_rust_dsl_loader_and_snapshot_round_trip() {
+        use tcl_registry::events::IrulesSourceFlowSpec;
+        for flow in [
+            IrulesSourceFlowSpec::DropsConnection,
+            IrulesSourceFlowSpec::ReturnsDnsPacket,
+            IrulesSourceFlowSpec::EventControl,
+        ] {
+            let spec = tcl_registry::CommandSpec {
+                name: "probe::flow",
+                irules_source_flow: Some(flow),
+                ..tcl_registry::CommandSpec::DEFAULT
+            };
+            let before = draft::from_command_spec(&spec);
+            let variant = format!("{flow:?}");
+            assert_eq!(
+                before.get("irules_source_flow").and_then(Value::as_str),
+                Some(variant.as_str())
+            );
+            let rust = crate::render_rs::render(&before);
+            assert!(rust.contains(&format!("irules_source_flow: Some(tcl_registry::events::IrulesSourceFlowSpec::{variant})")), "{rust}");
+            let text = render_pack(std::slice::from_ref(&before), "probe");
+            assert!(
+                text.contains(&format!("irules_source_flow {variant}")),
+                "{text}"
+            );
+            let pack = crate::spectcl::evaluate_pack(&text);
+            assert!(pack.notices.is_empty(), "{:?}\n{text}", pack.notices);
+            let loaded = pack.command("probe::flow").unwrap().spec;
+            assert_eq!(loaded.irules_source_flow, Some(flow));
+            let after = draft::from_command_spec(loaded);
+            assert_eq!(
+                after.get("irules_source_flow"),
+                before.get("irules_source_flow")
+            );
+            let invalid = text.replace(
+                &format!("irules_source_flow {variant}"),
+                "irules_source_flow ImaginedFlow",
+            );
+            let pack = crate::spectcl::evaluate_pack(&invalid);
+            assert!(!pack.notices.is_empty());
+            assert_eq!(
+                pack.command("probe::flow").unwrap().spec.irules_source_flow,
+                None
+            );
+        }
     }
 
     #[test]

@@ -4577,10 +4577,12 @@ fn token_facts_from_analysis(result: AnalysisResult) -> Arc<FileTokenFacts> {
 /// recompute — the correct cross-file invalidation.
 #[salsa::tracked(returns(clone))]
 pub fn project_class_index(db: &dyn TclDb, project: Project) -> Arc<ClassHierarchy> {
+    let mut providers = HashSet::new();
     merge_project_classes(
         project
             .files(db)
             .iter()
+            .filter(|&&file| providers.insert(file))
             .map(|&file| file_token_facts(db, file)),
     )
 }
@@ -4632,10 +4634,12 @@ fn merge_project_classes(
 /// Reads the same light [`file_token_facts`] firewall as [`project_class_index`].
 #[salsa::tracked(returns(clone))]
 pub fn project_proc_var_index(db: &dyn TclDb, project: Project) -> Arc<VarNameArgRoles> {
+    let mut providers = HashSet::new();
     merge_project_proc_roles(
         project
             .files(db)
             .iter()
+            .filter(|&&file| providers.insert(file))
             .map(|&file| file_token_facts(db, file)),
     )
 }
@@ -4665,10 +4669,12 @@ pub fn project_named_instance_index(
     db: &dyn TclDb,
     project: Project,
 ) -> Arc<tcl_lsp_core::semantic_tokens::NamedInstanceMap> {
+    let mut providers = HashSet::new();
     merge_project_named_instances(
         project
             .files(db)
             .iter()
+            .filter(|&&file| providers.insert(file))
             .map(|&file| file_token_facts(db, file)),
     )
 }

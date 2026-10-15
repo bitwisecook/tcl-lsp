@@ -32,7 +32,7 @@ mod scaffold;
 pub use scaffold::{
     GeneratedScaffoldNamespace, PACKAGE_SCAFFOLD_NAMESPACE_CASES,
     PACKAGE_SCAFFOLD_NAMESPACE_POLICY, ScaffoldNamespacePolicy,
-    scaffold_namespace_from_package_name,
+    scaffold_namespace_from_package_name, suggested_data_group_name,
 };
 mod authored_source;
 pub use authored_source::{

@@ -129,28 +129,6 @@ fn infer_value_type(values: &[String]) -> &'static str {
     "string"
 }
 
-/// Derive a clean data-group name from a descriptive string:
-/// non-alphanumeric → `_`, collapse runs, trim, lower-case.
-fn normalise_dg_name(name: &str) -> String {
-    let mut out = String::with_capacity(name.len());
-    let mut prev_underscore = false;
-    for ch in name.chars() {
-        if ch.is_ascii_alphanumeric() || ch == '_' {
-            out.push(ch.to_ascii_lowercase());
-            prev_underscore = false;
-        } else if !prev_underscore {
-            out.push('_');
-            prev_underscore = true;
-        }
-    }
-    let trimmed = out.trim_matches('_');
-    if trimmed.is_empty() {
-        "extracted_dg".to_owned()
-    } else {
-        trimmed.to_owned()
-    }
-}
-
 // Equality-condition parsing
 
 fn parse_eq(
@@ -554,7 +532,7 @@ fn literal_record_value(source: &str, config: LexerConfig) -> Option<String> {
 /// Resolve a possibly-empty `dg_name` against a generated default.
 fn resolve_dg_name(dg_name: &str, default_descriptor: &str) -> String {
     if dg_name.is_empty() {
-        normalise_dg_name(default_descriptor)
+        tcl_syntax::naming::suggested_data_group_name(default_descriptor)
     } else {
         dg_name.to_owned()
     }

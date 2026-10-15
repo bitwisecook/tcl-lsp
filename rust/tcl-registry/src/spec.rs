@@ -2087,6 +2087,9 @@ pub struct CommandSpec {
     /// not part of a collect/release/payload lifecycle.
     pub data_collection: Option<crate::events::DataCollectionOperation>,
 
+    /// Conditional iRules source flow grammar, independent of handler effects.
+    pub irules_source_flow: Option<crate::events::IrulesSourceFlowSpec>,
+
     /// Connection-side context selected for this command's body argument.
     ///
     /// `None` means the command does not switch the iRules connection side.
@@ -2998,6 +3001,7 @@ impl CommandSpec {
         event_emits: None,
         event_emission_forms: &[],
         data_collection: None,
+        irules_source_flow: None,
         side_switch_target: None,
         event_handler_priority: None,
         irules_top_level_effect: None,

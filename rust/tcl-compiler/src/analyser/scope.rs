@@ -3215,6 +3215,12 @@ impl Analyser {
                     )
                 })
                 .map(SignatureSourceNameInput::OriginalWord)
+                .or_else(|| {
+                    let (word, _) = self.head_identities.original_written_word_at_span_in_source(&image, span, config)?;
+                    crate::signature_scan::scope::SignatureSourceNameValue::from_original_variable_operand_root(
+                        &word, self.word_rules(), policy,
+                    ).map(SignatureSourceNameInput::OriginalValue)
+                })
                 .or_else(|| self.original_static_variable_operand_input(span))
                 .filter(|input| input.policy() == policy);
         }
@@ -3441,7 +3447,38 @@ impl Analyser {
             original_target_namespace,
             original_target_receiver,
         } = target;
+        let _ = self.record_original_variable_alias_target(
+            local_span,
+            target_span,
+            original_target_namespace,
+            original_target_receiver,
+        );
+        self.set_var_link_report(name, scope_path, target, target_span);
+    }
+
+    pub(super) fn set_var_link_report(
+        &mut self,
+        name: &str,
+        scope_path: &[usize],
+        target: String,
+        target_span: Span,
+    ) {
         let base = crate::naming::normalise_var_name(name).to_string();
+        if let Some(scope) = scope_at_mut(&mut self.result.global_scope, scope_path)
+            && let Some(v) = scope.variables.get_mut(&base)
+        {
+            v.link_target = Some(target);
+            v.link_target_span = Some(target_span);
+        }
+    }
+
+    pub(super) fn record_original_variable_alias_target(
+        &mut self,
+        local_span: Span,
+        target_span: Span,
+        original_target_namespace: Option<crate::signature_scan::scope::SignatureNamespaceScope>,
+        original_target_receiver: crate::signature_scan::variable_symbol::OriginalVariableSymbolReceiver,
+    ) -> Option<crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence> {
         self.result
             .original_variable_symbols
             .retain(|site| site.span() != local_span && site.span() != target_span);
@@ -3459,13 +3496,23 @@ impl Analyser {
             );
         }
         let original = original_target_namespace.and_then(|namespace| {
+            let name = self.original_qualified_variable_input(target_span, false)?;
+            let input = self.resolved_analysis_input();
+            if input.has_logical_source_name_context() {
+                let scope = self.head_identities.original_logical_variable_scope_at(
+                    &input, &tcl_lexer::SourceImage::document(&self.source), target_span, &name,
+                )?;
+                return crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence::from_logical_alias_target(
+                    target_span, name, namespace, original_target_receiver, scope,
+                );
+            }
             crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence::from_original_input(
-                target_span, self.original_qualified_variable_input(target_span, false)?, namespace,
+                target_span, name, namespace,
                 crate::signature_scan::variable_symbol::OriginalVariableSymbolPurpose::NamespaceStorage, original_target_receiver, true,
             )
         });
-        if let Some(site) = original {
-            if let Some(receipt) = self.original_variable_alias_receipt(local_span, &site) {
+        if let Some(site) = original.as_ref() {
+            if let Some(receipt) = self.original_variable_alias_receipt(local_span, site) {
                 self.result
                     .original_variable_name_unknowns
                     .retain(|&span| span != local_span && span != target_span);
@@ -3477,15 +3524,63 @@ impl Analyser {
                     self.result.original_variable_alias_receipts.push(receipt);
                 }
             }
-            self.result.original_variable_symbols.push(site);
+            self.result.original_variable_symbols.push(site.clone());
         }
 
-        if let Some(scope) = scope_at_mut(&mut self.result.global_scope, scope_path)
-            && let Some(v) = scope.variables.get_mut(&base)
+        original
+    }
+
+    pub(super) fn define_original_namespace_alias_target(
+        &mut self,
+        occurrence: &crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence,
+    ) {
+        let Some(key) = occurrence.symbol().checked_c_namespace_key() else {
+            return;
+        };
+        let span = occurrence.span();
+        if !occurrence.is_declaration()
+            || span.is_empty()
+            || !self.result.original_variable_symbols.contains(occurrence)
         {
-            v.link_target = Some(target);
-            v.link_target_span = Some(target_span);
+            return;
         }
+        let input = occurrence.original_name_input();
+        let selected = input
+            .policy()
+            .recipe()
+            .combined_variable_input(input.bytes());
+        let element = selected
+            .element()
+            .and_then(|element| std::str::from_utf8(element.selected()).ok())
+            .filter(|element| !element.is_empty())
+            .map(str::to_owned);
+        let scope = &mut self.result.global_scope;
+        if let Some(variable) = scope.variables.get_mut(&key) {
+            if variable.definition_span != span && variable.references.last() != Some(&span) {
+                variable.references.push(span);
+            }
+            if let Some(element) = element {
+                variable.array_indices.insert(element);
+            }
+        } else {
+            let variable = VarDef {
+                name: key.clone(),
+                definition_span: span,
+                references: Vec::new(),
+                warn_if_unused: false,
+                array_indices: element.into_iter().collect(),
+                link_target: None,
+                link_target_span: None,
+            };
+            scope
+                .original_variable_declaration_spans
+                .insert(key.clone(), span);
+            scope.variables.insert(key.clone(), variable);
+        }
+        self.result.all_variables.insert(
+            format!("{}::{key}", scope.name),
+            scope.variables[&key].clone(),
+        );
     }
 
     fn original_variable_alias_receipt(
@@ -3509,10 +3604,47 @@ impl Analyser {
             );
         }
 
-        let (frame, invocation_offset) = self
-            .head_identities
-            .source_bindings_ref()
-            .original_variable_alias_frame_at_span(local_span, self.file_lexer_config())?;
+        let input = self.resolved_analysis_input();
+        let image = tcl_lexer::SourceImage::document(&self.source);
+        let local_input = self.original_variable_operand_input(local_span)?;
+        let (frame, invocation_offset) = if input.has_logical_source_name_context() {
+            let mut sources =
+                self.result
+                    .original_variable_alias_source_operands
+                    .iter()
+                    .filter(|source| {
+                        source.operands().iter().any(|&(local, remote, _)| {
+                            local == local_span && remote == target.span()
+                        })
+                    });
+            let source = sources.next()?;
+            let offset = source.invocation_offset()?;
+            if !source.matches_source_context(
+                &image,
+                input.lexer_config(),
+                input.borrowed_context_registry(),
+            ) || sources.any(|other| {
+                other.invocation_offset() != Some(offset)
+                    || !other.matches_source_context(
+                        &image,
+                        input.lexer_config(),
+                        input.borrowed_context_registry(),
+                    )
+            }) {
+                return None;
+            }
+            let scope = self.head_identities.original_logical_variable_scope_at(
+                &input,
+                &image,
+                local_span,
+                &local_input,
+            )?;
+            (scope.alias_frame()?, offset)
+        } else {
+            self.head_identities
+                .source_bindings_ref()
+                .original_variable_alias_frame_at_span(local_span, self.file_lexer_config())?
+        };
         let mut operands = self.result.original_variable_alias_operands.iter().filter(
             |&&(site, local, remote, _)| {
                 site == invocation_offset && local == local_span && remote == target.span()
@@ -3522,8 +3654,7 @@ impl Analyser {
         if operands.any(|operand| operand.3 != purpose) {
             return None;
         }
-        let image = tcl_lexer::SourceImage::document(&self.source);
-        let context = self.resolved_analysis_input().context_registry();
+        let context = input.context_registry();
         if self
             .result
             .original_variable_alias_source_operands
@@ -3539,7 +3670,6 @@ impl Analyser {
         {
             return None;
         }
-        let local_input = self.original_variable_operand_input(local_span)?;
         if local_input.policy() != target.symbol().policy() {
             return None;
         }

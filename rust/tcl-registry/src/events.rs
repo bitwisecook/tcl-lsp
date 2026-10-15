@@ -30,6 +30,78 @@ use tcl_lexer::{LexerConfig, SourceSegmentationPurpose, Token, TokenType};
 use crate::lifecycle::{Lifecycle, LifecycleState};
 use crate::side_effects::ConnectionSide;
 
+/// Source flow grammar carried by a selected iRules command descriptor.
+/// No variant establishes that a handler ran or an effect completed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IrulesSourceFlowSpec {
+    /// The source operation can drop or reject the current connection.
+    DropsConnection,
+    /// The source operation can send the DNS packet after script execution.
+    ReturnsDnsPacket,
+    /// Effective operands choose which later event handlers are disabled.
+    EventControl,
+}
+
+/// Conditional source action under a selected descriptor and actual argv.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IrulesSourceFlowAction {
+    /// A possible connection drop requires a following source guard.
+    DropsConnection,
+    /// A possible DNS return requires a following script return.
+    ReturnsDnsPacket,
+    /// The exact source form disables all later event handlers.
+    DisablesAllEvents,
+}
+
+impl crate::ResolvedInvocation<'_, '_> {
+    /// Project the original source flow grammar over the effective operands.
+    /// Availability, dispatch, successful effects and body entry stay separate.
+    #[must_use]
+    pub fn authored_source_irules_flow_action(&self) -> Option<IrulesSourceFlowAction> {
+        match self
+            .authored_source_descriptors()
+            .command
+            .irules_source_flow?
+        {
+            IrulesSourceFlowSpec::DropsConnection => Some(IrulesSourceFlowAction::DropsConnection),
+            IrulesSourceFlowSpec::ReturnsDnsPacket => {
+                Some(IrulesSourceFlowAction::ReturnsDnsPacket)
+            }
+            IrulesSourceFlowSpec::EventControl => {
+                let arguments = self
+                    .words
+                    .arguments()
+                    .slice_from(self.semantics.argument_offset);
+                let matches = |index, expected: &[u8]| {
+                    arguments.get(index).and_then(|word| {
+                        word.literal()
+                            .map(str::as_bytes)
+                            .or_else(|| word.native_bytes())
+                    }) == Some(expected)
+                };
+                (arguments.exact_argv_len() == Some(2)
+                    && matches(0, b"disable")
+                    && matches(1, b"all"))
+                .then_some(IrulesSourceFlowAction::DisablesAllEvents)
+            }
+        }
+    }
+
+    /// Possible response commitment from this selected source descriptor's
+    /// actual surface and package floor. This supplies no reached effect.
+    #[must_use]
+    pub fn authored_source_may_commit_response(&self) -> bool {
+        self.semantics.side_effects.iter().any(|effect| {
+            effect.target == crate::side_effects::SideEffectTarget::ResponseCommit
+                && effect.writes
+                && effect.surface.is_none_or(|surface| {
+                    tcl_dialect::model::surface_admits(surface, self.dialect.as_ref())
+                })
+                && effect.available_for_version(self.semantics.options.availability.package_version)
+        })
+    }
+}
+
 /// How a command participates in an iRules data-collection lifecycle.
 ///
 /// This is attached to the relevant [`crate::spec::CommandSpec`] rather than
@@ -4561,6 +4633,57 @@ fn tcp_dns_steps() -> Vec<FlowStep> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn source_flow_actions_keep_exact_original_event_control_operands() {
+        use crate::InvocationWord::{Dynamic, Expanded, Literal};
+        let context = crate::model::ingress::static_context_for("f5-irules");
+        let registry = context.commands();
+        let descriptor = registry.get("event").unwrap();
+        for (arguments, expected) in [
+            (
+                vec![Literal("disable"), Literal("all")],
+                Some(IrulesSourceFlowAction::DisablesAllEvents),
+            ),
+            (vec![Literal("enable"), Literal("all")], None),
+            (vec![Literal("disable"), Literal("HTTP_REQUEST")], None),
+            (vec![Literal("disable"), Dynamic], None),
+            (vec![Dynamic, Literal("all")], None),
+            (vec![Expanded, Literal("all")], None),
+            (
+                vec![Literal("disable"), Literal("all"), Literal("extra")],
+                None,
+            ),
+        ] {
+            let words = crate::InvocationWords::structured(Literal("event"), &arguments);
+            let selected = crate::registry::resolve_source_descriptor_invocation(
+                descriptor,
+                words,
+                registry.source_descriptor_availability(
+                    descriptor,
+                    Some(tcl_dialect::model::SurfaceQuery::any_release(
+                        tcl_dialect::model::Family::F5Irules,
+                    )),
+                ),
+                None,
+            );
+            assert_eq!(selected.authored_source_irules_flow_action(), expected);
+            assert_eq!(selected.facts().irules_source_flow_action, expected);
+        }
+        let mut renamed = registry.get("drop").unwrap().clone();
+        renamed.name = "probe::renamed_drop";
+        let words = crate::InvocationWords::structured(Literal("probe::renamed_drop"), &[]);
+        let selected = crate::registry::resolve_source_descriptor_invocation(
+            &renamed,
+            words,
+            registry.source_descriptor_availability(&renamed, None),
+            None,
+        );
+        assert_eq!(
+            selected.authored_source_irules_flow_action(),
+            Some(IrulesSourceFlowAction::DropsConnection)
+        );
+    }
 
     #[test]
     fn build_event_registry() {

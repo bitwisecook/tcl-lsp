@@ -25,6 +25,7 @@ pub const fn spec() -> CommandSpec {
         traits: Traits::DIAGRAM_ACTION,
         surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
+        irules_source_flow: Some(crate::events::IrulesSourceFlowSpec::ReturnsDnsPacket),
         hover: Some(HoverSnippet {
             summary: "Skips all further processing after TCL execution and sends the DNS packet in the opposite direction.",
             synopsis: &["DNS::return"],

@@ -167,11 +167,12 @@ impl OriginalSourceVariableAliasOperands {
     /// Original namespace operand of this exact source alias relationship.
     /// Current source/Registry grammar and direct Written correspondence select
     /// naming geometry only, never an installed alias, frame or physical cell.
-    pub(crate) fn namespace_target_scope(
+    pub(crate) fn target_namespace_scope(
         &self,
         source: &str,
         analysis: &crate::analyser::AnalysisResult,
         operands: (tcl_lexer::Span, tcl_lexer::Span),
+        target_input: &crate::signature_scan::scope::SignatureSourceNameInput,
         current: &crate::signature_scan::scope::SignatureNamespaceScope,
         purpose: crate::signature_scan::original_name::OriginalSourceNamePurpose,
     ) -> Option<crate::signature_scan::scope::SignatureNamespaceScope> {
@@ -185,36 +186,74 @@ impl OriginalSourceVariableAliasOperands {
         }
         let input = analysis.resolved_input.as_ref()?;
         let context = input.borrowed_context_registry();
-        let transitions = self.words.with_source_schema(context, |schema| {
-            schema
+        let (transitions, global_frame) = self.words.with_source_schema(context, |schema| {
+            let layout = if input.has_logical_source_name_context() {
+                schema.authored_logical_source_frame_argument_layout()
+            } else {
+                schema.semantics.frame_effect.map(|frame| frame.resolve_arguments(
+                    schema.words.arguments().slice_from(schema.semantics.argument_offset),
+                ))
+            };
+            let global_frame = matches!(layout, Some(tcl_registry::frame_effect::FrameArgumentResolution::Valid { level, .. }) if level.is_global_frame());
+            let transitions = schema
                 .semantics
                 .state_transitions
                 .resolve_after_success_with_effect_coverage(schema.words.arguments())
-                .0
+                .0;
+            (transitions, global_frame)
         })?;
         let mut selected = None;
         for fact in transitions.facts() {
             let tcl_registry::StateTransition::VariableCellAlias(alias) = &fact.transition else {
                 continue;
             };
-            let tcl_registry::VariableAliasTarget::Namespace {
-                namespace,
-                variable,
-            } = &alias.target
-            else {
-                continue;
+            use tcl_registry::VariableAliasTarget as Target;
+            let variable = match &alias.target {
+                Target::Global { variable }
+                | Target::CurrentNamespace { variable }
+                | Target::CallerSelectedFrame { variable, .. }
+                | Target::Namespace { variable, .. } => variable,
             };
             let local = written_alias_operand(&self.words, &alias.local)?;
             let target = written_alias_operand(&self.words, variable)?;
             if (local.span(), target.span()) != operands {
                 continue;
             }
-            let namespace = written_alias_operand(&self.words, namespace)?;
-            let key = purpose.key(
-                namespace,
-                tcl_syntax::word_rules::WordValueRules::from_config(&namespace.config()),
-            )?;
-            let namespace = current.child_from_key(&key)?;
+            let policy = purpose.policy()?;
+            let rules = tcl_syntax::word_rules::WordValueRules::from_config(&target.config());
+            let actual_input = purpose.key(target, rules)
+                .map(crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord)
+                .or_else(|| crate::signature_scan::scope::SignatureSourceNameValue::from_original_variable_operand_root(target, rules, policy)
+                    .map(crate::signature_scan::scope::SignatureSourceNameInput::OriginalValue))?;
+            if &actual_input != target_input {
+                return None;
+            }
+            let namespace = match &alias.target {
+                Target::Global { .. } => {
+                    crate::signature_scan::scope::SignatureNamespaceScope::root(Some(policy))
+                }
+                Target::CurrentNamespace { .. } => current.clone(),
+                Target::Namespace { namespace, .. } => {
+                    let namespace = written_alias_operand(&self.words, namespace)?;
+                    let key = purpose.key(
+                        namespace,
+                        tcl_syntax::word_rules::WordValueRules::from_config(&namespace.config()),
+                    )?;
+                    current.child_from_key(&key)?
+                }
+                Target::CallerSelectedFrame { .. } => {
+                    let root = policy
+                        .recipe()
+                        .combined_variable_input(target_input.bytes());
+                    if root.root().qualification()
+                        != tcl_syntax::naming::NativeNameQualification::Absolute
+                        && !global_frame
+                    {
+                        return None;
+                    }
+                    crate::signature_scan::scope::SignatureNamespaceScope::root(Some(policy))
+                }
+            };
             if selected.as_ref().is_some_and(|prior| prior != &namespace) {
                 return None;
             }

@@ -123,6 +123,7 @@ const MARKERS: &[(&str, VocabularyClass)] = &[
     ("body", VocabularyClass::Semantic),
     ("frame", VocabularyClass::Semantic),
     ("control", VocabularyClass::Semantic),
+    ("source_flow", VocabularyClass::Semantic),
     ("switch", VocabularyClass::Semantic),
     ("target", VocabularyClass::Semantic),
     ("ambient", VocabularyClass::Semantic),
@@ -177,6 +178,7 @@ mod tests {
             "codegen_hook",
             "body_scope",
             "side_switch_target",
+            "irules_source_flow",
             "unsafe_command",
             "policy",
         ] {

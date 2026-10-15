@@ -91,7 +91,9 @@ impl NativeJimNamespaceSubcommand {
     pub fn accepts_arguments(self, count: usize) -> bool {
         count >= self.minimum && self.maximum.is_none_or(|maximum| count <= maximum)
     }
-    pub(super) fn helper(self) -> Option<super::NativeJimNamespaceHelperKind> {
+    /// Authored helper family selected by this row, without any installed binding.
+    #[must_use]
+    pub fn scripted_helper_kind(self) -> Option<super::NativeJimNamespaceHelperKind> {
         use NativeJimNamespaceSubcommandKind as Kind;
         Some(match self.kind {
             Kind::Which => super::NativeJimNamespaceHelperKind::Which,
@@ -100,6 +102,8 @@ impl NativeJimNamespaceSubcommand {
             Kind::Inscope => super::NativeJimNamespaceHelperKind::Inscope,
             Kind::Delete => super::NativeJimNamespaceHelperKind::Delete,
             Kind::Upvar => super::NativeJimNamespaceHelperKind::Upvar,
+            Kind::Import => super::NativeJimNamespaceHelperKind::Import,
+            Kind::Ensemble => super::NativeJimNamespaceHelperKind::Ensemble,
             _ => return None,
         })
     }
@@ -258,26 +262,71 @@ impl NativeJimNamespaceSubcommandTable {
             Arc::clone(self.owner),
         ))
     }
+    /// Original diagnostic-list helper's evaluated command head.
+    #[must_use]
+    pub const fn diagnostic_sort_head(self) -> &'static [u8] {
+        b"lsort"
+    }
+    /// Counted-prefix progress through the actual reached table row.
+    /// The physical parser performs its original immediate comparison first;
+    /// an earlier ambiguity must finish before a later comparison is reached.
+    #[must_use]
+    fn counted_prefix_through(self, original: &[u8], index: usize) -> Option<Resolution> {
+        self.entry(index)?;
+        let names: Vec<_> = self.entries()[..=index]
+            .iter()
+            .map(|entry| entry.name)
+            .collect();
+        let input = tcl_syntax::naming::NativeNameProtocol::Jim084
+            .namespace_subcommand_prefix_input(original);
+        Some(scan(&names, input.selected(), false))
+    }
     /// Resolve exact CString then counted abbreviation through the shared matcher.
     /// Physical cache access and each original getter remain with the caller.
     ///
     /// # Errors
     /// Reports the shared matcher's original ambiguous or missing outcome.
     pub fn lookup(self, original: &[u8]) -> Result<NativeJimSubcommandCache, Resolution> {
-        let protocol = tcl_syntax::naming::NativeNameProtocol::Jim084;
-        let names: Vec<_> = self.entries().iter().map(|entry| entry.name).collect();
-        let exact = protocol.namespace_subcommand_input(original);
-        let index = match scan(&names, exact.selected(), true) {
-            Resolution::Exact(index) | Resolution::UniquePrefix(index) => index,
-            _ => {
-                let prefix = protocol.namespace_subcommand_prefix_input(original);
-                match scan(&names, prefix.selected(), false) {
-                    Resolution::Exact(index) | Resolution::UniquePrefix(index) => index,
-                    failure => return Err(failure),
-                }
+        let exact =
+            tcl_syntax::naming::NativeNameProtocol::Jim084.namespace_subcommand_input(original);
+        match self.lookup_using(original, &mut |index| {
+            Ok::<bool, std::convert::Infallible>(
+                exact.selected() == self.entries()[index].name.as_bytes(),
+            )
+        }) {
+            Ok(outcome) => outcome,
+            Err(never) => match never {},
+        }
+    }
+    /// Select the actual row through reached original immediate comparisons.
+    /// Only their misses reach counted-prefix progress; an earlier ambiguity
+    /// finishes before any later comparison. This issues no physical primary.
+    ///
+    /// # Errors
+    /// Preserves the comparison owner's refusal separately from a native table miss.
+    pub fn lookup_using<E>(
+        self,
+        original: &[u8],
+        compare: &mut impl FnMut(usize) -> Result<bool, E>,
+    ) -> Result<Result<NativeJimSubcommandCache, Resolution>, E> {
+        let mut progress = Resolution::NoMatch;
+        for index in 0..self.entries().len() {
+            if compare(index)? {
+                return Ok(self.cache(index).ok_or(Resolution::NoMatch));
             }
-        };
-        Ok(self.cache(index).expect("original native table ordinal"))
+            progress = self
+                .counted_prefix_through(original, index)
+                .unwrap_or(Resolution::NoMatch);
+            if matches!(progress, Resolution::Ambiguous) {
+                return Ok(Err(progress));
+            }
+        }
+        Ok(match progress {
+            Resolution::Exact(index) | Resolution::UniquePrefix(index) => {
+                self.cache(index).ok_or(Resolution::NoMatch)
+            }
+            failure => Err(failure),
+        })
     }
 }
 

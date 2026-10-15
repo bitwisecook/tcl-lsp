@@ -74,3 +74,11 @@ The following retained source238/prior captures are unchanged historical evidenc
 | server (15) | 12 | 3 | 0 |
 | lexer (11) | 11 | 0 | 0 |
 | irules (19) | 16 | 3 | 0 |
+
+## Latest source and build status
+
+The next source tranche implements original Logical alias target/source-frame/template transport, shared evaluated array geometry and strict original CompoundArray word facts; complete token-source project projections; shared data-group suggestions; actual iRules getter/leaf-flow metadata with full SpecTcl/Studio parity; original namespace parser specials/mutable-sort/result stages and VM selected helper extension/token lifecycle. Bounded source peers pass. The raw-source versus statically loaded nshelper body distinction still requires its separate original-provider capture. Logical source geometry retains unconditional source-applicability obligations; it cannot unlock general rename edits.
+
+Build feedback remains separate: C failed E0308 in a new fixture return annotation (3ELFs/0tests); D was terminated after root caught a wrong worktree target (-15/0tests); E failed3E0502 borrowed-key errors in a new DB test (4ELFs/0tests). Each retained source drift{}. Repairs preserve the actual fixture holder and reissue a current DB coordinate after mutations. F is rebuilding isolated source `8df9a9169` under an explicit worktree-target guard. Exact failed channels are in `handoff/successor-build-feedback.tar.gz`. No successor Rust execution acceptance yet.
+
+The user-requested simplified architecture/API artifact is being prepared separately; implementation continues. F5 UCS/source provenance and remaining taint source/read consumers, structured-header substitutions and a genuine independent rename admission remain unfinished.

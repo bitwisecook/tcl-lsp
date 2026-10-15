@@ -4,5 +4,7 @@
   "added_phase_prefix": "HEAD_GETTER_NUL_ARITY_",
   "all_predecessor_rows_byte_equal": true,
   "capture03_rows": 2305,
-  "capture02_retained_in_capture03_byte_equal": true
+  "capture02_retained_in_capture03_byte_equal": true,
+  "capture04_rows": 2501,
+  "capture03_retained_in_capture04_byte_equal": true
 }

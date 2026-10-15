@@ -2387,6 +2387,11 @@ fn command_irules_events(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecover
         lost.expr("data_collection", spec.data_collection.is_some()),
     );
     d.insert(
+        "irules_source_flow".into(),
+        spec.irules_source_flow
+            .map_or(Value::Null, |flow| json!(catalogue::variant_name(&flow))),
+    );
+    d.insert(
         "side_switch_target".into(),
         lost.expr("side_switch_target", spec.side_switch_target.is_some()),
     );

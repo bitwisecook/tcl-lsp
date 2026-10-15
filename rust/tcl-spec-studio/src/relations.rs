@@ -325,6 +325,7 @@ pub const CLUSTERS: &[Cluster] = &[
             "event_emits",
             "event_emission_forms",
             "data_collection",
+            "irules_source_flow",
             "side_switch_target",
             "event_handler_priority",
             "irules_top_level_effect",

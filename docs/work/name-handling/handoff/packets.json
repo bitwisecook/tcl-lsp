@@ -53,5 +53,10 @@
     "file": "validation-551f-batch-a.tar.gz",
     "sha256": "855d601440b7195eecac04b385caef860ce52d4dbe9c34bcfd4c563f74443039",
     "status": "Actual frozen551f selected967653PASS313FAIL1TIMEOUT; all956 predecessor controls retained,3 gains,0 prior-PASS regressions/drops; original2286 PASS68.977646515s/180s. Source/artifact guards unchanged; Runtime build101/E0277 zero tests. No acceptance of active successor source."
+  },
+  {
+    "file": "successor-build-feedback.tar.gz",
+    "sha256": "4b1ce7711d86bde2d813631eb1d50c7bc4678bf606cccee604468979eb7a9d24",
+    "status": "Actual isolated successor build feedback B101/4errors/0ELFs, C101/1error/3ELFs, Dterminated-15/wrong-target/0ELFs, E101/3errors/4ELFs; all0tests/source{}. Repairs require independent rebuild, no Native or successor acceptance."
   }
 ]

@@ -141,6 +141,58 @@ fn project_tokens_keep_each_files_pack_roles_and_withdraw_changed_availability()
 }
 
 #[test]
+fn project_token_hints_withdraw_when_another_members_source_owner_is_unavailable() {
+    let mut db = TclDatabase::default();
+    let config = configuration(&db, 0);
+    let other_config = configuration(&db, 0);
+    let file = SourceFile::new(&db,
+        "oo::class create ::ProjectThing {method kept {} {}}\n::ProjectThing create specimen\nproc bind {name} {upvar 1 $name cell; set cell 1}".to_owned(),
+        "tcl".to_owned(), None);
+    let other = SourceFile::new(&db, String::new(), "tcl".to_owned(), None);
+    let project = Project::with_token_configurations(
+        &db,
+        vec![file, other],
+        Some(vec![(file, config), (other, other_config)]),
+    );
+    assert!(checked_file_token_facts_for_config(&db, other, other_config).is_some());
+    assert!(project_class_index_for_inputs(&db, project).classes.contains_key("::ProjectThing"));
+    assert!(!project_proc_var_index_for_inputs(&db, project).is_empty());
+    assert!(!project_named_instance_index_for_inputs(&db, project).is_empty());
+    other_config.set_spec_pack_key(&mut db).to(u64::MAX - 2354);
+    assert!(checked_file_token_facts_for_config(&db, other, other_config).is_none());
+    assert!(file_token_facts_for_config(&db, file, config).classes.contains_key("::ProjectThing"));
+    assert!(project_class_index_for_inputs(&db, project).classes.is_empty());
+    assert!(project_proc_var_index_for_inputs(&db, project).is_empty());
+    assert!(project_named_instance_index_for_inputs(&db, project).is_empty());
+    other_config.set_spec_pack_key(&mut db).to(0);
+    project.set_token_configurations(&mut db).to(Some(vec![(file, config)]));
+    assert!(project_class_index_for_inputs(&db, project).classes.is_empty());
+    assert!(project_proc_var_index_for_inputs(&db, project).is_empty());
+    assert!(project_named_instance_index_for_inputs(&db, project).is_empty());
+}
+
+#[test]
+fn project_token_hints_deduplicate_actual_file_owners_without_merging_equal_labels() {
+    let db = TclDatabase::default();
+    let config = configuration(&db, 0);
+    let source = "oo::class create ::ProjectThing {method kept {} {}}";
+    let first = SourceFile::new(&db, source.to_owned(), "tcl".to_owned(), None);
+    let second = SourceFile::new(&db, source.to_owned(), "tcl".to_owned(), None);
+    let single = Project::with_token_configurations(&db, vec![first], Some(vec![(first, config)]));
+    let repeated = Project::with_token_configurations(&db, vec![first, first], Some(vec![(first, config)]));
+    assert!(project_class_index_for_inputs(&db, single).classes.contains_key("::ProjectThing"));
+    assert_eq!(project_class_index_for_inputs(&db, repeated), project_class_index_for_inputs(&db, single));
+    assert_eq!(project_class_index(&db, repeated), project_class_index(&db, single));
+    let distinct = Project::with_token_configurations(
+        &db,
+        vec![first, second],
+        Some(vec![(first, config), (second, config)]),
+    );
+    assert!(project_class_index_for_inputs(&db, distinct).classes.is_empty());
+    assert!(project_class_index(&db, distinct).classes.is_empty());
+}
+
+#[test]
 fn supplied_project_cards_require_complete_unambiguous_current_file_mapping() {
     // naming.compiler.original-analysis-metadata-context
     // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md

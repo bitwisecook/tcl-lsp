@@ -218,7 +218,12 @@ impl OriginalLogicalVariableScope {
                         parts.next().is_none() && arena.bytes(name) == Some(root.bytes())
                     })
             }
-            SignatureSourceNameInput::OriginalValue(_) => false,
+            SignatureSourceNameInput::OriginalValue(value) => original.iter().any(|word| {
+                (word.span() == span || word.tokens().first().is_some_and(|token| token.span == span))
+                    && crate::signature_scan::scope::SignatureSourceNameValue::from_original_variable_operand_root(
+                        word, rules, name.policy(),
+                    ).as_ref() == Some(value)
+            }),
         }
     }
 
@@ -250,6 +255,67 @@ impl OriginalLogicalVariableScope {
                 scope.frame_recipe() != OriginalDeclaredSourceBodyFrame::Procedure
             }
         }
+    }
+
+    pub(crate) fn alias_frame(&self) -> Option<SourceOriginalVariableFrame> {
+        if let Some(frame) = self.local_frame() {
+            return Some(frame);
+        }
+        let LogicalVariableFrameRecipe::Declared { scope, .. } = &self.frame else {
+            return None;
+        };
+        SourceOriginalVariableFrame::from_logical_namespace_source(scope, &self.input)
+    }
+
+    pub(crate) fn matches_alias_template(
+        &self,
+        span: Span,
+        input: &SignatureSourceNameInput,
+        receiver: crate::signature_scan::variable_symbol::OriginalVariableSymbolReceiver,
+        alias: &crate::signature_scan::variable_symbol::OriginalVariableAliasReceipt,
+    ) -> bool {
+        use crate::signature_scan::variable_symbol::{
+            OriginalVariableAliasAdvice, SignatureSourceVariableOccurrence,
+        };
+        use tcl_syntax::naming::{
+            NativeNameContext, NativeVariableInputForm, NativeVariableRootGeometry,
+        };
+        if !self.matches_name(span, input)
+            || self.alias_frame().as_ref() != Some(alias.frame())
+            || input.policy() != alias.target().policy()
+            || span.start() < alias.invocation_offset()
+        {
+            return false;
+        }
+        let declaration = OriginalVariableAliasAdvice::from_receipt(alias);
+        if span == declaration.span() {
+            return input == declaration.original_name_input();
+        }
+        let Some(form) = receiver.input_form(input) else {
+            return false;
+        };
+        let protocol = input.policy().recipe();
+        let selected = match form {
+            NativeVariableInputForm::Combined(bytes) => protocol.combined_variable_input(bytes),
+            NativeVariableInputForm::Separate { root, element } => {
+                protocol.separate_variable_input(root, element)
+            }
+        };
+        if let NativeVariableRootGeometry::Local(simple) =
+            protocol.variable_root_geometry(NativeNameContext::root(), selected.root().selected())
+        {
+            return &simple == alias.local()
+                && (self.namespace_storage() || self.local_name_is_byte_unique(simple.as_bytes()));
+        }
+        SignatureSourceVariableOccurrence::from_logical_source(
+            span,
+            input.clone(),
+            receiver,
+            false,
+            self.clone(),
+            &[],
+        )
+        .is_some_and(|occurrence| occurrence.symbol() == alias.target())
     }
 
     pub(crate) fn local_name_is_byte_unique(&self, name: &[u8]) -> bool {
@@ -284,10 +350,6 @@ impl OriginalLogicalVariableScope {
                     tcl_syntax::naming::NativeVariableRootGeometry::Local(simple) if simple.as_bytes() == formal.name.as_bytes())
                 && seen.insert(formal.name.as_bytes())
         }) && !name.contains(&0)
-    }
-
-    pub(crate) const fn has_earlier_unknown_mutations(&self) -> bool {
-        self.earlier_unknown_mutations
     }
 }
 

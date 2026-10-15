@@ -93,7 +93,7 @@ impl PlaceRef {
     #[must_use]
     pub fn is_element(&self) -> bool {
         matches!(self.kind, PlaceKind::Element { .. })
-            || (self.name.ends_with(')') && self.name.contains('('))
+            || tcl_syntax::naming::split_element_ref(&self.name).is_some()
     }
 
     /// The variable that holds the place: the array for an element, the
@@ -102,11 +102,10 @@ impl PlaceRef {
     pub fn base(&self) -> &str {
         match &self.kind {
             PlaceKind::Element { base, .. } => base,
-            PlaceKind::Scalar | PlaceKind::Array if self.is_element() => self
-                .name
-                .split_once('(')
-                .map_or(&self.name, |(base, _)| base),
-            PlaceKind::Scalar | PlaceKind::Array => &self.name,
+            PlaceKind::Scalar | PlaceKind::Array => {
+                tcl_syntax::naming::split_element_ref(&self.name)
+                    .map_or(&self.name, |(base, _)| base)
+            }
         }
     }
 

@@ -199,28 +199,6 @@ fn infer_value_type(values: &[String]) -> &'static str {
     "string"
 }
 
-/// Derive a clean data-group name from a descriptive string:
-/// non-`[A-Za-z0-9_]` → `_`, collapse runs, trim, lower-case.
-fn normalise_dg_name(name: &str) -> String {
-    let mut out = String::with_capacity(name.len());
-    let mut prev_underscore = false;
-    for ch in name.chars() {
-        if ch.is_ascii_alphanumeric() || ch == '_' {
-            out.push(ch.to_ascii_lowercase());
-            prev_underscore = false;
-        } else if !prev_underscore {
-            out.push('_');
-            prev_underscore = true;
-        }
-    }
-    let trimmed = out.trim_matches('_');
-    if trimmed.is_empty() {
-        "extracted_dg".to_owned()
-    } else {
-        trimmed.to_owned()
-    }
-}
-
 /// `true` when any address/CIDR value carries a `/` (i.e. is a range).
 fn any_cidr(values: &[String]) -> bool {
     values
@@ -402,7 +380,9 @@ fn analyse_if_chain(
     Some(Candidate {
         line,
         pattern_type: "if_chain",
-        suggested_name: normalise_dg_name(&format!("{target_var}_whitelist")),
+        suggested_name: tcl_syntax::naming::suggested_data_group_name(&format!(
+            "{target_var}_whitelist"
+        )),
         variable: target_var,
         values,
         inferred_type: value_type,
@@ -441,7 +421,9 @@ fn analyse_switch(
     Some(Candidate {
         line,
         pattern_type: "switch",
-        suggested_name: normalise_dg_name(&format!("{subject_var}_map")),
+        suggested_name: tcl_syntax::naming::suggested_data_group_name(&format!(
+            "{subject_var}_map"
+        )),
         variable: subject_var,
         values: keys,
         inferred_type: value_type,

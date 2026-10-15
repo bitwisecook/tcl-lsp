@@ -124,6 +124,7 @@ fn catalogue_template(id: &str) -> Option<Example> {
         "tclType" | "storageType" | "byteArrayEffect" => Some(CATALOGUE_TYPE),
         "bodyKind" | "argPresentation" => Some(CATALOGUE_PRESENTATION),
         "scriptTiming" => Some(FIELD_SCRIPT_TIMING),
+        "irulesSourceFlow" => field_template("irules_source_flow"),
         "sourceConfigurationReference" => Some(CATALOGUE_CONFIGURATION_REFERENCE),
         "variableScope" => Some(FIELD_VARIABLE_SCOPE),
         "commandTableEffect" | "definedSymbolKind" | "sideEffectTarget" | "connectionSide"

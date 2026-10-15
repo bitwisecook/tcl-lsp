@@ -590,8 +590,8 @@ pub(crate) const fn kind_of(operation: tcl_registry::SemanticOperationId) -> Opt
 /// does the zero-length array name `(k)` that `TclObjLookupVarEx` admits.
 #[must_use]
 pub(crate) fn computed_element_base(text: &str) -> Option<&str> {
-    let (base, rest) = text.split_once('(')?;
-    if base.is_empty() || !rest.ends_with(')') {
+    let (base, _) = tcl_syntax::naming::split_element_ref(text)?;
+    if base.is_empty() {
         return None;
     }
     base.bytes()

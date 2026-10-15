@@ -754,6 +754,10 @@ behaves. Drives the collect/release pairing diagnostics and their quick \
 fixes.",
     ),
     (
+        "irules_source_flow",
+        "iRules source warning grammar: possible connection drops and DNS returns require following guards; event-control operands identify an all-event guard. This is conditional source metadata, independent of dispatch, actual connection state and successful effects.",
+    ),
+    (
         "side_switch_target",
         "iRules only: for commands whose body runs in the *other* side's \
 context (`clientside { … }` / `serverside { … }`) — which side the body \
@@ -1531,6 +1535,11 @@ types and argument expectations. `Numeric` is \"Int or Double\"; \
 changing the caller's variables, like `if` and `while` bodies — or in a \
 separate definition context of its own, like a `proc` body. The first \
 joins the surrounding data flow; the second deliberately does not.",
+    ),
+    (
+        "irulesSourceFlow",
+        "iRules source flow grammars",
+        "Select the source operation grammar. Original operands and command bindings remain necessary; the declaration supplies no reached handler, body entry or successful effect.",
     ),
     (
         "scriptLookupScope",

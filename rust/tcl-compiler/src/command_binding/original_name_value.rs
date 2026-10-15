@@ -1192,6 +1192,30 @@ impl super::SourceInvocationBinding {
         self.variable_context.execution_name_policy?.native_recipe()
     }
 
+    pub(crate) fn original_compound_array_argument(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        written: usize,
+        escapes: tcl_dialect::EscapeSyntax,
+        rules: tcl_syntax::word_rules::WordValueRules,
+    ) -> Option<crate::registry_invocation::EffectiveInvocationWord> {
+        let policy = self.original_variable_reference_policy(tokens)?;
+        let config = self.original_argument_lexer_config(tokens)?;
+        if config.escapes != escapes
+            || rules != tcl_syntax::word_rules::WordValueRules::from_config(&config)
+        {
+            return None;
+        }
+        let site = self.invocation_site()?;
+        let original = site
+            .source
+            .original_lexical_command(tokens.words(), site.offset, config)?;
+        crate::registry_invocation::original_array_element_word(
+            original.native_words().get(written)?,
+            policy,
+        )
+    }
+
     /// Readonly input at one exact extent in this invocation's original full
     /// vector. The source channel, complete config and current retained value
     /// are checked before the ordinary original-input factory is reused.

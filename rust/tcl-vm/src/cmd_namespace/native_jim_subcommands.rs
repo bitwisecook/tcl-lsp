@@ -27,7 +27,13 @@ pub(super) fn select(
                 ))?
         } else {
             let bytes = scope.read(vm, original)?;
-            let cache = match table.lookup(&bytes) {
+            let selection = table.lookup_using(&bytes, &mut |index| {
+                scope.current_for_value(vm, original)?;
+                let compared = vm.native_jim_compare_immediate_checked(original, &table, index);
+                scope.current_for_value(vm, original)?;
+                compared.map_err(CmdError::from)
+            })?;
+            let cache = match selection {
                 Ok(cache) => cache,
                 Err(_) => {
                     let names: Vec<_> = table.entries().iter().map(|entry| entry.name()).collect();
@@ -51,9 +57,6 @@ pub(super) fn select(
                     .ok_or(ValueError::CommandProtocolUnavailable(
                         "original namespace selected table entry",
                     ))?;
-            let compared = vm.native_jim_compare_immediate_checked(original, &table, cache.index());
-            scope.current_for_value(vm, original)?;
-            let _ = compared?;
             original.install_native_jim_subcommand_cache_checked(cache, dialect, &mut || {
                 scope.current_for_value(vm, original)
             })?;

@@ -322,6 +322,11 @@ const ROWS: &[Row] = &[
         "",
     ),
     one("side_switch_target", "`Client` or `Server`.", ""),
+    one(
+        "irules_source_flow",
+        "`DropsConnection`, `ReturnsDnsPacket`, or `EventControl`; conditional source grammar only.",
+        "",
+    ),
     // Taint.
     one(
         "taint_output_sink",

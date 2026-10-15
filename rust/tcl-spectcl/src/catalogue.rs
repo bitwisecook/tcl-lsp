@@ -70,6 +70,22 @@ pub const SCRIPT_LOOKUP_SCOPES: &[Variant] = &[
     ),
 ];
 
+/// Conditional source flow grammars, without handler or execution permission.
+pub const IRULES_SOURCE_FLOWS: &[Variant] = &[
+    v(
+        "DropsConnection",
+        "Possible source connection drop requiring a following guard",
+    ),
+    v(
+        "ReturnsDnsPacket",
+        "Possible source DNS return requiring a following script return",
+    ),
+    v(
+        "EventControl",
+        "Effective source operands choose later event suppression",
+    ),
+];
+
 /// [`ArgRole`] — how a consumer should treat an argument position.
 pub const ARG_ROLES: &[Variant] = &[
     v("Body", "Tcl script body, recursed into by the analyser"),
@@ -1002,6 +1018,14 @@ mod tests {
     }
 
     /// Witnesses for the small enums, grouped so one test covers them all.
+    fn covered_irules_source_flow(flow: tcl_registry::events::IrulesSourceFlowSpec) -> bool {
+        match flow {
+            tcl_registry::events::IrulesSourceFlowSpec::DropsConnection
+            | tcl_registry::events::IrulesSourceFlowSpec::ReturnsDnsPacket
+            | tcl_registry::events::IrulesSourceFlowSpec::EventControl => true,
+        }
+    }
+
     fn covered_small_enums() -> bool {
         // `BodyKind` is `#[non_exhaustive]`, so the wildcard is required and
         // this witness cannot compile-gate a new variant. The catalogue test
@@ -1311,6 +1335,9 @@ mod tests {
         assert!(covered_tcl_type(TclType::String));
         assert!(covered_side_effect_target(SideEffectTarget::Unknown));
         assert!(covered_small_enums());
+        assert!(covered_irules_source_flow(
+            tcl_registry::events::IrulesSourceFlowSpec::EventControl
+        ));
         assert!(covered_lowering(LoweringHookId::Expr));
         assert!(covered_codegen(CodegenHookId::Dict));
         assert!(covered_inline(InlineCodegenHookId::Expr));
@@ -1325,6 +1352,7 @@ mod tests {
             BODY_KINDS,
             SCRIPT_TIMINGS,
             SCRIPT_LOOKUP_SCOPES,
+            IRULES_SOURCE_FLOWS,
             VARIABLE_SCOPES,
             ARG_PRESENTATIONS,
             STORAGE_TYPES,

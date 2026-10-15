@@ -13,6 +13,7 @@ static int reset_head;
 static const char *head_bytes;
 static int head_length;
 static const char *override_arg0;
+static const char *override_sort_script;
 
 static void sample(const char *kind, Jim_Obj *object)
 {
@@ -81,6 +82,7 @@ static int run(const char *label, const char *selector, int selector_length,
 {
     actual = fresh();
     if (!actual) return 3;
+    if (override_sort_script && Jim_Eval(actual, override_sort_script) != JIM_OK) return 5;
     if (renamed && Jim_Eval(actual, "rename namespace renamed") != JIM_OK) return 4;
     head_bytes = renamed == 2 ? "renamed\0TAIL" : renamed ? "renamed" : "namespace";
     head_length = renamed == 2 ? 12 : (int)strlen(head_bytes);
@@ -178,5 +180,17 @@ int main(void)
     override_arg0 = "unavailable";
     RUN("HELP_MISSING", "-help", 5, 1, 0, 0);
     override_arg0 = NULL;
+    override_sort_script = "proc lsort {args} {return {which canonical}}";
+    RUN("COMMANDS_REPLACED_SORT", "-commands", 9, 0, 0, 0);
+    RUN("HELP_REPLACED_SORT", "-help", 5, 0, 0, 0);
+    RUN("MISSING_REPLACED_SORT", "unavailable", 11, 0, 1, 0);
+    override_arg0 = "upv";
+    RUN("HELP_MEMBER_REPLACED_SORT", "-help", 5, 1, 0, 0);
+    override_arg0 = NULL;
+    override_sort_script = "proc lsort {args} {return -code error SORTFAIL}";
+    RUN("COMMANDS_FAILED_SORT", "-commands", 9, 0, 0, 0);
+    RUN("HELP_FAILED_SORT", "-help", 5, 0, 0, 0);
+    RUN("MISSING_FAILED_SORT", "unavailable", 11, 0, 0, 0);
+    override_sort_script = NULL;
     return 0;
 }

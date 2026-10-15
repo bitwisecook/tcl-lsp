@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! New namespace spellings for package scaffolds, independently of name lookup.
+//! Suggested new names for scaffolds and configuration, independently of lookup.
 
 /// Construction policy shared with editor scaffolds. Different package labels
 /// may produce the same spelling; callers own collision checks before creation.
@@ -99,6 +99,30 @@ pub fn scaffold_namespace_from_package_name(package_name: &str) -> GeneratedScaf
     GeneratedScaffoldNamespace {
         spelling: format!("{}{}", policy.root, parts.join(policy.separator)),
         lossy,
+    }
+}
+
+/// Suggest a new data-group name from descriptive text. Existing names are
+/// never passed through this constructor; callers own collision checks.
+/// Nonword runs collapse while literal underscores remain distinct units.
+#[must_use]
+pub fn suggested_data_group_name(description: &str) -> String {
+    let mut out = String::with_capacity(description.len());
+    let mut prev_underscore = false;
+    for ch in description.chars() {
+        if ch.is_ascii_alphanumeric() || ch == '_' {
+            out.push(ch.to_ascii_lowercase());
+            prev_underscore = false;
+        } else if !prev_underscore {
+            out.push('_');
+            prev_underscore = true;
+        }
+    }
+    let trimmed = out.trim_matches('_');
+    if trimmed.is_empty() {
+        "extracted_dg".to_owned()
+    } else {
+        trimmed.to_owned()
     }
 }
 

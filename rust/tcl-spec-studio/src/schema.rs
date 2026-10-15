@@ -1096,6 +1096,16 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Registry descriptor for a collect, release, or payload operation.",
     ),
     f(
+        "irules_source_flow",
+        "iRules source flow",
+        ADVANCED,
+        FieldKind::Enum {
+            catalogue: "irulesSourceFlow",
+            optional: true,
+        },
+        "Conditional source flow grammar for connection drops, DNS returns or event control. No handler, reached effect or body entry is granted.",
+    ),
+    f(
         "side_switch_target",
         "Side-switch target",
         ADVANCED,
@@ -2651,12 +2661,13 @@ fn custom_catalogues() -> [(&'static str, Value); 7] {
 /// The variant catalogues the form's pickers read, keyed by catalogue id.
 #[must_use]
 pub fn catalogues() -> Value {
-    let standard: [(&str, &[catalogue::Variant]); 31] = [
+    let standard: [(&str, &[catalogue::Variant]); 32] = [
         ("argRole", catalogue::ARG_ROLES),
         ("tclType", catalogue::TCL_TYPES),
         ("bodyKind", catalogue::BODY_KINDS),
         ("scriptTiming", catalogue::SCRIPT_TIMINGS),
         ("scriptLookupScope", catalogue::SCRIPT_LOOKUP_SCOPES),
+        ("irulesSourceFlow", catalogue::IRULES_SOURCE_FLOWS),
         ("variableScope", catalogue::VARIABLE_SCOPES),
         ("argPresentation", catalogue::ARG_PRESENTATIONS),
         ("storageType", catalogue::STORAGE_TYPES),

@@ -361,8 +361,7 @@ fn connection_scoped_names(
     let arrays: Vec<String> = names
         .iter()
         .filter_map(|name| {
-            name.split_once('(')
-                .filter(|_| name.ends_with(')'))
+            tcl_syntax::naming::split_element_ref(name)
                 .map(|(base, _)| base.to_owned())
         })
         .collect();

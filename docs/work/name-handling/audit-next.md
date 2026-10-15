@@ -8,6 +8,16 @@ execution receipts. Root owns Git, shared tracking and issue actions.
 
 ## Actionable consumers
 
+Additional current call sites found after the bounded producer batches:
+
+| Call site | Actual consumer purpose and retained limitation | Required disposition |
+| --- | --- | --- |
+| `registry_invocation.rs::evaluated_array_element_root` (removed) | Former dynamic Template prefix/suffix reconstruction issued partial element-root geometry without the complete original word/config/protocol. | Compiler migrated to genuine `original_array_element_word` and original-word/config/recipe transport; bounded source peer below, executable and Logical availability coverage pending. |
+| `semantic_tokens.rs::retag_variable_argument` | Multi-token variable argument array shape is selected from `seg.texts` containing an opening parenthesis and ending in a closing one, then literal fragments are painted as variables. This is display classification, not a cell or rename grant. | Consume the shared original word/variable geometry for classification while retaining original literal-fragment spans and existing quote policy. |
+| `analyser/handlers.rs::prologue_pieces` and `manufacturer_injected_template` | The manufacturer prologue bare-dollar branch scans Unicode alphanumeric/underscore/colon characters under only a braced-variable-style parameter. Accepted formal reads allow the caller to claim the entire prologue is accounted for and report known inheritance. Shared bare-variable grammar differs at a lone colon: `$a:b` reads `a` followed by literal `:b`. | Use complete original source word/configured substitution geometry, retaining actual nested group alignment and opaque/separator behavior. A formal named `a:b` must not make `$a:b$body` fully accounted for merely because `$body` selected the definition word. Compiler owner notified. |
+| `completion.rs::{variable_trigger,word_partial_at_position}` | Private backward Unicode identifier-like scanning selects variable-completion context before `original_variables::items` and supplies the partial for filtering/edit spans. Braced whitespace-bearing names and bare lone-colon grammar are not represented by that scanner. | Use actual source/configured cursor-partial naming geometry. Keep the separate fixed snippet-trigger domain and new-name suggestion purpose distinct. This is cursor advice, not a physical cell claim. LSP owner notified. |
+| `lowering/structured.rs::redefines_loop_control`, called by `lower_for` and `lower_while` | Raw body substrings `proc break`/`proc continue` choose runtime barrier versus structured lowering. This embeds command knowledge and written spelling; quoted/braced declaration names or aliases are not represented. The false-positive comment does not prove absence of mutations. | Consume genuine typed source mutation/effect ownership for the actual body/scope/configuration. Keep the separate structured break/continue typed completion-dispatch obligation. No executable failure was claimed by this audit. |
+
 | Call site | Input, purpose and current owner | Required work and controls | Disposition |
 | --- | --- | --- | --- |
 | `rust/tcl-registry/src/value_transfer/reference_body.rs::variable_name` (649), called by `expression_text` (579) | Reference-body sandbox source; private first-close `${…}` and ASCII/colon scanning decides whether expression variables can reach outside the local frame. `Lexed::new` (315) explicitly selects the hook host's fixed plain-Tcl default grammar. | Replace the private variable parser with `tcl_lexer::word_parts::scan_var_ref` under the actual hook-host configuration. Verify that host before changing the public derive/config contract: `ContextDependency::TclProfile` alone does not prove the hook language varies. Keep malformed/non-reference `$`, arrays, nested braced names, lone colons and complete consumed extent distinct. Loader production caller is `rust/tcl-spectcl/src/loader/reference.rs::derive` (116); it passes command and definition, without a document configuration. | Root implemented and source-peer reviewed below; execution separately owned by root. |
@@ -21,13 +31,13 @@ execution receipts. Root owns Git, shared tracking and issue actions.
 | `rust/tcl-compiler/src/analyser/handlers.rs::substitute_bound_words` (435), used by `static_word_value` (9310) and parameterised class-name production | Braced closing syntax delegates to the shared owner, but bare reference scanning independently accepts every lone colon and Unicode alphanumeric. `$a:b` can select formal `a:b` instead of the shared Tcl `$a` reference followed by literal `:b`. Only BracedVarStyle is supplied, losing other full-configuration axes. | Retain the actual original source word/full configuration and use shared variable/component parsing. A proc with formal `a:b` and name expression `$a:b` must not manufacture a proved output name from that formal. Keep legitimate literal sigils, constructed data and source syntax separate. | Compiler implemented shared configured reference geometry; bounded source peer below, execution separate. |
 | `rust/tcl-compiler/src/irules_checks.rs::{classify_stmt_for_collect_flow,drop_flow_leaf,http_flow_stmt_command,find_unnormalised_getter_warnings}` (943,621,1493,382) | Collection transfer classifies reconstructed/canonical command labels through a local colon trim and registry metadata; assigned substitutions are reparsed from rendered values. Drop transfer uses hardcoded names on `Statement.command`. HTTP response transfer also uses bracket trim plus whitespace split to recover a head; getter warnings consume direct or reparsed labels similarly. Actual nested collection scanning already consumes `registry_invocation_assistance_with_metadata_context` candidates. | Route direct and assigned/nested invocations through actual retained source binding/candidate owners before consuming selected registry effects or metadata. Preserve source event/body ownership, exact original words/configuration, prior unknown barriers, and existing reachability gates. Add selected/shadowed/aliased qualified-head and dynamic-payload controls. LSP owner confirms this file is unclaimed. | Live semantic migrations required; root notified. No semantic run by auditor. |
 | `rust/tcl-lsp-core/examples/tcloo_diag.rs::binding_categories` (195–257) | Diagnostic experiment classifies procedure-return by collecting rendered qualified names and reconstructing a root key from parsed `cmd`; local command knowledge separately recognises constructors and collection-return heads. | Use actual source/CFG selected binding or declared body ID for binding-derived classification, refusing unavailable evidence. A shared string qualifier alone would retain the identity inverse. This is tracked tooling despite its example location. | Additional tooling migration required; root notified. |
-| `rust/tcl-registry/src/value_transfer/template.rs::{record,literal_key}` (330,399) | Template source uses actual context grammar but recursive compatibility `decompose_spanned`; array keys join decoded Text through `from_utf8_lossy`. Decoded byte escapes or non-Unicode native units can be opaque even though original template is a Rust String. | Use checked shared geometry/full executable arena or an explicit rejecting depth budget; retain decoded key bytes at an appropriate typed owner or decline exact element identity when unsupported Unicode. Missing representation never becomes an exact replacement-character key. | Additional shared-template migration required; root notified. |
+| `rust/tcl-registry/src/value_transfer/template.rs::{record,literal_key}` | Former compatibility decomposition and lossy decoded-key geometry could hide nested substitutions or invent replacement-character keys. | Root now uses checked shared decomposition, exact configured source spans and strict Unicode conversion; missing geometry, capacity or unsupported decoded units decline the entire plan. | Implemented and source-peer reviewed; execution acceptance remains pending. |
 | `rust/tcl-compiler/src/analyser/irules_event_checks.rs::{find_loop_ne_zero,match_dollar_ne_zero,match_zero_ne_dollar}` (1073,1087,1119) | IRULE5003 manually scans `$` and optional braces with ASCII word bytes; the forward matcher accepts a missing braced close, while reversed matching never checks the close. Actual caller has retained analyser context and full lexer configuration, but passes condition text only to the matcher. | Use shared actual configured variable/expression geometry and preserve the rule's deliberate candidate-selection policy. Do not turn malformed or nonmatching reference geometry into a different named variable. `body_decrements` already uses retained metadata/shared bounds command increment owner. | Additional live reference-parser migration required; no new oracle or test execution. |
 | `rust/f5-cli/src/commands/split.rs::run_split` (43), `tcl-bigip-io/src/paths.rs::decode` (186), and `ucs.rs::ucs_to_scf` (219) | SCF source decoding may replace opaque bytes before parsing object/rule names and writing partition files. `read_path` exposes strict mode but plain callers such as merge and iRule operations request false; UCS extraction loses original encoding before that flag can help. | Audit genuine mutation/inference callers separately from preview/report contracts. Preserve original source bytes/provenance or checked refusal before authority, including UCS member decoding. Retain valid U+FFFD as a distinct supported source. Do not assume that switching a downstream strict flag repairs already lossy archive conversion. | F5 source-ingress migration candidates, full call graph and existing contracts still unfinished. |
 | `rust/tcl-compiler/src/codegen/structured.rs::walk_stmt` (165) | Inside loops, written `Call.command` equal to break/continue emits a structured jump before the backend's typed-statement guard. `WalkSource` holds image/configuration but no selected command/completion proof; script native admission is a distinct compiler-provider obligation. | Ask the existing shared selected completion/invocation owner before emitting structural control transfer. Preserve guarded eval fallback and actual selected/renamed/aliased command cases for WASM, including wrong-arity break/continue calls. The existing backend per-span leaf invocation plan already retains selected metadata; do not create a competing resolver in the driver. | Live codegen migration required; root, VM and Compiler notified. |
 | `rust/tcl-compiler/src/codegen/emitter/loop_blocks.rs::detect_foreach` (111,132) | Loop kind and collection mode are recovered from compiler synthetic Call labels plus block shape. Actual producer `cfg_builder/cfg_lower.rs::foreach_binding_statement` already knows typed Foreach booleans and attaches `SyntheticMarker::IterationBindings`. | Transport actual operation/collection kind through this existing synthetic owner. Do not re-resolve original command using rewritten list-only argv: synthetic iteration bindings deliberately do not dispatch or reevaluate arguments. | Synthetic operation transport migration required; no semantic defect asserted solely from labels. |
 | `rust/tcl-compiler/src/inline_uplevel.rs::statement_has_completion_escape` (398) and `shimmer/thunking.rs::destructure_foreach_blocks` (131) | Passthrough erasure recognises Break/Continue by Call/Barrier.command text; type heuristic recognises a single Call named break. Frame-reach metadata is a separate semantic purpose. | Consume actual selected completion/source ownership; selected aliases and unknown effects cannot become no-escape evidence from a different label. Preserve rejection direction and genuine compiler loop provenance. | Remaining completion consumers required; root/Compiler notified. |
-| `rust/tcl-mcp/src/datagroup.rs::normalise_dg_name` (204) and `rust/tcl-lsp-core/src/refactor/datagroup.rs::normalise_dg_name` (134) | Identical ASCII lowercase/nonword replacement/underscore trimming/fallback loops generate new suggested data-group names. MCP suggestions use whitelist/map descriptors; Core's `resolve_dg_name` applies generation only when caller supplied no name. | Reuse/extend shared naming generation architecture with an explicit data-group suggestion purpose and retain caller collision obligations. Preserve supplied names verbatim and original generation behaviour, including underscores. This never resolves an existing Tcl/F5 identity. | Duplicate naming-policy migration required; root notified. |
+| `rust/tcl-mcp/src/datagroup.rs::normalise_dg_name` (204) and `rust/tcl-lsp-core/src/refactor/datagroup.rs::normalise_dg_name` (134) | Identical ASCII lowercase/nonword replacement/underscore trimming/fallback loops generate new suggested data-group names. MCP suggestions use whitelist/map descriptors; Core's `resolve_dg_name` applies generation only when caller supplied no name. | Reuse/extend shared naming generation architecture with an explicit data-group suggestion purpose and retain caller collision obligations. Preserve supplied names verbatim and original generation behaviour, including underscores. This never resolves an existing Tcl/F5 identity. | LSP implemented shared suggestion owner; bounded source/API peer below, execution separate. |
 | `rust/tcl-compiler/src/taint.rs::{emit_branch_condition_nested_command_warnings,emit_statement_warnings}` (6954,4750) | Nested condition command text is reconstructed/reparsed, and supplied-source admission checks registry availability through `resolve_spec_in_realm` only. `SinkCall` receives no tokens/effective words/source read owner; `operand_read_taint` then selects SSA symbols by rendered variable name. Assigned-substitution fallback similarly reparses `AssignValue.value` with no child tokens, while `resolve_taint_command_heads` can recover the parent set tokens and select the wrong invocation. | Transport original nested expression invocation and actual conditional source warning-read owner, preserving full source/configuration/context. Reuse direct-source warning selection; availability alone grants no source invocation, physical variable cell or SSA read. A parent assignment binding cannot issue a nested child command identity. Preserve valid branch sink controls and explicit standalone utility separately. | Additional live source/SSA naming migration required; root notified. |
 | `rust/tcl-cli-support/src/input.rs::combine_sources` (458), consumed by transform.rs297 and compile.rs91/122 | `InputDocument` retains actual DecodeReport while text combination drops it. `decode_source` intentionally supports best-effort W107 analysis; `requires_abstention` covers W109/non-text only. | Audit transformation and compilation authority when malformed name bytes became U+FFFD, separately from existing best-effort diagnostic policy. A blanket W107 analysis refusal would change that original contract. Retain original byte/decode provenance or explicitly refuse unsupported semantic actions. | Actual combining path inspected; edit/compile consequence and existing controls still need classification. |
 
@@ -120,7 +130,7 @@ change; no tests were run by the auditor.
 | `rust/tcl-compiler/src/dynamic_names.rs` | `2a918e5962be42443f6a57cc00fe0f712ea5ba25af62f7534da461f20d862d2d` |
 | `rust/tcl-compiler/src/analyser/handlers.rs` | `c19cfed54d7f4765e8065772970a3250d4fc8884931ab85369a9d0539b915720` |
 
-Additional evaluated array-name geometry remains duplicated in
+Additional evaluated array-name geometry was duplicated in
 `value_transfer/inputs.rs::PlaceRef::{is_element,base}` in Registry, and in
 Compiler's `compilation_unit.rs` connection-scoped root insertion,
 `value_transfer.rs::existence_step`,
@@ -131,8 +141,12 @@ terminal-close geometry already owned by `split_element_ref`; their narrower
 nonempty, ASCII or substitution policy must remain separate. `PlaceRef::scalar`
 currently also accepts encoded element-name fallbacks from existing adapters;
 centralisation must preserve those callers rather than trust `kind` alone.
-These are migration candidates, not claimed semantic defects or completed
-consumer coverage. Root was notified; no source edit or execution by auditor.
+The five Registry/Compiler root consumers are migrated and source-peered below.
+Current `names_static_variable` already delegates to shared `split_element_ref`
+and shared dynamic-word policy, retaining nonempty/static-root constraints;
+there is no additional private first-open geometry there to migrate.
+These were architecture findings, not claims of semantic defects or completed
+whole-consumer coverage. No source edit or execution by auditor.
 
 Follow-up current-source inspection confirms VM WASM ingress now transports
 original counted bytes into `SourceImage::from_bytes` and
@@ -218,16 +232,190 @@ CLI acceptance follows from this review.
 | `rust/tcl-cli/src/commands/compile.rs` | `6b64a8291673d38c36fe1fc98fbbc9e89663eca37fe5923cda99303079cf931e` |
 | `rust/tcl-cli/tests/cli.rs` | `ee915d252f0072ffe109de8e2848407f90dd585039999117c75aa372bba0194f` |
 
-LSP collection migration has a bounded source-peer concern outstanding:
-missing invocation assistance currently returns a successful empty collection
-contribution before an original side-switch/body refusal can be seen. The
-existing corrupted-clientside-argument withdrawal control requires unavailable
-whole pairing state, not absence. LSP owner was asked to distinguish missing
-representation from genuine admitted uninteresting calls. Nominal mutation
-name hazards remain separate withdrawal-only evidence alongside unknown
-transitions; no registry availability, execution or tombstone follows.
+LSP's final collection, nominal hazard and readonly descriptor-field batches
+pass bounded source peer after closing missing-source and child-geometry gaps.
+Actual parent token/config ownership is checked first; missing source carriers
+or assistance withdraw pairing state, while admitted nonregistry/unknown
+candidate envelopes retain their separate advisory purpose. The complete
+checked argument-substitution owner visits head/template/index/nested children
+once with inherited source bindings. Side-switch bodies retain actual effective
+to written role mapping, original geometry/configuration and supplied body-unit
+ownership. Assigned values no longer reparse reporting strings, and missing
+assignment source carriers refuse. Existing corrupted-source controls remain;
+new admitted nonregistry and head/template/index positives discriminate the
+boundary. Getter, drop and HTTP-flow leaf consumers are covered by later bounded source peers below; structured-header/return substitution coverage remains unfinished.
+
+Nominal mutation hazards retain exact supplied catalogue descriptor, shared
+transition original ordinal and literal source value. The vendor receipt
+retains original vector/context/root coordinates, skips known custom preceding
+handlers, and keeps unknown residual independent. Only object-candidate
+extraction withdraws matched advice; no availability, execution or tombstone is
+issued. No executed acceptance follows from this source peer.
+
+| LSP collection/hazard peer-reviewed path | SHA-256 |
+| --- | --- |
+| `rust/tcl-registry/src/source_name_ownership.rs` | `46cd27b31f49f69662d794a7111f854436c705659721b0ed4d98297ebd9528b8` |
+| `rust/tcl-compiler/src/registry_invocation/vendor_source_barriers.rs` | `0c323500530e0517a3a4fa73eb39572019375951b3792ffb758a7df995dce299` |
+| `rust/tcl-irules/src/walker.rs` | `68f14bd278f2b7d8f024b2aaee4dea0a8dbe6c1a10abb3d448121de317ecf760` |
+| `rust/tcl-registry/src/resolved_invocation.rs` | `e66b685eece224d700a34050ed2372e183e97172228371230b7f16f23e5f8225` |
+| `rust/tcl-compiler/src/registry_invocation.rs` | `c721ec02a9321a6047fab459ef2ae6ea2e5adce37e1475d0c2cd968380083e10` |
+| `rust/tcl-compiler/src/irules_checks.rs` | `4964e5d2be16601e81057b24c6b5eadf2ab005cc4e63807fab375968a5a86de7` |
+| `rust/tcl-lsp-core/src/minify.rs` | `2148854f2f1dd4027d15c5e7159bed2f8826b61d95c77a2a66607195666f60f1` |
+
+LSP's data-group suggestion migration passes bounded source/API peer. The
+existing shared naming generation module now owns the exact prior ASCII
+lowercase/punctuation-run/literal-underscore/fallback policy; Core and MCP's
+three generation sites delegate. Core's supplied nonempty name branch remains
+verbatim. This is an explicit new-name suggestion/collision purpose and supplies
+no existing identity lookup. Existing integration controls remain the execution
+acceptance; no mirror tests or execution were added by the auditor.
+
+Root also extends the faithful-source boundary to `minimize` before reduction or
+rename/output, and to `pkg discover --add` before requirement scanning or
+manifest writes. Advisory discovery reporting retains its separate existing
+policy. These additional entry-point orderings pass bounded source peer; whole
+CLI read-only/report provenance remains unfinished.
+
+| Follow-up generation/CLI peer path | SHA-256 |
+| --- | --- |
+| `rust/tcl-syntax/src/naming/scaffold.rs` | `9617bcd957990dad346905295987e1a38fa95e6037a93562b79c69809d427f46` |
+| `rust/tcl-syntax/src/naming.rs` | `370714e00b3569671f7e8cb65d6150d016740c8ec639cd701816c424ee73a227` |
+| `rust/tcl-lsp-core/src/refactor/datagroup.rs` | `a941b88c0e796a65063624cdf3b0569be44e9a48b626219297536d92238c1603` |
+| `rust/tcl-mcp/src/datagroup.rs` | `33fbaa42f3fdc413f52df3f60297e43a684568b883acbd32e6ba18f4a14ae191` |
+| `rust/tcl-cli/src/commands/minimize.rs` | `3e70c7740461f259f6b407bcb6bab7e1e6621e75d3c6e26fa895eb08bfb67c34` |
+| `rust/tcl-cli/src/commands/pkg_discover.rs` | `f84305e1e3ab9c01dbb378831a676a52aa3120a7c344fe55b3d9a70561688166` |
+| `rust/tcl-cli/tests/cli.rs` | `564d428ab4752d694779edf50a51b26a45cea1a2f79c54f667a424bca426ce0d` |
+
+Root's template follow-up passes bounded source peer. Both substitution
+collection and literal-key decoding use checked shared decomposition with the
+actual input grammar. Invalid decoded Unicode, missing original index geometry
+or capacity failure withdraws the complete plan; partial mutations never escape
+`template_plan`. Genuine literal U+FFFD remains distinct from decoder repair.
+The represented32-child/capacity80 controls describe representation and source
+geometry, not manufactured guest semantic answers.
+
+LSP's getter follow-up passes bounded source peer. Selected option keyword
+tables come from actual available invocation options, retaining surface,
+package floor, form, prefix and minimum-abbreviation policy. Original parent
+and complete shared child-call owners retain configuration and effective
+literal argv; missing owners decline rather than reparse report labels or
+assigned value strings. The analyser uses the same selected schema/table.
+The existing all-flags getter heuristic remains an explicit advisory
+approximation; it grants no dispatch or normal-completion authority.
+
+Compiler's alias-definition core passes bounded source peer. Actual current
+source registry words, typed transition subjects and exact direct-Written
+local/target operands select target geometry. Caller targets require an
+original absolute name or the actual selected global frame grammar; unknown
+callers decline. Logical frame/card/input/config receipts remain attached.
+Report strings and protective unknown markers cannot issue positive target
+definitions. The checked C namespace key is only an outward coordinate for
+the existing index. Compound-index root advice comes from the genuine shared
+variable-word owner. Executable positive coverage remains unfinished.
+
+Compiler's final namespace alias/template source batch also passes bounded
+peer. The source-only namespace frame retains actual authored-C input/context,
+advice-site origin and selected body allocation. `alias_frame` is distinct from
+`local_frame`; namespace advice cannot manufacture procedure locals. Templates
+retain exact source/name/frame/config and direct command-site geometry, and
+later unknown or missing alias-local/frame ownership withdraws advice.
+
+LSP identified the independent Core edit boundary: `original_variable_rename_edits`
+and `prepare_rename` consume rename completeness and lexical edit geometry but
+have no semantic transformation/equivalence receipt. Alias-only cursor refusal
+cannot protect a separately exposed original target occurrence. The final
+compiler batch preserves an unconditional source-applicability obligation on
+every Logical occurrence (`logical_scope.is_some()`), including formals and
+alias targets. Source geometry and alias coverage therefore do not themselves
+authorize Core rename. Existing
+`original_variable_rename_accounts_for_derived_and_independent_alias_reads`
+and `source_declaration_rename_tests` remain discriminating controls; this
+source peer grants no executed acceptance.
+
+| Final namespace/template/source-edit boundary path | SHA-256 |
+| --- | --- |
+| `rust/tcl-compiler/src/command_binding/declaration_layout.rs` | `148267f87dbe032f24fe1f545f0fa94b78882f5ec526d92e121fd80b90b9d068` |
+| `rust/tcl-compiler/src/command_binding/logical_variable_scope.rs` | `c4f0e162b2dad2c9ed955e2eeed4b5995f6febdaf7630a4874ab968cb8a39135` |
+| `rust/tcl-compiler/src/signature_scan/variable_symbol.rs` | `49c7cf71160bd641146b564ea3171477c401c706c4e5a318a6aee7906e0e3894` |
+| `rust/tcl-compiler/src/analyser/variable_alias_templates.rs` | `d1c2a2aaada90ed864aab5e5fc75d1583f274e1089f4cb1c14b1cae0abcfac61` |
+| `rust/tcl-compiler/src/analyser/variable_source_declarations.rs` | `495de03b8d495df9bbf957f286207de1e9501341c065be53396ba0b08b1e06c9` |
+
+| Follow-up template/getter/alias source-peer path | SHA-256 |
+| --- | --- |
+| `rust/tcl-registry/src/value_transfer/template.rs` | `83db80e8120aea45a048aa4a00788c009b4c19600c13e59d264f737132dd73e4` |
+| `rust/tcl-registry/src/resolved_invocation.rs` | `49cd601d2c47076d27dcadbd67ed803c39f7ba17246e092a60da8ddd12a11376` |
+| `rust/tcl-compiler/src/registry_invocation.rs` | `e02e0a8c1b949c9615cb55f2e4527ce932bf8836ea68a7aac8b58f93ca833e02` |
+| `rust/tcl-compiler/src/irules_checks.rs` | `e39af3bb75f2f355c2dcb423bf239aa35d62f2a2b81c427b285851003e419e04` |
+| `rust/tcl-compiler/src/analyser/irules_event_checks.rs` | `2e982a29f1f8a57de29d56c0a875564b168522493e1da99249e3f4e521862820` |
+| `rust/tcl-compiler/src/registry_invocation/declaration_assistance.rs` | `090a5fae49bd92ccbd010a4aedae56ba13f57e7cf7a62ac53b232be65d7860ae` |
+| `rust/tcl-compiler/src/analyser/handlers.rs` | `e7a1cddfa7ac2d9d908be33b39327d95cef22b12478693fd8a121c280590625e` |
+| `rust/tcl-compiler/src/analyser/scope.rs` | `c03401b544cdd16f705aad2206fe288dbe3c856c519f474ffabcc861f243bced` |
+| `rust/tcl-compiler/src/signature_scan/variable_symbol.rs` | `c8118acf327bfe1cab0281786e2ca7ee8f83199f19a592a8047d7094a0036b1a` |
+| `rust/tcl-compiler/src/signature_scan/name_value.rs` | `6d9a4185ab207f234c75acf3d6df690926e6a831d28cdc3c6605d76383e19126` |
+
+DB implemented the five evaluated-variable geometry consumers in
+`value_transfer/inputs.rs`, `compilation_unit.rs`, `value_transfer.rs`,
+`sccp/original_value_facts.rs` and `existence_query.rs` now delegate to shared
+`split_element_ref`, preserving typed base overrides and existing nonempty
+ASCII guards. This passes independent bounded source peer: explicit typed
+element bases take precedence, the existing Scalar/Array encoded-element
+fallback remains, and dynamic index evaluation is not introduced. Executable
+acceptance remains pending.
+
+| Evaluated-variable geometry source-peer path | SHA-256 |
+| --- | --- |
+| `rust/tcl-registry/src/value_transfer/inputs.rs` | `4e365ffdb72b6ec6728ac9e3512b631e60e9b3a2fba449c9d078cce56e561a30` |
+| `rust/tcl-compiler/src/compilation_unit.rs` | `4336383c545a191dcf51e2ed48685181cca1fd5fc0fc8fe9d572c8a3677aa67c` |
+| `rust/tcl-compiler/src/value_transfer.rs` | `0375669117a75be09652b77a8a2cabca7d0deb3f6d5b74d55b554a181928bfeb` |
+| `rust/tcl-compiler/src/sccp/original_value_facts.rs` | `bd27a3033b89a9f7452c55705dd971a37ea6104150f12fa61ffde695a9a2923e` |
+| `rust/tcl-compiler/src/existence_query.rs` | `da75a26147594bf7afde13d4a1a50f50af188f3949fd3b36277fd8e4f06db855` |
 
 ## Inspected adapters and domain boundaries
+
+LSP's flow-leaf follow-up passes bounded authority/source peer. Registry owns
+explicit conditional drop/DNS/event-control source grammars. Event suppression
+requires exactly two original effective values `disable all`; response
+commit metadata retains actual effect surface and package floor. Script-owned
+retained tokens and unanimous consumed carriers replace label decisions,
+complete shared child calls run once in source order before their parent, and
+missing source withdraws the whole warning result. Possible positive actions
+use candidate unions; the all-event suppressor additionally requires a closed,
+nonempty, nonabsent unanimous candidate set. No handler or successful effect is
+granted. The existing structured walker still skips If/Switch/loop header
+substitutions, For init/next and Return argv; those remain explicit coverage
+obligations, not closed by this leaf migration.
+
+The flow grammar also survives the authored metadata surfaces: shared variant
+catalogue/exhaustive witness, SpecTcl enum validation/vocabulary, Studio schema,
+catalogue/draft, Rust and DSL renderers, help/examples/coverage/relations. New
+three-variant roundtrip and invalid-enum refusal controls are retained, with
+execution and generated drift gates pending root.
+
+Compiler's evaluated-array source tranche passes bounded peer. Generic
+representative Templates remain Dynamic. Partial element-root facts require
+the actual original NativeWord and independently selected recipe through
+`native_variable_word`; original-source/config/vector and strict Native purpose
+checks remain on retained fallbacks. Three freeze callers now transport actual
+complete config. Logical advice cannot issue Native naming facts. Executable
+acceptance and any newly missing Logical source-purpose producer must be
+resolved independently; the removed String parser cannot be restored as a
+fallback.
+
+| Flow/metadata/evaluated-array source-peer path | SHA-256 |
+| --- | --- |
+| `rust/tcl-registry/src/events.rs` | `c545fd83dff057fe175095df67db8ba84d1cc53921b1ad26b32da2dc17db1a77` |
+| `rust/tcl-registry/src/spec.rs` | `e03455d3b3a24dc2ecd69906b51e3ab6f75eb3748003a534dbbe9191e5a7f977` |
+| `rust/tcl-registry/src/resolved_invocation.rs` | `9b31e2dca3caa7e8fd42987e414d9787fc323a3c5dfaa522c4dbc2f7745d10f9` |
+| `rust/tcl-compiler/src/registry_invocation.rs` | `6fd0a6c2474ae5242d299c1d79fb5980d2aabd57f4ea0b19b9b92836868ea945` |
+| `rust/tcl-compiler/src/irules_checks.rs` | `7e299d867c442cce61450c8e7a22af112dd4f0175f6df5e4da907dd7d8e618eb` |
+| `rust/tcl-compiler/src/command_binding/frozen_arguments.rs` | `512fbd7212583ed45a2c9244a046c2029000a0eb2eb03d322e0d4960939164a2` |
+| `rust/tcl-compiler/src/command_binding/source_arguments.rs` | `7f8821c164bb39c536a95f46b6b7c8f2f6190e180b0e9666c4306ac137b1681f` |
+| `rust/tcl-compiler/src/command_binding/native_list_assignment.rs` | `52377d33955a2bc76e2bcb0c12e6ba4d7bd3068427f51b86f314902c1e8072c5` |
+| `rust/tcl-compiler/src/command_binding/original_name_value.rs` | `f6d810b91118c2eb758ae1ff1a2bd6daf26354a68bce83f4555626f53e1175d1` |
+| `rust/tcl-spectcl/src/catalogue.rs` | `7e4ed424fcfc896204905cf17c6d470bb3f078c6ce03c75e4055962bc5769135` |
+| `rust/tcl-spectcl/src/loader.rs` | `0b095ecf1932e994cd44eaa2fe0d1d160da9d5c1787a1721ae63d3d1078de92c` |
+| `rust/tcl-spec-studio/src/schema.rs` | `43e2619e69c94334b99ba0c8bd338a5290a5a6e12c9fd4c310726b31ff069391` |
+| `rust/tcl-spec-studio/src/render_spectcl.rs` | `4a56b13d323e00133412fad12f0cc49d9900d9b3aa46f75e8501f88ee246ad59` |
 
 These rows establish the inspected caller purpose, not whole-surface acceptance.
 Existing test names below are authored controls; none ran in this review.
@@ -284,6 +472,21 @@ reconciliation with the central generated-name architecture. The broader
 186-file editor lexical roster is not a completed editor consumer census.
 
 ## F5 admission and outstanding questions
+
+Additional host-input audit: `tcl-bigip-io::paths::read_path(strict=true)`
+does not protect UCS input, because both archive branches return
+`ucs_archive_to_scf`'s already-decoded String. `ucs_to_scf` applies lossy
+replacement to every selected member before concatenation, discarding decode
+provenance. Therefore flipping downstream strict flags cannot repair archive
+ownership. `f5-cli::rename` passes only `in_place` as strict even when emitting
+transformed config to `--write`, `--output` or stdout; query does the same
+before its independent mutating output path. `split` directly decodes lossy
+bytes before deriving partition names and writing files. Retain original
+member bytes/decode reports through the shared IO owner, then require faithful
+source before naming transforms or name-derived artifacts. Explicit preview
+reporting can retain its separate purpose. Existing UCS plain/encrypted golden
+and F5 query-mutation/rename/irule controls remain; no malformed-byte ingress
+acceptance control was established by this source review.
 
 The retained `f5/answers/outstanding-operation-audit.md` distinguishes 108
 observed, 25 unsupported and 267 unreached original pattern operations. The
@@ -358,6 +561,54 @@ replacing their domain grammars with a Tcl resolver. Compiler
 does not select semantics.
 
 ## Remaining census limits
+
+Broader read-only issue reconciliation completed at 2026-10-15 11:06 UTC.
+Exact repeat query arguments, returned IDs, 449 issue metadata records, 103
+explicitly unclassified candidate bodies and 13 strong omissions are retained
+in `audit-next-issues.json` (SHA-256
+`740b1bed60778b88287ecbdcaaeb9fd27e6325cd2248b3a615b60a756d059732`).
+Exact reads now cover all 346 actual issue IDs mentioned in `issues.md`
+(the separate Tcl frame notation `#0` is not an issue). All 329 explicit
+state rows, representing 318 unique issue IDs, match current GitHub states;
+there are no state differences. The earlier 252-row JSON snapshot was a
+bounded subset, not the full catalogue.
+
+Four further repository searches for `"command name"`, `"variable name"`,
+`qualified`, and `alias namespace`, each including open and closed results
+with a 100-result bound, produced 270 distinct search hits and 103 candidate
+IDs absent from the current catalogue. Exact-fetch reconciliation across
+current catalogue and search candidates covers 449 distinct issues: 97 OPEN,
+352 CLOSED. Search results themselves omit state; these counts come from
+exact issue responses. Search result limits and vocabulary are not an
+exhaustive related-issue census.
+
+Strong additional CLOSED naming-regression candidates to retain and reconcile:
+
+| Issue | Existing regression or shared-owner obligation |
+| --- | --- |
+| #1601 | Expression lexer's release-blind first-close braced variable scan. |
+| #1431 | Formal/name-list splitter loses escaped and whitespace-bearing names. |
+| #1487 | Dynamic `incr` target lowered as a static name. |
+| #1595 | WASM whole-command fallback loses quoted command-name closing geometry. |
+| #1779 | Expansion in the command-head word before expanded invocation. |
+| #1386 | Hover pattern detectors select command semantics by private name rosters. |
+| #1378 | Switch clause-list argument ownership and reference inventory. |
+| #1380 | Structured lowering's expansion barrier uses a private command-name list. |
+| #1391 | Source byte scans reconstruct variable facts already held by shared owners. |
+| #1653 | Default metaclass report is treated as observed computed-name provenance. |
+| #1637 | Pack command/file-extension collisions silently select by pack-name order. |
+| #1638 | Whitespace command names, versionless pack-name parsing and duplicate location. |
+| #1845 | Braced literal text incorrectly grants a substituted variable read. |
+| #1896 | WASM procedure registration confuses written body source with produced value. |
+
+Additional CLOSED #1634/#1635 cover loader ownership/loss and BOM ingress;
+#1943 is adjacent registry dataflow architecture. Their precise inclusion
+requires the catalogue's entirely-naming scope decision. OPEN additional
+search hits include #2207 catch/exists variable-table behavior, #2183 nested
+parse-error frame ownership, #2205 unsupported representation, #2188 package
+autoload and #2291 escaped return source. These are candidates, not a claim
+that every issue is entirely naming or newly broken. Root owns catalogue
+edits and issue actions; none were changed or closed by this audit.
 
 A fresh tracked-file search outside the finite330 filenames finds 160 files
 with candidate `qualified_name`, proc/class inventory, or colon split/trim

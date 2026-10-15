@@ -165,7 +165,7 @@ impl Analyser {
             cmd_name, args, arg_tokens, arg_single, cmd_tok,
         );
         self.emit_irule2003_unsafe_command(cmd_name, cmd_tok);
-        self.emit_irule3102_unnormalised_getter(cmd_name, args, cmd_tok);
+        self.emit_irule3102_unnormalised_getter(arg_tokens, cmd_tok);
         self.emit_irule2101_heavy_regex(cmd_name, cmd_tok, event_ref);
         self.emit_irule5001_ungated_log(cmd_name, cmd_tok, event_ref);
         let execution_context = self.irules_execution_context(scope_path);
@@ -606,23 +606,40 @@ impl Analyser {
     /// single-sourced.
     fn emit_irule3102_unnormalised_getter(
         &mut self,
-        cmd_name: &str,
-        args: &[String],
-        cmd_tok: Token,
+        argument_tokens: &[Token],
+        command_token: Token,
     ) {
-        let fires = self
-            .registry
-            .as_ref()
-            .is_some_and(|r| crate::irules_checks::is_unnormalised_getter(r, cmd_name, args));
-        if !fires {
+        let Some(original) = self.original_diagnostic_call_at(command_token, argument_tokens)
+        else {
+            return;
+        };
+        let fires = original.with_schema(|schema| {
+            let arguments = schema.words.arguments();
+            let values = (0..arguments.exact_argv_len()?)
+                .map(|ordinal| {
+                    let word = arguments.get(ordinal)?;
+                    let bytes = word
+                        .literal()
+                        .map(str::as_bytes)
+                        .or_else(|| word.native_bytes())?;
+                    Some(std::str::from_utf8(bytes).ok()?.to_owned())
+                })
+                .collect::<Option<Vec<_>>>()?;
+            crate::irules_checks::is_unnormalised_getter(
+                &schema.semantics.options.keyword_table(),
+                &values,
+            )
+            .then_some(())
+        });
+        if fires != Some(Some(())) {
             return;
         }
         self.result
             .diagnostics
             .push(crate::analyser::types::Diagnostic::new(
                 DiagCode::Irule3102,
-                cmd_tok.span,
-                crate::irules_checks::format_message(cmd_name),
+                command_token.span,
+                crate::irules_checks::format_message(original.command()),
                 Severity::Warning,
             ));
     }

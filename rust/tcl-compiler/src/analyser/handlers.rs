@@ -281,14 +281,6 @@ fn summarise_detail(description: &str) -> String {
     }
 }
 
-/// The cell an alias fact links its local to: the namespace path that names
-/// it, and whether a frame-crossing alias reached it by a fixed path (the
-/// cell then gets a definition of its own in the global scope).
-struct AliasCell {
-    path: String,
-    fixed_frame: bool,
-}
-
 /// A recorded class that is itself a `TclOO` class factory, with the
 /// definition-body grammar the bodies it manufactures obey.
 ///
@@ -1245,48 +1237,48 @@ impl Analyser {
             return;
         };
         self.define_var(local, local_tok, scope_path, false, None);
-        let (Some(target_tok), Some(cell)) = (
-            arg_tokens.get(alias.words.target).copied(),
-            self.alias_cell(&alias.target, args, scope_path),
-        ) else {
+        let Some(target_tok) = arg_tokens.get(alias.words.target).copied() else {
             return;
         };
-        self.set_var_link_target(local, scope_path, super::scope::VariableLinkTarget {
-            target: cell.path.clone(), target_span: target_tok.span, local_span: local_tok.span,
-            original_target_namespace: self.original_alias_target_namespace(
-                &alias.target, (local_tok.span, target_tok.span), scope_path,
-            ),
-            original_target_receiver: crate::signature_scan::variable_symbol::OriginalVariableSymbolReceiver::NamespaceAlias,
-        });
-        if cell.fixed_frame {
-            // The cell a frame-crossing alias names by a fixed path gets its
-            // own definition at the word naming it: `upvar
-            // ::tk::FocusGrab($index) data` is the only place that array ever
-            // comes to exist, so without a `VarDef` for `::tk::FocusGrab`
-            // every occurrence — this word, a sibling proc's
-            // `$::tk::FocusGrab($idx)` read, its `info exists` / `unset` —
-            // answered nothing. Defined in the global scope: both qualifying
-            // spellings (a `::`-qualified target, any target at `#0`) name a
-            // cell reachable from everywhere.
-            self.define_var(&cell.path, target_tok, &[], false, None);
+        let namespace =
+            self.original_alias_target_namespace((local_tok.span, target_tok.span), scope_path);
+        let original = self.record_original_variable_alias_target(
+            local_tok.span,
+            target_tok.span,
+            namespace,
+            crate::signature_scan::variable_symbol::OriginalVariableSymbolReceiver::NamespaceAlias,
+        );
+        if let Some(report) = self.alias_target_report(&alias.target, args, scope_path) {
+            self.set_var_link_report(local, scope_path, report, target_tok.span);
+        }
+        if matches!(
+            alias.target,
+            tcl_registry::VariableAliasTarget::CallerSelectedFrame { .. }
+        ) && let Some(original) = original
+        {
+            self.define_original_namespace_alias_target(&original);
         }
     }
 
     fn original_alias_target_namespace(
         &self,
-        target: &tcl_registry::VariableAliasTarget,
         operands: (Span, Span),
         scope_path: &[usize],
     ) -> Option<crate::signature_scan::scope::SignatureNamespaceScope> {
-        use tcl_registry::VariableAliasTarget;
-        if matches!(target, VariableAliasTarget::Global { .. }) {
-            return self.original_variable_root_namespace();
-        }
-        let current = self.original_variable_namespace_at(scope_path)?;
-        if !matches!(target, VariableAliasTarget::Namespace { .. }) {
-            return Some(current);
-        }
         let input = self.resolved_analysis_input();
+        let target_input = self.original_qualified_variable_input(operands.1, false)?;
+        let current = if input.has_logical_source_name_context() {
+            self.head_identities
+                .original_logical_variable_scope_at(
+                    &input,
+                    &tcl_lexer::SourceImage::document(&self.source),
+                    operands.1,
+                    &target_input,
+                )?
+                .namespace()
+        } else {
+            self.original_variable_namespace_at(scope_path)?
+        };
         let purpose =
             crate::signature_scan::original_name::OriginalSourceNamePurpose::for_analysis_input(
                 &input,
@@ -1302,10 +1294,11 @@ impl Analyser {
             {
                 continue;
             }
-            let namespace = source.namespace_target_scope(
+            let namespace = source.target_namespace_scope(
                 &self.source,
                 &self.result,
                 operands,
+                &target_input,
                 &current,
                 purpose,
             )?;
@@ -1317,31 +1310,14 @@ impl Analyser {
         selected
     }
 
-    /// The namespace path of the cell an alias targets, or `None` when the
-    /// target has no stable path.
-    ///
-    /// - `global v` aliases `::v` (`global ::ns::v` aliases `::ns::v`);
-    /// - `variable v` aliases `<current namespace>::v`, keeping a relative
-    ///   name's full path (`variable child::v` aliases `<ns>::child::v`, an
-    ///   absolute one names its cell directly);
-    /// - `namespace upvar ns other local` aliases `ns::other`, a relative
-    ///   `ns` resolved against the current namespace and `other` kept whole
-    ///   within it (`namespace upvar ::a b::c local` aliases `::a::b::c`); a
-    ///   computed namespace or variable word is kept as written, marker and
-    ///   all (`namespace upvar $ns v local` aliases `::$ns::v`), because the
-    ///   workspace index reads that marker to know the alias binds no
-    ///   statically-known cell and refuses a rename beside it — the analyser
-    ///   records the spelling rather than inventing a name or dropping the
-    ///   link;
-    /// - a frame-crossing alias (`upvar`, a pack's `alias` verb) has a path
-    ///   only for the two spellings [`Self::upvar_link_target`] qualifies —
-    ///   and that cell is then [`AliasCell::fixed_frame`].
-    fn alias_cell(
+    /// Reporting spelling and protective unknown markers. No symbol or target
+    /// definition is constructed from this text.
+    fn alias_target_report(
         &self,
         target: &tcl_registry::VariableAliasTarget,
         args: &[String],
         scope_path: &[usize],
-    ) -> Option<AliasCell> {
+    ) -> Option<String> {
         use tcl_registry::VariableAliasTarget as Target;
         /// A subject's value when the resolver knew it, else its source word
         /// as written — the spelling, substitution marker included, never
@@ -1393,16 +1369,10 @@ impl Analyser {
                 // base alone, never taken as the variable's value.
                 let other = spelt(variable, args)?;
                 let path = Self::upvar_link_target(other, self.alias_frame_level(frame))?;
-                return Some(AliasCell {
-                    path,
-                    fixed_frame: true,
-                });
+                return Some(path);
             }
         };
-        Some(AliasCell {
-            path,
-            fixed_frame: false,
-        })
+        Some(path)
     }
 
     /// The frame an alias's caller-frame selection reaches, in the analysed

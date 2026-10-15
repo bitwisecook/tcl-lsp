@@ -32,6 +32,7 @@ use crate::interp::{Vm, err, ok};
 use crate::value::Value;
 use tcl_dialect::model::surface_admits;
 
+mod native_jim_helpers;
 mod native_jim_subcommands;
 
 /// Run `body` as a script in namespace `target`, absorbing a top-level
@@ -311,6 +312,9 @@ fn cmd_namespace_in(
                 Ok(entry) => entry,
                 Err(completion) => return completion,
             };
+            if entry.scripted_helper_kind().is_some() {
+                return native_jim_helpers::dispatch(vm, sub, rest, &original_names);
+            }
             (entry.name(), entry.usage())
         } else {
             let original_sub = match original_names.read(vm, sub) {

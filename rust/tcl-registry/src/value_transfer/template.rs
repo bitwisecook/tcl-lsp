@@ -217,8 +217,6 @@ impl CommandSemantics for TemplateSemantics {
         };
         let operand = OperandId(template);
         let spelling = view.operand(operand).map_or("", |operand| operand.text);
-        // A template `subst` rejects raises after substituting what came
-        // before it: the command's error.
         match self.switch_kinds(input, first..template, spelling) {
             Ok(kinds) => template_plan(input, operand, kinds).map_or(
                 PlanAnswer::Declined(DeclineReason::WrongRepresentation),
@@ -280,7 +278,7 @@ const fn join(a: SubstitutionKinds, b: SubstitutionKinds) -> SubstitutionKinds {
 /// already computed, which `dynamic` says. Spans are offsets in the word as
 /// `word_structure` reports them (a braced word's content from 1), and a
 /// script region's `base_offset` is its script's offset there. `None` when
-/// the template holds a construct `subst` rejects.
+/// syntax or the shared representation cannot retain the complete plan.
 fn template_plan(
     input: &dyn AnalysisInputs,
     operand: OperandId,
@@ -320,8 +318,8 @@ fn template_plan(
 }
 
 /// Record the substitutions `text` performs under `flags` into `plan`, each
-/// span `base + offset` into the word; `false` when a construct `subst`
-/// rejects stops it there. An array index substitutes every kind whatever `flags` say —
+/// span `base + offset` into the word; `false` if syntax, capacity or
+/// non-Unicode data prevents a complete source plan. An array index substitutes every kind whatever `flags` say —
 /// `Tcl_ParseVarName` parses it with `TCL_SUBST_ALL`, so `subst -nocommands
 /// {$a([b])}` runs `b` — and its reads, scripts and escapes are recorded
 /// beside the read that holds it.
@@ -333,14 +331,21 @@ fn record(
     config: LexerConfig,
     plan: &mut TemplateWordPlan,
 ) -> bool {
+    let Ok(parts) =
+        tcl_lexer::word_parts::decompose_spanned_checked(text.as_bytes(), flags, config)
+    else {
+        return false;
+    };
     for SpannedPart {
         part, start, end, ..
-    } in tcl_lexer::word_parts::decompose_spanned(text.as_bytes(), flags, config)
+    } in parts
     {
         let span = offset_span(base, offset + start, offset + end);
         match part {
             Part::Text(_) if flags.backslashes => {
-                let run = text.get(start..end).unwrap_or_default();
+                let Some(run) = text.get(start..end) else {
+                    return false;
+                };
                 let mut at = 0;
                 while let Some(found) = run.get(at..).and_then(|rest| rest.find('\\')) {
                     let from = at + found;
@@ -375,20 +380,38 @@ fn record(
                 {
                     return false;
                 }
+                let Ok(name) = std::str::from_utf8(name) else {
+                    return false;
+                };
+                let element = match (index, key) {
+                    (Some(_), Some(key)) => {
+                        let Some(key) = literal_key(key, config) else {
+                            return false;
+                        };
+                        Some(key)
+                    }
+                    (None, None) => None,
+                    _ => return false,
+                };
                 plan.reads.push(VariableRead {
                     span,
-                    name: String::from_utf8_lossy(name).into_owned(),
-                    element: key.map(|key| literal_key(key, config)),
+                    name: name.to_owned(),
+                    element,
                 });
             }
-            Part::Command(script) => plan.script_regions.push(ScriptRegion {
-                span,
-                script: BodyRegion {
-                    script: String::from_utf8_lossy(script).into_owned(),
-                    base_offset: span.start() as usize + 1,
-                    frame: FrameLevel::Relative(0),
-                },
-            }),
+            Part::Command(script) => {
+                let Ok(script) = std::str::from_utf8(script) else {
+                    return false;
+                };
+                plan.script_regions.push(ScriptRegion {
+                    span,
+                    script: BodyRegion {
+                        script: script.to_owned(),
+                        base_offset: span.start() as usize + 1,
+                        frame: FrameLevel::Relative(0),
+                    },
+                });
+            }
             Part::Expression(_) | Part::ParseError(_) => return false,
         }
     }
@@ -397,21 +420,85 @@ fn record(
 
 /// An array index's key: its value when the index substitutes nothing but
 /// escapes, else the index as the source spells it, which names no one key.
-fn literal_key(index: &str, config: LexerConfig) -> String {
-    let parts =
-        tcl_lexer::word_parts::decompose_spanned(index.as_bytes(), SubstFlags::default(), config);
+fn literal_key(index: &str, config: LexerConfig) -> Option<String> {
+    let parts = tcl_lexer::word_parts::decompose_spanned_checked(
+        index.as_bytes(),
+        SubstFlags::default(),
+        config,
+    )
+    .ok()?;
     let mut key = String::new();
     for SpannedPart { part, .. } in &parts {
         let Part::Text(text) = part else {
-            return index.to_owned();
+            return Some(index.to_owned());
         };
-        key.push_str(&String::from_utf8_lossy(text));
+        key.push_str(std::str::from_utf8(text).ok()?);
     }
-    key
+    Some(key)
 }
 
 /// The span `start..end` of the template text, `base` into the word.
 fn offset_span(base: u32, start: usize, end: usize) -> Span {
     let at = |offset: usize| base.saturating_add(u32::try_from(offset).unwrap_or(u32::MAX));
     Span::new(at(start), at(end))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn plan() -> TemplateWordPlan {
+        TemplateWordPlan {
+            operand: OperandId(0),
+            kinds: SubstitutionKinds {
+                backslashes: true,
+                commands: true,
+                variables: true,
+            },
+            braced: true,
+            dynamic: false,
+            script_regions: Vec::new(),
+            reads: Vec::new(),
+            escapes: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn template_plan_refuses_hidden_index_substitutions_but_keeps_represented_children() {
+        let config = LexerConfig::default();
+        let source = format!("{}[probe]{}", "$a(".repeat(32), ")".repeat(32));
+        let mut represented = plan();
+        assert!(record(
+            &source,
+            7,
+            0,
+            SubstFlags::default(),
+            config,
+            &mut represented
+        ));
+        assert_eq!(represented.reads.len(), 32);
+        assert_eq!(represented.script_regions.len(), 1);
+        let child = &represented.script_regions[0];
+        assert_eq!(child.script.script, "probe");
+        assert_eq!(child.script.base_offset, 7 + 32 * 3 + 1);
+
+        let source = format!("{}[probe]{}", "$a(".repeat(80), ")".repeat(80));
+        assert!(!record(
+            &source,
+            7,
+            0,
+            SubstFlags::default(),
+            config,
+            &mut plan()
+        ));
+        assert!(!record(
+            "$a(",
+            7,
+            0,
+            SubstFlags::default(),
+            config,
+            &mut plan()
+        ));
+        assert_eq!(literal_key("\u{fffd}", config).as_deref(), Some("\u{fffd}"));
+    }
 }

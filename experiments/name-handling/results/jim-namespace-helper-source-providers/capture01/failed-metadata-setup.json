@@ -1,0 +1,8 @@
+{
+  "stage": "fresh upstream metadata request setup",
+  "request": {"repository_full_name": "msteveb/jimtcl", "commit_sha": "HEAD"},
+  "completion": "connector schema validation refused the wrong repository field before any request execution",
+  "error": "repo_full_name required",
+  "semantics_observed": false,
+  "recovery": "retained separate upstream.json uses the exact validated repo_full_name field"
+}

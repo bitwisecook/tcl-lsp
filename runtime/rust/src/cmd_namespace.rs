@@ -190,9 +190,6 @@ fn namespace_cmd_original(
     argv: &[*mut TclObj],
     arguments: &OriginalArguments,
 ) -> Code {
-    if argv.len() < 2 {
-        return interp.wrong_args_for_invocation(argv, b"subcommand ?arg ...?");
-    }
     let Some(policy) = interp.name_policy_protocol() else {
         return interp.report_cmd_error(
             tcl_syntax::value::ValueError::CommandProtocolUnavailable(
@@ -212,6 +209,9 @@ fn namespace_cmd_original(
             Err(error) => return interp.report_cmd_error(error),
         }
     } else {
+        if argv.len() < 2 {
+            return interp.wrong_args_for_invocation(argv, b"subcommand ?arg ...?");
+        }
         let original = match arguments.bytes(1) {
             Ok(bytes) => bytes,
             Err(error) => return interp.report_cmd_error(error),

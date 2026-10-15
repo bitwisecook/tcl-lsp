@@ -1344,6 +1344,9 @@ pub struct InterpState {
         tcl_registry::native_scripted_distribution::NativeScriptedLibrary,
         Vec<(String, NativeRegisteredCommandToken)>,
     >,
+    /// Reached source-extension selections, independent of automatic Distribution bootstrap.
+    explicit_scripted_libraries:
+        Vec<tcl_registry::native_scripted_distribution::NativeScriptedLibrary>,
     /// Actual core-constructor purpose excludes subsequently loaded library scripts.
     bootstrap: NativeBootstrapPurpose,
     native_literal_world: Rc<RefCell<crate::literal_pool::NativeLiteralWorld>>,
@@ -3448,6 +3451,7 @@ impl InterpState {
             resolution_stacks: NamespaceResolutionStacks::default(),
             namespace_ensembles: HashMap::new(),
             scripted_distribution_libraries: HashMap::new(),
+            explicit_scripted_libraries: Vec::new(),
             bootstrap: NativeBootstrapPurpose::Distribution,
             native_literal_world: Self::fresh_literal_world(),
             native_compiler_pass_owner: Self::fresh_compiler_pass_owner(owner, interpreter),
@@ -23302,18 +23306,37 @@ impl Vm {
     /// Bootstrap each real scripted procedure once per selected distribution library.
     /// Replacement and deletion remain visible through subsequent profile repinning.
     pub(crate) fn refresh_scripted_distribution_libraries(&mut self) {
-        if matches!(self.bootstrap, NativeBootstrapPurpose::Core { .. }) {
-            return;
-        }
         use tcl_registry::native_scripted_distribution::NativeScriptedLibrary;
-        for &library in NativeScriptedLibrary::ALL {
-            self.install_scripted_library(library);
+        let selected = if matches!(self.bootstrap, NativeBootstrapPurpose::Core { .. }) {
+            self.explicit_scripted_libraries.clone()
+        } else {
+            NativeScriptedLibrary::ALL.to_vec()
+        };
+        for library in selected {
+            self.install_selected_scripted_library(library);
         }
     }
 
     /// Explicit native source-library entry. Each roster retains the original
     /// registered generations, independently of core registration and lookup.
     pub(crate) fn install_scripted_library(
+        &mut self,
+        library: tcl_registry::native_scripted_distribution::NativeScriptedLibrary,
+    ) {
+        if !self.explicit_scripted_libraries.contains(&library)
+            && tcl_registry::native_scripted_distribution::procedures(
+                self.native_invocation_dialect(),
+                library,
+            )
+            .next()
+            .is_some()
+        {
+            self.explicit_scripted_libraries.push(library);
+        }
+        self.install_selected_scripted_library(library);
+    }
+
+    fn install_selected_scripted_library(
         &mut self,
         library: tcl_registry::native_scripted_distribution::NativeScriptedLibrary,
     ) {

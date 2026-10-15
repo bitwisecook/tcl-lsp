@@ -649,18 +649,20 @@ impl SignatureSourceVariableOccurrence {
         };
         let geometry =
             protocol.variable_root_geometry(namespace.context()?, selected.root().selected());
+        if let NativeVariableRootGeometry::Local(simple) = &geometry
+            && let Some(frame) = scope.alias_frame()
+            && aliases
+                .iter()
+                .any(|alias| alias.frame() == &frame && alias.local() == simple)
+        {
+            return None;
+        }
         let symbol = match geometry {
             NativeVariableRootGeometry::Local(simple) if !scope.namespace_storage() => {
                 if !scope.local_name_is_byte_unique(simple.as_bytes()) {
                     return None;
                 }
                 let frame = scope.local_frame()?;
-                if aliases
-                    .iter()
-                    .any(|alias| alias.frame() == &frame && alias.local() == &simple)
-                {
-                    return None;
-                }
                 SignatureSourceVariableSymbol::from_original_local_input(&input, frame, simple)
             }
             NativeVariableRootGeometry::Local(_) => {
@@ -722,9 +724,8 @@ impl SignatureSourceVariableOccurrence {
     }
 
     pub(crate) fn has_source_applicability_obligation(&self) -> bool {
-        self.logical_scope
-            .as_ref()
-            .is_some_and(|scope| scope.has_earlier_unknown_mutations())
+        // Original source geometry supplies no variable transformation proof.
+        self.logical_scope.is_some()
     }
 
     pub(crate) fn from_original_namespace_cell(
@@ -769,6 +770,26 @@ impl SignatureSourceVariableOccurrence {
             formal: None,
             logical_scope: None,
         })
+    }
+
+    pub(crate) fn from_logical_alias_target(
+        span: tcl_lexer::Span,
+        input: SignatureSourceNameInput,
+        namespace: SignatureNamespaceScope,
+        receiver: OriginalVariableSymbolReceiver,
+        scope: crate::command_binding::OriginalLogicalVariableScope,
+    ) -> Option<Self> {
+        scope.matches_name(span, &input).then_some(())?;
+        let mut result = Self::from_original_input(
+            span,
+            input,
+            namespace,
+            OriginalVariableSymbolPurpose::NamespaceStorage,
+            receiver,
+            true,
+        )?;
+        result.logical_scope = Some(scope);
+        Some(result)
     }
 
     pub(crate) fn from_original_input(

@@ -242,6 +242,7 @@ impl SourceCommandBindings {
                     word,
                     None,
                     Some(&name_value),
+                    context.config,
                     state,
                     context.registry,
                 ) else {

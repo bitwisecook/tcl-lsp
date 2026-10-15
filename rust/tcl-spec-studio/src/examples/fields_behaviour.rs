@@ -830,6 +830,24 @@ append log $line",
         },
     ),
     (
+        "irules_source_flow",
+        Example {
+            code: "when HTTP_REQUEST {\n    drop\n    event disable all\n    return\n}",
+            focuses: &[
+                focus(
+                    1,
+                    "drop",
+                    "source connection-drop grammar; actual execution is independent",
+                ),
+                focus(
+                    2,
+                    "event disable all",
+                    "exact source all-event guard grammar",
+                ),
+            ],
+        },
+    ),
+    (
         "side_switch_target",
         Example {
             code: "when SERVER_CONNECTED {\n    clientside { TCP::collect }\n}",

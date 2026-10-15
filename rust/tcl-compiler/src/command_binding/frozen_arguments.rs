@@ -12,6 +12,7 @@ pub(super) fn freeze_word(
     word: &WordExpr,
     value: Option<&super::native_result::EvaluatedSourceValue>,
     name_value: Option<&super::original_name_value::OriginalProducedNameValue>,
+    config: tcl_lexer::LexerConfig,
     state: &mut ModuleCommandBindings,
     registry: &tcl_registry::CommandRegistry,
 ) -> Result<Word, ()> {
@@ -21,7 +22,7 @@ pub(super) fn freeze_word(
         _ => word,
     };
     let current_name = name_value.filter(|value| value.is_current(&state.source_variables));
-    let frozen = current_name.map_or_else(
+    let mut frozen = current_name.map_or_else(
         || {
             value.map_or_else(
                 || {
@@ -39,6 +40,18 @@ pub(super) fn freeze_word(
         },
         |value| Word::from_bytes(value.bytes()),
     );
+    if frozen == Word::Dynamic
+        && let Some(policy) = state
+            .source_variables
+            .execution_name_policy
+            .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)
+        && let Some(original) =
+            super::original_name_value::original_native_word(inner, state, config)
+        && let Some(shape) =
+            crate::registry_invocation::original_array_element_word(&original, policy)
+    {
+        frozen = shape;
+    }
     if !expanded {
         return Ok(frozen);
     }
