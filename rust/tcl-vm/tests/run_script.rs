@@ -2422,3 +2422,65 @@ fn a_value_that_is_not_one_whole_command_substitution_still_concatenates() {
         "2\n"
     );
 }
+
+/// A completion that reaches the outermost level settles as `tclsh`'s level-0
+/// evaluation does (8.4.20–9.1.0 measured): `return` unwraps its `-code`,
+/// `break`/`continue` and any other code become errors, which publish
+/// `errorCode` (`TCL UNEXPECTED_RESULT_CODE N` from 8.6) for the next command.
+#[test]
+fn a_top_level_completion_settles_as_tclsh_reports_it() {
+    use tcl_dialect::TclVersion;
+    for (version, unexpected) in [
+        (TclVersion::V8_4, "NONE"),
+        (TclVersion::V8_5, "NONE"),
+        (TclVersion::V8_6, "TCL UNEXPECTED_RESULT_CODE 3"),
+        (TclVersion::V9_0, "TCL UNEXPECTED_RESULT_CODE 3"),
+    ] {
+        let mut vm = Vm::new();
+        vm.set_compiler(Box::new(BytecodeCompileService::default()));
+        vm.set_runtime_version(version);
+        let mut settle = |vm: &mut Vm, src: &str| {
+            let completion = vm.eval_source(src).expect("compiles");
+            let settled = vm.settle_top_level(completion);
+            (settled.code, settled.result.to_str().to_string())
+        };
+        assert_eq!(
+            settle(&mut vm, "break"),
+            (
+                Code::Error,
+                "invoked \"break\" outside of a loop".to_owned()
+            ),
+        );
+        assert_eq!(
+            settle(&mut vm, "set errorCode"),
+            (Code::Ok, unexpected.to_owned()),
+            "{version:?}"
+        );
+        assert_eq!(
+            settle(&mut vm, "continue"),
+            (
+                Code::Error,
+                "invoked \"continue\" outside of a loop".to_owned()
+            ),
+        );
+        assert_eq!(
+            settle(&mut vm, "return -code 7 x"),
+            (Code::Error, "command returned bad code: 7".to_owned()),
+        );
+        assert_eq!(settle(&mut vm, "return x"), (Code::Ok, "x".to_owned()));
+        if version != TclVersion::V8_4 {
+            assert_eq!(
+                settle(&mut vm, "return -level 2 x"),
+                (Code::Error, "command returned bad code: 2".to_owned()),
+            );
+        }
+        assert_eq!(
+            settle(&mut vm, "error boom {} {X Y}; set q 1"),
+            (Code::Error, "boom".to_owned()),
+        );
+        assert_eq!(
+            settle(&mut vm, "set errorCode"),
+            (Code::Ok, "X Y".to_owned())
+        );
+    }
+}

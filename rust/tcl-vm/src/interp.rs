@@ -12952,6 +12952,55 @@ impl Vm {
         Ok(m)
     }
 
+    /// Settle a completion that reached the outermost level, as C's level-0
+    /// `Tcl_EvalEx` does for `tclsh` (`TclUpdateReturnInfo`, then
+    /// `ProcessUnexpectedResult`): a `return` takes its `-code` once its
+    /// `-level` runs out, `break` and `continue` become `invoked "break"
+    /// outside of a loop` errors and any other code `command returned bad code:
+    /// N`, under `TCL UNEXPECTED_RESULT_CODE N` from 8.6. An error left
+    /// uncaught publishes `errorInfo` and `errorCode`, which the next command
+    /// at the same prompt can read.
+    pub fn settle_top_level(&mut self, mut completion: Completion<Value>) -> Completion<Value> {
+        if completion.code == Code::Return {
+            let level = crate::command::opt_get(&completion.options, "-level")
+                .and_then(|v| v.as_int().ok())
+                .unwrap_or(1);
+            if level <= 1 {
+                completion.code = crate::command::opt_get(&completion.options, "-code")
+                    .and_then(|v| v.as_int().ok())
+                    .and_then(|n| i32::try_from(n).ok())
+                    .map_or(Code::Ok, Code::from_int);
+            }
+        }
+        let message = match completion.code {
+            Code::Ok | Code::Error => None,
+            Code::Break => Some("invoked \"break\" outside of a loop".to_owned()),
+            Code::Continue => Some("invoked \"continue\" outside of a loop".to_owned()),
+            other => Some(format!("command returned bad code: {}", other.as_int())),
+        };
+        if let Some(message) = message {
+            let code = completion.code.as_int();
+            completion = if self.runtime_version() < tcl_dialect::TclVersion::V8_6 {
+                err(message.clone())
+            } else {
+                crate::command::err_with_code(
+                    message.clone(),
+                    &format!("TCL UNEXPECTED_RESULT_CODE {code}"),
+                )
+            };
+            self.seed_error_info(message);
+        }
+        if completion.code == Code::Error {
+            let info = self
+                .error_info_value()
+                .map_or_else(|| completion.result.to_str().to_string(), str::to_owned);
+            let code = crate::command::opt_get(&completion.options, "-errorcode")
+                .unwrap_or_else(|| Value::string("NONE"));
+            self.publish_error(&info, &code);
+        }
+        completion
+    }
+
     /// Compile and run a Tcl source string via the injected [`CompileService`]
     /// (the runtime-`eval` / command-substitution path) in the *current* frame.
     pub fn eval_source(&mut self, src: &str) -> Result<Completion<Value>, TclError> {
