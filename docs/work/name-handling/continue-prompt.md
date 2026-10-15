@@ -1,5 +1,15 @@
 # Continue centralised name handling with sub-agents
 
+Latest portable audit: `repository-audit-progress-20261015T214711Z.tar.gz`
+(SHA256 `f57514d8421e90c3af72d3f2240257d934954eb74a957cae948a97458a024153`),
+5,717 provisional purpose rows / 484 verified members. NOT a remaining count.
+All54 Compiler source peers admitted (51production/3whole test children); omitted
+operations still unfinished. Independent UI unit peer preserves proper UTF16
+fields/generated rows; Root329 purposes remain provisional. Current source/test
+and M12 acceptance unchanged. Continue accurate whole-source/canonical audit,
+then all remaining consumer migrations; no PR while gates red/unrun.
+
+
 Latest portable audit: `repository-audit-progress-20261015T213051Z.tar.gz`,
 SHA256 `d2bf6b0d255c27121320df4a92c98f2f250dbf2d45b8e9d49fe8cd3f5e8ae50d`,
 5,313 provisional purpose rows / 431 verified members; NOT remaining-consumer total.

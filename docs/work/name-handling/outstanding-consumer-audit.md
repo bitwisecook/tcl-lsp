@@ -1,5 +1,13 @@
 # Outstanding naming-consumer audit
 
+Current refresh — 2026-10-15 21:49 UTC: separate portable repository audit retains
+5,717 provisional purposes / 484 verified members, not remaining migrations.
+Recorded source bindings/partitions reconcile, while source/operational/guidance
+and independent atomic-unit work remain unfinished. Historical bounded rows below
+are unchanged. M12 remains1133PASS/410FAIL/1TIMEOUT/2NOT_ACCEPTED_RUN_COUNT;
+required gates remain red/unrun and no new provider/source execution is claimed.
+
+
 Current refresh — 2026-10-15 21:32 UTC: the separate repository-wide portable
 checkpoint retains 5,313 provisional purpose rows / 431 verified members, not a
 remaining-migration total. Exact partitions and recorded source hashes reconcile;

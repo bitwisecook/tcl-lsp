@@ -28,7 +28,7 @@ Each remaining site will record its file, symbol, source hash, purpose and conte
 
 The working file roster, partition check, reviewer coverage and consumer rows are retained under `/workspace/name-session/full-consumer-audit/`; a portable reconciled ledger will replace this in-progress snapshot. The named baseline remains fixed while subsequent source changes receive separate invalidation/review records. Required repository gates remain unfinished.
 
-The latest portable checkpoint (21:30 UTC) contains **5,313 provisional purpose rows**, including shared owners, display-only sites and exclusions. Its 431 archive members are hash-verified. The frozen primary checkpoint inputs were independently reconciled: all recorded source SHA256 values match actual baseline Git blobs, coverage partitions reconcile, and no same-key duplicates were found. Auxiliary source-review receipts are individually hash-bound; that does not reconcile their semantics automatically. This is **not** a remaining-consumer count: unexamined production, multi-symbol groups and independent purpose reconciliation remain unfinished. Exact per-area coverage and provenance classifications are retained in the checkpoint indexed by [handoff/packets.json](handoff/packets.json).
+The latest portable checkpoint (21:47 UTC) contains **5,717 provisional purpose rows**, including shared owners, display-only sites and exclusions. Its 484 archive members are hash-verified. The frozen primary checkpoint inputs were independently reconciled: all recorded source SHA256 values match actual baseline Git blobs, coverage partitions reconcile, and no same-key duplicates were found. Auxiliary source-review receipts are individually hash-bound; that does not reconcile their semantics automatically. This is **not** a remaining-consumer count: unexamined production, multi-symbol groups and independent purpose reconciliation remain unfinished. Exact per-area coverage and provenance classifications are retained in the checkpoint indexed by [handoff/packets.json](handoff/packets.json).
 
 Source review has confirmed remaining integrations in registry/generation transport, compiler variable and recursive source geometry, database positive occupancy, LSP edit-purpose transport, runtime original-object selection, VM lifecycle owners, code generation and host/tooling boundaries. These are specific recorded purposes, not a fixed exhaustive family count. A valid final total requires completing the unexamined roster and reconciling consumer migrations separately from shared-owner extensions and validation-only work.
 
@@ -77,3 +77,15 @@ provisional purposes additionally separate executable output comments, human-rea
 symbol maps and native output paths. No new test/provider/generator execution or
 implementation acceptance follows. The next sixteen-file Compiler geometry packet
 is reserved, not yet reviewed; its manifest grants no coverage.
+
+The 21:47 checkpoint retains all 54 admitted reserved Compiler source reads
+(51 production files, three actual FP test children) with exact omitted-test
+boundaries and supplementary source receipts. The independent UI geometry peer
+separates six actual source purposes from two prior groups; Root now has 329
+provisional purposes. Actual UTF16 producer fields and correctly generated row
+extents remain preserved. Real shared list-grammar and selected frame-ABI owner
+requirements are linked to actual callers; pure recipe/API names alone supply
+no migration allegation. Source/operational/guidance completion and canonical
+consumer units remain unfinished. The searchable workspace artifact at
+`/workspace/naming-audit.html` is a frozen provisional catalogue, reproducible
+with the checkpoint's `render-audit-artifact.py`; it is not a completed census.

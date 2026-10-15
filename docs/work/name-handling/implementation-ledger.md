@@ -1,5 +1,15 @@
 # Remaining name-handling obligations
 
+Current audit checkpoint — 2026-10-15 21:49 UTC: portable 21:47 retains 5,717
+provisional purposes / 484 verified members, not a remaining-consumer total.
+All54 reserved Compiler files are admitted (51production/3actual test children);
+omitted operations remain explicit. Six UI unit-transport purposes independently
+admitted, preserving existing UTF16 fields/correct generated rows; Root329 purposes
+remain provisional. Work-kind reasons separate integration, owner/schema repairs,
+validation, reports/exclusions and unresolved requirements. Source/provider/tests
+unchanged; required gates red/unrun. No new implementation acceptance.
+
+
 Current audit checkpoint — 2026-10-15 21:32 UTC: portable 21:30 retains 5,313
 provisional purposes and 431 verified members, not a remaining-consumer total.
 Earlier thirteen Compiler production peers are admitted; an additional environment

@@ -303,5 +303,10 @@
     "file": "repository-audit-progress-20261015T213051Z.tar.gz",
     "sha256": "d2bf6b0d255c27121320df4a92c98f2f250dbf2d45b8e9d49fe8cd3f5e8ae50d",
     "status": "INCOMPLETE cc24 source audit: 5313 provisional purpose rows; exact frozen primary partitions/source SHA/schema reconcile, no same-key duplicate candidates. Semantic aliases have independent reconciliation receipts but remaining work-kind/purpose/unit reconciliation and unexamined production/harness/guidance remain. Shared owners/display/metadata/exclusions included; NOT remaining-consumer total. No test/provider/generator/gate acceptance."
+  },
+  {
+    "file": "repository-audit-progress-20261015T214711Z.tar.gz",
+    "sha256": "f57514d8421e90c3af72d3f2240257d934954eb74a957cae948a97458a024153",
+    "status": "INCOMPLETE cc24 source audit: 5717 provisional purpose rows; exact frozen primary partitions/source SHA/schema reconcile, no same-key duplicate candidates. Semantic aliases have independent reconciliation receipts but remaining work-kind/purpose/unit reconciliation and unexamined production/harness/guidance remain. Shared owners/display/metadata/exclusions included; NOT remaining-consumer total. No test/provider/generator/gate acceptance."
   }
 ]
