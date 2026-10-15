@@ -716,6 +716,18 @@ impl OriginalSourceDefinitionMemberRegion {
     /// variable cells or an entered definition frame.
     #[must_use]
     pub fn variable_argument_words(&self, original: &[NativeWord]) -> Option<Vec<&NativeWord>> {
+        self.argument_words_for_role(original, ArgRole::VarWrite)
+    }
+
+    /// Whole original operands carrying one selected source member role.
+    /// Names and list containers retain their own word geometry; this does
+    /// not manufacture fields, member identity or runtime invocation authority.
+    #[must_use]
+    pub fn argument_words_for_role(
+        &self,
+        original: &[NativeWord],
+        role: ArgRole,
+    ) -> Option<Vec<&NativeWord>> {
         let values = self.member_values(original)?;
         let keyword = values.first()?.as_deref()?;
         let arguments = original
@@ -737,7 +749,7 @@ impl OriginalSourceDefinitionMemberRegion {
             keyword,
             tcl_registry::InvocationArguments::structured(&arguments),
             Some(self.context.authoring_query()),
-            ArgRole::VarWrite,
+            role,
         )?;
         let retained = self.original_command_words_at(original.first()?.span().start())?;
         indices
@@ -1791,6 +1803,38 @@ mod script_purpose_tests {
             .unwrap()
             .source_script_bodies(&context)
             .remove(0)
+    }
+
+    #[test]
+    fn original_member_roles_lend_whole_names_formals_and_wrapper_selectors() {
+        let source =
+            "oo::class create C {self self method café {arg {optional 2}} {}; export café}";
+        for dialect in ["tcl", "tcl8.6"] {
+            let (analysis, parent) = original_definition_parent(source, dialect);
+            let context = analysis.resolved_input.as_ref().unwrap().context_registry();
+            let region = parent
+                .definition_member_region(&context, parent.content_span())
+                .unwrap();
+            let original = region.original_commands().next().unwrap();
+            for (role, indices) in [
+                (ArgRole::Name, vec![3]),
+                (ArgRole::ParamList, vec![4]),
+                (ArgRole::Keyword, vec![1, 2]),
+            ] {
+                assert_eq!(
+                    region.argument_words_for_role(original, role).unwrap(),
+                    indices
+                        .into_iter()
+                        .map(|index| &original[index])
+                        .collect::<Vec<_>>()
+                );
+                assert!(
+                    region
+                        .argument_words_for_role(&original[..2], role)
+                        .is_none()
+                );
+            }
+        }
     }
 
     #[test]

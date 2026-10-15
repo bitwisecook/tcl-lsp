@@ -3574,13 +3574,21 @@ impl DefinitionBodyGrammar {
                 if let Ok(inner) = std::str::from_utf8(inner)
                     && self.member(inner).is_some()
                 {
-                    self.source_member_indices_where(inner, args.slice_from(1), dialect, admit)?
+                    if self.source_member_in(inner.as_bytes(), dialect).is_none() {
+                        return Some(Vec::new());
+                    }
+                    let mut indices = self
+                        .source_member_indices_where(inner, args.slice_from(1), dialect, admit)?
                         .into_iter()
                         .map(|mut argument| {
                             argument.argument += 1;
                             argument
                         })
-                        .collect()
+                        .collect::<Vec<_>>();
+                    if admit(ArgRole::Keyword) {
+                        indices.insert(0, script_argument(0));
+                    }
+                    indices
                 } else if member.wrapper_block_body {
                     selected()
                         .into_iter()
@@ -5443,6 +5451,55 @@ mod tests {
                 )
                 .is_none()
         );
+    }
+
+    #[test]
+    fn source_wrapper_keywords_require_available_original_selectors() {
+        let args = [
+            InvocationWord::KnownBytes(b"self"),
+            InvocationWord::KnownBytes(b"method"),
+            InvocationWord::Dynamic,
+            InvocationWord::KnownBytes(b"{}"),
+            InvocationWord::KnownBytes(b"{}"),
+        ];
+        let query = Some(SurfaceQuery::core(Family::Tcl, "8.6"));
+        assert_eq!(
+            TCLOO_GRAMMAR.source_member_arg_indices_for_role_in(
+                b"self",
+                InvocationArguments::structured(&args),
+                query,
+                ArgRole::Keyword,
+            ),
+            Some(vec![0, 1])
+        );
+        let unavailable = [
+            InvocationWord::KnownBytes(b"property"),
+            InvocationWord::KnownBytes(b"p"),
+        ];
+        assert_eq!(
+            TCLOO_GRAMMAR.source_member_arg_indices_for_role_in(
+                b"self",
+                InvocationArguments::structured(&unavailable),
+                query,
+                ArgRole::Keyword,
+            ),
+            Some(vec![])
+        );
+        for args in [
+            &[InvocationWord::Dynamic][..],
+            &[InvocationWord::Expanded][..],
+        ] {
+            assert!(
+                TCLOO_GRAMMAR
+                    .source_member_arg_indices_for_role_in(
+                        b"self",
+                        InvocationArguments::structured(args),
+                        query,
+                        ArgRole::Keyword,
+                    )
+                    .is_none()
+            );
+        }
     }
 
     #[test]

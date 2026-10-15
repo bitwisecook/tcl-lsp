@@ -93,9 +93,8 @@ use tcl_lexer::{LineIndex, Span, Token, TokenType};
 
 use crate::definition::utf16_len;
 use tcl_dialect::NumberSyntax;
-use tcl_dialect::model::SurfaceQuery;
 use tcl_registry::CommandRegistry;
-use tcl_registry::definer::{DefinitionBodyGrammar, MemberKind};
+use tcl_registry::definer::DefinitionBodyGrammar;
 
 mod original;
 mod receiver_source;
@@ -1520,147 +1519,6 @@ fn push_regsub_subtokens(
     true
 }
 
-/// Apply the enclosing definition-body grammar to a member call: recurse its
-/// script bodies ([`ArgOverride::BodyScript`]), highlight its parameter list
-/// ([`ArgOverride::ParamList`]), and declare its variable names
-/// ([`ArgOverride::VarDecl`]).  The member keywords (`method`, `typemethod`,
-/// `constructor`, `variable`, …) have no standalone `CommandSpec`; their layout
-/// comes entirely from the registry grammar ([`crate::oo_body`]).
-///
-/// Only fires when `oo_grammar` is `Some` — i.e. this segment is a top-level
-/// word of a definition body — so a same-named user proc is never
-/// misclassified.
-fn insert_oo_body_overrides(
-    seg: &tcl_compiler::segmenter::SegmentedCommand,
-    oo_grammar: Option<&'static DefinitionBodyGrammar>,
-    arg_texts: &[&str],
-    dialect: Option<SurfaceQuery<'_>>,
-    overrides: &mut FxHashMap<u32, ArgOverride>,
-) {
-    let Some(grammar) = oo_grammar else {
-        return;
-    };
-    // A member call inside a definition *body*: the member keyword is the
-    // command head (argv 0), so its arguments start at argv 1.
-    insert_oo_member_overrides(
-        seg,
-        grammar,
-        &seg.texts[0].clone(),
-        arg_texts,
-        0,
-        dialect,
-        overrides,
-    );
-}
-
-/// Tag the member-call words of a definition-body member — its declared name,
-/// parameter list, body script(s) and declared variables — from the grammar's
-/// argument roles.
-///
-/// `base` is the `argv` index of the *member keyword*, so this serves both
-/// shapes of a member call: inside a definition body the keyword is the command
-/// head (`base = 0`, `method m {} {…}`), while the one-liner definer form puts
-/// it after the class/object target (`base = 2`,
-/// `oo::define C method m {} {…}`).  Sharing one path is what stops the
-/// one-liner form silently losing its name / parameters / body and getting only
-/// its keyword marked.
-fn insert_oo_member_overrides(
-    seg: &tcl_compiler::segmenter::SegmentedCommand,
-    grammar: &'static DefinitionBodyGrammar,
-    head: &str,
-    arg_texts: &[&str],
-    base: usize,
-    dialect: Option<SurfaceQuery<'_>>,
-    overrides: &mut FxHashMap<u32, ArgOverride>,
-) {
-    if !crate::oo_body::is_member(grammar, head) {
-        return;
-    }
-    // A wrapper member (`self` / itcl `public` / `protected` / `private`) nests
-    // an inner member keyword at arg 0 (`public method …`); it reads as a
-    // keyword too, context-sensitively from the grammar.
-    if grammar
-        .member(head)
-        .is_some_and(|m| m.kind == MemberKind::Wrapper)
-        && arg_texts
-            .first()
-            .is_some_and(|inner| grammar.is_member(inner))
-        && let Some(tok) = seg.argv.get(base + 1)
-    {
-        overrides
-            .entry(tok.span.start())
-            .or_insert(ArgOverride::Kind(TokenKind::Keyword));
-    }
-    // Script bodies — recurse (only a braced `Str` word carries a script).
-    for idx in crate::oo_body::member_body_indices_in(grammar, head, arg_texts, dialect) {
-        if let Some(tok) = seg.argv.get(base + idx + 1)
-            && matches!(tok.kind, TokenType::Str)
-        {
-            overrides
-                .entry(tok.span.start())
-                .or_insert(ArgOverride::BodyScript);
-        }
-    }
-    // The member's declared name (`method foo …`, `property p …`).  The grammar
-    // carries this role; consuming it is what stops a method name painting as
-    // a plain string.
-    for idx in crate::oo_body::member_name_indices_in(grammar, head, arg_texts, dialect) {
-        if let Some(tok) = seg.argv.get(base + idx + 1)
-            && matches!(tok.kind, TokenType::Esc | TokenType::Str)
-        {
-            overrides
-                .entry(tok.span.start())
-                .or_insert(ArgOverride::MemberName);
-        }
-    }
-    // Parameter lists — their names are declarations, like a `proc`'s.
-    for idx in crate::oo_body::member_param_indices_in(grammar, head, arg_texts, dialect) {
-        if let Some(tok) = seg.argv.get(base + idx + 1)
-            && matches!(tok.kind, TokenType::Str)
-        {
-            overrides
-                .entry(tok.span.start())
-                .or_insert(ArgOverride::ParamList);
-        }
-    }
-    // Reference-only members: `superclass A B` names classes, `export m` names
-    // methods.  They declare nothing, but their arguments are not free strings —
-    // they name an entity defined elsewhere, so they take that entity's type.
-    if let Some((ref_kind, indices)) = crate::oo_body::member_ref_indices(grammar, head, arg_texts)
-    {
-        let ov = match ref_kind {
-            tcl_registry::definer::MemberRefKind::Class => ArgOverride::ClassNameRef,
-            tcl_registry::definer::MemberRefKind::Method => ArgOverride::Kind(TokenKind::Method),
-        };
-        for idx in indices {
-            if let Some(tok) = seg.argv.get(base + idx + 1)
-                && matches!(tok.kind, TokenType::Esc | TokenType::Str)
-                && !tok.in_quote
-            {
-                overrides.entry(tok.span.start()).or_insert(ov);
-            }
-        }
-    }
-    // Closed grammar options and namespace references retain their ordinary
-    // token kinds even though definition members have no standalone command
-    // specs. The positions come from the same generic member-role walker as
-    // names, parameters, bodies, and variables above.
-    for idx in crate::oo_body::member_option_indices_in(grammar, head, arg_texts, dialect) {
-        if let Some(tok) = seg.argv.get(base + idx + 1) {
-            overrides
-                .entry(tok.span.start())
-                .or_insert(ArgOverride::Decorator);
-        }
-    }
-    for idx in crate::oo_body::member_namespace_indices_in(grammar, head, arg_texts, dialect) {
-        if let Some(tok) = seg.argv.get(base + idx + 1) {
-            overrides
-                .entry(tok.span.start())
-                .or_insert(ArgOverride::Kind(TokenKind::Namespace));
-        }
-    }
-}
-
 /// Tag each literal (`Str`/`Esc`) fragment of the word spanning `word_span`
 /// with `ov`, leaving `Var`/`Cmd` substitution fragments untouched (they fall
 /// through to the default classifier).  A single-fragment literal word (a
@@ -2998,8 +2856,7 @@ struct ScriptCtx<'a> {
     oo_grammar: Option<&'static DefinitionBodyGrammar>,
     /// Selected source member receiver vocabulary, without an entered frame.
     receiver_grammar: Option<&'static DefinitionBodyGrammar>,
-    /// Genuine source-only definition parent. Native source vocabulary does
-    /// not come from rendered head/argument strings or a nominal grammar.
+    /// Member vocabulary retains its actual source schema and whole body.
     original_definition_parent:
         Option<&'a tcl_compiler::registry_invocation::OriginalSourceScriptBody>,
     /// Complete original argv owner for this current definition-source region.
@@ -3016,15 +2873,6 @@ struct ScriptCtx<'a> {
     /// Def-site literal value words to highlight as regex (regex-source
     /// tracking), keyed by word start.  Empty when disabled.
     regex_sources: &'a FxHashMap<u32, Span>,
-    /// The document's statically proven command-identity facts — which
-    /// registry command each head spelling really names at each point in the
-    /// file.  Folds together `namespace import` (`test` → `tcltest::test`),
-    /// `interp alias`, static `rename`, and a top-level `proc` that shadows a
-    /// built-in.  Every fact is offset-keyed, so
-    /// a binding cannot retroactively re-tag an earlier call; every shape that
-    /// cannot be proven leaves the head alone.  Empty for a document that
-    /// binds nothing.  See [`tcl_compiler::realm`].
-    head_identities: &'a tcl_compiler::realm::CommandBindingRealm,
     /// Object-handle → class-name provenance for the whole document, so a
     /// `$var method …` dispatch can resolve the method's options through the
     /// registry's object-class model.  Empty when no
@@ -3263,29 +3111,6 @@ fn collect_param_list(ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entry>) 
     }
 }
 
-/// The head's *effective command identity*, resolved once so every
-/// registry-driven pass in [`collect_script`] keys off it.
-///
-/// Covers a command imported from an exported namespace (`namespace import
-/// tcltest::*` → `test` = `tcltest::test`), a static `interp alias`
-/// / `rename`, and a top-level `proc` that shadows a built-in.  Facts are
-/// offset-keyed, so a binding never retroactively re-tags an earlier call, and
-/// a head with nothing proven about it keeps its own spelling.
-///
-/// The overwhelmingly common document binds nothing, so the lookup is skipped
-/// entirely rather than hashing every head in the file.
-fn realm_head_binding_of<'a>(
-    ctx: ScriptCtx<'a>,
-    head_text: &'a str,
-    head_tok: Token,
-) -> tcl_compiler::realm::RealmBinding<'a> {
-    if ctx.head_identities.is_empty() {
-        return tcl_compiler::realm::RealmBinding::Command(head_text);
-    }
-    ctx.head_identities
-        .resolve(head_text, head_tok.span.start())
-}
-
 /// Emit the command-head token for a *static* head word — a resolvable command
 /// name, painted as a single function / keyword / namespace token.
 ///
@@ -3368,19 +3193,7 @@ fn collect_script(
         let original = ctx.analysis.and_then(|analysis| {
             crate::original_invocation::source_registry_words(full_source, analysis, &seg)
         });
-        let identity = if ctx.lexical {
-            realm_head_binding_of(ctx, head_text, head_tok)
-        } else {
-            tcl_compiler::realm::RealmBinding::Rebound
-        };
-        let resolved_head: &str = if ctx.lexical {
-            identity.spec_name()
-        } else {
-            original.as_ref().map_or("", |words| words.command.as_str())
-        };
-        let member_head = (!ctx.lexical)
-            .then(|| original::definition_member_head_word(ctx, &seg))
-            .flatten()
+        let member_head = original::definition_member_head_word(ctx, &seg)
             .and_then(|word| Some((word, word.content_span().ok()?)));
         // A complete original member word can prove static spelling even when
         // its physical escape tokens form several lexical fragments.
@@ -3391,7 +3204,7 @@ fn collect_script(
                 .is_some_and(|words| original::original_logical_head(ctx, words).is_some());
         let static_head_extent = member_head.map_or(head_tok.span, |(word, _)| word.word_span());
         if !computed_head {
-            if ctx.lexical && original.is_none() {
+            if ctx.lexical && original.is_none() && member_head.is_none() {
                 emit_static_command_head(ctx, &seg, entries);
             } else if let Some((_, span)) = member_head {
                 push_token(
@@ -3445,9 +3258,10 @@ fn collect_script(
             }
         }
         if ctx.lexical {
-            insert_lexical_user_overrides(ctx, &seg, &arg_texts, &mut overrides);
+            insert_lexical_user_overrides(ctx, &seg, &mut overrides);
         }
-        original::insert_definition_member_variable_overrides(ctx, &seg, &mut overrides);
+        original::insert_definition_member_overrides(ctx, &seg, &mut overrides);
+        let member_parameter_operands = original::definition_member_parameter_operands(ctx, &seg);
         let declared = ctx.analysis.and_then(|analysis| {
             tcl_compiler::registry_invocation::source_structure::source_declared_command_words(
                 full_source,
@@ -3488,9 +3302,8 @@ fn collect_script(
             mark_regex_source_words(&seg, ctx.regex_sources, &mut overrides);
         }
 
-        // Logical compatibility selects its own reported-string grammar. Native
-        // source bodies instead carry a genuine parent per original operand,
-        // through the shared source-body owner below.
+        // Receiver advice keeps its independent grammar. Member vocabulary
+        // travels in the original body receipts below.
         let outer_grammar = original.as_ref().and_then(|words| {
             words
                 .with_source_schema(ctx.generation, |schema| {
@@ -3601,6 +3414,11 @@ fn collect_script(
                             .filter_map(Option::as_ref)
                             .find(|operand| operand.span == tok.span)
                     })
+                    .or_else(|| {
+                        member_parameter_operands
+                            .iter()
+                            .find(|operand| operand.span == tok.span)
+                    })
                     .or_else(|| ctx.original_roles.operand_at(tok.span)),
                 original_words: produced.as_ref().or(original.as_ref()),
                 declared_words: declared.as_ref(),
@@ -3653,7 +3471,6 @@ fn collect_script(
 fn insert_lexical_user_overrides(
     ctx: ScriptCtx<'_>,
     command: &tcl_compiler::segmenter::SegmentedCommand,
-    arguments: &[&str],
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
     // naming.core.original-inlay-retained-context
@@ -3666,13 +3483,6 @@ fn insert_lexical_user_overrides(
         } else {
             ctx.classes
         },
-        overrides,
-    );
-    insert_oo_body_overrides(
-        command,
-        ctx.oo_grammar,
-        arguments,
-        Some(ctx.context.authoring_query()),
         overrides,
     );
 }
@@ -3967,9 +3777,8 @@ fn emit_arg_token(
     let full_source = ctx.full_source;
     let line_index = ctx.line_index;
     let tok = &tok;
-    // Logical compatibility clears its nominal member grammar here. Original
-    // substitutions retain only the genuine same-source vocabulary parent;
-    // a fresh region issuer checks their whole argv independently.
+    // Substitutions retain the genuine source vocabulary parent; each region
+    // issuer checks its own complete argv.
     let plain_ctx = ScriptCtx {
         oo_grammar: None,
         original_definition_members: None,
@@ -4855,7 +4664,6 @@ fn collect_entries(
         original_definition_members: None,
         scoped_env: None,
         regex_sources: &regex_sources,
-        head_identities,
         object_classes: &object_classes,
         object_collections: &object_collections,
         classes,
@@ -10528,6 +10336,53 @@ mod original_definition_vocabulary_tests {
         tokens.iter().find_map(|&(line, column, _, kind, _)| {
             (line == position.line && column == position.character.get()).then_some(kind)
         })
+    }
+
+    #[test]
+    fn member_source_roles_keep_original_heads_names_formals_and_availability() {
+        for dialect in ["tcl", "tcl8.6", "tcl9.0"] {
+            for source in [
+                r"oo::class create C {self self metho\u0064 café {argument {optional 2}} {puts visible}}",
+                r"oo::class create C {}; oo::define C self metho\u0064 café {argument {optional 2}} {puts visible}",
+            ] {
+                let tokens = retained_tokens(source, dialect);
+                for (word, kind) in [
+                    (r"metho\u0064", TokenKind::Keyword),
+                    ("café", TokenKind::Method),
+                    ("argument", TokenKind::Parameter),
+                    ("puts visible", TokenKind::Function),
+                ] {
+                    assert_eq!(
+                        token_kind_at(source, &tokens, source.find(word).unwrap()),
+                        Some(kind as u32),
+                        "{dialect}: {source}: {tokens:?}"
+                    );
+                }
+            }
+        }
+        let source = "oo::class create C {self property name}";
+        let tokens = retained_tokens(source, "tcl8.6");
+        assert_ne!(
+            token_kind_at(source, &tokens, source.find("property").unwrap()),
+            Some(TokenKind::Keyword as u32)
+        );
+        let source = "oo::class create C {definitionnamespace -instance ::defs}";
+        let tokens = retained_tokens(source, "tcl9.0");
+        for (word, kind) in [
+            ("-instance", TokenKind::Decorator),
+            ("::defs", TokenKind::Namespace),
+        ] {
+            assert_eq!(
+                token_kind_at(source, &tokens, source.find(word).unwrap()),
+                Some(kind as u32)
+            );
+        }
+        let source = r"proc oo::class args {}; oo::class create C {metho\u0064 hidden {argument} {puts inert}}";
+        let tokens = retained_tokens(source, "tcl");
+        assert_ne!(
+            token_kind_at(source, &tokens, source.find("hidden").unwrap()),
+            Some(TokenKind::Method as u32)
+        );
     }
 
     #[test]

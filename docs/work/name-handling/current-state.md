@@ -1,5 +1,9 @@
 # Current centralised naming work
 
+## Definition member source roles
+
+Reviewed OO consumers now obtain actual selected member heads and Name/ParamList/Option/Namespace/wrapper-keyword operands from the same shared source member owner in both domains. Full parent words/list-field carriers and genuine selected source body containers replace nominal member-head lookup and raw role loops. Obsolete private report-head/default-config package scanners are removed. All281 prior test bodies remain byte-exact; three new controls are unexecuted. Existing parameter empty/NUL filters and actual formal/frame binding remain separate unfinished obligations.
+
 ## Shared mapping-arm source consumers
 
 Dictionary-conversion and data-group mapping advice now share a source arm owner retaining actual whole original operands, complete same-frame body census and selected child Registry operation at each actual horizon. Switch case values must correspond to the exact source-ordered original bodies; extra or cooked regions refuse. Original value syntax stays intact. Target-name data uses the shared interpreted Unicode owner; proposed target/temp words and references use checked shared constructors. All47 prior test bodies are byte-exact and two new controls are unexecuted. This supplies no movement/evaluation/fresh-cell/observer/insertion/edit permission; existing purpose guards remain.

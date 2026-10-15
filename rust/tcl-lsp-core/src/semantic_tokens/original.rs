@@ -394,54 +394,7 @@ pub(super) fn original_logical_head<'a>(
 /// member word. This is separate from ordinary command lookup and never uses
 /// a Registry label after a source-schema refusal.
 pub(super) fn definition_member_head(ctx: ScriptCtx<'_>, command: &SegmentedCommand) -> bool {
-    if !ctx.lexical {
-        return definition_member_head_word(ctx, command).is_some();
-    }
-    let Some(grammar) = ctx.oo_grammar else {
-        return false;
-    };
-    let Some(analysis) = ctx.analysis else {
-        return false;
-    };
-    let Some(input) = analysis.resolved_input.as_ref() else {
-        return false;
-    };
-    if input.lexer_config() != ctx.config || input.context_registry().context() != ctx.context {
-        return false;
-    }
-    let Some(image) = analysis
-        .retained_command_realm()
-        .and_then(|realm| realm.original_source_image())
-    else {
-        return false;
-    };
-    if image.try_text().ok() != Some(ctx.full_source)
-        || !analysis.matches_original_source_image(image, ctx.config)
-    {
-        return false;
-    }
-    let tokens = tcl_compiler::ir::CommandTokens::from_segmented(
-        &tcl_lexer::SourceMap::new(ctx.full_source),
-        ctx.config,
-        command,
-    );
-    let Some(words) = tcl_compiler::registry_invocation::original_native_compiler_words(
-        image,
-        tokens.words(),
-        command.span.start(),
-        ctx.config,
-    ) else {
-        return false;
-    };
-    let Some(name) = words
-        .first()
-        .and_then(tcl_syntax::word_rules::original_static_word_ascii_presentation)
-    else {
-        return false;
-    };
-    std::str::from_utf8(&name)
-        .ok()
-        .is_some_and(|name| crate::oo_body::is_member(grammar, name))
+    definition_member_head_word(ctx, command).is_some()
 }
 
 pub(super) fn definition_member_head_word<'a>(
@@ -552,19 +505,109 @@ pub(super) fn definition_member_bodies(
         .script_bodies(original_definition_member_words(ctx, command)?)
 }
 
-pub(super) fn insert_definition_member_variable_overrides(
+fn insert_member_source_role(
+    command: &SegmentedCommand,
+    word: &tcl_lexer::NativeWord,
+    role: tcl_registry::ArgRole,
+    kind: ArgOverride,
+    overrides: &mut FxHashMap<u32, ArgOverride>,
+) {
+    if !word
+        .tokens()
+        .iter()
+        .all(|token| command.all_tokens.contains(token))
+    {
+        return;
+    }
+    if role == tcl_registry::ArgRole::VarWrite {
+        super::retag_original_variable_argument(command, word, kind, overrides);
+    } else if tcl_syntax::word_rules::original_static_word_unicode_value(word).is_some() {
+        if role == tcl_registry::ArgRole::Body && word.group().kind != tcl_lexer::WordKind::Braced {
+            return;
+        }
+        if matches!(
+            role,
+            tcl_registry::ArgRole::ParamList | tcl_registry::ArgRole::Body
+        ) {
+            if let [token] = word.tokens() {
+                overrides.entry(token.span.start()).or_insert(kind);
+            }
+        } else {
+            super::mark_literal_fragments(command, word.word_span(), kind, overrides);
+        }
+    }
+}
+
+fn member_source_role_kinds() -> [(tcl_registry::ArgRole, ArgOverride); 6] {
+    use tcl_registry::ArgRole;
+    [
+        (ArgRole::VarWrite, ArgOverride::VarDecl),
+        (ArgRole::Name, ArgOverride::MemberName),
+        (ArgRole::ParamList, ArgOverride::ParamList),
+        (ArgRole::Option, ArgOverride::Decorator),
+        (
+            ArgRole::NamespaceName,
+            ArgOverride::Kind(TokenKind::Namespace),
+        ),
+        (ArgRole::Keyword, ArgOverride::Kind(TokenKind::Keyword)),
+    ]
+}
+
+pub(super) fn definition_member_parameter_operands(
+    ctx: ScriptCtx<'_>,
+    command: &SegmentedCommand,
+) -> Vec<crate::original_invocation::OriginalOperandSource> {
+    let Some(words) = original_definition_member_words(ctx, command).and_then(|original| {
+        ctx.original_definition_members?
+            .argument_words_for_role(original, tcl_registry::ArgRole::ParamList)
+    }) else {
+        return Vec::new();
+    };
+    words
+        .into_iter()
+        .filter_map(|word| {
+            let [token] = word.tokens() else { return None };
+            Some(crate::original_invocation::OriginalOperandSource {
+                span: token.span,
+                input: None,
+                word: Some(word.clone()),
+            })
+        })
+        .collect()
+}
+
+pub(super) fn insert_definition_member_overrides(
     ctx: ScriptCtx<'_>,
     command: &SegmentedCommand,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
-    let Some(words) = original_definition_member_words(ctx, command).and_then(|original| {
-        ctx.original_definition_members?
-            .variable_argument_words(original)
-    }) else {
+    let Some(original) = original_definition_member_words(ctx, command) else {
         return;
     };
-    for word in words {
-        super::retag_original_variable_argument(command, word, ArgOverride::VarDecl, overrides);
+    let Some(members) = ctx.original_definition_members else {
+        return;
+    };
+    for (role, kind) in member_source_role_kinds() {
+        for word in members
+            .argument_words_for_role(original, role)
+            .into_iter()
+            .flatten()
+        {
+            insert_member_source_role(command, word, role, kind, overrides);
+        }
+    }
+    for reference in members.references(original).into_iter().flatten() {
+        let kind = match reference.kind() {
+            tcl_registry::definer::MemberRefKind::Class => ArgOverride::ClassNameRef,
+            tcl_registry::definer::MemberRefKind::Method => ArgOverride::Kind(TokenKind::Method),
+        };
+        insert_member_source_role(
+            command,
+            reference.original_word(),
+            tcl_registry::ArgRole::Name,
+            kind,
+            overrides,
+        );
     }
 }
 
@@ -977,7 +1020,10 @@ fn insert_logical_inline_member_overrides(
     let Some(member) = schema.words.arguments().literal_at(1) else {
         return;
     };
-    if !grammar.is_member(member) {
+    if grammar
+        .source_member_in(member.as_bytes(), Some(ctx.context.authoring_query()))
+        .is_none()
+    {
         return;
     }
     let Some(token) = original_argument_token(command, words, 1) else {
@@ -986,42 +1032,56 @@ fn insert_logical_inline_member_overrides(
     overrides
         .entry(token.span.start())
         .or_insert(ArgOverride::Kind(TokenKind::Keyword));
-    if let Some(indices) = grammar.source_member_arg_indices_for_role_in(
+    for (role, kind) in member_source_role_kinds() {
+        if let Some(indices) = grammar.source_member_arg_indices_for_role_in(
+            member.as_bytes(),
+            schema.words.arguments().slice_from(2),
+            Some(ctx.context.authoring_query()),
+            role,
+        ) {
+            for index in indices {
+                if let Some(word) = index
+                    .checked_add(2)
+                    .and_then(|ordinal| words.operands.get(ordinal)?.as_ref()?.word.as_ref())
+                {
+                    insert_member_source_role(command, word, role, kind, overrides);
+                }
+            }
+        }
+    }
+    for body in words.source_script_bodies(ctx.generation) {
+        insert_member_source_role(
+            command,
+            body.original_container(),
+            tcl_registry::ArgRole::Body,
+            ArgOverride::BodyScript,
+            overrides,
+        );
+    }
+    if let Some((kind, indices)) = grammar.source_member_ref_indices_in(
         member.as_bytes(),
         schema.words.arguments().slice_from(2),
         Some(ctx.context.authoring_query()),
-        tcl_registry::ArgRole::VarWrite,
     ) {
+        let kind = match kind {
+            tcl_registry::definer::MemberRefKind::Class => ArgOverride::ClassNameRef,
+            tcl_registry::definer::MemberRefKind::Method => ArgOverride::Kind(TokenKind::Method),
+        };
         for index in indices {
             if let Some(word) = index
                 .checked_add(2)
                 .and_then(|ordinal| words.operands.get(ordinal)?.as_ref()?.word.as_ref())
             {
-                super::retag_original_variable_argument(
+                insert_member_source_role(
                     command,
                     word,
-                    ArgOverride::VarDecl,
+                    tcl_registry::ArgRole::Name,
+                    kind,
                     overrides,
                 );
             }
         }
     }
-    let count = schema.words.arguments().exact_argv_len().unwrap_or(0);
-    let Some(arguments) = (2..count)
-        .map(|index| schema.words.arguments().literal_at(index))
-        .collect::<Option<Vec<_>>>()
-    else {
-        return;
-    };
-    super::insert_oo_member_overrides(
-        command,
-        grammar,
-        member,
-        &arguments,
-        2,
-        Some(ctx.context.authoring_query()),
-        overrides,
-    );
 }
 
 /// The exact effective argument's own representative source token. Captured
@@ -1314,12 +1374,9 @@ pub(super) fn collect_parameter_fields(
         }
         return emitted;
     }
-    if ctx.lexical {
-        let Some(fields) = source_operand_word(ctx, tok)
-            .and_then(tcl_syntax::word_rules::original_static_word_list_elements)
-        else {
-            return false;
-        };
+    if let Some(fields) = source_operand_word(ctx, tok)
+        .and_then(tcl_syntax::word_rules::original_static_word_list_elements)
+    {
         return collect_source_parameter_fields(ctx, &fields, entries);
     }
     let Some(word) = ctx.operand.and_then(|operand| operand.word.as_ref()) else {

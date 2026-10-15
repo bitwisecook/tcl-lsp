@@ -61,7 +61,7 @@ use std::path::{Path, PathBuf};
 
 use crate::vfs::{NativeStore, SourceStore};
 
-use tcl_lexer::{Token, TokenType};
+use tcl_lexer::Token;
 
 pub use tcl_dialect::PackagePrefer;
 
@@ -180,20 +180,6 @@ pub struct AutoIndexEntry {
     pub proc_name: String,
     /// Absolute path to the file that defines it.
     pub source_file: PathBuf,
-}
-
-// Tokeniser-based word/command walking.
-
-/// Tokenise `text` and group tokens into commands of words.
-///
-/// Each command is a `Vec` of words; each word is the run of adjacent
-/// non-separator tokens between `Sep` / `Eol` boundaries (so `a$b[c]` is one
-/// word). `{*}` expansion markers and comments are word/command boundaries.
-pub(super) fn walk_command_words(text: &str) -> Vec<Vec<Vec<Token>>> {
-    // dialect-drift-ok: on-disk `pkgIndex.tcl` / `tclIndex` auto-load index
-    // content from `auto_path`, read as C Tcl's own loader reads it — not the
-    // open document's Tcl, and no document dialect reaches this walk.
-    walk_command_words_with_config(text, tcl_lexer::LexerConfig::default())
 }
 
 pub(super) fn walk_command_words_with_config(
