@@ -1,5 +1,17 @@
 # Remaining name-handling obligations
 
+Current audit checkpoint — 2026-10-15 21:02 UTC: the portable 21:00 audit retains
+4,590 provisional purpose rows and 355 hash-verified members. This is not a
+remaining-consumer count or implementation acceptance. Root's source scope is
+read, with 321 work-kind classified purposes and 66 exact sites within 22 grouped
+remaining purposes; atomic reconciliation and other areas' source/operational
+backlogs remain unfinished. Four additional Compiler production files received
+an exact-hash independent peer read and primary-ledger admission; their omitted
+tests remain pending. All 59 packet hashes and SHA256SUMS/index correspondence
+verify. No new tests/providers ran; complete M12 results and required red/unrun
+gates remain as recorded in [current-state.md](current-state.md).
+
+
 ## Current audit and validation snapshot — 2026-10-15 20:13 UTC
 
 The repository-wide audit is incomplete. The latest portable audit checkpoint has 2,639 provisional purpose rows, including shared owners, display uses and exclusions; it is **not a remaining-migration count**. All seven disjoint source-review assignments continue against immutable cc24c3940. Exact source hashes and unique IDs do not prove semantic uniqueness: independent reconciliation has removed alternate labels for the same call site and withdrawn unsupported guidance findings. Unexamined files, partially read production, operational harnesses and count-unit reconciliation remain explicit. See [repository-consumer-audit.md](repository-consumer-audit.md).
