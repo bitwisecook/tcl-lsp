@@ -1511,7 +1511,7 @@ impl CodegenCtx<'_> {
         if has_command_separator(text) {
             self.stamp_substitution_script(start);
         } else {
-            self.stamp_substitution_error_info(start, text);
+            self.stamp_substitution_error_info(start, text, tokens);
         }
     }
 

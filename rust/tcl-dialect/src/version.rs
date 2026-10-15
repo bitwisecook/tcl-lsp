@@ -689,6 +689,22 @@ impl TclVersion {
         !matches!(self, Self::V8_4 | Self::V8_5)
     }
 
+    /// Whether an error from an `enter` or `leave` execution trace adds an
+    /// `(enter trace on "cmd")` frame in place of logging the traced command
+    /// (`TEOV_RunEnterTraces`, 8.6). Measured on tclsh 8.5.19 and 8.6.18.
+    #[must_use]
+    pub const fn has_execution_trace_error_frames(self) -> bool {
+        !matches!(self, Self::V8_4 | Self::V8_5)
+    }
+
+    /// Whether the bytecode compiler emits only the wide (4-byte operand)
+    /// instruction forms, which then drop their width suffix (`invokeStk`,
+    /// `loadScalar`). Measured in `-errorstack` on tclsh 9.1.0.
+    #[must_use]
+    pub const fn emits_wide_instructions_only(self) -> bool {
+        matches!(self, Self::V9_1)
+    }
+
     /// Whether an error's `(file "…" line N)` frame marks a path cut at 150
     /// bytes with `...`. 8.4 cuts it silently (`%.150s`, `tclIOUtil.c`).
     #[must_use]

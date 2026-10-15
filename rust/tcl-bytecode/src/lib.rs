@@ -485,6 +485,36 @@ impl Op {
     }
 
     /// Stack, control-flow and invocation mnemonics.
+    /// The name a release whose compiler emits only the wide operand forms
+    /// (Tcl 9.1) gives the instruction it emits in this one's place: the
+    /// width suffix is gone, and the narrow forms are replaced by wide ones.
+    #[must_use]
+    pub const fn wide_mnemonic(self) -> &'static str {
+        match self {
+            Self::PUSH1 | Self::PUSH4 => "push",
+            Self::INVOKE_STK1 | Self::INVOKE_STK4 => "invokeStk",
+            Self::JUMP1 | Self::JUMP4 => "jump",
+            Self::JUMP_TRUE1 | Self::JUMP_TRUE4 => "jumpTrue",
+            Self::JUMP_FALSE1 | Self::JUMP_FALSE4 => "jumpFalse",
+            Self::BEGIN_CATCH4 => "beginCatch",
+            Self::RETURN_CODE_BRANCH => "returnCodeBranch1",
+            Self::LREPLACE4 => "lreplace",
+            Self::LOAD_SCALAR1 | Self::LOAD_SCALAR4 => "loadScalar",
+            Self::STORE_SCALAR1 | Self::STORE_SCALAR4 => "storeScalar",
+            Self::LOAD_ARRAY1 | Self::LOAD_ARRAY4 => "loadArray",
+            Self::STORE_ARRAY1 | Self::STORE_ARRAY4 => "storeArray",
+            Self::INCR_SCALAR1 => "incrScalar",
+            Self::INCR_SCALAR1_IMM => "incrScalarImm",
+            Self::INCR_ARRAY1 => "incrArray",
+            Self::INCR_ARRAY1_IMM => "incrArrayImm",
+            Self::APPEND_SCALAR1 | Self::APPEND_SCALAR4 => "appendScalar",
+            Self::APPEND_ARRAY1 | Self::APPEND_ARRAY4 => "appendArray",
+            Self::LAPPEND_SCALAR1 | Self::LAPPEND_SCALAR4 => "lappendScalar",
+            Self::LAPPEND_ARRAY1 | Self::LAPPEND_ARRAY4 => "lappendArray",
+            other => other.mnemonic(),
+        }
+    }
+
     const fn mnemonic_core(self) -> Option<&'static str> {
         Some(match self {
             Self::PUSH1 => "push1",

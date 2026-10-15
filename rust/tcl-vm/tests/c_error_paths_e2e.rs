@@ -606,3 +606,190 @@ set ::errorInfo"#;
 "p1""#,
     );
 }
+
+/// A command ending in a quoted word is named through the whitespace after
+/// its closing quote.
+#[test]
+fn quoted_last_word_keeps_trailing_whitespace() {
+    let src = r#"proc ei {script} { catch {uplevel 1 $script} m; return $::errorInfo }
+proc p1 {} {error "x"   }
+proc p2 {} {if 1 {error "y"  }}
+list [ei p1] [ei p2]"#;
+    assert_releases(
+        &[
+            TclVersion::V8_4,
+            TclVersion::V8_5,
+            TclVersion::V8_6,
+            TclVersion::V9_0,
+            TclVersion::V9_1,
+        ],
+        src,
+        r#"{x
+    while executing
+"error "x"   "
+    (procedure "p1" line 1)
+    invoked from within
+"p1"
+    ("uplevel" body line 1)
+    invoked from within
+"uplevel 1 $script"} {y
+    while executing
+"error "y"  "
+    (procedure "p2" line 1)
+    invoked from within
+"p2"
+    ("uplevel" body line 1)
+    invoked from within
+"uplevel 1 $script"}"#,
+    );
+}
+
+/// A failing substitution reports the line it is on, not the first textual
+/// match or the statement's first line.
+#[test]
+fn substitution_line_is_its_own() {
+    let src = r#"proc ei {script} { catch {uplevel 1 $script} m; return $::errorInfo }
+proc h {} {error hh}
+proc p1 {} {list {[h]
+foo
+} [h]}
+proc p2 {} {set x "[string length ok]
+[h]"}
+list [ei p1] [ei p2]"#;
+    assert_releases(
+        &[
+            TclVersion::V8_4,
+            TclVersion::V8_5,
+            TclVersion::V8_6,
+            TclVersion::V9_0,
+            TclVersion::V9_1,
+        ],
+        src,
+        r#"{hh
+    while executing
+"error hh"
+    (procedure "h" line 1)
+    invoked from within
+"h"
+    (procedure "p1" line 3)
+    invoked from within
+"p1"
+    ("uplevel" body line 1)
+    invoked from within
+"uplevel 1 $script"} {hh
+    while executing
+"error hh"
+    (procedure "h" line 1)
+    invoked from within
+"h"
+    (procedure "p2" line 2)
+    invoked from within
+"p2"
+    ("uplevel" body line 1)
+    invoked from within
+"uplevel 1 $script"}"#,
+    );
+}
+
+/// Every logged command adds where it ran to `-errorstack` — `UP n` in an
+/// `uplevel`ed frame, else the procedure's `CALL` — as C's
+/// `TclLogCommandInfo` does; 9.1 names the wide instructions it emits.
+#[test]
+fn error_stack_records_every_logged_command() {
+    let src = r"proc s {script} { catch {uplevel 1 $script} m o; return [dict get $o -errorstack] }
+proc q1 {} {foreach i 1 {error x}}
+proc q3 {} {eval {nosuch 1}}
+proc r2 {} {nosuch 3}
+proc q5 {} {set a [r2]}
+proc q6 {} {uplevel 1 {nosuch 4}}
+proc q7 {} {q6}
+proc t1 {} { catch {nosuch 5} m o; dict get $o -errorstack }
+list [s q1] [s q3] [s q5] [s q7] [t1]";
+    assert_releases(
+        &[TclVersion::V8_6, TclVersion::V9_0],
+        src,
+        r"{INNER {returnImm x {}} CALL q1 UP 1 CALL {s q1}} {INNER {invokeStk1 nosuch 1} CALL q3 CALL q3 UP 1 CALL {s q3}} {INNER {invokeStk1 nosuch 3} CALL r2 CALL q5 UP 1 CALL {s q5}} {INNER {invokeStk1 nosuch 4} UP 1 CALL q6 CALL q7 UP 1 CALL {s q7}} {INNER {invokeStk1 nosuch 5} CALL t1}",
+    );
+    assert_releases(
+        &[TclVersion::V9_1],
+        src,
+        r"{INNER {returnImm x {}} CALL q1 UP 1 CALL {s q1}} {INNER {invokeStk nosuch 1} CALL q3 CALL q3 UP 1 CALL {s q3}} {INNER {invokeStk nosuch 3} CALL r2 CALL q5 UP 1 CALL {s q5}} {INNER {invokeStk nosuch 4} UP 1 CALL q6 CALL q7 UP 1 CALL {s q7}} {INNER {invokeStk nosuch 5} CALL t1}",
+    );
+}
+
+/// `INNER` is the failing instruction with the operands it consumed
+/// (`TclGetInnerContext`): `returnImm` for a compiled `error`/`throw`,
+/// `syntax` for a constant fold, an invoke with its words.
+#[test]
+fn error_stack_inner_names_the_failing_instruction() {
+    let src = r"proc s {script} { catch {uplevel 1 $script} m o; return [dict get $o -errorstack] }
+proc a1 {} {error m1 i1}
+proc a3 {} {error m3 {} {C D}}
+proc a4 {} {throw {X Y} m4}
+proc a5 {} {set c error; $c m5}
+proc a6 {} {expr {1/0}}
+proc a7 {} {set a 1; expr {$a/0}}
+proc a8 {} {set s abc; string index $s [list x]}
+list [s a1] [s a3] [s a4] [s a5] [s a6] [s a7]";
+    assert_releases(
+        &[TclVersion::V8_6, TclVersion::V9_0],
+        src,
+        r"{INNER {invokeStk1 a1} UP 1 CALL {s a1}} {INNER {returnImm m3 {-errorinfo {} -errorcode {C D}}} CALL a3 UP 1 CALL {s a3}} {INNER {returnImm m4 {-errorcode {X Y}}} CALL a4 UP 1 CALL {s a4}} {INNER {invokeStk1 error m5} CALL a5 UP 1 CALL {s a5}} {INNER {syntax {divide by zero} {-code 1 -level 0 -errorcode {ARITH DIVZERO {divide by zero}} -errorinfo {divide by zero} -errorline 1}} CALL a6 UP 1 CALL {s a6}} {INNER {div 1 0} CALL a7 UP 1 CALL {s a7}}",
+    );
+    assert_releases(
+        &[TclVersion::V9_1],
+        src,
+        r"{INNER {invokeStk a1} UP 1 CALL {s a1}} {INNER {returnImm m3 {-errorinfo {} -errorcode {C D}}} CALL a3 UP 1 CALL {s a3}} {INNER {returnImm m4 {-errorcode {X Y}}} CALL a4 UP 1 CALL {s a4}} {INNER {invokeStk error m5} CALL a5 UP 1 CALL {s a5}} {INNER {syntax {divide by zero} {-code 1 -level 0 -errorcode {ARITH DIVZERO {divide by zero}} -errorinfo {divide by zero} -errorline 1}} CALL a6 UP 1 CALL {s a6}} {INNER {div 1 0} CALL a7 UP 1 CALL {s a7}}",
+    );
+}
+
+/// From 8.6 an `enter`/`leave` execution trace's error adds its own frame
+/// in place of the traced command's; 8.5 logs the command.
+#[test]
+fn execution_trace_errors_name_the_trace() {
+    let src = r"proc foo args {}
+proc goo {} foo
+trace add execution foo enter {error bar;#}
+catch goo m d
+set r [list [dict get $d -errorinfo]]
+trace remove execution foo enter {error bar;#}
+trace add execution foo leave {error baz;#}
+catch goo m d
+lappend r [dict get $d -errorinfo]";
+    assert_releases(
+        &[TclVersion::V8_5],
+        src,
+        r#"{bar
+    while executing
+"error bar"
+    invoked from within
+"foo"
+    (procedure "goo" line 1)
+    invoked from within
+"goo"} {baz
+    while executing
+"error baz"
+    invoked from within
+"foo"
+    (procedure "goo" line 1)
+    invoked from within
+"goo"}"#,
+    );
+    assert_releases(
+        &[TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1],
+        src,
+        r#"{bar
+    while executing
+"error bar"
+    (enter trace on "foo")
+    (procedure "goo" line 1)
+    invoked from within
+"goo"} {baz
+    while executing
+"error baz"
+    (leave trace on "foo")
+    (procedure "goo" line 1)
+    invoked from within
+"goo"}"#,
+    );
+}

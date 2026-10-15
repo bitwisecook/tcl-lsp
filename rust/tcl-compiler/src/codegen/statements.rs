@@ -363,7 +363,7 @@ impl CodegenCtx<'_> {
                 if !guaranteed_numeric {
                     self.emit(Op::TRY_CVT_TO_NUMERIC, vec![]);
                 }
-                self.stamp_substitution_error_info(expr_start, fallback_value.trim());
+                self.stamp_substitution_error_info(expr_start, fallback_value.trim(), None);
                 self.place_label(&inner_end);
                 self.store_var(name);
                 self.emit(Op::POP, vec![]);
@@ -880,7 +880,7 @@ impl CodegenCtx<'_> {
         let start = self.instructions.len();
         let emitted = self.try_emit_whole_cmd_subst_with_tokens_unstamped(value, tokens);
         if emitted {
-            self.stamp_substitution_error_info(start, value.trim());
+            self.stamp_substitution_error_info(start, value.trim(), tokens);
         }
         emitted
     }

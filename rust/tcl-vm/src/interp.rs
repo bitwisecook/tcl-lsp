@@ -829,6 +829,12 @@ pub(crate) struct PendingControl {
     /// builtin that reads its words as that compiled command does takes it
     /// at entry.
     pub(crate) release_compiled: Option<tcl_bytecode::ReleaseCompiled>,
+    /// Words an unknown-command handler's invocation adds before the words
+    /// that missed, for the procedure activation it is about to start.
+    pub(crate) handler_words: usize,
+    /// The command being dispatched is invoked from the top-level script's
+    /// own activation, with no other command active (C's `numLevels == 1`).
+    pub(crate) top_level_command: bool,
     /// Next `package unknown` or `package ifneeded` script of a require.
     pub(crate) package: Option<crate::cmd_package::PackageReq>,
 }
@@ -8786,7 +8792,8 @@ impl Vm {
         let saved = self.trace_in_progress.get();
         self.trace_in_progress
             .set(saved || interp_trace_in_progress);
-        let res = match self.eval_source(&script) {
+        // C evaluates the callback with `Tcl_EvalEx`, its commands directly.
+        let res = match self.eval_source_directly(&script) {
             Ok(c) => c,
             Err(e) => err(e.message),
         };
@@ -12148,9 +12155,8 @@ impl Vm {
         self.log_command_info_only(cmd_text, msg, line);
     }
 
-    /// ErrorInfo-only half of command logging. Compiler error regions call this
-    /// while reconstructing synthetic body frames; those are not additional
-    /// Tcl command logs and therefore must not duplicate TIP 348 `UP` entries.
+    /// ErrorInfo-only half of command logging, for a parse error whose TIP 348
+    /// context is recorded where it is raised.
     pub(crate) fn log_command_info_only(&mut self, cmd_text: &str, msg: &str, line: u32) {
         if self.error_logged {
             return;
@@ -12403,7 +12409,10 @@ impl Vm {
         self.seed_error_stack_parts(parts);
     }
 
-    /// Add the innermost command context for a new Tcl 8.6+ error episode.
+    /// Record a logged command in the Tcl 8.6+ error stack, as C's
+    /// `TclLogCommandInfo` does: the first log of an episode adds its `INNER`
+    /// context, and every log adds where it ran — `UP n` in a frame an
+    /// `uplevel` shifted to, else `CALL` with the procedure's invocation.
     pub(crate) fn error_stack_log_value(&mut self, context: Value) {
         if !self.supports_error_stack() {
             return;
@@ -12416,6 +12425,13 @@ impl Vm {
             let _ = self
                 .error_stack
                 .push_pair(Value::string("UP"), Value::int(delta));
+        } else if let Some(invocation) = self
+            .frame_argv(self.current_level())
+            .filter(|argv| self.current_level() > 0 && !argv.is_empty())
+        {
+            let _ = self
+                .error_stack
+                .push_pair(Value::string("CALL"), Value::list(invocation));
         }
     }
 
@@ -12427,24 +12443,6 @@ impl Vm {
         }
         self.error_stack
             .restart_inner(Value::string("INNER"), context);
-    }
-
-    /// Append the invocation of a procedure that an error unwound through.
-    pub(crate) fn error_stack_push_proc_call(
-        &mut self,
-        body_code: Code,
-        settled_code: Code,
-        words: &[Value],
-    ) {
-        if !self.supports_error_stack() {
-            return;
-        }
-        let _ = self.error_stack.push_proc_call(
-            body_code,
-            settled_code,
-            Value::string("CALL"),
-            Value::list(words.to_vec()),
-        );
     }
 
     /// Return the last TIP 348 stack as a Tcl list value.
@@ -12758,7 +12756,7 @@ impl Vm {
         self.eval_source_in_role(
             src,
             CommandEvaluation::Compiled,
-            crate::exec::ActivationRole::TopLevel,
+            crate::exec::ActivationRole::TopLevel { direct: false },
         )
         .unwrap_or_else(|e| err(e.message))
     }
@@ -12773,7 +12771,7 @@ impl Vm {
         let (evaluation, role) = if top_level {
             (
                 CommandEvaluation::Direct,
-                crate::exec::ActivationRole::TopLevel,
+                crate::exec::ActivationRole::TopLevel { direct: true },
             )
         } else {
             (

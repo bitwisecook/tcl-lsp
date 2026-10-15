@@ -281,6 +281,32 @@ set y [set a 1; e]
     );
 }
 
+/// A coroutine a top-level statement creates completes as a top-level
+/// command does on every resume (C's `auxNumLevels`): its `return` is
+/// settled. One created inside another command, `eval` included, is not.
+#[test]
+fn coroutine_created_at_top_level_settles_as_top_level() {
+    let script = r"proc body {} { yield; return -code return x }
+proc mk {name} { coroutine $name body }
+coroutine c1 body
+mk c2
+eval {coroutine c3 body}
+proc res {name} { list [catch {$name} m o] $m [dict get $o -code] [dict get $o -level] }
+puts [list [res c1] [res c2] [res c3]]
+";
+    assert_releases(
+        &["8.6", "9.0", "9.1"],
+        script,
+        false,
+        (
+            r"{0 x 0 0} {2 x 0 1} {2 x 0 1}
+",
+            "",
+            0,
+        ),
+    );
+}
+
 /// Piped stdin is read and evaluated a command at a time: an error prints
 /// its message, publishes `errorInfo`/`errorCode` and evaluation goes on.
 #[test]

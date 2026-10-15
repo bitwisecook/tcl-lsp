@@ -745,7 +745,7 @@ impl<'r> CodegenCtx<'r> {
     /// this dialect's grammar.
     fn space_after(&self, span: Span) -> &str {
         let separators = self.lexer_config().word_separators;
-        let rest = self.source.get(span.end() as usize..).unwrap_or("");
+        let rest = self.source.get(self.command_end(span)..).unwrap_or("");
         let end = rest
             .bytes()
             .position(|byte| !separators.is_separator(byte))
@@ -756,14 +756,33 @@ impl<'r> CodegenCtx<'r> {
     /// [`Self::source_text`] through the whitespace before the command's
     /// terminator, as C's `errorInfo` names a command.
     pub(crate) fn error_info_source_text(&self, span: Span) -> String {
-        format!("{}{}", self.source_text(span), self.space_after(span))
+        let start = span.start() as usize;
+        let text = self.source.get(start..self.command_end(span)).unwrap_or("");
+        format!("{text}{}", self.space_after(span))
+    }
+
+    /// Where the command at `span` ends: a quoted last word's span ends inside
+    /// its closing `"` (see [`Self::span_text`]).
+    fn command_end(&self, span: Span) -> usize {
+        let end = span.end() as usize;
+        if self.source.as_bytes().get(end) == Some(&b'"') {
+            end + 1
+        } else {
+            end
+        }
     }
 
     /// Name the command inside the substitution `spelling` (`[cmd …]`) in
     /// the `errorInfo` of every instruction emitted for it from `start`, as
     /// C logs the inner command rather than the enclosing statement. A more
-    /// deeply nested substitution's stamp is kept.
-    pub(crate) fn stamp_substitution_error_info(&mut self, start: usize, spelling: &str) {
+    /// deeply nested substitution's stamp is kept. The line is that of the
+    /// inner command's first word when its `tokens` place it.
+    pub(crate) fn stamp_substitution_error_info(
+        &mut self,
+        start: usize,
+        spelling: &str,
+        tokens: Option<&crate::ir::CommandTokens>,
+    ) {
         let Some(inner) = spelling
             .strip_prefix('[')
             .and_then(|rest| rest.strip_suffix(']'))
@@ -782,7 +801,11 @@ impl<'r> CodegenCtx<'r> {
             .find(spelling)
             .map_or(0, |at| statement[..at].matches('\n').count())
             + inner[..inner.len() - text.len()].matches('\n').count();
-        let line = self.span_line() + u32::try_from(before).unwrap_or(0);
+        let line = tokens
+            .and_then(|tokens| tokens.argv.first())
+            .map(|word| self.source_line(*word))
+            .filter(|&line| line != 0)
+            .unwrap_or_else(|| self.span_line() + u32::try_from(before).unwrap_or(0));
         // Evaluated directly, each substitution is a script of its own that
         // the enclosing one logs again as the error leaves it.
         let direct = self.direct_statement_error_info();

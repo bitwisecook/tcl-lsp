@@ -197,6 +197,12 @@ pub(crate) struct Frame {
     body_invocation: Option<(String, u32)>,
     /// What this activation stands for beyond its own commands.
     role: ActivationRole,
+    /// The stack operands the instruction that just failed consumed, which
+    /// C's TIP 348 `INNER` context lists after its name.
+    failed_operands: Vec<Value>,
+    /// Words an unknown-command handler's invocation of this procedure adds
+    /// before the words that missed.
+    handler_words: usize,
     /// A scheduled `tailcall`'s namespace and words, dispatched on this
     /// instruction-less activation's first tick.
     deferred_tailcall: Option<(String, Vec<Value>)>,
@@ -441,6 +447,8 @@ impl Frame {
             body_label: None,
             body_invocation: None,
             role: ActivationRole::Plain,
+            failed_operands: Vec::new(),
+            handler_words: 0,
             deferred_tailcall: None,
             catch: None,
             subst: None,
@@ -485,6 +493,16 @@ impl Frame {
     /// consumers from accidentally substituting the VM's current generations.
     fn from_compiled_unit(unit: crate::compiled::CompiledUnit) -> Self {
         Self::new(unit, false)
+    }
+
+    /// A coroutine's base activation; `top_level` when the coroutine was
+    /// created with no other command active.
+    pub(crate) fn coroutine_base(unit: crate::compiled::CompiledUnit, top_level: bool) -> Self {
+        let mut frame = Self::new(unit, false);
+        if top_level {
+            frame.role = ActivationRole::TopLevel { direct: false };
+        }
+        frame
     }
 
     /// A transparent script activation (see [`Frame::is_script`]) for a body run
@@ -718,8 +736,11 @@ pub(crate) enum ActivationRole {
     TailcallReplacement,
     /// The script `tclsh` runs, evaluated with no command active (C's
     /// `numLevels == 0`): a completion leaving it is settled as `TclEvalEx`
-    /// settles one there.
-    TopLevel,
+    /// settles one there. `direct` when its commands are evaluated directly,
+    /// so every command but a statement's own is invoked from another.
+    TopLevel {
+        direct: bool,
+    },
 }
 
 /// The common result of consuming one [`Tick`]. Activation-bearing ticks have
@@ -1135,7 +1156,10 @@ fn bin(f: &mut Frame, op: BinOp) -> Result<(), Completion<Value>> {
         // `ARITH DOMAIN`), and a bare `err` would drop it, leaving the
         // compiled `expr {…}` path reporting `NONE` where the dynamic
         // `expr $e` path reports the real code.
-        Err(e) => Err(crate::command::completion_from_tcl_error(e)),
+        Err(e) => {
+            f.failed_operands = vec![a, b];
+            Err(crate::command::completion_from_tcl_error(e))
+        }
     }
 }
 
@@ -1147,7 +1171,10 @@ fn cmp(f: &mut Frame, op: BinOp) -> Result<(), Completion<Value>> {
             f.stack.push(Value::bool(t));
             Ok(())
         }
-        Err(e) => Err(crate::command::completion_from_tcl_error(e)),
+        Err(e) => {
+            f.failed_operands = vec![a, b];
+            Err(crate::command::completion_from_tcl_error(e))
+        }
     }
 }
 
@@ -1196,7 +1223,94 @@ fn un(f: &mut Frame, op: UnaryOp) -> Result<(), Completion<Value>> {
         }
         // Keeps C's `-errorcode` (`ARITH DOMAIN <description>` for an
         // operand-type error); a bare `err` would drop it.
-        Err(e) => Err(crate::command::completion_from_tcl_error(e)),
+        Err(e) => {
+            f.failed_operands = vec![v];
+            Err(crate::command::completion_from_tcl_error(e))
+        }
+    }
+}
+
+/// `op`'s name in the emulated release's instruction set.
+const fn release_mnemonic(op: Op, wide: bool) -> &'static str {
+    if wide {
+        op.wide_mnemonic()
+    } else {
+        op.mnemonic()
+    }
+}
+
+/// The `INNER` context of an `error` or `throw` C compiles to `returnImm`
+/// (`TclCompileErrorCmd`, `TclCompileThrowCmd`): one whose command word is
+/// literally the command, with the message and the options it builds.
+fn compiled_error_context(words: &[Value], text: &str) -> Option<Value> {
+    let head = words.first()?.to_str();
+    if text.split_whitespace().next() != Some(&*head) {
+        return None;
+    }
+    let (message, options) = match (&*head, words) {
+        ("error", [_, message]) => (message, Vec::new()),
+        ("error", [_, message, info]) => (message, vec![Value::string("-errorinfo"), info.clone()]),
+        ("error", [_, message, info, code]) => (
+            message,
+            vec![
+                Value::string("-errorinfo"),
+                info.clone(),
+                Value::string("-errorcode"),
+                code.clone(),
+            ],
+        ),
+        ("throw", [_, code, message]) => (message, vec![Value::string("-errorcode"), code.clone()]),
+        _ => return None,
+    };
+    Some(Value::list(vec![
+        Value::string("returnImm"),
+        message.clone(),
+        Value::list(options),
+    ]))
+}
+
+/// How many stack operands C's `TclGetInnerContext` lists after an
+/// instruction's name.
+const fn inner_operand_count(op: Op) -> usize {
+    match op {
+        Op::STR_LEN
+        | Op::LNOT
+        | Op::NOT
+        | Op::BITNOT
+        | Op::UMINUS
+        | Op::UPLUS
+        | Op::TRY_CVT_TO_NUMERIC
+        | Op::EXPAND_STKTOP
+        | Op::EXPR_STK
+        | Op::RETURN_STK => 1,
+        Op::LIST_IN
+        | Op::LIST_NOT_IN
+        | Op::STR_EQ
+        | Op::STR_NEQ
+        | Op::STR_CMP
+        | Op::STR_INDEX
+        | Op::STR_MATCH
+        | Op::REGEXP
+        | Op::EQ
+        | Op::NEQ
+        | Op::LT
+        | Op::GT
+        | Op::LE
+        | Op::GE
+        | Op::MOD
+        | Op::LSHIFT
+        | Op::RSHIFT
+        | Op::BITOR
+        | Op::BITXOR
+        | Op::BITAND
+        | Op::EXPON
+        | Op::ADD
+        | Op::SUB
+        | Op::DIV
+        | Op::MULT
+        | Op::SYNTAX
+        | Op::RETURN_IMM => 2,
+        _ => 0,
     }
 }
 
@@ -1475,10 +1589,15 @@ impl Vm {
                 argv,
             } => match self.enter_proc(&proc, &invoked, &argv) {
                 Ok(()) => {
-                    self.push_frame(acts, Frame::new(proc.body.clone(), true));
+                    let mut frame = Frame::new(proc.body.clone(), true);
+                    frame.handler_words = std::mem::take(&mut self.pending.handler_words);
+                    self.push_frame(acts, frame);
                     TickAction::Resume
                 }
-                Err(completion) => TickAction::Complete(self.settle_pending_exec_leave(completion)),
+                Err(completion) => {
+                    self.pending.handler_words = 0;
+                    TickAction::Complete(self.settle_pending_exec_leave(completion))
+                }
             },
             Tick::PushScript {
                 script,
@@ -1798,6 +1917,7 @@ impl Vm {
     /// (C's `TclLogCommandInfo`).
     fn log_failed_command(&mut self, frame: Option<&Frame>, c: &Completion<Value>) {
         let mut fold_failure = false;
+        let wide = self.runtime_version().emits_wide_instructions_only();
         if c.code == Code::Error
             && let Some((text, line, context, enclosing)) = frame.and_then(|frame| {
                 frame
@@ -1805,12 +1925,6 @@ impl Vm {
                     .instructions
                     .get(frame.pc.saturating_sub(1))
                     .map(|instruction| {
-                        let context = match instruction.error_stack_context.as_ref() {
-                            Some(ErrorStackContext::CommandResult { head, .. }) => {
-                                Value::list(vec![Value::string(head.as_str()), c.result.clone()])
-                            }
-                            None => Value::string(instruction.source_cmd_text.as_str()),
-                        };
                         if instruction.error_origin == tcl_bytecode::ErrorOrigin::ConstantFold {
                             fold_failure = true;
                         }
@@ -1821,6 +1935,13 @@ impl Vm {
                             }) => error_info_command.clone(),
                             None => source_text.to_owned(),
                         };
+                        let context = Self::inner_context(
+                            instruction,
+                            &frame.failed_operands,
+                            c,
+                            &text,
+                            wide,
+                        );
                         (
                             text,
                             line,
@@ -1838,6 +1959,68 @@ impl Vm {
             }
             self.log_command_with_enclosing(&text, context, &enclosing, &message, line);
         }
+    }
+
+    /// C's TIP 348 `INNER` context for `instruction` failing with `c`
+    /// (`TclGetInnerContext`): its name and the stack operands it consumed,
+    /// a constant fold's `syntax` failure, or the command's text where the
+    /// release evaluates the command without compiling it.
+    fn inner_context(
+        instruction: &Instruction,
+        operands: &[Value],
+        c: &Completion<Value>,
+        text: &str,
+        wide: bool,
+    ) -> Value {
+        if instruction.evaluation == tcl_runtime_api::CommandEvaluation::Direct {
+            return Value::string(text);
+        }
+        if instruction.error_origin == tcl_bytecode::ErrorOrigin::ConstantFold {
+            let error_code = crate::command::opt_get(&c.options, "-errorcode")
+                .unwrap_or_else(|| Value::string("NONE"));
+            let options = Value::list(vec![
+                Value::string("-code"),
+                Value::int(1),
+                Value::string("-level"),
+                Value::int(0),
+                Value::string("-errorcode"),
+                error_code,
+                Value::string("-errorinfo"),
+                c.result.clone(),
+                Value::string("-errorline"),
+                Value::int(1),
+            ]);
+            return Value::list(vec![Value::string("syntax"), c.result.clone(), options]);
+        }
+        let mut words = vec![Value::string(release_mnemonic(instruction.op, wide))];
+        let taken = inner_operand_count(instruction.op);
+        if matches!(instruction.op, Op::INVOKE_STK1 | Op::INVOKE_STK4)
+            || (taken > 0 && operands.len() == taken)
+        {
+            words.extend_from_slice(operands);
+        }
+        Value::list(words)
+    }
+
+    /// The TIP 348 `INNER` context of an invoke that failed with `words`: the
+    /// instruction and its words, or the command's text where the release
+    /// evaluates the command without compiling it.
+    fn invoke_inner_context(
+        instruction: &Instruction,
+        words: Vec<Value>,
+        text: &str,
+        wide: bool,
+    ) -> Value {
+        if instruction.evaluation == tcl_runtime_api::CommandEvaluation::Direct {
+            return Value::string(text);
+        }
+        if let Some(compiled) = compiled_error_context(&words, text) {
+            return compiled;
+        }
+        let mut context = Vec::with_capacity(words.len() + 1);
+        context.push(Value::string(release_mnemonic(instruction.op, wide)));
+        context.extend(words);
+        Value::list(context)
     }
 
     /// If the instruction that just produced a `break`/`continue` completion is
@@ -1900,7 +2083,9 @@ impl Vm {
         for r in covering {
             let body_line = self.error_line().saturating_sub(r.line_base).max(1);
             self.append_body_frame_line(&r.label, body_line);
-            self.log_command_info_only(&r.cmd_text, "", r.cmd_line);
+            // C evaluates the body as a script of its own, so the enclosing
+            // command is a logged command in the error stack too.
+            self.log_command_info(&r.cmd_text, "", r.cmd_line);
         }
     }
 
@@ -2078,7 +2263,7 @@ impl Vm {
         for (text, line) in enclosing {
             if text != previous {
                 self.clear_error_logged();
-                self.log_command_info_only(text, message, *line);
+                self.log_command_info(text, message, *line);
             }
             previous = text;
         }
@@ -2230,7 +2415,7 @@ impl Vm {
                 }
             }
             match acts.last_mut() {
-                None if act.role == ActivationRole::TopLevel && !c.code.is_ok() => {
+                None if matches!(act.role, ActivationRole::TopLevel { .. }) && !c.code.is_ok() => {
                     return Some(self.settle_top_level(&act, c));
                 }
                 None => return Some(c),
@@ -2326,7 +2511,6 @@ impl Vm {
         acts: &[Frame],
         c: &mut Completion<Value>,
     ) -> Option<(String, Vec<Value>)> {
-        let body_code = c.code;
         let call_words = self.frame_argv(self.current_level()).unwrap_or_default();
         // C's `InterpProcNR2` proc epilogue (`tclProc.c:1864`): a proc body that
         // reaches its boundary with a bare `break`/`continue` — i.e. a
@@ -2399,7 +2583,6 @@ impl Vm {
         if c.code == Code::Return {
             self.update_return_info(c);
         }
-        self.error_stack_push_proc_call(body_code, c.code, &call_words);
         if c.code == Code::Error {
             let message = c.result.to_str().to_string();
             // A tailcall's replacement logs its own words first; an `apply`
@@ -2415,7 +2598,8 @@ impl Vm {
                 self.log_command_info(cmd, &message, *line);
                 self.clear_error_logged();
             }
-            self.log_procedure_invocation(acts, lambda_call.as_deref(), &call_words, &message);
+            let invoked = call_words.get(act.handler_words..).unwrap_or(&call_words);
+            self.log_procedure_invocation(acts, lambda_call.as_deref(), invoked, &message);
         }
         scheduled_tailcall.filter(|_| c.code == Code::Ok)
     }
@@ -2534,6 +2718,7 @@ impl Vm {
         };
         let invocation = || Value::list(call_words.to_vec()).to_str().to_string();
         let fresh = !self.error_logged();
+        let wide = self.runtime_version().emits_wide_instructions_only();
         match (logged, lambda_key) {
             (Some((cmd, line)), Some(key))
                 if cmd
@@ -2543,7 +2728,20 @@ impl Vm {
             {
                 self.log_command_info(&invocation(), message, line);
             }
-            (Some((cmd, line)), _) => self.log_command_info(&cmd, message, line),
+            (Some((cmd, line)), _) => {
+                let context = invoker
+                    .and_then(|parent| parent.asm.instructions.get(parent.pc.saturating_sub(1)))
+                    .filter(|instruction| {
+                        matches!(instruction.op, Op::INVOKE_STK1 | Op::INVOKE_STK4)
+                    })
+                    .map_or_else(
+                        || Value::string(cmd.as_str()),
+                        |instruction| {
+                            Self::invoke_inner_context(instruction, call_words.to_vec(), &cmd, wide)
+                        },
+                    );
+                self.log_command_info_with_context(&cmd, context, message, line);
+            }
             (None, Some(_)) => self.log_command_info(&invocation(), message, 0),
             (None, None) => {}
         }
@@ -3019,7 +3217,9 @@ impl Vm {
                 } else if instr.push_verbatim {
                     f.stack.push(Value::string(raw));
                 } else {
-                    match crate::subst::subst_word(&raw, self, instr.evaluation) {
+                    let statement = Some((instr.source_cmd_text.as_str(), instr.source_line))
+                        .filter(|(text, line)| !text.is_empty() && *line != 0);
+                    match crate::subst::subst_word(&raw, self, instr.evaluation, statement) {
                         Ok(v) => f.stack.push(v),
                         // A `break`/`continue`/`return` carried out of a `[…]`
                         // substitution propagates with its own code (an enclosing
@@ -4222,11 +4422,15 @@ impl Vm {
             // the empty string, so a garbage index looked like a miss.
             Op::STR_INDEX => {
                 let idx = pop(f);
-                let s = pop(f).to_str();
+                let string = pop(f);
+                let s = string.to_str();
                 let chars: Vec<char> = s.chars().collect();
                 let i = match checked_index_value(&idx, chars.len()) {
                     Ok(i) => i,
-                    Err(c) => return Tick::Return(c),
+                    Err(c) => {
+                        f.failed_operands = vec![string, idx];
+                        return Tick::Return(c);
+                    }
                 };
                 f.stack.push(
                     usize::try_from(i)
@@ -4369,9 +4573,12 @@ impl Vm {
                 // (`expr {1 ? "big" : "x"}`) passes through, and a bare `NaN` is
                 // the domain error.
                 let v = pop(f);
-                match crate::expr::cvt_to_numeric(v) {
+                match crate::expr::cvt_to_numeric(v.clone()) {
                     Ok(nv) => f.stack.push(nv),
-                    Err(e) => return Tick::Return(err(e.message)),
+                    Err(e) => {
+                        f.failed_operands = vec![v];
+                        return Tick::Return(err(e.message));
+                    }
                 }
             }
             // C `INST_TRY_CVT_TO_BOOLEAN` (`tclExecute.c:6404-6414`; table
@@ -4490,6 +4697,7 @@ impl Vm {
                 } else {
                     (pop(f), Value::empty())
                 };
+                f.failed_operands = vec![result.clone(), options.clone()];
                 let c = crate::command::cmd_return(
                     self,
                     &[
@@ -4541,10 +4749,29 @@ impl Vm {
                 }
                 let entered = f.take_entered_command();
                 self.pending.release_compiled = instr.release_compiled;
+                // Evaluated directly, every command but the statement's own is
+                // invoked from within another (C's nested `TclEvalEx`).
+                self.pending.top_level_command = match f.role {
+                    ActivationRole::TopLevel { direct: false } => true,
+                    ActivationRole::TopLevel { direct: true } => {
+                        instr.evaluation == tcl_runtime_api::CommandEvaluation::Direct
+                            && instr.source_cmd_text.split_whitespace().next()
+                                == Some(&*words[0].to_str())
+                    }
+                    _ => false,
+                };
                 let dispatched = self.dispatch_words_with_entered(f, &words, entered.as_ref());
                 self.pending.release_compiled = None;
+                self.pending.top_level_command = false;
                 match dispatched {
-                    Ok(Some(call)) => return call,
+                    Ok(Some(call)) => {
+                        // A command finishing in an activation of its own
+                        // fails after this invoke: keep its words for `INNER`.
+                        if !matches!(call, Tick::Call { .. }) {
+                            f.failed_operands = words;
+                        }
+                        return call;
+                    }
                     Ok(None) => {}
                     Err(c) => {
                         // C logs only an error; a `TCL_RETURN` carrying `-code error` is
@@ -4555,7 +4782,12 @@ impl Vm {
                             let msg = c.result.to_str().to_string();
                             self.log_command_with_enclosing(
                                 &cmd_text,
-                                Value::list(words),
+                                Self::invoke_inner_context(
+                                    instr,
+                                    words,
+                                    &cmd_text,
+                                    self.runtime_version().emits_wide_instructions_only(),
+                                ),
                                 instr.error_info_enclosing(),
                                 &msg,
                                 line,
@@ -4620,7 +4852,12 @@ impl Vm {
                                 let msg = c.result.to_str().to_string();
                                 self.log_command_with_enclosing(
                                     &cmd_text,
-                                    Value::list(words),
+                                    Self::invoke_inner_context(
+                                        instr,
+                                        words,
+                                        &cmd_text,
+                                        self.runtime_version().emits_wide_instructions_only(),
+                                    ),
                                     instr.error_info_enclosing(),
                                     &msg,
                                     line,
@@ -4671,7 +4908,12 @@ impl Vm {
                             let msg = c.result.to_str().to_string();
                             self.log_command_with_enclosing(
                                 &cmd_text,
-                                Value::list(rewritten),
+                                Self::invoke_inner_context(
+                                    instr,
+                                    rewritten,
+                                    &cmd_text,
+                                    self.runtime_version().emits_wide_instructions_only(),
+                                ),
                                 instr.error_info_enclosing(),
                                 &msg,
                                 line,
@@ -5529,6 +5771,7 @@ impl Vm {
                     &[Value::string(cmd_string.clone()), Value::string("enter")],
                 );
                 if !r.code.is_ok() {
+                    self.exec_trace_failed("enter", &cmd_string, &r);
                     return Err(r);
                 }
             }
@@ -5590,6 +5833,33 @@ impl Vm {
     /// (tclsh-pinned shapes).  Returns `Some(error)` when a trace errored —
     /// the error REPLACES the command's completion (tclsh-pinned) — else
     /// `None`.
+    /// An `enter` or `leave` execution trace on `command` failed with `c`.
+    /// From 8.6 C names the trace in a frame of its own and the command is
+    /// not logged again; before, the failure is the command's, which a leave
+    /// trace's caller logs as the error leaves it.
+    fn exec_trace_failed(&mut self, op: &str, command: &str, c: &Completion<Value>) {
+        if c.code != Code::Error {
+            return;
+        }
+        if self.runtime_version().has_execution_trace_error_frames() {
+            const LIMIT: usize = 55;
+            let mut end = command.len().min(LIMIT);
+            while !command.is_char_boundary(end) {
+                end -= 1;
+            }
+            let marker = if end < command.len() { "..." } else { "" };
+            let message = c.result.to_str().to_string();
+            self.seed_error_info_frame(
+                &message,
+                &format!("\n    ({op} trace on \"{}{marker}\")", &command[..end]),
+            );
+            self.mark_error_logged();
+        } else if op == "leave" {
+            self.clear_error_logged();
+            self.log_command_info(command, &c.result.to_str(), 0);
+        }
+    }
+
     pub(crate) fn finish_exec_leave(
         &mut self,
         ctx: &ExecLeaveCtx,
@@ -5632,6 +5902,7 @@ impl Vm {
                     let r =
                         self.run_cmd_trace_callback(&entry, &args(trace_result.clone(), "leave"));
                     if !r.code.is_ok() {
+                        self.exec_trace_failed("leave", &ctx.cmd_string, &r);
                         replacement = Some(r);
                         break;
                     }
@@ -5875,18 +6146,25 @@ impl Vm {
             // proc as `unknown name arg…` (the basis for auto-loading,
             // ensembles, and the iRule command mocks); else a hard error.
             None if &*name != "unknown" => {
-                if let Some(handler) = self.ns_unknown_handler() {
+                let (dispatched, added) = if let Some(handler) = self.ns_unknown_handler() {
+                    let added = handler.len();
                     let mut handler_words = handler;
                     handler_words.extend_from_slice(words);
-                    self.with_ns_unknown_guard(|vm| vm.dispatch_words(f, &handler_words))
+                    let dispatched =
+                        self.with_ns_unknown_guard(|vm| vm.dispatch_words(f, &handler_words));
+                    (dispatched, added)
                 } else if self.lookup_command("unknown").is_some() {
                     let mut unknown_words = Vec::with_capacity(words.len() + 1);
                     unknown_words.push(Value::string("unknown"));
                     unknown_words.extend_from_slice(words);
-                    self.dispatch_words(f, &unknown_words)
+                    (self.dispatch_words(f, &unknown_words), 1)
                 } else {
-                    Err(command_lookup_error(&name))
+                    return Err(command_lookup_error(&name));
+                };
+                if matches!(dispatched, Ok(Some(Tick::Call { .. }))) {
+                    self.pending.handler_words = added;
                 }
+                dispatched
             }
             None => Err(command_lookup_error(&name)),
         }
