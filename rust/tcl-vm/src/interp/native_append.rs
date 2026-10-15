@@ -15,6 +15,8 @@ struct CellAppend<'a> {
     key: Option<&'a [u8]>,
     captured: &'a CapturedVariableUpdate,
     protocol: NativeObjectAppendProtocol,
+    original: Option<&'a Value>,
+    leave_error_message: bool,
     pending: Option<PreparedAppendValue<Value>>,
 }
 
@@ -23,8 +25,12 @@ impl NativeAppendVariable for CellAppend<'_> {
     type Error = Completion<Value>;
 
     fn append_operand(&mut self, source: &Value) -> Result<(), Self::Error> {
-        self.vm
-            .check_captured_update_with_errors(self.name, self.key, self.captured, true)?;
+        self.vm.check_captured_update_with_errors(
+            self.name,
+            self.key,
+            self.captured,
+            self.leave_error_message,
+        )?;
         let id = self.captured.cell.id.expect("captured append cell");
         // Borrow actual table ownership: a getter clone would falsely make an
         // otherwise unshared receiver shared before the native COW decision.
@@ -42,7 +48,7 @@ impl NativeAppendVariable for CellAppend<'_> {
     }
 
     fn publish(&mut self) -> Result<Value, Self::Error> {
-        self.vm.store_captured_update(
+        self.vm.store_captured_update_with_original_and_errors(
             self.name,
             self.key,
             self.captured,
@@ -50,6 +56,8 @@ impl NativeAppendVariable for CellAppend<'_> {
                 .take()
                 .expect("pending append value")
                 .into_value(),
+            self.original,
+            self.leave_error_message,
         )
     }
 }
@@ -178,8 +186,53 @@ impl Vm {
             .ok_or_else(|| {
                 self.refuse_host_command("native object append protocol is unavailable".into())
             })?;
-        let protocol = issued.recipe();
-        if self.dictionary_variable_containers() {
+        self.append_selected_bytes_using(name, key, sources, selected, None, issued.recipe())
+    }
+
+    /// The original ObjSetVar2 name and quiet flags survive receiver callbacks.
+    pub(super) fn append_original_c84_selected_variable(
+        &mut self,
+        original: &Value,
+        name: &[u8],
+        key: Option<&[u8]>,
+        source: &Value,
+        selected: ResolvedVar,
+    ) -> Result<Value, Completion<Value>> {
+        let issued = self
+            .actual_native_invocation_dialect()
+            .native_object_append_protocol(None)
+            .filter(|_| self.uses_c84_global_error_info())
+            .ok_or_else(|| {
+                self.refuse_host_command("actual C8.4 original error-name append".into())
+            })?;
+        self.append_selected_bytes_using(
+            name,
+            key,
+            std::slice::from_ref(source),
+            Some(selected),
+            Some((
+                original,
+                tcl_syntax::native_variable_name::NativeVariableNameLookupPurpose::QuietWrite,
+            )),
+            issued.recipe(),
+        )
+    }
+
+    fn append_selected_bytes_using(
+        &mut self,
+        name: &[u8],
+        key: Option<&[u8]>,
+        sources: &[Value],
+        selected: Option<ResolvedVar>,
+        original: Option<(
+            &Value,
+            tcl_syntax::native_variable_name::NativeVariableNameLookupPurpose,
+        )>,
+        protocol: NativeObjectAppendProtocol,
+    ) -> Result<Value, Completion<Value>> {
+        let leave_error_message =
+            original.is_none_or(|(_, purpose)| purpose.leaves_error_message());
+        if original.is_none() && self.dictionary_variable_containers() {
             let selected = if key.is_some() {
                 self.resolve_var_parts_from_bytes(name, key, self.current_level())
             } else {
@@ -218,7 +271,9 @@ impl Vm {
             }
         }
         let captured = match selected {
-            Some(resolved) => self.capture_selected_update(name, key, &resolved)?,
+            Some(resolved) => {
+                self.capture_selected_update_with_errors(name, key, &resolved, leave_error_message)?
+            }
             None => self.capture_update_cell(name, key)?,
         };
         self.with_variable_operation(&captured.cell, |vm| {
@@ -228,6 +283,8 @@ impl Vm {
                 key,
                 captured: &captured,
                 protocol,
+                original: original.map(|(value, _)| value),
+                leave_error_message,
                 pending: None,
             };
             append_operands(&mut operation, protocol, sources)

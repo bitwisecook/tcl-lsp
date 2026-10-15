@@ -1103,6 +1103,7 @@ struct NativeErrorState {
     native_error_result: Option<crate::value::WeakNativeObject>,
     native_return_options: Option<Value>,
     native_c_return_state: NativeCReturnState,
+    c84_execution_names: Option<native_error_variables::C84ExecutionEnvironmentErrorNames>,
     native_error_legacy_copy: bool,
     c84_global_code_set: bool,
     /// Primitive interpreter error-code state, separate from guest globals.
@@ -1128,6 +1129,7 @@ impl Default for NativeErrorState {
             native_error_result: None,
             native_return_options: None,
             native_c_return_state: NativeCReturnState::default(),
+            c84_execution_names: None,
             native_error_legacy_copy: false,
             c84_global_code_set: false,
             primitive_error_code: None,
@@ -2225,6 +2227,9 @@ impl Vm {
             .actual_native_invocation_dialect()
             .native_error_objects_protocol();
         self.native_errors.error_stack.configure(recipe);
+        if let Err(error) = self.configure_c84_execution_environment_error_names() {
+            let _ = crate::command::completion_from_cmd_error(self, error);
+        }
         self.select_dictionary_containers();
         self.install_native_precision_trace();
         // Standard channels are VM-wide handles shared by the interpreter
@@ -2290,6 +2295,10 @@ impl Vm {
             .actual_native_invocation_dialect()
             .native_error_objects_protocol();
         self.native_errors.error_stack.configure(recipe);
+        if let Err(error) = self.configure_c84_execution_environment_error_names() {
+            let _ = crate::command::completion_from_cmd_error(self, error);
+            return false;
+        }
         self.bump_cmd_epoch();
         self.profile_generation = self.profile_generation.wrapping_add(1);
         self.eval_cache.clear();
@@ -2919,6 +2928,10 @@ impl Vm {
             .actual_native_invocation_dialect()
             .native_error_objects_protocol();
         vm.native_errors.error_stack.configure(recipe);
+        if let Err(error) = vm.configure_c84_execution_environment_error_names() {
+            let _ = crate::command::completion_from_cmd_error(&mut vm, error);
+            return vm;
+        }
         crate::command::register_builtins_with_native_core(
             &mut vm,
             native.as_ref().map(|(_, _, protocol, _)| *protocol),
@@ -7595,6 +7608,13 @@ impl Vm {
             vm.active_native_profile = vm.actual_engine_profile.or(saved);
             let entered = (|| -> Result<(), tcl_runtime_api::NativeExecutionError> {
                 let scope = native_operation_currency::NativeOperationScope::enter_native(vm)?;
+                vm.configure_c84_execution_environment_error_names()
+                    .map_err(|error| {
+                        let _ = crate::command::completion_from_cmd_error(vm, error);
+                        vm.execution_refusal
+                            .clone()
+                            .expect("C execution environment refusal")
+                    })?;
                 match vm.bootstrap.clone() {
                     NativeBootstrapPurpose::Core { protocol, inputs } => {
                         crate::command::register_builtins_with_native_core(vm, Some(protocol));

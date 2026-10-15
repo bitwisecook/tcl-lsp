@@ -1684,8 +1684,66 @@ impl Vm {
         value: Value,
         purpose: NativeVariableNameLookupPurpose,
     ) -> Result<Value, Completion<Value>> {
+        self.store_original_c_variable_in(original, value, purpose, None)
+    }
+
+    /// C8.4 ObjSetVar2 keeps its original header and GLOBAL_ONLY/quiet purpose.
+    pub(super) fn store_original_c84_global_error_object(
+        &mut self,
+        original: &Value,
+        value: Value,
+    ) -> Result<Value, Completion<Value>> {
+        if !self.uses_c84_global_error_info()
+            || !self
+                .native_c_variable_name_protocol()
+                .is_some_and(|protocol| protocol.version() == tcl_dialect::TclVersion::V8_4)
+        {
+            return Err(self.refuse_host_command("actual C8.4 original error-name setter".into()));
+        }
+        self.store_original_c_variable_in(
+            original,
+            value,
+            NativeVariableNameLookupPurpose::QuietWrite,
+            Some(tcl_core_types::ROOT_NS),
+        )
+    }
+
+    /// Prepare the held object name before selecting the actual append cell.
+    pub(super) fn append_original_c84_global_error_object(
+        &mut self,
+        original: &Value,
+        source: Value,
+    ) -> Result<Value, Completion<Value>> {
+        if !self.uses_c84_global_error_info()
+            || !self
+                .native_c_variable_name_protocol()
+                .is_some_and(|protocol| protocol.version() == tcl_dialect::TclVersion::V8_4)
+        {
+            return Err(self.refuse_host_command("actual C8.4 original error-name append".into()));
+        }
+        let (_root, bytes, element, resolved) = self.prepare_native_original_variable_in(
+            original,
+            NativeVariableNameLookupPurpose::QuietWrite,
+            Some(tcl_core_types::ROOT_NS),
+        )?;
+        self.append_original_c84_selected_variable(
+            original,
+            &bytes,
+            element.as_deref(),
+            &source,
+            resolved,
+        )
+    }
+
+    fn store_original_c_variable_in(
+        &mut self,
+        original: &Value,
+        value: Value,
+        purpose: NativeVariableNameLookupPurpose,
+        namespace: Option<tcl_core_types::NsId>,
+    ) -> Result<Value, Completion<Value>> {
         let (_root, bytes, element, resolved) =
-            self.prepare_native_original_variable(original, purpose)?;
+            self.prepare_native_original_variable_in(original, purpose, namespace)?;
         let element_birth = resolved.elem.is_some() && resolved.id.is_none();
         let captured = self.capture_selected_update_with_errors(
             &bytes,

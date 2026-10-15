@@ -4,6 +4,56 @@ use super::{InterpState, Local, Value, VarId, Vm};
 use tcl_registry::special_vars::{NativeErrorStorageVariable as Variable, NativeErrorVariableRead};
 use tcl_syntax::value::ValueOps;
 
+/// The two original object names owned by C8.4's interpreter ExecEnv.
+/// Field order retires errorInfo before errorCode, after the live birth ends.
+pub(super) struct C84ExecutionEnvironmentErrorNames {
+    birth: std::rc::Rc<()>,
+    world: std::rc::Weak<std::cell::RefCell<super::NativeNameWorld>>,
+    info: Value,
+    code: Value,
+}
+
+struct C84ExecutionEnvironmentErrorName {
+    birth: std::rc::Weak<()>,
+    variable: Variable,
+    header: crate::NativeObjectLifetimeLease,
+}
+
+impl C84ExecutionEnvironmentErrorName {
+    fn check(
+        &self,
+        vm: &mut Vm,
+        scope: &super::native_name_consumers::OriginalNameConsumerScope,
+    ) -> Result<(), tcl_cmd_core::CmdError> {
+        scope.check(vm)?;
+        let current = vm.c84_execution_environment_selected()
+            && vm.uses_c84_global_error_info()
+            && vm
+                .native_errors
+                .c84_execution_names
+                .as_ref()
+                .is_some_and(|names| {
+                    self.birth
+                        .upgrade()
+                        .is_some_and(|birth| std::rc::Rc::ptr_eq(&birth, &names.birth))
+                        && names.world.upgrade().is_some_and(|world| {
+                            std::rc::Rc::ptr_eq(&world, &vm.name_world) && world.borrow().is_live()
+                        })
+                        && match self.variable {
+                            Variable::ErrorInfo => &names.info,
+                            Variable::ErrorCode => &names.code,
+                        }
+                        .is_same_object(self.header.value())
+                });
+        scope.require(
+            vm,
+            current,
+            "C8.4 original execution-environment name birth",
+        )?;
+        scope.current_for_value(vm, self.header.value())
+    }
+}
+
 pub(super) struct NativeErrorTraceState {
     info: Option<Value>,
     info_len: usize,
@@ -21,6 +71,162 @@ pub(super) struct NativeGlobalErrorFlags {
 }
 
 impl Vm {
+    /// Physical resource provisioning ignores temporary invocation overrides.
+    /// An explicitly installed engine survives changes to authored grammar.
+    fn c84_execution_environment_selected(&self) -> bool {
+        let profile = self.actual_engine_profile.unwrap_or(self.pin.profile);
+        tcl_registry::InvocationDialect::of_profile(profile)
+            .native_error_log_protocol()
+            .is_some_and(
+                tcl_registry::native_error_log::NativeErrorLogProtocol::resets_global_error_episode,
+            )
+    }
+
+    /// Called only at real interpreter construction or provider reconfiguration,
+    /// never by a logging consumer that discovers missing representation.
+    pub(super) fn configure_c84_execution_environment_error_names(
+        &mut self,
+    ) -> Result<(), tcl_cmd_core::CmdError> {
+        let selected = self.c84_execution_environment_selected();
+        if !selected && self.native_errors.c84_execution_names.is_none() {
+            return Ok(());
+        }
+        let operation = super::native_operation_currency::NativeOperationScope::enter(self);
+        if !selected {
+            let retired = self.native_errors.c84_execution_names.take();
+            drop(retired);
+            return operation?.check(self);
+        }
+        let operation = operation?;
+        operation.check(self)?;
+        if let Some(names) = self.native_errors.c84_execution_names.as_ref() {
+            let current = names.world.upgrade().is_some_and(|world| {
+                std::rc::Rc::ptr_eq(&world, &self.name_world) && world.borrow().is_live()
+            });
+            if !current {
+                return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "C8.4 execution environment interpreter birth",
+                )
+                .into());
+            }
+            names.info.check_native_header()?;
+            names.code.check_native_header()?;
+            return operation.check(self);
+        }
+        let original_names =
+            super::native_name_consumers::OriginalNameConsumerScope::enter_for_namespace(
+                self,
+                Some(tcl_core_types::ROOT_NS),
+            )?;
+        let reached = (|| -> Result<(), tcl_cmd_core::CmdError> {
+            if !self.uses_c84_global_error_info() {
+                return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "C8.4 execution environment actual construction provider",
+                )
+                .into());
+            }
+            self.with_native_interp_result(|_| ())?;
+            original_names.check(self)?;
+            let info = Value::new_native_string_bytes(Variable::ErrorInfo.global_name().as_bytes());
+            original_names.current_for_value(self, &info)?;
+            let code = Value::new_native_string_bytes(Variable::ErrorCode.global_name().as_bytes());
+            original_names.current_for_value(self, &code)?;
+            let names = C84ExecutionEnvironmentErrorNames {
+                birth: std::rc::Rc::new(()),
+                world: std::rc::Rc::downgrade(&self.name_world),
+                info,
+                code,
+            };
+            self.native_errors.c84_execution_names = Some(names);
+            original_names.check(self)
+        })();
+        let reached = reached.map_err(|error| {
+            if let Some(cause) = error.native_execution_refusal() {
+                self.retain_native_execution_refusal(cause.clone());
+            }
+            error
+        });
+        original_names.finish(self)?;
+        reached
+    }
+
+    fn original_c84_execution_error_name(
+        &mut self,
+        variable: Variable,
+        scope: &super::native_name_consumers::OriginalNameConsumerScope,
+    ) -> Result<C84ExecutionEnvironmentErrorName, tcl_cmd_core::CmdError> {
+        scope.check(self)?;
+        let names = self.native_errors.c84_execution_names.as_ref().ok_or(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "missing original C8.4 execution-environment name owner",
+            ),
+        )?;
+        let header = match variable {
+            Variable::ErrorInfo => &names.info,
+            Variable::ErrorCode => &names.code,
+        }
+        .native_lifetime_lease();
+        let name = C84ExecutionEnvironmentErrorName {
+            birth: std::rc::Rc::downgrade(&names.birth),
+            variable,
+            header,
+        };
+        name.check(self, scope)?;
+        Ok(name)
+    }
+
+    fn store_c84_execution_error_value(
+        &mut self,
+        variable: Variable,
+        original: Value,
+    ) -> Result<(), tcl_cmd_core::CmdError> {
+        let scope = super::native_name_consumers::OriginalNameConsumerScope::enter_for_namespace(
+            self,
+            Some(tcl_core_types::ROOT_NS),
+        )?;
+        let reached = (|| -> Result<(), tcl_cmd_core::CmdError> {
+            let name = self.original_c84_execution_error_name(variable, &scope)?;
+            scope.current_for_value(self, &original)?;
+            let reached =
+                self.store_original_c84_global_error_object(name.header.value(), original);
+            drop(reached);
+            name.check(self, &scope)
+        })();
+        let reached = reached.map_err(|error| {
+            if let Some(cause) = error.native_execution_refusal() {
+                self.retain_native_execution_refusal(cause.clone());
+            }
+            error
+        });
+        scope.finish(self)?;
+        reached
+    }
+
+    fn append_c84_execution_error_value(
+        &mut self,
+        source: Value,
+    ) -> Result<(), tcl_cmd_core::CmdError> {
+        let scope = super::native_name_consumers::OriginalNameConsumerScope::enter_for_namespace(
+            self,
+            Some(tcl_core_types::ROOT_NS),
+        )?;
+        let reached = (|| -> Result<(), tcl_cmd_core::CmdError> {
+            let name = self.original_c84_execution_error_name(Variable::ErrorInfo, &scope)?;
+            scope.current_for_value(self, &source)?;
+            let reached = self.append_original_c84_global_error_object(name.header.value(), source);
+            drop(reached);
+            name.check(self, &scope)
+        })();
+        let reached = reached.map_err(|error| {
+            if let Some(cause) = error.native_execution_refusal() {
+                self.retain_native_execution_refusal(cause.clone());
+            }
+            error
+        });
+        scope.finish(self)?;
+        reached
+    }
+
     /// C8.4 trace chains preserve only the three passive error flag bits.
     pub(super) fn capture_native_global_error_flags(&self) -> Option<NativeGlobalErrorFlags> {
         self.uses_c84_global_error_info()
@@ -459,12 +665,16 @@ impl Vm {
         // its first real setter stores the current original result globally.
         self.native_errors.native_error_info_len = bytes.len();
         self.native_errors.native_error_legacy_copy = true;
-        let _ = self.set_var_bytes(b"::errorInfo", original);
+        if let Err(error) = self.store_c84_execution_error_value(Variable::ErrorInfo, original) {
+            let _ = crate::command::completion_from_cmd_error(self, error);
+            return;
+        }
         if !self.native_errors.c84_global_code_set {
-            let _ = self.set_var_bytes(
-                b"::errorCode",
-                Value::new_native_string_bytes(b"NONE".as_slice()),
-            );
+            let default = Value::new_native_string_bytes(b"NONE".as_slice());
+            if let Err(error) = self.store_c84_execution_error_value(Variable::ErrorCode, default) {
+                let _ = crate::command::completion_from_cmd_error(self, error);
+                return;
+            }
         }
         self.native_errors.native_error_info_len = bytes.len();
         self.native_errors.native_error_legacy_copy = true;
@@ -488,7 +698,10 @@ impl Vm {
             let source = Value::new_native_string_bytes(suffix);
             // TCL_APPEND_VALUE reaches the original variable receiver and its
             // actual getter/write traces; guest setter failures are ignored.
-            let _ = self.append_variable_bytes(b"::errorInfo", None, source);
+            if let Err(error) = self.append_c84_execution_error_value(source) {
+                let _ = crate::command::completion_from_cmd_error(self, error);
+                return;
+            }
         }
         self.native_errors.native_error_info_len = length;
         self.native_errors.native_error_legacy_copy = true;
@@ -868,6 +1081,192 @@ mod tests {
             tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
         ));
         vm
+    }
+
+    fn c84_execution_names(
+        vm: &Vm,
+    ) -> (
+        crate::NativeObjectLifetimeLease,
+        crate::NativeObjectLifetimeLease,
+    ) {
+        let names = vm
+            .native_errors
+            .c84_execution_names
+            .as_ref()
+            .expect("actual constructor resource");
+        (
+            names.info.native_lifetime_lease(),
+            names.code.native_lifetime_lease(),
+        )
+    }
+
+    #[test]
+    fn c84_execution_environment_constructor_retains_original_named_headers_and_independent_children()
+     {
+        let mut vm = native_vm("tcl8.4");
+        let original = include_str!(
+            "../../../../experiments/name-handling/results/c84-execution-environment-error-name-objects/capture02/execution.stdout"
+        );
+        let fields = original
+            .lines()
+            .find(|row| row.starts_with("ENV|birth-before-init|"))
+            .unwrap()
+            .split('|')
+            .collect::<Vec<_>>();
+        let (info, code) = c84_execution_names(&vm);
+        for (value, offset) in [(info.value(), 6), (code.value(), 10)] {
+            assert_eq!(
+                value.native_object_reference_count().to_string(),
+                fields[offset]
+            );
+            assert_eq!(value.native_object_type_name(), fields[offset + 1]);
+            let hex = value
+                .resident_string_bytes()
+                .unwrap()
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<String>();
+            assert_eq!(hex, fields[offset + 3]);
+        }
+        assert!(!info.value().is_same_object(code.value()));
+        vm.create_child(Some("child".to_owned()), false);
+        let child = vm.resolve_interp_path("child").unwrap();
+        let (child_info, child_code) = vm.in_interp(child, |vm| c84_execution_names(vm));
+        for parent in [info.value(), code.value()] {
+            for child in [child_info.value(), child_code.value()] {
+                assert!(!parent.is_same_object(child));
+            }
+        }
+        assert!(vm.delete_interp(child));
+        assert!(!child_info.value().native_object_is_live());
+        assert!(!child_code.value().native_object_is_live());
+        assert!(info.value().native_object_is_live());
+        assert!(code.value().native_object_is_live());
+        assert!(vm.execution_refusal.is_none());
+    }
+
+    #[test]
+    fn c84_execution_environment_reuses_physical_provider_and_retires_its_actual_birth() {
+        let mut vm = native_vm("tcl8.4");
+        let (info, code) = c84_execution_names(&vm);
+        let birth =
+            std::rc::Rc::downgrade(&vm.native_errors.c84_execution_names.as_ref().unwrap().birth);
+        vm.set_dialect_profile(tcl_dialect::DialectProfile::irules());
+        let (same_info, same_code) = c84_execution_names(&vm);
+        assert!(info.value().is_same_object(same_info.value()));
+        assert!(code.value().is_same_object(same_code.value()));
+        assert!(birth.upgrade().is_some());
+        let c85 = tcl_registry::model::resolve_environment("tcl8.5").unit_profile();
+        assert!(vm.set_native_engine_profile(c85));
+        assert!(birth.upgrade().is_none());
+        assert!(!info.value().native_object_is_live());
+        assert!(!code.value().native_object_is_live());
+        let c84 = tcl_registry::model::resolve_environment("tcl8.4").unit_profile();
+        assert!(vm.set_native_engine_profile(c84));
+        let (replacement_info, replacement_code) = c84_execution_names(&vm);
+        assert!(!info.value().is_same_object(replacement_info.value()));
+        assert!(!code.value().is_same_object(replacement_code.value()));
+        assert!(vm.execution_refusal.is_none());
+    }
+
+    #[test]
+    fn c84_execution_environment_fallback_pin_and_temporary_override_do_not_share_births() {
+        let mut vm = Vm::new();
+        vm.set_runtime_version(tcl_dialect::TclVersion::V8_4);
+        let (info, code) = c84_execution_names(&vm);
+        vm.set_runtime_version(tcl_dialect::TclVersion::V8_4);
+        let (same_info, same_code) = c84_execution_names(&vm);
+        assert!(info.value().is_same_object(same_info.value()));
+        assert!(code.value().is_same_object(same_code.value()));
+        vm.set_runtime_version(tcl_dialect::TclVersion::V8_5);
+        assert!(vm.native_errors.c84_execution_names.is_none());
+        assert!(!info.value().native_object_is_live());
+        assert!(!code.value().native_object_is_live());
+        vm.active_native_profile =
+            Some(tcl_registry::model::resolve_environment("tcl8.4").unit_profile());
+        vm.configure_c84_execution_environment_error_names()
+            .unwrap();
+        assert!(vm.native_errors.c84_execution_names.is_none());
+        vm.active_native_profile = None;
+        assert!(vm.execution_refusal.is_none());
+    }
+
+    #[test]
+    fn c84_execution_error_logging_uses_the_same_original_parsed_name_headers() {
+        let mut vm = native_vm("tcl8.4");
+        let (info, code) = c84_execution_names(&vm);
+        vm.adopt_native_interp_result(Value::int(777)).unwrap();
+        assert!(vm.publish_c84_error_command_info(b" INFO").unwrap());
+        let original = include_str!(
+            "../../../../experiments/name-handling/results/c84-execution-environment-error-name-objects/capture02/execution.stdout"
+        );
+        for phase in [
+            "after-seed-default-append",
+            "after-reset",
+            "after-nested-error",
+        ] {
+            if phase == "after-reset" {
+                vm.reset_native_jim_result().unwrap();
+            } else if phase == "after-nested-error" {
+                assert_eq!(
+                    vm.eval_source("namespace eval N {proc p {} {error FAIL}}; N::p")
+                        .unwrap()
+                        .code,
+                    Code::Error
+                );
+            }
+            let row = original
+                .lines()
+                .find(|row| row.starts_with(&format!("ENV|{phase}|")))
+                .unwrap()
+                .split('|')
+                .collect::<Vec<_>>();
+            let (same_info, same_code) = c84_execution_names(&vm);
+            assert!(info.value().is_same_object(same_info.value()));
+            assert!(code.value().is_same_object(same_code.value()));
+            for (value, offset) in [(info.value(), 6), (code.value(), 10)] {
+                assert_eq!(
+                    value.native_object_reference_count().to_string(),
+                    row[offset]
+                );
+                assert_eq!(value.native_object_type_name(), row[offset + 1]);
+                assert!(value.resident_string_bytes().is_some());
+            }
+            assert!(vm.execution_refusal.is_none());
+        }
+    }
+
+    #[test]
+    fn c84_execution_error_name_missing_or_retired_birth_cannot_be_reconstructed() {
+        let mut vm = native_vm("tcl8.4");
+        drop(vm.native_errors.c84_execution_names.take());
+        assert!(
+            vm.store_c84_execution_error_value(Variable::ErrorInfo, Value::int(777))
+                .is_err()
+        );
+        assert!(vm.execution_refusal.is_some());
+        assert!(vm.native_errors.c84_execution_names.is_none());
+
+        let mut vm = native_vm("tcl8.4");
+        let scope =
+            super::super::native_name_consumers::OriginalNameConsumerScope::enter(&mut vm).unwrap();
+        let name = vm
+            .original_c84_execution_error_name(Variable::ErrorInfo, &scope)
+            .unwrap();
+        let held_original = name.header.value().clone();
+        scope.finish(&mut vm).unwrap();
+        assert!(vm.set_native_engine_profile(
+            tcl_registry::model::resolve_environment("tcl8.5").unit_profile()
+        ));
+        assert!(held_original.native_object_is_live());
+        assert!(vm.set_native_engine_profile(
+            tcl_registry::model::resolve_environment("tcl8.4").unit_profile()
+        ));
+        let scope =
+            super::super::native_name_consumers::OriginalNameConsumerScope::enter(&mut vm).unwrap();
+        assert!(name.check(&mut vm, &scope).is_err());
+        assert!(vm.execution_refusal.is_some());
+        assert!(held_original.native_object_is_live());
     }
 
     thread_local! {
