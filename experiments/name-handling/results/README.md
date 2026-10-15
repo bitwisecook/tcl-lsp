@@ -63,3 +63,7 @@ a completed C release gate or Jim/F5 agreement.
 [Original Jim remote HEAD recheck](original-jim-remote-head-recheck-20261015/README.md) retains the actual00:31:51–52UTC remote reference observation independently of SDK builds and implementation acceptance.
 
 [Original Jim apply frame argv SDK capture](original-jim-apply-frame-argv-sdk-20261015/README.md) retains seven genuine-object controls for lazy namespace/argument getters and actual frame argv member identity; no Runtime/VM acceptance is inferred.
+
+[Original direct Jim canonical getter capture](original-jim-canonical-getter-order-sdk-20261015/README.md) retains three direct API cases/25rows. The independent [original public/helper which capture](original-jim-which-helper-getter-sdk-20261015/README.md) retains sixteen cold/hot invocations/97rows; neither scope accepts Runtime implementation or a general public-command getter optimisation.
+
+[Original Jim tailcall SDK capture](original-jim-tailcall-selection-sdk-20261015/README.md) retains four genuine-object invocations/19rows, cold/hot getter state and actual native worker/delete callback order across issuer cleanup; no Runtime/VM or full lifecycle acceptance is inferred.
