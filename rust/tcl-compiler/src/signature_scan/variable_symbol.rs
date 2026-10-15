@@ -840,6 +840,23 @@ impl SignatureSourceVariableOccurrence {
         }
     }
 
+    pub(crate) fn from_logical_alias_input(
+        span: tcl_lexer::Span,
+        input: SignatureSourceNameInput,
+        receiver: OriginalVariableSymbolReceiver,
+        alias: OriginalVariableAliasReceipt,
+        scope: crate::command_binding::OriginalLogicalVariableScope,
+    ) -> Option<Self> {
+        scope
+            .matches_alias_template(span, &input, receiver, &alias)
+            .then_some(())?;
+        let namespace = Some(scope.namespace());
+        let mut occurrence =
+            Self::from_original_alias_input(span, input, namespace, receiver, alias);
+        occurrence.logical_scope = Some(scope);
+        Some(occurrence)
+    }
+
     pub(crate) fn from_original_alias_input(
         span: tcl_lexer::Span,
         input: SignatureSourceNameInput,

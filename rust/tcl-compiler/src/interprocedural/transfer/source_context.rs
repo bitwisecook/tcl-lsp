@@ -139,24 +139,11 @@ impl<'a> SourceSummaryContext<'a> {
         &'w self,
         tokens: &'w CommandTokens,
     ) -> Option<InvocationMetadataContext<'w>> {
-        let metadata = tokens
-            .source_binding
-            .as_ref()?
-            .original_invocation_metadata_for_module(tokens, self.module, self.registry)?;
-        (tokens
-            .source_binding
-            .as_ref()?
-            .original_invocation_source_purpose(tokens, metadata, self.registry)?
-            == crate::command_binding::OriginalInvocationSourcePurpose::Logical)
-            .then_some(metadata)
+        self.variable_operands().metadata(tokens)
     }
 
     pub(super) fn operation(&self, tokens: &CommandTokens) -> Option<ResolvedStatementInvocation> {
-        crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
-            self.registry,
-            self.metadata(tokens)?,
-            tokens,
-        )
+        self.variable_operands().operation(tokens)
     }
 
     pub(super) fn with_operation<T>(
@@ -202,53 +189,23 @@ impl<'a> SourceSummaryContext<'a> {
         selected
     }
 
+    fn variable_operands(
+        &self,
+    ) -> crate::registry_invocation::source_structure::OriginalLogicalVariableOperands<'_> {
+        crate::registry_invocation::source_structure::OriginalLogicalVariableOperands::borrowing(
+            self.module,
+            self.registry,
+            &self.realm,
+        )
+    }
+
     fn original_argument_word(
         &self,
         tokens: &CommandTokens,
         written: usize,
     ) -> Option<tcl_lexer::NativeWord> {
-        self.metadata(tokens)?;
-        let input = self.module.source_metadata_input.as_ref()?;
-        let site = tokens.source_binding.as_ref()?.invocation_site()?;
-        let candidate = self
-            .realm
-            .original_logical_navigation_candidates(input, site.offset)?;
-        let original = candidate.original_words().get(written.checked_add(1)?)?;
-        if original.span() != tokens.words().get(written.checked_add(1)?)?.source().span {
-            return None;
-        }
-        Some(original.clone())
-    }
-
-    fn original_argument(
-        &self,
-        tokens: &CommandTokens,
-        written: usize,
-    ) -> Option<(
-        tcl_lexer::Span,
-        crate::signature_scan::scope::SignatureSourceNameInput,
-        crate::command_binding::OriginalLogicalVariableScope,
-    )> {
-        let original = self.original_argument_word(tokens, written)?;
-        let input = self.module.source_metadata_input.as_ref()?;
-        let policy = tcl_registry::InvocationDialect::of_profile(input.unit_profile())
-            .authored_name_policy()?;
-        let purpose =
-            crate::signature_scan::original_name::OriginalSourceNamePurpose::for_analysis_input(
-                input, None, policy,
-            );
-        let name =
-            crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(purpose.key(
-                &original,
-                tcl_syntax::word_rules::WordValueRules::from_config(&original.config()),
-            )?);
-        let scope = self.realm.original_logical_variable_scope_at(
-            input,
-            original.image(),
-            original.span(),
-            &name,
-        )?;
-        Some((original.span(), name, scope))
+        self.variable_operands()
+            .original_argument_word(tokens, written)
     }
 
     pub(super) fn argument_source_place(
@@ -257,15 +214,8 @@ impl<'a> SourceSummaryContext<'a> {
         written: usize,
         form: tcl_registry::resolved_invocation::VariableReceiverOperandForm,
     ) -> Option<crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence> {
-        let (span, input, scope) = self.original_argument(tokens, written)?;
-        crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence::from_logical_source(
-            span,
-            input,
-            crate::signature_scan::variable_symbol::OriginalVariableSymbolReceiver::Operand(form),
-            false,
-            scope,
-            &[],
-        )
+        self.variable_operands()
+            .argument_source_place(tokens, written, form)
     }
 
     pub(super) fn alias_local(
@@ -273,21 +223,7 @@ impl<'a> SourceSummaryContext<'a> {
         tokens: &CommandTokens,
         alias: &tcl_registry::VariableCellAliasTransition,
     ) -> Option<tcl_core_types::NameBytes> {
-        let operation = self.operation(tokens)?;
-        let written = operation
-            .effective
-            .written_argument(alias.local.argument_index()?)?;
-        let (_, input, scope) = self.original_argument(tokens, written)?;
-        scope.local_frame()?;
-        use crate::registry_invocation::DeclarationVariableAliasPurpose as Purpose;
-        use tcl_registry::VariableAliasTarget as Target;
-        let purpose = match alias.target {
-            Target::Global { .. } => Purpose::Global,
-            Target::CurrentNamespace { .. } => Purpose::NamespaceVariable,
-            Target::Namespace { .. } => Purpose::NamespaceUpvar,
-            Target::CallerSelectedFrame { .. } => Purpose::Upvar,
-        };
-        crate::signature_scan::variable_symbol::original_variable_alias_local_name(&input, purpose)
+        self.variable_operands().alias_local(tokens, alias)
     }
 
     pub(super) fn alias_source_place(
@@ -295,53 +231,7 @@ impl<'a> SourceSummaryContext<'a> {
         tokens: &CommandTokens,
         alias: &tcl_registry::VariableCellAliasTransition,
     ) -> Option<crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence> {
-        use tcl_registry::VariableAliasTarget as Target;
-        let variable = match &alias.target {
-            Target::Global { variable }
-            | Target::CurrentNamespace { variable }
-            | Target::Namespace { variable, .. }
-            | Target::CallerSelectedFrame { variable, .. } => variable,
-        };
-        let operation = self.operation(tokens)?;
-        let local = operation
-            .effective
-            .written_argument(alias.local.argument_index()?)?;
-        let target = operation
-            .effective
-            .written_argument(variable.argument_index()?)?;
-        let (local_span, _, local_scope) = self.original_argument(tokens, local)?;
-        let (span, input, scope) = self.original_argument(tokens, target)?;
-        if local_scope.local_frame()? != scope.local_frame()? {
-            return None;
-        }
-        let words = crate::registry_invocation::source_structure::original_logical_registry_words_for_module(
-            self.module, self.registry, tokens,
-        )?;
-        let analysis_input = self.module.source_metadata_input.as_ref()?;
-        let operands = crate::registry_invocation::OriginalSourceVariableAliasOperands::capture(
-            words.clone(),
-            analysis_input.borrowed_context_registry(),
-        )?;
-        let policy = input.policy();
-        let purpose =
-            crate::signature_scan::original_name::OriginalSourceNamePurpose::for_analysis_input(
-                analysis_input,
-                None,
-                policy,
-            );
-        let namespace = operands.target_namespace_scope_for_original_words(
-            &words,
-            analysis_input,
-            (local_span, span),
-            &input,
-            &scope.namespace(),
-            purpose,
-        )?;
-        crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence::from_logical_alias_target(
-            span, input, namespace,
-            crate::signature_scan::variable_symbol::OriginalVariableSymbolReceiver::NamespaceAlias,
-            scope,
-        )
+        self.variable_operands().alias_source_place(tokens, alias)
     }
 
     pub(super) fn alias_receiver_for_local(
@@ -402,43 +292,6 @@ impl<'a> SourceSummaryContext<'a> {
             found = Some(form);
         }
         found
-    }
-
-    pub(super) fn write_arguments(
-        &self,
-        tokens: &CommandTokens,
-    ) -> Option<
-        Vec<(
-            usize,
-            tcl_registry::resolved_invocation::VariableReceiverOperandForm,
-        )>,
-    > {
-        self.with_operation(tokens, |operation, schema| {
-            let (roles, complete) = schema.authored_source_argument_roles();
-            if !complete {
-                return None;
-            }
-            let mut writes = Vec::new();
-            let aliases = schema.authored_logical_source_variable_aliases()?;
-            for (argument, role) in roles {
-                if role != tcl_registry::ArgRole::VarWrite {
-                    continue;
-                }
-                let argument = schema
-                    .semantics
-                    .argument_offset
-                    .checked_add(usize::from(argument))?;
-                if aliases
-                    .iter()
-                    .any(|alias| alias.local.argument_index() == Some(argument))
-                {
-                    continue;
-                }
-                let form = schema.authored_source_variable_receiver_operand_form(argument)?;
-                writes.push((operation.effective.written_argument(argument)?, form));
-            }
-            Some(writes)
-        })
     }
 
     pub(super) fn expression(

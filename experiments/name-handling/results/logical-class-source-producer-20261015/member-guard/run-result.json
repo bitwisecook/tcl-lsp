@@ -1,0 +1,17 @@
+{
+  "utc": "2026-10-15T13:40:13.520991+00:00",
+  "argv": [
+    "/workspace/name-session/compiler-class-producer-probe/stage2-capture/probe"
+  ],
+  "diagnostic_env": {
+    "TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE": "1"
+  },
+  "exit_code": 0,
+  "seconds": 10.476968864999435,
+  "diagnostic_limit": null,
+  "binary_before": "56072a188645c18b3ec1d3a5fb4ed1eb8eee09e098318c0bed14cd459f4b35da",
+  "binary_after": "56072a188645c18b3ec1d3a5fb4ed1eb8eee09e098318c0bed14cd459f4b35da",
+  "source_drift": {},
+  "artifact_drift": {},
+  "scope": "Existing opt-in debugassertion diagnostic in exact K production library; no source instrumentation or ordinary/native/oracle acceptance."
+}

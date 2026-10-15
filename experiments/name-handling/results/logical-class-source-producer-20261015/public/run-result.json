@@ -1,0 +1,15 @@
+{
+  "utc": "2026-10-15T13:33:06.047937+00:00",
+  "argv": [
+    "/workspace/name-session/compiler-class-producer-probe/probe"
+  ],
+  "exit_code": 0,
+  "seconds": 22.969568034000986,
+  "diagnostic_limit": null,
+  "stdout_uncompressed_bytes": 1913,
+  "stdout_gzip_sha256": "9d3277465e6511117874a4deb4de0da9465d9c1025ba19d35108f5380e364e59",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "source_drift": {},
+  "artifact_drift": {},
+  "scope": "Actual publicAPI Knormal library diagnostic only, no instrumentation or conformance acceptance."
+}

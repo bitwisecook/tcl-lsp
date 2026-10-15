@@ -1,0 +1,24 @@
+{
+  "question": "Official documented introduction release for HTTP_REQUEST event; not appliance execution evidence.",
+  "url": "https://clouddocs.f5.com/api/irules/HTTP_REQUEST.html",
+  "retrieved_utc": "2026-10-15T13:23:43.782544+00:00",
+  "status": 200,
+  "final_url": "https://clouddocs.f5.com/api/irules/HTTP_REQUEST.html",
+  "headers": {
+    "content-type": "text/html",
+    "content-length": "53465",
+    "server": "envoy",
+    "date": "Thu, 15 Oct 2026 13:23:45 GMT",
+    "last-modified": "Wed, 14 Oct 2026 17:56:47 GMT",
+    "x-amz-version-id": "o9jVGY3dLsrvYogxeT.fxzzbgs4uBln7",
+    "etag": "\"0e333d2a4255a2d187711ff47d09cb8f\"",
+    "x-cache": "Miss from cloudfront",
+    "via": "1.1 78d5dc2917418a128421fc681e1774b2.cloudfront.net (CloudFront)",
+    "x-amz-cf-pop": "DFW56-P6",
+    "x-amz-cf-id": "UKB1T6eDj2NT2viHWWU39bAkSKFrqkEmtgMbMuXmfxraPFFXMuVQpg==",
+    "x-envoy-upstream-service-time": "342",
+    "connection": "close"
+  },
+  "sha256": "b4fb441da1d5c5b20c402b7ca20534f30b5a03851f9d304739f47159b864f387",
+  "bytes": 53465
+}

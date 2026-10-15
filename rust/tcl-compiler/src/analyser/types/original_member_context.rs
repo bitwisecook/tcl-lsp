@@ -59,6 +59,57 @@ impl OriginalLexicalMemberContext {
         image: &SourceImage,
         config: LexerConfig,
     ) -> Option<Self> {
+        Self::from_class_body_for_side(
+            class,
+            body,
+            parameters,
+            input,
+            image,
+            config,
+            MemberSide::Instance,
+        )
+    }
+
+    pub(crate) fn from_original_definition_method(
+        analysis: &AnalysisResult,
+        class: &ClassDef,
+        method: &OriginalSourceMethodMetadata,
+    ) -> Option<Self> {
+        let methods = crate::analyser::class_hierarchy::original_metadata::original_definition_members_for_class(
+            analysis, class, method.side(),
+        )?;
+        methods.contains(method).then_some(())?;
+        let input = analysis.resolved_input.as_ref()?.clone();
+        let body = method.body_word()?;
+        let mut context = Self::from_class_body_for_side(
+            class,
+            body.tokens().first()?,
+            method.parameters_word()?.tokens().first(),
+            input.clone(),
+            body.image(),
+            input.lexer_config(),
+            method.side(),
+        )?;
+        let Declaration::Method(canonical) = &context.declaration else {
+            return None;
+        };
+        (canonical.declaration() == method.declaration()
+            && canonical.parameters_word() == method.parameters_word()
+            && canonical.body_word() == method.body_word())
+        .then_some(())?;
+        context.declaration = Declaration::Method(Box::new(method.clone()));
+        Some(context)
+    }
+
+    fn from_class_body_for_side(
+        class: &ClassDef,
+        body: &Token,
+        parameters: Option<&Token>,
+        input: ResolvedAnalysisInput,
+        image: &SourceImage,
+        config: LexerConfig,
+        side: MemberSide,
+    ) -> Option<Self> {
         // naming.tcloo.original-lexical-member-context
         // docs/design/analysis/name-resolution-proofs/tcloo-original-lexical-member-context.md
         let publication = class.source_name.as_ref()?;
@@ -85,7 +136,7 @@ impl OriginalLexicalMemberContext {
             .original_members
             .declarations()
             .filter(|method| {
-                method.side() == MemberSide::Instance
+                method.side() == side
                     && !method.native_class_delegate()
                     && method.name_purpose()
                         == tcl_registry::definer::DefinitionMemberNamePurpose::TclOoMethod
@@ -99,7 +150,8 @@ impl OriginalLexicalMemberContext {
             .original_special_members
             .declarations()
             .filter(|method| {
-                method.side() == MemberSide::Instance
+                side == MemberSide::Instance
+                    && method.side() == side
                     && matches(method.body_word(), method.parameters_word())
             })
             .map(|method| Declaration::Special(Box::new(method.clone())));
@@ -141,7 +193,7 @@ impl OriginalLexicalMemberContext {
             Declaration::Method(_) => None,
         }
     }
-    /// Exact source-only instance table axis; class-object bodies do not borrow it.
+    /// Exact source-only own-table axis, independently of receiver entry.
     #[must_use]
     pub fn side(&self) -> MemberSide {
         match &self.declaration {
@@ -347,6 +399,28 @@ impl OriginalLexicalNextCall {
         &self.original_words
     }
 
+    /// Effective arguments with direct original call-site word ownership.
+    /// Captured prefixes and expanded source words require separate recipes.
+    pub(crate) fn original_direct_argument_words(&self) -> Option<Vec<&NativeWord>> {
+        (0..self.invocation.arguments().len())
+            .map(|argument| {
+                let crate::registry_invocation::InvocationWordOrigin::Written(_) =
+                    self.invocation.origins().get(argument.checked_add(1)?)?
+                else {
+                    return None;
+                };
+                let word = self.invocation.original_argument_word(argument)?;
+                (!word.group().expand
+                    && self
+                        .original_words
+                        .iter()
+                        .skip(1)
+                        .any(|original| original == word))
+                .then_some(word)
+            })
+            .collect()
+    }
+
     /// Argument count from the authentic selected effective vector. A target
     /// class operand is data and excluded only by the retained helper grammar.
     #[must_use]
@@ -369,6 +443,9 @@ impl OriginalLexicalNextCall {
     ) -> Option<tcl_registry::Arity> {
         // naming.tcloo.original-lexical-member-context
         // docs/design/analysis/name-resolution-proofs/tcloo-original-lexical-member-context.md
+        if self.context.side() != MemberSide::Instance {
+            return None;
+        }
         let image = SourceImage::document(source);
         let config = self.context.input.lexer_config();
         if !self.context.matches_source(&image, config)
@@ -810,5 +887,110 @@ mod original_member_body_purpose_tests {
         assert!(OriginalLexicalNextCall::from_source(context, &foreign, source, &head).is_none());
         foreign.resolved_input = None;
         assert!(OriginalLexicalNextCall::from_source(context, &foreign, source, &head).is_none());
+    }
+}
+
+#[cfg(test)]
+mod original_class_object_source_tests {
+    use super::*;
+    use crate::analyser::Analyser;
+
+    #[test]
+    fn original_class_object_next_keeps_its_actual_member_and_source_purpose() {
+        let source = "oo::class create Meta {superclass ::oo::class; self method create {name body} {next $name $body}}";
+        let analysis = Analyser::new().analyse(source, "tcl8.6").clone();
+        let class = analysis
+            .all_classes
+            .values()
+            .find(|class| class.name == "Meta")
+            .unwrap();
+        let methods = crate::analyser::class_hierarchy::original_metadata::original_definition_members_for_class(&analysis, class, MemberSide::ClassObject).unwrap();
+        let method = methods
+            .iter()
+            .find(|method| method.original_name_input().bytes() == b"create")
+            .unwrap();
+        let context =
+            OriginalLexicalMemberContext::from_original_definition_method(&analysis, class, method)
+                .unwrap();
+        assert_eq!(context.side(), MemberSide::ClassObject);
+        assert_eq!(context.ordinary_method(), Some(method));
+        let body = context.body_word().content_span().unwrap();
+        let command = crate::segmenter::segment_commands_with_offset_and_config(
+            source.get(body.as_range()).unwrap(),
+            body.start(),
+            context.input.lexer_config().nested(),
+        )
+        .into_iter()
+        .next()
+        .unwrap();
+        let next = OriginalLexicalNextCall::from_source(
+            &context,
+            &analysis,
+            source,
+            command.argv.first().unwrap(),
+        )
+        .unwrap();
+        assert!(!next.has_target_class());
+        assert_eq!(next.original_direct_argument_words().unwrap().len(), 2);
+        assert!(next.source_arity(&analysis, source).is_none());
+        let changed = source.replace("$body", "$other");
+        assert!(
+            OriginalLexicalNextCall::from_source(
+                &context,
+                &analysis,
+                &changed,
+                command.argv.first().unwrap()
+            )
+            .is_none()
+        );
+        let mut missing = class.clone();
+        missing.original_members = Default::default();
+        assert!(
+            OriginalLexicalMemberContext::from_original_definition_method(
+                &analysis, &missing, method
+            )
+            .is_none()
+        );
+    }
+    #[test]
+    fn original_factory_parameter_reads_require_actual_substitution_geometry() {
+        for (name, body, represented) in [
+            ("$name", "$body", true),
+            ("{$name}", "$body", false),
+            ("$name:tail", "$body", false),
+            ("$name", "{$body}", false),
+            ("$name", "[set body]", false),
+        ] {
+            let source = format!(
+                "oo::class create Meta {{superclass ::oo::class; self method create {{name body}} {{next {name} {body}}}}}"
+            );
+            let analysis = Analyser::new().analyse(&source, "tcl8.6").clone();
+            let class = analysis
+                .all_classes
+                .values()
+                .find(|class| class.name == "Meta")
+                .unwrap();
+            let methods = crate::analyser::class_hierarchy::original_metadata::original_definition_members_for_class(&analysis, class, MemberSide::ClassObject).unwrap();
+            let method = methods
+                .iter()
+                .find(|method| method.original_name_input().bytes() == b"create")
+                .unwrap();
+            let original = method.original_parameter_names_and_body(&analysis).unwrap();
+            let word = original.body_word();
+            let plan = tcl_lexer::native_script_words_in(
+                word.image().clone(),
+                word.content_span().unwrap(),
+                word.config(),
+            )
+            .unwrap();
+            let arguments = &plan.commands[0].words;
+            let selected = original
+                .scalar_parameter_read(&arguments[1])
+                .zip(original.body_parameter_read(&arguments[2]));
+            assert_eq!(selected.is_some(), represented, "{source}");
+            if represented {
+                assert_eq!(selected, Some((0, 1)));
+            }
+        }
     }
 }

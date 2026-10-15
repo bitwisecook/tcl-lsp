@@ -1,0 +1,38 @@
+{
+  "question": "What introduction release does the official HTTP_REQUEST reference declare?",
+  "provider": "F5 BIG-IP iRules API reference documentation",
+  "url": "https://clouddocs.f5.com/api/irules/HTTP_REQUEST.html",
+  "invocation": [
+    "experiments/irules/event-availability/http-request-20261015/capture.py",
+    "/workspace/name-session/f5-http-request-availability/complete-capture"
+  ],
+  "python_executable": "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3.12",
+  "python_version": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]",
+  "python_sha256_before": "fa67443527ed9647f760d807e2a38f26340757123e643c4639cf273ed15d5ea7",
+  "capture_source_sha256": "4cac06f1b7c57a65921e1512bb4f02f3125695aa0e4704eb0829501e335b1e68",
+  "started_utc": "2026-10-15T13:25:46.801627+00:00",
+  "context": "Documentation retrieval; no appliance interpreter, TMM, MCPD or iApps execution.",
+  "status": 200,
+  "final_url": "https://clouddocs.f5.com/api/irules/HTTP_REQUEST.html",
+  "headers": {
+    "content-type": "text/html",
+    "content-length": "53465",
+    "server": "envoy",
+    "date": "Thu, 15 Oct 2026 13:25:48 GMT",
+    "last-modified": "Wed, 14 Oct 2026 17:56:47 GMT",
+    "x-amz-version-id": "o9jVGY3dLsrvYogxeT.fxzzbgs4uBln7",
+    "etag": "\"0e333d2a4255a2d187711ff47d09cb8f\"",
+    "x-cache": "Miss from cloudfront",
+    "via": "1.1 09f9d4478a93ffe6a7bd306f3747b680.cloudfront.net (CloudFront)",
+    "x-amz-cf-pop": "DFW56-P6",
+    "x-amz-cf-id": "DuZtnRCR7KVdl5wgqkEREPnJ1v91WDtNBlMbzu0lwvFWBViV2OfnPQ==",
+    "x-envoy-upstream-service-time": "318",
+    "connection": "close"
+  },
+  "artifact": "HTTP_REQUEST.html",
+  "artifact_sha256": "b4fb441da1d5c5b20c402b7ca20534f30b5a03851f9d304739f47159b864f387",
+  "bytes": 53465,
+  "exit_code": 0,
+  "python_sha256_after": "fa67443527ed9647f760d807e2a38f26340757123e643c4639cf273ed15d5ea7",
+  "completed_utc": "2026-10-15T13:25:47.730150+00:00"
+}

@@ -4454,6 +4454,33 @@ impl<'r> Lowerer<'r> {
             self.config,
         )?;
         let word = words.get(index)?;
+        if let Some(context) = self.invocation_metadata_context()
+            && context
+                .source_analysis_input()
+                .is_some_and(crate::analyser::ResolvedAnalysisInput::has_hosted_source_name_context)
+        {
+            let metadata = crate::registry_invocation::original_hosted_source_registry_metadata(
+                self.registry,
+                context,
+                &tokens,
+            )?;
+            if metadata.shape().original_words() != words.as_slice()
+                || !candidates
+                    .iter()
+                    .any(|candidate| candidate.target.command == metadata.shape().command())
+            {
+                return None;
+            }
+            let input =
+                crate::signature_scan::vendor_name::VendorSourceNameInput::from_original_word(
+                    word,
+                    metadata.shape().original_head().policy(),
+                );
+            return input
+                .literal_units(tcl_syntax::naming::VendorSourceNamePurpose::EventName)?
+                .eq_ignore_ascii_case(event.as_bytes())
+                .then(|| word.clone());
+        }
         let dialect = self.invocation_dialect?;
         let key = crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
             word,

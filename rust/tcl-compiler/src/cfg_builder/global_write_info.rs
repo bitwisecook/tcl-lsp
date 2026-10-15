@@ -44,6 +44,7 @@ struct GlobalWriteSemantics<'a> {
     metadata: Option<InvocationMetadataContext<'a>>,
     config: tcl_lexer::LexerConfig,
     input: Option<&'a crate::analyser::ResolvedAnalysisInput>,
+    logical_realm: Option<crate::realm::CommandBindingRealm>,
 }
 
 impl<'a> GlobalWriteSemantics<'a> {
@@ -215,8 +216,26 @@ impl<'a> GlobalWriteSemantics<'a> {
             metadata: Some(metadata),
             config: module.lexer_config,
             input: Some(input),
+            logical_realm: original_logical_effect_realm(module, registry),
         })
     }
+}
+
+fn original_logical_effect_realm(
+    module: &Module,
+    registry: &tcl_registry::CommandRegistry,
+) -> Option<crate::realm::CommandBindingRealm> {
+    module
+        .source_metadata_input
+        .as_ref()?
+        .has_logical_source_name_context()
+        .then_some(())?;
+    crate::realm::original_logical_realm_from_source_bindings(
+        module
+            .retained_source_bindings
+            .as_deref()?
+            .positioned_for_module(module, registry)?,
+    )
 }
 
 fn merge_write_projection(
@@ -243,8 +262,11 @@ fn literal_root(name: &str) -> &str {
 /// Per-proc summary: the outer-scope (global/namespace) variable names a
 /// proc's body writes while aliased via `global` / `variable` / `upvar #0`,
 /// or through a script it runs **at the global frame** (`uplevel #0 …`).
-#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct GlobalWriteInfo {
+    /// Original Logical MAY-write geometry; opaque frame effects remain independent.
+    source_writes:
+        Option<Vec<crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence>>,
     /// Literal outer-scope names this proc's body writes.
     pub names: BTreeSet<String>,
     /// The proc runs a script at the **global frame** that this analysis
@@ -257,7 +279,22 @@ pub struct GlobalWriteInfo {
     pub opaque_global_frame: bool,
 }
 
+impl std::hash::Hash for GlobalWriteInfo {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        std::hash::Hash::hash(&self.names, state);
+        std::hash::Hash::hash(&self.opaque_global_frame, state);
+    }
+}
+
 impl GlobalWriteInfo {
+    /// Complete retained source MAY footprint; opacity never proves absence.
+    pub(crate) fn original_source_writes(
+        &self,
+    ) -> Option<&[crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence]> {
+        (!self.opaque_global_frame).then_some(())?;
+        self.source_writes.as_deref()
+    }
+
     /// True when the proc's body writes no outer-scope name.
     #[must_use]
     pub fn is_empty(&self) -> bool {
@@ -265,11 +302,18 @@ impl GlobalWriteInfo {
     }
 
     fn union_from(&mut self, other: &Self) -> bool {
-        let old_len = self.names.len();
-        let old_opaque = self.opaque_global_frame;
+        let old = self.clone();
         self.names.extend(other.names.iter().cloned());
         self.opaque_global_frame |= other.opaque_global_frame;
-        self.names.len() != old_len || self.opaque_global_frame != old_opaque
+        match (&mut self.source_writes, &other.source_writes) {
+            (Some(held), Some(incoming)) => {
+                for place in incoming {
+                    insert_source_write(held, place.clone());
+                }
+            }
+            _ => self.source_writes = None,
+        }
+        *self != old
     }
 }
 
@@ -303,8 +347,8 @@ pub(crate) fn detect_global_write_bodies_with_registry(
                 own_body_global_writes(&procedure.body, semantics, &namespace)
             }
             _ => GlobalWriteInfo {
-                names: BTreeSet::new(),
                 opaque_global_frame: true,
+                ..GlobalWriteInfo::default()
             },
         };
         let (calls, opaque) = direct_call_targets(&procedure.body, &owners, registry);
@@ -378,8 +422,10 @@ pub(crate) fn own_frame_global_writes_with_metadata_context<'a>(
             ..GlobalWriteInfo::default()
         };
     };
+    let module = owners.module(registry);
     let semantics = GlobalWriteSemantics {
-        module: owners.module(registry),
+        module,
+        logical_realm: module.and_then(|module| original_logical_effect_realm(module, registry)),
         registry,
         aliases,
         selection: if metadata.is_standalone() {
@@ -407,6 +453,7 @@ pub(crate) fn own_frame_global_writes_standalone(
 ) -> GlobalWriteInfo {
     let semantics = GlobalWriteSemantics {
         module: None,
+        logical_realm: None,
         registry,
         aliases,
         selection: InvocationMetadataInput::Standalone,
@@ -441,6 +488,137 @@ fn frame_global_writes(
     info
 }
 
+fn insert_source_write(
+    writes: &mut Vec<crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence>,
+    place: crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence,
+) {
+    if !writes.iter().any(|held| held.symbol() == place.symbol()) {
+        writes.push(place);
+    }
+}
+
+fn own_logical_body_global_writes(
+    body: &Script,
+    semantics: &GlobalWriteSemantics<'_>,
+) -> GlobalWriteInfo {
+    use crate::signature_scan::variable_symbol::{
+        SignatureSourceVariableOccurrence, SignatureSourceVariableSlot,
+    };
+    let inventory = || -> Option<Vec<SignatureSourceVariableOccurrence>> {
+        let module = semantics.module?;
+        if module.has_dynamic_trace
+            || !module.traced_commands.is_empty()
+            || module.has_dynamic_variable_trace
+            || !module.traced_variables.is_empty()
+        {
+            return None;
+        }
+        let realm = semantics.logical_realm.as_ref()?;
+        let operands = crate::registry_invocation::source_structure::OriginalLogicalVariableOperands::borrowing(
+            module, semantics.registry, realm,
+        );
+        let commands = operands.body_commands(body)?;
+        let mut aliases: HashMap<
+            SignatureSourceVariableSlot,
+            Vec<SignatureSourceVariableOccurrence>,
+        > = HashMap::new();
+        let mut writes = Vec::new();
+        for tokens in &commands {
+            if crate::registry_invocation::original_logical_procedure_calls_for_module(
+                tokens,
+                module,
+                semantics.registry,
+            )
+            .is_some()
+            {
+                continue;
+            }
+            let operation = operands.operation(tokens)?;
+            let (_, declared) = semantics.logical_footprint(tokens)?;
+            for alias in declared {
+                let local = operands.alias_local_slot(tokens, &alias)?;
+                if let tcl_registry::VariableAliasTarget::CallerSelectedFrame { frame, .. } =
+                    &alias.target
+                {
+                    let level = match frame {
+                        tcl_registry::CallerFrameSelection::DefaultCaller => {
+                            Some(tcl_registry::FrameLevel::Relative(1))
+                        }
+                        tcl_registry::CallerFrameSelection::Explicit(level) => {
+                            tcl_registry::FrameLevel::parse_for_dialect(
+                                level.literal()?,
+                                operation.dialect?,
+                            )
+                        }
+                    }?;
+                    if !level.is_global_frame() {
+                        // The caller-frame owner retains these separate effects.
+                        continue;
+                    }
+                }
+                let target = operands.alias_source_place(tokens, &alias)?;
+                insert_source_write(aliases.entry(local).or_default(), target.clone());
+                if alias.writes_value {
+                    insert_source_write(&mut writes, target);
+                }
+            }
+        }
+        for tokens in &commands {
+            if crate::registry_invocation::original_logical_procedure_calls_for_module(
+                tokens,
+                module,
+                semantics.registry,
+            )
+            .is_some()
+            {
+                continue;
+            }
+            let (projection, _) = semantics.logical_footprint(tokens)?;
+            if projection.opaque_variable_frame {
+                return None;
+            }
+            for (written, form) in operands.write_arguments(tokens)? {
+                let place = operands.argument_source_place(tokens, written, form)?;
+                match place.symbol().slot() {
+                    local @ SignatureSourceVariableSlot::Local { .. } => {
+                        if let Some(targets) = aliases.get(local) {
+                            for target in targets {
+                                insert_source_write(&mut writes, target.clone());
+                            }
+                        }
+                    }
+                    SignatureSourceVariableSlot::C { .. } | SignatureSourceVariableSlot::Jim(_) => {
+                        insert_source_write(&mut writes, place);
+                    }
+                }
+            }
+        }
+        Some(writes)
+    }();
+    let Some(writes) = inventory else {
+        return GlobalWriteInfo {
+            opaque_global_frame: true,
+            ..GlobalWriteInfo::default()
+        };
+    };
+    let mut info = GlobalWriteInfo {
+        source_writes: Some(writes),
+        ..GlobalWriteInfo::default()
+    };
+    for place in info
+        .source_writes
+        .as_ref()
+        .expect("original source inventory")
+    {
+        let Some(report) = place.symbol().checked_c_namespace_key() else {
+            info.opaque_global_frame = true;
+            continue;
+        };
+        insert_outer_name(&mut info.names, &report);
+    }
+    info
+}
+
 /// Pass 1: union every `global` / `variable` declaration in `body` into one
 /// flag state (order-independent), *and* separately collect the
 /// (local-alias-name → real-outer-name) map for `upvar #0` / `upvar 0` /
@@ -456,6 +634,14 @@ fn own_body_global_writes(
     semantics: &GlobalWriteSemantics<'_>,
     namespace: &str,
 ) -> GlobalWriteInfo {
+    if semantics.logical_source() {
+        let mut info = own_logical_body_global_writes(body, semantics);
+        info.opaque_global_frame |=
+            semantics
+                .aliases
+                .script_has_opaque_binding_effect(body, semantics.registry, namespace);
+        return info;
+    }
     let registry = semantics.registry;
     let aliases = semantics.aliases;
     let mut state = State::default();
@@ -1289,6 +1475,7 @@ pub(super) fn script_value_write_projection_with_metadata_context(
         script,
         &GlobalWriteSemantics {
             module: None,
+            logical_realm: None,
             registry,
             aliases,
             selection: if metadata.is_standalone() {
@@ -1481,6 +1668,60 @@ mod tests {
             .with_dialect(Some(profile))
             .with_resolved_analysis_input(input);
         crate::lowering::lower_to_ir_with(lowerer, src)
+    }
+
+    #[test]
+    fn original_logical_outer_writes_retain_typed_alias_targets_and_incomplete_coverage() {
+        let original =
+            module("proc left {} {global ::g; set g 1}\nproc right {} {global ::::g; set g 2}");
+        let rows = detect_global_write_procs(&original);
+        let left = &rows[&summary_id(&original, "::left")];
+        let right = &rows[&summary_id(&original, "::right")];
+        let [left] = left
+            .original_source_writes()
+            .expect("complete first source footprint")
+        else {
+            panic!("one original alias target");
+        };
+        let [right] = right
+            .original_source_writes()
+            .expect("complete second source footprint")
+        else {
+            panic!("one original alias target");
+        };
+        assert_eq!(left.symbol(), right.symbol());
+        assert_ne!(left.span(), right.span());
+        let mut changed = original.clone();
+        changed.source = tcl_lexer::SourceImage::document(
+            "proc left {} {global ::other; set other 1}\nproc right {} {global ::::g; set g 2}",
+        );
+        assert!(
+            detect_global_write_procs(&changed)
+                .values()
+                .all(|row| row.original_source_writes().is_none())
+        );
+        let mut observed = original.clone();
+        observed.traced_commands.insert("::set".to_owned());
+        assert!(
+            detect_global_write_procs(&observed)
+                .values()
+                .all(|row| row.original_source_writes().is_none())
+        );
+        let unknown = module("proc p {} {global g; set g 1; unknown_call}");
+        let rows = detect_global_write_procs(&unknown);
+        let row = &rows[&summary_id(&unknown, "::p")];
+        assert!(row.opaque_global_frame);
+        assert!(
+            row.original_source_writes().is_none(),
+            "a known write cannot close an unknown call remainder"
+        );
+        let dynamic = module("proc p {name} {global g; set $name 1}");
+        let rows = detect_global_write_procs(&dynamic);
+        assert!(
+            rows[&summary_id(&dynamic, "::p")]
+                .original_source_writes()
+                .is_none()
+        );
     }
 
     #[test]

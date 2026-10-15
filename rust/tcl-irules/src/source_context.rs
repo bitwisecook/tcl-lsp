@@ -1014,7 +1014,30 @@ mod tests {
                 .iter()
                 .find(|event| event.event() == "HTTP_REQUEST")
                 .expect("the original configured HTTP_REQUEST declaration retains its body owner");
-            assert!(http_event.matches_source(&SourceImage::document(source), config));
+            let image = SourceImage::document(source);
+            assert!(http_event.matches_source(&image, config));
+            let event_word = http_event
+                .event_word(&image, config, registry)
+                .expect("the original Hosted event operand retains its own source naming purpose");
+            assert_eq!(
+                source.get(event_word.span().as_range()),
+                Some("HTTP_REQUEST")
+            );
+            assert_eq!(event_word.config(), config);
+            assert!(
+                http_event
+                    .event_word(
+                        &SourceImage::document(&format!("#{source}")),
+                        config,
+                        registry
+                    )
+                    .is_none()
+            );
+            let changed = LexerConfig {
+                strict_quoting: !config.strict_quoting,
+                ..config
+            };
+            assert!(http_event.event_word(&image, changed, registry).is_none());
             let http_commands = inventory
                 .commands()
                 .iter()

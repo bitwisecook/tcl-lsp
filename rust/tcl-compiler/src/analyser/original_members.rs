@@ -16,7 +16,7 @@ use crate::{
     command_binding::{CommandAllocationSite, SourceOriginId},
     ir::CommandTokens,
     signature_scan::{
-        original_name::SourceOriginalNameOccurrence,
+        original_name::{OriginalSourceNamePurpose, SourceOriginalNameOccurrence},
         scope::{
             SignatureNamespaceScope, SignatureSourceLookup, SignatureSourceNameInput,
             SignatureSourceNameKey, SignatureSourceNameValue,
@@ -346,6 +346,11 @@ impl Analyser {
             origin,
             dialect,
             policy,
+            name_purpose: OriginalSourceNamePurpose::for_analysis_input(
+                &self.resolved_analysis_input(),
+                self.source_analysis_entry.as_deref(),
+                policy,
+            ),
             source_dialect: self.original_member_source_dialect(),
             bindings: self.head_identities.source_bindings_ref(),
             registry: self.registry.as_deref(),
@@ -440,6 +445,11 @@ impl Analyser {
             origin,
             dialect,
             policy,
+            name_purpose: OriginalSourceNamePurpose::for_analysis_input(
+                &self.resolved_analysis_input(),
+                self.source_analysis_entry.as_deref(),
+                policy,
+            ),
             source_dialect: self.original_member_source_dialect(),
             bindings,
             registry: self.registry.as_deref(),
@@ -531,6 +541,11 @@ impl Analyser {
             origin,
             dialect,
             policy,
+            name_purpose: OriginalSourceNamePurpose::for_analysis_input(
+                &self.resolved_analysis_input(),
+                self.source_analysis_entry.as_deref(),
+                policy,
+            ),
             source_dialect: self.original_member_source_dialect(),
             bindings,
             registry: self.registry.as_deref(),
@@ -579,6 +594,7 @@ struct Producer<'a> {
     origin: &'a Arc<SourceOriginId>,
     dialect: super::oo::MemberDialect<'a>,
     policy: tcl_syntax::naming::NamePolicyProtocol,
+    name_purpose: OriginalSourceNamePurpose,
     source_dialect: Option<tcl_registry::InvocationDialect>,
     caller_scope: Option<SignatureNamespaceScope>,
     bindings: &'a crate::command_binding::SourceCommandBindings,
@@ -611,7 +627,7 @@ struct MethodParts {
 
 impl Producer<'_> {
     fn key(&self, word: &NativeWord) -> Option<SignatureSourceNameKey> {
-        SignatureSourceNameKey::from_original_native_word(word, self.dialect.rules, self.policy)
+        self.name_purpose.key(word, self.dialect.rules)
     }
     fn input(&self, word: &NativeWord) -> Option<SignatureSourceNameInput> {
         if let Some((_, input)) = self
@@ -1541,6 +1557,41 @@ fn original_two_word_role_word(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn logical_member_names_retain_source_ledgers_without_native_word_admission() {
+        let source = "oo::class create ::Meta {superclass oo::class; self method create {name body} {next $name $body}}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        assert!(analysis.allows_retained_logical_declaration_advice());
+        let class = &analysis.all_classes["::Meta"];
+        let methods = class
+            .original_members
+            .methods(MemberSide::ClassObject)
+            .expect("the genuine Logical original member inventory");
+        let [method] = methods.as_slice() else {
+            panic!("one actual ClassObject member");
+        };
+        assert_eq!(method.original_name_input().bytes(), b"create");
+        let key = method.original_name_input().original_word_key().unwrap();
+        assert!(
+            SignatureSourceNameKey::from_original_native_word(
+                key.original_word(),
+                tcl_syntax::word_rules::WordValueRules::from_config(&key.original_word().config()),
+                key.policy(),
+            )
+            .is_none(),
+            "source geometry cannot satisfy the Native word purpose"
+        );
+        let effects = class.original_relations.effects().collect::<Vec<_>>();
+        let [effect] = effects.as_slice() else {
+            panic!("the actual superclass source effect");
+        };
+        assert_eq!(effect.kind(), OriginalSourceClassRelationKind::Superclass);
+        assert_eq!(
+            effect.values().unwrap()[0].name_input().bytes(),
+            b"oo::class"
+        );
+    }
 
     #[test]
     fn original_readonly_method_names_keep_the_selected_option_position() {

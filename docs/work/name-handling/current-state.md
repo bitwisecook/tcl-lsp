@@ -8,22 +8,22 @@ Pushed source checkpointf2d157a53 adds genuine full-vector BPF body/list ownersh
 
 ## Latest sealed ordinary result
 
-F built all14 ordinary test ELFs successfully with one Cargo job (exit0, errors[], tracked source drift{}). Its complete selected replay ran992 controls: **677 PASS,314 FAIL,1 TIMEOUT**. All967 first-batch controls remain; exact comparison gives10 gains, **1 prior-PASS regression**,0 drops. The25 added controls give15PASS/10FAIL. Every selected scope retains original budgets, exact single-test checks, nonempty filters, unchanged source/ELFs and no missing selectors. Original#2286 ran first and PASS71.317924863s under its unchanged180-second budget; the issue remains OPEN.
+K at `c448d18f6fdb8ffbbba89156222af4c7b8a692d9` builds all14 test ELFs in526.917578618s (exit0/errors[]/source drift{}, zero build-time tests), then seals1027selected controls: **696PASS/330FAIL/1TIMEOUT**. Every992F predecessor remains with one gain, four prior-PASS regressions and zero drops;35actual ELF-listed additions give22PASS/13FAIL. All13scopes retain exact-run/nonempty selectors, original budgets, source drift{} and unchanged binaries. Original#2286 runs first and PASS73.30162458799896s under180seconds; it remains OPEN.
 
 | Scope | PASS | FAIL | TIMEOUT |
 | --- | ---: | ---: | ---: |
-| Compiler502 |295|206|1|
-| Core251 |169|82|0|
-| DB82 |70|12|0|
-| iRules20 |19|1|0|
-| MCP43 |33|10|0|
+| Compiler519 |301|217|1|
+| Core251 |168|83|0|
+| DB84 |69|15|0|
+| iRules21 |20|1|0|
+| MCP43 |34|9|0|
 | Server15 |12|3|0|
-| Registry15 |15|0|0|
-| Syntax7 / Source42 / Studio3 / SpecTcl1 / Lexer11 |64|0|0|
+| VM added9 |7|2|0|
+| Registry20 / Syntax7 / Source42 / Studio4 / SpecTcl1 / Lexer11 |85|0|0|
 
-The MCP regression is `irule_gen::tests::scaffold_deduplicates_events_and_sets_up_registry_classified_pools`; source repair is captured in05d and remains unexecuted. All three predecessor iRules object reachability/tombstone/literal-candidate failures now pass. Four new Compiler collection controls fail; a separately captured original-ELF diagnostic identifies upfront source validation of three explicitly non-invocation markers as an additional refusal. The narrow shared-predicate correction is source reviewed but unexecuted. New Logical source/formal/frame positives and two original completion controls remain failing; no guard or assertion is relaxed.
+MCP's previous scaffold regression now passes. Four prior-PASS regressions are Logical alias source coverage, Core class navigation and two DB complete-provider factory positives; Compiler owns authentic producer repairs. K's two added VM helper controls fail actual source-library lifecycle and abbreviated-NUL selector caller-header behaviour; reviewed physical-provider/actual diagnostic-sort repairs are awaiting fresh execution. All four collection controls and new source-flow/getter positives still fail; original assertions remain. The sole iRules failure is the configured HTTP availability case, now explained by missing explicit lifecycle metadata, with documentation-backed correction awaiting execution.
 
-Exact F channels and comparison are in `handoff/validation-8df-batch-f.tar.gz`; live capture `/workspace/name-session/replay-f-*`, comparison `ordinary-f-comparison.json`. No result accepts later active source. B/C/D/E build failures retain their independent channels and repairs.
+Exact K channels: `/workspace/name-session/batch-k-build-ordinary`, `replay-k-*`, `ordinary-k-comparison.json`, `k-replay-plans.json`. The complete previous F result (992controls677PASS/314FAIL/1TIMEOUT, all967A retained10gains/1MCPregression/0drops) remains portable in `handoff/validation-8df-batch-f.tar.gz`; none of these captures accepts newer active source.
 
 ## Native execution and provider limits
 
@@ -161,3 +161,5 @@ The next Runtime checkpoint retains entered-original Import completion transport
 Follow-up K public-API diagnostic refines the configured-event failure: actual3descriptors/currentprocedure/source/config/Registry and whole argv/schema/Body1/PotentialEvaluation body checks all succeed. HTTP_REQUEST is unavailable at9.4.0 because its metadata has no introduction and receives the explicit global15.0 baseline; XML9.4 and HTTP16.1 selection are correct. No producer guard is weakened. Root linked exactKnormalrlibs into an isolated diagnostic client (compile0/run0, source/artifact drift{},13.1989s, no instrumentation), raw16KB retained at /workspace/name-session/k-http-owner-probe. LSP retains official F5 documentation evidence for an explicit HTTP introduction; appliance execution remains unobserved.
 
 The next source checkpoint replaces both private unchecked ELF/BTF string pools with exact shared CString-backed artifact admission and checked terminator-inclusive32bit table extents. Direct public ingresses reject interiorNUL rather than aliasing the valid prefix; other source/backend naming domains are unchanged. Artifact source peer/format/diff checks pass; five controls and all fresh builds remain unexecuted. BTF non-string count/size arithmetic remains a separate audit.
+
+Root RuntimeK174 is executing under the sealed reviewed packet against the same exact frozenK source; VMK133 is sealed as a future plan and awaits the exclusive build/replay lease. New source checkpoints retain complete Logical operand/global-write source inventories, unique Logical alias occurrences, actual selected source Next geometry, Hosted event operands, explicit HTTP introduction and VM physical provider/diagnostic dispatch. Their peers and scoped formatting pass; no fresh implementation acceptance is implied. Source SSA identity/optional location-key projection and all physical consumers remain a required coherent next tranche.

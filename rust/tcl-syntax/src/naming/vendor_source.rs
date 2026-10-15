@@ -87,6 +87,8 @@ pub enum VendorSourceNamePurpose {
     CommandHead,
     /// Original procedure publication operand, without installation authority.
     ProcedureName,
+    /// Original event declaration operand, without installation or event entry.
+    EventName,
     /// Original namespace operand, without namespace existence or incarnation.
     NamespaceName,
     /// Original package-name operand, without availability or loader identity.

@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<!DOCTYPE html>
+
+<head>
+  
+  <!-- Google Tag Manager -->
+  <script>(function (w, d, s, l, i) { w[l] = w[l] || []; w[l].push({ 'gtm.start': new Date().getTime(), event: 'gtm.js' }); var f = d.getElementsByTagName(s)[0], j = d.createElement(s), dl = l != 'dataLayer' ? '&l=' + l : ''; j.async = true; j.src = 'https://www.googletagmanager.com/gtm.js?id=' + i + dl; f.parentNode.insertBefore(j, f); })(window, document, 'script', 'dataLayer', 'GTM-PPZPQ6');</script>
+  <!-- End Google Tag Manager -->
+  <title>HTTP_REQUEST</title>
+  
+
+  <meta charset="utf-8">
+  <!-- Twitter Bootstrap viewport setting -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <!-- F5 metadata -->
+  <meta name="title" content="HTTP_REQUEST" />
+  <meta name="product" content="" />
+  <meta name="version" content="" />
+  <meta name="updated_date" content="2026-10-14 05:42:19" />
+  <meta name="archived" content="Archived documents excluded" />
+  <meta name="doc_type" content="Manual" />
+  <meta name="lifecycle" content="release" />
+  <meta name="" content="" />
+
+  
+  <meta content="F5 BIG-IP iRules API" name="product" />
+
+
+  
+  <link href="https://cdn.f5.com/favicon.ico" rel="icon">
+
+</head>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
+  <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" /><meta content="F5 BIG-IP iRules API" name="product" />
+
+    <title>HTTP_REQUEST &#8212;  0.9.1</title>
+    <link rel="stylesheet" href="../_static/css/bootstrap.min.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/table_styling.css" />
+    <link rel="stylesheet" type="text/css" href="/assets/css/bootstrap.min.css" />
+    <link rel="stylesheet" type="text/css" href="/assets/css/f5.css" />
+    <link rel="stylesheet" type="text/css" href="/assets/css/f5-theme.css" />
+    <link rel="stylesheet" type="text/css" href="/assets/css/custom.css" />
+    <link rel="stylesheet" type="text/css" href="/assets/css/CoveoFullSearch.css" />
+    <link rel="stylesheet" type="text/css" href="https://use.fontawesome.com/releases/v5.8.1/css/all.css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/language_data.js"></script>
+    <script type="text/javascript" src="../_static/clipboard.min.js"></script>
+    <script type="text/javascript" src="../_static/copybutton.js"></script>
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mark.js/8.11.1/jquery.mark.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+
+  
+    
+
+  
+  </head><body>
+  <div id="clouddocs-header"></div>
+
+    <div id="dismiss">
+      <button type="button" class="btn btn-info navbar-btn site-hidden">
+        <i class="fa fa-align-justify"></i>
+      </button>
+    </div>
+    <div id="sidebar" class="section-nav">
+      
+      <!--  version selector ------------------>
+      <div id="version_selector_wrapper">
+      </div>
+      <nav class="nav-sidebartoc">
+
+        
+         <h5> 0.9.1 </h5>
+        
+
+<!--<!DOCTYPE html>
+<div id="searchbox" role="search">
+  <form class="search" action="../search.html" method="get">
+    <input type="text" class="search" name="q" placeholder=" Search..." />
+    <button type="submit" class="btn btn-info navbar-btn"><i class="fa fa-search"></i></button>
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>-->
+        <hr>
+        <span class="nav-sidebartoc">
+            <ul>
+<li class="toctree-l1"><a class="reference internal" href="../iapps/index.html">iApps Home</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../icontrol-rest/index.html">iControlREST Home</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../icontrol-soap/index.html">iControl (SOAP) Home</a></li>
+<li class="toctree-l1"><a class="reference internal" href="index.html">iRules Home</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../irules-lx/index.html">iRulesLX Home</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tmsh/index.html">TMSH Home</a></li>
+</ul>
+
+        </span><!DOCTYPE html>
+<!-- Use this file to add extra links to the bottom of the ToC sidebar -->
+<hr>
+<span class="nav-sidebartoc">
+  <!-- insert content here -->
+</span>
+      </nav>
+    </div>
+
+
+<!--    <div id="right-sidebar">-->
+<!--      <h7 style="font-weight:normal">On this page:</h7>-->
+<!--      <nav class="nav-sidebartoc">-->
+<!--        <span class="nav-sidebartoc">-->
+<!--            <ul>
+<li><a class="reference internal" href="#">HTTP_REQUEST</a><ul>
+<li><a class="reference internal" href="#description"><strong>Description</strong></a></li>
+<li><a class="reference internal" href="#examples">Examples</a></li>
+<li><a class="reference internal" href="#related-information">Related Information</a></li>
+</ul>
+</li>
+</ul>
+-->
+<!--         </span>-->
+<!--      </nav>-->
+<!--    </div>-->
+
+
+
+
+
+  
+  <div class="main active" id="content" >
+    <article class="docs-container site-article-inner">
+      <!DOCTYPE html>
+<nav class="site-breadcrumb-nav site-nav">
+  <ul class="site-breadcrumb-list">
+    <li class="breadcrumb-item"><button type="button" id="sidebarCollapse"
+        class="btn btn-info navbar-btn site-hidden"><i class="fa fa-align-justify"></i></button>&#x20 <a
+        href="/">Clouddocs</a> &gt; <a href="../index.html"> </a> &gt; HTTP_REQUEST</li>
+  </ul>
+</nav>
+      
+
+
+    
+     
+         <div class="sidebar" id="version-warning" style="display: none;">
+           <p class="first sidebar-title">
+           <span class="icon fa fa-info-circle fa-lg"></span> Version notice:</p>
+           <p class="last" id="currentVersion"></p>
+          </div>
+
+
+    
+  <div class="section" id="http-request">
+<h1>HTTP_REQUEST<a class="headerlink" href="#http-request" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="description">
+<h2><strong>Description</strong><a class="headerlink" href="#description" title="Permalink to this headline">¶</a></h2>
+<div class="line-block">
+<div class="line">An <a class="reference external" href="Events.html">iRule event</a> triggered when the system fully
+parses the complete client HTTP request headers (that is, the method,
+URI, version, and all headers, not including the HTTP request body).</div>
+</div>
+</div>
+<div class="section" id="examples">
+<h2>Examples<a class="headerlink" href="#examples" title="Permalink to this headline">¶</a></h2>
+<div class="highlight-Tcl notranslate"><div class="highlight"><pre><span></span><span class="nv">when</span><span class="w"> </span>HTTP_REQUEST<span class="w"> </span><span class="k">{</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="k">{</span><span class="w"> </span><span class="k">[</span><span class="nv">HTTP</span><span class="o">::</span>uri<span class="k">]</span><span class="w"> </span><span class="nv">contains</span><span class="w"> </span><span class="s2">&quot;secure&quot;</span><span class="k">}</span><span class="w"> </span><span class="k">{</span>
+<span class="w">    </span><span class="nv">HTTP</span><span class="o">::</span>redirect<span class="w"> </span><span class="s2">&quot;https://[HTTP::host][HTTP::uri]&quot;</span>
+<span class="w">  </span><span class="k">}</span>
+<span class="k">}</span>
+</pre></div>
+</div>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</div>
+<div class="section" id="related-information">
+<h2>Related Information<a class="headerlink" href="#related-information" title="Permalink to this headline">¶</a></h2>
+<p><strong>Available Commands:</strong></p>
+<div class="listbykeyword docutils container">
+<ul class="simple">
+<li><a class="reference external" href="ACCESS__disable.html">ACCESS::disable</a> - Control enforcement
+for a particular request URI</li>
+<li><a class="reference external" href="AUTH__abort.html">AUTH::abort</a> - Cancels any outstanding auth
+operations in this authentication session.</li>
+<li><a class="reference external" href="AUTH__authenticate.html">AUTH::authenticate</a> - Performs a new
+authentication operation.</li>
+<li><a class="reference external" href="AUTH__password_credential.html">AUTH::password_credential</a> -
+Sets the password credential to the specified string for a future
+AUTH::authenticate call.</li>
+<li><a class="reference external" href="AUTH__wantcredential_prompt.html">AUTH::wantcredential_prompt</a>
+- Returns a string for an authorization session authid’s
+credential prompt.</li>
+<li><a class="reference external" href="CACHE__disable.html">CACHE::disable</a> - Disables the caching
+for this request.</li>
+<li><a class="reference external" href="CACHE__enable.html">CACHE::enable</a> - Forces the document to be
+cached.</li>
+<li><a class="reference external" href="CACHE__priority.html">CACHE::priority</a> - Adds a priority to
+cached documents.</li>
+<li><a class="reference external" href="CACHE__uri.html">CACHE::uri</a> - Overrides the URI value used by
+the cache to store the cached content.</li>
+<li><a class="reference external" href="CACHE__useragent.html">CACHE::useragent</a> - Overrides the
+<strong>useragent</strong> value used by the cache to reference the cached
+content.</li>
+<li><a class="reference external" href="CACHE__userkey.html">CACHE::userkey</a> - Allows users to add
+user-defined values to the key used by the cache to reference the
+cached content.</li>
+<li><a class="reference external" href="CATEGORY__analytics.html">CATEGORY::analytics</a> - enables or
+disables the analytics server on a per request basis</li>
+<li><a class="reference external" href="CATEGORY__safesearch.html">CATEGORY::safesearch</a> - checks for
+safe search parameters for the given URL</li>
+<li><a class="reference external" href="CLASSIFY__application.html">CLASSIFY::application</a> - allows
+you to set or add an app name to the classification.</li>
+<li><a class="reference external" href="CLASSIFY__category.html">CLASSIFY::category</a> - allows you to
+set or add a category name to the classification</li>
+<li><a class="reference external" href="CLASSIFY__urlcat.html">CLASSIFY::urlcat</a> - allows you to set or
+add an url category to the classification.</li>
+<li><a class="reference external" href="clone.html">clone</a> - Causes the system to clone traffic to the
+specified pool or pool member regardless of monitor status.</li>
+<li><a class="reference external" href="COMPRESS__buffer_size.html">COMPRESS::buffer_size</a> - Sets the
+compression buffer size.</li>
+<li><a class="reference external" href="COMPRESS__disable.html">COMPRESS::disable</a> - Disables
+compression for the current HTTP response.</li>
+<li><a class="reference external" href="COMPRESS__enable.html">COMPRESS::enable</a> - Enables compression
+for the current HTTP response.</li>
+<li><a class="reference external" href="COMPRESS__gzip.html">COMPRESS::gzip</a> - Sets HTTP data
+compression criteria.</li>
+<li><a class="reference external" href="DOSL7__profile.html">DOSL7::profile</a> - returns the DOS profile
+from which the L7-DoS policy is extracted</li>
+<li><a class="reference external" href="forward.html">forward</a> - Sets the connection to forward IP
+packets.</li>
+<li><a class="reference external" href="HTTP__class.html">HTTP::class</a> - Returns or sets the HTTP
+class selected by the HTTP selector.</li>
+<li><a class="reference external" href="HTTP__close.html">HTTP::close</a> - Closes the HTTP connection.</li>
+<li><a class="reference external" href="HTTP__collect.html">HTTP::collect</a> - Collects an amount of
+HTTP body data that you specify.</li>
+<li><a class="reference external" href="HTTP__cookie.html">HTTP::cookie</a> - Queries for or manipulates
+cookies in HTTP requests and responses.</li>
+<li><a class="reference external" href="HTTP__fallback.html">HTTP::fallback</a> - Specifies or overrides
+a fallback host specified in the HTTP profile.</li>
+<li><a class="reference external" href="HTTP__header.html">HTTP::header</a> - Queries or modifies HTTP
+headers.</li>
+<li><a class="reference external" href="HTTP__host.html">HTTP::host</a> - Returns the value of the HTTP
+Host header</li>
+<li><a class="reference external" href="HTTP__is_keepalive.html">HTTP::is_keepalive</a> - Returns a
+<strong>true</strong> value if this is a <strong>Keep-Alive</strong> connection.</li>
+<li><a class="reference external" href="HTTP__is_redirect.html">HTTP::is_redirect</a> - Returns a
+<strong>true</strong> value if the response is a redirect.</li>
+<li><a class="reference external" href="HTTP__method.html">HTTP::method</a> - Returns the type of HTTP
+request method.</li>
+<li><a class="reference external" href="HTTP__password.html">HTTP::password</a> - Returns the password
+part of HTTP basic authentication.</li>
+<li><a class="reference external" href="HTTP__path.html">HTTP::path</a> - Returns or sets the path part
+of the HTTP request.</li>
+<li><a class="reference external" href="HTTP__payload.html">HTTP::payload</a> - Queries for or
+manipulates HTTP payload information.</li>
+<li><a class="reference external" href="HTTP__query.html">HTTP::query</a> - Returns the query part of the
+HTTP request.</li>
+<li><a class="reference external" href="HTTP__redirect.html">HTTP::redirect</a> - Redirects an HTTP
+request or response to the specified URL.</li>
+<li><a class="reference external" href="HTTP__request.html">HTTP::request</a> - Returns the raw HTTP
+request headers.</li>
+<li><a class="reference external" href="HTTP__request_num.html">HTTP::request_num</a> - Returns the
+number of HTTP requests that a client made on the connection.</li>
+<li><a class="reference external" href="HTTP__respond.html">HTTP::respond</a> - Generates a response to
+the client as if it came from the server.</li>
+<li><a class="reference external" href="HTTP__uri.html">HTTP::uri</a> - Returns or sets the URI part of
+the HTTP request.</li>
+<li><a class="reference external" href="HTTP__username.html">HTTP::username</a> - Returns the username
+part of HTTP basic authentication.</li>
+<li><a class="reference external" href="HTTP__version.html">HTTP::version</a> - Returns or sets the HTTP
+version of the request or response.</li>
+<li><a class="reference external" href="imid.html">imid</a> - Returns an i-mode identifier string.</li>
+<li><a class="reference external" href="IP__client_addr.html">IP::client_addr</a> - Returns the client IP
+address of a connection</li>
+<li><a class="reference external" href="IP__idle_timeout.html">IP::idle_timeout</a> - Returns or sets the
+idle timeout value.</li>
+<li><a class="reference external" href="IP__local_addr.html">IP::local_addr</a> - Returns the IP address
+of the virtual server the client is connected to or the self-ip
+LTM is connected from.</li>
+<li><a class="reference external" href="ip_ttl.html">ip_ttl</a> - Returns the TTL of the latest IP packet
+received.</li>
+<li><a class="reference external" href="lasthop.html">lasthop</a> - Sets the lasthop of an IP connection.</li>
+<li><a class="reference external" href="LB__server.html">LB::server</a> - Returns information about the
+currently selected server</li>
+<li><a class="reference external" href="listen.html">listen</a> - Sets up a related ephemeral listener to
+allow an incoming related connection to be established.</li>
+<li><a class="reference external" href="LSN__address.html">LSN::address</a> - Set or override translation
+address.</li>
+<li><a class="reference external" href="LSN__disable.html">LSN::disable</a> - Disable LSN translation.</li>
+<li><a class="reference external" href="LSN__inbound.html">LSN::inbound</a> - Disable inbound connections
+to translation address/port.</li>
+<li><a class="reference external" href="LSN__persistence.html">LSN::persistence</a> - Set translation
+selection mode and persistence timeout.</li>
+<li><a class="reference external" href="LSN__persistence-entry.html">LSN::persistence-entry</a> - Create
+or lookup translation address.</li>
+<li><a class="reference external" href="LSN__pool.html">LSN::pool</a> - Specify LSN pool for current
+connection.</li>
+<li><a class="reference external" href="LSN__port.html">LSN::port</a> - Set or override translation port.</li>
+<li><a class="reference external" href="nexthop.html">nexthop</a> - Sets the nexthop of an IP connection.</li>
+<li><a class="reference external" href="node.html">node</a> - Sends the packet directly to the identified
+server node.</li>
+<li><a class="reference external" href="peer.html">peer</a> - Causes the specified iRule commands to be
+evaluated under the peer’s (opposite) context.</li>
+<li><a class="reference external" href="persist.html">persist</a> - Causes the system to use the named
+persistence type to persist the connection.</li>
+<li><a class="reference external" href="pool.html">pool</a> - Causes the system to load balance traffic
+to the specified pool or pool member regardless of monitor status.</li>
+<li><a class="reference external" href="session.html">session</a> - Utilizes the persistence table to
+store arbitrary information based on the same keys as persistence.</li>
+<li><a class="reference external" href="snat.html">snat</a> - Causes the LTM system to assign the
+specified translation address to the current connection.</li>
+<li><a class="reference external" href="SSL__cert.html">SSL::cert</a> - Returns X509 SSL certificate
+data.</li>
+<li><a class="reference external" href="TCP__local_port.html">TCP::local_port</a> - Returns the local TCP
+port/service number of a TCP connection.</li>
+<li><a class="reference external" href="URI__query.html">URI::query</a> - Returns the query string
+portion of the given URI or the value of a query string parameter.</li>
+<li><a class="reference external" href="urlcatblindquery.html">urlcatblindquery</a> - Query the encrypted
+URL for URL categorization</li>
+<li><a class="reference external" href="urlcatquery.html">urlcatquery</a> - Query the URL for URL
+categorization</li>
+<li><a class="reference external" href="WAM__disable.html">WAM::disable</a> - Disables Web Accelerator
+plugin processing on the connection.</li>
+<li><a class="reference external" href="WAM__enable.html">WAM::enable</a> - Disables Web Accelerator
+plugin processing on the connection</li>
+<li><a class="reference external" href="WEBSSO__disable.html">WEBSSO::disable</a> - Forwards a request
+without doing SSO processing on it.</li>
+<li><a class="reference external" href="WEBSSO__enable.html">WEBSSO::enable</a> - Causes APM to do the
+SSO processing on a request.</li>
+<li><a class="reference external" href="WEBSSO__select.html">WEBSSO::select</a> - Use specified SSO
+configuration object to do SSO for the HTTP request</li>
+</ul>
+</div>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<div class="admonition warning">
+<p class="first admonition-title">Warning</p>
+<p class="last"><strong>The links to the sample code below are remnants of the old DevCentral wiki and will result in a 404 error. For best results, please copy the link text and search the codeshare directly on DevCentral.</strong></p>
+</div>
+<p><strong>Sample Code:</strong></p>
+<div class="listbykeyword docutils container">
+<ul class="simple">
+<li><a class="reference external" href="https://devcentral.f5.com/s/articles/apache-style-logging-with-hsl">Apache Style Logging Slightly
+Modified</a>
+- When SNATing to servers. the client IP is lost. This was
+information our se…</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/ASP_SessionID_Persistence.html">ASP Session ID
+Persistence</a>
+- Persist on ASP SessionID cookie value or PID.</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/Block_requests_by_reverse_DNS_record.html">Block requests by reverse DNS
+record</a>
+- Performs a reverse DNS lookup to validate client IP</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/BlockReferralRequests.html">Block Referral
+Requests</a>
+- This iRule will scan referral requests for images and insert a
+canned image for requests not coming from a allowed host.</li>
+<li><a class="reference external" href="https://devcentral.f5.com/s/articles/cache-no-post">Cache No
+POST</a> -
+Disable RAMcache for POST request responses</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/CipherStrengthPoolSelection.html">Cipher Strength Pool
+Selection</a>
+- Select a pool based on the client’s encryption level.</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/client_cert_request_by_uri_with_ocsp_checking.html">Client Cert Request by URI with OCSP
+Checking</a>
+- Request a client SSL certificate by URI and validate it using
+OCSP</li>
+<li><a class="reference external" href="https://devcentral.f5.com/s/articles/client-auth-using-http-cookie">Client Auth Using HTTP
+Cookie</a>
+- This iRule illustrates how to use HTTP Cookies for client based
+authentcation.</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/Client-Cert-Request-by-URI-with-OCSP-Checking-v10-1.html">Client Certificate Request by URI with OCSP Checking (v10.1 -
+v10.2.x)</a>
+- Request a client SSL certificate by URI and validate it using
+OCSP for v10.1 - 10.2.x</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/ClonePoolBasedOnUri.html">Clone Pool Based On
+Uri</a>
+- This iRule will clone a connection to a second pool based on the
+input URI.</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/CMP_v10_compatible_counters_using_the_session_table.html">CMP v10.0 compatible counters using the session
+table</a>
+- v10.0.1 CMP compatible global counter</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/CommandPerformance.html">Command
+Performance</a>
+- This iRule will compare switch. if. matchclass. and class
+commands and generate performance graphs.</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/ControllingBots.html">Controlling
+Bots</a>
+- Webbots. you can’t live with them. you can’t live without
+them… This iRule determines if a webbot is accessing your
+systems and assigns them to a lower priority resource.</li>
+<li><a class="reference external" href="https://devcentral.f5.com/s/articles/convert-404s-to-blank-200s">Convert 404s to Blank
+200s</a>
+- An iRule to convert an HTTP 404 response to a blank 200
+response. HTTP 404…</li>
+<li><a class="reference external" href="https://devcentral.f5.com/s/articles/cookie-encryption-across-pools-and-services-1">Cookie Encryption Across Pools and
+Services</a>
+- Implements cookie persistence based on node IP address. not
+member IP/port….</li>
+<li><a class="reference external" href="https://devcentral.f5.com/s/articles/cookie-persistence-without-the-port">Cookie Persistence Without The
+Port</a>
+- This rule was written in response to a requirement in which a
+client had connections to multiple virtual services. each with
+multiple ports. We wanted a light weight cookie based
+persistence…</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/CreditCardScrubber.html">Credit Card
+Scrubber</a>
+- This iRule illustrates how to scrub out Credit Card Numbers from
+HTTP traffic.</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/CreditCardScrubberUsingStream.html">Credit Card Scrubber Using a Stream
+Profile</a>
+- This iRule illustrates how to scrub out Credit Card Numbers from
+HTTP traffic using a STREAM profile.</li>
+<li><a class="reference external" href="https://devcentral.f5.com/s/articles/csv-tabular-data-sideband-importer">CSV Tabular Data Sideband
+Importer</a>
+- This iRule adds the ability to import CSV-formatted tabular data
+to a table via an HTTP sideband connection.</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/Current_Pool_Member_status.html">Current Pool Member
+Status</a>
+- Another variation of the
+“Pool_Member_Status_Page_on_a_Virtual_Server” Thi…</li>
+<li><a class="reference external" href="https://devcentral.f5.com/s/articles/custom-apache-style-logging-for-java-based-applications">Custom Apache-style logging for Java-based
+applications</a>
+- I had a requirement to have the F5 BigIP produce logs which
+replicated our …</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/Data-Leakage-Protection.html">Data Leakage
+Protection</a>
+- Scrub sensitive data from application responses</li>
+<li><a class="reference external" href="https://devcentral.f5.com/s/articles/delete-cookie-from-request-by-regex">Delete Cookie From Request By
+Regex</a>
+- This iRule allows an administrator to delete cookies from a
+request which match a defined class of regular expressions.</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/detect_prior_http_redirect_or_respond.html">detect prior http redirect or
+respond</a>
+- Detect a prior HTTP redirect or response to avoid a runtime TCL
+error</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/DisablingHTTPProcessingForUnrecognizedHTTPMethods.html">Disabling HTTP Processing For Unrecognized HTTP
+Methods</a>
+- Disables HTTP processing for methods that are not recognized by
+the HTTP profile</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/ElectionHashLoadBalancingAndPersistence.html">Election Hash Load Balancing And
+Persistence</a>
+- Deterministically load balances and persists connections to a
+server using an election hash</li>
+<li><a class="reference external" href="https://devcentral.f5.com/s/articles/encrypt-http-cookies-with-dynamic-names">Encrypt HTTP cookies with dynamic
+names</a>
+- Encrypt all of the BIG-IP persistence cookies regardless of
+their specific name</li>
+<li><a class="reference external" href="https://devcentral.f5.com/s/articles/encrypting-cookies">Encrypting
+Cookies</a>
+- This example shows how to encrypt and decrypt a HTTP cookie from
+within an iRule.</li>
+<li><a class="reference external" href="https://devcentral.f5.com/s/articles/excessive-404-blacklist">Excessive_404_Blacklist</a>
+- This iRule will block ALL further site access to source IP
+addresses that exceed a certain number of HTTP requests to server
+resources that results in a 404 not found error.</li>
+<li><a class="reference external" href="https://devcentral.f5.com/s/articles/file-not-found-handler">File Not Found
+Handler</a>
+- This iRule will handle HTTP 404 (File Not Found) errors returned
+from pool members and return an embedded customized error page.</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/FindclassAgainstVariableLengthURI.html">Findclass Against Variable Length
+URI</a>
+- Using findclass to select pool based on longest-match URI path</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/FormattedLoggingForW3c.html">Formatted Logging For
+W3c</a>
+- This iRule Allows you to log traffic in a W3C compliant fashion.</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/FullyDecodeURI.html">Fully Decode
+URI</a>
+- This sample will recursively decode a URI before inspection.</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/GenericHostToUriMapping.html">Generic Host To Uri
+Mapping</a>
+- This iRule shows how to map a portion of the host header to a
+specified Uri.</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/GomezInjection.html">Gomez
+Injection</a>
+- Auto injection of Gomez Networks Actual XF client side
+Javascript.</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/GomezInjectionWithGroupId.html">Gomez Injection With Group
+Id</a>
+- Auto injection of Gomez Networks Actual XF client side
+Javascript.</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/have_the_url_in_lauch_application_to_include_user_passwsord.html">SAM launch application with username and
+passwsord</a>
+- By design. current BIG-IP SAM 8.0 does not have session variable
+for user p…</li>
+<li><a class="reference external" href="https://devcentral.f5.com/s/articles/heatmaps-part1">Heatmaps
+Part1</a>
+- Create a heat map view of your HTTP requests. mapped to the
+locations around the United States.</li>
+<li><a class="reference external" href="https://devcentral.f5.com/s/articles/heatmaps-part4">Heatmaps
+Part4</a>
+- Create a heat map view of your HTTP requests. mapped to the
+locations around the World with hard numbers to back up the pretty
+pictures.</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/high_performance_rate_limiting.html">high performance rate
+limiting</a>
+- This rule will limit the number of request to a particular vhost
+and uri to…</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/HtmlCommentScrubber.html">HTML Comment
+Scrubber</a>
+- This iRule will remove all HTML comments and replace them with
+white space.</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/HTML-comment-scrubber.html">HTML comment scrubber using a stream
+profile</a>
+- Removes HTML comments from server responses</li>
+<li><a class="reference external" href="https://devcentral.f5.com/s/articles/http-delay-and-validate-clients-using-javascript-cookies-when-cpu-overloaded">HTTP delay and validate clients using javascript cookies when CPU
+overloaded</a>
+- If CPU usage high. delay clients and validate they’re real by
+making sure they can execute javascript.</li>
+<li><a class="reference external" href="HTTP_delay_and_validate_clients_using_javascript_and_cookies_when_CPU_is_overloaded.html">…</a>
+- If CPU usage is over $::maxcpu (default 60%). send the client
+javascript th…</li>
+<li><a class="reference external" href="https://devcentral.f5.com/s/articles/http-method-conversion">HTTP method
+conversion</a>
+- This is one way that allows you to convert HTTP method from GET
+to POST or …</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/HTTP_POST_redirectNew118.html">HTTP POST redirect preserving POST
+data</a>
+- Use Javascript in an iRule to redirect HTTP POST requests to
+HTTPS</li>
+<li><a class="reference external" href="https://devcentral.f5.com/s/articles/http-prefetch-insertion">HTTP prefetch
+insertion</a>
+- This iRule demonstrate how to use BIG-IP to insert prefetch
+hint/force to http response from server.</li>
+<li><a class="reference external" href="https://devcentral.f5.com/s/articles/http-redirect-to-https-with-pool-down-detection">HTTP redirect to HTTPS with pool down
+detection</a>
+- I pieced this together from several rules because I couldn’t
+find a rule th…</li>
+<li><a class="reference external" href="https://devcentral.f5.com/s/articles/http-session-limit-1">HTTP session
+limit</a>
+- HTTP Session limiting for LTM v10.1 using tables.</li>
+<li><a class="reference external" href="https://devcentral.f5.com/s/articles/http-sideband-policy-checking">HTTP sideband policy
+checking</a>
+- iRule for HTTP sideband policy checking</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/http_to_https_redirect_by_vs_name.html">HTTP to HTTPS redirect by vs
+name</a>
+- Redirect HTTP requests to HTTPS using the virtual server name to
+avoid certificate mismatch warnings</li>
+<li><a class="reference external" href="https://devcentral.f5.com/s/articles/http-and-https-on-a-single-virtual-server">HTTP and HTTPS on a single virtual
+server</a>
+- iRule to support a virtual server on port 0 and a client SSL
+profile. and a…</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/HTTPPayloadCollection.html">HTTP Payload
+Collection</a>
+- iRule demonstrating the basic approach for collection and
+manipulation of HTTP payload data.</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/HTTP-request-cloning.html">HTTP request
+cloning</a>
+- Clone HTTP requests to one or more destination pools</li>
+<li><a class="reference external" href="https://devcentral.f5.com/s/articles/http-request-throttle">HTTP Request
+Throttle</a>
+- iRule to dynamically throttle HTTP request rate by client IP.</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/HttpResponseBasedOnRequestedUri.html">Http Response Based On Requested
+Uri</a>
+- This iRule sends an HTTP response based on the requested path.</li>
+<li><a class="reference external" href="https://devcentral.f5.com/s/articles/http-retry-on-404-pre-920">HTTP retry on 404
+pre-9.2.0</a>
+- Mimic LB::reselect and HTTP::retry for pre-9.2.0 boxes</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/HTTPS_passthrough_fallback_URL.html">HTTPS passthrough fallback
+URL</a>
+- This iRule allows an administrator to pass HTTPS traffic through
+the BIG-IP…</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/HTTPServersideChunkingForOneDotZeroRequests.html">HTTP Serverside Chunking For One Dot Zero
+Requests</a>
+- iRule demonstrating how to transform the serverside flow to 1.1
+for 1.0 requests</li>
+<li><a class="reference external" href="https://devcentral.f5.com/s/articles/http-session-limit">HTTP Session
+Limit</a>
+- Limits total concurrent HTTP sessions to a pre-defined
+threshhold. allowing those clients with a session cookie to
+continue once the limit is reached. while redirecting new clients
+until con…</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/HTTPSessionWatcher.html">HTTP Session
+Watcher</a>
+- An iRule that provides visibility into HTTP sessions flowing
+through the BIG-IP</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/HTTP-slow-post-mitigation.html">HTTP slow post
+mitigation</a>
+- Mitigating Slow HTTP Post DDoS Attacks With iRules</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/HTTPS-offload-rewriting.html">HTTPS offload
+rewriting</a>
+- Rewrite an HTTP web application’s self references from <a class="reference external" href="http://">http://</a>
+to <a class="reference external" href="https://">https://</a></li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/HttpToHTTPsCookiePersistence.html">HTTP To HTTPS Cookie
+Persistence</a>
+- Persist on HTTP cookie while going from HTTP to HTTPS</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/HTTPToHTTPSRedirect_301.html">HTTP To HTTPS Redirect
+301</a>
+- Redirects all traffic to same hostname. same URI over https by
+issuing a redirect with status 301 (Moved Permanently).</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/HTTPToHTTPSRedirect_302.html">HTTP To HTTPS
+Redirect_302</a>
+- Redirects all traffic to same hostname. same URI over https by
+issuing a redirect with status 302 (Moved Temporarily).</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/InsertCertInServerHeaders.html">Insert Client Certificate In Serverside HTTP
+Headers</a>
+- An example iRule that pulls certainformation from a client
+cert and passes it along to backend server in HTTP headers.</li>
+<li><a class="reference external" href="https://devcentral.f5.com/s/articles/load-balancing-based-on-asp-sessionid">Load balancing based on ASP
+SessionID</a>
+- The code separates into 2 irules. one for request and one for
+response. T…</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/Log_binary_HTTP_payload_in_hex.html">Log binary HTTP payload in
+hex</a>
+- This iRule demonstrates how to collect the HTTP request payload
+and log the output in hex</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/LogHttpClassSelection.html">Log Http Class
+Selection</a>
+- This iRule logs details of an HTTP request when the request is
+parsed and when the request matches or does not match an HTTP
+class filterset.</li>
+<li><a class="reference external" href="LogHttpTcpUdpToSyslogng.html">Log Http Tcp Udp To Syslogng</a> -
+You can use iRules to log a summary of each request and its
+response. and send the data to a remote syslog server using
+BIG-IP’s syslog-ng daemon.</li>
+<li><a class="reference external" href="Log-large-HTTP-payloads-in-chunks-locally-and-remotely.html">Log large HTTP payloads in chunks locally and
+remotely</a>
+- Log POST request payloads remotely via HSL to a syslog server
+and locally.</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/Low_maintenance_dynamic_pool_select_based_on_HTTP_host_header.html">Select pool based on HTTP host
+header</a>
+- This rule was designed for a customer that had many websites
+hosted on one …</li>
+<li><a class="reference external" href="LTM_sorry_page_image_when_no_pool_members_available.html">LTM sorry page image when no pool members
+available</a>
+- Return sorry page with text &amp; images by simply creating an image
+of the sorry page to return when no pool members are availble to
+the virtual</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/LTMImageHosting.html">LTM Image
+Hosting</a>
+- Host Images on LTM in External Class</li>
+<li><a class="reference external" href="LTMMaintenancePage.html">LTM Maintenance Page</a> - Use the LTM
+as a webserver for a particular directory. In this case. we return
+a maintenance page with text and images to return when no pool
+members are available.</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/LTMMaintenancePageLite.html">LTM Maintenance Page
+Lite</a>
+- Use the LTM as a webserver for as lite version of a maintenance
+page. In this case. it returns a maintenance page with text to
+return when the pool members are not available.</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/LTMMaintenanceWindow.html">LTM Maintenance
+Window</a>
+- iRule that uses the STATs profile to manage an LTM maintenance
+page response during maintenance windows.</li>
+<li><a class="reference external" href="https://devcentral.f5.com/s/articles/manual-cookie-persistence">Manual cookie
+persistence</a>
+- I had an app admin ask me for a way to temporarily force node
+assignment. f…</li>
+<li><a class="reference external" href="https://devcentral.f5.com/s/articles/microsoft-branch-cache-hash-offload">Microsoft Branch Cache Hash
+Offload</a>
+- Hash Offload for Microsoft BranchCache</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/Modifying_Secure_Access_Manager_v8_session_variables_with_a_cookie.html">Modifying Secure Access Manager v8 session variables with a
+cookie</a>
+- In this example. an external server is used to authenticate
+users before pa…</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/Monitor_pools_from_external_monitors.html">Monitor_pools_from_external_monitors</a>
+- This iRule allows external http monitors to query specific
+poo…</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/MS-Exchange-Active-Sync-Device-Auth.html">MS Exchange Active Sync Device
+Auth</a>
+- Compares the DeviceID of the client against a Data Group list,
+(useful for centralized management of devices)</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/MS-Exchange-Active-Sync-Multi-Device-Auth.html">MS Exchange Active Sync Multi Device
+Auth</a>
+- Utilizes the Exchange extended attributes to store multiple
+devices per client, (i.e. iPhone, iPad, etc.) to validate the
+device as approved for the assigned user.</li>
+<li><a class="reference external" href="https://devcentral.f5.com/s/articles/outlook-anywhere-persistence-with-cookie-backup">Outlook Anywhere Persistence with Cookie
+Backup</a>
+- The deployment guide for Microsoft Exchange Server 2007
+(<a class="reference external" href="http://www.f5.com/">http://www.f5.com/</a>…</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/parse_username_from_http_requests_rule.html">Parse username from HTTP
+requests</a>
+- Parse the username from HTTP requests in the basic auth header
+and POST data</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/Path_Traversal_Detection.html">Path Traversal
+Detection</a>
+- This iRule tries to detect all Path Traversal attempts against
+web sites in query string parameters</li>
+<li><a class="reference external" href="https://devcentral.f5.com/s/articles/persistence-cookie-logger">Persistence Cookie
+Logger</a>
+- Extracts the cookie value from a persistence cookie inserted by
+LTM’s “cookie insert” persistence method</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/PhishingPrevention.html">Phishing
+Prevention</a>
+- This iRule helps to cut down on Phishing and scraping attempts
+that might otherwise plague your network.</li>
+<li><a class="reference external" href="Pool_Member_Status_Page_on_a_Virtual_Server.html">Pool Member Status Page on a Virtual Server
+v9</a> - This
+iRule will create a dynamic list of all the pools and thier
+members ad…</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/pool_status_page.html">Pool status page on a virtual
+server</a>
+- The following irule allows clients/users who do not have access
+to the load…</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/PoolBasedOnExtension.html">Pool Based On
+Extension</a>
+- Send requests to a specific server pool by file extension using
+the Tcl switch command</li>
+<li><a class="reference external" href="https://devcentral.f5.com/s/articles/post-request-exponential-backoff">POST Request Exponential
+Backoff</a>
+- Exponential backoff iRule to thwart dictionary attacks</li>
+<li><a class="reference external" href="https://devcentral.f5.com/s/articles/proxy-auth-new419">Proxy
+Auth</a> -
+Provides Authentication offload onto an service such as LDAP.</li>
+<li><a class="reference external" href="https://devcentral.f5.com/s/articles/proxypass-for-ltm-v9-only">ProxyPass (for LTM v9
+only)</a> -
+iRule to replace the functionality of Apache Webserver ProxyPass
+and ProxyPassReverse functions</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/Proxy-Pass-Lite.html">ProxyPass
+Lite</a>
+- This iRule implements a limited subset of the full ProxyPassV10
+iRule:</li>
+<li><a class="reference external" href="https://devcentral.f5.com/s/articles/proxypass-v10-v11">ProxyPass
+v10/v11</a>
+- iRule (for LTM v10/v11) to replace the functionality of Apache
+Webserver ProxyPass and ProxyPassReverse functions allowing for a
+different server and client view of your web application(s).</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/RateLimit_HTTPRequest.html">Rate Limit HTTP
+Requests</a>
+- Limits HTTP POST requests by user</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/ratio_load_balancing_using_rand_function.html">ratio load balancing using rand
+function</a>
+- Use a psuedo random number to set a ratio for any iRule logic.
+This avoids using a global counter mechanism to track past
+selections.</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/Redirect_non_ssl_requests_on_ssl_vs_rule.html">Redirect Non-SSL Requests on SSL Virtual Server
+Rule</a>
+- This iRule sends an HTTP redirect to clients who make an HTTP
+request to an HTTPS virtual server</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/RedirectOnWeakEncryption.html">Redirect On Weak
+Encryption</a>
+- This rule illustrates how to redirect a client to an
+un-encrypted page with an informational error if the client does
+not have at least 128 bits of encryption.</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/Redirect-Trapper.html">Redirect
+Trapper</a>
+- iRule to trap server redirect response, follow the redirect on
+the BIG-IP and return the followed response to the client as a
+result of original request</li>
+<li><a class="reference external" href="https://devcentral.f5.com/s/articles/referral-tracker">Referral
+Tracker</a>
+- Create a pie chart of your top referrers</li>
+<li><a class="reference external" href="https://devcentral.f5.com/s/articles/reorder-http-cookies">Reorder Http
+Cookies</a>
+- This iRule will reorder all the HTTP cookies going to the
+backend server.</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/Replace_HTTP_Refresh_With_HTTP_Redirect.html">Replace HTTP refresh with HTTP
+Redirect</a>
+- Intercepts pages with HTTP REFRESH and re-writes as a proper 302
+redirect</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/RequestClientCertificateAndPassToApplication.html">Request Client Certificate And Pass To
+Application</a>
+- We are using BigIP to dynamically request a client certificate
+and pass it to server.</li>
+<li><a class="reference external" href="https://devcentral.f5.com/s/articles/reverse-proxy-with-basic-sso">Reverse Proxy With Basic
+SSO</a>
+- The iRule implements a authenticated HTTPS reverse proxy.</li>
+<li><a class="reference external" href="https://devcentral.f5.com/s/articles/rewriting-single-part-http-responses-as-multipart">Rewriting Single Part HTTP Responses As
+Multipart</a>
+- Transform a single part HTTP response into a multi-part response</li>
+<li><a class="reference external" href="https://devcentral.f5.com/s/articles/select-pool-member-based-on-http-query-string-parameter">Select pool member based on HTTP query string
+parameter</a>
+- Allow clients to manually select a pool member based on a
+parameter set in the HTTP query string. with persistence.</li>
+<li><a class="reference external" href="https://devcentral.f5.com/s/articles/session-table-export">Session Table
+Export</a>
+- Export the entries from a Session Sub Table with a simple iRules
+based HTML form.</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/SetUriToLowerCase.html">Set Uri To Lower
+Case</a>
+- This iRule sets the path in an HTTP request to lower case. It
+does not modify the query string. if present in the request.</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/Sideband-connection-HTTP-example.html">Sideband connection HTTP
+example</a>
+- Sends an HTTP request to a sideband server and parses the HTTP
+response headers and optionally the payload to determine which
+pool to send the client request to</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/Simple_DDOS_protection_for_HTTP_Requests.html">Simple DDOS Protection for HTTP
+Requests</a>
+- Here is a straight-forward example of how you can avoid a
+location specific…</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/SimulatingTCPClosesFromServerWhenUsingASM.html">Simulating TCP Closes From Server When Using
+ASM</a>
+- Using iRules to simulate server layer 5 TCP closes with BIG-IP
+ASM</li>
+<li><a class="reference external" href="https://devcentral.f5.com/s/articles/small-url-generator">Small URL
+Generator</a>
+- Create small URLs from long URLs and store them in a subtable</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/snat_pool_persistence.html">SNAT pool
+persistence</a>
+- This example shows how to select the same SNAT address for a
+given client IP address without tracking the selection in memory</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/SocialSecurityNumberScrubbing.html">Social Security Number
+Scrubbing</a>
+- This sample iRule will search all outbound HTTP traffic and mask
+all social security numbers.</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/SSLTermination.html">SSL
+Termination</a>
+- Finds and replaces a link or specific text with another link or
+text. can be used for Sharepoint Portal SSL Termination</li>
+<li><a class="reference external" href="https://devcentral.f5.com/s/articles/transparentbotprotection">TransparentBotProtection</a>
+- This Solution will act as a Web Form Application protection
+layer against malicious entities such as automated bots.</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/Universal_Host_Redirect.html">Universal HTTP host
+redirect</a>
+- Are you tired of chewing up external public IP’s well this iRule
+may be for…</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/Uri_Version_Mapping.html">Uri version
+mapping</a>
+- This rule implements a stripped down set of functionality of the
+ProxyPass …</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/URIInterrogation.html">URI
+Interrogation</a>
+- This iRule will interrogate and log all components of the URI.</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/URL_Based_redirection_iRule.html">URL based
+redirection</a>
+- The following is a URL handling iRule that is kind of generic
+where the map…</li>
+<li><a class="reference external" href="https://devcentral.f5.com/s/articles/validate-string-characters-in-cookie-rule">Validate String Characters In Cookie
+Rule</a>
+- This rule demonstrates how to efficiently validate whether a
+given string contains illegal characters.</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/Version_9_Throttle_on_Requests_Per_Second.html">Version 9 throttle requests per
+second</a>
+- This iRule is a CMP compatible Request per Second Throttling
+iRule.</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/Version_9_x_Robot_and_Request_Limiting_iRule.html">Version 9.x robot and request limiting
+iRule</a>
+- This iRule limits robots and what they can do. Furthermore. it
+restricts re…</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/virtual_server_connection_limit_with_HTTP_response.html">Virtual server connection limit with HTTP
+response</a>
+- This rule allows administrators to configure a maximum TCP
+connection limit…</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/Virtual_Server_Monitoring__iRule_New1220.html">Virtual Server Monitoring
+iRule</a>
+- This irule generates a dynamic html page with virtual servers
+and members status.</li>
+<li><a class="reference external" href="https://devcentral.f5.com/s/articles/weblogic-jsessionid-persistence">Weblogic JSessionID
+Persistence</a>
+- Provides persistence on the jsessionid value found in either the
+URI or a cookie.</li>
+<li><a class="reference external" href="https://devcentral.f5.com/s/articles/weblogic-jsessionid-persistence-for-session-replication">Weblogic JSessionID Persistence for Session
+Replication</a>
+- Persists HTTP requests on the primary and secondary server
+values found in the JSESSIONID cookie when the WebLogic servers
+implement session replication across two servers</li>
+<li><a class="reference external" href="https://clouddocs.f5.com/api/irules/XForwardedForSingleHeaderInsert.html">X Forwarded For Single Header
+Insert</a>
+- Insert client address into existing X-Forwarded-For header if it
+exists</li>
+<li><a class="reference external" href="https://community.f5.com/kb/codeshare/xml-field-logger-using-http-commands/279226">XML Field Logger Using HTTP
+Commands</a>
+- This iRule extracts XML field data from HTTP request data using
+only HTTP commands. (Useful for BIG-IP versions which have not
+implemented the XML iRules commands.)</li>
+</ul>
+</div>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<ul class="simple">
+<li>Introduced: BIGIP-9.0.0</li>
+</ul>
+<p><em>The BIG-IP API Reference documentation contains community-contributed content. F5 does not monitor 
+or control community code contributions. We make no guarantees or warranties regarding the available code, 
+and it may contain errors, defects, bugs, inaccuracies, or security vulnerabilities.  Your access to and use of any 
+code available in the BIG-IP API reference guides is solely at your own risk.</em></p>
+</div>
+</div>
+
+
+    
+
+    </article>
+  </div>
+
+</div>
+
+
+  <div id="clouddocs-footer"></div>
+  <!-- Bootstrap core JavaScript
+  ================================================== -->
+  <!-- Placed at the end of the document so the pages load faster -->
+
+  <script src="../_static/js/index.js"></script>
+  <script src="/assets/js/bootstrap.min.js"></script>
+  <script src="/assets/js/clouddocs.js"></script>
+  <script src="/assets/js/CoveoJsSearch.Lazy.min.js"></script>
+  </body>
+</html>

@@ -1,6 +1,6 @@
 # Centralised name handling on work
 
-Current continuation: pushed `1a78dde36`; frozen8df ordinary992 seals677PASS/314FAIL/1TIMEOUT, all967 predecessors retained with10gains/1MCP regression/0drops. Native Runtime174 seals171PASS/3FAIL and VM133 seals133PASS/0FAIL, all drift maps{}; newer source still requires fresh execution. The current [snapshot](current-state.md) overrides historical capture descriptions below.
+Current continuation: pushed `5d52f6882` and reviewed successors; frozenK ordinary1027 seals696PASS/330FAIL/1TIMEOUT with all992predecessors retained,1gain/4priorPASS regressions/0drops. KRuntime174 is running and VMK133 awaits execution. Previous8df Native results do not accept newer source. The current [snapshot](current-state.md) overrides historical capture descriptions below.
 
 Complete one coherent set of name representations, lookup policies and
 purpose-specific queries across the entire codebase. The starting report is

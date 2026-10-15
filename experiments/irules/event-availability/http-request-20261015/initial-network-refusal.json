@@ -1,0 +1,6 @@
+{
+  "question": "Official documented introduction release for HTTP_REQUEST event; not appliance execution evidence.",
+  "url": "https://clouddocs.f5.com/api/irules/HTTP_REQUEST.html",
+  "retrieved_utc": "2026-10-15T13:23:24.163538+00:00",
+  "setup_error": "URLError(PermissionError(1, 'Operation not permitted'))"
+}

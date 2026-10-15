@@ -1540,9 +1540,8 @@ impl<'a> ModuleProcedures<'a> {
         let summaries = self.summaries.borrow();
         let source = self.source.as_ref()?;
         for qname in component {
-            let cfg = inputs.cfg.procedures.get(qname)?;
-            for place in outer_source_writes(cfg, qname, source)? {
-                insert_outer_source(&mut names, place);
+            for place in self.outer_facts.get(qname)?.original_source_writes()? {
+                insert_outer_source(&mut names, place.clone());
             }
             destroys |= destroys_a_variable(source, qname)?;
             for callee in &calls[qname] {
@@ -1907,40 +1906,6 @@ fn insert_outer_source(places: &mut Vec<OuterSourcePlace>, place: OuterSourcePla
     if !places.iter().any(|other| other.symbol() == place.symbol()) {
         places.push(place);
     }
-}
-
-fn outer_source_writes(
-    cfg: &CfgFunction,
-    qname: &crate::ir::ProcedureId,
-    source: &SourceSummaryContext<'_>,
-) -> Option<Vec<OuterSourcePlace>> {
-    let linked = linked_locals(cfg, qname, source)?;
-    let mut writes = Vec::new();
-    for tokens in source.body_commands(qname)? {
-        if source.procedure_call(&tokens).is_some() {
-            continue;
-        }
-        let (aliases, _) = alias_facts(&tokens, source)?;
-        for alias in aliases.iter().filter(|alias| alias.writes_value) {
-            insert_outer_source(&mut writes, source.alias_source_place(&tokens, alias)?);
-        }
-        for (argument, form) in source.write_arguments(&tokens)? {
-            let place = source.argument_source_place(&tokens, argument, form)?;
-            match place.symbol().slot() {
-                SignatureSourceVariableSlot::Local { simple, .. } => match linked.get(simple) {
-                    Some(LinkedLocal::Outer(target, _)) => {
-                        insert_outer_source(&mut writes, target.clone())
-                    }
-                    Some(LinkedLocal::Unnameable) => return None,
-                    None | Some(LinkedLocal::Caller) => {}
-                },
-                SignatureSourceVariableSlot::C { .. } | SignatureSourceVariableSlot::Jim(_) => {
-                    insert_outer_source(&mut writes, place)
-                }
-            }
-        }
-    }
-    Some(writes)
 }
 
 /// The constant `local` holds at every one of a run's normal `exits`: the

@@ -6983,13 +6983,28 @@ impl Analyser {
             });
             let exported = if let Some(method) = own {
                 let override_def = method.original_parameter_names_and_body(&self.result)?;
-                let (name_arg, body_arg) = self.manufacturer_word_positions(&override_def)?;
+                let lexical =
+                    super::types::OriginalLexicalMemberContext::from_original_definition_method(
+                        &self.result,
+                        class,
+                        method,
+                    )?;
+                let next = self.manufacturer_next_call(&override_def, &lexical)?;
+                let arguments = next.original_direct_argument_words()?;
+                let (name_arg, body_arg) =
+                    self.manufacturer_word_positions(&override_def, builtin, &arguments)?;
+                let body_argument = usize::from(builtin.definition_body_at?).checked_sub(1)?;
+                let prologue = arguments.get(body_argument)?;
                 overrides.insert(
                     builtin.keyword.to_owned(),
                     super::types::ManufacturerSpec {
                         name_arg,
                         body_arg,
-                        injected: self.manufacturer_injected_template(&meta, &override_def),
+                        injected: self.manufacturer_injected_template(
+                            &meta,
+                            &override_def,
+                            prologue,
+                        ),
                     },
                 );
                 method.exported()
@@ -9919,61 +9934,52 @@ impl Analyser {
         Some(blocks.into_iter().flatten().collect())
     }
 
-    /// Which of the creation call's argument words carry the new class's
-    /// name and body, read off the manufacturer override's own `next` call.
-    ///
-    /// The override re-enters the manufacturer chain through `next`
-    /// (identified by [`tcl_registry::registry::MethodDispatchKind::NextChain`],
-    /// registry data), whose arguments sit at the *builtin* `create Name
-    /// Body` positions.  Whichever of the override's parameters those
-    /// arguments read is therefore the caller's name / body word: the first
-    /// parameter reference is the name, the last is the body (the body is
-    /// always spliced in last — everything between is the definition
-    /// prologue the manufacturer builds).  Returns `None` when the override
-    /// cannot be read that way; a present unreadable override supplies no
-    /// builtin layout.
+    /// Original formal arguments supplying the selected manufacturer's name
+    /// and body roles. Unrepresented or transformed contributions refuse.
     fn manufacturer_word_positions(
         &self,
-        override_def: &super::types::OriginalSourceMethodNameBody<'_>,
+        original: &super::types::OriginalSourceMethodNameBody<'_>,
+        builtin: &tcl_registry::definer::ManufacturerMethod,
+        arguments: &[&tcl_lexer::NativeWord],
     ) -> Option<(usize, usize)> {
-        let params = override_def.parameter_names().collect::<Vec<_>>();
-        let next_seg = self.manufacturer_next_call(override_def)?;
-        // Parameter `i` of the override binds argument `i + 1` of the call
-        // (argument 0 being the manufacturer subcommand itself).
-        let param_arg = |name: &str| params.iter().position(|p| *p == name).map(|i| i + 1);
-        let refs: Vec<String> = next_seg
-            .args()
-            .iter()
-            .flat_map(|word| {
-                crate::var_refs::scan_var_ref_forms_with_config(word, self.lexer_config())
-            })
-            .collect();
-        let name_arg = param_arg(refs.first()?.as_str())?;
-        let body_arg = param_arg(refs.last()?.as_str())?;
+        let name = usize::from(builtin.names_instance_at?).checked_sub(1)?;
+        let body = usize::from(builtin.definition_body_at?).checked_sub(1)?;
+        let name_arg = original
+            .scalar_parameter_read(arguments.get(name)?)?
+            .checked_add(1)?;
+        let body_arg = original
+            .body_parameter_read(arguments.get(body)?)?
+            .checked_add(1)?;
         (name_arg != body_arg).then_some((name_arg, body_arg))
     }
 
-    /// The manufacturer override's `next` statement, re-segmented from its
-    /// own source bytes.
     fn manufacturer_next_call(
         &self,
-        override_def: &super::types::OriginalSourceMethodNameBody<'_>,
-    ) -> Option<SegmentedCommand> {
-        let registry = self.registry.as_ref()?;
-        let original = override_def.body_word();
-        let content = original.content_span().ok()?;
-        let body = original.image().try_text().ok()?.get(content.as_range())?;
+        original: &super::types::OriginalSourceMethodNameBody<'_>,
+        context: &super::types::OriginalLexicalMemberContext,
+    ) -> Option<super::types::OriginalLexicalNextCall> {
+        if context.body_word() != original.body_word() {
+            return None;
+        }
+        let word = original.body_word();
+        let content = word.content_span().ok()?;
+        let body = word.image().try_text().ok()?.get(content.as_range())?;
         crate::segmenter::segment_commands_with_offset_and_config(
             body,
             content.start(),
-            tcl_lexer::SourceSegmentationPurpose::NestedScript.config(original.config()),
+            tcl_lexer::SourceSegmentationPurpose::NestedScript.config(word.config()),
         )
         .into_iter()
-        .find(|seg| {
-            !seg.is_partial
-                && registry.method_dispatch_keyword(seg.name())
-                    == Some(tcl_registry::registry::MethodDispatchKind::NextChain)
+        .filter_map(|command| {
+            let head = command.argv.first()?;
+            super::types::OriginalLexicalNextCall::from_source(
+                context,
+                &self.result,
+                &self.source,
+                head,
+            )
         })
+        .find(|call| !call.has_target_class())
     }
 
     /// The definition-body members the manufacturer splices into every class
@@ -10008,34 +10014,10 @@ impl Analyser {
     fn manufacturer_injected_template(
         &self,
         meta: &UserMetaclass,
-        override_def: &super::types::OriginalSourceMethodNameBody<'_>,
+        original: &super::types::OriginalSourceMethodNameBody<'_>,
+        prologue: &tcl_lexer::NativeWord,
     ) -> Option<Vec<FactoryMember>> {
-        let params = override_def.parameter_names().collect::<Vec<_>>();
-        let next_seg = self.manufacturer_next_call(override_def)?;
-        // The definition word is `next`'s last argument that reads one of
-        // the override's parameters — the builtin `create Name Body`
-        // layout's `Body` position, which is what the prologue is composed
-        // into.
-        let image = tcl_lexer::SourceImage::document(&self.source);
-        let config = self.file_lexer_config();
-        let tokens = crate::ir::CommandTokens::from_segmented(
-            &tcl_lexer::SourceMap::from_image(&image),
-            config,
-            &next_seg,
-        );
-        let original = crate::registry_invocation::original_native_compiler_words(
-            &image,
-            tokens.words(),
-            tokens.argv.first()?.start(),
-            config,
-        )?;
-        let prologue = original.iter().skip(1).rev().find(|word| {
-            word.try_text().ok().is_some_and(|text| {
-                crate::var_refs::scan_var_ref_forms_with_config(text, config)
-                    .iter()
-                    .any(|name| params.contains(&name.as_str()))
-            })
-        })?;
+        let params = original.parameter_names().collect::<Vec<_>>();
         let mut injected: Vec<FactoryMember> = Vec::new();
         for piece in prologue_pieces(prologue) {
             match piece {

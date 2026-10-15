@@ -1,6 +1,6 @@
 # Remaining name-handling obligations
 
-Current execution: frozen8df ordinary992 =677PASS/314FAIL/1TIMEOUT;10predecessor gains,1MCP regression,0drops. Native VM133 seals133PASS/0FAIL; Runtime174 seals171PASS/3FAIL, with all original guards and drift maps{}. Pushed1a78 source remains unaccepted by these earlier-source captures. H and I ordinary builds fail with zero tests; next existing-re-export correction requires fresh build. See current-state.md first.
+Current execution: frozenK c448 ordinary1027 seals696PASS/330FAIL/1TIMEOUT, all992F predecessors retained with1gain/4priorPASS regressions/0drops;35new22PASS13FAIL. Original2286 PASS73.3016s/180. KRuntime174 running; VMK133 reviewed futureplan. Prior8df Native Runtime174171PASS3FAIL/VM133133PASS are earlier-source acceptance only. Current source/gates remain unfinished and red. See current-state.md first.
 
 Use [current-state.md](current-state.md) for exact current source, tests and blockers. The first reviewed implementation batch is pushed as `551f3b2c1`; its fresh complete ordinary build and967-control replay are sealed (653PASS/313FAIL/1TIMEOUT), all956 predecessor controls retained,3 gains,0 prior-PASS regressions/drops. Second batch `a3e3d7949` Rust acceptance remains pending. Third batch adds formal/cursor source owners, complete factory projection, typed codegen loop correspondence, original iRules source consumers, namespace table/cache/result producers and CLI source-integrity admission. Historical ordinary272 and finite330 records retain their original source/capture bounds.
 

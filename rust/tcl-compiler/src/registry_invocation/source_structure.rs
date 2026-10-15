@@ -14,6 +14,9 @@ fn trace_original_child_guard(label: &str, offset: Option<u32>, passed: bool) {
     }
 }
 
+mod logical_variable_operands;
+pub(crate) use logical_variable_operands::OriginalLogicalVariableOperands;
+
 mod procedure;
 pub use procedure::{OriginalProcedureSourceDescriptor, original_procedure_source_descriptor};
 

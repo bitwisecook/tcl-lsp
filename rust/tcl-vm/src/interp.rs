@@ -23401,7 +23401,7 @@ impl Vm {
     ) {
         if !self.explicit_scripted_libraries.contains(&library)
             && tcl_registry::native_scripted_distribution::procedures(
-                self.native_invocation_dialect(),
+                self.actual_native_invocation_dialect(),
                 library,
             )
             .next()
@@ -23417,7 +23417,7 @@ impl Vm {
         library: tcl_registry::native_scripted_distribution::NativeScriptedLibrary,
     ) {
         let procedures: Vec<_> = tcl_registry::native_scripted_distribution::procedures(
-            self.native_invocation_dialect(),
+            self.actual_native_invocation_dialect(),
             library,
         )
         .collect();

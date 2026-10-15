@@ -1370,3 +1370,518 @@ source recipes, but applying summary effects to SCCP needs an independent valid
 application seam and currentness/Normal guards. Authored namespace/cell keys and
 `compatibility_name`/`advisory_key` text cannot supply that seam. This migration
 remains design-only; no String inverse or weakened guard was accepted.
+
+Beyond-roster eBPF source/artifact review and follow-up:
+
+- VM implemented the bounded five-file body/list source migration above using
+  `OriginalBpfSource` in the existing `source.rs` owner. It retains actual
+  Module SourceImage/full configuration and a distinct real child region plus
+  WholeInput/NestedScript purpose. Original static body bytes must equal their
+  contiguous original content before receiving affine coordinates; cooked or
+  noncontiguous source refuses. Generated child lowering discards unrelated Tcl
+  execution proofs.
+- Initial source peer found the issuer only authenticated the selected body
+  argument, allowing a consistently changed retained head or another argument
+  to borrow its real source. The correction now parses the actual complete
+  retained region with the shared parser, selects the genuine original command
+  head boundary and checks exact word count, every original word extent and
+  every source presentation before projecting the requested NativeWord. New
+  controls retain changed-head, changed-other-argument and interior-word cases.
+- Templates use shared original list fields and retain their own body source
+  until reached `use`; recursive source-dependent work runs under that owner
+  before splicing. Unused-template loop validation timing is preserved. Handler
+  content bases and nested loop rebasing derive from actual proved body spans.
+  A reached template expansion error uses the genuine `use` site rather than
+  inventing a template-to-handler affine location. Mixed-origin final
+  instruction spans remain an explicit preexisting gap. This source peer passes
+  only the body/list issuer; whole closed-DSL head/nonselected scalar selection
+  remains unfinished, including builtin profile's one-argument path.
+- **Live event-identity migration remains required.** Registry
+  `lookup_bpf_event` admits case-insensitive canonical names and aliases, while
+  `frontend::lower_when_decl` retains written event String and
+  `compose::event_chains` groups exact `decl.event` String. Thus `xdp`/`XDP` or
+  `SOCKET`/`SOCKET_FILTER` select one registered event but form separate chains,
+  bypassing same-event/same-priority conflict detection. Retain the actual
+  selected BpfEventSpec identity separately from source/report spelling through
+  BpfProgramDecl, composition and loader; do not add local alias/case tables.
+  This conclusion follows the inspected shared metadata and consumer paths;
+  no semantic execution is claimed.
+- **ELF/BTF artifact-name admission remains required.** Public
+  `elf::write_object` program names and `build_btf` map names enter separate
+  `StrTab::add`/`BtfStrings::add` routines which append supplied String bytes and
+  a NUL terminator without refusing embedded NUL. DSL `declare_map` only checks
+  exact duplicate Strings. NUL-bearing source names cannot remain injective in
+  those NUL-terminated artifact-name tables. This needs an explicit artifact
+  representation owner/admission, not global Tcl-name restrictions,
+  sanitisation or CString-prefix identity reconstruction.
+- `elf.rs::section_name` also duplicates every section spelling from the
+  Registry BpfEventSpec `elf_section` metadata. The existing typed
+  `event::registry_prog_type` bridge can lead to a shared typed section
+  projection; preserve the shared `tc` section for ingress/egress. This is
+  artifact metadata, not source or execution admission.
+- Loader `DeploymentPlan::from_module` constructs pin paths from raw deployment
+  name and lowercase written event; `owns_pin` compares a formatted String
+  prefix. Its path-domain/collision contract remains unexamined. Current
+  inspected in-repository plan CLI is a dry-run and lifecycle owner is
+  ModelKernel; this review asserts no actual kernel action or observed
+  filesystem outcome.
+
+Registered-target coverage clarification: TargetFamily has Native/Gpu/Fpga enum
+variants, but the bounded construction search found production Wasm
+pipeline/leaf-invoke and eBPF semantic bridge registrations; GPU/FPGA registry
+constructors were under backend_registry's test module, and no production Native
+family construction appeared. Enum capability names are not additional
+implemented backends. The actual bytecode/VM backend has its separate trait
+route. This search does not certify every backend or host consumer.
+
+| Latest additional source review path | SHA-256 at source review |
+| --- | --- |
+| `rust/bpf-tcl-ir/src/source.rs` | `59fc511cfdd6480f1841b521a5474518cbf7b1fc4f2214a066a5d3d8d0d24a30` |
+| `rust/bpf-tcl-ir/src/template.rs` | `c794ada925ffa496733fef1c1ce59e692a9253a605cf2550f87c9526b90608e8` |
+| `rust/bpf-tcl-ir/src/unroll.rs` | `456dec0be08f7ab329b99735cadb6dcf573d4244d4c2b66b505d24ec6d2feee7` |
+| `rust/bpf-tcl-ir/src/frontend.rs` | `2796171c55aba8b7b66141347e9536c89b8d13d965b03fd2eaa7c7fbb681898f` |
+| `rust/bpf-tcl-ir/src/profile.rs` | `7e250c22b396a5db974b85c8fe9432689a8e62554a28a41a9dcbead37e65ffa9` |
+| `rust/bpf-tcl-ir/src/compose.rs` | `a9b6c86546b1cce3c31bee1d30ba852318636e1e2fa7766e761ed153f3200a7a` |
+| `rust/bpf-tcl-ir/src/loader.rs` | `c8f6396b1af833e8070eed9d8e6b6e33d5c29d812c6195702902c4096bed995b` |
+| `rust/bpf-tcl-codegen/src/ebpf/elf.rs` | `e5461f285c5dd4b3cd7d13f58f18dd43557d5f7ee07f621c6287666551f25a70` |
+| `rust/bpf-tcl-codegen/src/ebpf/btf.rs` | `312b604765046a0030788479cc03cdc5dd830fd606ea90a3a28cd568668bd513` |
+| `editors/vscode/src/scaffold.ts` | `f3942bdf5597a0378b00020540bd7692524387d226154d85963935126a0f9ecc` |
+| `editors/vscode/src/extension.ts` | `9ece7d7d0fb532c0522870794497b274cae710a3406d043cd4feaa5f7ae71223` |
+
+Subsequent bounded source peers, with all execution acceptance still pending:
+
+- Root's taint source-operand tranche extends existing `source_taint` ownership.
+  Its issuer starts from the current SsaSourceView operation's actual source
+  tokens, accepting that exact parent or a member of its checked original
+  lexical-child inventory. CommandTokens equality retains the independently
+  allocated `OriginalSourceAnalysisOwner` identity; equal source text in a
+  separately built analysis does not match. Existing original metadata/input,
+  image/channel, full configuration and complete word-vector owners then issue
+  read geometry only. The new SourceWarningRead variant consumes exact sealed
+  `read_reference` versions; a missing version stays unknown MAY taint and
+  never falls back to name-based SSA lookup. Source-owned AssignValue branches
+  before RHS String parsing, inventories actual original children and uses each
+  child's own argv. Missing/incomplete inventory remains terminal. Native/Hosted
+  source-read purposes are unchanged; other taint branch/value/composite and
+  standalone String consumers remain unfinished.
+- Runtime inventory completion transport retains the actual fresh List header,
+  backing and exact original member headers as produced data, attached only to
+  the newest authentic Source invocation. Explicit local eval/Command completion
+  sinks clear at boundaries; only a single nonexpanded Command operand can
+  retain this correspondence. Multipart, expanded, unknown, C and List adapters
+  donate no such receipt. A produced snapshot does not establish later current
+  table membership/generation or the selected original info/helper command
+  implementation. Those remain independent traversal/dispatch obligations;
+  Import entry still refuses and no absence/Native/Normal grant is added.
+- VM's event/section tranche now uses Registry-issued private ordinal BpfEventId
+  from actual catalogue lookup or a unique typed-program selector. Frontend
+  selects once and derives program type from that selected row. Composition,
+  conflict detection, deterministic sort and plan metadata use ID, while written
+  labels remain reports. ELF section projection uses all actual owner rows and
+  declines unavailable/inconsistent metadata, preserving map-target error
+  precedence. Alias/case, display-tamper and distinct-TC-ID/shared-section
+  controls remain unexecuted. ELF program-symbol generation from the written
+  label, artifact NUL admission and deployment-path naming remain separate
+  unfinished consumers.
+
+The DB transfer-summary source-place tranche is source-reviewed provisionally:
+actual module-held Logical realm/source/input/scope and original alias words
+replace namespace String joins; `global_sources` retains typed source symbols.
+Any physical outer-effect application with nonempty source-only places or a
+missing summary returns unavailable to both existing value-transfer adapters,
+which record undecided/Unsupported rather than treating it as no effect. No
+Native resolver is widened. Final source peer awaits preservation of the actual
+selected variable receiver form: the first draft queried the Registry form but
+always constructed Combined, losing TraceSubject's distinct ingress. That
+correction was requested explicitly. Reporting-only checked C coordinates do
+not repair the still-missing physical application owner.
+
+The Compiler OO member tranche also remains pending final source peer. Actual
+member declarations now retain their real definition body parent and class
+consumption checks that parent against authentic class relation providers.
+Remaining checks requested: static signature claims must account for formal
+name/default topology, and a full ledger's outside-parent Move/Visibility
+operations cannot silently become a fresh-definition or earlier-call horizon.
+Independent genuine horizon/installer applicability is required; final map or
+ledger state alone cannot prove a current factory layout. The existing raw
+manufacturer/unknown source-flow scans remain unfinished.
+
+| Latest bounded review path | SHA-256 at source review |
+| --- | --- |
+| `rust/tcl-compiler/src/registry_invocation/source_taint.rs` | `507d4d108b81922b84e672cdca7aa93bbebef5a6deeef8c581955ca8e2662dd3` |
+| `rust/tcl-compiler/src/taint.rs` | `9d5eb6fb6a7cffe5511d351080f6f7de319c0fbbd21bc15c99f62a45b94b4bdd` |
+| `runtime/rust/src/interp/native_jim_lookup.rs` | `2c81a82cffc5515740141287dcbd09d8833bc03f3c83a232c9607560ee1e5b22` |
+| `runtime/rust/src/interp/native_script.rs` | `9b8f50613837fe29c0daa727fd36e8c63708b51a09ed728e66c9b367fb45c472` |
+| `runtime/rust/src/interp.rs` | `11d7f9a775e6815082a85025cf547e5db7a94c0ac65068b88d702908516de635` |
+| `rust/tcl-registry/src/bpf_op.rs` | `cd91efc83f68eed2d91ec244aa02521bc89665c8b1fd2b26e652ac5c9f905000` |
+| `rust/bpf-tcl-ir/src/compose.rs` | `df4b71426e0b1e034e5bdc6eca35c48f28aef5325bd4207c122c5cfe8c66d368` |
+| `rust/bpf-tcl-ir/src/loader.rs` | `f51374c355db720ea76e671592d64d04d0367cdb7ed32b48ee9b5c86def90e2f` |
+| `rust/bpf-tcl-codegen/src/ebpf/elf.rs` | `93313374d56113ea6520b1f0e768aeb2f5ffc1f24125820b02aae17d64aa1949` |
+
+The pending DB and Compiler source-peer corrections above now pass their bounded
+reviews. DB carries the actual Registry receiver form into every source write
+occurrence; Name-parameter ingress comes from the genuine unique entry Relative1
+alias operand owner after `linked_cleanly`, and missing/default source producers
+remain unavailable. Both physical sinks preflight unknown outer effects before
+Never/rerun/completion handling. Compiler replaced broad signature return with
+`OriginalSourceMethodNameBody`, exposing only verified names and the actual
+unchanged body NativeWord; original token spans are compared to representative
+metadata token spans, while complete content comes from the genuine word owner.
+It checks every declaration and effect before folding the requested member
+side, requiring the same real definition parent or source/body-content horizon,
+so later configuration cannot disappear through delete/fold. Report-map
+selection and unreadable-override builtin fallback are removed at these sites.
+Physical transfer application, factory grammar transport and raw manufacturer/
+unknown source-flow selection remain unfinished. Controls remain unexecuted by
+this auditor.
+
+LSP's cursor source tranche also passes bounded source peer. The new shared
+lexer `variable_cursor_prefix_in` retains original partial/reference/container/
+root/index spans, actual whole image/channel and complete parent configuration;
+existing configured root/braced/index scanners own grammar, with no fabricated
+closing bytes, NativeWord, evaluated name key or frame. Core requires current
+whole analysis source, an actual innermost retained script region or independently
+selected complete Expr reference, and exact UTF16-to-byte roundtrip. Native and
+Logical completion consume typed index-versus-braced-name geometry and the real
+replacement container extent. Ordinary braced data, comments and escaped sigils
+stay inert. Missing incomplete bracket/Expr phase ownership remains unavailable.
+Command partials and fixed snippet-trigger domains remain separate unfinished
+consumers. The dead earlier `source_variable_reference_end` facade was removed;
+new owner rows must describe the actual partial-source API rather than retain
+obsolete rows.
+
+Runtime's new finite Import traversal owner/hooks are source-reviewed only as
+**unreachable bookkeeping**. The marked-Import entry refusal remains unchanged.
+Actual selected Jim Proc/frame/namespace/root Source birth and Rest List owners
+are retained; the inventory Command result keeps exact List/member production
+correspondence. Native foreach yields alone reset each candidate, typed actual
+Alias exists/prefix hooks retain reached outcomes/headers, resident bytes feed a
+finite seen set without extra getters, and pre/post actual Alias command
+completion plus outer iteration completion are observed before frame retirement.
+The reviewed references are weak/Rc/neutral lifetimes, not added Native references.
+This does not accept original Import execution. Mutable helper dispatch/argv,
+later lookup/generation/publication currency, equality/error/cache timing and
+full oracle conformance remain unproved. No source peer authorises changing the
+unconditional entry refusal.
+
+| Latest bounded review path | SHA-256 at source review |
+| --- | --- |
+| `rust/tcl-compiler/src/interprocedural/transfer.rs` | `3da3777675c54b3c923e914843f8377cbfe6c95c3d445431370f22f21a394636` |
+| `rust/tcl-compiler/src/interprocedural/transfer/source_context.rs` | `760ae405308518b29fac52e88a86776a15fafca61f3544787aebd6e2d811b071` |
+| `rust/tcl-compiler/src/analyser/types/original_members.rs` | `5aa6085f1b9bbea94c11253a7ef8da95c9b8777d7c4910651a76994c72133910` |
+| `rust/tcl-compiler/src/analyser/class_hierarchy/original_metadata.rs` | `75546a2d865bbda68f7d450967885c5c368464cbfa3f22c25a351cf71de035c6` |
+| `rust/tcl-lexer/src/word_parts/cursor.rs` | `d444c78605c3032b508f3069a1570bbceb73fe34b98d0dbfb1cddbf704100fba` |
+| `rust/tcl-lsp-core/src/completion.rs` | `1c959aebc8f4de675ffdf31c8f5c95d94b505be657afad8c10125065be28acad` |
+| `rust/tcl-lsp-core/src/completion/original_variables.rs` | `03900461e0434fcef7c804d258b35ddfe9644c9a7555133cb4c51726cf6bf9ac` |
+| `rust/tcl-lsp-core/src/source_structure.rs` | `cf553b364f05e1e0cde954cf2e80bfeec95fd8376edd739abc5bd115fb3d6311` |
+| `runtime/rust/src/interp/native_jim_import.rs` | `4b43f4383f04e3a21d3c65bb54884bdf139e4fe0735af1d9a4676f8541d37cb0` |
+
+A further diagnostic-display naming surface remains unfinished. Core
+`minify::SymbolMap::reverse` flattens procedure, scope-separated variable and
+alias spellings into a bare reverse map, explicitly choosing a procedure or the
+first scope on collision. `unminify_error` applies that same bare map to both
+`$short` and quoted text. The existing
+`unminify_error_round_trips_via_symbol_map` assertion deliberately preserves the
+legacy heuristic, including translating a can't-read variable label to a
+procedure label on a collision; do not silently weaken/change that assertion to
+claim a typed migration. A stronger contextual/domain-aware reporting purpose
+must distinguish this legacy API and preserve actual scope/command/variable
+information or decline ambiguous identity. Arbitrary rendered error text has no
+physical lookup authority.
+
+Serialization also loses names: `SymbolMap::format` emits aggressive command,
+argument and string alias sections, while `SymbolMap::parse` admits only Procs
+and Variables and drops those sections. Originals containing separators or
+newlines need a genuine lossless serialization contract, rather than another
+Tcl parser for this report format. This is live in CLI transform's map writer
+and `run_unminify_error`, MCP's `tools::unminify_error`, server's `symbolMap`
+response and F5 iRule symbol-map output. Existing legacy roundtrip assertions
+must remain; any machine format/typed reporting extension needs its own explicit
+purpose and reader/writer adoption. No execution or oracle claim is made here.
+
+| Diagnostic-display source review path | SHA-256 at source review |
+| --- | --- |
+| `rust/tcl-lsp-core/src/minify.rs` | `2148854f2f1dd4027d15c5e7159bed2f8826b61d95c77a2a66607195666f60f1` |
+| `rust/tcl-cli/src/commands/transform.rs` | `e51f152d9c1d6f4386b7932c9ec7643679e83240745e5a75ed7ead02d77f4588` |
+| `rust/tcl-mcp/src/tools.rs` | `3904242b110f2135819a1b49530b93670c66f4d70f1e8e46cc81933abb136ef7` |
+
+
+The next OO manufacturer source tranche is bounded source-reviewed, unexecuted.
+Class-object lexical context now starts from the current closed original member
+ledger, exact declaration/formals/body and genuine publication. Its side remains
+explicit; the existing source-arity projection now refuses ClassObject. Actual
+retained Next helper schema and direct original argument words replace the raw
+method keyword lookup. Selected ManufacturerMethod name/body ordinals and the
+configured executable arena replace the first/last textual variable-reference
+scan. A whole scalar formal supplies the name; a unique direct formal contributes
+to the body. The actual original prologue word remains retained. These are source
+layout facts, not normal completion, successful dispatch or an entered receiver.
+Raw injected-list and static source-flow consumers remain unfinished.
+
+Runtime's helper Source receipt now distinguishes the actual installed Info and
+Import purposes. Proc/body/context/root Source birth and the invocation purpose
+are checked; the Import-only entry guard still refuses traversal. Actual command
+inventory production still checks real namespace/frame/table/key currency around
+publication. The returned immutable List receipt separately checks the original
+interpreter context, current operation, exact live allocation/backing and member
+headers. It can cross the genuine Info producer frame's return without donating
+that retired frame to a later consumer. This is data production correspondence;
+retained generations do not prove later command lookup/currentness. Source-peer
+acceptance is not execution acceptance.
+
+The configured-event regression gained test-only staged producer assertions:
+actual configured lowering descriptor, current procedure/event correspondence,
+authentic complete source vector, selected event schema/Body ordinal and exact
+PotentialEvaluation body bytes. The original fixture and final assertions remain.
+These distinguish an upstream owner refusal from literal decoding; no production
+guard or oracle expectation was changed. Execution belongs to root's frozen run.
+
+The eBPF artifact-NUL follow-up is design-reviewed only: a distinct artifact-entry
+owner may use the standard CString representability check and one checked shared
+string table for ELF/BTF, with terminator-inclusive u32 offset/length admission
+before mutation. Native Tcl prefix policies and accepted DSL names must remain
+separate. Public artifact ingress must diagnose direct program/map names as well
+as source-produced names. No artifact implementation or validation is claimed.
+
+| Latest source peer path | SHA-256 at review |
+| --- | --- |
+| `rust/tcl-compiler/src/analyser/types/original_member_context.rs` | `3baa8bd7c88267aaf0c71ba09fbb0fb370e98d6f0d02521345334ee813bc5fe9` |
+| `rust/tcl-compiler/src/analyser/types/original_members.rs` | `c79bf4375e0d3bfba40c48355b6145845ceaeadafa1adcd75f2410e1c13e8d9d` |
+| `runtime/rust/src/interp/native_procedure_resources.rs` | `238df747512d9af0e6cd32a38c692b55e3fbf9e59b5f5d3d43fc687fab298e7f` |
+| `runtime/rust/src/interp/stock_ensembles.rs` | `f8ae00ce87d459f2c33a92d41676cce0aab7f76ed13f51e2cf045afbd5076a8b` |
+| `runtime/rust/src/interp/native_script.rs` | `9c80cd74c223edc37b3d5bcea0b87431e6f03d1af49a95b230e4c9ab1bcb6de3` |
+| `runtime/rust/src/interp/native_jim_lookup.rs` | `4907c043e510a90e6a891ebad8498be9ef60df2c4fcb0aadc564031b5cd036a3` |
+| `rust/tcl-irules/src/source_context.rs` | `82d1c2d5c409e921293e8b76d3883685051bca834d5780dcf4862fde9130f1e4` |
+
+
+Two additional live surfaces require bounded follow-up. Server
+`diagnostics_excluded` renders the actual OS basename with `to_string_lossy`, and
+`path_glob::slash_path` does the same for relative components before exclusion
+matching. Those display projections can collapse opaque native paths with genuine
+U+FFFD paths and suppress diagnostics. A host-path matching/admission purpose must
+retain actual path units; this is not a reason to impose a global Unicode filename
+restriction. The rest of path-glob grammar has not been reviewed here.
+
+MCP `irule_gen::build_http_test_blocks` still classifies raw command labels by
+exact names/prefix and emits executable expected-outcome assertions from the first
+object candidate. Its comment correctly calls these heuristic expected outcomes;
+that does not make a source name an observed result. The CFG `build_assertion`
+path already emits outcome questions instead. The fallback needs authentic selected
+source metadata plus admitted observation, or a distinct question-scaffold purpose,
+while retaining existing regression assertions until a reviewed change addresses
+the actual surface. Pattern-derived request examples also remain heuristics rather
+than proof that a path is reached. No generated test was run or appliance answer
+manufactured by this audit.
+
+
+The artifact-NUL implementation is now bounded source-reviewed, still unexecuted:
+core-types ArtifactCString/ArtifactStringTable owns exact NUL admission and checked
+terminator-inclusive table bounds; both ELF layouts and BTF use the same owner.
+Public BTF now returns Result and ELF propagates typed artifact errors. Static
+entries and direct arbitrary program/map ingress are covered; the original
+maps-target error still takes precedence. Native/DSL name domains are unchanged.
+Nonstring BTF type-count/offset arithmetic remains a separate artifact-size audit.
+Runtime's immutable inventory-result receipt additionally binds the fresh real
+List to the actual interpreter context, then checks that exact retained header's
+existing context before backing/member correspondence at later consumption.
+
+Another editor-generated source consumer is unfinished:
+`editors/vscode/src/runtimeValidation.ts` manually defines the iRules `when` stub,
+priority grammar and a clock-derived temporary procedure name, then publishes and
+renames that procedure in the actual helper namespace. No original collision or
+publication identity receipt accompanies the clock label. The extension consumes
+this emitted checker via `buildRuntimeValidationChecker`. Existing
+`runtimeValidation.test.ts` checks adapter selection and generated substrings;
+it does not establish helper naming isolation, collision handling or selected
+interpreter/version behavior. This is a separate checker context, not original
+TMM/iRules execution evidence; migrate through an authentic shared generated-source
+owner and retain exact interpreter/harness context rather than copying a TS name
+normalizer. No checker or appliance test was executed by the auditor.
+
+| Later artifact/editor source peer path | SHA-256 at review |
+| --- | --- |
+| `rust/tcl-core-types/src/artifact_string.rs` | `2d60b65a05ee170fc2f134589fac6f905964085547817588ee9841f4bbfa4601` |
+| `rust/bpf-tcl-codegen/src/ebpf/elf.rs` | `57e7cb318e5e8e6179c013083486fce2c5397fcbcf4f5c4b6fcad9d6feec351a` |
+| `rust/bpf-tcl-codegen/src/ebpf/btf.rs` | `cdda05b07d6e6ced91fab093c8e33e0746b6f39f58c73d27393c4a9d614e14d0` |
+| `runtime/rust/src/interp/native_jim_lookup.rs` | `edf99b6e3524365631b8eb1a61a9d1f6f402388c5beb3f69eb104d060c4be2c3` |
+| `editors/vscode/src/runtimeValidation.ts` | `e4a85f578138add7829c82c53a50726646ae484f469532b1e732c8d674f7776b` |
+| `editors/vscode/src/test/runtimeValidation.test.ts` | `ae27285c892608851a8123a5b74ed26a156932136c70ae4809c35919c1b703d9` |
+
+
+A newly examined XC artifact surface remains unfinished. Existing
+`f5-xc::names::xc_object_name` is a target-specific construction owner, but its
+32-bit hash suffix does not prove injectivity: an already-valid input equal to
+any generated label passes through unchanged, and finite hashes have collisions.
+Actual allocation/collision admission must remain separate from deterministic
+suggested spelling. `terraform::hcl_ident` independently copies the FNV helper
+and identifier construction, and service-policy references interpolate raw
+`policy.name` rather than the label projection used for origin-pool references.
+Public arbitrary translation-model inputs can therefore select labels that are
+not usable in a dotted HCL reference. Terraform `quote` escapes backslash/quote
+only; original newlines and HCL interpolation/directive delimiters require the
+actual HCL source-encoding owner, not Tcl escaping or a name sanitizer.
+
+Verified production consumers are the MCP XC payload and the server XC translation
+payload through `f5_xc::translation_payload`; no f5-cli caller was established by
+the scoped search. The translator itself already consumes genuine original
+Registry/source advice in production; helpers guarded cfg(test) are not evidence
+of a live private resolver. This finding is confined to target allocation,
+serialization and declaration/reference correspondence. Existing name/model tests
+must be retained; no Terraform provider/parser execution was performed.
+
+| XC artifact source review path | SHA-256 at review |
+| --- | --- |
+| `rust/f5-xc/src/names.rs` | `b58b9d1f36f74e16d0513951c42479801ee73e7113ed34f5645c75c0b316c3d2` |
+| `rust/f5-xc/src/terraform.rs` | `67121b5901ecd3b31900c5659e91d990aa7b5a969fa5d2aeb906c6b23143ac3d` |
+| `rust/f5-xc/src/lib.rs` | `efac1d1dfadcdfcb30953051e9393c6f74e94992d363eb155603273c31ae573a` |
+| `rust/tcl-mcp/src/xc.rs` | `eb7afa4a281a9fa43677be6908e8f452540352dee7b9e3f6619718555aae527f` |
+
+
+The Logical alias occurrence regression repair is source-reviewed only. The
+current genuine Logical scope selects a unique matching retained alias template
+before the generic known-alias local refusal. The new occurrence constructor
+rechecks that owner and always keeps logical_scope, preserving the unconditional
+source-applicability/rename veto. Native-first matching and global unknown,
+conflict and alias-obligation guards remain unchanged. The original failing
+source-coverage assertion remains, alongside new competing/dynamic relink, sibling
+frame, changed-image/configuration and rename-false controls. Source correspondence
+still grants no actual link continuity, physical cell or read completion.
+
+Source-peer hash `rust/tcl-compiler/src/analyser/scope.rs`: `a4a96b21237ae6c1eb02939cb254486907ebfac952ceb64fa9804a58e2d849f6`.
+
+Source-peer hash `rust/tcl-compiler/src/signature_scan/variable_symbol.rs`: `2d1fe45d65660167849ec933cc64c54b9a3b14baddeabdcf5c15d9859e47cab9`.
+
+
+A bounded WASM host follow-up found no arbitrary-name artifact admission at
+`Session::c_string`'s current caller: `WasmEngine::set_release` first resolves
+`resolve_known_environment` to a catalogue profile with a runtime base and retains
+that exact static profile name; Setup::Release transports it to Session::set_release.
+The NUL-appending allocation helper there is therefore currently reached only by
+that selected catalogue name, not user command/path text. Counted command objects
+continue through the separate receipt owner. This disposition covers the inspected
+caller chain, not all future Session adapters or the complete WASM host.
+
+
+The XC JSON renderer has an independently concrete declaration/reference mismatch:
+`render_service_policy` constructs metadata.name through xc_object_name, while
+`render_load_balancer` emits active_service_policies entries from raw policy.name.
+The Console renderer shares that load-balancer spec. Arbitrary public model
+policy names therefore need one retained target-name mapping at both ends, even
+before collision allocation or Terraform source grammar is addressed. JSON's serde
+encoding itself is distinct from HCL quoting and was not classified as a Tcl
+source reparser. Existing simple-name cases must remain unchanged.
+
+Source-review hash `rust/f5-xc/src/json_api.rs`: `004559652175807b86f30ebd3d48af1d1c077b8525a5d93aa9fb4f5e516da44f`.
+
+
+The configured HTTP event failure was narrowed by root's independent public-API
+client against the exact frozen K libraries: the body/schema owners succeeded,
+while the requested 9.4 target's EventRegistry availability rejected HTTP_REQUEST.
+The bounded correction supplies only that event's documented 9.0.0 introduction;
+the shared baseline is unchanged. Official F5 documentation HTML, HTTP capture
+provenance, executable/source hashes, process channels and initial failed setup
+are retained under `experiments/irules/event-availability/http-request-20261015`.
+The auditor read original HTML line 873 (`Introduced: BIGIP-9.0.0`) and verified
+all eight SHA256SUMS entries. This is documentation availability evidence, not
+TMM/appliance execution, activation or Native authority. A shared test covers
+before/at/after introduction, independent XML retirement and unknown event refusal;
+all original configured source/body assertions remain. No auditor test was run.
+
+Source/evidence peer hash `rust/tcl-registry/src/events.rs`: `c5862bd90616a3e04eb4104b8341a6514f6d6d909a3628e5e107df3ad004e6c6`.
+
+Source/evidence peer hash `experiments/irules/event-availability/http-request-20261015/SHA256SUMS`: `fa0a4f321e431ae0461af6af653f22e3869e5f362366ef3957c189483d1fa7b6`.
+
+
+DB's next hidden-MAY producer tranche has an initial bounded source peer only.
+OriginalLogicalVariableOperands factors the existing authenticated operand/alias
+source issuer for both transfer summaries and global-write inventory. Actual
+statement tokens, complete lexical/selected-expression children and same-invocation
+Plain body owners are inventoried; missing carriers/schema/frame/body completeness
+remain unavailable. Typed local slots union possible source targets before checked
+labels are rendered. This is not acceptance of the pending CFG/SSA application:
+Some(source_writes) cannot be consumed as complete when inherited opaque effects
+or a missing callee remain. Pairing requires actual emitted-def provenance through
+SSA issuance, not matching report names. Root/DB own the subsequent implementation
+and fresh validation; the auditor made no source changes or execution claim.
+
+
+The outer-write producer's follow-up now seals source_writes behind a getter
+that refuses every opaque_global_frame, including inherited missing-callee or
+unknown effects. Transfer components consume that gated typed slice; the duplicate
+local outer-source scan is removed, and the old opaque-binding guard remains.
+This closes the partial-inventory exposure identified above; it does not complete
+pending CFG/SSA emitted-def provenance or physical effects. New producer controls
+remain unexecuted.
+
+Runtime's initial namespace Info relay is source-reviewed only as fail-closed
+transport through actual mutable dispatch. It retains the authentic caller Source
+and fresh helper argv, explicitly excludes relay records from Source/operand/core
+inventory issuers, and refuses absent actual helper completion provenance after
+normal dispatch. No stack search, global marker, output-byte fallback or Import
+entry enable is present. The new private constructed_member helper has no current
+production caller in the bounded search. Retaining an arbitrary constructor Rc
+is not yet an authentic constructor witness: before a future caller can admit
+constructed data, it must prove the actual reached constructor/root/context and
+selected input-to-fresh-output completion. Historical provenance and current
+returned List/header/backing/member correspondence remain separate purposes.
+
+
+The debugger's REPL frontend still truncates original names before the migrated
+replay owner: main.rs splits the line into whitespace fields and `print` sends only
+the second field to DebugBackend::evaluate. Complete `${odd name}` and captured
+labels with spaces therefore cannot reach the existing whole-reference/unique-label
+backend. The DAP route retains the complete expression. Repair belongs in the REPL
+command operand transport, retaining the remainder for the existing backend owner;
+adding Tcl execution or a new variable parser is unnecessary. Existing backend
+whole-reference/odd-name and ambiguous captured-label tests remain relevant. This
+is reporting correspondence, with no physical variable authority.
+
+
+Hosted event-operand retention is now bounded source-reviewed, unexecuted. The
+actual deferred declaration candidates supply a unanimous EventSymbol ordinal and
+complete original vector. The Hosted-only path requires genuine retained
+metadata/input/context, the exact selected shape vector and an actual declaration
+target before borrowing its original Vendor policy and narrow EventName source
+literal units. Missing ownership refuses; the Native path is unchanged. This
+repairs source transport only, not event activation, TMM execution or installation.
+The original configured regression additionally checks original operand geometry
+and changed-image/config refusal without weakening earlier assertions.
+
+The global source-write inventory also now refuses all actual module execution
+and variable trace flags/sets before exposing complete typed writes. Possible
+observer callbacks cannot be hidden by an otherwise known source write. This is
+conservative MAY coverage; no source-only naming receipt becomes a physical cell.
+
+Source-peer hash `rust/tcl-compiler/src/lowering/mod.rs`: `986eff807d15dffa5ed2e74ac08b0f81d8f19bdc55e6805b20307b55f54dec56`.
+
+Source-peer hash `rust/tcl-syntax/src/naming/vendor_source.rs`: `a0608113e4db7a2c84f9acd2bff4e91d1b256833847b934710f496809bef6e36`.
+
+Source-peer hash `rust/tcl-irules/src/source_context.rs`: `f674d6de768d1fe78e49042d7699d340b56636ca88cc54963abe88c12e297cb1`.
+
+Source-peer hash `rust/tcl-compiler/src/cfg_builder/global_write_info.rs`: `9c5eda076829aa16a155d6a81a2b5a5052a6d2355f5bcc0a5a6115fd2b3f2374`.
+
+
+VM's two-file K2 repair is source-reviewed, unexecuted. Actual physical invocation
+dialect selects the scripted-library roster/installation; existing generation/key
+replacement guards remain. Rejected Jim namespace selectors now dispatch the
+Registry's actual diagnostic sort head with the original table-name List/object
+vector, retain the actual returned result and use checked original List conversion
+and ListJoin append owners before the shared diagnostic formatter. Failed sorting
+retains its actual result text. The fresh private String receiver remains rc0 and
+unshared; original namespace same-holder cache behavior is not weakened or forced
+to run a getter. New controls read four result/header rows from the existing
+retained Runtime fixture; original lifecycle/SDK200 controls remain unchanged.
+Special-selector paths and execution acceptance remain separate obligations.
+
+Source-peer hash `rust/tcl-vm/src/interp.rs`: `22cfec3524d04404b87658c3bea2293f5b64c64be72f7f16782bd55f26f31386`.
+
+Source-peer hash `rust/tcl-vm/src/cmd_namespace/native_jim_subcommands.rs`: `5271c87211f3dc424f76142110c43e16723d7c24cd23b175db39c910f7425cf1`.
+
+
+The shared Logical body command inventory now indexes actual retained SourceOrigin
+Arc allocations and offsets while keeping those Arcs alive. Exact complete-token
+duplicates are deduplicated; same-site nonbinding token conflicts refuse, and
+otherwise identical real binding/frame facets remain separate observations. Actual
+metadata validation still precedes admission. Genuine independent-module/site and
+altered-argv controls cover the index purpose; they remain unexecuted. This
+performance change supplies no source-to-physical SSA conversion.

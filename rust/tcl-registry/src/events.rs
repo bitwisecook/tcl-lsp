@@ -2408,6 +2408,7 @@ fn event_props_table_8() -> Vec<(&'static str, EventProps)> {
                 client_side: true,
                 transport: &["tcp"],
                 implied_profiles: &["FASTHTTP", "HTTP"],
+                lifecycle: Lifecycle::introduced_in("9.0.0"),
                 hot: true,
                 common: true,
                 ..EventProps::DEFAULT
@@ -4893,6 +4894,27 @@ mod tests {
             assert_eq!(facts.last().copied(), Some(expected), "{source:?}");
         }
     }
+    #[test]
+    fn http_request_availability_keeps_its_documented_prebaseline_introduction() {
+        // experiments/irules/event-availability/http-request-20261015/README.md
+        let registry = EventRegistry::build();
+        assert!(!registry.event_available_at("HTTP_REQUEST", "8.4.0"));
+        for version in ["9.0.0", "9.4.0", "16.1.0"] {
+            assert!(
+                registry.event_available_at("HTTP_REQUEST", version),
+                "{version}"
+            );
+        }
+        assert!(registry.event_available_at("XML_BEGIN_DOCUMENT", "9.4.0"));
+        for version in ["10.0.0", "16.1.0"] {
+            assert!(
+                !registry.event_available_at("XML_BEGIN_DOCUMENT", version),
+                "{version}"
+            );
+        }
+        assert!(!registry.event_available_at("BOGUS_EVENT", "16.1.0"));
+    }
+
     #[test]
     fn variable_frames_and_lifecycle_relations_do_not_invent_event_dominance() {
         let registry = EventRegistry::build();

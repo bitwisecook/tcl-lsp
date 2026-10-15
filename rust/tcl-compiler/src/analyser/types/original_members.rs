@@ -148,6 +148,61 @@ impl<'a> OriginalSourceMethodNameBody<'a> {
     pub(crate) const fn body_word(&self) -> &'a tcl_lexer::NativeWord {
         self.body
     }
+
+    fn owns_argument(&self, word: &tcl_lexer::NativeWord) -> bool {
+        let Ok(content) = self.body.content_span() else {
+            return false;
+        };
+        !word.group().expand
+            && word.image() == self.body.image()
+            && word.config() == self.body.config()
+            && content.start() <= word.span().start()
+            && word.span().end() <= content.end()
+    }
+
+    fn parameter_index(&self, name: &[u8]) -> Option<usize> {
+        let mut matches = self
+            .parameters
+            .iter()
+            .enumerate()
+            .filter(|(_, parameter)| parameter.as_bytes() == name);
+        let (index, _) = matches.next()?;
+        matches.next().is_none().then_some(index)
+    }
+
+    /// A whole actual scalar substitution of one unambiguous original formal.
+    pub(crate) fn scalar_parameter_read(&self, word: &tcl_lexer::NativeWord) -> Option<usize> {
+        self.owns_argument(word).then_some(())?;
+        let arena = word.executable_parts();
+        let [part] = arena.list(arena.root()) else {
+            return None;
+        };
+        let tcl_lexer::ExecutablePart::Variable { name, index: None } = part.part else {
+            return None;
+        };
+        self.parameter_index(arena.bytes(name)?)
+    }
+
+    /// One direct formal contribution to the body expression. Nested command
+    /// results and other variables cannot supply a parameter-name projection.
+    pub(crate) fn body_parameter_read(&self, word: &tcl_lexer::NativeWord) -> Option<usize> {
+        self.owns_argument(word).then_some(())?;
+        let arena = word.executable_parts();
+        let mut selected = None;
+        for part in arena.list(arena.root()) {
+            match part.part {
+                tcl_lexer::ExecutablePart::Variable { name, index: None } => {
+                    let index = self.parameter_index(arena.bytes(name)?)?;
+                    if selected.replace(index).is_some() {
+                        return None;
+                    }
+                }
+                tcl_lexer::ExecutablePart::Text(_) | tcl_lexer::ExecutablePart::Command { .. } => {}
+                _ => return None,
+            }
+        }
+        selected
+    }
 }
 
 impl OriginalSourceMethodMetadata {
