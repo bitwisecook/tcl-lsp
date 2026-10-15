@@ -376,50 +376,16 @@ fn if_defect_reason(plan: &ClausePlan, defect: ClauseShapeError) -> &'static str
     }
 }
 
-/// `text`, a word's value spelling, as one double-quoted Tcl word with the
-/// same value: a bare `"` is escaped, while backslash sequences and command
-/// substitutions are kept as written.
-fn quoted_word(text: &str) -> String {
-    let mut out = String::with_capacity(text.len() + 2);
-    out.push('"');
-    let mut depth = 0usize;
-    let mut chars = text.chars();
-    while let Some(c) = chars.next() {
-        match c {
-            '\\' => {
-                out.push(c);
-                if let Some(next) = chars.next() {
-                    out.push(next);
-                }
-                continue;
-            }
-            '[' => depth += 1,
-            ']' => depth = depth.saturating_sub(1),
-            '"' if depth == 0 => out.push('\\'),
-            _ => {}
-        }
-        out.push(c);
-    }
-    out.push('"');
-    out
-}
-
 impl Lowerer<'_> {
     /// The condition of `if`/`while`/`for` from argv word `word`. A simple
     /// word is the expression itself; any other word is substituted and its
     /// value evaluated as an expression (`TclCompileExprWords`), so `if $c`
-    /// with `c` holding `1==1` is true. That is `[expr "<word>"]`.
+    /// with `c` holding `1==1` is true ([`ExprNode::substituted_word`]).
     fn condition_expr(&self, seg: &SegmentedCommand, word: usize, text: &str) -> ExprNode {
         if super::seg_word_is_simple(seg, word) {
             return parse_expr_for_profile(text, self.dialect);
         }
-        let text = format!("[expr {}]", quoted_word(&seg.texts[word]));
-        let end = u32::try_from(text.len()).unwrap_or(u32::MAX);
-        ExprNode::Command {
-            text,
-            start: 0,
-            end,
-        }
+        ExprNode::substituted_word(text)
     }
 
     // if
