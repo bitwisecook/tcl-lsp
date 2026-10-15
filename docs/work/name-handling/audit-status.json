@@ -1,10 +1,10 @@
 {
   "baseline": "cc24c394004fc187378ba0eefb6c2c5b2615fb00",
-  "utc": "2026-10-15T23:38:29.770776+00:00",
+  "utc": "2026-10-15T23:54:30.818594+00:00",
   "status": "RESUMED at user request; six audit lanes active. Source/build freeze retained. Complete actual source/operational/generated/guidance audit and canonical migration scale.",
   "paused": false,
   "remaining_consumer_total": null,
-  "provisional_records": 7106,
+  "provisional_records": 7255,
   "areas": [
     {
       "owner": "compiler",
@@ -15,10 +15,10 @@
         "production_source_read_embedded_tests_grouped": 36,
         "production_statements_and_owner_contracts_read_embedded_tests_grouped": 1,
         "full_source_read": 5,
-        "unexamined": 197,
-        "full_production_source_read_omitted_tests_unexamined": 365,
+        "unexamined": 179,
+        "full_production_source_read_omitted_tests_unexamined": 373,
         "bounded_actual_source_caller_trace_remainder_unexamined": 2,
-        "full_production_source_read_by_root_peer_exact_hash_receipt": 108,
+        "full_production_source_read_by_root_peer_exact_hash_receipt": 117,
         "bounded_actual_caller_trace_by_root_peer_remainder_unexamined": 26,
         "targeted_source_trace_file_remainder_unexamined": 16,
         "exact_test_membership_with_external_helpers_read_inline_operations_unexamined": 26,
@@ -28,6 +28,7 @@
         "bounded_actual_caller_trace_remainder_unexamined": 3,
         "bounded_original_omitted_production_read_remainder_unexamined": 2,
         "full_test_only_operational_helper_source_read": 1,
+        "full_original_operational_source_read_no_execution": 1,
         "explicit_manifest_grouped_fixture": 3226,
         "exact_fixture_manifest_rule": 150,
         "exact_retained_provider_artifact_manifest": 52,
@@ -35,22 +36,23 @@
         "complete_fixed_literal_data_classification_with_independent_validation_pending": 2
       },
       "reported_review_statuses": {
-        "source_reviewed": 166,
-        "production_reviewed_inline_tests_pending": 434,
-        "unexamined": 197,
+        "source_reviewed": 167,
+        "production_reviewed_inline_tests_pending": 450,
+        "unexamined": 179,
         "partial_remainder_unexamined": 59,
         "test_operational_inline_pending": 26,
+        "operational_source_reviewed": 1,
         "manifest_classified_fixture": 3430
       },
-      "provisional_recorded_rows": 1030,
+      "provisional_recorded_rows": 1130,
       "provisional_dispositions": {
-        "shared_owner": 640,
+        "shared_owner": 727,
         "display_only": 40,
         "migrated_validation_pending": 165,
-        "needs_migration": 131,
-        "pending_audit": 24,
+        "needs_migration": 133,
+        "pending_audit": 32,
         "out_of_scope": 23,
-        "pending_validation": 7
+        "pending_validation": 10
       }
     },
     {
@@ -168,8 +170,9 @@
         "full_production_manual_review_inline_operations_pending": 259,
         "explicit_manifest_test_scope_rule": 236,
         "explicit_manifest_rule": 9139,
-        "actual_full_source_read": 75,
-        "pending_individual_harness_or_provenance_review": 181,
+        "actual_full_source_read": 83,
+        "independent_peer_full_source_read_admitted": 112,
+        "pending_individual_harness_or_provenance_review": 61,
         "exact_blob_duplicate_of_actual_read": 30,
         "manual_helpers_plus_literal_grammar_classification": 1,
         "full_production_source_manual_review": 1
@@ -177,15 +180,15 @@
       "reported_review_statuses": {
         "unspecified": 10074
       },
-      "provisional_recorded_rows": 987,
+      "provisional_recorded_rows": 990,
       "provisional_dispositions": {
-        "needs_migration": 350,
+        "pending_audit": 32,
+        "needs_migration": 347,
         "migrated_validation_pending": 380,
         "shared_owner": 182,
         "out_of_scope": 28,
         "display_only": 15,
-        "pending_audit": 27,
-        "pending_validation": 5
+        "pending_validation": 6
       }
     },
     {
@@ -248,7 +251,7 @@
       "assigned_paths": 75753,
       "coverage_rows": 75753,
       "reported_review_modes": {
-        "inventory_only": 31550,
+        "inventory_only": 31548,
         "whole_operational_tooling_source_read": 23,
         "whole_guidance_or_config_read": 11,
         "whole_authored_guidance_read": 5,
@@ -271,17 +274,16 @@
         "whole_guidance_read": 1,
         "fixed_shape_asset_data_review": 3,
         "targeted_functions_read": 3,
-        "targeted_actual_tls_caller_read": 1,
+        "whole_production_and_inline_operational_tests_read": 10,
         "whole_harness_read": 5,
         "whole_production_and_inline_tests_read": 8,
         "fixed_shape_metadata_and_operational_source_read": 1,
-        "targeted_actual_caller_context_read": 2,
+        "targeted_actual_caller_context_read": 1,
         "generated_fixed_shape_records_and_whole_operational_kernel": 2,
         "whole_authored_operational_metadata_source_read": 1,
         "targeted_actual_state_alias_caller_read": 2,
         "whole_reference_specimen_source_read": 1,
         "whole_production_peer_read": 14,
-        "whole_production_and_inline_operational_tests_read": 6,
         "whole_authored_fixture_read": 29,
         "whole_operational_source_read": 13,
         "whole_original_reference_specimen_read": 17,
@@ -289,25 +291,25 @@
         "whole_authored_manifest_metadata_read": 5
       },
       "reported_review_statuses": {
-        "unexamined": 31550,
-        "reviewed": 44194,
-        "partial": 9
+        "unexamined": 31548,
+        "reviewed": 44198,
+        "partial": 7
       },
-      "provisional_recorded_rows": 2258,
+      "provisional_recorded_rows": 2304,
       "provisional_dispositions": {
-        "shared_owner": 908,
-        "display_only": 378,
-        "pending_audit": 211,
-        "out_of_scope": 290,
-        "needs_migration": 308,
-        "pending_validation": 163
+        "shared_owner": 921,
+        "display_only": 380,
+        "pending_audit": 213,
+        "out_of_scope": 292,
+        "needs_migration": 327,
+        "pending_validation": 171
       }
     }
   ],
   "primary_packet": {
-    "file": "repository-audit-progress-20261015T233826Z.tar.gz",
-    "sha256": "a73ddeee95f4b1147fb96054a2cf6fa7d92fbd60e718362a07ca1370aa71c109",
-    "verified_members": 1114
+    "file": "repository-audit-progress-20261015T235428Z.tar.gz",
+    "sha256": "6ac8ab68eed959833b063e9c10356b2f68fcbe654596f7881872dc6c5adbbbc6",
+    "verified_members": 1178
   },
   "nested_archive_base": {
     "archive_name": "repository-audit-deep-progress-20261015T220906Z.tar.gz",
@@ -556,9 +558,9 @@
   },
   "canonical_status": "audit-status.md",
   "nested_delta": {
-    "file": "repository-audit-deep-delta-20261015T233825Z.tar.gz",
-    "sha256": "5ef7936dc0ba05a82214ef61bab21b684db70c0a5baad13af54f4ffdcbd5ba90",
-    "status": "Exact nested audit delta against repository-audit-deep-progress-20261015T220906Z.tar.gz SHA8813dc50abbc84c6c55a0ca2563df708c80ce8d8f8fcb7c60ad2bb092122d4fa; 668 changed/new verified members,0 deletions; source retention only, no review/execution acceptance."
+    "file": "repository-audit-deep-delta-20261015T235426Z.tar.gz",
+    "sha256": "e39c41f4044615a13210b4db3c8ecd44405271c12e78654c1fc5a02a20c80bc6",
+    "status": "Exact nested audit delta against repository-audit-deep-progress-20261015T220906Z.tar.gz SHA8813dc50abbc84c6c55a0ca2563df708c80ce8d8f8fcb7c60ad2bb092122d4fa; 712 changed/new verified members,0 deletions; source retention only, no review/execution acceptance."
   },
   "root_canonical_proposal": {
     "counts": {
@@ -628,5 +630,31 @@
     },
     "status": "Assigned source/operational file census closed; canonical DB-area units source-reviewed. Unresolved provider/domain requirements and all execution acceptance remain explicit, not complete migrations.",
     "review": "Source-reviewed area proposal; independent cross-owner boundary QA and control selection unfinished. Not a repository migration total."
+  },
+  "vm_canonical_proposal": {
+    "counts": {
+      "original_purpose_rows": 958,
+      "remaining_code_units": 357,
+      "distinct_physical_source_anchors": 678,
+      "families": 52,
+      "work_kind": {
+        "host_abi": 26,
+        "metadata_schema": 111,
+        "consumer_integration": 190,
+        "shared_owner_extension": 9,
+        "validation_only": 21
+      },
+      "relative_effort": {
+        "M": 207,
+        "S": 107,
+        "L": 41,
+        "XL": 2
+      },
+      "unresolved_questions": 64,
+      "integrated_validation_obligations": 345,
+      "no_additional_change_rows": 183
+    },
+    "status": "Complete assigned-source audit and canonical purpose partition; unresolved actual provider/caller requirements and execution obligations explicitly retained. Not migration completion.",
+    "review": "Assigned source/operational coverage closed; semantic QA found unsupported requirements, wrong category labels and incorrect actual-purpose anchors. Frozen357 proposal/category totals unaccepted; correction in progress."
   }
 }
