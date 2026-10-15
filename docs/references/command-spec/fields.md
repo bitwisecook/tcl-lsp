@@ -1307,6 +1307,12 @@ Compiler internals: bytecode emitters for value-position (`set x [cmd …]`) and
 | `Break` | break |
 | `Continue` | continue |
 | `Try` | try |
+| `StringIs` | string is |
+| `StringMatch` | string match |
+| `StringReplace` | string replace |
+| `StringTrim` | string trim |
+| `StringTrimLeft` | string trimleft |
+| `StringTrimRight` | string trimright |
 
 ### Lowering hooks
 
