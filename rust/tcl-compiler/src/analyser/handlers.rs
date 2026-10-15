@@ -7280,75 +7280,158 @@ impl Analyser {
         seg: &SegmentedCommand,
         _word_param: &str,
     ) -> Option<(Vec<Span>, bool)> {
-        let registry = self.registry.as_deref()?;
-        let args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
+        let context = self.retained_static_source_context()?;
+        let input = self.result.resolved_input.as_ref()?;
         if self.segment_invocation_completion(seg)
             != tcl_registry::registry::InvocationCompletion::FallsThrough
-            || registry.control_invocation_valid(
-                seg.name(),
-                &args,
-                Some(self.analysis_context().context().authoring_query()),
-            ) != Some(true)
         {
             return None;
         }
-        let exprs = registry.arg_indices_for_role(seg.name(), &args, tcl_registry::ArgRole::Expr);
-        let bodies = registry.arg_indices_for_role(seg.name(), &args, tcl_registry::ArgRole::Body);
-        if bodies.iter().any(|body| {
-            registry.control_arm_semantics(seg.name(), &args, *body)
-                != Some(tcl_registry::registry::ControlArmSemantics::Selected)
-        }) {
+        let words = crate::registry_invocation::source_structure::source_registry_words_at(
+            &self.source,
+            &self.result,
+            seg.argv.first()?.span.start(),
+        )?;
+        if words.origins().len() != seg.argv.len()
+            || words.origins().iter().enumerate().any(|(ordinal, origin)| {
+                *origin != crate::registry_invocation::InvocationWordOrigin::Written(ordinal)
+            })
+        {
             return None;
         }
-        let mut all_known = true;
-        let mut selected = None;
-        for (branch, expr_idx) in exprs.iter().copied().enumerate() {
-            match self.literal_boolean_expr(seg.args().get(expr_idx)?) {
-                Some(true) => {
-                    selected = bodies.get(branch).copied();
-                    break;
-                }
-                Some(false) => {}
-                None => {
-                    all_known = false;
-                    break;
+        let clauses = words.with_source_schema(&context, |schema| {
+            if schema.semantics.lowering_hook != Some(tcl_registry::hooks::LoweringHookId::If) {
+                return None;
+            }
+            let plan = schema.clause_plan()?;
+            if plan.defect.is_some() || plan.clauses.is_empty() {
+                return None;
+            }
+            let clauses = plan
+                .clauses
+                .iter()
+                .map(|clause| {
+                    if clause.timing != tcl_registry::clause_grammar::ClauseTiming::Selected
+                        || clause.operands(tcl_registry::ArgRole::Body).count() != 1
+                        || clause.operands(tcl_registry::ArgRole::Expr).count() > 1
+                    {
+                        return None;
+                    }
+                    let body = clause.operand(tcl_registry::ArgRole::Body)?;
+                    let semantics = if input.has_logical_source_name_context() {
+                        schema.authored_logical_source_control_arm_semantics(body)
+                    } else {
+                        schema.authored_source_control_arm_semantics(body)
+                    };
+                    (semantics == Some(tcl_registry::registry::ControlArmSemantics::Selected))
+                        .then_some(())?;
+                    Some((clause.operand(tcl_registry::ArgRole::Expr), body))
+                })
+                .collect::<Option<Vec<_>>>()?;
+            let (mut scripts, prefixes, mut expressions) =
+                if input.has_logical_source_name_context() {
+                    (
+                        schema.authored_logical_source_script_arguments()?,
+                        schema.authored_logical_source_command_prefix_arguments()?,
+                        schema
+                            .authored_logical_source_expression_arguments()?
+                            .arguments,
+                    )
+                } else {
+                    (
+                        schema.authored_source_script_arguments()?,
+                        schema.authored_source_command_prefix_arguments()?,
+                        schema.authored_source_expression_arguments()?.arguments,
+                    )
+                };
+            let mut expected_scripts = clauses.iter().map(|(_, body)| *body).collect::<Vec<_>>();
+            let mut expected_expressions = clauses
+                .iter()
+                .filter_map(|(condition, _)| *condition)
+                .collect::<Vec<_>>();
+            scripts.sort_unstable();
+            expressions.sort_unstable();
+            expected_scripts.sort_unstable();
+            expected_expressions.sort_unstable();
+            (prefixes.is_empty()
+                && scripts == expected_scripts
+                && expressions == expected_expressions)
+                .then_some(clauses)
+        })??;
+        let bodies = words.source_script_bodies_for_mutation_coverage(&context)?;
+        if bodies.len() != clauses.len() {
+            return None;
+        }
+        let mut branches = Vec::with_capacity(clauses.len());
+        for (condition, ordinal) in clauses {
+            let original = words.original_argument_word(ordinal)?;
+            let mut matches = bodies
+                .iter()
+                .filter(|body| body.original_container() == original);
+            let body = matches.next()?;
+            if matches.next().is_some()
+                || branches.iter().any(|(_, span)| *span == body.extent_span())
+            {
+                return None;
+            }
+            branches.push((condition, body.extent_span()));
+        }
+        for &(condition, body) in &branches {
+            match condition {
+                None => return Some((vec![body], false)),
+                Some(condition) => {
+                    match self.original_condition_boolean(seg, condition.checked_add(1)?) {
+                        Some(true) => return Some((vec![body], false)),
+                        Some(false) => {}
+                        None => {
+                            return Some((
+                                branches.iter().map(|(_, span)| *span).collect(),
+                                branches.iter().all(|(condition, _)| condition.is_some()),
+                            ));
+                        }
+                    }
                 }
             }
         }
-        if all_known {
-            if selected.is_none() && bodies.len() > exprs.len() {
-                selected = bodies.last().copied();
-            }
-            let spans = selected
-                .and_then(|idx| seg.arg_tokens().get(idx).map(|token| token.span))
-                .into_iter()
-                .collect();
-            return Some((spans, selected.is_none()));
-        }
-        let spans = bodies
-            .iter()
-            .filter_map(|idx| seg.arg_tokens().get(*idx).map(|token| token.span))
-            .collect();
-        Some((spans, bodies.len() <= exprs.len()))
+        Some((Vec::new(), true))
     }
 
-    fn literal_boolean_expr(&self, word: &str) -> Option<bool> {
-        if !crate::var_refs::scan_var_ref_forms_with_config(word, self.lexer_config()).is_empty()
-            || word.contains('[')
+    fn original_condition_boolean(&self, seg: &SegmentedCommand, written: usize) -> Option<bool> {
+        let context = self.retained_static_source_context()?;
+        let mut tokens = crate::ir::CommandTokens::from_segmented(
+            &self.cached_source_map(),
+            self.file_lexer_config(),
+            seg,
+        );
+        self.head_identities
+            .source_bindings()
+            .stamp_original_tokens(&mut tokens);
+        let original = crate::registry_invocation::original_expression_operand_advice_for_word(
+            context.commands(),
+            &tokens,
+            written,
+        )?;
+        if !original.lookup_closed
+            || original.expression.evaluation_nodes().iter().any(|node| {
+                !matches!(
+                    node,
+                    crate::expr_ast::ExprNode::Literal { .. }
+                        | crate::expr_ast::ExprNode::Unary { .. }
+                        | crate::expr_ast::ExprNode::Binary { .. }
+                        | crate::expr_ast::ExprNode::Ternary { .. }
+                )
+            })
         {
             return None;
         }
-        let expr = word
-            .trim()
-            .strip_prefix('{')
-            .and_then(|value| value.strip_suffix('}'))
-            .unwrap_or(word.trim());
-        let parser = self.original_expression_parser_context()?;
-        let generation = self.analysis_context();
+        let mut policy = crate::tcl_expr_eval::FoldPolicy::from_registry(context.commands())
+            .with_invocation_dialect(original.dialect);
+        policy.word_rules =
+            tcl_syntax::word_rules::WordValueRules::from_config(&self.file_lexer_config());
         crate::tcl_expr_eval::evaluate_expr_with_constants(
-            &crate::expr_parser::parse_expr_with_syntax_context(expr, &parser),
+            &original.expression,
             &crate::tcl_expr_eval::Env::new(),
-            crate::tcl_expr_eval::FoldPolicy::from_registry(generation.commands()),
+            policy,
         )
         .map(|value| value != 0)
     }
@@ -12163,6 +12246,143 @@ mod tests {
                 })
                 .collect::<Vec<_>>();
             assert_eq!(labels, expected, "{source}");
+        }
+    }
+
+    #[test]
+    fn original_if_conditions_keep_selected_grammar_and_unknown_evaluation_boundaries() {
+        for (dialect, condition, expected) in [
+            ("tcl8.6", "1 + 2 * 3", Some(true)),
+            ("tcl8.6", "0", Some(false)),
+            ("tcl8.6", "1 / 0", None),
+            ("tcl8.6", "$unknown", None),
+            ("tcl8.6", "[unknown]", None),
+            ("tcl8.6", "abs(1)", None),
+            ("tcl8.6", "\"1\"", None),
+            ("tcl8.6", "1_0", None),
+            ("tcl9.0", "1_0", Some(true)),
+        ] {
+            let source = format!("if {{{condition}}} {{set x 1}}");
+            let mut analyser = Analyser::new();
+            analyser.analyse_and_retain_result_for_test(&source, dialect);
+            let segment = crate::segmenter::segment_commands_with_offset_and_config(
+                &source,
+                0,
+                analyser.file_lexer_config(),
+            )
+            .remove(0);
+            assert_eq!(
+                analyser.original_condition_boolean(&segment, 1),
+                expected,
+                "{dialect}: {source}"
+            );
+            assert!(
+                analyser.original_condition_boolean(&segment, 2).is_none(),
+                "a Body role cannot donate an expression"
+            );
+            let mut foreign = segment.clone();
+            foreign.texts[1] = "0".to_owned();
+            if condition != "0" {
+                assert!(
+                    analyser.original_condition_boolean(&foreign, 1).is_none(),
+                    "foreign operand data cannot borrow the original expression owner"
+                );
+            }
+            let mut input = analyser.result.resolved_input.clone().unwrap();
+            input.config.strict_quoting = !input.config.strict_quoting;
+            analyser.resolved_input = Some(input);
+            assert!(analyser.original_condition_boolean(&segment, 1).is_none());
+        }
+        let mut prepared = Analyser::new();
+        let input = prepared.prepare_analysis_input("tcl9.0").unwrap();
+        for escapes in [
+            tcl_dialect::EscapeSyntax::Tcl84,
+            tcl_dialect::EscapeSyntax::Tcl90,
+            tcl_dialect::EscapeSyntax::Jim,
+        ] {
+            let mut input = input.clone();
+            input.config.escapes = escapes;
+            let mut analyser = Analyser::new().with_resolved_input(input.clone());
+            let source = "if {1} break";
+            analyser.analyse_and_retain_result_for_test(source, "display-only");
+            assert_eq!(analyser.result.resolved_input.as_ref(), Some(&input));
+            let segment = crate::segmenter::segment_commands_with_offset_and_config(
+                source,
+                0,
+                input.lexer_config(),
+            )
+            .remove(0);
+            assert_eq!(analyser.original_condition_boolean(&segment, 1), Some(true));
+        }
+    }
+
+    #[test]
+    fn original_if_branches_use_clause_order_and_complete_original_bodies() {
+        for (source, selected_bodies, fallthrough) in [
+            ("if {1} {set x 1} else {set x 2}", vec!["set x 1"], false),
+            (
+                "if {0} {set x 1} elseif {1} {set x 2} else {set x 3}",
+                vec!["set x 2"],
+                false,
+            ),
+            ("if {0} {set x 1}", Vec::new(), true),
+            (
+                "if {$unknown} {set x 1} else {set x 2}",
+                vec!["set x 1", "set x 2"],
+                false,
+            ),
+            ("if {1 / 0} {set x 1}", vec!["set x 1"], true),
+            (
+                "if {1} {set x 1} elseif {1 / 0} {set x 2}",
+                vec!["set x 1"],
+                false,
+            ),
+            ("if {0} break else continue", vec!["continue"], false),
+        ] {
+            let mut analyser = Analyser::new();
+            analyser.analyse_and_retain_result_for_test(source, "tcl8.6");
+            let config = analyser.file_lexer_config();
+            let segment =
+                crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+                    .remove(0);
+            let (spans, actual_fallthrough) = analyser
+                .possible_if_body_spans(&segment, "unused")
+                .expect("actual selected source If and complete original bodies");
+            let image = tcl_lexer::SourceImage::document(source);
+            let original = crate::registry_invocation::original_native_compiler_words(
+                &image,
+                crate::ir::CommandTokens::from_segmented(
+                    &tcl_lexer::SourceMap::from_image(&image),
+                    config,
+                    &segment,
+                )
+                .words(),
+                0,
+                config,
+            )
+            .unwrap();
+            let selected = spans
+                .iter()
+                .map(|span| {
+                    let word = original
+                        .iter()
+                        .find(|word| {
+                            word.tokens()
+                                .first()
+                                .is_some_and(|token| token.span == *span)
+                        })
+                        .unwrap();
+                    source.get(word.content_span().unwrap().as_range()).unwrap()
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(selected, selected_bodies, "{source}");
+            assert_eq!(actual_fallthrough, fallthrough, "{source}");
+            analyser.source.push(' ');
+            assert!(
+                analyser
+                    .possible_if_body_spans(&segment, "unused")
+                    .is_none()
+            );
         }
     }
 

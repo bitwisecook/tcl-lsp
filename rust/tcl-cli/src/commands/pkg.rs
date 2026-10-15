@@ -366,8 +366,8 @@ fn run_install(common: &PkgCommon, no_dev: bool, frozen: bool) -> anyhow::Result
         eprintln!("{}", ui::warn(w, colour));
     }
     let install_ctx = tcl_pkg::hooks::HookContext::new(&project_dir)
-        .var("MANIFEST", mpath.to_string_lossy())
-        .var("PROJECT", project_dir.to_string_lossy());
+        .var("MANIFEST", mpath.as_os_str())
+        .var("PROJECT", project_dir.as_os_str());
     if let Err(e) = tcl_pkg::hooks::run_stage(
         tcl_pkg::hooks::Stage::PreInstall,
         &loaded.config,
@@ -606,7 +606,7 @@ fn run_install(common: &PkgCommon, no_dev: bool, frozen: bool) -> anyhow::Result
                         // not at the non-existent `lib/<name>`.
                         .var(
                             "PKG_DIR",
-                            lib_dir.join(format!("{name}-{version}")).to_string_lossy(),
+                            lib_dir.join(format!("{name}-{version}")).into_os_string(),
                         );
                     if let Err(e) = tcl_pkg::hooks::run_stage(
                         tcl_pkg::hooks::Stage::PostFetch,
@@ -1385,8 +1385,8 @@ fn run_run(extra: &[String], common: &PkgCommon) -> anyhow::Result<u8> {
     // own entry point ("anything tcl pkg runs is sandboxed").
     let loaded = tcl_pkg::policy::load(Some(parent));
     let ctx = tcl_pkg::hooks::HookContext::new(parent)
-        .var("ENTRY", entry_path.to_string_lossy())
-        .var("MANIFEST", mpath.to_string_lossy());
+        .var("ENTRY", entry_path.as_os_str())
+        .var("MANIFEST", mpath.as_os_str());
     if let Err(e) = tcl_pkg::hooks::run_stage(tcl_pkg::hooks::Stage::PreRun, &loaded.config, &ctx) {
         eprintln!("error: {e}");
         return Ok(1);
@@ -1394,7 +1394,7 @@ fn run_run(extra: &[String], common: &PkgCommon) -> anyhow::Result<u8> {
 
     let mut profile = tcl_sandbox::Profile::new("pkg-run", &tclsh, parent)
         .user_code()
-        .arg(entry_path.to_string_lossy())
+        .arg(entry_path.as_os_str())
         .args(extra.iter().cloned());
     let lib_dir = parent.join("lib");
     if lib_dir.is_dir() {
@@ -1541,7 +1541,7 @@ fn run_build(common: &PkgCommon) -> anyhow::Result<u8> {
 
     let ctx = tcl_pkg::hooks::HookContext::new(&project_dir)
         .var("NAME", manifest.name.clone())
-        .var("BUILD_SCRIPT", script.to_string_lossy());
+        .var("BUILD_SCRIPT", script.as_os_str());
     if let Err(e) = tcl_pkg::hooks::run_stage(tcl_pkg::hooks::Stage::PreBuild, &loaded.config, &ctx)
     {
         eprintln!("error: {e}");
@@ -1554,10 +1554,10 @@ fn run_build(common: &PkgCommon) -> anyhow::Result<u8> {
     let build_home = project_dir.join(".tclpkg-build-home");
     let _ = std::fs::create_dir_all(&build_home);
     let mut profile = tcl_sandbox::Profile::new("pkg-build", &tclsh, &project_dir)
-        .arg(script.to_string_lossy())
+        .arg(script.as_os_str())
         .network(manifest.build.network)
         .capture(false)
-        .set_env("HOME", build_home.to_string_lossy())
+        .set_env("HOME", build_home.as_os_str())
         .set_env("TCLPKG_BUILD", "1");
     for name in ["PATH", "TCL_LIBRARY", "TCLLIBPATH", "TMPDIR"] {
         profile = profile.pass_env(name);

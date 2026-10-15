@@ -1,0 +1,6 @@
+bad option "encode": must be format or scan
+    while executing
+"binary encode hex $observed"
+    invoked from within
+"puts "braced-close|$code|[binary encode hex $observed]""
+    (file "/workspace/tcl-lsp/experiments/name-handling/results/codegen-original-substitution-geometry/input.tcl" line 4)

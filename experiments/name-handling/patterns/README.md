@@ -506,3 +506,10 @@ satisfaction, frame/cell/edit equivalence or Rust acceptance.
 [Original Jim namespace qualifier/tail result objects](../results/original-jim-namespace-text-results-sdk-20261015/README.md) retains 516 rows over 24 cases/48 COLD/REUSE phases. Qualifiers distinguish the actual shared empty object for unpaired names from fresh counted empty for paired root; unpaired tails retain the original argument. Headers and identity precede the result getter; no Runtime/VM, universal hot-hit or final-free/lifecycle acceptance follows.
 
 [Original formatter variable-reference source values](../formatter-variable-reference-values-20261015/README.md) retain all six providers and matching source/init provenance, complete original channels and the capture driver. Computed array indices and combined braced literal names produce distinct ELEMENT/LITERAL observations; C9 closer-name success stays separate from C8/Jim refusals. These are lexical/source observations, without physical scalar/cell partition, whole-format equivalence, F5, Native or Rust acceptance.
+
+[Configured command-substitution geometry](../results/codegen-original-substitution-geometry/README.md)
+retains40 direct original C5reports distinguishing brackets inside braces,
+quotes/comments, adjacent substitutions, quoted separators and an incomplete
+braced tail. The failed8.4 reporting setup is separate. Lexer geometry grants
+no selected command, runtime completion or optimiser authority; Jim/F5 are
+unobserved by this capture.

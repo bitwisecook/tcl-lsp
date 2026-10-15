@@ -51,6 +51,7 @@
 //! crates that encapsulate the raw syscalls, honouring the workspace
 //! `unsafe_code = "forbid"` lint.
 
+use std::ffi::{OsStr, OsString};
 use std::io::Read;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
@@ -100,8 +101,17 @@ const SENSITIVE_FRAGMENTS: &[&str] = &[
 /// Whether an environment variable name looks sensitive and should be withheld.
 #[must_use]
 pub fn is_sensitive_env(name: &str) -> bool {
-    let upper = name.to_ascii_uppercase();
-    SENSITIVE_FRAGMENTS.iter().any(|frag| upper.contains(frag))
+    sensitive_env_units(name.as_bytes())
+}
+
+fn sensitive_env_units(name: &[u8]) -> bool {
+    SENSITIVE_FRAGMENTS.iter().any(|fragment| {
+        name.windows(fragment.len()).any(|units| units.eq_ignore_ascii_case(fragment.as_bytes()))
+    })
+}
+
+fn env_name_matches(name: &OsStr, configured: &str) -> bool {
+    name.as_encoded_bytes().eq_ignore_ascii_case(configured.as_bytes())
 }
 
 /// The confinement actually achieved for a given execution.
@@ -140,7 +150,7 @@ pub struct Profile {
     /// through, since the environment is cleared.
     pub program: PathBuf,
     /// Arguments (not passed through a shell).
-    pub args: Vec<String>,
+    pub args: Vec<OsString>,
     /// The working directory the child is confined to. Required.
     pub cwd: PathBuf,
     /// Environment variables to copy from the parent *if present*. Subject to
@@ -148,7 +158,7 @@ pub struct Profile {
     pub env_passthrough: Vec<String>,
     /// Environment variables to set explicitly (trusted caller-supplied values,
     /// e.g. `HOME` pointed at a throwaway dir). Not filtered.
-    pub env_set: Vec<(String, String)>,
+    pub env_set: Vec<(String, OsString)>,
     /// Whether the child may use the network. Default-deny for hooks and build
     /// scripts.
     pub allow_network: bool,
@@ -203,7 +213,7 @@ impl Profile {
     }
 
     #[must_use]
-    pub fn arg(mut self, a: impl Into<String>) -> Self {
+    pub fn arg(mut self, a: impl Into<OsString>) -> Self {
         self.args.push(a.into());
         self
     }
@@ -212,7 +222,7 @@ impl Profile {
     pub fn args<I, S>(mut self, it: I) -> Self
     where
         I: IntoIterator<Item = S>,
-        S: Into<String>,
+        S: Into<OsString>,
     {
         self.args.extend(it.into_iter().map(Into::into));
         self
@@ -225,7 +235,7 @@ impl Profile {
     }
 
     #[must_use]
-    pub fn set_env(mut self, name: impl Into<String>, value: impl Into<String>) -> Self {
+    pub fn set_env(mut self, name: impl Into<String>, value: impl Into<OsString>) -> Self {
         self.env_set.push((name.into(), value.into()));
         self
     }
@@ -413,11 +423,11 @@ fn effective_env_with<F>(
     profile: &Profile,
     policy: &SandboxPolicy,
     lookup: F,
-) -> Vec<(String, String)>
+) -> Vec<(OsString, OsString)>
 where
-    F: Fn(&str) -> Option<String>,
+    F: Fn(&str) -> Option<OsString>,
 {
-    let mut out: Vec<(String, String)> = Vec::new();
+    let mut out: Vec<(OsString, OsString)> = Vec::new();
     let denied = |name: &str| -> bool {
         is_sensitive_env(name) || policy.deny_env.iter().any(|d| d.eq_ignore_ascii_case(name))
     };
@@ -431,48 +441,54 @@ where
         if denied(name) {
             continue;
         }
-        if out.iter().any(|(k, _)| k.eq_ignore_ascii_case(name)) {
+        if out.iter().any(|(key, _)| env_name_matches(key, name)) {
             continue;
         }
         if let Some(val) = lookup(name) {
-            out.push((name.clone(), val));
+            out.push((name.into(), val));
         }
     }
     // Explicit sets win (trusted caller-supplied values, e.g. a throwaway HOME).
     for (k, v) in &profile.env_set {
-        out.retain(|(ek, _)| !ek.eq_ignore_ascii_case(k));
-        out.push((k.clone(), v.clone()));
+        out.retain(|(key, _)| !env_name_matches(key, k));
+        out.push((k.into(), v.clone()));
     }
     out
 }
 
 /// Compute the effective environment for a profile under a policy, reading from
 /// the real process environment.
-fn effective_env(profile: &Profile, policy: &SandboxPolicy) -> Vec<(String, String)> {
+fn effective_env(profile: &Profile, policy: &SandboxPolicy) -> Vec<(OsString, OsString)> {
     if profile.env_passthrough_all {
         return full_env(profile, policy);
     }
-    effective_env_with(profile, policy, |name| {
-        std::env::var_os(name).map(|v| v.to_string_lossy().into_owned())
-    })
+    effective_env_with(profile, policy, |name| std::env::var_os(name))
 }
 
 /// Inherit the entire parent environment, dropping only policy-denied names (and
 /// sensitive names when `scrub_env` is set), then applying explicit sets.
-fn full_env(profile: &Profile, policy: &SandboxPolicy) -> Vec<(String, String)> {
-    let mut out: Vec<(String, String)> = Vec::new();
-    for (k, v) in std::env::vars() {
-        if policy.deny_env.iter().any(|d| d.eq_ignore_ascii_case(&k)) {
+fn full_env(profile: &Profile, policy: &SandboxPolicy) -> Vec<(OsString, OsString)> {
+    full_env_with(profile, policy, std::env::vars_os())
+}
+
+fn full_env_with(
+    profile: &Profile,
+    policy: &SandboxPolicy,
+    variables: impl IntoIterator<Item = (OsString, OsString)>,
+) -> Vec<(OsString, OsString)> {
+    let mut out = Vec::new();
+    for (key, value) in variables {
+        if policy.deny_env.iter().any(|denied| env_name_matches(&key, denied)) {
             continue;
         }
-        if profile.scrub_env && is_sensitive_env(&k) {
+        if profile.scrub_env && sensitive_env_units(key.as_encoded_bytes()) {
             continue;
         }
-        out.push((k, v));
+        out.push((key, value));
     }
     for (k, v) in &profile.env_set {
-        out.retain(|(ek, _)| !ek.eq_ignore_ascii_case(k));
-        out.push((k.clone(), v.clone()));
+        out.retain(|(key, _)| !env_name_matches(key, k));
+        out.push((k.into(), v.clone()));
     }
     out
 }
@@ -666,7 +682,7 @@ mod tests {
 
     /// A fixed fake environment, so the scrubbing logic is exercised without
     /// mutating the real process environment.
-    fn fake_env(name: &str) -> Option<String> {
+    fn fake_env(name: &str) -> Option<OsString> {
         match name {
             "TCL_SB_TEST_SAFE" => Some("ok".into()),
             "TCL_SB_TEST_TOKEN" => Some("leak".into()),
@@ -701,6 +717,58 @@ mod tests {
             env.iter().filter(|(k, _)| k == "TCL_SB_TEST_SAFE").count(),
             1
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn profile_transports_actual_os_arguments_and_environment_values() {
+        use std::os::unix::ffi::OsStringExt as _;
+        let argument = OsString::from_vec(b"argument-\xff".to_vec());
+        let value = OsString::from_vec(b"value-\xfe".to_vec());
+        let profile = Profile::new("os-units", tool("sh"), "/")
+            .args(["-c", "printf '%s\\0%s' \"$1\" \"$TCL_SB_RAW_VALUE\"", "--"])
+            .arg(argument)
+            .set_env("TCL_SB_RAW_VALUE", value);
+        let outcome = run(&profile, &SandboxPolicy::default()).unwrap();
+        assert!(outcome.success, "{:?}", outcome.stderr);
+        assert_eq!(outcome.stdout, b"argument-\xff\0value-\xfe");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn full_environment_retains_actual_os_entries_and_policy_order() {
+        use std::os::unix::ffi::OsStringExt as _;
+        const CHILD: &str = "TCL_LSP_SANDBOX_OS_ENV_CHILD";
+        let first = OsString::from_vec(b"opaque-\xff".to_vec());
+        let second = OsString::from_vec(b"opaque-\xfe".to_vec());
+        let value = OsString::from_vec(b"value-\xfd".to_vec());
+        if std::env::var_os(CHILD).as_deref() == Some(OsStr::new("1")) {
+            let policy = SandboxPolicy { deny_env: vec!["blocked".into()], ..SandboxPolicy::default() };
+            let profile = Profile::new("inherited-os", tool("true"), "/").user_code()
+                .set_env("ORDERED", "explicit");
+            let inherited = effective_env(&profile, &policy);
+            assert!(inherited.contains(&(first.clone(), value.clone())));
+            assert!(inherited.contains(&(second, value.clone())));
+            assert!(inherited.contains(&(OsString::from("TCL_SB_TEST_TOKEN"), value.clone())));
+            assert!(!inherited.iter().any(|(key, _)| env_name_matches(key, "blocked")));
+            assert_eq!(inherited.iter().filter(|(key, _)| env_name_matches(key, "ordered")).collect::<Vec<_>>(),
+                vec![&(OsString::from("ORDERED"), OsString::from("explicit"))]);
+            let allowlisted = effective_env_with(&Profile::new("allowed-os", tool("true"), "/").pass_env("DATA"), &policy,
+                |name| (name == "DATA").then(|| value.clone()));
+            assert!(allowlisted.contains(&(OsString::from("DATA"), value.clone())));
+            let sensitive = OsString::from_vec(b"opaque-\xff_TOKEN".to_vec());
+            let scrubbed = full_env_with(&Profile::new("scrubbed-os", tool("true"), "/"), &policy,
+                [(first.clone(), value.clone()), (sensitive.clone(), value)]);
+            assert!(scrubbed.iter().any(|(key, _)| key == &first));
+            assert!(!scrubbed.iter().any(|(key, _)| key == &sensitive));
+            return;
+        }
+        let child = Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", "tests::full_environment_retains_actual_os_entries_and_policy_order", "--nocapture"])
+            .env(CHILD, "1").env(first, &value).env(second, &value)
+            .env("TCL_SB_TEST_TOKEN", &value).env("BLOCKED", "deny").env("ordered", "inherited")
+            .output().unwrap();
+        assert!(child.status.success(), "{}\n{}", String::from_utf8_lossy(&child.stdout), String::from_utf8_lossy(&child.stderr));
     }
 
     #[test]

@@ -41,6 +41,8 @@ mod byte_source_namespace;
 pub use byte_source_namespace::OriginalByteSourceNamespace;
 mod method_identity;
 pub use method_identity::{MethodCoordinate, MethodInventory};
+mod source_bpf_command;
+pub use source_bpf_command::SourceBpfCommand;
 mod procedure_identity;
 pub use procedure_identity::{
     ProcedureBodyKind, ProcedureId, ProcedureIdIssuer, ProcedureInventory,
@@ -593,6 +595,9 @@ pub struct CommandTokens {
     /// This grants no handler, store, effects, Normal or native compiler facts.
     pub hosted_taint_context:
         Option<std::sync::Arc<crate::registry_invocation::HostedSourceTaintContext>>,
+    /// Closed BPF DSL source or typed generation metadata. This is independent
+    /// of Tcl dispatch, Native entry, effects and whole-script coverage.
+    pub source_bpf_command: Option<SourceBpfCommand>,
 }
 
 impl CommandTokens {
@@ -701,6 +706,7 @@ impl CommandTokens {
             nested_bindings: Vec::new(),
             variable_accesses: Vec::new(),
             hosted_taint_context: None,
+            source_bpf_command: None,
         }
     }
 
@@ -729,6 +735,7 @@ impl CommandTokens {
             nested_bindings: Vec::new(),
             variable_accesses: Vec::new(),
             hosted_taint_context: None,
+            source_bpf_command: None,
         }
     }
 
@@ -780,6 +787,7 @@ impl CommandTokens {
             nested_bindings: Vec::new(),
             variable_accesses: Vec::new(),
             hosted_taint_context: None,
+            source_bpf_command: None,
         }
     }
 

@@ -164,6 +164,10 @@ fn rebase_tokens(tokens: &mut Option<CommandTokens>, delta: i64) {
 }
 
 pub(crate) fn rebase_command_tokens(tokens: &mut CommandTokens, delta: i64) {
+    let bpf = tokens
+        .source_bpf_command
+        .take()
+        .filter(|binding| binding.matches_tokens(tokens));
     for span in &mut tokens.argv {
         shift(span, delta);
     }
@@ -171,7 +175,7 @@ pub(crate) fn rebase_command_tokens(tokens: &mut CommandTokens, delta: i64) {
         shift(span, delta);
     }
     for word in &mut tokens.word_exprs {
-        rebase_word_expr(word, delta);
+        rebase_source_word(word, delta);
     }
     for (offset, _) in &mut tokens.nested_bindings {
         *offset = u32::try_from((i64::from(*offset) + delta).max(0)).unwrap_or(u32::MAX);
@@ -179,10 +183,11 @@ pub(crate) fn rebase_command_tokens(tokens: &mut CommandTokens, delta: i64) {
     for access in &mut tokens.variable_accesses {
         shift(&mut access.source.span, delta);
     }
+    tokens.source_bpf_command = bpf.and_then(|binding| binding.rebased(delta));
 }
 
 /// Rebase the source sites retained by the structured word compatibility view.
-fn rebase_word_expr(word: &mut WordExpr, delta: i64) {
+pub(crate) fn rebase_source_word(word: &mut WordExpr, delta: i64) {
     match word {
         WordExpr::Literal { source, .. }
         | WordExpr::BracedLiteral { source, .. }
@@ -197,7 +202,7 @@ fn rebase_word_expr(word: &mut WordExpr, delta: i64) {
         }
         WordExpr::Expand { source, word } => {
             shift(&mut source.span, delta);
-            rebase_word_expr(word, delta);
+            rebase_source_word(word, delta);
         }
     }
 }
@@ -243,7 +248,7 @@ fn rebase_terminator(term: &mut Terminator, delta: i64) {
             shift_opt(span, delta);
             shift_base(expr_base, delta);
             if let Some(word) = value_word {
-                rebase_word_expr(word, delta);
+                rebase_source_word(word, delta);
             }
         }
         Terminator::Branch {
@@ -277,7 +282,7 @@ fn rebase_statement(stmt: &mut Statement, delta: i64) {
             shift_base(expr_base, delta);
             rebase_tokens(tokens, delta);
             if let Some(word) = value_word {
-                rebase_word_expr(word, delta);
+                rebase_source_word(word, delta);
             }
         }
         Statement::AssignExpr {

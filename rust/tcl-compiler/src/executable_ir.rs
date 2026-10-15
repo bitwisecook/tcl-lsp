@@ -4620,6 +4620,7 @@ mod tests {
             nested_bindings: Vec::new(),
             variable_accesses: Vec::new(),
             hosted_taint_context: None,
+            source_bpf_command: None,
         }
     }
 

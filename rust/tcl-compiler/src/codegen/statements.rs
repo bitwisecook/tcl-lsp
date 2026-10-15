@@ -22,7 +22,7 @@
 //! (assignments, calls, returns, barriers) with `startCommand`
 //! wrapping.
 
-use super::cmd_subst::{has_command_separator, is_pure_cmd_subst, parse_cmd_parts_with_config};
+use super::cmd_subst::{is_pure_cmd_subst_with_config, parse_cmd_parts_with_config};
 use super::helpers::{SubstPart, parse_subst_template};
 use super::values::split_array_ref;
 use super::{CodegenCtx, Op, Operand};
@@ -626,7 +626,7 @@ impl CodegenCtx<'_> {
             // into live substitutions and would double-decode other escapes.
             value.to_owned()
         };
-        let inline = Self::assign_value_inlines_cmd_subst(&value);
+        let inline = self.assign_value_inlines_cmd_subst(&value);
         let Some(target) = self.store_target(name, name_braced) else {
             return;
         };
@@ -1239,12 +1239,14 @@ impl CodegenCtx<'_> {
     /// command rather than store its source text. Command arguments keep the
     /// literal + `subst_word` path, which the inline command-parser cannot
     /// match on escaped brackets.
-    fn assign_value_inlines_cmd_subst(value: &str) -> bool {
+    fn assign_value_inlines_cmd_subst(&self, value: &str) -> bool {
         // `is_pure_cmd_subst`, not "starts and ends with a bracket": the inline
         // emitter strips the outer brackets and word-splits the rest, so
         // `set r [llength $a]:[join $a ,]` — three concatenated parts — would
         // be mangled into one bogus command.
-        is_pure_cmd_subst(value) && value.len() > 2 && value[1..value.len() - 1].contains(' ')
+        is_pure_cmd_subst_with_config(value, self.lexer_config())
+            && value.len() > 2
+            && value[1..value.len() - 1].contains(' ')
     }
 
     /// If `value` is a *single whole-word command substitution* (`[cmd …]` and
@@ -1308,11 +1310,7 @@ impl CodegenCtx<'_> {
         value: &str,
         tokens: Option<&crate::ir::CommandTokens>,
     ) -> bool {
-        if value.contains("\\[")
-            || value.contains("\\]")
-            || value.contains("{*}")
-            || has_command_separator(value)
-        {
+        if value.contains("\\[") || value.contains("\\]") || value.contains("{*}") {
             return false;
         }
         if !matches!(

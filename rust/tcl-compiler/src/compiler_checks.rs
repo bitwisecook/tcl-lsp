@@ -34,10 +34,11 @@ use crate::gvn::{
     find_loop_invariants_for_function, find_partial_redundancies_for_function,
     find_redundancies_for_function,
 };
+#[cfg(test)]
+use crate::irules_checks::find_conditional_irule_source_flow_advice;
 use crate::irules_checks::{
     CodeFix, IrulesCheckWarning, find_conditional_collection_source_pairing_advice,
-    find_generic_static_name_warnings, find_hoistable_set_warnings, find_http_flow_warnings,
-    find_unguarded_drop_warnings,
+    find_generic_static_name_warnings, find_hoistable_set_warnings,
 };
 use crate::path_concat::PathConcatWarning;
 use crate::sccp::{BranchFactKind, ConstantBranch};
@@ -74,12 +75,12 @@ pub struct DiagnosticSourceContext {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum DiagnosticSourceAuthoringPurpose {
     OrdinarySourceSubject,
-    ConditionalPairingNoAction,
+    ConditionalSourceNoAction,
 }
 
 impl DiagnosticSourceContext {
     /// Eligibility for a retained authoring subject, independently of every
-    /// action's further source/intent checks. Conditional pairings grant none.
+    /// action's further source/intent checks. Conditional source advice grants none.
     #[must_use]
     pub fn allows_context_action_subject(&self) -> bool {
         self.authoring_purpose == DiagnosticSourceAuthoringPurpose::OrdinarySourceSubject
@@ -283,14 +284,44 @@ impl Diagnostic {
         pairing: &crate::irules_checks::ConditionalCollectionSourcePairing,
     ) -> Option<Self> {
         let (unit, registry) = advice.diagnostic_source_owner_for(pairing)?;
+        Self::from_conditional_irule_source(
+            unit,
+            registry,
+            pairing.span(),
+            pairing.code(),
+            pairing.message(),
+        )
+    }
+
+    fn from_conditional_irule_source_flow(
+        advice: &crate::irules_checks::ConditionalIruleSourceFlowAdvice<'_>,
+        finding: &crate::irules_checks::ConditionalIruleSourceFlowFinding,
+    ) -> Option<Self> {
+        let (unit, registry) = advice.diagnostic_source_owner_for(finding)?;
+        Self::from_conditional_irule_source(
+            unit,
+            registry,
+            finding.span(),
+            finding.code(),
+            finding.message(),
+        )
+    }
+
+    fn from_conditional_irule_source(
+        unit: &CompilationUnit,
+        registry: &CommandRegistry,
+        span: Span,
+        code: DiagCode,
+        message: &str,
+    ) -> Option<Self> {
         let mut context = DiagnosticSourceContext::for_unit(unit, registry)?;
-        context.authoring_purpose = DiagnosticSourceAuthoringPurpose::ConditionalPairingNoAction;
+        context.authoring_purpose = DiagnosticSourceAuthoringPurpose::ConditionalSourceNoAction;
         Some(Self {
-            span: pairing.span(),
-            code: pairing.code(),
+            span,
+            code,
             category: "irules".to_owned(),
             severity: Severity::Warning,
-            message: pairing.message().to_owned(),
+            message: message.to_owned(),
             replacement: None,
             fixes: Vec::new(),
             source_context: Some(context),
@@ -733,7 +764,7 @@ pub fn retain_diagnostic_source_context(
                 // an unavailable currency refresh must never reset it to Ordinary.
                 previous.filter(|previous| {
                     previous.authoring_purpose
-                        == DiagnosticSourceAuthoringPurpose::ConditionalPairingNoAction
+                        == DiagnosticSourceAuthoringPurpose::ConditionalSourceNoAction
                 })
             });
     }
@@ -765,10 +796,16 @@ fn push_irules_flow_checks(
     // fact, so an aliased spelling cannot be treated differently by a later
     // pass.
     let dialect = dialect.map(tcl_dialect::DialectProfile::surface_query);
-    for w in find_unguarded_drop_warnings(cu, dialect) {
-        out.push(Diagnostic::from_irules_check(&w));
-    }
     if let Some(advice) = find_conditional_collection_source_pairing_advice(cu, registry, dialect) {
+        if let Some(flow) = advice.conditional_source_flow() {
+            for finding in flow.findings() {
+                if let Some(diagnostic) =
+                    Diagnostic::from_conditional_irule_source_flow(&flow, finding)
+                {
+                    out.push(diagnostic);
+                }
+            }
+        }
         for pairing in advice.pairings() {
             if let Some(diagnostic) =
                 Diagnostic::from_conditional_collection_source_pairing(&advice, pairing)
@@ -776,9 +813,6 @@ fn push_irules_flow_checks(
                 out.push(diagnostic);
             }
         }
-    }
-    for w in find_http_flow_warnings(cu, dialect) {
-        out.push(Diagnostic::from_irules_check(&w));
     }
     for w in find_hoistable_set_warnings(cu, dialect) {
         out.push(Diagnostic::from_irules_check(&w));
@@ -819,6 +853,65 @@ pub fn sort_diagnostics(out: &mut [Diagnostic]) {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn conditional_source_flow_has_no_authoring_subject_or_foreign_entry_membership() {
+        let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
+        let context = environment.default_context_registry();
+        let config = tcl_lexer::LexerConfig::from_grammar(environment.grammar());
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            environment.analyser_profile(),
+            environment.unit_profile(),
+            context.clone(),
+            config,
+        );
+        let unit = crate::compilation_unit::CompilationUnit::build_with_analysis_input(
+            "when HTTP_REQUEST {HTTP::respond 200; HTTP::header insert X yes}",
+            crate::compilation_unit::UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config,
+                dialect: Some(environment.unit_profile()),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        );
+        let surface = Some(environment.unit_profile().surface_query());
+        let advice =
+            super::find_conditional_irule_source_flow_advice(&unit, context.commands(), surface)
+                .unwrap();
+        let finding = advice
+            .findings()
+            .iter()
+            .find(|finding| finding.code() == super::DiagCode::Irule1201)
+            .unwrap();
+        let mut diagnostic =
+            super::Diagnostic::from_conditional_irule_source_flow(&advice, finding).unwrap();
+        assert!(diagnostic.fixes.is_empty() && diagnostic.replacement.is_none());
+        let foreign = tcl_registry::model::resolve_known_environment("tcl8.6")
+            .unwrap()
+            .default_context_registry();
+        for registry in [context.commands(), foreign.commands(), context.commands()] {
+            super::retain_diagnostic_source_context(
+                &unit,
+                registry,
+                std::slice::from_mut(&mut diagnostic),
+            );
+            assert!(
+                !diagnostic
+                    .source_context
+                    .as_ref()
+                    .unwrap()
+                    .allows_context_action_subject()
+            );
+        }
+        let other =
+            super::find_conditional_irule_source_flow_advice(&unit, context.commands(), surface)
+                .unwrap();
+        assert!(super::Diagnostic::from_conditional_irule_source_flow(&other, finding).is_none());
+    }
+
     #[test]
     fn conditional_pairing_authoring_withdrawal_survives_currency_refresh() {
         let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();

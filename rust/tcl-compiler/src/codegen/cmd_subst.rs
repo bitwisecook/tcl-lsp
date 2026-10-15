@@ -74,89 +74,57 @@ pub fn unroll_nested_set(value: &str) -> Option<Vec<String>> {
     Some(chain)
 }
 
-/// Return `true` if `value` is a single balanced `[cmd ...]`.
+/// Standalone default-grammar query for one whole command substitution.
 #[must_use]
 pub fn is_pure_cmd_subst(value: &str) -> bool {
-    if !value.starts_with('[') || !value.ends_with(']') {
-        return false;
-    }
-    let mut depth: i32 = 0;
-    let bytes = value.as_bytes();
-    let mut i = 0;
-    while i < bytes.len() {
-        let ch = bytes[i];
-        if ch == b'\\' {
-            i += 2; // skip escaped char (crude but sufficient)
-            continue;
-        }
-        if ch == b'[' {
-            depth += 1;
-        } else if ch == b']' {
-            depth -= 1;
-        }
-        if depth == 0 {
-            return i == bytes.len() - 1;
-        }
-        i += 1;
-    }
-    false
+    is_pure_cmd_subst_with_config(value, tcl_lexer::LexerConfig::default())
 }
 
-/// Return `true` if `text` contains `;` or newline outside quotes/braces.
-///
-/// Used to detect multi-command scripts in `[...]` substitutions so
-/// they can be deferred to runtime `EVAL_STK` instead of being
-/// inlined as a single command call.
+pub(super) fn is_pure_cmd_subst_with_config(value: &str, config: tcl_lexer::LexerConfig) -> bool {
+    value.starts_with('[')
+        && tcl_lexer::word_parts::command_subst_close(
+            value.as_bytes(),
+            0,
+            tcl_lexer::word_parts::SubstFlags::default(),
+            config,
+        ) == Ok(value.len())
+}
+
+/// Standalone default-grammar query for a script command terminator.
 #[must_use]
 pub fn has_command_separator(text: &str) -> bool {
-    let inner = if text.starts_with('[') && text.ends_with(']') {
-        &text[1..text.len() - 1]
-    } else {
-        text
-    };
-    let bytes = inner.as_bytes();
-    let mut in_quotes = false;
-    let mut brace_depth: i32 = 0;
-    let mut bracket_depth: i32 = 0;
-    let mut i = 0;
-    while i < bytes.len() {
-        let ch = bytes[i];
-        if ch == b'\\' && i + 1 < bytes.len() {
-            i += 2; // skip escaped character
-            continue;
-        }
-        if ch == b'"' && brace_depth == 0 {
-            in_quotes = !in_quotes;
-        } else if !in_quotes {
-            if ch == b'{' {
-                brace_depth += 1;
-            } else if ch == b'}' && brace_depth > 0 {
-                brace_depth -= 1;
-            } else if ch == b'[' {
-                bracket_depth += 1;
-            } else if ch == b']' && bracket_depth > 0 {
-                bracket_depth -= 1;
-            } else if (ch == b';' || ch == b'\n') && brace_depth == 0 && bracket_depth == 0 {
-                return true;
-            }
-        }
-        i += 1;
-    }
-    false
+    has_command_separator_with_config(text, tcl_lexer::LexerConfig::default())
 }
 
-/// Whether a braced script is eligible for a single-command inline emitter.
-/// Expansion, separators and incomplete command geometry use runtime evaluation.
+fn has_command_separator_with_config(text: &str, config: tcl_lexer::LexerConfig) -> bool {
+    let Ok(end) = u32::try_from(text.len()) else {
+        return true;
+    };
+    let region = if is_pure_cmd_subst_with_config(text, config) {
+        tcl_lexer::Span::new(1, end - 1)
+    } else {
+        tcl_lexer::Span::new(0, end)
+    };
+    let image = tcl_lexer::SourceImage::document(text);
+    // Body lexical purpose prevents a local leading BOM from becoming a prologue.
+    let config = tcl_lexer::SourceSegmentationPurpose::NestedScript.config(config);
+    tcl_lexer::source_region_tokens_in(&image, region, config).map_or(true, |tokens| {
+        tokens
+            .iter()
+            .any(|token| token.kind == tcl_lexer::TokenType::Eol && !token.span.is_empty())
+    })
+}
+
+/// Whether a script contains at most one complete, unexpanded command.
 #[must_use]
 pub fn is_single_command_body(body: &str, config: tcl_lexer::LexerConfig) -> bool {
-    if body.trim().is_empty() {
-        return true;
-    }
-    if has_command_separator(body) || body.contains("{*}") {
-        return false;
-    }
-    let segments = crate::segmenter::segment_commands_with_offset_and_config(body, 0, config);
-    matches!(segments.as_slice(), [only] if !only.is_partial)
+    !has_command_separator_with_config(body, config)
+        && crate::word_subst::single_command_source_parts(
+            body,
+            config,
+            crate::word_subst::SingleCommandSourcePurpose::Script,
+        )
+        .is_some_and(|parts| parts.iter().all(|part| !part.expand))
 }
 
 /// Default Tcl lexical projection for standalone callers.
@@ -1333,7 +1301,7 @@ impl CodegenCtx<'_> {
         // fall back to runtime eval — checked *before* the `{*}` form below so a
         // body that has both (`[set y 1; list {*}$a]`) runs as two commands
         // rather than being mis-parsed as one expanded command.
-        if has_command_separator(text) {
+        if has_command_separator_with_config(text, self.lexer_config()) {
             let inner = if text.starts_with('[') && text.ends_with(']') {
                 &text[1..text.len() - 1]
             } else {
@@ -3716,6 +3684,35 @@ mod tests {
     #[test]
     fn no_separator() {
         assert!(!has_command_separator("set x 1"));
+    }
+
+    #[test]
+    fn original_substitution_geometry_preserves_braces_quotes_and_comments() {
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let profile =
+                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
+            let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+            for substitution in [
+                "[list {]}]",
+                "[list \"]\"]",
+                "[list a; # ] ignored\nlist b]",
+                "[list {[}]",
+                "[list a; list b]",
+            ] {
+                assert!(is_pure_cmd_subst_with_config(substitution, config));
+            }
+            assert!(!is_pure_cmd_subst_with_config(
+                "[list {]}]:[list z]",
+                config
+            ));
+            assert!(!is_pure_cmd_subst_with_config("[list {]", config));
+            assert!(!has_command_separator_with_config("[list \";\"]", config));
+            assert!(has_command_separator_with_config(
+                "[list a; list b]",
+                config
+            ));
+            assert!(parse_cmd_parts_with_config("[list {]", config).is_none());
+        }
     }
 
     // parse_cmd_parts.

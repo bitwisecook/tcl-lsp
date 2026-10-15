@@ -1,0 +1,60 @@
+{
+  "base_commit": "d70c264dca37ac14005e097e97c70a3dd9aca5b3",
+  "kind": "mechanical-source-advice-consumer-ingress",
+  "cargo_or_test_execution": false,
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/irules_checks.rs",
+      "before_sha256": "87976949db556cf5fde500797a3b9b694e9100a037a235b8ceefa1c9adb7664e",
+      "after_sha256": "6d65c729eb12d7e0ba05c5eabee37026fc80286904905852875ee57c32f7a24d",
+      "retained_test_functions": 114,
+      "missing_tests": [],
+      "changed_original_test_bodies": [],
+      "new_test_functions": [
+        "conditional_leaf_census_does_not_treat_selected_lambda_roles_as_empty_scripts#0",
+        "conditional_source_flow_retains_phase_and_normal_continuation_obligations#0"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/compiler_checks.rs",
+      "before_sha256": "8c16ffd4c970abbf20e3ef775c0c96b87f86e8df8265bce37ee0f2477eed1085",
+      "after_sha256": "aa209cce2b87fce06b1f12d874d6254cdb3f84c55d55a88254e5435ed23f0dfc",
+      "retained_test_functions": 18,
+      "missing_tests": [],
+      "changed_original_test_bodies": [],
+      "new_test_functions": [
+        "conditional_source_flow_has_no_authoring_subject_or_foreign_entry_membership#0"
+      ]
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "before_sha256": "51064205a0168d954fbbcd410b42c11f8f3c78bc474efa982c57367b9419ab9c",
+      "after_sha256": "94859676d2d66b09f70af76218b64dc7469c6a61630cc8cf54b50d2d3cac20b6",
+      "retained_test_functions": 77,
+      "missing_tests": [],
+      "changed_original_test_bodies": [],
+      "new_test_functions": []
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs",
+      "before_sha256": "2740495c4047086320b38127be3292d2ddb9b8f3ccd9b401f8624df59fb6bd54",
+      "after_sha256": "2740495c4047086320b38127be3292d2ddb9b8f3ccd9b401f8624df59fb6bd54",
+      "retained_test_functions": 13,
+      "missing_tests": [],
+      "changed_original_test_bodies": [],
+      "new_test_functions": []
+    }
+  ],
+  "ingress_changes": [
+    "Existing drop_warnings/http_warnings helpers keep every original Tcl program and assertion; use a shared actual resolved F5 input setup and project typed conditional source-flow findings for their original diagnostic families.",
+    "Existing flow_warnings setup is factored into the same source_unit helper; original conditional collection ingress and assertions remain.",
+    "Existing original_event_owner_tests::event_warnings consumes typed conditional flow/pairings from one actual source census; original expected assertions remain even where stronger owners refuse.",
+    "Production compiler/Explorer consume typed source-flow projection from the same retained pairing census without a second walk/resolver; all actions remain withheld.",
+    "Captured strict unknown_collection_effects_keep_source_calls_without_certifying_absence and new d70c census/NoAction tests remain byte-exact."
+  ],
+  "limitations": [
+    "Static original test-body equality is not execution acceptance.",
+    "Unsupported/nonleaf handler phases remain unavailable; existing expected positive controls are preserved even when the stronger owner cannot issue them.",
+    "No expected semantic answers were generated from the implementation."
+  ]
+}

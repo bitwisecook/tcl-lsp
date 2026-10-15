@@ -1069,16 +1069,18 @@ struct ScriptBodyGeometry {
 }
 
 fn original_word_script_body_geometry(word: &NativeWord) -> Option<ScriptBodyGeometry> {
-    if word.group().expand
-        || (word.group().kind != tcl_lexer::WordKind::Braced
-            && !(word.group().kind == tcl_lexer::WordKind::Quoted
-                && word.executable_parts().all_parts().all(|part| {
-                    matches!(
-                        part.part,
-                        tcl_lexer::ExecutablePart::Text(tcl_lexer::ExecutableText::Original)
-                    )
-                })))
-    {
+    let unchanged = match word.group().kind {
+        tcl_lexer::WordKind::Braced => true,
+        tcl_lexer::WordKind::Bare | tcl_lexer::WordKind::Quoted => {
+            word.executable_parts().all_parts().all(|part| {
+                matches!(
+                    part.part,
+                    tcl_lexer::ExecutablePart::Text(tcl_lexer::ExecutableText::Original)
+                )
+            })
+        }
+    };
+    if word.group().expand || !unchanged {
         return None;
     }
     let content = word.content_span().ok()?;
@@ -1156,6 +1158,15 @@ pub(super) fn source_script_bodies_for_mutation_coverage(
             })
             .flatten()
     };
+    // This Body inventory does not represent lambda-container bodies.
+    // Missing representation cannot certify complete evaluated coverage.
+    for &(argument, role) in roles {
+        if role == ArgRole::LambdaLiteral
+            && timing_at(argument)? != tcl_registry::ScriptTiming::ReferenceOnly
+        {
+            return None;
+        }
+    }
     let case = words.with_source_schema(context, source_case_invocation)?;
     let list_argument = case.and_then(|(_, layout)| layout.clause_list_index);
     let mut expected = Vec::new();
@@ -1513,6 +1524,79 @@ mod script_purpose_tests {
     use tcl_registry::{
         ArgRole, Arity, CommandRegistry, CommandSpec, InvocationArguments, ScriptTiming,
     };
+
+    #[test]
+    fn original_bare_script_geometry_keeps_actual_text_and_value_boundaries() {
+        for (source, expected) in [
+            ("if 1 break", Some("break")),
+            ("if 1 $", Some("$")),
+            ("if 1 \"break\"", Some("break")),
+            ("if 1 $body", None),
+            ("if 1 prefix[body]", None),
+            (r"if 1 escaped\ body", None),
+            (r#"if 1 "br\u0065ak""#, None),
+            ("if 1 {*}{break}", None),
+        ] {
+            let config = LexerConfig {
+                expand_syntax: true,
+                ..LexerConfig::default()
+            };
+            let plan = tcl_lexer::native_script_words_in(
+                SourceImage::document(source),
+                Span::new(0, u32::try_from(source.len()).unwrap()),
+                config,
+            )
+            .unwrap();
+            let word = &plan.commands[0].words[2];
+            let geometry = original_word_script_body_geometry(word);
+            assert_eq!(
+                geometry
+                    .as_ref()
+                    .map(|body| source.get(body.content.as_range()).unwrap()),
+                expected,
+                "{source}"
+            );
+            if let Some(geometry) = geometry {
+                assert_eq!(&geometry.container, word);
+                assert_eq!(geometry.container.config(), config);
+                assert!(
+                    word.span().start() <= geometry.content.start()
+                        && geometry.content.end() <= word.span().end()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn complete_body_coverage_refuses_unrepresented_lambda_containers() {
+        for source in ["apply {{} {puts hidden}}", "apply $lambda"] {
+            let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+            let context = tcl_registry::model::context_for_profile(profile);
+            let config = LexerConfig::for_file_grammar(profile.grammar);
+            let input = crate::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                Arc::clone(&context),
+                config,
+            );
+            let syntax = super::super::source_structure::OriginalSourceRegistryContext::capture(
+                source, input,
+            );
+            let command =
+                crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+                    .remove(0);
+            let words = syntax.words(&command).unwrap();
+            assert!(
+                words
+                    .roles()
+                    .unwrap()
+                    .iter()
+                    .any(|(_, role)| *role == ArgRole::LambdaLiteral)
+            );
+            assert!(source_script_bodies_for_mutation_coverage(&words, &context).is_none());
+            assert!(words.source_script_bodies(&context).is_empty());
+        }
+    }
 
     fn reference_only(_arguments: InvocationArguments<'_>) -> Vec<(u8, ScriptTiming)> {
         vec![(0, ScriptTiming::ReferenceOnly)]

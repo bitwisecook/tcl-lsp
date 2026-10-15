@@ -566,6 +566,8 @@ impl<'a> IrulesSourceQuery<'a> {
         let mut declarations_seen = Vec::new();
         let mut handlers = Vec::new();
         let mut schemas = Vec::new();
+        let mut completions = Vec::new();
+        let mut flow_commands = Vec::new();
         for id in module.irules_event_bodies.keys() {
             let function = self.unit.procedures.get(id)?;
             let event = self.event(function)??;
@@ -633,6 +635,7 @@ impl<'a> IrulesSourceQuery<'a> {
             }
             let commands = body.original_commands(context)?;
             let mut original = Vec::new();
+            let mut handler_flow_commands = Vec::new();
             for statement in &event.procedure.body.statements {
                 if matches!(
                     statement.original_argv_inventory_disposition(),
@@ -658,12 +661,13 @@ impl<'a> IrulesSourceQuery<'a> {
                 }
                 original.push(vector);
                 let children = self.argument_calls(tokens, self.function_config(function)?)?;
-                for token in std::iter::once(tokens).chain(
-                    children
-                        .iter()
-                        .map(|child| child.tokens.as_ref())
-                        .collect::<Option<Vec<_>>>()?,
-                ) {
+                for token in children
+                    .iter()
+                    .map(|child| child.tokens.as_ref())
+                    .collect::<Option<Vec<_>>>()?
+                    .into_iter()
+                    .chain(std::iter::once(tokens))
+                {
                     let vector = self.original_argv(token)?;
                     if !state
                         .source_argv
@@ -676,17 +680,18 @@ impl<'a> IrulesSourceQuery<'a> {
                     if possible.candidates.is_empty() {
                         return None;
                     }
+                    if let Some(command) = possible_irule_flow_command(token, &possible)? {
+                        handler_flow_commands.push(command);
+                    }
                     for candidate in &possible.candidates {
-                        candidate.with_source_schema(self.registry, metadata, token, |schema| {
-                            let scripts = schema.authored_source_script_arguments()?;
-                            let prefixes = schema.authored_source_command_prefix_arguments()?;
-                            let expressions = schema.authored_source_expression_arguments()?;
-                            (scripts.is_empty()
-                                && prefixes.is_empty()
-                                && expressions.arguments.is_empty())
-                            .then_some(())
-                        })?;
+                        let completion = candidate.with_source_schema(
+                            self.registry,
+                            metadata,
+                            token,
+                            leaf_handler_source_completion,
+                        )?;
                         schemas.push(candidate.clone());
+                        completions.push(completion);
                     }
                 }
             }
@@ -698,6 +703,7 @@ impl<'a> IrulesSourceQuery<'a> {
                 return None;
             }
             handlers.push((*id, body));
+            flow_commands.push((*id, handler_flow_commands));
         }
         if root
             .commands
@@ -710,6 +716,8 @@ impl<'a> IrulesSourceQuery<'a> {
             _source: self,
             _handlers: handlers,
             _schemas: schemas,
+            completions,
+            flow_commands,
             _obligations: &state.obligations,
         })
     }
@@ -717,6 +725,24 @@ impl<'a> IrulesSourceQuery<'a> {
     fn metadata(&self) -> Option<crate::registry_invocation::InvocationMetadataContext<'_>> {
         self.metadata
     }
+}
+
+fn leaf_handler_source_completion(
+    schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+) -> Option<tcl_registry::registry::InvocationCompletion> {
+    let (roles, complete) = schema.authored_source_argument_roles();
+    if !complete
+        || roles
+            .iter()
+            .any(|(_, role)| *role == tcl_registry::ArgRole::LambdaLiteral)
+    {
+        return None;
+    }
+    let scripts = schema.authored_source_script_arguments()?;
+    let prefixes = schema.authored_source_command_prefix_arguments()?;
+    let expressions = schema.authored_source_expression_arguments()?;
+    (scripts.is_empty() && prefixes.is_empty() && expressions.arguments.is_empty())
+        .then(|| schema.authored_source_invocation_completion())
 }
 
 /// Closed leaf-source census under its original handler and schema premises.
@@ -728,6 +754,8 @@ struct ConditionalSourcePairingAdvice<'query, 'unit> {
         crate::registry_invocation::OriginalSourceScriptBody,
     )>,
     _schemas: Vec<crate::registry_invocation::RegistryInvocationShape>,
+    completions: Vec<tcl_registry::registry::InvocationCompletion>,
+    flow_commands: Vec<(crate::ir::ProcedureId, Vec<OriginalIrulesFlowCommand>)>,
     _obligations: &'query HashSet<CollectionSourceObligationKind>,
 }
 
@@ -741,6 +769,12 @@ impl ConditionalSourcePairingAdvice<'_, '_> {
 /// Its immutable owners and unresolved runtime premises remain separate from
 /// actual collection, absence, handler completion and edit authority.
 pub struct ConditionalCollectionSourcePairingAdvice<'unit> {
+    owner: ConditionalIruleSourceOwner<'unit>,
+    pairings: Vec<ConditionalCollectionSourcePairing>,
+}
+
+#[derive(Clone)]
+struct ConditionalIruleSourceOwner<'unit> {
     _unit: &'unit CompilationUnit,
     _registry: &'unit CommandRegistry,
     _handlers: Vec<(
@@ -749,10 +783,11 @@ pub struct ConditionalCollectionSourcePairingAdvice<'unit> {
     )>,
     _schemas: Vec<crate::registry_invocation::RegistryInvocationShape>,
     obligations: HashSet<CollectionSourceObligationKind>,
-    pairings: Vec<ConditionalCollectionSourcePairing>,
+    completions: Vec<tcl_registry::registry::InvocationCompletion>,
+    flow_commands: Vec<(crate::ir::ProcedureId, Vec<OriginalIrulesFlowCommand>)>,
 }
 
-impl ConditionalCollectionSourcePairingAdvice<'_> {
+impl<'unit> ConditionalCollectionSourcePairingAdvice<'unit> {
     /// Source-only pairing candidates; these supply no runtime outcome or fix.
     #[must_use]
     pub fn pairings(&self) -> &[ConditionalCollectionSourcePairing] {
@@ -766,12 +801,74 @@ impl ConditionalCollectionSourcePairingAdvice<'_> {
         self.pairings
             .iter()
             .any(|current| std::ptr::eq(current, pairing))
-            .then_some((self._unit, self._registry))
+            .then_some((self.owner._unit, self.owner._registry))
     }
 
     /// Independent premises that every conditional source pairing retains.
     pub fn obligations(&self) -> impl Iterator<Item = &CollectionSourceObligationKind> {
-        self.obligations.iter()
+        self.owner.obligations.iter()
+    }
+
+    /// Project source flow from this same complete census and schema receipts.
+    /// No second source inventory or command resolution is performed.
+    #[must_use]
+    pub fn conditional_source_flow(&self) -> Option<ConditionalIruleSourceFlowAdvice<'unit>> {
+        conditional_irule_source_flow_advice(&self.owner)
+    }
+}
+
+/// Conditional flow among complete original leaf-handler source commands.
+/// Source order and descriptor shapes establish no executed continuation.
+pub struct ConditionalIruleSourceFlowAdvice<'unit> {
+    owner: ConditionalIruleSourceOwner<'unit>,
+    findings: Vec<ConditionalIruleSourceFlowFinding>,
+}
+
+impl ConditionalIruleSourceFlowAdvice<'_> {
+    /// Source-order hazards with runtime applicability explicitly unresolved.
+    #[must_use]
+    pub fn findings(&self) -> &[ConditionalIruleSourceFlowFinding] {
+        &self.findings
+    }
+
+    /// Independent premises, including normal continuation, remain unproved.
+    pub fn obligations(&self) -> impl Iterator<Item = &CollectionSourceObligationKind> {
+        self.owner.obligations.iter()
+    }
+
+    pub(crate) fn diagnostic_source_owner_for(
+        &self,
+        finding: &ConditionalIruleSourceFlowFinding,
+    ) -> Option<(&CompilationUnit, &CommandRegistry)> {
+        self.findings
+            .iter()
+            .any(|current| std::ptr::eq(current, finding))
+            .then_some((self.owner._unit, self.owner._registry))
+    }
+}
+
+/// A possible source-order hazard, without a reached runtime path or fix.
+pub struct ConditionalIruleSourceFlowFinding {
+    warning: IrulesCheckWarning,
+}
+
+impl ConditionalIruleSourceFlowFinding {
+    /// Original source advice anchor.
+    #[must_use]
+    pub fn span(&self) -> Span {
+        self.warning.span
+    }
+
+    /// Diagnostic family; it supplies no action subject.
+    #[must_use]
+    pub fn code(&self) -> DiagCode {
+        self.warning.code
+    }
+
+    /// Conditional source scope and unresolved runtime continuation.
+    #[must_use]
+    pub fn message(&self) -> &str {
+        &self.warning.message
     }
 }
 
@@ -868,6 +965,7 @@ fn dedupe_drop_states(states: Vec<DropFlowState>) -> Vec<DropFlowState> {
     out
 }
 
+#[derive(Clone)]
 struct OriginalIrulesFlowCommand {
     command: String,
     span: Span,
@@ -878,6 +976,11 @@ struct OriginalIrulesFlowCommand {
     requires_http_context: bool,
 }
 
+struct OriginalIruleFlowInventory {
+    commands: Vec<OriginalIrulesFlowCommand>,
+    obligations: HashSet<CollectionSourceObligationKind>,
+}
+
 /// Actual source owners retain typed-lowering carriers and all argv children.
 /// Missing source is distinct from an admitted command with no flow metadata.
 fn original_irules_flow_commands(
@@ -886,9 +989,28 @@ fn original_irules_flow_commands(
     source: &IrulesSourceQuery<'_>,
     config: tcl_lexer::LexerConfig,
 ) -> Option<Vec<OriginalIrulesFlowCommand>> {
-    use tcl_registry::events::IrulesSourceFlowAction;
-    if !statement.is_executable_invocation() {
-        return Some(Vec::new());
+    let inventory = original_irules_flow_inventory(script, statement, source, config)?;
+    inventory
+        .obligations
+        .is_empty()
+        .then_some(inventory.commands)
+}
+
+fn original_irules_flow_inventory(
+    script: &Script,
+    statement: &Statement,
+    source: &IrulesSourceQuery<'_>,
+    config: tcl_lexer::LexerConfig,
+) -> Option<OriginalIruleFlowInventory> {
+    let mut obligations = HashSet::new();
+    if let crate::ir::OriginalArgvInventoryDisposition::EffectOnly(marker) =
+        statement.original_argv_inventory_disposition()
+    {
+        obligations.insert(CollectionSourceObligationKind::EffectOnly(marker));
+        return Some(OriginalIruleFlowInventory {
+            commands: Vec::new(),
+            obligations,
+        });
     }
     let parent = script.retained_source_tokens_for_statement(statement)?;
     parent
@@ -908,47 +1030,65 @@ fn original_irules_flow_commands(
                 source.metadata(),
                 tokens,
             )?;
-        let mut drops_connection = false;
-        let mut returns_dns_packet = false;
-        let mut may_commit_response = false;
-        let mut requires_http_context = false;
-        for candidate in &possible.candidates {
-            drops_connection |= candidate.irules_source_flow_action
-                == Some(IrulesSourceFlowAction::DropsConnection);
-            returns_dns_packet |= candidate.irules_source_flow_action
-                == Some(IrulesSourceFlowAction::ReturnsDnsPacket);
-            may_commit_response |= candidate.source_may_commit_response;
-            requires_http_context |= candidate
-                .possible_traits
-                .contains(Traits::REQUIRES_HTTP_CONTEXT);
+        if possible.unknown_residual {
+            obligations.insert(CollectionSourceObligationKind::UnknownTarget);
         }
-        let disables_all_events = !possible.unknown_residual
-            && !possible.may_be_absent
-            && !possible.candidates.is_empty()
-            && possible.candidates.iter().all(|candidate| {
-                candidate.irules_source_flow_action
-                    == Some(IrulesSourceFlowAction::DisablesAllEvents)
-            });
-        if !(drops_connection
-            || returns_dns_packet
-            || may_commit_response
-            || requires_http_context
-            || disables_all_events)
-        {
-            continue;
+        if possible.may_be_absent {
+            obligations.insert(CollectionSourceObligationKind::MayBeAbsent);
         }
-        let command = tokens.argv_texts.first()?.clone();
-        calls.push(OriginalIrulesFlowCommand {
-            command,
-            span: Span::new(tokens.argv.first()?.start(), tokens.argv.last()?.end()),
-            drops_connection,
-            returns_dns_packet,
-            disables_all_events,
-            may_commit_response,
-            requires_http_context,
-        });
+        if let Some(command) = possible_irule_flow_command(tokens, &possible)? {
+            calls.push(command);
+        }
     }
-    Some(calls)
+    Some(OriginalIruleFlowInventory {
+        commands: calls,
+        obligations,
+    })
+}
+
+fn possible_irule_flow_command(
+    tokens: &crate::ir::CommandTokens,
+    possible: &crate::registry_invocation::RegistryInvocationAssistance,
+) -> Option<Option<OriginalIrulesFlowCommand>> {
+    use tcl_registry::events::IrulesSourceFlowAction;
+    let mut drops_connection = false;
+    let mut returns_dns_packet = false;
+    let mut may_commit_response = false;
+    let mut requires_http_context = false;
+    for candidate in &possible.candidates {
+        drops_connection |=
+            candidate.irules_source_flow_action == Some(IrulesSourceFlowAction::DropsConnection);
+        returns_dns_packet |=
+            candidate.irules_source_flow_action == Some(IrulesSourceFlowAction::ReturnsDnsPacket);
+        may_commit_response |= candidate.source_may_commit_response;
+        requires_http_context |= candidate
+            .possible_traits
+            .contains(Traits::REQUIRES_HTTP_CONTEXT);
+    }
+    let disables_all_events = !possible.unknown_residual
+        && !possible.may_be_absent
+        && !possible.candidates.is_empty()
+        && possible.candidates.iter().all(|candidate| {
+            candidate.irules_source_flow_action == Some(IrulesSourceFlowAction::DisablesAllEvents)
+        });
+    if !(drops_connection
+        || returns_dns_packet
+        || may_commit_response
+        || requires_http_context
+        || disables_all_events)
+    {
+        return Some(None);
+    }
+    let command = tokens.argv_texts.first()?.clone();
+    Some(Some(OriginalIrulesFlowCommand {
+        command,
+        span: Span::new(tokens.argv.first()?.start(), tokens.argv.last()?.end()),
+        drops_connection,
+        returns_dns_packet,
+        disables_all_events,
+        may_commit_response,
+        requires_http_context,
+    }))
 }
 
 fn drop_flow_command(state: &DropFlowState, command: &OriginalIrulesFlowCommand) -> DropFlowState {
@@ -1128,6 +1268,8 @@ pub enum CollectionSourceObligationKind {
     EventActivation,
     /// Authored source descriptors do not establish their actual handlers.
     SourceSchemaApplicability,
+    /// Source ordering does not establish child or parent normal completion.
+    NormalContinuation,
 }
 
 /// One collect or release operation observed in a `when` body.
@@ -1591,16 +1733,121 @@ pub fn find_conditional_collection_source_pairing_advice<'unit>(
     obligations.insert(CollectionSourceObligationKind::EventActivation);
     obligations.insert(CollectionSourceObligationKind::SourceSchemaApplicability);
     Some(ConditionalCollectionSourcePairingAdvice {
-        _unit: cu,
-        _registry: registry,
-        _handlers: advice._handlers,
-        _schemas: advice._schemas,
-        obligations,
+        owner: ConditionalIruleSourceOwner {
+            _unit: cu,
+            _registry: registry,
+            _handlers: advice._handlers,
+            _schemas: advice._schemas,
+            obligations,
+            completions: advice.completions,
+            flow_commands: advice.flow_commands,
+        },
         pairings: out
             .into_iter()
             .map(|warning| ConditionalCollectionSourcePairing { warning })
             .collect(),
     })
+}
+
+/// Source-order flow advice under the same complete leaf-handler census.
+/// Descriptor fallthrough is only a source premise: actual lookup, effects,
+/// activation and normal continuation remain unresolved in the returned owner.
+#[must_use]
+pub fn find_conditional_irule_source_flow_advice<'unit>(
+    cu: &'unit CompilationUnit,
+    registry: &'unit CommandRegistry,
+    dialect: Option<SurfaceQuery<'_>>,
+) -> Option<ConditionalIruleSourceFlowAdvice<'unit>> {
+    find_conditional_collection_source_pairing_advice(cu, registry, dialect)?
+        .conditional_source_flow()
+}
+
+fn conditional_irule_source_flow_advice<'unit>(
+    owner: &ConditionalIruleSourceOwner<'unit>,
+) -> Option<ConditionalIruleSourceFlowAdvice<'unit>> {
+    if owner
+        .completions
+        .iter()
+        .any(|completion| *completion != tcl_registry::registry::InvocationCompletion::FallsThrough)
+    {
+        return None;
+    }
+    let source = IrulesSourceQuery::capture(owner._unit, owner._registry)?;
+    let events = EventRegistry::build();
+    let mut owner = owner.clone();
+    owner
+        .obligations
+        .insert(CollectionSourceObligationKind::NormalContinuation);
+    let mut findings = Vec::new();
+    for (id, commands) in &owner.flow_commands {
+        let function = owner._unit.procedures.get(id)?;
+        let event = source.event(function)??;
+        let http = events
+            .get_props(event.body.event())
+            .is_some_and(|props| props.implied_profiles.contains(&"HTTP"));
+        let mut pending = DropFlowState::default();
+        let mut responded = false;
+        for command in commands {
+            pending = drop_flow_command(&pending, command);
+            if http && command.may_commit_response {
+                if responded {
+                    findings.push(conditional_source_flow_finding(
+                        command.span, DiagCode::Irule1202,
+                        format!("Possible response operation '{}' follows another response candidate in {}.",
+                            command.command, event.body.event()),
+                    ));
+                }
+                responded = true;
+            } else if http && responded && command.requires_http_context {
+                findings.push(conditional_source_flow_finding(
+                    command.span,
+                    DiagCode::Irule1201,
+                    format!(
+                        "Possible HTTP-context operation '{}' follows a response candidate in {}.",
+                        command.command,
+                        event.body.event()
+                    ),
+                ));
+            }
+        }
+        if pending.dropped
+            && let Some(span) = pending.drop_at
+        {
+            findings.push(conditional_source_flow_finding(
+                span, DiagCode::Irule5002,
+                format!("Possible '{}' has no independently established guard against later processing.",
+                    pending.drop_cmd),
+            ));
+        }
+        if pending.dns_returned
+            && let Some(span) = pending.dns_at
+        {
+            findings.push(conditional_source_flow_finding(
+                span, DiagCode::Irule5004,
+                "Possible DNS packet return has no independently established guard against later processing."
+                    .to_owned(),
+            ));
+        }
+    }
+    Some(ConditionalIruleSourceFlowAdvice { owner, findings })
+}
+
+fn conditional_source_flow_finding(
+    span: Span,
+    code: DiagCode,
+    source_hazard: String,
+) -> ConditionalIruleSourceFlowFinding {
+    ConditionalIruleSourceFlowFinding {
+        warning: IrulesCheckWarning {
+            span,
+            code,
+            message: format!(
+                "Conditional source flow (runtime reachability and completion unproved): {source_hazard}"
+            ),
+            replacement: None,
+            fixes: Vec::new(),
+        },
+    }
 }
 
 /// Existing event-table side selection remains independent of body admission.
@@ -2871,8 +3118,10 @@ mod tests {
     // IRULE5002 / IRULE5004
 
     fn drop_warnings(source: &str) -> Vec<IrulesCheckWarning> {
-        let cu = CompilationUnit::build_for(source, &registry(), false);
-        find_unguarded_drop_warnings(&cu, Some(SurfaceQuery::any_release(Family::F5Irules)))
+        source_flow_warnings(source)
+            .into_iter()
+            .filter(|warning| matches!(warning.code, DiagCode::Irule5002 | DiagCode::Irule5004))
+            .collect()
     }
 
     #[test]
@@ -3126,7 +3375,12 @@ mod tests {
 
     // IRULE1005 / 1006 / 1007 / 1008
 
-    fn flow_warnings(source: &str) -> Vec<IrulesCheckWarning> {
+    fn source_unit(
+        source: &str,
+    ) -> (
+        CompilationUnit,
+        std::sync::Arc<tcl_registry::model::ContextRegistry>,
+    ) {
         let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
         let context = environment.default_context_registry();
         let config = tcl_lexer::LexerConfig::from_grammar(environment.grammar());
@@ -3149,10 +3403,31 @@ mod tests {
             None,
             &input,
         );
+        (cu, context)
+    }
+
+    fn source_flow_warnings(source: &str) -> Vec<IrulesCheckWarning> {
+        let (cu, context) = source_unit(source);
+        find_conditional_irule_source_flow_advice(
+            &cu,
+            context.commands(),
+            Some(SurfaceQuery::any_release(Family::F5Irules)),
+        )
+        .map_or_else(Vec::new, |advice| {
+            advice
+                .findings
+                .iter()
+                .map(|finding| finding.warning.clone())
+                .collect()
+        })
+    }
+
+    fn flow_warnings(source: &str) -> Vec<IrulesCheckWarning> {
+        let (cu, context) = source_unit(source);
         find_conditional_collection_source_pairing_advice(
             &cu,
             context.commands(),
-            Some(environment.unit_profile().surface_query()),
+            Some(SurfaceQuery::any_release(Family::F5Irules)),
         )
         .map_or_else(Vec::new, |advice| {
             advice
@@ -3565,8 +3840,10 @@ mod tests {
     // IRULE1201 / 1202
 
     fn http_warnings(source: &str) -> Vec<IrulesCheckWarning> {
-        let cu = CompilationUnit::build_for(source, &registry(), false);
-        find_http_flow_warnings(&cu, Some(SurfaceQuery::any_release(Family::F5Irules)))
+        source_flow_warnings(source)
+            .into_iter()
+            .filter(|warning| matches!(warning.code, DiagCode::Irule1201 | DiagCode::Irule1202))
+            .collect()
     }
 
     #[test]
@@ -4549,6 +4826,118 @@ mod original_collection_source_tests {
     use std::sync::Arc;
 
     #[test]
+    fn conditional_leaf_census_does_not_treat_selected_lambda_roles_as_empty_scripts() {
+        let environment = tcl_registry::model::resolve_known_environment("tcl8.6").unwrap();
+        let context = environment.default_context_registry();
+        let dialect = tcl_registry::InvocationDialect::of_profile(environment.analyser_profile());
+        let arguments = [
+            tcl_registry::InvocationWord::Literal("value"),
+            tcl_registry::InvocationWord::Literal("literal"),
+        ];
+        let selected = context.commands().resolve_structured_invocation(
+            tcl_registry::InvocationWords::structured(
+                tcl_registry::InvocationWord::Literal("set"),
+                &arguments,
+            )
+            .with_dialect(dialect),
+            Some(context.context().authoring_query()),
+        );
+        assert_eq!(
+            leaf_handler_source_completion(selected.resolved().unwrap()),
+            Some(tcl_registry::registry::InvocationCompletion::FallsThrough)
+        );
+        for argument in [
+            tcl_registry::InvocationWord::Literal("{} {drop}"),
+            tcl_registry::InvocationWord::Dynamic,
+        ] {
+            let arguments = [argument];
+            let selected = context.commands().resolve_structured_invocation(
+                tcl_registry::InvocationWords::structured(
+                    tcl_registry::InvocationWord::Literal("apply"),
+                    &arguments,
+                )
+                .with_dialect(dialect),
+                Some(context.context().authoring_query()),
+            );
+            let schema = selected
+                .resolved()
+                .expect("actual available Tcl8.6 Apply schema");
+            assert!(schema.authored_source_lambda_call().is_some());
+            assert_eq!(schema.authored_source_script_arguments(), Some(vec![0]));
+            assert!(leaf_handler_source_completion(schema).is_none());
+        }
+    }
+
+    #[test]
+    fn conditional_source_flow_retains_phase_and_normal_continuation_obligations() {
+        let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
+        let config = tcl_lexer::LexerConfig::from_grammar(environment.grammar());
+        let source = "when HTTP_REQUEST {set value \"prefix[drop]\"; HTTP::respond 200; HTTP::header insert X yes}";
+        let (unit, context) = supplied(source, config);
+        let surface = Some(environment.unit_profile().surface_query());
+        let advice = find_conditional_irule_source_flow_advice(&unit, context.commands(), surface)
+            .expect("complete leaf source retains possible actions without executing them");
+        for code in [DiagCode::Irule5002, DiagCode::Irule1201] {
+            assert!(
+                advice
+                    .findings()
+                    .iter()
+                    .any(|finding| finding.code() == code)
+            );
+        }
+        assert!(advice.findings().iter().all(|finding| {
+            finding
+                .message()
+                .contains("runtime reachability and completion unproved")
+                && finding.warning.replacement.is_none()
+                && finding.warning.fixes.is_empty()
+        }));
+        for obligation in [
+            CollectionSourceObligationKind::UnknownTarget,
+            CollectionSourceObligationKind::NormalContinuation,
+        ] {
+            assert!(advice.obligations().any(|current| *current == obligation));
+        }
+        assert!(
+            advice
+                .obligations()
+                .any(|current| matches!(current, CollectionSourceObligationKind::EffectOnly(_)))
+        );
+        assert!(find_unguarded_drop_warnings(&unit, surface).is_empty());
+        assert!(find_http_flow_warnings(&unit, surface).is_empty());
+        for source in [
+            "when HTTP_REQUEST {set value [return]suffix[drop]}",
+            "when HTTP_REQUEST {if {$condition} {drop}}",
+            "when HTTP_REQUEST {for {} {$condition} {drop} {HTTP::respond 200}}",
+            "when HTTP_REQUEST {eval {drop}}",
+            "when HTTP_REQUEST {HTTP::respond 200; return; HTTP::header insert X yes}",
+        ] {
+            let (unit, context) = supplied(source, config);
+            assert!(
+                find_conditional_irule_source_flow_advice(&unit, context.commands(), surface)
+                    .is_none(),
+                "{source}"
+            );
+        }
+        let mut missing = unit.clone();
+        for function in missing.procedures.values_mut() {
+            for block in function.cfg.blocks.values_mut() {
+                for statement in &mut block.statements {
+                    if let Some(tokens) = statement.tokens_mut()
+                        && tokens.synthetic.is_none()
+                    {
+                        tokens.source_binding = None;
+                    }
+                }
+            }
+        }
+        assert!(
+            find_conditional_irule_source_flow_advice(&missing, context.commands(), surface)
+                .is_none()
+        );
+    }
+
+    #[test]
     fn conditional_collection_pairings_require_a_closed_source_census() {
         let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
         let config = tcl_lexer::LexerConfig::from_grammar(environment.grammar());
@@ -5023,9 +5412,20 @@ mod original_event_owner_tests {
         registry: &CommandRegistry,
     ) -> Vec<IrulesCheckWarning> {
         let surface = Some(SurfaceQuery::any_release(Family::F5Irules));
-        let mut warnings = find_unguarded_drop_warnings(unit, surface);
-        warnings.extend(find_collect_flow_warnings(unit, registry, surface));
-        warnings.extend(find_http_flow_warnings(unit, surface));
+        let mut warnings = Vec::new();
+        if let Some(advice) =
+            find_conditional_collection_source_pairing_advice(unit, registry, surface)
+        {
+            if let Some(flow) = advice.conditional_source_flow() {
+                warnings.extend(flow.findings.iter().map(|finding| finding.warning.clone()));
+            }
+            warnings.extend(
+                advice
+                    .pairings
+                    .iter()
+                    .map(|pairing| pairing.warning.clone()),
+            );
+        }
         warnings.extend(find_hoistable_set_warnings(unit, surface));
         warnings.extend(find_generic_static_name_warnings(unit, surface, None));
         warnings

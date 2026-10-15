@@ -46,7 +46,7 @@ use tcl_compiler::intervals::compute_intervals;
 use tcl_compiler::ir::{Module, Script, Statement};
 use tcl_compiler::irules_checks::{
     find_conditional_collection_source_pairing_advice, find_hoistable_set_warnings,
-    find_http_flow_warnings, find_unguarded_drop_warnings, find_unnormalised_getter_warnings,
+    find_unnormalised_getter_warnings,
 };
 use tcl_compiler::loops::{build_loop_forest, dominates};
 use tcl_compiler::memory_ssa::{MemoryLocationKind, MemoryOpKind, MemorySsaFunction};
@@ -2775,7 +2775,7 @@ pub fn serialise_irules_flow(result: &ExplorerResult, li: &LineIndex, source: &s
                 "code": w.code.as_str(), "message": w.message,
                 "range": range_dict(w.span, li, source), "severity": "warning",
             }),
-            IrulesFlowReport::ConditionalSourcePairing {
+            IrulesFlowReport::ConditionalSource {
                 code,
                 message,
                 span,
@@ -2791,7 +2791,7 @@ pub fn serialise_irules_flow(result: &ExplorerResult, li: &LineIndex, source: &s
 
 enum IrulesFlowReport {
     Check(tcl_compiler::irules_checks::IrulesCheckWarning),
-    ConditionalSourcePairing {
+    ConditionalSource {
         code: tcl_compiler::compiler_checks::DiagCode,
         message: String,
         span: Span,
@@ -2814,29 +2814,28 @@ fn irules_flow_warnings(
     .into_iter()
     .map(IrulesFlowReport::Check)
     .collect();
-    warnings.extend(
-        find_unguarded_drop_warnings(cu, dialect.map(tcl_dialect::DialectProfile::surface_query))
-            .into_iter()
-            .map(IrulesFlowReport::Check),
-    );
     if let Some(advice) = find_conditional_collection_source_pairing_advice(
         cu,
         registry,
         dialect.map(tcl_dialect::DialectProfile::surface_query),
     ) {
+        if let Some(flow) = advice.conditional_source_flow() {
+            warnings.extend(flow.findings().iter().map(|finding| {
+                IrulesFlowReport::ConditionalSource {
+                    code: finding.code(),
+                    message: finding.message().to_owned(),
+                    span: finding.span(),
+                }
+            }));
+        }
         warnings.extend(advice.pairings().iter().map(|pairing| {
-            IrulesFlowReport::ConditionalSourcePairing {
+            IrulesFlowReport::ConditionalSource {
                 code: pairing.code(),
                 message: pairing.message().to_owned(),
                 span: pairing.span(),
             }
         }));
     }
-    warnings.extend(
-        find_http_flow_warnings(cu, dialect.map(tcl_dialect::DialectProfile::surface_query))
-            .into_iter()
-            .map(IrulesFlowReport::Check),
-    );
     warnings.extend(
         find_hoistable_set_warnings(cu, dialect.map(tcl_dialect::DialectProfile::surface_query))
             .into_iter()

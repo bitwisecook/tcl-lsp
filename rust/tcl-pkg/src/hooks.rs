@@ -30,6 +30,7 @@
 //! a hook's `command`/`fs-read`/`fs-write` entries are expanded from it.
 
 use std::collections::HashMap;
+use std::ffi::OsString;
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -95,7 +96,7 @@ pub struct HookContext {
     /// The directory the hook runs in (and is confined to).
     pub cwd: PathBuf,
     /// `TCLPKG_*` variables exported to the hook and used for `${VAR}` expansion.
-    pub vars: HashMap<String, String>,
+    pub vars: HashMap<String, OsString>,
 }
 
 impl HookContext {
@@ -108,7 +109,7 @@ impl HookContext {
     }
 
     #[must_use]
-    pub fn var(mut self, key: &str, value: impl Into<String>) -> Self {
+    pub fn var(mut self, key: &str, value: impl Into<OsString>) -> Self {
         self.vars.insert(format!("TCLPKG_{key}"), value.into());
         self
     }
@@ -199,29 +200,30 @@ fn run_one(
 }
 
 /// Expand `${NAME}` references from `vars`; unknown names expand to empty.
+/// Inserted OS values are copied without interpreting them as templates.
 ///
 /// Operates on `&str` slices (split at ASCII `${` / `}` boundaries, which are
 /// always char boundaries) rather than re-encoding each byte as a `char`,
 /// which would corrupt non-ASCII text — a hook `command = ["/opt/prüfer"]`
 /// would otherwise become `/opt/prÃ¼fer`.
-fn expand(input: &str, vars: &HashMap<String, String>) -> String {
-    let mut out = String::with_capacity(input.len());
+fn expand(input: &str, vars: &HashMap<String, OsString>) -> OsString {
+    let mut out = OsString::with_capacity(input.len());
     let mut rest = input;
     while let Some(dollar) = rest.find("${") {
-        out.push_str(&rest[..dollar]);
+        out.push(&rest[..dollar]);
         let after = &rest[dollar + 2..];
         if let Some(end) = after.find('}') {
             if let Some(v) = vars.get(&after[..end]) {
-                out.push_str(v);
+                out.push(v);
             }
             rest = &after[end + 1..];
         } else {
             // No closing `}` — the `${` is literal text.
-            out.push_str("${");
+            out.push("${");
             rest = after;
         }
     }
-    out.push_str(rest);
+    out.push(rest);
     out
 }
 
@@ -264,7 +266,7 @@ mod tests {
     #[test]
     fn expand_substitutes_known_vars() {
         let mut vars = HashMap::new();
-        vars.insert("TCLPKG_PKG_DIR".to_string(), "/cache/foo".to_string());
+        vars.insert("TCLPKG_PKG_DIR".to_string(), OsString::from("/cache/foo"));
         assert_eq!(expand("${TCLPKG_PKG_DIR}/x", &vars), "/cache/foo/x");
         assert_eq!(expand("${MISSING}/y", &vars), "/y");
         assert_eq!(expand("no-vars", &vars), "no-vars");
@@ -275,13 +277,29 @@ mod tests {
         // Non-ASCII text must survive verbatim, not be
         // re-encoded byte-by-byte as Latin-1 (`prüfer` → `prÃ¼fer`).
         let mut vars = HashMap::new();
-        vars.insert("DIR".to_string(), "/opt/prüfer".to_string());
+        vars.insert("DIR".to_string(), OsString::from("/opt/prüfer"));
         assert_eq!(expand("/opt/prüfer/bin", &vars), "/opt/prüfer/bin");
         assert_eq!(expand("${DIR}/café", &vars), "/opt/prüfer/café");
         // An unterminated `${` is literal (no closing brace).
         assert_eq!(expand("a${B c", &vars), "a${B c");
         // Emoji / multi-byte around a substitution.
         assert_eq!(expand("→${MISSING}←", &vars), "→←");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn hook_source_values_preserve_os_units_and_literal_expansion_contents() {
+        use std::os::unix::ffi::{OsStrExt as _, OsStringExt as _};
+        let path = OsString::from_vec(b"/package-\xff/${OTHER}".to_vec());
+        let context = HookContext::new(".").var("PKG_DIR", &path);
+        let expanded = expand("prefix/${TCLPKG_PKG_DIR}/suffix", &context.vars);
+        assert_eq!(expanded.as_os_str().as_bytes(), b"prefix//package-\xff/${OTHER}/suffix");
+        let profile = Profile::new("hook-os", PathBuf::from(&expanded), ".")
+            .arg(expand("${TCLPKG_PKG_DIR}", &context.vars))
+            .set_env("TCLPKG_PKG_DIR", &path);
+        assert_eq!(profile.program.as_os_str().as_bytes(), expanded.as_os_str().as_bytes());
+        assert_eq!(profile.args[0], path);
+        assert_eq!(profile.env_set, vec![("TCLPKG_PKG_DIR".into(), path)]);
     }
 
     #[test]

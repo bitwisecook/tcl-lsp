@@ -1,5 +1,14 @@
 # Current centralised naming work
 
+## Next ordinary source freeze
+
+The shared mutation-coverage Body facade now explicitly refuses potentially evaluated LambdaLiteral until genuine lambda-container body transport is available. LSP's leaf census already included LambdaLiteral in its source-script inventory and refused selected Apply; the new explicit Lambda role guard narrows its initial scope, not a claimed fix for demonstrated old leaf absence. Both distinctions retain actual selected-role counterfactuals. Profile/HookContext/CLI also preserve original OsString argv/environment/path payloads and vars_os while retaining existing ASCII policy and expansion order. Native host executable/TCLLIBPATH/shell wrappers remain separate obligations.
+
+
+L5 frozen f462b0bc7 passed production compilation but failed101 in252.074927467s with one new Compiler test's unqualified LexerConfig;5testELFs/0tests/source drift{}. Its canonical tcl_lexer qualifier repair preserves every assertion. The next reviewed checkpoint includes actual If clause/body/constant-expression transport, unchanged Bare source-body geometry, same-census typed conditional iRules flow and NoAction sinks, and configured shared codegen bracket/terminator parsing. BPF typed source/generated command carrier is captured as an unadopted component: whole transformed phase/module/config/census consumers are still required, with no Native or absence grant.
+
+New codegen evidence retains8 exact programs under each original C8.4.20/8.5.19/8.6.18/9.0.4/9.1.0 (40reports, zero process failures, source/provider hashes unchanged); direct original interpreters, no tcltest. The first incompatible8.4 binary-encode reporting setup is preserved separately, not admitted as semantics. Rust implementation controls remain unexecuted. Exact original222 iRules/Core/Explorer test bodies are retained by the flow helper-ingress receipt; unsupported structured phases and independent fix authority may still fail original stronger expectations. Native L4 plans are superseded/unexecuted; required gates remain not green/unrun.
+
 ## Immediate repaired successor
 
 L4 frozen d70c264dc failed101 in229.942905110s with one production mismatch: actual native resident Rc<[u8]> was inserted into the existing finite Vec<u8> inventory set. It built0testELFs/ran0tests with complete source drift{}. The exact byte-preserving ownership copy is independently source-reviewed; no String decode, getter, guard or public Import entry change. L4 Native plans are retained superseded/unexecuted and cannot accept the repair.

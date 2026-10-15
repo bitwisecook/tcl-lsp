@@ -7969,6 +7969,7 @@ fn conditional_runtime_body_topology_advice(
 /// Neither a normal handler nor successful operand evaluation is asserted.
 pub(crate) struct OriginalExpressionOperandAdvice {
     pub(crate) expression: crate::expr_ast::ExprNode,
+    pub(crate) dialect: tcl_registry::InvocationDialect,
     pub(crate) evaluation: tcl_registry::conditional_expression::ConditionalExpressionEvaluation,
     pub(crate) pool: tcl_registry::conditional_expression::ConditionalExpressionPoolState,
     pub(crate) expression_base: u32,
@@ -8136,6 +8137,7 @@ fn original_expression_operand_advice_selected_word(
     let expression = evaluation.tree().clone();
     Some(OriginalExpressionOperandAdvice {
         expression,
+        dialect: context.dialect,
         evaluation,
         pool: context.pool,
         expression_base: base,
@@ -8287,7 +8289,7 @@ mod tests {
         let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
         let context = environment.default_context_registry();
         let registry = context.commands();
-        let config = LexerConfig::from_grammar(environment.grammar());
+        let config = tcl_lexer::LexerConfig::from_grammar(environment.grammar());
         for (prefix, eligible) in [
             ("", true),
             ("rename HTTP::uri {}; ", false),

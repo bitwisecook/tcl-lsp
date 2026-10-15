@@ -31,7 +31,7 @@
 use crate::cfg::{Function as CfgFunction, Terminator};
 use crate::expr_ast::ExprNode;
 
-use super::super::cmd_subst::is_pure_cmd_subst;
+use super::super::cmd_subst::is_pure_cmd_subst_with_config;
 use super::super::{CodegenCtx, Op, Operand};
 use super::ordering::fold_const_branch;
 
@@ -237,7 +237,8 @@ impl CodegenCtx<'_> {
         // braces already stripped, so without `braced` it is indistinguishable
         // from `return [id 9]` — which is exactly how tclvm came to call `id`
         // where tclsh 8.4.20 through 9.1b0 all return the literal (#2228).
-        let is_cmd_subst = !*braced && expr.is_none() && is_pure_cmd_subst(val);
+        let is_cmd_subst =
+            !*braced && expr.is_none() && is_pure_cmd_subst_with_config(val, self.lexer_config());
         let is_final = next_block.is_none();
 
         // startCommand count: 2 when return wraps [expr {...}]

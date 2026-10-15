@@ -1,0 +1,9 @@
+PROVIDER 8.6.18 /workspace/tcl-lsp/tmp/tcl8.6.18/library /workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh
+braced-close|0|5c5d
+quoted-close|0|5c5d
+comment-close|0|62
+braced-open|0|7b5b7d
+concatenated|0|5c5d3a7a
+quoted-semicolon|0|7b3b7d
+multiple|0|62
+incomplete|1|6d697373696e6720636c6f73652d6272616365

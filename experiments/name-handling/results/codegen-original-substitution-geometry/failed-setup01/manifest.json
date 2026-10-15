@@ -1,0 +1,14 @@
+{
+  "phase": "failed harness setup, no admitted semantic report",
+  "utc": "2026-10-15T15:07:28.774542+00:00",
+  "provider": "original C Tcl8.4.20",
+  "binary": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+  "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+  "argv": [
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+    "/workspace/tcl-lsp/experiments/name-handling/results/codegen-original-substitution-geometry/input.tcl"
+  ],
+  "exit_code": 1,
+  "error": "binary encode is unavailable in8.4; failed reporting harness, not observed substitution semantics",
+  "limitation": "No completed pre/post provider manifest was sealed by failed driver; no semantics acceptance."
+}

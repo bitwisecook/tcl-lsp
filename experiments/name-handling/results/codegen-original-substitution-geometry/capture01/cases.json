@@ -1,0 +1,34 @@
+[
+  [
+    "braced-close",
+    "set observed [list {]}]"
+  ],
+  [
+    "quoted-close",
+    "set observed [list \"]\"]"
+  ],
+  [
+    "comment-close",
+    "set observed [list a; # ] ignored\nlist b]"
+  ],
+  [
+    "braced-open",
+    "set observed [list {[}]"
+  ],
+  [
+    "concatenated",
+    "set observed [list {]}]:[list z]"
+  ],
+  [
+    "quoted-semicolon",
+    "set observed [list \";\"]"
+  ],
+  [
+    "multiple",
+    "set observed [list a; list b]"
+  ],
+  [
+    "incomplete",
+    "set observed [list {]"
+  ]
+]

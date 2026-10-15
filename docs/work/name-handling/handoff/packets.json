@@ -173,5 +173,15 @@
     "file": "successor-l-l2-l3-build-feedback.tar.gz",
     "sha256": "8397574cc55b359cb7b0c9de0c17b2ae8d0cad8c67f68b44404138789379c6c9",
     "status": "L227eb wrong-package setup101/0ELFs/0tests; corrected L2 five production types101/0ELFs/0tests; L3 at2e5 two diagnostics from wrong ValueOps import101/0ELFs/0tests. All source drift{}. Reviewed repairs require fresh ordinary build; no semantic acceptance."
+  },
+  {
+    "file": "conditional-flow-ingress-receipt.json",
+    "sha256": "b8a6c4f174897f6b1fc6ab501ffaa85e0eb2842df35d618616aadb355abc3ed7",
+    "status": "Static222 original test-body equality and actual conditional-flow API helper ingress; no Rust execution acceptance."
+  },
+  {
+    "file": "successor-l4-l5-build-feedback.tar.gz",
+    "sha256": "ec3c198b51d644c1227ef9e725216a03ecee4bf92df0e42fca16b08bf5b002f0",
+    "status": "L4 d70c production resident-byte ownership mismatch101/0ELFs/0tests; L5 f462 newtest missing LexerConfig qualifier101/5ELFs/0tests; both source drift{}. Repairs need fresh build, no semantic acceptance."
   }
 ]
