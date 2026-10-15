@@ -32,7 +32,9 @@
 //! The same literal shows which scripts 8.6 compiles — a substituted script a
 //! command compiles with it, a `catch` a script compiles in a procedure's
 //! frame where that procedure has the variable as a compiled local — and
-//! which values its string commands leave canonical lists.
+//! which values its string commands leave canonical lists. The harness also
+//! pins 8.4's narrower `catch`, the scripts 8.4 refuses to compile whole and
+//! the error codes each release sets.
 //!
 //! The vectors are measured on tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0,
 //! and compared with the release's `tclsh` again wherever one is installed.
@@ -852,8 +854,392 @@ puts $out
 
     const MORE_LOCALS_86: &str = "CCCCCCCCCCC--CCCCCCCC-CCCCCCC-CCCCCCCC------CC---CCCC-CCCC-C-CC-CCCC-CCCCCC-CC---CCC--CCC-CCCC--CC-CCC-C--C--CC-CC--CC--C-CCCC-C-CCCCCCC-C-CC--CC--CCC-C-CC-CCCCCCCCCC----C-----\n";
 
+    /// Tcl 8.4's `catch` takes the result variable alone; an options variable is
+    /// its `wrong # args`, from the command and from the compiled `catch` alike.
+    const CATCH_ARITY: &str = r#"proc stmt {} { catch {set x 1} r o; list $r $o }
+proc value {} { set y [catch {set x 1} r o]; list $y $r }
+proc subst {b} { catch $b r o; list $r }
+proc short {} { list [catch {set x 1} r] $r }
+foreach p {stmt value {subst {set x 1}} short} { lappend out [list [catch $p m] $m] }
+puts "proc: $out"
+puts "top: [list [catch {catch {set x 1} r o} m] $m] [list [catch {catch} m] $m]"
+set c catch
+puts "dynamic: [list [catch {$c {set x 1} r o} m] $m]"
+"#;
+
+    const CATCH_ARITY_84: &str = "proc: {1 {wrong # args: should be \"catch command ?varName?\"}} \
+    {1 {wrong # args: should be \"catch command ?varName?\"}} \
+    {1 {wrong # args: should be \"catch command ?varName?\"}} {0 {0 1}}\n\
+    top: 1 {wrong # args: should be \"catch command ?varName?\"} \
+    1 {wrong # args: should be \"catch command ?varName?\"}\n\
+    dynamic: 1 {wrong # args: should be \"catch command ?varName?\"}\n";
+
+    const CATCH_ARITY_85: &str = "proc: {0 {1 {-code 0 -level 0}}} {0 {0 1}} {0 1} {0 {0 1}}\n\
+    top: 0 0 1 {wrong # args: should be \"catch script ?resultVarName? ?optionVarName?\"}\n\
+    dynamic: 0 0\n";
+
+    /// `Tcl_WrongNumArgs` and the list parser tag their errors `TCL WRONGARGS`
+    /// and `TCL VALUE LIST …` from 8.6; 8.4 and 8.5 set no error code, so
+    /// `$errorCode` is `NONE` for every command's usage error and malformed list.
+    const ERROR_CODES: &str = r#"proc code {script} { catch {uplevel 1 $script}; return $::errorCode }
+proc p {a} {}
+proc q {} { list [code {llength}] [code {p}] [code {set}] [code [list llength "\{a"]] }
+puts "top: [code {llength}] / [code {p 1 2}] / [code {string length}] / [code [list llength "\"a"]] / [code [list lindex "\{a\}b" 0]]"
+puts "proc: [q]"
+"#;
+
+    const ERROR_CODES_NONE: &str =
+        "top: NONE / NONE / NONE / NONE / NONE\nproc: NONE NONE NONE NONE\n";
+
+    const ERROR_CODES_TAGGED: &str = "top: TCL WRONGARGS / TCL WRONGARGS / TCL WRONGARGS / \
+    TCL VALUE LIST QUOTE / TCL VALUE LIST JUNK\n\
+    proc: {TCL WRONGARGS} {TCL WRONGARGS} {TCL WRONGARGS} {TCL VALUE LIST BRACE}\n";
+
+    /// 8.4 compiles a script whole before any of it runs: a procedure body when
+    /// it is first called, a script a command evaluates, each chunk of stdin. A
+    /// compile procedure's error (`catch {} a b`, `expr {1 +}`, `if 1`, `incr`)
+    /// or a parse error anywhere fails the compile, so nothing in the script
+    /// runs, and the error carries a `while compiling` frame per nested script,
+    /// the context line a compile procedure adds and `(compiling body of proc
+    /// …)`. A `catch` whose script fails to compile leaves it to run, catching
+    /// the failure; an untaken constant `if` or `while` compiles no body; `eval`
+    /// and `uplevel` run their scripts directly.
+    const COMPILE_FAILURES: &str = r#"set ::errorInfo {}
+proc show {name} {
+    set c [catch {$name} m]
+    set info $::errorInfo
+    set cut [string last "\n    invoked from within" $info]
+    puts "$name $c <$m>\n<[string range $info 0 [expr {$cut - 1}]]>"
+}
+proc p1 {} { puts a
+  if 1 { puts b; catch {} a b } }
+proc p2 {} { while 1 { catch {} a b; break } }
+proc p3 {} { for {} 1 {} { puts x
+   catch {} a b; break } }
+proc p4 {} { foreach x {1} { catch {} a b } }
+proc p5 {} { catch { catch {} a b } }
+proc p6 {} { set y [if 1 {catch {} a b}] }
+proc p7 {} { if {1 +} {} }
+proc p8 {} { set x [expr {1 + }] }
+proc p9 {} { incr }
+proc p10 {} { if 1 {} else }
+proc p11 {} { break x }
+proc p12 {} { foreach x }
+proc p13 {} { if 1 {} elseif }
+proc p14 {} { set x "[catch {} a b]" }
+proc p15 {} { puts a; set x {a}b }
+proc p16 {} {puts a
+set x [list a
+}
+proc p17 {} { while 0 { catch {} a b } }
+proc p18 {} { if 0 { catch {} a b } }
+proc p19 {} { set s {catch {} a b}; eval $s}
+proc p20 {} { foreach x {1} { if {$x} then { expr {1 * * 2} } } }
+foreach p {p1 p2 p3 p4 p5 p6 p7 p8 p9 p10 p11 p12 p13 p14 p15 p16 p17 p18 p19 p20} { show $p }
+set c [catch {if 1 {puts b; catch {} a b}} m]; puts "top $c <$m>\n<$::errorInfo>"
+set c [catch {eval {puts e; catch {} a b}} m]; puts "eval $c <$m>\n<$::errorInfo>"
+set c [catch {uplevel #0 {puts u; catch {} a b}} m]; puts "uplevel $c <$m>\n<$::errorInfo>"
+"#;
+
+    const COMPILE_FAILURES_84: &str = r#"p1 1 <wrong # args: should be "catch command ?varName?">
+<wrong # args: should be "catch command ?varName?"
+    while compiling
+"catch {} a b "
+    ("if" then script line 1)
+    while compiling
+"if 1 { puts b; catch {} a b } "
+    (compiling body of proc "p1", line 2)>
+p2 1 <wrong # args: should be "catch command ?varName?">
+<wrong # args: should be "catch command ?varName?"
+    while compiling
+"catch {} a b"
+    ("while" body line 1)
+    while compiling
+"while 1 { catch {} a b; break } "
+    (compiling body of proc "p2", line 1)>
+p3 1 <wrong # args: should be "catch command ?varName?">
+<wrong # args: should be "catch command ?varName?"
+    while compiling
+"catch {} a b"
+    ("for" body line 2)
+    while compiling
+"for {} 1 {} { puts x
+   catch {} a b; break } "
+    (compiling body of proc "p3", line 1)>
+p4 1 <wrong # args: should be "catch command ?varName?">
+<wrong # args: should be "catch command ?varName?"
+    while compiling
+"catch {} a b "
+    ("foreach" body line 1)
+    while compiling
+"foreach x {1} { catch {} a b } "
+    (compiling body of proc "p4", line 1)>
+p5 0 <1>
+<>
+p6 1 <wrong # args: should be "catch command ?varName?">
+<wrong # args: should be "catch command ?varName?"
+    while compiling
+"catch {} a b"
+    ("if" then script line 1)
+    while compiling
+"if 1 {catch {} a b}"
+    while compiling
+"set y [if 1 {catch {} a b}] "
+    (compiling body of proc "p6", line 1)>
+p7 1 <syntax error in expression "1 +": premature end of expression>
+<syntax error in expression "1 +": premature end of expression
+    ("if" test expression)
+    while compiling
+"if {1 +} {} "
+    (compiling body of proc "p7", line 1)>
+p8 1 <syntax error in expression "1 + ": premature end of expression>
+<syntax error in expression "1 + ": premature end of expression
+    while compiling
+"expr {1 + }"
+    while compiling
+"set x [expr {1 + }] "
+    (compiling body of proc "p8", line 1)>
+p9 1 <wrong # args: should be "incr varName ?increment?">
+<wrong # args: should be "incr varName ?increment?"
+    while compiling
+"incr "
+    (compiling body of proc "p9", line 1)>
+p10 1 <wrong # args: no script following "else" argument>
+<wrong # args: no script following "else" argument
+    while compiling
+"if 1 {} else "
+    (compiling body of proc "p10", line 1)>
+p11 1 <wrong # args: should be "break">
+<wrong # args: should be "break"
+    while compiling
+"break x "
+    (compiling body of proc "p11", line 1)>
+p12 1 <wrong # args: should be "foreach varList list ?varList list ...? command">
+<wrong # args: should be "foreach varList list ?varList list ...? command"
+    while compiling
+"foreach x "
+    (compiling body of proc "p12", line 1)>
+p13 1 <wrong # args: no expression after "elseif" argument>
+<wrong # args: no expression after "elseif" argument
+    while compiling
+"if 1 {} elseif "
+    (compiling body of proc "p13", line 1)>
+p14 1 <wrong # args: should be "catch command ?varName?">
+<wrong # args: should be "catch command ?varName?"
+    while compiling
+"catch {} a b"
+    while compiling
+"set x "[catch {} a b]" "
+    (compiling body of proc "p14", line 1)>
+p15 1 <extra characters after close-brace>
+<extra characters after close-brace
+    while compiling
+"set x {a}b "
+    (compiling body of proc "p15", line 1)>
+p16 1 <missing close-bracket>
+<missing close-bracket
+    while compiling
+"set x [list a
+"
+    (compiling body of proc "p16", line 2)>
+p17 0 <>
+<missing close-bracket
+    while compiling
+"set x [list a
+"
+    (compiling body of proc "p16", line 2)>
+p18 0 <>
+<missing close-bracket
+    while compiling
+"set x [list a
+"
+    (compiling body of proc "p16", line 2)>
+p19 1 <wrong # args: should be "catch command ?varName?">
+<wrong # args: should be "catch command ?varName?"
+    while executing
+"catch {} a b"
+    ("eval" body line 1)
+    invoked from within
+"eval $s"
+    (procedure "p19" line 1)>
+p20 1 <syntax error in expression "1 * * 2": unexpected operator *>
+<syntax error in expression "1 * * 2": unexpected operator *
+    while compiling
+"expr {1 * * 2} "
+    ("if" then script line 1)
+    while compiling
+"if {$x} then { expr {1 * * 2} } "
+    ("foreach" body line 1)
+    while compiling
+"foreach x {1} { if {$x} then { expr {1 * * 2} } } "
+    (compiling body of proc "p20", line 1)>
+top 1 <wrong # args: should be "catch command ?varName?">
+<wrong # args: should be "catch command ?varName?"
+    while compiling
+"catch {} a b"
+    ("if" then script line 1)
+    while compiling
+"if 1 {puts b; catch {} a b}">
+e
+eval 1 <wrong # args: should be "catch command ?varName?">
+<wrong # args: should be "catch command ?varName?"
+    while executing
+"catch {} a b"
+    ("eval" body line 1)
+    invoked from within
+"eval {puts e; catch {} a b}">
+u
+uplevel 1 <wrong # args: should be "catch command ?varName?">
+<wrong # args: should be "catch command ?varName?"
+    while executing
+"catch {} a b"
+    ("uplevel" body line 1)
+    invoked from within
+"uplevel #0 {puts u; catch {} a b}">
+"#;
+
+    /// The error codes a malformed list leaves, from every command that parses
+    /// one and from a procedure's usage error: `NONE` up to 8.5, `TCL VALUE LIST
+    /// BRACE|QUOTE|JUNK` and `TCL WRONGARGS` from 8.6, though `eval` raises a
+    /// script's parse error without one.
+    const LIST_ERROR_CODES: &str = r#"proc code {script} { catch {uplevel 1 $script}; return $::errorCode }
+proc p {} {
+    set bad "\{a"
+    list [code [list llength $bad]] [code [list foreach x $bad {}]] [code {llength}]
+}
+set bad "\{a"
+set out {}
+foreach s [list [list llength $bad] [list lindex "\{a\}b" 0] [list lsort $bad] [list foreach x $bad {}] [list lrange $bad 0 1] [list lsearch $bad a] [list join $bad] [list lappend bad x] [list lset bad 0 x] [list lreplace $bad 0 0] [list linsert $bad 0 x] [list concat $bad] [list eval $bad] [list switch a $bad] [list llength "\"a"] [list array set q $bad] [list lindex "\"a\"b" 0]] {
+    lappend out [code $s]
+}
+puts "top: [join $out { / }]"
+puts "proc: [p]"
+"#;
+
+    const LIST_ERROR_CODES_NONE: &str = r#"top: NONE / NONE / NONE / NONE / NONE / NONE / NONE / NONE / NONE / NONE / NONE / NONE / NONE / NONE / NONE / NONE / NONE
+proc: NONE NONE NONE
+"#;
+
+    const LIST_ERROR_CODES_TAGGED: &str = r#"top: TCL VALUE LIST BRACE / TCL VALUE LIST JUNK / TCL VALUE LIST BRACE / TCL VALUE LIST BRACE / TCL VALUE LIST BRACE / TCL VALUE LIST BRACE / TCL VALUE LIST BRACE / TCL VALUE LIST BRACE / TCL VALUE LIST BRACE / TCL VALUE LIST BRACE / TCL VALUE LIST BRACE / TCL VALUE LIST BRACE / NONE / TCL VALUE LIST BRACE / TCL VALUE LIST QUOTE / TCL VALUE LIST BRACE / TCL VALUE LIST JUNK
+proc: {TCL VALUE LIST BRACE} {TCL VALUE LIST BRACE} {TCL WRONGARGS}
+"#;
+
+    /// Where 8.4 raises `catch`'s usage error: while compiling a script it
+    /// compiles whole (a `catch` body, a procedure body, nothing of which runs),
+    /// or while executing one it evaluates directly (`eval`) and a command it
+    /// reaches through a substituted word.
+    const CATCH_TRACE: &str = r#"set c [catch {catch {set x 1} r o} m]; puts "top $c <$m> <$::errorCode>\n<$::errorInfo>"
+proc p {} { puts before; catch {set x 1} r o; puts after }
+set c [catch {p} m]; puts "proc $c <$m> <$::errorCode>\n<$::errorInfo>"
+set c [catch {eval {puts e; catch {set x 1} r o}} m]; puts "eval $c <$m> <$::errorCode>\n<$::errorInfo>"
+set cmd catch
+set c [catch {$cmd {set x 1} r o} m]; puts "dyn $c <$m> <$::errorCode>\n<$::errorInfo>"
+proc q {} { set c catch; $c {set x 1} r o }
+set c [catch {q} m]; puts "qdyn $c <$m> <$::errorCode>\n<$::errorInfo>"
+set c [catch {catch} m]; puts "none $c <$m> <$::errorCode>\n<$::errorInfo>"
+"#;
+
+    const CATCH_TRACE_84: &str = r#"top 1 <wrong # args: should be "catch command ?varName?"> <NONE>
+<wrong # args: should be "catch command ?varName?"
+    while compiling
+"catch {set x 1} r o">
+proc 1 <wrong # args: should be "catch command ?varName?"> <NONE>
+<wrong # args: should be "catch command ?varName?"
+    while compiling
+"catch {set x 1} r o"
+    (compiling body of proc "p", line 1)
+    invoked from within
+"p">
+e
+eval 1 <wrong # args: should be "catch command ?varName?"> <NONE>
+<wrong # args: should be "catch command ?varName?"
+    while executing
+"catch {set x 1} r o"
+    ("eval" body line 1)
+    invoked from within
+"eval {puts e; catch {set x 1} r o}">
+dyn 1 <wrong # args: should be "catch command ?varName?"> <NONE>
+<wrong # args: should be "catch command ?varName?"
+    while executing
+"$cmd {set x 1} r o">
+qdyn 1 <wrong # args: should be "catch command ?varName?"> <NONE>
+<wrong # args: should be "catch command ?varName?"
+    while executing
+"$c {set x 1} r o "
+    (procedure "q" line 1)
+    invoked from within
+"q">
+none 1 <wrong # args: should be "catch command ?varName?"> <NONE>
+<wrong # args: should be "catch command ?varName?"
+    while compiling
+"catch">
+"#;
+
     /// Scripts that print what each release does, as the file and on stdin.
     const PRINTED: &[Vector] = &[
+        Vector {
+            name: "catch's arity",
+            script: CATCH_ARITY,
+            want: &[
+                (TclVersion::V8_4, CATCH_ARITY_84, CATCH_ARITY_84),
+                (TclVersion::V8_5, CATCH_ARITY_85, CATCH_ARITY_85),
+                (TclVersion::V8_6, CATCH_ARITY_85, CATCH_ARITY_85),
+                (TclVersion::V9_0, CATCH_ARITY_85, CATCH_ARITY_85),
+                (TclVersion::V9_1, CATCH_ARITY_85, CATCH_ARITY_85),
+            ],
+        },
+        Vector {
+            name: "where 8.4 raises catch's usage error",
+            script: CATCH_TRACE,
+            want: &[(TclVersion::V8_4, CATCH_TRACE_84, CATCH_TRACE_84)],
+        },
+        Vector {
+            name: "what 8.4 refuses to compile",
+            script: COMPILE_FAILURES,
+            want: &[(TclVersion::V8_4, COMPILE_FAILURES_84, COMPILE_FAILURES_84)],
+        },
+        Vector {
+            name: "usage and list error codes",
+            script: ERROR_CODES,
+            want: &[
+                (TclVersion::V8_4, ERROR_CODES_NONE, ERROR_CODES_NONE),
+                (TclVersion::V8_5, ERROR_CODES_NONE, ERROR_CODES_NONE),
+                (TclVersion::V8_6, ERROR_CODES_TAGGED, ERROR_CODES_TAGGED),
+                (TclVersion::V9_0, ERROR_CODES_TAGGED, ERROR_CODES_TAGGED),
+                (TclVersion::V9_1, ERROR_CODES_TAGGED, ERROR_CODES_TAGGED),
+            ],
+        },
+        Vector {
+            name: "a malformed list's error code",
+            script: LIST_ERROR_CODES,
+            want: &[
+                (
+                    TclVersion::V8_4,
+                    LIST_ERROR_CODES_NONE,
+                    LIST_ERROR_CODES_NONE,
+                ),
+                (
+                    TclVersion::V8_5,
+                    LIST_ERROR_CODES_NONE,
+                    LIST_ERROR_CODES_NONE,
+                ),
+                (
+                    TclVersion::V8_6,
+                    LIST_ERROR_CODES_TAGGED,
+                    LIST_ERROR_CODES_TAGGED,
+                ),
+                (
+                    TclVersion::V9_0,
+                    LIST_ERROR_CODES_TAGGED,
+                    LIST_ERROR_CODES_TAGGED,
+                ),
+                (
+                    TclVersion::V9_1,
+                    LIST_ERROR_CODES_TAGGED,
+                    LIST_ERROR_CODES_TAGGED,
+                ),
+            ],
+        },
         Vector {
             name: "a procedure's compiled locals",
             script: COMPILED_LOCALS,

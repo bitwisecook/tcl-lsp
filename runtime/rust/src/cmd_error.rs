@@ -50,8 +50,17 @@ pub fn install(interp: &mut Interp) {
 /// `catch script ?resultVarName? ?optionsVarName?` — evaluate `script`, trap any
 /// completion code, and return it as an integer (0=ok … 4=continue).
 fn catch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    if argv.len() < 2 || argv.len() > 4 {
-        return interp.wrong_args(b"catch script ?resultVarName? ?optionVarName?");
+    // The release's signature: 8.4's `catch` takes the result variable alone,
+    // and names the words of its narrower form.
+    let arity = interp
+        .release_arity("catch")
+        .unwrap_or(tcl_registry::Arity::new(1, 3));
+    if !arity.accepts(u16::try_from(argv.len() - 1).unwrap_or(u16::MAX)) {
+        return interp.wrong_args(if arity.max < 3 {
+            b"catch command ?varName?"
+        } else {
+            b"catch script ?resultVarName? ?optionVarName?"
+        });
     }
     // The caught body is a fresh completion scope. Commands within it retain
     // carried options until a later command replaces them, but neither the
@@ -875,23 +884,39 @@ mod tests {
         });
     }
 
-    /// Pre-TIP runtimes still preserve `-errorstack` as an arbitrary custom
+    /// A pre-TIP runtime still preserves `-errorstack` as an arbitrary custom
     /// return option; only synthesis and validation of its TIP 348 meaning are
-    /// release-gated. Other custom pairs take the same shared path.
+    /// release-gated. Other custom pairs take the same shared path. (8.4's
+    /// `catch` takes no options variable.)
     #[test]
     fn catch_preserves_custom_return_options_on_legacy_releases() {
         use tcl_dialect::TclVersion;
 
         leak_free(|i| {
-            for version in [TclVersion::V8_4, TclVersion::V8_5] {
-                i.set_runtime_version(version);
-                assert_eq!(run(i, b"catch {return -bar soom} m o"), b"2");
-                assert_eq!(run(i, b"set o"), b"-bar soom -code 0 -level 1");
+            i.set_runtime_version(TclVersion::V8_5);
+            assert_eq!(run(i, b"catch {return -bar soom} m o"), b"2");
+            assert_eq!(run(i, b"set o"), b"-bar soom -code 0 -level 1");
 
-                assert_eq!(run(i, b"catch {return -errorstack odd} m o"), b"2");
-                assert_eq!(run(i, b"set o"), b"-errorstack odd -code 0 -level 1");
-            }
+            assert_eq!(run(i, b"catch {return -errorstack odd} m o"), b"2");
+            assert_eq!(run(i, b"set o"), b"-errorstack odd -code 0 -level 1");
             i.eval_str(b"unset -nocomplain m o");
+        });
+    }
+
+    /// 8.4's `catch` takes the result variable alone, as the registry's
+    /// arity window for the release says.
+    #[test]
+    fn eight_four_catch_takes_no_options_variable() {
+        use tcl_dialect::TclVersion;
+
+        leak_free(|i| {
+            i.set_runtime_version(TclVersion::V8_4);
+            assert_eq!(
+                run(i, b"list [catch {catch {set x 1} r o} m] $m $::errorCode"),
+                b"1 {wrong # args: should be \"catch command ?varName?\"} NONE"
+            );
+            assert_eq!(run(i, b"list [catch {set x 1} r] $r"), b"0 1");
+            i.eval_str(b"unset -nocomplain m r x");
         });
     }
 }

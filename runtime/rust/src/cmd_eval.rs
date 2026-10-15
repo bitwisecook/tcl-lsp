@@ -81,16 +81,18 @@ fn eval_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // A single body argument keeps its object identity, so a literal from a
     // sourced file evaluates as `type source` (TIP 280 LABC); multiple args are
     // concatenated into a fresh dynamic script (`type eval`).
-    let code = if argv.len() == 2 {
-        interp.eval_body_obj(argv[1])
-    } else if let Some(list) = concat_lists(&argv[1..]) {
-        let code = interp.eval_body_obj(list);
-        // SAFETY: releases the hold `concat_lists` took.
-        unsafe { crate::obj::decr_ref_count(list) };
-        code
-    } else {
-        interp.eval_body(&join_body(&argv[1..]))
-    };
+    let code = interp.with_script_evaluation("eval", |interp| {
+        if argv.len() == 2 {
+            interp.eval_body_obj(argv[1])
+        } else if let Some(list) = concat_lists(&argv[1..]) {
+            let code = interp.eval_body_obj(list);
+            // SAFETY: releases the hold `concat_lists` took.
+            unsafe { crate::obj::decr_ref_count(list) };
+            code
+        } else {
+            interp.eval_body(&join_body(&argv[1..]))
+        }
+    });
     if code == Code::Error {
         // `("eval" body line N)` — a body evaluated through a fresh frame.
         interp.append_body_frame(b"eval");
@@ -114,16 +116,18 @@ fn uplevel_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if body_start >= argv.len() {
         return interp.wrong_args(usage);
     }
-    let code = if body_start == argv.len() - 1 {
-        interp.eval_uplevel_obj(target, argv[body_start])
-    } else if let Some(list) = concat_lists(&argv[body_start..]) {
-        let code = interp.eval_uplevel_obj(target, list);
-        // SAFETY: releases the hold `concat_lists` took.
-        unsafe { crate::obj::decr_ref_count(list) };
-        code
-    } else {
-        interp.eval_uplevel(target, &join_body(&argv[body_start..]))
-    };
+    let code = interp.with_script_evaluation("uplevel", |interp| {
+        if body_start == argv.len() - 1 {
+            interp.eval_uplevel_obj(target, argv[body_start])
+        } else if let Some(list) = concat_lists(&argv[body_start..]) {
+            let code = interp.eval_uplevel_obj(target, list);
+            // SAFETY: releases the hold `concat_lists` took.
+            unsafe { crate::obj::decr_ref_count(list) };
+            code
+        } else {
+            interp.eval_uplevel(target, &join_body(&argv[body_start..]))
+        }
+    });
     if code == Code::Error {
         // `("uplevel" body line N)`.
         interp.append_body_frame(b"uplevel");

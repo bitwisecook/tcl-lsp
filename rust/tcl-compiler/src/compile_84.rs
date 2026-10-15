@@ -16,26 +16,13 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The scripts Tcl 8.4's compiler refuses (`TclCompileScript`).
-//!
-//! 8.4 compiles a script whole before any of it runs, and a compile procedure
-//! that finds a command malformed (`catch {} a b`, `expr {1 +}`, `if 1`)
-//! fails the compile with the command's error, as a parse error anywhere in
-//! the script does. Nothing in the script runs; the error carries a `while
-//! compiling` frame per script the failure is nested in, and a compile
-//! procedure that compiles a script or an expression with its command adds
-//! its own context line (`("if" then script line 2)`). From 8.5 a compile
-//! procedure that cannot compile a command leaves it to run, and a parse
-//! error is raised where it lies.
-//!
-//! Which compile procedure a command has is the registry's answer, through
-//! the hook its specification carries.
+//! The scripts Tcl 8.4's compiler refuses, as this compiler's segmenter
+//! takes them apart (`tcl_registry::compile_84`).
 
 use tcl_dialect::DialectProfile;
 use tcl_lexer::{LexerConfig, TokenType};
 use tcl_registry::CommandRegistry;
-use tcl_registry::clause_grammar::{ClauseGrammarSpec, ClauseRowShape};
-use tcl_registry::hooks::{CodegenHookId, InlineCodegenHookId, LoweringHookId};
+use tcl_registry::compile_84::{Command, Compile, Script, Segmenter, Word};
 use tcl_runtime_api::{CompileFailure, CompileUnit};
 
 use crate::segmenter::SegmentedCommand;
@@ -53,459 +40,43 @@ pub(crate) fn compile_failure(
     profile: &DialectProfile,
     unit: CompileUnit,
 ) -> Option<CompileFailure> {
-    let compiler = Compiler {
-        registry,
+    let segmenter = Segments {
         config: LexerConfig::from_grammar(profile.grammar),
-        in_procedure: unit == CompileUnit::ProcedureBody,
-        parses_expressions: profile.f5_core_expr_grammar().is_none(),
     };
-    compiler.script(source).err()
+    tcl_registry::compile_84::compile_failure(
+        source,
+        &Compile {
+            registry,
+            point: registry.own_surface_query(),
+            segmenter: &segmenter,
+            in_procedure: unit == CompileUnit::ProcedureBody,
+            parses_expressions: profile.f5_core_expr_grammar().is_none(),
+        },
+    )
 }
 
-/// What a compile procedure made of its command.
-enum Outcome {
-    /// It compiled the command.
-    Compiled,
-    /// It left the command to run (`TCL_OUT_LINE_COMPILE`): its words are
-    /// compiled as any command's are.
-    OutLine,
-}
-
-/// The 8.4 compile procedures this module follows, by the hook the command's
-/// specification carries.
-#[derive(Clone, Copy)]
-enum Procedure {
-    Set,
-    Incr,
-    Append,
-    Lappend,
-    Llength,
-    Break,
-    Continue,
-    Expr,
-    If(IfKeywords),
-    While,
-    For,
-    Foreach,
-    Catch,
-}
-
-/// The keywords of `if`'s clause grammar: the one opening a further
-/// condition, the noise word before a body, and the one before the final
-/// body.
-#[derive(Clone, Copy)]
-struct IfKeywords {
-    elseif: Option<&'static str>,
-    then: Option<&'static str>,
-    otherwise: Option<&'static str>,
-}
-
-impl IfKeywords {
-    fn of(grammar: &ClauseGrammarSpec) -> Self {
-        let slots = |shape: ClauseRowShape| match shape {
-            ClauseRowShape::Repeated { slots } | ClauseRowShape::Once { slots } => slots,
-            ClauseRowShape::Group { .. } => &[],
-        };
-        Self {
-            elseif: grammar.rows.iter().find_map(|row| row.keyword),
-            then: slots(grammar.head.shape).iter().find_map(|slot| slot.noise),
-            otherwise: grammar.tail.and_then(|tail| tail.keyword),
-        }
-    }
-}
-
-/// One word of a command as the compiler reads it.
-struct Word<'s> {
-    /// The word as written, delimiters included.
-    raw: &'s str,
-    /// The text of a word with nothing to substitute
-    /// (`TCL_TOKEN_SIMPLE_WORD`).
-    simple: Option<String>,
-    /// The scripts of its command substitutions, in order.
-    scripts: Vec<&'s str>,
-}
-
-struct Compiler<'r> {
-    registry: &'r CommandRegistry,
+/// This compiler's segmenter under a profile's grammar.
+struct Segments {
     config: LexerConfig,
-    in_procedure: bool,
-    parses_expressions: bool,
 }
 
-type Compiled = Result<(), CompileFailure>;
-
-impl Compiler<'_> {
-    /// `TclCompileScript`: each command in turn, a failure logged with the
-    /// command it arose in.
-    fn script(&self, src: &str) -> Compiled {
-        let parsed = crate::lowering::command_at_time_script_with_config(src, self.config);
-        for command in &parsed.commands {
-            let start = command.span.start() as usize;
-            if let Err(mut failure) = self.command(src, command) {
-                log(&mut failure, src, start, command_end(src, command));
-                return Err(failure);
-            }
+impl Segmenter for Segments {
+    fn segment<'s>(&self, source: &'s str) -> Script<'s> {
+        let parsed = crate::lowering::command_at_time_script_with_config(source, self.config);
+        Script {
+            commands: parsed
+                .commands
+                .iter()
+                .map(|command| Command {
+                    start: command.span.start() as usize,
+                    end: command_end(source, command),
+                    words: words(source, command),
+                })
+                .collect(),
+            fatal: parsed
+                .fatal_tail
+                .map(|(start, message, _)| (start, message)),
         }
-        if let Some((start, message, _)) = parsed.fatal_tail {
-            let mut failure = failure(message);
-            log(&mut failure, src, start, src.len());
-            return Err(failure);
-        }
-        Ok(())
-    }
-
-    fn command(&self, src: &str, command: &SegmentedCommand) -> Compiled {
-        let words = words(src, command);
-        if let Some(procedure) = words
-            .first()
-            .and_then(|head| head.simple.as_deref())
-            .and_then(|head| self.procedure(head, &words[1..]))
-        {
-            match self.compile_procedure(procedure, &words)? {
-                Outcome::Compiled => return Ok(()),
-                Outcome::OutLine => {}
-            }
-        }
-        self.words(&words)
-    }
-
-    /// `TclCompileTokens` over every word: the command substitutions each
-    /// holds are scripts compiled in turn.
-    fn words(&self, words: &[Word<'_>]) -> Compiled {
-        words.iter().try_for_each(|word| self.tokens(word))
-    }
-
-    fn tokens(&self, word: &Word<'_>) -> Compiled {
-        word.scripts
-            .iter()
-            .try_for_each(|script| self.script(script))
-    }
-
-    /// `TclCompileCmdWord`: a simple word is a script compiled inline, any
-    /// other compiled as a word.
-    fn cmd_word(&self, word: &Word<'_>) -> Compiled {
-        match &word.simple {
-            Some(script) => self.script(script),
-            None => self.tokens(word),
-        }
-    }
-
-    /// `TclCompileExprWords` of one word: a simple word is an expression 8.4
-    /// parses as it compiles it, its command substitutions scripts.
-    fn expr_word(&self, word: &Word<'_>) -> Compiled {
-        let Some(text) = &word.simple else {
-            return self.tokens(word);
-        };
-        if !self.parses_expressions {
-            return Ok(());
-        }
-        let scripts = tcl_syntax::expr::syntax_84::parse_tcl84(text).map_err(failure)?;
-        scripts.iter().try_for_each(|script| self.script(script))
-    }
-
-    /// The compile procedure 8.4 calls for `head`, from the hook the
-    /// command's specification carries.
-    fn procedure(&self, head: &str, args: &[Word<'_>]) -> Option<Procedure> {
-        let name = head.strip_prefix("::").unwrap_or(head);
-        let arg_texts: Vec<&str> = args
-            .iter()
-            .map(|word| word.simple.as_deref().unwrap_or(word.raw))
-            .collect();
-        let resolved =
-            self.registry
-                .resolve_call(name, &arg_texts, self.registry.own_surface_query())?;
-        match (
-            resolved.codegen_hook,
-            resolved.inline_codegen_hook,
-            resolved.lowering_hook,
-        ) {
-            (Some(CodegenHookId::Append), _, _) => Some(Procedure::Append),
-            (Some(CodegenHookId::Lappend), _, _) => Some(Procedure::Lappend),
-            (Some(CodegenHookId::Llength), _, _) => Some(Procedure::Llength),
-            (_, Some(InlineCodegenHookId::Break), _) => Some(Procedure::Break),
-            (_, Some(InlineCodegenHookId::Continue), _) => Some(Procedure::Continue),
-            (_, _, Some(LoweringHookId::Set)) => Some(Procedure::Set),
-            (_, _, Some(LoweringHookId::Incr)) => Some(Procedure::Incr),
-            (_, _, Some(LoweringHookId::Expr)) => Some(Procedure::Expr),
-            (_, _, Some(LoweringHookId::If)) => resolved
-                .spec
-                .clause_grammar
-                .map(|grammar| Procedure::If(IfKeywords::of(grammar))),
-            (_, _, Some(LoweringHookId::While)) => Some(Procedure::While),
-            (_, _, Some(LoweringHookId::For)) => Some(Procedure::For),
-            (_, _, Some(LoweringHookId::Foreach)) => Some(Procedure::Foreach),
-            (_, _, Some(LoweringHookId::Catch)) => Some(Procedure::Catch),
-            _ => None,
-        }
-    }
-
-    fn compile_procedure(
-        &self,
-        procedure: Procedure,
-        words: &[Word<'_>],
-    ) -> Result<Outcome, CompileFailure> {
-        let count = words.len();
-        let compiled = |result: Compiled| result.map(|()| Outcome::Compiled);
-        match procedure {
-            Procedure::Set | Procedure::Incr => {
-                if !(2..=3).contains(&count) {
-                    return Err(wrong_args(match procedure {
-                        Procedure::Set => "set varName ?newValue?",
-                        _ => "incr varName ?increment?",
-                    }));
-                }
-                compiled(self.words(&words[1..]))
-            }
-            Procedure::Append => match count {
-                1 => Err(wrong_args("append varName ?value value ...?")),
-                2 | 3 => compiled(self.words(&words[1..])),
-                _ => Ok(Outcome::OutLine),
-            },
-            Procedure::Lappend => {
-                if !self.in_procedure {
-                    return Ok(Outcome::OutLine);
-                }
-                match count {
-                    1 => Err(wrong_args("lappend varName ?value value ...?")),
-                    3 => compiled(self.words(&words[1..])),
-                    _ => Ok(Outcome::OutLine),
-                }
-            }
-            Procedure::Llength => {
-                if count != 2 {
-                    return Err(wrong_args("llength list"));
-                }
-                compiled(self.words(&words[1..]))
-            }
-            Procedure::Break | Procedure::Continue => {
-                if count != 1 {
-                    return Err(wrong_args(match procedure {
-                        Procedure::Break => "break",
-                        _ => "continue",
-                    }));
-                }
-                Ok(Outcome::Compiled)
-            }
-            Procedure::Expr => match &words[1..] {
-                [] => Err(wrong_args("expr arg ?arg ...?")),
-                [word] => compiled(self.expr_word(word)),
-                rest => compiled(self.words(rest)),
-            },
-            Procedure::If(keywords) => self.compile_if(words, keywords),
-            Procedure::While => self.compile_while(words),
-            Procedure::For => self.compile_for(words),
-            Procedure::Foreach => self.compile_foreach(words),
-            Procedure::Catch => self.compile_catch(words),
-        }
-    }
-
-    /// `TclCompileIfCmd`.
-    fn compile_if(
-        &self,
-        words: &[Word<'_>],
-        keywords: IfKeywords,
-    ) -> Result<Outcome, CompileFailure> {
-        if words.iter().any(|word| word.simple.is_none()) {
-            return Ok(Outcome::OutLine);
-        }
-        let text = |index: usize| words[index].simple.as_deref().unwrap_or_default();
-        let mut real_cond = true;
-        let mut compile_scripts = true;
-        let mut index = 0;
-        while index < words.len() {
-            let keyword = text(index);
-            if index != 0 && Some(keyword) != keywords.elseif {
-                break;
-            }
-            index += 1;
-            if index >= words.len() {
-                return Err(failure(format!(
-                    "wrong # args: no expression after \"{}\" argument",
-                    truncate(keyword, 50)
-                )));
-            }
-            let condition = index;
-            let mut constant = None;
-            if real_cond {
-                constant = tcl_syntax::boolean::truthiness_in_every_release(text(condition));
-                match constant {
-                    Some(value) => {
-                        real_cond = false;
-                        compile_scripts = value;
-                    }
-                    None => self
-                        .expr_word(&words[condition])
-                        .map_err(|failure| context(failure, "\n    (\"if\" test expression)"))?,
-                }
-            }
-            index += 1;
-            if index >= words.len() {
-                return Err(failure(format!(
-                    "wrong # args: no script following \"{}\" argument",
-                    truncate(words[condition].raw, 50)
-                )));
-            }
-            if Some(text(index)) == keywords.then {
-                index += 1;
-                if index >= words.len() {
-                    return Err(failure(format!(
-                        "wrong # args: no script following \"{}\" argument",
-                        text(index - 1)
-                    )));
-                }
-            }
-            if compile_scripts {
-                self.script(text(index)).map_err(|failure| {
-                    let line = failure.line;
-                    context(failure, &format!("\n    (\"if\" then script line {line})"))
-                })?;
-            }
-            match constant {
-                Some(true) => compile_scripts = false,
-                Some(false) => {
-                    real_cond = true;
-                    compile_scripts = true;
-                }
-                None => {}
-            }
-            index += 1;
-        }
-        if index < words.len() {
-            if Some(text(index)) == keywords.otherwise {
-                index += 1;
-                if index >= words.len() {
-                    return Err(failure(format!(
-                        "wrong # args: no script following \"{}\" argument",
-                        text(index - 1)
-                    )));
-                }
-            }
-            if compile_scripts {
-                self.script(text(index)).map_err(|failure| {
-                    let line = failure.line;
-                    context(failure, &format!("\n    (\"if\" else script line {line})"))
-                })?;
-            }
-            if index + 1 < words.len() {
-                return Err(failure(
-                    "wrong # args: extra words after \"else\" clause in \"if\" command".to_owned(),
-                ));
-            }
-        }
-        Ok(Outcome::Compiled)
-    }
-
-    /// `TclCompileWhileCmd`: the body before the test, nothing at all for a
-    /// constant false test.
-    fn compile_while(&self, words: &[Word<'_>]) -> Result<Outcome, CompileFailure> {
-        let [_, test, body] = words else {
-            return Err(wrong_args("while test command"));
-        };
-        let (Some(test_text), Some(body_text)) = (&test.simple, &body.simple) else {
-            return Ok(Outcome::OutLine);
-        };
-        let constant = tcl_syntax::boolean::truthiness_in_every_release(test_text);
-        if constant == Some(false) {
-            return Ok(Outcome::Compiled);
-        }
-        self.script(body_text).map_err(|failure| {
-            let line = failure.line;
-            context(failure, &format!("\n    (\"while\" body line {line})"))
-        })?;
-        if constant.is_none() {
-            self.expr_word(test)
-                .map_err(|failure| context(failure, "\n    (\"while\" test expression)"))?;
-        }
-        Ok(Outcome::Compiled)
-    }
-
-    /// `TclCompileForCmd`: start, body, next, then the test.
-    fn compile_for(&self, words: &[Word<'_>]) -> Result<Outcome, CompileFailure> {
-        let [_, start, test, next, body] = words else {
-            return Err(wrong_args("for start test next command"));
-        };
-        if test.simple.is_none() || next.simple.is_none() || body.simple.is_none() {
-            return Ok(Outcome::OutLine);
-        }
-        self.cmd_word(start)
-            .map_err(|failure| context(failure, "\n    (\"for\" initial command)"))?;
-        self.cmd_word(body).map_err(|failure| {
-            let line = failure.line;
-            context(failure, &format!("\n    (\"for\" body line {line})"))
-        })?;
-        self.cmd_word(next)
-            .map_err(|failure| context(failure, "\n    (\"for\" loop-end command)"))?;
-        self.expr_word(test)
-            .map_err(|failure| context(failure, "\n    (\"for\" test expression)"))?;
-        Ok(Outcome::Compiled)
-    }
-
-    /// `TclCompileForeachCmd`, only in a procedure body: the value lists,
-    /// then the body.
-    fn compile_foreach(&self, words: &[Word<'_>]) -> Result<Outcome, CompileFailure> {
-        if !self.in_procedure {
-            return Ok(Outcome::OutLine);
-        }
-        let count = words.len();
-        if count < 4 || !count.is_multiple_of(2) {
-            return Err(wrong_args(
-                "foreach varList list ?varList list ...? command",
-            ));
-        }
-        let body = &words[count - 1];
-        let Some(body_text) = &body.simple else {
-            return Ok(Outcome::OutLine);
-        };
-        let lists = &words[1..count - 1];
-        for variables in lists.iter().step_by(2) {
-            let Some(text) = &variables.simple else {
-                return Ok(Outcome::OutLine);
-            };
-            let Ok(names) = tcl_syntax::list::split_list(text) else {
-                return Ok(Outcome::OutLine);
-            };
-            if names.is_empty()
-                || names
-                    .iter()
-                    .any(|name| name.contains("::") || name.ends_with(')'))
-            {
-                return Ok(Outcome::OutLine);
-            }
-        }
-        lists
-            .iter()
-            .skip(1)
-            .step_by(2)
-            .try_for_each(|list| self.tokens(list))?;
-        self.script(body_text).map_err(|failure| {
-            let line = failure.line;
-            context(failure, &format!("\n    (\"foreach\" body line {line})"))
-        })?;
-        Ok(Outcome::Compiled)
-    }
-
-    /// `TclCompileCatchCmd`: a script that fails to compile leaves the
-    /// command to run, which raises the failure when it compiles the script.
-    fn compile_catch(&self, words: &[Word<'_>]) -> Result<Outcome, CompileFailure> {
-        let count = words.len();
-        if !(2..=3).contains(&count) {
-            return Err(wrong_args("catch command ?varName?"));
-        }
-        if count == 3 && !self.in_procedure {
-            return Ok(Outcome::OutLine);
-        }
-        if let Some(variable) = words.get(2) {
-            match &variable.simple {
-                Some(name) if !name.contains("::") && !name.ends_with(')') => {}
-                _ => return Ok(Outcome::OutLine),
-            }
-        }
-        let compiled = self.cmd_word(&words[1]);
-        Ok(if compiled.is_ok() {
-            Outcome::Compiled
-        } else {
-            Outcome::OutLine
-        })
     }
 }
 
@@ -568,52 +139,4 @@ fn command_end(src: &str, command: &SegmentedCommand) -> usize {
     let rest = src.get(end..).unwrap_or_default();
     rest.find(['\n', ';', ']'])
         .map_or(src.len(), |offset| end + offset)
-}
-
-/// `LogCompilationInfo`: the failing command's line, and a `while
-/// compiling` frame quoting at most 150 bytes of it.
-fn log(failure: &mut CompileFailure, src: &str, start: usize, end: usize) {
-    failure.line = 1 + u32::try_from(src.get(..start).unwrap_or(src).matches('\n').count())
-        .unwrap_or(u32::MAX - 1);
-    let text = src.get(start..end).unwrap_or_default();
-    let (text, ellipsis) = if text.len() > 150 {
-        let mut cut = 150;
-        while !text.is_char_boundary(cut) {
-            cut -= 1;
-        }
-        (&text[..cut], "...")
-    } else {
-        (text, "")
-    };
-    failure.error_info.push_str("\n    while compiling\n\"");
-    failure.error_info.push_str(text);
-    failure.error_info.push_str(ellipsis);
-    failure.error_info.push('"');
-}
-
-fn failure(message: String) -> CompileFailure {
-    CompileFailure {
-        message,
-        error_info: String::new(),
-        line: 0,
-    }
-}
-
-fn wrong_args(usage: &str) -> CompileFailure {
-    failure(format!("wrong # args: should be \"{usage}\""))
-}
-
-/// The context line a compile procedure adds to a nested failure.
-fn context(mut failure: CompileFailure, line: &str) -> CompileFailure {
-    failure.error_info.push_str(line);
-    failure
-}
-
-/// At most `limit` bytes of `text`, as `%.*s` prints it.
-fn truncate(text: &str, limit: usize) -> &str {
-    let mut cut = text.len().min(limit);
-    while !text.is_char_boundary(cut) {
-        cut -= 1;
-    }
-    &text[..cut]
 }

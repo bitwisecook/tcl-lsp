@@ -375,6 +375,32 @@ fn line_of(src: &[u8], offset: usize) -> u32 {
         .count() as u32
 }
 
+/// Where the chunk `tclsh` reads from its stdin that starts with
+/// `commands[0]` ends: at the first of them whose terminator ends a line, or
+/// at the end of the script.
+fn chunk_end(src: &[u8], commands: &[parse::Command<'_>]) -> usize {
+    commands
+        .iter()
+        .find(|command| src.get(command.end) != Some(&b';'))
+        .map_or(src.len(), |command| command.end)
+}
+
+/// `(compiling body of proc "NAME", line N)`: the frame `TclProcCompileProc`
+/// adds where a body fails to compile, the name cut at 50 bytes.
+fn compiling_body_frame(name: &[u8], line: u32) -> Vec<u8> {
+    let mut cut = name.len().min(50);
+    while cut < name.len() && cut > 0 && name[cut] & 0xC0 == 0x80 {
+        cut -= 1;
+    }
+    let mut frame = b"\n    (compiling body of proc \"".to_vec();
+    frame.extend_from_slice(&name[..cut]);
+    if cut < name.len() {
+        frame.extend_from_slice(b"...");
+    }
+    frame.extend_from_slice(format!("\", line {line})").as_bytes());
+    frame
+}
+
 /// Count the newlines in `s` (the line delta between two source offsets).
 fn count_newlines(s: &[u8]) -> u32 {
     s.iter().filter(|&&b| b == b'\n').count() as u32
@@ -1073,6 +1099,9 @@ pub struct InterpState {
     proc_body: Cell<bool>,
     /// Whether the next script loop that owns a frame runs a procedure body.
     next_proc_body: Cell<bool>,
+    /// Whether the next script loop that owns a frame runs commands `tclsh`
+    /// reads from its stdin, which it compiles a complete chunk at a time.
+    next_chunked: Cell<bool>,
     /// `eval_str` nesting depth. The outermost eval (depth returning to 0)
     /// publishes the accumulated error trace to the `::errorInfo`/`::errorCode`
     /// globals; nested evals (proc bodies, `[cmd]` subst, control bodies) just
@@ -1475,6 +1504,7 @@ impl Interp {
             compiled_literals: RefCell::new(Vec::new()),
             proc_body: Cell::new(false),
             next_proc_body: Cell::new(false),
+            next_chunked: Cell::new(false),
             eval_depth: Cell::new(0),
             var_trace_epoch: Cell::new(1),
             cmd_count: Cell::new(0),
@@ -3594,9 +3624,42 @@ impl Interp {
     /// the script stack (`info script`). A top-level `return` ends the file (the
     /// return boundary maps `return` → Ok); other codes propagate.
     ///
-    /// Each command is compiled, as the `source` command's script is.
+    /// Each command is compiled, as the `source` command's script is, but
+    /// where the release evaluates a sourced file directly (8.4's
+    /// `Tcl_EvalFile`).
     pub fn eval_sourced(&mut self, script: &[u8], name: &[u8]) -> Code {
-        self.eval_sourced_boundary(script, name, CommandEvaluation::Compiled, |_, code| code)
+        let evaluation = if tcl_registry::release_compilation::evaluates_script_directly(
+            self.runtime_version(),
+            "source",
+        ) {
+            CommandEvaluation::Direct
+        } else {
+            CommandEvaluation::Compiled
+        };
+        self.eval_sourced_boundary(script, name, evaluation, |_, code| code)
+    }
+
+    /// Run `f`, whose script loop evaluates the script the command `command`
+    /// runs, evaluating that script's commands directly where the release
+    /// does (`tcl_registry::release_compilation::evaluates_script_directly`:
+    /// 8.4's `eval` and `uplevel` pass `TCL_EVAL_DIRECT`).
+    pub(crate) fn with_script_evaluation<T>(
+        &mut self,
+        command: &str,
+        f: impl FnOnce(&mut Self) -> T,
+    ) -> T {
+        let direct = tcl_registry::release_compilation::evaluates_script_directly(
+            self.runtime_version(),
+            command,
+        );
+        if direct {
+            self.next_evaluation.set(Some(CommandEvaluation::Direct));
+        }
+        let result = f(self);
+        if direct {
+            self.next_evaluation.set(None);
+        }
+        result
     }
 
     /// Evaluate a sourced script and return its owned, byte-preserving
@@ -6329,8 +6392,28 @@ impl Interp {
 
     /// An error a C API call reports: `message` as the result and, when given,
     /// `code` as its `-errorcode` (`NONE` otherwise), starting a new error.
+    /// `code` as the release sets it: a usage error's and a malformed list's
+    /// or dictionary's codes arrive in 8.6, and before it are `NONE`
+    /// ([`tcl_dialect::TclVersion::tags_usage_error_codes`]).
+    fn release_error_code<'c>(&self, code: &'c [u8]) -> &'c [u8] {
+        let untagged = !self.runtime_version().tags_usage_error_codes()
+            && [
+                &b"TCL WRONGARGS"[..],
+                b"TCL VALUE LIST ",
+                b"TCL VALUE DICTIONARY ",
+            ]
+            .iter()
+            .any(|family| code.starts_with(family));
+        if untagged {
+            b"NONE"
+        } else {
+            code
+        }
+    }
+
     pub(crate) fn c_api_error(&mut self, message: &[u8], code: Option<&[u8]>) {
         self.set_result_bytes(message);
+        let code = code.map(|code| self.release_error_code(code));
         *self.exc.borrow_mut() = ExceptionState {
             info: None,
             code: code.map(<[u8]>::to_vec).unwrap_or_default(),
@@ -6520,10 +6603,18 @@ impl Interp {
     /// richer code on their own paths.
     pub(crate) fn error(&mut self, msg: &[u8]) -> Code {
         self.set_result_bytes(msg);
-        let code: &[u8] = if msg.starts_with(b"wrong # args:") {
+        // `Tcl_WrongNumArgs` and the list parser tag their errors only from
+        // 8.6; before it `$errorCode` is `NONE`.
+        let tags = self.runtime_version().tags_usage_error_codes();
+        let code: &[u8] = if !tags {
+            b"NONE"
+        } else if msg.starts_with(b"wrong # args:") {
             b"TCL WRONGARGS"
         } else {
-            b"NONE"
+            std::str::from_utf8(msg)
+                .ok()
+                .and_then(tcl_syntax::list::ListError::from_message)
+                .map_or(b"NONE", |error| error.error_code().as_bytes())
         };
         *self.exc.borrow_mut() = ExceptionState {
             info: None,
@@ -6539,6 +6630,7 @@ impl Interp {
     /// richer error codes (`TCL LOOKUP INDEX …`, `TCL OO …`).
     pub(crate) fn error_with_code(&mut self, msg: &[u8], code: &[u8]) -> Code {
         self.set_result_bytes(msg);
+        let code = self.release_error_code(code);
         *self.exc.borrow_mut() = ExceptionState {
             info: None,
             code: code.to_vec(),
@@ -7402,6 +7494,7 @@ impl Interp {
     /// [`Self::eval_completion`] with each command compiled, as `tclsh`
     /// compiles every command its stdin feeds it.
     pub fn eval_compiled_completion(&mut self, script: &[u8]) -> tcl_runtime_api::ScriptCompletion {
+        self.next_chunked.set(self.cmd_frames.borrow().is_empty());
         self.eval_str_boundary(
             script,
             CommandEvaluation::Compiled,
@@ -7469,16 +7562,26 @@ impl Interp {
         // bailing out here needs no unwind: `owned` (not yet pushed) simply
         // drops normally.
         let next_proc_body = self.next_proc_body.replace(false);
+        let next_chunked = self.next_chunked.replace(false);
         if NATIVE_EVAL_DEPTH_LIMIT.exceeded(self.eval_depth.get() + 1) {
             return self.error(b"too many nested evaluations (infinite loop?)");
         }
-        self.eval_depth.set(self.eval_depth.get() + 1);
         let pushed = owned.is_some();
         let evaluation = self.next_evaluation.take().unwrap_or(if pushed {
             CommandEvaluation::Compiled
         } else {
             self.evaluation.get()
         });
+        // A release that compiles a script whole refuses it before any of it
+        // runs; a procedure body is compiled as its procedure is called, and
+        // stdin a chunk at a time.
+        let chunked = pushed && next_chunked;
+        if pushed && evaluation == CommandEvaluation::Compiled && !next_proc_body && !chunked {
+            if let Some(failure) = self.compile_failure_84(src, false) {
+                return self.raise_compile_failure(&failure, b"");
+            }
+        }
+        self.eval_depth.set(self.eval_depth.get() + 1);
         let outer_evaluation = self.evaluation.replace(evaluation);
         let proc_body = pushed && next_proc_body;
         let outer_proc_body = if pushed {
@@ -7500,7 +7603,16 @@ impl Interp {
             // {}`, or an `lmap`/`foreach` body that produces nothing).
             self.set_result_bytes(b"");
         }
-        for cmd in &commands {
+        let mut compiled_to = 0;
+        for (index, cmd) in commands.iter().enumerate() {
+            if chunked && evaluation == CommandEvaluation::Compiled && cmd.start >= compiled_to {
+                compiled_to = chunk_end(src, &commands[index..]);
+                if let Some(failure) = self.compile_failure_84(&src[cmd.start..compiled_to], false)
+                {
+                    last = self.raise_compile_failure(&failure, b"");
+                    break;
+                }
+            }
             last = self.eval_command(src, cmd, owns_frame);
             if last != Code::Ok {
                 break; // error/return/break/continue propagate up
@@ -8142,6 +8254,57 @@ impl Interp {
                 config: self.lexer_config(),
             },
         )
+    }
+
+    /// The signature the registry states for the command `name` at the
+    /// emulated release (`CommandRegistry::release_arity`); `None` where the
+    /// pinned profile has no registry or the command no specification.
+    pub(crate) fn release_arity(&self, name: &str) -> Option<tcl_registry::Arity> {
+        let registry = self.0.profile_registry.get()?;
+        registry.get(name).map(|spec| registry.release_arity(spec))
+    }
+
+    /// Why the emulated release refuses to compile `src` whole, as 8.4's
+    /// `TclCompileScript` does (`tcl_registry::compile_84`), a procedure body
+    /// where `in_procedure` says; `None` where it compiles, or the release
+    /// compiles leniently.
+    fn compile_failure_84(
+        &self,
+        src: &[u8],
+        in_procedure: bool,
+    ) -> Option<tcl_runtime_api::CompileFailure> {
+        if !self.runtime_version().compile_errors_fail_scripts() {
+            return None;
+        }
+        let registry = self.0.profile_registry.get()?;
+        let source = std::str::from_utf8(src).ok()?;
+        let parser = crate::compile_84::Parser {
+            config: self.lexer_config(),
+        };
+        tcl_registry::compile_84::compile_failure(
+            source,
+            &tcl_registry::compile_84::Compile {
+                registry,
+                point: self.0.dialect_point.get(),
+                segmenter: &parser,
+                in_procedure,
+                parses_expressions: self.dialect_profile().f5_core_expr_grammar().is_none(),
+            },
+        )
+    }
+
+    /// Raise a compile's refusal: its message, with its `while compiling`
+    /// frames and `tail` as the trace so far, and no error code.
+    fn raise_compile_failure(
+        &mut self,
+        failure: &tcl_runtime_api::CompileFailure,
+        tail: &[u8],
+    ) -> Code {
+        let mut info = failure.message.as_bytes().to_vec();
+        info.extend_from_slice(failure.error_info.as_bytes());
+        info.extend_from_slice(tail);
+        self.error_line.set(failure.line);
+        self.raise_with_info(failure.message.as_bytes(), &info, b"NONE")
     }
 
     /// Whether the commands now running are compiled as part of a procedure
@@ -10028,6 +10191,17 @@ impl Interp {
         } else {
             params
         };
+        // A release that compiles a body whole as its procedure is called
+        // refuses it before binding a word or running a command
+        // (`TclProcCompileProc`).
+        if let ProcFrame::Proc(name) = meta.err {
+            if let Some(failure) = self.compile_failure_84(body, true) {
+                let frame = compiling_body_frame(name, failure.line);
+                let code = self.raise_compile_failure(&failure, &frame);
+                self.clear_error_logged();
+                return code;
+            }
+        }
         // The `wrong # args` command prefix (an OO method passes the invoking
         // `obj method`; everything else uses the invoked name).
         let usage = meta.usage_prefix.as_deref().unwrap_or(usage_called);
