@@ -16,6 +16,12 @@ controls follow observed headers; mutable-case software refusals deliberately
 carry no original-success conformance claim. Local dictionary projection and
 Import entry remain separate obligations.
 
+The [local namespace/dictionary SDK captures](jim-namespace-info-local-dictionary/README.md)
+retain35 actual rows across two fresh upstream-matched captures. Original local
+first-key/ASCII construction and no-pattern/pattern key getter observations are
+separate from unexecuted Runtime controls and from whether the actual outer local
+Source producer was reached. Import entry remains denied.
+
 ## Shared namespace-variable query consumers
 
 The [purpose-selected owner and Runtime capture](variable-namespace-query-bases-20261013/README.md)

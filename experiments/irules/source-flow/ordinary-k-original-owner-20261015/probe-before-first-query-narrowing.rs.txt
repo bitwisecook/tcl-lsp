@@ -1,0 +1,251 @@
+// Diagnostic client of exact ordinary K public source APIs; no acceptance claim.
+use std::sync::Arc;
+use tcl_compiler::analyser::{Analyser, ResolvedAnalysisInput};
+use tcl_compiler::compilation_unit::{CompilationUnit, UnitBuildOptions};
+use tcl_compiler::ir::CommandTokens;
+use tcl_compiler::registry_invocation::{
+    InvocationMetadataContext, original_registry_invocation_assistance_with_metadata_context,
+};
+use tcl_lexer::LexerConfig;
+use tcl_registry::CommandRegistry;
+
+fn tokens(
+    label: &str,
+    tokens: &CommandTokens,
+    registry: &CommandRegistry,
+    metadata: Option<InvocationMetadataContext<'_>>,
+    config: LexerConfig,
+) {
+    let binding = tokens.source_binding.as_ref();
+    let original =
+        original_registry_invocation_assistance_with_metadata_context(registry, metadata, tokens);
+    println!(
+        "TOKENS label={label} argv={:?} synthetic={:?} compatible={} binding={} config={:?} assistance={:?}",
+        tokens.argv_texts,
+        tokens.synthetic,
+        tokens.original_words_match_argv_text(),
+        binding.is_some(),
+        tokens.native_lexer_config(config),
+        original.as_ref().map(|advice| (
+            advice.unknown_residual,
+            advice.may_be_absent,
+            advice
+                .candidates
+                .iter()
+                .map(|candidate| (
+                    &candidate.command,
+                    candidate.roles_complete,
+                    &candidate.roles,
+                    candidate.data_collection,
+                    candidate.side_switch_target,
+                    &candidate.option_keywords
+                ))
+                .collect::<Vec<_>>()
+        ))
+    );
+    if let Some(binding) = binding {
+        println!(
+            "BINDING label={label} unknown={} absent={} targets={:?} site={:?}",
+            binding.execution_is_unknown(),
+            binding.execution_may_be_absent(),
+            binding
+                .execution_targets()
+                .map(|target| (&target.command, target.registry_backed))
+                .collect::<Vec<_>>(),
+            binding.invocation_site().map(|site| (
+                site.offset,
+                site.source.source_image().len(),
+                site.source.source_image().channel()
+            ))
+        );
+        if let Some(site) = binding.invocation_site() {
+            let words = tcl_compiler::registry_invocation::original_native_compiler_words(
+                site.source.source_image(),
+                tokens.words(),
+                site.offset,
+                tokens.native_lexer_config(config),
+            );
+            println!(
+                "ORIGINAL_SYNTAX label={label} words={:?}",
+                words.as_ref().map(|words| words
+                    .iter()
+                    .map(|word| (word.span(), word.group().kind))
+                    .collect::<Vec<_>>())
+            );
+        }
+    }
+}
+
+fn main() {
+    let fixtures = [
+        (
+            "getter_quoted_template",
+            r#"when HTTP_REQUEST {set value "prefix[HTTP::uri]"}"#,
+        ),
+        (
+            "assigned_collection_substitution",
+            "when HTTP_REQUEST {set value [HTTP::collect]; HTTP::release}",
+        ),
+        (
+            "collection_template",
+            r#"when HTTP_REQUEST {set value "prefix[HTTP::collect]"; HTTP::release}"#,
+        ),
+        (
+            "collection_report_labels",
+            "when HTTP_REQUEST {HTTP::release; :HTTP::collect; set value {[HTTP::collect]}}",
+        ),
+        (
+            "collection_nonregistry",
+            "proc ordinary {} {return value}; when HTTP_REQUEST {ordinary; HTTP::release}",
+        ),
+    ];
+    let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
+    let context = environment.default_context_registry();
+    let registry = context.commands();
+    let config = LexerConfig::from_grammar(environment.grammar());
+    for (fixture, source) in fixtures {
+        let input = ResolvedAnalysisInput::new(
+            environment.analyser_profile(),
+            environment.unit_profile(),
+            Arc::clone(&context),
+            config,
+        );
+        let unit = Arc::new(CompilationUnit::build_with_analysis_input(
+            source,
+            UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config,
+                dialect: Some(environment.unit_profile()),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        ));
+        println!(
+            "FIXTURE {fixture} source={source:?} module_source={} module_input={} retained_bindings={} source_class_facts={} config={:?}",
+            unit.ir_module.source.try_text() == Ok(source),
+            unit.ir_module.source_metadata_input.is_some(),
+            unit.ir_module.retained_source_bindings.is_some(),
+            unit.source_class_facts.is_some(),
+            unit.ir_module.lexer_config
+        );
+        let query = Some(environment.unit_profile().surface_query());
+        println!(
+            "WARNINGS getter={:?} collection={:?}",
+            tcl_compiler::irules_checks::find_unnormalised_getter_warnings(&unit, registry, query),
+            tcl_compiler::irules_checks::find_collect_flow_warnings(&unit, registry, query)
+        );
+        let module_metadata = InvocationMetadataContext::for_module(registry, &unit.ir_module);
+        println!("MODULE_METADATA {}", module_metadata.is_some());
+        for (id, procedure) in &unit.ir_module.procedures {
+            println!(
+                "IR_PROCEDURE {id:?} label={:?} current_event={}",
+                procedure.qualified_name,
+                tcl_compiler::source_graph::event_body_for_procedure(
+                    &unit.ir_module,
+                    id,
+                    procedure,
+                    registry
+                )
+                .is_some()
+            );
+            for statement in &procedure.body.statements {
+                let retained = procedure
+                    .body
+                    .retained_source_tokens_for_statement(statement);
+                println!(
+                    "IR_STATEMENT span={:?} executable={} tokens={} retained={}",
+                    statement.span(),
+                    statement.is_executable_invocation(),
+                    statement.tokens().is_some(),
+                    retained.is_some()
+                );
+                if let Some(value) = retained {
+                    tokens("ir-retained", value, registry, module_metadata, config);
+                } else if let Some(value) = statement.tokens() {
+                    tokens("ir-statement", value, registry, module_metadata, config);
+                }
+            }
+        }
+        for function in unit.functions() {
+            let metadata =
+                function.invocation_metadata_context_for_module(registry, &unit.ir_module);
+            println!(
+                "FUNCTION name={:?} body_id={:?} metadata={} config={:?} blocks={} executable_blocks={:?}",
+                function.name,
+                function.body_id,
+                metadata.is_some(),
+                function.source_lexer_config(),
+                function.cfg.blocks.len(),
+                function.sccp.executable_blocks
+            );
+            for (id, block) in &function.cfg.blocks {
+                println!(
+                    "BLOCK {id:?} reached={} statements={}",
+                    function.sccp.executable_blocks.contains(id),
+                    block.statements.len()
+                );
+                for statement in &block.statements {
+                    println!(
+                        "CFG_STATEMENT span={:?} executable={} own_tokens={}",
+                        statement.span(),
+                        statement.is_executable_invocation(),
+                        statement.tokens().is_some()
+                    );
+                    if let Some(value) = statement.tokens() {
+                        tokens(
+                            "cfg-statement",
+                            value,
+                            registry,
+                            metadata,
+                            function.source_lexer_config(),
+                        );
+                    }
+                    for site in function
+                        .cfg
+                        .command_binding_sites
+                        .iter()
+                        .filter(|site| site.span == statement.span())
+                    {
+                        if let Some(value) = site.source_tokens.as_deref() {
+                            tokens(
+                                "cfg-same-span-retained",
+                                value,
+                                registry,
+                                metadata,
+                                function.source_lexer_config(),
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        let mut analyser = Analyser::new().with_resolved_input(input);
+        analyser.set_cu_override(unit.clone());
+        let analysis = analyser.analyse(source, environment.analyser_profile().name);
+        let inventory = tcl_irules::OriginalIrulesSourceContext::from_analysis(
+            source,
+            &analysis,
+            &unit.ir_module,
+            &context,
+        );
+        println!("SOURCE_INVENTORY {}", inventory.is_some());
+        if let Some(inventory) = inventory {
+            for command in inventory.commands() {
+                let words = command.words();
+                println!(
+                    "SOURCE_COMMAND span={:?} roles={:?} schema={:?}",
+                    command.span(),
+                    words.roles(),
+                    words.with_source_schema(&context, |schema| (
+                        schema.facts().canonical_command,
+                        schema.facts().data_collection,
+                        schema.facts().option_keywords
+                    ))
+                );
+            }
+        }
+    }
+}

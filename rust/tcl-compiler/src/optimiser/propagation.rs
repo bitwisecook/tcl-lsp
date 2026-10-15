@@ -361,7 +361,9 @@ fn run_load_forwarding(
         let Some(symbol) = fu.def_use.symbol(&fu.ssa, *cell_name) else {
             continue;
         };
-        let cell_name = fu.ssa.cell_key(symbol);
+        let Some(cell_name) = fu.ssa.cell_key(symbol) else {
+            continue;
+        };
         let (Some(block_id), Ok(idx)) = (
             fu.cfg.block_id(&chain.definition.block),
             usize::try_from(chain.definition.statement_index),

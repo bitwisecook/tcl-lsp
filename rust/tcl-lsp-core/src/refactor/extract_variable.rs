@@ -282,9 +282,17 @@ fn original_assignment_candidate(
                     {
                         return Err(unavailable());
                     }
-                    // The complete function's typed cells include future uses
-                    // and definitions. A compatibility label cannot prove that
-                    // introducing this local would leave later capture unchanged.
+                    // Missing locations cannot certify future-name coverage, even when a
+                    // separate source-symbol projection is unavailable.
+                    if function
+                        .ssa
+                        .variable_symbols()
+                        .any(|symbol| function.ssa.cell_key(symbol).is_none())
+                    {
+                        return Err("Future local-name coverage is unavailable".to_owned());
+                    }
+                    // Location inventory includes future represented uses and definitions;
+                    // its labels cannot prove that introducing this local avoids capture.
                     for cell in function.ssa.cell_keys() {
                         match cell.root() {
                             VariableCellKey::Authored(_) => return Err("Future local-name coverage is unavailable".to_owned()),

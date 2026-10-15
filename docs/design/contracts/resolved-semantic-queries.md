@@ -685,10 +685,14 @@ different cells or versions. A name-only environment must first use
 conflicting or unrepresented reads decline. `symbol` and `source_symbols` are
 binding projections, not contents proofs. `unpositioned` is a compatibility query
 over unique bindings; a missing positioned mapping stays absent. Never build an
-expression environment from display `var_name` strings. Explorer graph edges export `cell`,
-`fromCell` and `toCell` as canonical value identities alongside readable names.
-Consumers use those identity fields to associate dependencies, even when several
-nodes display the same name.
+expression environment from display `var_name` strings. Explorer graph nodes export
+`symbol` and `version`; edges export `fromSymbol`/`fromVersion` and phi
+`toSymbol`/`toVersion`. These coordinates belong to the enclosing retained function's
+`bodyKey`, independently of its displayed name. Consumers join dependencies only
+within that function context. The legacy `cell`, `fromCell` and `toCell` strings
+are location display data, empty when unavailable; they cannot recover identity.
+Source-only nodes require the current DefUse source snapshot and carry no location,
+Native lookup or completed contents permission.
 
 Binding does not imply initialisation. `global` can link an absent cell;
 `upvar` can retarget an alias. Traces observe accesses and can re-enter Tcl;

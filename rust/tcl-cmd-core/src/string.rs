@@ -94,6 +94,31 @@ pub fn index<O: NativeIndexOps>(
     })
 }
 
+/// The completed Jim range recipe, borrowed before result-role transfer.
+pub struct NativeJimStringRangeConstruction<'a, V> {
+    original: &'a V,
+    first: &'a V,
+    last: &'a V,
+    result: &'a index::IndexResult<V>,
+}
+
+impl<V> NativeJimStringRangeConstruction<'_, V> {
+    /// The actual selected source and index operands.
+    pub fn operands(&self) -> [&V; 3] {
+        [self.original, self.first, self.last]
+    }
+
+    /// The actual selected borrowed or created output.
+    pub fn result(&self) -> &V {
+        match self.result {
+            index::IndexResult::Borrowed(value)
+            | index::IndexResult::Created(value)
+            | index::IndexResult::Detached(value)
+            | index::IndexResult::ReturnedOwnedTransport(value) => value,
+        }
+    }
+}
+
 /// `string range str first last` — the inclusive character slice, clamped.
 pub fn range<O: NativeIndexOps>(
     ops: &mut O,
@@ -101,22 +126,50 @@ pub fn range<O: NativeIndexOps>(
     first: &O::Value,
     last: &O::Value,
 ) -> Result<O::Value, CmdError> {
-    index::run_index_result(ops, |ops| {
+    index::run_index_result_using(ops, |ops, operation| {
         if ops.string_character_model() == Some(tcl_dialect::StringCharacterModel::Jim084Utf8) {
             let raw = RawString::from_bytes(ops.index_operand_bytes(s)?);
             let len = ops.index_character_count(s)?;
-            let first = index::resolve_value(ops, first, len)?.max(0);
-            let last = index::resolve_value(ops, last, len)?;
-            return Ok(match (usize::try_from(first), usize::try_from(last)) {
+            let low = index::resolve_value(ops, first, len)?.max(0);
+            let high = index::resolve_value(ops, last, len)?;
+            let result = match (usize::try_from(low), usize::try_from(high)) {
                 (Ok(0), Ok(last)) if last.saturating_add(1) >= len => {
                     index::IndexResult::Borrowed(s.clone())
                 }
                 (Ok(first), Ok(last)) => {
                     let (bytes, count) = raw.jim084_range_bytes(first, last, len)?;
-                    index::IndexResult::Created(ops.new_jim_string(&bytes, count))
+                    index::IndexResult::Created(if len == raw.bytes().len() {
+                        ops.new_bytes(&bytes)
+                    } else {
+                        ops.new_jim_string(&bytes, count)
+                    })
                 }
                 _ => index::IndexResult::Created(ops.empty()),
+            };
+            let recorded = ops.check_index_operation(operation).and_then(|()| {
+                ops.completed_jim_string_range(
+                    operation,
+                    &NativeJimStringRangeConstruction {
+                        original: s,
+                        first,
+                        last,
+                        result: &result,
+                    },
+                )
             });
+            if let Err(first) = recorded {
+                ops.retain_index_failure(&first);
+                match result {
+                    index::IndexResult::Created(created)
+                    | index::IndexResult::Detached(created)
+                    | index::IndexResult::ReturnedOwnedTransport(created) => {
+                        ops.discard_owned_index_result(created);
+                    }
+                    index::IndexResult::Borrowed(borrowed) => drop(borrowed),
+                }
+                return Err(first);
+            }
+            return Ok(result);
         }
         if let Some(version) = ops.index_c_version() {
             return native_c::original_range(ops, s, first, last, version)

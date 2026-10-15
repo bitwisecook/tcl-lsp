@@ -381,10 +381,7 @@ fn original_getter_source_warnings(
         .source_binding
         .as_ref()?
         .original_lexer_config_for_tokens(parent)?;
-    let children = crate::word_subst::checked_argument_lifted_calls(
-        parent,
-        parent.native_lexer_config(config),
-    )?;
+    let children = source.argument_calls(parent, config)?;
     let mut warnings = Vec::new();
     for tokens in std::iter::once(parent).chain(
         children
@@ -393,23 +390,23 @@ fn original_getter_source_warnings(
             .collect::<Option<Vec<_>>>()?,
     ) {
         let assistance =
-            crate::registry_invocation::registry_invocation_assistance_with_metadata_context(
+            crate::registry_invocation::original_registry_invocation_assistance_with_metadata_context(
                 source.registry,
                 source.metadata(),
                 tokens,
             )?;
         for candidate in &assistance.candidates {
-            let arguments =
-                crate::registry_invocation::frozen_argument_words(tokens, &candidate.effective)
-                    .iter()
-                    .map(|argument| {
-                        Some(
-                            std::str::from_utf8(argument.literal_bytes()?)
-                                .ok()?
-                                .to_owned(),
-                        )
-                    })
-                    .collect::<Option<Vec<_>>>();
+            let arguments = candidate
+                .source_argument_words(source.registry, source.metadata(), tokens)?
+                .iter()
+                .map(|argument| {
+                    Some(
+                        std::str::from_utf8(argument.literal_bytes()?)
+                            .ok()?
+                            .to_owned(),
+                    )
+                })
+                .collect::<Option<Vec<_>>>();
             let Some(arguments) = arguments else {
                 continue;
             };
@@ -504,6 +501,27 @@ impl<'a> IrulesSourceQuery<'a> {
             return None;
         }
         Some(Some(OriginalEvent { body, procedure }))
+    }
+
+    fn argument_calls(
+        &self,
+        parent: &crate::ir::CommandTokens,
+        config: tcl_lexer::LexerConfig,
+    ) -> Option<Vec<crate::word_subst::LiftedCall>> {
+        if let Some(metadata) = self.metadata {
+            crate::word_subst::checked_original_argument_lifted_calls(
+                parent,
+                self.registry,
+                metadata,
+            )
+        } else if self.standalone {
+            crate::word_subst::checked_argument_lifted_calls(
+                parent,
+                parent.native_lexer_config(config),
+            )
+        } else {
+            None
+        }
     }
 
     fn metadata(&self) -> Option<crate::registry_invocation::InvocationMetadataContext<'_>> {
@@ -606,10 +624,7 @@ fn original_irules_flow_commands(
         .source_binding
         .as_ref()?
         .original_lexer_config_for_tokens(parent)?;
-    let children = crate::word_subst::checked_argument_lifted_calls(
-        parent,
-        parent.native_lexer_config(config),
-    )?;
+    let children = source.argument_calls(parent, config)?;
     let children = children
         .iter()
         .map(|child| child.tokens.as_ref())
@@ -617,7 +632,7 @@ fn original_irules_flow_commands(
     let mut calls = Vec::new();
     for tokens in children.into_iter().chain(std::iter::once(parent)) {
         let possible =
-            crate::registry_invocation::registry_invocation_assistance_with_metadata_context(
+            crate::registry_invocation::original_registry_invocation_assistance_with_metadata_context(
                 source.registry,
                 source.metadata(),
                 tokens,
@@ -814,6 +829,8 @@ pub fn find_unguarded_drop_warnings(
 
 #[derive(Default)]
 struct CollectFlowState {
+    /// Runtime lookup and widening remain independent of positive source calls.
+    obligations: HashSet<CollectionSourceObligationKind>,
     /// `protocol -> {side, ...}` for each protocol with a collect call.
     collected: std::collections::HashMap<String, std::collections::HashSet<String>>,
     /// Same shape for release calls.
@@ -824,6 +841,13 @@ struct CollectFlowState {
     release_calls: Vec<CollectionCall>,
     /// Each payload call, including whether its spec requires a collect.
     payload_calls: Vec<PayloadCall>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum CollectionSourceObligationKind {
+    EffectOnly(crate::ir::SyntheticMarker),
+    UnknownTarget,
+    MayBeAbsent,
 }
 
 /// One collect or release operation observed in a `when` body.
@@ -937,6 +961,22 @@ fn scan_when_body_for_collect_flow(
     Some(())
 }
 
+fn retain_collection_source_obligations(
+    possible: &crate::registry_invocation::RegistryInvocationAssistance,
+    state: &mut CollectFlowState,
+) {
+    if possible.unknown_residual {
+        state
+            .obligations
+            .insert(CollectionSourceObligationKind::UnknownTarget);
+    }
+    if possible.may_be_absent {
+        state
+            .obligations
+            .insert(CollectionSourceObligationKind::MayBeAbsent);
+    }
+}
+
 /// Follow registry-declared side transitions with each original child owner.
 /// Missing supplied child source withdraws the whole pairing query: it is not
 /// evidence that a collect or release is absent.
@@ -951,7 +991,12 @@ fn classify_stmt_for_collect_flow(
     base_offset: i64,
 ) -> Option<()> {
     let registry = source.registry;
-    if !stmt.is_executable_invocation() {
+    if let crate::ir::OriginalArgvInventoryDisposition::EffectOnly(marker) =
+        stmt.original_argv_inventory_disposition()
+    {
+        state
+            .obligations
+            .insert(CollectionSourceObligationKind::EffectOnly(marker));
         return Some(());
     }
     if let Some(tokens) = stmt.tokens() {
@@ -980,11 +1025,12 @@ fn classify_stmt_for_collect_flow(
         _ => return Some(()),
     };
     let possible =
-        crate::registry_invocation::registry_invocation_assistance_with_metadata_context(
+        crate::registry_invocation::original_registry_invocation_assistance_with_metadata_context(
             registry,
             source.metadata(),
             parent,
         )?;
+    retain_collection_source_obligations(&possible, state);
     for (ordinal, shape) in possible.candidates.iter().enumerate() {
         if possible.candidates[..ordinal].contains(shape) {
             continue;
@@ -1048,7 +1094,8 @@ fn classify_stmt_for_collect_flow(
                 )?;
             }
         } else if let Some(operation) = shape.data_collection {
-            let Some(arguments) = collection_source_arguments(parent, shape, operation) else {
+            let Some(arguments) = collection_source_arguments(parent, shape, operation, source)
+            else {
                 continue;
             };
             classify_collect_operation(operation, &arguments, event, side, abs(span), state);
@@ -1069,15 +1116,15 @@ fn scan_nested_collection_words(
     parent_config: tcl_lexer::LexerConfig,
     base_offset: i64,
 ) -> Option<()> {
-    let config = parent.native_lexer_config(parent_config);
-    for call in crate::word_subst::checked_argument_lifted_calls(parent, config)? {
+    for call in source.argument_calls(parent, parent_config)? {
         let tokens = call.tokens.as_ref()?;
         let possible =
-            crate::registry_invocation::registry_invocation_assistance_with_metadata_context(
+            crate::registry_invocation::original_registry_invocation_assistance_with_metadata_context(
                 source.registry,
                 source.metadata(),
                 tokens,
             )?;
+        retain_collection_source_obligations(&possible, state);
         for (ordinal, shape) in possible.candidates.iter().enumerate() {
             if possible.candidates[..ordinal].contains(shape) {
                 continue;
@@ -1085,7 +1132,8 @@ fn scan_nested_collection_words(
             let Some(operation) = shape.data_collection else {
                 continue;
             };
-            let Some(arguments) = collection_source_arguments(tokens, shape, operation) else {
+            let Some(arguments) = collection_source_arguments(tokens, shape, operation, source)
+            else {
                 continue;
             };
             let span = Span::new(
@@ -1104,11 +1152,13 @@ fn collection_source_arguments(
     tokens: &crate::ir::CommandTokens,
     shape: &crate::registry_invocation::RegistryInvocationShape,
     operation: tcl_registry::events::DataCollectionOperation,
+    source: &IrulesSourceQuery<'_>,
 ) -> Option<Vec<String>> {
     if operation.action != DataCollectionAction::Payload {
         return Some(Vec::new());
     }
-    crate::registry_invocation::frozen_argument_words(tokens, &shape.effective)
+    shape
+        .source_argument_words(source.registry, source.metadata(), tokens)?
         .iter()
         .map(|word| Some(std::str::from_utf8(word.literal_bytes()?).ok()?.to_owned()))
         .collect()
@@ -1202,6 +1252,9 @@ pub fn find_collect_flow_warnings(
     let Some((state, events_seen)) = collect_flow_state(&source) else {
         return Vec::new();
     };
+    if !state.obligations.is_empty() {
+        return Vec::new();
+    }
     let events = EventRegistry::build();
     let mut out = Vec::new();
     emit_missing_data_collect_warnings(cu, registry, &events, &events_seen, &state, &mut out);
@@ -2245,7 +2298,9 @@ pub fn find_generic_static_name_warnings(
                         fu.ssa.source_symbols_at(bn, index).and_then(|symbols| {
                             labels.iter().copied().find(|label| {
                                 symbols.get(*label).is_some_and(|symbol| {
-                                    fu.ssa.cell_key(*symbol).root() == key.root()
+                                    fu.ssa
+                                        .cell_key(*symbol)
+                                        .is_some_and(|cell| cell.root() == key.root())
                                 })
                             })
                         })
@@ -4118,6 +4173,60 @@ mod original_collection_source_tests {
     use super::*;
     use crate::compilation_unit::UnitBuildOptions;
     use std::sync::Arc;
+
+    #[test]
+    fn unknown_collection_effects_keep_source_calls_without_certifying_absence() {
+        let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
+        let config = tcl_lexer::LexerConfig::from_grammar(environment.grammar());
+        let (mut unit, context) = supplied("when HTTP_REQUEST {HTTP::release}", config);
+        let query = IrulesSourceQuery::capture(&unit, context.commands()).unwrap();
+        let state = collect_flow_state(&query).unwrap().0;
+        assert_eq!(state.release_calls.len(), 1);
+        assert!(
+            state
+                .obligations
+                .contains(&CollectionSourceObligationKind::UnknownTarget)
+        );
+        assert!(
+            find_collect_flow_warnings(
+                &unit,
+                context.commands(),
+                Some(environment.unit_profile().surface_query())
+            )
+            .is_empty()
+        );
+        let mut changed = false;
+        for function in unit.procedures.values_mut() {
+            for block in function.cfg.blocks.values_mut() {
+                for statement in &mut block.statements {
+                    if matches!(
+                        statement.original_argv_inventory_disposition(),
+                        crate::ir::OriginalArgvInventoryDisposition::EffectOnly(
+                            crate::ir::SyntheticMarker::GlobalFrameScript
+                                | crate::ir::SyntheticMarker::CallerFrameOpaque
+                        )
+                    ) {
+                        statement
+                            .tokens_mut()
+                            .unwrap()
+                            .argv_texts
+                            .push("unowned argv".to_owned());
+                        changed = true;
+                        break;
+                    }
+                }
+                if changed {
+                    break;
+                }
+            }
+            if changed {
+                break;
+            }
+        }
+        assert!(changed);
+        let query = IrulesSourceQuery::capture(&unit, context.commands()).unwrap();
+        assert!(collect_flow_state(&query).is_none());
+    }
 
     fn supplied(
         source: &str,

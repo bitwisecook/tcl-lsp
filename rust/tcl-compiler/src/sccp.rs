@@ -1881,9 +1881,10 @@ impl ExistenceRun {
             .filter_map(|(name, slot)| Some((name, Symbol(u32::try_from(slot).ok()?))))
             .collect();
         let mutable: Vec<bool> = names
-            .iter()
-            .map(|name| {
-                entry.dynamic_trace
+            .iter().enumerate()
+            .map(|(slot, name)| {
+                u32::try_from(slot).ok().is_some_and(|slot| ssa.source_variable_symbol(Symbol(slot)).is_some())
+                    || entry.dynamic_trace
                     || name.contains("::")
                     || escaping.contains(name.as_str())
                     || escaping.contains(place_base(name))
@@ -3650,6 +3651,28 @@ fn sccp_process_statements(
             }
             continue;
         }
+        if ssa.source_may_requires_unknown_at(block, index) {
+            prepared = None;
+            driver.record_raised((block, index), false);
+            for (&symbol, &version) in &stmt_ssa.defs {
+                changed |= set_value(values, (symbol, version), &LatticeValue::Overdefined);
+                driver.record_folded((symbol, version), None);
+                driver.record_preserved((symbol, version), None);
+                if let Some(at) = existence.as_deref_mut() {
+                    changed |= at.advance((symbol, version), crate::value_transfer::ExistenceStep::UNKNOWN, driver);
+                }
+            }
+            if !ssa.source_may_clobber_is_current_at(block, index) {
+                // A changed CFG cannot retain a partial source footprint as
+                // permission to preserve the rest of the frame.
+                let keys: Vec<_> = values.keys().copied().collect();
+                for key in keys { changed |= set_value(values, key, &LatticeValue::Overdefined); }
+                driver.forget_folded();
+                driver.existence_clobber(|_| Existence::MayBound);
+            }
+            if let Some(at) = existence.as_deref_mut() { at.finish_statement(index, driver); }
+            continue;
+        }
         // An opaque `catch` body the enumeration runs gives the names it
         // writes what it leaves, before the marker that states them widens.
         let body_run = catches.and_then(|catches| {
@@ -3970,7 +3993,8 @@ fn define_values(
         // place untouched names the version the place held.
         let mut preserved = None;
         let (val, folded) =
-            if is_externally_mutable(ssa.var_name(var), escaping, has_dynamic_variable_trace)
+            if ssa.source_variable_symbol(var).is_some()
+                || is_externally_mutable(ssa.var_name(var), escaping, has_dynamic_variable_trace)
                 || element_write_base == Some(var)
             {
                 (LatticeValue::Overdefined, None)

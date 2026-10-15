@@ -702,51 +702,6 @@ fn prologue_pieces(original: &tcl_lexer::NativeWord) -> Vec<ProloguePiece<'_>> {
     pieces
 }
 
-/// Read one prologue member statement from a manufacturer override into the
-/// **call-site-independent template** the factory publishes.
-///
-/// A literal word is kept with its own token (it lives in the manufacturer's
-/// body, which is where the reference genuinely is written).  A `{*}$param`
-/// word becomes a [`FactoryWord::CallerSplice`] of the creation call's
-/// corresponding argument, resolved per call.  Anything else — a substitution
-/// with no statically-known value, or a `{*}` over one — yields `None`, and
-/// the caller abstains rather than inventing a superclass list.
-fn template_injected_member(
-    seg: &SegmentedCommand,
-    params: &[&str],
-    config: tcl_lexer::LexerConfig,
-) -> Option<FactoryMember> {
-    let texts_in = seg.args();
-    let tokens_in = seg.arg_tokens();
-    let mut words: Vec<FactoryWord> = Vec::new();
-    for (i, (text, tok)) in texts_in.iter().zip(tokens_in.iter()).enumerate() {
-        let expanded = seg
-            .expand_word
-            .as_ref()
-            .and_then(|e| e.get(i + 1).copied())
-            .unwrap_or(false);
-        if expanded {
-            let refs = crate::var_refs::scan_var_ref_forms_with_config(text, config);
-            let [name] = refs.as_slice() else {
-                return None;
-            };
-            // Parameter `i` of the override binds argument `i + 1` of the
-            // call (argument 0 being the manufacturer subcommand itself).
-            let arg_index = params.iter().position(|p| *p == name)? + 1;
-            words.push(FactoryWord::CallerSplice(arg_index));
-            continue;
-        }
-        if crate::naming::is_dynamic_word(text) {
-            return None;
-        }
-        words.push(FactoryWord::Literal {
-            text: text.clone(),
-            token: *tok,
-        });
-    }
-    Some(FactoryMember { words })
-}
-
 /// Resolve one injected-member template against the creation call that
 /// triggered it.
 ///
@@ -10024,7 +9979,7 @@ impl Analyser {
                 ProloguePiece::Separator => {}
                 ProloguePiece::VarRead(name) if params.contains(&name) => {}
                 ProloguePiece::Substitution(group) => {
-                    injected.push(self.injected_member_from_group(meta, group, &params)?);
+                    injected.push(self.injected_member_from_group(meta, group, original)?);
                 }
                 // Literal prologue text, a read of something that is not a
                 // manufacturer parameter, or an unreadable fragment: the
@@ -10037,14 +9992,13 @@ impl Analyser {
 
     /// The definition-body member one `[…]` group of a manufacturer
     /// prologue installs, or `None` when the group is not a
-    /// reference-only member built by a canonical-list command.
+    /// reference-only member built by a source-selected list-argument constructor.
     fn injected_member_from_group(
         &self,
         meta: &UserMetaclass,
         group: Token,
-        params: &[&str],
+        original: &super::types::OriginalSourceMethodNameBody<'_>,
     ) -> Option<FactoryMember> {
-        let registry = self.registry.as_ref()?;
         let sm = Self::source_map(
             &self.source,
             &self.cached_line_index,
@@ -10058,21 +10012,56 @@ impl Analyser {
         if segs.next().is_some() {
             return None;
         }
-        // The prologue is built by a command that quotes its arguments into
-        // a canonical list — registry data (`PRODUCES_CANONICAL_LIST`),
-        // never a command name here.
-        if !registry.get(seg.name()).is_some_and(|spec| {
-            spec.traits
-                .contains(tcl_registry::Traits::PRODUCES_CANONICAL_LIST)
-        }) {
+        let source_words = crate::registry_invocation::source_structure::source_registry_words_at(
+            &self.source,
+            &self.result,
+            seg.argv.first()?.span.start(),
+        )?;
+        let context = self.result.resolved_input.as_ref()?.context_registry();
+        let layout = source_words.with_source_schema(&context, |schema| {
+            schema.authored_source_list_operand_templates()
+        })??;
+        let tokens = seg.arg_tokens();
+        if layout.len() != tokens.len()
+            || source_words.arguments().len() != tokens.len()
+            || source_words.origins().len() != tokens.len().checked_add(1)?
+            || source_words
+                .origins()
+                .iter()
+                .enumerate()
+                .any(|(ordinal, origin)| {
+                    *origin != crate::registry_invocation::InvocationWordOrigin::Written(ordinal)
+                })
+        {
             return None;
         }
-        let member = seg
-            .args()
-            .first()
-            .and_then(|keyword| meta.grammar.member(keyword))?;
-        member.all_args_ref?;
-        template_injected_member(&seg, params, self.lexer_config())
+        let mut words = Vec::with_capacity(layout.len());
+        for (ordinal, expanded) in layout {
+            let operand = source_words.operands().get(ordinal)?.as_ref()?;
+            let word = operand.word()?;
+            if word.group().expand != expanded {
+                return None;
+            }
+            let value = if expanded {
+                // The original operand arena excludes its actual expansion
+                // marker; no reconstructed word supplies the formal read.
+                FactoryWord::CallerSplice(original.scalar_parameter_splice(word)?.checked_add(1)?)
+            } else {
+                FactoryWord::Literal {
+                    text: String::from_utf8(
+                        tcl_syntax::word_rules::original_static_word_unicode_value(word)?,
+                    )
+                    .ok()?,
+                    token: *tokens.get(ordinal)?,
+                }
+            };
+            words.push(value);
+        }
+        let FactoryWord::Literal { text: keyword, .. } = words.first()? else {
+            return None;
+        };
+        meta.grammar.member(keyword)?.all_args_ref?;
+        Some(FactoryMember { words })
     }
 
     /// Readonly factory metadata for the original source-selected class.
@@ -12159,6 +12148,72 @@ mod tests {
                 })
                 .collect::<Vec<_>>();
             assert_eq!(labels, expected, "{source}");
+        }
+    }
+
+    #[test]
+    fn factory_list_templates_require_actual_constructor_and_scalar_formal_splices() {
+        for (prefix, constructor, operand, expected) in [
+            ("", "list", "$parents", true),
+            ("", "::list", "${parents}", true),
+            ("", "list", "$parents:tail", false),
+            ("", "list", "$parents(key)", false),
+            ("", "list", "[set parents]", false),
+            ("", "split", "$parents", false),
+            ("", "lreverse", "$parents", false),
+            (
+                "proc list {args} {return opaque}\n",
+                "list",
+                "$parents",
+                false,
+            ),
+        ] {
+            let source = format!(
+                "{prefix}oo::class create Meta {{superclass ::oo::class; self method create {{name parents body}} {{next $name \"[{constructor} super\\u0063lass {{*}}{operand}];$body\"}}}}"
+            );
+            let mut analyser = Analyser::new();
+            analyser.analyse_and_retain_result_for_test(&source, "tcl8.6");
+            let class = analyser
+                .result
+                .all_classes
+                .values()
+                .find(|class| class.name == "Meta")
+                .unwrap();
+            let meta = analyser
+                .user_metaclass_of_class(class)
+                .expect("actual retained Registry root relation");
+            let methods = crate::analyser::class_hierarchy::original_metadata::original_definition_members_for_class(
+                &analyser.result, class, MemberSide::ClassObject,
+            ).unwrap();
+            let method = methods
+                .iter()
+                .find(|method| method.original_name_input().bytes() == b"create")
+                .unwrap();
+            let original = method
+                .original_parameter_names_and_body(&analyser.result)
+                .unwrap();
+            let body = original.body_word();
+            let plan = tcl_lexer::native_script_words_in(
+                body.image().clone(),
+                body.content_span().unwrap(),
+                body.config(),
+            )
+            .unwrap();
+            let prologue = &plan.commands[0].words[2];
+            let group = prologue_pieces(prologue)
+                .into_iter()
+                .find_map(|part| match part {
+                    ProloguePiece::Substitution(group) => Some(group),
+                    _ => None,
+                })
+                .unwrap();
+            let template = analyser.injected_member_from_group(&meta, group, &original);
+            assert_eq!(template.is_some(), expected, "{source}");
+            if let Some(template) = template {
+                assert!(
+                    matches!(template.words.as_slice(), [FactoryWord::Literal { text, .. }, FactoryWord::CallerSplice(2)] if text == "superclass")
+                );
+            }
         }
     }
 

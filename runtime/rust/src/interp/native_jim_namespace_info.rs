@@ -36,6 +36,7 @@ pub(crate) struct OriginalNamespaceInfoFrame {
     receiver: Rc<OriginalSourceInvocation>,
     data: RefCell<Vec<Data>>,
     lmap: RefCell<Option<Rc<Lmap>>>,
+    local: RefCell<local::LocalProjection>,
     returned: RefCell<Option<Data>>,
     completed_body: RefCell<Option<Data>>,
 }
@@ -53,9 +54,16 @@ struct Iteration {
     output: Option<OriginalJimInventoryMember>,
 }
 
-pub(crate) struct OriginalNamespaceInfoEachLoop {
+struct OriginalNamespaceInfoLmap {
     owner: Rc<OriginalNamespaceInfoFrame>,
     lmap: Rc<Lmap>,
+}
+
+pub(crate) struct OriginalNamespaceInfoEachLoop(InfoEach);
+
+enum InfoEach {
+    Global(OriginalNamespaceInfoLmap),
+    Local(local::LocalLoop),
 }
 
 pub(super) struct OriginalNamespaceInfoCompletion {
@@ -96,6 +104,7 @@ impl OriginalNamespaceInfoFrame {
             receiver,
             data: RefCell::new(Vec::new()),
             lmap: RefCell::new(None),
+            local: RefCell::new(local::LocalProjection::default()),
             returned: RefCell::new(None),
             completed_body: RefCell::new(None),
         }))
@@ -173,17 +182,13 @@ impl OriginalNamespaceInfoFrame {
     }
 }
 
-impl OriginalNamespaceInfoEachLoop {
-    pub(crate) fn check_values(
-        &self,
-        actual: &Interp,
-        original: *mut TclObj,
-    ) -> Result<(), ValueError> {
+impl OriginalNamespaceInfoLmap {
+    fn check_values(&self, actual: &Interp, original: *mut TclObj) -> Result<(), ValueError> {
         self.owner.check(actual)?;
         self.lmap.invocation.check_retained(actual)?;
         self.lmap.input.check(actual, original)
     }
-    pub(crate) fn assigned(
+    fn assigned(
         &self,
         actual: &Interp,
         group: usize,
@@ -215,7 +220,7 @@ impl OriginalNamespaceInfoEachLoop {
         });
         Ok(())
     }
-    pub(crate) fn body_completed(&self, actual: &Interp, code: Code) -> Result<(), ValueError> {
+    fn body_completed(&self, actual: &Interp, code: Code) -> Result<(), ValueError> {
         self.owner.check(actual)?;
         self.lmap.invocation.check_retained(actual)?;
         if code != Code::Ok {
@@ -239,7 +244,7 @@ impl OriginalNamespaceInfoEachLoop {
         self.lmap.output.borrow_mut().push(output);
         Ok(())
     }
-    pub(crate) fn finish(&self, actual: &Interp, original: *mut TclObj) -> Result<(), ValueError> {
+    fn finish(&self, actual: &Interp, original: *mut TclObj) -> Result<(), ValueError> {
         self.owner.check(actual)?;
         self.lmap.invocation.check_retained(actual)?;
         self.lmap.input.check(actual, self.lmap.input.original()?)?;
@@ -261,6 +266,53 @@ impl OriginalNamespaceInfoEachLoop {
     }
 }
 
+impl OriginalNamespaceInfoEachLoop {
+    pub(crate) fn check_values(
+        &self,
+        actual: &Interp,
+        original: *mut TclObj,
+    ) -> Result<(), ValueError> {
+        match &self.0 {
+            InfoEach::Global(loop_) => loop_.check_values(actual, original),
+            InfoEach::Local(loop_) => loop_.check_values(actual, original),
+        }
+    }
+    pub(crate) fn assigned(
+        &self,
+        actual: &Interp,
+        group: usize,
+        variable: usize,
+        selected: Option<(usize, *mut TclObj)>,
+    ) -> Result<(), ValueError> {
+        match &self.0 {
+            InfoEach::Global(loop_) => loop_.assigned(actual, group, variable, selected),
+            InfoEach::Local(loop_) => loop_.assigned(actual, group, variable, selected),
+        }
+    }
+    pub(crate) fn body_completed(&self, actual: &Interp, code: Code) -> Result<(), ValueError> {
+        match &self.0 {
+            InfoEach::Global(loop_) => loop_.body_completed(actual, code),
+            InfoEach::Local(loop_) => loop_.body_completed(actual, code),
+        }
+    }
+    pub(crate) fn finish(&self, actual: &Interp, original: *mut TclObj) -> Result<(), ValueError> {
+        match &self.0 {
+            InfoEach::Global(loop_) => loop_.finish(actual, original),
+            InfoEach::Local(_) => Err(unavailable(
+                "original NamespaceInfo foreach List construction",
+            )),
+        }
+    }
+    pub(crate) fn finish_without_result(&self, actual: &Interp) -> Result<(), ValueError> {
+        match &self.0 {
+            InfoEach::Global(_) => Err(unavailable(
+                "original NamespaceInfo lmap result construction",
+            )),
+            InfoEach::Local(loop_) => loop_.finish(actual),
+        }
+    }
+}
+
 impl Interp {
     pub(crate) fn original_namespace_info_each_loop(
         &self,
@@ -276,7 +328,8 @@ impl Interp {
             return Ok(None);
         };
         if !collect {
-            return Ok(None);
+            return local::LocalLoop::capture(self, owner, argv, variables)
+                .map(|loop_| Some(OriginalNamespaceInfoEachLoop(InfoEach::Local(loop_))));
         }
         owner.check(self)?;
         let invocation = self
@@ -302,7 +355,9 @@ impl Interp {
             finished: std::cell::Cell::new(false),
         });
         *owner.lmap.borrow_mut() = Some(Rc::clone(&lmap));
-        Ok(Some(OriginalNamespaceInfoEachLoop { owner, lmap }))
+        Ok(Some(OriginalNamespaceInfoEachLoop(InfoEach::Global(
+            OriginalNamespaceInfoLmap { owner, lmap },
+        ))))
     }
     pub(crate) fn record_original_namespace_info_cat(
         &self,
@@ -380,3 +435,5 @@ impl Interp {
 
 #[cfg(test)]
 mod tests;
+
+mod local;

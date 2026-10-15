@@ -1027,7 +1027,9 @@ fn emit_dead_stores_and_unused(
         let Some(symbol) = fu.def_use.symbol(&fu.ssa, *cell_name) else {
             continue;
         };
-        let cell_name = fu.ssa.cell_key(symbol);
+        let Some(cell_name) = fu.ssa.cell_key(symbol) else {
+            continue;
+        };
         let var = fu.ssa.var_name(symbol);
         // A synthetic may-def (base refresh / element fan) is not a write
         // the user made — never an O109/O126 candidate.
@@ -1191,10 +1193,13 @@ pub(super) fn store_is_seen_elsewhere(
     };
     let var = fu.ssa.var_name(symbol);
     let var_base = tcl_syntax::naming::split_element_ref(var).map_or(var, |(root, _)| root);
+    let Some(cell) = fu.ssa.cell_key(symbol) else {
+        return true;
+    };
     fu.ssa.is_synthetic_def(
         &chain.definition.block,
         chain.definition.statement_index,
-        fu.ssa.cell_key(symbol),
+        cell,
     ) || scope_aliases.contains(var)
         || scope_aliases.contains(var_base)
         || fu.ssa.is_observed_by_unseen_call(symbol, *version)

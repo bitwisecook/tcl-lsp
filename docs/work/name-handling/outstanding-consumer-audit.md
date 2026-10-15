@@ -1,5 +1,14 @@
 # Outstanding naming-consumer audit
 
+Current refresh: use [current-state.md](current-state.md) and [audit-next.md](audit-next.md).
+The330-row file bindings below are historical238 evidence, not a current-source
+migration count or full census. New source peers and exact frozen c448 selected
+replays are recorded separately; unexamined and changed-unreviewed sites remain
+unfinished. K ordinary1027=696PASS/330FAIL/1TIMEOUT; Runtime174=173PASS/1FAIL;
+repaired VM133=133PASS/0FAIL, with original guards/budgets retained. Current
+successor implementations are source-reviewed and still await a fresh build.
+
+
 The finite330 source/caller audit is bound to actual238:309 unchanged217 file bindings and21 explicit additive current238 reviews (Core5 and DB16), with0 unbound rows. The original rows/proofs remain unchanged. Additive receipts are [Core5](handoff/reviews/five-row-bind.json) and [DB16](handoff/reviews/db16-current238.json); the compact [binding summary](handoff/reviews/finite330-current238.json) records all330 current file hashes. This is a bounded review count, not330 migrated or whole-codebase closure; later source files outside the roster and every remaining live naming consumer still require their own work.
 
 | Owner | Next actual naming-consumer work | State and boundary |

@@ -5161,6 +5161,7 @@ pub fn frozen_argument_words(
 /// deliberately has no execution effects, completion or purity proof.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RegistryInvocationShape {
+    hosted_source: Option<std::sync::Arc<OriginalConditionalVendorRegistryMetadata>>,
     /// Possible registry implementation identity.
     pub command: String,
     /// Nominal semantic operation, for advisory interpretation only.
@@ -5191,8 +5192,31 @@ pub struct RegistryInvocationShape {
 }
 
 impl RegistryInvocationShape {
+    fn from_hosted_source(
+        registry: &CommandRegistry,
+        context: InvocationMetadataContext<'_>,
+        tokens: &CommandTokens,
+    ) -> Option<Self> {
+        let metadata = original_hosted_source_registry_metadata(registry, context, tokens)?;
+        if metadata
+            .authored_barriers()
+            .has_nominal_command_name_hazard()
+        {
+            return None;
+        }
+        let effective = compose_original_effective_words(tokens, metadata.shape().command(), &[])?;
+        let mut shape = metadata
+            .shape()
+            .with_source_schema(registry, context, |schema| {
+                Some(Self::from_facts(schema.facts(), effective))
+            })?;
+        shape.hosted_source = Some(std::sync::Arc::new(metadata));
+        Some(shape)
+    }
+
     fn from_facts(facts: &InvocationFacts, effective: EffectiveCommandWords) -> Self {
         Self {
+            hosted_source: None,
             command: facts.canonical_command.clone(),
             operation: facts.operation,
             data_collection: facts.data_collection,
@@ -5219,7 +5243,40 @@ impl RegistryInvocationShape {
         tokens: &CommandTokens,
         apply: impl FnOnce(&tcl_registry::ResolvedInvocation<'_, '_>) -> Option<T>,
     ) -> Option<T> {
+        if let Some(original) = &self.hosted_source {
+            if Self::from_hosted_source(registry, context, tokens).as_ref() != Some(self) {
+                return None;
+            }
+            return original
+                .shape()
+                .with_source_schema(registry, context, apply);
+        }
         self.with_source_schema_alternatives(registry, context, tokens, true, apply)
+    }
+
+    /// Readonly values under the shape's retained source purpose. Hosted
+    /// literals use their own protocol rather than an evaluated Native argv.
+    pub(crate) fn source_argument_words(
+        &self,
+        registry: &CommandRegistry,
+        context: Option<InvocationMetadataContext<'_>>,
+        tokens: &CommandTokens,
+    ) -> Option<Vec<EffectiveInvocationWord>> {
+        let Some(_) = &self.hosted_source else {
+            return Some(frozen_argument_words(tokens, &self.effective));
+        };
+        let context = context?;
+        let current = Self::from_hosted_source(registry, context, tokens)?;
+        if &current != self {
+            return None;
+        }
+        let input = context.source_analysis_input()?;
+        let words = source_structure::original_vendor_registry_words(
+            input.borrowed_context_registry(),
+            tokens,
+            current.hosted_source.as_deref()?.clone(),
+        )?;
+        Some(words.arguments().to_vec())
     }
 
     /// Logical candidate unions retain possible schemas alongside unknown
@@ -5880,6 +5937,22 @@ pub fn original_registry_invocation_assistance_with_metadata_context(
         .is_some_and(|advice| advice.unanimous_command_words().is_some())
     {
         return reached;
+    }
+    if let Some(context) = context
+        && context
+            .source_analysis_input()
+            .is_some_and(|input| input.has_hosted_source_name_context())
+    {
+        let mut reached = reached?;
+        let Some(candidate) =
+            RegistryInvocationShape::from_hosted_source(registry, context, tokens)
+        else {
+            return Some(reached);
+        };
+        if !reached.candidates.contains(&candidate) {
+            reached.candidates.push(candidate);
+        }
+        return Some(reached);
     }
     let context = context
         .or_else(|| body_assistance_context(registry, tokens).map(InvocationMetadataContext::from));
@@ -8208,6 +8281,131 @@ mod tests {
 
     use crate::ir::{SourceSite, WordOpacity};
     use crate::segmenter::segment_commands;
+
+    #[test]
+    fn hosted_original_source_assistance_keeps_metadata_and_execution_uncertainty_separate() {
+        let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
+        let context = environment.default_context_registry();
+        let registry = context.commands();
+        let config = LexerConfig::from_grammar(environment.grammar());
+        for (prefix, eligible) in [
+            ("", true),
+            ("rename HTTP::uri {}; ", false),
+            ("proc HTTP::uri {} {}; ", false),
+        ] {
+            let source = format!("{prefix}when HTTP_REQUEST {{set value \"prefix[HTTP::uri]\"}}");
+            let input = crate::analyser::ResolvedAnalysisInput::new(
+                environment.analyser_profile(),
+                environment.unit_profile(),
+                context.clone(),
+                config,
+            );
+            let unit = crate::compilation_unit::CompilationUnit::build_with_analysis_input(
+                &source,
+                crate::compilation_unit::UnitBuildOptions {
+                    registry,
+                    defer_top_level: false,
+                    config,
+                    dialect: Some(environment.unit_profile()),
+                    external_call_sites: None,
+                    declared_commands: None,
+                },
+                None,
+                &input,
+            );
+            let metadata =
+                InvocationMetadataContext::for_module(registry, &unit.ir_module).unwrap();
+            let event = unit.ir_module.irules_event_bodies.keys().next().unwrap();
+            let procedure = &unit.ir_module.procedures[event];
+            let statement = &procedure.body.statements[0];
+            let parent = procedure
+                .body
+                .retained_source_tokens_for_statement(statement)
+                .unwrap();
+            let children = crate::word_subst::checked_original_argument_lifted_calls(
+                parent, registry, metadata,
+            )
+            .unwrap();
+            let child = children[0].tokens.as_ref().unwrap();
+            let reached = registry_invocation_assistance_with_metadata_context(
+                registry,
+                Some(metadata),
+                child,
+            )
+            .unwrap();
+            let source = original_registry_invocation_assistance_with_metadata_context(
+                registry,
+                Some(metadata),
+                child,
+            )
+            .unwrap();
+            assert_eq!(source.unknown_residual, reached.unknown_residual);
+            assert_eq!(source.may_be_absent, reached.may_be_absent);
+            assert!(source.unanimous_command_words().is_none());
+            assert_eq!(
+                source
+                    .candidates
+                    .iter()
+                    .any(|shape| shape.command == "HTTP::uri"),
+                eligible
+            );
+            if eligible {
+                let shape = source
+                    .candidates
+                    .iter()
+                    .find(|shape| shape.command == "HTTP::uri")
+                    .unwrap();
+                assert!(shape.hosted_source.is_some());
+                assert!(
+                    shape
+                        .source_argument_words(registry, Some(metadata), child)
+                        .unwrap()
+                        .is_empty()
+                );
+                assert!(
+                    shape
+                        .with_source_schema(registry, metadata, child, |schema| {
+                            Some(schema.facts().canonical_command == "HTTP::uri")
+                        })
+                        .unwrap()
+                );
+                let mut stale = child.clone();
+                stale.argv_texts[0] = "HTTP::path".to_owned();
+                assert!(
+                    original_registry_invocation_assistance_with_metadata_context(
+                        registry,
+                        Some(metadata),
+                        &stale,
+                    )
+                    .is_none()
+                );
+                assert!(
+                    shape
+                        .source_argument_words(registry, Some(metadata), &stale)
+                        .is_none()
+                );
+                assert!(shape.source_argument_words(registry, None, child).is_none());
+                let mut changed_label = shape.clone();
+                changed_label.command = "HTTP::path".to_owned();
+                let mut changed_origin = shape.clone();
+                changed_origin.effective.origins[0] = InvocationWordOrigin::Written(0);
+                let mut changed_metadata = shape.clone();
+                changed_metadata.source_may_commit_response = !shape.source_may_commit_response;
+                for changed in [changed_label, changed_origin, changed_metadata] {
+                    assert!(
+                        changed
+                            .source_argument_words(registry, Some(metadata), child)
+                            .is_none()
+                    );
+                    assert!(
+                        changed
+                            .with_source_schema(registry, metadata, child, |_| Some(()))
+                            .is_none()
+                    );
+                }
+            }
+        }
+    }
 
     fn logical_source_tokens(
         source: &str,

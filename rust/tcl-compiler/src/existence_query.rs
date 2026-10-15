@@ -744,7 +744,7 @@ mod tests {
                 let symbol = function.ssa.var_symbol_at(block, index, "u");
                 rows.push(format!("statement={index} synthetic={:?} query={} actual={} query-cell={query_cell:?} ssa-cell={:?} accesses={}",
                     tokens.synthetic, query.is_some(), super::in_tokens(tokens, registry).is_some(),
-                    symbol.map(|symbol| function.ssa.cell_key(symbol)), tokens.variable_accesses.len(),
+                    symbol.and_then(|symbol| function.ssa.cell_key(symbol)), tokens.variable_accesses.len(),
                 ));
             }
         }

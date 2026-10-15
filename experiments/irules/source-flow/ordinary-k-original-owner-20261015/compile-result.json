@@ -1,0 +1,40 @@
+{
+  "utc": "2026-10-15T13:57:35.584710+00:00",
+  "argv": [
+    "rustc",
+    "--edition=2024",
+    "--crate-name",
+    "k_flow_owner_probe",
+    "-C",
+    "debug-assertions=yes",
+    "/workspace/name-session/k-flow-owner-probe/probe.rs",
+    "-L",
+    "dependency=/workspace/name-validation/target/debug/deps",
+    "--extern",
+    "tcl_compiler=/workspace/name-validation/target/debug/deps/libtcl_compiler-8451157e2454ece4.rlib",
+    "--extern",
+    "tcl_dialect=/workspace/name-validation/target/debug/deps/libtcl_dialect-5667714f9a69fb70.rlib",
+    "--extern",
+    "tcl_irules=/workspace/name-validation/target/debug/deps/libtcl_irules-f2fddab55d49898d.rlib",
+    "--extern",
+    "tcl_lexer=/workspace/name-validation/target/debug/deps/libtcl_lexer-5b1c0d608d65b7e2.rlib",
+    "--extern",
+    "tcl_registry=/workspace/name-validation/target/debug/deps/libtcl_registry-5df4cb4d87e28da9.rlib",
+    "-o",
+    "/workspace/name-session/k-flow-owner-probe/probe"
+  ],
+  "exit_code": 0,
+  "timed_out": false,
+  "elapsed_seconds": 1.385526893000133,
+  "source_sha256": "bc4fc1997c8783fc77fd29cc890352ba34292402b83aabfb0052dbe963ec2a38",
+  "stdout": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "stderr": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "artifact_drift": {},
+  "source_drift": {}
+}

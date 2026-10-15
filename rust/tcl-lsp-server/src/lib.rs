@@ -22543,15 +22543,10 @@ impl Backend {
         if set.is_empty() {
             return false;
         }
-        let file_name = path
-            .file_name()
-            .map(|n| n.to_string_lossy().into_owned())
-            .unwrap_or_default();
         let rel = folder_root
             .as_deref()
-            .and_then(|root| path.strip_prefix(root).ok())
-            .map(path_glob::slash_path);
-        set.matches(rel.as_deref(), &file_name)
+            .and_then(|root| path.strip_prefix(root).ok());
+        set.matches_path(rel, &path)
     }
 
     /// The exclude-glob list and folder root governing `uri`: the longest

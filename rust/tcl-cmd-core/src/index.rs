@@ -167,6 +167,15 @@ pub trait NativeIndexOps: ValueOps {
     /// The complete first refusal, including change-and-restore.
     fn check_index_operation(&mut self, original: &Self::IndexOperation) -> Result<(), CmdError>;
 
+    /// Observe the reached Jim range constructor before its result transfers.
+    fn completed_jim_string_range(
+        &mut self,
+        _original: &Self::IndexOperation,
+        _construction: &crate::string::NativeJimStringRangeConstruction<'_, Self::Value>,
+    ) -> Result<(), CmdError> {
+        Ok(())
+    }
+
     /// Construct an integer result under the command's original operation.
     /// Actual C84 adapters select Tcl_NewIntObj's Long descriptor and queried ABI;
     /// the explicit neutral default retains its ordinary constructor.
@@ -591,8 +600,15 @@ pub(crate) fn run_index_result<O: NativeIndexOps>(
     ops: &mut O,
     worker: impl FnOnce(&mut O) -> Result<IndexResult<O::Value>, CmdError>,
 ) -> Result<O::Value, CmdError> {
+    run_index_result_using(ops, |ops, _| worker(ops))
+}
+
+pub(crate) fn run_index_result_using<O: NativeIndexOps>(
+    ops: &mut O,
+    worker: impl FnOnce(&mut O, &O::IndexOperation) -> Result<IndexResult<O::Value>, CmdError>,
+) -> Result<O::Value, CmdError> {
     let original = ops.enter_index_operation()?;
-    let reached = worker(ops);
+    let reached = worker(ops, &original);
     finish_index_result(ops, &original, reached)
 }
 

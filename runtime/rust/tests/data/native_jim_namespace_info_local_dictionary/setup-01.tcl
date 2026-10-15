@@ -1,0 +1,1 @@
+proc LocalReceiptP {} {}; namespace eval LocalReceiptScope {proc LocalReceiptP {} {}}

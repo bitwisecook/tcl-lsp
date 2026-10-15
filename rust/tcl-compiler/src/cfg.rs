@@ -287,6 +287,8 @@ pub struct Function {
         (BlockId, usize),
         Option<std::sync::Arc<crate::command_binding::ExecutedScriptSource>>,
     >,
+    /// Genuine hidden procedure MAY effects retained by their actual call source.
+    pub(crate) source_may_calls: HashMap<(usize, u32), Vec<crate::cfg_builder::global_write_info::OriginalSourceCallMayWrites>>,
     /// Fully qualified procedure name (e.g. `"::top"`, `"::ns::proc"`).
     pub name: String,
     /// A proved compiler rejection precedes every executable body instruction.
@@ -487,6 +489,7 @@ impl Function {
             required_math_invocations: Vec::new(),
             required_expression_preparations: Vec::new(),
             statement_sources: HashMap::new(),
+            source_may_calls: HashMap::new(),
             terminator_sources: HashMap::new(),
             blocks: HashMap::new(),
             loop_nodes: HashMap::new(),

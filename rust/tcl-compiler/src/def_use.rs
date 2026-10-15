@@ -197,12 +197,20 @@ impl DefUseResult {
     }
 }
 
-/// Shared SSA graph with a separate interpretation of current storage identities.
-/// Physical consumers must join symbols to the current SSA through this owner.
-#[derive(Debug, Clone, Default, PartialEq)]
+/// Shared SSA graph with independently checked location and source correspondence.
+/// Physical uses retain their separate currentness, execution and outcome guards.
+#[derive(Debug, Clone, Default)]
 pub struct DefUseFacts {
     result: Arc<DefUseResult>,
-    cells: Arc<[VariableCellKey]>,
+    cells: Arc<HashMap<Symbol, VariableCellKey>>,
+    sources: Arc<HashMap<Symbol, crate::ssa::SourceVariableSsaSnapshot>>,
+}
+
+impl PartialEq for DefUseFacts {
+    fn eq(&self, other: &Self) -> bool {
+        self.result == other.result && self.cells == other.cells && self.sources.len() == other.sources.len()
+            && self.sources.iter().all(|(symbol, source)| other.sources.get(symbol).is_some_and(|other| source.same_owner(other)))
+    }
 }
 
 impl Deref for DefUseFacts {
@@ -213,19 +221,31 @@ impl Deref for DefUseFacts {
 }
 
 impl DefUseFacts {
-    /// Interpret one graph symbol only when its retained storage key is current.
+    /// Interpret one graph symbol only when its retained location key is current.
     #[must_use]
     pub fn cell_key<'a>(
         &self,
         ssa: &'a SsaFunction,
         symbol: Symbol,
     ) -> Option<&'a VariableCellKey> {
-        let index = symbol.0 as usize;
-        let current = ssa.cell_keys().get(index)?;
-        (self.cells.get(index) == Some(current)).then_some(current)
+        let current = ssa.cell_key(symbol)?;
+        (self.cells.get(&symbol) == Some(current)).then_some(current)
     }
 
-    /// Reborrow an actual graph symbol under its current storage interpretation.
+    /// Source labels require the same original source graph, independently of locations.
+    #[must_use]
+    pub fn source_variable_symbol<'a>(
+        &self,
+        ssa: &'a SsaFunction,
+        symbol: Symbol,
+    ) -> Option<&'a crate::signature_scan::variable_symbol::SignatureSourceVariableSymbol> {
+        let held = self.sources.get(&symbol)?;
+        let current = ssa.source_variable_snapshot(symbol)?;
+        held.same_owner(&current).then_some(())?;
+        ssa.source_variable_symbol(symbol)
+    }
+
+    /// Reborrow an actual graph symbol under its current location interpretation.
     #[must_use]
     pub fn symbol(&self, ssa: &SsaFunction, symbol: Symbol) -> Option<Symbol> {
         self.cell_key(ssa, symbol).map(|_| symbol)
@@ -262,7 +282,7 @@ impl DefUseFacts {
         self.cells = self
             .cells
             .iter()
-            .map(|key| relocation.storage_key(key))
+            .map(|(&symbol, key)| (symbol, relocation.storage_key(key)))
             .collect();
     }
 }
@@ -334,7 +354,7 @@ pub fn build_def_use_chains(
                         statement_index: -1,
                         variable: phi_var,
                         phi_version: phi.version,
-                        class: UseClass::Substituted,
+                        class: if ssa.source_variable_symbol(phi_var).is_some() { UseClass::Quoted } else { UseClass::Substituted },
                     },
                 );
             }
@@ -382,7 +402,8 @@ pub fn build_def_use_chains(
 
     DefUseFacts {
         result: Arc::new(DefUseResult { chains }),
-        cells: Arc::from(ssa.cell_keys()),
+        cells: Arc::new(ssa.cell_symbols().map(|(symbol, key)| (symbol, key.clone())).collect()),
+        sources: Arc::new(ssa.source_variable_symbols().filter_map(|(symbol, _)| Some((symbol, ssa.source_variable_snapshot(symbol)?))).collect()),
     }
 }
 
@@ -494,6 +515,14 @@ fn add_terminator_uses(
     let Some(block_id) = ssa.block_id(&block.name) else {
         return;
     };
+    for (&symbol, &version) in &block.exit_versions {
+        if version != 0 && ssa.source_variable_symbol(symbol).is_some() {
+            add_use(chains, entry_name, (symbol, version), UseSite {
+                block: block.name.clone(), kind: UseKind::Terminator, statement_index: -1,
+                variable: symbol, phi_version: 0, class: UseClass::Quoted,
+            });
+        }
+    }
     let view = crate::ssa::SsaSourceView::at_terminator(ssa, block_id);
     let mut covered = std::collections::HashSet::new();
     if let Some(tokens) = view.source_tokens() {
@@ -546,7 +575,7 @@ fn add_terminator_uses(
         let Some(symbol) = ssa.var_symbol_at_terminator(block_id, &var_name) else {
             continue;
         };
-        let var_name = ssa.cell_key(symbol).to_owned();
+        let Some(var_name) = ssa.cell_key(symbol).cloned() else { continue; };
         let fanned: Vec<VariableCellKey> = ssa
             .cell_keys()
             .iter()
@@ -590,6 +619,18 @@ mod tests {
     use crate::ssa::{Phi, SsaBlock, SsaStatement};
     use std::collections::HashMap;
     use tcl_lexer::Span;
+
+    #[test]
+    fn original_source_chains_refuse_same_symbols_from_another_source_image() {
+        let source = "proc p {} {global g; set g 1}\np";
+        let (_, first) = crate::interprocedural::logical_completion_unit(source, "tcl8.6");
+        let (_, second) = crate::interprocedural::logical_completion_unit(source, "tcl8.6");
+        let (symbol, identity) = first.top_level.ssa.source_variable_symbols().next().expect("authentic source MAY definition");
+        assert_eq!(second.top_level.ssa.source_variable_symbol(symbol), Some(identity));
+        assert!(first.top_level.def_use.source_variable_symbol(&first.top_level.ssa, symbol).is_some());
+        assert!(first.top_level.def_use.source_variable_symbol(&second.top_level.ssa, symbol).is_none(), "same coordinate and typed source key cannot donate an old source graph");
+        assert!(first.top_level.def_use.cell_key(&first.top_level.ssa, symbol).is_none());
+    }
 
     #[test]
     fn distinct_native_key_data_does_not_become_a_presentation_lookup() {
@@ -636,14 +677,15 @@ mod tests {
         }
         let facts = DefUseFacts {
             result: Arc::new(result),
-            cells: vec![original, replacement].into(),
+            cells: Arc::new(HashMap::from([(first, original), (second, replacement)])),
+            sources: Arc::new(HashMap::new()),
         };
         assert_eq!(facts.chains.len(), 2);
         assert!(facts.chain_for(first, 1).is_some());
         assert!(facts.chain_for(second, 1).is_some());
         assert!(facts.cell_key(&ssa, first).is_none());
         assert!(facts.cell_key(&ssa, second).is_none());
-        assert!(facts.chain_for_cell(&ssa, ssa.cell_key(first), 1).is_none());
+        assert!(facts.chain_for_cell(&ssa, ssa.cell_key(first).expect("original location"), 1).is_none());
     }
 
     #[test]
@@ -661,7 +703,7 @@ mod tests {
         assert_eq!(facts.chain_for(symbol, 1).unwrap().key, (symbol, 1));
         assert!(
             facts
-                .chain_for_cell(&ssa, ssa.cell_key(symbol), 1)
+                .chain_for_cell(&ssa, ssa.cell_key(symbol).expect("original location"), 1)
                 .is_some()
         );
 
@@ -671,12 +713,12 @@ mod tests {
         assert!(facts.cell_key(&foreign, foreign_symbol).is_none());
         assert!(
             facts
-                .chain_for_cell(&foreign, foreign.cell_key(foreign_symbol), 1)
+                .chain_for_cell(&foreign, foreign.cell_key(foreign_symbol).expect("foreign location"), 1)
                 .is_none()
         );
         let copied = facts.clone();
         assert!(Arc::ptr_eq(&facts, &copied));
-        assert_eq!(copied.cell_key(&ssa, symbol), Some(ssa.cell_key(symbol)));
+        assert_eq!(copied.cell_key(&ssa, symbol), ssa.cell_key(symbol));
     }
 
     #[test]
@@ -693,7 +735,7 @@ mod tests {
             .expect("authored fixture body");
         for name in ["x", "y"] {
             let symbol = function.ssa.var_symbol(name).expect("unambiguous producer");
-            let cell = function.ssa.cell_key(symbol);
+            let cell = function.ssa.cell_key(symbol).expect("original location");
             assert!(
                 function
                     .def_use

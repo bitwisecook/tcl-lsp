@@ -31,6 +31,12 @@ pub(crate) struct CapturedJimDictionaryCell {
     root: Rc<Cell<*mut TclObj>>,
 }
 impl CapturedJimDictionaryCell {
+    pub(crate) fn same_place(&self, other: &Self) -> bool {
+        Weak::ptr_eq(&self.cell, &other.cell)
+            && self.binding == other.binding
+            && self.epoch == other.epoch
+    }
+
     pub(crate) fn root(&self) -> *mut TclObj {
         self.root.get()
     }

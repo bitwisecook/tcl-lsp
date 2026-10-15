@@ -591,7 +591,7 @@ impl<S: std::hash::BuildHasher> WordTypingCtx<'_, S> {
     fn variable_key(&self, spelling: &str) -> Option<VariableCellKey> {
         self.source
             .symbol(spelling)
-            .map(|symbol| self.ssa.cell_key(symbol).clone())
+            .and_then(|symbol| self.ssa.cell_key(symbol).cloned())
     }
 
     fn variable_type(&self, spelling: &str) -> Option<TypeLattice> {
@@ -1413,7 +1413,7 @@ fn type_of_read_contents<S: std::hash::BuildHasher>(
     ctx: &WordTypingCtx<'_, S>,
     contents: crate::ssa::SsaReadContents,
 ) -> TypeLattice {
-    if contents.unknown_residual {
+    if contents.unknown_residual || ctx.ssa.cell_key(contents.reference.symbol).is_none() {
         return TypeLattice::overdefined();
     }
     if let Some(version) = contents.reference.version {
@@ -1462,8 +1462,10 @@ fn type_of_read_contents<S: std::hash::BuildHasher>(
         };
         let value = match evaluate_type_def(&statement.statement, &write_ctx) {
             DefTyping::Uniform(value) => value,
-            DefTyping::PerDef(values) => values
-                .get(ctx.ssa.cell_key(contents.reference.symbol))
+            DefTyping::PerDef(values) => ctx
+                .ssa
+                .cell_key(contents.reference.symbol)
+                .and_then(|cell| values.get(cell))
                 .cloned()
                 .unwrap_or_else(TypeLattice::overdefined),
         };
@@ -2605,7 +2607,8 @@ fn type_infer_process_statements<S: std::hash::BuildHasher>(
                 ctx.has_dynamic_variable_trace,
                 ctx.registry,
             ) != Some(false);
-            let def_type = if ssa_stmt.destruction_defs.contains(&var)
+            let def_type = if cell.is_none()
+                || ssa_stmt.destruction_defs.contains(&var)
                 || (externally_mutable
                     && !source.normal_store_contents_preserved(var, ctx.registry))
                 || ctx.ssa.is_array_root_refresh_version(var, ver)
@@ -2626,8 +2629,8 @@ fn type_infer_process_statements<S: std::hash::BuildHasher>(
                             .unwrap_or_else(TypeLattice::overdefined);
                         let written = match &inferred {
                             DefTyping::Uniform(t) => t.clone(),
-                            DefTyping::PerDef(map) => map
-                                .get(cell)
+                            DefTyping::PerDef(map) => cell
+                                .and_then(|cell| map.get(cell))
                                 .cloned()
                                 .unwrap_or_else(TypeLattice::overdefined),
                         };
@@ -2640,8 +2643,8 @@ fn type_infer_process_statements<S: std::hash::BuildHasher>(
                     DefTyping::Uniform(t) => t.clone(),
                     // Positional element typing: a def the map does not
                     // name widens to Overdefined.
-                    DefTyping::PerDef(map) => map
-                        .get(cell)
+                    DefTyping::PerDef(map) => cell
+                        .and_then(|cell| map.get(cell))
                         .cloned()
                         .unwrap_or_else(TypeLattice::overdefined),
                 };

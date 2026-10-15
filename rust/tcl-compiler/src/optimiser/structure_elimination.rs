@@ -1200,8 +1200,14 @@ mod tests {
         );
         assert_ne!(reads[0].symbol, reads[1].symbol);
         assert_ne!(
-            function.ssa.cell_key(reads[0].symbol),
-            function.ssa.cell_key(reads[1].symbol)
+            function
+                .ssa
+                .cell_key(reads[0].symbol)
+                .expect("the first original read retains its location"),
+            function
+                .ssa
+                .cell_key(reads[1].symbol)
+                .expect("the second original read retains its location")
         );
         assert!(reads.iter().all(|read| read.version.is_some()));
         assert!(

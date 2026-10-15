@@ -817,7 +817,11 @@ fn require_result_def_use(
     let NativeAddResult::Ssa(result) = site.result else {
         return Ok(());
     };
-    let cell = context.function_unit.ssa.cell_key(result.0);
+    let cell = context
+        .function_unit
+        .ssa
+        .cell_key(result.0)
+        .ok_or(NativeIntegerDeclineReason::MissingDefUseEvidence)?;
     context
         .function_unit
         .def_use
@@ -854,7 +858,12 @@ fn prove_operand(
         .version
         .ok_or(NativeIntegerDeclineReason::MissingDefUseEvidence)?;
     let value = (symbol, version);
-    require_operand_use(context, context.function_unit.ssa.cell_key(symbol), version)?;
+    let cell = context
+        .function_unit
+        .ssa
+        .cell_key(symbol)
+        .ok_or(NativeIntegerDeclineReason::MissingDefUseEvidence)?;
+    require_operand_use(context, cell, version)?;
 
     let type_lattice = context
         .function_unit
@@ -1283,7 +1292,7 @@ mod tests {
             .ssa
             .var_symbol_at_terminator(return_blocks[0], "b")
             .unwrap();
-        let cell = function.ssa.cell_key(symbol);
+        let cell = function.ssa.cell_key(symbol).unwrap();
         let graph_chain = function.def_use.chain_for(symbol, 0).unwrap();
         let physical_chain = function
             .def_use

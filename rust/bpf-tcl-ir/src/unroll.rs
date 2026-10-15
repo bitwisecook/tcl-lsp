@@ -81,13 +81,16 @@ fn expand_loop(
             "`loop` expects: loop N VAR { body }",
         ));
     }
-    let count = parse_count(&args[0], registry.numbers()).ok_or_else(|| {
-        BpfError::new(
-            BpfDiag::BadInt,
-            span,
-            "`loop` count must be a non-negative integer literal",
-        )
-    })?;
+    let count = source
+        .scalar(tokens, args, 0)
+        .and_then(|value| parse_count(&value, registry.numbers()))
+        .ok_or_else(|| {
+            BpfError::new(
+                BpfDiag::BadInt,
+                span,
+                "`loop` count must be a non-negative integer literal",
+            )
+        })?;
     if count > MAX_UNROLL {
         return Err(BpfError::new(
             BpfDiag::UnboundedLoop,
@@ -95,7 +98,13 @@ fn expand_loop(
             format!("`loop` count {count} exceeds the v1 unroll cap of {MAX_UNROLL}"),
         ));
     }
-    let var = &args[1];
+    let var = source.scalar(tokens, args, 1).ok_or_else(|| {
+        BpfError::new(
+            BpfDiag::BadArity,
+            span,
+            "loop variable requires an original static name",
+        )
+    })?;
     let body_source = source.body(tokens, args, 2).ok_or_else(|| {
         BpfError::new(
             BpfDiag::BadArity,
@@ -121,7 +130,7 @@ fn expand_loop(
     for k in 0..count {
         out.push(synthetic_operation_call(
             tcl_registry::bpf_op::BpfOpKind::ScalarSet(tcl_registry::bpf_op::BpfScalarWidth::I64),
-            vec![var.to_owned(), (k).to_string()],
+            vec![var.clone(), (k).to_string()],
             span,
             registry,
         )?);

@@ -104,6 +104,13 @@ fn parse_template(
             "`template` expects: template NAME { params } { body }",
         ));
     }
+    let name = source.scalar(tokens, args, 0).ok_or_else(|| {
+        BpfError::new(
+            BpfDiag::BadTemplate,
+            span,
+            "template name requires an original static scalar",
+        )
+    })?;
     let params = source
         .argument(tokens, args, 1)
         .and_then(|word| tcl_syntax::word_rules::original_static_word_list_elements(&word))
@@ -126,7 +133,7 @@ fn parse_template(
     })?;
     let body = source.lower(registry).top_level;
     Ok(TemplateDef {
-        name: args[0].clone(),
+        name,
         params,
         body,
         source,

@@ -33,7 +33,7 @@ use crate::analyses::{ConstValue, LatticeValue};
 use crate::def_use::{DefKind, DefUseFacts, UseKind};
 use crate::memory_ssa::{MemoryLocation, MemorySsaFunction};
 use crate::sccp::SccpResult;
-use crate::ssa::{SsaFunction, ValueKey};
+use crate::ssa::{SsaFunction, Symbol, ValueKey};
 use crate::types::{TypeKind, TypeLattice};
 
 /// Classification of a data-flow edge.
@@ -59,7 +59,9 @@ impl EdgeKind {
 /// A single SSA value in the data-flow graph.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DataFlowNode {
-    /// Canonical cell identity; use this with `version` as the node key.
+    /// Actual SSA symbol within this graph's retained function; pair with `version`.
+    pub symbol: Option<Symbol>,
+    /// Location display text, empty when no location projection is available.
     pub cell: String,
     /// Variable name.
     pub name: String,
@@ -89,6 +91,7 @@ impl DataFlowNode {
     pub fn new(name: impl Into<String>, version: u32, block: impl Into<String>) -> Self {
         Self {
             name: name.into(),
+            symbol: None,
             cell: String::new(),
             version,
             block: block.into(),
@@ -105,9 +108,13 @@ impl DataFlowNode {
 /// An edge from a definition to a use site.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DataFlowEdge {
-    /// Canonical identity of the source cell, independently of display names.
+    /// Actual source SSA symbol within this graph's retained function.
+    pub from_symbol: Option<Symbol>,
+    /// Actual receiving phi symbol, absent for a direct use.
+    pub to_symbol: Option<Symbol>,
+    /// Source location display text, empty when unavailable.
     pub from_cell: String,
-    /// Canonical receiving phi cell, or empty for a direct use.
+    /// Receiving location display text, empty for a direct use or unavailable location.
     pub to_cell: String,
     /// Source variable name.
     pub from_name: String,
@@ -136,6 +143,8 @@ impl DataFlowEdge {
         to_statement_index: i32,
     ) -> Self {
         Self {
+            from_symbol: None,
+            to_symbol: None,
             from_cell: String::new(),
             to_cell: String::new(),
             from_name: from_name.into(),
@@ -159,6 +168,8 @@ impl DataFlowEdge {
         to_version: u32,
     ) -> Self {
         Self {
+            from_symbol: None,
+            to_symbol: None,
             from_cell: String::new(),
             to_cell: String::new(),
             from_name: from_name.into(),
@@ -329,19 +340,21 @@ pub fn extract_function_dataflow<S: std::hash::BuildHasher>(
     // Order diagnostic output by the actual SSA symbol and version. Display
     // strings are presentation only and cannot replace typed chain identity.
     let mut keys: Vec<&crate::def_use::SsaValueKey> = du.chains.keys().collect();
-    keys.sort_by_key(|(symbol, version)| (du.symbol(ssa, *symbol), *version));
+    keys.sort_by_key(|(symbol, version)| (*symbol, *version));
 
     for key in keys {
         let chain = &du.chains[key];
         let (cell, version) = key;
-        let Some(current_cell) = du.cell_key(ssa, *cell) else {
+        let current_cell = du.cell_key(ssa, *cell);
+        if current_cell.is_none() && du.source_variable_symbol(ssa, *cell).is_none() {
             continue;
-        };
+        }
         let symbol = *cell;
-        let cell_display = current_cell.compatibility_name();
+        let cell_display = current_cell.map_or_else(String::new, |cell| cell.compatibility_name());
         let var_name = ssa.var_name(symbol);
         let ssa_key = Some((symbol, *version));
         nodes.push(DataFlowNode {
+            symbol: Some(symbol),
             cell: cell_display.clone(),
             name: var_name.to_owned(),
             version: *version,
@@ -356,9 +369,12 @@ pub fn extract_function_dataflow<S: std::hash::BuildHasher>(
 
         for use_site in &chain.uses {
             let mut edge = if use_site.kind == UseKind::PhiIncoming {
-                let Some(receiving_cell) = du.cell_key(ssa, use_site.variable) else {
+                let receiving_cell = du.cell_key(ssa, use_site.variable);
+                if receiving_cell.is_none()
+                    && du.source_variable_symbol(ssa, use_site.variable).is_none()
+                {
                     continue;
-                };
+                }
                 let mut edge = DataFlowEdge::phi(
                     var_name.to_owned(),
                     *version,
@@ -366,7 +382,9 @@ pub fn extract_function_dataflow<S: std::hash::BuildHasher>(
                     ssa.var_name(use_site.variable).to_owned(),
                     use_site.phi_version,
                 );
-                edge.to_cell = receiving_cell.compatibility_name();
+                edge.to_symbol = Some(use_site.variable);
+                edge.to_cell =
+                    receiving_cell.map_or_else(String::new, |cell| cell.compatibility_name());
                 edge
             } else {
                 DataFlowEdge::direct(
@@ -376,6 +394,7 @@ pub fn extract_function_dataflow<S: std::hash::BuildHasher>(
                     use_site.statement_index,
                 )
             };
+            edge.from_symbol = Some(symbol);
             edge.from_cell.clone_from(&cell_display);
             edges.push(edge);
         }
@@ -560,6 +579,57 @@ mod tests {
             entry_versions: Map::new(),
             exit_versions: Map::new(),
         }
+    }
+
+    #[test]
+    fn source_only_nodes_keep_function_symbols_and_require_the_original_graph() {
+        let source = "proc p {} {global g; set g 1}\np";
+        let (_, unit) = crate::interprocedural::logical_completion_unit(source, "tcl8.6");
+        let (_, foreign) = crate::interprocedural::logical_completion_unit(source, "tcl8.6");
+        let function = &unit.top_level;
+        let symbols: std::collections::HashSet<_> = function
+            .ssa
+            .source_variable_symbols()
+            .map(|(symbol, _)| symbol)
+            .collect();
+        assert!(
+            !symbols.is_empty(),
+            "the real source effect producer must run"
+        );
+        let graph = extract_function_dataflow::<std::collections::hash_map::RandomState>(
+            &function.name,
+            &function.ssa,
+            &function.def_use,
+            None,
+            None,
+            None,
+        );
+        for symbol in &symbols {
+            let nodes: Vec<_> = graph
+                .nodes
+                .iter()
+                .filter(|node| node.symbol == Some(*symbol))
+                .collect();
+            assert!(
+                !nodes.is_empty(),
+                "a genuine source definition remains visible"
+            );
+            assert!(nodes.iter().all(|node| node.cell.is_empty()));
+        }
+        let stale = extract_function_dataflow::<std::collections::hash_map::RandomState>(
+            &function.name,
+            &function.ssa,
+            &foreign.top_level.def_use,
+            None,
+            None,
+            None,
+        );
+        assert!(
+            stale
+                .nodes
+                .iter()
+                .all(|node| node.symbol.is_none_or(|symbol| !symbols.contains(&symbol)))
+        );
     }
 
     #[test]

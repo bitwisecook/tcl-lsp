@@ -801,7 +801,9 @@ is renamed or deleted in this file."
             let Some(symbol) = fu.def_use.symbol(&fu.ssa, *cell_name) else {
                 continue;
             };
-            let cell_name = fu.ssa.cell_key(symbol);
+            let Some(cell_name) = fu.ssa.cell_key(symbol) else {
+                continue;
+            };
             if super::helpers::definition_has_cell_fact(
                 fu,
                 &chain.definition,
@@ -1121,7 +1123,9 @@ is renamed or deleted in this file."
             let Some(symbol) = fu.def_use.symbol(&fu.ssa, *cell_name) else {
                 continue;
             };
-            let cell_name = fu.ssa.cell_key(symbol);
+            let Some(cell_name) = fu.ssa.cell_key(symbol) else {
+                continue;
+            };
             if super::helpers::definition_has_cell_fact(
                 fu,
                 &chain.definition,
@@ -1819,7 +1823,9 @@ is renamed or deleted in this file."
             let Some(symbol) = fu.def_use.symbol(&fu.ssa, *cell_name) else {
                 continue;
             };
-            let cell_name = fu.ssa.cell_key(symbol);
+            let Some(cell_name) = fu.ssa.cell_key(symbol) else {
+                continue;
+            };
             let var = fu.ssa.var_name(symbol);
             if params.contains(var) {
                 continue;
@@ -1860,10 +1866,11 @@ is renamed or deleted in this file."
                             .is_some_and(|key| cell_name.is_member_of(key))
                 }) || fu.ssa.blocks.values().any(|block| {
                     block.statements.iter().any(|statement| {
-                        statement
-                            .defs
-                            .keys()
-                            .any(|symbol| cell_name.is_member_of(fu.ssa.cell_key(*symbol)))
+                        statement.defs.keys().any(|symbol| {
+                            fu.ssa
+                                .cell_key(*symbol)
+                                .is_none_or(|cell| cell_name.is_member_of(cell))
+                        })
                     })
                 });
                 if !ctx.supp.killed.contains(&physical_key)
@@ -2063,9 +2070,9 @@ is renamed or deleted in this file."
                         view.read_reference(&access.source, &access.original_spelling);
                     let killed = read_reference.is_some_and(|read| {
                         read.version.is_some_and(|version| {
-                            ctx.supp
-                                .killed
-                                .contains(&(fu.ssa.cell_key(read.symbol).clone(), version))
+                            fu.ssa.cell_key(read.symbol).is_some_and(|cell| {
+                                ctx.supp.killed.contains(&(cell.clone(), version))
+                            })
                         })
                     });
                     let name = tcl_syntax::naming::var_reference_for_style(
@@ -2171,7 +2178,9 @@ is renamed or deleted in this file."
         let Some(symbol) = fu.def_use.symbol(&fu.ssa, *cell_name) else {
             return;
         };
-        let cell_name = fu.ssa.cell_key(symbol);
+        let Some(cell_name) = fu.ssa.cell_key(symbol) else {
+            return;
+        };
         let var = fu.ssa.var_name(symbol);
         for use_site in &chain.uses {
             if matches!(use_site.kind, UseKind::PhiIncoming) {
@@ -2291,7 +2300,7 @@ is renamed or deleted in this file."
                                 &access.source,
                                 &access.original_spelling,
                             )
-                            .is_some_and(|read| fu.ssa.cell_key(read.symbol) == cell_name)
+                            .is_some_and(|read| fu.ssa.cell_key(read.symbol) == Some(cell_name))
                     })
                     .any(|access| {
                         super::helpers::original_read_is_live_array_scalar(
@@ -2644,7 +2653,9 @@ is renamed or deleted in this file."
             ssa: &fu.ssa,
             preserved: &fu.sccp.preserved,
         };
-        let cell_name = fu.ssa.cell_key(symbol);
+        let Some(cell_name) = fu.ssa.cell_key(symbol) else {
+            return false;
+        };
         if !phi_can_undef(cell_name, ver, &undef_ctx, memo) {
             return false;
         }
@@ -2736,20 +2747,20 @@ is renamed or deleted in this file."
                     }
                     let name = fu.ssa.var_name(symbol);
                     let span = if logical {
+                        let Some(cell) = fu.ssa.cell_key(symbol) else {
+                            continue;
+                        };
                         if params.contains(name)
                             || ctx.scope_aliases.contains(name)
                             || ctx.extra_known_defined.contains(name)
                             || ctx.supp.suppresses(name)
-                            || ctx
-                                .cell_facts
-                                .known_defined
-                                .contains(fu.ssa.cell_key(symbol))
+                            || ctx.cell_facts.known_defined.contains(cell)
                             || fu.dynamic_names.writes
                         {
                             continue;
                         }
                         let startup = startup_read_facts(
-                            fu.ssa.cell_key(symbol),
+                            cell,
                             0,
                             false,
                             ctx.initial_global,
@@ -4424,6 +4435,9 @@ pub(crate) fn report_original_store_diagnostic_gates(
         let Some(symbol) = fu.def_use.symbol(&fu.ssa, chain.key.0) else {
             continue;
         };
+        let Some(cell) = fu.ssa.cell_key(symbol) else {
+            continue;
+        };
         let variable = fu.ssa.var_name(symbol);
         let Some(block) = fu.cfg.block_id(&chain.definition.block) else {
             continue;
@@ -4441,7 +4455,7 @@ pub(crate) fn report_original_store_diagnostic_gates(
             fu.ssa.is_synthetic_def(
                 &chain.definition.block,
                 chain.definition.statement_index,
-                fu.ssa.cell_key(symbol)
+                cell
             ),
             reportable_dead_assignment(
                 statement,

@@ -220,7 +220,14 @@ fn lower_when_decl(
     let priority = match args.len() {
         2 => DEFAULT_PRIORITY,
         4 => {
-            if args[1] != "priority" {
+            let keyword = source.scalar(tokens, args, 1).ok_or_else(|| {
+                BpfError::new(
+                    BpfDiag::BadArity,
+                    word_span(1),
+                    "the `when` keyword requires an original static scalar",
+                )
+            })?;
+            if keyword != "priority" {
                 return Err(BpfError::new(
                     BpfDiag::BadArity,
                     word_span(1),
@@ -232,14 +239,14 @@ fn lower_when_decl(
                     ),
                 ));
             }
-            if !is_literal_word(&args[2]) {
-                return Err(BpfError::new(
+            let value = source.scalar(tokens, args, 2).ok_or_else(|| {
+                BpfError::new(
                     BpfDiag::BadArity,
                     word_span(2),
                     "the `when` priority must be a literal (no substitutions)",
-                ));
-            }
-            parse_int(&args[2], registry.numbers())
+                )
+            })?;
+            parse_int(&value, registry.numbers())
                 .and_then(|value| u32::try_from(value).ok())
                 .ok_or_else(|| {
                     BpfError::new(
@@ -262,14 +269,13 @@ fn lower_when_decl(
         }
     };
 
-    let event = args[0].clone();
-    if !is_literal_word(&event) {
-        return Err(BpfError::new(
+    let event = source.scalar(tokens, args, 0).ok_or_else(|| {
+        BpfError::new(
             BpfDiag::BadEvent,
             word_span(0),
             "the `when` event must be a literal name (no substitutions)",
-        ));
-    }
+        )
+    })?;
     let (event_id, prog_type) = resolve_event(&event, word_span(0))?;
 
     let body_idx = args.len() - 1;
@@ -346,13 +352,6 @@ fn resolve_event(event: &str, span: Span) -> Result<(BpfEventId, ProgType), BpfE
     ))
 }
 
-/// Whether a `when` header word is a plain literal — no variable or command
-/// substitution. The header is static configuration; dynamic events or
-/// priorities cannot exist in a verifier-shaped program.
-fn is_literal_word(word: &str) -> bool {
-    !word.contains('$') && !word.contains('[')
-}
-
 /// Remove top-level `profile`/`template`/`allow`/`deny`/`attach` declarations
 /// (metadata, macro definitions, or policy — not executable code). A stray
 /// `field` outside a `profile` body is deliberately *not* stripped: it flows
@@ -415,6 +414,38 @@ mod tests {
     use tcl_dialect::model::{Family, PackageFloor, SurfaceQuery};
     use tcl_dialect::{NumberSyntax, TclVersion};
     use tcl_syntax::number::{runtime_syntax, set_runtime_syntax};
+
+    #[test]
+    fn declaration_scalars_use_original_word_values_and_decline_dynamic_names() {
+        let module = compile_module(
+            r"profile \x74cp
+when \x58DP priority \x35 {drop}",
+        )
+        .unwrap();
+        assert_eq!(module.programs[0].event_id.spec().name, "XDP");
+        assert_eq!(module.programs[0].priority, 5);
+        for (source, expected) in [
+            (
+                "profile $name {field f 0 8}\nwhen XDP {drop}",
+                BpfDiag::BadProfile,
+            ),
+            (
+                "profile p {field $name 0 8}\nwhen XDP {drop}",
+                BpfDiag::BadProfile,
+            ),
+            (
+                "template $name {} {drop}\nwhen XDP {drop}",
+                BpfDiag::BadTemplate,
+            ),
+            ("when XDP {loop 1 $name {drop}}", BpfDiag::BadArity),
+        ] {
+            assert_eq!(
+                compile_module(source).unwrap_err().code,
+                expected,
+                "{source}"
+            );
+        }
+    }
 
     #[test]
     fn literal_body_forms_keep_their_actual_content_base() {

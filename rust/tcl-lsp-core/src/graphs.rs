@@ -1138,6 +1138,7 @@ fn function_dataflow_json(
         .map(|n| {
             json!({
                 "name": n.name,
+                "symbol": n.symbol.map(|symbol| symbol.0),
                 "cell": n.cell,
                 "version": n.version,
                 "block": n.block,
@@ -1156,12 +1157,14 @@ fn function_dataflow_json(
         .map(|e| {
             json!({
                 "fromName": e.from_name,
+                "fromSymbol": e.from_symbol.map(|symbol| symbol.0),
                 "fromCell": e.from_cell,
                 "fromVersion": e.from_version,
                 "toBlock": e.to_block,
                 "toStatementIndex": e.to_statement_index,
                 "edgeKind": e.edge_kind.as_str(),
                 "toName": e.to_name,
+                "toSymbol": e.to_symbol.map(|symbol| symbol.0),
                 "toCell": e.to_cell,
                 "toVersion": e.to_version,
             })

@@ -63,6 +63,7 @@ type Index = HashMap<Vec<u8>, usize, BuildHasherDefault<Fnv>>;
 struct TclDict {
     /// Identity of this actual backing; a shimmer cannot refresh entered observers.
     birth: std::rc::Rc<()>,
+    mutation: Option<u64>,
     entries: Vec<(*mut TclObj, *mut TclObj)>,
     index: Index,
     hash_order: TclStringHashOrder,
@@ -93,7 +94,11 @@ unsafe fn dict_ref<'a>(obj: *mut TclObj) -> &'a TclDict {
 
 unsafe fn dict_mut<'a>(obj: *mut TclObj) -> &'a mut TclDict {
     // SAFETY: as `dict_ref`; caller holds the only reference while mutating.
-    unsafe { &mut *(obj::internal_rep(obj) as usize as *mut TclDict) }
+    let dictionary = unsafe { &mut *(obj::internal_rep(obj) as usize as *mut TclDict) };
+    dictionary.mutation = dictionary
+        .mutation
+        .and_then(|revision| revision.checked_add(1));
+    dictionary
 }
 
 // type procs
@@ -132,6 +137,7 @@ extern "C" fn dict_dup(src: *mut TclObj, dup: *mut TclObj) {
         }
         let boxed = Box::new(TclDict {
             birth: std::rc::Rc::new(()),
+            mutation: Some(0),
             entries,
             index,
             hash_order,
@@ -226,6 +232,7 @@ fn ensure_dict(obj: *mut TclObj) -> Result<(), DictError> {
     }
     let boxed = Box::new(TclDict {
         birth: std::rc::Rc::new(()),
+        mutation: Some(0),
         entries,
         index,
         hash_order,
@@ -583,6 +590,7 @@ fn ensure_dict_native_with_stage_handlers(
     }
     let mut backing = PreparedDictionaryBacking(Some(Box::new(TclDict {
         birth: std::rc::Rc::new(()),
+        mutation: Some(0),
         entries,
         index,
         hash_order,
@@ -961,6 +969,50 @@ pub(crate) fn original_dictionary_backing_current(
     Ok(())
 }
 
+/// An exact converted backing and its reached mutable-access count.
+#[derive(Clone)]
+pub(crate) struct OriginalDictionaryMutation {
+    backing: std::rc::Weak<()>,
+    revision: u64,
+}
+
+impl OriginalDictionaryMutation {
+    pub(crate) fn capture(original: *mut TclObj) -> Result<Self, ValueError> {
+        let backing = original_dictionary_backing(original)?;
+        // SAFETY: the backing observation established this actual Dictionary primary.
+        let revision = unsafe { dict_ref(original) }.mutation.ok_or(
+            ValueError::CommandProtocolUnavailable("original Dictionary mutation counter"),
+        )?;
+        Ok(Self { backing, revision })
+    }
+
+    pub(crate) fn check(&self, original: *mut TclObj) -> Result<(), ValueError> {
+        original_dictionary_backing_current(original, &self.backing)?;
+        // SAFETY: the same actual Dictionary backing is still current.
+        if unsafe { dict_ref(original) }.mutation != Some(self.revision) {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "original Dictionary mutation currency",
+            ));
+        }
+        Ok(())
+    }
+
+    pub(crate) fn completed_mutation(&self, original: *mut TclObj) -> Result<Self, ValueError> {
+        let revision =
+            self.revision
+                .checked_add(1)
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "original Dictionary mutation counter",
+                ))?;
+        let next = Self {
+            backing: self.backing.clone(),
+            revision,
+        };
+        next.check(original)?;
+        Ok(next)
+    }
+}
+
 /// Jim's borrowed JIM_UNSHARED root or genuine rc0 duplicate. Allocation safety
 /// creates no native sharing hold; publication alone supplies a cell's +1.
 pub(crate) struct EnteredNativeDictionary {
@@ -1150,6 +1202,13 @@ impl EnteredNativeDictionary {
         key: *mut TclObj,
         value: *mut TclObj,
     ) -> Result<(), ValueError> {
+        self.set_member_observed(key, value).map(|_| ())
+    }
+    pub(crate) fn set_member_observed(
+        &mut self,
+        key: *mut TclObj,
+        value: *mut TclObj,
+    ) -> Result<Option<OriginalDictionarySet>, ValueError> {
         self.check_prepared()?;
         let reached = native_object_bytes(key, self.protocol);
         self.check_prepared()?;
@@ -1157,13 +1216,9 @@ impl EnteredNativeDictionary {
         obj::check_native_liveness(value)?;
         reached?;
         let current = || self.check_prepared();
-        dict_set_prepared(
-            self.as_ptr(),
-            key,
-            value,
-            Some(&self.currency),
-            Some(&current),
-        )
+        dict_set_using_observed(self.as_ptr(), key, value, || {
+            dictionary_stage_current_checked(self.as_ptr(), Some(&self.currency), Some(&current))
+        })
     }
     pub(crate) fn get_member(&self, key: *mut TclObj) -> Result<Option<*mut TclObj>, ValueError> {
         let bytes = self.member_key(key)?;
@@ -1490,6 +1545,7 @@ fn new_dict_obj_with_hash_bucket_count_using<E>(
     check()?;
     let mut prepared = PreparedDictionaryBacking(Some(Box::new(TclDict {
         birth: std::rc::Rc::new(()),
+        mutation: Some(0),
         entries: Vec::with_capacity(pairs.len()),
         index: Index::default(),
         hash_order: TclStringHashOrder::default(),
@@ -1628,39 +1684,78 @@ pub fn dict_set(
         Err(never) => match never {},
     }
 }
-fn dict_set_prepared(
-    obj: *mut TclObj,
-    key_obj: *mut TclObj,
-    value: *mut TclObj,
-    currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
-    stage_check: Option<&dyn Fn() -> Result<(), ValueError>>,
-) -> Result<(), ValueError> {
-    dict_set_using(obj, key_obj, value, || {
-        dictionary_stage_current_checked(obj, currency, stage_check)
-    })
-}
 fn dict_set_using<E>(
     obj: *mut TclObj,
     key_obj: *mut TclObj,
     value: *mut TclObj,
     check: impl Fn() -> Result<(), E>,
 ) -> Result<(), E> {
+    dict_set_using_observed(obj, key_obj, value, check).map(|_| ())
+}
+
+pub(crate) struct OriginalDictionarySet {
+    mutation: OriginalDictionaryMutation,
+    ordinal: usize,
+    inserted: bool,
+    key: obj::NativeObjectLifetime,
+    value: obj::NativeObjectLifetime,
+}
+
+impl OriginalDictionarySet {
+    pub(crate) fn checked_parts(
+        &self,
+        original: *mut TclObj,
+    ) -> Result<(usize, bool, *mut TclObj, *mut TclObj), ValueError> {
+        self.mutation.check(original)?;
+        let key = self.key.checked_ptr()?;
+        let value = self.value.checked_ptr()?;
+        // SAFETY: the mutation receipt established this exact live backing.
+        if unsafe { dict_ref(original) }.entries.get(self.ordinal) != Some(&(key, value)) {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "original Dictionary selected write",
+            ));
+        }
+        Ok((self.ordinal, self.inserted, key, value))
+    }
+}
+
+fn dict_set_using_observed<E>(
+    obj: *mut TclObj,
+    key_obj: *mut TclObj,
+    value: *mut TclObj,
+    check: impl Fn() -> Result<(), E>,
+) -> Result<Option<OriginalDictionarySet>, E> {
     check()?;
     let key = obj::bytes_of(key_obj);
     check()?;
-    let retired = unsafe {
+    let (retired, observation) = unsafe {
         let d = dict_mut(obj);
-        if let Some(pos) = d.position(&key) {
+        let (retired, ordinal, inserted) = if let Some(pos) = d.position(&key) {
             obj::incr_ref_count(value);
-            Some(std::mem::replace(&mut d.entries[pos].1, value))
+            (
+                Some(std::mem::replace(&mut d.entries[pos].1, value)),
+                pos,
+                false,
+            )
         } else {
             obj::incr_ref_count(key_obj);
             obj::incr_ref_count(value);
             d.hash_order.insert(&key);
             d.index.insert(key, d.entries.len());
             d.entries.push((key_obj, value));
-            None
-        }
+            (None, d.entries.len() - 1, true)
+        };
+        let observation = d.mutation.map(|revision| OriginalDictionarySet {
+            mutation: OriginalDictionaryMutation {
+                backing: std::rc::Rc::downgrade(&d.birth),
+                revision,
+            },
+            ordinal,
+            inserted,
+            key: obj::NativeObjectLifetime::retain(d.entries[ordinal].0),
+            value: obj::NativeObjectLifetime::retain(value),
+        });
+        (retired, observation)
     };
     // The new entry is visible; no raw backing borrow crosses its old free hook.
     if let Some(retired) = retired {
@@ -1668,7 +1763,7 @@ fn dict_set_using<E>(
     }
     check()?;
     obj::invalidate_string(obj);
-    Ok(())
+    Ok(observation)
 }
 
 /// `dict exists`.

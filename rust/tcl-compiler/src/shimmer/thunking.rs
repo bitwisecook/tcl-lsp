@@ -207,13 +207,8 @@ pub(super) fn per_loop_body_types(
 /// one stored value. The shared owner records their physical root relationship.
 /// Dictionary-value roots remain ordinary values and are not excluded.
 pub(super) fn array_element_symbols(_cfg: &CfgFunction, ssa: &SsaFunction) -> HashSet<Symbol> {
-    ssa.cell_keys()
-        .iter()
-        .enumerate()
-        .filter_map(|(index, _)| {
-            let symbol = Symbol(u32::try_from(index).ok()?);
-            ssa.is_array_root_refresh_symbol(symbol).then_some(symbol)
-        })
+    ssa.cell_symbols()
+        .filter_map(|(symbol, _)| ssa.is_array_root_refresh_symbol(symbol).then_some(symbol))
         .collect()
 }
 

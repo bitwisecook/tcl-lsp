@@ -177,35 +177,40 @@ fn resolve_profile(
     registry: &CommandRegistry,
     source: &OriginalBpfSource,
 ) -> Result<BpfProfileSpec, BpfError> {
-    match args.len() {
-        // `profile NAME` — a built-in.
-        1 => lookup_builtin(&args[0]).ok_or_else(|| {
+    if !matches!(args.len(), 1 | 2) {
+        return Err(BpfError::new(
+            BpfDiag::BadProfile,
+            span,
+            "`profile` expects: profile NAME  or  profile NAME { field … }",
+        ));
+    }
+    let name = source.scalar(tokens, args, 0).ok_or_else(|| {
+        BpfError::new(
+            BpfDiag::BadProfile,
+            span,
+            "profile name requires an original static scalar",
+        )
+    })?;
+    if args.len() == 1 {
+        lookup_builtin(&name).ok_or_else(|| {
             BpfError::new(
                 BpfDiag::BadProfile,
                 span,
                 format!(
-                    "unknown built-in profile `{}` (known: {})",
-                    args[0],
+                    "unknown built-in profile `{name}` (known: {})",
                     builtin_names().join(", ")
                 ),
             )
-        }),
-        // `profile NAME { field … }` — user-defined.
-        2 => {
-            let body = source.body(tokens, args, 1).ok_or_else(|| {
-                BpfError::new(
-                    BpfDiag::BadProfile,
-                    span,
-                    "profile body requires unchanged original literal source",
-                )
-            })?;
-            parse_user_profile(&args[0], &body, registry).map_err(|error| error.offset(body.base()))
-        }
-        _ => Err(BpfError::new(
-            BpfDiag::BadProfile,
-            span,
-            "`profile` expects: profile NAME  or  profile NAME { field … }",
-        )),
+        })
+    } else {
+        let body = source.body(tokens, args, 1).ok_or_else(|| {
+            BpfError::new(
+                BpfDiag::BadProfile,
+                span,
+                "profile body requires unchanged original literal source",
+            )
+        })?;
+        parse_user_profile(&name, &body, registry).map_err(|error| error.offset(body.base()))
     }
 }
 
@@ -221,6 +226,7 @@ fn parse_user_profile(
             command,
             args,
             span,
+            tokens,
             ..
         } = stmt
         else {
@@ -252,19 +258,30 @@ fn parse_user_profile(
                 "`field` expects: field NAME OFFSET WIDTHBITS ?be|le|native?",
             ));
         }
-        let offset = parse_int(&args[1], registry.numbers())
+        let values = (0..args.len())
+            .map(|index| {
+                body.scalar(tokens.as_ref(), args, index).ok_or_else(|| {
+                    BpfError::new(
+                        BpfDiag::BadProfile,
+                        *span,
+                        "field declarations require original static scalar words",
+                    )
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let offset = parse_int(&values[1], registry.numbers())
             .and_then(|value| i32::try_from(value).ok())
             .ok_or_else(|| {
                 BpfError::new(BpfDiag::BadInt, *span, "field offset must be an integer")
             })?;
-        let width_bits = parse_width(&args[2], registry.numbers()).ok_or_else(|| {
+        let width_bits = parse_width(&values[2], registry.numbers()).ok_or_else(|| {
             BpfError::new(
                 BpfDiag::BadProfile,
                 *span,
                 "field width must be 8, 16, or 32",
             )
         })?;
-        let order = match args.get(3) {
+        let order = match values.get(3) {
             // Network order is the default: real headers are big-endian.
             None => ByteOrder::Big,
             Some(word) => ByteOrder::parse(word).ok_or_else(|| {
@@ -275,7 +292,7 @@ fn parse_user_profile(
                 )
             })?,
         };
-        let mut f = field(&args[0], offset, width_bits);
+        let mut f = field(&values[0], offset, width_bits);
         f.order = order;
         fields.push(f);
     }
@@ -395,4 +412,74 @@ fn expand_script(
         }
     }
     Ok(Script::from_statements(out))
+}
+
+#[cfg(test)]
+mod original_scalar_tests {
+    use super::*;
+
+    #[test]
+    fn builtin_profile_selection_requires_its_actual_original_head_and_name() {
+        use tcl_compiler::ir::WordExpr;
+        let registry = tcl_registry::model::ingress::static_context_for("bpf").commands();
+        for changed_head in [false, true] {
+            let mut module = crate::source::lower_bpf_source(
+                if changed_head {
+                    "ignored eth"
+                } else {
+                    "profile eth"
+                },
+                registry,
+            );
+            let source = OriginalBpfSource::from_module(&module);
+            if !changed_head {
+                assert_eq!(
+                    collect_profile(&module.top_level, registry, &source)
+                        .unwrap()
+                        .unwrap()
+                        .name,
+                    "eth"
+                );
+            }
+            let Statement::Call {
+                command,
+                args,
+                tokens: Some(tokens),
+                ..
+            } = &mut module.top_level.statements[0]
+            else {
+                panic!("actual scalar declaration carrier");
+            };
+            let index = if changed_head { 0 } else { 1 };
+            let replacement = if changed_head { "profile" } else { "tcp" };
+            let WordExpr::Literal { text, .. } = &mut tokens.word_exprs[index] else {
+                panic!("literal original word");
+            };
+            *text = replacement.into();
+            tokens.argv_texts[index] = replacement.into();
+            if changed_head {
+                *command = replacement.into();
+            } else {
+                args[0] = replacement.into();
+            }
+            assert_eq!(
+                collect_profile(&module.top_level, registry, &source)
+                    .unwrap_err()
+                    .code,
+                BpfDiag::BadProfile
+            );
+        }
+        let mut module = crate::source::lower_bpf_source("profile eth", registry);
+        let source = OriginalBpfSource::from_module(&module);
+        let Statement::Call { tokens, .. } = &mut module.top_level.statements[0] else {
+            panic!("original declaration");
+        };
+        *tokens = None;
+        assert_eq!(
+            collect_profile(&module.top_level, registry, &source)
+                .unwrap_err()
+                .code,
+            BpfDiag::BadProfile
+        );
+    }
 }

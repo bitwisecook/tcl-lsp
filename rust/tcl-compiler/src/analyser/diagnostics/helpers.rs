@@ -291,7 +291,7 @@ pub(super) fn collect_existence_guards(
                         let symbol = fu
                             .ssa
                             .var_symbol_at_terminator(condition_block, &query.var)?;
-                        Some((query, fu.ssa.cell_key(symbol).clone()))
+                        Some((query, fu.ssa.cell_key(symbol)?.clone()))
                     })
             };
             if let Some((query, cell)) = selected {
@@ -830,12 +830,11 @@ pub(super) fn call_steps(
                 let Some(symbol) = fu.ssa.var_symbol(&place) else {
                     continue;
                 };
-                if let Some(&version) = statement.defs.get(&symbol) {
+                if let Some(&version) = statement.defs.get(&symbol)
+                    && let Some(cell) = fu.ssa.cell_key(symbol)
+                {
                     let prior = crate::sccp::prior_version(block, index, symbol);
-                    steps.insert(
-                        (fu.ssa.cell_key(symbol).clone(), version),
-                        (step, bn, prior),
-                    );
+                    steps.insert((cell.clone(), version), (step, bn, prior));
                 }
             }
         }
@@ -872,7 +871,9 @@ pub(super) fn build_phi_undef_index(
             continue;
         };
         for phi in &sblock.phis {
-            let phi_name = ssa.cell_key(phi.name).clone();
+            let Some(phi_name) = ssa.cell_key(phi.name).cloned() else {
+                continue;
+            };
             phi_def.insert((phi_name.clone(), phi.version), phi.clone());
             phi_block.insert((phi_name, phi.version), bn);
         }
@@ -885,14 +886,17 @@ pub(super) fn build_phi_undef_index(
                     }
                     if let (Some(&version), Some(&prior)) =
                         (statement.defs.get(symbol), statement.uses.get(symbol))
+                        && let Some(cell) = ssa.cell_key(*symbol)
                     {
-                        may_defs.insert((ssa.cell_key(*symbol).clone(), version), (bn, prior));
+                        may_defs.insert((cell.clone(), version), (bn, prior));
                     }
                 }
             }
             for (&symbol, &version) in &statement.defs {
-                if statement.destruction_defs.contains(&symbol) {
-                    killed.insert((ssa.cell_key(symbol).clone(), version));
+                if statement.destruction_defs.contains(&symbol)
+                    && let Some(cell) = ssa.cell_key(symbol)
+                {
+                    killed.insert((cell.clone(), version));
                 }
             }
         }
@@ -919,7 +923,9 @@ pub(super) fn build_phi_undef_index(
         for versions in markers.values() {
             for (&symbol, &(_, fresh)) in versions {
                 let origin = ssa.binding_version(symbol, fresh);
-                let name = ssa.cell_key(symbol).clone();
+                let Some(name) = ssa.cell_key(symbol).cloned() else {
+                    continue;
+                };
                 if killed.contains(&(name.clone(), origin)) {
                     killed.insert((name, fresh));
                 }
@@ -1615,6 +1621,9 @@ fn dictionary_suppression_literal(
             .copied()
             .map(|version| (symbol, version))
     });
+    if read.is_some_and(|(symbol, _)| fu.ssa.cell_key(symbol).is_none()) {
+        return None;
+    }
     let mut literal = read.and_then(|(symbol, version)| {
         match fu.diagnostic_value_facts().values().get(&(symbol, version)) {
             Some(crate::analyses::LatticeValue::Const(crate::analyses::ConstValue::String(
@@ -1658,12 +1667,13 @@ fn dictionary_suppression_literal(
             .and_then(|binding| binding.invocation_variable_reads.as_ref())
             .is_some_and(|reads| {
                 reads.native_reads.iter().any(|access| {
-                    crate::var_resolve::canonical_binding_value_key(&access.place).as_ref()
-                        == Some(fu.ssa.cell_key(symbol))
-                        && access
-                            .variable_context
-                            .closed_contents_presence(&access.place)
-                            != Some(crate::var_resolve::ContentsPresence::Defined)
+                    fu.ssa.cell_key(symbol).is_some_and(|cell| {
+                        crate::var_resolve::canonical_binding_value_key(&access.place).as_ref()
+                            == Some(cell)
+                    }) && access
+                        .variable_context
+                        .closed_contents_presence(&access.place)
+                        != Some(crate::var_resolve::ContentsPresence::Defined)
                 })
             })
     {
@@ -1748,7 +1758,9 @@ pub(super) fn build_undef_suppression(
     let mut preserved_undef: FxHashSet<(crate::var_resolve::VariableCellKey, crate::ssa::Version)> =
         FxHashSet::default();
     for &(symbol, version) in fu.sccp.preserved.keys() {
-        let name = fu.ssa.cell_key(symbol);
+        let Some(name) = fu.ssa.cell_key(symbol) else {
+            continue;
+        };
         if phi_can_undef(name, version, &undef_ctx, &mut memo) {
             can_undef.insert((name.to_owned(), version));
             preserved_undef.insert((name.to_owned(), version));
@@ -1760,7 +1772,9 @@ pub(super) fn build_undef_suppression(
         }
         for versions in markers.values() {
             for (&symbol, &(_, fresh)) in versions {
-                let name = fu.ssa.cell_key(symbol);
+                let Some(name) = fu.ssa.cell_key(symbol) else {
+                    continue;
+                };
                 if phi_can_undef(name, fresh, &undef_ctx, &mut memo) {
                     can_undef.insert((name.clone(), fresh));
                 }
@@ -1857,7 +1871,9 @@ fn build_loop_entry_only_undef(
                 continue;
             };
             for phi in &ssa_header.phis {
-                let name = fu.ssa.cell_key(phi.name).clone();
+                let Some(name) = fu.ssa.cell_key(phi.name).cloned() else {
+                    continue;
+                };
                 let key = (name.clone(), phi.version);
                 if out.contains_key(&key) || !can_undef.contains(&key) {
                     continue;
@@ -1905,7 +1921,9 @@ fn build_loop_entry_only_undef(
         for versions in markers.values() {
             for (&symbol, &(_, fresh)) in versions {
                 let binding = fu.ssa.binding_version(symbol, fresh);
-                let name = fu.ssa.cell_key(symbol).clone();
+                let Some(name) = fu.ssa.cell_key(symbol).cloned() else {
+                    continue;
+                };
                 if let Some(body) = out.get(&(name.clone(), binding)).cloned() {
                     out.insert((name, fresh), body);
                 }
@@ -2171,7 +2189,7 @@ pub(super) fn original_read_occurrence_at_span(
                 }
                 let (symbol, version) =
                     view.read_occurrence_reference(&access.source, &access.original_spelling)?;
-                let value = (fu.ssa.cell_key(symbol).clone(), version);
+                let value = (fu.ssa.cell_key(symbol)?.clone(), version);
                 if selected.as_ref().is_some_and(|previous| previous != &value) {
                     return None;
                 }
@@ -2195,7 +2213,7 @@ pub(super) fn original_read_cells_at(
         .flat_map(|tokens| &tokens.variable_accesses)
         .filter(|access| {
             fu.read_reference_at(point.0, point.1, &access.source, &access.original_spelling)
-                .is_some_and(|read| fu.cell_key(read.symbol) == value_cell)
+                .is_some_and(|read| fu.cell_key(read.symbol) == Some(value_cell))
         })
         .filter_map(|access| original_read_cell(access, registry))
         .collect()
@@ -2848,7 +2866,7 @@ mod exact_cell_diagnostic_tests {
             access.0.version.is_none(),
             "unset produced no readable value"
         );
-        assert_eq!(function.ssa.cell_key(access.1.0), &original.0);
+        assert_eq!(function.ssa.cell_key(access.1.0), Some(&original.0));
         assert_eq!(access.1.1, original.1);
     }
 

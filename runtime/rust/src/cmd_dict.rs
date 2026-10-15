@@ -233,6 +233,14 @@ fn dict_cmd_entered(
         {
             return match result {
                 Ok(v) => {
+                    if sub_str == "keys" {
+                        if let Err(error) =
+                            interp.record_original_namespace_info_dictionary_keys(argv, v)
+                        {
+                            drop_fresh(v);
+                            return interp.report_cmd_error(error.into());
+                        }
+                    }
                     interp.set_result(v);
                     Code::Ok
                 }

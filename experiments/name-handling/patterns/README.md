@@ -37,6 +37,7 @@ remain independent.
 
 | Original question and receipt | Bounded observation |
 | --- | --- |
+| [Original Jim local namespace projection and dictionary keys](../results/jim-namespace-info-local-dictionary/README.md) |35 original SDK rows, exact namespace79/79 pairing and unchanged247 provider inputs per capture; local first-key/ASCII construction and no-pattern key getter observations, without accepted Import or actual outer local-producer completion. |
 | [Original Jim namespace-info projection](../results/jim-namespace-info-projection/README.md) | Actual Source relay, lmap/string-cat/header observations:15rows, original namespace79/79,247 unchanged provider inputs; genuine/empty observations and mutable-case software refusals have separate acceptance, with no command-key inverse or Import grant. |
 | [Namespace creation operand](../oracles/namespace-creation-original-operand-20261014/manifest.json) | Fresh C8.4–9.1 processes isolate the original report operand and error-code policy; the dying-token callback has its own lifecycle and option availability. No implementation result follows. |
 | [TclOO namespace conflict](../oracles/oo-namespace-conflict-original-20261014/manifest.json) | Original C8.6–9.1 conflict message/errorCode and source operand flow; C8.4/8.5 lack the TclOO command, so their lookup is unreached. Language NUL and raw C-string operands remain distinct. |

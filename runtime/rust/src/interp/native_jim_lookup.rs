@@ -158,6 +158,45 @@ impl OriginalJimCommandInventoryReturn {
         })
     }
 
+    pub(super) fn retained_member(
+        &self,
+        actual: &Interp,
+        index: usize,
+    ) -> Result<OriginalJimInventoryMember, ValueError> {
+        let original = self.member(actual, index)?;
+        Ok(OriginalJimInventoryMember {
+            original: obj::NativeObjectLifetime::retain(original),
+            provenance: std::rc::Rc::clone(&self.members[index].provenance),
+        })
+    }
+
+    pub(super) fn ranged_member(
+        &self,
+        actual: &Interp,
+        index: usize,
+        source: &super::OriginalSourceConstruction,
+        construction: &tcl_cmd_core::string::NativeJimStringRangeConstruction<'_, *mut TclObj>,
+    ) -> Result<OriginalJimInventoryMember, ValueError> {
+        source.check(actual)?;
+        let [input, _, _] = construction.operands();
+        let member = self.retained_member(actual, index)?;
+        if member.original()? != *input {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "original inventory range input",
+            ));
+        }
+        let output = *construction.result();
+        obj::check_native_liveness(output)?;
+        crate::native_source::bind_context(output, &actual.native_jim_object_context()?)?;
+        Ok(OriginalJimInventoryMember {
+            original: obj::NativeObjectLifetime::retain(output),
+            provenance: std::rc::Rc::new(OriginalJimInventoryProvenance::Constructed {
+                _source: member.provenance,
+                _constructor: std::rc::Rc::clone(&source.invocation().root),
+            }),
+        })
+    }
+
     pub(super) fn check(&self, actual: &Interp, original: *mut TclObj) -> Result<(), ValueError> {
         actual.check_entered_native_operation().map_err(|_| {
             ValueError::CommandProtocolUnavailable("original Jim inventory result operation")

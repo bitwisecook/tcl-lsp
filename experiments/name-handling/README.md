@@ -11,6 +11,7 @@ Existing command/variable/namespace vectors live in
 
 | Path | Meaning |
 | --- | --- |
+| [Original Jim local namespace projection and dictionary keys](results/jim-namespace-info-local-dictionary/README.md) |35 original SDK rows, exact namespace79/79 pairing and unchanged247 provider inputs per capture; local first-key/ASCII construction and no-pattern key getter observations, without accepted Import or actual outer local-producer completion. |
 | [Original Jim namespace-info projection](results/jim-namespace-info-projection/README.md) | Actual Source relay, lmap/string-cat/header observations:15rows, original namespace79/79,247 unchanged provider inputs; genuine/empty observations and mutable-case software refusals have separate acceptance, with no command-key inverse or Import grant. |
 | [patterns/w114-original-reference-atoms/README.md](patterns/w114-original-reference-atoms/README.md) | Original scalar reference atoms for expression advice; fixed C5/pinned Jim grammar observations preserve RequiresReview and independent lookup/Native scope. |
 | [patterns/w307-original-ensemble-heads/README.md](patterns/w307-original-ensemble-heads/README.md) | Original scalar and command-substitution namespace head components; exact source/configuration and independent value/command-slot eligibility remain required. |

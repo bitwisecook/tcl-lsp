@@ -3541,6 +3541,28 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
         Some(0..arguments.exact_argv_len()?)
     }
 
+    /// Original operand templates of the selected list-arguments descriptor.
+    /// Each pair is a source-word ordinal and whether that word is expanded;
+    /// a splice supplies no evaluated element count or result value. Opaque
+    /// source layouts decline, independently of the exact-argv API above.
+    #[must_use]
+    pub fn authored_source_list_operand_templates(&self) -> Option<Vec<(usize, bool)>> {
+        let arguments = self.words.arguments();
+        if self.semantics.native_result
+            != Some(crate::native_result::NativeResultContract::ListArguments { from: 0 })
+            || self.semantics.argument_offset != 0
+            || !matches!(self.subcommand, SubcommandResolution::NotApplicable)
+        {
+            return None;
+        }
+        (0..arguments.len())
+            .map(|ordinal| match arguments.get(ordinal)? {
+                crate::InvocationWord::Opaque => None,
+                word => Some((ordinal, matches!(word, crate::InvocationWord::Expanded))),
+            })
+            .collect()
+    }
+
     /// ASCII list value of a selected list-arguments descriptor for readonly
     /// source grammar. Every element must retain an actual known ASCII value;
     /// unknown, expanded or opaque elements and other dialects decline. The
@@ -5398,6 +5420,59 @@ mod tests {
             .resolved()
             .unwrap();
         assert!(selected.authored_source_list_arguments().is_none());
+    }
+
+    #[test]
+    fn source_list_operand_templates_keep_splices_separate_from_argv_and_results() {
+        let registry = crate::CommandRegistry::build_default();
+        let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+        for (command, arguments, expected) in [
+            (
+                "list",
+                vec![
+                    crate::InvocationWord::Literal("superclass"),
+                    crate::InvocationWord::Expanded,
+                ],
+                Some(vec![(0, false), (1, true)]),
+            ),
+            (
+                "list",
+                vec![crate::InvocationWord::Dynamic],
+                Some(vec![(0, false)]),
+            ),
+            ("list", vec![crate::InvocationWord::Opaque], None),
+            (
+                "split",
+                vec![crate::InvocationWord::Literal("superclass")],
+                None,
+            ),
+            (
+                "lreverse",
+                vec![crate::InvocationWord::Literal("superclass")],
+                None,
+            ),
+        ] {
+            let selected = registry
+                .resolve_structured_invocation(
+                    crate::InvocationWords::structured(
+                        crate::InvocationWord::Literal(command),
+                        &arguments,
+                    )
+                    .with_dialect(dialect),
+                    dialect.authoring_query(),
+                )
+                .resolved()
+                .unwrap();
+            assert_eq!(
+                selected.authored_source_list_operand_templates(),
+                expected,
+                "{command}"
+            );
+            if arguments.contains(&crate::InvocationWord::Expanded) {
+                assert!(selected.authored_source_list_arguments().is_none());
+                assert!(selected.authored_source_ascii_list_result().is_none());
+            }
+        }
     }
 
     use super::*;

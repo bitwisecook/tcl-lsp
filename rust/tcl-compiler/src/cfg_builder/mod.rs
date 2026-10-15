@@ -244,6 +244,7 @@ pub(crate) struct CfgBuilder<'a> {
         Option<std::sync::Arc<crate::command_binding::ExecutedScriptSource>>,
     >,
     current_source: Option<std::sync::Arc<crate::command_binding::ExecutedScriptSource>>,
+    source_may_calls: HashMap<(usize, u32), Vec<global_write_info::OriginalSourceCallMayWrites>>,
     implicit_math_invocations: Vec<crate::command_binding::SourceMathInvocation>,
     expression_preparations: Vec<crate::command_binding::SourceExpressionPreparation>,
     terminator_sources:
@@ -535,6 +536,7 @@ impl<'a> CfgBuilder<'a> {
             blocks: HashMap::new(),
             statement_sources: HashMap::new(),
             current_source: None,
+            source_may_calls: HashMap::new(),
             implicit_math_invocations: Vec::new(),
             expression_preparations: Vec::new(),
             terminator_sources: HashMap::new(),
@@ -912,7 +914,49 @@ impl<'a> CfgBuilder<'a> {
     fn apply_upvar_invalidation(&mut self, stmt: Statement) -> Vec<Statement> {
         self.record_caller_frame_barrier(&stmt);
         self.record_alias_observed(&stmt);
-        self.upvar_invalidated(stmt)
+        let original = matches!(&stmt, Statement::Call { foreach_groups: None, .. })
+            .then(|| self.original_tokens_for_statement(&stmt).cloned()).flatten();
+        let logical_call = matches!(&stmt, Statement::Call { tokens, foreach_groups: None, .. } if tokens.as_ref().is_none_or(|tokens| tokens.synthetic.is_none()))
+            && self.command_classes.metadata.source_analysis_input().is_some_and(|input| input.has_logical_source_name_context());
+        let span = stmt.span();
+        let mut produced = self.upvar_invalidated(stmt);
+        let mut unknown_locations = logical_call;
+        if let Some(original) = original {
+            for statement in &produced {
+                if let Some(receipt) = self.source_call_may_writes(&original, statement) {
+                    unknown_locations = !receipt.writes().is_empty();
+                    let same_site = self.source_may_calls.entry(receipt.site_key()).or_default();
+                    if !same_site.iter().any(|held| held.same_owner(&receipt)) {
+                        same_site.push(receipt);
+                    }
+                }
+            }
+        }
+        if unknown_locations && !produced.last().is_some_and(crate::ssa::is_unseen_call_marker) {
+            produced.push(Statement::unseen_call_marker(span));
+        }
+        produced
+    }
+
+    fn source_call_may_writes(
+        &self,
+        original: &CommandTokens,
+        emitted: &Statement,
+    ) -> Option<global_write_info::OriginalSourceCallMayWrites> {
+        let module = self.procedure_summary_owners.module(self.registry)?;
+        let calls = self.procedure_summary_owners.may_calls(original, self.registry)?;
+        if calls.unknown_alternatives { return None; }
+        let mut writes = Vec::new();
+        for body in &calls.bodies {
+            for place in self.global_write_procs.get(body)?.original_source_writes()? {
+                if !writes.iter().any(|held: &crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence| held.symbol() == place.symbol()) {
+                    writes.push(place.clone());
+                }
+            }
+        }
+        global_write_info::OriginalSourceCallMayWrites::for_emission(
+            module, self.registry, original, emitted, calls.bodies, writes,
+        )
     }
 
     /// Record every caller-frame name a callee invoked by `stmt` may touch
@@ -2243,6 +2287,7 @@ impl<'a> CfgBuilder<'a> {
         func.implicit_math_invocations = std::mem::take(&mut self.implicit_math_invocations);
         func.expression_preparations = std::mem::take(&mut self.expression_preparations);
         func.statement_sources = std::mem::take(&mut self.statement_sources);
+        func.source_may_calls = std::mem::take(&mut self.source_may_calls);
         func.terminator_sources = std::mem::take(&mut self.terminator_sources);
         func.native_compilation_failure
             .clone_from(&script.native_compilation_failure);

@@ -1073,7 +1073,7 @@ fn sccp_process_statements(
             let _ = fold_math_expression(expr, &environment, policy, math);
         }
         for (&var, ver) in &stmt_ssa.defs {
-            let val = if observed.contains(ssa.cell_key(var))
+            let val = if ssa.cell_key(var).is_none_or(|cell| observed.contains(cell))
                 || lookup.externally_mutable_by(var, escaping, has_dynamic_variable_trace, registry)
                     != Some(false)
                 || ssa.is_array_root_refresh_version(var, *ver)

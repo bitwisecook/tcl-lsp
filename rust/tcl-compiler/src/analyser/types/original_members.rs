@@ -166,8 +166,7 @@ impl<'a> OriginalSourceMethodNameBody<'a> {
         let Ok(content) = self.body.content_span() else {
             return false;
         };
-        !word.group().expand
-            && word.image() == self.body.image()
+        word.image() == self.body.image()
             && word.config() == self.body.config()
             && content.start() <= word.span().start()
             && word.span().end() <= content.end()
@@ -185,7 +184,17 @@ impl<'a> OriginalSourceMethodNameBody<'a> {
 
     /// A whole actual scalar substitution of one unambiguous original formal.
     pub(crate) fn scalar_parameter_read(&self, word: &tcl_lexer::NativeWord) -> Option<usize> {
-        self.owns_argument(word).then_some(())?;
+        (!word.group().expand && self.owns_argument(word)).then_some(())?;
+        self.scalar_parameter_component(word)
+    }
+
+    /// One original expanded scalar formal, retained only as a source splice.
+    pub(crate) fn scalar_parameter_splice(&self, word: &tcl_lexer::NativeWord) -> Option<usize> {
+        (word.group().expand && self.owns_argument(word)).then_some(())?;
+        self.scalar_parameter_component(word)
+    }
+
+    fn scalar_parameter_component(&self, word: &tcl_lexer::NativeWord) -> Option<usize> {
         let arena = word.executable_parts();
         let [part] = arena.list(arena.root()) else {
             return None;
@@ -199,7 +208,7 @@ impl<'a> OriginalSourceMethodNameBody<'a> {
     /// One direct formal contribution to the body expression. Nested command
     /// results and other variables cannot supply a parameter-name projection.
     pub(crate) fn body_parameter_read(&self, word: &tcl_lexer::NativeWord) -> Option<usize> {
-        self.owns_argument(word).then_some(())?;
+        (!word.group().expand && self.owns_argument(word)).then_some(())?;
         let arena = word.executable_parts();
         let mut selected = None;
         for part in arena.list(arena.root()) {

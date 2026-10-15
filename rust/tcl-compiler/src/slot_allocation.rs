@@ -76,9 +76,9 @@ fn terminator_read_symbols(
         return HashSet::new();
     };
     let all_symbols = || {
-        ssa.cell_keys()
-            .iter()
-            .filter_map(|key| ssa.cell_symbol(key))
+        ssa.cell_symbols()
+            .map(|(symbol, _)| symbol)
+            .chain(ssa.source_variable_symbols().map(|(symbol, _)| symbol))
             .collect::<HashSet<_>>()
     };
     let Some(points) = ssa.point_contexts.as_ref() else {
@@ -100,11 +100,20 @@ fn terminator_read_symbols(
         if has_commands {
             return all_symbols();
         }
-        return crate::def_use::terminator_read_vars(Some(term), config)
-            .into_iter()
-            .filter_map(|(name, _)| ssa.var_symbol(&name))
-            .filter(|symbol| ssa.cell_key(*symbol).authored_spelling().is_some())
-            .collect();
+        let mut symbols = HashSet::new();
+        for (name, _) in crate::def_use::terminator_read_vars(Some(term), config) {
+            let Some(symbol) = ssa.var_symbol(&name) else {
+                return all_symbols();
+            };
+            if !ssa
+                .cell_key(symbol)
+                .is_some_and(|key| key.authored_spelling().is_some())
+            {
+                return all_symbols();
+            }
+            symbols.insert(symbol);
+        }
+        return symbols;
     };
     let mut symbols = HashSet::new();
     for read in crate::place_bridge::terminator_read_places_at(term, id, points, registry) {
@@ -115,24 +124,23 @@ fn terminator_read_symbols(
             let Some(key) = crate::var_resolve::canonical_binding_value_key(&read) else {
                 if matches!(read.kind, PlaceKind::ArrayElem | PlaceKind::ArrayWhole) {
                     let root = crate::var_resolve::cell_key(&read);
-                    symbols.extend(
-                        all_symbols()
-                            .into_iter()
-                            .filter(|symbol| ssa.cell_key(*symbol).root() == root.root()),
-                    );
+                    symbols.extend(all_symbols().into_iter().filter(|symbol| {
+                        ssa.cell_key(*symbol)
+                            .is_none_or(|key| key.root() == root.root())
+                    }));
                     continue;
                 }
                 return all_symbols();
             };
-            if let Some(symbol) = ssa.cell_symbol(&key) {
-                symbols.insert(symbol);
-            }
+            let Some(symbol) = ssa.cell_symbol(&key) else {
+                return all_symbols();
+            };
+            symbols.insert(symbol);
             if read.kind == PlaceKind::ArrayWhole {
-                symbols.extend(
-                    all_symbols()
-                        .into_iter()
-                        .filter(|symbol| ssa.cell_key(*symbol).root() == key.root()),
-                );
+                symbols.extend(all_symbols().into_iter().filter(|symbol| {
+                    ssa.cell_key(*symbol)
+                        .is_none_or(|cell| cell.root() == key.root())
+                }));
             }
         }
     }
@@ -601,6 +609,59 @@ pub fn slot_count(mapping: &SlotMapping) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn source_only_effect_symbols_remain_live_across_unknown_terminator_reads() {
+        let (context, unit) = crate::interprocedural::logical_completion_unit(
+            "proc p {} {global g; set g 1}\np\nreturn [unknown_read]",
+            "tcl8.6",
+        );
+        let function = &unit.top_level;
+        let source_symbols: HashSet<_> = function
+            .ssa
+            .source_variable_symbols()
+            .map(|(symbol, _)| symbol)
+            .collect();
+        assert!(
+            !source_symbols.is_empty(),
+            "actual source-only global effect producer"
+        );
+        assert!(
+            source_symbols
+                .iter()
+                .all(|&symbol| function.ssa.cell_key(symbol).is_none())
+        );
+        let mut barriers = 0;
+        for (&id, block) in &function.cfg.blocks {
+            let Some(Terminator::Return {
+                value: Some(value), ..
+            }) = &block.terminator
+            else {
+                continue;
+            };
+            if crate::var_refs::command_subst_texts_with_config(
+                value,
+                function.source_lexer_config(),
+            )
+            .is_empty()
+            {
+                continue;
+            }
+            let reads = terminator_read_symbols(
+                &function.cfg,
+                id,
+                block,
+                &function.ssa,
+                context.commands(),
+            );
+            assert!(
+                source_symbols.is_subset(&reads),
+                "missing location must not erase possible source reads"
+            );
+            barriers += 1;
+        }
+        assert!(barriers > 0, "actual retained unknown-command terminator");
+    }
 
     /// Lower `src`, build the analysis CFG for the named proc and its SSA.
     /// `proc` uniquely labels the authored body fixture.

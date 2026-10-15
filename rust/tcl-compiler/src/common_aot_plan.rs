@@ -2328,23 +2328,27 @@ fn collect_materialisable_slots(
         let sealed_cells = if std::ptr::eq(function, &unit.top_level)
             && environment == CommonAotEnvironment::SealedProgram
         {
-            let mut cells = Vec::new();
-            if let ClosedProgramCoverageDecision::Selected(coverage) = closed_program_coverage {
+            (|| {
+                let ClosedProgramCoverageDecision::Selected(coverage) = closed_program_coverage
+                else {
+                    return None;
+                };
+                let mut cells = Vec::new();
                 for statement in &coverage.statements {
                     if let ClosedProgramStatementEvidence::DirectActualConstant { value, .. } =
                         statement
                     {
-                        let cell = function.ssa.cell_key(value.symbol);
+                        let cell = function.ssa.cell_key(value.symbol)?;
                         if !cells.contains(cell) {
                             cells.push(cell.clone());
                         }
                     }
                 }
-            }
-            cells.truncate(crate::var_escape::LOCALS_ARRAY_CAP);
-            cells
+                cells.truncate(crate::var_escape::LOCALS_ARRAY_CAP);
+                Some(cells)
+            })()
         } else {
-            Vec::new()
+            None
         };
         let local_slots = summary
             .map(|summary| summary.local_slots.clone())
@@ -2377,7 +2381,7 @@ fn collect_materialisable_slots(
                 key,
                 summary,
                 local_slots: &local_slots,
-                sealed_cells: &sealed_cells,
+                sealed_cells: sealed_cells.as_deref(),
                 propagated,
                 intervals: &intervals,
                 enabled: config.is_enabled(SemanticOptimisationPassId::MaterialisableSlot),
@@ -2395,7 +2399,7 @@ struct MaterialisableInputs<'a> {
     key: ValueKey,
     summary: Option<&'a ProcEscapeSummary>,
     local_slots: &'a BTreeMap<String, u32>,
-    sealed_cells: &'a [crate::var_resolve::VariableCellKey],
+    sealed_cells: Option<&'a [crate::var_resolve::VariableCellKey]>,
     propagated: &'a HashMap<(crate::ir::ProcedureId, usize), Option<TypeLattice>>,
     intervals: &'a HashMap<ValueKey, Interval>,
     enabled: bool,
@@ -2449,7 +2453,7 @@ fn materialisable_slot_allocation(
 ) -> Option<(u32, MaterialisableSlotAuthority)> {
     use crate::var_escape::original_slots::OriginalDeclaredProcedureArgumentSlots;
     use crate::var_resolve::VariableCellKey;
-    let cell = input.function.ssa.cell_key(input.key.0);
+    let cell = input.function.ssa.cell_key(input.key.0)?;
     if std::ptr::eq(input.function, &input.unit.top_level)
         && input.unit.ir_module.source_entry.native_entry.is_some()
     {
@@ -2466,7 +2470,7 @@ fn materialisable_slot_allocation(
         }
         let ordinal = u32::try_from(
             input
-                .sealed_cells
+                .sealed_cells?
                 .iter()
                 .position(|candidate| candidate == cell)?,
         )

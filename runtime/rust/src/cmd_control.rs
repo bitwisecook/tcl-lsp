@@ -1199,6 +1199,13 @@ fn each_loop_with_original(
                         return interp.report_cmd_error(error.into());
                     }
                 }
+                if !collect {
+                    if let Some(info) = &info {
+                        if let Err(error) = info.finish_without_result(interp) {
+                            return interp.report_cmd_error(error.into());
+                        }
+                    }
+                }
                 if collect && (cursor.entered_body() || recipe.empty_lmap_publishes_list()) {
                     let values = collected
                         .iter()

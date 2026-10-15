@@ -1236,6 +1236,9 @@ impl FunctionUnit {
         relocation: &crate::var_resolve::VariableProofRelocation,
     ) -> Option<Self> {
         relocation.inverse()?;
+        if self.ssa.source_variable_symbols().next().is_some() {
+            return None;
+        }
         let mut unit = self.clone();
         unit.invalidate_semantic_values();
         unit.ssa.relocate_variable_proofs(relocation);

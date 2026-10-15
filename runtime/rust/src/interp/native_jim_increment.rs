@@ -66,6 +66,12 @@ enum OriginalJimDictionaryLocation {
     },
 }
 impl OriginalJimDictionaryRoot {
+    pub(in crate::interp) fn direct_cell(&self) -> Option<crate::frame::CapturedJimDictionaryCell> {
+        match &self.location {
+            OriginalJimDictionaryLocation::Cell(cell) => Some(cell.clone()),
+            OriginalJimDictionaryLocation::Member { .. } => None,
+        }
+    }
     fn storage_current(&self) -> Result<(), ValueError> {
         if !self
             .interpreter
@@ -449,22 +455,45 @@ impl Interp {
             let captured = captured.ok_or(ValueError::CommandProtocolUnavailable(
                 "published original Jim dictionary cell",
             ))?;
+            let projection =
+                self.original_namespace_info_dictionary_path(name, keys, value, arguments)?;
+            if let Some(projection) = &projection {
+                projection.selected(self, &captured)?;
+            }
+            let storage_check = captured.stage_check();
+            let stage_check = if let Some(projection) = &projection {
+                let actual = self.clone();
+                let projection = projection.clone();
+                Rc::new(move || {
+                    storage_check()?;
+                    projection.check(&actual)
+                }) as crate::dict::NativeDictionaryStageCheck
+            } else {
+                storage_check
+            };
             let current = crate::dict::EnteredNativeDictionary::prepare_original(
                 captured.original(),
                 selected,
                 NativeStringProtocol::Jim084,
                 arguments.currency(),
-                captured.stage_check(),
+                stage_check,
             );
             captured.check()?;
             let mut current = current?;
             let root = current.as_ptr();
+            if let Some(projection) = &projection {
+                projection.prepared(self, &captured, root)?;
+            }
+            let mut observed_write = None;
             let mut parents = Vec::new();
             for (index, &key) in keys.iter().enumerate() {
                 arguments.check()?;
                 if index + 1 == keys.len() {
                     let reached = if let Some(value) = value {
-                        current.set_member(key, value).map(|()| true)
+                        current.set_member_observed(key, value).map(|observation| {
+                            observed_write = observation;
+                            true
+                        })
                     } else {
                         current.remove_member(key)
                     };
@@ -518,6 +547,15 @@ impl Interp {
             }
             captured.check()?;
             captured.publish(root)?;
+            if let Some(projection) = &projection {
+                let write =
+                    observed_write
+                        .as_ref()
+                        .ok_or(ValueError::CommandProtocolUnavailable(
+                            "original NamespaceInfo reached dictionary write",
+                        ))?;
+                projection.published(self, &captured, root, write)?;
+            }
             drop(current);
             drop(parents);
             captured.check()?;

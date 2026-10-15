@@ -142,6 +142,21 @@ impl OriginalBpfSource {
         command.words.into_iter().nth(index.checked_add(1)?)
     }
 
+    /// A closed DSL scalar from the authenticated whole command's actual word.
+    /// This is Unicode source data, independent of affine script-body geometry.
+    pub(crate) fn scalar(
+        &self,
+        tokens: Option<&tcl_compiler::ir::CommandTokens>,
+        args: &[String],
+        index: usize,
+    ) -> Option<String> {
+        let word = self.argument(tokens, args, index)?;
+        String::from_utf8(tcl_syntax::word_rules::original_static_word_unicode_value(
+            &word,
+        )?)
+        .ok()
+    }
+
     pub(crate) fn body(
         &self,
         tokens: Option<&tcl_compiler::ir::CommandTokens>,

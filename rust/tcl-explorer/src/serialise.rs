@@ -2193,14 +2193,21 @@ pub fn serialise_liveness(result: &ExplorerResult) -> Value {
             .iter()
             .map(|snap| {
                 let mut chains: Vec<_> = snap.unit.def_use.chains.values().collect();
-                let cell_label = |symbol| snap.unit.def_use.cell_key(&snap.unit.ssa, symbol)
-                    .map(tcl_compiler::var_resolve::VariableCellKey::compatibility_name);
-                chains.sort_by_key(|chain| (cell_label(chain.key.0), chain.key.1));
+                let report_label = |symbol| {
+                    snap.unit.def_use.cell_key(&snap.unit.ssa, symbol)
+                        .map(tcl_compiler::var_resolve::VariableCellKey::compatibility_name)
+                        .or_else(|| {
+                            (snap.unit.ssa.cell_key(symbol).is_none()
+                                && snap.unit.def_use.source_variable_symbol(&snap.unit.ssa, symbol).is_some())
+                                .then(|| snap.unit.ssa.var_name(symbol).to_owned())
+                        })
+                };
+                chains.sort_by_key(|chain| (report_label(chain.key.0), chain.key.1));
                 let chains: Vec<Value> = chains
                     .iter()
                     .map(|chain| {
                         json!({
-                            "variable": cell_label(chain.key.0),
+                            "variable": report_label(chain.key.0),
                             "version": chain.key.1,
                             "definition": {
                                 "block": chain.definition.block,
@@ -2607,6 +2614,7 @@ pub fn serialise_dataflow(result: &ExplorerResult) -> Value {
                 .map(|n| {
                     json!({
                         "name": n.name,
+                        "symbol": n.symbol.map(|symbol| symbol.0),
                         "cell": n.cell,
                         "version": n.version,
                         "block": n.block,
@@ -2625,12 +2633,14 @@ pub fn serialise_dataflow(result: &ExplorerResult) -> Value {
                 .map(|e| {
                     json!({
                         "fromName": e.from_name,
+                        "fromSymbol": e.from_symbol.map(|symbol| symbol.0),
                         "fromCell": e.from_cell,
                         "fromVersion": e.from_version,
                         "toBlock": e.to_block,
                         "toStatementIndex": e.to_statement_index,
                         "edgeKind": e.edge_kind.as_str(),
                         "toName": e.to_name,
+                        "toSymbol": e.to_symbol.map(|symbol| symbol.0),
                         "toCell": e.to_cell,
                         "toVersion": e.to_version,
                     })

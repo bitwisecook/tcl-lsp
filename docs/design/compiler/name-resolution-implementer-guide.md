@@ -11181,3 +11181,25 @@ command keys from its members. A returned List may outlive its producer frame.
 Its data receipt checks the actual object context, headers, backing and members;
 it does not retain a live namespace or permit lookup or Import traversal.
 Mutable callbacks need their own actual transformation and completion receipts.
+
+## Keep SSA source identities separate from locations
+
+An SSA value is `(Symbol, Version)` within one retained function. Its symbol can
+represent a location or a typed original source variable. The same SSA engine
+handles both, including branch and loop joins. Source-only MAY effects do not
+establish that an actual variable exists or that a command completed normally.
+
+`SsaFunction::cell_key(symbol)` and `cell_name(symbol)` return `Option`: a source
+identity has no location projection. Existing authored conditional locations retain
+their own purpose and still need independent Native proof. Use `cell_symbols()`
+for actual symbol/location pairs. `cell_keys()` and `cell_names()` are dense
+location inventories whose positions are not symbols; `variable_symbols()`
+enumerates the complete interner.
+
+For readonly source reporting, use `DefUseFacts::source_variable_symbol` with the
+same current SSA. It validates the retained original source and actual graph,
+including definitions, uses and phi joins. Raw source labels cannot restore a
+foreign or stale graph. Graph consumers join `(bodyKey, symbol, version)` and keep
+cell/name strings as display data. Source-only effects widen contents to unknown;
+physical proofs, transformations and source relocation decline when their required
+location or rebinding owner is absent.

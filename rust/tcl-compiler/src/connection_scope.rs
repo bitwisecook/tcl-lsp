@@ -616,7 +616,7 @@ fn labels_at(
         .source_symbols_at(block, index)
         .into_iter()
         .flat_map(|symbols| symbols.iter())
-        .filter(|(_, symbol)| fu.ssa.cell_key(**symbol) == key)
+        .filter(|(_, symbol)| fu.ssa.cell_key(**symbol) == Some(key))
         .map(|(name, _)| name.clone())
         .collect();
     if place.ns == crate::place::LOCAL_NS {
@@ -833,7 +833,7 @@ fn definite_exit_cells(
                             |key| {
                                 statement.defs.keys().any(|symbol| {
                                     !statement.may_defs.contains(symbol)
-                                        && fu.ssa.cell_key(*symbol) == &key
+                                        && fu.ssa.cell_key(*symbol) == Some(&key)
                                 })
                             },
                         )
@@ -1514,7 +1514,13 @@ mod tests {
         };
         let selected = native_key(1);
         let relocation = crate::var_resolve::VariableProofRelocation {
-            storage_keys: HashMap::from([(fu.ssa.cell_key(symbol).clone(), selected.clone())]),
+            storage_keys: HashMap::from([(
+                fu.ssa
+                    .cell_key(symbol)
+                    .expect("the actual source symbol has a location")
+                    .clone(),
+                selected.clone(),
+            )]),
             ..Default::default()
         };
         fu.ssa.relocate_variable_proofs(&relocation);

@@ -1,0 +1,32 @@
+{
+  "tcl_dialect": {
+    "path": "/workspace/name-validation/target/debug/deps/libtcl_dialect-5667714f9a69fb70.rlib",
+    "sha256": "30ec0517dba378d57c22e29fcec10ee7ee0c8d85cadcd67ba75bfcb5cb840dc9",
+    "package_id": "path+file:///workspace/name-validation/rust/tcl-dialect#0.1.0",
+    "fresh": true
+  },
+  "tcl_lexer": {
+    "path": "/workspace/name-validation/target/debug/deps/libtcl_lexer-5b1c0d608d65b7e2.rlib",
+    "sha256": "3fffa4dcf7cc42a2f4175146f569c8ae6081764407b4271ad26b4e87fccaa32d",
+    "package_id": "path+file:///workspace/name-validation/rust/tcl-lexer#0.1.0",
+    "fresh": true
+  },
+  "tcl_registry": {
+    "path": "/workspace/name-validation/target/debug/deps/libtcl_registry-5df4cb4d87e28da9.rlib",
+    "sha256": "346ac3720fcdd433860c5d788cd5e1ccfbd54ef412ed67daaad76d2afba2ea98",
+    "package_id": "path+file:///workspace/name-validation/rust/tcl-registry#0.1.0",
+    "fresh": true
+  },
+  "tcl_compiler": {
+    "path": "/workspace/name-validation/target/debug/deps/libtcl_compiler-8451157e2454ece4.rlib",
+    "sha256": "c4c17628a8bef5847336ea2216df591bca410dff0d9245085632e0443babc11b",
+    "package_id": "path+file:///workspace/name-validation/rust/tcl-compiler#0.1.0",
+    "fresh": true
+  },
+  "tcl_irules": {
+    "path": "/workspace/name-validation/target/debug/deps/libtcl_irules-f2fddab55d49898d.rlib",
+    "sha256": "bdd912b9f1052b4a5f51d284016b9618241f2a5e86efa814567b5b6579b63bca",
+    "package_id": "path+file:///workspace/name-validation/rust/tcl-irules#0.1.0",
+    "fresh": true
+  }
+}

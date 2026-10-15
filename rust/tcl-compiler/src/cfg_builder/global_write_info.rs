@@ -27,6 +27,9 @@
 //! Registry variable roles and binding-transition descriptors own recognition;
 //! dynamic target and caller-frame obligations remain opaque.
 
+mod source_may;
+pub(crate) use source_may::OriginalSourceCallMayWrites;
+
 use std::collections::{BTreeSet, HashMap};
 
 use crate::command_binding::ModuleCommandBindings;

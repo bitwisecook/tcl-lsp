@@ -76,7 +76,10 @@ impl RuntimeIndexKey {
 /// Allocation-only argv retention and original operation currency.
 pub struct RuntimeJimIndexScope(OriginalArguments);
 /// Currency-only complete indexed command entry; no operand getter authority.
-pub struct RuntimeIndexOperation(OriginalArguments);
+pub struct RuntimeIndexOperation(
+    OriginalArguments,
+    Option<crate::interp::OriginalSourceConstruction>,
+);
 impl RuntimeIndexOperation {
     pub(crate) fn original_currency(
         &self,
@@ -153,10 +156,25 @@ impl NativeIndexOps for Interp {
     }
 
     fn enter_index_operation(&mut self) -> Result<Self::IndexOperation, CmdError> {
-        OriginalArguments::enter(self, &[]).map(RuntimeIndexOperation)
+        let original = OriginalArguments::enter(self, &[])?;
+        let source = self.original_source_construction()?;
+        Ok(RuntimeIndexOperation(original, source))
     }
     fn check_index_operation(&mut self, original: &Self::IndexOperation) -> Result<(), CmdError> {
-        original.0.check_for(self)
+        original.0.check_for(self)?;
+        if let Some(source) = &original.1 {
+            source.check(self)?;
+        }
+        Ok(())
+    }
+    fn completed_jim_string_range(
+        &mut self,
+        original: &Self::IndexOperation,
+        construction: &tcl_cmd_core::string::NativeJimStringRangeConstruction<'_, *mut TclObj>,
+    ) -> Result<(), CmdError> {
+        self.check_index_operation(original)?;
+        self.record_original_namespace_info_range(original.1.as_ref(), construction)?;
+        self.check_index_operation(original)
     }
     fn index_integer_result(
         &mut self,

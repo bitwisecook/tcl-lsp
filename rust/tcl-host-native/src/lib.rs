@@ -328,6 +328,40 @@ impl tcl_platform::SourceFile for NativeSourceFile {
 
 struct NativeFs;
 
+impl NativeFs {
+    fn copy_path(
+        src: &std::path::Path,
+        dst: &std::path::Path,
+        recursive: bool,
+        force: bool,
+    ) -> Result<(), HostError> {
+        let meta = std::fs::symlink_metadata(src).map_err(|e| map_io(&e))?;
+        if meta.file_type().is_symlink() {
+            let link = std::fs::read_link(src).map_err(|e| map_io(&e))?;
+            if force {
+                let _ = std::fs::remove_file(dst);
+            }
+            create_link(dst, &link, false)
+        } else if meta.is_dir() {
+            if !recursive {
+                return Err(HostError::Io("is a directory".to_string()));
+            }
+            std::fs::create_dir_all(dst).map_err(|e| map_io(&e))?;
+            for entry in std::fs::read_dir(src).map_err(|e| map_io(&e))? {
+                let entry = entry.map_err(|e| map_io(&e))?;
+                let child = dst.join(entry.file_name());
+                Self::copy_path(&entry.path(), &child, true, force)?;
+            }
+            Ok(())
+        } else {
+            if !force && dst.exists() {
+                return Err(HostError::AlreadyExists);
+            }
+            std::fs::copy(src, dst).map(|_| ()).map_err(|e| map_io(&e))
+        }
+    }
+}
+
 impl Filesystem for NativeFs {
     fn exists(&self, path: &str) -> bool {
         std::path::Path::new(path).exists()
@@ -426,37 +460,12 @@ impl Filesystem for NativeFs {
         recursive: bool,
         force: bool,
     ) -> Result<(), HostError> {
-        let src = std::path::Path::new(source);
-        let dst = std::path::Path::new(target);
-        let meta = std::fs::symlink_metadata(src).map_err(|e| map_io(&e))?;
-        if meta.file_type().is_symlink() {
-            let link = std::fs::read_link(src).map_err(|e| map_io(&e))?;
-            if force {
-                let _ = std::fs::remove_file(dst);
-            }
-            create_link(dst, &link, false)
-        } else if meta.is_dir() {
-            if !recursive {
-                return Err(HostError::Io("is a directory".to_string()));
-            }
-            std::fs::create_dir_all(dst).map_err(|e| map_io(&e))?;
-            for entry in std::fs::read_dir(src).map_err(|e| map_io(&e))? {
-                let entry = entry.map_err(|e| map_io(&e))?;
-                let child = dst.join(entry.file_name());
-                self.copy(
-                    &entry.path().to_string_lossy(),
-                    &child.to_string_lossy(),
-                    true,
-                    force,
-                )?;
-            }
-            Ok(())
-        } else {
-            if !force && dst.exists() {
-                return Err(HostError::AlreadyExists);
-            }
-            std::fs::copy(src, dst).map(|_| ()).map_err(|e| map_io(&e))
-        }
+        Self::copy_path(
+            std::path::Path::new(source),
+            std::path::Path::new(target),
+            recursive,
+            force,
+        )
     }
 
     fn readlink(&self, path: &str) -> Result<String, HostError> {
@@ -699,6 +708,52 @@ mod tests {
         assert_eq!(
             fs.read_bytes(unicode.as_os_str().as_bytes()).unwrap(),
             b"UNICODE"
+        );
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn recursive_copy_keeps_native_child_paths_and_symlink_targets() {
+        use std::os::unix::ffi::OsStringExt as _;
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let directory =
+            std::env::temp_dir().join(format!("tcl-native-copy-{}-{stamp}", std::process::id()));
+        let source = directory.join("source");
+        let target = directory.join("target");
+        let raw_name = std::ffi::OsString::from_vec(b"entry-\xff".to_vec());
+        let unicode_name = "entry-\u{fffd}";
+        std::fs::create_dir_all(source.join(&raw_name)).unwrap();
+        std::fs::create_dir_all(source.join(unicode_name)).unwrap();
+        std::fs::write(source.join(&raw_name).join("value"), b"RAW").unwrap();
+        std::fs::write(source.join(unicode_name).join("value"), b"UNICODE").unwrap();
+        let link_name = std::ffi::OsString::from_vec(b"link-\xfe".to_vec());
+        let link_target = std::path::PathBuf::from(&raw_name).join("value");
+        std::os::unix::fs::symlink(&link_target, source.join(&link_name)).unwrap();
+        let host = NativeHost::new();
+        host.filesystem()
+            .unwrap()
+            .copy(
+                source.to_str().unwrap(),
+                target.to_str().unwrap(),
+                true,
+                true,
+            )
+            .unwrap();
+        assert_eq!(
+            std::fs::read(target.join(&raw_name).join("value")).unwrap(),
+            b"RAW"
+        );
+        assert_eq!(
+            std::fs::read(target.join(unicode_name).join("value")).unwrap(),
+            b"UNICODE"
+        );
+        assert_eq!(
+            std::fs::read_link(target.join(&link_name)).unwrap(),
+            link_target
         );
         std::fs::remove_dir_all(directory).unwrap();
     }

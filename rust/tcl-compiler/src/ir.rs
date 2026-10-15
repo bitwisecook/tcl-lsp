@@ -510,6 +510,15 @@ pub enum SyntheticMarker {
     ArmWrites,
 }
 
+/// Original argv inventory is separate from execution and mutable-world effects.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OriginalArgvInventoryDisposition {
+    /// Original source must authenticate any lexical substitution inventory.
+    SourceRequired,
+    /// This canonical widening phase owns no argv. Its effects remain unknown.
+    EffectOnly(SyntheticMarker),
+}
+
 /// Where the statement whose words a [`SyntheticMarker::WordEffects`]
 /// definition point states the effects of stands, as the CFG builder puts
 /// the two ([`crate::ssa::word_effects_host`]).
@@ -2277,6 +2286,45 @@ impl Statement {
         )
     }
 
+    /// Classify only canonical, source-free widening phases. A marker attached
+    /// to actual argv or changed token metadata cannot erase their inventory.
+    #[must_use]
+    pub fn original_argv_inventory_disposition(&self) -> OriginalArgvInventoryDisposition {
+        let (args, canonical_command, tokens) = match self {
+            Self::Call {
+                args,
+                canonical_command,
+                tokens: Some(tokens),
+                ..
+            }
+            | Self::Barrier {
+                args,
+                canonical_command,
+                tokens: Some(tokens),
+                ..
+            } => (args, canonical_command, tokens),
+            _ => return OriginalArgvInventoryDisposition::SourceRequired,
+        };
+        let Some(
+            marker @ (SyntheticMarker::UnseenCall
+            | SyntheticMarker::RegistryBarrier
+            | SyntheticMarker::UpvarInvalidate
+            | SyntheticMarker::GlobalFrameScript
+            | SyntheticMarker::CallerFrameOpaque),
+        ) = tokens.synthetic
+        else {
+            return OriginalArgvInventoryDisposition::SourceRequired;
+        };
+        if args.is_empty()
+            && canonical_command.is_none()
+            && tokens == &CommandTokens::marker(marker)
+        {
+            OriginalArgvInventoryDisposition::EffectOnly(marker)
+        } else {
+            OriginalArgvInventoryDisposition::SourceRequired
+        }
+    }
+
     /// Whether this is the barrier a `return` lowers to when it leaves the
     /// procedure or its completion is not known — `return` with options
     /// ([`crate::lowering::hooks::control::try_lower_return`]) or with an
@@ -3453,6 +3501,70 @@ pub(crate) fn native_call_for_test(bytes: &[u8]) -> Statement {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn original_argv_disposition_requires_the_canonical_effect_carrier() {
+        use super::*;
+        for marker in [
+            SyntheticMarker::UnseenCall,
+            SyntheticMarker::RegistryBarrier,
+            SyntheticMarker::UpvarInvalidate,
+            SyntheticMarker::GlobalFrameScript,
+            SyntheticMarker::CallerFrameOpaque,
+        ] {
+            let original = Statement::Barrier {
+                span: Span::new(5, 10),
+                reason: "widening".to_owned(),
+                command: "display only".to_owned(),
+                canonical_command: None,
+                args: Vec::new(),
+                tokens: Some(CommandTokens::marker(marker)),
+            };
+            assert_eq!(
+                original.original_argv_inventory_disposition(),
+                OriginalArgvInventoryDisposition::EffectOnly(marker)
+            );
+            let executable = original.is_executable_invocation();
+            for axis in 0..3 {
+                let mut altered = original.clone();
+                let Statement::Barrier {
+                    args,
+                    canonical_command,
+                    tokens,
+                    ..
+                } = &mut altered
+                else {
+                    unreachable!()
+                };
+                match axis {
+                    0 => args.push("actual argument".to_owned()),
+                    1 => *canonical_command = Some("actual command".to_owned()),
+                    _ => tokens
+                        .as_mut()
+                        .unwrap()
+                        .argv_texts
+                        .push("actual argv".to_owned()),
+                }
+                assert_eq!(
+                    altered.original_argv_inventory_disposition(),
+                    OriginalArgvInventoryDisposition::SourceRequired
+                );
+                assert_eq!(altered.is_executable_invocation(), executable);
+            }
+        }
+        let condition = Statement::Barrier {
+            span: Span::new(0, 0),
+            reason: "condition".to_owned(),
+            command: "display".to_owned(),
+            canonical_command: None,
+            args: Vec::new(),
+            tokens: Some(CommandTokens::marker(SyntheticMarker::Condition)),
+        };
+        assert_eq!(
+            condition.original_argv_inventory_disposition(),
+            OriginalArgvInventoryDisposition::SourceRequired
+        );
+    }
+
     use super::*;
 
     #[test]
