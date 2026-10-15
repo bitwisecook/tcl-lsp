@@ -1,5 +1,16 @@
 # Remaining name-handling obligations
 
+Current audit checkpoint — 2026-10-15 21:32 UTC: portable 21:30 retains 5,313
+provisional purposes and 431 verified members, not a remaining-consumer total.
+Earlier thirteen Compiler production peers are admitted; an additional environment
+production read and four whole xtask source reads retain independent admission.
+Omitted tests, unexamined production/guidance and atomic-purpose reconciliation
+remain unfinished. Root separates output comments, report maps and native paths;
+compiled-only generator data is not arbitrary live registration input. JetBrains
+silent missing-block validation has an existing strict shared owner to adopt.
+No production/test changes, new execution acceptance or repository gates.
+
+
 Current audit checkpoint — 2026-10-15 21:18 UTC: portable 21:16 retains 4,995
 provisional purposes and 399 verified members, not a remaining-consumer total.
 Root applied a bounded eight-group independent peer, separated mixed source/data

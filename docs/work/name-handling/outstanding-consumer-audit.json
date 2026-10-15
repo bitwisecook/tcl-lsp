@@ -13150,13 +13150,20 @@
     "Parent-authorized bounded original C5/Jim snapshot-pattern and sixteen original source-form snapshot controls were added; compiled Rust controls remain unexecuted. No Native allocation/cell identity, F5 result, new GitHub read or proof/census digest renewal follows."
   ],
   "current_refresh": {
-    "checkpoint_utc": "2026-10-15T21:18:04.206763+00:00",
-    "checkpoint_basis": "Main3d27569a2 plus Root tracking; immutable cc24 repository audit checkpoint21:16 with explicit successor annex",
+    "checkpoint_utc": "2026-10-15T21:32:00Z",
+    "checkpoint_basis": "Main02f16a901 plus Root tracking; immutable cc24 repository audit21:30 with explicit successor annex",
     "current_status": "M12 selected1546:1133PASS410FAIL1TIMEOUT2NOT_ACCEPTED_RUN_COUNT after7 unchanged permission-repair PASS; all1491 predecessors retained4gains0priorPASS regressions0drops; original2286FIRSTPASS71.841791191/180. No whole-codebase acceptance.",
     "canonical_status": "current-state.md",
     "live_independent_audit": "repository-consumer-audit.md",
     "portable_work": "handoff/README.md",
-    "scope": "Historical330 rows unchanged. Whole-repository remaining-consumer total UNKNOWN. Disjoint110709-path baseline roster. Latest21:16 portable snapshot4995 provisional purpose rows/399 hash-verified members is NOT migration count. Root344 source/provenance dispositions+203complete actual source reads;323provisional purposes with work-kind, bounded independent peer8groups/14unreviewed.13Compiler production peers read, first5admitted/latest8pending primary admission; all omitted tests separate. Other owners unexamined production/harness/generated/authored scopes remain unfinished.",
-    "gates": "Fullproof frozen6294 still2128 structural errors; rust-check/prep-pr/generated/owner/fullgates unfinished. No PR or issue closure."
+    "scope": "Historical330rows unchanged. Whole-repository remaining-consumer total UNKNOWN. Disjoint110709-path baseline roster. Portable21:30 snapshot5313provisionalpurpose rows/431verifiedmembers is NOTmigrationcount. Root344source/provenance dispositions/203complete reads/325provisionalpurposes.13priorCompilerpeers admitted;environment production+4wholextask separately reviewed/admitted. New16filegeometrypacket reserved unfinished. Other production/operational/generated/authored/atomic-unit scopes remain unfinished.",
+    "gates": "Fullproof frozen6294 still2128 structural errors; rust-check/prep-pr/generated/owner/fullgates unfinished. No PR or issue closure.",
+    "utc": "2026-10-15T21:32:00Z",
+    "portable_repository_audit_checkpoint": "repository-audit-progress-20261015T213051Z.tar.gz",
+    "provisional_purpose_rows": 5313,
+    "verified_archive_members": 431,
+    "remaining_consumer_total": null,
+    "status": "INCOMPLETE; provisional purpose/shared/display/exclusion rows are not remaining migrations. Unexamined production/operational/guidance and independent semantic units remain unfinished. Historical bounded inventory retained.",
+    "validation": "M12 unchanged1133PASS410FAIL1TIMEOUT2NOT_ACCEPTED_RUN_COUNT; required gates red/unrun; no new source execution"
   }
 }

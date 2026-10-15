@@ -1,5 +1,14 @@
 # Continue centralised name handling with sub-agents
 
+Latest portable audit: `repository-audit-progress-20261015T213051Z.tar.gz`,
+SHA256 `d2bf6b0d255c27121320df4a92c98f2f250dbf2d45b8e9d49fe8cd3f5e8ae50d`,
+5,313 provisional purpose rows / 431 verified members; NOT remaining-consumer total.
+All thirteen prior Compiler peers admitted; environment production and four whole
+xtask files separately reviewed/admitted. Root's new sixteen-file Compiler geometry
+reservation remains unfinished. Continue latest user priority: accurate whole-source
+and canonical-purpose audit, then resume all remaining consumer migrations.
+
+
 Continue the existing work branch of bitwisecook/tcl-lsp. Complete centralised
 name handling across the entire codebase, starting from #2286, and then complete
 the repository-wide documentation/comment cleanup. Use sub-agents for bounded,

@@ -1,5 +1,13 @@
 # Naming migration handoff
 
+Latest audit packet: `repository-audit-progress-20261015T213051Z.tar.gz`
+(SHA256 `d2bf6b0d255c27121320df4a92c98f2f250dbf2d45b8e9d49fe8cd3f5e8ae50d`),
+5,313 provisional purposes / 431 verified members. Incomplete source review and
+semantic-unit reconciliation remain explicit; this is not a remaining count.
+Exact source peer receipts distinguish production aids from omitted tests and
+shared metadata from target/publication validation. No new execution acceptance.
+
+
 Latest repository audit capture: `repository-audit-progress-20261015T211642Z.tar.gz`,
 4,995 provisional purpose rows and 399 verified members. This is an incomplete
 source/operational census, never a remaining-consumer total or acceptance. It

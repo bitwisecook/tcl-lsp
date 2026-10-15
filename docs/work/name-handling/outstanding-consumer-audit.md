@@ -1,5 +1,14 @@
 # Outstanding naming-consumer audit
 
+Current refresh — 2026-10-15 21:32 UTC: the separate repository-wide portable
+checkpoint retains 5,313 provisional purpose rows / 431 verified members, not a
+remaining-migration total. Exact partitions and recorded source hashes reconcile;
+independent semantic/unit reconciliation and unexamined operational/production/
+guidance remain unfinished. The historical bounded roster below stays unchanged.
+M12 remains 1,133 PASS / 410 FAIL / 1 TIMEOUT / 2 NOT_ACCEPTED_RUN_COUNT;
+required gates remain red/unrun and no newer source execution is claimed.
+
+
 Current refresh (2026-10-15, 21:18 UTC): use [current-state.md](current-state.md)
 and [repository-consumer-audit.md](repository-consumer-audit.md). The complete
 remaining-consumer total is unknown. The disjoint, fixed-cc24 repository audit
