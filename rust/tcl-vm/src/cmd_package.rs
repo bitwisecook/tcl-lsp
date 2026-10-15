@@ -974,7 +974,7 @@ mod tests {
         assert_eq!(tcl8.package_version("p"), None);
         let rejected = package(&mut tcl8, &["ifneeded", "p", "1.2+platform", ""]);
         assert_eq!(rejected.code, Code::Error);
-        assert!(tcl8.package_ifneeded_versions("p").is_empty());
+        assert_eq!(tcl8.package_ifneeded_versions("p"), Vec::<String>::new());
 
         let mut tcl9 = Vm::new();
         tcl9.set_runtime_version(TclVersion::V9_0);

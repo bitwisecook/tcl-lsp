@@ -3247,16 +3247,18 @@ impl Interp {
     /// broader than the exact access, but a `false` is a promise that nothing
     /// can observe the cell.
     pub(crate) fn var_is_traced(&self, name: &[u8]) -> bool {
-        if self.traces.borrow().traces.is_empty() {
+        if !self.traces_may_observe(name) {
             return false;
         }
         let (base, _) = crate::frame::split_array_ref(name);
         let home = self.trace_identity(&base);
-        self.traces
-            .borrow()
-            .traces
-            .iter()
-            .any(|t| crate::cmd_trace::same_variable(t, &home.base, home.ns, home.level))
+        self.env_trace_reaches(&home)
+            || self
+                .traces
+                .borrow()
+                .traces
+                .iter()
+                .any(|t| crate::cmd_trace::same_variable(t, &home.base, home.ns, home.level))
     }
 
     /// [`var_is_traced`](Self::var_is_traced) for a compiled slot, answered from
@@ -3403,6 +3405,7 @@ impl Interp {
     fn rebootstrap_host_globals(&mut self) {
         let snapshot =
             tcl_platform::bootstrap::snapshot(&*self.host(), "treewalk", env!("CARGO_PKG_VERSION"));
+        self.disarm_env_trace();
         for name in tcl_platform::bootstrap::HOST_ARRAYS {
             self.var_unset_at(format!("::{name}").as_bytes(), 0);
         }
@@ -3419,6 +3422,11 @@ impl Interp {
         }
         for (name, value) in snapshot.environment() {
             self.set_global_element_raw(b"::env", name.as_bytes(), value.as_bytes());
+        }
+        // C's `TclSetupEnv` traces `env` in every interpreter it creates; a
+        // safe one loses the array, and a confined one never reads the host.
+        if !self.is_safe.get() && !self.stores_confined.get() {
+            self.arm_env_trace();
         }
     }
 
@@ -3926,7 +3934,7 @@ impl Interp {
             name,
             obj,
         )?;
-        if !self.traces.borrow().traces.is_empty() {
+        if self.traces_may_observe(name) {
             let (base, elem) = crate::frame::split_array_ref(name);
             if self.fire_var_trace(&base, elem.as_deref(), b"write") {
                 // A write trace errored: the value is set, but the command
@@ -3956,8 +3964,7 @@ impl Interp {
             key,
             obj,
         )?;
-        if !self.traces.borrow().traces.is_empty() && self.fire_var_trace(name, Some(key), b"write")
-        {
+        if self.traces_may_observe(name) && self.fire_var_trace(name, Some(key), b"write") {
             return Err(VarError::TraceError);
         }
         Ok(())
@@ -4051,6 +4058,7 @@ impl Interp {
     /// is not published to `::errorInfo` and `::errorCode`, which are globals.
     pub fn confine_stores(&mut self) {
         self.stores_confined.set(true);
+        self.disarm_env_trace();
         for name in tcl_platform::bootstrap::HOST_ARRAYS
             .iter()
             .chain(tcl_platform::bootstrap::HOST_PATH_GLOBALS)
@@ -4350,7 +4358,7 @@ impl Interp {
     /// result set to `can't read "name": <msg>` — if a read trace callback
     /// errored (C's `TclObjCallVarTraces` propagation); else `None`.
     pub(crate) fn fire_read_trace(&mut self, name: &[u8], key: Option<&[u8]>) -> Option<Code> {
-        if self.traces.borrow().traces.is_empty() {
+        if !self.traces_may_observe(name) {
             return None;
         }
         let (base, elem) = crate::frame::split_array_ref(name);
@@ -4374,6 +4382,22 @@ impl Interp {
         Some(self.var_trace_error(&display, b"read", &msg))
     }
 
+    /// Fire `name`'s read traces for `info exists`, as C's `TclVarTraceExists`
+    /// does: a trace error is swallowed and the interpreter state restored, so
+    /// the answer comes from whatever the traces left. That is what lets
+    /// `info exists env(X)` see a host variable the array has not cached yet.
+    pub(crate) fn fire_exists_read_trace(&mut self, name: &[u8]) {
+        if !self.traces_may_observe(name) {
+            return;
+        }
+        let (base, elem) = crate::frame::split_array_ref(name);
+        let saved = self.exc.borrow().clone();
+        if self.fire_var_trace(&base, elem.as_deref(), b"read") {
+            self.traces.borrow_mut().pending_err = None;
+            *self.exc.borrow_mut() = saved;
+        }
+    }
+
     /// Read a variable's current value for a **read-modify-write** command
     /// (`lappend`, `incr`), firing its read trace but **swallowing** any error
     /// the trace raises — the value simply reads as absent.
@@ -4392,7 +4416,7 @@ impl Interp {
         base: &[u8],
         elem: Option<&[u8]>,
     ) -> Option<*mut TclObj> {
-        if !self.traces.borrow().traces.is_empty() && self.fire_var_trace(base, elem, b"read") {
+        if self.traces_may_observe(base) && self.fire_var_trace(base, elem, b"read") {
             // The read trace errored: discard it and treat the value as absent.
             self.traces.borrow_mut().pending_err.take();
             return None;
@@ -4417,24 +4441,34 @@ impl Interp {
         // variable and the unset trace would never fire. C resolves the
         // `Var`, fires its traces, and only then frees it.
         let (base, elem) = crate::frame::split_array_ref(name);
-        let traced = !self.traces.borrow().traces.is_empty();
-        let key = traced.then(|| self.trace_identity(&base));
+        let key = self
+            .traces_may_observe(name)
+            .then(|| self.trace_identity(&base));
         // Unsetting a whole array destroys each element cell too, and C's
         // `DeleteArray` fires each element's own traces — with `arrayPtr` NULL,
         // so only that element's list runs — after the array's own firing
         // (tclVar.c). The elements have to be read while the array is still
         // there.
-        let elements = if traced && elem.is_none() {
+        let elements = if !self.traces.borrow().traces.is_empty() && elem.is_none() {
             self.array_names(&base).unwrap_or_default()
         } else {
             Vec::new()
         };
+        // The `env` trace dies with its variable, whoever spells it; the
+        // binding it hangs off is gone once the variable is.
+        let unsets_env = elem.is_none()
+            && key
+                .as_ref()
+                .is_some_and(|home| home.link_elem.is_none() && self.env_trace_reaches(home));
         let existed = crate::vars::unset(
             &mut self.frames.borrow_mut(),
             &mut self.namespaces.borrow_mut(),
             self.current_ns.get(),
             name,
         );
+        if existed && unsets_env {
+            self.disarm_env_trace();
+        }
         if let (true, Some(home)) = (existed, key) {
             let access = self.trace_access(name, &base, elem.as_deref(), &home, true);
             self.fire_var_trace_resolved(&home, &access, b"unset");
@@ -4451,6 +4485,7 @@ impl Interp {
             // unset, so the element comes from the access shape, not the
             // spelling.
             let mut t = self.traces.borrow_mut();
+            let before = t.traces.len();
             match access.match_elem.as_deref() {
                 Some(e) => t.traces.retain(|v| {
                     !(crate::cmd_trace::same_variable(v, &home.base, home.ns, home.level)
@@ -4460,17 +4495,34 @@ impl Interp {
                     !crate::cmd_trace::same_variable(v, &home.base, home.ns, home.level)
                 }),
             }
+            let removed = t.traces.len() != before;
             drop(t);
-            self.invalidate_guard_domain(GuardDomain::VariableTrace);
+            if removed {
+                self.invalidate_guard_domain(GuardDomain::VariableTrace);
+            }
         }
         existed
     }
 
     /// `unset name(key)` — returns whether it existed.
     pub(crate) fn var_unset_elem(&mut self, name: &[u8], key: &[u8]) -> bool {
+        self.var_unset_elem_reported(name, None, key)
+    }
+
+    /// [`Self::var_unset_elem`], with `reported` (when given) as the name the
+    /// unset traces are told in every release — C's `Tcl_UnsetVar2` with the
+    /// array and element passed apart, where 9.0 would otherwise report the
+    /// `name(key)` spelling.
+    pub(crate) fn var_unset_elem_reported(
+        &mut self,
+        name: &[u8],
+        reported: Option<&[u8]>,
+        key: &[u8],
+    ) -> bool {
         // Resolved before the removal — see [`Self::var_unset`].
-        let trace_key =
-            (!self.traces.borrow().traces.is_empty()).then(|| self.trace_identity(name));
+        let trace_key = self
+            .traces_may_observe(name)
+            .then(|| self.trace_identity(name));
         let existed = crate::vars::unset_elem(
             &mut self.frames.borrow_mut(),
             &mut self.namespaces.borrow_mut(),
@@ -4479,18 +4531,28 @@ impl Interp {
             key,
         );
         if let (true, Some(home)) = (existed, trace_key) {
-            let mut spelling = name.to_vec();
-            spelling.push(b'(');
-            spelling.extend_from_slice(key);
-            spelling.push(b')');
-            let access = self.trace_access(&spelling, name, Some(key), &home, true);
+            let access = if let Some(reported) = reported {
+                self.trace_access(reported, reported, Some(key), &home, true)
+            } else {
+                let mut spelling = name.to_vec();
+                spelling.push(b'(');
+                spelling.extend_from_slice(key);
+                spelling.push(b')');
+                self.trace_access(&spelling, name, Some(key), &home, true)
+            };
             self.fire_var_trace_resolved(&home, &access, b"unset");
             // Drop this element's traces (whole-array traces survive).
-            self.traces.borrow_mut().traces.retain(|v| {
+            let mut t = self.traces.borrow_mut();
+            let before = t.traces.len();
+            t.traces.retain(|v| {
                 !(crate::cmd_trace::same_variable(v, &home.base, home.ns, home.level)
                     && v.elem.as_deref() == Some(key))
             });
-            self.invalidate_guard_domain(GuardDomain::VariableTrace);
+            let removed = t.traces.len() != before;
+            drop(t);
+            if removed {
+                self.invalidate_guard_domain(GuardDomain::VariableTrace);
+            }
         }
         existed
     }
@@ -4594,13 +4656,13 @@ impl Interp {
                 .active_var_trace_scopes
                 .borrow()
                 .contains(&cell.array());
+        let whole_array = access.whole_array && !array_active;
         let any = traces.traces.iter().any(|trace| {
-            let whole = trace.elem.is_none();
-            (!whole || (access.whole_array && !array_active))
+            (trace.elem.is_some() || whole_array)
                 && crate::cmd_trace::matches(trace, base, elem, op, access_ns, access_frame_level)
         });
         drop(traces);
-        if !any {
+        if !(any || (whole_array && self.env_trace_reaches(home))) {
             return false;
         }
         // C aborts the chain on the first callback error for every op *except*
@@ -4618,8 +4680,8 @@ impl Interp {
 
         let mut errored = false;
         let op_name = String::from_utf8_lossy(op).into_owned();
-        'groups: for whole_array in [true, false] {
-            if whole_array && (!access.whole_array || array_active) {
+        'groups: for whole_array_group in [true, false] {
+            if whole_array_group && !whole_array {
                 continue;
             }
             // Resolve each group only when Tcl reaches it. A whole-array
@@ -4631,7 +4693,7 @@ impl Interp {
                 .traces
                 .iter()
                 .rev()
-                .filter(|trace| trace.elem.is_none() == whole_array)
+                .filter(|trace| trace.elem.is_none() == whole_array_group)
                 .filter(|trace| {
                     crate::cmd_trace::matches(trace, base, elem, op, access_ns, access_frame_level)
                 })
@@ -4663,24 +4725,26 @@ impl Interp {
                 self.clear_return_options();
                 let code = self.eval_str(&line);
                 if propagate && code == Code::Error {
-                    // Capture the callback's error message; stop firing (C
-                    // aborts the trace chain on the first error).
-                    let msg = self.result_bytes();
-                    self.traces.borrow_mut().pending_err = Some(msg);
-                    let mut frame = op.to_vec();
-                    frame.extend_from_slice(b" trace on \"");
-                    frame.extend_from_slice(reported);
-                    if let Some(k) = access.spelling_elem.as_deref() {
-                        frame.push(b'(');
-                        frame.extend_from_slice(k);
-                        frame.push(b')');
-                    }
-                    frame.push(b'"');
-                    self.append_frame_noline(&frame);
+                    // Stop firing: C aborts the trace chain on the first error.
+                    self.var_trace_failed(op, reported, access);
                     errored = true;
                     break 'groups;
                 }
                 self.restore_return_options(saved_options.clone());
+            }
+            // The `env` trace is the array's oldest, so it runs last among the
+            // whole-array traces — after any a script added to `env`, before
+            // the element's own (tclsh 8.4-9.1). Re-checked here because a
+            // callback may have unset the array.
+            if whole_array_group
+                && self.env_trace_reaches(home)
+                && self.run_env_trace(elem, op)
+                && propagate
+            {
+                self.error(b"no such variable");
+                self.var_trace_failed(op, reported, access);
+                errored = true;
+                break 'groups;
             }
         }
         let popped = self.active_var_trace_scopes.borrow_mut().pop();
@@ -4694,6 +4758,24 @@ impl Interp {
             self.restore_return_options(saved_options);
         }
         errored
+    }
+
+    /// Record a variable trace's failure, whose message is the interp result:
+    /// stash it for the aborted access and add the `(<op> trace on "…")`
+    /// frame to `errorInfo`.
+    fn var_trace_failed(&mut self, op: &[u8], reported: &[u8], access: &TraceAccess) {
+        let msg = self.result_bytes();
+        self.traces.borrow_mut().pending_err = Some(msg);
+        let mut frame = op.to_vec();
+        frame.extend_from_slice(b" trace on \"");
+        frame.extend_from_slice(reported);
+        if let Some(k) = access.spelling_elem.as_deref() {
+            frame.push(b'(');
+            frame.extend_from_slice(k);
+            frame.push(b')');
+        }
+        frame.push(b'"');
+        self.append_frame_noline(&frame);
     }
 
     /// C's `TclVarErrMsg` tail after a variable trace aborted an access: the
@@ -4978,7 +5060,7 @@ impl Interp {
     /// an array however it was spelled or aliased. Ordinary element reads and
     /// writes do not fire it at all: it is the `array` command's own hook.
     pub(crate) fn fire_array_trace(&mut self, name: &[u8]) -> Option<Code> {
-        if self.traces.borrow().traces.is_empty() {
+        if !self.traces_may_observe(name) {
             return None;
         }
         let (base, elem) = crate::frame::split_array_ref(name);
@@ -5424,6 +5506,7 @@ impl Interp {
     /// `variable tail` / `global tail` — link `tail` in the current frame to
     /// `target_ns::tail` (a no-op when the current context already is that var).
     pub(crate) fn make_variable(&mut self, target_ns: NsId, tail: &[u8]) {
+        self.note_variable_link(tail, tail);
         crate::vars::make_variable(
             &mut self.frames.borrow_mut(),
             &mut self.namespaces.borrow_mut(),
@@ -5436,6 +5519,7 @@ impl Interp {
     /// Link local name `local` to `target_ns::target` (TIP 500 private instance
     /// variables, whose storage name is mangled per declaring class).
     pub(crate) fn make_variable_mapped(&mut self, target_ns: NsId, local: &[u8], target: &[u8]) {
+        self.note_variable_link(local, target);
         crate::vars::make_variable_mapped(
             &mut self.frames.borrow_mut(),
             &mut self.namespaces.borrow_mut(),
@@ -5454,6 +5538,7 @@ impl Interp {
         local: &[u8],
         target: &[u8],
     ) {
+        self.note_variable_link(local, target);
         crate::vars::make_tcloo_variable_mapped(
             &mut self.frames.borrow_mut(),
             &mut self.namespaces.borrow_mut(),
@@ -6094,6 +6179,7 @@ impl Interp {
 
     /// `upvar` — link `local` in the current frame to the resolved `target`.
     pub(crate) fn make_upvar(&mut self, target: Link, local: &[u8]) {
+        self.note_variable_link(local, &target.name);
         crate::vars::make_upvar(
             &mut self.frames.borrow_mut(),
             &mut self.namespaces.borrow_mut(),
@@ -6117,6 +6203,7 @@ impl Interp {
     /// `upvar … target ns::tail` — install the link as namespace variable
     /// `home_ns::tail` (a qualified local name).
     pub(crate) fn make_upvar_in(&mut self, home_ns: NsId, tail: &[u8], target: Link) {
+        self.note_variable_link(tail, &target.name);
         crate::vars::make_upvar_in(
             &mut self.frames.borrow_mut(),
             &mut self.namespaces.borrow_mut(),
@@ -9285,6 +9372,8 @@ impl Interp {
         for key in tcl_platform::bootstrap::safe_scrub_keys() {
             self.var_unset_elem(b"::tcl_platform", key.as_bytes());
         }
+        // `Tcl_MakeSafe` unsets `env`: the host environment is not touched.
+        self.disarm_env_trace();
         self.var_unset(b"::env");
         // A safe interp has no real library/package paths. The Safe Base may
         // re-virtualise `auto_path` after this scrub.
@@ -11003,6 +11092,9 @@ mod tests {
             self.0
                 .borrow_mut()
                 .insert(key.to_string(), value.to_string());
+        }
+        fn unset(&self, key: &str) {
+            self.0.borrow_mut().remove(key);
         }
 
         fn vars(&self) -> Vec<(String, String)> {
