@@ -13150,13 +13150,13 @@
     "Parent-authorized bounded original C5/Jim snapshot-pattern and sixteen original source-form snapshot controls were added; compiled Rust controls remain unexecuted. No Native allocation/cell identity, F5 result, new GitHub read or proof/census digest renewal follows."
   ],
   "current_refresh": {
-    "checkpoint_utc": "2026-10-15T17:43:44.395487+00:00",
-    "checkpoint_basis": "Mainfe86525a0 plus Roottracking; isolatedL15frozen4faff complete with separately sealed permissionrepairs",
-    "current_status": "L15 combined1491:1076strictPASS412FAIL1TIMEOUT2NOT_ACCEPTED_RUN_COUNT after6unchangedpermissionrepairPASS; initial6EPERMabort kept. All1027K retained8gains2priorPASSarrayregressions0drops; original2286FIRSTPASS75.412753406/180; newerMainunexecuted.",
+    "checkpoint_utc": "2026-10-15T20:30:37.237719+00:00",
+    "checkpoint_basis": "Main2966e7442; immutable cc24 repository audit with separately recorded successor annex",
+    "current_status": "M12 selected1546:1133PASS410FAIL1TIMEOUT2NOT_ACCEPTED_RUN_COUNT after7 unchanged permission-repair PASS; all1491 predecessors retained4gains0priorPASS regressions0drops; original2286FIRSTPASS71.841791191/180. No whole-codebase acceptance.",
     "canonical_status": "current-state.md",
-    "live_independent_audit": "audit-next.md",
+    "live_independent_audit": "repository-consumer-audit.md",
     "portable_work": "handoff/README.md",
-    "scope": "Historical330 rows retain original source/capture bindings, not whole-codebase census or remaining count. Current disjoint known-callsite migration ledger in preparation; unexamined consumers remain unfinished/unbounded.",
-    "gates": "Full proofchecker frozen6294 exit1/2128structuralerrors/0unlinkedtests; rust-check/prep-pr/generated/owner/fullgates unfinished. No PR or issue closure."
+    "scope": "Historical330 rows unchanged. Repository-wide remaining-consumer total UNKNOWN. Disjoint110709-path baseline roster; production reads, omitted inline operational tests, fixed data/provenance, consumer work, shared-owner extensions and validation-only work explicitly separated. Latest20:17 portable snapshot3246 provisional purpose rows is NOT migration count.",
+    "gates": "Fullproof frozen6294 still2128 structural errors; rust-check/prep-pr/generated/owner/fullgates unfinished. No PR or issue closure."
   }
 }

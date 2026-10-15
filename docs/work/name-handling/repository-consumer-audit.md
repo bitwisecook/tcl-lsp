@@ -16,12 +16,22 @@ The current audit is bound to commit `cc24c394004fc187378ba0eefb6c2c5b2615fb00`.
 
 Each first-party production surface is being reviewed for actual naming purposes and owner transport. An inventory or text search does not close review. Original provider trees, test data and archives receive explicit provenance-based dispositions; their harnesses and adapters still need source review. Generated surfaces trace their generators and inputs.
 
+Production source review does not close omitted inline test operations. A
+`#[test]` attribute establishes test membership, not that its body contains only
+fixed assertions or data. Inline provider construction, subprocess setup,
+environment access, source/artifact guards and failure handling require actual
+review; their unresolved extents are being recorded separately. Coverage rows
+that previously overstated whole-file completion are being narrowed while
+preserving the production extents that were actually read.
+
 Each remaining site will record its file, symbol, source hash, purpose and context, existing shared API, missing integration, evidence, related controls and validation status. Implementation work, migrated code awaiting validation and verified integrations are separate. Unexamined areas remain explicit and prevent a complete total.
 
 The working file roster, partition check, reviewer coverage and consumer rows are retained under `/workspace/name-session/full-consumer-audit/`; a portable reconciled ledger will replace this in-progress snapshot. The named baseline remains fixed while subsequent source changes receive separate invalidation/review records. Required repository gates remain unfinished.
 
-The latest portable checkpoint contains **2,639 provisional purpose rows**, including shared owners, display-only sites and exclusions. The frozen checkpoint inputs were independently reconciled: all recorded source SHA256 values match actual baseline Git blobs, coverage partitions reconcile, and no same-key duplicates were found. This is **not** a remaining-consumer count: unexamined production, multi-symbol groups and independent purpose reconciliation remain unfinished. Exact per-area coverage and provenance classifications are retained in the checkpoint indexed by [handoff/packets.json](handoff/packets.json).
+The latest portable checkpoint contains **3,246 provisional purpose rows**, including shared owners, display-only sites and exclusions. The frozen checkpoint inputs were independently reconciled: all recorded source SHA256 values match actual baseline Git blobs, coverage partitions reconcile, and no same-key duplicates were found. This is **not** a remaining-consumer count: unexamined production, multi-symbol groups and independent purpose reconciliation remain unfinished. Exact per-area coverage and provenance classifications are retained in the checkpoint indexed by [handoff/packets.json](handoff/packets.json).
 
 Source review has confirmed remaining integrations in registry/generation transport, compiler variable and recursive source geometry, database positive occupancy, LSP edit-purpose transport, runtime original-object selection, VM lifecycle owners, code generation and host/tooling boundaries. These are specific recorded purposes, not a fixed exhaustive family count. A valid final total requires completing the unexamined roster and reconciling consumer migrations separately from shared-owner extensions and validation-only work.
 
 Independent guidance review has withdrawn generic missing-dialect and illustrative-recipe allegations where the shared prompts and intentional standalone/session defaults already establish the contract. Concrete backend omissions remain at their actual code owners. The latest checkpoint retains these peer corrections, post-baseline source annex, operational rosters and exact fixture/harness distinctions; historical provisional snapshots do not override these dispositions.
+
+The 20:17 UTC checkpoint also preserves independent semantic-alias reconciliation: alternate IDs are merged with original notes retained. Hash/schema/unique-key checks alone do not establish unique migration work. Actual CLI package-target consumers have caller-confirmed host-path admission debt; intentional best-effort source discovery was withdrawn as a migration allegation. The complete M12 execution capture is separate from source-audit dispositions.

@@ -1,6 +1,21 @@
 # Outstanding naming-consumer audit
 
-Current refresh: use [current-state.md](current-state.md) and [audit-next.md](audit-next.md).
+Current refresh (2026-10-15, 20:31 UTC): use [current-state.md](current-state.md)
+and [repository-consumer-audit.md](repository-consumer-audit.md). The complete
+remaining-consumer total is unknown. The disjoint, fixed-cc24 repository audit
+supersedes the bounded historical roster as the current census process. Production
+reads, omitted inline test operations, fixture classifications, shared-owner
+extensions, consumer migrations and validation-only work remain separate.
+
+Current M12 selected replay: 1,546 controls, with 1,133 PASS, 410 FAIL,
+1 TIMEOUT and 2 NOT_ACCEPTED_RUN_COUNT after seven separately retained,
+unchanged permission repairs. All 1,491 predecessor controls remain, with four
+gains and no prior-PASS regressions or drops. Original #2286 ran first and passed
+in 71.841791191 seconds within its original 180-second budget. This is bounded
+test evidence, not whole-repository migration acceptance; the full gates are
+unfinished. The following older counts and bindings describe their own captures.
+
+Historical refresh: [audit-next.md](audit-next.md).
 The330-row file bindings below are historical238 evidence, not a current-source
 migration count or full census. New source peers and exact frozen c448 selected
 replays are recorded separately; unexamined and changed-unreviewed sites remain

@@ -1,5 +1,13 @@
 # Bounded name-handling consumer inventory
 
+Current census: [repository-consumer-audit.md](repository-consumer-audit.md).
+This document retains historical bounded findings, not a complete current
+inventory or remaining-consumer total. The current audit covers host paths,
+package targets, F5 object identities and generated source wherever those names
+select, publish or edit actual targets; their distinct grammars do not exempt
+their consumers. Earlier broad non-Tcl exclusions below do not establish
+completion. Use [current-state.md](current-state.md) for current M12 validation.
+
 Fresh ordinary272 on actual source238 seals956 controls: 643 PASS, 312 FAIL, 1 TIMEOUT. Its single-job fresh build passes in348.483727 seconds with14 test ELFs, errors[] and unchanged authored source, executing zero tests during the build. All12 selected scopes retain unchanged captured source/binaries, exact single runs and no missing/empty filters. Every265929 selector remains with1 gain and0 prior-PASS regressions/drops; eight additions within retained scopes are7 PASS/1 FAIL; the independent IRules19 scope is16 PASS/3 FAIL. Original#2286 runs first and passes72.400995379s under the unchanged180-second budget. Runtime174/VM133 and formatter88/integration55/15 annexes remain unexecuted plans; normal owner CLI250 still197 diagnostics.
 
 The finite330 source/caller audit is bound to actual238:309 unchanged217 file bindings and21 explicit additive current238 reviews (Core5 and DB16), with0 unbound rows. The original rows/proofs remain unchanged. Additive receipts are [Core5](handoff/reviews/five-row-bind.json) and [DB16](handoff/reviews/db16-current238.json); the compact [binding summary](handoff/reviews/finite330-current238.json) records all330 current file hashes. This is a bounded review count, not330 migrated or whole-codebase closure; later source files outside the roster and every remaining live naming consumer still require their own work.

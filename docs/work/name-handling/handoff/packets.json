@@ -278,5 +278,10 @@
     "file": "ordinary-m12-complete-1546-and-permission-repairs.tar.gz",
     "sha256": "b4563a00663bdfb7defcac59306906866d58f121bcbeb428d91438e30b080140",
     "status": "Complete frozen c9e M12 ordinary23ELF build and1546 exact selected attempts: strict1126PASS410FAIL7ABORT1TIMEOUT2NOT_ACCEPTED_RUN_COUNT. Seven independent unchanged-selector/assertion/budget/source/artifact/runner permission repairs allPASS; combined1133PASS410FAIL1TIMEOUT2NOT_ACCEPTED_RUN_COUNT. All1491 predecessor controls retained,4gains0priorPASSregressions0drops;55new53PASS2FAIL. Original2286FIRSTPASS71.841791191s/original180. Initial EPERM aborts and Host nested-harness guard rejections retained. Source/artifact/selector guards verified. Native Runtime174/VM133 current replay, formatter/integration and required gates remain separate/unexecuted."
+  },
+  {
+    "file": "repository-audit-progress-20261015T201719Z.tar.gz",
+    "sha256": "d30327074567d9e1f1382bea4e8f8b2a4a7fda26146cfdea66688469912d27fd",
+    "status": "INCOMPLETE cc24 source audit: 3246 provisional purpose rows; exact frozen primary partitions/source SHA/schema reconcile, no same-key duplicate candidates. Semantic aliases have independent reconciliation receipts but remaining work-kind/purpose/unit reconciliation and unexamined production/harness/guidance remain. Shared owners/display/metadata/exclusions included; NOT remaining-consumer total. No test/provider/generator/gate acceptance."
   }
 ]
