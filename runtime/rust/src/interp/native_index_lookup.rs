@@ -81,9 +81,19 @@ impl Interp {
     pub(crate) fn native_jim_compare_immediate(
         &mut self,
         original: *mut TclObj,
-        table: &NativeStaticIndexTable,
+        table: &impl tcl_registry::native_index_lookup::NativeImmediateLiteralTable,
         index: usize,
     ) -> Result<bool, ValueError> {
+        self.native_jim_compare_immediate_checked(original, table, index, &|| Ok(()))
+    }
+
+    pub(crate) fn native_jim_compare_immediate_checked<E: From<ValueError>>(
+        &mut self,
+        original: *mut TclObj,
+        table: &impl tcl_registry::native_index_lookup::NativeImmediateLiteralTable,
+        index: usize,
+        check: &impl Fn() -> Result<(), E>,
+    ) -> Result<bool, E> {
         let dialect = self.native_invocation_dialect();
         let protocol =
             dialect
@@ -91,17 +101,22 @@ impl Interp {
                 .ok_or(ValueError::CommandProtocolUnavailable(
                     "Jim immediate comparison",
                 ))?;
+        check()?;
+        obj::check_native_liveness(original)?;
         if obj::native_index::cache(original).is_some() {
-            return Err(ValueError::CommandProtocolUnavailable(
-                "foreign native Index origin",
-            ));
+            return Err(
+                ValueError::CommandProtocolUnavailable("foreign native Index origin").into(),
+            );
         }
         if protocol.compared_hit(obj::native_jim_enum::cache(original).as_ref(), table, index) {
+            check()?;
             return Ok(true);
         }
-        let bytes = self.native_string_bytes(&original)?;
+        let bytes = self.native_object_string_bytes_using(original, check, &E::from)?;
+        check()?;
         if let Some(cache) = protocol.compare(&bytes, table, index) {
-            obj::native_jim_enum::install(original, cache, dialect)?;
+            obj::native_jim_enum::install_checked(original, cache, dialect, &mut || check())?;
+            check()?;
             Ok(true)
         } else {
             Ok(false)

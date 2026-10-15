@@ -5,7 +5,7 @@ abbreviation, cache installation, public arity and helper lookup. These are
 original C API observations, using `Jim_RegisterCoreCommands`, the original
 `Jim_InitStaticExtensions` and `Jim_EvalNamespace`. No Tcltest harness is used.
 
-Both captures identify upstream and local Jim revision
+All three captures identify upstream and local Jim revision
 `5bac7c99ad65864c87da513e22e2f01703fa4e03` at execution time, reporting
 `0.84-9-g5bac7c9`. The compiler is Debian cc 14.2.0-19. Each manifest retains
 247 unchanged provider source, configuration, library and executable hashes,
@@ -15,7 +15,7 @@ later latest-upstream revision, another build or another provider.
 
 `capture01` contains 1,992 rows for 71 cases in cold/reuse phases. `capture02`
 adds a reached head-getter NUL control: 2,023 rows for 72 cases in 144 phases.
-Every predecessor row is retained byte-exactly, recorded in `retention.json`.
+`capture03` adds help, command-list and renamed-command controls: 2,305 rows for 82 cases in 164 phases. Every predecessor row is retained byte-exactly, recorded in `retention.json`.
 The first 60 cases exercise all 15 original table members with zero through
 three original integer operands. Their results distinguish parser arity failures
 from subsequently reached helper/body errors; a helper error does not establish
@@ -39,12 +39,14 @@ Measured results include:
   head now contains the NUL suffix. The separate ordinary NUL-head control
   likewise never reaches the parser. Those failures are not arity observations.
 
+`capture03` distinguishes the actual special modes: `-commands` ignores extra operands and returns a String result; `-help` with no member or an unknown member returns the top-level usage with a header having no primary. A selected help member ignores extra operands and returns the canonical public synopsis as a String. Unknown and ambiguous diagnostics use the actual renamed invoked head. These controls retain original `lsort` dispatch, which the original parser uses to construct its command list.
+
 The probe samples headers before result getters. It does not identify private
 native table addresses, prove every cache branch, or observe destructor/final-free
 chronology. The original interpreter and library are the provider; Runtime and
 VM acceptance require separate exact controls.
 
-`transport.json` records byte-exact copies of both original captures. Original
+`transport.json` records byte-exact copies of all three original captures. Original
 receipt and invocation paths remain unchanged; each `probe.elf` is the captured
 executable originally named `probe`. Each capture retains its exact C source and
 capture driver. The top-level driver can create a fresh output directory with:
@@ -55,4 +57,4 @@ python3 capture.py --sdk-dir /absolute/original/jimtcl --out /fresh/capture
 
 The driver checks upstream/local identity and preserves setup failures separately
 from observed completions. A new run has its own receipts and does not replace
-either retained capture.
+any retained capture.

@@ -174,6 +174,158 @@ mod tests {
     }
 
     #[test]
+    fn logical_cursor_frames_follow_actual_empty_bodies_and_refuse_unselected_braces() {
+        let source = "proc outer {outerLocal} {\n if 1 { #IF\n }\n namespace eval A { #NS\n }\n unregistered { #UNKNOWN\n }\n proc inner {innerLocal} { #INNER\n }\n set value [ #SUB\n list $outerLocal]\n}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let image = SourceImage::document(source);
+        let config = analysis.body_lexer_config.unwrap();
+        let formal = analysis
+            .original_variable_symbol_in_source(
+                &image,
+                config,
+                u32::try_from(source.find("outerLocal").unwrap()).unwrap(),
+            )
+            .unwrap();
+        let crate::signature_scan::variable_symbol::SignatureSourceVariableSlot::Local {
+            frame: outer,
+            ..
+        } = formal.symbol().slot()
+        else {
+            panic!("source procedure frame");
+        };
+        for marker in ["#IF", "#SUB"] {
+            assert_eq!(
+                analysis
+                    .original_variable_frame_in_source(
+                        &image,
+                        config,
+                        u32::try_from(source.find(marker).unwrap()).unwrap(),
+                    )
+                    .as_ref(),
+                Some(outer)
+            );
+        }
+        for marker in ["#NS", "#UNKNOWN"] {
+            assert!(
+                analysis
+                    .original_variable_frame_in_source(
+                        &image,
+                        config,
+                        u32::try_from(source.find(marker).unwrap()).unwrap(),
+                    )
+                    .is_none()
+            );
+        }
+        let inner = analysis
+            .original_variable_frame_in_source(
+                &image,
+                config,
+                u32::try_from(source.find("#INNER").unwrap()).unwrap(),
+            )
+            .expect("genuine empty nested procedure body");
+        assert_ne!(&inner, outer);
+        let inner_formal = analysis
+            .original_variable_symbol_in_source(
+                &image,
+                config,
+                u32::try_from(source.find("innerLocal").unwrap()).unwrap(),
+            )
+            .unwrap();
+        let crate::signature_scan::variable_symbol::SignatureSourceVariableSlot::Local {
+            frame,
+            ..
+        } = inner_formal.symbol().slot()
+        else {
+            panic!("nested source procedure frame");
+        };
+        assert_eq!(&inner, frame);
+        let mut changed = config;
+        changed.strict_quoting = !changed.strict_quoting;
+        assert!(
+            analysis
+                .original_variable_frame_in_source(
+                    &image,
+                    changed,
+                    u32::try_from(source.find("#IF").unwrap()).unwrap(),
+                )
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn logical_formal_fields_keep_original_list_topology_and_the_body_frame() {
+        let source = "proc p {first {second {two words}} args} {list $first $second $args}; proc q {first} {return $first}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let image = SourceImage::document(source);
+        let config = analysis.body_lexer_config.unwrap();
+        for name in ["first", "second", "args"] {
+            let declaration = analysis
+                .original_variable_symbol_in_source(
+                    &image,
+                    config,
+                    u32::try_from(source.find(name).unwrap()).unwrap(),
+                )
+                .expect("original formal-list name field");
+            let read = analysis
+                .original_variable_symbol_in_source(
+                    &image,
+                    config,
+                    u32::try_from(source.find(&format!("${name}")).unwrap()).unwrap(),
+                )
+                .expect("actual procedure-body reference");
+            assert_eq!(declaration.symbol(), read.symbol());
+            assert_eq!(
+                declaration.rename_span().unwrap().len(),
+                u32::try_from(name.len()).unwrap()
+            );
+            assert!(analysis.original_variable_rename_is_complete(read.symbol()));
+        }
+        let first = analysis
+            .original_variable_symbol_in_source(
+                &image,
+                config,
+                u32::try_from(source.find("$first").unwrap()).unwrap(),
+            )
+            .unwrap();
+        let last = analysis
+            .original_variable_symbol_in_source(
+                &image,
+                config,
+                u32::try_from(source.rfind("$first").unwrap()).unwrap(),
+            )
+            .unwrap();
+        assert_ne!(first.symbol(), last.symbol());
+        let mut changed = analysis.clone();
+        changed
+            .resolved_input
+            .as_mut()
+            .unwrap()
+            .config
+            .strict_quoting = !config.strict_quoting;
+        assert!(
+            changed
+                .original_variable_symbol_in_source(
+                    &image,
+                    config,
+                    u32::try_from(source.find("first").unwrap()).unwrap(),
+                )
+                .is_none()
+        );
+
+        let source = "proc p {same same} {return $same}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        assert!(
+            analysis
+                .original_variable_symbol_in_source(
+                    &SourceImage::document(source),
+                    analysis.body_lexer_config.unwrap(),
+                    u32::try_from(source.find("same").unwrap()).unwrap(),
+                )
+                .is_none()
+        );
+    }
+
+    #[test]
     fn logical_nested_source_locals_keep_the_actual_declaration_frame() {
         let source = "proc p {} {if 1 {set local VALUE; puts $local}}; proc q {} {set local OTHER; puts $local}";
         let analysis = Analyser::new().analyse(source, "tcl");

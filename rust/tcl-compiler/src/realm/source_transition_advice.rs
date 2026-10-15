@@ -113,6 +113,114 @@ impl super::CommandBindingRealm {
             .logical_variable_scope_at(input, image, span, name)
     }
 
+    pub(crate) fn original_logical_variable_formal_occurrences(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> Vec<crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence> {
+        use crate::command_binding::OriginalLogicalVariableScope;
+        use crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence;
+        let Some(cards) = self.original_logical_procedure_body_cards(input) else {
+            return Vec::new();
+        };
+        let mut result = Vec::new();
+        for card in cards {
+            let Some(fields) = card
+                .formal_topology()
+                .and_then(|topology| topology.original_name_fields())
+            else {
+                continue;
+            };
+            for field in fields {
+                let Some(scope) = OriginalLogicalVariableScope::formal(
+                    input,
+                    Arc::clone(&card),
+                    field.span,
+                    &field.input,
+                ) else {
+                    continue;
+                };
+                if let Some(occurrence) =
+                    SignatureSourceVariableOccurrence::from_logical_formal_input(
+                        field.span,
+                        field.input,
+                        field.name,
+                        field.recipe,
+                        scope,
+                    )
+                {
+                    result.push(occurrence);
+                }
+            }
+        }
+        result
+    }
+
+    pub(crate) fn original_logical_variable_frame_at_offset(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        image: &tcl_lexer::SourceImage,
+        offset: u32,
+    ) -> Option<crate::command_binding::SourceOriginalVariableFrame> {
+        if !input.has_logical_source_name_context()
+            || self.bindings.original_logical_source_name_advice_input() != Some(input)
+            || !self.matches_resolved_analysis_input(input)
+            || !self.matches_original_source_image(image, input.lexer_config())
+        {
+            return None;
+        }
+        let context = input.borrowed_context_registry();
+        let purpose = crate::command_binding::OriginalSourceCataloguePurpose::CompletePrefix;
+        let prepared = self.source_advice.get_or_prepare_for(context, purpose, || {
+            self.bindings
+                .original_source_transition_advice_tape_for(context, purpose)
+        });
+        prepared
+            .as_ref()
+            .as_ref()?
+            .logical_variable_frame_at_offset(input, image, offset)
+    }
+
+    pub(crate) fn original_logical_variable_formal_name_is_unrepresented(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        symbol: &crate::signature_scan::variable_symbol::SignatureSourceVariableSymbol,
+    ) -> bool {
+        use crate::signature_scan::variable_symbol::SignatureSourceVariableSlot;
+        let SignatureSourceVariableSlot::Local { frame, simple } = symbol.slot() else {
+            return false;
+        };
+        let Some(cards) = self.original_logical_procedure_body_cards(input) else {
+            return true;
+        };
+        let represented = self.original_logical_variable_formal_occurrences(input);
+        let mut found = false;
+        for card in cards {
+            if crate::command_binding::SourceOriginalVariableFrame::from_logical_procedure_source(
+                &card, input,
+            )
+            .as_ref()
+                != Some(frame)
+            {
+                continue;
+            }
+            found = true;
+            let Some(topology) = card.formal_topology() else {
+                return true;
+            };
+            if topology
+                .parameters()
+                .iter()
+                .any(|parameter| parameter.name.as_slice() == simple.as_bytes())
+                && !represented
+                    .iter()
+                    .any(|occurrence| occurrence.symbol() == symbol)
+            {
+                return true;
+            }
+        }
+        !found
+    }
+
     /// A genuine authored shadow/delete/alias loop bars conditional Registry
     /// source fallback. Missing or unsupported catalogue coordinates do not.
     pub(crate) fn original_source_registry_barrier(

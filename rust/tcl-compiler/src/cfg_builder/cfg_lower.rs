@@ -115,6 +115,69 @@ fn foreach_binding_statement(statement: &Statement) -> Statement {
     }
 }
 
+/// Exact typed list-iteration header, independently of its reporting head.
+/// The caller must retain the current CFG edges and source-owner correspondence.
+pub(crate) fn matches_foreach_header(
+    original: &Statement,
+    statement: &Statement,
+    terminator: &Terminator,
+) -> bool {
+    if !matches!(
+        original,
+        Statement::Foreach {
+            is_dict_iteration: false,
+            is_array_iteration: false,
+            ..
+        }
+    ) {
+        return false;
+    }
+    if !matches!(
+        terminator,
+        Terminator::Branch {
+            condition,
+            span,
+            condition_base: None,
+            ..
+        } if condition == &foreach_condition() && *span == Some(original.span())
+    ) {
+        return false;
+    }
+    let expected = foreach_binding_statement(original);
+    let mut actual = statement.clone();
+    let (
+        Statement::Call {
+            command,
+            tokens: Some(tokens),
+            ..
+        },
+        Statement::Call {
+            command: expected_command,
+            tokens: Some(expected_tokens),
+            ..
+        },
+    ) = (&mut actual, &expected)
+    else {
+        return false;
+    };
+    let (Some(text), Some(word)) =
+        (tokens.argv_texts.first_mut(), tokens.word_exprs.first_mut())
+    else {
+        return false;
+    };
+    // The synthetic head is a report label; every operand and owner stays exact.
+    command.clone_from(expected_command);
+    text.clone_from(&expected_tokens.argv_texts[0]);
+    word.clone_from(&expected_tokens.word_exprs[0]);
+    actual == expected
+}
+
+fn foreach_condition() -> ExprNode {
+    ExprNode::Raw {
+        text: "<foreach_has_next>".into(),
+    }
+}
+
 fn foreach_header_tokens(
     fe_cmd: &str,
     span: Span,
@@ -736,9 +799,7 @@ impl CfgBuilder<'_> {
             self.set_terminator(
                 &latch_block,
                 Terminator::Branch {
-                    condition: ExprNode::Raw {
-                        text: "<foreach_has_next>".into(),
-                    },
+                    condition: foreach_condition(),
                     true_target: body_id,
                     false_target: end_id,
                     span: Some(*span),
@@ -754,9 +815,7 @@ impl CfgBuilder<'_> {
         self.set_terminator(
             &header,
             Terminator::Branch {
-                condition: ExprNode::Raw {
-                    text: "<foreach_has_next>".into(),
-                },
+                condition: foreach_condition(),
                 true_target: body_id,
                 false_target: end_id,
                 span: Some(*span),

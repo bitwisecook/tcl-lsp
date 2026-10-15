@@ -18,6 +18,16 @@
 
 //! Authentic pinned Jim original-object lookup policy.
 
+mod namespace_subcommands;
+pub use namespace_subcommands::{
+    NativeJimNamespaceSubcommand, NativeJimNamespaceSubcommandKind,
+    NativeJimNamespaceSubcommandTable,
+};
+
+pub(crate) fn namespace_subcommand_declarations() -> &'static [NativeJimNamespaceSubcommand] {
+    namespace_subcommands::NAMESPACE_SUBCOMMANDS
+}
+
 /// Selected pinned namespace procedure family; no callable or entry authority.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NativeJimNamespaceHelperKind {
@@ -53,10 +63,6 @@ impl NativeJimNamespaceHelperKind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NativeJimNamespaceHelper {
     kind: NativeJimNamespaceHelperKind,
-    public_subcommand: bool,
-    minimum_arguments: usize,
-    maximum_arguments: usize,
-    usage: &'static str,
     name: &'static str,
     parameters: &'static str,
     body: &'static str,
@@ -69,13 +75,20 @@ impl NativeJimNamespaceHelper {
     }
     /// `Jim_ParseSubCmd` validates the public operands before helper-head lookup.
     #[must_use]
-    pub const fn accepts_public_arguments(self, count: usize) -> bool {
-        self.public_subcommand && count >= self.minimum_arguments && count <= self.maximum_arguments
+    pub fn accepts_public_arguments(self, count: usize) -> bool {
+        self.public_entry()
+            .is_some_and(|entry| entry.accepts_arguments(count))
     }
     /// Exact public-subcommand argument synopsis.
     #[must_use]
-    pub const fn usage(self) -> &'static str {
-        self.usage
+    pub fn usage(self) -> &'static str {
+        self.public_entry()
+            .map_or("cmd ?pattern?", |entry| entry.usage())
+    }
+    fn public_entry(self) -> Option<&'static NativeJimNamespaceSubcommand> {
+        namespace_subcommands::NAMESPACE_SUBCOMMANDS
+            .iter()
+            .find(|entry| entry.helper() == Some(self.kind))
     }
     /// Original compound registration spelling; public lookup keeps the actual selector.
     #[must_use]
@@ -106,10 +119,6 @@ impl crate::InvocationDialect {
         Some(match kind {
             NativeJimNamespaceHelperKind::Which => NativeJimNamespaceHelper {
                 kind,
-                public_subcommand: true,
-                minimum_arguments: 1,
-                maximum_arguments: 2,
-                usage: "?-command|-variable? name",
                 name: "namespace which",
                 parameters: "{type -command} name",
                 body: r#"
@@ -130,10 +139,6 @@ impl crate::InvocationDialect {
             },
             NativeJimNamespaceHelperKind::Code => NativeJimNamespaceHelper {
                 kind,
-                public_subcommand: true,
-                minimum_arguments: 1,
-                maximum_arguments: 1,
-                usage: "arg",
                 name: "namespace code",
                 parameters: "arg",
                 body: r#"
@@ -146,10 +151,6 @@ impl crate::InvocationDialect {
             },
             NativeJimNamespaceHelperKind::Origin => NativeJimNamespaceHelper {
                 kind,
-                public_subcommand: true,
-                minimum_arguments: 1,
-                maximum_arguments: 1,
-                usage: "name",
                 name: "namespace origin",
                 parameters: "name",
                 body: r#"
@@ -169,20 +170,12 @@ impl crate::InvocationDialect {
             },
             NativeJimNamespaceHelperKind::Inscope => NativeJimNamespaceHelper {
                 kind,
-                public_subcommand: true,
-                minimum_arguments: 2,
-                maximum_arguments: usize::MAX,
-                usage: "name arg ?arg ...?",
                 name: "namespace inscope",
                 parameters: "name arg args",
                 body: "\n\ttailcall namespace eval $name $arg $args\n",
             },
             NativeJimNamespaceHelperKind::Delete => NativeJimNamespaceHelper {
                 kind,
-                public_subcommand: true,
-                minimum_arguments: 0,
-                maximum_arguments: usize::MAX,
-                usage: "?name ...?",
                 name: "namespace delete",
                 parameters: "args",
                 body: r#"
@@ -197,10 +190,6 @@ impl crate::InvocationDialect {
             },
             NativeJimNamespaceHelperKind::Upvar => NativeJimNamespaceHelper {
                 kind,
-                public_subcommand: true,
-                minimum_arguments: 1,
-                maximum_arguments: usize::MAX,
-                usage: "ns ?arg ...?",
                 name: "namespace upvar",
                 parameters: "ns args",
                 body: r#"
@@ -214,10 +203,6 @@ impl crate::InvocationDialect {
             },
             NativeJimNamespaceHelperKind::Info => NativeJimNamespaceHelper {
                 kind,
-                public_subcommand: false,
-                minimum_arguments: 0,
-                maximum_arguments: 0,
-                usage: "cmd ?pattern?",
                 name: "namespace info",
                 parameters: "cmd {pattern *}",
                 body: r#"

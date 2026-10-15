@@ -48,5 +48,10 @@
     "file": "validation-current272.tar.gz",
     "sha256": "476d95737174fa228b6753000a7bc6e6961b932c53013cbde91796ac93ebc673",
     "status": "Actual selected272643PASS312FAIL1TIMEOUT; all956 exact controls/source/binary unchanged; full ordinary authored input/build receipts and raw test logs, failed271 preserved; no Native/runtime/VM/F5 acceptance"
+  },
+  {
+    "file": "validation-551f-batch-a.tar.gz",
+    "sha256": "855d601440b7195eecac04b385caef860ce52d4dbe9c34bcfd4c563f74443039",
+    "status": "Actual frozen551f selected967653PASS313FAIL1TIMEOUT; all956 predecessor controls retained,3 gains,0 prior-PASS regressions/drops; original2286 PASS68.977646515s/180s. Source/artifact guards unchanged; Runtime build101/E0277 zero tests. No acceptance of active successor source."
   }
 ]

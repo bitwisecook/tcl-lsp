@@ -158,7 +158,10 @@ fn setup_foreach(
 ) -> ForeachData {
     // Detect foreach loops; bodies are marked so we can append
     // foreach_step/foreach_end after their statements.
-    let info: HashMap<String, ForeachInfo> = detect_foreach(cfg);
+    let info: HashMap<String, ForeachInfo> = detect_foreach(cfg).unwrap_or_else(|| {
+        ctx.refuse_native_dependency();
+        HashMap::new()
+    });
     let bodies: HashSet<String> = info.values().map(|i| i.body.clone()).collect();
     // Collecting (`lmap`) loops: gather their body + end blocks so the emitter can
     // strip the body's trailing `POP` (→ `LMAP_COLLECT`) and suppress the end

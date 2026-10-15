@@ -85,6 +85,9 @@ fn lower_disassembly_document(
 /// `tcl dis` — compile source and emit human-readable bytecode disassembly.
 pub fn run_dis(input: &InputArgs, optimise_on: bool) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
+    for document in &documents {
+        document.require_faithful_source()?;
+    }
     let dialect = combined_effective_dialect(&documents, input.dialect_profile()?);
     let registry = registry_for_dialect(dialect.name);
     let source = maybe_optimise(
@@ -117,6 +120,9 @@ pub fn run_compwasm(
     optimisations: tcl_explorer::SemanticOptimisationConfig,
 ) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
+    for document in &documents {
+        document.require_faithful_source()?;
+    }
     let dialect = combined_effective_dialect(&documents, input.dialect_profile()?);
     let registry = registry_for_dialect(dialect.name);
     let source = combine_sources(&documents);

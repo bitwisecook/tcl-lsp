@@ -214,6 +214,7 @@ mod script;
 pub(crate) use script::{NativeJimScript, NativeJimScriptLease};
 mod native_jim_enum;
 mod native_jim_pool;
+mod native_jim_subcommand;
 pub(crate) use native_jim_pool::{JimAllocationScope, JimCommandNameObservation};
 mod native_jim_lookup;
 mod native_method_name;
@@ -643,6 +644,8 @@ enum IntRep {
     JimVariable(JimVariableCache),
     /// Actual Jim Enum or immediate-string cache, with no updater.
     JimOption(tcl_core_types::NativeJimOptionCache),
+    /// Original ParseSubCmd table cache, distinct from Jim Enum and C Index.
+    JimSubcommand(tcl_core_types::NativeJimSubcommandCache),
     /// C parsed variable name owns original parts, never a selected receiver.
     NativeParsedVariableName(native_variable_name::ParsedVariableName),
     /// C indexed local lookup retains its actual procedure or canonical name.
@@ -1287,7 +1290,7 @@ impl Value {
         self.retain_native_lifetime_pin();
         NativeObjectLifetimeLease(Some(self.clone()))
     }
-    /// Native Subst reverse-reference: preserve its live rc0 returned header.
+    /// Preserve an allocating producer's live rc0 header in lifetime-only transport.
     /// This consumes the actual owner without running ordinary last-owner release.
     pub(crate) fn into_native_unowned_lifetime(mut self) -> Self {
         if self.1 == NativeValueHandleOwnership::Reference {
@@ -1532,6 +1535,7 @@ impl Value {
                 }
                 IntRep::JimCommand(_) | IntRep::JimVariable(_)
             | IntRep::JimOption(_)
+                | IntRep::JimSubcommand(_)
                 | IntRep::NativeParsedVariableName(_)
                 | IntRep::NativeLocalVariableName(_)
                 | IntRep::JimSource(_) | IntRep::JimScript(_)
@@ -2875,6 +2879,7 @@ impl Value {
                 | IntRep::JimCommand(_)
                 | IntRep::JimVariable(_)
                 | IntRep::JimOption(_)
+                | IntRep::JimSubcommand(_)
                 | IntRep::NativeParsedVariableName(_)
                 | IntRep::NativeLocalVariableName(_)
                 | IntRep::NativeNamespaceName(_)
@@ -3660,6 +3665,7 @@ impl Value {
             IntRep::JimDictionarySubstitution { .. } => "dict-substitution",
             IntRep::JimInterpolated(_) => "interpolated",
             IntRep::JimVariable(_) => "variable",
+            IntRep::JimSubcommand(_) => "subcmd-lookup",
             IntRep::JimOption(tcl_core_types::NativeJimOptionCache::Enum { .. }) => "get-enum",
             IntRep::JimOption(tcl_core_types::NativeJimOptionCache::ComparedString { .. }) => {
                 "compared-string"
@@ -3962,6 +3968,9 @@ impl Value {
             IntRep::JimOption(tcl_core_types::NativeJimOptionCache::ComparedString { .. }) => {
                 Cache::JimComparedString
             }
+            IntRep::JimSubcommand(cache) => Cache::JimSubcommand {
+                index: cache.index(),
+            },
             IntRep::NativeParsedVariableName(cache) => Cache::ParsedVariableName {
                 version: cache.protocol.version(),
                 array: cache.array.is_some(),
@@ -5084,9 +5093,10 @@ impl Value {
             }
             IntRep::NativeArraySearch { .. } => Class::ArraySearch,
             IntRep::NativeNamespaceName(_) => Class::NamespaceName,
-            IntRep::JimCommand(_) | IntRep::JimVariable(_) | IntRep::JimOption(_) => {
-                Class::JimLookup
-            }
+            IntRep::JimCommand(_)
+            | IntRep::JimVariable(_)
+            | IntRep::JimOption(_)
+            | IntRep::JimSubcommand(_) => Class::JimLookup,
             IntRep::NativeParsedVariableName(_) => Class::ParsedVariableName,
             IntRep::NativeLocalVariableName(_) => Class::LocalVariableName,
             IntRep::JimSource(_) => Class::JimSource,
@@ -7115,6 +7125,7 @@ impl Value {
                 | IntRep::JimCommand(_)
                 | IntRep::JimVariable(_)
                 | IntRep::JimOption(_)
+                | IntRep::JimSubcommand(_)
                 | IntRep::NativeParsedVariableName(_)
                 | IntRep::NativeLocalVariableName(_) => {
                     if check.is_some() {
@@ -7354,6 +7365,7 @@ impl Value {
             | IntRep::JimCommand(_)
             | IntRep::JimVariable(_)
             | IntRep::JimOption(_)
+            | IntRep::JimSubcommand(_)
             | IntRep::NativeParsedVariableName(_)
             | IntRep::NativeLocalVariableName(_)
             | IntRep::NativeNamespaceName(_)
@@ -7654,6 +7666,7 @@ impl Value {
             | IntRep::JimCommand(_)
             | IntRep::JimVariable(_)
             | IntRep::JimOption(_)
+            | IntRep::JimSubcommand(_)
             | IntRep::NativeParsedVariableName(_)
             | IntRep::NativeLocalVariableName(_)
             | IntRep::NativeNamespaceName(_)
@@ -7717,6 +7730,7 @@ impl Value {
             | IntRep::JimCommand(_)
             | IntRep::JimVariable(_)
             | IntRep::JimOption(_)
+            | IntRep::JimSubcommand(_)
             | IntRep::NativeParsedVariableName(_)
             | IntRep::NativeLocalVariableName(_)
             | IntRep::NativeNamespaceName(_)

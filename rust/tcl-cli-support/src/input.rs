@@ -113,6 +113,18 @@ impl InputDocument {
         tcl_lexer::normalise_lone_cr(&self.source)
     }
 
+    /// Refuse transformation or code generation when decoding lost source information.
+    /// Diagnostic consumers can still report the original decoding failure.
+    pub fn require_faithful_source(&self) -> Result<(), CliError> {
+        if !self.decode.is_faithful() {
+            return Err(CliError::input(format!(
+                "{}: cannot transform or compile source with decoding errors",
+                self.label
+            )));
+        }
+        Ok(())
+    }
+
     /// The analysis dialect for this document.
     ///
     /// An explicitly-passed `--dialect` wins; otherwise the registry's

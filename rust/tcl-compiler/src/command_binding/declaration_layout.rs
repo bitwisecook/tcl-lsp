@@ -419,12 +419,21 @@ pub struct SourceOriginalVariableFrame {
 }
 
 impl SourceOriginalVariableFrame {
-    pub(super) fn from_logical_procedure_source(
+    pub(crate) fn from_logical_procedure_source(
         card: &super::OriginalLogicalProcedureBody,
         input: &crate::analyser::ResolvedAnalysisInput,
     ) -> Option<Self> {
         let image = card.site().source.source_image();
-        if !card.matches_source(image, input)
+        if !super::source_analysis_entry::source_input_dialect(input)
+            .authored_name_policy()
+            .is_some_and(|policy| {
+                policy.authority() == tcl_syntax::naming::NamePolicyAuthority::AuthoredSimulation
+                    && matches!(
+                        policy.recipe(),
+                        tcl_syntax::naming::NativeNameProtocol::C(_)
+                    )
+            })
+            || !card.matches_source(image, input)
             || card.scope().frame_recipe() != super::OriginalDeclaredSourceBodyFrame::Procedure
         {
             return None;

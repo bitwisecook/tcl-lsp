@@ -31,6 +31,9 @@ pub struct OriginalLogicalProcedureBody {
     summary_coordinate: tcl_core_types::ByteCommandSlot,
     parameters: Vec<tcl_syntax::formal_params::FormalParameter>,
     parameters_text: String,
+    formal_original: NativeWord,
+    formal_topology: Option<Arc<crate::command_binding::formal_topology::OriginalFormalTopology>>,
+    earlier_unknown_mutations: bool,
     module_entry: Option<crate::command_binding::SourceAnalysisEntry>,
 }
 impl OriginalLogicalProcedureBody {
@@ -56,6 +59,17 @@ impl OriginalLogicalProcedureBody {
     }
     pub(crate) fn parameters_text(&self) -> &str {
         &self.parameters_text
+    }
+    pub(crate) fn formal_original(&self) -> &NativeWord {
+        &self.formal_original
+    }
+    pub(crate) fn formal_topology(
+        &self,
+    ) -> Option<&crate::command_binding::formal_topology::OriginalFormalTopology> {
+        self.formal_topology.as_deref()
+    }
+    pub(crate) fn has_earlier_unknown_mutations(&self) -> bool {
+        self.earlier_unknown_mutations
     }
     pub(crate) fn name(&self) -> Option<&str> {
         std::str::from_utf8(self.scope.scope_name_input().bytes()).ok()
@@ -120,6 +134,102 @@ impl OriginalLogicalProcedureBody {
 
 const MAX_DEPTH: usize = 64;
 const MAX_COMMANDS: usize = 2048;
+
+impl OriginalSourceTransitionAdviceTape {
+    pub(crate) fn logical_variable_frame_at_offset(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        image: &tcl_lexer::SourceImage,
+        offset: u32,
+    ) -> Option<crate::command_binding::SourceOriginalVariableFrame> {
+        let length = self
+            .logical_variable_scopes
+            .keys()
+            .filter(|(start, end)| *start <= offset && offset <= *end)
+            .map(|(start, end)| end - start)
+            .min()?;
+        let mut selected = self
+            .logical_variable_scopes
+            .iter()
+            .filter(|((start, end), _)| {
+                *start <= offset && offset <= *end && end - start == length
+            });
+        let ((start, end), scope) = selected.next()?;
+        let scope = scope.as_ref()?;
+        if selected.any(|(_, other)| other.as_ref() != Some(scope))
+            || !scope.matches_input(input)
+            || scope.body().content_span() != Span::new(*start, *end)
+            || !scope.body().matches_source(image, input.lexer_config())
+            || scope.frame_recipe() != OriginalDeclaredSourceBodyFrame::Procedure
+            || !direct_script_cursor(
+                image,
+                input.lexer_config(),
+                scope.body().content_span(),
+                offset,
+                0,
+            )
+        {
+            return None;
+        }
+        let mut cards = self
+            .logical_procedure_bodies
+            .values()
+            .flatten()
+            .filter(|card| {
+                std::ptr::eq(card.scope().scope_body(), scope.scope_body())
+                    && card.scope().scope_name_input() == scope.scope_name_input()
+                    && card.scope().namespace_recipe() == scope.namespace_recipe()
+                    && card.scope().frame_recipe() == scope.frame_recipe()
+                    && card.matches_source(image, input)
+            });
+        let card = cards.next()?;
+        cards.all(|other| other == card).then_some(())?;
+        crate::command_binding::SourceOriginalVariableFrame::from_logical_procedure_source(
+            card, input,
+        )
+    }
+}
+
+/// A braced operand without its own selected body receipt cannot inherit the
+/// enclosing procedure's locals. Command substitutions retain the same frame.
+fn direct_script_cursor(
+    image: &tcl_lexer::SourceImage,
+    config: tcl_lexer::LexerConfig,
+    span: Span,
+    offset: u32,
+    depth: usize,
+) -> bool {
+    if depth > MAX_DEPTH {
+        return false;
+    }
+    let Ok(plan) = tcl_lexer::native_script_words_in(image.clone(), span, config) else {
+        return false;
+    };
+    if plan.fatal_tail.is_some() {
+        return false;
+    }
+    for command in plan.commands {
+        for word in command.words {
+            if word.group().kind == tcl_lexer::WordKind::Braced
+                && word
+                    .content_span()
+                    .is_ok_and(|content| content.start() <= offset && offset <= content.end())
+            {
+                return false;
+            }
+            let arena = word.executable_parts();
+            for part in arena.all_parts() {
+                if let tcl_lexer::ExecutablePart::Command { body } = part.part
+                    && body.start() <= offset
+                    && offset <= body.end()
+                {
+                    return direct_script_cursor(image, config, body, offset, depth + 1);
+                }
+            }
+        }
+    }
+    true
+}
 
 struct LogicalBodyWalk<'context, 'source> {
     context: &'context AdviceInvocationContext<'source>,
@@ -354,6 +464,20 @@ impl LogicalBodyWalk<'_, '_> {
             parameters_text,
             self.context.config.list_parse,
         )?;
+        let dialect = crate::command_binding::source_analysis_entry::source_input_dialect(input);
+        let formal_topology = dialect.authored_name_policy().and_then(|policy| {
+            crate::signature_scan::scope::SignatureSourceNameKey::from_original_logical_source_word(
+                &formal.original,
+                tcl_syntax::word_rules::WordValueRules::from_config(&self.context.config),
+                policy,
+            )
+            .and_then(|key| {
+                crate::command_binding::formal_topology::OriginalFormalTopology::from_original_key(
+                    key, dialect,
+                )
+            })
+            .map(Arc::new)
+        });
         let card = Arc::new(OriginalLogicalProcedureBody {
             scope: Arc::clone(&scope),
             site: crate::command_binding::CommandAllocationSite {
@@ -363,6 +487,9 @@ impl LogicalBodyWalk<'_, '_> {
             summary_coordinate: key.clone(),
             parameters,
             parameters_text: parameters_text.to_owned(),
+            formal_original: formal.original.clone(),
+            formal_topology,
+            earlier_unknown_mutations: !graph.uncertain_operations.is_empty(),
             module_entry: None,
         });
         super::source_class::merge_receipt(
@@ -478,6 +605,12 @@ impl LogicalBodyWalk<'_, '_> {
         if depth > MAX_DEPTH {
             return None;
         }
+        let body = scope.body().content_span();
+        super::source_class::merge_receipt(
+            &mut tape.logical_variable_scopes,
+            (body.start(), body.end()),
+            Some(Arc::clone(scope)),
+        );
         let plan = tcl_lexer::native_script_words_in(
             self.context.origin.source_image().clone(),
             span,

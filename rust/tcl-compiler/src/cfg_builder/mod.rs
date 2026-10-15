@@ -157,6 +157,7 @@ pub(crate) fn switch_is_flattened(
 }
 
 mod cfg_lower;
+pub(crate) use cfg_lower::matches_foreach_header;
 mod execution_regions;
 pub mod global_write_info;
 mod summary_candidates;

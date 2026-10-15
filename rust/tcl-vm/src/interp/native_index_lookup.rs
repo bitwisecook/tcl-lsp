@@ -3,7 +3,7 @@
 
 use super::Vm;
 use crate::Value;
-use tcl_registry::native_index_lookup::NativeStaticIndexTable;
+use tcl_registry::native_index_lookup::{NativeImmediateLiteralTable, NativeStaticIndexTable};
 use tcl_syntax::value::ValueError;
 
 struct NativeStaticLookup<'a, 'vm> {
@@ -211,7 +211,7 @@ impl Vm {
     pub(crate) fn native_jim_compare_immediate_checked(
         &mut self,
         original: &Value,
-        table: &NativeStaticIndexTable,
+        table: &impl NativeImmediateLiteralTable,
         index: usize,
     ) -> Result<bool, ValueError> {
         self.with_original_static_lookup(original, |lookup| {
@@ -362,7 +362,7 @@ impl NativeStaticLookup<'_, '_> {
     fn native_jim_compare_immediate(
         &self,
         original: &Value,
-        table: &NativeStaticIndexTable,
+        table: &impl NativeImmediateLiteralTable,
         index: usize,
     ) -> Result<bool, ValueError> {
         self.current(original)?;
@@ -592,7 +592,7 @@ impl Vm {
     pub(crate) fn native_jim_compare_immediate(
         &self,
         original: &Value,
-        table: &NativeStaticIndexTable,
+        table: &impl NativeImmediateLiteralTable,
         index: usize,
     ) -> Result<bool, ValueError> {
         NativeStaticLookup {

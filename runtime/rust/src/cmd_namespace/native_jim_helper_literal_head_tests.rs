@@ -54,8 +54,9 @@ fn check_header(kind: &str, phase: &str, original: *mut TclObj) {
         [
             u8::from(obj::has_string_rep(original)).to_string(),
             name.to_owned()
-        ],
-        row(kind, phase),
+        ]
+        .as_slice(),
+        row(kind, phase).as_slice(),
         "{kind}/{phase}"
     );
 }

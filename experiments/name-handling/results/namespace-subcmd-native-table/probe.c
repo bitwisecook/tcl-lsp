@@ -12,6 +12,7 @@ static Jim_Obj *head;
 static int reset_head;
 static const char *head_bytes;
 static int head_length;
+static const char *override_arg0;
 
 static void sample(const char *kind, Jim_Obj *object)
 {
@@ -102,7 +103,9 @@ static int run(const char *label, const char *selector, int selector_length,
         if (reuse) Jim_InvalidateStringRep(caller);
         Jim_Obj *arguments[3];
         for (int n = 0; n < 3; n++) {
-            arguments[n] = Jim_NewIntObj(actual, 84 + n);
+            arguments[n] = n == 0 && override_arg0
+                ? Jim_NewStringObj(actual, override_arg0, -1)
+                : Jim_NewIntObj(actual, 84 + n);
             Jim_IncrRefCount(arguments[n]);
         }
         Jim_Obj *argv[] = { head, member, arguments[0], arguments[1], arguments[2] };
@@ -161,5 +164,19 @@ int main(void)
     RUN("RENAMED_NUL_HEAD_ARITY", "upv", 3, 0, 2, 0);
     RUN("HEAD_GETTER_ARITY", "upv", 3, 0, 0, 1);
     RUN("HEAD_GETTER_NUL_ARITY", "upv", 3, 0, 2, 1);
+    RUN("RENAMED_MISSING", "unavailable", 11, 0, 1, 0);
+    RUN("RENAMED_EMPTY", "", 0, 0, 1, 0);
+    RUN("HEAD_GETTER_NUL_MISSING", "unavailable", 11, 0, 2, 1);
+    RUN("COMMANDS", "-commands", 9, 0, 0, 0);
+    RUN("COMMANDS_EXTRAS", "-commands", 9, 2, 0, 0);
+    RUN("HELP", "-help", 5, 0, 0, 0);
+    override_arg0 = "upv";
+    RUN("HELP_MEMBER", "-help", 5, 1, 0, 0);
+    RUN("HELP_MEMBER_EXTRAS", "-help", 5, 2, 0, 0);
+    override_arg0 = "-commands";
+    RUN("HELP_COMMANDS", "-help", 5, 1, 0, 0);
+    override_arg0 = "unavailable";
+    RUN("HELP_MISSING", "-help", 5, 1, 0, 0);
+    override_arg0 = NULL;
     return 0;
 }

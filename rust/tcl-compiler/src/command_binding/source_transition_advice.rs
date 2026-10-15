@@ -685,6 +685,8 @@ pub(crate) struct OriginalSourceTransitionAdviceTape {
     native_procedure_may_commands:
         BTreeMap<u32, Option<native_declared_body::OriginalNativeSourceMayCommand>>,
     logical_procedure_bodies: BTreeMap<u32, Option<Arc<OriginalLogicalProcedureBody>>>,
+    logical_variable_scopes:
+        BTreeMap<(u32, u32), Option<Arc<super::OriginalDeclaredLogicalBodyContext>>>,
     logical_summary_scopes: BTreeMap<u32, Option<OriginalLogicalSummaryScope>>,
     logical_navigation: BTreeMap<u32, Option<OriginalLogicalCommandCandidates>>,
     logical_absolute_navigation: BTreeMap<u32, Option<OriginalLogicalAbsoluteCommandCandidate>>,
@@ -893,6 +895,9 @@ impl OriginalSourceTransitionAdviceTape {
         }
         for (offset, card) in other.logical_procedure_bodies {
             source_class::merge_receipt(&mut self.logical_procedure_bodies, offset, card);
+        }
+        for (span, scope) in other.logical_variable_scopes {
+            source_class::merge_receipt(&mut self.logical_variable_scopes, span, scope);
         }
         for (offset, receipt) in other.body_catalogue {
             source_class::merge_receipt(&mut self.body_catalogue, offset, receipt);

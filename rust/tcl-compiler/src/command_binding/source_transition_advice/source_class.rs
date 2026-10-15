@@ -641,9 +641,9 @@ impl OriginalSourceTransitionAdviceTape {
         }
     }
 }
-pub(super) fn merge_receipt<T: PartialEq>(
-    entries: &mut BTreeMap<u32, Option<T>>,
-    offset: u32,
+pub(super) fn merge_receipt<K: Ord, T: PartialEq>(
+    entries: &mut BTreeMap<K, Option<T>>,
+    offset: K,
     receipt: Option<T>,
 ) {
     entries

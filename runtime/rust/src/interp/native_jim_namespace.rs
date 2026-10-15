@@ -265,11 +265,12 @@ impl Interp {
             check(self)?;
             let bytes = bytes?;
             if !bytes.is_empty() {
-                const ROOT_LITERAL: &[&str] = &["::"];
-                let literal =
-                    tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend(
-                        ROOT_LITERAL,
-                    );
+                let literal = self
+                    .native_invocation_dialect()
+                    .native_jim_namespace_parent_root_comparison_table()
+                    .ok_or(ValueError::CommandProtocolUnavailable(
+                        "Jim parent root comparison declaration",
+                    ))?;
                 let comparison = self.native_jim_compare_immediate(original, &literal, 0);
                 check(self)?;
                 if comparison? {
@@ -337,19 +338,39 @@ impl Interp {
             let published = self.result_obj();
             let receiver = crate::value_ops::RuntimeAppendValue::borrowed(published);
             let source = crate::value_ops::RuntimeAppendValue::borrowed(allocation.checked_ptr()?);
-            let appended = tcl_cmd_core::native_append::append_object(
-                &operations,
-                append.recipe(),
-                Some(&receiver),
-                &source,
-            );
-            check(self)?;
-            if appended?.value().as_ptr() != published {
-                return Err(ValueError::CommandProtocolUnavailable(
-                    "Jim parent published append receiver",
-                )
-                .into());
+            let result_lifetime = obj::NativeObjectLifetime::retain(published);
+            let actual = self.clone();
+            let mut first = None;
+            let appended =
+                tcl_cmd_core::native_append::append_published_unshared_jim_object_checked(
+                    &operations,
+                    append.recipe(),
+                    &receiver,
+                    &source,
+                    &mut || {
+                        check(&actual).map_err(|error| {
+                            first.get_or_insert(error);
+                            ValueError::CommandProtocolUnavailable("Jim parent original operation")
+                        })?;
+                        allocation.checked_ptr()?;
+                        result_lifetime.checked_ptr()?;
+                        if actual.result_obj() != published
+                        || obj::is_shared(published)
+                        // SAFETY: the checked result lease pins this live header.
+                        || unsafe { (*published).ref_count != 1 }
+                        {
+                            return Err(ValueError::CommandProtocolUnavailable(
+                                "Jim parent published append receiver",
+                            ));
+                        }
+                        Ok(())
+                    },
+                );
+            if let Some(error) = first {
+                return Err(error);
             }
+            appended?;
+            check(self)?;
             // Jim retires the actual qualifier only after appending it.
             let qualifier = allocation.checked_ptr()?;
             // SAFETY: the checked original source is live; the pair balances

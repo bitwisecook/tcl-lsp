@@ -160,9 +160,176 @@ impl ResolvedInvocation<'_, '_> {
     }
 }
 
+/// One literal name operand in a nominal catalogue mutation layout. This
+/// withholds source advice only; it selects no available handler or binding.
+#[derive(Debug, Clone)]
+pub struct NominalSourceCommandNameHazard {
+    descriptor: &'static crate::CommandSpec,
+    argument: usize,
+    name: Vec<u8>,
+}
+
+impl PartialEq for NominalSourceCommandNameHazard {
+    fn eq(&self, other: &Self) -> bool {
+        std::ptr::eq(self.descriptor, other.descriptor)
+            && self.argument == other.argument
+            && self.name == other.name
+    }
+}
+impl Eq for NominalSourceCommandNameHazard {}
+
+impl NominalSourceCommandNameHazard {
+    /// Actual descriptor row in the supplied catalogue, without availability.
+    #[must_use]
+    pub const fn descriptor(&self) -> &'static crate::CommandSpec {
+        self.descriptor
+    }
+
+    /// Original post-head operand ordinal from the shared transition schema.
+    #[must_use]
+    pub const fn argument(&self) -> usize {
+        self.argument
+    }
+
+    /// Exact retained literal value; no command slot or identity is issued.
+    #[must_use]
+    pub fn name(&self) -> &[u8] {
+        &self.name
+    }
+}
+
+impl crate::CommandRegistry {
+    /// Nominal source mutation operands from this exact catalogue. Descriptor
+    /// availability and actual dispatch are deliberately unproved: this query
+    /// can only withdraw advice about a matching source name. Missing or dynamic
+    /// operands issue no named hazard and never prove absence or a quiet world.
+    #[must_use]
+    pub fn nominal_source_command_name_hazards(
+        &self,
+        words: crate::InvocationWords<'_>,
+    ) -> Vec<NominalSourceCommandNameHazard> {
+        use crate::CommandBindingTransition;
+        let Some(descriptor) = words.head_literal().and_then(|name| self.get(name)) else {
+            return Vec::new();
+        };
+        let selected = crate::registry::resolve_source_descriptor_invocation(
+            descriptor,
+            words,
+            self.source_descriptor_availability(descriptor, None),
+            words.arguments().dialect().map(|dialect| dialect.numbers),
+        );
+        if !selected
+            .argument_count_for_arity()
+            .is_some_and(|count| selected.semantics.arity.accepts(count))
+        {
+            return Vec::new();
+        }
+        let transitions = selected.state_transitions();
+        let mut subjects = Vec::new();
+        for transition in transitions.command_bindings() {
+            match transition {
+                CommandBindingTransition::Define { name, .. } => subjects.push(name),
+                CommandBindingTransition::Move { from, to } => subjects.extend([from, to]),
+                CommandBindingTransition::Delete { interpreter, name } => {
+                    if interpreter
+                        .as_ref()
+                        .is_none_or(|path| path.literal() == Some(""))
+                    {
+                        subjects.push(name);
+                    }
+                }
+                CommandBindingTransition::Alias {
+                    source_interpreter,
+                    alias,
+                    ..
+                } => {
+                    if source_interpreter.literal() == Some("") {
+                        subjects.push(alias);
+                    }
+                }
+                CommandBindingTransition::Unknown { .. } => {}
+            }
+        }
+        let mut hazards = Vec::new();
+        for subject in subjects {
+            let Some(argument) = subject.argument_index() else {
+                continue;
+            };
+            let Some(name) = subject
+                .literal()
+                .map(str::as_bytes)
+                .or_else(|| subject.native_bytes())
+            else {
+                continue;
+            };
+            let actual = words.arguments().get(argument).and_then(|word| {
+                word.literal()
+                    .map(str::as_bytes)
+                    .or_else(|| word.native_bytes())
+            });
+            if actual != Some(name) {
+                continue;
+            }
+            let hazard = NominalSourceCommandNameHazard {
+                descriptor,
+                argument,
+                name: name.to_vec(),
+            };
+            if !hazards.contains(&hazard) {
+                hazards.push(hazard);
+            }
+        }
+        hazards
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{SourceNameOwnershipPurpose, SourceRolePurpose};
+
+    #[test]
+    fn nominal_command_hazards_keep_literal_source_ordinals_without_availability() {
+        use crate::InvocationWord::{Dynamic, Expanded, Literal};
+        let context = crate::model::ingress::static_context_for("f5-irules");
+        for (arguments, expected) in [
+            (
+                vec![Literal("pool"), Literal("moved")],
+                vec![(0, b"pool".as_slice()), (1, b"moved".as_slice())],
+            ),
+            (
+                vec![Dynamic, Literal("moved")],
+                vec![(1, b"moved".as_slice())],
+            ),
+            (vec![Literal("pool"), Dynamic], Vec::new()),
+            (vec![Expanded, Literal("moved")], Vec::new()),
+        ] {
+            let words = crate::InvocationWords::structured(Literal("rename"), &arguments);
+            assert!(
+                crate::model::assembly::resolve_structured_invocation_in_resolved_context(
+                    context.commands(),
+                    Some(context.context()),
+                    words,
+                    tcl_dialect::model::InvocationRealm::RuleLoader,
+                )
+                .resolved()
+                .is_none()
+            );
+            let hazards = context
+                .commands()
+                .nominal_source_command_name_hazards(words);
+            assert_eq!(
+                hazards
+                    .iter()
+                    .map(|hazard| (hazard.argument(), hazard.name()))
+                    .collect::<Vec<_>>(),
+                expected
+            );
+            assert!(hazards.iter().all(|hazard| std::ptr::eq(
+                hazard.descriptor(),
+                context.commands().get("rename").unwrap()
+            )));
+        }
+    }
 
     #[test]
     fn original_source_roles_keep_empty_and_literal_dollar_read_write_names() {

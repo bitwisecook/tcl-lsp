@@ -32,6 +32,8 @@ use crate::interp::{Vm, err, ok};
 use crate::value::Value;
 use tcl_dialect::model::surface_admits;
 
+mod native_jim_subcommands;
+
 /// Run `body` as a script in namespace `target`, absorbing a top-level
 /// `return` at the boundary (a namespace body completes like a proc body).
 ///
@@ -300,62 +302,71 @@ fn cmd_namespace_in(
                 "wrong # args: should be \"namespace subcommand ?arg ...?\"",
             );
         };
-        let original_sub = match original_names.read(vm, sub) {
-            Ok(bytes) => bytes,
-            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
-        };
         let Some(name_policy) = vm.name_policy_protocol() else {
             return vm
                 .refuse_host_command("native namespace subcommand protocol is unavailable".into());
         };
-        let selected_sub = name_policy
-            .recipe()
-            .namespace_subcommand_input(&original_sub);
-        // Availability follows the interpreter's command surface. An embedding
-        // host may provide broader private machinery than the source grammar.
-        let profile = vm.command_surface_profile();
-        let dialect = Some(crate::environment::surface_point(profile));
-        let registry = tcl_registry::default_registry();
-        let spec = registry
-            .get_for_surface("namespace", dialect)
-            .expect("the core namespace command is registered for every Tcl release");
-        let Some(subcommand) = spec.resolve_native_namespace_subcommand_bytes_for_dialect(
-            name_policy.recipe(),
-            &original_sub,
-            dialect,
-        ) else {
-            let available: Vec<&str> = spec
-                .subcommands
-                .iter()
-                .filter(|candidate| {
-                    candidate
-                        .surface
-                        .or(spec.surface)
-                        .is_none_or(|gate| surface_admits(gate, dialect.as_ref()))
-                })
-                .map(|candidate| candidate.name)
-                .collect();
-            // The original dispatcher owns its noun, ambiguity and enumeration;
-            // older C releases use option lookup rather than the modern ensemble.
-            return err(tcl_cmd_core::namespace::unknown_subcommand_message(
+        let (subcommand_name, synopsis) = if name_policy.recipe().is_jim084() {
+            let entry = match native_jim_subcommands::select(vm, sub, rest.len(), &original_names) {
+                Ok(entry) => entry,
+                Err(completion) => return completion,
+            };
+            (entry.name(), entry.usage())
+        } else {
+            let original_sub = match original_names.read(vm, sub) {
+                Ok(bytes) => bytes,
+                Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+            };
+            let selected_sub = name_policy
+                .recipe()
+                .namespace_subcommand_input(&original_sub);
+            // Availability follows the interpreter's command surface. An embedding
+            // host may provide broader private machinery than the source grammar.
+            let profile = vm.command_surface_profile();
+            let dialect = Some(crate::environment::surface_point(profile));
+            let registry = tcl_registry::default_registry();
+            let spec = registry
+                .get_for_surface("namespace", dialect)
+                .expect("the core namespace command is registered for every Tcl release");
+            let Some(subcommand) = spec.resolve_native_namespace_subcommand_bytes_for_dialect(
                 name_policy.recipe(),
-                &available,
-                selected_sub.selected(),
-            ));
+                &original_sub,
+                dialect,
+            ) else {
+                let available: Vec<&str> = spec
+                    .subcommands
+                    .iter()
+                    .filter(|candidate| {
+                        candidate
+                            .surface
+                            .or(spec.surface)
+                            .is_none_or(|gate| surface_admits(gate, dialect.as_ref()))
+                    })
+                    .map(|candidate| candidate.name)
+                    .collect();
+                // The original dispatcher owns its noun, ambiguity and enumeration;
+                // older C releases use option lookup rather than the modern ensemble.
+                return err(tcl_cmd_core::namespace::unknown_subcommand_message(
+                    name_policy.recipe(),
+                    &available,
+                    selected_sub.selected(),
+                ));
+            };
+            if matches!(
+                subcommand.name,
+                "exists" | "parent" | "children" | "tail" | "qualifiers"
+            ) && !subcommand
+                .arity
+                .accepts(u16::try_from(rest.len()).unwrap_or(u16::MAX))
+            {
+                return crate::command::completion_from_cmd_error(
+                    vm,
+                    tcl_cmd_core::CmdError::wrong_args(subcommand.synopsis),
+                );
+            }
+            (subcommand.name, subcommand.synopsis)
         };
-        if matches!(
-            subcommand.name,
-            "exists" | "parent" | "children" | "tail" | "qualifiers"
-        ) && !subcommand
-            .arity
-            .accepts(u16::try_from(rest.len()).unwrap_or(u16::MAX))
-        {
-            return crate::command::completion_from_cmd_error(
-                vm,
-                tcl_cmd_core::CmdError::wrong_args(subcommand.synopsis),
-            );
-        }
-        match subcommand.name {
+        match subcommand_name {
             "canonical" => {
                 let (namespace, name) = match rest {
                     [] => {
@@ -411,7 +422,7 @@ fn cmd_namespace_in(
             // namespace-existence query.
             "exists" => {
                 let Some(original) = rest.first() else {
-                    return crate::command::native_wrong_arguments_message(vm, subcommand.synopsis);
+                    return crate::command::native_wrong_arguments_message(vm, synopsis);
                 };
                 match vm.namespace_object_lookup(original) {
                     // The native object getter itself owns lifetime validity:
@@ -421,14 +432,9 @@ fn cmd_namespace_in(
                 }
             }
             "parent" | "children" => {
-                if subcommand.name == "parent" && name_policy.recipe().is_jim084() {
+                if subcommand_name == "parent" && name_policy.recipe().is_jim084() {
                     let original = match rest.first() {
-                        Some(original) => match original_names.read(vm, original) {
-                            Ok(bytes) => bytes,
-                            Err(error) => {
-                                return crate::command::completion_from_cmd_error(vm, error);
-                            }
-                        },
+                        Some(original) => original.native_lifetime_lease().into_value(),
                         None => {
                             if let crate::interp::NamespaceExecutionContext::OriginalJim(context) =
                                 vm.current_namespace_execution_context()
@@ -438,13 +444,10 @@ fn cmd_namespace_in(
                                 {
                                     return crate::command::completion_from_cmd_error(vm, error);
                                 }
-                                if let Err(error) = original_names.check(vm) {
-                                    return crate::command::completion_from_cmd_error(vm, error);
-                                }
                             }
-                            let original = match vm
-                                .with_jim_current_namespace(|original| Ok(original.clone()))
-                            {
+                            match vm.with_jim_current_namespace(|original| {
+                                Ok(original.native_lifetime_lease().into_value())
+                            }) {
                                 Ok(original) => original,
                                 Err(error) => {
                                     return crate::command::completion_from_cmd_error(
@@ -452,18 +455,14 @@ fn cmd_namespace_in(
                                         error.into(),
                                     );
                                 }
-                            };
-                            match original_names.read(vm, &original) {
-                                Ok(bytes) => bytes,
-                                Err(error) => {
-                                    return crate::command::completion_from_cmd_error(vm, error);
-                                }
                             }
                         }
                     };
-                    return match name_policy.recipe().jim_namespace_parent_bytes(&original) {
-                        Ok(bytes) => ok(Value::from_native_string_bytes(bytes)),
-                        Err(error) => vm.refuse_host_command(format!("{error:?}")),
+                    return match vm.original_jim_namespace_parent_object(&original, &|vm| {
+                        original_names.check(vm)
+                    }) {
+                        Ok(value) => ok(value),
+                        Err(error) => crate::command::completion_from_cmd_error(vm, error),
                     };
                 }
                 let namespace = match rest.first() {
@@ -478,7 +477,7 @@ fn cmd_namespace_in(
                             };
                             return vm.namespace_lookup_error_at(
                                 &written,
-                                if subcommand.name == "parent" {
+                                if subcommand_name == "parent" {
                                     tcl_syntax::naming::NativeNamespaceLookupOperation::Parent
                                 } else {
                                     tcl_syntax::naming::NativeNamespaceLookupOperation::Children
@@ -497,7 +496,7 @@ fn cmd_namespace_in(
                 ) {
                     return crate::command::completion_from_cmd_error(vm, error);
                 }
-                if subcommand.name == "parent" {
+                if subcommand_name == "parent" {
                     match tcl_cmd_core::namespace::parent_original(vm, namespace) {
                         Ok(parent) => ok(parent),
                         Err(error) => vm.refuse_host_command(error.to_string()),
@@ -583,7 +582,7 @@ fn cmd_namespace_in(
                 if rest.len() != 1 {
                     return crate::command::completion_from_cmd_error(
                         vm,
-                        tcl_cmd_core::CmdError::wrong_args(subcommand.synopsis),
+                        tcl_cmd_core::CmdError::wrong_args(synopsis),
                     );
                 }
                 match vm.native_namespace_command_name(&rest[0], true) {

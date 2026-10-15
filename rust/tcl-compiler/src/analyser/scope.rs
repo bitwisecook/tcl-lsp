@@ -2991,10 +2991,15 @@ impl Analyser {
         let Some(policy) = self.declaration_name_policy() else {
             return;
         };
-        let occurrences = self
-            .head_identities
-            .source_bindings_ref()
-            .original_variable_formal_occurrences(self.file_lexer_config());
+        let input = self.resolved_analysis_input();
+        let occurrences = if input.has_logical_source_name_context() {
+            self.head_identities
+                .original_logical_variable_formal_occurrences(&input)
+        } else {
+            self.head_identities
+                .source_bindings_ref()
+                .original_variable_formal_occurrences(self.file_lexer_config())
+        };
         for occurrence in occurrences {
             if occurrence.symbol().policy() != policy {
                 continue;

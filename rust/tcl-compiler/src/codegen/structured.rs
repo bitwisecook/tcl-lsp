@@ -26,16 +26,15 @@
 //! control flow directly:
 //!
 //! - `if`/`elseif`/`else` → nested [`Emit::begin_if`] / [`Emit::begin_else`].
-//! - `while`/`for` → the [`Emit`] loop protocol; `break`/`continue`/`return`
-//!   become the loop/function completion codes.
+//! - `while`/`for` → the [`Emit`] loop protocol; commands retain the backend's
+//!   actual runtime completion dispatch.
 //! - everything whose control flow or iteration eval-fallback can't realise on
 //!   its own (`foreach`/`switch`/`catch`/`try`, assignments, barriers) degrades
 //!   to a single whole-construct eval-fallback of its source span.
 //!
 //! Walking the IR (rather than the CFG) keeps this correct by construction:
 //! there are no back-edges to detect, no reconvergence joins to compute, and
-//! `break`/`continue` target depth is just the recursion depth of enclosing
-//! loops.
+//! the backend retains the active loop targets for actual completion codes.
 
 use tcl_lexer::{LexerConfig, SourceImage, Span};
 
@@ -43,9 +42,7 @@ use crate::codegen::emit::Emit;
 use crate::ir::{IfClause, Script, Statement};
 
 /// Depth cap for this walk's recursion over nested `if`/`while`/`for`.
-/// Unlike `loop_depth` (which tracks *loop* nesting only, for
-/// `break`/`continue` validity, and never increments for `if`), this counts
-/// **every** structurally-recursive level so purely `if`-nested input is
+/// This counts every structurally-recursive level so purely `if`-nested input is
 /// bounded too. This walk **is** on a wired-up production path — the WASM
 /// backend drives it for the top level and for every proc body
 /// (`codegen::wasm::backend::codegen`, `backend.rs:1919` and `:1961`) — and it
@@ -63,7 +60,7 @@ const MAX_STRUCTURED_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::Rec
 enum Flow {
     /// Control falls through to the following statement.
     Normal,
-    /// `break` / `continue` / `return` was emitted; the rest of the enclosing
+    /// An unconditional return was emitted; the rest of the enclosing
     /// straight-line script is unreachable and must not be emitted.
     Diverged,
 }
@@ -86,7 +83,6 @@ pub fn walk<E: Emit>(
             config,
         },
         0,
-        0,
     );
 }
 
@@ -104,15 +100,11 @@ impl<'a> WalkSource<'a> {
 }
 
 /// Emit each statement of `script` in order, stopping after one diverges (its
-/// successors are dead code). `loop_depth` is the number of structurally
-/// enclosing loops whose break/continue scope is open — `break`/`continue` are
-/// realised structurally only when inside one (`> 0`). `depth` is this script's
-/// total structural nesting level — see [`MAX_STRUCTURED_DEPTH`].
+/// successors are dead code). `depth` is this script's structural nesting level.
 fn walk_script<E: Emit>(
     emit: &mut E,
     script: &Script,
     source: WalkSource<'_>,
-    loop_depth: u32,
     depth: u32,
 ) {
     use crate::native_compilation_admission::{
@@ -131,7 +123,7 @@ fn walk_script<E: Emit>(
         NativeCompilationAdmissionPlan::HostProcedure(_) => unreachable!("selected script scope"),
     }
     for stmt in &script.statements {
-        if walk_stmt(emit, stmt, source, loop_depth, depth) == Flow::Diverged {
+        if walk_stmt(emit, stmt, source, depth) == Flow::Diverged {
             break;
         }
     }
@@ -141,7 +133,6 @@ fn walk_stmt<E: Emit>(
     emit: &mut E,
     stmt: &Statement,
     source: WalkSource<'_>,
-    loop_depth: u32,
     depth: u32,
 ) -> Flow {
     // Native-stack safety net — see `MAX_STRUCTURED_DEPTH`'s doc comment.
@@ -156,23 +147,6 @@ fn walk_stmt<E: Emit>(
     {
         emit.emit_command(source.command_text(stmt.span()));
         return Flow::Normal;
-    }
-    // `break` / `continue` inside a loop are completion codes the walk realises
-    // as structured jumps. That decision belongs to the walk, not to a backend's
-    // statement emission, so it is taken before the typed-statement seam — a
-    // backend that can compile the call would otherwise route the jump through
-    // its own completion dispatch instead.
-    if loop_depth > 0
-        && let Statement::Call { command, .. } = stmt
-    {
-        if command == "break" {
-            emit.emit_break();
-            return Flow::Diverged;
-        }
-        if command == "continue" {
-            emit.emit_continue();
-            return Flow::Diverged;
-        }
     }
     if emit.emit_typed_statement(stmt, source.text) {
         return if matches!(stmt, Statement::Return { .. }) {
@@ -190,7 +164,6 @@ fn walk_stmt<E: Emit>(
                 clauses,
                 else_body.as_ref(),
                 source,
-                loop_depth,
                 depth,
                 stmt.span(),
             );
@@ -204,7 +177,7 @@ fn walk_stmt<E: Emit>(
             ..
         } => {
             let cond = clause_text(source.text, *condition_span, *condition_base);
-            emit_loop(emit, opt(cond), body, None, source, loop_depth, depth);
+            emit_loop(emit, opt(cond), body, None, source, depth);
             Flow::Normal
         }
 
@@ -218,7 +191,7 @@ fn walk_stmt<E: Emit>(
             ..
         } => {
             // The init clause runs once, in the enclosing scope.
-            walk_script(emit, init, source, loop_depth, depth);
+            walk_script(emit, init, source, depth);
             let cond = clause_text(source.text, *condition_span, *condition_base);
             // `Statement::For` carries `condition_base`
             // but no `next_base`, so the step clause takes the lowerer's own
@@ -231,7 +204,7 @@ fn walk_stmt<E: Emit>(
                 Some(text) => text.trim(),
                 None => clause_text(source.text, *next_span, None),
             };
-            emit_loop(emit, opt(cond), body, opt(step), source, loop_depth, depth);
+            emit_loop(emit, opt(cond), body, opt(step), source, depth);
             Flow::Normal
         }
 
@@ -246,9 +219,7 @@ fn walk_stmt<E: Emit>(
             Flow::Diverged
         }
 
-        // A leaf command the backend declined; outside a loop `break` /
-        // `continue` are ordinary commands too (the runtime raises "invoked …
-        // outside of a loop").
+        // The runtime owns the selected command's completion, including loop control.
         Statement::Call { span, .. } => {
             emit.emit_command(source.command_text(*span));
             Flow::Normal
@@ -272,13 +243,11 @@ fn walk_stmt<E: Emit>(
 /// exactly as dangerous as pathologically deep body nesting. `full_span` is
 /// the *enclosing* `Statement::If`'s whole span (`if` through the final
 /// close brace), kept only for the depth-cap fallback below.
-#[allow(clippy::too_many_arguments)] // one context threaded through a recursive emit
 fn emit_if<E: Emit>(
     emit: &mut E,
     clauses: &[IfClause],
     else_body: Option<&Script>,
     source: WalkSource<'_>,
-    loop_depth: u32,
     depth: u32,
     full_span: Span,
 ) {
@@ -291,7 +260,7 @@ fn emit_if<E: Emit>(
         first.condition_span,
         first.condition_base,
     ));
-    walk_script(emit, &first.body, source, loop_depth, depth + 1);
+    walk_script(emit, &first.body, source, depth + 1);
 
     if !rest.is_empty() {
         emit.begin_else();
@@ -313,7 +282,6 @@ fn emit_if<E: Emit>(
                 rest,
                 else_body,
                 source,
-                loop_depth,
                 depth + 1,
                 full_span,
             );
@@ -321,7 +289,7 @@ fn emit_if<E: Emit>(
         emit.end_if();
     } else if let Some(eb) = else_body {
         emit.begin_else();
-        walk_script(emit, eb, source, loop_depth, depth + 1);
+        walk_script(emit, eb, source, depth + 1);
         emit.end_if();
     } else {
         emit.end_if();
@@ -330,20 +298,18 @@ fn emit_if<E: Emit>(
 
 /// Drive the [`Emit`] loop protocol for a `while`/`for`. `step` is the `for`
 /// *next* clause (a single eval-fallback), absent for `while`.
-#[allow(clippy::too_many_arguments)] // one context threaded through a recursive emit
 fn emit_loop<E: Emit>(
     emit: &mut E,
     cond: Option<&str>,
     body: &Script,
     step: Option<&str>,
     source: WalkSource<'_>,
-    loop_depth: u32,
     depth: u32,
 ) {
     emit.begin_loop();
     emit.loop_test(cond);
     emit.begin_loop_body();
-    walk_script(emit, body, source, loop_depth + 1, depth + 1);
+    walk_script(emit, body, source, depth + 1);
     emit.end_loop_body();
     if let Some(step_text) = step {
         // The `next` clause is evaluated as a script each iteration; a single
@@ -745,8 +711,7 @@ mod tests {
         );
     }
 
-    /// Lower `src` and record the structured-walk event sequence.
-    fn events(src: &str) -> Vec<String> {
+    fn original_module(src: &str) -> crate::ir::Module {
         let profile = tcl_dialect::DialectProfile::find("tcl9.0")
             .expect("selected native structured-walk fixture");
         let registry =
@@ -776,7 +741,12 @@ mod tests {
             ..Default::default()
         });
         let module = lower_to_ir_with(lowerer, src);
-        let module = entry.retain(module);
+        entry.retain(module)
+    }
+
+    /// Lower `src` and record the structured-walk event sequence.
+    fn events(src: &str) -> Vec<String> {
+        let module = original_module(src);
         let mut rec = Recorder::default();
         walk(
             &mut rec,
@@ -939,6 +909,45 @@ mod tests {
     fn break_outside_a_loop_is_an_ordinary_command() {
         // No enclosing loop ⇒ `break` is eval-fallback'd (the runtime raises).
         assert_eq!(events("break\n"), ["cmd(break)"]);
+    }
+
+    #[test]
+    fn shadowed_loop_control_commands_keep_runtime_dispatch_and_the_normal_successor() {
+        for name in ["break", "continue"] {
+            let source = format!(
+                "proc {name} {{}} {{return NORMAL}}; while {{1}} {{{name}; puts after}}"
+            );
+            let emitted = events(&source);
+            assert!(emitted.contains(&format!("cmd({name})")), "{emitted:?}");
+            assert!(emitted.contains(&"cmd(puts after)".to_owned()), "{emitted:?}");
+            assert!(!emitted.iter().any(|event| event == name), "{emitted:?}");
+        }
+    }
+
+    #[test]
+    fn reported_loop_control_names_cannot_replace_an_original_call() {
+        let source = "while {1} {puts original; puts after}";
+        for reported in ["break", "continue"] {
+            let mut module = original_module(source);
+            let Statement::While { body, .. } = &mut module.top_level.statements[0] else {
+                panic!("original typed loop");
+            };
+            let Statement::Call { command, .. } = &mut body.statements[0] else {
+                panic!("original leaf call");
+            };
+            *command = reported.to_owned();
+            let mut recorder = Recorder::default();
+            walk(
+                &mut recorder,
+                &module.top_level,
+                source,
+                &module.source,
+                module.lexer_config,
+            );
+            assert!(recorder.0.contains(&"cmd(puts original)".to_owned()));
+            assert!(recorder.0.contains(&"cmd(puts after)".to_owned()));
+            assert!(!recorder.0.iter().any(|event| event == reported));
+        }
     }
 
     #[test]

@@ -87,6 +87,9 @@ pub fn run_format(
     colour: &ColourArgs,
 ) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
+    for document in &documents {
+        document.require_faithful_source()?;
+    }
     let dialect = combined_effective_dialect(&documents, input.dialect_profile()?);
     // Each input keeps its own command table and source ingress. Joined output
     // does not let a rename or declaration in one input govern another.
@@ -142,6 +145,9 @@ pub fn run_opt(
     colour: &ColourArgs,
 ) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
+    for document in &documents {
+        document.require_faithful_source()?;
+    }
     let explicit_dialect = input.dialect_profile()?;
 
     let requested = profile.map(OptimisationProfile::parse);
@@ -293,6 +299,9 @@ pub fn run_minify(
         isolated,
     } = options;
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
+    for document in &documents {
+        document.require_faithful_source()?;
+    }
     let dialect = combined_effective_dialect(&documents, input.dialect_profile()?);
     let source = combine_sources(&documents);
     let registry = registry_for_dialect(dialect.name);

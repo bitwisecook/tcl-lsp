@@ -421,6 +421,60 @@ fn minimize_reduced_output_still_fires() {
 }
 
 #[test]
+fn transformations_refuse_lossy_source_before_writing_artifacts() {
+    let scratch = Scratch::new("faithful-source");
+    let input = scratch.write_bytes("invalid.tcl", b"proc \xff {} {return HELLO}\n");
+    for verb in ["format", "opt", "minify", "dis", "compwasm", "minimize"] {
+        let output_path = scratch.0.join(format!("{verb}.out"));
+        let sidecar = scratch.0.join(format!("{verb}.sidecar"));
+        let mut command = tcl();
+        command.args([
+            verb,
+            input.to_str().unwrap(),
+            "-o",
+            output_path.to_str().unwrap(),
+        ]);
+        match verb {
+            "minimize" => {
+                command.arg("W100");
+            }
+            "minify" => {
+                command.args(["--symbol-map", sidecar.to_str().unwrap()]);
+            }
+            "compwasm" => {
+                command.args(["--wat-output", sidecar.to_str().unwrap()]);
+            }
+            _ => {}
+        }
+        let output = command.output().expect("spawn tcl");
+        assert!(!output.status.success(), "{verb} accepted altered source");
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains("decoding errors"),
+            "{verb}: {:?}",
+            output
+        );
+        assert!(!output_path.exists(), "{verb} published an output");
+        assert!(!sidecar.exists(), "{verb} published a sidecar");
+    }
+}
+
+#[test]
+fn literal_replacement_characters_remain_faithful_transform_input() {
+    let scratch = Scratch::new("literal-replacement-character");
+    let input = scratch.write("valid.tcl", "proc \u{fffd} {} {return HELLO}\n");
+    let output = tcl()
+        .args(["format", input.to_str().unwrap()])
+        .output()
+        .expect("spawn tcl");
+    assert!(output.status.success(), "{:?}", output);
+    assert!(
+        String::from_utf8(output.stdout)
+            .unwrap()
+            .contains('\u{fffd}')
+    );
+}
+
+#[test]
 fn minify_symbol_map_written_for_plain_minify() {
     // `tcl minify --symbol-map FILE` without `--compact`/`--aggressive` must
     // still create the map file (an empty / identity map), not silently skip

@@ -116,6 +116,8 @@ pub enum NativeObjectCacheSnapshot {
     JimEnum { flags: i32, index: usize },
     /// Original successful static literal comparison, no string updater.
     JimComparedString,
+    /// Original subcommand-table entry; no table authority or string updater.
+    JimSubcommand { index: usize },
 
     /// Original Jim Script primary, independent of initialized line metadata.
     JimScript {

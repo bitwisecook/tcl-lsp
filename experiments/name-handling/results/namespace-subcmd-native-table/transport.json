@@ -160,6 +160,86 @@
       "source": "/workspace/name-captures/namespace-subcmd-native-table02-20261015/probe",
       "path": "capture02/probe.elf",
       "sha256": "97063a9fbcf5c206151a4b17b2471592e729ef7e556afc2d37f73b7c25ae8a2e"
+    },
+    {
+      "source": "/workspace/name-captures/namespace-subcmd-native-table03-20261015/capture.py",
+      "path": "capture03/capture.py",
+      "sha256": "8c46097720273f2eba098974f070ccf6d1cf79efea610bddfcfefc5cb1a14e0e"
+    },
+    {
+      "source": "/workspace/name-captures/namespace-subcmd-native-table03-20261015/compile.stderr",
+      "path": "capture03/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/workspace/name-captures/namespace-subcmd-native-table03-20261015/compile.stdout",
+      "path": "capture03/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/workspace/name-captures/namespace-subcmd-native-table03-20261015/compiler.stderr",
+      "path": "capture03/compiler.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/workspace/name-captures/namespace-subcmd-native-table03-20261015/compiler.stdout",
+      "path": "capture03/compiler.stdout",
+      "sha256": "78fc11ae2c3ff7c235eb18ed90989d18f6cc864fb27027f839368cd0888deebc"
+    },
+    {
+      "source": "/workspace/name-captures/namespace-subcmd-native-table03-20261015/execution.stderr",
+      "path": "capture03/execution.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/workspace/name-captures/namespace-subcmd-native-table03-20261015/execution.stdout",
+      "path": "capture03/execution.stdout",
+      "sha256": "4759c4b9b8addf4116eff7123aaddd6e25424ce9af42a568335c638f80e50db3"
+    },
+    {
+      "source": "/workspace/name-captures/namespace-subcmd-native-table03-20261015/local-revision.stderr",
+      "path": "capture03/local-revision.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/workspace/name-captures/namespace-subcmd-native-table03-20261015/local-revision.stdout",
+      "path": "capture03/local-revision.stdout",
+      "sha256": "d6871c3697d0a50df0677833206c147f4873986bb59a4317c8509cb433365243"
+    },
+    {
+      "source": "/workspace/name-captures/namespace-subcmd-native-table03-20261015/local-status.stderr",
+      "path": "capture03/local-status.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/workspace/name-captures/namespace-subcmd-native-table03-20261015/local-status.stdout",
+      "path": "capture03/local-status.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/workspace/name-captures/namespace-subcmd-native-table03-20261015/manifest.json",
+      "path": "capture03/manifest.json",
+      "sha256": "f7e20883cf05d61c660e203fc276c0c5f269e400d26e9ee54bb21ac6cec2854a"
+    },
+    {
+      "source": "/workspace/name-captures/namespace-subcmd-native-table03-20261015/probe",
+      "path": "capture03/probe.elf",
+      "sha256": "13666c6acf7af82bdd93e6d2c5c96f0d314ee9c7e3cda564098f232bbde6803f"
+    },
+    {
+      "source": "/workspace/name-captures/namespace-subcmd-native-table03-20261015/probe.c",
+      "path": "capture03/probe.c",
+      "sha256": "2bdf7fd4f6e23ea7332f71d97d25596b7bf4f8944696c8e2d10ce9dde47b73ff"
+    },
+    {
+      "source": "/workspace/name-captures/namespace-subcmd-native-table03-20261015/upstream.stderr",
+      "path": "capture03/upstream.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/workspace/name-captures/namespace-subcmd-native-table03-20261015/upstream.stdout",
+      "path": "capture03/upstream.stdout",
+      "sha256": "b462d0ddec77db10702025a9671e50c806eb85e8302b25428dc376895bb87de9"
     }
   ]
 }

@@ -1061,17 +1061,18 @@ pub fn file_class_factories(
 /// Unordered, exactly as the workspace index's other cross-file facts are: a
 /// `source` graph can prove a load order, but nothing requires one here —
 /// a metaclass declaration either exists in the project or it does not.
-/// Later entries win on a duplicate qualified name, which cannot be told
-/// apart from the earlier one by anything the index knows.
+/// Duplicate qualified names retain no unique provider and withdraw that hint.
 #[salsa::tracked(returns(clone))]
 pub fn project_class_factories(
     db: &dyn salsa::Database,
     project: Project,
 ) -> Arc<tcl_compiler::analyser::ClassFactoryIndex> {
+    let mut providers = HashSet::new();
     merge_class_factories(
         project
             .files(db)
             .iter()
+            .filter(|&&file| providers.insert(file))
             .map(|&file| file_class_factories(db, file)),
     )
 }
@@ -1080,9 +1081,21 @@ fn merge_class_factories(
     parts: impl IntoIterator<Item = Arc<tcl_compiler::analyser::ClassFactoryIndex>>,
 ) -> Arc<tcl_compiler::analyser::ClassFactoryIndex> {
     let mut merged = tcl_compiler::analyser::ClassFactoryIndex::new();
+    let mut ambiguous = HashSet::new();
     for part in parts {
         for (qname, factory) in part.iter() {
-            merged.insert(qname.clone(), factory.clone());
+            if ambiguous.contains(qname) {
+                continue;
+            }
+            match merged.entry(qname.clone()) {
+                std::collections::btree_map::Entry::Vacant(entry) => {
+                    entry.insert(factory.clone());
+                }
+                std::collections::btree_map::Entry::Occupied(entry) => {
+                    entry.remove();
+                    ambiguous.insert(qname.clone());
+                }
+            }
         }
     }
     Arc::new(merged)

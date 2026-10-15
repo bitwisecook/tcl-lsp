@@ -1286,7 +1286,7 @@ mod tests {
 
     #[test]
     fn original_jim_namespace_receipt_does_not_keep_a_withdrawn_native_owner_alive() {
-        let mut interp = jim();
+        let interp = jim();
         let _context = interp.native_jim_object_context().unwrap();
         let original = Owned::fresh(obj::new_wide_int_obj(42));
         let pointer = original.as_ptr();

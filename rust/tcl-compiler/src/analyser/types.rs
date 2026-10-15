@@ -3593,9 +3593,17 @@ impl AnalysisResult {
             );
         }
         if self.retained_command_realm().is_none_or(|realm| {
-            realm
-                .source_bindings_ref()
-                .original_variable_formal_name_is_unrepresented(symbol)
+            if let Some(input) = self
+                .resolved_input
+                .as_ref()
+                .filter(|input| input.has_logical_source_name_context())
+            {
+                realm.original_logical_variable_formal_name_is_unrepresented(input, symbol)
+            } else {
+                realm
+                    .source_bindings_ref()
+                    .original_variable_formal_name_is_unrepresented(symbol)
+            }
         }) {
             return false;
         }
@@ -3714,6 +3722,12 @@ impl AnalysisResult {
     ) -> Option<crate::command_binding::SourceOriginalVariableFrame> {
         self.matches_original_source_image(image, config)
             .then_some(())?;
+        let input = self.resolved_input.as_ref()?;
+        if input.has_logical_source_name_context() {
+            return self
+                .retained_command_realm()?
+                .original_logical_variable_frame_at_offset(input, image, offset);
+        }
         self.retained_command_realm()?
             .source_bindings_ref()
             .original_variable_frame_at_offset(offset, config)

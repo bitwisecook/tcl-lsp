@@ -1639,6 +1639,10 @@ pub(crate) fn native_object_snapshot(
         with_jim_variable_cache(value, |cache| (cache.frame, cache.global))
     {
         Cache::JimVariable { frame, global }
+    } else if let Some(cache) = native_jim_subcommand::cache(value) {
+        Cache::JimSubcommand {
+            index: cache.index(),
+        }
     } else if let Some(cache) = native_jim_enum::cache(value) {
         match cache {
             tcl_core_types::NativeJimOptionCache::Enum { entry, flags } => Cache::JimEnum {
@@ -2321,6 +2325,7 @@ pub(crate) fn stock_list_input_class(
     if with_jim_command_cache(value, |_| ()).is_some()
         || with_jim_variable_cache(value, |_| ()).is_some()
         || native_jim_enum::cache(value).is_some()
+        || native_jim_subcommand::cache(value).is_some()
     {
         return Class::JimLookup;
     }
@@ -3369,6 +3374,7 @@ mod double_precision_tests {
 
 /// Genuine original Jim Enum and immediate literal cache storage.
 pub(crate) mod native_jim_enum;
+pub(crate) mod native_jim_subcommand;
 pub(crate) mod native_method_name;
 pub(crate) mod native_property_name;
 

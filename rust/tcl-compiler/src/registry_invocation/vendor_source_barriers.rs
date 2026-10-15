@@ -12,6 +12,13 @@ use tcl_registry::model::ContextRegistry;
 use tcl_registry::{CommandBindingTransition, StateTransitionDomain, TransitionSubject};
 use tcl_syntax::naming::VendorSourceNamePurpose;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct OriginalNominalCommandNameHazard {
+    original: Vec<NativeWord>,
+    operand: tcl_registry::source_name_ownership::NominalSourceCommandNameHazard,
+    coordinate: NameBytes,
+}
+
 /// Authored root-script transition evidence before one original hosted head.
 /// These records can withdraw nominal source advice. They supply no command
 /// existence, runtime table, Native name recipe, successful commit or execution.
@@ -23,6 +30,7 @@ pub struct VendorSourceCatalogueBarriers {
     original: Vec<Vec<NativeWord>>,
     schemas: Vec<super::VendorRegistryInvocationShape>,
     unknown_transitions: bool,
+    nominal_name_hazards: Vec<OriginalNominalCommandNameHazard>,
 }
 impl VendorSourceCatalogueBarriers {
     /// Actual original head whose authored applicability was checked.
@@ -46,6 +54,14 @@ impl VendorSourceCatalogueBarriers {
     #[must_use]
     pub const fn has_unknown_transitions(&self) -> bool {
         self.unknown_transitions
+    }
+    /// A literal name in a nominal catalogue mutation layout overlaps this
+    /// candidate's own source coordinates. This can withdraw object-candidate
+    /// advice only; availability, dispatch and any actual table change remain
+    /// unproved. Unknown transitions retain their independent residual.
+    #[must_use]
+    pub fn has_nominal_command_name_hazard(&self) -> bool {
+        !self.nominal_name_hazards.is_empty()
     }
     /// Same complete source image, channel and semantic lexer configuration.
     #[must_use]
@@ -92,6 +108,9 @@ pub(super) fn capture_in_script_body(
         let local = capture_region(context, head, selected_prefixes, *region)?;
         receipt.original.extend(local.original);
         receipt.schemas.extend(local.schemas);
+        receipt
+            .nominal_name_hazards
+            .extend(local.nominal_name_hazards);
         receipt.unknown_transitions |= local.unknown_transitions;
     }
     Some(receipt)
@@ -116,6 +135,7 @@ fn capture_region(
         original: Vec::new(),
         schemas: Vec::new(),
         unknown_transitions: false,
+        nominal_name_hazards: Vec::new(),
     };
     let mut barriers = BTreeSet::new();
     for command in plan.commands {
@@ -151,6 +171,12 @@ fn capture_region(
             barriers.clear();
             continue;
         }
+        receipt.nominal_name_hazards.extend(nominal_name_hazards(
+            context,
+            &input,
+            &command.words,
+            selected_prefixes,
+        ));
         let Some(shape) = super::vendor_registry_invocation_shape(context, &input, &command.words)
         else {
             receipt.unknown_transitions = true;
@@ -194,6 +220,64 @@ fn capture_region(
         return None;
     }
     Some(receipt)
+}
+
+fn nominal_name_hazards(
+    context: &ContextRegistry,
+    head: &VendorSourceNameInput,
+    original: &[NativeWord],
+    selected_prefixes: &[Vec<NameBytes>],
+) -> Vec<OriginalNominalCommandNameHazard> {
+    let Some(coordinate) = head.root_command_coordinate() else {
+        return Vec::new();
+    };
+    let Ok(command) = std::str::from_utf8(coordinate.as_bytes()) else {
+        return Vec::new();
+    };
+    let arguments = original
+        .iter()
+        .skip(1)
+        .map(|word| {
+            if word.group().expand {
+                return tcl_registry::InvocationWord::Expanded;
+            }
+            tcl_syntax::naming::vendor_source_literal_units(
+                head.policy(),
+                word,
+                VendorSourceNamePurpose::SourceName,
+            )
+            .and_then(|bytes| std::str::from_utf8(bytes).ok())
+            .map_or(
+                tcl_registry::InvocationWord::Dynamic,
+                tcl_registry::InvocationWord::Literal,
+            )
+        })
+        .collect::<Vec<_>>();
+    context
+        .commands()
+        .nominal_source_command_name_hazards(tcl_registry::InvocationWords::structured(
+            tcl_registry::InvocationWord::Literal(command),
+            &arguments,
+        ))
+        .into_iter()
+        .filter_map(|operand| {
+            let word = original.get(operand.argument().checked_add(1)?)?;
+            let input = VendorSourceNameInput::from_original_word(word, head.policy());
+            if input.literal_units(VendorSourceNamePurpose::SourceName)? != operand.name() {
+                return None;
+            }
+            let coordinate = input.root_command_coordinate()?;
+            selected_prefixes
+                .iter()
+                .any(|path| path.contains(&coordinate))
+                .then_some(())?;
+            Some(OriginalNominalCommandNameHazard {
+                original: original.to_vec(),
+                operand,
+                coordinate,
+            })
+        })
+        .collect()
 }
 
 fn source_subject<'a>(
@@ -280,6 +364,32 @@ mod tests {
         )
         .map(|(metadata, _)| metadata)
     }
+    #[test]
+    fn nominal_named_hazards_withdraw_candidates_without_execution_tombstones() {
+        for (prelude, hazard) in [
+            ("rename pool moved", true),
+            ("::rename ::pool moved", true),
+            ("rename ::other::pool moved", false),
+            ("rename $which moved", false),
+            ("interp alias {} helper {} pool", false),
+            ("proc rename args {}; rename pool moved", false),
+        ] {
+            let source = format!("{prelude}\nwhen HTTP_REQUEST {{pool selected}}");
+            let metadata = candidate(&source, "pool selected").unwrap();
+            let barriers = metadata.authored_barriers();
+            assert!(barriers.has_unknown_transitions(), "{prelude}");
+            assert_eq!(
+                barriers.has_nominal_command_name_hazard(),
+                hazard,
+                "{prelude}"
+            );
+            assert!(barriers.matches_source(
+                &tcl_lexer::SourceImage::document(&source),
+                barriers.original_head().lexer_config()
+            ));
+        }
+    }
+
     #[test]
     fn original_hosted_source_barriers_keep_declarations_moves_and_unknowns_separate() {
         // naming.compiler.conditional-registry-source-metadata

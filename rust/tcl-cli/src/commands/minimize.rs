@@ -400,6 +400,9 @@ pub fn run_minimize(input: &InputArgs, no_rename: bool, json: bool) -> anyhow::R
     let code = code_arg.to_string_lossy();
     let code = code.as_ref();
     let documents = read_input_documents(file_inputs, &input.source, !input.no_recursive)?;
+    for document in &documents {
+        document.require_faithful_source()?;
+    }
     let rename = !no_rename;
 
     let mut results: Vec<MinimizeItem> = Vec::new();

@@ -156,11 +156,30 @@ impl OriginalArguments {
     /// Reach exactly one original String getter. Later operands are untouched.
     /// Counted bytes are independent of any subsequent name-purpose selection.
     pub(crate) fn bytes(&self, index: usize) -> Result<Rc<[u8]>, CmdError> {
+        self.bytes_using(index, &|| Ok(()))
+    }
+
+    /// Carry the actual caller's owner check through every original String stage.
+    /// The callback supplies currency only; this exact captured argv owns the getter.
+    pub(crate) fn bytes_using(
+        &self,
+        index: usize,
+        check: &impl Fn() -> Result<(), CmdError>,
+    ) -> Result<Rc<[u8]>, CmdError> {
+        let current = || {
+            self.check()?;
+            check()
+        };
+        current()?;
         let original = self.original(index)?;
-        let result = self.interpreter.native_object_string_bytes(original);
-        self.check()?;
+        let result =
+            self.interpreter
+                .native_object_string_bytes_using(original, &current, &|error| {
+                    self.retain_refusal(error.into())
+                });
+        current()?;
         obj::check_native_liveness(original).map_err(|error| self.retain_refusal(error.into()))?;
-        result.map_err(|error| self.retain_refusal(error.into()))
+        result
     }
 
     pub(crate) fn finish(&self, code: Code) -> Code {

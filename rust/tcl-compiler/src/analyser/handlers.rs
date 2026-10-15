@@ -258,10 +258,8 @@ fn names_static_variable(text: &str, tok: Token) -> bool {
     if !word_substitutes(text, tok) {
         return true;
     }
-    text.ends_with(')')
-        && text
-            .split_once('(')
-            .is_some_and(|(base, _)| !base.is_empty() && !crate::naming::is_dynamic_word(base))
+    crate::naming::split_element_ref(text)
+        .is_some_and(|(base, _)| !base.is_empty() && !crate::naming::is_dynamic_word(base))
 }
 
 /// Condense a definition's description argument into a single-line outline
@@ -439,46 +437,46 @@ fn substitute_bound_words(
     word: &str,
     params: &[String],
     args: &[String],
-    braced_var: tcl_dialect::BracedVarStyle,
+    config: tcl_lexer::LexerConfig,
 ) -> Option<String> {
-    if word.contains('[') || word.contains('\\') {
+    if word.contains('\\') {
         return None;
     }
+    let length = u32::try_from(word.len()).ok()?;
+    let arena = tcl_lexer::ExecutablePartArena::decompose(
+        tcl_lexer::SourceImage::document(word),
+        Span::new(0, length),
+        tcl_lexer::word_parts::SubstFlags::default(),
+        config,
+    )
+    .ok()?;
     let mut out = String::with_capacity(word.len());
-    let mut rest = word;
-    while let Some(dollar) = rest.find('$') {
-        out.push_str(&rest[..dollar]);
-        let after = &rest[dollar + 1..];
-        // The `${…}` closer comes from the shared owner under this
-        // document's release rule; a first-`}` scan named a different
-        // parameter than the one the lexer spanned, and the value it binds is
-        // written into the folded word.
-        let (name, tail) = if let Some(braced) = after.strip_prefix('{') {
-            let tcl_lexer::BracedVarEnd::Closed(close) =
-                tcl_lexer::braced_var_name_end(braced.as_bytes(), 0, braced_var)
-            else {
-                return None;
-            };
-            (&braced[..close], &braced[close + 1..])
-        } else {
-            let len = after
-                .find(|c: char| !(c.is_alphanumeric() || c == '_' || c == ':'))
-                .unwrap_or(after.len());
-            if len == 0 {
-                return None;
+    for part in arena.list(arena.root()) {
+        match part.part {
+            tcl_lexer::ExecutablePart::Text(_) => {
+                let text = std::str::from_utf8(arena.bytes(part.span)?).ok()?;
+                if text.contains('$') {
+                    return None;
+                }
+                out.push_str(text);
             }
-            (&after[..len], &after[len..])
-        };
-        let idx = params.iter().position(|p| p == name)?;
-        let value = args.get(idx)?;
-        // A call site whose own argument is itself dynamic proves nothing.
-        if tcl_syntax::naming::is_dynamic_word(value) {
-            return None;
+            tcl_lexer::ExecutablePart::Variable {
+                name, index: None, ..
+            } => {
+                let name = std::str::from_utf8(arena.bytes(name)?).ok()?;
+                let index = params.iter().position(|parameter| parameter == name)?;
+                let value = args.get(index)?;
+                if tcl_syntax::naming::is_dynamic_word(value) {
+                    return None;
+                }
+                out.push_str(value);
+            }
+            tcl_lexer::ExecutablePart::Variable { index: Some(_), .. }
+            | tcl_lexer::ExecutablePart::Command { .. }
+            | tcl_lexer::ExecutablePart::Expression { .. }
+            | tcl_lexer::ExecutablePart::ParseError(_) => return None,
         }
-        out.push_str(value);
-        rest = tail;
     }
-    out.push_str(rest);
     Some(out)
 }
 
@@ -9213,7 +9211,7 @@ impl Analyser {
             .iter()
             .filter_map(|name| env.get(name).cloned())
             .collect();
-        substitute_bound_words(unquoted, &names, &values, self.braced_var())
+        substitute_bound_words(unquoted, &names, &values, self.file_lexer_config())
     }
 
     /// The actual source input held by this walk, including availability.
@@ -12028,6 +12026,45 @@ mod tests {
 
     fn dynamic_command_name_may_equal(word: &str, candidate: &str) -> bool {
         command_name_pattern_with_closer(word, candidate, tcl_lexer::BracedVarStyle::FirstClose)
+    }
+
+    #[test]
+    fn bound_parameter_substitution_uses_the_complete_shared_reference_grammar() {
+        let parameters = vec![
+            "a".to_owned(),
+            "a:b".to_owned(),
+            "a{b}".to_owned(),
+            "a{b".to_owned(),
+        ];
+        let arguments = vec![
+            "SCALAR".to_owned(),
+            "LITERAL".to_owned(),
+            "NESTED".to_owned(),
+            "FIRST".to_owned(),
+        ];
+        let mut config = Analyser::new()
+            .prepare_analysis_input("tcl")
+            .unwrap()
+            .lexer_config();
+        assert_eq!(
+            substitute_bound_words("$a:b", &parameters, &arguments, config).as_deref(),
+            Some("SCALAR:b")
+        );
+        assert_eq!(
+            substitute_bound_words("${a:b}", &parameters, &arguments, config).as_deref(),
+            Some("LITERAL")
+        );
+        assert!(substitute_bound_words("$a(index)", &parameters, &arguments, config).is_none());
+        config.braced_var = tcl_lexer::BracedVarStyle::Tcl9Nesting;
+        assert_eq!(
+            substitute_bound_words("${a{b}}", &parameters, &arguments, config).as_deref(),
+            Some("NESTED")
+        );
+        config.braced_var = tcl_lexer::BracedVarStyle::FirstClose;
+        assert_eq!(
+            substitute_bound_words("${a{b}}", &parameters, &arguments, config).as_deref(),
+            Some("FIRST}")
+        );
     }
 
     #[test]

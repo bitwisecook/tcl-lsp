@@ -1231,6 +1231,19 @@ impl Interp {
                 "foreign instruction-name primary",
             ));
         }
+        if let Some(cache) = obj::native_jim_subcommand::cache(value) {
+            let table = self
+                .native_invocation_dialect()
+                .native_jim_namespace_subcommand_table()
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "foreign Jim subcommand primary issuer",
+                ))?;
+            if table.cached_entry(&cache).is_none() {
+                return Err(ValueError::CommandProtocolUnavailable(
+                    "foreign Jim subcommand primary table",
+                ));
+            }
+        }
         if obj::native_jim_enum::cache(value).is_some()
             && self
                 .native_invocation_dialect()

@@ -55,19 +55,36 @@ fn project_signatures(
         .collect()
 }
 
-/// Factory hints use each member's checked input and published source oracle.
+#[salsa::tracked(returns(clone))]
+fn checked_class_factories_for_config(
+    db: &dyn TclDb,
+    file: SourceFile,
+    config: AnalyserConfig,
+) -> Option<Arc<tcl_compiler::analyser::ClassFactoryIndex>> {
+    project_call_inputs::file_source_structure(db, file, config)?;
+    Some(Arc::clone(
+        &item_tree_for_config(db, file, config).class_factories,
+    ))
+}
+
+/// Every member must retain its checked source owner before hints are merged.
 /// Missing mappings/generations withdraw hints without a recursive query cycle.
 #[salsa::tracked(returns(clone))]
 pub fn project_class_factories_for_inputs(
     db: &dyn TclDb,
     project: Project,
 ) -> Arc<tcl_compiler::analyser::ClassFactoryIndex> {
-    merge_class_factories(project.files(db).iter().filter_map(|&file| {
-        let config = project_token_inputs::configuration_for_file(db, project, file)?;
-        Some(Arc::clone(
-            &item_tree_for_config(db, file, config).class_factories,
-        ))
-    }))
+    let mut providers = HashSet::new();
+    let parts = project
+        .files(db)
+        .iter()
+        .filter(|&&file| providers.insert(file))
+        .map(|&file| {
+            let config = project_token_inputs::configuration_for_file(db, project, file)?;
+            checked_class_factories_for_config(db, file, config)
+        })
+        .collect::<Option<Vec<_>>>();
+    merge_class_factories(parts.unwrap_or_default())
 }
 
 /// Genuine original source headers, independent of body entry and publication.

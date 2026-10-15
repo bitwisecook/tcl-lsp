@@ -805,18 +805,14 @@ struct PayloadCall {
 /// HTTP, and SSL payloads require collection.  New protocol commands join the
 /// analysis by declaring [`tcl_registry::DataCollectionOperation`] in their
 /// command specs.
-fn classify_collect_command(
-    command: &str,
+fn classify_collect_operation(
+    operation: tcl_registry::events::DataCollectionOperation,
     args: &[String],
     event: &str,
     side: &str,
     span: Span,
     state: &mut CollectFlowState,
-    registry: &CommandRegistry,
 ) {
-    let Some(operation) = registry.data_collection_operation(command) else {
-        return;
-    };
     let arg_words: Vec<&str> = args.iter().map(String::as_str).collect();
     let protocol = operation.protocol.name.to_string();
     match operation.action {
@@ -911,7 +907,11 @@ fn classify_stmt_for_collect_flow(
 ) -> Option<()> {
     let registry = source.registry;
     if let Some(tokens) = stmt.tokens() {
-        scan_nested_collection_words(tokens, event, side, state, source, config, base_offset);
+        tokens
+            .source_binding
+            .as_ref()?
+            .original_lexer_config_for_tokens(tokens)?;
+        scan_nested_collection_words(tokens, event, side, state, source, config, base_offset)?;
     }
     let abs = |sp: Span| -> Span {
         if base_offset == 0 {
@@ -924,82 +924,87 @@ fn classify_stmt_for_collect_flow(
             u32::try_from(e).unwrap_or(u32::MAX),
         )
     };
-    match stmt {
-        Statement::Call {
-            command,
-            canonical_command,
-            span,
-            args,
-            tokens,
-            ..
+    let (span, parent) = match stmt {
+        Statement::Call { span, tokens, .. } | Statement::Barrier { span, tokens, .. } => {
+            (*span, tokens.as_ref()?)
         }
-        | Statement::Barrier {
-            command,
-            canonical_command,
-            span,
-            args,
-            tokens,
-            ..
-        } => {
-            // Existing registry command/effect classification remains separate
-            // from the source ownership and parser-purpose checks here.
-            let head = canonical_command
-                .as_deref()
-                .unwrap_or(command)
-                .trim_start_matches(':');
-            if let Some(target) = registry.side_switch_target(head) {
-                let inner_side = target.execution_side(side);
-                let body = args.first()?;
-                let parent = tokens.as_ref()?;
-                if !parent.arg_is_braced_literal(0) {
-                    return None;
-                }
-                {
-                    if source.standalone {
-                        let body_span = parent.argv.get(1)?;
-                        let body_base = base_offset + i64::from(body_span.start()) + 1;
-                        scan_standalone_side_switch_body(
-                            body,
-                            event,
-                            inner_side,
-                            state,
-                            source,
-                            original_function,
-                            config,
-                            body_base,
-                        )?;
-                    } else {
-                        let body_unit = source.unit.conditional_original_body_unit(
-                            registry,
-                            original_function,
-                            parent,
-                            0,
-                        )?;
-                        scan_secondary_collection_body(
-                            &body_unit,
-                            event,
-                            inner_side,
-                            state,
-                            source,
-                            original_function,
-                            body_unit.source_lexer_config(),
-                            0,
-                        )?;
-                    }
-                }
+        Statement::AssignValue { tokens: None, .. } => return None,
+        _ => return Some(()),
+    };
+    let possible =
+        crate::registry_invocation::registry_invocation_assistance_with_metadata_context(
+            registry,
+            source.metadata(),
+            parent,
+        )?;
+    for (ordinal, shape) in possible.candidates.iter().enumerate() {
+        if possible.candidates[..ordinal].contains(shape) {
+            continue;
+        }
+        if let Some(target) = shape.side_switch_target {
+            if !shape.roles_complete {
+                return None;
+            }
+            let mut bodies = shape.roles.iter().filter_map(|&(argument, role)| {
+                (role == tcl_registry::ArgRole::Body)
+                    .then_some(shape.argument_offset + usize::from(argument))
+            });
+            let effective = bodies.next()?;
+            if bodies.next().is_some() {
+                return None;
+            }
+            let written = shape.effective.written_argument(effective)?;
+            if !parent.arg_is_braced_literal(written) {
+                return None;
+            }
+            let inner_side = target.execution_side(side);
+            if source.standalone {
+                let binding = parent.source_binding.as_ref()?;
+                let image = binding.invocation_site()?.source.source_image();
+                let parent_config = binding.original_lexer_config_for_tokens(parent)?;
+                let words = crate::registry_invocation::original_native_compiler_words(
+                    image,
+                    parent.words(),
+                    parent.argv.first()?.start(),
+                    parent_config,
+                )?;
+                let word = words.get(written.checked_add(1)?)?;
+                let content = word.content_span().ok()?;
+                let body = std::str::from_utf8(image.bytes().get(content.as_range())?).ok()?;
+                scan_standalone_side_switch_body(
+                    body,
+                    event,
+                    inner_side,
+                    state,
+                    source,
+                    original_function,
+                    word.config(),
+                    base_offset + i64::from(content.start()),
+                )?;
             } else {
-                classify_collect_command(head, args, event, side, abs(*span), state, registry);
+                let body_unit = source.unit.conditional_original_body_unit(
+                    registry,
+                    original_function,
+                    parent,
+                    written,
+                )?;
+                scan_secondary_collection_body(
+                    &body_unit,
+                    event,
+                    inner_side,
+                    state,
+                    source,
+                    original_function,
+                    body_unit.source_lexer_config(),
+                    0,
+                )?;
             }
+        } else if let Some(operation) = shape.data_collection {
+            let Some(arguments) = collection_source_arguments(parent, shape, operation) else {
+                continue;
+            };
+            classify_collect_operation(operation, &arguments, event, side, abs(span), state);
         }
-        Statement::AssignValue { value, span, .. } => {
-            let local = tcl_lexer::SourceSegmentationPurpose::NestedScript.config(config);
-            if let Some((cmd, sub_args)) =
-                parse_command_substitution_with_config(value.trim(), local)
-            {
-                classify_collect_command(&cmd, &sub_args, event, side, abs(*span), state, registry);
-            }
-        }
-        _ => {}
     }
     Some(())
 }
@@ -1015,67 +1020,50 @@ fn scan_nested_collection_words(
     source: &IrulesSourceQuery<'_>,
     parent_config: tcl_lexer::LexerConfig,
     base_offset: i64,
-) {
-    let registry = source.registry;
-    let config = tcl_lexer::SourceSegmentationPurpose::NestedScript
-        .config(parent.native_lexer_config(parent_config));
-    for word in parent.words().iter().skip(1) {
-        let Some(commands) =
-            crate::value_shapes::command_substitution_tokens(word, Some(parent), config)
-        else {
-            continue;
-        };
-        for tokens in commands {
-            scan_nested_collection_words(&tokens, event, side, state, source, config, base_offset);
-            let Some(possible) =
-                crate::registry_invocation::registry_invocation_assistance_with_metadata_context(
-                    registry,
-                    source.metadata(),
-                    &tokens,
-                )
-            else {
+) -> Option<()> {
+    let config = parent.native_lexer_config(parent_config);
+    for call in crate::word_subst::checked_argument_lifted_calls(parent, config)? {
+        let tokens = call.tokens.as_ref()?;
+        let possible =
+            crate::registry_invocation::registry_invocation_assistance_with_metadata_context(
+                source.registry,
+                source.metadata(),
+                tokens,
+            )?;
+        for (ordinal, shape) in possible.candidates.iter().enumerate() {
+            if possible.candidates[..ordinal].contains(shape) {
                 continue;
-            };
-            let Some(dialect) = tokens
-                .source_binding
-                .as_ref()
-                .and_then(|binding| binding.variable_context.invocation_dialect)
-            else {
-                continue;
-            };
-            for shape in possible.candidates {
-                let Some(arguments) = (0..shape.effective.words.len().saturating_sub(1))
-                    .map(|index| {
-                        shape.effective.argument_literal(
-                            index,
-                            dialect.lexer_grammar.escapes,
-                            dialect.word_values,
-                        )
-                    })
-                    .collect::<Option<Vec<_>>>()
-                else {
-                    continue;
-                };
-                let span = Span::new(
-                    u32::try_from((base_offset + i64::from(tokens.argv[0].start())).max(0))
-                        .unwrap_or(u32::MAX),
-                    u32::try_from(
-                        (base_offset + i64::from(tokens.argv.last().unwrap().end())).max(0),
-                    )
-                    .unwrap_or(u32::MAX),
-                );
-                classify_collect_command(
-                    &shape.command,
-                    &arguments,
-                    event,
-                    side,
-                    span,
-                    state,
-                    registry,
-                );
             }
+            let Some(operation) = shape.data_collection else {
+                continue;
+            };
+            let Some(arguments) = collection_source_arguments(tokens, shape, operation) else {
+                continue;
+            };
+            let span = Span::new(
+                u32::try_from((base_offset + i64::from(tokens.argv.first()?.start())).max(0))
+                    .unwrap_or(u32::MAX),
+                u32::try_from((base_offset + i64::from(tokens.argv.last()?.end())).max(0))
+                    .unwrap_or(u32::MAX),
+            );
+            classify_collect_operation(operation, &arguments, event, side, span, state);
         }
     }
+    Some(())
+}
+
+fn collection_source_arguments(
+    tokens: &crate::ir::CommandTokens,
+    shape: &crate::registry_invocation::RegistryInvocationShape,
+    operation: tcl_registry::events::DataCollectionOperation,
+) -> Option<Vec<String>> {
+    if operation.action != DataCollectionAction::Payload {
+        return Some(Vec::new());
+    }
+    crate::registry_invocation::frozen_argument_words(tokens, &shape.effective)
+        .iter()
+        .map(|word| Some(std::str::from_utf8(word.literal_bytes()?).ok()?.to_owned()))
+        .collect()
 }
 
 /// Explicit standalone assistance is a separate fresh body ingress. It retains
@@ -4077,6 +4065,132 @@ mod original_collection_source_tests {
         assert!(separate.standalone);
         assert!(separate.metadata().is_none());
         assert!(collect_flow_state(&separate).is_some());
+    }
+
+    #[test]
+    fn collection_source_metadata_keeps_original_names_and_ignores_report_labels() {
+        let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
+        let config = tcl_lexer::LexerConfig::from_grammar(environment.grammar());
+        let (mut unit, context) = supplied(
+            "when HTTP_REQUEST {HTTP::release; :HTTP::collect; set value {[HTTP::collect]}}",
+            config,
+        );
+        let query = IrulesSourceQuery::capture(&unit, context.commands()).unwrap();
+        let original = collect_flow_state(&query).unwrap().0;
+        assert!(original.collect_calls.is_empty());
+        assert_eq!(original.release_calls.len(), 1);
+        let mut changed = false;
+        for function in unit.procedures.values_mut() {
+            for block in function.cfg.blocks.values_mut() {
+                for statement in &mut block.statements {
+                    if let Statement::Call {
+                        command,
+                        canonical_command,
+                        tokens: Some(tokens),
+                        ..
+                    }
+                    | Statement::Barrier {
+                        command,
+                        canonical_command,
+                        tokens: Some(tokens),
+                        ..
+                    } = statement
+                        && tokens
+                            .argv_texts
+                            .first()
+                            .is_some_and(|word| word == "HTTP::release")
+                    {
+                        *command = "HTTP::collect".to_owned();
+                        *canonical_command = Some("::HTTP::collect".to_owned());
+                        changed = true;
+                    }
+                }
+            }
+        }
+        assert!(changed);
+        let query = IrulesSourceQuery::capture(&unit, context.commands()).unwrap();
+        let actual = collect_flow_state(&query).unwrap().0;
+        assert!(actual.collect_calls.is_empty());
+        assert_eq!(actual.release_calls.len(), 1);
+    }
+
+    #[test]
+    fn collection_source_keeps_original_template_index_and_head_substitutions() {
+        let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
+        let config = tcl_lexer::LexerConfig::from_grammar(environment.grammar());
+        for body in [
+            r#"set value "prefix[HTTP::collect]""#,
+            "set value $a([HTTP::collect])",
+            "[HTTP::collect]",
+        ] {
+            let (unit, context) = supplied(
+                &format!("when HTTP_REQUEST {{{body}; HTTP::release}}"),
+                config,
+            );
+            let query = IrulesSourceQuery::capture(&unit, context.commands()).unwrap();
+            let state = collect_flow_state(&query).unwrap().0;
+            assert_eq!(state.collect_calls.len(), 1, "{body}");
+            assert_eq!(state.release_calls.len(), 1, "{body}");
+        }
+        let (unit, context) = supplied(
+            "when HTTP_REQUEST {set value {prefix[HTTP::collect]}; HTTP::release}",
+            config,
+        );
+        let query = IrulesSourceQuery::capture(&unit, context.commands()).unwrap();
+        let state = collect_flow_state(&query).unwrap().0;
+        assert!(state.collect_calls.is_empty());
+        assert_eq!(state.release_calls.len(), 1);
+    }
+
+    #[test]
+    fn collection_source_retains_admitted_nonregistry_commands() {
+        let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
+        let config = tcl_lexer::LexerConfig::from_grammar(environment.grammar());
+        let (unit, context) = supplied(
+            "proc ordinary {} {return value}; when HTTP_REQUEST {ordinary; HTTP::release}",
+            config,
+        );
+        let query = IrulesSourceQuery::capture(&unit, context.commands()).unwrap();
+        let state = collect_flow_state(&query).unwrap().0;
+        assert!(state.collect_calls.is_empty());
+        assert_eq!(state.release_calls.len(), 1);
+    }
+
+    #[test]
+    fn assigned_collection_substitution_uses_its_original_child_once() {
+        let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
+        let config = tcl_lexer::LexerConfig::from_grammar(environment.grammar());
+        let (mut unit, context) = supplied(
+            "when HTTP_REQUEST {set value [HTTP::collect]; HTTP::release}",
+            config,
+        );
+        let query = IrulesSourceQuery::capture(&unit, context.commands()).unwrap();
+        let state = collect_flow_state(&query).unwrap().0;
+        assert_eq!(state.collect_calls.len(), 1);
+        assert_eq!(state.release_calls.len(), 1);
+        let mut removed = false;
+        for function in unit.procedures.values_mut() {
+            for block in function.cfg.blocks.values_mut() {
+                for statement in &mut block.statements {
+                    if statement.tokens().is_some_and(|tokens| {
+                        tokens.argv_texts.first().is_some_and(|head| head == "set")
+                    }) {
+                        match statement {
+                            Statement::AssignValue { tokens, .. }
+                            | Statement::Call { tokens, .. }
+                            | Statement::Barrier { tokens, .. } => {
+                                *tokens = None;
+                                removed = true;
+                            }
+                            _ => panic!("unexpected original set carrier"),
+                        }
+                    }
+                }
+            }
+        }
+        assert!(removed);
+        let query = IrulesSourceQuery::capture(&unit, context.commands()).unwrap();
+        assert!(collect_flow_state(&query).is_none());
     }
 
     #[test]

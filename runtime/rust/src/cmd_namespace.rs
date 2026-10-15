@@ -193,12 +193,6 @@ fn namespace_cmd_original(
     if argv.len() < 2 {
         return interp.wrong_args_for_invocation(argv, b"subcommand ?arg ...?");
     }
-    // Resolve the subcommand by exact name or unambiguous prefix (the ensemble
-    // contract), so e.g. `namespace exist` → `exists`.
-    let original = match arguments.bytes(1) {
-        Ok(bytes) => bytes,
-        Err(error) => return interp.report_cmd_error(error.into()),
-    };
     let Some(policy) = interp.name_policy_protocol() else {
         return interp.report_cmd_error(
             tcl_syntax::value::ValueError::CommandProtocolUnavailable(
@@ -207,37 +201,53 @@ fn namespace_cmd_original(
             .into(),
         );
     };
-    let raw = policy
-        .recipe()
-        .namespace_subcommand_input(&original)
-        .selected()
-        .to_vec();
-    let dialect = Some(crate::environment::surface_point(interp.dialect_profile()));
-    let spec = tcl_registry::default_registry()
-        .get_for_surface("namespace", dialect)
-        .expect("namespace execution profile");
-    let Some(subcommand) = spec.resolve_native_namespace_subcommand_bytes_for_dialect(
-        policy.recipe(),
-        &original,
-        dialect,
-    ) else {
-        let available: Vec<_> = spec
-            .subcommands
-            .iter()
-            .filter(|candidate| {
-                candidate.surface.or(spec.surface).is_none_or(|surface| {
-                    tcl_dialect::model::surface_admits(surface, dialect.as_ref())
-                })
-            })
-            .map(|candidate| candidate.name)
-            .collect();
-        return interp.set_error(&tcl_cmd_core::namespace::unknown_subcommand_message(
+    let sub = if policy.recipe().is_jim084() {
+        match interp.original_jim_namespace_subcommand(argv, arguments) {
+            Ok(crate::interp::OriginalJimNamespaceSubcommandOutcome::Invoke(entry)) => {
+                entry.name().as_bytes()
+            }
+            Ok(crate::interp::OriginalJimNamespaceSubcommandOutcome::Complete(code)) => {
+                return code
+            }
+            Err(error) => return interp.report_cmd_error(error),
+        }
+    } else {
+        let original = match arguments.bytes(1) {
+            Ok(bytes) => bytes,
+            Err(error) => return interp.report_cmd_error(error),
+        };
+        let raw = policy
+            .recipe()
+            .namespace_subcommand_input(&original)
+            .selected()
+            .to_vec();
+        let dialect = Some(crate::environment::surface_point(interp.dialect_profile()));
+        let spec = tcl_registry::default_registry()
+            .get_for_surface("namespace", dialect)
+            .expect("namespace execution profile");
+        let Some(subcommand) = spec.resolve_native_namespace_subcommand_bytes_for_dialect(
             policy.recipe(),
-            &available,
-            &raw,
-        ));
+            &original,
+            dialect,
+        ) else {
+            let available: Vec<_> = spec
+                .subcommands
+                .iter()
+                .filter(|candidate| {
+                    candidate.surface.or(spec.surface).is_none_or(|surface| {
+                        tcl_dialect::model::surface_admits(surface, dialect.as_ref())
+                    })
+                })
+                .map(|candidate| candidate.name)
+                .collect();
+            return interp.set_error(&tcl_cmd_core::namespace::unknown_subcommand_message(
+                policy.recipe(),
+                &available,
+                &raw,
+            ));
+        };
+        subcommand.name.as_bytes()
     };
-    let sub = subcommand.name.as_bytes();
     match sub {
         b"canonical" => {
             let (namespace, name) = match &argv[2..] {

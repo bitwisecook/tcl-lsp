@@ -44,22 +44,44 @@ pub(crate) fn install(
     cache: NativeJimOptionCache,
     dialect: tcl_registry::InvocationDialect,
 ) -> Result<(), ValueError> {
+    install_checked(value, cache, dialect, &mut || Ok(()))
+}
+
+pub(crate) fn install_checked<E: From<ValueError>>(
+    value: *mut TclObj,
+    cache: NativeJimOptionCache,
+    dialect: tcl_registry::InvocationDialect,
+    check: &mut dyn FnMut() -> Result<(), E>,
+) -> Result<(), E> {
+    check()?;
     super::check_native_liveness(value)?;
     dialect
         .native_jim_enum_protocol()
         .ok_or(ValueError::CommandProtocolUnavailable(
             "Jim Enum primary issuer",
         ))?;
-    if !has_string_rep(value) {
-        return Err(ValueError::CommandProtocolUnavailable(
-            "Jim Enum resident spelling",
-        ));
-    }
     let ty = if matches!(cache, NativeJimOptionCache::Enum { .. }) {
         &ENUM
     } else {
         &COMPARED
     };
-    change_type(value, ty, Box::into_raw(Box::new(cache)) as usize as u64);
-    Ok(())
+    let mut current = || {
+        check()?;
+        super::check_native_liveness(value)?;
+        if !has_string_rep(value) {
+            return Err(
+                ValueError::CommandProtocolUnavailable("Jim Enum resident spelling").into(),
+            );
+        }
+        Ok(())
+    };
+    current()?;
+    let incoming = Box::into_raw(Box::new(cache));
+    let reached =
+        super::change_type_with_stage_check(value, ty, incoming as usize as u64, &mut current);
+    if reached.is_err() {
+        // SAFETY: a refused transfer leaves the incoming backing unadopted.
+        drop(unsafe { Box::from_raw(incoming) });
+    }
+    reached
 }

@@ -87,6 +87,12 @@ pub fn extract_original_irules_source_object_references(
     }
     let mut out = Vec::new();
     for command in context.commands() {
+        if matches!(command.words().source(),
+            tcl_compiler::registry_invocation::source_structure::OriginalRegistrySource::Vendor(metadata)
+                if metadata.authored_barriers().has_nominal_command_name_hazard())
+        {
+            continue;
+        }
         let Some(operands) = command
             .words()
             .with_source_schema(context.context_registry(), |schema| {

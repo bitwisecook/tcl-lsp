@@ -423,3 +423,6 @@ pub use native_array_search::{
 
 mod native_jim_enum;
 pub use native_jim_enum::NativeJimOptionCache;
+
+mod native_jim_subcommand;
+pub use native_jim_subcommand::NativeJimSubcommandCache;

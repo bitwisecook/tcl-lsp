@@ -36,6 +36,7 @@ enum LogicalVariableFrameRecipe {
         scope: Arc<OriginalDeclaredLogicalBodyContext>,
         procedure: Option<Arc<OriginalLogicalProcedureBody>>,
     },
+    Formal(Arc<OriginalLogicalProcedureBody>),
 }
 
 /// Actual source scope and complete original interpretation. This is a naming
@@ -49,6 +50,20 @@ pub(crate) struct OriginalLogicalVariableScope {
 }
 
 impl OriginalLogicalVariableScope {
+    pub(crate) fn formal(
+        input: &ResolvedAnalysisInput,
+        procedure: Arc<OriginalLogicalProcedureBody>,
+        span: Span,
+        name: &SignatureSourceNameInput,
+    ) -> Option<Self> {
+        let result = Self {
+            input: input.clone(),
+            original: Arc::from(std::slice::from_ref(procedure.formal_original())),
+            earlier_unknown_mutations: procedure.has_earlier_unknown_mutations(),
+            frame: LogicalVariableFrameRecipe::Formal(procedure),
+        };
+        result.matches_name(span, name).then_some(result)
+    }
     pub(super) fn document(
         input: &ResolvedAnalysisInput,
         origin: Arc<SourceOriginId>,
@@ -118,6 +133,10 @@ impl OriginalLogicalVariableScope {
                 .all(|word| word.image() == image && word.config() == input.lexer_config())
             && match &self.frame {
                 LogicalVariableFrameRecipe::Document(origin) => origin.source_image() == image,
+                LogicalVariableFrameRecipe::Formal(card) => {
+                    card.matches_source(image, input)
+                        && self.original.as_ref() == std::slice::from_ref(card.formal_original())
+                }
                 LogicalVariableFrameRecipe::Declared { scope, procedure } => {
                     scope.matches_input(input)
                         && scope.owns_words(&self.original)
@@ -140,6 +159,16 @@ impl OriginalLogicalVariableScope {
                 != tcl_syntax::naming::NamePolicyAuthority::AuthoredSimulation
         {
             return false;
+        }
+        if let LogicalVariableFrameRecipe::Formal(card) = &self.frame {
+            return card
+                .formal_topology()
+                .and_then(|topology| topology.original_name_fields())
+                .is_some_and(|fields| {
+                    fields
+                        .iter()
+                        .any(|field| field.span == span && &field.input == name)
+                });
         }
         Self::original_words_match_name(&self.original, &self.input, span, name)
     }
@@ -196,17 +225,19 @@ impl OriginalLogicalVariableScope {
     pub(crate) fn namespace(&self) -> SignatureNamespaceScope {
         SignatureNamespaceScope::C(match &self.frame {
             LogicalVariableFrameRecipe::Document(_) => tcl_core_types::ByteNamespacePath::root(),
+            LogicalVariableFrameRecipe::Formal(card) => card.scope().namespace_recipe().clone(),
             LogicalVariableFrameRecipe::Declared { scope, .. } => scope.namespace_recipe().clone(),
         })
     }
 
     pub(crate) fn local_frame(&self) -> Option<SourceOriginalVariableFrame> {
-        let LogicalVariableFrameRecipe::Declared {
-            procedure: Some(card),
-            ..
-        } = &self.frame
-        else {
-            return None;
+        let card = match &self.frame {
+            LogicalVariableFrameRecipe::Declared {
+                procedure: Some(card),
+                ..
+            }
+            | LogicalVariableFrameRecipe::Formal(card) => card,
+            _ => return None,
         };
         SourceOriginalVariableFrame::from_logical_procedure_source(card, &self.input)
     }
@@ -214,6 +245,7 @@ impl OriginalLogicalVariableScope {
     pub(crate) fn namespace_storage(&self) -> bool {
         match &self.frame {
             LogicalVariableFrameRecipe::Document(_) => true,
+            LogicalVariableFrameRecipe::Formal(_) => false,
             LogicalVariableFrameRecipe::Declared { scope, .. } => {
                 scope.frame_recipe() != OriginalDeclaredSourceBodyFrame::Procedure
             }
@@ -221,12 +253,13 @@ impl OriginalLogicalVariableScope {
     }
 
     pub(crate) fn local_name_is_byte_unique(&self, name: &[u8]) -> bool {
-        let LogicalVariableFrameRecipe::Declared {
-            procedure: Some(card),
-            ..
-        } = &self.frame
-        else {
-            return false;
+        let card = match &self.frame {
+            LogicalVariableFrameRecipe::Declared {
+                procedure: Some(card),
+                ..
+            }
+            | LogicalVariableFrameRecipe::Formal(card) => card,
+            _ => return false,
         };
         let Some(policy) =
             super::source_analysis_entry::source_input_dialect(&self.input).authored_name_policy()

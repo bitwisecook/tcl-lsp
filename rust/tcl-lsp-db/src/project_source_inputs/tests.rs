@@ -386,6 +386,80 @@ fn supplied_factory_oracles_require_current_file_inputs_without_a_derived_query_
 }
 
 #[test]
+fn supplied_factory_hints_require_every_members_source_owner() {
+    let mut db = TclDatabase::default();
+    let config = configuration(&db, 0);
+    let other_config = configuration(&db, 0);
+    let library = SourceFile::new(
+        &db,
+        "oo::class create ::Meta {superclass oo::class; self method create {name body} {next $name $body}}".to_owned(),
+        "tcl".to_owned(),
+        None,
+    );
+    let other = SourceFile::new(&db, String::new(), "tcl".to_owned(), None);
+    let project = Project::with_token_configurations(
+        &db,
+        vec![library, other],
+        Some(vec![(library, config), (other, other_config)]),
+    );
+    assert!(project_class_factories_for_inputs(&db, project).contains_key("::Meta"));
+    other_config.set_spec_pack_key(&mut db).to(u64::MAX - 6356);
+    assert!(document_analysis_input(&db, other, other_config).is_err());
+    assert!(project_class_factories_for_inputs(&db, project).is_empty());
+    other_config.set_spec_pack_key(&mut db).to(0);
+    project
+        .set_token_configurations(&mut db)
+        .to(Some(vec![(library, config)]));
+    assert!(project_class_factories_for_inputs(&db, project).is_empty());
+}
+
+#[test]
+fn project_factory_hints_preserve_duplicate_provider_ambiguity_in_every_order() {
+    let db = TclDatabase::default();
+    let config = configuration(&db, 0);
+    let source = "oo::class create ::Meta {superclass oo::class; self method create {name body} {next $name $body}}";
+    let first = SourceFile::new(&db, source.to_owned(), "tcl".to_owned(), None);
+    let second = SourceFile::new(&db, source.to_owned(), "tcl".to_owned(), None);
+    let third = SourceFile::new(&db, source.to_owned(), "tcl".to_owned(), None);
+    let distinct = SourceFile::new(
+        &db,
+        "oo::class create ::Other {superclass oo::class; self method create {name body} {next $name $body}}".to_owned(),
+        "tcl".to_owned(),
+        None,
+    );
+    let single = Project::with_token_configurations(
+        &db,
+        vec![first],
+        Some(vec![(first, config)]),
+    );
+    assert!(project_class_factories_for_inputs(&db, single).contains_key("::Meta"));
+    let repeated_owner = Project::with_token_configurations(
+        &db,
+        vec![first, first],
+        Some(vec![(first, config)]),
+    );
+    assert_eq!(
+        project_class_factories_for_inputs(&db, repeated_owner),
+        project_class_factories_for_inputs(&db, single)
+    );
+    assert_eq!(
+        project_class_factories(&db, repeated_owner),
+        project_class_factories(&db, single)
+    );
+    for files in [
+        vec![first, second, third, distinct],
+        vec![distinct, third, second, first],
+    ] {
+        let mappings = files.iter().map(|&file| (file, config)).collect();
+        let project = Project::with_token_configurations(&db, files, Some(mappings));
+        let supplied = project_class_factories_for_inputs(&db, project);
+        assert!(!supplied.contains_key("::Meta"));
+        assert!(supplied.contains_key("::Other"));
+        assert_eq!(project_class_factories(&db, project), supplied);
+    }
+}
+
+#[test]
 fn configured_project_headers_and_factories_preserve_the_structure_tier_firewall() {
     // naming.compiler.original-analysis-metadata-context
     // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md

@@ -4544,7 +4544,7 @@ mod tests {
         // Controlled original providers: experiments/name-handling/results/minifier-alias-reference/oracles/controlled,
         // manifest 756df4fa5b54ea09a6c2310da741cfc215a94a4481b4a8e972c5f23179e0461b.
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
-            let profile = tcl_dialect::DialectProfile::find(dialect).unwrap();
+            let profile = tcl_registry::model::ingress::resolve_environment(dialect).unit_profile();
             let config = LexerConfig::for_profile(Some(profile));
             for (suffix, braced) in [
                 ("::tail", true),

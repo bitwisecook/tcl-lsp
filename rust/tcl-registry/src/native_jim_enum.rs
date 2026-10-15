@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Actual Jim GetEnum and CompareStringImmediate recipes over retained declarations.
-use super::native_index_lookup::NativeStaticIndexTable;
+use super::native_index_lookup::{NativeImmediateLiteralTable, NativeStaticIndexTable};
 use tcl_core_types::NativeJimOptionCache;
 use tcl_syntax::native_string::NativeStringProtocol;
 
@@ -130,10 +130,10 @@ impl NativeJimEnumProtocol {
     pub fn compared_hit(
         self,
         cache: Option<&NativeJimOptionCache>,
-        table: &NativeStaticIndexTable,
+        table: &impl NativeImmediateLiteralTable,
         index: usize,
     ) -> bool {
-        matches!(cache,Some(NativeJimOptionCache::ComparedString {literal_identity,..}) if Some(*literal_identity)==table.literal_identity(index))
+        matches!(cache,Some(NativeJimOptionCache::ComparedString {literal_identity,..}) if Some(*literal_identity)==table.immediate_literal_identity(index))
     }
     /// Compare `CString` extents and retain a `ComparedString` receipt on equality.
     /// Returns `None` for a mismatch or an unavailable declaration entry.
@@ -141,18 +141,17 @@ impl NativeJimEnumProtocol {
     pub fn compare(
         self,
         original: &[u8],
-        table: &NativeStaticIndexTable,
+        table: &impl NativeImmediateLiteralTable,
         index: usize,
     ) -> Option<NativeJimOptionCache> {
-        let word = table.original_entry(index)?;
-        (tcl_core_types::c_string_extent(original) == tcl_core_types::c_string_extent(word)).then(
-            || NativeJimOptionCache::ComparedString {
-                entry: table.cache(index),
-                literal_identity: table
-                    .literal_identity(index)
-                    .expect("original static entry"),
-            },
-        )
+        let word = table.immediate_literal(index)?;
+        if tcl_core_types::c_string_extent(original) != tcl_core_types::c_string_extent(word) {
+            return None;
+        }
+        Some(NativeJimOptionCache::ComparedString {
+            entry: table.immediate_cache(index)?,
+            literal_identity: table.immediate_literal_identity(index)?,
+        })
     }
 }
 impl crate::InvocationDialect {

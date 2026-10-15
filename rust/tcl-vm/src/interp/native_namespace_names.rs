@@ -16,6 +16,8 @@ use tcl_syntax::{
     value::ValueError,
 };
 
+mod jim_parent;
+
 impl Vm {
     pub(crate) fn original_jim_canonical_namespace_object(
         &mut self,

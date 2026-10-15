@@ -13,6 +13,20 @@ use tcl_core_types::{
 use tcl_dialect::TclVersion;
 use tcl_syntax::value::ValueError;
 
+/// A retained actual native declaration used by CompareStringImmediate.
+/// Literal identities are equality keys; entries and storage come from this owner.
+pub trait NativeImmediateLiteralTable {
+    /// Borrow the original literal at a validated native ordinal.
+    fn immediate_literal(&self, index: usize) -> Option<&'static [u8]>;
+    /// Retain the actual declaration and selected literal, without an object header.
+    fn immediate_cache(&self, index: usize) -> Option<NativeIndexCache>;
+    /// Actual literal identity, without pointer access authority.
+    fn immediate_literal_identity(&self, index: usize) -> Option<usize> {
+        self.immediate_literal(index)
+            .map(|literal| literal.as_ptr() as usize)
+    }
+}
+
 /// Actual C `GetIndex` protocol, independently selected from source grammar.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NativeIndexLookupProtocol(TclVersion);
@@ -108,6 +122,16 @@ impl NativeStaticIndexTable {
     #[must_use]
     pub fn cache(&self, index: usize) -> NativeIndexCache {
         NativeIndexCache::new(Rc::new(self.clone()), self.stride, index)
+    }
+}
+
+impl NativeImmediateLiteralTable for NativeStaticIndexTable {
+    fn immediate_literal(&self, index: usize) -> Option<&'static [u8]> {
+        self.original_entry(index)
+    }
+    fn immediate_cache(&self, index: usize) -> Option<NativeIndexCache> {
+        self.original_entry(index)?;
+        Some(self.cache(index))
     }
 }
 

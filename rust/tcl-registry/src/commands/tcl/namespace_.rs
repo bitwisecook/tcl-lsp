@@ -1508,22 +1508,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
 /// Command spec for `namespace`.
 /// The measured Jim namespace helper surface, without C-only subcommands.
 pub fn jim_spec() -> CommandSpec {
-    const NAMES: &[&str] = &[
-        "code",
-        "current",
-        "delete",
-        "ensemble",
-        "eval",
-        "export",
-        "import",
-        "inscope",
-        "origin",
-        "parent",
-        "qualifiers",
-        "tail",
-        "upvar",
-        "which",
-    ];
     static SUBCOMMANDS_JIM: std::sync::OnceLock<Box<[SubCommand]>> = std::sync::OnceLock::new();
     let mut command = spec();
     // Jim's namespace extension has no C namespace compiler worker.
@@ -1537,7 +1521,11 @@ pub fn jim_spec() -> CommandSpec {
             let mut subcommands: Vec<_> = command
                 .subcommands
                 .iter()
-                .filter(|sub| NAMES.contains(&sub.name))
+                .filter(|sub| {
+                    crate::native_jim_lookup::namespace_subcommand_declarations()
+                        .iter()
+                        .any(|entry| entry.name() == sub.name)
+                })
                 .cloned()
                 .collect();
             for subcommand in &mut subcommands {

@@ -1640,6 +1640,12 @@ pub struct InvocationFacts {
     pub lowering_hook: Option<LoweringHookId>,
     /// Effective registry-selected analyser semantic hook.
     pub analyser_hook: Option<crate::hooks::AnalyserHookId>,
+    /// Readonly collection lifecycle metadata from the actual selected command
+    /// descriptor. This supplies no reached operation or completed effect.
+    pub data_collection: Option<crate::events::DataCollectionOperation>,
+    /// Readonly execution-side metadata from that same descriptor; body entry
+    /// and original source correspondence remain separate requirements.
+    pub side_switch_target: Option<crate::side_effects::SideSwitchTarget>,
     /// Effective Tcl completion descriptor.
     pub completion: CompletionDescriptor,
     /// Registry-declared dependency contract for the invocation's result.
@@ -5260,6 +5266,11 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
             operation: self.semantics.operation,
             lowering_hook: self.semantics.lowering_hook,
             analyser_hook: self.semantics.analyser_hook,
+            data_collection: self.authored_source_descriptors().command.data_collection,
+            side_switch_target: self
+                .authored_source_descriptors()
+                .command
+                .side_switch_target,
             completion: self.semantics.completion,
             result_stability: self.semantics.result_stability,
             native_result: self.semantics.native_result,

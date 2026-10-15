@@ -860,6 +860,23 @@ impl SignatureSourceVariableOccurrence {
         }
     }
 
+    pub(crate) fn from_logical_formal_input(
+        span: tcl_lexer::Span,
+        input: SignatureSourceNameInput,
+        simple: NameBytes,
+        recipe: crate::command_binding::formal_topology::OriginalFormalNameRecipe,
+        scope: crate::command_binding::OriginalLogicalVariableScope,
+    ) -> Option<Self> {
+        if !scope.matches_name(span, &input) || !scope.local_name_is_byte_unique(simple.as_bytes())
+        {
+            return None;
+        }
+        let mut result =
+            Self::from_original_formal_input(span, input, scope.local_frame()?, simple, recipe);
+        result.logical_scope = Some(scope);
+        Some(result)
+    }
+
     /// Whether this source spelling follows the target's renamed root. An
     /// independently named upvar local remains unchanged in a target rename.
     #[must_use]

@@ -344,6 +344,64 @@ pub fn append_unshared_jim_cstring<O: NativeAppendObjects>(
     original_bytes: &[u8],
     check: &mut impl FnMut() -> Result<(), ValueError>,
 ) -> Result<(), ValueError> {
+    append_jim_cstring_checked(ops, protocol, receiver, original_bytes, check)
+}
+
+/// Append one CString onto the actual already published, unshared Jim result.
+/// The caller checks the original result slot, receiver sharing and operation
+/// before each reached stage; this borrows the header without a native reference.
+/// The independent key-constructor API retains its refcount-zero precondition.
+///
+/// # Errors
+/// Refuses a non-Jim recipe or a reached original storage/currentness failure.
+pub fn append_published_unshared_jim_cstring<O: NativeAppendObjects>(
+    ops: &O,
+    protocol: NativeObjectAppendProtocol,
+    receiver: &O::Value,
+    original_bytes: &[u8],
+    check: &mut impl FnMut() -> Result<(), ValueError>,
+) -> Result<(), ValueError> {
+    append_jim_cstring_checked(ops, protocol, receiver, original_bytes, check)
+}
+
+/// Append an original object onto the actual published, unshared Jim result.
+/// The caller checks the live result slot, its single native reference and
+/// original operation at every reached stage. Both headers remain borrowed;
+/// no working reference or copy-on-write decision intervenes.
+///
+/// # Errors
+/// Refuses a non-Jim recipe or a reached original storage/currentness failure.
+pub fn append_published_unshared_jim_object_checked<O: NativeAppendObjects>(
+    ops: &O,
+    protocol: NativeObjectAppendProtocol,
+    receiver: &O::Value,
+    source: &O::Value,
+    check: &mut impl FnMut() -> Result<(), ValueError>,
+) -> Result<(), ValueError> {
+    if !protocol.string_protocol().is_jim084() {
+        return Err(ValueError::CommandProtocolUnavailable(
+            "Jim published original-object append",
+        ));
+    }
+    let shape = checked_append_stage(ops, check, || ops.snapshot(receiver))?;
+    append_jim_string_checked(
+        ops,
+        protocol.string_protocol(),
+        receiver,
+        source,
+        &shape,
+        check,
+    )?;
+    check()
+}
+
+fn append_jim_cstring_checked<O: NativeAppendObjects>(
+    ops: &O,
+    protocol: NativeObjectAppendProtocol,
+    receiver: &O::Value,
+    original_bytes: &[u8],
+    check: &mut impl FnMut() -> Result<(), ValueError>,
+) -> Result<(), ValueError> {
     if !protocol.string_protocol().is_jim084() {
         return Err(ValueError::CommandProtocolUnavailable(
             "Jim original CString append",

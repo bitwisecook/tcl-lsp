@@ -5147,6 +5147,10 @@ pub struct RegistryInvocationShape {
     pub command: String,
     /// Nominal semantic operation, for advisory interpretation only.
     pub operation: tcl_registry::SemanticOperationId,
+    /// Readonly lifecycle metadata from this candidate's selected descriptor.
+    pub data_collection: Option<tcl_registry::events::DataCollectionOperation>,
+    /// Possible source execution side; this supplies no entered body.
+    pub side_switch_target: Option<tcl_registry::side_effects::SideSwitchTarget>,
     /// Possible roles relative to the selected command or member operands.
     pub roles: Vec<(u8, tcl_registry::ArgRole)>,
     /// Selected member operands' offset in effective post-head argv, including
@@ -5167,6 +5171,8 @@ impl RegistryInvocationShape {
         Self {
             command: facts.canonical_command.clone(),
             operation: facts.operation,
+            data_collection: facts.data_collection,
+            side_switch_target: facts.side_switch_target,
             roles: facts.arg_roles.clone(),
             argument_offset: facts.argument_offset,
             roles_complete: facts.arg_roles_complete,
