@@ -237,7 +237,7 @@ impl Parser<'_> {
             }
             Lexeme::Literal => {}
             Lexeme::Dollar => self.next = skip_var_name(self.src, self.next - 1)?,
-            Lexeme::Quote => self.next = skip_quoted(self.src, self.start)?,
+            Lexeme::Quote => self.next = skip_quoted(self.text, self.start)?,
             Lexeme::OpenBracket => self.next = skip_command(self.src, self.start)?,
             Lexeme::OpenBrace => self.next = skip_braces(self.src, self.start)?,
             Lexeme::FuncName => {
@@ -516,67 +516,27 @@ fn simple_error(message: &str) -> ClassicExprError {
     }
 }
 
+/// 8.4's word grammar, which the lexer's scans read `${…}` and array
+/// indices by.
+fn lexer_config() -> tcl_lexer::LexerConfig {
+    tcl_lexer::LexerConfig::for_dialect(tcl_dialect::TclVersion::V8_4.dialect_name())
+}
+
 /// `Tcl_ParseVarName` from the `$` at `at`: the end of the reference. A
 /// `$` naming nothing is a literal `$`.
 fn skip_var_name(src: &[u8], at: usize) -> Result<usize, ClassicExprError> {
-    let mut i = at + 1;
-    if src.get(i) == Some(&b'{') {
-        return src[i..]
-            .iter()
-            .position(|&b| b == b'}')
-            .map(|n| i + n + 1)
-            .ok_or_else(|| simple_error("missing close-brace for variable name"));
+    match tcl_lexer::scan_var_ref(src, at, lexer_config()) {
+        Ok(Some(var)) => Ok(var.next),
+        Ok(None) => Ok(at + 1),
+        Err(message) => Err(simple_error(message)),
     }
-    loop {
-        match src.get(i) {
-            Some(c) if c.is_ascii_alphanumeric() || *c == b'_' || *c >= 0x80 => i += 1,
-            Some(b':') if src.get(i + 1) == Some(&b':') => {
-                i += 2;
-                while src.get(i) == Some(&b':') {
-                    i += 1;
-                }
-            }
-            _ => break,
-        }
-    }
-    if i > at + 1 && src.get(i) == Some(&b'(') {
-        let mut depth = 0usize;
-        let mut j = i;
-        while j < src.len() {
-            match src[j] {
-                b'\\' => j += 1,
-                b'(' => depth += 1,
-                b')' => {
-                    depth -= 1;
-                    if depth == 0 {
-                        return Ok(j + 1);
-                    }
-                }
-                b'[' => {
-                    j = skip_command(src, j)? - 1;
-                }
-                _ => {}
-            }
-            j += 1;
-        }
-        return Err(simple_error("missing )"));
-    }
-    Ok(i)
 }
 
 /// `Tcl_ParseQuotedString` from the `"` at `at`.
-fn skip_quoted(src: &[u8], at: usize) -> Result<usize, ClassicExprError> {
-    let mut i = at + 1;
-    while i < src.len() {
-        match src[i] {
-            b'\\' => i += 1,
-            b'"' => return Ok(i + 1),
-            b'[' => i = skip_command(src, i)? - 1,
-            _ => {}
-        }
-        i += 1;
-    }
-    Err(simple_error("missing \""))
+fn skip_quoted(text: &str, at: usize) -> Result<usize, ClassicExprError> {
+    tcl_lexer::quoted_word_close(text, at)
+        .map(|close| close + 1)
+        .map_err(simple_error)
 }
 
 /// `Tcl_ParseBraces` from the `{` at `at`.
@@ -601,21 +561,11 @@ fn skip_braces(src: &[u8], at: usize) -> Result<usize, ClassicExprError> {
 }
 
 /// The nested `Tcl_ParseCommand` loop from the `[` at `at`: the byte after
-/// its `]`.
+/// its `]`. The substituted text is a script, so its comments and words
+/// decide where it ends.
 fn skip_command(src: &[u8], at: usize) -> Result<usize, ClassicExprError> {
-    let mut i = at + 1;
-    while i < src.len() {
-        match src[i] {
-            b'\\' => i += 1,
-            b']' => return Ok(i + 1),
-            b'[' => i = skip_command(src, i)? - 1,
-            b'{' => i = skip_braces(src, i)? - 1,
-            b'"' => i = skip_quoted(src, i)? - 1,
-            _ => {}
-        }
-        i += 1;
-    }
-    Err(simple_error("missing close-bracket"))
+    tcl_lexer::command_subst_close(src, at, tcl_lexer::SubstFlags::default(), lexer_config())
+        .map_err(simple_error)
 }
 
 #[cfg(test)]
@@ -795,6 +745,32 @@ mod tests {
             "0x1F",
         ] {
             assert_eq!(check(expr), None, "{expr:?}");
+        }
+    }
+
+    /// A command substitution is a script: a `]` in its comment or inside
+    /// one of its words does not close it (tclsh 8.4.20 evaluates each).
+    #[test]
+    fn substitutions_end_where_their_script_does() {
+        for expr in [
+            "[# ] comment\nexpr 1]",
+            "[set a \"x]y\"] eq \"x]y\"",
+            "\"a[# ]\nset x b]\" eq \"b\"",
+            "$b([# ]\nset k 1]) == 1",
+        ] {
+            assert_eq!(check(expr), None, "{expr:?}");
+        }
+        for (expr, message) in [
+            ("[set a", "missing close-bracket"),
+            ("\"abc", "missing \""),
+            ("$b(1", "missing )"),
+            ("${a + 1", "missing close-brace for variable name"),
+        ] {
+            assert_eq!(
+                check(expr).map(|e| e.message).as_deref(),
+                Some(message),
+                "{expr:?}"
+            );
         }
     }
 }
