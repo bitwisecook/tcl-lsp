@@ -327,19 +327,39 @@ fn supplied_logical_arities_require_every_members_source_owner() {
         .iter()
         .find_map(|header| header.logical_source_coordinate.clone())
         .unwrap();
-    let key = LogicalSourceCommandSlot::new(&db, coordinate);
     assert_eq!(
-        logical_source_command_arity(&db, project, key, true),
+        logical_source_command_arity(
+            &db,
+            project,
+            LogicalSourceCommandSlot::new(&db, coordinate.clone()),
+            true,
+        ),
         Some(Arc::new(vec![(2, 2)]))
     );
     other_config.set_spec_pack_key(&mut db).to(u64::MAX - 5356);
     assert!(document_analysis_input(&db, other, other_config).is_err());
-    assert!(logical_source_command_arity(&db, project, key, true).is_none());
+    assert!(
+        logical_source_command_arity(
+            &db,
+            project,
+            LogicalSourceCommandSlot::new(&db, coordinate.clone()),
+            true,
+        )
+        .is_none()
+    );
     other_config.set_spec_pack_key(&mut db).to(0);
     project
         .set_token_configurations(&mut db)
         .to(Some(vec![(library, config)]));
-    assert!(logical_source_command_arity(&db, project, key, true).is_none());
+    assert!(
+        logical_source_command_arity(
+            &db,
+            project,
+            LogicalSourceCommandSlot::new(&db, coordinate),
+            true,
+        )
+        .is_none()
+    );
 }
 
 #[test]
