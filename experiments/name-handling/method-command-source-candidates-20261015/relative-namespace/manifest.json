@@ -1,0 +1,131 @@
+{
+  "utc": "2026-10-15T04:25:54.053233+00:00",
+  "probe_sha256": "f0402ff22b4a2ead9d7f93e0248bace5e445e49db1ebe29c1ba58c124e2a3b41",
+  "scope": "Actual original TclOO relative method lookup observations: root fallback, actual runtime-issued object namespace shadow, outer class-declaration namespace counterexample. Detect baseline OO availability; unavailable providers retained. Runtime object namespace is oracle input only, never a compiler method namespace donor. No tcltest or source/frame/Native/edit capability grant.",
+  "rows": [
+    {
+      "provider_label": "8.4.20",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+        "/tmp/name-method-relative-candidate-oracles-20261015/probe.tcl"
+      ],
+      "selected_original_library": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "original_files_before": {
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/library/init.tcl": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b"
+      },
+      "original_files_after": {
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/library/init.tcl": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b"
+      },
+      "exit_code": 0,
+      "stdout_file": "8-4-20.stdout",
+      "stderr_file": "8-4-20.stderr",
+      "stdout_sha256": "6cedb877a2405409661df7b433029a103a6e5a3304d765feba309ced7991f0d2",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider_label": "8.5.19",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+        "/tmp/name-method-relative-candidate-oracles-20261015/probe.tcl"
+      ],
+      "selected_original_library": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "original_files_before": {
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/library/init.tcl": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1"
+      },
+      "original_files_after": {
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/library/init.tcl": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1"
+      },
+      "exit_code": 0,
+      "stdout_file": "8-5-19.stdout",
+      "stderr_file": "8-5-19.stderr",
+      "stdout_sha256": "b77277c194848314ee5acf3648c6d2e9a463e0fac101baefac18fb5534dc16e9",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider_label": "8.6.18",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "/tmp/name-method-relative-candidate-oracles-20261015/probe.tcl"
+      ],
+      "selected_original_library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "original_files_before": {
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35"
+      },
+      "original_files_after": {
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35"
+      },
+      "exit_code": 0,
+      "stdout_file": "8-6-18.stdout",
+      "stderr_file": "8-6-18.stderr",
+      "stdout_sha256": "5c23cf5c6b138738e871a77b5bbadab41b223b9baaed3ee327972cd620fc7e3f",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider_label": "9.0.4",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+        "/tmp/name-method-relative-candidate-oracles-20261015/probe.tcl"
+      ],
+      "selected_original_library": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "original_files_before": {
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/library/init.tcl": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a"
+      },
+      "original_files_after": {
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/library/init.tcl": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a"
+      },
+      "exit_code": 0,
+      "stdout_file": "9-0-4.stdout",
+      "stderr_file": "9-0-4.stderr",
+      "stdout_sha256": "b5319558640a299c3f2535d3660e0b398c23e8a914c7a5eaa9c957b2a74ce20e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider_label": "9.1.0",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+        "/tmp/name-method-relative-candidate-oracles-20261015/probe.tcl"
+      ],
+      "selected_original_library": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "original_files_before": {
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/library/init.tcl": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f"
+      },
+      "original_files_after": {
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/library/init.tcl": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f"
+      },
+      "exit_code": 0,
+      "stdout_file": "9-1-0.stdout",
+      "stderr_file": "9-1-0.stderr",
+      "stdout_sha256": "ea25c90ae01fcbb5a688c67ccf959955e252ea49701097a53b5640a891258535",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider_label": "Jim",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "/tmp/name-method-relative-candidate-oracles-20261015/probe.tcl"
+      ],
+      "selected_original_library": null,
+      "original_files_before": {
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891"
+      },
+      "original_files_after": {
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891"
+      },
+      "exit_code": 0,
+      "stdout_file": "Jim.stdout",
+      "stderr_file": "Jim.stderr",
+      "stdout_sha256": "e4a01e252a16bf1e59de3f8fa427dca8fde81831ef49f9b9cfee5332985c8ca6",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

@@ -73,3 +73,13 @@ a completed C release gate or Jim/F5 agreement.
 [Original Jim namespace Code SDK capture](original-jim-namespace-code-sdk-20261015/README.md) retains sixteen cases/217rows with32 actual public/direct cold/hot getter and original argument/List identity phases, actual helper replacement/deletion and timed upstream provenance. Excluded failed trials remain exact assets, without Runtime/VM or full lifecycle acceptance.
 
 [Original Jim namespace Origin SDK capture](original-jim-namespace-origin-sdk-20261015/README.md) retains22 cases/293rows with44 actual public/direct cold/hot getter, original header and alias/chain observations, helper replacement/deletion and timed upstream provenance. These selected observations accept no Runtime/VM or full lifecycle behavior.
+
+[Original decoded clause script values](../decoded-clause-script-values-20261015/README.md) retain exact C5/pinned Jim if/elseif/else command-value observations before the related tests; general indentation, F5 and Rust edit acceptance remain separate.
+
+[Original method command-source candidates](../method-command-source-candidates-20261015/README.md) retain relative method-namespace counterexamples and separate original lookup-operand effects, without supplying a method frame, namespace donor or Native lookup proof.
+
+[Original completion argument values](../completion-argument-values-20261015/README.md) retain midcommand hash argv and complete quoted TclOO selector observations, including baseline OO unavailability; these are original fixture evidence, not a Rust/LSP acceptance result.
+
+- [Original import export-filter/self-import capture](original-import-export-policy-20261015/README.md): actual C5/Jim no-export target and self-import outcomes; source advice and Runtime acceptance remain separate.
+
+[Original Jim namespace Inscope SDK capture](original-jim-namespace-inscope-sdk-20261015/README.md) retains14cases/421rows across28 public/direct cold/hot phases: genuine selected tailcall, original List child/extra argv identity and headers, worker Return, arity/replacement/deletion, excluded trial and timed upstream receipt. No Runtime/lifecycle acceptance.

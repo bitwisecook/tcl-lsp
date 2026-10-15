@@ -1,0 +1,4 @@
+NOEXPORT_IMPORT 0 {}
+NOEXPORT_CALL 1 {invalid command name "::Target::p"}
+SELF_IMPORT 1 {import pattern "::Self::*" tries to import from namespace "Self" into itself}
+SELF_CALL 0 SELF

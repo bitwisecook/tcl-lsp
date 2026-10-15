@@ -1,0 +1,5 @@
+PATCHLEVEL 0.84-9-g5bac7c9
+IF_LITERAL 1 {invalid command name "return one"}
+IF_RETURN 2 one
+ELSEIF_LITERAL 1 {invalid command name "return one"}
+ELSE_LITERAL 1 {invalid command name "return one"}

@@ -583,6 +583,15 @@ fn logical_method_procedure_at<'a>(
     } else {
         None
     };
+    if ordinary
+        .as_ref()
+        .is_some_and(tcl_compiler::command_binding::OriginalLogicalCommandCandidates::has_lookup_operand_effects)
+        || absolute
+            .as_ref()
+            .is_some_and(tcl_compiler::command_binding::OriginalLogicalAbsoluteCommandCandidate::has_lookup_operand_effects)
+    {
+        return LogicalMethodProcedureSelection::Unavailable;
+    }
     let (coordinates, earlier_unknown_mutations) = if let Some(candidate) = &ordinary {
         (
             candidate.coordinates(),
@@ -3217,5 +3226,74 @@ mod logical_method_source_candidate_tests {
                 }
             ));
         }
+    }
+}
+
+#[cfg(test)]
+mod method_original_lookup_operand_effect_tests {
+    use super::*;
+
+    #[test]
+    fn method_source_candidates_keep_pre_lookup_operand_effects_unresolved() {
+        let source = "proc helper {args} {}; oo::class create C {method m {} {::helper {[replaceHelper]}; ::helper [replaceHelper]; ::helper $value}}";
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let analysis = tcl_compiler::analyser::Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, profile.name);
+        let offsets = source
+            .match_indices("::helper")
+            .map(|(offset, _)| u32::try_from(offset).unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(offsets.len(), 3);
+        for (offset, effects) in offsets.iter().zip([false, true, true]) {
+            let original = tcl_compiler::registry_invocation::source_structure::source_logical_absolute_command_candidate_at(source, &analysis, *offset)
+                .expect("actual original absolute method head syntax");
+            assert_eq!(original.has_lookup_operand_effects(), effects);
+            if effects {
+                assert!(matches!(
+                    logical_method_procedure_at(source, &analysis, *offset),
+                    LogicalMethodProcedureSelection::Unavailable
+                ));
+            } else {
+                assert!(matches!(
+                    logical_method_procedure_at(source, &analysis, *offset),
+                    LogicalMethodProcedureSelection::Occupied {
+                        procedure: Some(_),
+                        ..
+                    }
+                ));
+            }
+        }
+        let class = &analysis.all_classes["::C"];
+        let item = item_for_method(source, class, &class.methods["m"], &LineIndex::new(source));
+        let outgoing = outgoing_calls(source, profile, &item, &analysis);
+        assert_eq!(outgoing.len(), 1);
+        assert_eq!(outgoing[0].from_ranges.len(), 1);
+        assert_eq!(
+            outgoing[0].from_ranges[0],
+            span_to_range(
+                source,
+                &LineIndex::new(source),
+                tcl_lexer::Span::new(offsets[0], offsets[0] + 8)
+            )
+        );
+        let unresolved = unresolved_outgoing_calls(source, profile, &item, &analysis);
+        let helper = unresolved
+            .iter()
+            .find(|call| call.name == "::helper")
+            .unwrap();
+        assert_eq!(helper.from_ranges.len(), 2);
+        assert!(
+            helper
+                .logical_occurrences
+                .iter()
+                .all(|occurrence| occurrence.candidates.is_none())
+        );
     }
 }

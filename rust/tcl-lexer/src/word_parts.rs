@@ -616,6 +616,16 @@ pub fn quoted_word_close(
     quoted_word_close_with_issue(source, open_quote).map_err(ParseIssueKind::message)
 }
 
+/// Closing quote of the original word under the supplied complete lexical grammar.
+/// Substitution and escape boundaries use the shared configured delimiter owner.
+pub fn quoted_word_close_in(
+    source: impl AsRef<[u8]>,
+    open_quote: usize,
+    config: LexerConfig,
+) -> Result<usize, &'static str> {
+    quoted_word_close_with_issue_in(source, open_quote, config).map_err(ParseIssueKind::message)
+}
+
 pub(crate) fn quoted_word_close_with_issue(
     source: impl AsRef<[u8]>,
     open_quote: usize,

@@ -57,7 +57,9 @@
 //!   [`WordOpacity::ParseError`] — the same `missing …` texts the segmenter's
 //!   E200 reports — and every consumer declines it.
 
-use tcl_lexer::word_parts::{ExecutablePart, ExecutablePartArena, SubstFlags, quoted_word_close};
+use tcl_lexer::word_parts::{
+    ExecutablePart, ExecutablePartArena, SubstFlags, quoted_word_close_in,
+};
 use tcl_lexer::{LexerConfig, SourceMap, Span, Token, TokenType};
 
 use crate::ir::{SourceSite, WordExpr, WordOpacity, WordPart};
@@ -124,12 +126,8 @@ impl WordExpr {
                 reason: WordOpacity::MissingFragments,
             };
         };
-        let end = original_run_end(sm.source(), *last, sm.base_offset(), config)
-            .ok()
-            .and_then(|end| u32::try_from(end).ok())
-            .and_then(|end| sm.base_offset().checked_add(end))
-            .unwrap_or(last.span.end());
-        let word_span = Span::new(first.span.start(), end);
+        let word_span = original_word_span(sm, config, *first, *last)
+            .unwrap_or_else(|_| Span::new(first.span.start(), last.span.end()));
         // Sugar remains an opaque expression component with exact source.
         // The region builder retains quoted versus bare ownership separately.
         let word = match build(sm, config, fragments) {
@@ -210,6 +208,30 @@ fn original_run_end(
     }
 }
 
+// A trailing template fragment cannot carry its opening quote. Retain the
+// original first fragment when asking the configured owner for the whole word.
+fn original_word_span(
+    sm: &SourceMap<'_>,
+    config: LexerConfig,
+    first: Token,
+    last: Token,
+) -> Result<Span, &'static str> {
+    let base = sm.base_offset();
+    let mut end = original_run_end(sm.source(), last, base, config)?;
+    let start = (first.span.start() - base) as usize;
+    if first.kind == TokenType::Esc
+        && first.content_offset == 1
+        && sm.source().as_bytes().get(start) == Some(&b'"')
+    {
+        end = end.max(quoted_word_close_in(sm.source(), start, config)? + 1);
+    }
+    let end = u32::try_from(end)
+        .ok()
+        .and_then(|end| base.checked_add(end))
+        .ok_or("original word extent is out of range")?;
+    Ok(Span::new(first.span.start(), end))
+}
+
 fn build(
     sm: &SourceMap<'_>,
     config: LexerConfig,
@@ -224,11 +246,7 @@ fn build(
     let at = |offset: u32| (offset - base) as usize;
     let first = fragments[0];
     let last = fragments[fragments.len() - 1];
-    let end = u32::try_from(original_run_end(source, last, base, config)?)
-        .ok()
-        .and_then(|end| base.checked_add(end))
-        .ok_or("original word extent is out of range")?;
-    let word_span = Span::new(first.span.start(), end);
+    let word_span = original_word_span(sm, config, first, last)?;
     let opener_of = |tok: Token| bytes.get(at(tok.span.start())).copied();
 
     validate_braced_fragments(sm, fragments)?;
@@ -271,7 +289,7 @@ fn build(
         }
         if tok.kind == TokenType::Esc && tok.content_offset == 1 && opener == Some(b'"') {
             flush_run(&mut regions, source, config, run_start.take(), start)?;
-            let close = quoted_word_close(source, start)?;
+            let close = quoted_word_close_in(source, start, config)?;
             decompose_region(&mut regions, source, config, start + 1, close)?;
             regions.quoted = true;
             let end = close + 1;
@@ -684,5 +702,89 @@ mod expression_source_tests {
                 .as_range()],
             "[puts $payload]"
         );
+    }
+}
+
+#[cfg(test)]
+mod original_quoted_extent_tests {
+    use super::*;
+
+    #[test]
+    fn original_quoted_templates_keep_the_whole_word_and_configured_projection() {
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let config = LexerConfig::for_dialect(dialect);
+            for written in [
+                r#""prefix ${value} suffix""#,
+                r#""${value}""#,
+                r#""prefix [list] suffix""#,
+                r#""${a{b}c} suffix""#,
+                r#""""#,
+            ] {
+                let source = format!("list {written} ; # after");
+                for base in [0, 71] {
+                    let command = crate::segmenter::segment_commands_with_offset_and_config(
+                        &source, base, config,
+                    )
+                    .remove(0);
+                    let words = crate::ir::CommandTokens::from_segmented(
+                        &SourceMap::new(&source).with_base(base, 0, 0),
+                        config,
+                        &command,
+                    );
+                    let word = words.word_exprs.last().unwrap();
+                    assert_eq!(
+                        word.source().span,
+                        Span::new(base + 5, base + 5 + u32::try_from(written.len()).unwrap()),
+                        "{dialect}: {source}"
+                    );
+                    if base == 0 {
+                        let original = crate::registry_invocation::original_native_compiler_words(
+                            &tcl_lexer::SourceImage::document(&source),
+                            words.words(),
+                            0,
+                            config,
+                        )
+                        .expect("complete original quoted vector");
+                        assert_eq!(original.last().unwrap().bytes(), written.as_bytes());
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn expanded_quoted_templates_retain_both_original_wrappers() {
+        for dialect in ["tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let config = LexerConfig::for_dialect(dialect);
+            let source = r#"list {*}"prefix ${value} suffix" ; # after"#;
+            let command =
+                crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+                    .remove(0);
+            let words =
+                crate::ir::CommandTokens::from_segmented(&SourceMap::new(source), config, &command);
+            let word = words.word_exprs.last().unwrap();
+            let WordExpr::Expand { word: inner, .. } = word else {
+                panic!("original expansion wrapper");
+            };
+            assert_eq!(
+                &source[word.source().span.as_range()],
+                r#"{*}"prefix ${value} suffix""#
+            );
+            assert_eq!(
+                &source[inner.source().span.as_range()],
+                r#""prefix ${value} suffix""#
+            );
+            let original = crate::registry_invocation::original_native_compiler_words(
+                &tcl_lexer::SourceImage::document(source),
+                words.words(),
+                0,
+                config,
+            )
+            .expect("complete original expanded vector");
+            assert_eq!(
+                original.last().unwrap().bytes(),
+                r#"{*}"prefix ${value} suffix""#.as_bytes()
+            );
+        }
     }
 }

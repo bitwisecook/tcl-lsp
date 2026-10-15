@@ -277,7 +277,7 @@ fn standalone_exact_case_source(
     )?;
     let values = words
         .iter()
-        .map(tcl_syntax::word_rules::original_static_word_source_bytes)
+        .map(tcl_syntax::word_rules::original_static_word_unicode_value)
         .collect::<Vec<_>>();
     let facts = words
         .iter()
@@ -288,7 +288,8 @@ fn standalone_exact_case_source(
             } else {
                 value
                     .as_deref()
-                    .map_or(InvocationWord::Dynamic, InvocationWord::KnownBytes)
+                    .and_then(|bytes| std::str::from_utf8(bytes).ok())
+                    .map_or(InvocationWord::Dynamic, InvocationWord::Literal)
             }
         })
         .collect::<Vec<_>>();
@@ -381,6 +382,62 @@ mod tests {
             assert_eq!(original.name(), expected);
             assert_eq!(original.reference(), source);
             assert_eq!(original.word.config(), config);
+        }
+    }
+}
+
+#[cfg(test)]
+mod standalone_literal_schema_tests {
+    use super::*;
+
+    #[test]
+    fn standalone_case_schemas_use_actual_literal_values_and_keep_dynamic_subjects() {
+        let mut registry = CommandRegistry::build_default();
+        registry.load_surface(tcl_dialect::model::SurfaceLayer::Core(
+            tcl_dialect::model::Family::F5Irules,
+            "",
+        ));
+        let config = LexerConfig::from_grammar(
+            tcl_registry::model::resolve_environment("f5-irules").grammar(),
+        );
+        for (source, expected) in [
+            (
+                r"switch -exact -- $x {a {return one} b {return two}}",
+                Some("$x"),
+            ),
+            (
+                r"sw\u0069tch -exact -- ${literal$name} {a {return one} b {return two}}",
+                Some("${literal$name}"),
+            ),
+            (r"switch $mode -- $x {a {return one} b {return two}}", None),
+            (
+                r"switch -exact -- $a(k) {a {return one} b {return two}}",
+                None,
+            ),
+            (r"switch -exact -- $x $cases", None),
+            (
+                r"switch -exact -- {*}$x {a {return one} b {return two}}",
+                None,
+            ),
+        ] {
+            let command =
+                tcl_compiler::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+                    .remove(0);
+            let result = standalone_exact_switch_source(source, &command, &registry, config);
+            assert_eq!(
+                result.as_ref().map(|case| case.subject().reference()),
+                expected,
+                "{source}"
+            );
+            if let Some(case) = result {
+                assert_eq!(
+                    case.pairs(),
+                    &[
+                        ("a".into(), "return one".into()),
+                        ("b".into(), "return two".into())
+                    ]
+                );
+            }
         }
     }
 }

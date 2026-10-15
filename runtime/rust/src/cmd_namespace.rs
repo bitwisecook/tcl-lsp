@@ -1486,6 +1486,14 @@ fn drop_fresh(obj: *mut TclObj) {
 /// verbatim — no concat, so no trim and no trailing space, which the early
 /// return mirrors.
 fn ns_inscope(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if let Some(helper) = interp
+        .native_invocation_dialect()
+        .native_jim_namespace_helper(
+            tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind::Inscope,
+        )
+    {
+        return interp.dispatch_stock_jim_namespace_helper(argv, helper);
+    }
     if argv.len() < 4 {
         return interp.wrong_args_for_prefix(argv, 2, b"name arg ?arg...?");
     }
@@ -7314,3 +7322,7 @@ mod native_jim_code_tests;
 #[cfg(test)]
 #[path = "cmd_namespace/native_jim_origin_tests.rs"]
 mod native_jim_origin_tests;
+
+#[cfg(test)]
+#[path = "cmd_namespace/native_jim_inscope_tests.rs"]
+mod native_jim_inscope_tests;

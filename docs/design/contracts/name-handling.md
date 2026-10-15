@@ -861,3 +861,45 @@ or agreement across source policies. These conditional parameter traits and
 alias templates establish no actual caller cell, reached alias or completed
 write. Isolated procedure-body authoring keeps its explicit Standalone purpose;
 supplied input refusal cannot borrow that ingress.
+
+Original procedure report labels require the actual issued body ID, unique
+original procedure and current retained Module/Registry source correspondence.
+An Authored card projects its checked original Name spelling for display;
+equal labels do not join identities or supply publication or frame authority.
+
+Logical Script, Member and Expression body syntax retains complete original
+whole-word geometry before selecting a head or schema. Its origin allocation,
+full input, context, configuration and body bounds remain checked, with
+ambiguous tape merges refusing. A word query still checks independent selected
+advice agreement; lexical geometry cannot donate a handler, source namespace
+or entered frame.
+
+Conditional source semantic metadata retains each authentic original command
+under its full supplied input/store/configuration, recorded span and whole
+vector. Stronger existing source purposes are terminal; a separately selected
+unresolved point keeps unknown residuals. Effective role positions and direct
+Written correspondence are distinct. A partial inventory proves no absence,
+complete census, reached handler, Normal result, frame, Native value or
+executable rewrite. Source transport requires its own certificate and exact
+token/span correspondence without discarding facts or residuals.
+
+Import source advice uses the selected original publication and matching tail:
+C namespace geometry and Jim canonical flat keys keep their separate search
+recipes. Core indexes that exact tail. Shared export filtering supplies the C
+ordered verdict or Jim no-export-filter fact only; command existence, self
+import, conflicts, aliases, census and lifecycle retain independent guards.
+Jim source-slot queries remain unavailable where the API requires C geometry.
+
+Parameter-reference traits reborrow original whole words only after the actual
+source, segmented command and full nested configuration agree. A sole typed
+Variable uses shared whole-scalar grammar; typed variable/index components and
+the existing lexical nested-command scanner retain component geometry without
+role projection. Braced or escaped literal data and captured values supply no
+parameter read, caller-frame or Native authority.
+
+Readonly source optimisation certificates retain complete actual unit mutation
+and trace dependencies. With those hazards, per-body reuse requires a nonempty
+set of independently certified capsules; authentic full-unit analysis precedes
+body filtering and rebasing. Empty or uncertified source routes and other
+existing fallback guards keep whole-unit solving. Reusing the same conservative
+analysis establishes no physical quietness, executed body or Native permission.

@@ -826,6 +826,7 @@ impl<'a> FrameWalk<'a> {
     }
 }
 
+#[cfg(test)]
 fn byte_len(source: &str) -> u32 {
     u32::try_from(source.len()).unwrap_or(u32::MAX)
 }

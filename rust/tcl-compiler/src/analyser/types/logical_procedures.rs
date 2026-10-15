@@ -54,7 +54,8 @@ impl LogicalSourceProcedureDeclaration {
             card.matches_source(image, &input)
                 && card.scope().scope_name_input().original_word().group().span
                     == procedure.name_span
-                && card.scope().scope_body().extent_span() == procedure.body_span
+                && card.scope().scope_body().original_container().group().span
+                    == procedure.body_span
                 && card
                     .parameters()
                     .iter()
@@ -388,5 +389,79 @@ mod tests {
                 )
                 .is_none()
         );
+    }
+}
+
+#[cfg(test)]
+mod empty_body_header_tests {
+    use super::*;
+    use crate::analyser::Analyser;
+
+    #[test]
+    fn logical_procedure_headers_keep_empty_original_body_token_geometry() {
+        for (source, key, spelling) in [
+            ("proc helper {} {}", "::helper", "::helper"),
+            (r#"proc helper {} """#, "::helper", "::helper"),
+            (
+                "namespace eval N {proc helper {} {}}",
+                "::N::helper",
+                "::N::helper",
+            ),
+            (
+                r#"namespace eval N {proc {helper} {} ""}"#,
+                "::N::helper",
+                "::N::helper",
+            ),
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl");
+            let procedure = &analysis.all_procs[key];
+            let input = analysis.resolved_input.as_ref().unwrap();
+            let image = SourceImage::document(source);
+            let header = analysis
+                .logical_source_procedure_declaration(procedure)
+                .expect("actual empty original procedure body and header");
+            let word = header.original_body_word(&image, input).unwrap();
+            assert!(word.content_span().unwrap().is_empty());
+            assert_eq!(word.group().span, procedure.body_span);
+            assert_ne!(
+                header.body.scope().scope_body().extent_span(),
+                procedure.body_span
+            );
+            assert_eq!(
+                header.source_word(input.lexer_config()).as_deref(),
+                Some(spelling)
+            );
+            assert_eq!(
+                header
+                    .source_candidate_coordinate()
+                    .unwrap()
+                    .simple
+                    .as_bytes(),
+                b"helper"
+            );
+
+            let mut changed = analysis.clone();
+            let current = changed.all_procs.get_mut(key).unwrap();
+            current.body_span =
+                tcl_lexer::Span::new(current.body_span.start(), current.body_span.end() + 1);
+            assert!(
+                changed
+                    .logical_source_procedure_declaration(&changed.all_procs[key])
+                    .is_none()
+            );
+            let mut missing = analysis.clone();
+            missing.resolved_input = None;
+            assert!(
+                missing
+                    .logical_source_procedure_declaration(&missing.all_procs[key])
+                    .is_none()
+            );
+            let native = Analyser::new().analyse(source, "tcl8.6");
+            assert!(
+                native
+                    .logical_source_procedure_declaration(&native.all_procs[key])
+                    .is_none()
+            );
+        }
     }
 }

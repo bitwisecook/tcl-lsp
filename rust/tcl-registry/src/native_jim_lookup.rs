@@ -27,10 +27,12 @@ pub enum NativeJimNamespaceHelperKind {
     Code,
     /// Original `namespace origin` distribution procedure.
     Origin,
+    /// Original `namespace inscope` distribution procedure.
+    Inscope,
 }
 impl NativeJimNamespaceHelperKind {
     /// Pinned source families this owner currently supplies.
-    pub const ALL: [Self; 3] = [Self::Which, Self::Code, Self::Origin];
+    pub const ALL: [Self; 4] = [Self::Which, Self::Code, Self::Origin, Self::Inscope];
 }
 
 /// Authored pinned distribution procedure source, not a published callable.
@@ -146,6 +148,15 @@ impl crate::InvocationDialect {
 
 	return -code error "invalid command name \"$name\""
 "#,
+            },
+            NativeJimNamespaceHelperKind::Inscope => NativeJimNamespaceHelper {
+                kind,
+                minimum_arguments: 2,
+                maximum_arguments: usize::MAX,
+                usage: "name arg ?arg ...?",
+                name: "namespace inscope",
+                parameters: "name arg args",
+                body: "\n\ttailcall namespace eval $name $arg $args\n",
             },
         })
     }
@@ -311,6 +322,36 @@ mod namespace_helper_source_tests {
             assert!(
                 crate::InvocationDialect::of_profile(environment.unit_profile())
                     .native_jim_namespace_helper(super::NativeJimNamespaceHelperKind::Origin)
+                    .is_none()
+            );
+        }
+    }
+    #[test]
+    fn inscope_helper_descriptor_keeps_original_source_and_public_arity() {
+        let environment = crate::model::ingress::resolve_known_environment("jim").unwrap();
+        let dialect = crate::InvocationDialect::of_profile(environment.unit_profile());
+        let helper = dialect
+            .native_jim_namespace_helper(super::NativeJimNamespaceHelperKind::Inscope)
+            .unwrap();
+        let source = include_str!("../tests/data/native_jim_namespace_which/nshelper.tcl");
+        assert!(source.contains(&format!(
+            "proc {{{}}} {{{}}} {{{}}}",
+            helper.name(),
+            helper.parameters(),
+            helper.body()
+        )));
+        assert!(!helper.accepts_public_arguments(0));
+        assert!(!helper.accepts_public_arguments(1));
+        assert!(helper.accepts_public_arguments(2));
+        assert!(helper.accepts_public_arguments(3));
+        assert!(helper.accepts_public_arguments(usize::MAX));
+        assert_eq!(helper.usage(), "name arg ?arg ...?");
+        for version in tcl_dialect::TclVersion::ALL {
+            let environment =
+                crate::model::ingress::resolve_known_environment(version.dialect_name()).unwrap();
+            assert!(
+                crate::InvocationDialect::of_profile(environment.unit_profile())
+                    .native_jim_namespace_helper(super::NativeJimNamespaceHelperKind::Inscope)
                     .is_none()
             );
         }

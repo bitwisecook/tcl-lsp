@@ -1,0 +1,65 @@
+{
+  "scope": "Exact original nonbinary capture/source files. No Rust execution, alias completion or Runtime/lifecycle acceptance. Providers unchanged before/after; current provider verification is optional and never executes providers.",
+  "originals": [
+    {
+      "path": "8.4.20.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "8.4.20.stdout",
+      "sha256": "84b58c6837aba041d9815833f5aea468e34024d90db9ad6a511ad1365bc73486"
+    },
+    {
+      "path": "8.5.19.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "8.5.19.stdout",
+      "sha256": "84b58c6837aba041d9815833f5aea468e34024d90db9ad6a511ad1365bc73486"
+    },
+    {
+      "path": "8.6.18.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "8.6.18.stdout",
+      "sha256": "84b58c6837aba041d9815833f5aea468e34024d90db9ad6a511ad1365bc73486"
+    },
+    {
+      "path": "9.0.4.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "9.0.4.stdout",
+      "sha256": "84b58c6837aba041d9815833f5aea468e34024d90db9ad6a511ad1365bc73486"
+    },
+    {
+      "path": "9.1.0.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "9.1.0.stdout",
+      "sha256": "84b58c6837aba041d9815833f5aea468e34024d90db9ad6a511ad1365bc73486"
+    },
+    {
+      "path": "Jim.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "Jim.stdout",
+      "sha256": "8880e5715bc179fc918a632071afa698708c4f4db4a025cab4aafc09dbe8d3a1"
+    },
+    {
+      "path": "manifest.json",
+      "sha256": "c370f0a2efc859601946e7662f82c0b887df6c37503986c574d8052e7be9c53b"
+    },
+    {
+      "path": "probe.tcl",
+      "sha256": "a3b98c9683f6fa099cce4404fcb7783db9ec3a29f29c46b93f09c0eb34aaa200"
+    },
+    {
+      "path": "capture-original.py",
+      "sha256": "bba32471e564e03d098a2b222ed1d6032dfbd830fc1bf0274e48d880ee411753"
+    }
+  ]
+}

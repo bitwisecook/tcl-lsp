@@ -200,7 +200,7 @@ mod tests {
                 .original_written_word_at_span_in_source(&image, span, input.lexer_config())
                 .is_some()
         );
-        let changed = tcl_lexer::SourceImage::document(source.replace("dowork", "changed"));
+        let changed = tcl_lexer::SourceImage::document(&source.replace("dowork", "changed"));
         assert!(
             realm
                 .original_written_word_at_span_in_source(&changed, span, input.lexer_config())

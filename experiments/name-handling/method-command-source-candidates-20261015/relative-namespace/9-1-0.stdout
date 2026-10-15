@@ -1,0 +1,5 @@
+version 9.1.0
+bare-root-before-shadow 0 GLOBAL
+actual-object-shadow 0 OBJECT
+outer-declaration-namespace 0 GLOBAL
+separate-outer-proc 0 OUTER
