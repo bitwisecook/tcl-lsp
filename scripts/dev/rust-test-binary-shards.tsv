@@ -193,6 +193,7 @@
 3	tcl-vm::mathfunc_derivation_e2e	test	tcl-vm	mathfunc_derivation_e2e
 3	tcl-vm::namespace_surface_e2e	test	tcl-vm	namespace_surface_e2e
 3	tcl-vm::release_running_bytecode_e2e	test	tcl-vm	release_running_bytecode_e2e
+3	tcl-vm::release_number_semantics_e2e	test	tcl-vm	release_number_semantics_e2e
 3	tcl-vm::return_code_boundary_e2e	test	tcl-vm	return_code_boundary_e2e
 3	tcl-vm::run_script	test	tcl-vm	run_script
 3	tcl-vm::tricky_resolution_e2e	test	tcl-vm	tricky_resolution_e2e

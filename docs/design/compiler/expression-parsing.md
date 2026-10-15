@@ -30,6 +30,22 @@ tokeniser; a word operator is an operator token only when the profile's
 - Falls back to `ExprNode::Raw { text: "${a} + ${b} * 2" }`.
 - Triggers diagnostic **W100** ("Unbraced expr body").
 
+Only a *simple* word (C's `TCL_TOKEN_SIMPLE_WORD`: braced, or with no `$`,
+`[…]` or backslash) is the expression itself. Any other word is substituted
+and its value evaluated again (`TclCompileExprWords`), so `expr $x` runs a
+command in `x`'s value and `expr \"a\"=={a}` compares `"a"`. The lowering
+and the inline `[expr …]` emitter push such a word and run `exprStk`; an
+`if`/`while`/`for` condition word with substitutions lowers to
+`ExprNode::substituted_word`, the `[expr "<word>"]` command the analyser
+reads back as the word written (`ExprNode::substituted_word_source`).
+
+Tcl 8.4 parses with its own recursive-descent `tclParseExpr.c`, ported as
+`tcl_syntax::expr::classic::check`: it words its errors `syntax error in
+expression "…": …` and rejects what 8.4 lacks (`**`, `in`, `0o17`) and an
+out-of-range literal. For a plain 8.4 profile
+(`TclVersion::parses_expressions_classically`, no F5 word operators), an
+expression it rejects parses to `Raw`, so the runtime parse reports it.
+
 ### Pratt parser binding powers
 
 The parser assigns each binary operator a `(left_bp, right_bp)` pair.  Higher

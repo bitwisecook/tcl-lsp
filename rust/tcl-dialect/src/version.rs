@@ -697,6 +697,73 @@ impl TclVersion {
         !matches!(self, Self::V8_4 | Self::V8_5)
     }
 
+    /// Whether builtins set any errorCode of the `TCL` family. 8.4's sources
+    /// set none (`Tcl_SetErrorCode(interp, "TCL", …)` first appears in 8.5).
+    #[must_use]
+    pub const fn has_tcl_error_codes(self) -> bool {
+        !matches!(self, Self::V8_4)
+    }
+
+    /// Whether `wrong # args` carries `TCL WRONGARGS` (8.6). Measured:
+    /// `catch set; set errorCode` is `NONE` on tclsh 8.4.20 and 8.5.19.
+    #[must_use]
+    pub const fn has_wrong_args_error_codes(self) -> bool {
+        !matches!(self, Self::V8_4 | Self::V8_5)
+    }
+
+    /// Whether a value refused for its form carries a `TCL VALUE` code other
+    /// than `TCL VALUE NUMBER` (`TCL VALUE INDEX`, `TCL VALUE INTEGER`, …),
+    /// which 8.6 adds. Measured: `lindex {a} x` leaves `NONE` on 8.5.19.
+    #[must_use]
+    pub const fn has_value_error_codes(self) -> bool {
+        !matches!(self, Self::V8_4 | Self::V8_5)
+    }
+
+    /// How a math function called with too few arguments says so: `too
+    /// few` through 8.5, `not enough` from 8.6.
+    #[must_use]
+    pub const fn math_arity_shortfall(self) -> &'static str {
+        if matches!(self, Self::V8_4 | Self::V8_5) {
+            "too few arguments"
+        } else {
+            "not enough arguments"
+        }
+    }
+
+    /// Whether `srand` of a non-integer reports the conversion error. 9.0's
+    /// `ExprSrandFunc` converts with a NULL interpreter, so the error is
+    /// empty with errorCode `NONE`. Measured on tclsh 8.6.18 and 9.0.4.
+    #[must_use]
+    pub const fn srand_reports_conversion_error(self) -> bool {
+        matches!(self, Self::V8_4 | Self::V8_5 | Self::V8_6)
+    }
+
+    /// Whether a missing dictionary key carries `TCL LOOKUP DICT <key>`
+    /// (8.6). Measured: `dict get {a 1} b` leaves `NONE` on tclsh 8.5.19.
+    #[must_use]
+    pub const fn has_dict_lookup_error_codes(self) -> bool {
+        !matches!(self, Self::V8_4 | Self::V8_5)
+    }
+
+    /// Whether any builtin dispatches its subcommands as an ensemble
+    /// (`TclMakeEnsemble`, 8.5): 8.4's `string`, `info` and the rest read
+    /// their option with `Tcl_GetIndexFromObj`, so a miss is `bad option`.
+    #[must_use]
+    pub const fn has_builtin_ensembles(self) -> bool {
+        !matches!(self, Self::V8_4)
+    }
+
+    /// The tail of an ensemble's `wrong # args` usage: `?argument ...?` on
+    /// 8.5, `?arg ...?` from 8.6.
+    #[must_use]
+    pub const fn ensemble_usage_tail(self) -> &'static str {
+        if matches!(self, Self::V8_4 | Self::V8_5) {
+            "?argument ...?"
+        } else {
+            "?arg ...?"
+        }
+    }
+
     /// Whether `invalid command name` carries `TCL LOOKUP COMMAND <name>`
     /// (8.6). Measured: `catch nosuch; set errorCode` is `NONE` on tclsh
     /// 8.4.20 and 8.5.19.

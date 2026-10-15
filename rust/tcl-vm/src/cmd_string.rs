@@ -87,6 +87,7 @@ fn ilen(n: usize) -> i64 {
 /// The canonical `string` subcommands (Tcl 9 order), used for unique-prefix
 /// resolution and the error message.
 const STRING_SUBS: &[&str] = &[
+    "bytelength",
     "cat",
     "compare",
     "equal",
@@ -131,10 +132,62 @@ fn resolve_string_sub<'a>(subs: &[&'a str], input: &str) -> Result<&'a str, Stri
     }
 }
 
+/// 8.4's `string` options in its table order (`tclCmdMZ.c`), which its
+/// `bad option` message lists.
+const STRING_OPTIONS_8_4: &[&str] = &[
+    "bytelength",
+    "compare",
+    "equal",
+    "first",
+    "index",
+    "is",
+    "last",
+    "length",
+    "map",
+    "match",
+    "range",
+    "repeat",
+    "replace",
+    "tolower",
+    "toupper",
+    "totitle",
+    "trim",
+    "trimleft",
+    "trimright",
+    "wordend",
+    "wordstart",
+];
+
+/// `string bytelength`: the length of the string in Tcl's internal
+/// encoding, a modified UTF-8 that writes NUL as two bytes and keeps every
+/// character within three (`TCL_UTF_MAX` 3 through 8.6).
+fn byte_length(s: &str) -> usize {
+    s.chars()
+        .map(|c| match u32::from(c) {
+            0 => 2,
+            1..0x80 => 1,
+            0x80..0x800 => 2,
+            _ => 3,
+        })
+        .sum()
+}
+
 fn cmd_string(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let release = vm.runtime_version();
     let Some((sub, rest)) = args.split_first() else {
-        return err_wrong_args("string subcommand ?arg ...?");
+        return err_wrong_args(&if release.has_builtin_ensembles() {
+            format!("string subcommand {}", release.ensemble_usage_tail())
+        } else {
+            "string option arg ?arg ...?".to_owned()
+        });
     };
+    if !release.has_builtin_ensembles() {
+        let table = tcl_cmd_core::prefix::OptionTable::abbreviating("option", STRING_OPTIONS_8_4);
+        return match table.index_of(sub.to_str().as_bytes()) {
+            Ok(index) => string_subcommand(vm, STRING_OPTIONS_8_4[index], rest),
+            Err(message) => err(String::from_utf8_lossy(&message).into_owned()),
+        };
+    }
     // `insert` arrives in Tcl 9 and `bytelength` leaves with it, so the table
     // is the emulated release's: on 8.6 `string in` is `index`, on 9.0 it is
     // ambiguous with `insert`.
@@ -143,10 +196,21 @@ fn cmd_string(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         "string",
         STRING_SUBS,
     );
-    let canon = match resolve_string_sub(subs, &sub.to_str()) {
-        Ok(c) => c,
-        Err(e) => return err(e),
-    };
+    match resolve_string_sub(subs, &sub.to_str()) {
+        Ok(canon) => string_subcommand(vm, canon, rest),
+        Err(e) => err(e),
+    }
+}
+
+fn string_subcommand(vm: &mut Vm, canon: &str, rest: &[Value]) -> Completion<Value> {
+    if canon == "bytelength" {
+        return match rest {
+            [s] => ok(Value::int(
+                i64::try_from(byte_length(&s.to_str())).unwrap_or(i64::MAX),
+            )),
+            _ => err_wrong_args("string bytelength string"),
+        };
+    }
     // `string repeat` is the one subcommand that can allocate without bound in
     // a single command, so it is charged against the value-size limit before
     // the core builds anything. Guarded here rather than in `tcl-cmd-core`

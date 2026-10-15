@@ -121,14 +121,7 @@ fn shared_math(name: &str, args: &[Value], int_width: IntWidth) -> Completion<Va
     let n = args.len();
     let min = usize::from(spec.arity.min);
     if n < min || spec.arity.max.is_some_and(|m| n > usize::from(m)) {
-        return err(format!(
-            "{} for math function \"{name}\"",
-            if n < min {
-                "not enough arguments"
-            } else {
-                "too many arguments"
-            }
-        ));
+        return arity_err(name, n < min);
     }
     let nums: Result<Vec<NumValue<BigInt>>, Completion<Value>> = args
         .iter()
@@ -417,15 +410,22 @@ pub(crate) fn register(vm: &mut Vm) {
 fn one<'a>(args: &'a [Value], name: &str) -> Result<&'a Value, Completion<Value>> {
     match args {
         [x] => Ok(x),
-        _ => Err(err(format!(
-            "{} for math function \"{name}\"",
-            if args.is_empty() {
-                "not enough arguments"
-            } else {
-                "too many arguments"
-            }
-        ))),
+        _ => Err(arity_err(name, args.is_empty())),
     }
+}
+
+/// A math function called with the wrong number of arguments, worded for
+/// the release (`too few`/`not enough`), with `TCL WRONGARGS` from 8.6.
+fn arity_err(name: &str, short: bool) -> Completion<Value> {
+    let words = if short {
+        tcl_syntax::expr::errors::ambient_release().math_arity_shortfall()
+    } else {
+        "too many arguments"
+    };
+    err_with_code(
+        format!("{words} for math function \"{name}\""),
+        "TCL WRONGARGS",
+    )
 }
 
 fn m_abs(args: &[Value]) -> Completion<Value> {
@@ -506,6 +506,9 @@ fn m_srand(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // use 8.6's wording so they agree with each other; 9.0's
     // empty-message quirk is not reproduced here.
     let Ok(seed) = x.as_wide() else {
+        if !vm.runtime_version().srand_reports_conversion_error() {
+            return err("");
+        }
         return err_with_code(
             format!("expected integer but got \"{}\"", x.to_str()),
             if x.as_double().is_ok() {
@@ -526,7 +529,7 @@ fn m_rand(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return refused;
     }
     if !args.is_empty() {
-        return err("too many arguments for math function \"rand\"");
+        return arity_err("rand", false);
     }
     ok(Value::double(vm.rand_next()))
 }

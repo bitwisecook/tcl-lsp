@@ -407,6 +407,26 @@ and its digit loop then stops after one digit; 8.6 negates through
 and 8.5, and for a release this does not know where the grammar leaves
 either possible; the bytecode codegen asks it too.
 
+**The runtime.** The VM follows the same facts. `tcl_precision` is linked
+to the printing precision through a native trace (`TclPrecTraceProc`), and
+the precision is one value for the interpreter tree, as C keeps it in thread
+data; doubles print by `NumberSyntax::double_format`: 8.4's `%.<p>g`, or
+8.5 and 8.6's shortest digits at 0 and `p` correctly rounded significant
+digits otherwise, with a two-digit exponent minimum. The runtime installs its
+exact release with `tcl_syntax::number::set_runtime_release`, so 8.5 and 8.6,
+which share a grammar, can differ where C does.
+
+**8.4's arithmetic.** 8.4 has no bignums: an integer literal up to 2^64 - 1
+wraps to 64 bits as `strtoull` reads it, and a larger one is `integer value
+too large to represent` (`NumberSyntax::wraps_wide_integers`); `+`, `-`,
+`*`, unary minus and `incr` wrap, a shift by 64 or more gives 0 and a
+negative count is taken modulo 64. A double result that overflows or is NaN,
+and a division by a zero double, are errors
+(`TclVersion::raises_float_range_errors`), and an out-of-range double string
+is not a number. Its math functions take only 64-bit integers or in-range
+doubles (`argument to math function didn't have numeric value`), bound
+`int`/`round`/`wide` to 64 bits, and report `exp`/`pow` underflow to zero.
+
 The folder's choke points are the places a computed number becomes a value
 with text: the expression route's full value (`ExprServices::full_value`),
 the registry value model's `ConstOps::new_double` / `new_int` (which poison

@@ -679,23 +679,28 @@ impl<'a> Scan<'a> {
     }
 
     fn comma(&mut self, at: usize) -> Option<ExprSyntaxError> {
+        // C checks for the missing operand before the comma's placement
+        // (`tclCompExpr.c` 8.6.18:1093-1128), so a leading `,` is a missing
+        // operand.
+        if self.expecting == Expecting::Operand {
+            // `a(,0)` — nothing at all before the comma is a missing argument
+            // (parseExpr-21.21); `a(1+,0)` is a dangling operator instead, which
+            // C reports as a missing operand (parseExpr-21.25).
+            let kind = if self.previous_kind() == Some(ExprTokenType::ParenOpen)
+                && self.open.last() == Some(&Group::ArgList)
+            {
+                ExprSyntaxErrorKind::MissingFunctionArgument
+            } else {
+                ExprSyntaxErrorKind::MissingOperand
+            };
+            return Some(ExprSyntaxError::at(kind, at, 0));
+        }
         if self.open.last() != Some(&Group::ArgList) {
             return Some(ExprSyntaxError::naming(
                 ExprSyntaxErrorKind::UnexpectedComma,
                 at,
                 ",",
             ));
-        }
-        if self.expecting == Expecting::Operand {
-            // `a(,0)` — nothing at all before the comma is a missing argument
-            // (parseExpr-21.21); `a(1+,0)` is a dangling operator instead, which
-            // C reports as a missing operand (parseExpr-21.25).
-            let kind = if self.previous_kind() == Some(ExprTokenType::ParenOpen) {
-                ExprSyntaxErrorKind::MissingFunctionArgument
-            } else {
-                ExprSyntaxErrorKind::MissingOperand
-            };
-            return Some(ExprSyntaxError::at(kind, at, 0));
         }
         self.expecting = Expecting::Operand;
         None
