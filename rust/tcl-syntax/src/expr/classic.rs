@@ -288,12 +288,11 @@ impl Parser<'_> {
         self.get_lexeme()
     }
 
-    fn set(&mut self, lexeme: Lexeme, start: usize, size: usize) -> Step {
+    fn set(&mut self, lexeme: Lexeme, start: usize, size: usize) {
         self.lexeme = lexeme;
         self.start = start;
         self.size = size;
         self.next = start + size;
-        Ok(())
     }
 
     fn get_lexeme(&mut self) -> Step {
@@ -303,20 +302,23 @@ impl Parser<'_> {
             at += 1;
         }
         if at >= src.len() {
-            return self.set(Lexeme::End, at, 0);
+            self.set(Lexeme::End, at, 0);
+            return Ok(());
         }
         let c = src[at];
         if c != b'+' && c != b'-' {
             let length = parse_integer(&src[at..]);
             if length > 0 {
                 read_integer(&self.text[at..at + length])?;
-                return self.set(Lexeme::Literal, at, length);
+                self.set(Lexeme::Literal, at, length);
+                return Ok(());
             }
             let length = max_double_length(&src[at..]);
             if length > 0
                 && let Some(size) = read_double(&self.text[at..at + length])?
             {
-                return self.set(Lexeme::Literal, at, size);
+                self.set(Lexeme::Literal, at, size);
+                return Ok(());
             }
         }
         let two = |next: u8| src.get(at + 1) == Some(&next);
@@ -362,7 +364,8 @@ impl Parser<'_> {
             }
             _ => (Lexeme::UnknownChar, 1),
         };
-        self.set(lexeme, at, size)
+        self.set(lexeme, at, size);
+        Ok(())
     }
 }
 
@@ -379,10 +382,10 @@ fn parse_integer(s: &[u8]) -> usize {
         return if hex > 0 { hex + 2 } else { 1 };
     }
     let digits = s.iter().take_while(|c| c.is_ascii_digit()).count();
-    match s.get(digits) {
-        None => digits,
-        Some(b'.' | b'e' | b'E') => 0,
-        Some(_) => digits,
+    if matches!(s.get(digits), Some(b'.' | b'e' | b'E')) {
+        0
+    } else {
+        digits
     }
 }
 
@@ -623,153 +626,157 @@ fn skip_command(src: &[u8], at: usize) -> Result<usize, ClassicExprError> {
 mod tests {
     use super::check;
 
+    /// Expressions 8.4 rejects, with the result and errorCode tclsh 8.4.20
+    /// reports from `expr`.
+    const FAILURES: &[(&str, &str, &str)] = &[
+        (
+            "1e999",
+            "floating-point value too large to represent",
+            "ARITH OVERFLOW {floating-point value too large to represent}",
+        ),
+        (
+            "-1e999",
+            "floating-point value too large to represent",
+            "ARITH OVERFLOW {floating-point value too large to represent}",
+        ),
+        (
+            "0x10000000000000000",
+            "integer value too large to represent",
+            "ARITH IOVERFLOW {integer value too large to represent}",
+        ),
+        (
+            "18446744073709551616",
+            "integer value too large to represent",
+            "ARITH IOVERFLOW {integer value too large to represent}",
+        ),
+        (
+            "01 + 08",
+            r#"expected integer but got "08" (looks like invalid octal number)"#,
+            "NONE",
+        ),
+        (
+            "08",
+            r#"expected integer but got "08" (looks like invalid octal number)"#,
+            "NONE",
+        ),
+        (
+            "0x",
+            r#"syntax error in expression "0x": extra tokens at end of expression"#,
+            "NONE",
+        ),
+        (
+            "1e",
+            r#"syntax error in expression "1e": extra tokens at end of expression"#,
+            "NONE",
+        ),
+        (
+            "1.5e+",
+            r#"syntax error in expression "1.5e+": extra tokens at end of expression"#,
+            "NONE",
+        ),
+        (
+            "2 ** 3",
+            r#"syntax error in expression "2 ** 3": unexpected operator *"#,
+            "NONE",
+        ),
+        (
+            r#""a" in {a b}"#,
+            r#"syntax error in expression ""a" in {a b}": extra tokens at end of expression"#,
+            "NONE",
+        ),
+        (
+            "1 +",
+            r#"syntax error in expression "1 +": premature end of expression"#,
+            "NONE",
+        ),
+        (
+            "(1",
+            r#"syntax error in expression "(1": looking for close parenthesis"#,
+            "NONE",
+        ),
+        (
+            "1 2",
+            r#"syntax error in expression "1 2": extra tokens at end of expression"#,
+            "NONE",
+        ),
+        (
+            "foo",
+            r#"syntax error in expression "foo": variable references require preceding $"#,
+            "NONE",
+        ),
+        (
+            ",",
+            r#"syntax error in expression ",": commas can only separate function arguments"#,
+            "NONE",
+        ),
+        (
+            "=",
+            r#"syntax error in expression "=": single equality character not legal in expressions"#,
+            "NONE",
+        ),
+        (
+            "1 = 2",
+            r#"syntax error in expression "1 = 2": extra tokens at end of expression"#,
+            "NONE",
+        ),
+        (
+            "#",
+            r##"syntax error in expression "#": character not legal in expressions"##,
+            "NONE",
+        ),
+        (
+            "1 ? 2",
+            r#"syntax error in expression "1 ? 2": missing colon from ternary conditional"#,
+            "NONE",
+        ),
+        (
+            ": 1",
+            r#"syntax error in expression ": 1": unexpected ternary 'else' separator"#,
+            "NONE",
+        ),
+        (
+            ")",
+            r#"syntax error in expression ")": unexpected close parenthesis"#,
+            "NONE",
+        ),
+        (
+            "1 eq",
+            r#"syntax error in expression "1 eq": premature end of expression"#,
+            "NONE",
+        ),
+        (
+            "eq 1",
+            r#"syntax error in expression "eq 1": unexpected operator eq"#,
+            "NONE",
+        ),
+        ("[", "missing close-bracket", "NONE"),
+        (r#""abc"#, r#"missing ""#, "NONE"),
+        (
+            "sin(1,",
+            r#"syntax error in expression "sin(1,": premature end of expression"#,
+            "NONE",
+        ),
+        (
+            "sin 1",
+            r#"syntax error in expression "sin 1": expected parenthesis enclosing function arguments"#,
+            "NONE",
+        ),
+        (
+            "sin(1 2)",
+            r#"syntax error in expression "sin(1 2)": missing close parenthesis at end of function call"#,
+            "NONE",
+        ),
+        (
+            "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopq + ",
+            r#"syntax error in expression "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefgh...": variable references require preceding $"#,
+            "NONE",
+        ),
+    ];
+
     /// Each expression's failure as tclsh 8.4.20 reports it from `expr`.
     #[test]
     fn failures_read_as_tclsh_8_4_reports_them() {
-        for (expr, message, code) in [
-            (
-                r#"1e999"#,
-                r#"floating-point value too large to represent"#,
-                r#"ARITH OVERFLOW {floating-point value too large to represent}"#,
-            ),
-            (
-                r#"-1e999"#,
-                r#"floating-point value too large to represent"#,
-                r#"ARITH OVERFLOW {floating-point value too large to represent}"#,
-            ),
-            (
-                r#"0x10000000000000000"#,
-                r#"integer value too large to represent"#,
-                r#"ARITH IOVERFLOW {integer value too large to represent}"#,
-            ),
-            (
-                r#"18446744073709551616"#,
-                r#"integer value too large to represent"#,
-                r#"ARITH IOVERFLOW {integer value too large to represent}"#,
-            ),
-            (
-                r#"01 + 08"#,
-                r#"expected integer but got "08" (looks like invalid octal number)"#,
-                r#"NONE"#,
-            ),
-            (
-                r#"08"#,
-                r#"expected integer but got "08" (looks like invalid octal number)"#,
-                r#"NONE"#,
-            ),
-            (
-                r#"0x"#,
-                r#"syntax error in expression "0x": extra tokens at end of expression"#,
-                r#"NONE"#,
-            ),
-            (
-                r#"1e"#,
-                r#"syntax error in expression "1e": extra tokens at end of expression"#,
-                r#"NONE"#,
-            ),
-            (
-                r#"1.5e+"#,
-                r#"syntax error in expression "1.5e+": extra tokens at end of expression"#,
-                r#"NONE"#,
-            ),
-            (
-                r#"2 ** 3"#,
-                r#"syntax error in expression "2 ** 3": unexpected operator *"#,
-                r#"NONE"#,
-            ),
-            (
-                r#""a" in {a b}"#,
-                r#"syntax error in expression ""a" in {a b}": extra tokens at end of expression"#,
-                r#"NONE"#,
-            ),
-            (
-                r#"1 +"#,
-                r#"syntax error in expression "1 +": premature end of expression"#,
-                r#"NONE"#,
-            ),
-            (
-                r#"(1"#,
-                r#"syntax error in expression "(1": looking for close parenthesis"#,
-                r#"NONE"#,
-            ),
-            (
-                r#"1 2"#,
-                r#"syntax error in expression "1 2": extra tokens at end of expression"#,
-                r#"NONE"#,
-            ),
-            (
-                r#"foo"#,
-                r#"syntax error in expression "foo": variable references require preceding $"#,
-                r#"NONE"#,
-            ),
-            (
-                r#","#,
-                r#"syntax error in expression ",": commas can only separate function arguments"#,
-                r#"NONE"#,
-            ),
-            (
-                r#"="#,
-                r#"syntax error in expression "=": single equality character not legal in expressions"#,
-                r#"NONE"#,
-            ),
-            (
-                r#"1 = 2"#,
-                r#"syntax error in expression "1 = 2": extra tokens at end of expression"#,
-                r#"NONE"#,
-            ),
-            (
-                r#"#"#,
-                r##"syntax error in expression "#": character not legal in expressions"##,
-                r#"NONE"#,
-            ),
-            (
-                r#"1 ? 2"#,
-                r#"syntax error in expression "1 ? 2": missing colon from ternary conditional"#,
-                r#"NONE"#,
-            ),
-            (
-                r#": 1"#,
-                r#"syntax error in expression ": 1": unexpected ternary 'else' separator"#,
-                r#"NONE"#,
-            ),
-            (
-                r#")"#,
-                r#"syntax error in expression ")": unexpected close parenthesis"#,
-                r#"NONE"#,
-            ),
-            (
-                r#"1 eq"#,
-                r#"syntax error in expression "1 eq": premature end of expression"#,
-                r#"NONE"#,
-            ),
-            (
-                r#"eq 1"#,
-                r#"syntax error in expression "eq 1": unexpected operator eq"#,
-                r#"NONE"#,
-            ),
-            (r#"["#, r#"missing close-bracket"#, r#"NONE"#),
-            (r#""abc"#, r#"missing ""#, r#"NONE"#),
-            (
-                r#"sin(1,"#,
-                r#"syntax error in expression "sin(1,": premature end of expression"#,
-                r#"NONE"#,
-            ),
-            (
-                r#"sin 1"#,
-                r#"syntax error in expression "sin 1": expected parenthesis enclosing function arguments"#,
-                r#"NONE"#,
-            ),
-            (
-                r#"sin(1 2)"#,
-                r#"syntax error in expression "sin(1 2)": missing close parenthesis at end of function call"#,
-                r#"NONE"#,
-            ),
-            (
-                r#"abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopq + "#,
-                r#"syntax error in expression "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefgh...": variable references require preceding $"#,
-                r#"NONE"#,
-            ),
-        ] {
+        for &(expr, message, code) in FAILURES {
             let error = check(expr).unwrap_or_else(|| panic!("{expr:?} must fail"));
             assert_eq!(error.message, message, "{expr:?}");
             assert_eq!(error.error_code, code, "{expr:?}");
