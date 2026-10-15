@@ -1,4 +1,16 @@
-# Naming audit pause status
+# Naming audit status
+
+Audit resumed at the user’s request. Six disjoint lanes are completing actual source, operational helper, generated/provenance and guidance review before a final migration total is published. The source/build freeze remains in effect.
+
+Latest portable checkpoint: **2026-10-15 22:35 UTC**, **6,292 provisional purpose records**, **631 hash-verified members**. It is an incomplete source review, not a count of consumers left. The complete 110,709-path assignment has no gaps or overlap. Canonical units now distinguish actual API adoptions, shared-owner repairs, metadata/target schema, validation and documentation. Unchanged affected callers are linked to their shared repair instead of being counted as additional repairs. Effort is relative S/M/L/XL change scope, not a fabricated duration.
+
+The VM lane has finished actual source reading of all 252 assigned production files; external and inline operational review remains. DB reports all assigned production bodies read; operational and provenance work remains. Root’s twelve-file Compiler OO peer is independently admitted (3,846 production lines, 20 reviewed purposes); omitted tests are separate. It identifies two Unicode insertion adapters and one linked-member executable-region inventory repair, with unchanged downstream callers linked separately. These are source findings, not executed regressions.
+
+Incoming rust advanced to b3c6efaf9d3ef64dc6448e61740003e8e66f18c6 (#2481, 30 changed paths). It was fetched but is not merged or admitted into this immutable cc24 audit. Root retired 30 inactive Rust .rlib compilation caches (1,119,628,744 bytes); all 55 sealed ELF artifacts were hash-identical before and after. Sources, providers, harnesses and retained evidence were preserved. Fresh Cargo gates regenerate these caches.
+
+The latest primary archive is `repository-audit-progress-20261015T223550Z.tar.gz`, SHA256 `2946a3c98e14a84cb5b2ccd7d7fa96437b0dad50c1aa3228a2071f95d5efb09c`. Restore the prior full nested archive below as its base; newer nested receipts will be captured separately. The archive includes the exact source-bound primary inputs and count-unit contract. No new source/build/test/provider/generator acceptance is claimed. M12 remains 1,133 PASS / 410 FAIL / one TIMEOUT / two NOT_ACCEPTED_RUN_COUNT; #2286 remains OPEN and required gates red/unrun.
+
+# Historical naming audit pause — 22:10 UTC
 
 Paused at the user’s request — 2026-10-15 22:10 UTC. All six agent lanes have stopped. The final source-audit checkpoint retains **6,083 provisional purpose records**, not a remaining-migration count. The complete count is **unknown** because actual source/operational/guidance review, generated provenance, disposition interpretation and independent atomic-purpose reconciliation are unfinished. Exact area backlogs and portable evidence follow.
 

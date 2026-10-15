@@ -13169,5 +13169,7 @@
     "nested_archive": "repository-audit-deep-progress-20261015T220906Z.tar.gz",
     "nested_archive_sha256": "8813dc50abbc84c6c55a0ca2563df708c80ce8d8f8fcb7c60ad2bb092122d4fa",
     "nested_verified_members": 14465
-  }
+  },
+  "current_audit_status": "RESUMED; latest repository audit6292 provisional purpose rows/631verified members. No complete consumer total; actual source/operational/generated/guidance and canonical unit review continues.",
+  "current_primary_packet": "repository-audit-progress-20261015T223550Z.tar.gz"
 }

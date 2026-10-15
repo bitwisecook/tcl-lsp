@@ -1,6 +1,6 @@
 # Related issues and prior work
 
-Paused at the user’s request — 2026-10-15 22:10 UTC. All six agent lanes have stopped. The final source-audit checkpoint retains **6,083 provisional purpose records**, not a remaining-migration count. The complete count is **unknown** because actual source/operational/guidance review, generated provenance, disposition interpretation and independent atomic-purpose reconciliation are unfinished. See [the pause status](audit-status.md) for exact area backlogs and portable evidence.
+Audit resumed at the user’s request — 2026-10-15 22:35 UTC. All six disjoint audit lanes are active; production/test files and builds remain frozen. The latest portable checkpoint retains **6,292 provisional purpose records**, not a remaining-migration total. Actual source/operational/generated/guidance review and canonical unit reconciliation continue. See [the current audit status](audit-status.md); dated pause and earlier measurements below are historical.
 
 Issue metadata is unchanged: 449 exact reads as of 2026-10-15 11:06:53 UTC (97 OPEN, 352 CLOSED); current-source acceptance mapping remains unfinished. M12 is the latest replay (1,133 PASS / 410 FAIL / one TIMEOUT / two rejected run counts); the earlier L15/K sections below retain historical scope. #2286 remains OPEN; no GitHub mutations.
 
