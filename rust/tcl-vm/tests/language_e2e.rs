@@ -143,6 +143,106 @@ fn composite_array_index_substitutes() {
     assert_eq!(out, "X Y Z C\n");
 }
 
+/// `incr` words as tclsh 9.0.4 runs them, in a proc (compiled locals) and at
+/// top level. A proc used to read any amount other than a decimal or a plain
+/// `$var` as a variable name (`incr v [expr {2}]` → `can't read "[expr {2}]"`),
+/// took a braced `{${n}}` as a reference, and incremented a slot named
+/// `a(${k})` for an element with a substituted key.
+#[test]
+fn incr_words_match_tclsh() {
+    let cases: &[(&str, &str)] = &[
+        ("set v 1; incr v [expr {2}]; return $v", "0 3"),
+        ("set v 1; set d 3; incr v $d; return $v", "0 4"),
+        ("set v 1; incr v \"[expr {1}]0\"; return $v", "0 11"),
+        ("set v 1; incr v [expr {2}][expr {3}]; return $v", "0 24"),
+        ("incr v [expr {2}]; return $v", "0 2"),
+        (
+            "set v 1; catch {incr v [expr {2.5}]} m; return $m",
+            "0 {expected integer but got \"2.5\"}",
+        ),
+        (
+            "set x 1; set n 2; catch {incr x {$n}} m; return $m",
+            "0 {expected integer but got \"$n\"}",
+        ),
+        (
+            "set x 1; set n 2; catch {incr x {${n}}} m; return $m",
+            "0 {expected integer but got \"${n}\"}",
+        ),
+        (
+            "set x 1; catch {incr x {[expr 2]}} m; return $m",
+            "0 {expected integer but got a list}",
+        ),
+        ("set x 1; set n 2; incr x $n$n; return $x", "0 23"),
+        ("set x 1; incr x 0x10; return $x", "0 17"),
+        ("set x 1; incr x 99999999999; return $x", "0 100000000000"),
+        ("set x 1; incr x -200; return $x", "0 -199"),
+        ("set x 1; incr x {5}; return $x", "0 6"),
+        ("set a($k) 1; incr a($k) 7; return [array get a]", "0 {q 8}"),
+        ("set a($k) 1; incr a($k); return [array get a]", "0 {q 2}"),
+        (
+            "set a($k) 1; set d 7; incr a($k) $d; return [array get a]",
+            "0 {q 8}",
+        ),
+        (
+            "set a($k) 1; incr a($k) [expr {7}]; return [array get a]",
+            "0 {q 8}",
+        ),
+        (
+            "set a($k) 1; incr a($k) 999; return [array get a]",
+            "0 {q 1000}",
+        ),
+        (
+            "set a(x) 1; incr a(x) [expr {5}]; return [array get a]",
+            "0 {x 6}",
+        ),
+        ("incr a($k) [expr {5}]; return [array get a]", "0 {q 5}"),
+        (
+            "set a($k) 1; set n 2; catch {incr a($k) {$n}} m; return $m",
+            "0 {expected integer but got \"$n\"}",
+        ),
+        (
+            "set a(x$k) 1; incr a(x$k) 3; return [array get a]",
+            "0 {xq 4}",
+        ),
+        (
+            "set a([string toupper $k]) 1; incr a([string toupper $k]) [string length ab]; return [array get a]",
+            "0 {Q 3}",
+        ),
+        (
+            "global g; set g(q) 1; incr g($k) [expr {4}]; return $g(q)",
+            "0 5",
+        ),
+        (
+            "upvar #0 h h; set h($k) 1; incr h($k) 2; return $h(q)",
+            "0 3",
+        ),
+        ("set v 1; incr v ; return $v", "0 2"),
+        (
+            "catch {incr a($k) x} m; return $m",
+            "0 {expected integer but got \"x\"}",
+        ),
+        (
+            "set a($k) 1; set j $k; incr a($j) [incr a($k)]; return [array get a]",
+            "0 {q 4}",
+        ),
+    ];
+    for (body, expected) in cases {
+        let in_proc = format!("proc p {{k}} {{{body}}}\nputs [list [catch {{p q}} m] $m]\n");
+        let (ok, _r, out) = run(&in_proc);
+        assert!(ok, "proc: {body}");
+        assert_eq!(out.trim_end(), *expected, "proc: {body}");
+        if body.starts_with("global") || body.starts_with("upvar") || body.starts_with("incr v") {
+            continue;
+        }
+        let script = body.replace("return ", "set __m ");
+        let top =
+            format!("set k q\nset __r [catch {{{script}; set __m}} m]\nputs [list $__r $m]\n");
+        let (ok, _r, out) = run(&top);
+        assert!(ok, "top: {body}");
+        assert_eq!(out.trim_end(), *expected, "top: {body}");
+    }
+}
+
 #[test]
 fn composite_array_index_in_proc_and_store() {
     let (ok, _r, out) = run(concat!(

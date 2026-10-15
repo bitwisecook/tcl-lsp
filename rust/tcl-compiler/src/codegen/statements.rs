@@ -370,10 +370,16 @@ impl CodegenCtx<'_> {
                 name,
                 name_braced,
                 amount,
+                amount_braced,
                 ..
             } => {
                 let target = self.store_target(name, *name_braced);
-                self.emit_incr(&target.name, target.key_is_literal, amount.as_deref());
+                self.emit_incr(
+                    &target.name,
+                    target.key_is_literal,
+                    amount.as_deref(),
+                    *amount_braced,
+                );
                 self.emit(Op::POP, vec![]);
                 true
             }
@@ -970,7 +976,7 @@ impl CodegenCtx<'_> {
         self.emit_word(a, braced);
     }
 
-    fn emit_word(&mut self, a: &str, braced: bool) {
+    pub(super) fn emit_word(&mut self, a: &str, braced: bool) {
         self.emit_word_from_source(a, braced, None);
     }
 
