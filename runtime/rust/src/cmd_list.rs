@@ -24,6 +24,7 @@
 //! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
+use tcl_cmd_core::index::IndexCompiler;
 use tcl_cmd_core::list as list_core;
 
 use crate::interp::{obj_bytes, Code, Interp};
@@ -112,6 +113,10 @@ fn lindex(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
         return interp.wrong_args(b"lindex list ?index ...?");
     }
+    let compiled = (argv.len() == 3)
+        .then(|| interp.compiled_index_argv(IndexCompiler::Lindex, argv, &[2]))
+        .flatten();
+    let argv = compiled.as_ref().map_or(argv, |c| c.argv.as_slice());
     let r = list_core::lindex(interp, &argv[1], &argv[2..]);
     adapt(interp, r)
 }
@@ -190,6 +195,8 @@ fn lrange(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 4 {
         return interp.wrong_args(b"lrange list first last");
     }
+    let compiled = interp.compiled_index_argv(IndexCompiler::Lrange, argv, &[2, 3]);
+    let argv = compiled.as_ref().map_or(argv, |c| c.argv.as_slice());
     let r = list_core::lrange(interp, &argv[1], &argv[2], &argv[3]);
     adapt(interp, r)
 }
@@ -313,6 +320,8 @@ fn linsert(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 3 {
         return interp.wrong_args(b"linsert list index ?element ...?");
     }
+    let compiled = interp.compiled_index_argv(IndexCompiler::Linsert, argv, &[2]);
+    let argv = compiled.as_ref().map_or(argv, |c| c.argv.as_slice());
     let r = list_core::linsert(interp, &argv[1], &argv[2], &argv[3..]);
     adapt(interp, r)
 }
@@ -322,6 +331,8 @@ fn lreplace(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 4 {
         return interp.wrong_args(b"lreplace list first last ?element ...?");
     }
+    let compiled = interp.compiled_index_argv(IndexCompiler::Lreplace, argv, &[2, 3]);
+    let argv = compiled.as_ref().map_or(argv, |c| c.argv.as_slice());
     let r = list_core::lreplace(interp, &argv[1], &argv[2], &argv[3], &argv[4..]);
     adapt(interp, r)
 }

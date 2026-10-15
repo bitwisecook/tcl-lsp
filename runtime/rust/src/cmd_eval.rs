@@ -51,6 +51,28 @@ fn join_body(args: &[*mut TclObj]) -> Vec<u8> {
     out
 }
 
+/// `args` concatenated as `Tcl_ConcatObj` does where every one is a canonical
+/// list or empty: one canonical list of their elements, which runs as one
+/// command without being compiled. `None` where they concatenate as strings.
+fn concat_lists(args: &[*mut TclObj]) -> Option<*mut TclObj> {
+    if !args
+        .iter()
+        .all(|&a| crate::list::is_pure_list(a) || obj_bytes(a).is_empty())
+    {
+        return None;
+    }
+    let mut elems = Vec::new();
+    for &a in args {
+        if crate::list::is_pure_list(a) {
+            elems.extend(crate::list::list_elements(a).ok()?);
+        }
+    }
+    let list = crate::list::new_list_obj(&elems);
+    // SAFETY: a fresh object; the caller releases this hold.
+    unsafe { crate::obj::incr_ref_count(list) };
+    Some(list)
+}
+
 /// `eval arg ?arg ...?` — concatenate the args and evaluate in the current scope.
 fn eval_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
@@ -61,6 +83,11 @@ fn eval_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // concatenated into a fresh dynamic script (`type eval`).
     let code = if argv.len() == 2 {
         interp.eval_body_obj(argv[1])
+    } else if let Some(list) = concat_lists(&argv[1..]) {
+        let code = interp.eval_body_obj(list);
+        // SAFETY: releases the hold `concat_lists` took.
+        unsafe { crate::obj::decr_ref_count(list) };
+        code
     } else {
         interp.eval_body(&join_body(&argv[1..]))
     };
@@ -89,6 +116,11 @@ fn uplevel_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     let code = if body_start == argv.len() - 1 {
         interp.eval_uplevel_obj(target, argv[body_start])
+    } else if let Some(list) = concat_lists(&argv[body_start..]) {
+        let code = interp.eval_uplevel_obj(target, list);
+        // SAFETY: releases the hold `concat_lists` took.
+        unsafe { crate::obj::decr_ref_count(list) };
+        code
     } else {
         interp.eval_uplevel(target, &join_body(&argv[body_start..]))
     };

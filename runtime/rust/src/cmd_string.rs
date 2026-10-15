@@ -29,6 +29,7 @@
 //! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
+use tcl_cmd_core::index::IndexCompiler;
 use tcl_cmd_core::prefix::Resolution;
 
 use crate::interp::{new_string, obj_bytes, Code, Interp};
@@ -160,6 +161,18 @@ fn string_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // driven over this runtime's `*mut TclObj` `ValueOps`. The runtime is a thin
     // adapter: map `Result<*mut TclObj, CmdError>` onto set_result/set_error.
     // Not-yet-ported subcommands fall through to the legacy arms below.
+    // `range` and `replace` read their literal indices as the release
+    // compiles them in a command it compiles.
+    let compiler = match (canonical, argv.len()) {
+        (b"range", 5) => Some(IndexCompiler::StringRange),
+        (b"replace", 5 | 6) => Some(IndexCompiler::StringReplace {
+            replacing: argv.len() == 6,
+        }),
+        _ => None,
+    };
+    let compiled =
+        compiler.and_then(|compiler| interp.compiled_index_argv(compiler, argv, &[3, 4]));
+    let argv = compiled.as_ref().map_or(argv, |c| c.argv.as_slice());
     if let Ok(canon_str) = std::str::from_utf8(canonical) {
         let numbers = interp.runtime_version().number_syntax();
         if let Some(result) =

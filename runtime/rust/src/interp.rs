@@ -46,7 +46,7 @@ use tcl_runtime_api::error_stack::{validate_error_stack, ErrorStack};
 use tcl_runtime_api::guard::{
     GuardDomain, GuardDomains, GuardError, GuardIdentity, GuardManager, GuardToken,
 };
-use tcl_runtime_api::RegisteredBacking;
+use tcl_runtime_api::{CommandEvaluation, RegisteredBacking};
 
 use crate::builtins;
 use crate::frame::{FrameStack, Link, VarError};
@@ -1051,6 +1051,21 @@ pub struct InterpState {
     /// dispatches and truncated after it returns (dynamic scope), so the obj
     /// pointers stay valid for the lookup.
     arg_locs: RefCell<Vec<ArgLoc>>,
+    /// How the emulated release evaluates the commands of the script now
+    /// running: compiled, as it does a body, an `eval` or `uplevel` script, a
+    /// `source`d file or stdin, or directly, as the script file `tclsh` is
+    /// given. A canonical-list script is one command dispatched directly.
+    evaluation: Cell<CommandEvaluation>,
+    /// The evaluation the next script loop takes, where its entry names one;
+    /// a loop that owns a new frame otherwise compiles, and one that shares
+    /// its caller's (a command substitution) takes the caller's.
+    next_evaluation: Cell<Option<CommandEvaluation>>,
+    /// `(argv, index)` of each literal word of every compiled command
+    /// dispatching, under a release whose compiler reads a literal index
+    /// apart from its command (`tcl_cmd_core::index::compiled_index_words`).
+    /// Pushed before the command dispatches and truncated after, as
+    /// `arg_locs`, so the argv each names stays live.
+    compiled_literals: RefCell<Vec<(usize, usize)>>,
     /// `eval_str` nesting depth. The outermost eval (depth returning to 0)
     /// publishes the accumulated error trace to the `::errorInfo`/`::errorCode`
     /// globals; nested evals (proc bodies, `[cmd]` subst, control bodies) just
@@ -1448,6 +1463,9 @@ impl Interp {
             cmd_frames: RefCell::new(Vec::new()),
             arg_lines: RefCell::new(Vec::new()),
             arg_locs: RefCell::new(Vec::new()),
+            evaluation: Cell::new(CommandEvaluation::Direct),
+            next_evaluation: Cell::new(None),
+            compiled_literals: RefCell::new(Vec::new()),
             eval_depth: Cell::new(0),
             var_trace_epoch: Cell::new(1),
             cmd_count: Cell::new(0),
@@ -3534,6 +3552,7 @@ impl Interp {
         &mut self,
         script: &[u8],
         name: &[u8],
+        evaluation: CommandEvaluation,
         project: impl FnOnce(&mut Self, Code) -> T,
     ) -> T {
         self.clear_return_options();
@@ -3545,6 +3564,7 @@ impl Interp {
         frame.kind = FrameKind::Source;
         frame.file = Some(Rc::from(name));
         frame.line_base = 0;
+        self.next_evaluation.set(Some(evaluation));
         let code = self.eval_framed_unpublished(script, frame);
         self.script_stack.borrow_mut().pop();
         let code = self.settle_return(code);
@@ -3556,8 +3576,10 @@ impl Interp {
     /// `source`: evaluate `script` as a sourced file named `name`, tracking it on
     /// the script stack (`info script`). A top-level `return` ends the file (the
     /// return boundary maps `return` → Ok); other codes propagate.
+    ///
+    /// Each command is compiled, as the `source` command's script is.
     pub fn eval_sourced(&mut self, script: &[u8], name: &[u8]) -> Code {
-        self.eval_sourced_boundary(script, name, |_, code| code)
+        self.eval_sourced_boundary(script, name, CommandEvaluation::Compiled, |_, code| code)
     }
 
     /// Evaluate a sourced script and return its owned, byte-preserving
@@ -3565,13 +3587,19 @@ impl Interp {
     ///
     /// The source return boundary is settled before the snapshot. An uncaught
     /// error is published to Tcl's globals only after its live options,
-    /// including `-during`, have been captured.
+    /// including `-during`, have been captured. Each command is evaluated
+    /// directly, as `tclsh` evaluates the script file it is given.
     pub fn eval_sourced_completion(
         &mut self,
         script: &[u8],
         name: &[u8],
     ) -> tcl_runtime_api::ScriptCompletion {
-        self.eval_sourced_boundary(script, name, crate::completion::capture_bytes)
+        self.eval_sourced_boundary(
+            script,
+            name,
+            CommandEvaluation::Direct,
+            crate::completion::capture_bytes,
+        )
     }
 
     /// `info script` — the file currently being sourced (empty at top level).
@@ -3654,14 +3682,14 @@ impl Interp {
     /// `body` there, then restore. The current-ns switch is what makes commands
     /// defined in `body` land in the right table.
     pub(crate) fn ns_eval(&mut self, name: &[u8], body: &[u8]) -> Code {
-        self.ns_eval_framed(name, body, None, true)
+        self.ns_eval_framed(name, body, None, None, true)
     }
 
     /// `namespace eval`-style body evaluation in `name` for callers that supply
     /// their *own* errorInfo frame (the TclOO `eval`/`my eval` method, which logs
     /// `(in "my eval" script line N)` instead of the `namespace eval` frame).
     pub(crate) fn ns_eval_no_frame(&mut self, name: &[u8], body: &[u8]) -> Code {
-        self.ns_eval_framed(name, body, None, false)
+        self.ns_eval_framed(name, body, None, None, false)
     }
 
     /// `namespace eval` of a single body **object** — like
@@ -3672,7 +3700,8 @@ impl Interp {
     pub(crate) fn ns_eval_obj(&mut self, name: &[u8], obj: *mut TclObj) -> Code {
         let loc = self.arg_loc(obj);
         let bytes = obj_bytes(obj);
-        self.ns_eval_framed(name, &bytes, loc, true)
+        let list = crate::list::is_pure_list(obj).then_some(obj);
+        self.ns_eval_framed(name, &bytes, loc, list, true)
     }
 
     /// Shared `namespace eval` core: enter `name`, push a namespace var-scope
@@ -3680,12 +3709,14 @@ impl Interp {
     /// `info frame` level — depth and `info level` both advance — with `proc`
     /// cleared and `level` reported relative to the new scope). `loc` is the
     /// body's TIP 280 location when it is a located literal (`type source`),
-    /// else `None` (`type eval`).
+    /// else `None` (`type eval`). A `list` body is that canonical list, one
+    /// command dispatched directly (`TclEvalObjEx`).
     fn ns_eval_framed(
         &mut self,
         name: &[u8],
         body: &[u8],
         loc: Option<(Option<Rc<[u8]>>, u32)>,
+        list: Option<*mut TclObj>,
         add_eval_frame: bool,
     ) -> Code {
         self.clear_return_options();
@@ -3735,7 +3766,10 @@ impl Interp {
             oo: None,
             lambda: None,
         };
-        let code = self.eval_framed(body, frame);
+        let code = match list {
+            Some(list) => self.dispatch_list_obj(list, frame),
+            None => self.eval_framed(body, frame),
+        };
         if code == Code::Error && add_eval_frame {
             // `(in namespace eval "::ns" script line N)` — the body's own frame.
             let fqn = self.namespaces.borrow().qualified_name(target);
@@ -7217,12 +7251,16 @@ impl Interp {
     fn eval_str_boundary<T>(
         &mut self,
         src: &[u8],
+        evaluation: CommandEvaluation,
         project: impl FnOnce(&mut Self, Code) -> T,
     ) -> T {
         if self.eval_depth.get() == 0 {
             self.clear_return_options();
         }
         let owned = self.cmd_frames.borrow().is_empty().then(CmdFrame::root);
+        if owned.is_some() {
+            self.next_evaluation.set(Some(evaluation));
+        }
         let code = self.eval_script_mode_unpublished(src, owned, false);
         let projected = project(self, code);
         self.finish_outermost_eval(code);
@@ -7237,8 +7275,11 @@ impl Interp {
     /// enclosing frame and add none — matching C, where `[cmd]` is the same
     /// `cmdFramePtr` level. A proc body / `eval` / `source` body gets its own
     /// frame via [`eval_framed`](Self::eval_framed).
+    ///
+    /// The script's own commands are evaluated directly, as `Tcl_EvalEx` does;
+    /// a nested call takes the evaluation of the script it runs within.
     pub fn eval_str(&mut self, src: &[u8]) -> Code {
-        self.eval_str_boundary(src, |_, code| code)
+        self.eval_str_boundary(src, CommandEvaluation::Direct, |_, code| code)
     }
 
     /// Evaluate a script and return an owned, byte-preserving completion.
@@ -7248,7 +7289,21 @@ impl Interp {
     /// the exception state; Tcl's error globals are still published before this
     /// method returns. No text encoding is applied.
     pub fn eval_completion(&mut self, script: &[u8]) -> tcl_runtime_api::ScriptCompletion {
-        self.eval_str_boundary(script, crate::completion::capture_bytes)
+        self.eval_str_boundary(
+            script,
+            CommandEvaluation::Direct,
+            crate::completion::capture_bytes,
+        )
+    }
+
+    /// [`Self::eval_completion`] with each command compiled, as `tclsh`
+    /// compiles every command its stdin feeds it.
+    pub fn eval_compiled_completion(&mut self, script: &[u8]) -> tcl_runtime_api::ScriptCompletion {
+        self.eval_str_boundary(
+            script,
+            CommandEvaluation::Compiled,
+            crate::completion::capture_bytes,
+        )
     }
 
     /// Evaluate `src` as the body of its own `info frame` level (`frame` is
@@ -7315,6 +7370,12 @@ impl Interp {
         }
         self.eval_depth.set(self.eval_depth.get() + 1);
         let pushed = owned.is_some();
+        let evaluation = self.next_evaluation.take().unwrap_or(if pushed {
+            CommandEvaluation::Compiled
+        } else {
+            self.evaluation.get()
+        });
+        let outer_evaluation = self.evaluation.replace(evaluation);
         let owns_frame = pushed || advance_shared;
         if let Some(f) = owned {
             self.cmd_frames.borrow_mut().push(f);
@@ -7338,6 +7399,7 @@ impl Interp {
         if pushed {
             self.cmd_frames.borrow_mut().pop();
         }
+        self.evaluation.set(outer_evaluation);
         self.eval_depth.set(self.eval_depth.get() - 1);
         last
     }
@@ -7750,6 +7812,12 @@ impl Interp {
         // record in the LABC table (`eval`/`uplevel`/proc body source locations).
         let mut arg_lines: Vec<u32> = Vec::new();
         let mut labc: Vec<usize> = Vec::new();
+        // The literal words of a command the release compiles, where its
+        // compiler reads one apart; a command with `{*}` is not compiled so.
+        let mut literals: Vec<usize> = Vec::new();
+        let compiles_literals = self.evaluation.get() == CommandEvaluation::Compiled
+            && tcl_cmd_core::index::compiles_literals_apart(self.runtime_version())
+            && !words.iter().any(|w| w.expand);
 
         for w in words {
             let word_line = cmd_line + count_newlines(&src[w0..w.start.min(src.len())]);
@@ -7799,6 +7867,9 @@ impl Interp {
                 if file.is_some() && is_literal {
                     labc.push(idx);
                 }
+                if compiles_literals && is_literal {
+                    literals.push(idx);
+                }
             }
         }
 
@@ -7821,8 +7892,20 @@ impl Interp {
             }
         }
         *self.arg_lines.borrow_mut() = arg_lines;
+        let compiled_pushed = literals.len();
+        if compiled_pushed > 0 {
+            let base = argv.as_ptr() as usize;
+            self.compiled_literals
+                .borrow_mut()
+                .extend(literals.iter().map(|&idx| (base, idx)));
+        }
 
         let code = self.dispatch(&argv);
+        if compiled_pushed > 0 {
+            let mut literals = self.compiled_literals.borrow_mut();
+            let keep = literals.len() - compiled_pushed;
+            literals.truncate(keep);
+        }
         if pushed > 0 {
             let mut locs = self.arg_locs.borrow_mut();
             let keep = locs.len() - pushed;
@@ -7832,6 +7915,51 @@ impl Interp {
         // result did so via set_obj_result, which holds an independent +1.
         release_all(&argv);
         code
+    }
+
+    /// `argv` with its index words at `at` respelt as the release compiles
+    /// them, where the command is one it compiles and they are literals it
+    /// reads apart from the command (`tcl_cmd_core::index::compiled_index_words`);
+    /// `None` where it passes every word as written.
+    pub(crate) fn compiled_index_argv(
+        &self,
+        compiler: tcl_cmd_core::index::IndexCompiler,
+        argv: &[*mut TclObj],
+        at: &[usize],
+    ) -> Option<CompiledArgv> {
+        let words: Vec<Option<String>> = {
+            let literals = self.compiled_literals.borrow();
+            let base = argv.as_ptr() as usize;
+            if !literals.iter().any(|&(b, _)| b == base) {
+                return None;
+            }
+            at.iter()
+                .map(|&idx| {
+                    (idx < argv.len() && literals.contains(&(base, idx)))
+                        .then(|| String::from_utf8_lossy(&obj_bytes(argv[idx])).into_owned())
+                })
+                .collect()
+        };
+        let words: Vec<Option<&str>> = words.iter().map(Option::as_deref).collect();
+        let respelt =
+            tcl_cmd_core::index::compiled_index_words(compiler, &words, self.runtime_version());
+        if respelt.iter().all(Option::is_none) {
+            return None;
+        }
+        let mut compiled = CompiledArgv {
+            argv: argv.to_vec(),
+            fresh: Vec::new(),
+        };
+        for (&idx, spelling) in at.iter().zip(respelt) {
+            if let Some(spelling) = spelling {
+                let o = new_string(spelling.as_bytes());
+                // SAFETY: a fresh object; `CompiledArgv` releases this hold.
+                unsafe { obj::incr_ref_count(o) };
+                compiled.argv[idx] = o;
+                compiled.fresh.push(o);
+            }
+        }
+        Some(compiled)
     }
 
     /// The recorded TIP 280 source location of a script obj (C's `lineLABCPtr`
@@ -10936,6 +11064,19 @@ pub(crate) fn error_code_list(elements: &[&[u8]]) -> Vec<u8> {
         crate::list::append_list_element(&mut code, element, false);
     }
     code
+}
+
+/// A command's words with index words respelt as the release compiles them
+/// ([`Interp::compiled_index_argv`]); the respelt words are released with it.
+pub(crate) struct CompiledArgv {
+    pub(crate) argv: Vec<*mut TclObj>,
+    fresh: Vec<*mut TclObj>,
+}
+
+impl Drop for CompiledArgv {
+    fn drop(&mut self) {
+        release_all(&self.fresh);
+    }
 }
 
 /// Release each object in `objs` (each holds a `+1` taken by `eval_command`).

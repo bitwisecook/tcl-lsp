@@ -240,6 +240,138 @@ pub fn encodes_apart(spec: &str, release: TclVersion) -> bool {
     encode(spec, release, true) != encode(spec, release, false)
 }
 
+/// Whether `release`'s compiler reads some literal index word apart from its
+/// command ([`encodes_apart`]), so that a runtime evaluating a command it
+/// compiles needs its literal words: 8.6's `TclIndexEncode` alone.
+#[must_use]
+pub const fn compiles_literals_apart(release: TclVersion) -> bool {
+    matches!(release, TclVersion::V8_6)
+}
+
+/// A command whose literal index words 8.6's compiler encodes
+/// (`TclGetIndexFromToken`), each by the rule of its compile procedure.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IndexCompiler {
+    /// `lindex list index`, three words only (`TclCompileLindexCmd`).
+    Lindex,
+    /// `lrange list first last`, both literal (`TclCompileLrangeCmd`).
+    Lrange,
+    /// `linsert list index ?element ...?` (`TclCompileLinsertCmd`).
+    Linsert,
+    /// `lreplace list first last ?element ...?`, both literal and in an
+    /// order the compiler can settle (`TclCompileLreplaceCmd`).
+    Lreplace,
+    /// `string range string first last` (`TclCompileStringRangeCmd`): a
+    /// `first` after the end settles the command alone, else both literal.
+    StringRange,
+    /// `string replace string first last ?newString?`, both literal and as
+    /// [`string_replace_compiles_encoded`] says (`TclCompileStringReplaceCmd`).
+    StringReplace {
+        /// Whether the command has a replacement string.
+        replacing: bool,
+    },
+}
+
+/// The index words of a command `compiler` compiles, each respelt where
+/// `release` compiles it to a reading apart from the one its command makes as
+/// it runs ([`encodes_apart`]): `2147483647` after the end and `-1` before
+/// the first element, which every release's command reads so whatever the
+/// length. `words` holds each index word's text where it is a literal and
+/// `None` where it is substituted; the answer is aligned with it, `None`
+/// where the word is passed as written.
+#[must_use]
+pub fn compiled_index_words(
+    compiler: IndexCompiler,
+    words: &[Option<&str>],
+    release: TclVersion,
+) -> Vec<Option<&'static str>> {
+    let encoded: Vec<Option<Encoded>> = words
+        .iter()
+        .map(|word| word.and_then(|word| encode(word, release, true)))
+        .collect();
+    let all = encoded.iter().all(Option::is_some);
+    let settled: Vec<bool> = match (compiler, encoded.as_slice()) {
+        (IndexCompiler::StringRange, [Some(Encoded::After), _]) => vec![true, false],
+        (IndexCompiler::Lreplace, [Some(first), Some(last)]) => {
+            vec![lreplace_compiles_encoded(*first, *last); 2]
+        }
+        (IndexCompiler::StringReplace { replacing }, [Some(first), Some(last)]) => {
+            vec![string_replace_compiles_encoded(*first, *last, replacing); 2]
+        }
+        (IndexCompiler::Lreplace | IndexCompiler::StringReplace { .. }, _) => {
+            vec![false; words.len()]
+        }
+        _ => vec![all; words.len()],
+    };
+    words
+        .iter()
+        .zip(encoded)
+        .zip(settled)
+        .map(|((word, encoded), settled)| {
+            if !settled || !word.is_some_and(|word| encodes_apart(word, release)) {
+                return None;
+            }
+            match encoded? {
+                Encoded::After => Some("2147483647"),
+                Encoded::Before => Some("-1"),
+                Encoded::Index(_) | Encoded::FromEnd(_) => None,
+            }
+        })
+        .collect()
+}
+
+/// `TclIndexEncode`'s spaces: `TCL_INDEX_END` is -2 with `end-N` below it,
+/// `TCL_INDEX_BEFORE` -1, `TCL_INDEX_START` 0 and `TCL_INDEX_AFTER` `INT_MAX`.
+const ENCODED_BEFORE: i64 = -1;
+const ENCODED_END: i64 = -2;
+const ENCODED_START: i64 = 0;
+const ENCODED_AFTER: i64 = i32::MAX as i64;
+
+/// `encoded` in `TclIndexEncode`'s space, with what `before` and `after` the
+/// first element and the end stand for.
+fn encoded_value(encoded: Encoded, before: i64, after: i64) -> i64 {
+    match encoded {
+        Encoded::Index(index) if index >= ENCODED_AFTER => after,
+        Encoded::Index(index) => index,
+        Encoded::FromEnd(offset) => ENCODED_END + offset,
+        Encoded::Before => before,
+        Encoded::After => after,
+    }
+}
+
+/// Whether 8.6's `TclCompileLreplaceCmd` compiles `lreplace` on its encoded
+/// indices: where it can tell which of `first` and `last + 1` the kept suffix
+/// starts at.
+#[must_use]
+pub fn lreplace_compiles_encoded(first: Encoded, last: Encoded) -> bool {
+    let first = encoded_value(first, ENCODED_START, ENCODED_AFTER);
+    let last = encoded_value(last, ENCODED_BEFORE, ENCODED_END);
+    first == ENCODED_AFTER
+        || last == ENCODED_BEFORE
+        || last == ENCODED_END
+        || (last < ENCODED_END && first <= ENCODED_END)
+        || (last >= ENCODED_START && first >= ENCODED_START)
+}
+
+/// Whether 8.6's `TclCompileStringReplaceCmd` compiles `string replace` on
+/// its encoded indices, rather than falling through to `INST_STR_REPLACE`
+/// over the words as written: always without a replacement string, and with
+/// one only for a no-op it can prove, `first` before the first element, or
+/// `last` after the end with `first` relative to `end`.
+#[must_use]
+pub fn string_replace_compiles_encoded(first: Encoded, last: Encoded, replacing: bool) -> bool {
+    let first = encoded_value(first, ENCODED_BEFORE, ENCODED_AFTER);
+    let last = encoded_value(last, ENCODED_BEFORE, ENCODED_AFTER);
+    let no_op = last == ENCODED_BEFORE
+        || first == ENCODED_AFTER
+        || (first <= ENCODED_END && last <= ENCODED_END && last < first)
+        || (first >= ENCODED_START && last >= ENCODED_START && last < first);
+    no_op
+        || !replacing
+        || (first == ENCODED_BEFORE && last >= ENCODED_START)
+        || (last == ENCODED_AFTER && first <= ENCODED_END)
+}
+
 /// A failed `lsearch`/`lsort -index` path step: C's message and, where C sets
 /// one, its `-errorcode`.
 pub struct IndexPathError {
@@ -860,6 +992,85 @@ mod tests {
                     "{spec} {release:?}"
                 );
             }
+        }
+    }
+
+    /// `TclCompileStringReplaceCmd` (8.6.18) settles the command on its encoded
+    /// indices without a replacement string, for a no-op it proves, for
+    /// `first` before the first element, and for `last` after the end with
+    /// `first` relative to `end`; otherwise `INST_STR_REPLACE` reads the words
+    /// at run time. Measured in a proc on `abcdefghijkl`: `string replace $s
+    /// end+2147483647 end X` is unchanged (the run-time reading replaces it
+    /// all), and so is `string replace $s 0 end+2147483647 X`, as at run time.
+    #[test]
+    fn string_replace_settles_on_its_encoded_indices_where_8_6_does() {
+        use super::Encoded::{After, Before, FromEnd, Index};
+        for (first, last, replacing, encoded) in [
+            (After, FromEnd(0), true, true),
+            (Index(0), After, true, false),
+            (Index(0), After, false, true),
+            (Before, After, true, true),
+            (FromEnd(-1), After, true, true),
+            (Index(2), Before, true, true),
+            (Index(2), FromEnd(-1), true, false),
+        ] {
+            assert_eq!(
+                string_replace_compiles_encoded(first, last, replacing),
+                encoded,
+                "{first:?} {last:?} replacing: {replacing}"
+            );
+        }
+    }
+
+    /// Each command's index words as 8.6's compile procedure encodes them, or
+    /// leaves them to the command. Measured on tclsh 8.6.18 in a proc with
+    /// `$l` `{a b c}` and `$i` 1: `lreplace $l end-2147483649 $i X` is
+    /// `X c` (read as it runs), `string range abcdef end-2147483649 $i` is
+    /// empty (a `first` after the end settles it), and `lrange $l 0
+    /// end+2147483647`, `lindex $l end-2147483649` and `linsert $l
+    /// end-2147483649 X` read their literal after the end.
+    #[test]
+    fn each_compile_procedure_encodes_its_own_index_words() {
+        let words = |compiler, words: &[Option<&str>]| {
+            compiled_index_words(compiler, words, TclVersion::V8_6)
+        };
+        let past = Some("end-2147483649");
+        let after = Some("2147483647");
+        assert_eq!(words(IndexCompiler::Lindex, &[past]), [after]);
+        assert_eq!(words(IndexCompiler::Linsert, &[past]), [after]);
+        assert_eq!(
+            words(IndexCompiler::Lrange, &[Some("0"), Some("end+2147483647")]),
+            [None, after]
+        );
+        assert_eq!(words(IndexCompiler::Lrange, &[past, None]), [None, None]);
+        assert_eq!(words(IndexCompiler::Lreplace, &[past, None]), [None, None]);
+        assert_eq!(
+            words(IndexCompiler::Lreplace, &[Some("2"), past]),
+            [None, after]
+        );
+        assert_eq!(
+            words(IndexCompiler::StringRange, &[past, None]),
+            [after, None]
+        );
+        assert_eq!(
+            words(
+                IndexCompiler::StringReplace { replacing: true },
+                &[Some("0"), Some("end+2147483647")]
+            ),
+            [None, None]
+        );
+        assert_eq!(
+            words(
+                IndexCompiler::StringReplace { replacing: false },
+                &[Some("0"), Some("end+2147483647")]
+            ),
+            [None, after]
+        );
+        for release in [TclVersion::V8_4, TclVersion::V8_5, TclVersion::V9_0] {
+            assert_eq!(
+                compiled_index_words(IndexCompiler::Lindex, &[past], release),
+                [None]
+            );
         }
     }
 

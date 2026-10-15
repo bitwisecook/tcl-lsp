@@ -153,7 +153,11 @@ impl CodegenCtx<'_> {
         let (Some(first_at), Some(last_at)) = (encoded(&first.0), encoded(&last.0)) else {
             return false;
         };
-        if !string_replace_compiles_encoded(first_at, last_at, sargs.len() == 4) {
+        if !tcl_cmd_core::index::string_replace_compiles_encoded(
+            first_at,
+            last_at,
+            sargs.len() == 4,
+        ) {
             return false;
         }
         self.emit_cmd_subst_arg(&sargs[0].0, sargs[0].1);
@@ -166,37 +170,6 @@ impl CodegenCtx<'_> {
         self.emit(Op::STR_REPLACE, vec![]);
         true
     }
-}
-
-/// Whether 8.6's `TclCompileStringReplaceCmd` compiles `string replace` on
-/// its encoded indices, rather than falling through to `INST_STR_REPLACE`
-/// over the words as written: always without a replacement string, and with
-/// one only for a no-op it can prove, `first` before the first element, or
-/// `last` after the end with `first` relative to `end`.
-fn string_replace_compiles_encoded(
-    first: tcl_cmd_core::index::Encoded,
-    last: tcl_cmd_core::index::Encoded,
-    replacing: bool,
-) -> bool {
-    use tcl_cmd_core::index::Encoded;
-    // `TclIndexEncode`'s spaces: `TCL_INDEX_END` is -2 with `end-N` below it,
-    // `TCL_INDEX_BEFORE` -1, `TCL_INDEX_AFTER` `INT_MAX`.
-    const BEFORE: i64 = -1;
-    const END: i64 = -2;
-    const START: i64 = 0;
-    const AFTER: i64 = i32::MAX as i64;
-    let c = |encoded: Encoded| match encoded {
-        Encoded::Index(index) => index.min(AFTER),
-        Encoded::FromEnd(offset) => END + offset,
-        Encoded::Before => BEFORE,
-        Encoded::After => AFTER,
-    };
-    let (first, last) = (c(first), c(last));
-    let no_op = last == BEFORE
-        || first == AFTER
-        || (first <= END && last <= END && last < first)
-        || (first >= START && last >= START && last < first);
-    no_op || !replacing || (first == BEFORE && last >= START) || (last == AFTER && first <= END)
 }
 
 // Free functions — pure parsing, no emission state needed
@@ -2966,33 +2939,6 @@ mod tests {
                     .any(|literal| literal == pushed),
                 "{dialect}, direct: {direct}: {:?}",
                 ctx.literals.entries()
-            );
-        }
-    }
-
-    /// `TclCompileStringReplaceCmd` (8.6.18) settles the command on its encoded
-    /// indices without a replacement string, for a no-op it proves, for
-    /// `first` before the first element, and for `last` after the end with
-    /// `first` relative to `end`; otherwise `INST_STR_REPLACE` reads the words
-    /// at run time. Measured in a proc on `abcdefghijkl`: `string replace $s
-    /// end+2147483647 end X` is unchanged (the run-time reading replaces it
-    /// all), and so is `string replace $s 0 end+2147483647 X`, as at run time.
-    #[test]
-    fn string_replace_settles_on_its_encoded_indices_where_8_6_does() {
-        use tcl_cmd_core::index::Encoded::{After, Before, FromEnd, Index};
-        for (first, last, replacing, encoded) in [
-            (After, FromEnd(0), true, true),
-            (Index(0), After, true, false),
-            (Index(0), After, false, true),
-            (Before, After, true, true),
-            (FromEnd(-1), After, true, true),
-            (Index(2), Before, true, true),
-            (Index(2), FromEnd(-1), true, false),
-        ] {
-            assert_eq!(
-                string_replace_compiles_encoded(first, last, replacing),
-                encoded,
-                "{first:?} {last:?} replacing: {replacing}"
             );
         }
     }

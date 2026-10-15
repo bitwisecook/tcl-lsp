@@ -164,7 +164,9 @@ fn run() -> i32 {
         }
     }
     // A file path is *sourced* (like `tclsh script.tcl`: `info script` is set and
-    // `info frame` reports `type source`); stdin is evaluated as a script.
+    // `info frame` reports `type source`), its commands evaluated directly;
+    // stdin is evaluated as a script whose commands are compiled, as `tclsh`
+    // compiles each command its stdin feeds it.
     let path = args.get(1).cloned();
     let src = if let Some(path) = &path {
         match std::fs::read(path) {
@@ -226,7 +228,7 @@ fn run() -> i32 {
     }
     let completion = match &path {
         Some(p) => interp.eval_sourced_completion(&src, p.as_bytes()),
-        None => interp.eval_completion(&src),
+        None => interp.eval_compiled_completion(&src),
     };
     // Print the script's final result (if any), like an interactive evaluation
     // — unless `--quiet` asked for `tclsh script.tcl`'s actual non-interactive
