@@ -545,6 +545,29 @@ impl OriginalSourceDefinitionMemberScriptBody {
     pub fn member_row(&self) -> Option<&tcl_registry::definer::MemberRow> {
         self.member_row.as_ref()
     }
+    /// Receiver vocabulary for this actual selected callable body. The
+    /// parent source schema owns the grammar; this supplies no entered receiver.
+    #[must_use]
+    pub fn receiver_grammar(
+        &self,
+        context: &ContextRegistry,
+    ) -> Option<&'static tcl_registry::definer::DefinitionBodyGrammar> {
+        use tcl_registry::definer::{CallableRole, MemberEffect, MemberReceiver};
+        self.matches_context(context).then_some(())?;
+        let row = self.member_row()?;
+        let MemberEffect::Callable { role, .. } = row.effect else {
+            return None;
+        };
+        if row.receiver != MemberReceiver::Instance || role == CallableRole::Procedure {
+            return None;
+        }
+        self.parent
+            .source
+            .with_source_schema(context, |schema| {
+                schema.authored_source_definition_body_grammar()
+            })
+            .flatten()
+    }
     /// Whole original member/body source and parser configuration agree.
     #[must_use]
     pub fn matches_source(&self, image: &SourceImage, config: LexerConfig) -> bool {
@@ -2106,6 +2129,32 @@ mod script_purpose_tests {
                 .definition_parent_for(&context, Some(&parent))
                 .is_none()
         );
+    }
+
+    #[test]
+    fn receiver_grammar_belongs_to_the_actual_instance_callable_body() {
+        let source = "oo::class create C {method run {} {}; constructor {} {}; destructor {}; self method build {} {}}";
+        for dialect in ["tcl", "tcl8.6"] {
+            let (analysis, parent) = original_definition_parent(source, dialect);
+            let context = analysis.resolved_input.as_ref().unwrap().context_registry();
+            let region = parent
+                .definition_member_region(&context, parent.content_span())
+                .unwrap();
+            let commands = region.original_commands().collect::<Vec<_>>();
+            assert_eq!(commands.len(), 4);
+            let foreign = tcl_registry::model::ingress::resolve_environment("f5-irules")
+                .default_context_registry();
+            for (index, command) in commands.into_iter().enumerate() {
+                let body = region.script_bodies(command).unwrap().remove(0);
+                assert_eq!(
+                    body.receiver_grammar(&context)
+                        .map(|grammar| grammar.family),
+                    (index < 3).then_some(tcl_registry::definer::DefinerFamily::TclOo),
+                    "{dialect}: {index}"
+                );
+                assert!(body.receiver_grammar(&foreign).is_none());
+            }
+        }
     }
 
     #[test]

@@ -431,56 +431,22 @@ pub(super) fn receiver_grammar_for_body(
     if current.config() != ctx.config || current.context().context() != ctx.context {
         return None;
     }
-    if let Some(grammar) = ctx.oo_grammar
+    if let Some(members) = ctx.original_definition_members
         && definition_member_head(ctx, command)
     {
-        let tokens = tcl_compiler::ir::CommandTokens::from_segmented(
-            &tcl_lexer::SourceMap::new(ctx.full_source),
-            ctx.config,
-            command,
-        );
-        if tokens.words().iter().any(|word| {
-            matches!(
-                word,
-                tcl_compiler::ir::WordExpr::Expand { .. }
-                    | tcl_compiler::ir::WordExpr::Opaque { .. }
-            )
-        }) {
+        let original = original_definition_member_words(ctx, command)?;
+        let bodies = members.script_bodies(original)?;
+        let image = SourceImage::document(ctx.full_source);
+        let mut matching = bodies.iter().filter(|selected| {
+            selected.matches_source(&image, ctx.config)
+                && selected.matches_context(ctx.generation)
+                && selected.original_container().tokens().contains(&body)
+        });
+        let selected = matching.next()?;
+        if matching.next().is_some() {
             return None;
         }
-        let values = tokens
-            .words()
-            .iter()
-            .map(|word| {
-                tcl_compiler::registry_invocation::effective_invocation_word(
-                    word,
-                    ctx.config.escapes,
-                    tcl_syntax::word_rules::WordValueRules::from_config(&ctx.config),
-                )
-            })
-            .collect::<Vec<_>>();
-        let words = values
-            .iter()
-            .map(tcl_compiler::registry_invocation::EffectiveInvocationWord::as_registry_word)
-            .collect::<Vec<_>>();
-        let row = grammar.member_row(
-            0,
-            tcl_registry::InvocationArguments::structured(&words),
-            Some(ctx.context.authoring_query()),
-        )?;
-        let tcl_registry::definer::MemberEffect::Callable { role, .. } = row.effect else {
-            return None;
-        };
-        if row.receiver != tcl_registry::definer::MemberReceiver::Instance
-            || role == tcl_registry::definer::CallableRole::Procedure
-            || command
-                .argv
-                .get(row.body?.0)
-                .is_none_or(|token| token.span != body.span)
-        {
-            return None;
-        }
-        return Some(grammar);
+        return selected.receiver_grammar(ctx.generation);
     }
     let grammar = ctx.receiver_grammar?;
     original?
