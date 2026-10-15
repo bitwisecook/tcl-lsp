@@ -1056,7 +1056,7 @@ fn finalize_function(
         .iter()
         .filter_map(|site| {
             let span = site.span;
-            let cmd_text = ctx.source_text(span);
+            let cmd_text = ctx.error_info_source_text(span);
             if cmd_text.is_empty() {
                 return None;
             }

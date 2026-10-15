@@ -2688,10 +2688,15 @@ impl<'a> CfgBuilder<'a> {
         };
 
         let expands = raw_args.iter().any(|arg| arg.contains("{*}"));
-        // `catch script ?resultVarName? ?optionVarName?` and no more. A fourth
-        // argument is a `wrong # args` error C raises *before* running the
-        // body; inlining would run it and silently ignore the extra word.
-        let over_arity = raw_args.len() > 3;
+        // `catch script ?resultVarName? ?optionVarName?` and no more (8.4:
+        // `catch command ?varName?`). A further argument is a `wrong # args`
+        // error C raises *before* running the body; inlining would run it and
+        // silently ignore the extra word.
+        let dialect = self.registry.own_surface_query();
+        let variables = self.registry.get("catch").map_or(2, |spec| {
+            spec.optional_trailing_arg_names(dialect, None).len()
+        });
+        let over_arity = raw_args.len() > 1 + variables;
         // The destination words have to be written as plain scalar locals.
         // Lowering normalises `$dst` to `dst` and `a(key)` to `a`, so the
         // names alone no longer say what was written: inlining

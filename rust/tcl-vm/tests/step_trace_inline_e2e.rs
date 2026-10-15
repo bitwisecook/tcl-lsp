@@ -389,21 +389,14 @@ fn step_trace_vectors_match_real_tclsh() {
     }
 }
 
-/// Documented divergence from C, narrow in scope: C's interp-wide step trace
-/// is torn down when the traced proc's
-/// OWN `leave` event matches the level/command-string it was registered at
+/// C's interp-wide step trace is torn down when the traced proc's own
+/// `leave` event matches the level/command-string it was registered at
 /// (`tcmdPtr->startLevel`/`startCmd`, `tclTrace.c`). A `tailcall` replaces
-/// the traced proc's activation at the SAME level, which C's bookkeeping
-/// treats as "the traced proc has left" — so the tail target's body runs
-/// UNOBSERVED (tclsh9.0.4-verified: only `tailcall tgt|enterstep` prints,
-/// nothing from `tgt`'s own body). The VM's step-scope model is a stack tied
-/// to the traced proc's own *activation frame*, not a level/command-string
-/// match, so it keeps observing through the tail-call replacement — a
-/// broader (never a narrower) observation than C. Pinned here, as the
-/// codebase's convention for a residual divergence, so a future engine
-/// change shows up as a conscious update rather than silent drift.
+/// the traced proc's activation at the same level, so the tail target's body
+/// runs unobserved (tclsh 8.6.18/9.0.4/9.1.0: only `tailcall tgt|enterstep`
+/// prints).
 #[test]
-fn step_trace_over_observes_a_tailcall_target_vm_divergence() {
+fn step_trace_stops_at_a_tailcall_like_c() {
     let out = vm_output(
         "proc tgt {} { set t 1 ; return T }\n\
          proc p {} { tailcall tgt }\n\
@@ -411,15 +404,7 @@ fn step_trace_over_observes_a_tailcall_target_vm_divergence() {
          trace add execution p enterstep st\n\
          puts \"R:[p]\"\n",
     );
-    assert_eq!(
-        out,
-        "S:tailcall tgt|enterstep\n\
-         S:tgt|enterstep\n\
-         S:set t 1|enterstep\n\
-         S:return T|enterstep\n\
-         R:T",
-        "the VM keeps observing tgt's body after the tailcall; C Tcl stops at the tailcall itself"
-    );
+    assert_eq!(out, "S:tailcall tgt|enterstep\nR:T");
 }
 
 /// A step-capable execution trace forces every procedure to recompile at its

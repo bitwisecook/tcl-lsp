@@ -481,6 +481,22 @@ impl CodegenCtx<'_> {
             self.push_lit(&text);
             return true;
         }
+        // A constant operator subexpression left unfolded may still be one C
+        // folds and fails to: mark its operations so an error they raise is
+        // reported as that fold failure.
+        if foldable && self.vm_release().raises_folded_expr_errors() && is_constant_expr(node) {
+            let start = self.instructions.len();
+            let emitted = self.emit_expr_operation(node, depth);
+            for instruction in &mut self.instructions[start..] {
+                instruction.error_origin = tcl_bytecode::ErrorOrigin::ConstantFold;
+            }
+            return emitted;
+        }
+        self.emit_expr_operation(node, depth)
+    }
+
+    /// [`Self::emit_expr_at`] past constant folding.
+    fn emit_expr_operation(&mut self, node: &ExprNode, depth: u32) -> bool {
         match node {
             ExprNode::Literal { text, .. } => self.emit_expr_literal(text),
 
@@ -588,6 +604,29 @@ impl CodegenCtx<'_> {
                 false
             }
         }
+    }
+}
+
+/// Whether `node` is an operator expression over literals only: no variable,
+/// command, or math-function call, and no quoted operand that substitutes.
+fn is_constant_expr(node: &ExprNode) -> bool {
+    match node {
+        ExprNode::Literal { .. } => true,
+        ExprNode::String { text, .. } => {
+            text.starts_with('{') || !(text.contains('$') || text.contains('['))
+        }
+        ExprNode::Binary { left, right, .. } => is_constant_expr(left) && is_constant_expr(right),
+        ExprNode::Unary { operand, .. } => is_constant_expr(operand),
+        ExprNode::Ternary {
+            condition,
+            true_branch,
+            false_branch,
+        } => {
+            is_constant_expr(condition)
+                && is_constant_expr(true_branch)
+                && is_constant_expr(false_branch)
+        }
+        _ => false,
     }
 }
 

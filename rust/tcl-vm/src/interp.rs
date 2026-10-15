@@ -843,6 +843,12 @@ pub(crate) struct PendingControl {
     /// builtin that reads its words as that compiled command does takes it
     /// at entry.
     pub(crate) release_compiled: Option<tcl_bytecode::ReleaseCompiled>,
+    /// Words an unknown-command handler's invocation adds before the words
+    /// that missed, for the procedure activation it is about to start.
+    pub(crate) handler_words: usize,
+    /// The command being dispatched is invoked from the top-level script's
+    /// own activation, with no other command active (C's `numLevels == 1`).
+    pub(crate) top_level_command: bool,
     /// Next `package unknown` or `package ifneeded` script of a require.
     pub(crate) package: Option<crate::cmd_package::PackageReq>,
 }
@@ -9062,7 +9068,8 @@ impl Vm {
         let saved = self.trace_in_progress.get();
         self.trace_in_progress
             .set(saved || interp_trace_in_progress);
-        let res = match self.eval_source(&script) {
+        // C evaluates the callback with `Tcl_EvalEx`, its commands directly.
+        let res = match self.eval_source_directly(&script) {
             Ok(c) => c,
             Err(e) => err(e.message),
         };
@@ -10584,6 +10591,20 @@ impl Vm {
     /// when evaluation is not inside a `source`.
     pub(crate) fn current_script(&self) -> &str {
         self.script_stack.last().map_or("", String::as_str)
+    }
+
+    /// The `tailcall` scheduled on the current procedure frame (see
+    /// [`crate::frame::CallFrame::tailcall`]).
+    pub(crate) fn current_frame_tailcall(&mut self) -> Option<&mut Option<(String, Vec<Value>)>> {
+        self.frames.last_mut().map(|frame| &mut frame.tailcall)
+    }
+
+    /// Whether the current call frame is a procedure's (not the global frame
+    /// or a `namespace eval` body) — what `tailcall` may replace.
+    pub(crate) fn current_frame_is_proc(&self) -> bool {
+        self.frames.last().is_some_and(|frame| {
+            frame.level > 0 && frame.proc_name.is_some() && frame.ns_eval.is_none()
+        })
     }
 
     /// The namespace a script run at the existing frame `target` resolves
@@ -12467,9 +12488,8 @@ impl Vm {
         self.log_command_info_only(cmd_text, msg, line);
     }
 
-    /// ErrorInfo-only half of command logging. Compiler error regions call this
-    /// while reconstructing synthetic body frames; those are not additional
-    /// Tcl command logs and therefore must not duplicate TIP 348 `UP` entries.
+    /// ErrorInfo-only half of command logging, for a parse error whose TIP 348
+    /// context is recorded where it is raised.
     pub(crate) fn log_command_info_only(&mut self, cmd_text: &str, msg: &str, line: u32) {
         if self.error_logged {
             return;
@@ -12560,13 +12580,60 @@ impl Vm {
     /// `line` is the proc-relative line of the innermost logged command. Clears
     /// `error_logged` so the call site then logs its `invoked from within` frame.
     pub(crate) fn append_proc_frame(&mut self, name: &str, line: u32) {
+        self.append_callable_frame("procedure", name, line);
+    }
+
+    /// Log a command a builtin ran from its own words (an `lsort -command`
+    /// comparator, a `regsub -command` prefix) as C's `Tcl_EvalObjv` logs the
+    /// command it evaluated; the builtin then adds its context frame.
+    pub(crate) fn log_callback_command(&mut self, words: &[Value], message: &str) {
+        self.log_command_info(&Value::list(words.to_vec()).to_str(), message, 0);
+    }
+
+    /// Start the `errorInfo` trace from `message` unless one is under way, so
+    /// the next logged command reads `invoked from within`.
+    pub(crate) fn seed_error_info_if_unset(&mut self, message: &str) {
+        if self.error_info.is_none() && !self.error_logged {
+            self.error_info = Some(message.to_owned());
+        }
+    }
+
+    /// Append a `(lambda term "<lambda>" line N)` frame — the frame an `apply`
+    /// lambda body adds in place of a procedure's (C's `MakeLambdaError`).
+    pub(crate) fn append_lambda_frame(&mut self, lambda: &str, line: u32) {
+        self.append_callable_frame("lambda term", lambda, line);
+    }
+
+    /// C's `MakeProcError`/`MakeLambdaError`: the name is cut at 60 bytes
+    /// with `...`.
+    fn append_callable_frame(&mut self, kind: &str, name: &str, line: u32) {
+        const LIMIT: usize = 60;
+        let shown = if name.len() > LIMIT {
+            let mut end = LIMIT;
+            while !name.is_char_boundary(end) {
+                end -= 1;
+            }
+            format!("{}...", &name[..end])
+        } else {
+            name.to_owned()
+        };
         let info = self.error_info.get_or_insert_with(String::new);
-        info.push_str("\n    (procedure \"");
-        info.push_str(name);
+        info.push_str("\n    (");
+        info.push_str(kind);
+        info.push_str(" \"");
+        info.push_str(&shown);
         info.push_str("\" line ");
         info.push_str(&line.to_string());
         info.push(')');
         self.error_logged = false;
+    }
+
+    /// The lambda expression of the `apply` lambda whose body the current call
+    /// frame runs, with the internal procedure key it runs under, if it is one.
+    pub(crate) fn current_lambda_term(&self) -> Option<(Value, String)> {
+        let key = self.frames.last()?.proc_name.as_ref()?;
+        let lambda = self.proc_def(&format!("::{key}"))?.lambda_term.clone()?;
+        Some((lambda, key.clone()))
     }
 
     /// Append a `(<op> trace on "<name>")` frame — the context frame C's
@@ -12610,6 +12677,17 @@ impl Vm {
     /// returned an error), so the enclosing command logs its own frame.
     pub(crate) fn clear_error_logged(&mut self) {
         self.error_logged = false;
+    }
+
+    /// Mark the current error's command logged (C's `ERR_ALREADY_LOGGED`).
+    pub(crate) fn mark_error_logged(&mut self) {
+        self.error_logged = true;
+    }
+
+    /// Whether the current error's command is already logged (C's
+    /// `ERR_ALREADY_LOGGED`).
+    pub(crate) fn error_logged(&self) -> bool {
+        self.error_logged
     }
 
     /// Seed the `errorInfo` trace with an explicit value and mark it logged —
@@ -12664,7 +12742,10 @@ impl Vm {
         self.seed_error_stack_parts(parts);
     }
 
-    /// Add the innermost command context for a new Tcl 8.6+ error episode.
+    /// Record a logged command in the Tcl 8.6+ error stack, as C's
+    /// `TclLogCommandInfo` does: the first log of an episode adds its `INNER`
+    /// context, and every log adds where it ran — `UP n` in a frame an
+    /// `uplevel` shifted to, else `CALL` with the procedure's invocation.
     pub(crate) fn error_stack_log_value(&mut self, context: Value) {
         if !self.supports_error_stack() {
             return;
@@ -12677,6 +12758,13 @@ impl Vm {
             let _ = self
                 .error_stack
                 .push_pair(Value::string("UP"), Value::int(delta));
+        } else if let Some(invocation) = self
+            .frame_argv(self.current_level())
+            .filter(|argv| self.current_level() > 0 && !argv.is_empty())
+        {
+            let _ = self
+                .error_stack
+                .push_pair(Value::string("CALL"), Value::list(invocation));
         }
     }
 
@@ -12688,24 +12776,6 @@ impl Vm {
         }
         self.error_stack
             .restart_inner(Value::string("INNER"), context);
-    }
-
-    /// Append the invocation of a procedure that an error unwound through.
-    pub(crate) fn error_stack_push_proc_call(
-        &mut self,
-        body_code: Code,
-        settled_code: Code,
-        words: &[Value],
-    ) {
-        if !self.supports_error_stack() {
-            return;
-        }
-        let _ = self.error_stack.push_proc_call(
-            body_code,
-            settled_code,
-            Value::string("CALL"),
-            Value::list(words.to_vec()),
-        );
     }
 
     /// Return the last TIP 348 stack as a Tcl list value.
@@ -13018,23 +13088,9 @@ impl Vm {
                     .map_or(Code::Ok, Code::from_int);
             }
         }
-        let message = match completion.code {
-            Code::Ok | Code::Error => None,
-            Code::Break => Some("invoked \"break\" outside of a loop".to_owned()),
-            Code::Continue => Some("invoked \"continue\" outside of a loop".to_owned()),
-            other => Some(format!("command returned bad code: {}", other.as_int())),
-        };
-        if let Some(message) = message {
-            let code = completion.code.as_int();
-            completion = if self.runtime_version() < tcl_dialect::TclVersion::V8_6 {
-                err(message.clone())
-            } else {
-                crate::command::err_with_code(
-                    message.clone(),
-                    &format!("TCL UNEXPECTED_RESULT_CODE {code}"),
-                )
-            };
-            self.seed_error_info(message);
+        if !matches!(completion.code, Code::Ok | Code::Error) {
+            completion = self.unexpected_result(completion.code);
+            self.seed_error_info(completion.result.to_str().to_string());
         }
         if completion.code == Code::Error {
             let info = self
@@ -13081,12 +13137,82 @@ impl Vm {
         self.eval_source_as(src, CommandEvaluation::Direct)
     }
 
+    /// Evaluate a command `tclsh` reads from its input, with no command
+    /// active: a completion leaving it is settled as C settles one at
+    /// `numLevels == 0`.
+    pub fn eval_interactive(&mut self, src: &str) -> Completion<Value> {
+        self.eval_source_in_role(
+            src,
+            CommandEvaluation::Compiled,
+            crate::exec::ActivationRole::TopLevel { direct: false },
+        )
+        .unwrap_or_else(|e| err(e.message))
+    }
+
+    /// Run a script file's contents as C's `Tcl_FSEvalFileEx` does: a
+    /// `return` reaching the file is settled as at a procedure boundary, and
+    /// an error adds the `(file "…" line N)` frame. `top_level` runs the file
+    /// `tclsh` is given, with no command active: its own commands are
+    /// evaluated as [`Self::eval_source_directly`] does, and a completion
+    /// leaving one is settled as C settles one at `numLevels == 0`.
+    pub fn eval_file(&mut self, path: &str, src: &str, top_level: bool) -> Completion<Value> {
+        let (evaluation, role) = if top_level {
+            (
+                CommandEvaluation::Direct,
+                crate::exec::ActivationRole::TopLevel { direct: true },
+            )
+        } else {
+            (
+                CommandEvaluation::Compiled,
+                crate::exec::ActivationRole::Plain,
+            )
+        };
+        let mut c = self
+            .eval_source_in_role(src, evaluation, role)
+            .unwrap_or_else(|e| err(e.message));
+        // An error the `return` settles to names no file, as C's `else if`.
+        if c.code == Code::Return {
+            self.update_return_info(&mut c);
+        } else if c.code == Code::Error {
+            const LIMIT: usize = 150;
+            let mut shown = path;
+            let mut marker = "";
+            if path.len() > LIMIT {
+                let mut end = LIMIT;
+                while !path.is_char_boundary(end) {
+                    end -= 1;
+                }
+                shown = &path[..end];
+                if self.runtime_version().marks_truncated_file_path() {
+                    marker = "...";
+                }
+            }
+            let line = self.error_line();
+            let message = c.result.to_str().to_string();
+            self.seed_error_info_frame(
+                &message,
+                &format!("\n    (file \"{shown}{marker}\" line {line})"),
+            );
+        }
+        c
+    }
+
     /// [`Self::eval_source`], the script's own commands evaluated as
     /// `evaluation` says.
     pub(crate) fn eval_source_as(
         &mut self,
         src: &str,
         evaluation: CommandEvaluation,
+    ) -> Result<Completion<Value>, TclError> {
+        self.eval_source_in_role(src, evaluation, crate::exec::ActivationRole::Plain)
+    }
+
+    /// [`Self::eval_source_as`], the script's activation standing for `role`.
+    fn eval_source_in_role(
+        &mut self,
+        src: &str,
+        evaluation: CommandEvaluation,
+        role: crate::exec::ActivationRole,
     ) -> Result<Completion<Value>, TclError> {
         self.claim_number_grammar();
         self.reset_error_state_for_eval();
@@ -13113,7 +13239,7 @@ impl Vm {
             return Err(TclError::new(tail.message));
         }
         let module = self.compile_cached(prefix, evaluation)?;
-        let mut comp = self.run_current_module(&module);
+        let mut comp = self.run_current_module_as(&module, role);
         // Only a prefix that ran to completion reaches the parse error: an
         // error (or any non-`ok` completion) in an earlier command is what C
         // reports, the malformed tail never being parsed at all.
