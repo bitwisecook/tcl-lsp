@@ -12972,8 +12972,10 @@ impl Vm {
         // 8.6 interpreter must reject `1.0_2` and an expression `#` comment,
         // both of which are valid only from 9.0.
         // 8.4 parses with its own parser first, which also refuses a numeral
-        // past the wide or double range.
+        // past the wide or double range, unless a vendor fork added operators
+        // to it (F5's word operators).
         if self.runtime_version.parses_expressions_as_8_4()
+            && self.pin.profile.f5_core_expr_grammar().is_none()
             && let Err(message) = tcl_syntax::expr::syntax_84::parse_tcl84(src)
         {
             return Err(TclError::new(message));

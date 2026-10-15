@@ -415,12 +415,7 @@ impl CompileService for BytecodeCompileService {
         unit: tcl_runtime_api::CompileUnit,
     ) -> Option<tcl_runtime_api::CompileFailure> {
         let registry = self.registry.registry_for_profile(profile).ok()?;
-        crate::compile_84::compile_failure(
-            source,
-            registry.as_ref(),
-            LexerConfig::from_grammar(profile.grammar),
-            unit,
-        )
+        crate::compile_84::compile_failure(source, registry.as_ref(), profile, unit)
     }
 
     fn compile_procedure_for_profile(

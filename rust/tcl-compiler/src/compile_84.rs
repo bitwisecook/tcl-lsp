@@ -31,6 +31,7 @@
 //! Which compile procedure a command has is the registry's answer, through
 //! the hook its specification carries.
 
+use tcl_dialect::DialectProfile;
 use tcl_lexer::{LexerConfig, TokenType};
 use tcl_registry::CommandRegistry;
 use tcl_registry::clause_grammar::{ClauseGrammarSpec, ClauseRowShape};
@@ -41,18 +42,22 @@ use crate::segmenter::SegmentedCommand;
 
 /// Why 8.4's compiler refuses `source` compiled as `unit` (only in a
 /// procedure body do `foreach`, `lappend` and a `catch` with a variable
-/// compile), or `None` when it compiles.
+/// compile), or `None` when it compiles. A literal expression is parsed as
+/// stock 8.4 parses it only where `profile` adds no operators of its own
+/// ([`tcl_dialect::DialectProfile::f5_core_expr_grammar`]: F5's fork adds
+/// its word operators to 8.4's parser).
 #[must_use]
 pub(crate) fn compile_failure(
     source: &str,
     registry: &CommandRegistry,
-    config: LexerConfig,
+    profile: &DialectProfile,
     unit: CompileUnit,
 ) -> Option<CompileFailure> {
     let compiler = Compiler {
         registry,
-        config,
+        config: LexerConfig::from_grammar(profile.grammar),
         in_procedure: unit == CompileUnit::ProcedureBody,
+        parses_expressions: profile.f5_core_expr_grammar().is_none(),
     };
     compiler.script(source).err()
 }
@@ -124,6 +129,7 @@ struct Compiler<'r> {
     registry: &'r CommandRegistry,
     config: LexerConfig,
     in_procedure: bool,
+    parses_expressions: bool,
 }
 
 type Compiled = Result<(), CompileFailure>;
@@ -190,6 +196,9 @@ impl Compiler<'_> {
         let Some(text) = &word.simple else {
             return self.tokens(word);
         };
+        if !self.parses_expressions {
+            return Ok(());
+        }
         let scripts = tcl_syntax::expr::syntax_84::parse_tcl84(text).map_err(failure)?;
         scripts.iter().try_for_each(|script| self.script(script))
     }
