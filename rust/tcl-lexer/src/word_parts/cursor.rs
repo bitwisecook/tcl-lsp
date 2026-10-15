@@ -758,7 +758,7 @@ mod tests {
             "puts $arr(k<|>${unterminated",
         ] {
             let cursor = marked.find("<|>").unwrap();
-            let image = SourceImage::document(marked.replacen("<|>", "", 1));
+            let image = SourceImage::document(&marked.replacen("<|>", "", 1));
             assert_eq!(
                 variable_cursor_prefix_in(
                     &image,
