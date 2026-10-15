@@ -227,7 +227,7 @@ fn source_filename_with_config(
     let raw = word_raw(text, arg);
 
     // `[file join $dir X]` — a single command-substitution word.
-    if arg.len() == 1 && arg[0].kind == TokenType::Cmd {
+    if arg.len() == 1 && arg[0].kind == tcl_lexer::TokenType::Cmd {
         let start = arg[0].span.start() as usize + arg[0].content_offset as usize;
         let end = arg[0].span.end() as usize;
         let inner = text.get(start..end)?;
