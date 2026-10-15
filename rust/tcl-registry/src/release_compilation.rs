@@ -133,13 +133,17 @@ pub fn release_binding(
         "foreach" => in_procedure_if(foreach_compiles(shape)),
         "lappend" => in_procedure_if(matches!(count, Some(0 | 2))),
         "list" => ReleaseBinding::CompiledInProcedure,
-        "return" if count.is_some_and(|count| count <= 1) => {
-            ReleaseBinding::CompiledInProcedureOutsideCatch
+        "return" => {
+            if count.is_some_and(|count| count <= 1) {
+                ReleaseBinding::CompiledInProcedureOutsideCatch
+            } else {
+                ReleaseBinding::Invoked
+            }
         }
-        "return" => ReleaseBinding::Invoked,
-        // `TclCompileCatchCmd` needs a local scalar for its result variable.
+        // `TclCompileCatchCmd` needs a local scalar for its result variable;
+        // any other word count is its wrong-arity error, which counts as
+        // compiled.
         "catch" => match count {
-            Some(1) => ReleaseBinding::Compiled,
             Some(2) => in_procedure_if(shape.word(1).is_some_and(is_local_scalar)),
             Some(_) => ReleaseBinding::Compiled,
             None => ReleaseBinding::Invoked,
@@ -181,7 +185,8 @@ pub fn may_compile(version: TclVersion, command: &str) -> bool {
 /// C's `TclIsLocalScalar`: a name with no namespace qualifier and no array
 /// element.
 fn is_local_scalar(name: &str) -> bool {
-    !name.contains("::") && !(name.contains('(') && name.ends_with(')'))
+    let element = name.contains('(') && name.ends_with(')');
+    !name.contains("::") && !element
 }
 
 /// `TclCompileForeachCmd`'s shape: variable lists and value lists in pairs,
@@ -250,7 +255,10 @@ fn regexp_compiles(shape: &InvocationShape) -> bool {
     if end > start + 1 && bytes[start] == b'.' && bytes[start + 1] == b'*' {
         start += 2;
     }
-    if end > start + 2 && bytes[end - 3] != b'\\' && bytes[end - 2] == b'.' && bytes[end - 1] == b'*'
+    if end > start + 2
+        && bytes[end - 3] != b'\\'
+        && bytes[end - 2] == b'.'
+        && bytes[end - 1] == b'*'
     {
         end -= 2;
     }
@@ -265,9 +273,27 @@ fn regexp_compiles(shape: &InvocationShape) -> bool {
 /// counts.
 fn string_compiles(shape: &InvocationShape) -> bool {
     const SUBCOMMANDS: [&str; 21] = [
-        "bytelength", "compare", "equal", "first", "index", "is", "last", "length", "map",
-        "match", "range", "repeat", "replace", "tolower", "toupper", "totitle", "trim",
-        "trimleft", "trimright", "wordend", "wordstart",
+        "bytelength",
+        "compare",
+        "equal",
+        "first",
+        "index",
+        "is",
+        "last",
+        "length",
+        "map",
+        "match",
+        "range",
+        "repeat",
+        "replace",
+        "tolower",
+        "toupper",
+        "totitle",
+        "trim",
+        "trimleft",
+        "trimright",
+        "wordend",
+        "wordstart",
     ];
     let (Some(count), Some(written)) = (shape.arg_count(), shape.word(0)) else {
         return false;
@@ -344,7 +370,10 @@ mod tests {
         assert_eq!(bind("catch", &["body", "a(b)"]), INVOKED);
         assert_eq!(shaped("catch", &["body", "$v"], &[true, false]), INVOKED);
         assert_eq!(bind("::foreach", &["x", "l", "b"]), IN_PROCEDURE);
-        assert_eq!(bind("foreach", &["{a b}", "l", "c d", "m", "b"]), IN_PROCEDURE);
+        assert_eq!(
+            bind("foreach", &["{a b}", "l", "c d", "m", "b"]),
+            IN_PROCEDURE
+        );
         assert_eq!(bind("foreach", &["::x", "l", "b"]), INVOKED);
         assert_eq!(bind("lappend", &["L", "x"]), IN_PROCEDURE);
         assert_eq!(bind("lappend", &["L", "x", "y"]), INVOKED);
@@ -386,7 +415,11 @@ mod tests {
         assert_eq!(bind("regexp", &["^ab.*", "s"]), COMPILED);
         assert_eq!(bind("regexp", &["-nocase", "--", "ab$", "s"]), COMPILED);
         assert_eq!(bind("regexp", &["a+", "s"]), INVOKED);
-        assert_eq!(bind("regexp", &["a", "s", "m"]), INVOKED, "a match variable");
+        assert_eq!(
+            bind("regexp", &["a", "s", "m"]),
+            INVOKED,
+            "a match variable"
+        );
         assert_eq!(bind("regexp", &["-all", "a", "s"]), INVOKED);
         assert_eq!(bind("regexp", &["-x", "s"]), INVOKED);
         assert_eq!(shaped("regexp", &["a", "s"], &[false, true]), INVOKED);

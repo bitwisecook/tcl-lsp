@@ -168,7 +168,10 @@ fn a_directly_evaluated_script_marks_its_own_commands() {
         .filter(|instruction| instruction.script_command)
         .map(|instruction| instruction.source_cmd_text.as_str())
         .collect();
-    assert_eq!(marked, ["set x 1", "if {$x} {puts a}", "proc p {} {puts b}"]);
+    assert_eq!(
+        marked,
+        ["set x 1", "if {$x} {puts a}", "proc p {} {puts b}"]
+    );
     assert!(
         direct.procedures["::p"]
             .instructions

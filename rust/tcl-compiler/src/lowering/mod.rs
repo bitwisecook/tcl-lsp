@@ -1968,7 +1968,9 @@ impl<'r> Lowerer<'r> {
     ) -> tcl_registry::release_compilation::InvocationShape {
         let release = self
             .dialect
-            .map_or(tcl_dialect::TclVersion::V9_0, |profile| profile.vm_runtime_version);
+            .map_or(tcl_dialect::TclVersion::V9_0, |profile| {
+                profile.vm_runtime_version
+            });
         let args = seg.texts.get(1..).unwrap_or_default();
         tcl_registry::release_compilation::InvocationShape::of(release, args, |index| {
             seg_word_is_static_literal(seg, index + 1)

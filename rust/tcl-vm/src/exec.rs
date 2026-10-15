@@ -2551,10 +2551,7 @@ impl Vm {
             && instr.evaluation == CommandEvaluation::Compiled
             && !self.step_trace_active()
             && f.release_units.current(instr).is_some_and(|unit| {
-                !unit.entry.stale
-                    && instr
-                        .release_hold
-                        .is_some_and(|hold| hold.binds(unit.kind))
+                !unit.entry.stale && instr.release_hold.is_some_and(|hold| hold.binds(unit.kind))
             })
             && self.function_inlined_facts_hold(asm, f.manifest.as_deref())
     }
@@ -4287,8 +4284,10 @@ impl Vm {
             Op::RETURN_STK => {
                 let result = pop(f);
                 let opts = pop(f);
-                let c =
-                    crate::command::return_with_options(self, &[Value::string("-options"), opts, result]);
+                let c = crate::command::return_with_options(
+                    self,
+                    &[Value::string("-options"), opts, result],
+                );
                 if let Err(c) = Self::deliver_sync(f, c) {
                     return Tick::Return(c);
                 }

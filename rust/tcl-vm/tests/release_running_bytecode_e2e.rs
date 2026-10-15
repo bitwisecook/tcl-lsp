@@ -97,7 +97,11 @@ fn cases() -> Vec<Case> {
 /// one that names the command its unit was entered with.
 fn shape_cases() -> Vec<Case> {
     let case = |redefine: &str, body: &str, v84: &'static str, v90: &'static str| {
-        (format!("proc r {{}} {{{redefine}}}; {body}"), v84, Some(v90))
+        (
+            format!("proc r {{}} {{{redefine}}}; {body}"),
+            v84,
+            Some(v90),
+        )
     };
     vec![
         // `append` compiles one value at most, `lappend` one value.

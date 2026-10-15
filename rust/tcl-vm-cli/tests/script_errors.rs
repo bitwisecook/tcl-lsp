@@ -20,7 +20,8 @@ const RELEASES: [&str; 5] = ["8.4", "8.5", "8.6", "9.0", "9.1"];
 
 /// A directory of its own for one test's scripts.
 fn scratch(test: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("tclvm-script-errors-{}-{test}", std::process::id()));
+    let dir =
+        std::env::temp_dir().join(format!("tclvm-script-errors-{}-{test}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("creates the scratch directory");
     dir
 }

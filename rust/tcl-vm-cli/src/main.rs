@@ -278,10 +278,10 @@ fn run_script(vm: &mut Vm, src: &str, file: Option<&str>) -> i32 {
     match settled {
         Ok(comp) if comp.code.is_ok() => 0,
         Ok(comp) => {
-            let report = file
-                .and_then(|_| vm.get_var("::errorInfo"))
-                .map(|info| info.to_str().to_string())
-                .unwrap_or_else(|| comp.result.to_str().to_string());
+            let report = file.and_then(|_| vm.get_var("::errorInfo")).map_or_else(
+                || comp.result.to_str().to_string(),
+                |info| info.to_str().to_string(),
+            );
             vm.report_stderr_text(&report);
             1
         }

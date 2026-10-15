@@ -104,7 +104,10 @@ fn rename_reports_a_missing_source_first_with_its_release_error_code() {
                   puts [catch {rename a b} m]-$m-$errorCode\n";
     check(&dir, source, |version| {
         let (lookup, exists) = if version >= TclVersion::V8_6 {
-            ("TCL LOOKUP COMMAND nope", "TCL OPERATION RENAME TARGET_EXISTS")
+            (
+                "TCL LOOKUP COMMAND nope",
+                "TCL OPERATION RENAME TARGET_EXISTS",
+            )
         } else {
             ("NONE", "NONE")
         };

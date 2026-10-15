@@ -1177,6 +1177,7 @@ impl From<bool> for SourceCommandBoundary {
 
 /// A single bytecode instruction (labels unresolved until layout).
 #[derive(Debug, Clone, PartialEq)]
+#[allow(clippy::struct_excessive_bools)] // independent out-of-band flags, not a state machine
 pub struct Instruction {
     /// Opcode.
     pub op: Op,

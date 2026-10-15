@@ -6260,9 +6260,7 @@ impl Vm {
         }
         let held = self.held_at_key(key);
         let epoch = self.trace_deopt_epoch();
-        self.command_identity
-            .table_history
-            .record(epoch, key, held);
+        self.command_identity.table_history.record(epoch, key, held);
     }
 
     /// What the command table holds at `key` now.
@@ -13135,7 +13133,10 @@ impl Vm {
     /// down, and its `-code` takes effect at level 0. Not `Code::from_int` on
     /// a 0..=4-only map: `return -code N` for a non-standard N surfaces
     /// `Code::Other(N)` (coroutine-2.4).
-    pub(crate) fn update_return_info(&mut self, mut completion: Completion<Value>) -> Completion<Value> {
+    pub(crate) fn update_return_info(
+        &mut self,
+        mut completion: Completion<Value>,
+    ) -> Completion<Value> {
         if completion.code != Code::Return {
             return completion;
         }
@@ -13246,9 +13247,11 @@ impl Vm {
         } else {
             ""
         };
-        let line = self.error_line();
+        let line = self.error_line().to_string();
         let info = self.error_info.get_or_insert_with(String::new);
-        info.push_str(&format!("\n    (file \"{shown}{ellipsis}\" line {line})"));
+        for piece in ["\n    (file \"", shown, ellipsis, "\" line ", &line, ")"] {
+            info.push_str(piece);
+        }
         self.error_logged = false;
     }
 

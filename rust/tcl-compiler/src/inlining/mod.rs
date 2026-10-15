@@ -821,7 +821,9 @@ pub fn inline_reference_bodies(
     // A procedure body is a unit of its own that a release keeping the
     // commands running bytecode compiled enters afresh at each call, which a
     // body spliced into its caller would not be.
-    let release = profile.map_or(tcl_dialect::TclVersion::V9_0, |profile| profile.vm_runtime_version);
+    let release = profile.map_or(tcl_dialect::TclVersion::V9_0, |profile| {
+        profile.vm_runtime_version
+    });
     if module.plain_command_dispatch || !release.revalidates_running_bytecode() {
         return module;
     }

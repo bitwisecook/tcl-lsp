@@ -240,10 +240,10 @@ impl ConstSubstCtx<'_> {
                 spec.name,
             ),
             shape: tcl_registry::release_compilation::InvocationShape::of(
-                    self.version.unwrap_or(TclVersion::V9_0),
-                    rest,
-                    |_| true,
-                ),
+                self.version.unwrap_or(TclVersion::V9_0),
+                rest,
+                |_| true,
+            ),
         });
         // A pack-supplied spec answered at compile time: the constant rests
         // on that pack's facts, so the site claims them (rung 1).

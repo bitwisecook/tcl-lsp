@@ -620,7 +620,11 @@ impl ReleaseBinding {
             Self::CompiledInProcedure => 2,
             Self::Compiled => 3,
         };
-        if rank(self) <= rank(other) { self } else { other }
+        if rank(self) <= rank(other) {
+            self
+        } else {
+            other
+        }
     }
 }
 
