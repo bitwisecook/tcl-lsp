@@ -94,4 +94,8 @@ a completed C release gate or Jim/F5 agreement.
 
 [Original Jim namespace-info helper replacement](original-jim-info-helper-replacement-sdk-20261015/README.md) retains19 exact rows across actual default/replaced/deleted helper phases with original headers sampled before getters. No Runtime/full-info/lifecycle acceptance follows.
 
+[Original package requirement values](../patterns/package-requirement-word-values/README.md) retain C5 static data/error observations and Jim's unsupported subcommand, without loader or Native acceptance.
 
+[Original discovery list data](../patterns/tcllibpath-list-data/README.md) retains release-dependent escapes, malformed values and exact list data before C installation selection; no startup/filesystem or runtime result follows.
+
+[Original expression equality](../refactor-expression-equality-20261015/README.md), [scalar fixture source](../scalar-expression-fixtures-20261015/README.md) and [fixed nonnumeric values](../nonnumeric-expression-literals-20261015/README.md) retain original six-provider observations separately from shared source syntax, corrected setup and Rust/F5/edit acceptance.

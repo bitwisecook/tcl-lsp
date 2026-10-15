@@ -248,3 +248,7 @@ mod tests {
 #[cfg(test)]
 #[path = "native_jim/inventory_stage_tests.rs"]
 mod inventory_stage_tests;
+
+#[cfg(test)]
+#[path = "native_jim/variable_inventory_tests.rs"]
+mod variable_inventory_tests;

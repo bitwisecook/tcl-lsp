@@ -2031,6 +2031,10 @@ impl super::SourceInvocationBinding {
                 }
             }
             (None, None) if metadata.is_standalone() => {}
+            (Some(original), None)
+                if original.is_standalone()
+                    && metadata.is_standalone()
+                    && original.context() == metadata.context() => {}
             _ => return None,
         }
         advice.original_source_purpose(metadata, registry)
@@ -2186,10 +2190,11 @@ impl super::SourceInvocationBinding {
                 &row.namespace,
                 row.config,
             )?;
-            if !matches!(
-                advice.original_declaration_metadata_context(registry, tokens),
-                Ok(None)
-            ) || !advice.is_authored_standalone_source()
+            let metadata = advice
+                .original_declaration_metadata_context(registry, tokens)
+                .ok()?;
+            if metadata.is_some_and(|metadata| !metadata.is_standalone())
+                || !advice.is_authored_standalone_source()
                 || advice.has_unclosed_source_coverage()
             {
                 return None;

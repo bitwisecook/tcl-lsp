@@ -330,6 +330,19 @@ fn info_cmd_original(
                         kind,
                     );
                 }
+                if let Some(kind) =
+                    tcl_registry::commands::tcl::NativeJimInfoProtocol::variable_inventory_kind(
+                        protocol, name,
+                    )
+                {
+                    return interp.original_jim_variable_inventory(
+                        scope,
+                        &argv[argument_start - 1..],
+                        arguments,
+                        argument_start - 1,
+                        kind,
+                    );
+                }
                 prepared.push(argv[head]);
                 prepared.push(argv[argument_start - 1]);
                 prepared.extend_from_slice(&argv[argument_start..]);

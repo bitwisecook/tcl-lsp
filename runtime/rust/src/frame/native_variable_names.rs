@@ -11,7 +11,130 @@ pub(super) struct NativeHashKey {
 }
 pub(super) type NativeHashKeys = Rc<RefCell<BTreeMap<Vec<u8>, NativeHashKey>>>;
 
+/// Original variable-table inventory and keys without table, cell or native
+/// key owning references. Memory leases do not keep retired keys live.
+pub(crate) struct OriginalJimVariableInventory {
+    ledger: std::rc::Weak<RefCell<tcl_core_types::NativeEntryLedger>>,
+    revision: u64,
+    keys: Vec<OriginalJimVariableInventoryKey>,
+}
+pub(crate) struct OriginalJimVariableInventoryKey {
+    keys: std::rc::Weak<RefCell<BTreeMap<Vec<u8>, NativeHashKey>>>,
+    cell: std::rc::Weak<RefCell<super::CellContents>>,
+    binding: Option<tcl_runtime_api::VarId>,
+    name: Vec<u8>,
+    original: crate::obj::NativeObjectLifetime,
+}
+impl OriginalJimVariableInventory {
+    pub(crate) fn check(&self) -> Result<(), tcl_syntax::value::ValueError> {
+        let current = self
+            .ledger
+            .upgrade()
+            .is_some_and(|ledger| ledger.borrow().revision() == Some(self.revision));
+        if current {
+            Ok(())
+        } else {
+            Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "original Jim inventory table changed",
+            ))
+        }
+    }
+    pub(crate) fn keys(&self) -> &[OriginalJimVariableInventoryKey] {
+        &self.keys
+    }
+}
+impl OriginalJimVariableInventoryKey {
+    pub(crate) fn original(&self) -> Result<*mut TclObj, tcl_syntax::value::ValueError> {
+        use tcl_syntax::value::ValueError;
+        let pointer = self.original.checked_ptr()?;
+        let key_current = self.keys.upgrade().is_some_and(|keys| {
+            keys.borrow()
+                .get(&self.name)
+                .is_some_and(|key| key.jim && key._original.as_ptr() == pointer)
+        });
+        let cell_current = self.cell.upgrade().is_some_and(|cell| {
+            let cell = cell.borrow();
+            cell.binding_id == self.binding
+                && cell.var.is_some()
+                && cell.rmw_retirement.is_none()
+                && cell.check_owned_value_role().is_ok()
+        });
+        if key_current && cell_current {
+            Ok(pointer)
+        } else {
+            Err(ValueError::CommandProtocolUnavailable(
+                "retired original Jim inventory key",
+            ))
+        }
+    }
+}
+
 impl VarTable {
+    /// Capture the actual selected primary hash table and its original key
+    /// objects. Static fallback and compiled C declaration arrays are separate.
+    pub(crate) fn capture_original_jim_inventory(
+        &self,
+        include_links: bool,
+        lookup: tcl_syntax::native_jim_lookup::NativeJimVariableInventoryLookup<'_>,
+    ) -> Result<OriginalJimVariableInventory, tcl_syntax::value::ValueError> {
+        use tcl_syntax::{
+            native_jim_lookup::NativeJimVariableInventoryLookup as Lookup, value::ValueError,
+        };
+        let ledger = self.entry_order.borrow();
+        let revision = ledger
+            .revision()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "original Jim inventory table arithmetic",
+            ))?;
+        let names: Vec<&[u8]> = match lookup {
+            Lookup::Exact(pattern) => self
+                .slots
+                .get_key_value(pattern)
+                .map(|(name, _)| vec![name.as_slice()])
+                .unwrap_or_default(),
+            Lookup::All | Lookup::Scan(_) => ledger.keys().ok_or(
+                ValueError::CommandProtocolUnavailable("original Jim inventory table order"),
+            )?,
+        };
+        let held_keys = self.native_keys.borrow();
+        let mut keys = Vec::new();
+        for name in names {
+            let slot = *self
+                .slots
+                .get(name)
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "original Jim inventory slot",
+                ))?;
+            let cell = self.cells[slot].contents.borrow();
+            match cell.var.as_ref() {
+                Some(super::Var::Link(_)) if !include_links => continue,
+                None => continue,
+                Some(super::Var::PendingScalar(_) | super::Var::Array(_)) => {
+                    return Err(ValueError::CommandProtocolUnavailable(
+                        "original Jim inventory variable kind",
+                    ))
+                }
+                Some(super::Var::Scalar(_) | super::Var::Link(_)) => {}
+            }
+            cell.check_owned_value_role()?;
+            let key = held_keys.get(name).filter(|key| key.jim).ok_or(
+                ValueError::CommandProtocolUnavailable("original Jim inventory key owner"),
+            )?;
+            crate::obj::check_native_liveness(key._original.as_ptr())?;
+            keys.push(OriginalJimVariableInventoryKey {
+                keys: Rc::downgrade(&self.native_keys),
+                cell: Rc::downgrade(&self.cells[slot].contents),
+                binding: cell.binding_id,
+                name: name.to_vec(),
+                original: crate::obj::NativeObjectLifetime::retain(key._original.as_ptr()),
+            });
+        }
+        Ok(OriginalJimVariableInventory {
+            ledger: Rc::downgrade(&self.entry_order),
+            revision,
+            keys,
+        })
+    }
     pub(crate) fn prepare_original_array_member(
         &mut self,
         name: &[u8],

@@ -100,6 +100,9 @@ mod native_scalar_alias;
 pub(crate) use native_array_target::NativeArrayTargetCell;
 mod native_variable_names;
 pub(crate) use native_scalar_alias::NativeScalarAliasEntry;
+pub(crate) use native_variable_names::{
+    OriginalJimVariableInventory, OriginalJimVariableInventoryKey,
+};
 
 /// Extracted ownership of an actual array default's two native references.
 /// The storage worker publishes the replacement while borrowed, then its caller

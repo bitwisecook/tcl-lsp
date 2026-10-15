@@ -107,6 +107,190 @@ impl Drop for JimActiveCommandScope {
     }
 }
 impl Interp {
+    /// Preserve the selected original variable-inventory namespace, frame and
+    /// key-object stages rather than reconstructing keys from their reports.
+    pub(crate) fn original_jim_variable_inventory(
+        &mut self,
+        scope: tcl_registry::commands::tcl::NativeJimInfoScope,
+        original: &[*mut TclObj],
+        arguments: &OriginalArguments,
+        selector: usize,
+        kind: tcl_registry::commands::tcl::NativeJimVariableInventoryKind,
+    ) -> Code {
+        let refuse = |error: ValueError| arguments.retain_refusal(error.into());
+        let reached = (|| -> Result<Code, tcl_cmd_core::CmdError> {
+            let protocol = self
+                .native_invocation_dialect()
+                .native_jim_lookup_protocol()
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "original Jim variable inventory issuer",
+                ))?;
+            if original.is_empty() || original.len() > 2 {
+                return Err(ValueError::CommandProtocolUnavailable(
+                    "original Jim accepted variable inventory argv",
+                )
+                .into());
+            }
+            for (offset, &value) in original.iter().enumerate() {
+                arguments.check_original_for(self, selector + offset, value)?;
+            }
+            let namespace = self.current_ns();
+            let namespace_scope =
+                OriginalJimLookupNamespace::capture(self, namespace).map_err(&refuse)?;
+            let check = |actual: &Interp| -> Result<(), tcl_cmd_core::CmdError> {
+                arguments.check_for(actual)?;
+                OriginalJimLookupNamespace::check(&namespace_scope, actual)?;
+                if actual.current_ns() != namespace {
+                    return Err(arguments.retain_refusal(
+                        ValueError::CommandProtocolUnavailable(
+                            "original Jim variable inventory current namespace",
+                        )
+                        .into(),
+                    ));
+                }
+                Ok(())
+            };
+            check(self)?;
+            let mut pattern = None;
+            if scope.variable_inventory_reads_namespace() {
+                let namespace_bytes = self.materialize_jim_namespace(namespace);
+                check(self)?;
+                let namespace_bytes = namespace_bytes.map_err(&refuse)?;
+                if namespace_bytes.is_empty() {
+                    let bytes = original
+                        .get(1)
+                        .map(|value| self.native_string_bytes(value))
+                        .transpose();
+                    check(self)?;
+                    pattern = bytes.map_err(&refuse)?;
+                }
+                if scope.variable_inventory_uses_helper(&namespace_bytes, pattern.as_deref()) {
+                    let head = Owned::fresh(super::new_string(b"namespace info"));
+                    let mut invocation = Vec::with_capacity(original.len() + 1);
+                    invocation.push(head.as_ptr());
+                    invocation.extend_from_slice(original);
+                    let code = self.dispatch(&invocation);
+                    check(self)?;
+                    return Ok(code);
+                }
+            }
+            let top = self.frames.borrow().current_level() == 0;
+            if kind == tcl_registry::commands::tcl::NativeJimVariableInventoryKind::Locals && top {
+                let context = self.native_jim_object_context().map_err(&refuse)?;
+                check(self)?;
+                self.set_result(context.empty_object().as_ptr());
+                check(self)?;
+                return Ok(Code::Ok);
+            }
+            self.selected_variable_table_protocol().ok_or(
+                ValueError::CommandProtocolUnavailable(
+                    "original Jim variable inventory table protocol",
+                ),
+            )?;
+            let matcher = tcl_syntax::native_glob::NativeGlobProtocol::from_name_policy(
+                self.name_policy_protocol()
+                    .ok_or(ValueError::CommandProtocolUnavailable(
+                        "original Jim inventory name policy",
+                    ))?,
+            );
+            let result = Owned::fresh(self.new_list_object(&[]));
+            check(self)?;
+            if pattern.is_none() {
+                let bytes = original
+                    .get(1)
+                    .map(|value| self.native_string_bytes(value))
+                    .transpose();
+                check(self)?;
+                pattern = bytes.map_err(&refuse)?;
+            }
+            let lookup =
+                tcl_syntax::native_jim_lookup::NativeJimLookupProtocol::variable_inventory_lookup(
+                    protocol,
+                    pattern.as_deref(),
+                );
+            let inventory: crate::frame::OriginalJimVariableInventory =
+                if kind.uses_global_table() || top {
+                    crate::frame::VarTable::capture_original_jim_inventory(
+                        self.namespaces().var_table(crate::namespace::GLOBAL),
+                        kind.includes_links(),
+                        lookup,
+                    )
+                } else {
+                    {
+                        let frames = self.frames.borrow();
+                        let level = frames.current_level();
+                        let table = frames.table(level).ok_or_else(|| {
+                            refuse(ValueError::CommandProtocolUnavailable(
+                                "original Jim variable inventory active frame",
+                            ))
+                        })?;
+                        crate::frame::VarTable::capture_original_jim_inventory(
+                            table,
+                            kind.includes_links(),
+                            lookup,
+                        )
+                    }
+                }
+                .map_err(&refuse)?;
+            check(self)?;
+            crate::frame::OriginalJimVariableInventory::check(&inventory).map_err(&refuse)?;
+            for key in crate::frame::OriginalJimVariableInventory::keys(&inventory) {
+                check(self)?;
+                crate::frame::OriginalJimVariableInventory::check(&inventory).map_err(&refuse)?;
+                let original_key = crate::frame::OriginalJimVariableInventoryKey::original(key)
+                    .map_err(&refuse)?;
+                let matched = if let Some(pattern) = pattern.as_deref() {
+                    let bytes = self.native_string_bytes(&original_key);
+                    check(self)?;
+                    crate::frame::OriginalJimVariableInventory::check(&inventory)
+                        .map_err(&refuse)?;
+                    crate::frame::OriginalJimVariableInventoryKey::original(key)
+                        .map_err(&refuse)?;
+                    matcher
+                        .match_name_pattern(
+                            tcl_syntax::native_glob::NativeNameGlobPurpose::InfoVariablesScan,
+                            pattern,
+                            &bytes.map_err(&refuse)?,
+                        )
+                        .map_err(|_| {
+                            refuse(ValueError::CommandProtocolUnavailable(
+                                "original Jim inventory key pattern",
+                            ))
+                        })?
+                } else {
+                    true
+                };
+                if matched {
+                    let currency = arguments.currency();
+                    let appended = crate::list::append_native_element_with_currency(
+                        result.as_ptr(),
+                        original_key,
+                        tcl_syntax::native_string::NativeStringProtocol::Jim084,
+                        currency,
+                    );
+                    check(self)?;
+                    crate::frame::OriginalJimVariableInventory::check(&inventory)
+                        .map_err(&refuse)?;
+                    crate::frame::OriginalJimVariableInventoryKey::original(key)
+                        .map_err(&refuse)?;
+                    appended.map_err(&refuse)?;
+                }
+            }
+            check(self)?;
+            crate::frame::OriginalJimVariableInventory::check(&inventory).map_err(&refuse)?;
+            self.set_result(result.as_ptr());
+            check(self)?;
+            crate::frame::OriginalJimVariableInventory::check(&inventory).map_err(&refuse)?;
+            Ok(Code::Ok)
+        })();
+        if let Err(first) = arguments.check_for(self) {
+            return self.report_cmd_error(first);
+        }
+        match reached {
+            Ok(code) => code,
+            Err(error) => self.report_cmd_error(error),
+        }
+    }
     /// Execute the original inventory preflight before any reached namespace getter.
     /// The actual complete argv and weak namespace/frame owner remain independent.
     pub(crate) fn original_jim_command_inventory(

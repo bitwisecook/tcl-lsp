@@ -1,0 +1,35 @@
+{
+  "scope": "Initial driver assertion failed after actual process nonzero; original process exit not separately retained, outputs empty. Source invalidates a variable-cache primary without an integer conversion. No signal/cause or accepted getter/key chronology is inferred.",
+  "driver_exit": 1,
+  "original_process_exit": null,
+  "files": [
+    {
+      "path": "capture.py",
+      "sha256": "a1fe468f64f7ab91adfb7dbd7ce95322ce0c2134cc228fc02ae2bf511e903aa6"
+    },
+    {
+      "path": "compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "nshelper.tcl",
+      "sha256": "97c67e98b1bef86c9564044dbed0d5110b38ba0fd416980663101f65b0066627"
+    },
+    {
+      "path": "probe.c",
+      "sha256": "80d2a0c300186171d2a7f106f91757c31586bbe1f4a0470f35872b1fdae6929e"
+    },
+    {
+      "path": "stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "stdout.tsv",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

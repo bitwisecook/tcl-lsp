@@ -91,6 +91,7 @@ pub use info_::{
 pub use info_jim::{
     NativeJimAliasLookupFailure, NativeJimCommandInventory, NativeJimCommandInventoryKind,
     NativeJimInfoDispatch, NativeJimInfoProtocol, NativeJimInfoReport, NativeJimInfoScope,
+    NativeJimVariableInventoryKind,
 };
 mod interp;
 mod join_;

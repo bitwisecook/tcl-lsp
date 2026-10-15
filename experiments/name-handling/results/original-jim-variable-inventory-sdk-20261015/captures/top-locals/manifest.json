@@ -1,0 +1,74 @@
+{
+  "capture_source_sha256": "49377d1f7a4b1d6e3381ee85e31d8bbf66536981bc1285cc58bd1281b374f145",
+  "case_count": 1,
+  "measured_phases": 2,
+  "rows": 9,
+  "excluded_trials": [],
+  "provider_before_after_sha256": {
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/libjim.a": "2e75f1e259dc7896fa6996ebe2ad0fb5de2864770a772a0d102b2b6306280c61",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim.h": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim-namespace.c": "22bb6fb5fcea8ce8ec7e3eecbfe5ebd5ee290b9b725101ff4e4a1c0e9abed7f3",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim-config.h": "d092046fe07c2ec14b77da74304135da24725d766e1c9fd74ee32eeb07702221",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/Makefile": "1cfb962be629942512ee101d010f6c273fe9e2593fcf3f08a2565422fcf7d29c",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/nshelper.tcl": "97c67e98b1bef86c9564044dbed0d5110b38ba0fd416980663101f65b0066627"
+  },
+  "captured_at": "2026-10-15T06:00:45.570018+00:00",
+  "provider": "Original full-extension Jim0.84-9-g5bac7c9 build; revision label retained from prior capture, current library and source hashes reverified; no fresh upstream-head query",
+  "compile_command": [
+    "cc",
+    "-std=c99",
+    "-I/workspace/tcl-lsp/tmp/jimtcl-oracle",
+    "/tmp/name-jim-variable-inventory-toplocals-sdk-20261015/probe.c",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/libjim.a",
+    "-lm",
+    "-lssl",
+    "-lcrypto",
+    "-lz",
+    "-ldl",
+    "-o",
+    "/tmp/name-jim-variable-inventory-toplocals-sdk-20261015/probe"
+  ],
+  "compile_exit": 0,
+  "process_exit": 0,
+  "library": "/workspace/tcl-lsp/tmp/jimtcl-oracle/libjim.a",
+  "library_sha256": "2e75f1e259dc7896fa6996ebe2ad0fb5de2864770a772a0d102b2b6306280c61",
+  "source_sha256": "792a49abfbceecc1ee91b715ee5ab97df5f89b8137ea958a4ab4721e90ec0991",
+  "stdout_sha256": "bbd22587e2c584e353eae140ce4a80b855f3f69230625ad41f5e36e82db8ee37",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "executable_sha256": "e6dba82aaa506c8af09b575a832c5ae1f0b1430a3b3d43b00093e86d02224ac1",
+  "provider_sources": [
+    {
+      "original": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim.h",
+      "sha256": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+      "canonical_reference": "experiments/name-handling/results/original-jim-lambda-context-sdk-20261014/captures/lambda-deferred-namespace/provider-sources/jim.h"
+    },
+    {
+      "original": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim.c",
+      "sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "canonical_reference": "experiments/name-handling/results/original-jim-lambda-context-sdk-20261014/captures/lambda-deferred-namespace/provider-sources/jim.c"
+    },
+    {
+      "original": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim-namespace.c",
+      "sha256": "22bb6fb5fcea8ce8ec7e3eecbfe5ebd5ee290b9b725101ff4e4a1c0e9abed7f3",
+      "canonical_reference": "experiments/name-handling/results/original-jim-lambda-context-sdk-20261014/captures/lambda-deferred-namespace/provider-sources/jim-namespace.c"
+    },
+    {
+      "original": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim-config.h",
+      "sha256": "d092046fe07c2ec14b77da74304135da24725d766e1c9fd74ee32eeb07702221",
+      "canonical_reference": "experiments/name-handling/results/original-jim-lambda-context-sdk-20261014/captures/lambda-deferred-namespace/provider-sources/jim-config.h"
+    },
+    {
+      "original": "/workspace/tcl-lsp/tmp/jimtcl-oracle/Makefile",
+      "sha256": "1cfb962be629942512ee101d010f6c273fe9e2593fcf3f08a2565422fcf7d29c",
+      "canonical_reference": "experiments/name-handling/results/original-jim-lambda-context-sdk-20261014/captures/lambda-deferred-namespace/provider-sources/Makefile"
+    },
+    {
+      "original": "/workspace/tcl-lsp/tmp/jimtcl-oracle/nshelper.tcl",
+      "sha256": "97c67e98b1bef86c9564044dbed0d5110b38ba0fd416980663101f65b0066627",
+      "retained": "nshelper.tcl",
+      "canonical_reference": "rust/tcl-registry/tests/data/native_jim_namespace_which/nshelper.tcl"
+    }
+  ],
+  "scope": "Actual original topframe raw locals inventory with same info head/cache, fresh original integer123 optionalpattern; sampled pattern before and after vectorcall before resultgetter, actual resultpointer equals contextempty. No namespaceEval/non-topframe/Runtime/fullSDK/lifecycle/currentupstream claim."
+}

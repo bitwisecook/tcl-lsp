@@ -1,6 +1,6 @@
 # Tcl installation discovery list data
 
-The original five C Tcl releases and pinned Jim executable read the fixed list values in `probe.tcl`. `receipt.json` retains executable and original C init-library hashes, invocation times, output hashes and status. The valid file invocation exited zero and produced exactly three LIST records for every provider before Rust expectations were added. An initial incomplete probe produced no useful C output and an unmatched-bracket Jim error; it remains under `/tmp/name-tcllibpath-list-data-oracles-20261015/invalid-attempt1` and supplies no semantic evidence.
+The original five C Tcl releases and pinned Jim executable read the fixed list values in `probe.tcl`. `receipt.json` retains executable and original C init-library hashes, invocation times, output hashes and status. The valid file invocation exited zero and produced exactly three LIST records for every provider before Rust expectations were added. An initial incomplete probe produced no useful C output and an unmatched-bracket Jim error; its exact input, six original stdout/stderr channels, invocation receipt and exclusion status remain in [invalid-attempt1](invalid-attempt1/STATUS.txt) and supply no semantic evidence.
 
 All six preserve spaces, literal braces and quotes, and empty elements in the first complete list. The second list has release-dependent escape values: C8.4/8.5 produce literal U00010000, C8.6 U+FFFD, C9 and Jim U+10000. C rejects the malformed third list; Jim's lenient result is separately recorded.
 

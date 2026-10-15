@@ -471,4 +471,8 @@ Jim command inventory has separately measured preflight and getter stages. The [
 
 Jim inventory obtains the genuine private `namespace info` callable by actual lookup. The [original19-row replacement capture](../results/original-jim-info-helper-replacement-sdk-20261015/README.md) retains default/replacement/deletion results and original pattern/namespace phases over the same input head. Epoch changes can invalidate caches; no full-info/Runtime/final-free grant follows.
 
+[Original package requirement values](package-requirement-word-values/README.md) retain C5 static word decoding, literal extra braces/quotes and dynamic errors; Jim reports vsatisfies unsupported. Conditional source advice gains no actual package/loader/Native completion.
 
+[Original discovery list data](tcllibpath-list-data/README.md) preserves complete spaces/braces/quotes/empty elements, release-dependent escapes and malformed-list outcomes. C installation discovery requires strict full-list agreement across supported C grammars before selecting an installation; Jim observations and actual TCLLIBPATH startup/filesystem effects remain separate.
+
+The [original expression comparison capture](../refactor-expression-equality-20261015/README.md) distinguishes numeric equality from string equality/exact matching while retaining literal operator and sigil data. Separate [scalar-expression fixtures](../scalar-expression-fixtures-20261015/README.md) and [fixed nonnumeric literals](../nonnumeric-expression-literals-20261015/README.md) preserve the original bare-word refusals, configured name grammar and GET comparisons before fixture corrections. Original outcomes do not establish Rust, F5, frame or transformation/edit equivalence.

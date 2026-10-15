@@ -945,3 +945,14 @@ genuine physical roster member, with its actual Proc formals and ordinary fresh
 helper lookup; replacement and deletion remain observable. Its descriptor grants
 no public subcommand dispatch. C inventory, other helpers, complete SDK rosters,
 reentrant traces and final-free chronology retain their separate obligations.
+
+Jim variable inventories retain the exact selected worker scope and complete
+original argv. Pure All/Exact/Scan lookup geometry supplies no physical key or
+namespace. Weak actual table/key/cell/binding receipts retain memory safety
+without keeping retired entries live; actual table changes refuse traversal.
+The existing weak namespace/frame receipt and current namespace checks surround
+reached getters, incremental original-key List membership and result publication,
+with first refusal retained. True-top locals is distinct from a non-top namespace
+frame. No replacement key String, report inversion, complete roster, live
+reentrant table traversal or broader lifecycle authority follows; C, VM and
+other variable APIs keep their independent owners.

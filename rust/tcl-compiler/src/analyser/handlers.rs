@@ -1348,10 +1348,9 @@ impl Analyser {
         };
         self.set_var_link_target(local, scope_path, super::scope::VariableLinkTarget {
             target: cell.path.clone(), target_span: target_tok.span, local_span: local_tok.span,
-            original_target_namespace: match alias.target {
-                tcl_registry::VariableAliasTarget::Global { .. } => self.original_variable_root_namespace(),
-                _ => self.original_variable_namespace_at(scope_path),
-            },
+            original_target_namespace: self.original_alias_target_namespace(
+                &alias.target, (local_tok.span, target_tok.span), scope_path,
+            ),
             original_target_receiver: crate::signature_scan::variable_symbol::OriginalVariableSymbolReceiver::NamespaceAlias,
         });
         if cell.fixed_frame {
@@ -1366,6 +1365,51 @@ impl Analyser {
             // cell reachable from everywhere.
             self.define_var(&cell.path, target_tok, &[], false, None);
         }
+    }
+
+    fn original_alias_target_namespace(
+        &self,
+        target: &tcl_registry::VariableAliasTarget,
+        operands: (Span, Span),
+        scope_path: &[usize],
+    ) -> Option<crate::signature_scan::scope::SignatureNamespaceScope> {
+        use tcl_registry::VariableAliasTarget;
+        if matches!(target, VariableAliasTarget::Global { .. }) {
+            return self.original_variable_root_namespace();
+        }
+        let current = self.original_variable_namespace_at(scope_path)?;
+        if !matches!(target, VariableAliasTarget::Namespace { .. }) {
+            return Some(current);
+        }
+        let input = self.resolved_analysis_input();
+        let purpose =
+            crate::signature_scan::original_name::OriginalSourceNamePurpose::for_analysis_input(
+                &input,
+                self.source_analysis_entry.as_deref(),
+                self.declaration_name_policy()?,
+            );
+        let mut selected = None;
+        for source in &self.result.original_variable_alias_source_operands {
+            if !source
+                .operands()
+                .iter()
+                .any(|&(local, target, _)| (local, target) == operands)
+            {
+                continue;
+            }
+            let namespace = source.namespace_target_scope(
+                &self.source,
+                &self.result,
+                operands,
+                &current,
+                purpose,
+            )?;
+            if selected.as_ref().is_some_and(|prior| prior != &namespace) {
+                return None;
+            }
+            selected = Some(namespace);
+        }
+        selected
     }
 
     /// The namespace path of the cell an alias targets, or `None` when the

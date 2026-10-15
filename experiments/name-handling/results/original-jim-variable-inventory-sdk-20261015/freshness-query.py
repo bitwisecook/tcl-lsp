@@ -1,0 +1,7 @@
+from pathlib import Path
+import subprocess,datetime,json,hashlib
+p=Path('/tmp/name-jim-variable-inventory-sdk-20261015/upstream-check');p.mkdir(exist_ok=True);started=datetime.datetime.now(datetime.timezone.utc).isoformat();commands={'remote':['git','ls-remote','https://github.com/msteveb/jimtcl.git','HEAD'],'local':['git','-C','/workspace/tcl-lsp/tmp/jimtcl-oracle','rev-parse','HEAD']};results={};h=lambda f:hashlib.sha256(f.read_bytes()).hexdigest()
+for key,command in commands.items():
+ r=subprocess.run(command,capture_output=True,timeout=30);(p/(key+'.stdout')).write_bytes(r.stdout);(p/(key+'.stderr')).write_bytes(r.stderr);results[key+'_command']=command;results[key+'_exit']=r.returncode;results[key]=r.stdout.decode().strip()
+sdk=json.loads(Path('/tmp/name-jim-variable-inventory-sdk-20261015/manifest.json').read_text());provider={path:h(Path(path)) for path in sdk['provider_before_after_sha256']};assert provider==sdk['provider_before_after_sha256']
+receipt={'started_utc':started,'finished_utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),**results,'matches_pinned':results['remote_exit']==0 and results['local_exit']==0 and results['remote'].split()[0]==results['local']=='5bac7c99ad65864c87da513e22e2f01703fa4e03','provider_sha256':provider,'files':{f.name:h(f) for f in sorted(p.iterdir()) if f.name!='receipt.json'}};(p/'receipt.json').write_text(json.dumps(receipt,indent=2)+'\n');print(json.dumps({'matches_pinned':receipt['matches_pinned'],'remote':receipt['remote'],'receipt_sha256':h(p/'receipt.json')}))

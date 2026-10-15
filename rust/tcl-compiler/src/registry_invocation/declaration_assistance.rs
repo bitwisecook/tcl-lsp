@@ -164,6 +164,65 @@ impl OriginalSourceVariableAliasOperands {
         &self.operands
     }
 
+    /// Original namespace operand of this exact source alias relationship.
+    /// Current source/Registry grammar and direct Written correspondence select
+    /// naming geometry only, never an installed alias, frame or physical cell.
+    pub(crate) fn namespace_target_scope(
+        &self,
+        source: &str,
+        analysis: &crate::analyser::AnalysisResult,
+        operands: (tcl_lexer::Span, tcl_lexer::Span),
+        current: &crate::signature_scan::scope::SignatureNamespaceScope,
+        purpose: crate::signature_scan::original_name::OriginalSourceNamePurpose,
+    ) -> Option<crate::signature_scan::scope::SignatureNamespaceScope> {
+        let original = super::source_structure::source_registry_words_at(
+            source,
+            analysis,
+            self.invocation_offset()?,
+        )?;
+        if original != self.words {
+            return None;
+        }
+        let input = analysis.resolved_input.as_ref()?;
+        let context = input.borrowed_context_registry();
+        let transitions = self.words.with_source_schema(context, |schema| {
+            schema
+                .semantics
+                .state_transitions
+                .resolve_after_success_with_effect_coverage(schema.words.arguments())
+                .0
+        })?;
+        let mut selected = None;
+        for fact in transitions.facts() {
+            let tcl_registry::StateTransition::VariableCellAlias(alias) = &fact.transition else {
+                continue;
+            };
+            let tcl_registry::VariableAliasTarget::Namespace {
+                namespace,
+                variable,
+            } = &alias.target
+            else {
+                continue;
+            };
+            let local = written_alias_operand(&self.words, &alias.local)?;
+            let target = written_alias_operand(&self.words, variable)?;
+            if (local.span(), target.span()) != operands {
+                continue;
+            }
+            let namespace = written_alias_operand(&self.words, namespace)?;
+            let key = purpose.key(
+                namespace,
+                tcl_syntax::word_rules::WordValueRules::from_config(&namespace.config()),
+            )?;
+            let namespace = current.child_from_key(&key)?;
+            if selected.as_ref().is_some_and(|prior| prior != &namespace) {
+                return None;
+            }
+            selected = Some(namespace);
+        }
+        selected
+    }
+
     pub(crate) fn matches_source_context(
         &self,
         image: &tcl_lexer::SourceImage,
@@ -416,6 +475,118 @@ fn alias_target_is_literal(target: &tcl_registry::VariableAliasTarget) -> bool {
 
 #[cfg(test)]
 mod original_alias_source_schema_tests {
+    #[test]
+    fn original_namespace_alias_target_uses_written_namespace_and_current_scope() {
+        let source = "namespace eval outer {namespace upvar child value local}";
+        let mut analyser = crate::analyser::Analyser::new();
+        let analysis = analyser.analyse(source, "tcl");
+        let current = analysis.global_scope.children[0]
+            .naming_scope
+            .as_ref()
+            .unwrap();
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let policy = tcl_registry::InvocationDialect::of_profile(input.unit_profile())
+            .authored_name_policy()
+            .unwrap();
+        let purpose =
+            crate::signature_scan::original_name::OriginalSourceNamePurpose::for_analysis_input(
+                input, None, policy,
+            );
+        let aliases = &analysis.original_variable_alias_source_operands;
+        assert_eq!(aliases.len(), 1);
+        let (local, target, _) = aliases[0].operands()[0];
+        let selected = aliases[0]
+            .namespace_target_scope(source, &analysis, (local, target), current, purpose)
+            .expect("actual selected written namespace operand");
+        let crate::signature_scan::scope::SignatureNamespaceScope::C(path) = &selected else {
+            panic!("selected C source namespace geometry");
+        };
+        assert_eq!(
+            path.as_segments()
+                .iter()
+                .map(|part| part.as_bytes())
+                .collect::<Vec<_>>(),
+            vec![b"outer".as_slice(), b"child".as_slice()]
+        );
+        let occurrence = analysis
+            .original_variable_symbols
+            .iter()
+            .find(|occurrence| occurrence.span() == target)
+            .expect("original target occurrence");
+        let crate::signature_scan::variable_symbol::SignatureSourceVariableSlot::C {
+            namespace,
+            simple,
+        } = occurrence.symbol().slot()
+        else {
+            panic!("C source variable slot");
+        };
+        assert_eq!(namespace, path);
+        assert_eq!(simple.as_bytes(), b"value");
+        assert!(
+            aliases[0]
+                .namespace_target_scope(
+                    &source.replace("child", "other"),
+                    &analysis,
+                    (local, target),
+                    current,
+                    purpose,
+                )
+                .is_none()
+        );
+        assert!(
+            aliases[0]
+                .namespace_target_scope(source, &analysis, (target, local), current, purpose,)
+                .is_none()
+        );
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        assert!(
+            aliases[0]
+                .namespace_target_scope(source, &missing, (local, target), current, purpose,)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn original_namespace_alias_target_refuses_dynamic_and_captured_namespace_operands() {
+        for source in [
+            "namespace eval outer {namespace upvar $ns value local}",
+            "interp alias {} link {} namespace upvar ::target; link value local",
+        ] {
+            let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
+            let input = analysis.resolved_input.as_ref().unwrap();
+            let policy = tcl_registry::InvocationDialect::of_profile(input.unit_profile())
+                .authored_name_policy()
+                .unwrap();
+            let purpose =
+                crate::signature_scan::original_name::OriginalSourceNamePurpose::for_analysis_input(
+                    input, None, policy,
+                );
+            let current = analysis
+                .global_scope
+                .children
+                .first()
+                .and_then(|scope| scope.naming_scope.as_ref())
+                .or(analysis.global_scope.naming_scope.as_ref())
+                .unwrap();
+            for aliases in &analysis.original_variable_alias_source_operands {
+                for &(local, target, _) in aliases.operands() {
+                    assert!(
+                        aliases
+                            .namespace_target_scope(
+                                source,
+                                &analysis,
+                                (local, target),
+                                current,
+                                purpose,
+                            )
+                            .is_none()
+                    );
+                }
+            }
+        }
+    }
+
     #[test]
     fn original_alias_source_schema_keeps_counted_controls_and_written_operands() {
         // naming.compiler.original-variable-alias-source-schema

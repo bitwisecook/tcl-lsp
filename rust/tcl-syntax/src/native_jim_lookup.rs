@@ -37,7 +37,37 @@ pub enum NativeJimAliasFailure {
     SelfLink,
 }
 
+/// Physical variable-table access selected by the original counted pattern.
+/// This pure choice grants no table, retained key or frame ownership.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NativeJimVariableInventoryLookup<'a> {
+    /// No pattern: append eligible original keys without reading their bytes.
+    All,
+    /// JimTrivialMatch classifies the CString prefix, but hash lookup uses the
+    /// unchanged counted original pattern.
+    Exact(&'a [u8]),
+    /// Walk the real table and match each eligible original key object.
+    Scan(&'a [u8]),
+}
+
 impl NativeJimLookupProtocol {
+    /// Select the original variable-table fast path without canonicalising,
+    /// stripping roots or manufacturing a lookup result.
+    #[must_use]
+    pub fn variable_inventory_lookup(
+        self,
+        pattern: Option<&[u8]>,
+    ) -> NativeJimVariableInventoryLookup<'_> {
+        match pattern {
+            None => NativeJimVariableInventoryLookup::All,
+            Some(pattern)
+                if crate::glob::is_literal_bytes(tcl_core_types::c_string_extent(pattern)) =>
+            {
+                NativeJimVariableInventoryLookup::Exact(pattern)
+            }
+            Some(pattern) => NativeJimVariableInventoryLookup::Scan(pattern),
+        }
+    }
     /// Original counted Jim alias error formatter. This has no C error tuple,
     /// installed alias, selected frame or variable-cache authority.
     #[must_use]
@@ -409,5 +439,27 @@ fn namespace_upvar_targets_keep_original_counted_helper_geometry() {
         (b"N\0tail", b"x\0tail", b"::N\0tail::x\0tail"),
     ] {
         assert_eq!(protocol.namespace_upvar_target(canonical, other), expected);
+    }
+}
+
+#[cfg(test)]
+mod variable_inventory_lookup_tests {
+    use super::{NativeJimLookupProtocol, NativeJimVariableInventoryLookup as Lookup};
+    #[test]
+    fn original_variable_inventory_lookup_uses_cstring_classification_and_counted_key() {
+        let protocol = NativeJimLookupProtocol::jim084();
+        assert_eq!(protocol.variable_inventory_lookup(None), Lookup::All);
+        for pattern in [b"123".as_slice(), b"::123", b"a\0*", b""] {
+            assert_eq!(
+                protocol.variable_inventory_lookup(Some(pattern)),
+                Lookup::Exact(pattern)
+            );
+        }
+        for pattern in [b"*".as_slice(), b"a?", b"a[", b"a\\", b"*\0x"] {
+            assert_eq!(
+                protocol.variable_inventory_lookup(Some(pattern)),
+                Lookup::Scan(pattern)
+            );
+        }
     }
 }

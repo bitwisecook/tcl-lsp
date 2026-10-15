@@ -362,6 +362,76 @@ mod tests {
     }
 
     #[test]
+    fn authored_scalar_scopes_keep_profiled_standalone_metadata_without_supplied_fallback() {
+        let environment = tcl_registry::model::ingress::resolve_environment("tcl8.6");
+        let context = environment.default_context_registry();
+        let registry = context.commands();
+        let profile = environment.unit_profile();
+        assert!(registry.profile().is_some());
+        let source = "proc subject {} {set value 1; return OK}";
+        let unit = crate::compilation_unit::CompilationUnit::build_for_profile(
+            source, registry, false, profile,
+        );
+        assert!(unit.ir_module.source_metadata_input.is_none());
+        assert!(unit.ir_module.source_entry.metadata_context.is_standalone());
+        assert_eq!(
+            unit.ir_module
+                .original_authored_declaration_body_units
+                .len(),
+            1
+        );
+        let (&id, _) = unit
+            .ir_module
+            .original_authored_declaration_body_units
+            .iter()
+            .next()
+            .unwrap();
+        assert!(unit.ir_module.procedure_ids.owns(id));
+        let procedure = unit.original_procedure_for_body(id).unwrap();
+        for statement in &procedure.body.statements {
+            let tokens = procedure
+                .body
+                .retained_source_tokens_for_statement(statement)
+                .unwrap();
+            let binding = tokens.source_binding.as_ref().unwrap();
+            let advice = binding
+                .original_authored_declaration_scalar_layout(tokens, registry)
+                .expect("closed original standalone scalar declaration layout");
+            let metadata = advice
+                .original_declaration_metadata_context(registry, tokens)
+                .unwrap()
+                .expect("the profiled standalone metadata facet");
+            assert!(metadata.is_standalone());
+            assert!(
+                binding
+                    .original_authored_scalar_body_scope(tokens, registry)
+                    .is_some()
+            );
+            assert!(original_authored_scalar_invocation(tokens, registry).is_some());
+            assert_eq!(
+                binding.original_source_advice_purpose(tokens, metadata, registry),
+                Some(crate::command_binding::OriginalInvocationSourcePurpose::Standalone)
+            );
+            assert!(
+                binding
+                    .original_source_advice_purpose(tokens, context.as_ref().into(), registry)
+                    .is_none()
+            );
+            assert!(
+                super::super::normal_representation_invocation_with_metadata_context(
+                    registry,
+                    Some(metadata),
+                    tokens,
+                )
+                .is_none()
+            );
+            assert!(
+                super::super::admitted_native_compiler_invocation(registry, None, tokens).is_none()
+            );
+        }
+    }
+
+    #[test]
     fn authored_scalar_bodies_retain_real_source_definitions_without_native_admission() {
         let registry = CommandRegistry::build_default();
         let source = "proc p {} {set value 123; set value TEXT; return $value}\n";

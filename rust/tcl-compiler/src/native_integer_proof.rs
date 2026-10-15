@@ -1262,7 +1262,27 @@ mod tests {
         assert!(unit.ir_module.source_entry.native_entry.is_some());
         let id = fixture_id(&unit.procedures, "::add");
         let function = unit.function_for_body(Some(id)).unwrap();
-        let symbol = function.ssa.var_symbol("b").unwrap();
+        let return_blocks = function
+            .cfg
+            .blocks
+            .iter()
+            .filter(|(_, block)| {
+                matches!(
+                    block.terminator,
+                    Some(crate::cfg::Terminator::Return { .. })
+                )
+            })
+            .map(|(id, _)| *id)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            return_blocks.len(),
+            1,
+            "one actual return frame for the fixture"
+        );
+        let symbol = function
+            .ssa
+            .var_symbol_at_terminator(return_blocks[0], "b")
+            .unwrap();
         let cell = function.ssa.cell_key(symbol);
         let graph_chain = function.def_use.chain_for(symbol, 0).unwrap();
         let physical_chain = function

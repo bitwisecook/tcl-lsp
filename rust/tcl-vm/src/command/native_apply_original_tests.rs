@@ -353,7 +353,12 @@ fn jim_lambda_keeps_absent_original_namespace_objects_without_c_lookup() {
             protocol,
         );
         let completion = call(&mut vm, b"::Caller::launch", &[lambda]);
-        assert_eq!(completion.code, tcl_runtime_api::Code::Ok);
+        assert_eq!(
+            completion.code,
+            tcl_runtime_api::Code::Ok,
+            "namespace={original:?}, host refusal={:?}",
+            vm.execution_refusal
+        );
         assert_eq!(
             completion
                 .result

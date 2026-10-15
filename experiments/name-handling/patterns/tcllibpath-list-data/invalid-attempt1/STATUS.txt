@@ -1,0 +1,1 @@
+Invalid probe: incomplete outer script. Empty C stdout is not success evidence; Jim rejected unmatched bracket. Preserved without semantic inference.

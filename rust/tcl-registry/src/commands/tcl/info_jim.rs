@@ -367,7 +367,47 @@ pub enum NativeJimCommandInventory {
     WrongArguments,
 }
 
+/// Actual original frame/table mode for Jim variable inventories.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NativeJimVariableInventoryKind {
+    /// Active frame, including actual links.
+    Vars,
+    /// Active non-top frame, excluding actual links.
+    Locals,
+    /// Actual top-frame table, independently of caller namespace.
+    Globals,
+}
+impl NativeJimVariableInventoryKind {
+    /// The selected original worker ignores links only for locals.
+    #[must_use]
+    pub const fn includes_links(self) -> bool {
+        !matches!(self, Self::Locals)
+    }
+    /// The globals worker selects the actual top-frame variable table.
+    #[must_use]
+    pub const fn uses_global_table(self) -> bool {
+        matches!(self, Self::Globals)
+    }
+}
+
 impl NativeJimInfoScope {
+    /// The private namespace-info helper is considered only outside exact -nons.
+    /// The caller must reach the genuine namespace getter before this decision.
+    #[must_use]
+    pub fn variable_inventory_uses_helper(
+        self,
+        actual_namespace: &[u8],
+        pattern: Option<&[u8]>,
+    ) -> bool {
+        self == Self::NamespaceAware
+            && (!actual_namespace.is_empty()
+                || pattern.is_some_and(|pattern| pattern.starts_with(b"::")))
+    }
+    /// Exact -nons skips the namespace stage, independently of invocation head.
+    #[must_use]
+    pub const fn variable_inventory_reads_namespace(self) -> bool {
+        matches!(self, Self::NamespaceAware)
+    }
     /// Select the original inventory grammar and namespace-helper boundary.
     /// Current namespace bytes must come from the actual retained frame object.
     /// A rooted invocation head is independent of the exact -nons option.
@@ -470,6 +510,16 @@ enum JimInfoReportKind {
 }
 
 impl NativeJimInfoProtocol {
+    /// Select only declared original variable-inventory workers.
+    #[must_use]
+    pub fn variable_inventory_kind(self, member: &str) -> Option<NativeJimVariableInventoryKind> {
+        match member {
+            "vars" => Some(NativeJimVariableInventoryKind::Vars),
+            "locals" => Some(NativeJimVariableInventoryKind::Locals),
+            "globals" => Some(NativeJimVariableInventoryKind::Globals),
+            _ => None,
+        }
+    }
     /// Select the actual command flag for an already accepted canonical member.
     #[must_use]
     pub fn command_inventory_kind(self, member: &str) -> Option<NativeJimCommandInventoryKind> {
@@ -1040,5 +1090,24 @@ mod tests {
                 include_spaces: true
             })
         );
+    }
+}
+
+#[cfg(test)]
+mod variable_inventory_tests {
+    use super::{NativeJimInfoScope as Scope, NativeJimVariableInventoryKind as Kind};
+    #[test]
+    fn variable_inventory_scope_keeps_exact_nons_and_actual_namespace_helper_stage() {
+        assert!(!Scope::DirectCore.variable_inventory_reads_namespace());
+        assert!(Scope::NamespaceAware.variable_inventory_reads_namespace());
+        assert!(!Scope::DirectCore.variable_inventory_uses_helper(b"42", Some(b"::name")));
+        assert!(Scope::NamespaceAware.variable_inventory_uses_helper(b"42", None));
+        assert!(Scope::NamespaceAware.variable_inventory_uses_helper(b"", Some(b"::name")));
+        assert!(!Scope::NamespaceAware.variable_inventory_uses_helper(b"", Some(b"name")));
+        assert!(!Scope::NamespaceAware.variable_inventory_uses_helper(b"", None));
+        assert!(Kind::Globals.uses_global_table());
+        assert!(!Kind::Vars.uses_global_table());
+        assert!(!Kind::Locals.includes_links());
+        assert!(Kind::Vars.includes_links());
     }
 }
