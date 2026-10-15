@@ -140,7 +140,7 @@ impl Interp {
             return false;
         };
         let host = self.host();
-        let name = String::from_utf8_lossy(elem);
+        let name = host_text(elem);
         match op {
             b"write" => {
                 if let Some(value) = self.env_element(elem) {
@@ -324,6 +324,16 @@ mod tests {
         let result = String::from_utf8_lossy(&interp.result_bytes()).into_owned();
         assert_eq!(code, Code::Ok, "{script} -> {result}");
         result
+    }
+
+    /// A name or value reaches the host cut at its first NUL, as C's
+    /// `environ` keeps it.
+    #[test]
+    fn a_nul_cuts_the_name_and_value_the_host_keeps() {
+        with_host(TclVersion::V9_0, |interp, host| {
+            ok(interp, "set env(NUL\\0NAME) a\\0b");
+            assert_eq!(host.var("NUL").as_deref(), Some("a"));
+        });
     }
 
     /// tclsh 8.6.18 and 9.0.4: a re-sync that drops `env(GONE)` runs its

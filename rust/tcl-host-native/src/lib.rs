@@ -548,7 +548,7 @@ impl Process for NativeProcess {
         for (key, value) in self.env.overrides.borrow().iter() {
             // A NUL cannot reach a child's environment: C's `environ` cuts
             // there, and `Command` would refuse to spawn at all.
-            if key.is_empty() || key.contains('\0') {
+            if key.contains('\0') {
                 continue;
             }
             match value {
@@ -580,6 +580,24 @@ mod tests {
         assert_eq!(env.get("PATH").as_deref(), Some("/x"));
         assert!(env.vars().contains(&("PATH".to_owned(), "/x".to_owned())));
         assert!(path.is_some(), "the test process has a PATH");
+    }
+
+    /// tclsh hands `set env() val` to a child as the entry `=val`.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn an_empty_name_reaches_a_subprocess() {
+        let host = NativeHost::new();
+        host.env().set("", "val");
+        let out = host
+            .process()
+            .expect("a process capability")
+            .run(&["cat", "/proc/self/environ"])
+            .expect("cat runs");
+        assert!(
+            out.stdout
+                .split(|&byte| byte == 0)
+                .any(|entry| entry == b"=val")
+        );
     }
 
     #[cfg(unix)]
