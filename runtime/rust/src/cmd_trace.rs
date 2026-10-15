@@ -280,6 +280,18 @@ pub struct TraceTable {
     /// the variable access can fail with `can't read/set "name": <msg>` (C's
     /// `TclCallVarTraces` propagation). Taken by the access chokepoint.
     pub pending_err: Option<Vec<u8>>,
+    /// The binding of the global `env` array that carries the native trace
+    /// keeping it in step with the host environment (C's `EnvTraceProc`), or
+    /// `None` where there is none (a safe or confined interpreter, or after
+    /// `unset env`). Kept apart from [`Self::traces`] because scripts can
+    /// neither see nor remove it, and so a variable access that cannot reach
+    /// `env` still finds no traces at all (see
+    /// [`crate::interp::Interp::traces_may_observe`]).
+    pub env: Option<tcl_runtime_api::VarId>,
+    /// Whether a link whose target is named `env` was ever made under a
+    /// different local name (`upvar #0 env e`). Until then only a spelling
+    /// whose tail is `env` can reach the global `env` array.
+    pub env_aliased: bool,
 }
 
 impl TraceTable {

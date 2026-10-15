@@ -356,6 +356,7 @@ fn info_exists(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 3 {
         return interp.wrong_args(b"info exists varName");
     }
+    interp.fire_exists_read_trace(&obj_bytes(argv[2]));
     // The shared Family-B core over `VarStore::exists`.
     let result = tcl_cmd_core::info::exists(interp, &argv[2]);
     interp.set_result(result);

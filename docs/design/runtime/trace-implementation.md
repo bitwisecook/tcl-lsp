@@ -77,6 +77,30 @@ deleted (`remove_cmd_traces`) or its frame is popped
 generation, so an unset callback that recreates the same spelling collides with
 the old active scope.
 
+The global `env` array carries one native trace besides the script ones —
+C's `EnvTraceProc`, which keeps `env` in step with the host environment
+(`tcl_platform::Env`). `runtime/rust/src/env_trace.rs` owns it. It is armed
+by every host bootstrap (`Interp::with_host`, `set_host`, so child
+interpreters too) except in a safe or confined interpreter, and hangs off the
+`::env` binding's `VarId` (`TraceTable::env`), so it dies with `unset env` or
+any other removal of that binding. It is not in `TraceTable::traces`: `trace
+info` cannot list it and `trace remove` cannot reach it. Within
+`fire_var_trace_resolved` it runs as the array's oldest whole-array trace —
+after the script traces on `env`, before the element's own (tclsh 8.4–9.1).
+A write sets the host variable, an element unset removes it, a read refreshes
+the element from the host or fails with `no such variable`, and an `array`
+command re-syncs the whole array; its own stores are raw. `info exists` runs
+read traces as C's `TclVarTraceExists` does, swallowing their errors, which
+is what lets it see a host variable the array has not cached.
+
+The variable-access chokepoints ask `Interp::traces_may_observe(name)` rather
+than whether the trace list is empty: with only the `env` trace armed, an
+access can skip trace resolution unless its spelling's tail is `env` or a link
+whose target is named `env` was ever made under another local name
+(`TraceTable::env_aliased`). Not modelled: the user element write traces C
+8.6+ fires during a re-sync, 8.4/8.5 re-creating the variable on every
+re-sync, names with `=` splitting on re-sync, and 9.x's `encoding error`.
+
 ### `rust/tcl-vm` (bytecode VM)
 
 The VM stores frame and namespace bindings as simple-name → monotonic `VarId`
