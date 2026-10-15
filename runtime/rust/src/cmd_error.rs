@@ -59,8 +59,7 @@ fn catch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if dialect.return_options_protocol()
         == Some(tcl_cmd_core::return_options::ReturnOptionsProtocol::Jim084)
     {
-        let none = obj::Owned::fresh(new_string(b"NONE"));
-        if let Err(error) = interp.var_set(b"::errorCode", none.as_ptr()) {
+        if let Err(error) = interp.reset_original_jim_catch_error_code() {
             if interp.host_refusal_pending() {
                 return Code::Error;
             }

@@ -1,5 +1,11 @@
 # Current centralised naming work
 
+## Immediate repaired successor
+
+L4 frozen d70c264dc failed101 in229.942905110s with one production mismatch: actual native resident Rc<[u8]> was inserted into the existing finite Vec<u8> inventory set. It built0testELFs/ran0tests with complete source drift{}. The exact byte-preserving ownership copy is independently source-reviewed; no String decode, getter, guard or public Import entry change. L4 Native plans are retained superseded/unexecuted and cannot accept the repair.
+
+The next checkpoint also retains actual source Import complete-iteration Break refusal and original15-row reuse/partial-publication observations (fresh14:56:53UTC clean5bac Jim,247unchanged provider inputs, original namespace79/79); actual catch root errorCode original-object publication and caller-frame restoration; BPF actual RegistrySnapshot transport with foreign-context refusal. New Rust controls are unexecuted. Existing public Source Import admission remains refused, while catch's relation to K163 requires a fresh exact-selector run.
+
 ## Latest integration checkpoint
 
 The repaired-source successor of2e5bdaadd captures reviewed structural control-arm APIs, typed closed-source conditional collection advice and NoAction diagnostics, BPF original-head/complete-region census, installed Jim Source helper body selection and original Import controls. All remain unexecuted. BPF actual RegistrySnapshot/transform context and Import complete-iteration/catch original-key producer are separate unfinished work; no public Import entry is enabled.

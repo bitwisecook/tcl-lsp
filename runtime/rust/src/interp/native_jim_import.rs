@@ -250,6 +250,11 @@ impl OriginalJimImportEachLoop {
     pub(crate) fn body_completed(&self, actual: &Interp, code: Code) -> Result<(), ValueError> {
         self.traversal.check(actual)?;
         self.invocation.check_retained(actual)?;
+        if code == Code::Break {
+            return Err(unavailable(
+                "original Import interrupted inventory traversal",
+            ));
+        }
         if code != Code::Ok {
             return Ok(());
         }
@@ -509,7 +514,7 @@ impl Interp {
                 .native_object_snapshot(&original)?
                 .resident
                 .ok_or_else(|| unavailable("Jim import reached alias spelling"))?;
-            if !candidate.seen.insert(resident) {
+            if !candidate.seen.insert(resident.to_vec()) {
                 return Err(unavailable("Jim namespace import cyclic alias chain"));
             }
         }

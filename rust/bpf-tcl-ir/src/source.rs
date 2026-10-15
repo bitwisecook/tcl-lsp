@@ -32,6 +32,7 @@ pub struct OriginalBpfSource {
     config: LexerConfig,
     region: Span,
     purpose: tcl_lexer::SourceSegmentationPurpose,
+    registry: Option<tcl_registry::RegistrySnapshot>,
 }
 
 impl OriginalBpfSource {
@@ -41,6 +42,7 @@ impl OriginalBpfSource {
         Self {
             image: module.source.clone(),
             config: module.native_lexer_config(),
+            registry: module.registry_snapshot.clone(),
             purpose: tcl_lexer::SourceSegmentationPurpose::WholeInput,
             region: Span::new(
                 0,
@@ -49,13 +51,17 @@ impl OriginalBpfSource {
         }
     }
 
-    fn from_body(word: &NativeWord) -> Option<Self> {
+    fn from_body(
+        word: &NativeWord,
+        registry: Option<tcl_registry::RegistrySnapshot>,
+    ) -> Option<Self> {
         let value = tcl_syntax::word_rules::original_static_word_source_bytes(word)?;
         let region = word.content_span().ok()?;
         // A decoded or concatenated value cannot acquire affine source geometry.
         (word.image().bytes().get(region.as_range())? == value.as_slice()).then_some(Self {
             image: word.image().clone(),
             config: word.config(),
+            registry,
             region,
             purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
         })
@@ -161,6 +167,7 @@ impl OriginalBpfSource {
         registry: &CommandRegistry,
         missing: crate::diag::BpfDiag,
     ) -> Result<Option<&'static tcl_registry::CommandSpec>, crate::diag::BpfError> {
+        self.check_registry(registry, missing, statement.span())?;
         let (args, tokens) = match statement {
             Statement::Call { args, tokens, .. } | Statement::Barrier { args, tokens, .. } => {
                 (args, tokens)
@@ -215,6 +222,7 @@ impl OriginalBpfSource {
         registry: &CommandRegistry,
         missing: crate::diag::BpfDiag,
     ) -> Result<(), crate::diag::BpfError> {
+        self.check_registry(registry, missing, Span::empty(0))?;
         let failure = || {
             crate::diag::BpfError::new(
                 missing,
@@ -290,7 +298,28 @@ impl OriginalBpfSource {
         args: &[String],
         index: usize,
     ) -> Option<Self> {
-        Self::from_body(&self.argument(tokens, args, index)?)
+        Self::from_body(&self.argument(tokens, args, index)?, self.registry.clone())
+    }
+
+    fn check_registry(
+        &self,
+        registry: &CommandRegistry,
+        missing: crate::diag::BpfDiag,
+        span: Span,
+    ) -> Result<(), crate::diag::BpfError> {
+        if self
+            .registry
+            .as_ref()
+            .is_some_and(|original| original.semantic_key() == registry.snapshot().semantic_key())
+        {
+            Ok(())
+        } else {
+            Err(crate::diag::BpfError::new(
+                missing,
+                span,
+                "DSL source requires its original registry context",
+            ))
+        }
     }
 
     pub(crate) fn lower(&self, registry: &CommandRegistry) -> Module {
@@ -564,6 +593,65 @@ fn discard_execution_proofs(script: &mut Script) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn original_registry_context_is_retained_through_body_projection() {
+        let registry = tcl_registry::model::ingress::static_context_for("bpf").commands();
+        let module = lower_bpf_source("deny drop", registry);
+        let source = OriginalBpfSource::from_module(&module);
+        source
+            .validate_script(
+                &module.top_level,
+                registry,
+                crate::diag::BpfDiag::OutOfSubset,
+            )
+            .unwrap();
+        let foreign = CommandRegistry::build_default();
+        assert!(
+            source
+                .command_spec(
+                    &module.top_level.statements[0],
+                    &foreign,
+                    crate::diag::BpfDiag::OutOfSubset
+                )
+                .is_err()
+        );
+        assert!(
+            source
+                .validate_script(
+                    &module.top_level,
+                    &foreign,
+                    crate::diag::BpfDiag::OutOfSubset
+                )
+                .is_err()
+        );
+        assert!(crate::capability::collect_policy(&module.top_level, &foreign, &source).is_err());
+        assert!(crate::deploy::collect_attach(&module.top_level, &foreign, &source).is_err());
+        assert!(crate::profile::collect_profile(&module.top_level, &foreign, &source).is_err());
+        assert!(crate::template::collect_templates(&module.top_level, &foreign, &source).is_err());
+        let module = lower_bpf_source("when XDP {deny drop}", registry);
+        let source = OriginalBpfSource::from_module(&module);
+        let Statement::Call { args, tokens, .. } = &module.top_level.statements[0] else {
+            panic!("actual original body carrier");
+        };
+        let body = source.body(tokens.as_ref(), args, 1).unwrap();
+        assert_eq!(body.registry, source.registry);
+        let lowered = body.lower(registry);
+        body.validate_script(
+            &lowered.top_level,
+            registry,
+            crate::diag::BpfDiag::OutOfSubset,
+        )
+        .unwrap();
+        assert!(
+            body.validate_script(
+                &lowered.top_level,
+                &foreign,
+                crate::diag::BpfDiag::OutOfSubset
+            )
+            .is_err()
+        );
+    }
 
     #[test]
     fn complete_original_inventory_is_required_before_collector_defaults() {

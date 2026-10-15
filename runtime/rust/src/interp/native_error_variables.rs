@@ -5,6 +5,9 @@ use crate::obj;
 use tcl_registry::special_vars::{NativeErrorStorageVariable as Variable, NativeErrorVariableRead};
 use tcl_syntax::value::ValueError;
 
+#[cfg(test)]
+mod jim_global_key_tests;
+
 #[derive(Default, Clone)]
 pub(super) struct NativeErrorObjects {
     pub(super) info: Option<obj::Owned>,
@@ -69,6 +72,40 @@ pub(super) struct NativeErrorTraceState {
 }
 
 impl Interp {
+    /// JimCatchTryHelper uses the original name created in the actual top frame.
+    pub(crate) fn reset_original_jim_catch_error_code(&mut self) -> Result<(), super::Code> {
+        if self
+            .native_invocation_dialect()
+            .native_jim_lookup_protocol()
+            .is_none()
+        {
+            return Err(self.report_cmd_error(
+                ValueError::CommandProtocolUnavailable("original Jim global error-code setter")
+                    .into(),
+            ));
+        }
+        let caller = super::native_arguments::OriginalArgumentFrame::capture(self);
+        let none = obj::Owned::fresh(new_string(b"NONE"));
+        let reached = self.with_event_global_frame(|actual| {
+            if actual.frames.borrow().current_frame_index() != 0 {
+                return Err(actual.report_cmd_error(
+                    ValueError::CommandProtocolUnavailable("original Jim top variable frame")
+                        .into(),
+                ));
+            }
+            let name = obj::Owned::fresh(new_string(
+                tcl_registry::special_vars::NativeBootstrapVariable::ErrorCode
+                    .name()
+                    .as_bytes(),
+            ));
+            actual.assign_original_named_variable(name.as_ptr(), none.as_ptr())
+        });
+        caller
+            .check_frame(self)
+            .map_err(|error| self.report_cmd_error(error.into()))?;
+        reached
+    }
+
     pub(super) fn uses_c84_global_error_info(&self) -> bool {
         self.native_invocation_dialect()
             .native_error_log_protocol()

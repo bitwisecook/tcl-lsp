@@ -9,6 +9,8 @@ use crate::interp::{
 };
 use crate::obj::{self, Owned};
 
+mod reuse;
+
 fn jim() -> Interp {
     Interp::with_native_core(
         crate::interp::default_host(),
