@@ -1,6 +1,6 @@
 # Naming migration handoff
 
-Audit resumed at the user’s request — 2026-10-15 22:35 UTC. All six disjoint audit lanes are active; production/test files and builds remain frozen. The latest portable checkpoint retains **6,292 provisional purpose records**, not a remaining-migration total. Actual source/operational/generated/guidance review and canonical unit reconciliation continue. See [the current audit status](../audit-status.md); dated pause and earlier measurements below are historical.
+Audit resumed at the user’s request. Six disjoint lanes continue actual source/operational/generated/guidance review. The 2026-10-15 22:51 UTC checkpoint retains **6,565 provisional purpose records / 771 hash-verified members**, not a repository migration total. Root has mapped its 329 records to a separate proposed work-unit catalogue; independent and cross-owner reconciliation remain unfinished. See [the current audit status](../audit-status.md). Source/build freeze and original validation limits remain.
 
 Final primary packet: `repository-audit-progress-20261015T220942Z.tar.gz` (SHA256 `675d126622193871b11f63f704d518bbe499f03eb28c58be27063f1861b12e04`), **573 hash-verified members**. Nested audit receipts/source snapshots: `repository-audit-deep-progress-20261015T220906Z.tar.gz` (SHA256 `8813dc50abbc84c6c55a0ca2563df708c80ce8d8f8fcb7c60ad2bb092122d4fa`), **14,465 hash-verified members**. Both are indexed in [packets.json](packets.json); nested retention does not grant source-review completion.
 

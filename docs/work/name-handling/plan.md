@@ -1,6 +1,6 @@
 # Completion plan
 
-Audit resumed at the user’s request — 2026-10-15 22:35 UTC. All six disjoint audit lanes are active; production/test files and builds remain frozen. The latest portable checkpoint retains **6,292 provisional purpose records**, not a remaining-migration total. Actual source/operational/generated/guidance review and canonical unit reconciliation continue. See [the current audit status](audit-status.md); dated pause and earlier measurements below are historical.
+Audit resumed at the user’s request. Six disjoint lanes continue actual source/operational/generated/guidance review. The 2026-10-15 22:51 UTC checkpoint retains **6,565 provisional purpose records / 771 hash-verified members**, not a repository migration total. Root has mapped its 329 records to a separate proposed work-unit catalogue; independent and cross-owner reconciliation remain unfinished. See [the current audit status](audit-status.md). Source/build freeze and original validation limits remain.
 
 The goal is one coherent set of name-handling tools: parsing at ingress,
 structured identity throughout semantic work, shared lookup policy over
