@@ -1,0 +1,11 @@
+{
+  "scope": "Lossless storage of original full test listing stdout; no semantic or execution status change",
+  "original_name": "tcl_compiler.list",
+  "raw_sha256": "7e822e583eab4ab7e6bffc2f5a4df60f313baeecc9120a60c729a4edcd508ea2",
+  "raw_bytes": 925649,
+  "archive": "tcl_compiler.list.zst",
+  "archive_sha256": "a944da11573318758747e7f91c1d5a194c0c442dc2d55e922b409c4eff436bfa",
+  "archive_bytes": 159696,
+  "restore": "zstd -d -c tcl_compiler.list.zst > tcl_compiler.list",
+  "verification": "Full decompressed bytes compared equal before original loose listing removed; original retained separately under /workspace/naming-validation."
+}
