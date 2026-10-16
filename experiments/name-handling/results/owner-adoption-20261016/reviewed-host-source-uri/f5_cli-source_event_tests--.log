@@ -1,0 +1,17 @@
+
+running 1 test
+test commands::explain::source_event_tests::source_event_report_separates_owned_empty_and_unavailable ... 
+thread 'commands::explain::source_event_tests::source_event_report_separates_owned_empty_and_unavailable' (138962) panicked at rust/f5-cli/src/commands/explain.rs:586:9:
+assertion `left == right` failed
+  left: "(event inventory unavailable)"
+ right: "CLIENT_ACCEPTED, HTTP_REQUEST"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    commands::explain::source_event_tests::source_event_report_separates_owned_empty_and_unavailable
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 23 filtered out; finished in 0.50s
+

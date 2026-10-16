@@ -1,0 +1,14 @@
+{
+  "source_head": "2fb0d3c6488d87fbc5db1817117ba62acfab087e",
+  "source_diff_sha256": "d862045f201ddd6546bd7bf689dd52ee41dd305ceb24841afb9b94badec5d02f",
+  "ordinary": true,
+  "packages": [
+    "tcl-compiler",
+    "tcl-lsp-core",
+    "tcl-lsp-db",
+    "tcl-registry"
+  ],
+  "single_job": true,
+  "profile_test_debug": 0,
+  "source_scope": "Includes source-parent reborrow, unique Installed source currency, conditional RegistrySource continuation/prefix, LSP legend failures assertion and prior reviewed uncommitted Jim/xtask changes. No instrumentation."
+}

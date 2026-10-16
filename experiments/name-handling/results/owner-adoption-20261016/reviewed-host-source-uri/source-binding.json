@@ -1,0 +1,73 @@
+{
+  "source_head": "b96b7b49eef942c71e87d6a61e7e6030813c69d4",
+  "source_diff_sha256": "f062f7939a6f51c11e5a20c6bf399e4b858ce02e247668f3a1efaa179bc85fcc",
+  "ordinary": true,
+  "note": "Includes Root existing declaration_site() accessor correction after retained E0616 private-field initial build failure; no semantic guard change.",
+  "same_rust_source_committed_head": "2fb0d3c6488d87fbc5db1817117ba62acfab087e",
+  "binaries": {
+    "unittests src/lib.rs:f5_cli": {
+      "name": "f5_cli-a62d21fd5d2df66a",
+      "sha256": "7df85fdebd5884f3063cdfa2193b2dbe945af9e06430ca9887f2f43d6493f50f"
+    },
+    "tests/cli.rs:cli": {
+      "name": "cli-153c8adc63023eef",
+      "sha256": "3f9978f3962a4c9d5d48b8e20cf1eec099db2c3afc6e371d0e22b9ce4840be8f"
+    },
+    "tests/grep.rs:grep": {
+      "name": "grep-1e4f09243ce95374",
+      "sha256": "da48b2bfc2ed51f815ede85fb4102c98ccffd9a48bd1239dc2716dbfb85d9dd8"
+    },
+    "tests/query_input.rs:query_input": {
+      "name": "query_input-5d369ceb9235ab40",
+      "sha256": "7795d73e9257a9beb075c9394b71e3de3df410d821c89e0c44057a8fb82c9afd"
+    },
+    "tests/remote.rs:remote": {
+      "name": "remote-fd3baeb892bd73b0",
+      "sha256": "3c4e7e058698df595600a13c68e202537b0e54ff1dbf4441635f4395507ed5ef"
+    },
+    "tests/tmsh.rs:tmsh": {
+      "name": "tmsh-924f254bb1c51389",
+      "sha256": "fbb87d7582ceddda4fe98daf530a8206f20e782c63755120ca769750f254f4e2"
+    },
+    "unittests src/lib.rs:tcl_bigip_io": {
+      "name": "tcl_bigip_io-3651a8164e81ec37",
+      "sha256": "a3ded2824841551dcfdaf48275a2e8f7738eaf937bb7d201a1f7981c674bf867"
+    },
+    "unittests src/lib.rs:tcl_compiler": {
+      "name": "tcl_compiler-780a8f18152f691d",
+      "sha256": "546efadf0377e1627284519f2f0191d78e2bb8db0d709bcc9addeb6e8ccdaeb1"
+    },
+    "unittests src/lib.rs:tcl_irules": {
+      "name": "tcl_irules-4cdde57b5a11bc60",
+      "sha256": "2b26d58885ae4059e1f43ecf6f77d74b9ab32b573214f1066dd79c15b544fdd3"
+    },
+    "unittests src/lib.rs:tcl_lsp_server": {
+      "name": "tcl_lsp_server-72608fd1ee45104d",
+      "sha256": "372eb3cd0ebdb819173d59d456552e1e63f245756067ee6127a4d0bbe8e6a6bf"
+    },
+    "tests/e2e.rs:e2e": {
+      "name": "e2e-1ecb9bd84d4b0c49",
+      "sha256": "cce93de1f1b044b1ae3d5810a6dd7886a8aa05c435ab1c5ab2a6f4dee3c42cd3"
+    },
+    "tests/preview_tickets_e2e.rs:preview_tickets_e2e": {
+      "name": "preview_tickets_e2e-c2624556c8d0c28b",
+      "sha256": "4348061d33d1cda1ddb063919c74b584f0ff8074ed574df2c794d871abe314f0"
+    },
+    "unittests src/main.rs:tcl_mcp": {
+      "name": "tcl_mcp-ab2879aae42c0240",
+      "sha256": "0adea06c86f1eec94591dbe846285b1facb302f79c459c0edecad1af1280ad3e"
+    },
+    "unittests src/lib.rs:tcl_vm": {
+      "name": "tcl_vm-a69b616c948cad22",
+      "sha256": "718a6c53f4952670e62944d16774e9cc92ce5248dac81f1cffe4614d3af93fbf"
+    }
+  },
+  "production_f5-query": {
+    "path": "/workspace/tcl-lsp/target/debug/f5-query",
+    "sha256": "7182780e6839e2d1b0af46840caa92eb6ebd6f451ab965b819720a5a4283e718"
+  },
+  "production_tcl-lsp-server": {
+    "path": "/workspace/tcl-lsp/target/debug/tcl-lsp-server",
+    "sha256": "2fc46c0baf2bf87db034f4bbbb2650a8ca69d088f2cf87b417c822a742ba6e4e"
+  }
+}

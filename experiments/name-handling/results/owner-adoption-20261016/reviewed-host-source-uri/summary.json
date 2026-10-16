@@ -1,0 +1,14 @@
+{
+  "source_head": "2fb0d3c6488d87fbc5db1817117ba62acfab087e",
+  "ordinary": true,
+  "groups": 22,
+  "PASS": 161,
+  "FAIL": 56,
+  "zero_test_runs": 0,
+  "build": {
+    "status": "PASS",
+    "seconds": 628,
+    "warnings": 0
+  },
+  "scope": "Completed pre-LSP-priority-change selected controls only; source forwarding/call regressions and failed new source/Host positives retained. Runtime/VM/BIG-IP further implementation paused by user. LSP URI4PASS and compiler failures inform current repairs."
+}

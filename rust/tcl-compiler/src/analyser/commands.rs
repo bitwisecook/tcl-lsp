@@ -3841,6 +3841,9 @@ impl Analyser {
             });
         if let Some(source_aliases) = source_aliases {
             let input = self.resolved_analysis_input();
+            let logical_declarations = source_aliases
+                .logical_declarations(&input, &self.head_identities)
+                .unwrap_or_default();
             if let Some(spans) =
                 source_aliases.unresolved_logical_name_spans(&input, &self.head_identities)
             {
@@ -3868,6 +3871,59 @@ impl Analyser {
                 self.result
                     .original_variable_alias_source_operands
                     .push(source_aliases);
+            }
+            for declaration in logical_declarations {
+                let (local, word) = declaration.local();
+                let Some(&token) = word.tokens().first() else {
+                    continue;
+                };
+                self.define_var(local, token, scope_path, false, None);
+                let Some(target) = declaration.target() else {
+                    continue;
+                };
+                let Some(target_input) =
+                    self.original_qualified_variable_input(target.span(), false)
+                else {
+                    continue;
+                };
+                let purpose = crate::signature_scan::original_name::OriginalSourceNamePurpose::for_analysis_input(
+                    &input, self.source_analysis_entry.as_deref(), target_input.policy(),
+                );
+                let Some(original) = declaration.target_occurrence(&input, target_input, purpose)
+                else {
+                    continue;
+                };
+                if self
+                    .result
+                    .original_variable_symbol_conflicts
+                    .contains(&target.span())
+                {
+                    continue;
+                }
+                if let Some(existing) = self
+                    .result
+                    .original_variable_symbols
+                    .iter_mut()
+                    .find(|site| site.span() == target.span())
+                {
+                    if !existing.merge_declaration(&original) {
+                        self.result
+                            .original_variable_symbol_conflicts
+                            .push(target.span());
+                        continue;
+                    }
+                } else {
+                    self.result.original_variable_symbols.push(original);
+                }
+                // The link's display is attached only after actual original
+                // target geometry. It never supplies symbol identity.
+                if let Some(report) = self.alias_target_report(
+                    &declaration.alias().target,
+                    &tokens.argv_texts[1..],
+                    scope_path,
+                ) {
+                    self.set_var_link_report(local, scope_path, report, target.span());
+                }
             }
         }
         let writes = if self.selected_logical_declaration_advice() {

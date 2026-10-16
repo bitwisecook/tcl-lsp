@@ -1,0 +1,20 @@
+
+running 2 tests
+test interp::host_bootstrap_storage_tests::distribution_host_bootstrap_owns_storage_without_a_native_name_policy ... 
+thread 'interp::host_bootstrap_storage_tests::distribution_host_bootstrap_owns_storage_without_a_native_name_policy' (138966) panicked at rust/tcl-vm/src/interp.rs:33851:9:
+assertion failed: vm.execution_refusal.is_none()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test interp::host_bootstrap_storage_tests::host_release_slot_keeps_a_name_link_to_a_missing_array_element ... 
+thread 'interp::host_bootstrap_storage_tests::host_release_slot_keeps_a_name_link_to_a_missing_array_element' (138967) panicked at rust/tcl-vm/src/interp.rs:33954:9:
+assertion failed: vm.execution_refusal.is_none()
+FAILED
+
+failures:
+
+failures:
+    interp::host_bootstrap_storage_tests::distribution_host_bootstrap_owns_storage_without_a_native_name_policy
+    interp::host_bootstrap_storage_tests::host_release_slot_keeps_a_name_link_to_a_missing_array_element
+
+test result: FAILED. 0 passed; 2 failed; 0 ignored; 0 measured; 1384 filtered out; finished in 0.07s
+

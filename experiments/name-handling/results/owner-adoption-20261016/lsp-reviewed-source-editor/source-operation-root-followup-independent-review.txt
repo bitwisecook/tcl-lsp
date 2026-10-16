@@ -1,0 +1,14 @@
+CLEAR — read-only review of Root warning/import/test-path fixes
+
+Current files:
+rust/tcl-compiler/src/command_binding/declaration_layout.rs SHA256 0d1859edbba05c77fa3c95a8dbda542619a675f7687f68db1b17ece6cdf042b8
+rust/tcl-compiler/src/command_binding/declaration_preview.rs SHA256 886564456505a229e611492d85c95ffe4b42e8a9c08daa5bb432e9d9078a8a64
+rust/tcl-registry/src/source_operation.rs SHA256 1c4d5e002336facc8ba122be72de57a6b0a1d6debc38834f412f8cfb654bb361
+
+The updated current_conditional_source_advice selects current_source_advice(tokens,true) exactly for Configured layout with nonempty source_operations. All other cases call the existing current_advice(tokens), which selects current_source_advice(tokens,false). This is behavior-preserving: Original kind ignores the conditional_source flag; Configured empty-prefix metadata_advice has only an empty-prefix guard before invoking the same conditional_source_advice body; Configured nonempty-prefix retains the explicit conditional route. Every case shares the original binding/owner/cache/attachment/config/source/current-layout validation. There is no retry after refusal, fallback, new allow attribute or weakened guard. The ordinary reader is now genuinely used by production.
+
+The new test uses super::DeclarationSourceOperandLayoutKind::Configured, the actual parent module type path. Existing positive/refusal assertions, including ordinary reader None after nonempty source prefix and conditional reader Some, remain.
+
+Root corrected the candidate's invalid crate::SideEffect root import to crate::side_effects::SideEffect, the existing actual defining module; semantics unchanged. The original draft import was my error; Root's correction is verified. No builds/tests/main mutations by this reviewer.
+
+Alias count note: Root explicitly accepted one new unlisted readonly source VarDef caller annex for e4bab2...; existing owner680 remains the shared scope carrier facet. The namespace-only4066 unit is not used. This supersedes the earlier provisional count0 linkage suggestion; actual new integration is counted once.

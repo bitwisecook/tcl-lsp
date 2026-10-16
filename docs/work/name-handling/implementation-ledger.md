@@ -7,9 +7,9 @@ implementation pending validation: 104 code units and all 54 authored-documentat
 units. These include one explicitly partial caller (DB class cards).
 **Zero units are verified complete**. Baseline counts remain **2,158**;
 2,000 baseline units have no integrated implementation. The bounded
-[owner/caller annex](implementation-owner-annex.json) adds **33 demonstrated
-requirements**, 32 integrated pending validation and one blocked before integration.
-Effective scope is **2,191 obligations**, with **190 integrated pending validation**
+[owner/caller annex](implementation-owner-annex.json) adds **34 demonstrated
+requirements**, 33 integrated pending validation and one blocked before integration.
+Effective scope is **2,192 obligations**, with **191 integrated pending validation**
 and **2,001 not integrated**. These counts establish neither semantic acceptance
 nor completed gates.
 

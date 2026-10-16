@@ -1,0 +1,22 @@
+{
+  "purpose": "Existing SourceAlias carrier readonly Logical VarDef/typed target geometry adapter; ordinary aliases/Normal/Native/cells/effects unchanged",
+  "count_advance": 0,
+  "scope_limitations": [
+    "Independently written local names only; derived alias tails remain outside this facet",
+    "No alias continuity or ordinary alias receipt; exact read/navigation applicability remains independent",
+    "Jim caller-template failure remains separate and unmodified"
+  ],
+  "base_sha256": {
+    "rust/tcl-compiler/src/analyser/commands.rs": "68a10577035937ae5f54dee55d62ce8e401a3ceaaad459a5b8daccd657517421",
+    "rust/tcl-compiler/src/analyser/handlers.rs": "080a05c33096df7b510c44246316ce80cbf5fabcfe9709d5a77f68e6e9fc41c1",
+    "rust/tcl-compiler/src/registry_invocation/declaration_assistance.rs": "9dc8172443e3899e260a9e490b2552e841742169a54dade606ac03f67166a3c7"
+  },
+  "edit_sha256": {
+    "rust/tcl-compiler/src/analyser/commands.rs": "d1da81ea17c90e974cbf9367cfb77cb9d4c1f63dff40ee1dd917ed593d5f6917",
+    "rust/tcl-compiler/src/analyser/handlers.rs": "27ba00fbb13a054144ca074ba6f6fbca8816b180726e6b3e917efa395899527d",
+    "rust/tcl-compiler/src/registry_invocation/declaration_assistance.rs": "8fe4866fb758f209c5341271ab03deceaf3b020fcc4ae5a8acc7131ac4cec087"
+  },
+  "patch_sha256": "e4bab2b1649e57d0a8462c03512c74ad8c058d59a821a6579011396219a058cd",
+  "frozen_diagnosis": "/tmp/compiler-lsp-source-dependency-546ef-trace-v1/manifest.json",
+  "candidate_execution": "not built or executed; Root owns Cargo/main"
+}

@@ -1,0 +1,51 @@
+
+running 17 tests
+test diff_add_remove_json ... ok
+test diff_add_remove_text ... ok
+test diff_reads_ucs ... ok
+test diff_scalar_modify ... ok
+test diff_tmsh_input ... ok
+test explain_reads_ucs ... ok
+test explain_virtual_json ... 
+thread 'explain_virtual_json' (140669) panicked at rust/f5-cli/tests/cli.rs:55:5:
+assertion `left == right` failed: f5 diff output does not match the golden (explain-virtual.json.golden)
+  left: "{\n  \"target\": \"/Common/www_vs\",\n  \"kind\": \"virtual\",\n  \"found\": true,\n  \"sections\": [\n    {\n      \"heading\": \"destination\",\n      \"lines\": [\n        \"/Common/10.0.0.1:443\"\n      ]\n    },\n    {\n      \"heading\": \"profiles\",\n      \"lines\": [\n        \"/Common/my_http_profile (http)\",\n        \"/Common/my_tcp_profile (tcp)\",\n        \"/Common/my_clientssl (client_ssl)\",\n        \"/Common/my_serverssl (server_ssl)\",\n        \"/Common/my_oneconnect (one_connect)\"\n      ]\n    },\n    {\n      \"heading\": \"iRules\",\n      \"lines\": [\n        \"/Common/route_by_host \\u2014 14 loc; events: (event inventory unavailable)\",\n        \"/Common/ip_blocklist \\u2014 5 loc; events: (event inventory unavailable)\",\n        \"/Common/uri_rewrite \\u2014 6 loc; events: (event inventory unavailable)\"\n      ]\n    },\n    {\n      \"heading\": \"persistence\",\n      \"lines\": [\n        \"/Common/my_cookie_persist (cookie)\"\n      ]\n    },\n    {\n      \"heading\": \"SNAT\",\n      \"lines\": [\n        \"snatpool /Common/my_snatpool (2 member(s))\",\n        \"translation: snat\"\n      ]\n    },\n    {\n      \"heading\": \"default pool\",\n      \"lines\": [\n        \"/Common/web_pool (round-robin)\",\n        \"  pool monitor: /Common/my_http_monitor\",\n        \"  member /Common/web1:80 addr=10.0.1.10\",\n        \"  member /Common/web2:80 addr=10.0.1.11\"\n      ]\n    }\n  ]\n}\n"
+ right: "{\n  \"target\": \"/Common/www_vs\",\n  \"kind\": \"virtual\",\n  \"found\": true,\n  \"sections\": [\n    {\n      \"heading\": \"destination\",\n      \"lines\": [\n        \"/Common/10.0.0.1:443\"\n      ]\n    },\n    {\n      \"heading\": \"profiles\",\n      \"lines\": [\n        \"/Common/my_http_profile (http)\",\n        \"/Common/my_tcp_profile (tcp)\",\n        \"/Common/my_clientssl (client_ssl)\",\n        \"/Common/my_serverssl (server_ssl)\",\n        \"/Common/my_oneconnect (one_connect)\"\n      ]\n    },\n    {\n      \"heading\": \"iRules\",\n      \"lines\": [\n        \"/Common/route_by_host \\u2014 14 loc; events: HTTP_REQUEST\",\n        \"/Common/ip_blocklist \\u2014 5 loc; events: CLIENT_ACCEPTED\",\n        \"/Common/uri_rewrite \\u2014 6 loc; events: HTTP_REQUEST\"\n      ]\n    },\n    {\n      \"heading\": \"persistence\",\n      \"lines\": [\n        \"/Common/my_cookie_persist (cookie)\"\n      ]\n    },\n    {\n      \"heading\": \"SNAT\",\n      \"lines\": [\n        \"snatpool /Common/my_snatpool (2 member(s))\",\n        \"translation: snat\"\n      ]\n    },\n    {\n      \"heading\": \"default pool\",\n      \"lines\": [\n        \"/Common/web_pool (round-robin)\",\n        \"  pool monitor: /Common/my_http_monitor\",\n        \"  member /Common/web1:80 addr=10.0.1.10\",\n        \"  member /Common/web2:80 addr=10.0.1.11\"\n      ]\n    }\n  ]\n}\n"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test explain_virtual_text ... 
+thread 'explain_virtual_text' (140674) panicked at rust/f5-cli/tests/cli.rs:55:5:
+assertion `left == right` failed: f5 diff output does not match the golden (explain-virtual.text.golden)
+  left: "explain virtual: /Common/www_vs\n\n  destination:\n    /Common/10.0.0.1:443\n\n  profiles:\n    /Common/my_http_profile (http)\n    /Common/my_tcp_profile (tcp)\n    /Common/my_clientssl (client_ssl)\n    /Common/my_serverssl (server_ssl)\n    /Common/my_oneconnect (one_connect)\n\n  iRules:\n    /Common/route_by_host — 14 loc; events: (event inventory unavailable)\n    /Common/ip_blocklist — 5 loc; events: (event inventory unavailable)\n    /Common/uri_rewrite — 6 loc; events: (event inventory unavailable)\n\n  persistence:\n    /Common/my_cookie_persist (cookie)\n\n  SNAT:\n    snatpool /Common/my_snatpool (2 member(s))\n    translation: snat\n\n  default pool:\n    /Common/web_pool (round-robin)\n      pool monitor: /Common/my_http_monitor\n      member /Common/web1:80 addr=10.0.1.10\n      member /Common/web2:80 addr=10.0.1.11\n"
+ right: "explain virtual: /Common/www_vs\n\n  destination:\n    /Common/10.0.0.1:443\n\n  profiles:\n    /Common/my_http_profile (http)\n    /Common/my_tcp_profile (tcp)\n    /Common/my_clientssl (client_ssl)\n    /Common/my_serverssl (server_ssl)\n    /Common/my_oneconnect (one_connect)\n\n  iRules:\n    /Common/route_by_host — 14 loc; events: HTTP_REQUEST\n    /Common/ip_blocklist — 5 loc; events: CLIENT_ACCEPTED\n    /Common/uri_rewrite — 6 loc; events: HTTP_REQUEST\n\n  persistence:\n    /Common/my_cookie_persist (cookie)\n\n  SNAT:\n    snatpool /Common/my_snatpool (2 member(s))\n    translation: snat\n\n  default pool:\n    /Common/web_pool (round-robin)\n      pool monitor: /Common/my_http_monitor\n      member /Common/web1:80 addr=10.0.1.10\n      member /Common/web2:80 addr=10.0.1.11\n"
+FAILED
+test extract_encrypted_ucs ... ok
+test extract_plain_ucs ... ok
+test extract_plain_ucs_include_extras ... ok
+test merge ... ok
+test merge_refuses_opaque_path_without_opening_replacement_sibling ... ok
+test mutating_queries_require_faithful_named_and_structured_donors ... 
+thread 'mutating_queries_require_faithful_named_and_structured_donors' (140736) panicked at rust/f5-cli/tests/cli.rs:413:9:
+[101, 114, 114, 111, 114, 58, 32, 114, 101, 110, 97, 109, 101, 58, 32, 97, 114, 103, 117, 109, 101, 110, 116, 32, 50, 32, 109, 117, 115, 116, 32, 98, 101, 32, 97, 32, 115, 116, 114, 105, 110, 103, 44, 32, 103, 111, 116, 32, 115, 116, 114, 101, 97, 109, 10]
+FAILED
+test query_archive_file_donors_keep_original_bytes_before_mutation ... 
+thread 'query_archive_file_donors_keep_original_bytes_before_mutation' (140739) panicked at rust/f5-cli/tests/cli.rs:453:9:
+[101, 114, 114, 111, 114, 58, 32, 99, 97, 110, 110, 111, 116, 32, 114, 101, 97, 100, 32, 102, 105, 101, 108, 100, 32, 34, 99, 111, 110, 116, 101, 110, 116, 34, 32, 111, 110, 32, 110, 117, 108, 108, 10]
+FAILED
+test source_transforms_refuse_invalid_name_bytes_before_artifacts ... 
+thread 'source_transforms_refuse_invalid_name_bytes_before_artifacts' (140742) panicked at rust/f5-cli/tests/cli.rs:357:5:
+assertion failed: String::from_utf8(report.stdout).unwrap().contains("/Common/old")
+FAILED
+test split_then_merge ... ok
+
+failures:
+
+failures:
+    explain_virtual_json
+    explain_virtual_text
+    mutating_queries_require_faithful_named_and_structured_donors
+    query_archive_file_donors_keep_original_bytes_before_mutation
+    source_transforms_refuse_invalid_name_bytes_before_artifacts
+
+test result: FAILED. 12 passed; 5 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.55s
+

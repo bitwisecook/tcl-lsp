@@ -1,0 +1,17 @@
+
+running 3 tests
+test interprocedural::tests::original_formal_reference_parts_keep_lexical_names_and_complete_grammar ... ok
+test interprocedural::tests::original_formal_reference_traits_keep_actual_body_function_and_cfg_owners ... 
+thread 'interprocedural::tests::original_formal_reference_traits_keep_actual_body_function_and_cfg_owners' (138922) panicked at rust/tcl-compiler/src/interprocedural.rs:7413:9:
+assertion failed: !observed.param_observations_incomplete
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test interprocedural::tests::original_formal_reference_traits_keep_authored_conditions_and_unknown_obligations ... ok
+
+failures:
+
+failures:
+    interprocedural::tests::original_formal_reference_traits_keep_actual_body_function_and_cfg_owners
+
+test result: FAILED. 2 passed; 1 failed; 0 ignored; 0 measured; 10243 filtered out; finished in 1.01s
+

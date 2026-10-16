@@ -727,6 +727,33 @@
         "verified_complete": false
       },
       "implementation_scope": "Source-cleared fb865... integrated; original explain goldens and new source controls pending ordinary execution."
+    },
+    {
+      "id": "compiler.consumer.logical-source-alias-declaration-observations",
+      "kind": "caller_migration",
+      "baseline_unit_ids": [
+        "compiler.source.logical-variable-scope-transport:680"
+      ],
+      "site_anchors": [
+        {
+          "path": "rust/tcl-compiler/src/analyser/commands.rs",
+          "symbol": "record_original_variable_receivers; source-only alias declaration adopter"
+        },
+        {
+          "path": "rust/tcl-compiler/src/analyser/handlers.rs",
+          "symbol": "source declaration/target observation adapter"
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/declaration_assistance.rs",
+          "symbol": "OriginalSourceVariableAliasOperands; sealed source declaration transport"
+        }
+      ],
+      "rationale": "One distinct actual Source-only variable definition and target-link observation caller, absent exact baseline adopter purpose. Existing680 owns retained Logical variable/frame source geometry;4066 owns namespace name references and is not this adopter. Extend the existing carrier, then consume genuine full source/config/context/scope/frame and typed Registry source alias geometry without ordinary alias operands/receipts/cell/effect/Normal/lookup/observer grants. Independent review and exact baseline purpose reconciliation count the new caller once, not its carrier/helper/test multiplicity.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false
+      },
+      "implementation_scope": "Reviewed e4bab... integrated in current LSP source batch; unchanged source upvar local declaration control and new source/ordinary-Widen/target/currency controls pending ordinary execution."
     }
   ],
   "unverified_or_open": [
@@ -738,27 +765,27 @@
   ],
   "status_note": "Requirements are counted regardless of implementation presence. No additional requirement or baseline unit is verified complete.",
   "status": "accepted_additional_obligations_unverified",
-  "utc": "2026-10-16T13:52:22.430798+00:00",
+  "utc": "2026-10-16T14:42:48.865959+00:00",
   "accepted_delta": {
-    "semantic_code_changes": 33,
+    "semantic_code_changes": 34,
     "validation_code_repairs": 0,
     "authored_documentation": 0,
-    "all_required_changes": 33,
+    "all_required_changes": 34,
     "by_kind": {
       "shared_owner_repair": 9,
       "shared_owner_extension": 15,
-      "caller_migration": 8,
+      "caller_migration": 9,
       "metadata_or_target_schema": 1
     }
   },
   "effective_counts": {
-    "semantic_code_changes": 1832,
+    "semantic_code_changes": 1833,
     "validation_code_repairs": 305,
     "authored_documentation": 54,
-    "all_required_changes": 2191
+    "all_required_changes": 2192
   },
   "implementation_progress": {
-    "implemented_pending_validation": 32,
+    "implemented_pending_validation": 33,
     "not_integrated": 1,
     "verified_complete": 0
   }

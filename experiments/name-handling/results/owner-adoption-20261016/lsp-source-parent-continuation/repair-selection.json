@@ -1,0 +1,343 @@
+{
+  "group": "LSP source repairs, file URI, procedure catalogue, semantic scopes and release escapes; selected controls only",
+  "total_exact_selectors": 63,
+  "groups": {
+    "tcl_compiler": [
+      "analyser::handlers::tests::logical_alias_source_declarations_keep_typed_targets_and_unknown_obligations",
+      "analyser::scope::logical_alias_occurrence_tests::logical_alias_reads_keep_source_coverage_and_variable_edit_obligations",
+      "analyser::scope::logical_alias_occurrence_tests::logical_alias_reads_preserve_competing_unknown_and_frame_barriers",
+      "analyser::variable_alias_templates::tests::logical_alias_templates_keep_actual_procedure_and_namespace_source_frames",
+      "analyser::variable_source_declarations::tests::logical_alias_target_definitions_use_original_symbols_and_actual_frame_selection",
+      "body_analysis_capsule::readonly_authored_coverage::tests::readonly_authored_coverage_keeps_installed_function_input_and_unique_store",
+      "body_analysis_capsule::readonly_authored_coverage::tests::readonly_authored_coverage_preserves_both_actual_analysis_inventories",
+      "body_analysis_capsule::readonly_authored_coverage::tests::readonly_authored_coverage_refuses_missing_foreign_and_mismatched_owners",
+      "command_binding::declaration_layout::authored_source_parent_tests::authored_source_parent_reborrow_keeps_allocated_and_uninstalled_body_owners",
+      "command_binding::declaration_layout::tests::declaration_scalar_trace_exclusions_retain_other_names_and_mapped_source_configurations",
+      "command_binding::declaration_layout::tests::mapped_source_continuation_keeps_original_prefix_and_observer_debt",
+      "registry_invocation::authored_controls::tests::authored_scalar_bodies_retain_real_source_definitions_without_native_admission",
+      "registry_invocation::authored_controls::tests::authored_scalar_return_refuses_combined_arrays_and_nul_names",
+      "registry_invocation::authored_controls::tests::authored_scalar_scopes_keep_profiled_standalone_metadata_without_supplied_fallback",
+      "registry_invocation::authored_controls::tests::authored_scalar_source_keeps_alias_array_computed_and_expanded_cases_generic",
+      "registry_invocation::authored_controls::tests::authored_scalar_source_stamp_keeps_actual_parent_rows_and_terminal_points",
+      "registry_invocation::authored_controls::tests::authored_scalar_without_runtime_policy_uses_only_unanimous_source_local_geometry",
+      "registry_invocation::declaration_assistance::original_alias_source_schema_tests::logical_alias_declarations_keep_actual_source_frame_and_ordinary_widening",
+      "registry_invocation::declaration_assistance::original_alias_source_schema_tests::logical_alias_name_obligations_keep_actual_dynamic_targets_and_frame_noops"
+    ],
+    "tcl_registry": [
+      "source_operation::tests::source_coverage_never_drops_extra_effects_or_borrows_a_missing_hook",
+      "source_operation::tests::source_result_coverage_retains_raw_writes_residual_reads_and_unmet_premises"
+    ],
+    "tcl_lsp_core": [
+      "file_uri::tests::admitted_uri_spellings_preserve_path_data_under_each_escaping_policy",
+      "file_uri::tests::host_path_admission_retains_posix_backslashes_and_declines_relative_or_nul_paths",
+      "file_uri::tests::non_unicode_paths_do_not_publish_a_replacement_character_uri",
+      "file_uri::tests::standalone_windows_geometry_preserves_drive_unc_and_extended_namespace",
+      "file_uri::tests::unsupported_windows_verbatim_subtypes_do_not_lose_their_native_root",
+      "procedure_symbol::tests::logical_procedure_catalogue_keeps_every_original_header_and_source_coordinate",
+      "procedure_symbol::tests::logical_procedure_catalogue_refuses_unavailable_original_header",
+      "procedure_symbol::tests::original_procedure_tool_literal_values_use_the_selected_native_ingress",
+      "procedure_symbol::tests::original_procedure_tool_queries_keep_declarations_and_refuse_scope_guesses",
+      "semantic_tokens::tests::escape_subtoken_width_follows_the_selected_release_grammar",
+      "semantic_tokens::tests::vscode_semantic_token_scopes_cover_the_server_legend"
+    ],
+    "tcl_lsp_server": [
+      "tests::canonical_file_uri_declines_opaque_actual_path_without_replacement_alias",
+      "tests::canonical_file_uri_matches_vscode_for_a_posix_double_slash_path",
+      "tests::canonical_file_uri_preserves_a_posix_question_mark_segment",
+      "tests::canonical_file_uri_preserves_absolute_and_relative_existence_policy",
+      "uri_norm::file_action_path_tests::incoming_file_action_paths_preserve_actual_posix_path_data",
+      "uri_norm::file_action_path_tests::incoming_file_action_paths_reject_lossy_or_unrepresented_uri_data",
+      "uri_norm::tests::a_non_drive_path_is_not_touched",
+      "uri_norm::tests::a_raw_non_ascii_path_is_repaired",
+      "uri_norm::tests::a_relative_path_has_no_rooted_file_uri",
+      "uri_norm::tests::a_repaired_uri_is_canonicalised_too",
+      "uri_norm::tests::a_rooted_path_gets_the_same_uri_from_file_path_would_give",
+      "uri_norm::tests::a_rooted_path_with_a_space_is_percent_encoded",
+      "uri_norm::tests::a_string_that_is_not_a_uri_at_all_is_left_to_the_error_path",
+      "uri_norm::tests::a_vscode_form_uri_is_already_canonical",
+      "uri_norm::tests::a_well_formed_uri_needs_no_repair",
+      "uri_norm::tests::a_windows_drive_letter_is_pinned_lower_case",
+      "uri_norm::tests::a_windows_extended_drive_uri_is_repaired",
+      "uri_norm::tests::an_unencoded_space_is_repaired",
+      "uri_norm::tests::browser_and_virtual_workspace_uris_keep_their_structure",
+      "uri_norm::tests::canonicalisation_is_idempotent",
+      "uri_norm::tests::existing_escapes_survive_a_repair",
+      "uri_norm::tests::generic_canonicalisation_preserves_posix_double_slash_path",
+      "uri_norm::tests::generic_canonicalisation_preserves_posix_question_mark_segment",
+      "uri_norm::tests::incoming_browser_and_virtual_workspace_uris_are_not_reinterpreted",
+      "uri_norm::tests::params_are_canonicalised_not_only_repaired",
+      "uri_norm::tests::params_are_normalised_wherever_a_uri_key_appears",
+      "uri_norm::tests::path_authority_split_matches_vscode_uri_file",
+      "uri_norm::tests::percent_escape_hex_is_pinned_upper_case",
+      "uri_norm::tests::posix_double_slash_question_mark_is_not_windows_metadata",
+      "uri_norm::tests::rooted_host_paths_keep_literal_backslashes_and_percent_signs",
+      "uri_norm::tests::windows_unc_uri_shapes_gain_an_authority"
+    ]
+  },
+  "expected_group_counts": {
+    "tcl_compiler": 19,
+    "tcl_registry": 2,
+    "tcl_lsp_core": 11,
+    "tcl_lsp_server": 31
+  },
+  "execution_order": [
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::handlers::tests::logical_alias_source_declarations_keep_typed_targets_and_unknown_obligations"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::scope::logical_alias_occurrence_tests::logical_alias_reads_keep_source_coverage_and_variable_edit_obligations"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::scope::logical_alias_occurrence_tests::logical_alias_reads_preserve_competing_unknown_and_frame_barriers"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::variable_alias_templates::tests::logical_alias_templates_keep_actual_procedure_and_namespace_source_frames"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::variable_source_declarations::tests::logical_alias_target_definitions_use_original_symbols_and_actual_frame_selection"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "body_analysis_capsule::readonly_authored_coverage::tests::readonly_authored_coverage_keeps_installed_function_input_and_unique_store"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "body_analysis_capsule::readonly_authored_coverage::tests::readonly_authored_coverage_preserves_both_actual_analysis_inventories"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "body_analysis_capsule::readonly_authored_coverage::tests::readonly_authored_coverage_refuses_missing_foreign_and_mismatched_owners"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "command_binding::declaration_layout::authored_source_parent_tests::authored_source_parent_reborrow_keeps_allocated_and_uninstalled_body_owners"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "command_binding::declaration_layout::tests::declaration_scalar_trace_exclusions_retain_other_names_and_mapped_source_configurations"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "command_binding::declaration_layout::tests::mapped_source_continuation_keeps_original_prefix_and_observer_debt"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::authored_controls::tests::authored_scalar_bodies_retain_real_source_definitions_without_native_admission"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::authored_controls::tests::authored_scalar_return_refuses_combined_arrays_and_nul_names"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::authored_controls::tests::authored_scalar_scopes_keep_profiled_standalone_metadata_without_supplied_fallback"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::authored_controls::tests::authored_scalar_source_keeps_alias_array_computed_and_expanded_cases_generic"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::authored_controls::tests::authored_scalar_source_stamp_keeps_actual_parent_rows_and_terminal_points"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::authored_controls::tests::authored_scalar_without_runtime_policy_uses_only_unanimous_source_local_geometry"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::declaration_assistance::original_alias_source_schema_tests::logical_alias_declarations_keep_actual_source_frame_and_ordinary_widening"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::declaration_assistance::original_alias_source_schema_tests::logical_alias_name_obligations_keep_actual_dynamic_targets_and_frame_noops"
+    },
+    {
+      "target": "tcl_registry",
+      "selector": "source_operation::tests::source_coverage_never_drops_extra_effects_or_borrows_a_missing_hook"
+    },
+    {
+      "target": "tcl_registry",
+      "selector": "source_operation::tests::source_result_coverage_retains_raw_writes_residual_reads_and_unmet_premises"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "file_uri::tests::admitted_uri_spellings_preserve_path_data_under_each_escaping_policy"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "file_uri::tests::host_path_admission_retains_posix_backslashes_and_declines_relative_or_nul_paths"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "file_uri::tests::non_unicode_paths_do_not_publish_a_replacement_character_uri"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "file_uri::tests::standalone_windows_geometry_preserves_drive_unc_and_extended_namespace"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "file_uri::tests::unsupported_windows_verbatim_subtypes_do_not_lose_their_native_root"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "procedure_symbol::tests::logical_procedure_catalogue_keeps_every_original_header_and_source_coordinate"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "procedure_symbol::tests::logical_procedure_catalogue_refuses_unavailable_original_header"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "procedure_symbol::tests::original_procedure_tool_literal_values_use_the_selected_native_ingress"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "procedure_symbol::tests::original_procedure_tool_queries_keep_declarations_and_refuse_scope_guesses"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "semantic_tokens::tests::escape_subtoken_width_follows_the_selected_release_grammar"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "semantic_tokens::tests::vscode_semantic_token_scopes_cover_the_server_legend"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "tests::canonical_file_uri_declines_opaque_actual_path_without_replacement_alias"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "tests::canonical_file_uri_matches_vscode_for_a_posix_double_slash_path"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "tests::canonical_file_uri_preserves_a_posix_question_mark_segment"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "tests::canonical_file_uri_preserves_absolute_and_relative_existence_policy"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::file_action_path_tests::incoming_file_action_paths_preserve_actual_posix_path_data"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::file_action_path_tests::incoming_file_action_paths_reject_lossy_or_unrepresented_uri_data"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::a_non_drive_path_is_not_touched"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::a_raw_non_ascii_path_is_repaired"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::a_relative_path_has_no_rooted_file_uri"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::a_repaired_uri_is_canonicalised_too"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::a_rooted_path_gets_the_same_uri_from_file_path_would_give"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::a_rooted_path_with_a_space_is_percent_encoded"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::a_string_that_is_not_a_uri_at_all_is_left_to_the_error_path"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::a_vscode_form_uri_is_already_canonical"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::a_well_formed_uri_needs_no_repair"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::a_windows_drive_letter_is_pinned_lower_case"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::a_windows_extended_drive_uri_is_repaired"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::an_unencoded_space_is_repaired"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::browser_and_virtual_workspace_uris_keep_their_structure"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::canonicalisation_is_idempotent"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::existing_escapes_survive_a_repair"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::generic_canonicalisation_preserves_posix_double_slash_path"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::generic_canonicalisation_preserves_posix_question_mark_segment"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::incoming_browser_and_virtual_workspace_uris_are_not_reinterpreted"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::params_are_canonicalised_not_only_repaired"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::params_are_normalised_wherever_a_uri_key_appears"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::path_authority_split_matches_vscode_uri_file"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::percent_escape_hex_is_pinned_upper_case"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::posix_double_slash_question_mark_is_not_windows_metadata"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::rooted_host_paths_keep_literal_backslashes_and_percent_signs"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::windows_unc_uri_shapes_gain_an_authority"
+    }
+  ],
+  "test_timeout_seconds": 180,
+  "listing_timeout_seconds": 30,
+  "environment": {
+    "set": {},
+    "unset": []
+  }
+}

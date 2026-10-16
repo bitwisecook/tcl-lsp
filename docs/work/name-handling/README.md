@@ -7,13 +7,13 @@ implementation pending validation: 104 code units and all 54 authored-documentat
 units. These include one explicitly partial caller (DB class cards).
 **Zero units are verified complete**. Baseline counts remain **2,158**;
 2,000 baseline units have no integrated implementation. The bounded
-[owner/caller annex](implementation-owner-annex.json) adds **33 demonstrated
-requirements**, 32 integrated pending validation and one blocked before integration.
-Effective scope is **2,191 obligations**, with **190 integrated pending validation**
+[owner/caller annex](implementation-owner-annex.json) adds **34 demonstrated
+requirements**, 33 integrated pending validation and one blocked before integration.
+Effective scope is **2,192 obligations**, with **191 integrated pending validation**
 and **2,001 not integrated**. These counts establish neither semantic acceptance
 nor completed gates.
 
-Development checkpoint `b96b7b49e` is pushed to `work`. The
+Development checkpoint `da6735cf4` is pushed to `work`. The
 [current implementation and validation snapshot](current-state.md) records exact
 ordinary builds, selected failures, source-only limitations, restored evidence
 and pending gates. The [implementation ledger](implementation-ledger.md) retains
@@ -51,25 +51,3 @@ Read [the continuation](continue-prompt.md), [plan](plan.md), [issue catalogue](
 - [Name-resolution proof index](../../design/analysis/name-resolution-proofs/README.md)
 
 Before the final PR, move useful contracts and real experiments/tests into durable locations. Correct documentation/comments across the entire tracked repository, including generated guidance and files outside the implementation diff. Remove obsolete guidance, completed TODOs, development narratives, temporary ledgers/prompts/archives and their references, including this directory and the work-specific AGENTS exception. Preserve reproducible evidence and legal attribution. Complete all gates before creating a ready-to-merge PR; do not merge. This final cleanup is still required and is not completed by source-audit closure.
-
-Reviewed successor integration retains mapped source operands solely for diagnostic
-intervals, explicit constructor-body coverage solely for source reporting, and
-actual VM original-body result publication through the shared stateful capsule.
-All remain pending validation. The seven-package 2d582 test build passes after
-new-test scope/opaque identity assertion repairs; selected controls are running.
-All 470 remaining archived executables (616,441,339 bytes) were restored with Git
-and all 638 retained proof hashes verified; none was executed during restoration.
-Three maintained test bindings and one current owner binding were repaired while
-preserving evidence/result/source-anchor hashes. Required gates remain red.
-
-The stateful Runtime API successor build passes; its selected original-name
-queries are 16 PASS and info controls 44 PASS. Availability diagnostic after
-restoring the bounded payload set reports 2,291 errors, zero missing files and
-zero unbound annotations. Source integration occurred during that run, so it
-is not immutable-source gate acceptance; evidence/census drift remains open.
-
-Five further baseline CLI/MCP boundaries adopt the existing emitter roster,
-actual report context status and optional shared dialect schema. Their target
-tests remain unexecuted. Logical alias applicability stays within baseline owner
-680; no extra owner requirement is counted. New pure-gap/body-descent corrections
-are source-reviewed and the successor seven-library test build is running.

@@ -1,0 +1,14 @@
+
+running 9 tests
+test invalid_json_position ... ok
+test missing_host_errors_for_all_verbs ... ok
+test missing_password_after_env_host_and_user ... ok
+test missing_payload_file_errno_message ... ok
+test missing_user_after_env_host ... ok
+test push_dry_run_name_only_target ... ok
+test ssh_transport_connection_refused ... ok
+test unknown_kind_rejected_by_clap ... ok
+test unknown_transport_rejected_by_clap ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.18s
+

@@ -87,6 +87,7 @@ pub(crate) struct OriginalSourceVariableAliasOperands {
         tcl_lexer::Span,
         DeclarationVariableAliasPurpose,
     )>,
+    logical_declarations: Option<Vec<tcl_registry::VariableCellAliasTransition>>,
     logical_name_obligations: Vec<(
         tcl_lexer::Span,
         Option<tcl_registry::VariableAliasDestination>,
@@ -190,6 +191,27 @@ impl OriginalSourceVariableAliasOperands {
             }
             _ => Vec::new(),
         };
+        let logical_declarations = if transitions.facts().iter().any(|fact| {
+            matches!(
+                fact.transition,
+                tcl_registry::StateTransition::VariableCellAlias(_)
+            )
+        }) {
+            None
+        } else {
+            match words.source() {
+                super::source_structure::OriginalRegistrySource::SourceTransitions(advice)
+                    if advice.logical_source_input().is_some() =>
+                {
+                    words
+                        .with_source_schema(context, |schema| {
+                            schema.authored_logical_source_variable_aliases()
+                        })
+                        .flatten()
+                }
+                _ => None,
+            }
+        };
         let mut operands = Vec::new();
         for fact in transitions.facts() {
             let tcl_registry::StateTransition::VariableCellAlias(alias) = &fact.transition else {
@@ -220,9 +242,15 @@ impl OriginalSourceVariableAliasOperands {
                 operands.push(operand);
             }
         }
-        (!operands.is_empty() || !logical_name_obligations.is_empty()).then_some(Self {
+        (!operands.is_empty()
+            || logical_declarations
+                .as_ref()
+                .is_some_and(|aliases| !aliases.is_empty())
+            || !logical_name_obligations.is_empty())
+        .then_some(Self {
             words,
             operands,
+            logical_declarations,
             logical_name_obligations,
         })
     }
@@ -255,49 +283,8 @@ impl OriginalSourceVariableAliasOperands {
         {
             return None;
         }
-        let dialect = advice.dialect();
-        let scope = self
-            .words
-            .head_source()
-            .and_then(|head| head.word())
-            .and_then(|head| {
-                let policy = dialect.authored_name_policy()?;
-                let purpose =
-                crate::signature_scan::original_name::OriginalSourceNamePurpose::for_analysis_input(
-                    input, None, policy,
-                );
-                let name = purpose.key(
-                    head,
-                    tcl_syntax::word_rules::WordValueRules::from_config(&input.lexer_config()),
-                )?;
-                realm.original_logical_variable_scope_at(
-                    input,
-                    head.image(),
-                    head.span(),
-                    &crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(name),
-                )
-            });
-        let frame = scope
-            .as_ref()
-            .map_or(tcl_registry::VariableAliasFrame::Unknown, |scope| {
-                if let Some(frame) = scope.alias_frame() {
-                    match frame.frame().layout() {
-                        crate::var_resolve::VariableExecutionFrame::Procedure { .. }
-                        | crate::var_resolve::VariableExecutionFrame::ReceiverMethod { .. } => {
-                            tcl_registry::VariableAliasFrame::Procedure
-                        }
-                        crate::var_resolve::VariableExecutionFrame::Namespace(_)
-                        | crate::var_resolve::VariableExecutionFrame::NamespaceActivation {
-                            ..
-                        } => tcl_registry::VariableAliasFrame::Namespace,
-                        _ => tcl_registry::VariableAliasFrame::Unknown,
-                    }
-                } else if scope.namespace_storage() {
-                    tcl_registry::VariableAliasFrame::Global
-                } else {
-                    tcl_registry::VariableAliasFrame::Unknown
-                }
-            });
+        let scope = self.logical_scope(input, realm);
+        let frame = logical_alias_frame(scope.as_ref());
         self.words
             .with_source_schema(input.borrowed_context_registry(), |schema| {
                 self.logical_name_obligations
@@ -313,6 +300,87 @@ impl OriginalSourceVariableAliasOperands {
                     })
                     .collect()
             })
+    }
+
+    /// Conditional declarations from the independently selected Logical source
+    /// frame. Ordinary aliases, normal-edge state and coverage stay separate.
+    pub(crate) fn logical_declarations(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        realm: &crate::realm::CommandBindingRealm,
+    ) -> Option<Vec<OriginalLogicalAliasDeclaration>> {
+        let scope = self.logical_scope(input, realm)?;
+        let frame = logical_alias_frame(Some(&scope));
+        let declarations = self.logical_declarations.as_ref()?;
+        self.words
+            .with_source_schema(input.borrowed_context_registry(), |schema| {
+                declarations
+                    .iter()
+                    .filter_map(|alias| {
+                        (schema.authored_logical_source_alias_destination_is_active_in_frame(
+                            alias.destination,
+                            frame,
+                        ) == Some(true))
+                        .then_some(())?;
+                        let local = written_alias_operand(&self.words, &alias.local)?;
+                        let value =
+                            tcl_syntax::word_rules::original_static_word_unicode_value(local)?;
+                        // A derived tail has a different source receiver. This facet
+                        // admits only the actual independently written local name.
+                        (alias.local.literal()?.as_bytes() == value).then_some(())?;
+                        Some(OriginalLogicalAliasDeclaration {
+                            source: self.clone(),
+                            input: input.clone(),
+                            alias: alias.clone(),
+                            local: local.clone(),
+                            scope: scope.clone(),
+                        })
+                    })
+                    .collect()
+            })
+    }
+
+    fn logical_scope(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        realm: &crate::realm::CommandBindingRealm,
+    ) -> Option<crate::command_binding::OriginalLogicalVariableScope> {
+        let super::source_structure::OriginalRegistrySource::SourceTransitions(advice) =
+            self.words.source()
+        else {
+            return None;
+        };
+        if advice.logical_source_input() != Some(input)
+            || !input.has_logical_source_name_context()
+            || !self.matches_source_context(
+                advice.site().source.source_image(),
+                input.lexer_config(),
+                input.borrowed_context_registry(),
+            )
+            || !realm.matches_resolved_analysis_input(input)
+            || !realm.matches_original_source_image(
+                advice.site().source.source_image(),
+                input.lexer_config(),
+            )
+        {
+            return None;
+        }
+        let head = self.words.head_source()?.word()?;
+        let policy = advice.dialect().authored_name_policy()?;
+        let purpose =
+            crate::signature_scan::original_name::OriginalSourceNamePurpose::for_analysis_input(
+                input, None, policy,
+            );
+        let name = purpose.key(
+            head,
+            tcl_syntax::word_rules::WordValueRules::from_config(&input.lexer_config()),
+        )?;
+        realm.original_logical_variable_scope_at(
+            input,
+            head.image(),
+            head.span(),
+            &crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(name),
+        )
     }
 
     pub(crate) fn invocation_offset(&self) -> Option<u32> {
@@ -382,7 +450,38 @@ impl OriginalSourceVariableAliasOperands {
         current: &crate::signature_scan::scope::SignatureNamespaceScope,
         purpose: crate::signature_scan::original_name::OriginalSourceNamePurpose,
     ) -> Option<crate::signature_scan::scope::SignatureNamespaceScope> {
+        self.target_namespace_scope_for_words(
+            original,
+            input,
+            operands,
+            target_input,
+            current,
+            AliasNamespacePurpose::Recorded(purpose),
+        )
+    }
+
+    fn target_namespace_scope_for_words(
+        &self,
+        original: &super::source_structure::OriginalRegistryWords,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        operands: (tcl_lexer::Span, tcl_lexer::Span),
+        target_input: &crate::signature_scan::scope::SignatureSourceNameInput,
+        current: &crate::signature_scan::scope::SignatureNamespaceScope,
+        selection: AliasNamespacePurpose,
+    ) -> Option<crate::signature_scan::scope::SignatureNamespaceScope> {
+        let (purpose, logical_declaration) = match selection {
+            AliasNamespacePurpose::Recorded(purpose) => (purpose, false),
+            AliasNamespacePurpose::LogicalDeclaration(purpose) => (purpose, true),
+        };
         if original != &self.words {
+            return None;
+        }
+        if logical_declaration
+            && (!input.has_logical_source_name_context()
+                || !matches!(self.words.source(),
+                super::source_structure::OriginalRegistrySource::SourceTransitions(advice)
+                    if advice.logical_source_input() == Some(input)))
+        {
             return None;
         }
         let context = input.borrowed_context_registry();
@@ -395,13 +494,14 @@ impl OriginalSourceVariableAliasOperands {
                 ))
             };
             let global_frame = matches!(layout, Some(tcl_registry::frame_effect::FrameArgumentResolution::Valid { level, .. }) if level.is_global_frame());
-            let transitions = schema
-                .semantics
-                .state_transitions
-                .resolve_after_success_with_effect_coverage(schema.words.arguments())
-                .0;
-            (transitions, global_frame)
-        })?;
+            let transitions = if logical_declaration {
+                schema.authored_logical_source_state_transitions()
+            } else {
+                Some(schema.semantics.state_transitions
+                    .resolve_after_success_with_effect_coverage(schema.words.arguments()).0)
+            };
+            transitions.map(|transitions| (transitions, global_frame))
+        })??;
         let mut selected = None;
         for fact in transitions.facts() {
             let tcl_registry::StateTransition::VariableCellAlias(alias) = &fact.transition else {
@@ -471,6 +571,97 @@ impl OriginalSourceVariableAliasOperands {
         self.words.matches_source(image, config)
             && self.words.with_source_schema(context, |_| ()).is_some()
     }
+}
+
+enum AliasNamespacePurpose {
+    Recorded(crate::signature_scan::original_name::OriginalSourceNamePurpose),
+    LogicalDeclaration(crate::signature_scan::original_name::OriginalSourceNamePurpose),
+}
+
+/// Source declaration geometry only. Its whole vector and independent frame
+/// remain held; no ordinary alias receipt or completed link is issued.
+pub(crate) struct OriginalLogicalAliasDeclaration {
+    source: OriginalSourceVariableAliasOperands,
+    input: crate::analyser::ResolvedAnalysisInput,
+    alias: tcl_registry::VariableCellAliasTransition,
+    local: tcl_lexer::NativeWord,
+    scope: crate::command_binding::OriginalLogicalVariableScope,
+}
+impl OriginalLogicalAliasDeclaration {
+    pub(crate) fn local(&self) -> (&str, &tcl_lexer::NativeWord) {
+        (
+            self.alias.local.literal().expect("retained literal local"),
+            &self.local,
+        )
+    }
+    pub(crate) fn alias(&self) -> &tcl_registry::VariableCellAliasTransition {
+        &self.alias
+    }
+    pub(crate) fn target(&self) -> Option<&tcl_lexer::NativeWord> {
+        let target = match &self.alias.target {
+            tcl_registry::VariableAliasTarget::Global { variable }
+            | tcl_registry::VariableAliasTarget::CurrentNamespace { variable }
+            | tcl_registry::VariableAliasTarget::CallerSelectedFrame { variable, .. }
+            | tcl_registry::VariableAliasTarget::Namespace { variable, .. } => variable,
+        };
+        written_alias_operand(&self.source.words, target)
+    }
+    pub(crate) fn target_occurrence(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        target: crate::signature_scan::scope::SignatureSourceNameInput,
+        purpose: crate::signature_scan::original_name::OriginalSourceNamePurpose,
+    ) -> Option<crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence> {
+        let namespace = self.target_namespace(input, &target, purpose)?;
+        crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence::from_logical_alias_target(
+            self.target()?.span(), target, namespace,
+            crate::signature_scan::variable_symbol::OriginalVariableSymbolReceiver::NamespaceAlias,
+            self.scope.clone(),
+        )
+    }
+
+    fn target_namespace(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        target: &crate::signature_scan::scope::SignatureSourceNameInput,
+        purpose: crate::signature_scan::original_name::OriginalSourceNamePurpose,
+    ) -> Option<crate::signature_scan::scope::SignatureNamespaceScope> {
+        if input != &self.input {
+            return None;
+        }
+        self.source.target_namespace_scope_for_words(
+            &self.source.words,
+            input,
+            (self.local.span(), self.target()?.span()),
+            target,
+            &self.scope.namespace(),
+            AliasNamespacePurpose::LogicalDeclaration(purpose),
+        )
+    }
+}
+
+fn logical_alias_frame(
+    scope: Option<&crate::command_binding::OriginalLogicalVariableScope>,
+) -> tcl_registry::VariableAliasFrame {
+    scope.map_or(tcl_registry::VariableAliasFrame::Unknown, |scope| {
+        if let Some(frame) = scope.alias_frame() {
+            match frame.frame().layout() {
+                crate::var_resolve::VariableExecutionFrame::Procedure { .. }
+                | crate::var_resolve::VariableExecutionFrame::ReceiverMethod { .. } => {
+                    tcl_registry::VariableAliasFrame::Procedure
+                }
+                crate::var_resolve::VariableExecutionFrame::Namespace(_)
+                | crate::var_resolve::VariableExecutionFrame::NamespaceActivation { .. } => {
+                    tcl_registry::VariableAliasFrame::Namespace
+                }
+                _ => tcl_registry::VariableAliasFrame::Unknown,
+            }
+        } else if scope.namespace_storage() {
+            tcl_registry::VariableAliasFrame::Global
+        } else {
+            tcl_registry::VariableAliasFrame::Unknown
+        }
+    })
 }
 
 fn written_alias_operand<'a>(
@@ -714,6 +905,103 @@ fn alias_target_is_literal(target: &tcl_registry::VariableAliasTarget) -> bool {
 
 #[cfg(test)]
 mod original_alias_source_schema_tests {
+    #[test]
+    fn logical_alias_declarations_keep_actual_source_frame_and_ordinary_widening() {
+        let source = "upvar #0 {a(b)} local";
+        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let realm = analysis.retained_command_realm().unwrap();
+        let words = crate::registry_invocation::source_structure::source_registry_words_at(
+            source, &analysis, 0,
+        )
+        .unwrap();
+        let ordinary = words
+            .with_source_schema(input.borrowed_context_registry(), |schema| {
+                schema.state_transitions()
+            })
+            .unwrap();
+        assert!(
+            ordinary
+                .facts()
+                .iter()
+                .all(|fact| matches!(fact.transition, tcl_registry::StateTransition::Widen(_)))
+        );
+        let aliases = super::OriginalSourceVariableAliasOperands::capture(
+            words,
+            input.borrowed_context_registry(),
+        )
+        .unwrap();
+        assert!(aliases.operands().is_empty());
+        let declarations = aliases.logical_declarations(input, realm).unwrap();
+        let [declaration] = declarations.as_slice() else {
+            panic!("one actual source local");
+        };
+        assert_eq!(declaration.local().0, "local");
+        assert_eq!(declaration.local().1.image().bytes(), source.as_bytes());
+        assert_eq!(&source[declaration.local().1.span().as_range()], "local");
+        assert_eq!(
+            &source[declaration.target().unwrap().span().as_range()],
+            "{a(b)}"
+        );
+        let policy = tcl_registry::InvocationDialect::of_profile(input.unit_profile())
+            .authored_name_policy()
+            .unwrap();
+        let purpose =
+            crate::signature_scan::original_name::OriginalSourceNamePurpose::for_analysis_input(
+                input, None, policy,
+            );
+        let target = original_target_input(&aliases, declaration.target().unwrap().span(), purpose);
+        assert!(
+            declaration
+                .target_namespace(input, &target, purpose)
+                .is_some()
+        );
+
+        let mut config = input.lexer_config();
+        config.strict_quoting = !config.strict_quoting;
+        let changed = crate::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            input.context_registry(),
+            config,
+        );
+        assert!(aliases.logical_declarations(&changed, realm).is_none());
+        assert!(
+            declaration
+                .target_namespace(&changed, &target, purpose)
+                .is_none()
+        );
+        let foreign = crate::analyser::Analyser::new()
+            .with_resolved_input(input.clone())
+            .analyse("upvar #0 {z(b)} local", "tcl");
+        assert!(
+            aliases
+                .logical_declarations(input, foreign.retained_command_realm().unwrap())
+                .is_none()
+        );
+
+        let source = "namespace eval N {global shared}";
+        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let words = crate::registry_invocation::source_structure::source_registry_words_at(
+            source,
+            &analysis,
+            u32::try_from(source.find("global").unwrap()).unwrap(),
+        )
+        .unwrap();
+        let aliases = super::OriginalSourceVariableAliasOperands::capture(
+            words,
+            input.borrowed_context_registry(),
+        )
+        .unwrap();
+        assert!(
+            aliases
+                .logical_declarations(input, analysis.retained_command_realm().unwrap())
+                .unwrap()
+                .is_empty()
+        );
+    }
+
     #[test]
     fn logical_alias_name_obligations_keep_actual_dynamic_targets_and_frame_noops() {
         for (source, head, target) in [

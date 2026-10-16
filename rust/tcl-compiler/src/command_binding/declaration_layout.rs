@@ -1746,7 +1746,14 @@ impl DeclarationSourceOperandLayoutAdvice {
         &self,
         tokens: &crate::ir::CommandTokens,
     ) -> Option<OriginalCompilationLookupAdvice> {
-        self.current_source_advice(tokens, true)
+        match &self.kind {
+            DeclarationSourceOperandLayoutKind::Configured { layout, .. }
+                if !layout.source_operations.is_empty() =>
+            {
+                self.current_source_advice(tokens, true)
+            }
+            _ => self.current_advice(tokens),
+        }
     }
 
     fn current_source_advice(
@@ -4494,7 +4501,8 @@ mod tests {
             "no unchanged Native lookup world follows a result registration"
         );
         assert!(advice.current_conditional_source_advice(&tokens).is_some());
-        let DeclarationSourceOperandLayoutKind::Configured { layout, .. } = &advice.kind else {
+        let super::DeclarationSourceOperandLayoutKind::Configured { layout, .. } = &advice.kind
+        else {
             panic!("mapped readonly source purpose");
         };
         assert_eq!(layout.source_operations.len(), 1);

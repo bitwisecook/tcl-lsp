@@ -1190,7 +1190,7 @@ impl Analyser {
 
     /// Reporting spelling and protective unknown markers. No symbol or target
     /// definition is constructed from this text.
-    fn alias_target_report(
+    pub(super) fn alias_target_report(
         &self,
         target: &tcl_registry::VariableAliasTarget,
         args: &[String],
@@ -14107,6 +14107,44 @@ mod tests {
                 "{source}",
             );
         }
+    }
+
+    #[test]
+    fn logical_alias_source_declarations_keep_typed_targets_and_unknown_obligations() {
+        let source = "upvar #0 shared local; puts $local";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        assert_eq!(
+            analysis.global_scope.variables["local"]
+                .link_target
+                .as_deref(),
+            Some("::shared")
+        );
+        let span = tcl_lexer::Span::new(9, 15);
+        let target = analysis
+            .original_variable_symbols
+            .iter()
+            .find(|site| site.span() == span)
+            .expect("actual original target occurrence");
+        assert!(target.is_declaration());
+        assert_eq!(target.original_name_input().bytes(), b"shared");
+        assert_eq!(
+            target.symbol().checked_c_namespace_key().as_deref(),
+            Some("::shared")
+        );
+        assert!(analysis.original_variable_alias_receipts.is_empty());
+        assert!(analysis.original_variable_alias_operands.is_empty());
+
+        let source = "upvar #0 $unknown local";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        assert!(
+            analysis
+                .global_scope
+                .variables
+                .get("local")
+                .is_none_or(|variable| variable.link_target.is_none())
+        );
+        assert!(!analysis.original_variable_name_unknowns.is_empty());
+        assert!(analysis.original_variable_alias_receipts.is_empty());
     }
 
     #[test]

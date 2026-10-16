@@ -1,0 +1,22 @@
+{
+  "status": "BOUNDED_ORDINARY_SOURCE_BUILD_AND_SELECTED_EXECUTION_ONLY",
+  "source_head": "da6735cf4d545132a43ffb3729c497c4a29fa2d8",
+  "source_diff_sha256": "704c0bbe523ed9ad17edcd87f8cb4c76ca87e3ae4ec4a33c3755991529201c76",
+  "build_seconds": 449,
+  "build_warnings": 0,
+  "test_debug": 0,
+  "lsp37": {
+    "PASS": 32,
+    "FAIL": 5,
+    "TIMEOUT": 0,
+    "zero_test_runs": 0
+  },
+  "provider_pairing": "experiments/name-handling/oracles/provider-pairing-20261016T1400",
+  "upstream_jim_recheck_1454": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+  "limitations": [
+    "Fresh ordinary Rust test binaries, no diagnostic instrumentation. No audit-unit completion, full-M12, Native execution authority or repository-gate acceptance.",
+    "Original exact selectors, singleton listing/run guards and 180-second test limits retained.",
+    "Provider setup pairing remains separate from each reached test semantics.",
+    "63 additional controls running on same immutable binaries; not included in 37 selection."
+  ]
+}

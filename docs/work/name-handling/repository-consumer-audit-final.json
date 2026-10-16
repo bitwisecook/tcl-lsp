@@ -131636,7 +131636,7 @@
   ],
   "implementation_progress": {
     "resumed_from": "554085e162823ea8bd126898d0c27b7b2a9f8628",
-    "utc": "2026-10-16T14:30:56.118814+00:00",
+    "utc": "2026-10-16T14:53:32.987204+00:00",
     "audit_baseline_counts_unchanged": true,
     "total_required_units": 2158,
     "implemented_pending_validation": 158,
@@ -131801,7 +131801,7 @@
     "withheld_drafts": [
       "Minifier command/argument alias construction: missing genuine source action/insertion owner; original unknown-command controls remain unchanged."
     ],
-    "owner_facet_reconciliation": "33 unverified annex requirements:32 integrated pendingvalidation,1sourceblocked. Generic RegistrySource continuation owner now integrated; no additional count.",
+    "owner_facet_reconciliation": "34 annex requirements:33 integrated pendingvalidation,1sourceblocked. New Source alias declaration VarDef adopter counted once; existing680 owner not recounted.",
     "runtime_build": {
       "status": "PASS",
       "seconds": 57.46,
@@ -131894,13 +131894,13 @@
     },
     "additional_owner_annex": {
       "path": "docs/work/name-handling/implementation-owner-annex.json",
-      "required": 33,
-      "implemented_pending_validation": 32,
+      "required": 34,
+      "implemented_pending_validation": 33,
       "not_integrated": 1,
       "verified_complete": 0
     },
-    "effective_required_units": 2191,
-    "effective_implemented_pending_validation": 190,
+    "effective_required_units": 2192,
+    "effective_implemented_pending_validation": 191,
     "effective_verified_complete": 0,
     "incoming_remote": {
       "rust": "c60f938ddd2a8d92a3bc251c57fa3609d77593c3",
@@ -132249,7 +132249,8 @@
       "lsp_verified_complete": 0,
       "lsp_without_integrated_implementation": 295,
       "shared_dependencies": "Counted under their original Compiler/DB/Registry units or reconciled annex; not counted again as LSP consumers.",
-      "deferred": "Runtime174 remaining54,VM133,RuntimeJim execution and BIG-IP source inventory/provider work; retain all existing artifacts."
+      "deferred": "Runtime174 remaining54,VM133,RuntimeJim execution and BIG-IP source inventory/provider work; retain all existing artifacts.",
+      "new_source_alias_caller_annex": "compiler.consumer.logical-source-alias-declaration-observations"
     },
     "lsp_next_seven": {
       "baseline_units": [
@@ -132269,11 +132270,24 @@
       "gui_web_execution": "unexecuted"
     },
     "lsp_source_build": {
-      "status": "first_build_failed_repaired_retry_pending",
-      "first_log": "/tmp/naming-lsp-source-parent-continuation-build.log",
-      "repair": "Use actual existing crate::side_effects::SideEffect import instead of nonexistent root reexport. No semantics/guard change.",
-      "profile_test_debug": 0,
-      "single_job": true
+      "status": "PASS",
+      "seconds": 449,
+      "warnings": 0,
+      "ordinary": true,
+      "source_head": "da6735cf4d545132a43ffb3729c497c4a29fa2d8",
+      "source_diff_sha256": "704c0bbe523ed9ad17edcd87f8cb4c76ca87e3ae4ec4a33c3755991529201c76",
+      "frozen_binding": "/workspace/naming-validation/lsp-source-parent-continuation/source-binding.json",
+      "exact_selection": {
+        "selected": 37,
+        "PASS": 32,
+        "FAIL": 5,
+        "TIMEOUT": 0,
+        "zero_test_runs": 0,
+        "full_selection_executed": true,
+        "capture": "experiments/name-handling/results/owner-adoption-20261016/lsp-source-parent-continuation/lsp37/result.json",
+        "scope": "Selected existing LSP dependencies only; 0 completed audit units or gate acceptance"
+      },
+      "prior_failed_builds": "initial SideEffect import and new test enum namespace; both retained; warning fix independently CLEAR"
     },
     "lsp_procedure_two": {
       "baseline_units": [

@@ -1,0 +1,2194 @@
+diff --git a/rust/f5-cli/src/commands/diff.rs b/rust/f5-cli/src/commands/diff.rs
+index db2b2a91b..b49c2de29 100644
+--- a/rust/f5-cli/src/commands/diff.rs
++++ b/rust/f5-cli/src/commands/diff.rs
+@@ -252,8 +252,8 @@ fn read_config(path: &Path) -> anyhow::Result<BigipConfig> {
+     // Read via the UCS-aware resolver so a `.ucs` — plain or encrypted — is
+     // transparently extracted to SCF, exactly like a `.conf`/`.scf`.
+     let opts = crate::cli::PassphraseArgs::default().to_options();
+-    let (_uri, source) = tcl_bigip_io::read_path(&path.to_string_lossy(), false, &opts)
+-        .map_err(|e| anyhow::anyhow!("{e}"))?;
++    let (_uri, source) =
++        tcl_bigip_io::read_path(path, false, &opts).map_err(|e| anyhow::anyhow!("{e}"))?;
+     // Accept tmsh-script input as well as SCF so `tmsh create/modify` headers
+     // compare against the same objects, not `tmsh`-module generics.
+     Ok(parse_bigip_conf(
+diff --git a/rust/f5-cli/src/commands/explain.rs b/rust/f5-cli/src/commands/explain.rs
+index e5971bed9..ae828e45a 100644
+--- a/rust/f5-cli/src/commands/explain.rs
++++ b/rust/f5-cli/src/commands/explain.rs
+@@ -227,17 +227,13 @@ fn explain_virtual(model: &Model, vs: &Value) -> Vec<Section> {
+             .resolve(ExplainKind::Rule, rref)
+             .unwrap_or_else(|| rref.to_owned());
+         if let Some(rule) = model.get(ExplainKind::Rule, &resolved) {
+-            let body = rule.get("source").and_then(Value::as_str).unwrap_or("");
+-            let events: BTreeSet<String> = tcl_irules::when_blocks(body)
+-                .into_iter()
+-                .map(|block| block.event)
+-                .collect();
+-            let loc = count_irule_lines(body);
+-            let event_str = if events.is_empty() {
+-                "(no when blocks)".to_owned()
+-            } else {
+-                events.into_iter().collect::<Vec<_>>().join(", ")
+-            };
++            let body = rule.get("source").and_then(Value::as_str);
++            let loc = count_irule_lines(body.unwrap_or(""));
++            let inventory = body.map_or(
++                tcl_irules::IrulesWhenSourceInventory::Unavailable,
++                tcl_irules::when_source_inventory,
++            );
++            let event_str = source_event_summary(inventory);
+             rules.push(format!("{resolved} — {loc} loc; events: {event_str}"));
+         } else {
+             rules.push(format!("{rref} (unresolved)"));
+@@ -301,6 +297,31 @@ fn explain_virtual(model: &Model, vs: &Value) -> Vec<Section> {
+     sections
+ }
+ 
++/// Source declaration labels, never an installed or executed handler census.
++fn source_event_summary(inventory: tcl_irules::IrulesWhenSourceInventory) -> String {
++    let tcl_irules::IrulesWhenSourceInventory::Available(inventory) = inventory else {
++        return "(event inventory unavailable)".to_owned();
++    };
++    let events: BTreeSet<&str> = inventory
++        .declarations()
++        .iter()
++        .map(|event| event.event())
++        .collect();
++    if events.is_empty() {
++        return if inventory.is_complete() {
++            "(no when blocks)".to_owned()
++        } else {
++            "(event inventory unavailable)".to_owned()
++        };
++    }
++    let names = events.into_iter().collect::<Vec<_>>().join(", ");
++    if inventory.is_complete() {
++        names
++    } else {
++        format!("{names} (additional source declarations unavailable)")
++    }
++}
++
+ fn explain_pool_lines(pool: &Value) -> Vec<String> {
+     let full_path = pool.get("full_path").and_then(Value::as_str).unwrap_or("");
+     let lbm = non_empty_str(pool.get("load_balancing_mode")).unwrap_or("round-robin");
+@@ -485,11 +506,7 @@ pub fn run_explain(
+     // Resolve inputs via the UCS-aware loader, so a `.ucs` — plain or encrypted
+     // — is transparently extracted to SCF and parsed just like a `.conf`/`.scf`.
+     let opts = crate::cli::PassphraseArgs::default().to_options();
+-    let paths: Vec<String> = inputs
+-        .iter()
+-        .map(|p| p.to_string_lossy().into_owned())
+-        .collect();
+-    let configs: Vec<BigipConfig> = tcl_bigip_io::load_paths(&paths, &opts)
++    let configs: Vec<BigipConfig> = tcl_bigip_io::load_paths(inputs, &opts)
+         .map_err(|e| anyhow::anyhow!("{e}"))?
+         .into_iter()
+         .map(|loaded| loaded.config)
+@@ -549,3 +566,28 @@ fn py_repr(s: &str) -> String {
+     };
+     format!("{quote}{s}{quote}")
+ }
++
++#[cfg(test)]
++mod source_event_tests {
++    use super::source_event_summary;
++
++    #[test]
++    // naming.consumer.original-irules-source-context
++    // docs/design/analysis/name-resolution-proofs/original-irules-source-context.md
++    fn source_event_report_separates_owned_empty_and_unavailable() {
++        assert_eq!(
++            source_event_summary(tcl_irules::IrulesWhenSourceInventory::Unavailable),
++            "(event inventory unavailable)"
++        );
++        assert_eq!(
++            source_event_summary(tcl_irules::when_source_inventory("# empty source\n")),
++            "(no when blocks)"
++        );
++        assert_eq!(
++            source_event_summary(tcl_irules::when_source_inventory(
++                "when HTTP_REQUEST {}; when CLIENT_ACCEPTED {}"
++            )),
++            "CLIENT_ACCEPTED, HTTP_REQUEST"
++        );
++    }
++}
+diff --git a/rust/f5-cli/src/commands/tmsh.rs b/rust/f5-cli/src/commands/tmsh.rs
+index 8984392ab..303d080a4 100644
+--- a/rust/f5-cli/src/commands/tmsh.rs
++++ b/rust/f5-cli/src/commands/tmsh.rs
+@@ -37,9 +37,8 @@ pub fn run_tmsh(
+     modify: bool,
+     include: &[String],
+ ) -> anyhow::Result<u8> {
+-    let path_str = path.to_string_lossy();
+     let opts = crate::cli::PassphraseArgs::default().to_options();
+-    let (_uri, source) = match read_path(&path_str, false, &opts) {
++    let (_uri, source) = match read_path(path, false, &opts) {
+         Ok(pair) => pair,
+         Err(e) => {
+             eprintln!("error: {e}");
+diff --git a/rust/f5-cli/src/commands/validate.rs b/rust/f5-cli/src/commands/validate.rs
+index f1db1fcbf..85d7481dc 100644
+--- a/rust/f5-cli/src/commands/validate.rs
++++ b/rust/f5-cli/src/commands/validate.rs
+@@ -42,10 +42,6 @@ pub fn run_validate(
+     format: &str,
+     output: Option<&Path>,
+ ) -> anyhow::Result<u8> {
+-    let paths: Vec<String> = inputs
+-        .iter()
+-        .map(|p| p.to_string_lossy().into_owned())
+-        .collect();
+     // Load inputs via the UCS-aware loader with the default passphrase
+     // provider; on I/O error, print `error: {e}` and return 2.
+     let opts = tcl_bigip_io::PassphraseOptions {
+@@ -54,7 +50,7 @@ pub fn run_validate(
+         allow_prompt: true,
+         prompt: Some(tcl_cli_support::prompt::read_ucs_passphrase),
+     };
+-    let loaded = match tcl_bigip_io::load_paths(&paths, &opts) {
++    let loaded = match tcl_bigip_io::load_paths(inputs, &opts) {
+         Ok(l) => l,
+         Err(e) => {
+             eprintln!("error: {e}");
+diff --git a/rust/tcl-bigip-io/src/paths.rs b/rust/tcl-bigip-io/src/paths.rs
+index 6f7674b93..28aad4496 100644
+--- a/rust/tcl-bigip-io/src/paths.rs
++++ b/rust/tcl-bigip-io/src/paths.rs
+@@ -42,6 +42,9 @@ pub enum PathError {
+     /// Missing file: matches `FileNotFoundError(f"not a file: {path}")`.
+     #[error("not a file: {0}")]
+     NotAFile(String),
++    /// The selected native path cannot be represented by this loader's URI contract.
++    #[error("input path is not representable as Unicode: {0:?}")]
++    NonUnicodePath(std::path::PathBuf),
+     /// An I/O failure reading the file or stdin.
+     #[error("{0}")]
+     Io(String),
+@@ -181,18 +184,18 @@ impl ConfigInput {
+     }
+ }
+ 
+-/// Return `(uri, source)` for `path_str`. `-` reads stdin.
++/// Return `(uri, source)` for a native path. `-` reads stdin.
+ ///
+ /// `.ucs` archives (plain or OpenPGP-encrypted) — and gzip / `OpenPGP` streams
+ /// from stdin — are transparently extracted to SCF via [`ucs_archive_to_scf`].
+ /// Other inputs are decoded UTF-8 with lossy replacement (invalid bytes →
+ /// U+FFFD); `strict` makes an undecodable byte an error instead.
+ pub fn read_path(
+-    path_str: &str,
++    path: impl AsRef<Path>,
+     strict: bool,
+     opts: &PassphraseOptions,
+ ) -> Result<(String, String), PathError> {
+-    let input = read_path_source(path_str, opts)?;
++    let input = read_path_source(path, opts)?;
+     if strict {
+         input.require_faithful()?;
+     }
+@@ -204,12 +207,13 @@ pub fn read_path(
+ /// # Errors
+ /// Returns input, decryption or archive failure. Preview decoding is separate.
+ pub fn read_path_source(
+-    path_str: &str,
++    path: impl AsRef<Path>,
+     opts: &PassphraseOptions,
+ ) -> Result<ConfigInput, PathError> {
++    let path = path.as_ref();
+     let provider = move || resolve_passphrase(opts);
+ 
+-    if path_str == "-" {
++    if path.as_os_str() == "-" {
+         let mut raw = Vec::new();
+         std::io::stdin()
+             .read_to_end(&mut raw)
+@@ -231,17 +235,24 @@ pub fn read_path_source(
+         });
+     }
+ 
+-    let path = Path::new(path_str);
++    // This loader's `file://` URI contract is Unicode-based. Reject before
++    // opening rather than interpreting a lossy display spelling as a path.
++    let path_str = path
++        .to_str()
++        .ok_or_else(|| PathError::NonUnicodePath(path.to_path_buf()))?;
+     let abs = std::fs::canonicalize(path).map_err(|_| PathError::NotAFile(path_str.to_owned()))?;
+     if !abs.is_file() {
+         return Err(PathError::NotAFile(path_str.to_owned()));
+     }
++    let abs_str = abs
++        .to_str()
++        .ok_or_else(|| PathError::NonUnicodePath(abs.clone()))?;
+     let raw = std::fs::read(&abs)
+         .map_err(|e| PathError::Io(format!("failed to read {path_str}: {e}")))?;
+     if looks_like_ucs(&raw, is_ucs_suffix(path), false) {
+         let source = ucs_archive_to_scf_source(&raw, &provider, false, path_str)?;
+         return Ok(ConfigInput {
+-            uri: file_uri(&abs),
++            uri: file_uri(abs_str),
+             source: ConfigSource::Archive(source),
+         });
+     }
+@@ -252,7 +263,7 @@ pub fn read_path_source(
+     }
+     let preview = String::from_utf8_lossy(&raw).into_owned();
+     Ok(ConfigInput {
+-        uri: file_uri(&abs),
++        uri: file_uri(abs_str),
+         source: ConfigSource::Text {
+             bytes: raw,
+             preview,
+@@ -275,13 +286,13 @@ pub struct LoadedConfig {
+ /// Resolve a list of path inputs into ordered [`LoadedConfig`]s. Each path is
+ /// read via [`read_path`] and parsed with the
+ /// `Common` default partition.
+-pub fn load_paths(
+-    paths: &[String],
++pub fn load_paths<P: AsRef<Path>>(
++    paths: &[P],
+     opts: &PassphraseOptions,
+ ) -> Result<Vec<LoadedConfig>, PathError> {
+     let mut out = Vec::with_capacity(paths.len());
+-    for p in paths {
+-        let (uri, source) = read_path(p, false, opts)?;
++    for path in paths {
++        let (uri, source) = read_path(path, false, opts)?;
+         let config = parse_bigip_conf(&source, "Common");
+         out.push(LoadedConfig {
+             uri,
+@@ -292,11 +303,11 @@ pub fn load_paths(
+     Ok(out)
+ }
+ 
+-/// Build a `file://` URI from an absolute path, percent-encoding the path bytes
+-/// and leaving `/` plus ASCII alphanumerics and `_.-~` unescaped.
+-fn file_uri(abs: &Path) -> String {
++/// Build a `file://` URI from an admitted Unicode absolute path, percent-encoding
++/// its UTF-8 bytes and leaving `/` plus ASCII alphanumerics and `_.-~` unescaped.
++fn file_uri(abs: &str) -> String {
+     use std::fmt::Write as _;
+-    let s = abs.to_string_lossy();
++    let s = abs;
+     let mut uri = String::from("file://");
+     for &b in s.as_bytes() {
+         let safe = b.is_ascii_alphanumeric() || matches!(b, b'_' | b'.' | b'-' | b'~' | b'/');
+@@ -308,3 +319,50 @@ fn file_uri(abs: &Path) -> String {
+     }
+     uri
+ }
++
++#[cfg(all(test, unix))]
++mod native_path_tests {
++    use super::*;
++    use std::ffi::OsString;
++    use std::os::unix::ffi::OsStringExt as _;
++    use std::sync::atomic::{AtomicUsize, Ordering};
++
++    static NEXT_ID: AtomicUsize = AtomicUsize::new(0);
++
++    #[test]
++    fn native_path_loader_refuses_opaque_name_instead_of_selecting_replacement_sibling() {
++        let dir = std::env::temp_dir().join(format!(
++            "tcl-bigip-io-opaque-path-{}-{}",
++            std::process::id(),
++            NEXT_ID.fetch_add(1, Ordering::Relaxed)
++        ));
++        std::fs::create_dir(&dir).expect("create isolated fixture directory");
++        let opaque = dir.join(OsString::from_vec(b"report-\xff.conf".to_vec()));
++        let replacement = dir.join("report-\u{fffd}.conf");
++        let symlink = dir.join("unicode-link.conf");
++        std::fs::write(&opaque, "opaque source\n").expect("write opaque path fixture");
++        std::fs::write(&replacement, "replacement sibling\n").expect("write Unicode sibling");
++        std::os::unix::fs::symlink(&opaque, &symlink).expect("link Unicode name to opaque target");
++
++        let opts = PassphraseOptions {
++            explicit: None,
++            env_var: "UNUSED_TEST_PASSPHRASE".to_owned(),
++            allow_prompt: false,
++            prompt: None,
++        };
++        assert!(matches!(
++            read_path(&opaque, false, &opts),
++            Err(PathError::NonUnicodePath(_))
++        ));
++        assert_eq!(
++            read_path(&replacement, false, &opts).unwrap().1,
++            "replacement sibling\n"
++        );
++        assert!(matches!(
++            read_path(&symlink, false, &opts),
++            Err(PathError::NonUnicodePath(_))
++        ));
++
++        std::fs::remove_dir_all(&dir).expect("remove isolated fixture directory");
++    }
++}
+diff --git a/rust/tcl-compiler/src/command_binding/declaration_layout.rs b/rust/tcl-compiler/src/command_binding/declaration_layout.rs
+index 98f05f790..8be6bc864 100644
+--- a/rust/tcl-compiler/src/command_binding/declaration_layout.rs
++++ b/rust/tcl-compiler/src/command_binding/declaration_layout.rs
+@@ -2684,6 +2684,91 @@ impl SourceCommandBindings {
+         }
+     }
+ 
++    /// Explicit readonly Authored source purpose at an actual retained row.
++    /// Raw source tokens and their authentic body/header own this projection;
++    /// an existing stronger point/declaration owner is never erased or replaced.
++    pub(crate) fn original_authored_declaration_source_tokens(
++        &self,
++        tokens: &crate::ir::CommandTokens,
++        scope: &crate::registry_invocation::OriginalAuthoredSourceBodyScope,
++        registry: &tcl_registry::CommandRegistry,
++    ) -> Option<crate::ir::CommandTokens> {
++        if let Some(binding) = tokens.source_binding.as_ref() {
++            let original =
++                binding.original_authored_source_body_scope_for_name_roles(tokens, registry)?;
++            std::ptr::eq(original, scope).then_some(())?;
++            let source_only = super::SourceInvocationBinding {
++                original_analysis_owner: scope.original_analysis_attachment().cloned(),
++                original_authored_source_body_scope: binding
++                    .original_authored_source_body_scope
++                    .clone(),
++                ..Default::default()
++            };
++            (binding == &source_only).then_some(())?;
++        }
++        let original = scope.original_words(tokens, registry)?;
++        let origin = self.source_origin()?;
++        let owner = self.original_analysis_owner.as_ref()?;
++        if self.lexer_config != Some(scope.config())
++            || origin.source_image() != scope.original_body_word().image()
++            || !Arc::ptr_eq(origin, &owner.source)
++            || !owner.metadata.is_standalone()
++            || self.source_metadata_owner() != &owner.metadata
++            || self.final_state.baseline.registry_snapshot.as_ref()
++                != Some(&registry.snapshot().semantic_key())
++            || scope
++                .original_analysis_attachment()
++                .is_none_or(|actual| !Arc::ptr_eq(actual, owner))
++        {
++            return None;
++        }
++        let site = CommandAllocationSite {
++            source: Arc::clone(origin),
++            offset: original.first()?.span().start(),
++        };
++        let observations = self.declaration_layouts.get(&site)?;
++        let rows = original_declaration_layouts(observations)?;
++        let span = crate::registry_invocation::original_written_script_body_span(
++            scope.original_body_word(),
++        )?;
++        let body_bytes = origin.source_image().bytes().get(span.as_range())?;
++        for row in rows {
++            let OriginalDiagnosticFrameEntry::DeclaredProcedure(body) = row.entry.as_ref() else {
++                return None;
++            };
++            if body.declaration_site() != scope.original_parent_site()?
++                || body.source.origin != site.source
++                || body.source.base() != span.start()
++                || body.source.text.bytes() != body_bytes
++                || &body.namespace != scope.namespace()
++                || row.words.as_ref() != tokens.words()
++                || row.config != scope.config()
++                || !row.entry.owns_source(&site.source, site.offset)
++                || !row.snapshot.state.baseline.metadata_context.is_standalone()
++            {
++                return None;
++            }
++        }
++        let first = observations
++            .iter()
++            .find(|row| row.issuer == DeclarationLayoutIssuer::OriginalDeclaration)?;
++        let binding = super::SourceInvocationBinding {
++            unknown: true,
++            dispatch_site: Some(site),
++            original_analysis_owner: Some(Arc::clone(owner)),
++            declaration_layout_observations: Some(Arc::from(observations.as_slice())),
++            declaration_flow_inventory: Some(self.current_declaration_flow_inventory()),
++            lookup_namespace: first.namespace.advisory_key()?,
++            lookup_namespace_key: first.namespace.clone(),
++            variable_context: Arc::clone(&first.snapshot.state.source_variables),
++            variable_frame: first.snapshot.state.variable_frame.clone(),
++            ..Default::default()
++        };
++        let mut result = tokens.clone();
++        result.source_binding = Some(binding);
++        Some(result)
++    }
++
+     pub(super) fn attach_declaration_operand_layout(
+         &self,
+         mut binding: super::SourceInvocationBinding,
+diff --git a/rust/tcl-compiler/src/interprocedural.rs b/rust/tcl-compiler/src/interprocedural.rs
+index 0090e28c9..48cfb368d 100644
+--- a/rust/tcl-compiler/src/interprocedural.rs
++++ b/rust/tcl-compiler/src/interprocedural.rs
+@@ -2134,6 +2134,10 @@ struct LocalFacts {
+     param_trait_flags: HashMap<String, HashSet<ProcArgTrait>>,
+     param_references: HashSet<String>,
+     param_observations_incomplete: bool,
++    /// Conditional source incidence only; never participates in Native alias,
++    /// effects, purity, successful caller templates or physical cell summaries.
++    source_parameter_aliases:
++        HashMap<String, crate::registry_invocation::OriginalAuthoredFormalAliasObservation>,
+     /// Local variable names this proc aliased into global /
+     /// enclosing-namespace scope via `global` / `variable` / `upvar
+     /// #0`. A later bare `set g` / `incr g` / `append g` to one of
+@@ -2203,6 +2207,7 @@ impl Default for LocalFacts {
+             param_trait_flags: HashMap::new(),
+             param_references: HashSet::new(),
+             param_observations_incomplete: true,
++            source_parameter_aliases: HashMap::new(),
+             global_aliases: HashSet::new(),
+             upvar_aliases: HashMap::new(),
+             impure_beyond_links: true,
+@@ -2424,6 +2429,81 @@ fn note_original_authored_body_call_parameters(ctx: ScanCtx<'_>, facts: &mut Loc
+     }
+ }
+ 
++/// Source-only alias/formal incidence follows actual represented sibling
++/// commands; runtime entry/lookup/observer uncertainty remains explicit.
++fn note_original_authored_alias_parameters(ctx: ScanCtx<'_>, facts: &mut LocalFacts) {
++    let command = ctx.current_tokens.and_then(|tokens| {
++        crate::registry_invocation::original_authored_parameter_source_command_for_module(
++            tokens,
++            ctx.source_module,
++            ctx.registry,
++        )
++    });
++    let Some(command) = command.filter(|command| Some(command.body()) == ctx.parameter_body) else {
++        facts.source_parameter_aliases.clear();
++        return;
++    };
++    // The source recipe supplies no entered body, actual lookup or observer
++    // closure, even when the original symbolic argument layout is complete.
++    if !command.aliases().is_empty() || !facts.source_parameter_aliases.is_empty() {
++        facts.param_observations_incomplete |= command.has_unproved_applicability();
++    }
++    facts
++        .source_parameter_aliases
++        .retain(|_, alias| alias.belongs_to(&command));
++    let mut declarations = HashSet::new();
++    for alias in command.aliases() {
++        if let Some(parameter) = command
++            .alias_target_formal(alias)
++            .filter(|parameter| ctx.params.contains(*parameter))
++        {
++            facts.param_references.insert(parameter.to_owned());
++            facts
++                .param_trait_flags
++                .entry(parameter.to_owned())
++                .or_default()
++                .insert(ProcArgTrait::VarRead);
++        }
++        let Some(local) = command.literal(alias.words.local) else {
++            facts.source_parameter_aliases.clear();
++            continue;
++        };
++        if !command.local_scalar(local) || alias.local.literal() != Some(local) {
++            facts.source_parameter_aliases.clear();
++            continue;
++        }
++        declarations.insert(local.to_owned());
++        facts.source_parameter_aliases.remove(local);
++        if let Some(observation) = command.caller_alias(alias) {
++            facts
++                .source_parameter_aliases
++                .insert(local.to_owned(), observation);
++        }
++    }
++    for &(argument, role) in command.roles() {
++        if role != tcl_registry::ArgRole::VarWrite {
++            continue;
++        }
++        let Some(local) = command.literal(argument) else {
++            facts.source_parameter_aliases.clear();
++            continue;
++        };
++        if declarations.contains(local) {
++            continue;
++        }
++        if let Some(alias) = facts.source_parameter_aliases.get(local) {
++            facts
++                .param_trait_flags
++                .entry(alias.parameter().to_owned())
++                .or_default()
++                .insert(ProcArgTrait::VarWrite);
++        }
++    }
++    if !command.continues() {
++        facts.source_parameter_aliases.clear();
++    }
++}
++
+ fn original_parameter_expression_config(
+     expression: &crate::expr_ast::ExprNode,
+     base: Option<u32>,
+@@ -2688,6 +2768,8 @@ fn possible_body_id(word: &str, ctx: ScanCtx<'_>) -> Option<ProcedureId> {
+ /// [`scan_statement`]'s own `Statement::Barrier` arm (unscanned code must
+ /// not be silently under-counted as pure / effect-free).
+ fn scan_script(script: &crate::ir::Script, ctx: ScanCtx<'_>, facts: &mut LocalFacts, depth: u32) {
++    // Different scripts/branches cannot donate conditional alias continuation.
++    facts.source_parameter_aliases.clear();
+     if MAX_INTERPROCEDURAL_WALK_DEPTH.exceeded(depth) {
+         facts.param_observations_incomplete = true;
+         facts.has_barrier = true;
+@@ -2705,6 +2787,7 @@ fn scan_script(script: &crate::ir::Script, ctx: ScanCtx<'_>, facts: &mut LocalFa
+             depth,
+         );
+     }
++    facts.source_parameter_aliases.clear();
+ }
+ 
+ /// Process a `Statement::Call` for interprocedural facts: side-
+@@ -3722,6 +3805,7 @@ fn scan_statement(
+         ..ctx
+     };
+     note_original_command_references(ctx, facts);
++    note_original_authored_alias_parameters(ctx, facts);
+     note_original_authored_body_call_parameters(ctx, facts);
+     let ctx = scan_retained_substitutions(retained_tokens, ctx, facts);
+     if let Some(tokens) = retained_tokens {
+@@ -7024,6 +7108,156 @@ mod tests {
+         )
+     }
+ 
++    #[test]
++    fn original_authored_alias_reports_keep_source_formals_frames_and_unknown_debts() {
++        let source = "proc p {n v spare} {upvar 1 $n x; set x $v}";
++        let (context, unit) = original_reference_unit(source);
++        let registry = context.commands();
++        let module = &unit.ir_module;
++        let (&id, _) = module
++            .original_authored_declaration_body_units
++            .iter()
++            .next()
++            .unwrap();
++        let procedure = &module.body_units[&id];
++        let tokens = procedure
++            .body
++            .retained_source_tokens_for_statement(&procedure.body.statements[0])
++            .unwrap();
++        let command =
++            crate::registry_invocation::original_authored_parameter_source_command_for_module(
++                tokens, module, registry,
++            )
++            .expect("actual original alias source row");
++        assert_eq!(command.body(), id);
++        assert!(command.has_unproved_applicability());
++        let [alias] = command.aliases() else {
++            panic!("one Registry alias declaration");
++        };
++        let held = command
++            .caller_alias(alias)
++            .expect("conditional caller alias incidence");
++        assert_eq!(held.parameter(), "n");
++        let write = procedure
++            .body
++            .retained_source_tokens_for_statement(&procedure.body.statements[1])
++            .unwrap();
++        let write =
++            crate::registry_invocation::original_authored_parameter_source_command_for_module(
++                write, module, registry,
++            )
++            .expect("actual retained source successor");
++        assert!(held.belongs_to(&write));
++        let facts = original_reference_facts(&unit, registry);
++        let observed = &facts[&id];
++        assert!(observed.param_trait_flags["n"].contains(&ProcArgTrait::VarRead));
++        assert!(observed.param_trait_flags["n"].contains(&ProcArgTrait::VarWrite));
++        assert!(observed.param_observations_incomplete);
++        assert!(observed.has_unknown_calls);
++        assert!(observed.upvar_aliases.is_empty());
++        assert!(observed.global_aliases.is_empty());
++        assert!(observed.name_params.is_empty());
++        assert!(observed.source_parameter_aliases.is_empty());
++        assert!(
++            observed
++                .effect_writes
++                .intersects(EffectRegion::UNKNOWN_STATE)
++        );
++        assert!(
++            tokens
++                .source_binding
++                .as_ref()
++                .unwrap()
++                .proved_execution_target()
++                .is_none()
++        );
++        let cloned = tokens.clone();
++        assert!(
++            crate::registry_invocation::original_authored_parameter_source_command_for_module(
++                &cloned, module, registry
++            )
++            .is_none()
++        );
++        let mut changed = module.clone();
++        changed.lexer_config.strict_quoting = !changed.lexer_config.strict_quoting;
++        assert!(
++            crate::registry_invocation::original_authored_parameter_source_command_for_module(
++                tokens, &changed, registry
++            )
++            .is_none()
++        );
++        let mut changed = module.clone();
++        changed.body_units.get_mut(&id).unwrap().params_raw = "other".to_owned();
++        assert!(
++            crate::registry_invocation::original_authored_parameter_source_command_for_module(
++                tokens, &changed, registry
++            )
++            .is_none()
++        );
++        assert!(
++            crate::registry_invocation::original_authored_parameter_source_command_for_module(
++                tokens,
++                module,
++                tcl_registry::model::ingress::static_context_for("tcl9.0").commands()
++            )
++            .is_none()
++        );
++
++        for body in [
++            "upvar #0 $n x; set x 1",
++            "upvar 0 $n x; set x 1",
++            "upvar 2 $n x; set x 1",
++            "upvar $level $n x; set x 1",
++            "upvar 1 $n x; unknownCommand; set x 1",
++            "upvar 1 $n x; global x; set x 1",
++            "if {1} {upvar 1 $n x}; set x 1",
++        ] {
++            let source = format!("proc p {{n level}} {{{body}}}");
++            let (context, unit) = original_reference_unit(&source);
++            let (&id, _) = unit
++                .ir_module
++                .original_authored_declaration_body_units
++                .iter()
++                .next()
++                .unwrap();
++            let facts = original_reference_facts(&unit, context.commands());
++            assert!(
++                !facts[&id]
++                    .param_trait_flags
++                    .get("n")
++                    .is_some_and(|traits| traits.contains(&ProcArgTrait::VarWrite)),
++                "{body}"
++            );
++            assert!(facts[&id].upvar_aliases.is_empty(), "{body}");
++        }
++        let (context, unit) = original_reference_unit("proc p {::n} {upvar 1 $::n x; set x 1}");
++        let (&id, _) = unit
++            .ir_module
++            .original_authored_declaration_body_units
++            .iter()
++            .next()
++            .unwrap();
++        let facts = original_reference_facts(&unit, context.commands());
++        assert!(
++            !facts[&id]
++                .param_trait_flags
++                .get("::n")
++                .is_some_and(|traits| traits.contains(&ProcArgTrait::VarWrite))
++        );
++        let (context, unit) =
++            original_reference_unit("proc p {n other} {upvar 1 $n x; upvar 1 $other x; set x 1}");
++        let (&id, _) = unit
++            .ir_module
++            .original_authored_declaration_body_units
++            .iter()
++            .next()
++            .unwrap();
++        let facts = original_reference_facts(&unit, context.commands());
++        assert!(facts[&id].param_trait_flags["n"].contains(&ProcArgTrait::VarRead));
++        assert!(!facts[&id].param_trait_flags["n"].contains(&ProcArgTrait::VarWrite));
++        assert!(facts[&id].param_trait_flags["other"].contains(&ProcArgTrait::VarWrite));
++    }
++
+     #[test]
+     fn original_authored_call_reports_keep_actual_source_target_formals_and_debts() {
+         let source = "proc ::helper {v} {return $v}\nproc ::f {x spare} {::helper $x}";
+diff --git a/rust/tcl-compiler/src/lowering/mod.rs b/rust/tcl-compiler/src/lowering/mod.rs
+index 19fbea34b..40d5b9f57 100644
+--- a/rust/tcl-compiler/src/lowering/mod.rs
++++ b/rust/tcl-compiler/src/lowering/mod.rs
+@@ -2827,9 +2827,10 @@ impl<'r> Lowerer<'r> {
+         if self.readonly_authored_body {
+             if let Some(scope) = &self.authored_source_scope {
+                 let mut scalar = None;
+-                if let Some(bindings) = &self.source_bindings {
+-                    let mut declared = tokens.clone();
+-                    bindings.stamp_original_tokens(&mut declared);
++                if let Some(bindings) = &self.source_bindings
++                    && let Some(mut declared) = bindings
++                        .original_authored_declaration_source_tokens(&tokens, scope, self.registry)
++                {
+                     let original = declared.clone();
+                     let retained = declared.source_binding.as_mut().and_then(|binding| {
+                         binding.retain_original_authored_scalar_body_scope(
+diff --git a/rust/tcl-compiler/src/registry_invocation.rs b/rust/tcl-compiler/src/registry_invocation.rs
+index f81863b03..7d4ac5fb3 100644
+--- a/rust/tcl-compiler/src/registry_invocation.rs
++++ b/rust/tcl-compiler/src/registry_invocation.rs
+@@ -35,7 +35,10 @@ pub(crate) use original_procedure_call::{
+     original_source_procedure_ids_for_word_for_module,
+ };
+ mod authored_body_scope;
+-pub(crate) use authored_body_scope::OriginalAuthoredSourceBodyScope;
++pub(crate) use authored_body_scope::{
++    OriginalAuthoredFormalAliasObservation, OriginalAuthoredSourceBodyScope,
++    original_authored_parameter_source_command_for_module,
++};
+ pub(crate) use source_scoped_body::original_written_script_body_span;
+ mod authored_source_bodies;
+ pub use authored_source_bodies::OriginalAuthoredProcedureBody;
+diff --git a/rust/tcl-compiler/src/registry_invocation/authored_body_scope.rs b/rust/tcl-compiler/src/registry_invocation/authored_body_scope.rs
+index e2f7bbf38..82fc5734e 100644
+--- a/rust/tcl-compiler/src/registry_invocation/authored_body_scope.rs
++++ b/rust/tcl-compiler/src/registry_invocation/authored_body_scope.rs
+@@ -130,6 +130,36 @@ impl OriginalAuthoredSourceBodyScope {
+         Some(Arc::from(plan.commands))
+     }
+ 
++    /// Original retained declaration/header and body geometry; no point or
++    /// physical frame is selected through these readonly source facets.
++    pub(crate) fn original_parent_site(
++        &self,
++    ) -> Option<&crate::command_binding::CommandAllocationSite> {
++        self.header.source_binding.as_ref()?.invocation_site()
++    }
++    pub(crate) fn original_body_word(&self) -> &NativeWord {
++        &self.body
++    }
++
++    /// Authored naming metadata remains distinct from a Native execution
++    /// policy. Only the exact recipe retained by this original Standalone
++    /// source entry can accompany its conditional scalar syntax.
++    pub(crate) fn retains_authored_source_name_policy(
++        &self,
++        policy: tcl_syntax::naming::ExecutionNamePolicy,
++    ) -> bool {
++        self.entry.metadata_context.is_standalone()
++            && self.entry.native_entry.is_none()
++            && self.entry.logical_source_input.is_none()
++            && self.entry.vendor_source_input.is_none()
++            && self.entry.hosted_execution_context.is_none()
++            && !self.entry.unknown_entry
++            && self.entry.options().execution_name_policy() == Some(policy)
++            && policy.native_recipe().is_some_and(|recipe| {
++                recipe.authority() == tcl_syntax::naming::NamePolicyAuthority::AuthoredSimulation
++            })
++    }
++
+     pub(crate) fn original_word_dialect(&self) -> Option<tcl_registry::InvocationDialect> {
+         self.dialect
+     }
+@@ -284,3 +314,378 @@ impl OriginalAuthoredSourceBodyScope {
+                 .is_some_and(|owner| owner.semantic_key() == self.registry.semantic_key())
+     }
+ }
++
++/// Conditional own-formal alias incidence, independent of any actual linked
++/// variable/cell, caller activation or successful operation.
++#[derive(Debug, Clone)]
++pub(crate) struct OriginalAuthoredFormalAliasObservation {
++    body: crate::ir::ProcedureId,
++    card: Arc<super::OriginalAuthoredProcedureBody>,
++    original: Arc<[NativeWord]>,
++    transition: tcl_registry::VariableCellAliasTransition,
++    parameter: String,
++    obligations: [super::original_procedure_call::OriginalAuthoredBodyCallObligation; 3],
++}
++impl OriginalAuthoredFormalAliasObservation {
++    pub(crate) fn parameter(&self) -> &str {
++        &self.parameter
++    }
++    pub(crate) fn belongs_to(&self, command: &OriginalAuthoredParameterSourceCommand) -> bool {
++        self.body == command.body
++            && Arc::ptr_eq(&self.card, &command.card)
++            && self.original.first().is_some_and(|word| {
++                word.image() == command.original[0].image()
++                    && word.config() == command.original[0].config()
++            })
++            && self
++                .transition
++                .words
++                .local
++                .checked_add(1)
++                .is_some_and(|ordinal| self.original.get(ordinal).is_some())
++            && self
++                .transition
++                .words
++                .target
++                .checked_add(1)
++                .is_some_and(|ordinal| self.original.get(ordinal).is_some())
++            && self.obligations == command.obligations
++    }
++}
++
++#[derive(Debug, Clone)]
++enum AuthoredParameterSourceWord {
++    Literal(Vec<u8>),
++    Scalar(Vec<u8>),
++}
++
++/// Exact original Builtin source syntax and typed Registry alias/role grammar.
++/// Every observation is conditional on body entry, lookup and observers; this
++/// carries no physical aliases, effects, completion or Native/Normal facts.
++pub(crate) struct OriginalAuthoredParameterSourceCommand {
++    body: crate::ir::ProcedureId,
++    card: Arc<super::OriginalAuthoredProcedureBody>,
++    original: Arc<[NativeWord]>,
++    words: Vec<AuthoredParameterSourceWord>,
++    aliases: Vec<tcl_registry::VariableCellAliasTransition>,
++    roles: Vec<(usize, tcl_registry::ArgRole)>,
++    dialect: tcl_registry::InvocationDialect,
++    continues: bool,
++    obligations: [super::original_procedure_call::OriginalAuthoredBodyCallObligation; 3],
++}
++impl OriginalAuthoredParameterSourceCommand {
++    pub(crate) fn body(&self) -> crate::ir::ProcedureId {
++        self.body
++    }
++    pub(crate) fn roles(&self) -> &[(usize, tcl_registry::ArgRole)] {
++        &self.roles
++    }
++    pub(crate) fn aliases(&self) -> &[tcl_registry::VariableCellAliasTransition] {
++        &self.aliases
++    }
++    pub(crate) fn continues(&self) -> bool {
++        self.continues
++    }
++    pub(crate) fn has_unproved_applicability(&self) -> bool {
++        !self.obligations.is_empty()
++    }
++    pub(crate) fn literal(&self, argument: usize) -> Option<&str> {
++        let AuthoredParameterSourceWord::Literal(value) =
++            self.words.get(argument.checked_add(1)?)?
++        else {
++            return None;
++        };
++        std::str::from_utf8(value).ok()
++    }
++    fn formal(&self, argument: usize) -> Option<&str> {
++        let AuthoredParameterSourceWord::Scalar(name) = self.words.get(argument.checked_add(1)?)?
++        else {
++            return None;
++        };
++        self.source_name_is_local(name).then_some(())?;
++        self.card
++            .parameter_names()
++            .find(|formal| formal.as_bytes() == name.as_slice())
++    }
++    fn source_name_is_local(&self, name: &[u8]) -> bool {
++        self.dialect.variable_lookup_policy.map_or_else(
++            || tcl_syntax::naming::source_variable_name_is_frame_local_for_all_policies(name),
++            |policy| tcl_syntax::naming::source_variable_name_is_frame_local(name, policy),
++        )
++    }
++    pub(crate) fn local_scalar(&self, name: &str) -> bool {
++        !name.as_bytes().contains(&0)
++            && tcl_syntax::naming::split_element_ref_bytes(name.as_bytes()).is_none()
++            && self.source_name_is_local(name.as_bytes())
++    }
++    pub(crate) fn alias_target_formal(
++        &self,
++        alias: &tcl_registry::VariableCellAliasTransition,
++    ) -> Option<&str> {
++        self.aliases
++            .iter()
++            .any(|actual| std::ptr::eq(actual, alias))
++            .then_some(())?;
++        (alias
++            .destination
++            .is_active_in_frame(tcl_registry::VariableAliasFrame::Procedure, self.dialect)
++            == Some(true))
++        .then_some(())?;
++        let variable = match &alias.target {
++            tcl_registry::VariableAliasTarget::Global { variable }
++            | tcl_registry::VariableAliasTarget::CurrentNamespace { variable }
++            | tcl_registry::VariableAliasTarget::Namespace { variable, .. }
++            | tcl_registry::VariableAliasTarget::CallerSelectedFrame { variable, .. } => variable,
++        };
++        let tcl_registry::TransitionSubject::Unknown { argument_index, .. } = variable else {
++            return None;
++        };
++        (*argument_index == alias.words.target).then_some(())?;
++        self.formal(alias.words.target)
++    }
++
++    pub(crate) fn caller_alias(
++        &self,
++        alias: &tcl_registry::VariableCellAliasTransition,
++    ) -> Option<OriginalAuthoredFormalAliasObservation> {
++        use tcl_registry::{CallerFrameSelection, FrameLevel, VariableAliasTarget};
++        let VariableAliasTarget::CallerSelectedFrame { frame, .. } = &alias.target else {
++            return None;
++        };
++        let level = match frame {
++            CallerFrameSelection::DefaultCaller => FrameLevel::DEFAULT,
++            CallerFrameSelection::Explicit(subject) => {
++                FrameLevel::parse_for_dialect(subject.literal()?, self.dialect)?
++            }
++        };
++        let local = self.literal(alias.words.local)?;
++        let parameter = self.alias_target_formal(alias)?;
++        (level.is_caller_frame()
++            && self.local_scalar(local)
++            && alias.local.literal() == Some(local))
++        .then_some(())?;
++        Some(OriginalAuthoredFormalAliasObservation {
++            body: self.body,
++            card: Arc::clone(&self.card),
++            original: Arc::clone(&self.original),
++            transition: alias.clone(),
++            parameter: parameter.to_owned(),
++            obligations: self.obligations,
++        })
++    }
++}
++
++fn parameter_source_word(word: &NativeWord) -> Option<AuthoredParameterSourceWord> {
++    if let Some(literal) = tcl_syntax::word_rules::original_static_word_unicode_value(word) {
++        return Some(AuthoredParameterSourceWord::Literal(literal));
++    }
++    let mut scalar = None;
++    let literal = tcl_syntax::word_rules::original_word_unicode_value_with_variables(
++        word,
++        |arena, component| {
++            let tcl_lexer::ExecutablePart::Variable { name, index: None } = component.part else {
++                return None;
++            };
++            if scalar.is_some() {
++                return None;
++            }
++            scalar = Some(arena.bytes(name)?.to_vec());
++            Some(Vec::new())
++        },
++    )?;
++    literal
++        .is_empty()
++        .then_some(AuthoredParameterSourceWord::Scalar(scalar?))
++}
++
++/// Reborrow genuine original declaration/source syntax for conditional formal
++/// observations. A present stronger source owner retains its own terminal gate.
++pub(crate) fn original_authored_parameter_source_command_for_module(
++    tokens: &CommandTokens,
++    module: &Module,
++    registry: &CommandRegistry,
++) -> Option<OriginalAuthoredParameterSourceCommand> {
++    let retained = module.retained_source_bindings.as_deref()?;
++    let positioned = retained.positioned_for_module(module, registry)?;
++    retained
++        .owns_original_analysis_attachment(tokens)
++        .then_some(())?;
++    let binding = tokens.source_binding.as_ref()?;
++    let scope = if binding.has_original_source_layout_owner() {
++        super::original_authored_scalar_invocation(tokens, registry)?;
++        binding.original_authored_scalar_body_scope(tokens, registry)?
++    } else {
++        binding.original_authored_source_body_scope_for_name_roles(tokens, registry)?
++    };
++    scope.matches_module(module).then_some(())?;
++    let original = scope.original_words(tokens, registry)?;
++    if original.iter().any(|word| word.group().expand) {
++        return None;
++    }
++    let mut remaining = 4096usize;
++    for word in &original {
++        remaining = remaining.checked_sub(1)?;
++        for _ in word.executable_parts().all_parts() {
++            remaining = remaining.checked_sub(1)?;
++        }
++    }
++    let words = original
++        .iter()
++        .map(parameter_source_word)
++        .collect::<Option<Vec<_>>>()?;
++    let mut owners = module
++        .original_authored_declaration_body_units
++        .iter()
++        .filter(|(id, card)| {
++            let Some(procedure) = module.body_units.get(*id) else {
++                return false;
++            };
++            if !module.procedure_ids.owns(**id)
++                || !card.matches_procedure(module, procedure)
++                || !card.owns_original_source_scope(scope)
++                || !retained.matches_original_procedure_summary(**id, procedure)
++            {
++                return false;
++            }
++            let mut held = false;
++            crate::ir::for_each_statement(&procedure.body, &mut |statement| {
++                held |= statement
++                    .tokens()
++                    .is_some_and(|actual| std::ptr::eq(actual, tokens));
++            });
++            held
++        });
++    let (&body, card) = owners.next()?;
++    owners.next().is_none().then_some(())?;
++    let declared = if binding.has_original_source_layout_owner() {
++        tokens.clone()
++    } else {
++        positioned.original_authored_declaration_source_tokens(tokens, scope, registry)?
++    };
++    let advice = declared
++        .source_binding
++        .as_ref()?
++        .original_authored_declaration_scalar_layout(&declared, registry)?;
++    (advice.namespace() == scope.namespace()
++        && advice.original_variable_context().frame_kind
++            == crate::var_resolve::VariableFrameKind::Local)
++        .then_some(())?;
++    let selected = super::resolve_original_source_layout(registry, None, &declared, &advice)?;
++    let dialect = scope.original_word_dialect()?;
++    let (roles, aliases, continues) = scope.with_source_schema(tokens, registry, |schema| {
++        let facts = schema.facts();
++        let (roles, complete) = schema.authored_source_argument_roles();
++        if facts.descriptor_key() != selected.facts.descriptor_key()
++            || !complete
++            || facts.arity_accepts_frozen_arguments() != Some(true)
++        {
++            return None;
++        }
++        let roles = roles
++            .into_iter()
++            .map(|(at, role)| (facts.argument_offset + usize::from(at), role))
++            .collect::<Vec<_>>();
++        let (_, transitions) = schema.authored_source_effects_and_state_transitions(dialect);
++        let continues = schema.semantics.state_transitions.is_declared()
++            && transitions.command_resolution_impact()
++                == tcl_registry::CommandResolutionImpact::None
++            && transitions.facts().iter().all(|fact| {
++                matches!(
++                    fact.transition,
++                    tcl_registry::StateTransition::VariableCellAlias(_)
++                )
++            })
++            && ![
++                tcl_registry::StateTransitionDomain::VariableTraces,
++                tcl_registry::StateTransitionDomain::CommandTraces,
++                tcl_registry::StateTransitionDomain::ExecutionTraces,
++                tcl_registry::StateTransitionDomain::InterpreterTopology,
++                tcl_registry::StateTransitionDomain::InterpreterPolicy,
++                tcl_registry::StateTransitionDomain::Interpreters,
++                tcl_registry::StateTransitionDomain::ObjectDispatch,
++            ]
++            .into_iter()
++            .any(|domain| transitions.widens(domain))
++            && !roles.iter().any(|(_, role)| {
++                matches!(
++                    role,
++                    tcl_registry::ArgRole::Body
++                        | tcl_registry::ArgRole::Expr
++                        | tcl_registry::ArgRole::LambdaLiteral
++                        | tcl_registry::ArgRole::CommandPrefix
++                )
++            })
++            && !facts.traits.intersects(
++                tcl_registry::Traits::EVALUATES_CODE
++                    | tcl_registry::Traits::DYNAMIC_EVAL_BODY
++                    | tcl_registry::Traits::DEFERS_BODY
++                    | tcl_registry::Traits::PERFORMS_SUBSTITUTION,
++            );
++        let aliases = transitions
++            .facts()
++            .iter()
++            .filter_map(|fact| {
++                if let tcl_registry::StateTransition::VariableCellAlias(alias) = &fact.transition {
++                    Some(alias.clone())
++                } else {
++                    None
++                }
++            })
++            .collect();
++        Some((roles, aliases, continues))
++    })?;
++    Some(OriginalAuthoredParameterSourceCommand {
++        body,
++        card: Arc::clone(card),
++        original: original.into(),
++        words,
++        aliases,
++        roles,
++        dialect,
++        continues,
++        obligations: [
++            super::original_procedure_call::OriginalAuthoredBodyCallObligation::BodyEntry,
++            super::original_procedure_call::OriginalAuthoredBodyCallObligation::ActualLookup,
++            super::original_procedure_call::OriginalAuthoredBodyCallObligation::ObserverApplicability,
++        ],
++    })
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn authored_parameter_source_words_preserve_full_scalar_names_and_refuse_indices() {
++        let source = tcl_lexer::SourceImage::document(
++            r#"take ${p($k)} $arr($k) "$n" prefix$n {$n} [unknown]"#,
++        );
++        let config = tcl_lexer::LexerConfig::for_dialect("tcl8.6");
++        let plan = tcl_lexer::native_script_words_in_with_purpose(
++            source.clone(),
++            tcl_lexer::Span::new(0, u32::try_from(source.bytes().len()).unwrap()),
++            config,
++            tcl_lexer::SourceSegmentationPurpose::NestedScript,
++        )
++        .unwrap();
++        assert!(plan.fatal_tail.is_none());
++        let [command] = plan.commands.as_slice() else {
++            panic!("one complete original vector");
++        };
++        let words = &command.words;
++        assert!(matches!(parameter_source_word(&words[1]),
++            Some(AuthoredParameterSourceWord::Scalar(name)) if name == b"p($k)"));
++        assert!(parameter_source_word(&words[2]).is_none());
++        assert!(matches!(parameter_source_word(&words[3]),
++            Some(AuthoredParameterSourceWord::Scalar(name)) if name == b"n"));
++        assert!(parameter_source_word(&words[4]).is_none());
++        assert!(matches!(parameter_source_word(&words[5]),
++            Some(AuthoredParameterSourceWord::Literal(value)) if value == b"$n"));
++        assert!(parameter_source_word(&words[6]).is_none());
++        assert!(
++            words
++                .iter()
++                .all(|word| word.image() == &source && word.config() == config)
++        );
++    }
++}
+diff --git a/rust/tcl-compiler/src/registry_invocation/authored_controls.rs b/rust/tcl-compiler/src/registry_invocation/authored_controls.rs
+index 1ed7ae698..eab5da822 100644
+--- a/rust/tcl-compiler/src/registry_invocation/authored_controls.rs
++++ b/rust/tcl-compiler/src/registry_invocation/authored_controls.rs
+@@ -130,7 +130,9 @@ pub(crate) fn original_authored_scalar_invocation(
+     }
+     let variables = advice.original_variable_context();
+     if variables.frame_kind != crate::var_resolve::VariableFrameKind::Local
+-        || variables.execution_name_policy.is_some()
++        || variables
++            .execution_name_policy
++            .is_some_and(|policy| !scope.retains_authored_source_name_policy(policy))
+         || variables.interpreter.is_some()
+         || variables.execution.is_some()
+         || variables.hosted_execution_context.is_some()
+@@ -504,6 +506,161 @@ mod tests {
+         assert_eq!(read.version(), Some(definitions[1].version()));
+     }
+ 
++    #[test]
++    fn authored_scalar_source_stamp_keeps_actual_parent_rows_and_terminal_points() {
++        let environment = tcl_registry::model::ingress::resolve_environment("tcl8.6");
++        let context = environment.default_context_registry();
++        let registry = context.commands();
++        let config = tcl_lexer::LexerConfig::for_file_grammar(environment.unit_profile().grammar);
++        let source = "proc a {used spare} {set local 1; list retained; return $used}\nproc b {} {set other 2}";
++        let unit = crate::compilation_unit::CompilationUnit::build_for_with_config(
++            source, registry, false, config,
++        );
++        let module = &unit.ir_module;
++        let retained = module.retained_source_bindings.as_ref().unwrap();
++        let bindings = retained.positioned_for_module(module, registry).unwrap();
++        let (&id, _) = module
++            .original_authored_declaration_body_units
++            .iter()
++            .find(|(_, card)| card.name() == "a")
++            .unwrap();
++        let procedure = &module.body_units[&id];
++        let tokens = procedure
++            .body
++            .retained_source_tokens_for_statement(&procedure.body.statements[0])
++            .unwrap();
++        let binding = tokens.source_binding.as_ref().unwrap();
++        let scope = binding
++            .original_authored_scalar_body_scope(tokens, registry)
++            .unwrap();
++        let source_policy = module
++            .source_entry
++            .options()
++            .execution_name_policy()
++            .unwrap();
++        assert!(scope.retains_authored_source_name_policy(source_policy));
++        assert!(original_authored_scalar_invocation(tokens, registry).is_some());
++        let source_only = procedure
++            .body
++            .retained_source_tokens_for_statement(&procedure.body.statements[1])
++            .unwrap();
++        let source_scope = source_only
++            .source_binding
++            .as_ref()
++            .unwrap()
++            .original_authored_source_body_scope_for_name_roles(source_only, registry)
++            .unwrap();
++        assert!(
++            bindings
++                .original_authored_declaration_source_tokens(source_only, source_scope, registry)
++                .is_some()
++        );
++        let mut mixed = source_only.clone();
++        mixed.source_binding.as_mut().unwrap().may_be_absent = true;
++        assert!(
++            bindings
++                .original_authored_declaration_source_tokens(&mixed, source_scope, registry)
++                .is_none()
++        );
++        let mut mixed = source_only.clone();
++        mixed
++            .source_binding
++            .as_mut()
++            .unwrap()
++            .evaluated_argument_values
++            .push(None);
++        assert!(
++            bindings
++                .original_authored_declaration_source_tokens(&mixed, source_scope, registry)
++                .is_none()
++        );
++        let first = tokens.words().first().unwrap().source().span.start();
++        let end = tokens.words().last().unwrap().source().span.end();
++        let text = &source[first as usize..end as usize];
++        let segments =
++            crate::segmenter::segment_commands_with_offset_and_config(text, first, config.nested());
++        let [segment] = segments.as_slice() else {
++            panic!("one original raw source command");
++        };
++        let raw =
++            crate::ir::CommandTokens::from_segmented(&module.source.source_map(), config, segment);
++        assert!(raw.source_binding.is_none());
++        let selected = bindings
++            .original_authored_declaration_source_tokens(&raw, scope, registry)
++            .expect("genuine source-only declaration row");
++        let selected_binding = selected.source_binding.as_ref().unwrap();
++        assert!(selected_binding.has_original_source_layout_owner());
++        assert!(
++            selected_binding
++                .original_authored_declaration_scalar_layout(&selected, registry)
++                .is_some()
++        );
++        assert!(selected_binding.proved_execution_target().is_none());
++        assert!(selected_binding.execution_is_unknown());
++        assert!(
++            super::super::normal_representation_invocation_with_metadata_context(
++                registry, None, &selected
++            )
++            .is_none()
++        );
++        assert!(
++            super::super::admitted_native_compiler_invocation(registry, None, &selected).is_none()
++        );
++        assert!(
++            bindings
++                .original_authored_declaration_source_tokens(&selected, scope, registry)
++                .is_none()
++        );
++        let mut ordinary = raw.clone();
++        bindings.stamp_original_tokens(&mut ordinary);
++        assert!(
++            ordinary
++                .source_binding
++                .as_ref()
++                .unwrap()
++                .has_original_source_layout_owner()
++        );
++        assert!(
++            bindings
++                .original_authored_declaration_source_tokens(&ordinary, scope, registry)
++                .is_none()
++        );
++        let mut changed = raw.clone();
++        changed.argv_texts[0].push('_');
++        assert!(
++            bindings
++                .original_authored_declaration_source_tokens(&changed, scope, registry)
++                .is_none()
++        );
++        let (&other, _) = module
++            .original_authored_declaration_body_units
++            .iter()
++            .find(|(_, card)| card.name() == "b")
++            .unwrap();
++        let other = &module.body_units[&other];
++        let other_tokens = other
++            .body
++            .retained_source_tokens_for_statement(&other.body.statements[0])
++            .unwrap();
++        let other_scope = other_tokens
++            .source_binding
++            .as_ref()
++            .unwrap()
++            .original_authored_scalar_body_scope(other_tokens, registry)
++            .unwrap();
++        assert!(
++            bindings
++                .original_authored_declaration_source_tokens(&raw, other_scope, registry)
++                .is_none()
++        );
++        let foreign = tcl_registry::model::ingress::static_context_for("tcl9.0");
++        assert!(
++            bindings
++                .original_authored_declaration_source_tokens(&raw, scope, foreign.commands())
++                .is_none()
++        );
++    }
++
+     #[test]
+     fn authored_scalar_source_keeps_alias_array_computed_and_expanded_cases_generic() {
+         let registry = CommandRegistry::build_default();
+diff --git a/rust/tcl-compiler/src/registry_invocation/original_procedure_call.rs b/rust/tcl-compiler/src/registry_invocation/original_procedure_call.rs
+index 17fded7ff..553e46e29 100644
+--- a/rust/tcl-compiler/src/registry_invocation/original_procedure_call.rs
++++ b/rust/tcl-compiler/src/registry_invocation/original_procedure_call.rs
+@@ -208,8 +208,8 @@ pub(crate) fn original_authored_body_procedure_calls_for_module<'a>(
+     owners.next().is_none().then_some(())?;
+     // Reborrow the already retained actual source row, exactly as the scalar
+     // source producer does. This clone is private to this readonly call receipt.
+-    let mut declared = tokens.clone();
+-    positioned.stamp_original_tokens(&mut declared);
++    let declared =
++        positioned.original_authored_declaration_source_tokens(tokens, scope, registry)?;
+     let advice = declared
+         .source_binding
+         .as_ref()?
+diff --git a/rust/tcl-irules/src/lib.rs b/rust/tcl-irules/src/lib.rs
+index 7d15ff0e4..70a05689b 100644
+--- a/rust/tcl-irules/src/lib.rs
++++ b/rust/tcl-irules/src/lib.rs
+@@ -50,8 +50,9 @@ pub use event_handlers::{
+ 
+ mod source_context;
+ pub use source_context::{
+-    IrulesSourceObligation, OriginalHostedSourceVariableReferences, OriginalIrulesSourceCommand,
+-    OriginalIrulesSourceContext, original_hosted_source_variable_references,
++    IrulesSourceObligation, IrulesWhenSourceInventory, OriginalHostedSourceVariableReferences,
++    OriginalIrulesSourceCommand, OriginalIrulesSourceContext, OriginalIrulesWhenDeclaration,
++    OriginalIrulesWhenInventory, original_hosted_source_variable_references,
+ };
+ mod source_object;
+ pub use source_object::{
+@@ -68,7 +69,9 @@ pub use executable::{
+     executable_closure_builds_for_tests, reset_executable_closure_builds_for_tests,
+ };
+ mod when_block;
+-pub use when_block::{WhenBlock, when_block_candidates, when_block_is_empty, when_blocks};
++pub use when_block::{
++    WhenBlock, when_block_candidates, when_block_is_empty, when_blocks, when_source_inventory,
++};
+ 
+ pub mod ilx;
+ pub use ilx::{
+diff --git a/rust/tcl-irules/src/source_context.rs b/rust/tcl-irules/src/source_context.rs
+index 9b5bd8f4b..b3d456a7a 100644
+--- a/rust/tcl-irules/src/source_context.rs
++++ b/rust/tcl-irules/src/source_context.rs
+@@ -88,6 +88,79 @@ pub struct OriginalIrulesSourceContext {
+     source_vectors: Vec<(Span, OriginalRegistryWords)>,
+ }
+ 
++/// An original source handler, retaining conditional applicability and body
++/// provenance. It establishes no installed handler, entered frame or TMM event.
++#[derive(Debug, Clone)]
++pub struct OriginalIrulesWhenDeclaration {
++    event: SourceIrulesEventBody,
++    words: OriginalRegistryWords,
++}
++
++impl OriginalIrulesWhenDeclaration {
++    /// Literal event from the genuine lowering declaration producer.
++    #[must_use]
++    pub fn event(&self) -> &str {
++        self.event.event()
++    }
++
++    /// Original body/header provenance, without an entered handler frame.
++    #[must_use]
++    pub const fn event_source(&self) -> &SourceIrulesEventBody {
++        &self.event
++    }
++
++    /// Actual complete vector and its chronological conditional source card.
++    /// Lookup, namespace and prior mutation obligations remain on this owner.
++    #[must_use]
++    pub const fn words(&self) -> &OriginalRegistryWords {
++        &self.words
++    }
++}
++
++/// Source declarations with independently reported coverage. Empty declarations
++/// imply an empty source inventory only when no original top-level site refused.
++#[derive(Debug, Clone)]
++pub struct OriginalIrulesWhenInventory {
++    source: OriginalIrulesSourceContext,
++    declarations: Vec<OriginalIrulesWhenDeclaration>,
++    unavailable_sites: Vec<Span>,
++}
++
++impl OriginalIrulesWhenInventory {
++    /// Conditional source declarations in original source order.
++    #[must_use]
++    pub fn declarations(&self) -> &[OriginalIrulesWhenDeclaration] {
++        &self.declarations
++    }
++
++    /// Original top-level sites whose source selection or body owner refused.
++    #[must_use]
++    pub fn unavailable_sites(&self) -> &[Span] {
++        &self.unavailable_sites
++    }
++
++    /// Coverage of original top-level source syntax, never runtime event absence.
++    #[must_use]
++    pub fn is_complete(&self) -> bool {
++        self.unavailable_sites.is_empty()
++    }
++
++    /// Complete retained source/context/configuration owner for these cards.
++    #[must_use]
++    pub const fn source_context(&self) -> &OriginalIrulesSourceContext {
++        &self.source
++    }
++}
++
++/// A missing complete owner differs from an owned, possibly partial inventory.
++#[derive(Debug, Clone)]
++pub enum IrulesWhenSourceInventory {
++    /// No genuine complete source/configuration/context inventory is available.
++    Unavailable,
++    /// Source cards retain all conditional lookup and mutation obligations.
++    Available(OriginalIrulesWhenInventory),
++}
++
+ fn contains(outer: Span, inner: Span) -> bool {
+     outer.start() <= inner.start() && inner.end() <= outer.end()
+ }
+@@ -510,7 +583,12 @@ impl OriginalIrulesSourceContext {
+         let (image, config) = tcl_compiler::source_graph::current_analysis(source, analysis)?;
+         let retained = analysis.resolved_input.as_ref()?;
+         if !retained.unit_profile().is_irules()
+-            || !analysis.has_original_vendor_source_names()
++            || (!analysis.has_original_vendor_source_names()
++                && !(tcl_lexer::Lexer::with_config(source, config)
++                    .tokenise_all()
++                    .is_ok()
++                    && tcl_syntax::event_handler::script_commands(source, config).is_empty()))
++            || !retained.has_hosted_source_name_context()
+             || retained.context_registry().context() != context.context()
+             || retained
+                 .context_registry()
+@@ -751,6 +829,63 @@ impl OriginalIrulesSourceContext {
+             .collect()
+     }
+ 
++    /// Project existing original event/body cards through the exact top-level
++    /// source vectors. No Native target or Cow head label can donate this join.
++    #[must_use]
++    pub fn when_source_inventory(&self, source: &str) -> IrulesWhenSourceInventory {
++        // naming.consumer.original-irules-source-context
++        // docs/design/analysis/name-resolution-proofs/original-irules-source-context.md
++        if !self.matches_source(source)
++            || tcl_lexer::Lexer::with_config(source, self.config)
++                .tokenise_all()
++                .is_err()
++        {
++            return IrulesWhenSourceInventory::Unavailable;
++        }
++        let mut declarations = Vec::new();
++        let mut unavailable_sites = Vec::new();
++        for (span, words) in self.top_level_source_vectors(source) {
++            let Some(words) = words else {
++                unavailable_sites.push(span);
++                continue;
++            };
++            let Some(handler) = words.with_source_schema(&self.context_registry, |schema| {
++                schema.semantics.traits.contains(Traits::IS_EVENT_HANDLER)
++            }) else {
++                unavailable_sites.push(span);
++                continue;
++            };
++            if !handler {
++                continue;
++            }
++            let Some(event_word) = words.original_argument_word(0) else {
++                unavailable_sites.push(span);
++                continue;
++            };
++            let mut matches = self.events.iter().filter(|event| {
++                event.event_word(&self.image, self.config, self.context_registry.commands())
++                    == Some(event_word)
++            });
++            let Some(event) = matches.next() else {
++                unavailable_sites.push(span);
++                continue;
++            };
++            if matches.next().is_some() {
++                unavailable_sites.push(span);
++                continue;
++            }
++            declarations.push(OriginalIrulesWhenDeclaration {
++                event: event.clone(),
++                words: words.clone(),
++            });
++        }
++        IrulesWhenSourceInventory::Available(OriginalIrulesWhenInventory {
++            source: self.clone(),
++            declarations,
++            unavailable_sites,
++        })
++    }
++
+     /// Actual event-body declarations; presence is not event reachability.
+     #[must_use]
+     pub fn events(&self) -> &[SourceIrulesEventBody] {
+diff --git a/rust/tcl-irules/src/when_block.rs b/rust/tcl-irules/src/when_block.rs
+index 58c88464a..11e9c3f62 100644
+--- a/rust/tcl-irules/src/when_block.rs
++++ b/rust/tcl-irules/src/when_block.rs
+@@ -30,6 +30,18 @@ pub fn when_blocks(source: &str) -> Vec<WhenBlock> {
+     )
+ }
+ 
++/// Readonly original source event declarations under the actual iRules store.
++/// Unknown lookup, namespace, observer and source mutation premises stay on the
++/// retained cards. Unavailable or partial source coverage is never empty advice.
++#[must_use]
++pub fn when_source_inventory(source: &str) -> crate::IrulesWhenSourceInventory {
++    let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
++    crate::OriginalIrulesSourceContext::capture(source, registry)
++        .map_or(crate::IrulesWhenSourceInventory::Unavailable, |context| {
++            context.when_source_inventory(source)
++        })
++}
++
+ /// Return syntactically valid top-level handler candidates, including unknown
+ /// event names, for the unknown-event diagnostic only.
+ #[must_use]
+@@ -59,6 +71,102 @@ pub fn when_block_is_empty(source: &str, block: &WhenBlock) -> bool {
+ mod tests {
+     use super::*;
+ 
++    #[test]
++    // naming.consumer.original-irules-source-context
++    // docs/design/analysis/name-resolution-proofs/original-irules-source-context.md
++    fn original_when_inventory_keeps_event_words_bodies_and_conditional_cards() {
++        let source =
++            "when HTTP_REQUEST { pool /Common/a }\nwhen CLIENT_ACCEPTED { log local0. ok }";
++        let crate::IrulesWhenSourceInventory::Available(inventory) = when_source_inventory(source)
++        else {
++            panic!("actual complete source inventory");
++        };
++        assert!(inventory.is_complete());
++        assert_eq!(
++            inventory
++                .declarations()
++                .iter()
++                .map(|event| event.event())
++                .collect::<Vec<_>>(),
++            ["HTTP_REQUEST", "CLIENT_ACCEPTED"]
++        );
++        for declaration in inventory.declarations() {
++            let tcl_compiler::registry_invocation::source_structure::OriginalRegistrySource::Vendor(
++                metadata,
++            ) = declaration.words().source()
++            else {
++                panic!("original hosted source card")
++            };
++            assert!(metadata.obligations().contains(
++                &tcl_compiler::command_binding::VendorCatalogueSourceObligation::AuthoredSourceCoordinates));
++            assert_eq!(
++                metadata.shape().original_words().get(1),
++                declaration.words().original_argument_word(0)
++            );
++            assert!(metadata.matches_source(
++                &tcl_lexer::SourceImage::document(source),
++                inventory.source_context().expression_syntax().0
++            ));
++        }
++        assert!(matches!(
++            inventory.source_context().when_source_inventory(
++                "when HTTP_RESPONSE { pool /Common/a }\nwhen CLIENT_ACCEPTED { log local0. ok }"
++            ),
++            crate::IrulesWhenSourceInventory::Unavailable
++        ));
++    }
++
++    #[test]
++    // naming.consumer.original-irules-source-context
++    // docs/design/analysis/name-resolution-proofs/original-irules-source-context.md
++    fn original_when_inventory_distinguishes_empty_and_unavailable_source_sites() {
++        for source in ["", "# no source commands\n", "set value 1"] {
++            let crate::IrulesWhenSourceInventory::Available(inventory) =
++                when_source_inventory(source)
++            else {
++                panic!("owned source inventory: {source:?}");
++            };
++            assert!(inventory.is_complete(), "{source:?}");
++            assert!(inventory.declarations().is_empty());
++        }
++        for source in [
++            "when HTTP_REQUEST {",
++            "proc when args {}; when HTTP_REQUEST {}",
++        ] {
++            if let crate::IrulesWhenSourceInventory::Available(inventory) =
++                when_source_inventory(source)
++            {
++                assert!(!inventory.is_complete(), "{source:?}");
++                assert!(inventory.declarations().is_empty(), "{source:?}");
++            }
++        }
++    }
++
++    #[test]
++    // naming.consumer.original-irules-source-context
++    // docs/design/analysis/name-resolution-proofs/original-irules-source-context.md
++    fn original_when_inventory_preserves_preceding_unknown_source_debt() {
++        let source = "unmodelled_source_effect; when HTTP_REQUEST {}";
++        let crate::IrulesWhenSourceInventory::Available(inventory) = when_source_inventory(source)
++        else {
++            panic!("conditional source inventory");
++        };
++        assert!(!inventory.is_complete());
++        assert!(!inventory.unavailable_sites().is_empty());
++        let declaration = inventory
++            .declarations()
++            .first()
++            .expect("conditional source declaration");
++        let tcl_compiler::registry_invocation::source_structure::OriginalRegistrySource::Vendor(
++            metadata,
++        ) = declaration.words().source()
++        else {
++            panic!("original hosted card")
++        };
++        assert!(metadata.authored_barriers().has_unknown_transitions());
++        assert!(!metadata.obligations().is_empty());
++    }
++
+     #[test]
+     fn ignores_commented_when_and_rejects_trailing_text_after_brace_close() {
+         let source =
+diff --git a/rust/tcl-lsp-server/src/lib.rs b/rust/tcl-lsp-server/src/lib.rs
+index f3e8ff64c..816a8b230 100644
+--- a/rust/tcl-lsp-server/src/lib.rs
++++ b/rust/tcl-lsp-server/src/lib.rs
+@@ -32740,7 +32740,12 @@ fn whole_line_range(
+ /// they are two documents to everything keyed by URI: find-references,
+ /// workspace symbols, and rename each see one file twice.
+ ///
+-/// The canonicalisation starts with `ls_types`' own `from_file_path`, then
++/// Relative paths retain the provider's filesystem canonicalisation requirement;
++/// absolute paths need not exist and keep their supplied spelling. The selected
++/// actual path must be losslessly representable as Unicode: opaque native units
++/// return `None`, while a literal Unicode replacement character remains data.
++///
++/// URI construction uses `ls_types`' own `from_file_path`, then
+ /// [`uri_norm::repair_file_uri_from_path`] gives a leading `//` the authority
+ /// shape `VS Code`'s `URI.file` uses on every host and removes Windows-only
+ /// extended-length markers. Finally, [`uri_norm::canonical_uri_string`] pins
+@@ -32749,6 +32754,16 @@ fn whole_line_range(
+ #[must_use]
+ pub fn canonical_file_uri<P: AsRef<Path>>(path: P) -> Option<Uri> {
+     let path = path.as_ref();
++    // Match the provider's actual path selection before admitting Unicode.
++    // A relative ASCII symlink can resolve to opaque native filename units;
++    // checking its written spelling would still permit a replacement URI.
++    let selected = if path.is_absolute() {
++        std::borrow::Cow::Borrowed(path)
++    } else {
++        std::borrow::Cow::Owned(std::fs::canonicalize(path).ok()?)
++    };
++    selected.to_str()?;
++    let path = selected.as_ref();
+     let raw = match Uri::from_file_path(path) {
+         Some(raw) => raw,
+         // wasm32-unknown-unknown only; `cfg!` rather than `#[cfg]` so the
+@@ -35792,6 +35807,77 @@ info exists ::N::v\uD800";
+         assert_eq!(child, expected.as_str());
+     }
+ 
++    #[cfg(unix)]
++    #[test]
++    fn canonical_file_uri_declines_opaque_actual_path_without_replacement_alias() {
++        use std::os::unix::{ffi::OsStringExt, fs::symlink};
++        let workspace = TmpWs::new("uri-native-path");
++        let opaque = workspace
++            .0
++            .join(std::ffi::OsString::from_vec(b"opaque-\xff.tcl".to_vec()));
++        let replacement = workspace.0.join("opaque-\u{fffd}.tcl");
++        let unicode = workspace.0.join("space é.tcl");
++        for path in [&opaque, &replacement, &unicode] {
++            std::fs::write(path, "original fixture").unwrap();
++        }
++        assert!(canonical_file_uri(&opaque).is_none());
++        let replacement_uri =
++            canonical_file_uri(&replacement).expect("literal replacement character is Unicode");
++        assert!(replacement_uri.as_str().ends_with("/opaque-%EF%BF%BD.tcl"));
++        assert!(
++            canonical_file_uri(&unicode)
++                .unwrap()
++                .as_str()
++                .ends_with("/space%20%C3%A9.tcl")
++        );
++
++        let link = workspace.0.join("ascii-link.tcl");
++        symlink(&opaque, &link).unwrap();
++        assert!(
++            canonical_file_uri(&link).is_some(),
++            "absolute symlinks keep their written path"
++        );
++        let cwd = std::env::current_dir().unwrap();
++        let mut relative = PathBuf::new();
++        for _ in cwd.components().skip(1) {
++            relative.push("..");
++        }
++        relative.push(link.strip_prefix("/").unwrap());
++        assert!(!relative.is_absolute());
++        assert!(relative.to_str().is_some());
++        assert_eq!(
++            std::fs::canonicalize(&relative).unwrap(),
++            std::fs::canonicalize(&opaque).unwrap()
++        );
++        assert!(
++            canonical_file_uri(&relative).is_none(),
++            "admission must inspect the actual canonical target, not the ASCII symlink spelling"
++        );
++    }
++
++    #[cfg(unix)]
++    #[test]
++    fn canonical_file_uri_preserves_absolute_and_relative_existence_policy() {
++        let workspace = TmpWs::new("uri-existence");
++        let absent = workspace.0.join("absent é.tcl");
++        assert!(!absent.exists());
++        assert!(
++            canonical_file_uri(&absent)
++                .unwrap()
++                .as_str()
++                .ends_with("/absent%20%C3%A9.tcl")
++        );
++        let cwd = std::env::current_dir().unwrap();
++        let mut relative = PathBuf::new();
++        for _ in cwd.components().skip(1) {
++            relative.push("..");
++        }
++        relative.push(absent.strip_prefix("/").unwrap());
++        assert!(canonical_file_uri(&relative).is_none());
++        std::fs::write(&absent, "original fixture").unwrap();
++        assert_eq!(canonical_file_uri(&relative), canonical_file_uri(&absent));
++    }
++
+     #[cfg(unix)]
+     #[test]
+     fn canonical_file_uri_preserves_a_posix_question_mark_segment() {
+diff --git a/rust/tcl-lsp-server/tests/e2e/common/mod.rs b/rust/tcl-lsp-server/tests/e2e/common/mod.rs
+index 2824f70b0..bd1d56dc4 100644
+--- a/rust/tcl-lsp-server/tests/e2e/common/mod.rs
++++ b/rust/tcl-lsp-server/tests/e2e/common/mod.rs
+@@ -736,7 +736,10 @@ impl Lsp {
+     /// pay that barrier.
+     pub fn at_workspace_root(root: &std::path::Path) -> Self {
+         let mut lsp = Self::spawn(json!({ "features": { "linkedEditingRange": true } }));
+-        lsp.initialize_at(&format!("file://{}", root.to_string_lossy()));
++        let root_uri = tcl_lsp_server::canonical_file_uri(root)
++            .expect("workspace root has a representable file URI")
++            .to_string();
++        lsp.initialize_at(&root_uri);
+         lsp
+     }
+ 
+@@ -763,7 +766,10 @@ impl Lsp {
+         env: &[(&str, &str)],
+     ) -> Self {
+         let mut lsp = Self::spawn_with_env(config, env);
+-        lsp.initialize_at(&format!("file://{}", root.to_string_lossy()));
++        let root_uri = tcl_lsp_server::canonical_file_uri(root)
++            .expect("workspace root has a representable file URI")
++            .to_string();
++        lsp.initialize_at(&root_uri);
+         let requested = lsp.shared.tcllsp_config.lock().unwrap().clone();
+         lsp.settle_config(&requested);
+         lsp
+@@ -781,14 +787,20 @@ impl Lsp {
+         {
+             let mut map = lsp.shared.folder_configs.lock().unwrap();
+             for (root, config) in folders {
+-                map.insert(format!("file://{}", root.to_string_lossy()), config.clone());
++                let uri = tcl_lsp_server::canonical_file_uri(root)
++                    .expect("workspace folder has a representable file URI")
++                    .to_string();
++                map.insert(uri, config.clone());
+             }
+         }
+         let roots: Vec<Value> = folders
+             .iter()
+             .enumerate()
+             .map(|(i, (root, _))| {
+-                json!({ "uri": format!("file://{}", root.to_string_lossy()), "name": format!("root{i}") })
++                let uri = tcl_lsp_server::canonical_file_uri(root)
++                    .expect("workspace folder has a representable file URI")
++                    .to_string();
++                json!({ "uri": uri, "name": format!("root{i}") })
+             })
+             .collect();
+         lsp.initialize_with_folders(&roots);
+diff --git a/rust/tcl-lsp-server/tests/e2e/references.rs b/rust/tcl-lsp-server/tests/e2e/references.rs
+index f5694d7a7..b6a0a1774 100644
+--- a/rust/tcl-lsp-server/tests/e2e/references.rs
++++ b/rust/tcl-lsp-server/tests/e2e/references.rs
+@@ -1022,7 +1022,9 @@ fn find_references_reaches_an_unopened_tcltest_file_923_idx27() {
+     .expect("write a.test");
+ 
+     let mut lsp = Lsp::at_workspace_root(&root);
+-    let uri = format!("file://{}", lib.to_string_lossy());
++    let uri = tcl_lsp_server::canonical_file_uri(&lib)
++        .expect("fixture path has a representable file URI")
++        .to_string();
+     lsp.open_ready(&uri, &std::fs::read_to_string(&lib).expect("read"));
+ 
+     // The workspace index is built asynchronously; poll (via
+diff --git a/rust/tcl-lsp-server/tests/e2e/rename.rs b/rust/tcl-lsp-server/tests/e2e/rename.rs
+index 1cf5fd5a2..99e1cb411 100644
+--- a/rust/tcl-lsp-server/tests/e2e/rename.rs
++++ b/rust/tcl-lsp-server/tests/e2e/rename.rs
+@@ -826,7 +826,11 @@ fn did_rename_files_retires_the_old_path_and_keeps_source_rehoming() {
+     let before = "namespace eval ::ns {\n    source sourced_old.tcl\n}\n::ns::rehomed_marker\n";
+     std::fs::write(&main_path, before).expect("write main");
+ 
+-    let uri_of = |p: &std::path::Path| format!("file://{}", p.to_string_lossy());
++    let uri_of = |p: &std::path::Path| {
++        tcl_lsp_server::canonical_file_uri(p)
++            .expect("fixture path has a representable file URI")
++            .to_string()
++    };
+     let (old_uri, new_uri, main_uri) = (uri_of(&old_path), uri_of(&new_path), uri_of(&main_path));
+ 
+     let mut lsp = Lsp::at_workspace_root(&root);
+diff --git a/rust/tcl-lsp-server/tests/e2e/spec_packs.rs b/rust/tcl-lsp-server/tests/e2e/spec_packs.rs
+index 3a2794e81..d63186e94 100644
+--- a/rust/tcl-lsp-server/tests/e2e/spec_packs.rs
++++ b/rust/tcl-lsp-server/tests/e2e/spec_packs.rs
+@@ -78,7 +78,9 @@ fn write(path: &Path, body: &str) {
+ }
+ 
+ fn file_uri(path: &Path) -> String {
+-    format!("file://{}", path.to_string_lossy())
++    tcl_lsp_server::canonical_file_uri(path)
++        .expect("pack fixture path has a representable file URI")
++        .to_string()
+ }
+ 
+ /// Tell the server a pack file moved, exactly as a client's file watcher would.
+diff --git a/rust/tcl-vm/src/interp.rs b/rust/tcl-vm/src/interp.rs
+index 969aa0c8f..6171f44da 100644
+--- a/rust/tcl-vm/src/interp.rs
++++ b/rust/tcl-vm/src/interp.rs
+@@ -4105,11 +4105,11 @@ impl Vm {
+     /// the one table both this VM and `runtime/rust` read, so the two engines
+     /// cannot report different patch levels for the same emulated release.
+     fn write_release_globals(&mut self) {
+-        self.write_scalar_raw(
++        self.write_host_bootstrap_scalar(
+             "tcl_version",
+             Value::string(self.runtime_version.as_package_version()),
+         );
+-        self.write_scalar_raw(
++        self.write_host_bootstrap_scalar(
+             "tcl_patchLevel",
+             Value::string(self.runtime_version.patchlevel()),
+         );
+@@ -4221,12 +4221,59 @@ impl Vm {
+     /// so library scripts (tcltest) that read them at load time work.
+     fn bootstrap_globals(&mut self) {
+         self.rebootstrap_host_globals();
+-        self.write_scalar_raw("argv", Value::list(Vec::new()));
+-        self.write_scalar_raw("argv0", Value::string("tcltest"));
+-        self.write_scalar_raw("argc", Value::int(0));
++        self.write_host_bootstrap_scalar("argv", Value::list(Vec::new()));
++        self.write_host_bootstrap_scalar("argv0", Value::string("tcltest"));
++        self.write_host_bootstrap_scalar("argc", Value::int(0));
+         self.write_release_globals();
+         self.install_native_precision_trace();
+-        self.write_scalar_raw("tcl_interactive", Value::int(0));
++        self.write_host_bootstrap_scalar("tcl_interactive", Value::int(0));
++    }
++
++    /// Fixed host slots are already selected root-table keys, not guest names.
++    fn write_host_bootstrap_scalar(&mut self, name: &'static str, value: Value) {
++        if self.actual_engine_profile.is_some() || self.active_native_profile.is_some() {
++            self.write_scalar_raw(name, value);
++            return;
++        }
++        let binding = VarBinding {
++            owner: VarTableOwner::Namespace(ROOT_NS),
++            name: NameBytes::from(name),
++        };
++        let resolved = self
++            .resolve_binding_var(binding, None, &mut HashSet::new())
++            .expect("host root slot");
++        self.write_scalar_resolved_raw(resolved, value);
++    }
++
++    fn install_host_bootstrap_array(&mut self, name: &'static str) -> VarId {
++        let binding = VarBinding {
++            owner: VarTableOwner::Namespace(ROOT_NS),
++            name: NameBytes::from(name),
++        };
++        self.bind_new_var(&binding, Local::Array(VarTable::new()))
++            .expect("host root array allocation")
++    }
++
++    fn write_host_bootstrap_element(&mut self, parent: VarId, key: &str, value: &str) {
++        let existing = match self.var_arena.get(parent).map(crate::vars::VarCell::state) {
++            Some(Local::Array(elements)) => elements.get(key).copied(),
++            _ => unreachable!("host-owned array"),
++        };
++        if let Some(id) = existing {
++            let _ = self
++                .var_arena
++                .replace_state(id, Local::Scalar(Value::string(value)));
++            return;
++        }
++        let id = self
++            .var_arena
++            .alloc_element(Local::Scalar(Value::string(value)), parent, key)
++            .expect("host array member allocation");
++        if self.var_arena.array_insert(parent, key, id) {
++            self.var_arena.bind(id);
++        } else {
++            self.var_arena.discard_unbound(id);
++        }
+     }
+ 
+     fn unset_global_raw(&mut self, name: &str) {
+@@ -4256,6 +4303,20 @@ impl Vm {
+         for name in tcl_platform::bootstrap::HOST_PATH_GLOBALS {
+             self.unset_global_raw(name);
+         }
++        if self.actual_engine_profile.is_none() && self.active_native_profile.is_none() {
++            let platform = self.install_host_bootstrap_array("tcl_platform");
++            let environment = self.install_host_bootstrap_array("env");
++            self.write_host_bootstrap_scalar("tcl_library", Value::string(snapshot.tcl_library()));
++            self.write_host_bootstrap_scalar("auto_path", Value::list(Vec::new()));
++            for (name, value) in snapshot.platform() {
++                self.write_host_bootstrap_element(platform, name, value);
++            }
++            for (name, value) in snapshot.environment() {
++                self.write_host_bootstrap_element(environment, name, value);
++            }
++            self.limits.confined_stores = confined;
++            return;
++        }
+         self.ensure_array("::tcl_platform")
+             .expect("fresh tcl_platform array");
+         self.ensure_array("::env").expect("fresh env array");
+@@ -20123,6 +20184,10 @@ impl Vm {
+         let Some(resolved) = self.resolve_var_from(name, self.current_level()) else {
+             return;
+         };
++        self.write_scalar_resolved_raw(resolved, value);
++    }
++
++    fn write_scalar_resolved_raw(&mut self, resolved: ResolvedVar, value: Value) {
+         if self.dictionary_variable_containers()
+             && let Some(key) = &resolved.elem
+         {
+@@ -33698,3 +33763,194 @@ mod original_c_import_preload_cleanup_tests {
+         }
+     }
+ }
++
++#[cfg(test)]
++mod host_bootstrap_storage_tests {
++    use super::*;
++
++    struct BootstrapEnvironment {
++        revision: &'static str,
++    }
++    impl tcl_platform::Env for BootstrapEnvironment {
++        fn get(&self, key: &str) -> Option<String> {
++            self.vars()
++                .into_iter()
++                .find(|(name, _)| name == key)
++                .map(|(_, value)| value)
++        }
++        fn set(&self, _: &str, _: &str) {
++            panic!("host bootstrap must not mutate the environment");
++        }
++        fn vars(&self) -> Vec<(String, String)> {
++            vec![
++                ("USER".into(), "bootstrap-user".into()),
++                ("TCL_LIBRARY".into(), format!("/library/{}", self.revision)),
++                ("literal::key(x)".into(), self.revision.into()),
++            ]
++        }
++        fn cwd(&self) -> Result<String, tcl_platform::HostError> {
++            Err(tcl_platform::HostError::Unsupported)
++        }
++        fn chdir(&self, _: &str) -> Result<(), tcl_platform::HostError> {
++            Err(tcl_platform::HostError::Unsupported)
++        }
++    }
++    struct BootstrapHost {
++        actual: Rc<dyn Host>,
++        environment: BootstrapEnvironment,
++    }
++    impl Host for BootstrapHost {
++        fn capabilities(&self) -> tcl_platform::Capabilities {
++            self.actual.capabilities()
++        }
++        fn clock(&self) -> &dyn tcl_platform::Clock {
++            self.actual.clock()
++        }
++        fn stdio(&self) -> &dyn tcl_platform::StdIo {
++            self.actual.stdio()
++        }
++        fn env(&self) -> &dyn tcl_platform::Env {
++            &self.environment
++        }
++    }
++    fn host(vm: &Vm, revision: &'static str) -> Rc<dyn Host> {
++        Rc::new(BootstrapHost {
++            actual: vm.host_rc(),
++            environment: BootstrapEnvironment { revision },
++        })
++    }
++    fn root(vm: &Vm, name: &str) -> VarId {
++        *vm.frames[0]
++            .locals
++            .get(name)
++            .expect("actual host root slot")
++    }
++    fn bytes(vm: &Vm, id: VarId) -> Vec<u8> {
++        let Local::Scalar(value) = vm.var_arena.get(id).unwrap().state() else {
++            panic!("host scalar cell");
++        };
++        value
++            .resident_string_bytes()
++            .expect("host authored string")
++            .to_vec()
++    }
++    fn array_member(vm: &Vm, array: VarId, key: &str) -> VarId {
++        let Local::Array(table) = vm.var_arena.get(array).unwrap().state() else {
++            panic!("host array cell");
++        };
++        *table.get(key).expect("actual counted host element")
++    }
++
++    #[test]
++    fn distribution_host_bootstrap_owns_storage_without_a_native_name_policy() {
++        let mut vm = Vm::with_output(Box::new(std::io::sink()));
++        assert!(vm.actual_engine_profile.is_none());
++        assert!(vm.active_native_profile.is_none());
++        assert!(vm.name_policy_protocol().is_none());
++        assert!(vm.execution_name_policy().is_none());
++        assert!(vm.execution_refusal.is_none());
++        for name in [
++            "argv",
++            "argv0",
++            "argc",
++            "tcl_version",
++            "tcl_patchLevel",
++            "tcl_interactive",
++            "auto_path",
++            "tcl_library",
++        ] {
++            assert!(
++                matches!(
++                    vm.var_arena.get(root(&vm, name)).unwrap().state(),
++                    Local::Scalar(_)
++                ),
++                "{name}"
++            );
++        }
++        assert_eq!(bytes(&vm, root(&vm, "argv0")), b"tcltest");
++        assert_eq!(
++            bytes(&vm, root(&vm, "tcl_version")),
++            vm.runtime_version.as_package_version().as_bytes()
++        );
++        let first_host = host(&vm, "first");
++        vm.set_host(first_host);
++        assert!(vm.execution_refusal.is_none());
++        let first_env = root(&vm, "env");
++        let first_element = array_member(&vm, first_env, "literal::key(x)");
++        assert_eq!(bytes(&vm, first_element), b"first");
++        assert_eq!(bytes(&vm, root(&vm, "tcl_library")), b"/library/first");
++        let platform = root(&vm, "tcl_platform");
++        assert_eq!(
++            bytes(&vm, array_member(&vm, platform, "user")),
++            b"bootstrap-user"
++        );
++        let second_host = host(&vm, "second");
++        vm.set_host(second_host);
++        assert!(vm.execution_refusal.is_none());
++        let second_env = root(&vm, "env");
++        assert_ne!(first_env, second_env);
++        assert!(vm.var_arena.get(first_env).is_none());
++        assert!(vm.var_arena.get(first_element).is_none());
++        assert_eq!(
++            bytes(&vm, array_member(&vm, second_env, "literal::key(x)")),
++            b"second"
++        );
++        assert_eq!(bytes(&vm, root(&vm, "tcl_library")), b"/library/second");
++        assert!(vm.actual_engine_profile.is_none());
++        assert!(vm.active_native_profile.is_none());
++        assert!(vm.name_policy_protocol().is_none());
++        assert!(vm.execution_name_policy().is_none());
++        assert!(vm.ensure_array("guest").is_err());
++        let first = vm.execution_refusal.clone().expect("genuine guest refusal");
++        assert!(!vm.frames[0].locals.contains_key("guest"));
++        let third_host = host(&vm, "third");
++        vm.set_host(third_host);
++        assert_eq!(vm.execution_refusal.as_ref(), Some(&first));
++        assert_eq!(bytes(&vm, root(&vm, "tcl_library")), b"/library/third");
++        assert!(vm.actual_engine_profile.is_none());
++        assert!(vm.name_policy_protocol().is_none());
++    }
++
++    #[test]
++    fn host_release_slot_keeps_a_name_link_to_a_missing_array_element() {
++        let mut vm = Vm::with_output(Box::new(std::io::sink()));
++        let array = vm.install_host_bootstrap_array("host-target");
++        vm.write_host_bootstrap_element(array, "retained", "unchanged");
++        let retained = array_member(&vm, array, "retained");
++        let root_slot = VarBinding {
++            owner: VarTableOwner::Namespace(ROOT_NS),
++            name: NameBytes::from("tcl_version"),
++        };
++        let link = vm
++            .bind_new_var(
++                &root_slot,
++                Local::NameLink(NameLink {
++                    original_target: None,
++                    binding: VarBinding {
++                        owner: VarTableOwner::Namespace(ROOT_NS),
++                        name: NameBytes::from("host-target"),
++                    },
++                    element: Some(NameBytes::from("missing::key(x)")),
++                }),
++            )
++            .unwrap();
++        vm.write_release_globals();
++        assert_eq!(root(&vm, "tcl_version"), link);
++        assert!(matches!(
++            vm.var_arena.get(link).unwrap().state(),
++            Local::NameLink(_)
++        ));
++        assert_eq!(root(&vm, "host-target"), array);
++        assert_eq!(array_member(&vm, array, "retained"), retained);
++        assert_eq!(bytes(&vm, retained), b"unchanged");
++        let installed = array_member(&vm, array, "missing::key(x)");
++        assert_eq!(
++            bytes(&vm, installed),
++            vm.runtime_version.as_package_version().as_bytes()
++        );
++        assert!(vm.actual_engine_profile.is_none());
++        assert!(vm.active_native_profile.is_none());
++        assert!(vm.name_policy_protocol().is_none());
++        assert!(vm.execution_refusal.is_none());
++    }
++}

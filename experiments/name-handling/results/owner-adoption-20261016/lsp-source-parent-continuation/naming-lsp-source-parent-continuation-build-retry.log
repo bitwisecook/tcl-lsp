@@ -1,0 +1,101 @@
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp/rust/tcl-registry)
+   Compiling tcl-bytecode v0.1.0 (/workspace/tcl-lsp/rust/tcl-bytecode)
+   Compiling serde_json v1.0.151
+   Compiling serde v1.0.229
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+warning: method `current_advice` is never used
+    --> rust/tcl-compiler/src/command_binding/declaration_layout.rs:1738:8
+     |
+1729 | impl DeclarationSourceOperandLayoutAdvice {
+     | ----------------------------------------- method in this implementation
+...
+1738 |     fn current_advice(
+     |        ^^^^^^^^^^^^^^
+     |
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-compiler` (lib) generated 1 warning
+   Compiling asn1-rs v0.7.2
+   Compiling ring v0.17.14
+   Compiling der-parser v10.0.0
+   Compiling oid-registry v0.8.1
+   Compiling x509-parser v0.18.1
+   Compiling crossbeam-utils v0.8.23
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-host-c-abi v0.1.0 (/workspace/tcl-lsp/rust/tcl-host-c-abi)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+   Compiling pin-project-lite v0.2.17
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+   Compiling scopeguard v1.2.0
+   Compiling lock_api v0.4.14
+   Compiling parking_lot_core v0.9.12
+   Compiling tcl-host-native v0.1.0 (/workspace/tcl-lsp/rust/tcl-host-native)
+   Compiling tcl-vm v0.1.0 (/workspace/tcl-lsp/rust/tcl-vm)
+   Compiling crossbeam-epoch v0.9.21
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+   Compiling tcl-engine-api v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-api)
+   Compiling futures-sink v0.3.34
+   Compiling futures-core v0.3.34
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling crossbeam-deque v0.8.8
+   Compiling tracing-core v0.1.36
+   Compiling tracing v0.1.44
+   Compiling rayon-core v1.13.0
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling futures-channel v0.3.34
+   Compiling parking_lot v0.12.5
+   Compiling tcl-pkg-model v0.1.0 (/workspace/tcl-lsp/rust/tcl-pkg-model)
+   Compiling slab v0.4.12
+   Compiling futures-task v0.3.34
+   Compiling futures-io v0.3.34
+   Compiling either v1.18.0
+   Compiling rayon v1.12.0
+   Compiling futures-util v0.3.34
+   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-spectcl)
+   Compiling ref-cast v1.0.27
+   Compiling borrow-or-share v0.2.4
+   Compiling fluent-uri v0.4.1
+   Compiling tokio v1.53.2
+   Compiling typeid v1.0.3
+   Compiling portable-atomic v1.15.0
+   Compiling crossbeam-queue v0.3.14
+   Compiling hashlink v0.12.2
+   Compiling tower-service v0.3.3
+   Compiling sync_wrapper v1.0.2
+   Compiling intrusive-collections v0.10.3
+   Compiling boxcar v0.2.14
+   Compiling tower-layer v0.3.3
+   Compiling thin-vec v0.2.20
+   Compiling hashbrown v0.14.5
+   Compiling inventory v0.3.24
+   Compiling salsa-macro-rules v0.28.5
+   Compiling salsa v0.28.5
+   Compiling dashmap v6.2.1
+   Compiling tower v0.5.3
+   Compiling ls-types v0.0.6
+   Compiling tokio-util v0.7.19
+   Compiling httparse v1.10.1
+   Compiling futures v0.3.34
+   Compiling tcl-version v0.1.0 (/workspace/tcl-lsp/rust/tcl-version)
+   Compiling tower-lsp-server v0.23.0
+   Compiling temp-env v0.3.6
+   Compiling tcl-test-support v0.1.0 (/workspace/tcl-lsp/rust/tcl-test-support)
+   Compiling tcl-bigip-query v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip-query)
+   Compiling tcl-lsp-db v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-db)
+   Compiling tcl-explorer v0.1.0 (/workspace/tcl-lsp/rust/tcl-explorer)
+   Compiling f5-xc v0.1.0 (/workspace/tcl-lsp/rust/f5-xc)
+   Compiling tcl-diagram v0.1.0 (/workspace/tcl-lsp/rust/tcl-diagram)
+   Compiling tcl-lsp-server v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-server)
+error[E0433]: cannot find type `DeclarationSourceOperandLayoutKind` in this scope
+    --> rust/tcl-compiler/src/command_binding/declaration_layout.rs:4497:13
+     |
+4497 |         let DeclarationSourceOperandLayoutKind::Configured { layout, .. } = &advice.kind else {
+     |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ use of undeclared type `DeclarationSourceOperandLayoutKind`
+     |
+help: consider importing this enum
+     |
+3596 +     use crate::command_binding::declaration_layout::DeclarationSourceOperandLayoutKind;
+     |
+
+For more information about this error, try `rustc --explain E0433`.
+error: could not compile `tcl-compiler` (lib test) due to 1 previous error

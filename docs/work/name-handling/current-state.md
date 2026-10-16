@@ -7,121 +7,32 @@ implementation pending validation: 104 code units and all 54 authored-documentat
 units. These include one explicitly partial caller (DB class cards).
 **Zero units are verified complete**. Baseline counts remain **2,158**;
 2,000 baseline units have no integrated implementation. The bounded
-[owner/caller annex](implementation-owner-annex.json) adds **33 demonstrated
-requirements**, 32 integrated pending validation and one blocked before integration.
-Effective scope is **2,191 obligations**, with **190 integrated pending validation**
+[owner/caller annex](implementation-owner-annex.json) adds **34 demonstrated
+requirements**, 33 integrated pending validation and one blocked before integration.
+Effective scope is **2,192 obligations**, with **191 integrated pending validation**
 and **2,001 not integrated**. These counts establish neither semantic acceptance
 nor completed gates.
 
-Latest reviewed successor ordinary execution is **95 PASS / 29 FAIL** across 12 Host/Registry/Compiler groups, following a **7m23s zero-warning build**. All 99 previously selected Host tests remain, with seven grep gains and zero prior-PASS regressions; the original forwarding control also gains a pass. Two parameter-trait and 27 CLI/MCP failures remain. The real opaque-environment resolver child and opaque-directory controls pass. The first build's three collection-type errors are retained alongside the successful explicit `Result<Vec<_>>` repair. [Capture](../../../experiments/name-handling/results/owner-adoption-20261016/hosts-forwarding-class/summary.json).
+The latest focused ordinary build passes in **7m29s with zero warnings** for Compiler, LSP Core, DB, Registry and Server. The exact source is `da6735cf4d545132a43ffb3729c497c4a29fa2d8` plus reviewed Logical alias declaration transport and behaviour-equivalent declaration-advice selection/test namespace fixes. All five test binaries are frozen with SHA-256 bindings under `/workspace/naming-validation/lsp-source-parent-continuation`. The unchanged37 exact LSP dependency selectors complete **32 PASS /5 FAIL /zero TIMEOUT /zero zero-test runs**. Failures remain in Jim caller templates, authored alias reports, nested inlay hints and two DB source-role/availability controls. The63 additional original source/URI/procedure/semantic controls are running separately. No whole-repository or audit-unit acceptance follows. The initial import/test namespace errors and retry logs remain preserved. No instrumentation or refusal guard was removed.
 
-A separate actual Runtime-manifest ordinary build passes in **1m23s with zero warnings**. Its 11 selected groups are **111 PASS / zero FAIL**, retaining the previous 103 selected checks and adding eight exact qualification/lifetime/Jim controls. Runtime132 remains partial and the original full Runtime174 group remains unexecuted. [Capture](../../../experiments/name-handling/results/owner-adoption-20261016/runtime-report-adoptions/summary.json).
+The preceding [reviewed Host/source/URI capture](../../../experiments/name-handling/results/owner-adoption-20261016/reviewed-host-source-uri/summary.json) is **161 PASS / 56 FAIL / zero zero-test runs** across 22 completed groups. Its ordinary build passes in10m28s with zero warnings. It retains source-parent/alias/Installed-currentness failures addressed by the focused successor, alongside paused VM/BIG-IP failures. The original selectors/assertions and pairwise regressions remain explicit; this is not full-M12 or repository acceptance.
 
-The next reviewed successor includes genuine Authored declaration-row stamping and report-only alias observations, Source event inventory/explain transport, selected-path URI representability plus six URI validation callers, fixed Host bootstrap storage and four actual native-path loader callers. A single-job ordinary build is running with exact source binding; its earlier compiler private-field error is retained and repaired through the existing accessor. These changes do not establish execution or gate acceptance. The recovered exact Runtime174 plan is 120 Runtime library + 51 namespace-query integration + three Registry controls; its library subgroup replay has started, with full-group acceptance still pending. Fresh original C/Jim provider pairing passes independently.
+Current LSP work includes strict document/workspace URI decoding in the shared Core owner, subsequent SourceFile ingress adoption, complete member-hazard coverage and procedure-catalogue malformed-tail refusal. Candidates remain unintegrated until independent source review clears them. A checked catalogue must preserve partial positive observations separately from complete coverage. File-action authority restrictions retain their separate purpose. No display String or lossily decoded Path can establish source identity.
 
-Development checkpoint `b96b7b49e` is pushed to `work`. Its reviewed successor now includes six further baseline CLI/Core adoptions,
-scalar source configuration reborrow, a dedicated source parameter-role facade
-and the remaining physical ensemble availability repairs. The five-library ordinary build and selected execution are recorded below. Its prior scope includes typed trace lexical exclusions,
-editor validation, retained MCP context, explicit native-path refusal, conditional
-source-role and actual VM registration repairs, and baseline3936 formal-reference
-observations. No new code is accepted solely from source review.
+The latest development checkpoint is `da6735cf4`, pushed on `work`; its reviewed successor is pending the next coherent development push. Incoming `origin/rust` remains `c60f938ddd2a8d92a3bc251c57fa3609d77593c3`, rechecked on16October at14:54UTC, unmerged and unadmitted. The beginner guide has the reconciled34-obligation annex and191 effective integrations, read back at sequence26. These figures count source integration pending validation, with **zero verified completions**.
 
-The latest ordinary seven-library build passes in **9m11s** with no warnings.
-Its frozen 23 selected groups are **117 PASS / 29 FAIL / 0 zero-test runs**.
-All 137 tests from the previous 19 groups remain, with five gains and fourteen
-prior-PASS regressions; nine added controls are seven PASS/two FAIL. Exact
-[test comparison](../../../experiments/name-handling/results/owner-adoption-20261016/workspace-6fa/test-comparison.json)
-retains names, binary/source hashes and original logs. The regressions are four
-info and ten namespace controls, all panicking during native namespace bootstrap.
-The integrated actual-engine availability repair does not resolve these panics in the fresh889 run; remaining physical array/binary/namespace registration selectors are under review.
-Mapped-source controls gain two passes and Logical parameter traits gain one;
-the genuine Jim helper and terminal-refusal fixture corrections gain two more.
-The remaining parameter-role repair retains ordinary role incompleteness and all
-lookup/observer debt. A separate new-test correction distinguishes transformed
-Fold source from unchanged Literal Standalone source without changing a production
-guard. Mapped trace continuation, constructor coverage, typed navigation and
-instance reports still fail. Original tests and their budgets remain intact.
+Editor TypeScript noEmit and scoped Prettier pass for the reviewed deadline/configuration/legend/basename changes. The full prior extension compile passed, with its owner reporting absent WASM distribution assets. GUI and browser execution remain unexecuted. The repository headless dependency owner fails against read-only apt state, leaving Xvfb unavailable; this is an environment failure, not an automatic approval rejection. Preserve `editors/vscode/.vscode-test` if created.
 
-A fresh ordinary Compiler/VM build passes in **7m11s** with zero warnings.
-Its [16 selected groups](../../../experiments/name-handling/results/owner-adoption-20261016/compiler-vm-889/summary.json)
-are **93 PASS / 22 FAIL / zero zero-test runs**. VM info/namespace results remain
-19/5 and 47/10; result-publication six and original-lookup eight controls pass.
-The new formal-reference controls are two PASS/one FAIL. Installed parameter
-traits and forwarding, Logical upvar roles, selected configuration fixture and
-mapped trace continuation remain failing. The separate CLI/MCP/server target build passes after the reached binary and
-preview crate adopt the existing server library compiler trait-recursion limit256.
-Earlier E0275 build failures remain recorded; runtime budgets are unchanged.
-The five completed [target selections](../../../experiments/name-handling/results/owner-adoption-20261016/cli-mcp-server-889/summary.json)
-are **65 PASS / 34 FAIL**. Query-input23, tmsh1 and opaque-path merge pass;
-MCP tools are26/22. Preview first fails its original diagnostics assertion after
-the known native bootstrap panic, then does not terminate; Root stops it after
-251.5s. Its23 successors remain unexecuted. No counts advance from execution.
+The recovered Runtime174 library subgroup completed **120 PASS / zero FAIL**, retaining its original singleton/180-second controls and fresh original provider pairing. Its remaining54 controls are paused; the complete174 group has no acceptance. VM133 and dedicated Runtime/VM/BIG-IP successor execution remain deferred. Existing frozen artifacts and all prior failures are retained. Uncovered BIG-IP behaviour uses only the user's Tcl8.4 working assumption.
 
-The newer [five-library cd0 capture](../../../experiments/name-handling/results/owner-adoption-20261016/five-library-cd0/summary.json)
-builds in **10m00s**, zero warnings, then executes **123 PASS / 26 FAIL** across24
-selected groups. All115 predecessor controls remain with two gains and no
-pairwise regressions. Logical parameter roles now4/4 and the selected configuration
-fixture now2/2; the seven new source/metadata controls are six PASS/one FAIL.
-Registry selected option tables2/2, Core context completion5/5, actual math selection5/5
-and opaque-directory refusal pass. Four existing Core definition tests
-and one CLI dialect control remain failing; no whole-M12 comparison is claimed.
-The VM namespace-declaration panic is gone, but all15 same VM failures now stop
-at fresh tcl_platform host bootstrap; actual missing engine remains unavailable.
-The scalar source positive exposes an upstream source-row stamping purpose gap;
-its original assertions remain unchanged. The next hosts/forwarding/reference
-build is retried after making the merge iterator collection type explicit.
+Original C Tcl8.4.20,8.5.19,8.6.18,9.0.4 and9.1.0 binaries retain version-matched original init/Tcltest/support files. The [14:00 provider pairing](../../../experiments/name-handling/oracles/provider-pairing-20261016T1400/) passes setup for all five C providers and Jim. Latest Jim upstream was rechecked at14:54UTC and still equals compiled original`5bac7c99ad65864c87da513e22e2f01703fa4e03`. Setup pairing is distinct from measured test semantics and Native authority.
 
-The four-package `cargo check --tests` before formal3936/path5 passes in 3m09s
-with one existing unused helper warning. The successor including formal3936/path5 passes in 2m43s with the same warning. The
-ordinary stateful Runtime selections remain **60 PASS / 0 FAIL**, and the separate
-variable selection remains **43 PASS / 0 FAIL**. These do not execute or accept
-the historical Runtime174/VM133 whole groups.
+The complete unchanged proof checker on frozen6fa inputs failed with **2,033 errors**:1,081 evidence digest and952 census digest differences, with49,278 input hashes unchanged during that capture. Its [binding](../../../experiments/name-handling/results/owner-adoption-20261016/proof-stable-6fa/binding.json) preserves the exact scope. No blanket hash refresh is authorised; current-source projections do not renew old execution or original provider evidence. Historical availability restoration did not execute those payloads.
 
-Full editor `npm run compile` passes, including actual AI prompt generation,
-TypeScript and Node/browser bundles. Its Rust dependencies emit nine existing
-warnings; missing WASM distribution assets are skipped by their owner. TypeScript
-noEmit and scoped Prettier also pass. GUI multi-folder and Web execution remain pending. The repository headless
-dependency owner fails on read-only apt state, so Xvfb is unavailable. Reached
-CLI/MCP/preview outcomes are recorded above. Latest Jim upstream
-still equals the compiled original5bac7c99 at 12:15:42 UTC.
+The last complete historical M12 capture remains frozen to`c9e826a23972590699a87d248c43a957858831ee23`: **1,546 controls;1,133 PASS,410 FAIL,one TIMEOUT,two NOT_ACCEPTED_RUN_COUNT**. All1,491 predecessors remain with four gains and no prior-PASS regressions or drops at that capture. [#2286](https://github.com/bitwisecook/tcl-lsp/issues/2286) remains OPEN; its original first selector passed in71.841791191seconds within180seconds but complete issue acceptance remains unmet. Formatter88 and integration55/15 remain unexecuted.
 
-The complete unchanged proof checker runs against **49,278 inputs with zero
-before/after drift** and fails with **2,033 errors**: 1,081 evidence digest and
-952 census digest differences. Missing files, corpus path drift, pending candidates
-and unlinked tests are zero. Its compact exact
-[capture](../../../experiments/name-handling/results/owner-adoption-20261016/proof-stable-6fa/binding.json)
-is a failed required gate, not semantic execution. All historical availability
-restorations preserve retained hashes; none of those payloads was executed.
-The 952 differing census payloads match current Git bytes but still need genuine
-historical/projection provenance review. No blanket hash refresh is authorised.
+The annex's one blocked requirement is genuine source-definition worker effect/observer coverage. Mutable worker applicability cannot be inferred quiet or absent; selected-definition SourceSelf storage therefore remains withheld. The generic Registry source-operation continuation is integrated pending validation and retains raw effect footprint, residual reads, lookup/observer debts and completion premises. Source-only continuation grants no Native selection, physical cell, entered frame, absence or Normal completion.
 
-Two additional effect-coverage requirements are counted but not integrated. The
-Registry conditional source-operation continuation facet must retain synchronous
-coverage and residual lookup/observer debt; its mapped caller is already counted.
-The source-definition effect-coverage requirement remains
-blocked on genuine mutable worker applicability. Its dependent SourceSelf repair
-remains within the existing navigation owner and is withheld. Project-role root
-fallback retains real command-trace observer/world debt; original header selection
-and geometry do not discharge it. Source variable-expression action/read/cell/trace
-and child-body observer requirements also remain open. Required owner/proof,
-generated, `make rust-check` and `make prep-pr` gates are not green. There is no PR,
-issue closure or merge acceptance. Reports use 30-minute intervals; the next is
-14:06 UTC.
+Required current owner/proof/generated gates, `make rust-check` and `make prep-pr` are not green. There is no PR, merge or issue closure. Final repository-wide documentation/comment cleanup remains required after durable contracts/evidence are preserved. The baseline catalogue remains2,158 units across110,709 tracked paths plus explicit current-source annexes; source audit closure does not establish implementation or execution completeness.
 
-The source/role audit is complete for **110,709 tracked baseline paths**, with explicit current-source annexes and zero unexamined paths. The reconciled catalogue contains **1,321 caller migrations**, **377 shared-owner repairs/extensions** and **101 metadata/target-schema changes**: **1,799 semantic code changes**. There are separately **305 validation-code repairs** and **54 authored-documentation corrections**, making **2,158 confirmed required changes**. These remain to be implemented. Examined requirements and original/provider provenance questions remain separate.
-
-[Searchable report](naming-audit.html) · [Full JSON catalogue](repository-consumer-audit-final.json) · [Current validation](current-state.md) · [Implementation obligations](implementation-ledger.md)
-
-Latest executed ordinary M12 is frozen to `c9e826a23972590699a87d248c43a957858831ee23`: **1,546 controls; 1,133 PASS, 410 FAIL, one TIMEOUT, two NOT_ACCEPTED_RUN_COUNT**. All 1,491 predecessors remain, with four gains, zero prior-PASS regressions and zero drops. The 55 additions are 53 PASS and two FAIL. Seven original EPERM aborts and their exact successful permission repairs remain separate. Two nested Host raw-exit-zero runs remain rejected by the unchanged single-run guard. Its fresh single-job build produced 23 test binaries with zero compiler errors in 678.804699595 seconds. Newer selected implementation controls are recorded above; this historical M12 capture remains unchanged.
-
-[#2286](https://github.com/bitwisecook/tcl-lsp/issues/2286) stays OPEN. Its unchanged original selector ran first in M12 and passed in 71.841791191 seconds within the original 180-second budget. This does not close the complete issue acceptance, other naming consumers or required negative/import/shared-read/refusal obligations. Preserve both original `$absent` expectations and original init/Tcltest/support pairings.
-
-Runtime174, VM133, Formatter88 and integration55/15 remain **UNEXECUTED**. The full proof checker on frozen 6294 failed with 2,128 structural errors; no current green proof gate exists. Required current owner/proof/generated checks, `make rust-check` and `make prep-pr` remain red or unrun. No PR, issue closure or merge acceptance is supplied.
-
-The census is bound to `cc24c394004fc187378ba0eefb6c2c5b2615fb00` plus explicit reviewed current-source/contract/test-API and 43-path namespace-array-snapshot annexes. Mutable work tracking is current coordination material. Original provider inputs, historical beforeimages, generated outputs and foreign dependencies have explicit positive roles; this does not claim that every original/foreign body was semantically read or that committed generated bytes match a fresh build. Active source, helpers, inline bodies, maintained generators and 304 authored guides received their recorded source reviews. The final report retains every disposition and limitation.
-
-Incoming `origin/rust` is now `c60f938ddd2a8d92a3bc251c57fa3609d77593c3` (#2488 cloud Node/Python provisioning, following #2486 toolchain and dependency updates), unmerged and unadmitted. The audit counts are for work at the recorded baseline plus explicit work-source annexes. Recheck and reconcile incoming source before integration; no acceptance is donated from the incoming branch.
-
-Portable receipts are indexed in [handoff/packets.json](handoff/packets.json) and [handoff/SHA256SUMS](handoff/SHA256SUMS). Verify exact bytes before restoring. Extract evidence into a separate tree; never overwrite newer implementation with an old complete afterimage. Review blockers and rebase individual reviewed changes. Original `/tmp` helpers and provisioned binaries may be absent in a fresh environment; use repository toolchain owners. Preserve unrelated edits and `editors/vscode/.vscode-test`; do not clean caches to refresh an audit.
-
-The audit tranche changes tracking/artifacts only. It supplies no production/test migration, Cargo build, original C/Jim/F5 execution or gate acceptance. Implementation resumes from the exact final boundary catalogue after this checkpoint.
+Progress reports follow a30-minute cadence. Last report:14:36:28UTC; next:15:06:28UTC. Git records earlier coordination snapshots; durable captures retain exact source, artifact, provider, selector, invocation and failure provenance.

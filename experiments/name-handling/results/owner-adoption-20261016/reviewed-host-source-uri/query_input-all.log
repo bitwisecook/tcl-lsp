@@ -1,0 +1,28 @@
+
+running 23 tests
+test err_bad_binding_identifier ... ok
+test err_duplicate_name ... ok
+test err_load_missing_file ... ok
+test err_missing_file ... ok
+test err_unknown_kind ... ok
+test help_inputs ... ok
+test input_csv_col ... ok
+test input_csv_headers ... ok
+test input_csv_json ... ok
+test input_f5log_json ... ok
+test input_f5log_select ... ok
+test input_generic_json ... ok
+test input_json_field ... ok
+test input_json_iter ... ok
+test input_json_obj ... ok
+test input_json_select ... ok
+test input_jsonl_iter ... ok
+test input_jsonl_select ... ok
+test load_csv ... ok
+test load_f5log ... ok
+test load_json ... ok
+test load_json_iter ... ok
+test load_jsonl ... ok
+
+test result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.63s
+

@@ -1,0 +1,34 @@
+
+running 6 tests
+test registry_invocation::authored_controls::tests::authored_scalar_bodies_retain_real_source_definitions_without_native_admission ... 
+thread 'registry_invocation::authored_controls::tests::authored_scalar_bodies_retain_real_source_definitions_without_native_admission' (138912) panicked at rust/tcl-compiler/src/registry_invocation/authored_controls.rs:461:13:
+assertion failed: original_authored_scalar_invocation(tokens, &registry).is_some()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test registry_invocation::authored_controls::tests::authored_scalar_return_refuses_combined_arrays_and_nul_names ... ok
+test registry_invocation::authored_controls::tests::authored_scalar_scopes_keep_profiled_standalone_metadata_without_supplied_fallback ... 
+thread 'registry_invocation::authored_controls::tests::authored_scalar_scopes_keep_profiled_standalone_metadata_without_supplied_fallback' (138914) panicked at rust/tcl-compiler/src/registry_invocation/authored_controls.rs:401:18:
+closed original standalone scalar declaration layout
+FAILED
+test registry_invocation::authored_controls::tests::authored_scalar_source_keeps_alias_array_computed_and_expanded_cases_generic ... ok
+test registry_invocation::authored_controls::tests::authored_scalar_source_stamp_keeps_actual_parent_rows_and_terminal_points ... 
+thread 'registry_invocation::authored_controls::tests::authored_scalar_source_stamp_keeps_actual_parent_rows_and_terminal_points' (138916) panicked at rust/tcl-compiler/src/registry_invocation/authored_controls.rs:535:14:
+called `Option::unwrap()` on a `None` value
+FAILED
+test registry_invocation::authored_controls::tests::authored_scalar_without_runtime_policy_uses_only_unanimous_source_local_geometry ... 
+thread 'registry_invocation::authored_controls::tests::authored_scalar_without_runtime_policy_uses_only_unanimous_source_local_geometry' (138917) panicked at rust/tcl-compiler/src/registry_invocation/authored_controls.rs:348:13:
+assertion `left == right` failed: "value"
+  left: false
+ right: true
+FAILED
+
+failures:
+
+failures:
+    registry_invocation::authored_controls::tests::authored_scalar_bodies_retain_real_source_definitions_without_native_admission
+    registry_invocation::authored_controls::tests::authored_scalar_scopes_keep_profiled_standalone_metadata_without_supplied_fallback
+    registry_invocation::authored_controls::tests::authored_scalar_source_stamp_keeps_actual_parent_rows_and_terminal_points
+    registry_invocation::authored_controls::tests::authored_scalar_without_runtime_policy_uses_only_unanimous_source_local_geometry
+
+test result: FAILED. 2 passed; 4 failed; 0 ignored; 0 measured; 10240 filtered out; finished in 1.64s
+

@@ -1,0 +1,21 @@
+
+running 3 tests
+test when_block::tests::original_when_inventory_distinguishes_empty_and_unavailable_source_sites ... ok
+test when_block::tests::original_when_inventory_keeps_event_words_bodies_and_conditional_cards ... 
+thread 'when_block::tests::original_when_inventory_keeps_event_words_bodies_and_conditional_cards' (138959) panicked at rust/tcl-irules/src/when_block.rs:84:9:
+assertion failed: inventory.is_complete()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test when_block::tests::original_when_inventory_preserves_preceding_unknown_source_debt ... 
+thread 'when_block::tests::original_when_inventory_preserves_preceding_unknown_source_debt' (138960) panicked at rust/tcl-irules/src/when_block.rs:159:14:
+conditional source declaration
+FAILED
+
+failures:
+
+failures:
+    when_block::tests::original_when_inventory_keeps_event_words_bodies_and_conditional_cards
+    when_block::tests::original_when_inventory_preserves_preceding_unknown_source_debt
+
+test result: FAILED. 1 passed; 2 failed; 0 ignored; 0 measured; 80 filtered out; finished in 1.69s
+

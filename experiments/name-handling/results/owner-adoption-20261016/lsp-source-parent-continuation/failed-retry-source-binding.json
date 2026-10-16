@@ -1,0 +1,16 @@
+{
+  "source_head": "da6735cf4d545132a43ffb3729c497c4a29fa2d8",
+  "source_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "ordinary": true,
+  "packages": [
+    "tcl-compiler",
+    "tcl-lsp-core",
+    "tcl-lsp-db",
+    "tcl-registry",
+    "tcl-lsp-server"
+  ],
+  "single_job": true,
+  "profile_test_debug": 0,
+  "source_scope": "LSP source-owner repairs, two actual procedure catalogue/query consumers, escape config and shared Path URI owners, editor validation assertion; prior deferred Jim/xtask source preserved. No instrumentation.",
+  "status": "ordinary_retry_running_exact_clean_Rust_source"
+}
