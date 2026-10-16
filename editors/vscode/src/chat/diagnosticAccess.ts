@@ -117,8 +117,11 @@ export function formatDiagnosticsForLLM(diagnostics: vscode.Diagnostic[], source
  * so all standard LSP diagnostic fields keep their normal client semantics.
  */
 export interface CurrentDiagnosticsTransport {
+  /** Stable opaque identity for one actual client/server session generation. */
+  readonly sessionIdentity: object;
   request(params: { uri: string; version: number; source: string }): Promise<unknown>;
   convert(diagnostics: LspDiagnostic[]): Promise<vscode.Diagnostic[]>;
+  setSessionDialectOverride?(dialect: string | null): Promise<void>;
   isCurrent(): boolean;
 }
 
@@ -176,6 +179,253 @@ export class CurrentDiagnosticsSuppressedError extends Error {
     super(`Current diagnostics were published as suppressed: ${reason}`);
     this.name = "CurrentDiagnosticsSuppressedError";
   }
+}
+
+export interface AnalysisContextSnapshot {
+  readonly transport: CurrentDiagnosticsTransport;
+  readonly overrideGeneration: number;
+}
+
+export interface SessionDialectOverrideLease {
+  readonly dialect: string;
+  readonly analysisContext: AnalysisContextSnapshot;
+  restore(): Promise<AnalysisContextSnapshot | undefined>;
+}
+
+let analysisOverrideGeneration = 0;
+let nextOverrideOwner = 1;
+let activeOverrideOwner: number | undefined;
+let acknowledgedLeaseOverride:
+  { owner: number; sessionIdentity: object; transport: CurrentDiagnosticsTransport } | undefined;
+let sessionOverrideOperationGeneration = 0;
+let pendingOverrideTransition: { operation: number; sessionIdentity: object } | undefined;
+let sessionOverrideQueue: Promise<void> = Promise.resolve();
+
+function enqueueSessionOverride<T>(operation: () => Promise<T>): Promise<T> {
+  const result = sessionOverrideQueue.then(operation, operation);
+  sessionOverrideQueue = result.then(
+    () => undefined,
+    () => undefined,
+  );
+  return result;
+}
+
+export function captureAnalysisContext(): AnalysisContextSnapshot | undefined {
+  const transport = currentDiagnosticsTransportProvider?.();
+  if (
+    !transport ||
+    !transport.isCurrent() ||
+    pendingOverrideTransition?.sessionIdentity === transport.sessionIdentity
+  ) {
+    return undefined;
+  }
+  return { transport, overrideGeneration: analysisOverrideGeneration };
+}
+
+export function invalidateAnalysisContext(): void {
+  analysisOverrideGeneration += 1;
+}
+
+export function isAnalysisContextCurrent(
+  context: AnalysisContextSnapshot | undefined,
+): context is AnalysisContextSnapshot {
+  return (
+    context !== undefined &&
+    context.overrideGeneration === analysisOverrideGeneration &&
+    context.transport.isCurrent()
+  );
+}
+
+export async function acquireSessionDialectOverride(
+  dialect: string,
+): Promise<SessionDialectOverrideLease> {
+  const transport = currentDiagnosticsTransportProvider?.();
+  if (!transport?.setSessionDialectOverride || !transport.isCurrent()) {
+    throw new CurrentDiagnosticsUnavailableError("clientUnavailable");
+  }
+  const owner = nextOverrideOwner++;
+  activeOverrideOwner = owner;
+  const requestOperation = ++sessionOverrideOperationGeneration;
+  pendingOverrideTransition = {
+    operation: requestOperation,
+    sessionIdentity: transport.sessionIdentity,
+  };
+  const requestGeneration = ++analysisOverrideGeneration;
+  let attempted = false;
+  let acknowledged = false;
+  try {
+    await enqueueSessionOverride(async () => {
+      if (
+        activeOverrideOwner !== owner ||
+        sessionOverrideOperationGeneration !== requestOperation ||
+        analysisOverrideGeneration !== requestGeneration ||
+        !transport.isCurrent()
+      ) {
+        throw new CurrentDiagnosticsUnavailableError("stale");
+      }
+      attempted = true;
+      await transport.setSessionDialectOverride!(dialect);
+      acknowledgedLeaseOverride = { owner, sessionIdentity: transport.sessionIdentity, transport };
+      acknowledged = true;
+      if (
+        activeOverrideOwner !== owner ||
+        sessionOverrideOperationGeneration !== requestOperation ||
+        analysisOverrideGeneration !== requestGeneration ||
+        !transport.isCurrent()
+      ) {
+        throw new CurrentDiagnosticsUnavailableError("stale");
+      }
+    });
+    if (
+      activeOverrideOwner !== owner ||
+      sessionOverrideOperationGeneration !== requestOperation ||
+      analysisOverrideGeneration !== requestGeneration ||
+      !transport.isCurrent()
+    ) {
+      throw new CurrentDiagnosticsUnavailableError("stale");
+    }
+    if (pendingOverrideTransition?.operation === requestOperation) {
+      pendingOverrideTransition = undefined;
+    }
+  } catch (error) {
+    if (activeOverrideOwner === owner) {
+      const installedPredecessor =
+        acknowledgedLeaseOverride?.sessionIdentity === transport.sessionIdentity;
+      if ((acknowledged || attempted || installedPredecessor) && transport.isCurrent()) {
+        const cleanupOperation = ++sessionOverrideOperationGeneration;
+        activeOverrideOwner = undefined;
+        pendingOverrideTransition = {
+          operation: cleanupOperation,
+          sessionIdentity: transport.sessionIdentity,
+        };
+        ++analysisOverrideGeneration;
+        try {
+          let cleanupAcknowledged = false;
+          await enqueueSessionOverride(async () => {
+            if (
+              activeOverrideOwner !== undefined ||
+              sessionOverrideOperationGeneration !== cleanupOperation ||
+              !transport.isCurrent()
+            ) {
+              return;
+            }
+            await transport.setSessionDialectOverride!(null);
+            if (acknowledgedLeaseOverride?.sessionIdentity === transport.sessionIdentity) {
+              acknowledgedLeaseOverride = undefined;
+            }
+            cleanupAcknowledged = true;
+          });
+          if (cleanupAcknowledged && pendingOverrideTransition?.operation === cleanupOperation) {
+            pendingOverrideTransition = undefined;
+          }
+        } catch {
+          // Preserve the acquisition failure; cleanup grants no analysis context.
+        }
+      } else {
+        activeOverrideOwner = undefined;
+        sessionOverrideOperationGeneration += 1;
+        if (pendingOverrideTransition?.operation === requestOperation) {
+          pendingOverrideTransition = undefined;
+        }
+        analysisOverrideGeneration += 1;
+      }
+    }
+    throw error;
+  }
+  const analysisContext: AnalysisContextSnapshot = {
+    transport,
+    overrideGeneration: requestGeneration,
+  };
+  let restored = false;
+  return {
+    dialect,
+    analysisContext,
+    restore: async () => {
+      if (restored || activeOverrideOwner !== owner || !transport.isCurrent()) {
+        return undefined;
+      }
+      const leaseWasCurrent = isAnalysisContextCurrent(analysisContext);
+      restored = true;
+      activeOverrideOwner = undefined;
+      const clearOperation = ++sessionOverrideOperationGeneration;
+      pendingOverrideTransition = {
+        operation: clearOperation,
+        sessionIdentity: transport.sessionIdentity,
+      };
+      const clearGeneration = ++analysisOverrideGeneration;
+      await enqueueSessionOverride(async () => {
+        if (
+          activeOverrideOwner !== undefined ||
+          sessionOverrideOperationGeneration !== clearOperation ||
+          !transport.isCurrent()
+        ) {
+          throw new CurrentDiagnosticsUnavailableError("stale");
+        }
+        await transport.setSessionDialectOverride!(null);
+        if (acknowledgedLeaseOverride?.sessionIdentity === transport.sessionIdentity) {
+          acknowledgedLeaseOverride = undefined;
+        }
+        if (
+          activeOverrideOwner !== undefined ||
+          sessionOverrideOperationGeneration !== clearOperation ||
+          !transport.isCurrent()
+        ) {
+          throw new CurrentDiagnosticsUnavailableError("stale");
+        }
+      });
+      if (
+        activeOverrideOwner !== undefined ||
+        sessionOverrideOperationGeneration !== clearOperation ||
+        !transport.isCurrent()
+      ) {
+        return undefined;
+      }
+      if (pendingOverrideTransition?.operation === clearOperation) {
+        pendingOverrideTransition = undefined;
+      }
+      if (analysisOverrideGeneration !== clearGeneration) return undefined;
+      return leaseWasCurrent ? { transport, overrideGeneration: clearGeneration } : undefined;
+    },
+  };
+}
+
+/** Explicit ownerless session change for the user-facing dialect command. */
+export async function setUnleasedSessionDialectOverride(dialect: string | null): Promise<void> {
+  const transport = currentDiagnosticsTransportProvider?.();
+  if (!transport?.setSessionDialectOverride || !transport.isCurrent()) return;
+  activeOverrideOwner = undefined;
+  const operationGeneration = ++sessionOverrideOperationGeneration;
+  pendingOverrideTransition = {
+    operation: operationGeneration,
+    sessionIdentity: transport.sessionIdentity,
+  };
+  ++analysisOverrideGeneration;
+  await enqueueSessionOverride(async () => {
+    if (
+      activeOverrideOwner !== undefined ||
+      sessionOverrideOperationGeneration !== operationGeneration
+    ) {
+      return;
+    }
+    if (!transport.isCurrent()) {
+      if (pendingOverrideTransition?.operation === operationGeneration) {
+        pendingOverrideTransition = undefined;
+      }
+      return;
+    }
+    await transport.setSessionDialectOverride!(dialect);
+    acknowledgedLeaseOverride = undefined;
+    if (
+      activeOverrideOwner !== undefined ||
+      sessionOverrideOperationGeneration !== operationGeneration ||
+      !transport.isCurrent()
+    ) {
+      return;
+    }
+    if (pendingOverrideTransition?.operation === operationGeneration) {
+      pendingOverrideTransition = undefined;
+    }
+  });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

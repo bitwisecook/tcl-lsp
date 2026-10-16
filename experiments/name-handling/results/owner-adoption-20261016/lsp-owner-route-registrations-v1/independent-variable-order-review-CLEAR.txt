@@ -1,0 +1,14 @@
+CLEAR — bounded source/schema review only.
+Patch56e6b832ef75c10b727db650d41747cccc8731c42571afb8ac0fc2dffa7376f3; manifest375e0d1b9134f0710477ab50f24cba5ded2084ea7f97339e771c8ae8d376f37d.
+Verified exact artifact hashes and all five current actual production source hashes against manifest. One documentation file only; no implementation, visibility, checker, schema, provider/evidence/hash-anchor update or waiver.
+
+Each of five added rows matches an actual unconditionally compiled production call:
+* Core completion::word_prefix_at_position invokes crate::source_structure::original_word_cursor_prefix statically; actual owner pub(crate), correct crate/module/file.
+* Server Backend::analyse_with_workspace_classes calls self.analyse_with_workspace_classes_from_analysis(...).await; both existing private same-root-module Backend methods.
+* Server Backend::gated_rename_tiers invokes self.cross_document_original_variable_rename(...).await; actual private same-root-module Backend methods. Original strong variable/source applicability guards unchanged.
+* Compiler declaration_preview::original_source_operand_layout_for_declaration directly invokes same-module private original_source_operation_continuation with retained layout/wholecommand/registry.
+* Compiler DeclarationSourceOperandLayoutAdvice::current_metadata_context invokes self.current_conditional_source_advice(tokens); actual same impl/private owner in declaration_layout. Main owner entry now names actual associated method qualified, rather than a nonexistent free function.
+
+Existing static/self SourceOwner routes explicitly support these exact call/receiver shapes and visibility. Source route entries match existing semantic owner surfaces; no new resolver/purpose/owner inferred and no repeated helper counts. Actual owner-resolution execution may still reject unrelated rows or expose further bounds; existing309 gate failures are not waived or claimed cleared.
+
+No main/Git/Cargo/gate/build/test execution. Root owns actual gate and count/integration acceptance.

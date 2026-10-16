@@ -1,0 +1,100 @@
+{
+  "patch": "lsp-owner-route-registrations-v1.patch",
+  "patch_sha256": "56e6b832ef75c10b727db650d41747cccc8731c42571afb8ac0fc2dffa7376f3",
+  "files": [
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "before_sha256": "227c50fbf0ef50154639c94b42e37d41cb7495689ff7a4c817005fad967212d7",
+      "after_sha256": "0c5bd91ba3fcde101b0cdcd147df44a3df91e6e07b96cc4eb0867b5ea034d574"
+    }
+  ],
+  "actual_source_bindings": [
+    {
+      "path": "rust/tcl-compiler/src/command_binding/declaration_layout.rs",
+      "sha256": "e77952a40efd477e950296bebc77d710a7eb4263074e969df9c20b7313736166"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/declaration_preview.rs",
+      "sha256": "ed492813990801cc3743882e3dcbf72833298dad2481eb6821d78118ddc3f0c8"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/completion.rs",
+      "sha256": "ccd1c0d948b795a62b56e31daf77bb32b67b52790f41d81cf74e20e8af3adb39"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/source_structure.rs",
+      "sha256": "07ed51e34756608eca6068a41db85260add5ba9ab3351796e88ca488a959aab3"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "sha256": "ebc92f0ce1f5a2442e9e7a357cc0348fa14ff1d6e0b693ab1e3083d456b3c862"
+    }
+  ],
+  "registered_routes": [
+    {
+      "surface": "Original command completion word geometry",
+      "source": "rust/tcl-lsp-core/src/source_structure.rs",
+      "crate": "tcl-lsp-core",
+      "module": "crate::source_structure",
+      "entry": "original_word_cursor_prefix",
+      "visibility": "pub(crate)",
+      "consumer_source": "rust/tcl-lsp-core/src/completion.rs",
+      "consumer_module": "crate::completion",
+      "consumer_entry": "word_prefix_at_position",
+      "route": "static"
+    },
+    {
+      "surface": "checked tracked document source input",
+      "source": "rust/tcl-lsp-server/src/lib.rs",
+      "crate": "tcl-lsp-server",
+      "module": "crate",
+      "entry": "Backend::analyse_with_workspace_classes_from_analysis",
+      "visibility": "private",
+      "consumer_source": "rust/tcl-lsp-server/src/lib.rs",
+      "consumer_module": "crate",
+      "consumer_entry": "Backend::analyse_with_workspace_classes",
+      "route": "self"
+    },
+    {
+      "surface": "Original variable rename source authority",
+      "source": "rust/tcl-lsp-server/src/lib.rs",
+      "crate": "tcl-lsp-server",
+      "module": "crate",
+      "entry": "Backend::cross_document_original_variable_rename",
+      "visibility": "private",
+      "consumer_source": "rust/tcl-lsp-server/src/lib.rs",
+      "consumer_module": "crate",
+      "consumer_entry": "Backend::gated_rename_tiers",
+      "route": "self"
+    },
+    {
+      "surface": "Conditional source operation continuation",
+      "source": "rust/tcl-compiler/src/command_binding/declaration_preview.rs",
+      "crate": "tcl-compiler",
+      "module": "crate::command_binding::declaration_preview",
+      "entry": "original_source_operation_continuation",
+      "visibility": "private",
+      "consumer_source": "rust/tcl-compiler/src/command_binding/declaration_preview.rs",
+      "consumer_module": "crate::command_binding::declaration_preview",
+      "consumer_entry": "original_source_operand_layout_for_declaration",
+      "route": "static"
+    },
+    {
+      "surface": "Conditional source operation continuation",
+      "source": "rust/tcl-compiler/src/command_binding/declaration_layout.rs",
+      "crate": "tcl-compiler",
+      "module": "crate::command_binding::declaration_layout",
+      "entry": "DeclarationSourceOperandLayoutAdvice::current_conditional_source_advice",
+      "visibility": "private",
+      "consumer_source": "rust/tcl-compiler/src/command_binding/declaration_layout.rs",
+      "consumer_module": "crate::command_binding::declaration_layout",
+      "consumer_entry": "DeclarationSourceOperandLayoutAdvice::current_metadata_context",
+      "route": "self"
+    }
+  ],
+  "targeted_historical_diagnostics": 5,
+  "scope": "Existing five actual LSP/shared source owner declarations and real production calls. One bare method label corrected to actual associated declaration; five typed source route registrations. No owner/purpose/count change. No Runtime/VM/BIGIP registrations, source behavior, visibility, checker, evidence digest refresh or waiver.",
+  "validation": "Independent static declaration/call/visibility/module-route review and separate zero-fuzz TMP apply/afterimage hash only. No Cargo/Git/main, checker execution or green gate claim; Root owns ordinary source-route gate validation.",
+  "remaining_blockers": "Existing Analyser same-module self route resolves imported owner from omitted sibling state under direct-self module pruning; trait-only handler consumers lack supported conventional declaration route. These and other unregistered owner failures remain explicit; no blanket acceptance.",
+  "source_basis_sha256": "16a67dbe5e0beea2d5c06c8baa4aa30f4587ba9a248f425b6cb8c41aa94cbd84"
+}

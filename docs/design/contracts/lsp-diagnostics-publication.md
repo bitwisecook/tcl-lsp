@@ -250,3 +250,27 @@ resembles lossy decoding.
 - [Design doc index](../README.md)
 - [compiler diagnostics integration](../compiler/diagnostics-integration.md)
 - [async tiering contracts](../compiler/async-diagnostics-tiering.md)
+
+## Editor source actions
+
+AI source actions retain the actual `TextDocument`, URI components, full source,
+version, language, resource-scoped dialect hint, selected extent and source
+channel. Source-only discussion can project text; replacing an existing document
+requires the original whole-document snapshot. The Node and browser Apply fixes
+commands consume a bounded, one-use receipt referring to that retained snapshot.
+They check document and analysis currency across editor awaits, require the edit
+API's success result and exact replacement/version correspondence, and return a
+boolean that immediate callers must check before reporting an applied change.
+Creating a new authoring document is a separate operation.
+
+The active client transport issues analysis-context snapshots for its actual
+session generation. A stable opaque session token survives provider-wrapper
+allocation and changes on lifecycle transitions. Temporary dialect overrides are
+serialised, block context capture while pending and retain their acknowledged
+owner until cleared or superseded. Operation ownership is independent of analysis
+configuration currency, so invalidation can require cleanup without granting a
+write context. A superseded or stale lease cannot clear a newer override; a
+cancelled acquisition retains responsibility for an acknowledged predecessor.
+Only a successful current restore can return the context used to publish a later
+source action. These client receipts do not establish the server's independent
+source/result applicability or optimiser transformation authority.

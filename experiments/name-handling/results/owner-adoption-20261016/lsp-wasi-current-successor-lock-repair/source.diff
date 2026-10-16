@@ -1,0 +1,370 @@
+diff --git a/rust/tcl-lsp-core/src/diagnostic_subject.rs b/rust/tcl-lsp-core/src/diagnostic_subject.rs
+index 0506b4960..43619abdf 100644
+--- a/rust/tcl-lsp-core/src/diagnostic_subject.rs
++++ b/rust/tcl-lsp-core/src/diagnostic_subject.rs
+@@ -348,6 +348,7 @@ enum RegisteredInstanceObligationDescription {
+     RegisteredHandleBindingApplicability,
+     OriginalCallbackTargetApplicability,
+     UnavailableCallbackLookupFrame,
++    UnacceptedSourceArity,
+ }
+ impl From<&tcl_compiler::command_binding::SourceCommandTransitionObligation>
+     for RegisteredInstanceObligationDescription
+@@ -371,6 +372,7 @@ impl From<&tcl_compiler::command_binding::SourceCommandTransitionObligation>
+             }
+             Obligation::UnavailableActualLookup => Self::UnavailableActualLookup,
+             Obligation::UnknownEarlierMutation => Self::UnknownEarlierMutation,
++            Obligation::UnacceptedSourceArity => Self::UnacceptedSourceArity,
+             Obligation::ExplicitLogicalSourceApplicability => {
+                 Self::ExplicitLogicalSourceApplicability
+             }
+diff --git a/rust/tcl-lsp-core/src/folding.rs b/rust/tcl-lsp-core/src/folding.rs
+index 12e42d172..cdccdab86 100644
+--- a/rust/tcl-lsp-core/src/folding.rs
++++ b/rust/tcl-lsp-core/src/folding.rs
+@@ -20,9 +20,9 @@
+ //!
+ //! Emits LSP folding ranges for proc bodies, namespace bodies, comment
+ //! blocks, and control-structure bodies (`if`, `while`, `for`,
+-//! `foreach`, `switch`, …).  The algorithm is a scope
+-//! walk over the analyser's [`AnalysisResult`], a comment-line
+-//! collector, and the shared original source-structure owner, followed by an overlap
++//! `foreach`, `switch`, …). The algorithm combines original body regions
++//! from the shared source-structure owner with comment and continuation
++//! collectors under the retained [`AnalysisResult`], followed by an overlap
+ //! normalisation post-pass that trims partially overlapping
+ //! siblings so VS Code's folding tree-builder doesn't drop them.
+ //!
+@@ -37,7 +37,7 @@ use std::collections::BTreeSet;
+ 
+ use rustc_hash::FxHashSet;
+ 
+-use tcl_compiler::analyser::{AnalysisResult, Scope, ScopeKind};
++use tcl_compiler::analyser::AnalysisResult;
+ use tcl_lexer::{Lexer, LexerConfig, LineIndex, TokenType};
+ use tcl_registry::CommandRegistry;
+ 
+@@ -132,17 +132,6 @@ pub fn folding_ranges_with_analysis(source: &str, analysis: &AnalysisResult) ->
+     let mut ranges = Vec::new();
+     collect_comment_folds(source, config, &mut seen, &mut ranges);
+     collect_continuation_folds(source, config, &line_index, &mut seen, &mut ranges);
+-    if analysis.allows_lexical_declaration_advice() {
+-        // Only explicit Logical ingress consumes the compatibility scope maps.
+-        // An absent original body or lookup cannot select this branch.
+-        collect_scope_folds(
+-            &analysis.global_scope,
+-            source,
+-            &line_index,
+-            &mut seen,
+-            &mut ranges,
+-        );
+-    }
+     if let Some(structure) =
+         crate::source_structure::SourceStructure::capture(source, Some(analysis), config)
+     {
+@@ -225,28 +214,6 @@ fn emit_body_span_fold(
+     }
+ }
+ 
+-/// Walk the analyser scope tree and emit folds for proc bodies and
+-/// namespace bodies.
+-fn collect_scope_folds(
+-    scope: &Scope,
+-    source: &str,
+-    line_index: &LineIndex,
+-    seen: &mut FxHashSet<(u32, u32)>,
+-    ranges: &mut Vec<FoldingRange>,
+-) {
+-    for proc_def in scope.procs.values() {
+-        emit_body_span_fold(proc_def.body_span, source, line_index, seen, ranges);
+-    }
+-    for child in &scope.children {
+-        if matches!(child.kind, ScopeKind::Namespace)
+-            && let Some(span) = child.body_span
+-        {
+-            emit_body_span_fold(span, source, line_index, seen, ranges);
+-        }
+-        collect_scope_folds(child, source, line_index, seen, ranges);
+-    }
+-}
+-
+ /// Walk lines and emit folds for runs of consecutive ``#`` comment
+ /// lines.  An internal block (one followed by a non-comment line)
+ /// needs at least three lines; a trailing block at end-of-file needs
+@@ -555,6 +522,66 @@ mod tests {
+         assert!(folding_ranges_with_analysis(source, &analysis).is_empty());
+     }
+ 
++    #[test]
++    fn logical_folding_uses_original_bodies_after_reporting_scope_clear() {
++        let source = concat!(
++            "namespace eval N {\n",
++            " proc p {} {\n",
++            "  puts first\n",
++            "  puts second\n",
++            " }\n",
++            "}\n",
++        );
++        let mut analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
++        assert!(analysis.allows_lexical_declaration_advice());
++        let expected = vec![(0, 4), (1, 3)];
++        assert_eq!(
++            fold_lines(
++                &folding_ranges_with_analysis(source, &analysis),
++                FoldKind::Region
++            ),
++            expected
++        );
++        analysis.all_procs.clear();
++        analysis.global_scope.procs.clear();
++        analysis.global_scope.children.clear();
++        assert_eq!(
++            fold_lines(
++                &folding_ranges_with_analysis(source, &analysis),
++                FoldKind::Region
++            ),
++            expected
++        );
++        assert!(
++            folding_ranges_with_analysis(&source.replace("first", "other"), &analysis).is_empty()
++        );
++        let mut foreign_config = analysis.clone();
++        foreign_config
++            .body_lexer_config
++            .as_mut()
++            .unwrap()
++            .strict_quoting ^= true;
++        assert!(folding_ranges_with_analysis(source, &foreign_config).is_empty());
++        analysis.resolved_input = None;
++        assert!(folding_ranges_with_analysis(source, &analysis).is_empty());
++    }
++
++    #[test]
++    fn logical_folding_does_not_promote_reporting_scope_spans_into_body_roles() {
++        use tcl_compiler::analyser::{Scope, ScopeKind};
++        let source = "set data {\n inert first\n inert second\n}\n";
++        let mut analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
++        assert!(analysis.allows_lexical_declaration_advice());
++        assert!(folding_ranges_with_analysis(source, &analysis).is_empty());
++        let mut invented = Scope::new(ScopeKind::Namespace, "presentation-only");
++        invented.body_span = Some(tcl_lexer::Span::new(
++            u32::try_from(source.find('{').unwrap() + 1).unwrap(),
++            u32::try_from(source.rfind('}').unwrap()).unwrap(),
++        ));
++        analysis.global_scope.children.push(invented);
++        assert!(folding_ranges_with_analysis(source, &analysis).is_empty());
++    }
++
+     fn logical_analysis_with_availability(source: &str, environment: &str) -> AnalysisResult {
+         let profile = tcl_dialect::DialectProfile::plain_tcl();
+         let store =
+diff --git a/rust/tcl-lsp-server-wasi/Cargo.lock b/rust/tcl-lsp-server-wasi/Cargo.lock
+index d44e86b87..4cdb90a09 100644
+--- a/rust/tcl-lsp-server-wasi/Cargo.lock
++++ b/rust/tcl-lsp-server-wasi/Cargo.lock
+@@ -174,6 +174,12 @@ version = "3.20.3"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "72f5acc6cb2ba439de613abc23857ec3d78374d8ed5ac84e9d11336e87da8649"
+ 
++[[package]]
++name = "bytecount"
++version = "0.6.9"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "175812e0be2bccb6abe50bb8d566126198344f707e304f45c648fd8f2cc0365e"
++
+ [[package]]
+ name = "bytes"
+ version = "1.12.1"
+@@ -1446,6 +1452,7 @@ dependencies = [
+  "md-5",
+  "sha1",
+  "sha2",
++ "tcl-core-types",
+  "tcl-dialect",
+  "tcl-platform",
+  "tcl-runtime-api",
+@@ -1485,6 +1492,7 @@ dependencies = [
+  "serde_json",
+  "tcl-compiler",
+  "tcl-dialect",
++ "tcl-irules",
+  "tcl-lexer",
+  "tcl-registry",
+  "tcl-syntax",
+@@ -1495,19 +1503,26 @@ name = "tcl-dialect"
+ version = "0.1.0"
+ dependencies = [
+  "bitflags",
++ "tcl-core-types",
+ ]
+ 
+ [[package]]
+ name = "tcl-engine-api"
+ version = "0.1.0"
++dependencies = [
++ "tcl-core-types",
++ "tcl-runtime-api",
++]
+ 
+ [[package]]
+ name = "tcl-engine-tclvm"
+ version = "0.1.0"
+ dependencies = [
+  "tcl-compiler",
++ "tcl-dialect",
+  "tcl-engine-api",
+  "tcl-registry",
++ "tcl-runtime-api",
+  "tcl-syntax",
+  "tcl-vm",
+ ]
+@@ -1526,10 +1541,21 @@ dependencies = [
+  "tcl-syntax",
+ ]
+ 
++[[package]]
++name = "tcl-host-c-abi"
++version = "0.1.0"
++dependencies = [
++ "cc",
++ "libc",
++ "sha2",
++ "tcl-platform",
++]
++
+ [[package]]
+ name = "tcl-host-native"
+ version = "0.1.0"
+ dependencies = [
++ "tcl-host-c-abi",
+  "tcl-platform",
+ ]
+ 
+@@ -1551,6 +1577,7 @@ dependencies = [
+ name = "tcl-lexer"
+ version = "0.1.0"
+ dependencies = [
++ "bytecount",
+  "tcl-core-types",
+  "tcl-dialect",
+  "thiserror 2.0.21",
+@@ -1560,6 +1587,7 @@ dependencies = [
+ name = "tcl-lsp-core"
+ version = "0.1.0"
+ dependencies = [
++ "fluent-uri",
+  "regex",
+  "rustc-hash",
+  "serde",
+@@ -1582,10 +1610,12 @@ version = "0.1.0"
+ dependencies = [
+  "salsa",
+  "tcl-compiler",
++ "tcl-core-types",
+  "tcl-dialect",
+  "tcl-lexer",
+  "tcl-lsp-core",
+  "tcl-registry",
++ "tcl-syntax",
+ ]
+ 
+ [[package]]
+@@ -1597,6 +1627,7 @@ dependencies = [
+  "gloo-timers",
+  "js-sys",
+  "salsa",
++ "serde",
+  "serde_json",
+  "sha2",
+  "tcl-bigip",
+@@ -1611,6 +1642,7 @@ dependencies = [
+  "tcl-lsp-db",
+  "tcl-registry",
+  "tcl-spectcl",
++ "tcl-syntax",
+  "tcl-version",
+  "tokio",
+  "tower",
+@@ -1653,6 +1685,7 @@ version = "0.1.0"
+ dependencies = [
+  "tcl-cmd-core",
+  "tcl-core-types",
++ "tcl-syntax",
+ ]
+ 
+ [[package]]
+@@ -1678,6 +1711,8 @@ version = "0.1.0"
+ dependencies = [
+  "tcl-core-types",
+  "tcl-dialect",
++ "tcl-lexer",
++ "tcl-syntax",
+ ]
+ 
+ [[package]]
+@@ -1688,6 +1723,7 @@ dependencies = [
+  "tcl-engine-api",
+  "tcl-engine-tclvm",
+  "tcl-registry",
++ "tcl-syntax",
+  "tcl-vm",
+ ]
+ 
+@@ -1739,6 +1775,7 @@ dependencies = [
+  "num-bigint 0.5.1",
+  "num-integer",
+  "num-traits",
++ "tcl-core-types",
+  "tcl-dialect",
+  "tcl-lexer",
+ ]
+diff --git a/rust/tcl-lsp-server/src/current_diagnostics.rs b/rust/tcl-lsp-server/src/current_diagnostics.rs
+index 0c25cef68..4b227ccb2 100644
+--- a/rust/tcl-lsp-server/src/current_diagnostics.rs
++++ b/rust/tcl-lsp-server/src/current_diagnostics.rs
+@@ -85,7 +85,7 @@ struct DiagnosticReportExpectation {
+     source: Arc<str>,
+ }
+ 
+-/// A validated reborrow of one actual acknowledged publisher report.
++/// A validated report for its retained direct-query or acknowledged publisher purpose.
+ /// Optional version is retained source data, never filled from a later buffer.
+ pub(super) struct PublishedDiagnosticReport {
+     pub(super) uri: Uri,
+@@ -658,7 +658,11 @@ impl Backend {
+             Some((db, files))
+         };
+         let admissions = admissions.iter().map(AsRef::as_ref).collect::<Vec<_>>();
++        let mut reports = Some(reports);
+         let result = DocumentPathAdmission::with_current(&admissions, self.store.as_ref(), || {
++            let Some(reports) = reports.take() else {
++                return Err(DiagnosticUnavailable::Stale);
++            };
+             if let DiagnosticCacheQuery::PublishDirect(candidate) = purpose {
+                 cache.insert(expected[0].uri.clone(), candidate.clone());
+             }
+diff --git a/rust/tcl-lsp-server/src/lib.rs b/rust/tcl-lsp-server/src/lib.rs
+index d412140c4..b2c244ef5 100644
+--- a/rust/tcl-lsp-server/src/lib.rs
++++ b/rust/tcl-lsp-server/src/lib.rs
+@@ -34747,20 +34747,6 @@ fn w120_required_package(
+     diagnostic.required_package_key()
+ }
+ 
+-/// Build an empty `DocumentDiagnosticReportResult` for callers
+-/// that hit a no-document or no-analysis path.
+-fn empty_diagnostic_report() -> DocumentDiagnosticReportResult {
+-    DocumentDiagnosticReportResult::Report(DocumentDiagnosticReport::Full(
+-        RelatedFullDocumentDiagnosticReport {
+-            related_documents: None,
+-            full_document_diagnostic_report: FullDocumentDiagnosticReport {
+-                result_id: None,
+-                items: Vec::new(),
+-            },
+-        },
+-    ))
+-}
+-
+ /// Whether `name` is a dialect the server accepts wherever a dialect *name* is
+ /// configured — `initializationOptions.folderDialects`, the per-folder
+ /// `tclLsp.dialect` pulled by `workspace/configuration`, and the

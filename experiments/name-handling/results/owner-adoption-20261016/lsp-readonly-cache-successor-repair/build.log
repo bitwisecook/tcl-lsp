@@ -1,0 +1,42 @@
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-spectcl)
+   Compiling tcl-test-support v0.1.0 (/workspace/tcl-lsp/rust/tcl-test-support)
+   Compiling tcl-version v0.1.0 (/workspace/tcl-lsp/rust/tcl-version)
+   Compiling tcl-bigip-query v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip-query)
+   Compiling tcl-lsp-db v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-db)
+   Compiling tcl-explorer v0.1.0 (/workspace/tcl-lsp/rust/tcl-explorer)
+   Compiling f5-xc v0.1.0 (/workspace/tcl-lsp/rust/f5-xc)
+   Compiling tcl-diagram v0.1.0 (/workspace/tcl-lsp/rust/tcl-diagram)
+   Compiling tcl-lsp-server v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-server)
+error[E0507]: cannot move out of `reports`, a captured variable in an `FnMut` closure
+   --> rust/tcl-lsp-server/src/current_diagnostics.rs:665:16
+    |
+521 |         let mut reports = Vec::with_capacity(expected.len());
+    |             -----------   ---------------------------------- move occurs because `reports` has type `Vec<PublishedDiagnosticReport>`, which does not implement the `Copy` trait
+    |             |
+    |             captured outer variable
+...
+661 |         let result = DocumentPathAdmission::with_current(&admissions, self.store.as_ref(), || {
+    |                                                                                            -- captured by this `FnMut` closure
+...
+665 |             Ok(reports)
+    |                ^^^^^^^ `reports` is moved here
+    |
+help: `Fn` and `FnMut` closures require captured values to be able to be consumed multiple times, but `FnOnce` closures may consume them only once
+   --> rust/tcl-lsp-server/src/lib.rs:536:27
+    |
+536 |         mut publish: impl FnMut() -> T,
+    |                           ^^^^^^^^^^^^
+note: if `PublishedDiagnosticReport` implemented `Clone`, you could clone the value
+   --> rust/tcl-lsp-server/src/current_diagnostics.rs:90:1
+    |
+ 90 | pub(super) struct PublishedDiagnosticReport {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ consider implementing `Clone` for this type
+...
+665 |             Ok(reports)
+    |                ------- you could clone this value
+
+For more information about this error, try `rustc --explain E0507`.
+error: could not compile `tcl-lsp-server` (lib test) due to 1 previous error

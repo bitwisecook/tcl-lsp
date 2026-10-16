@@ -22,7 +22,12 @@ import type { Diagnostic as LspDiagnostic } from "vscode-languageclient";
 import {
   CurrentDiagnosticsSuppressedError,
   CurrentDiagnosticsUnavailableError,
+  acquireSessionDialectOverride,
+  captureAnalysisContext,
+  invalidateAnalysisContext,
+  isAnalysisContextCurrent,
   setCurrentDiagnosticsTransportProvider,
+  setUnleasedSessionDialectOverride,
   waitForDiagnostics,
   type CurrentDiagnosticsTransport,
 } from "../chat/diagnosticAccess";
@@ -61,12 +66,15 @@ function diagnostic(code: string): LspDiagnostic {
   };
 }
 
+const testSessionIdentity = {};
+
 function transport(
   request: CurrentDiagnosticsTransport["request"],
   current: () => boolean = () => true,
   converted: string[] = [],
 ): CurrentDiagnosticsTransport {
   return {
+    sessionIdentity: testSessionIdentity,
     request,
     isCurrent: current,
     convert: async (items) => {
@@ -97,6 +105,157 @@ suite("Chat current diagnostic publication adapter", () => {
   async function openFixture(content: string): Promise<vscode.TextDocument> {
     return vscode.workspace.openTextDocument({ language: "tcl", content });
   }
+
+  test("an older dialect lease cannot clear a newer session override", async () => {
+    const operations: Array<string | null> = [];
+    const activeTransport = transport(async (request) => complete(request, []));
+    activeTransport.setSessionDialectOverride = async (dialect) => {
+      operations.push(dialect);
+    };
+    const provider = setCurrentDiagnosticsTransportProvider(() => activeTransport);
+    try {
+      const older = await acquireSessionDialectOverride("f5-irules");
+      const newer = await acquireSessionDialectOverride("tcl");
+      assert.strictEqual(isAnalysisContextCurrent(older.analysisContext), false);
+      assert.strictEqual(await older.restore(), undefined);
+      const writeContext = await newer.restore();
+      assert.ok(writeContext);
+      assert.strictEqual(isAnalysisContextCurrent(writeContext), true);
+      assert.deepStrictEqual(operations, ["f5-irules", "tcl", null]);
+    } finally {
+      provider.dispose();
+    }
+  });
+
+  test("an acknowledged stale acquisition clears only its own server override", async () => {
+    const operations: Array<string | null> = [];
+    let acknowledge: (() => void) | undefined;
+    let entered: (() => void) | undefined;
+    const enteredRequest = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    const activeTransport = transport(async (request) => complete(request, []));
+    activeTransport.setSessionDialectOverride = async (dialect) => {
+      operations.push(dialect);
+      if (dialect !== null) {
+        entered?.();
+        await new Promise<void>((resolve) => {
+          acknowledge = resolve;
+        });
+      }
+    };
+    const provider = setCurrentDiagnosticsTransportProvider(() => ({ ...activeTransport }));
+    try {
+      const acquisition = acquireSessionDialectOverride("f5-irules");
+      await enteredRequest;
+      assert.strictEqual(captureAnalysisContext(), undefined);
+      invalidateAnalysisContext();
+      acknowledge?.();
+      await assert.rejects(
+        acquisition,
+        (error: unknown) =>
+          error instanceof CurrentDiagnosticsUnavailableError && error.reason === "stale",
+      );
+      assert.deepStrictEqual(operations, ["f5-irules", null]);
+    } finally {
+      provider.dispose();
+    }
+  });
+
+  test("a stale successor clears an acknowledged temporary predecessor", async () => {
+    const operations: Array<string | null> = [];
+    const activeTransport = transport(async (request) => complete(request, []));
+    activeTransport.setSessionDialectOverride = async (dialect) => {
+      operations.push(dialect);
+    };
+    const provider = setCurrentDiagnosticsTransportProvider(() => ({ ...activeTransport }));
+    try {
+      const predecessor = await acquireSessionDialectOverride("f5-irules");
+      const successor = acquireSessionDialectOverride("tcl");
+      invalidateAnalysisContext();
+      await assert.rejects(
+        successor,
+        (error: unknown) =>
+          error instanceof CurrentDiagnosticsUnavailableError && error.reason === "stale",
+      );
+      assert.strictEqual(await predecessor.restore(), undefined);
+      assert.deepStrictEqual(operations, ["f5-irules", null]);
+      assert.ok(captureAnalysisContext(), "cleanup of the predecessor ends the transition");
+    } finally {
+      provider.dispose();
+    }
+  });
+
+  test("a queued ownerless clear survives context invalidation after a temporary write", async () => {
+    const operations: Array<string | null> = [];
+    let acknowledgeWrite: (() => void) | undefined;
+    let enteredWrite: (() => void) | undefined;
+    const writeEntered = new Promise<void>((resolve) => {
+      enteredWrite = resolve;
+    });
+    const activeTransport = transport(async (request) => complete(request, []));
+    activeTransport.setSessionDialectOverride = async (dialect) => {
+      operations.push(dialect);
+      if (dialect !== null) {
+        enteredWrite?.();
+        await new Promise<void>((resolve) => {
+          acknowledgeWrite = resolve;
+        });
+      }
+    };
+    const provider = setCurrentDiagnosticsTransportProvider(() => ({ ...activeTransport }));
+    try {
+      const acquisition = acquireSessionDialectOverride("f5-irules");
+      await writeEntered;
+      const clear = setUnleasedSessionDialectOverride(null);
+      invalidateAnalysisContext();
+      acknowledgeWrite?.();
+      await assert.rejects(
+        acquisition,
+        (error: unknown) =>
+          error instanceof CurrentDiagnosticsUnavailableError && error.reason === "stale",
+      );
+      await clear;
+      assert.deepStrictEqual(operations, ["f5-irules", null]);
+      assert.ok(captureAnalysisContext(), "the acknowledged ownerless clear ends the transition");
+    } finally {
+      provider.dispose();
+    }
+  });
+
+  test("context invalidation during lease cleanup clears the override without a write context", async () => {
+    const operations: Array<string | null> = [];
+    let acknowledgeClear: (() => void) | undefined;
+    let enteredClear: (() => void) | undefined;
+    const clearEntered = new Promise<void>((resolve) => {
+      enteredClear = resolve;
+    });
+    const activeTransport = transport(async (request) => complete(request, []));
+    activeTransport.setSessionDialectOverride = async (dialect) => {
+      operations.push(dialect);
+      if (dialect === null) {
+        enteredClear?.();
+        await new Promise<void>((resolve) => {
+          acknowledgeClear = resolve;
+        });
+      }
+    };
+    const provider = setCurrentDiagnosticsTransportProvider(() => activeTransport);
+    try {
+      const lease = await acquireSessionDialectOverride("f5-irules");
+      const restoration = lease.restore();
+      await clearEntered;
+      assert.strictEqual(captureAnalysisContext(), undefined);
+      invalidateAnalysisContext();
+      acknowledgeClear?.();
+      assert.strictEqual(await restoration, undefined);
+      assert.deepStrictEqual(operations, ["f5-irules", null]);
+      assert.ok(captureAnalysisContext(), "acknowledged cleanup ends the transition");
+      assert.ok(captureAnalysisContext(), "a completed cleanup ends the transition");
+    } finally {
+      provider.dispose();
+    }
+  });
 
   test("pending is retried and a completed empty publication remains empty", async () => {
     const document = await openFixture("set adapterPending 1");
@@ -184,6 +343,7 @@ suite("Chat current diagnostic publication adapter", () => {
   test("conversion is bounded by the original diagnostic deadline", async () => {
     const document = await openFixture("set adapterDeadline 1");
     const lease = setCurrentDiagnosticsTransportProvider(() => ({
+      sessionIdentity: testSessionIdentity,
       request: async (request) => complete(request, []),
       convert: async () => new Promise<vscode.Diagnostic[]>(() => {}),
       isCurrent: () => true,
@@ -210,6 +370,7 @@ suite("Chat current diagnostic publication adapter", () => {
     const lease = setCurrentDiagnosticsTransportProvider(() => {
       const capturedGeneration = generation;
       return {
+        sessionIdentity: testSessionIdentity,
         request: async (request) => {
           calls += 1;
           if (calls === 1) {
@@ -247,6 +408,7 @@ suite("Chat current diagnostic publication adapter", () => {
   test("a converter resolving after a blocked deadline remains a timeout", async () => {
     const document = await openFixture("set adapterLateConversion 1");
     const lease = setCurrentDiagnosticsTransportProvider(() => ({
+      sessionIdentity: testSessionIdentity,
       request: async (request) => complete(request, []),
       convert: async () => {
         const finishAt = Date.now() + 40;
@@ -277,6 +439,7 @@ suite("Chat current diagnostic publication adapter", () => {
     let oldConvertCalls = 0;
     const newTransport = transport(async (request) => complete(request, [diagnostic("NEW")]));
     const oldTransport: CurrentDiagnosticsTransport = {
+      sessionIdentity: testSessionIdentity,
       request: async (request) => {
         current = newTransport;
         return complete(request, [diagnostic("OLD")]);
@@ -307,6 +470,7 @@ suite("Chat current diagnostic publication adapter", () => {
     let current: CurrentDiagnosticsTransport | undefined;
     const newTransport = transport(async (request) => complete(request, [diagnostic("NEW")]));
     const oldTransport: CurrentDiagnosticsTransport = {
+      sessionIdentity: testSessionIdentity,
       request: async (request) => complete(request, [diagnostic("OLD")]),
       convert: async (items) => {
         current = newTransport;

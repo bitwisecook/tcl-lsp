@@ -1,0 +1,148 @@
+{
+  "version": "V8 editor source-write candidate retaining the acknowledged temporary predecessor across a stale undispatched successor",
+  "candidate_patch": "candidate.patch",
+  "candidate_patch_sha256": "74f45d44ae97da195cf6e54282a0eb873ff58943489a2871aa0220db6ec0b165",
+  "parent_v7_patch_sha256": "249c4880d80e5a041ecc617fb2d38a0ca32256eb47acf2b68268277a74db8e18",
+  "source_before_sha256": {
+    "src/chat/agenticLoop.ts": "37aa1e076c366eca0e3fe1268f35f36d2e56ee2d05ac37f39cecd71f388e6a62",
+    "src/chat/codeUtils.ts": "f6a224a9dd74eaa2605b03bd61446588c54c5b6aa82bf6cdaa6bc718a52f6209",
+    "src/chat/commands/datagroup.ts": "279fb15569f2909c4f857782a3993a04475658f40cfbe3dd63cf18e9273f26df",
+    "src/chat/commands/find-legacy.ts": "2229d25de78f6a8c82ed25bcacfa258c951973f53e6472645ad2c18d9a9cba12",
+    "src/chat/commands/fix.ts": "3f5fba998f9530477e666c0e11e3686941b29a8f7df1d81dc617368539f8f9eb",
+    "src/chat/commands/optimise.ts": "bc459f84d949d3c528b5d163d779339a41bc8d1f7f815fca920e5220e6b8a999",
+    "src/chat/commands/review.ts": "8d1a64860b4b9837babd7f839e5ddc3a3fbdcb4aa7100252a623e585bd015125",
+    "src/chat/commands/validate.ts": "491029f3ff3e6a3f8813bf0b00ac776abf54c158e0f909723c4a8baee5e82964",
+    "src/chat/diagnosticAccess.ts": "e0897b49e1ff7e5d044947a9ae754e1eb1338560e056460ba6a50fd6d9e3ab6c",
+    "src/chat/tclParticipant.ts": "bff5774618fd578479fba3816ca75f5dae42fc8f36300b78f1f7c8d6ea109ce5",
+    "src/extension.ts": "00ea3b3e418194abc9166b896e57beb99fffde877e58fa6cb520330e3754a2aa",
+    "src/extensionBrowser.ts": "746943f341b7eb96181c38742bead2b20000cf651495176460e9bfadb388c64b",
+    "src/test/commands.test.ts": "7a9bc9a8b089061c98bf4f2359d2de59e67a8bf908a058ef4abc10aef6d81ffc",
+    "src/test/currentDiagnostics.test.ts": "99b697f9c2b9096c6d50ccb49583b6bb5f5ce9437da325a7103cee6086ae7289",
+    "test-partitions.json": "592f2b127a139a3bd30941bc8d5b255aa3e3639529c6adcfd051279e6c97deb9"
+  },
+  "source_after_sha256": {
+    "src/chat/agenticLoop.ts": "6c5dff2b02545518e127643ae51e6fd1bece401cc74e79e006c075819cc9fda6",
+    "src/chat/codeUtils.ts": "1010fde769742086aee1715cf1c7379e7fffd9e18b62ea0ffc8f9fbe343f4c3a",
+    "src/chat/commands/datagroup.ts": "b1aaa80730f8503702d9e85c952a97b9cae012ea6e777e9d0262f02c8a14d885",
+    "src/chat/commands/find-legacy.ts": "2cab469700466efb93c935c182bf0893c9e1d1c5ac61dc8518bb18621b6ea64a",
+    "src/chat/commands/fix.ts": "2fdc3e9d2868c92447770ccad53866f5cc8681a0b07c312299d2f494e0f08e27",
+    "src/chat/commands/optimise.ts": "61142e82f1c414486cfa759a8d1ceae0ac27746e1af44332f0bc9c5ed875f6e5",
+    "src/chat/commands/review.ts": "38f07feb81467579af62d2cda46a5021507309426cb7d27259d69e72aab40958",
+    "src/chat/commands/validate.ts": "1191aecf7736db63c712e1d758e7364cc9b9a905191fe8b38717d2dedd204297",
+    "src/chat/diagnosticAccess.ts": "45161a425d2e981dc37e93fb2b243fd38ecb5d16b429beeb9a24137fd76385f5",
+    "src/chat/tclParticipant.ts": "f136fbb4d03d380521e5c511286b39746fb0312fd5a6075e0981ddbfdcf08e76",
+    "src/extension.ts": "878fcec963bc61f767d47c2176b8fd92264be83b0b8e89997c244902c09fc199",
+    "src/extensionBrowser.ts": "b6c05894cfd097b20b007d33a12b9fcb225c38da920932b3d724e91640f87f89",
+    "src/test/commands.test.ts": "91b3924ad7e7ef65817530756f0bf7b0a7a6f08c728ed1a62108879c296e0ef8",
+    "src/test/currentDiagnostics.test.ts": "389dd24a1cfdf711d088dc226a3f30773409af84534112af96b49e2e1082575c",
+    "test-partitions.json": "920d2e8774b8415c4c205357c87585af79db6e2f8b422f506f235be8d1c3414b"
+  },
+  "changed_files": [
+    "src/chat/agenticLoop.ts",
+    "src/chat/codeUtils.ts",
+    "src/chat/commands/datagroup.ts",
+    "src/chat/commands/find-legacy.ts",
+    "src/chat/commands/fix.ts",
+    "src/chat/commands/optimise.ts",
+    "src/chat/commands/review.ts",
+    "src/chat/commands/validate.ts",
+    "src/chat/diagnosticAccess.ts",
+    "src/chat/tclParticipant.ts",
+    "src/extension.ts",
+    "src/extensionBrowser.ts",
+    "src/test/commands.test.ts",
+    "src/test/currentDiagnostics.test.ts",
+    "test-partitions.json"
+  ],
+  "changes": [
+    "Tracks the last actually acknowledged temporary lease override for its real session identity.",
+    "If a successor acquisition is invalidated before dispatch while an earlier temporary lease remains installed, the failed successor cleanup clears the still-owned predecessor rather than exposing a stable capture with stale temporary server state.",
+    "Acknowledged restore and explicit ownerless writes retire the temporary-lease record after their server write; queued cleanup remains guarded by operation generation and retained session transport.",
+    "Adds one host control: acquire temporary lease A, queue successor B, invalidate before B dispatch, verify cleanup sends null and no writable receipt is issued."
+  ],
+  "baseline_scope": "Same four primary baseline IDs and partial AI validation-generation boundary as V7/V6; no additional baseline units claimed. Four new race controls total relative to V8 baseline (two from the original V5 patch, one queued ownerless-clear control in V7, one undispatched-successor cleanup control in V8). Existing selector partition assignment unchanged.",
+  "validation": {
+    "overlay": "/tmp/lsp-editor-source-write-v8/tscheck",
+    "node": "v24.19.0",
+    "typescript": "6.0.3",
+    "prettier": "3.9.7",
+    "package_json_sha256": "1dc3385e7b9ac02dbeee0d680b4cdf28a493dfb20071fdb465719fc0be12c6c4",
+    "tsconfig_sha256": "753d78ef9f118cb4bdf3ef7ce65060c79e8137d8e0202577741f1f84e28a2f8c",
+    "prettier_config_sha256": "e67adb3fc01fe9b89e4563605d9a91e2efcc1f02e32fa6b4ec280547a2c1aaaf",
+    "prettier_ignore_sha256": "1647617fb6347c6698484dfe1bacce77ce69710937b492b6011e867d5245aa3c",
+    "test_partitions_sha256": "920d2e8774b8415c4c205357c87585af79db6e2f8b422f506f235be8d1c3414b",
+    "node_modules_symlink_realpath": "/workspace/tcl-lsp/editors/vscode/node_modules",
+    "checks": [
+      {
+        "name": "typecheck",
+        "argv": [
+          "./node_modules/.bin/tsc",
+          "-p",
+          "./",
+          "--noEmit"
+        ],
+        "cwd": "/tmp/lsp-editor-source-write-v8/tscheck",
+        "exit_code": 0,
+        "stdout_file": "tsc.stdout",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderr_file": "tsc.stderr",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "prettier",
+        "argv": [
+          "./node_modules/.bin/prettier",
+          "--check",
+          "src/chat/diagnosticAccess.ts",
+          "src/chat/agenticLoop.ts",
+          "src/chat/codeUtils.ts",
+          "src/extension.ts",
+          "src/extensionBrowser.ts",
+          "src/test/currentDiagnostics.test.ts"
+        ],
+        "cwd": "/tmp/lsp-editor-source-write-v8/tscheck",
+        "exit_code": 0,
+        "stdout_file": "prettier.stdout",
+        "stdout_sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+        "stderr_file": "prettier.stderr",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "node_bundle",
+        "argv": [
+          "npm",
+          "run",
+          "bundle"
+        ],
+        "cwd": "/tmp/lsp-editor-source-write-v8/tscheck",
+        "exit_code": 0,
+        "stdout_file": "bundle.stdout",
+        "stdout_sha256": "ef216ca8e772fd8f7a5287e1176c2025bcbaa29af66c39fad001711c3ac136ba",
+        "stderr_file": "bundle.stderr",
+        "stderr_sha256": "ab86ffd3900d2228e1108053950f624dc979f92494a781359545efc244be0f05"
+      },
+      {
+        "name": "browser_bundle",
+        "argv": [
+          "npm",
+          "run",
+          "bundle:browser"
+        ],
+        "cwd": "/tmp/lsp-editor-source-write-v8/tscheck",
+        "exit_code": 0,
+        "stdout_file": "browser.stdout",
+        "stdout_sha256": "f027d3f64d7d4ea29d29356f86cadb4caf2308f37cde6338593ac2925186d467",
+        "stderr_file": "browser.stderr",
+        "stderr_sha256": "6f61dbdd149319f3e017221e0aa6728855da37f3386574d7cbe845d66133b51c"
+      }
+    ],
+    "bundle_outputs": {
+      "node_js_sha256": "6879196d6288e99beacd4def18e07b6e26328bfae02d915442ca2474f15dd892",
+      "node_map_sha256": "40d2150c5ee6f0748f4b944f2a5a044e32e217cd0e7edeb13c81999e40d769e4",
+      "browser_js_sha256": "6bc1dcd3555e42933359a536cc453d14d22b445e70ae517ddf6d027dc9dd8c94",
+      "browser_map_sha256": "db3e10953264f0159a6c4d573b6f01298d571f79379f3152af0b8a19d368c405"
+    },
+    "host_tests": "not run; VS Code extension host runtime unavailable"
+  },
+  "review_status": "V8 awaiting independent source review; no main/Cargo/Git changes"
+}

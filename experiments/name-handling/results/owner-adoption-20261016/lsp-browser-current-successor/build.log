@@ -1,0 +1,44 @@
+    Checking tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+    Checking tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+    Checking tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+    Checking tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+    Checking tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+    Checking tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-tclvm)
+    Checking tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-hooks)
+    Checking tcl-spectcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-spectcl)
+   Compiling tcl-version v0.1.0 (/workspace/tcl-lsp/rust/tcl-version)
+    Checking tcl-bigip-query v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip-query)
+    Checking tcl-explorer v0.1.0 (/workspace/tcl-lsp/rust/tcl-explorer)
+    Checking tcl-lsp-db v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-db)
+    Checking f5-xc v0.1.0 (/workspace/tcl-lsp/rust/f5-xc)
+    Checking tcl-diagram v0.1.0 (/workspace/tcl-lsp/rust/tcl-diagram)
+    Checking tcl-lsp-server v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-server)
+warning: methods `publish_disk_results`, `publish_disk_results_while_rehoming_locked`, `original_declaration_reference_locations`, `batch_reindex_from_disk`, `reindex_index_from_disk`, and `merge_workspace_scan_results` are never used
+     --> /workspace/tcl-lsp/rust/tcl-lsp-server/src/lib.rs:10932:14
+      |
+10026 | impl Backend {
+      | ------------ methods in this implementation
+...
+10932 |     async fn publish_disk_results(
+      |              ^^^^^^^^^^^^^^^^^^^^
+...
+10998 |     async fn publish_disk_results_while_rehoming_locked<'a>(
+      |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+13886 |     async fn original_declaration_reference_locations(
+      |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+14554 |     async fn batch_reindex_from_disk(&self, uris: &[Uri]) -> DocumentSourceResult<()> {
+      |              ^^^^^^^^^^^^^^^^^^^^^^^
+...
+14630 |     async fn reindex_index_from_disk(&self, uri: &Uri) -> DocumentSourceResult<()> {
+      |              ^^^^^^^^^^^^^^^^^^^^^^^
+...
+26370 |     async fn merge_workspace_scan_results(
+      |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+      |
+      = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-lsp-server` (lib) generated 1 warning
+    Checking tcl-lsp-server-wasm v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-server-wasm)
+    Finished `dev` profile [unoptimized] target(s) in 1m 04s

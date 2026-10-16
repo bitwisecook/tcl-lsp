@@ -1,0 +1,19 @@
+# Existing LSP/shared source owner call registrations
+
+The actual completed gate log is `/workspace/naming-validation/lsp-source-path-diagnostics-repair/owner-resolution.log`; it reports 309 diagnostics. This proposal repairs five existing declaration/call registrations. It does not claim a passing gate or change a required owner count.
+
+| Existing semantic owner | Actual declaration and production caller | Registration |
+| --- | --- | --- |
+| Original command completion word geometry | Core `source_structure::original_word_cursor_prefix` is `pub(crate)`; `completion::word_prefix_at_position` calls its explicit crate-qualified path after the existing full UTF-16 cursor round trip | static |
+| checked tracked document source input | Server private `Backend::analyse_with_workspace_classes_from_analysis` is called by the actual inherent `Backend::analyse_with_workspace_classes` after genuine `analysis_for` source production | same Backend self |
+| Original variable rename source authority | Server private `Backend::cross_document_original_variable_rename` is called by inherent `Backend::gated_rename_tiers` only after original typed variable cursor selection | same Backend self |
+| Conditional source operation continuation | Compiler private free function `declaration_preview::original_source_operation_continuation` is called by `original_source_operand_layout_for_declaration` while retaining exact child source cards, original whole-vector/parent and continuation chronology | static |
+| Conditional source operation continuation | Compiler private `DeclarationSourceOperandLayoutAdvice::current_conditional_source_advice` is called by the same type's `current_metadata_context` before its original/configured metadata context match | same advice self |
+
+The existing main owner entry used bare `current_conditional_source_advice`, but the actual declaration is an inherent method. This patch corrects that entry to `DeclarationSourceOperandLayoutAdvice::current_conditional_source_advice` and registers the same actual declaration. No entry is removed and no unsupported private helper is relabeled public.
+
+The manifest records exact current source hashes for all real declarations and consumers. All declared source/consumer modules have unconditional existing conventional module declarations; the two Server routes are actual root-module Backend calls. The three self routes and two static routes are already supported by `source_internal::check_row`, its actual declaration selection, exact visibility check, owner-type resolution and `ConsumerReferences`. This patch changes only the canonical contract source table, not those checks. The original lookup, source/input/currentness, unknown/observer/debt, Native, edit and completion guards are byte-identical because no Rust production file changes.
+
+Remaining gate limitations stay explicit. The existing Analyser same-module `self` routes import their owner type from sibling `state`; `CrateModules::direct_self_scope` selects a loader that omits non-required sibling modules, while `check_row` independently requires actual owner-type resolution. There is no fabricated local Analyser declaration in this proposal. Some other Server methods have only `LanguageServer` trait-implementation callers, while current `declaration` accepts only inherent impl methods; this proposal does not invent an inherent caller, remove the owner entry or broaden the checker. Runtime/VM/BIGIP routes, evidence/census digests, and unrelated failed entries are untouched.
+
+Validation: all before/after hashes verified, current source declarations/actual calls/visibility/module relationships independently inspected, exact patch applied with `--fuzz=0` to a separate TMP beforeimage and matched its declared afterimage. No Cargo, test/gate execution, Git, main edits or instrumentation. Fresh owner-resolution execution and independent source admission remain Root-owned.

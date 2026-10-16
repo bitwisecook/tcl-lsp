@@ -401,12 +401,12 @@
   "incoming_rust": "Incoming `origin/rust` is now `ca698d87c824da24053c7abe279bb505a0acd9cb` (#2477 compiled/direct evaluation, literal-index and error-reporting changes), unmerged and unadmitted. The audit counts are for work at the recorded baseline plus explicit work-source annexes. Recheck and reconcile incoming source before integration; no acceptance is donated from the incoming branch.",
   "implementation_progress": {
     "resumed_from": "554085e162823ea8bd126898d0c27b7b2a9f8628",
-    "utc": "2026-10-16T18:14:15.837147+00:00",
+    "utc": "2026-10-16T18:27:32.474725+00:00",
     "audit_baseline_counts_unchanged": true,
     "total_required_units": 2158,
-    "implemented_pending_validation": 248,
+    "implemented_pending_validation": 256,
     "verified_complete": 0,
-    "not_started": 1910,
+    "not_started": 1902,
     "remaining_unverified_or_unimplemented": 2158,
     "additional_work_not_counted_as_catalogue_completion": [
       "Native variable-expression read/cell/trace/child-body observer producer remains open; pure expression gap receipt grants no such authority.",
@@ -665,7 +665,7 @@
       "verified_complete": 0
     },
     "effective_required_units": 2211,
-    "effective_implemented_pending_validation": 300,
+    "effective_implemented_pending_validation": 308,
     "effective_verified_complete": 0,
     "incoming_remote": {
       "utc": "2026-10-16T18:11:00Z",
@@ -835,8 +835,8 @@
       "scope": "Selected controls only. Completed99tests are65PASS34FAIL. Preview failure retained separately; no whole-group or gate acceptance.",
       "capture": "experiments/name-handling/results/owner-adoption-20261016/cli-mcp-server-889"
     },
-    "fully_implemented_pending_validation": 241,
-    "partially_implemented_pending_validation": 7,
+    "fully_implemented_pending_validation": 246,
+    "partially_implemented_pending_validation": 10,
     "runtime_report_adoptions": {
       "baseline_units": [
         "runtime:report.selected-command-variable-qualification:132",
@@ -1001,14 +1001,14 @@
         "validation": 122,
         "documentation": 2
       },
-      "lsp_integrated_pending_validation": 119,
+      "lsp_integrated_pending_validation": 127,
       "lsp_by_kind_integrated": {
-        "semantic": 34,
-        "validation": 83,
-        "documentation": 2
+        "semantic": 40,
+        "documentation": 2,
+        "validation": 85
       },
       "lsp_verified_complete": 0,
-      "lsp_without_integrated_implementation": 206,
+      "lsp_without_integrated_implementation": 198,
       "shared_dependencies": "Counted under their original Compiler/DB/Registry units or reconciled annex; not counted again as LSP consumers.",
       "deferred": "Runtime174 remaining54,VM133,RuntimeJim execution and BIG-IP source inventory/provider work; retain all existing artifacts.",
       "new_source_alias_caller_annex": "compiler.consumer.logical-source-alias-declaration-observations"
@@ -1507,14 +1507,17 @@
       ],
       "status": "integrated_pending_validation",
       "DB_project_partial": "Existing default/inherited constructor coverage remains blocked, original positive retained.",
-      "pending": "Fresh ordinary five-library build running from18:12UTC in /workspace/naming-validation/lsp-readonly-cache-successor. All220 previous controls retained in expanded successor. Index source-form repair independently CLEAR and integrated without new count. Editor source-write V7 remains unintegrated with predecessor-override cleanup HOLD; V8 in progress. Current owner/proof/host/repository gates remain required."
+      "pending": "Build1FAIL one missing UnacceptedSourceArity displaymapping; repair1FAIL move reports out of FnMut. Root repaired both without assertions or guards weakened; repair2 ordinary build running. Editor V8 integrated; actual workspace TS/format/bundles PASS, broader AI purposes explicitly partial."
     },
     "readonly_cache_build": {
-      "status": "running",
-      "started_utc": "2026-10-16T18:12:00Z",
-      "capture": "/workspace/naming-validation/lsp-readonly-cache-successor",
-      "single_job": true,
-      "ordinary": true
+      "status": "PASS_FIVE_LIBRARY_BUILD",
+      "seconds": 333.212,
+      "warnings": 1,
+      "input_count": 39000,
+      "input_drift": 0,
+      "capture": "/workspace/naming-validation/lsp-readonly-cache-successor-repair2",
+      "results": "253exact replay running, all220 predecessors retained",
+      "successor": "Folding and unused empty helper removal occur after this freeze. Browser check running with actual current source binding."
     },
     "e0612_actual_validation": {
       "capture": "experiments/name-handling/results/owner-adoption-20261016/lsp-source-path-diagnostics-repair",
@@ -1537,6 +1540,45 @@
       "spectcl_separate": "3PASS",
       "owner_gate": "FAIL309errors",
       "limits": "Actual scoped predecessor only; successor build and required gates pending."
+    },
+    "editor_source_write_batch": {
+      "baseline_new": [
+        "lsp-editor-source-snapshot",
+        "lsp-editor-existing-document-write",
+        "lsp-editor-node-applyfix",
+        "lsp-editor-browser-applyfix",
+        "lsp-editor-ai-iterate-currency"
+      ],
+      "new_full": 4,
+      "new_partial": 1,
+      "existing_downgraded_to_partial": [
+        "lsp-editor-ai-clean-claim",
+        "lsp-editor-diagnostic-generation"
+      ],
+      "counts": "Five distinct existing baseline purposes, no new annex. New helpers/receipts/tests not counted.",
+      "validation": "Actual workspace TypeScript/scoped Prettier/Node/browser bundles PASS, no input drift; actual hosts unexecuted.",
+      "capture": "experiments/name-handling/results/owner-adoption-20261016/lsp-editor-source-write-v8"
+    },
+    "lsp_folding_body_adoption": {
+      "id": "lsp-folding-logical-report-body-residue",
+      "status": "integrated_pending_validation",
+      "new_owner_or_annex": 0,
+      "capture": "experiments/name-handling/results/owner-adoption-20261016/lsp-folding-original-body-inventory-v1"
+    },
+    "lsp_actual_provider_test_adoptions": {
+      "baseline_new": [
+        "lsp.validation.03.08.fn0",
+        "lsp.validation.03.08.fn1"
+      ],
+      "actual_waiter": "Activated extension bundled diagnosticAccess provider, not separate test module singleton",
+      "host": "UNEXECUTED read-only system dependency setup failure retained",
+      "new_owner": 0
+    },
+    "actual_portable_successor": {
+      "browser": "PASS66.835s;39000inputs0drift;1warning6testonlywrappers",
+      "wasi": "LOCKEDstale lockfile thenOFFLINEmissingwasi crate; Cargo-owned lock+fetch repaired, actual compile pending",
+      "editor": "ActualmainTypeScript/scopedformat/Node+browserbundlesPASS afterV8+realproviderexport; hostsetupfailsread-onlyapt directories",
+      "native": "253exact frozen replay running; sourcebound buildPASS333.212s1unusedhelperwarning, helperremovedinlater source"
     }
   }
 }

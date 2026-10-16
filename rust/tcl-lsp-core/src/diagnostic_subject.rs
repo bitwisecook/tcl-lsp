@@ -348,6 +348,7 @@ enum RegisteredInstanceObligationDescription {
     RegisteredHandleBindingApplicability,
     OriginalCallbackTargetApplicability,
     UnavailableCallbackLookupFrame,
+    UnacceptedSourceArity,
 }
 impl From<&tcl_compiler::command_binding::SourceCommandTransitionObligation>
     for RegisteredInstanceObligationDescription
@@ -371,6 +372,7 @@ impl From<&tcl_compiler::command_binding::SourceCommandTransitionObligation>
             }
             Obligation::UnavailableActualLookup => Self::UnavailableActualLookup,
             Obligation::UnknownEarlierMutation => Self::UnknownEarlierMutation,
+            Obligation::UnacceptedSourceArity => Self::UnacceptedSourceArity,
             Obligation::ExplicitLogicalSourceApplicability => {
                 Self::ExplicitLogicalSourceApplicability
             }

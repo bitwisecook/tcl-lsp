@@ -1666,3 +1666,9 @@ adoption acquires the new result role before old-result retirement. No body
 String getter or protective procedure/body ownership is added. Public evaluation
 result reset remains distinct from the worker's primitive publication frontier;
 C byte compatibility and exact missing/nonprocedure diagnostics stay separate.
+
+Folding regions consume the shared source-structure inventory of original
+procedure, namespace and structured-script bodies. Mutable reporting scope maps
+and their body spans cannot add regions or replace a missing original body.
+Comment and continuation folds retain their independent source grammars; the
+original source/input/configuration and incomplete-body guards remain required.

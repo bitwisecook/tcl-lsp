@@ -20,11 +20,15 @@ import * as vscode from "vscode";
 import { CommandContext } from "../types";
 import { resolveIruleCode, ensureDocumentOpen } from "../codeUtils";
 import {
+  acquireSessionDialectOverride,
+  captureAnalysisContext,
+  isAnalysisContextCurrent,
   waitForDiagnostics,
+  SessionDialectOverrideLease,
   categoriseDiagnostics,
   renderDiagnosticSection,
 } from "../diagnosticAccess";
-import { setSessionDialectOverride, getActiveDialect, isTclLanguage } from "../../extension";
+import { getActiveDialect, isTclLanguage } from "../../extension";
 
 export async function handleValidate(ctx: CommandContext): Promise<vscode.ChatResult> {
   // Try active editor first, then resolve from references
@@ -52,16 +56,22 @@ export async function handleValidate(ctx: CommandContext): Promise<vscode.ChatRe
   // land at any time, so a push's effect would last an unpredictable length
   // of time.
   const pinnedDialect = getActiveDialect() !== "f5-irules";
-  if (pinnedDialect) {
-    await setSessionDialectOverride("f5-irules");
-  }
+  let overrideLease: SessionDialectOverrideLease | undefined;
+  if (pinnedDialect) overrideLease = await acquireSessionDialectOverride("f5-irules");
 
   try {
     if (!doc) {
       doc = await ensureDocumentOpen(code);
     }
+    const analysisContext = overrideLease?.analysisContext ?? captureAnalysisContext();
+    if (!isAnalysisContextCurrent(analysisContext)) {
+      throw new Error("Analysis context changed before the iRule analysis started");
+    }
 
     const diagnostics = await waitForDiagnostics(doc.uri, { timeout: 5000, expectedSource: code });
+    if (!isAnalysisContextCurrent(analysisContext)) {
+      throw new Error("Analysis context changed while the iRule analysis was running");
+    }
     const categorised = categoriseDiagnostics(diagnostics);
 
     ctx.response.markdown("## iRule Validation Report\n");
@@ -84,9 +94,8 @@ export async function handleValidate(ctx: CommandContext): Promise<vscode.ChatRe
 
     return { metadata: { command: "validate", count: categorised.all.length } };
   } finally {
-    if (pinnedDialect) {
-      // Clearing restores whatever the configuration resolves to.
-      await setSessionDialectOverride(null);
+    if (overrideLease && !(await overrideLease.restore())) {
+      throw new Error("The iRule analysis dialect override was superseded");
     }
   }
 }

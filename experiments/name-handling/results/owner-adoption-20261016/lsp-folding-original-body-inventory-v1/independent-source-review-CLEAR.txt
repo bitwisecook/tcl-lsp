@@ -1,0 +1,13 @@
+SOURCE CLEAR for semantic changes in exact patch0a861ff333685b262d3466c96b4b1eb4f5559b86495a9ab05b162cc04b3733a9; one documentation note below.
+
+The migration removes only the explicit Logical report Scope/ProcDef fallback and now-unused helper/imports. The existing SourceStructure capture already owns readonly original declaration bodies, selected original script-body/case/member/lambda roles, current full source/input/context/Registry/configuration and genuine incomplete-body receipts. No new producer, bypass, detached-body ingress or Native/Normal/dispatch/edit capability is introduced.
+
+Actual procedure coverage comes from analysis.original_procedure_declarations plus the existing OriginalDeclarationIdentity and original word geometry. Namespace bodies come from the actual namespace source schema/script-body issuer. These do not depend on the public maps cleared by the new positive test. The SourceStructure logical report lookup still independently requires a genuine retained header/body owner, and the original declaration path remains available after report clearing. This source inspection establishes the intended route, not a test outcome.
+
+The old full test module is independently byte-identical after removing only the two inserted tests. Retained proc/namespace, incomplete-body, captured-prefix ordinals, actual availability, replacement and dynamic-binding tests remain unchanged. Their actual execution remains required. The existing incomplete-body receipt uses exact retained source/config/Registry rather than manufacturing a completed proc body from its incomplete header.
+
+The new negative is meaningful: an invented Namespace report spans genuine multiline inert set-data text. The removed helper would have treated that report span as a region fold even without an original script role. The new original-body path cannot promote it. Changed whole source, changed full strict-quoting config and missing input are separate explicit new refusals. No original fixture or assertion was weakened.
+
+Independent manifest/contract/source-basis hash checks, current-main/base equality and fuzz0 dry-run/application reproduce the exact proposed after hash. No Cargo/build/test/target execution/Git or main edits occurred.
+
+Small documentation note: module docs folding.rs lines24-26 still describe a scope walk over the analyser after that walk is removed. Correct that description in the final successor. No other actionable semantic finding.

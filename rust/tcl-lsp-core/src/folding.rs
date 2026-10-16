@@ -20,9 +20,9 @@
 //!
 //! Emits LSP folding ranges for proc bodies, namespace bodies, comment
 //! blocks, and control-structure bodies (`if`, `while`, `for`,
-//! `foreach`, `switch`, …).  The algorithm is a scope
-//! walk over the analyser's [`AnalysisResult`], a comment-line
-//! collector, and the shared original source-structure owner, followed by an overlap
+//! `foreach`, `switch`, …). The algorithm combines original body regions
+//! from the shared source-structure owner with comment and continuation
+//! collectors under the retained [`AnalysisResult`], followed by an overlap
 //! normalisation post-pass that trims partially overlapping
 //! siblings so VS Code's folding tree-builder doesn't drop them.
 //!
@@ -37,7 +37,7 @@ use std::collections::BTreeSet;
 
 use rustc_hash::FxHashSet;
 
-use tcl_compiler::analyser::{AnalysisResult, Scope, ScopeKind};
+use tcl_compiler::analyser::AnalysisResult;
 use tcl_lexer::{Lexer, LexerConfig, LineIndex, TokenType};
 use tcl_registry::CommandRegistry;
 
@@ -132,17 +132,6 @@ pub fn folding_ranges_with_analysis(source: &str, analysis: &AnalysisResult) -> 
     let mut ranges = Vec::new();
     collect_comment_folds(source, config, &mut seen, &mut ranges);
     collect_continuation_folds(source, config, &line_index, &mut seen, &mut ranges);
-    if analysis.allows_lexical_declaration_advice() {
-        // Only explicit Logical ingress consumes the compatibility scope maps.
-        // An absent original body or lookup cannot select this branch.
-        collect_scope_folds(
-            &analysis.global_scope,
-            source,
-            &line_index,
-            &mut seen,
-            &mut ranges,
-        );
-    }
     if let Some(structure) =
         crate::source_structure::SourceStructure::capture(source, Some(analysis), config)
     {
@@ -222,28 +211,6 @@ fn emit_body_span_fold(
     if start_line < raw_end_line {
         let end_line = adjust_body_end_line(source, end_offset, raw_end_line);
         push_unique(seen, ranges, start_line, end_line, FoldKind::Region);
-    }
-}
-
-/// Walk the analyser scope tree and emit folds for proc bodies and
-/// namespace bodies.
-fn collect_scope_folds(
-    scope: &Scope,
-    source: &str,
-    line_index: &LineIndex,
-    seen: &mut FxHashSet<(u32, u32)>,
-    ranges: &mut Vec<FoldingRange>,
-) {
-    for proc_def in scope.procs.values() {
-        emit_body_span_fold(proc_def.body_span, source, line_index, seen, ranges);
-    }
-    for child in &scope.children {
-        if matches!(child.kind, ScopeKind::Namespace)
-            && let Some(span) = child.body_span
-        {
-            emit_body_span_fold(span, source, line_index, seen, ranges);
-        }
-        collect_scope_folds(child, source, line_index, seen, ranges);
     }
 }
 
@@ -552,6 +519,66 @@ mod tests {
         );
         let config = analysis.body_lexer_config.as_mut().unwrap();
         config.strict_quoting = !config.strict_quoting;
+        assert!(folding_ranges_with_analysis(source, &analysis).is_empty());
+    }
+
+    #[test]
+    fn logical_folding_uses_original_bodies_after_reporting_scope_clear() {
+        let source = concat!(
+            "namespace eval N {\n",
+            " proc p {} {\n",
+            "  puts first\n",
+            "  puts second\n",
+            " }\n",
+            "}\n",
+        );
+        let mut analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
+        assert!(analysis.allows_lexical_declaration_advice());
+        let expected = vec![(0, 4), (1, 3)];
+        assert_eq!(
+            fold_lines(
+                &folding_ranges_with_analysis(source, &analysis),
+                FoldKind::Region
+            ),
+            expected
+        );
+        analysis.all_procs.clear();
+        analysis.global_scope.procs.clear();
+        analysis.global_scope.children.clear();
+        assert_eq!(
+            fold_lines(
+                &folding_ranges_with_analysis(source, &analysis),
+                FoldKind::Region
+            ),
+            expected
+        );
+        assert!(
+            folding_ranges_with_analysis(&source.replace("first", "other"), &analysis).is_empty()
+        );
+        let mut foreign_config = analysis.clone();
+        foreign_config
+            .body_lexer_config
+            .as_mut()
+            .unwrap()
+            .strict_quoting ^= true;
+        assert!(folding_ranges_with_analysis(source, &foreign_config).is_empty());
+        analysis.resolved_input = None;
+        assert!(folding_ranges_with_analysis(source, &analysis).is_empty());
+    }
+
+    #[test]
+    fn logical_folding_does_not_promote_reporting_scope_spans_into_body_roles() {
+        use tcl_compiler::analyser::{Scope, ScopeKind};
+        let source = "set data {\n inert first\n inert second\n}\n";
+        let mut analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
+        assert!(analysis.allows_lexical_declaration_advice());
+        assert!(folding_ranges_with_analysis(source, &analysis).is_empty());
+        let mut invented = Scope::new(ScopeKind::Namespace, "presentation-only");
+        invented.body_span = Some(tcl_lexer::Span::new(
+            u32::try_from(source.find('{').unwrap() + 1).unwrap(),
+            u32::try_from(source.rfind('}').unwrap()).unwrap(),
+        ));
+        analysis.global_scope.children.push(invented);
         assert!(folding_ranges_with_analysis(source, &analysis).is_empty());
     }
 

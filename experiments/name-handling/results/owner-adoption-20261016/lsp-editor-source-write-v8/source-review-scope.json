@@ -1,0 +1,6 @@
+{
+  "patch_sha256": "74f45d44ae97da195cf6e54282a0eb873ff58943489a2871aa0220db6ec0b165",
+  "actual_afterimages_verified": 15,
+  "purpose": "Original document/session transport for source writes; no server result applicability or Native transform grant",
+  "host_tests": "UNEXECUTED"
+}

@@ -1,0 +1,20 @@
+diff --git a/rust/tcl-lsp-core/src/diagnostic_subject.rs b/rust/tcl-lsp-core/src/diagnostic_subject.rs
+index 0506b4960..43619abdf 100644
+--- a/rust/tcl-lsp-core/src/diagnostic_subject.rs
++++ b/rust/tcl-lsp-core/src/diagnostic_subject.rs
+@@ -348,6 +348,7 @@ enum RegisteredInstanceObligationDescription {
+     RegisteredHandleBindingApplicability,
+     OriginalCallbackTargetApplicability,
+     UnavailableCallbackLookupFrame,
++    UnacceptedSourceArity,
+ }
+ impl From<&tcl_compiler::command_binding::SourceCommandTransitionObligation>
+     for RegisteredInstanceObligationDescription
+@@ -371,6 +372,7 @@ impl From<&tcl_compiler::command_binding::SourceCommandTransitionObligation>
+             }
+             Obligation::UnavailableActualLookup => Self::UnavailableActualLookup,
+             Obligation::UnknownEarlierMutation => Self::UnknownEarlierMutation,
++            Obligation::UnacceptedSourceArity => Self::UnacceptedSourceArity,
+             Obligation::ExplicitLogicalSourceApplicability => {
+                 Self::ExplicitLogicalSourceApplicability
+             }

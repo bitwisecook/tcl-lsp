@@ -18,10 +18,21 @@
 
 import * as vscode from "vscode";
 import { CommandContext } from "./types";
-import { extractCodeBlock, ensureDocumentOpen } from "./codeUtils";
+import {
+  DocumentSourceSnapshot,
+  extractCodeBlock,
+  ensureDocumentOpen,
+  replaceDocumentFromSnapshot,
+  snapshotDocumentSource,
+} from "./codeUtils";
 import { sendContextualRequest } from "./contextPack";
-import { waitForDiagnostics, formatDiagnosticsForLLM } from "./diagnosticAccess";
-import { setSessionDialectOverride, getActiveDialect } from "../extension";
+import {
+  acquireSessionDialectOverride,
+  isAnalysisContextCurrent,
+  waitForDiagnostics,
+  formatDiagnosticsForLLM,
+  SessionDialectOverrideLease,
+} from "./diagnosticAccess";
 
 const MAX_ITERATIONS = 5;
 const DIAGNOSTIC_WAIT_MS = 5000;
@@ -31,10 +42,13 @@ export interface AgenticResult {
   iterations: number;
   remainingDiagnostics: vscode.Diagnostic[];
   clean: boolean;
+  documentSnapshot?: DocumentSourceSnapshot;
 }
 
 export interface AgenticLoopOptions {
   targetDialect?: string;
+  sourceSnapshot?: DocumentSourceSnapshot;
+  sessionOverrideLease?: SessionDialectOverrideLease;
 }
 
 /**
@@ -49,114 +63,192 @@ export async function runAgenticLoop(
   existingDoc?: vscode.TextDocument,
   options: AgenticLoopOptions = {},
 ): Promise<AgenticResult> {
-  // Keep caller control over dialect. iRules workflows pin to f5-irules,
-  // while general Tcl workflows keep the active dialect. Pinned as a *session
-  // override* rather than a configuration push: a push is undone by the next
-  // `workspace/configuration` pull, which can happen at any time.
   const targetDialect = options.targetDialect;
-  const switchedDialect = !!targetDialect && getActiveDialect() !== targetDialect;
-  if (switchedDialect) {
-    await setSessionDialectOverride(targetDialect);
-  }
-
   let currentCode = initialCode;
   let doc = existingDoc;
-  let iteration = 0;
-  let previousCount = Infinity;
-
-  try {
-    for (iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
-      if (ctx.token.isCancellationRequested) break;
-
-      // Write current code to document
-      doc = await ensureDocumentOpen(currentCode, doc);
-
-      // Wait for LSP diagnostics
-      ctx.response.progress(`Iteration ${iteration + 1}/${MAX_ITERATIONS}: analysing with LSP...`);
-      const diagnostics = await waitForDiagnostics(doc.uri, {
-        timeout: DIAGNOSTIC_WAIT_MS,
-        expectedSource: currentCode,
-      });
-
-      // Filter to actionable issues (errors and warnings only)
-      const actionable = diagnostics.filter((d) => d.severity <= vscode.DiagnosticSeverity.Warning);
-
-      if (actionable.length === 0) {
-        ctx.response.progress("Clean -- no errors or warnings.");
-        return {
-          finalCode: currentCode,
-          iterations: iteration + 1,
-          remainingDiagnostics: [],
-          clean: true,
-        };
-      }
-
-      // Early exit if diagnostics are not decreasing (stuck)
-      if (actionable.length >= previousCount && iteration > 0) {
-        ctx.response.progress(`Issue count not decreasing (${actionable.length}). Stopping.`);
-        break;
-      }
-      previousCount = actionable.length;
-
-      // Format diagnostics for the LLM
-      ctx.response.progress(`Found ${actionable.length} issue(s). Asking LLM to fix...`);
-      const diagnosticReport = formatDiagnosticsForLLM(actionable, currentCode);
-
-      // Ask LLM to fix
-      const llmResponse = await sendContextualRequest(
-        ctx,
-        `Here is the current Tcl code:\n\`\`\`tcl\n${currentCode}\n\`\`\`\n\n` +
-          `The Tcl LSP found these issues:\n${diagnosticReport}\n\n` +
-          `Fix all the issues listed above. Return ONLY the complete corrected Tcl code in a single \`\`\`tcl code block. Do not include any explanation outside the code block.`,
-        {
-          allowAmbientContext: false,
-          code: currentCode,
-          document: doc,
-          includeDiagnostics: false,
-        },
-      );
-
-      let responseText = "";
-      for await (const chunk of llmResponse.text) {
-        responseText += chunk;
-      }
-
-      const extractedCode = extractCodeBlock(responseText);
-      if (!extractedCode) {
-        ctx.response.progress("LLM did not return a code block. Stopping.");
-        break;
-      }
-
-      currentCode = extractedCode;
-    }
-  } finally {
-    // Clearing the override restores whatever the configuration resolves to,
-    // so there is no previous value to remember.
-    if (switchedDialect) {
-      await setSessionDialectOverride(null);
-    }
+  let documentSnapshot = options.sourceSnapshot;
+  if (doc && !documentSnapshot) documentSnapshot = snapshotDocumentSource(doc);
+  if (
+    doc &&
+    (!documentSnapshot ||
+      documentSnapshot.document !== doc ||
+      documentSnapshot.source !== documentSnapshot.fullSource ||
+      documentSnapshot.version !== doc.version ||
+      doc.getText() !== documentSnapshot.fullSource ||
+      !isAnalysisContextCurrent(documentSnapshot.analysisContext))
+  ) {
+    throw new Error("Document or analysis context changed before the source-fix action started");
   }
 
-  // Final diagnostic check
-  if (doc) {
-    doc = await ensureDocumentOpen(currentCode, doc);
-    const finalDiags = await waitForDiagnostics(doc.uri, {
-      timeout: DIAGNOSTIC_WAIT_MS,
-      expectedSource: currentCode,
-    });
-    const remaining = finalDiags.filter((d) => d.severity <= vscode.DiagnosticSeverity.Warning);
-    return {
-      finalCode: currentCode,
-      iterations: iteration,
-      remainingDiagnostics: remaining,
-      clean: remaining.length === 0,
+  let overrideLease = options.sessionOverrideLease;
+  const ownsOverrideLease = !overrideLease && !!targetDialect;
+  if (!overrideLease && targetDialect)
+    overrideLease = await acquireSessionDialectOverride(targetDialect);
+  if (overrideLease && !isAnalysisContextCurrent(overrideLease.analysisContext)) {
+    if (ownsOverrideLease) await overrideLease.restore();
+    throw new Error("The source-fix dialect override is no longer current");
+  }
+  if (documentSnapshot && overrideLease) {
+    documentSnapshot = {
+      ...documentSnapshot,
+      analysisContext: overrideLease.analysisContext,
+      requestedAnalysisDialect: overrideLease.dialect,
     };
   }
 
-  return {
-    finalCode: currentCode,
-    iterations: iteration,
-    remainingDiagnostics: [],
-    clean: false,
+  const assertCurrent = (): void => {
+    if (!documentSnapshot || !isAnalysisContextCurrent(documentSnapshot.analysisContext)) {
+      throw new Error("Analysis context changed while the source-fix action was running");
+    }
+    if (
+      doc &&
+      (documentSnapshot.document !== doc ||
+        doc.version !== documentSnapshot.version ||
+        doc.getText() !== documentSnapshot.fullSource)
+    ) {
+      throw new Error("Document changed while the source-fix action was running");
+    }
   };
+
+  let result: AgenticResult | undefined;
+  try {
+    result = await (async (): Promise<AgenticResult> => {
+      let iteration = 0;
+      let previousCount = Infinity;
+
+      for (iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
+        if (ctx.token.isCancellationRequested) break;
+
+        if (doc) {
+          if (!documentSnapshot) throw new Error("Existing document has no source snapshot");
+          const updated = await replaceDocumentFromSnapshot(documentSnapshot, currentCode);
+          if (!updated) throw new Error("Document changed while the source-fix action was running");
+          documentSnapshot = updated;
+          doc = updated.document;
+        } else {
+          doc = await ensureDocumentOpen(currentCode);
+          if (doc.getText() !== currentCode) {
+            throw new Error("New document changed before analysis could start");
+          }
+          const openedSnapshot = snapshotDocumentSource(doc);
+          documentSnapshot = {
+            ...openedSnapshot,
+            requestedAnalysisDialect: overrideLease?.dialect ?? null,
+            analysisContext: overrideLease?.analysisContext ?? openedSnapshot.analysisContext,
+          };
+        }
+        assertCurrent();
+
+        ctx.response.progress(
+          `Iteration ${iteration + 1}/${MAX_ITERATIONS}: analysing with LSP...`,
+        );
+        const diagnostics = await waitForDiagnostics(doc.uri, {
+          timeout: DIAGNOSTIC_WAIT_MS,
+          expectedSource: currentCode,
+        });
+        assertCurrent();
+        const actionable = diagnostics.filter(
+          (d) => d.severity <= vscode.DiagnosticSeverity.Warning,
+        );
+
+        if (actionable.length === 0) {
+          ctx.response.progress("Clean -- no errors or warnings.");
+          return {
+            finalCode: currentCode,
+            iterations: iteration + 1,
+            remainingDiagnostics: [],
+            clean: true,
+            documentSnapshot,
+          };
+        }
+        if (actionable.length >= previousCount && iteration > 0) {
+          ctx.response.progress(`Issue count not decreasing (${actionable.length}). Stopping.`);
+          break;
+        }
+        previousCount = actionable.length;
+
+        ctx.response.progress(`Found ${actionable.length} issue(s). Asking LLM to fix...`);
+        const diagnosticReport = formatDiagnosticsForLLM(actionable, currentCode);
+        const llmResponse = await sendContextualRequest(
+          ctx,
+          `Here is the current Tcl code:
+\`\`\`tcl\n${currentCode}\n\`\`\`\n\n` +
+            `The Tcl LSP found these issues:\n${diagnosticReport}\n\n` +
+            `Fix all the issues listed above. Return ONLY the complete corrected Tcl code in a single \`\`\`tcl code block. Do not include any explanation outside the code block.`,
+          {
+            allowAmbientContext: false,
+            code: currentCode,
+            document: doc,
+            includeDiagnostics: false,
+          },
+        );
+        assertCurrent();
+
+        let responseText = "";
+        for await (const chunk of llmResponse.text) responseText += chunk;
+        assertCurrent();
+        const extractedCode = extractCodeBlock(responseText);
+        if (!extractedCode) {
+          ctx.response.progress("LLM did not return a code block. Stopping.");
+          break;
+        }
+        currentCode = extractedCode;
+      }
+
+      if (doc) {
+        if (!documentSnapshot) throw new Error("Existing document has no source snapshot");
+        const updated = await replaceDocumentFromSnapshot(documentSnapshot, currentCode);
+        if (!updated) throw new Error("Document changed before the final source check");
+        documentSnapshot = updated;
+        doc = updated.document;
+        const finalDiags = await waitForDiagnostics(doc.uri, {
+          timeout: DIAGNOSTIC_WAIT_MS,
+          expectedSource: currentCode,
+        });
+        assertCurrent();
+        const remaining = finalDiags.filter((d) => d.severity <= vscode.DiagnosticSeverity.Warning);
+        return {
+          finalCode: currentCode,
+          iterations: iteration,
+          remainingDiagnostics: remaining,
+          clean: remaining.length === 0,
+          documentSnapshot,
+        };
+      }
+      return {
+        finalCode: currentCode,
+        iterations: iteration,
+        remainingDiagnostics: [],
+        clean: false,
+      };
+    })();
+  } finally {
+    if (overrideLease && ownsOverrideLease) {
+      const writeContext = await overrideLease.restore();
+      if (!writeContext) {
+        throw new Error("The source-fix dialect override was superseded before restoration");
+      }
+      if (
+        result?.documentSnapshot &&
+        doc &&
+        doc.version === result.documentSnapshot.version &&
+        doc.getText() === result.documentSnapshot.fullSource
+      ) {
+        result.documentSnapshot = {
+          ...result.documentSnapshot,
+          analysisContext: writeContext,
+        };
+      } else if (result?.documentSnapshot) {
+        throw new Error("Document changed before the source-fix result could be published");
+      }
+    }
+  }
+  if (!result) throw new Error("Source-fix analysis did not produce a result");
+  if (
+    result.documentSnapshot &&
+    !isAnalysisContextCurrent(result.documentSnapshot.analysisContext)
+  ) {
+    throw new Error("Analysis context changed before the source-fix result could be published");
+  }
+  return result;
 }

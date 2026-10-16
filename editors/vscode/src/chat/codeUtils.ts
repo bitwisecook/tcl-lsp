@@ -17,8 +17,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import * as vscode from "vscode";
-import { isTclLanguage } from "../extension";
-import { CommandContext } from "./types";
+import { isTclLanguage } from "../languageIds";
+import type { CommandContext } from "./types";
+import { DEFAULT_DIALECT } from "./dialectCatalog";
+import {
+  AnalysisContextSnapshot,
+  captureAnalysisContext,
+  isAnalysisContextCurrent,
+} from "./diagnosticAccess";
 
 /**
  * Extract the first fenced code block from LLM response text.
@@ -43,39 +49,290 @@ export function extractCodeBlock(text: string): string | undefined {
   return firstBlock;
 }
 
-/**
- * Resolve iRule code from the chat request context.
- * Tries, in order: #file references, active editor selection, active editor content.
- */
-export async function resolveIruleCode(ctx: CommandContext): Promise<string | undefined> {
-  // 1. Check #file references
+export type DocumentSourceChannel =
+  "file-reference" | "location-reference" | "editor-selection" | "editor-document" | "inline-code";
+
+export interface DocumentSourceSnapshot {
+  document: vscode.TextDocument;
+  uri: vscode.Uri;
+  version: number;
+  fullSource: string;
+  source: string;
+  selection?: vscode.Range;
+  languageId: string;
+  resourceDialectHint: string;
+  requestedAnalysisDialect: string | null;
+  analysisContext: AnalysisContextSnapshot | undefined;
+  sourceChannel: Exclude<DocumentSourceChannel, "inline-code">;
+}
+
+export interface ResolvedIruleSource {
+  source: string;
+  snapshot?: DocumentSourceSnapshot;
+  languageId?: string;
+  resourceDialectHint: string | undefined;
+  requestedAnalysisDialect: string | null;
+  sourceChannel: DocumentSourceChannel;
+}
+
+export interface DocumentWriteReceipt {
+  snapshotId: string;
+  uri: vscode.Uri;
+  version: number;
+  source: string;
+  languageId: string;
+  resourceDialectHint: string;
+  requestedAnalysisDialect: string | null;
+  sourceChannel: string;
+}
+
+export function snapshotDocumentSource(
+  document: vscode.TextDocument,
+  selection?: vscode.Range,
+  sourceChannel: Exclude<DocumentSourceChannel, "inline-code"> = "editor-document",
+): DocumentSourceSnapshot {
+  const resourceDialectHint = vscode.workspace
+    .getConfiguration("tclLsp", document.uri)
+    .get<string>("dialect", DEFAULT_DIALECT);
+  return {
+    document,
+    uri: document.uri,
+    version: document.version,
+    fullSource: document.getText(),
+    source: selection ? document.getText(selection) : document.getText(),
+    selection,
+    languageId: document.languageId,
+    resourceDialectHint,
+    requestedAnalysisDialect: null,
+    analysisContext: captureAnalysisContext(),
+    sourceChannel,
+  };
+}
+
+/** Resolve source together with its original document and selected extent. */
+export async function resolveIruleSource(
+  ctx: CommandContext,
+): Promise<ResolvedIruleSource | undefined> {
   for (const ref of ctx.request.references) {
     if (ref.value instanceof vscode.Uri) {
       const doc = await vscode.workspace.openTextDocument(ref.value);
-      return doc.getText();
+      const snapshot = snapshotDocumentSource(doc, undefined, "file-reference");
+      return {
+        source: snapshot.source,
+        snapshot,
+        languageId: snapshot.languageId,
+        resourceDialectHint: snapshot.resourceDialectHint,
+        requestedAnalysisDialect: snapshot.requestedAnalysisDialect,
+        sourceChannel: "file-reference",
+      };
     }
     if (ref.value instanceof vscode.Location) {
       const doc = await vscode.workspace.openTextDocument(ref.value.uri);
-      return doc.getText(ref.value.range);
+      const snapshot = snapshotDocumentSource(doc, ref.value.range, "location-reference");
+      return {
+        source: snapshot.source,
+        snapshot,
+        languageId: snapshot.languageId,
+        resourceDialectHint: snapshot.resourceDialectHint,
+        requestedAnalysisDialect: snapshot.requestedAnalysisDialect,
+        sourceChannel: "location-reference",
+      };
     }
   }
 
-  // 2. Active editor selection or full content
   const editor = vscode.window.activeTextEditor;
   if (editor && isTclLanguage(editor.document.languageId)) {
-    if (!editor.selection.isEmpty) {
-      return editor.document.getText(editor.selection);
-    }
-    return editor.document.getText();
+    const selection = editor.selection.isEmpty ? undefined : editor.selection;
+    const sourceChannel = selection ? "editor-selection" : "editor-document";
+    const snapshot = snapshotDocumentSource(editor.document, selection, sourceChannel);
+    return {
+      source: snapshot.source,
+      snapshot,
+      languageId: snapshot.languageId,
+      resourceDialectHint: snapshot.resourceDialectHint,
+      requestedAnalysisDialect: snapshot.requestedAnalysisDialect,
+      sourceChannel,
+    };
   }
 
-  // 3. Inline code block in prompt
-  const extracted = extractCodeBlock(ctx.request.prompt);
-  if (extracted) {
-    return extracted;
+  const source = extractCodeBlock(ctx.request.prompt);
+  if (source) {
+    return {
+      source,
+      resourceDialectHint: undefined,
+      requestedAnalysisDialect: null,
+      sourceChannel: "inline-code",
+    };
   }
-
   return undefined;
+}
+
+/** Compatibility projection for callers that only read source text. */
+export async function resolveIruleCode(ctx: CommandContext): Promise<string | undefined> {
+  return (await resolveIruleSource(ctx))?.source;
+}
+
+const pendingDocumentWrites = new Map<string, DocumentSourceSnapshot>();
+let nextDocumentWriteId = 1;
+const MAX_PENDING_DOCUMENT_WRITES = 128;
+
+export function documentWriteReceipt(snapshot: DocumentSourceSnapshot): DocumentWriteReceipt {
+  if (snapshot.source !== snapshot.fullSource || snapshot.selection) {
+    throw new Error("Whole-document write requires a whole-document source snapshot");
+  }
+  if (!isAnalysisContextCurrent(snapshot.analysisContext)) {
+    throw new Error("Analysis context changed before the source action could be published");
+  }
+  const snapshotId = String(nextDocumentWriteId++);
+  pendingDocumentWrites.set(snapshotId, snapshot);
+  if (pendingDocumentWrites.size > MAX_PENDING_DOCUMENT_WRITES) {
+    const oldest = pendingDocumentWrites.keys().next().value;
+    if (oldest !== undefined) pendingDocumentWrites.delete(oldest);
+  }
+  return {
+    snapshotId,
+    uri: snapshot.uri,
+    version: snapshot.version,
+    source: snapshot.fullSource,
+    languageId: snapshot.languageId,
+    resourceDialectHint: snapshot.resourceDialectHint,
+    requestedAnalysisDialect: snapshot.requestedAnalysisDialect,
+    sourceChannel: snapshot.sourceChannel,
+  };
+}
+
+function isUriComponents(value: unknown): value is vscode.Uri {
+  if (typeof value !== "object" || value === null) return false;
+  const uri = value as Partial<vscode.Uri>;
+  return (
+    typeof uri.scheme === "string" &&
+    typeof uri.authority === "string" &&
+    typeof uri.path === "string" &&
+    typeof uri.query === "string" &&
+    typeof uri.fragment === "string"
+  );
+}
+
+function sameUri(left: vscode.Uri, right: vscode.Uri): boolean {
+  return (
+    left.scheme === right.scheme &&
+    left.authority === right.authority &&
+    left.path === right.path &&
+    left.query === right.query &&
+    left.fragment === right.fragment
+  );
+}
+
+export async function replaceDocumentFromSnapshot(
+  snapshot: DocumentSourceSnapshot,
+  replacement: string,
+): Promise<DocumentSourceSnapshot | undefined> {
+  const document = snapshot.document;
+  if (
+    snapshot.source !== snapshot.fullSource ||
+    snapshot.selection ||
+    !sameUri(document.uri, snapshot.uri) ||
+    document.version !== snapshot.version ||
+    document.getText() !== snapshot.fullSource ||
+    document.languageId !== snapshot.languageId ||
+    !isAnalysisContextCurrent(snapshot.analysisContext) ||
+    vscode.workspace
+      .getConfiguration("tclLsp", document.uri)
+      .get<string>("dialect", DEFAULT_DIALECT) !== snapshot.resourceDialectHint
+  ) {
+    return undefined;
+  }
+  if (replacement === snapshot.fullSource) return snapshot;
+
+  const editor = await vscode.window.showTextDocument(document);
+  if (
+    document.version !== snapshot.version ||
+    document.getText() !== snapshot.fullSource ||
+    document.languageId !== snapshot.languageId ||
+    !isAnalysisContextCurrent(snapshot.analysisContext) ||
+    vscode.workspace
+      .getConfiguration("tclLsp", document.uri)
+      .get<string>("dialect", DEFAULT_DIALECT) !== snapshot.resourceDialectHint ||
+    editor.document !== document
+  ) {
+    return undefined;
+  }
+  const applied = await editor.edit((edit) => {
+    edit.replace(new vscode.Range(0, 0, document.lineCount, 0), replacement);
+  });
+  if (
+    !applied ||
+    document.version !== snapshot.version + 1 ||
+    !sameUri(document.uri, snapshot.uri) ||
+    document.getText() !== replacement ||
+    document.languageId !== snapshot.languageId ||
+    !isAnalysisContextCurrent(snapshot.analysisContext) ||
+    vscode.workspace
+      .getConfiguration("tclLsp", document.uri)
+      .get<string>("dialect", DEFAULT_DIALECT) !== snapshot.resourceDialectHint
+  ) {
+    return undefined;
+  }
+  return {
+    ...snapshotDocumentSource(document, undefined, snapshot.sourceChannel),
+    requestedAnalysisDialect: snapshot.requestedAnalysisDialect,
+    analysisContext: snapshot.analysisContext,
+    sourceChannel: snapshot.sourceChannel,
+  };
+}
+
+export async function applyDocumentWrite(replacement: unknown, receipt: unknown): Promise<boolean> {
+  if (
+    typeof replacement !== "string" ||
+    typeof receipt !== "object" ||
+    receipt === null ||
+    !("snapshotId" in receipt) ||
+    typeof receipt.snapshotId !== "string" ||
+    !("uri" in receipt) ||
+    !isUriComponents(receipt.uri) ||
+    !("version" in receipt) ||
+    typeof receipt.version !== "number" ||
+    !Number.isSafeInteger(receipt.version) ||
+    receipt.version < 0 ||
+    !("source" in receipt) ||
+    typeof receipt.source !== "string" ||
+    !("languageId" in receipt) ||
+    typeof receipt.languageId !== "string" ||
+    !("resourceDialectHint" in receipt) ||
+    (typeof receipt.resourceDialectHint !== "string" &&
+      receipt.resourceDialectHint !== undefined) ||
+    !("requestedAnalysisDialect" in receipt) ||
+    (typeof receipt.requestedAnalysisDialect !== "string" &&
+      receipt.requestedAnalysisDialect !== null) ||
+    !("sourceChannel" in receipt) ||
+    typeof receipt.sourceChannel !== "string"
+  ) {
+    return false;
+  }
+  const sourceChannels = new Set([
+    "file-reference",
+    "location-reference",
+    "editor-selection",
+    "editor-document",
+  ]);
+  if (!sourceChannels.has(receipt.sourceChannel)) return false;
+
+  const snapshot = pendingDocumentWrites.get(receipt.snapshotId);
+  pendingDocumentWrites.delete(receipt.snapshotId);
+  if (
+    !snapshot ||
+    !isAnalysisContextCurrent(snapshot.analysisContext) ||
+    !sameUri(snapshot.uri, receipt.uri) ||
+    snapshot.version !== receipt.version ||
+    snapshot.fullSource !== receipt.source ||
+    snapshot.languageId !== receipt.languageId ||
+    snapshot.resourceDialectHint !== receipt.resourceDialectHint ||
+    snapshot.requestedAnalysisDialect !== receipt.requestedAnalysisDialect ||
+    snapshot.sourceChannel !== receipt.sourceChannel
+  ) {
+    return false;
+  }
+  return (await replaceDocumentFromSnapshot(snapshot, replacement)) !== undefined;
 }
 
 /**
@@ -127,11 +384,14 @@ export async function resolveTwoCodeSources(
 export async function ensureDocumentOpen(
   code: string,
   existingDoc?: vscode.TextDocument,
+  expectedSnapshot?: DocumentSourceSnapshot,
 ): Promise<vscode.TextDocument> {
   if (existingDoc) {
-    const editor = await vscode.window.showTextDocument(existingDoc);
-    const fullRange = new vscode.Range(0, 0, existingDoc.lineCount, 0);
-    await editor.edit((edit) => edit.replace(fullRange, code));
+    if (!expectedSnapshot || expectedSnapshot.document !== existingDoc) {
+      throw new Error("Existing document write requires its source snapshot");
+    }
+    const updated = await replaceDocumentFromSnapshot(expectedSnapshot, code);
+    if (!updated) throw new Error("Document changed before the generated source could be applied");
     return existingDoc;
   }
   const doc = await vscode.workspace.openTextDocument({ language: "tcl", content: code });

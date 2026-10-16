@@ -34747,20 +34747,6 @@ fn w120_required_package(
     diagnostic.required_package_key()
 }
 
-/// Build an empty `DocumentDiagnosticReportResult` for callers
-/// that hit a no-document or no-analysis path.
-fn empty_diagnostic_report() -> DocumentDiagnosticReportResult {
-    DocumentDiagnosticReportResult::Report(DocumentDiagnosticReport::Full(
-        RelatedFullDocumentDiagnosticReport {
-            related_documents: None,
-            full_document_diagnostic_report: FullDocumentDiagnosticReport {
-                result_id: None,
-                items: Vec::new(),
-            },
-        },
-    ))
-}
-
 /// Whether `name` is a dialect the server accepts wherever a dialect *name* is
 /// configured — `initializationOptions.folderDialects`, the per-folder
 /// `tclLsp.dialect` pulled by `workspace/configuration`, and the

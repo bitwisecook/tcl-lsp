@@ -1,0 +1,12 @@
+CLEAR — exact V2 independent source review
+
+Patch SHA256 067391426090a135e9b22041e82e0ba4c58f093eca97b2867d5a8f3231f96d21
+Manifest SHA256 ce4be883174f091231937a7596861ee23e57ae72972f1e1d6b6952ac6102ba94
+
+V1's concrete module-identity HOLD is resolved. extension.ts imports the actual production diagnosticAccess waiter in the same bundled module graph where activation installs currentDiagnosticsTransportProvider, and returns that exact function in activate's actual extension API object. helper.waitForCurrentDiagnostics looks up the active registered extension and invokes that returned function; it never imports a second waiter or constructs a transport. Missing/inactive/older extension exports throw. helper.activate awaits real activation/client.start and didOpen-draining hovers before either selected test calls this facade.
+
+The returned production function retains the real current LanguageClient/session-state generation provider, original URI/open TextDocument/version/fullsource checks, complete-report schema, deadline and actual client converter. Both tests supply expectedSource from the genuine opened document. The waiter snapshots the currently open document and rechecks it before/after asynchronous request/conversion; a changed source, unavailable provider, disabled/excluded receipt, malformed response, timeout or terminal failure is not accepted as an empty result. Pending/stale alone retry. This is a readonly current publication query and introduces no wait on a test-held mutation or provider lock. Existing activation/deactivation and actual client state-event generation checks are unchanged. This adapter is for the two ordinary Node extension-host tests; no browser host execution is claimed.
+
+All three current-before and supplied-after hashes independently verified. Exact patch applied --fuzz=0 to a separate TMP copy of those current beforeimages and matched all three supplied afterimages. Inverting only the issue945 acquisition/import changes restores its entire original file byte-for-byte, preserving fixture sources, both W123 predicates/messages, navigation assertions/order, selectors and runner budgets. The helper adds only a fail-closed forwarding facade; extension.ts changes only the actual function import and returned API member.
+
+No tests/builds/Cargo/Git/main edits. Root owns TypeScript/host ordinary validation and the two existing catalogue units lsp.validation.03.08.fn0/fn1. No new semantic-owner/count grant.

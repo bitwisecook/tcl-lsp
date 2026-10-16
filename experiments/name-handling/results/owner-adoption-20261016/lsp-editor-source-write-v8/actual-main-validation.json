@@ -1,0 +1,82 @@
+{
+  "utc": "2026-10-16T18:16:23.257603+00:00",
+  "node": "v24.19.0",
+  "files": {
+    "src/chat/agenticLoop.ts": "6c5dff2b02545518e127643ae51e6fd1bece401cc74e79e006c075819cc9fda6",
+    "src/chat/codeUtils.ts": "1010fde769742086aee1715cf1c7379e7fffd9e18b62ea0ffc8f9fbe343f4c3a",
+    "src/chat/commands/datagroup.ts": "b1aaa80730f8503702d9e85c952a97b9cae012ea6e777e9d0262f02c8a14d885",
+    "src/chat/commands/find-legacy.ts": "2cab469700466efb93c935c182bf0893c9e1d1c5ac61dc8518bb18621b6ea64a",
+    "src/chat/commands/fix.ts": "2fdc3e9d2868c92447770ccad53866f5cc8681a0b07c312299d2f494e0f08e27",
+    "src/chat/commands/optimise.ts": "61142e82f1c414486cfa759a8d1ceae0ac27746e1af44332f0bc9c5ed875f6e5",
+    "src/chat/commands/review.ts": "38f07feb81467579af62d2cda46a5021507309426cb7d27259d69e72aab40958",
+    "src/chat/commands/validate.ts": "1191aecf7736db63c712e1d758e7364cc9b9a905191fe8b38717d2dedd204297",
+    "src/chat/diagnosticAccess.ts": "45161a425d2e981dc37e93fb2b243fd38ecb5d16b429beeb9a24137fd76385f5",
+    "src/chat/tclParticipant.ts": "f136fbb4d03d380521e5c511286b39746fb0312fd5a6075e0981ddbfdcf08e76",
+    "src/extension.ts": "878fcec963bc61f767d47c2176b8fd92264be83b0b8e89997c244902c09fc199",
+    "src/extensionBrowser.ts": "b6c05894cfd097b20b007d33a12b9fcb225c38da920932b3d724e91640f87f89",
+    "src/test/commands.test.ts": "91b3924ad7e7ef65817530756f0bf7b0a7a6f08c728ed1a62108879c296e0ef8",
+    "src/test/currentDiagnostics.test.ts": "389dd24a1cfdf711d088dc226a3f30773409af84534112af96b49e2e1082575c",
+    "test-partitions.json": "920d2e8774b8415c4c205357c87585af79db6e2f8b422f506f235be8d1c3414b",
+    "package.json": "1dc3385e7b9ac02dbeee0d680b4cdf28a493dfb20071fdb465719fc0be12c6c4",
+    "tsconfig.json": "753d78ef9f118cb4bdf3ef7ce65060c79e8137d8e0202577741f1f84e28a2f8c",
+    ".prettierignore": "1647617fb6347c6698484dfe1bacce77ce69710937b492b6011e867d5245aa3c"
+  },
+  "input_drift": 0,
+  "checks": [
+    {
+      "name": "typecheck",
+      "argv": [
+        "./node_modules/.bin/tsc",
+        "-p",
+        "./",
+        "--noEmit"
+      ],
+      "exit_code": 0,
+      "log": "typecheck.log"
+    },
+    {
+      "name": "prettier",
+      "argv": [
+        "./node_modules/.bin/prettier",
+        "--check",
+        "src/chat/agenticLoop.ts",
+        "src/chat/codeUtils.ts",
+        "src/chat/commands/datagroup.ts",
+        "src/chat/commands/find-legacy.ts",
+        "src/chat/commands/fix.ts",
+        "src/chat/commands/optimise.ts",
+        "src/chat/commands/review.ts",
+        "src/chat/commands/validate.ts",
+        "src/chat/diagnosticAccess.ts",
+        "src/chat/tclParticipant.ts",
+        "src/extension.ts",
+        "src/extensionBrowser.ts",
+        "src/test/commands.test.ts",
+        "src/test/currentDiagnostics.test.ts"
+      ],
+      "exit_code": 0,
+      "log": "prettier.log"
+    },
+    {
+      "name": "node-bundle",
+      "argv": [
+        "npm",
+        "run",
+        "bundle"
+      ],
+      "exit_code": 0,
+      "log": "node-bundle.log"
+    },
+    {
+      "name": "browser-bundle",
+      "argv": [
+        "npm",
+        "run",
+        "bundle:browser"
+      ],
+      "exit_code": 0,
+      "log": "browser-bundle.log"
+    }
+  ],
+  "limits": "Actual workspace typecheck/format/bundles only; VS Code host tests unexecuted; installed languageclient10.1.1 versus declared^10.1.2 retained, no dependency admission."
+}

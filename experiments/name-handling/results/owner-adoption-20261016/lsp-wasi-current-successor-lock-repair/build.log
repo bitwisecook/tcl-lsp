@@ -1,0 +1,4 @@
+error: failed to download `wasi v0.11.1+wasi-snapshot-preview1`
+
+Caused by:
+  attempting to make an HTTP request, but --offline was specified

@@ -1,0 +1,6 @@
+{
+  "path": "/workspace/naming-validation/lsp-wasi-current-successor-lock-repair/input-before.json",
+  "sha256": "1e50baaaa89e7bb5d73800d0e779d493e4a63a0e0ca650a8e631a8287d2a331a",
+  "bytes": 6963195,
+  "note": "Full input index retained outside Git; actual count/drift in source-binding.json."
+}

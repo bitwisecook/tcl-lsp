@@ -19,6 +19,7 @@
 import * as vscode from "vscode";
 import { CommandContext } from "../types";
 import { runAgenticLoop } from "../agenticLoop";
+import { documentWriteReceipt, snapshotDocumentSource } from "../codeUtils";
 import { waitForDiagnostics, renderDiagnosticSection } from "../diagnosticAccess";
 import { isTclLanguage } from "../../extension";
 
@@ -29,7 +30,8 @@ export async function handleFix(ctx: CommandContext): Promise<vscode.ChatResult>
     return {};
   }
 
-  const code = editor.document.getText();
+  const sourceSnapshot = snapshotDocumentSource(editor.document);
+  const code = sourceSnapshot.fullSource;
   const uri = editor.document.uri;
 
   // Check current diagnostics
@@ -45,7 +47,10 @@ export async function handleFix(ctx: CommandContext): Promise<vscode.ChatResult>
   ctx.response.markdown(`Found **${actionable.length}** issue(s). Starting fix loop...\n`);
 
   // Run agentic loop using the existing document
-  const result = await runAgenticLoop(ctx, code, editor.document, { targetDialect: "f5-irules" });
+  const result = await runAgenticLoop(ctx, code, editor.document, {
+    targetDialect: "f5-irules",
+    sourceSnapshot,
+  });
 
   // Present result
   ctx.response.markdown(`## Fixed iRule\n\n\`\`\`tcl\n${result.finalCode}\n\`\`\`\n`);
@@ -64,11 +69,12 @@ export async function handleFix(ctx: CommandContext): Promise<vscode.ChatResult>
     );
   }
 
-  // Offer to apply
+  // Offer to apply only against the completed document snapshot.
+  if (!result.documentSnapshot) throw new Error("Fix result has no current document snapshot");
   ctx.response.button({
     command: "tclLsp.applyFix",
     title: "Apply fixes to document",
-    arguments: [result.finalCode, uri.toString()],
+    arguments: [result.finalCode, documentWriteReceipt(result.documentSnapshot)],
   });
 
   return {

@@ -1,0 +1,37 @@
+{
+  "purpose": "Route the two existing issue945 completed-diagnostics reads through the exact diagnosticAccess owner instance installed by the activated extension bundle.",
+  "files": [
+    {
+      "path": "editors/vscode/src/extension.ts",
+      "before_sha256": "878fcec963bc61f767d47c2176b8fd92264be83b0b8e89997c244902c09fc199",
+      "after_sha256": "9a1dd943ac381c1079e2e259686eb6995fe87e5410dc398af3b7f0ada9643c32",
+      "before_bytes": 83465,
+      "after_bytes": 83543
+    },
+    {
+      "path": "editors/vscode/src/test/helper.ts",
+      "before_sha256": "e5f529030e5489827bce96e8301d66f2033df86971f4bda47f1c92e32a82758e",
+      "after_sha256": "ab68fae516cbabeabe00d0ba3ed66b3405c66654210825961b43f2390100290b",
+      "before_bytes": 55314,
+      "after_bytes": 56049
+    },
+    {
+      "path": "editors/vscode/src/test/issue945.test.ts",
+      "before_sha256": "76b6e6ee53c12a66868e64989521ac61cef785a7895a5382648e9d946ef65d85",
+      "after_sha256": "de141a183de1a0b02f7cc080d927b55229928ce3152c4096c5fcec3ecfa8f696",
+      "before_bytes": 9518,
+      "after_bytes": 9727
+    }
+  ],
+  "catalogue_units": [
+    "lsp.validation.03.08.fn0",
+    "lsp.validation.03.08.fn1"
+  ],
+  "selectors": [
+    "Issue #945 resolution model body call before a later deletion draws no W123 (Codex review)",
+    "Issue #945 resolution model command probes navigate without asserting existence"
+  ],
+  "mechanism": "extension.activate returns waitForCurrentDiagnostics from its own bundled diagnosticAccess module; test helper resolves the active extension export and invokes it. This reaches its existing currentDiagnosticsTransportProvider, actual LanguageClient request, source/version checks and diagnostic conversion; no test-side provider copy.",
+  "assertions": "Both original W123 negative assertions, fixture source, and other assertion content are preserved; only their diagnostic acquisition changed from immediate VS Code cache reads to owner-completed snapshots.",
+  "validation": "SHA-256 before/after captured. No build, test run, Git operation, or main checkout edits. Root must integrate and run required suite."
+}

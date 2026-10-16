@@ -1,0 +1,76 @@
+{
+  "basis": {
+    "candidate_patch": "/tmp/lsp-editor-source-write-v8/candidate.patch",
+    "candidate_patch_sha256": "74f45d44ae97da195cf6e54282a0eb873ff58943489a2871aa0220db6ec0b165",
+    "manifest_sha256": "e97316fdcbdf62b7a61173138d4a1ea4f0d585d3e85fc853c5929143ca6043e2",
+    "review": "Independent source review CLEAR; V8 source is integrated in current workspace per Root. This receipt reconciles existing exact baseline purposes only and does not count helper functions, tests, race controls, or filenames separately."
+  },
+  "accepted_reconciliation": {
+    "newly_recorded_baseline_purposes": 5,
+    "full_implementation_pending_validation": 4,
+    "partial_implementation_pending_validation": 1,
+    "baseline_ids": [
+      {
+        "id": "lsp-editor-source-snapshot",
+        "status": "implemented_pending_validation",
+        "boundary": "Shared editor/chat source capture retains document identity, version, full source, selected extent, source channel, dialect hints, and current analysis context."
+      },
+      {
+        "id": "lsp-editor-existing-document-write",
+        "status": "implemented_pending_validation",
+        "boundary": "Shared checked whole-document replacement consumes the exact current snapshot and uses a one-use document-write receipt."
+      },
+      {
+        "id": "lsp-editor-node-applyfix",
+        "status": "implemented_pending_validation",
+        "boundary": "Node extension-host applyFix command independently admits the checked write receipt."
+      },
+      {
+        "id": "lsp-editor-browser-applyfix",
+        "status": "implemented_pending_validation",
+        "boundary": "Browser extension-host applyFix command independently admits the checked write receipt."
+      },
+      {
+        "id": "lsp-editor-ai-iterate-currency",
+        "status": "partially_implemented_pending_validation",
+        "boundary": "runAgenticLoop now checks retained source/version/context around model and diagnostic awaits and gates writes through the shared snapshot writer. It still mutates an existing document during iteration, and the post-diagnostic currentness check does not recheck the snapshot's resource dialect."
+      }
+    ],
+    "existing_partial_rows_retained": [
+      {
+        "id": "lsp-editor-ai-validate-generation",
+        "status": "partially_implemented_pending_validation",
+        "remaining": "Owned override lifetime and source-version complete diagnostics are adopted. The command still flattens attachments through resolveIruleCode and selects pinning from global getActiveDialect rather than a complete resource/provider-context receipt."
+      },
+      {
+        "id": "lsp-ai-tcl-actions-currency",
+        "status": "partially_implemented_pending_validation",
+        "remaining": "Tcl fix and optimise now use a snapshot and checked application, but validation does not consistently retain actual document context, and typed NoAction/action-purpose admission remains open."
+      }
+    ],
+    "previously_recorded_rows_downgraded_to_partial": [
+      {
+        "id": "lsp-editor-ai-clean-claim",
+        "status": "partially_implemented_pending_validation",
+        "remaining": "Completed exact URI/version/source provider results prevent timeout or empty-current-state claims; the loop does not bind clean status to a retained resource-dialect/provider-context receipt, and it writes during iteration."
+      },
+      {
+        "id": "lsp-editor-diagnostic-generation",
+        "status": "partially_implemented_pending_validation",
+        "remaining": "The provider validates complete result fields including revision, inputsEpoch, and resultId internally, but waitForDiagnostics returns only Diagnostic[] and callers cannot retain those identities or join them to requested resource/config context."
+      }
+    ]
+  },
+  "root_reported_counts": {
+    "baseline_reviewed_subset": 253,
+    "full": 243,
+    "partial": 10,
+    "effective": 305,
+    "required_total": 2211,
+    "lsp": "124/325",
+    "semantic_code": 39,
+    "validation_code": 83,
+    "documentation": 2
+  },
+  "count_note": "These are Root's current reconciled counts. The five new records are exact already-existing baseline units and do not increase the fixed 2,158-unit baseline denominator. The 10 partial count includes the five newly/updated V8 partial rows plus other already-partial rows in Root's current ledger; four full records are pending validation, not verified complete."
+}

@@ -1,0 +1,26 @@
+{
+  "source_head": "b78612c18f3b00db78c368b3be14fd897cb62f97",
+  "rust_diff_sha256": "c4df9fc5b5ec86b2019299bfd07992ca0fead71198cf5295f03565f94cb0495e",
+  "ordinary": true,
+  "instrumentation": false,
+  "single_job": true,
+  "test_debug": 0,
+  "packages": [
+    "tcl-compiler",
+    "tcl-lsp-core",
+    "tcl-lsp-db",
+    "tcl-registry",
+    "tcl-lsp-server"
+  ],
+  "status": "FAIL",
+  "input_before_count": 39000,
+  "utc": "2026-10-16T18:25:23.409684+00:00",
+  "command": "CARGO_PROFILE_TEST_DEBUG=0 cargo check --offline --locked --manifest-path rust/tcl-lsp-server-wasi/Cargo.toml --target wasm32-wasip1",
+  "scope": "Reviewed LSP readonly C-class/member Core/Server, semantic comment phase, rename byte-overlap refusal, Logical procedure inlay and source prefix, retained arity applicability debt, purpose-distinct diagnostics with all eight DB configuration fields, malformed SpecTcl navigation and encoded IndexLoader source form, Unicode fixture and portable C ABI source repairs. Runtime/VM/BIG-IP dedicated migrations deferred. No source advice grants Native execution, Normal completion, physical identity or edits.",
+  "exit_code": 101,
+  "build_seconds": 2.381,
+  "input_after_count": 39000,
+  "input_drift_count": 0,
+  "input_drift": [],
+  "completed_utc": "2026-10-16T18:25:25.790846+00:00"
+}

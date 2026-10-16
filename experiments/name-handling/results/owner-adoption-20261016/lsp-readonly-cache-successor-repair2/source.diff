@@ -1,0 +1,36 @@
+diff --git a/rust/tcl-lsp-core/src/diagnostic_subject.rs b/rust/tcl-lsp-core/src/diagnostic_subject.rs
+index 0506b4960..43619abdf 100644
+--- a/rust/tcl-lsp-core/src/diagnostic_subject.rs
++++ b/rust/tcl-lsp-core/src/diagnostic_subject.rs
+@@ -348,6 +348,7 @@ enum RegisteredInstanceObligationDescription {
+     RegisteredHandleBindingApplicability,
+     OriginalCallbackTargetApplicability,
+     UnavailableCallbackLookupFrame,
++    UnacceptedSourceArity,
+ }
+ impl From<&tcl_compiler::command_binding::SourceCommandTransitionObligation>
+     for RegisteredInstanceObligationDescription
+@@ -371,6 +372,7 @@ impl From<&tcl_compiler::command_binding::SourceCommandTransitionObligation>
+             }
+             Obligation::UnavailableActualLookup => Self::UnavailableActualLookup,
+             Obligation::UnknownEarlierMutation => Self::UnknownEarlierMutation,
++            Obligation::UnacceptedSourceArity => Self::UnacceptedSourceArity,
+             Obligation::ExplicitLogicalSourceApplicability => {
+                 Self::ExplicitLogicalSourceApplicability
+             }
+diff --git a/rust/tcl-lsp-server/src/current_diagnostics.rs b/rust/tcl-lsp-server/src/current_diagnostics.rs
+index 0c25cef68..48a517abd 100644
+--- a/rust/tcl-lsp-server/src/current_diagnostics.rs
++++ b/rust/tcl-lsp-server/src/current_diagnostics.rs
+@@ -658,7 +658,11 @@ impl Backend {
+             Some((db, files))
+         };
+         let admissions = admissions.iter().map(AsRef::as_ref).collect::<Vec<_>>();
++        let mut reports = Some(reports);
+         let result = DocumentPathAdmission::with_current(&admissions, self.store.as_ref(), || {
++            let Some(reports) = reports.take() else {
++                return Err(DiagnosticUnavailable::Stale);
++            };
+             if let DiagnosticCacheQuery::PublishDirect(candidate) = purpose {
+                 cache.insert(expected[0].uri.clone(), candidate.clone());
+             }

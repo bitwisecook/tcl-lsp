@@ -1,0 +1,13 @@
+{
+  "patch": "folding-original-body-inventory-doc-v2.patch",
+  "sha256": "48dc80c2b9dece9ec7fa724c07032edc9fc5e0238898c63fadf20b168bdbd664",
+  "depends_on_source_patch_sha256": "0a861ff333685b262d3466c96b4b1eb4f5559b86495a9ab05b162cc04b3733a9",
+  "files": [
+    {
+      "path": "rust/tcl-lsp-core/src/folding.rs",
+      "base_sha256": "8c4294632174b7bb8e19d9a26407ae3c0fb8fb05bb993ad344aa8b27304ace2b",
+      "edit_sha256": "524efcc47e466ef9e6ceac1bac80618a1a74095f9184a4db8322fe4d4046382c"
+    }
+  ],
+  "scope": "Module rustdoc-only correction; no implementation/test/guard changes; independent TMP apply/hash PASS; no main/Cargo/Git."
+}

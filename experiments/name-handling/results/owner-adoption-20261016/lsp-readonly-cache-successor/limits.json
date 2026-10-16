@@ -1,0 +1,6 @@
+{
+  "scope": "Actual failed ordinary five-library build; unchanged source snapshot, no artifact or test acceptance. Full input index retained outside Git.",
+  "input_count": 39000,
+  "input_drift": 0,
+  "repair": "Exact displaymapping / one-use report move retained for next ordinarybuild; guards/assertions unchanged."
+}

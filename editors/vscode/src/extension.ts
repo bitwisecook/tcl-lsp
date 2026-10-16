@@ -60,7 +60,12 @@ import { escapeTclText, transformSelection, unescapeTclText } from "./selectionT
 import { registerIruleParticipant } from "./chat/iruleParticipant";
 import { registerTclParticipant } from "./chat/tclParticipant";
 import { registerTkParticipant } from "./chat/tkParticipant";
-import { setCurrentDiagnosticsTransportProvider } from "./chat/diagnosticAccess";
+import {
+  invalidateAnalysisContext,
+  setCurrentDiagnosticsTransportProvider,
+  setUnleasedSessionDialectOverride,
+  waitForDiagnostics as waitForCurrentDiagnostics,
+} from "./chat/diagnosticAccess";
 import {
   buildRuntimeValidationChecker,
   resolveRuntimeValidationAdapter,
@@ -88,6 +93,7 @@ import { openSpecStudio, prepareSpecStudioStorage } from "./specStudio";
 import { registerHighlightingHealthChecks } from "./highlightingHealth";
 import { ensureStickyScrollDefaultModel } from "./stickyScrollHealth";
 import { DiffDiagnosticsSuppressor } from "./diffAnalysis";
+import { applyDocumentWrite } from "./chat/codeUtils";
 import {
   LANGUAGE_ID_DIALECTS,
   TCL_LANGUAGE_IDS,
@@ -149,7 +155,8 @@ interface RenamePartitionResult {
 
 let outputChannel: vscode.OutputChannel;
 let currentDiagnosticsTransportDisposable: vscode.Disposable | undefined;
-let currentDiagnosticsClientGeneration: { client: LanguageClient; value: number } | undefined;
+let currentDiagnosticsClientGeneration:
+  { client: LanguageClient; value: number; identity: object } | undefined;
 
 function getOutputChannel(): vscode.OutputChannel {
   if (!outputChannel) {
@@ -253,11 +260,12 @@ export async function activate(context: ExtensionContext) {
   }
 
   client = new LanguageClient("tcl-lsp", "Tcl Language Server", serverOptions, clientOptions);
-  const diagnosticsGeneration = { client, value: 0 };
+  const diagnosticsGeneration = { client, value: 0, identity: {} };
   currentDiagnosticsClientGeneration = diagnosticsGeneration;
   context.subscriptions.push(
     client.onDidChangeState(() => {
       diagnosticsGeneration.value += 1;
+      diagnosticsGeneration.identity = {};
     }),
   );
   currentDiagnosticsTransportDisposable?.dispose();
@@ -266,13 +274,22 @@ export async function activate(context: ExtensionContext) {
     const generation = currentDiagnosticsClientGeneration;
     if (!activeClient || generation?.client !== activeClient) return undefined;
     const generationAtCapture = generation.value;
-    return {
+    const transport: import("./chat/diagnosticAccess").CurrentDiagnosticsTransport = {
+      sessionIdentity: generation.identity,
       request: (params) =>
         activeClient.sendRequest("workspace/executeCommand", {
           command: "tcl-lsp.currentDiagnostics",
           arguments: [params],
         }),
       convert: (diagnostics) => activeClient.protocol2CodeConverter.asDiagnostics(diagnostics),
+      setSessionDialectOverride: async (dialect) => {
+        await activeClient.sendRequest("workspace/executeCommand", {
+          command: "tcl-lsp.setSessionDialectOverride",
+          arguments: dialect === null ? [] : [dialect],
+        });
+        if (!transport.isCurrent()) throw new Error("Language server session changed");
+        updateSessionOverrideLabel(dialect);
+      },
       isCurrent: () =>
         currentDiagnosticsTransportDisposable !== undefined &&
         client === activeClient &&
@@ -280,6 +297,7 @@ export async function activate(context: ExtensionContext) {
         generation.value === generationAtCapture &&
         activeClient.isRunning(),
     };
+    return transport;
   });
   context.subscriptions.push(currentDiagnosticsTransportDisposable);
   // The server starts with the trust state in its `initializationOptions`; a
@@ -329,6 +347,7 @@ export async function activate(context: ExtensionContext) {
   context.subscriptions.push(
     workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration("tclLsp.dialect")) {
+        invalidateAnalysisContext();
         // The setting changed (``tclLsp.selectDialect``, or the user editing
         // settings.json).  The server picks it up from its own
         // ``workspace/configuration`` pull; all that is left here is the
@@ -470,12 +489,14 @@ export async function activate(context: ExtensionContext) {
       const doc = await vscode.workspace.openTextDocument({ language: "tcl", content: code });
       await vscode.window.showTextDocument(doc);
     }),
-    commands.registerCommand("tclLsp.applyFix", async (code: string, uriString: string) => {
-      const uri = vscode.Uri.parse(uriString);
-      const doc = await vscode.workspace.openTextDocument(uri);
-      const editor = await vscode.window.showTextDocument(doc);
-      const fullRange = new Range(0, 0, doc.lineCount, 0);
-      await editor.edit((edit) => edit.replace(fullRange, code));
+    commands.registerCommand("tclLsp.applyFix", async (code: string, receipt: unknown) => {
+      const applied = await applyDocumentWrite(code, receipt);
+      if (!applied) {
+        await vscode.window.showWarningMessage(
+          "The document changed after this result was generated. Run it again before applying.",
+        );
+      }
+      return applied;
     }),
     commands.registerCommand("tclLsp.extractRule", extractRuleAtCursor),
     commands.registerCommand("tclLsp.extractRulePick", extractRulePick),
@@ -538,7 +559,7 @@ export async function activate(context: ExtensionContext) {
   }
 
   ch.appendLine(`[timing] extension activation: ${Date.now() - activateStart}ms`);
-  return { getClient, applyDialectForDocument };
+  return { getClient, applyDialectForDocument, waitForCurrentDiagnostics };
 }
 
 export async function deactivate(): Promise<void> {
@@ -973,6 +994,7 @@ export async function setServerDialect(dialect: string): Promise<void> {
   await client.sendNotification("workspace/didChangeConfiguration", {
     settings: { tclLsp: { dialect } },
   });
+  invalidateAnalysisContext();
 }
 
 /**
@@ -991,18 +1013,7 @@ export async function setServerDialect(dialect: string): Promise<void> {
  * Clearing restores whatever the configuration currently resolves to, so there
  * is nothing to save and restore by hand.
  */
-export async function setSessionDialectOverride(dialect: string | null): Promise<void> {
-  if (!client) {
-    return;
-  }
-  await client.sendRequest("workspace/executeCommand", {
-    command: "tcl-lsp.setSessionDialectOverride",
-    arguments: dialect === null ? [] : [dialect],
-  });
-  // Keep the status bar honest about what the server is actually using. On a
-  // clear, fall back to the focused editor's own detected dialect — the same
-  // answer `applyDialectForDocument` gives — rather than leaving the override's
-  // label behind.
+function updateSessionOverrideLabel(dialect: string | null): void {
   const editor = vscode.window.activeTextEditor;
   if (dialect === null && editor && isTclLanguage(editor.document.languageId)) {
     applyDialectForDocument(editor.document);
@@ -1011,6 +1022,11 @@ export async function setSessionDialectOverride(dialect: string | null): Promise
   setActiveDialectLabel(
     dialect ?? workspace.getConfiguration("tclLsp").get<string>("dialect", DEFAULT_DIALECT),
   );
+}
+
+export async function setSessionDialectOverride(dialect: string | null): Promise<void> {
+  if (!client) return;
+  await setUnleasedSessionDialectOverride(dialect);
 }
 
 /**

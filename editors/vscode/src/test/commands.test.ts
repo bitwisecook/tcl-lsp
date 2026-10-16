@@ -19,6 +19,11 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
 import { activate, getDocUri, scaledTimeout } from "./helper";
+import {
+  applyDocumentWrite,
+  documentWriteReceipt,
+  snapshotDocumentSource,
+} from "../chat/codeUtils";
 
 suite("Command Registration", () => {
   const allCommands = [
@@ -91,6 +96,54 @@ suite("Command Registration", () => {
       await vscode.workspace
         .getConfiguration("tclLsp.features")
         .update("diagnostics", before, undefined);
+    }
+  });
+
+  test("source write refuses a changed document and accepts its current snapshot", async () => {
+    await activate(getDocUri("simple.tcl"));
+    const doc = await vscode.workspace.openTextDocument(getDocUri("simple.tcl"));
+    const editor = await vscode.window.showTextDocument(doc);
+    const original = doc.getText();
+    const originalSnapshot = snapshotDocumentSource(doc);
+    try {
+      await editor.edit((edit) => {
+        edit.insert(
+          new vscode.Position(doc.lineCount - 1, doc.lineAt(doc.lineCount - 1).text.length),
+          "\n# newer source",
+        );
+      });
+      const changedSource = doc.getText();
+      assert.strictEqual(
+        await applyDocumentWrite(
+          "# stale generated source",
+          documentWriteReceipt(originalSnapshot),
+        ),
+        false,
+      );
+      assert.strictEqual(doc.getText(), changedSource, "stale action must not replace newer text");
+      assert.strictEqual(
+        await vscode.commands.executeCommand<boolean>(
+          "tclLsp.applyFix",
+          "# stale generated source",
+          documentWriteReceipt(originalSnapshot),
+        ),
+        false,
+        "the registered sink must report a refused write to immediate callers",
+      );
+
+      const currentSnapshot = snapshotDocumentSource(doc);
+      assert.strictEqual(
+        await applyDocumentWrite(
+          "# current generated source",
+          documentWriteReceipt(currentSnapshot),
+        ),
+        true,
+      );
+      assert.strictEqual(doc.getText(), "# current generated source");
+    } finally {
+      await editor.edit((edit) => {
+        edit.replace(new vscode.Range(0, 0, doc.lineCount, 0), original);
+      });
     }
   });
 

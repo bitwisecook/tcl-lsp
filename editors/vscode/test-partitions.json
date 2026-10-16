@@ -9,8 +9,8 @@
   ],
   "expected_tests": {
     "single_root": {
-      "identities": 983,
-      "passed": 982,
+      "identities": 985,
+      "passed": 984,
       "pending": 1
     },
     "multi_folder": {

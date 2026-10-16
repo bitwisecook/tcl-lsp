@@ -598,6 +598,23 @@ export async function activate(docUri: vscode.Uri): Promise<vscode.TextDocument>
   return doc;
 }
 
+/** Read the active extension's source-current diagnostics owner. */
+export async function waitForCurrentDiagnostics(
+  uri: vscode.Uri,
+  opts?: { timeout?: number; minCount?: number; expectedSource?: string },
+): Promise<vscode.Diagnostic[]> {
+  const ext = vscode.extensions.getExtension<{
+    waitForCurrentDiagnostics(
+      uri: vscode.Uri,
+      opts?: { timeout?: number; minCount?: number; expectedSource?: string },
+    ): Promise<vscode.Diagnostic[]>;
+  }>("bitwisecook.tcl-lsp");
+  if (!ext?.isActive || typeof ext.exports?.waitForCurrentDiagnostics !== "function") {
+    throw new Error("The active Tcl LSP extension does not expose current diagnostics");
+  }
+  return ext.exports.waitForCurrentDiagnostics(uri, opts);
+}
+
 /** Fixture the liveness probe asks about — a document no test drives, so a
  *  hover on it can never be queued behind another test's edits. */
 const LIVENESS_PROBE_FIXTURE = "livenessProbe.tcl";

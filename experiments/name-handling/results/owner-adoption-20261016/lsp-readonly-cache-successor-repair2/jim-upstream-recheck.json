@@ -1,0 +1,8 @@
+{
+  "command": "git ls-remote https://github.com/msteveb/jimtcl.git HEAD",
+  "stdout": "5bac7c99ad65864c87da513e22e2f01703fa4e03\tHEAD\n",
+  "upstream_head": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+  "compiled_revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+  "matches": true,
+  "recorded_utc": "2026-10-16T18:23:44.996034+00:00"
+}

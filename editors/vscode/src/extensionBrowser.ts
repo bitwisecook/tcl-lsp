@@ -65,7 +65,11 @@ import {
   workspaceEditFromLsp,
 } from "./clientCore";
 import { DiffDiagnosticsSuppressor } from "./diffAnalysis";
-import { setCurrentDiagnosticsTransportProvider } from "./chat/diagnosticAccess";
+import { applyDocumentWrite } from "./chat/codeUtils";
+import {
+  invalidateAnalysisContext,
+  setCurrentDiagnosticsTransportProvider,
+} from "./chat/diagnosticAccess";
 import { buildIruleEventSkeleton, COMMON_IRULE_EVENTS } from "./iruleSkeleton";
 import { LANGUAGE_ID_DIALECTS, isTclLanguage } from "./languageIds";
 import {
@@ -132,7 +136,7 @@ interface Session {
   worker: Worker;
   sync: WorkspaceStoreSync;
   client: LanguageClient;
-  diagnosticsGeneration: { value: number };
+  diagnosticsGeneration: { value: number; identity: object };
   /** Detach the JSON-RPC port listener — see `./webLspTransport`. */
   disposeTransport: () => void;
   /** Subscriptions bound to *this* server, not to the extension's lifetime. */
@@ -181,13 +185,22 @@ export async function activate(context: ExtensionContext) {
     if (!activeSession || !activeClient) return undefined;
     const generation = activeSession.diagnosticsGeneration;
     const generationAtCapture = generation.value;
-    return {
+    const transport: import("./chat/diagnosticAccess").CurrentDiagnosticsTransport = {
+      sessionIdentity: generation.identity,
       request: (params) =>
         activeClient.sendRequest("workspace/executeCommand", {
           command: "tcl-lsp.currentDiagnostics",
           arguments: [params],
         }),
       convert: (diagnostics) => activeClient.protocol2CodeConverter.asDiagnostics(diagnostics),
+      setSessionDialectOverride: async (dialect) => {
+        await activeClient.sendRequest("workspace/executeCommand", {
+          command: "tcl-lsp.setSessionDialectOverride",
+          arguments: dialect === null ? [] : [dialect],
+        });
+        if (!transport.isCurrent()) throw new Error("Language server session changed");
+        updateSessionOverrideLabel(dialect);
+      },
       isCurrent: () =>
         currentDiagnosticsTransportDisposable !== undefined &&
         session === activeSession &&
@@ -196,6 +209,7 @@ export async function activate(context: ExtensionContext) {
         generation.value === generationAtCapture &&
         activeClient.isRunning(),
     };
+    return transport;
   });
   context.subscriptions.push(currentDiagnosticsTransportDisposable);
   outputChannel = window.createOutputChannel("Tcl Language Server");
@@ -209,6 +223,7 @@ export async function activate(context: ExtensionContext) {
   context.subscriptions.push(
     workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration("tclLsp.dialect")) {
+        invalidateAnalysisContext();
         updateDialectStatusBar();
         updateIruleContext(window.activeTextEditor);
       }
@@ -307,10 +322,11 @@ async function startSession(context: ExtensionContext): Promise<Session | undefi
   );
   // As on the desktop: the trust state rides `initializationOptions`, and a
   // grant after start-up is pushed so a workspace pack's hook bodies run.
-  const diagnosticsGeneration = { value: 0 };
+  const diagnosticsGeneration = { value: 0, identity: {} };
   disposables.push(
     client.onDidChangeState(() => {
       diagnosticsGeneration.value += 1;
+      diagnosticsGeneration.identity = {};
       // A browser LanguageClient may transition state while retaining the same
       // Session object. Invalidate any pack pull issued by the prior state.
       beginPackFileAssociationSync(context);
@@ -448,6 +464,16 @@ function statusDialect(editor: TextEditor | undefined): DialectChoice {
   return describeDialect(implied ?? configured, dialectChoices);
 }
 
+function updateSessionOverrideLabel(dialect: string | null): void {
+  if (dialect === null) {
+    updateDialectStatusBar();
+    return;
+  }
+  const choice = describeDialect(dialect, dialectChoices);
+  dialectStatusBarItem.text = `$(symbol-misc) ${choice.shortLabel}`;
+  dialectStatusBarItem.tooltip = `${choice.description} -- click to change`;
+}
+
 function updateDialectStatusBar(): void {
   const dialect = statusDialect(window.activeTextEditor);
   dialectStatusBarItem.text = `$(symbol-misc) ${dialect.shortLabel}`;
@@ -544,11 +570,14 @@ function registerCommands(context: ExtensionContext): void {
       const doc = await workspace.openTextDocument({ language: "tcl", content: code });
       await window.showTextDocument(doc);
     }),
-    commands.registerCommand("tclLsp.applyFix", async (code: string, uriString: string) => {
-      const uri = vscode.Uri.parse(uriString);
-      const doc = await workspace.openTextDocument(uri);
-      const editor = await window.showTextDocument(doc);
-      await editor.edit((edit) => edit.replace(new Range(0, 0, doc.lineCount, 0), code));
+    commands.registerCommand("tclLsp.applyFix", async (code: string, receipt: unknown) => {
+      const applied = await applyDocumentWrite(code, receipt);
+      if (!applied) {
+        await window.showWarningMessage(
+          "The document changed after this result was generated. Run it again before applying.",
+        );
+      }
+      return applied;
     }),
     commands.registerCommand(
       "tclLsp.renameSymbolAtPosition",

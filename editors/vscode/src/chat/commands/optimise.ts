@@ -20,6 +20,7 @@ import * as vscode from "vscode";
 import { CommandContext } from "../types";
 import { sendContextualRequest } from "../contextPack";
 import { isTclLanguage } from "../../extension";
+import { documentWriteReceipt, snapshotDocumentSource } from "../codeUtils";
 
 interface OptEntry {
   code: string;
@@ -36,6 +37,7 @@ export async function handleOptimise(ctx: CommandContext): Promise<vscode.ChatRe
     return {};
   }
 
+  const sourceSnapshot = snapshotDocumentSource(editor.document);
   const uri = editor.document.uri.toString();
 
   // Accept an optional profile from the prompt (e.g. "/optimise aggressive").
@@ -60,7 +62,17 @@ export async function handleOptimise(ctx: CommandContext): Promise<vscode.ChatRe
 
   // Apply optimisations immediately.
   ctx.response.progress("Applying optimisations...");
-  await vscode.commands.executeCommand("tclLsp.applyFix", result.source, uri);
+  const applied = await vscode.commands.executeCommand<boolean>(
+    "tclLsp.applyFix",
+    result.source,
+    documentWriteReceipt(sourceSnapshot),
+  );
+  if (applied !== true) {
+    ctx.response.markdown(
+      "The document changed before optimisations could be applied. Run it again.",
+    );
+    return { metadata: { command: "optimise", count: 0, applied: false } };
+  }
 
   // Group optimisations for display.
   const ELIM_CODES = new Set(["O107", "O108", "O109"]);

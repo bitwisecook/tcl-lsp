@@ -21,12 +21,16 @@ import { CommandContext } from "../types";
 import { resolveIruleCode, ensureDocumentOpen } from "../codeUtils";
 import { sendContextualRequest } from "../contextPack";
 import {
+  acquireSessionDialectOverride,
+  captureAnalysisContext,
+  isAnalysisContextCurrent,
   waitForDiagnostics,
+  SessionDialectOverrideLease,
   categoriseDiagnostics,
   formatDiagnosticsForLLM,
   renderDiagnosticSection,
 } from "../diagnosticAccess";
-import { setSessionDialectOverride, getActiveDialect, isTclLanguage } from "../../extension";
+import { getActiveDialect, isTclLanguage } from "../../extension";
 
 export async function handleReview(ctx: CommandContext): Promise<vscode.ChatResult> {
   // Try active editor first, then resolve from references
@@ -54,16 +58,22 @@ export async function handleReview(ctx: CommandContext): Promise<vscode.ChatResu
   // land at any time, so a push's effect would last an unpredictable length
   // of time.
   const pinnedDialect = getActiveDialect() !== "f5-irules";
-  if (pinnedDialect) {
-    await setSessionDialectOverride("f5-irules");
-  }
+  let overrideLease: SessionDialectOverrideLease | undefined;
+  if (pinnedDialect) overrideLease = await acquireSessionDialectOverride("f5-irules");
 
   try {
     if (!doc) {
       doc = await ensureDocumentOpen(code);
     }
+    const analysisContext = overrideLease?.analysisContext ?? captureAnalysisContext();
+    if (!isAnalysisContextCurrent(analysisContext)) {
+      throw new Error("Analysis context changed before the iRule analysis started");
+    }
 
     const diagnostics = await waitForDiagnostics(doc.uri, { timeout: 5000, expectedSource: code });
+    if (!isAnalysisContextCurrent(analysisContext)) {
+      throw new Error("Analysis context changed while the iRule analysis was running");
+    }
     const categorised = categoriseDiagnostics(diagnostics);
 
     const securityDiags = [
@@ -110,15 +120,17 @@ export async function handleReview(ctx: CommandContext): Promise<vscode.ChatResu
         `\`\`\`tcl\n${code}\n\`\`\``,
       { code, document: doc },
     );
-    for await (const chunk of llmResponse.text) {
-      ctx.response.markdown(chunk);
+    let responseText = "";
+    for await (const chunk of llmResponse.text) responseText += chunk;
+    if (!isAnalysisContextCurrent(analysisContext)) {
+      throw new Error("Analysis context changed while the iRule review was running");
     }
+    ctx.response.markdown(responseText);
 
     return { metadata: { command: "review", securityCount: securityDiags.length } };
   } finally {
-    if (pinnedDialect) {
-      // Clearing restores whatever the configuration resolves to.
-      await setSessionDialectOverride(null);
+    if (overrideLease && !(await overrideLease.restore())) {
+      throw new Error("The iRule analysis dialect override was superseded");
     }
   }
 }

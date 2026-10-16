@@ -85,7 +85,7 @@ struct DiagnosticReportExpectation {
     source: Arc<str>,
 }
 
-/// A validated reborrow of one actual acknowledged publisher report.
+/// A validated report for its retained direct-query or acknowledged publisher purpose.
 /// Optional version is retained source data, never filled from a later buffer.
 pub(super) struct PublishedDiagnosticReport {
     pub(super) uri: Uri,
@@ -658,7 +658,11 @@ impl Backend {
             Some((db, files))
         };
         let admissions = admissions.iter().map(AsRef::as_ref).collect::<Vec<_>>();
+        let mut reports = Some(reports);
         let result = DocumentPathAdmission::with_current(&admissions, self.store.as_ref(), || {
+            let Some(reports) = reports.take() else {
+                return Err(DiagnosticUnavailable::Stale);
+            };
             if let DiagnosticCacheQuery::PublishDirect(candidate) = purpose {
                 cache.insert(expected[0].uri.clone(), candidate.clone());
             }

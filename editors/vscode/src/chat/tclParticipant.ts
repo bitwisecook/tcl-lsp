@@ -19,7 +19,13 @@
 import * as vscode from "vscode";
 import { getActiveDialect, getClient, isAiEnabled, isTclLanguage } from "../extension";
 import { runAgenticLoop } from "./agenticLoop";
-import { ensureDocumentOpen, extractCodeBlock, resolveIruleCode } from "./codeUtils";
+import {
+  documentWriteReceipt,
+  ensureDocumentOpen,
+  extractCodeBlock,
+  resolveIruleCode,
+  snapshotDocumentSource,
+} from "./codeUtils";
 import { sendContextualRequest } from "./contextPack";
 import {
   categoriseDiagnostics,
@@ -224,7 +230,8 @@ async function handleFix(ctx: CommandContext): Promise<vscode.ChatResult> {
     return {};
   }
 
-  const code = editor.document.getText();
+  const sourceSnapshot = snapshotDocumentSource(editor.document);
+  const code = sourceSnapshot.fullSource;
   const diagnostics = await waitForDiagnostics(editor.document.uri, {
     timeout: 5000,
     expectedSource: code,
@@ -238,6 +245,7 @@ async function handleFix(ctx: CommandContext): Promise<vscode.ChatResult> {
 
   const result = await runAgenticLoop(ctx, code, editor.document, {
     targetDialect: getActiveDialect(),
+    sourceSnapshot,
   });
 
   ctx.response.markdown(`## Fixed Tcl\n\n\`\`\`tcl\n${result.finalCode}\n\`\`\`\n`);
@@ -250,10 +258,11 @@ async function handleFix(ctx: CommandContext): Promise<vscode.ChatResult> {
     );
   }
 
+  if (!result.documentSnapshot) throw new Error("Fix result has no current document snapshot");
   ctx.response.button({
     command: "tclLsp.applyFix",
     title: "Apply fixes",
-    arguments: [result.finalCode, editor.document.uri.toString()],
+    arguments: [result.finalCode, documentWriteReceipt(result.documentSnapshot)],
   });
 
   return { metadata: { command: "fix", clean: result.clean, iterations: result.iterations } };
@@ -266,6 +275,7 @@ async function handleOptimise(ctx: CommandContext): Promise<vscode.ChatResult> {
     return {};
   }
 
+  const sourceSnapshot = snapshotDocumentSource(editor.document);
   const uri = editor.document.uri.toString();
 
   ctx.response.progress("Running optimiser...");
@@ -281,7 +291,17 @@ async function handleOptimise(ctx: CommandContext): Promise<vscode.ChatResult> {
   }
 
   // Apply immediately.
-  await vscode.commands.executeCommand("tclLsp.applyFix", result.source, uri);
+  const applied = await vscode.commands.executeCommand<boolean>(
+    "tclLsp.applyFix",
+    result.source,
+    documentWriteReceipt(sourceSnapshot),
+  );
+  if (applied !== true) {
+    ctx.response.markdown(
+      "The document changed before optimisations could be applied. Run it again.",
+    );
+    return { metadata: { command: "optimise", count: 0, applied: false } };
+  }
 
   ctx.response.markdown(
     `Applied **${result.optimisations.length}** optimisation(s):\n\n` +

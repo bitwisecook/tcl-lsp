@@ -1,0 +1,33 @@
+{
+  "patch": "folding-original-body-inventory-v1.patch",
+  "sha256": "0a861ff333685b262d3466c96b4b1eb4f5559b86495a9ab05b162cc04b3733a9",
+  "catalogue_unit": "lsp-folding-logical-report-body-residue",
+  "files": [
+    {
+      "path": "rust/tcl-lsp-core/src/folding.rs",
+      "base_sha256": "e7571fe663f9cb759c3d0a2fc9fad855a59818611058a675c8df371179e02376",
+      "edit_sha256": "8c4294632174b7bb8e19d9a26407ae3c0fb8fb05bb993ad344aa8b27304ace2b"
+    }
+  ],
+  "new_exact_selectors": [
+    "folding::tests::logical_folding_uses_original_bodies_after_reporting_scope_clear",
+    "folding::tests::logical_folding_does_not_promote_reporting_scope_spans_into_body_roles"
+  ],
+  "selector_budget_seconds": 180,
+  "selector_count_guard": 1,
+  "retained_controls": [
+    "folding::tests::original_folding_uses_retained_full_config_and_body_records",
+    "folding::tests::original_folding_keeps_actual_availability_without_native_body_entry",
+    "folding::tests::original_folding_keeps_captured_body_ordinals_and_source_replacements",
+    "folding::tests::proc_body_folds_to_close_brace_minus_one",
+    "folding::tests::namespace_body_emits_fold_at_line_zero",
+    "folding::tests::incomplete_body_still_folds"
+  ],
+  "validation": "TMP rustfmt; exact current main/base hash; pre-existing complete test module byte-identical after removing only new tests; fuzz0 dryrun; separate TMP apply/afterimage hash PASS. No Cargo/tests/builds/main/Git/shared-doc edits.",
+  "contract": {
+    "path": "CONTRACT.md",
+    "sha256": "237e19dff911724ad6caab76c936efe42e3a560e0473c1fbbf7e0b12b3e0593e",
+    "purpose": "TMP existing-owner contract supplement; canonical shared docs untouched"
+  },
+  "source_basis_sha256": "d664cb64cbce2ed7cadad229571f5181c4315d719638616d4e4d208ef0b5121e"
+}
