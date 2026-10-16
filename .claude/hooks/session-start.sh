@@ -51,6 +51,8 @@ WASI_SDK_VERSION="34.0"
 # means the wasm32-wasip2 target lands on the toolchain the project actually
 # uses. No manual bump needed when a new stable lands.
 RUST_TOOLCHAIN="stable"
+# CI's newest Python; the image ships 3.13.
+PYTHON_VERSION="3.14"
 TCLLIB_TAG="tcllib-2-0"
 TCLLIB_VERSION="2.0"
 
@@ -513,7 +515,60 @@ install_rust() {
 }
 
 # ---------------------------------------------------------------------------
-# 6. Remaining host test tools (tclsh, node, kotlinc, emacs, xvfb,
+# 6. Node.js and Python at the project's versions.
+#
+# The image ships Node 20-22 under /opt/node<major>, with 22 on PATH, and
+# Python 3.13. Install the Node major that ensure-test-deps requires in the
+# same layout, and PYTHON_VERSION through uv, and link both into ~/.local/bin,
+# which comes before the image's Node on PATH. The image is left as it is.
+# ---------------------------------------------------------------------------
+install_node_and_python() {
+    local deps="${REPO_ROOT}/scripts/dev/ensure-test-deps.sh"
+    local major corepack node_arch
+    major="$(sed -n 's/^NODE_MIN_MAJOR="\([0-9]*\)"$/\1/p' "$deps")"
+    corepack="$(sed -n 's/^COREPACK_VERSION="\([0-9.]*\)"$/\1/p' "$deps")"
+    case "$ARCH" in
+        x86_64)  node_arch="x64" ;;
+        aarch64) node_arch="arm64" ;;
+        *) echo "session-start: no Node.js build for $ARCH" >&2; return 1 ;;
+    esac
+    local prefix="/opt/node${major}" bin_dir="${HOME}/.local/bin"
+    mkdir -p "$bin_dir"
+    export PATH="${bin_dir}:${PATH}"
+
+    if ! "${prefix}/bin/node" --version 2>/dev/null | grep -q "^v${major}\."; then
+        local base="https://nodejs.org/dist/latest-v${major}.x" tarball tmpdir
+        tmpdir="$(mktemp -d)"
+        trap cleanup_tmpdir RETURN
+        fetch_with_retry "${base}/SHASUMS256.txt" "${tmpdir}/SHASUMS256.txt" || return 1
+        tarball="$(awk -v want="linux-${node_arch}.tar.xz" '$2 ~ want"$" {print $2}' "${tmpdir}/SHASUMS256.txt")"
+        [ -n "$tarball" ] || { echo "session-start: no ${node_arch} tarball in ${base}" >&2; return 1; }
+        fetch_with_retry "${base}/${tarball}" "${tmpdir}/${tarball}" || return 1
+        (cd "$tmpdir" && grep " ${tarball}\$" SHASUMS256.txt | sha256sum -c --quiet -) || return 1
+        rm -rf "$prefix" && mkdir -p "$prefix"
+        tar -xJf "${tmpdir}/${tarball}" -C "$prefix" --strip-components=1 || return 1
+    fi
+    if [ "$(PATH="${prefix}/bin:${PATH}" "${prefix}/bin/corepack" --version 2>/dev/null)" != "$corepack" ]; then
+        PATH="${prefix}/bin:${PATH}" npm install -g --no-audit --no-fund "corepack@${corepack}" >/dev/null || return 1
+    fi
+    PATH="${prefix}/bin:${PATH}" "${prefix}/bin/corepack" enable npm || return 1
+    local tool
+    for tool in node npm npx corepack; do
+        ln -sfn "${prefix}/bin/${tool}" "${bin_dir}/${tool}"
+    done
+    echo "session-start: node $("${bin_dir}/node" --version) (${prefix}) ready"
+
+    if command -v uv >/dev/null 2>&1; then
+        uv python install --quiet --default "$PYTHON_VERSION" || return 1
+        echo "session-start: $("${bin_dir}/python3" --version) ready"
+    else
+        echo "session-start: uv missing — keeping the image's $(python3 --version)" >&2
+        return 1
+    fi
+}
+
+# ---------------------------------------------------------------------------
+# 7. Remaining host test tools (tclsh, node, kotlinc, emacs, xvfb,
 #    tshark, openssl, ping, rgxg, uv).  Delegated to the shared
 #    cross-platform installer so there's a single source of truth; the
 #    toolchains this hook installs bespoke above (with pinned versions +
@@ -535,7 +590,7 @@ install_remaining_test_deps() {
 }
 
 # ---------------------------------------------------------------------------
-# 7. TCL_LIBRARY — point it at the fetched Tcl 9 script library.
+# 8. TCL_LIBRARY — point it at the fetched Tcl 9 script library.
 #
 # (The project retired Python: there is no pyproject.toml / uv.lock, so there
 # is no venv to create — the old `uv sync --extra dev` step was removed.)
@@ -597,6 +652,7 @@ STEPS=(
     install_tcl_sources
     install_tk_sources
     install_tcllib
+    install_node_and_python
     install_remaining_test_deps
     setup_tcl_library
 )

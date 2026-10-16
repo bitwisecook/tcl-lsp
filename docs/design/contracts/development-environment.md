@@ -44,6 +44,8 @@ idempotent; a warm container re-runs it in seconds.
 | Binaryen | 133 | `/opt/binaryen-133/`, `wasm-opt` / `wasm-merge` on `PATH` |
 | wasi-sdk | 34.0 | `/opt/wasi-sdk` (found by `runtime/rust/build.rs`) |
 | Rust | floating `stable` | `/root/.rustup`, `/root/.cargo` |
+| Node.js | `NODE_MIN_MAJOR` (26), latest release, with Corepack's npm | `/opt/node26/`, linked into `~/.local/bin` ahead of the image's `/opt/node22` |
+| Python | 3.14 (`PYTHON_VERSION`), via `uv python install --default` | `~/.local/bin/python3`, ahead of the image's 3.13 |
 | Tcl + Tk source trees | 8.4.20, 8.5.19, 8.6.18, 9.0.4, 9.1.0 | `tmp/tcl<ver>/`, `tmp/tk<ver>/` |
 | tcllib | 2.0 | `tmp/tcllib-2.0/` |
 | host test tools | distro | via `ensure-test-deps.sh` |
@@ -61,7 +63,7 @@ upstream than `tcl.tk` / SourceForge on every cold session. The hook exports
 | Node.js minimum | `.github/workflows/ci.yml` `node-version`; `NODE_MIN_MAJOR` in `ensure-test-deps.sh` |
 | Corepack | `COREPACK_VERSION` in `ensure-test-deps.sh`; the `npm install -g corepack@…` steps in `.github/workflows/ci.yml` |
 | Tcl / Tk patchlevels and source tags | `rust/tcl-dialect/data/reference-toolchains.tsv` (the fetch skill, host installer, and `tcl docker` source-build layers consume it) |
-| Wasmtime, Binaryen, wasi-sdk, tcllib (remote) | variables at the top of `.claude/hooks/session-start.sh` |
+| Wasmtime, Binaryen, wasi-sdk, tcllib, Python (remote) | variables at the top of `.claude/hooks/session-start.sh` |
 | Wasmtime, wasi-sdk, tcllib (laptop) | variables near the top of `scripts/dev/ensure-test-deps.sh` |
 | Rust dependencies, including standalone WASM/VM/editor/Python crates | every tracked `Cargo.lock`; manifests beside each lockfile |
 | npm dependencies and npm CLI | the three application `package.json` / `package-lock.json` pairs |
