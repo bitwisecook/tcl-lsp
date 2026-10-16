@@ -29,32 +29,24 @@ source.
 
 ### Grammar facts
 
-`CodegenCtx` carries **one** `LexerGrammar` (`expr_grammar`), resolved once
-in `codegen_module` from the unit's dialect name through
-`grammar_of_dialect_name`, and every grammar fact it reads — `numbers`
-(`NumberSyntax`), `escapes` (`EscapeSyntax`), `braced_var`
-(`BracedVarStyle`), and the grammar `parse_compile_expr` re-parses
-expression text under — is a field of that one value. They exist because
-codegen decodes text — literal words, normalised word spellings, expression
-source — and the grammar that text obeys is dialect-dependent. That they are
-one value is the invariant: numerals and re-parsed `expr` text resolved under
-two grammars disagree about `010` for `tk` inside a single compile. See
-[dialect-profile-model.md](../registry/dialect-profile-model.md) §2.5 for how the name
-reaches codegen and why it is the document's own.
+`CodegenCtx` retains the full ingress `LexerConfig` when the module supplies
+it. Code that decodes literal words, normalised spellings, or expression
+source reads the grammar fields from this held configuration; it does not
+reconstruct them from a dialect name. If no ingress configuration was
+provided, the context derives a grammar from its dialect or registry profile.
+The full configuration matters because related grammar facts (numbers,
+escapes, braced variable names, and expression parsing) must describe the
+same source interpretation.
 
-**Scope, stated deliberately.** The grammar codegen *decodes under* is the
-document's resolved dialect today — a JimTcl unit's literals, escapes and
-word splitting are read as Jim wrote them. What codegen *emits*, and what the
-bytecode VM and `runtime/rust` execute, is **Tcl 9 semantics only**: the
-projected profile a non-Tcl dialect resolves to carries
-`vm_runtime_version = V9_0`; Jim's `$(…)` lowers to the same `AssignExpr`
-a bracketed `expr` does in `set` and `return` (so the emitted bytecode is
-Tcl 9's expression evaluation of the body) and stays an opaque dynamic word
-elsewhere; and Jim's own list, dict and `expr` semantics are not modelled
-by any pass. That is the intended state, not an omission: the backends
-target Tcl 9. Codegen consumes only the point-derived grammar and profile,
-never a dialect name or a per-consumer table, so a future dialect-keyed
-backend has one value to key on.
+Keep source interpretation separate from invocation and execution policy.
+The context carries an invocation dialect and other selected target policies;
+a Native call candidate has further independent gates for original invocation
+selection, effective arguments, and currentness. Holding the source lexer
+configuration does not establish that a Native operation is admissible or
+that a backend implements every dialect feature. Support and conformance are
+bounded by the selected operation and the runtime path actually exercised.
+See [dialect-profile-model.md](../registry/dialect-profile-model.md) for
+context selection.
 
 `braced_var` resolves where a `${…}` variable name ends: `Tcl_ParseVarName`
 took the *first* close brace through 8.6 and balances nested braces from 9.0.

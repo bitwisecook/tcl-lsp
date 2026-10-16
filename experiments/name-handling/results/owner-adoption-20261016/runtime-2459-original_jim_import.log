@@ -1,0 +1,12 @@
+
+running 7 tests
+test cmd_namespace::original_import_alias_tests::original_jim_import_prefix_keeps_the_enumerated_hash_key_after_source_deletion ... ok
+test cmd_namespace::original_import_alias_tests::original_jim_import_keeps_root_alias_lookup_separate_from_destination_collisions ... ok
+test cmd_namespace::original_import_alias_tests::original_jim_import_refuses_a_pattern_getter_that_switches_the_current_namespace ... ok
+test cmd_namespace::original_import_alias_tests::original_jim_import_follows_original_alias_lists_and_refuses_destination_loops ... ok
+test cmd_namespace::original_import_alias_tests::original_jim_import_uses_rooted_hash_key_spelling_in_helper_operations ... ok
+test cmd_namespace::original_import_alias_tests::original_jim_import_uses_the_cached_alias_list_without_member_getters ... ok
+test cmd_namespace::original_import_alias_tests::original_jim_import_retains_reached_list_getter_first_cause_before_publication ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 2265 filtered out; finished in 0.36s
+

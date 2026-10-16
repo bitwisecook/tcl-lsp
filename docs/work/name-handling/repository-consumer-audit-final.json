@@ -624,7 +624,12 @@
       ],
       "api": "Existing genuine original_logical_source_geometry_words1314 and retained Logical input/tape/source owner",
       "required_change": "Concrete geometry pipeline1676/1703 admits ConditionalReceiverSource via source_catalogue_layouts; subsequent name_observations1599 invokes original_recorded_name_words1290 using original_declaration_layouts only OriginalDeclaration. Actual Logical conditionalreceiver loses positive name projection after authentic geometry. Extend genuine source-purpose pointname owner/transport; preserve Native/declaration APIs and physical currentness. Link existing Logical point transport family once, not count every guard/query as missing resolver.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "successor of 2459c99246751fd7695a585ea1081b43937174fb",
+        "validation": "Reviewed source integration; fresh compile, scoped controls and required gates pending. No full verification acceptance."
+      }
     },
     {
       "area": "compiler",
@@ -662,7 +667,12 @@
       ],
       "api": "Existing retained Logical source entry/scope/frame catalogue; original_operand_naming_scope remains Native/declaration-purpose",
       "required_change": "Namespace operand1577 consumes nameobservations then source_name_lookup292 scope requires input.is_current+native_recipe and declaration-only rows. Need actual source-specific naming scope from genuine Logical tape/card/context alongside positive name result; no weakening native point guards/unknown namespace, no String inverse. Actual namespace facade is distinct consumer purpose from name projection; canonical owner facets/adopters must expose that boundary.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "successor of 2459c99246751fd7695a585ea1081b43937174fb",
+        "validation": "Reviewed source integration; fresh compile, scoped controls and required gates pending. No full verification acceptance."
+      }
     },
     {
       "area": "compiler",
@@ -8973,7 +8983,12 @@
       ],
       "api": "Logical original source key/point scope plus existing Native SignatureSourceNameKey",
       "required_change": "Genuine roles/written indices4096 succeed but declaration_name_policy plus from_original_native_word4104 excludes retained Logical source and records namespace_unknown barrier. Repair authentic Logical key/namespace/frame transport, existing producer family; preserve physical Native key purpose.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "successor of 2459c99246751fd7695a585ea1081b43937174fb",
+        "validation": "Reviewed source integration; fresh compile, scoped controls and required gates pending. No full verification acceptance."
+      }
     },
     {
       "area": "compiler",
@@ -23599,7 +23614,12 @@
       ],
       "api": "Existing distinct actual CommandId and report API",
       "required_change": "Stale inverse/keyed-name wording must be corrected: rendered full names are noninjective and are not table identity. This is documentation/purpose precision debt, not a new resolver",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "successor of 2459c99246751fd7695a585ea1081b43937174fb",
+        "validation": "Reviewed source integration; fresh compile, scoped controls and required gates pending. No full verification acceptance."
+      }
     },
     {
       "area": "runtime",
@@ -24821,7 +24841,13 @@
       ],
       "api": "import_query_binding/resolve_import_query + native_namespace_token_at (C arena owner) + OriginalArguments",
       "required_change": "Actual nonGLOBAL Jim procedure namespace has jim_namespace.is_some; namespace_name_token intentionally returnsNone there, so current query cannot produce required body result. Need genuine selected Jim declaration/holder/context owner transport and original command operand, preserving C token contract and no fallback rendered-name identity.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "successor of 2459c99246751fd7695a585ea1081b43937174fb",
+        "validation": "Reviewed source integration; fresh compile, scoped controls and required gates pending. No full verification acceptance.",
+        "limits": "Original byte query owner only; Jim physical info-body result-header/getter equivalence remains an independently open owner boundary."
+      }
     },
     {
       "area": "runtime",
@@ -31516,7 +31542,12 @@
       ],
       "api": "Namespaces::find_namespace_bytes_checked/name_bytes + NativeGlobProtocol; Syntax native_command_full_name_bytes typed slot owner exists",
       "required_change": "Extend existing Namespaces report capability with selected immutable report parts (actual constructed C namespace path versus actual reached Jim flat namespace bytes), distinct from legacy Unicode/report name_bytes. Report data conveys no namespace/cell/callable identity or Native entry. Default unavailable stays explicit; real producer validates actual selected namespace/context before issuing. Existing source facades remain legitimate.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "successor of 2459c99246751fd7695a585ea1081b43937174fb",
+        "validation": "Reviewed source integration; fresh compile, scoped controls and required gates pending. No full verification acceptance."
+      }
     },
     {
       "area": "runtime",
@@ -31546,7 +31577,12 @@
       ],
       "api": "Namespaces::find_namespace_bytes_checked/name_bytes + NativeGlobProtocol; Syntax native_command_full_name_bytes typed slot owner exists",
       "required_change": "Implement the new selected report-parts facet from actual Runtime namespace storage/path or genuine held Jim namespace, preserving existing Namespace lifecycle/currentness. Do not parse ns_qualified_name output to reconstruct path or grant a new live namespace. Shared pure report serializers and Core inventory adapters remain separate changes.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "successor of 2459c99246751fd7695a585ea1081b43937174fb",
+        "validation": "Reviewed source integration; fresh compile, scoped controls and required gates pending. No full verification acceptance."
+      }
     },
     {
       "area": "runtime",
@@ -33741,7 +33777,12 @@
         "Actual ensemble config retains original objects/current caller outer scope, but direct Value list/dict conversion APIs do not receive this captured caller callback at reached conversion stages. Transport existing OriginalNameConsumerScope through same checked List/Dictionary/iteration owners, retaining exact original backing/member/lifetime/generation and configured result roles. Outer finish is not itself nested stage transport; strong inner object guards remain separate and must not be weakened.",
         "1200/1286 genuine workers;1221 direct List and1301 direct DictionarySearch/1306 iteration actual seams. Exact nested API integration must verify existing callee guard, not assume all helpers unguarded."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "successor of 2459c99246751fd7695a585ea1081b43937174fb",
+        "validation": "Reviewed source integration; fresh compile, scoped controls and required gates pending. No full verification acceptance."
+      }
     },
     {
       "area": "vm",
@@ -60493,7 +60534,12 @@
       ],
       "api": "Existing finding replay metadata owner and documented marker scope",
       "required_change": "Correct actual marker claim to Tcl-release dimension and separately retained generator-rate/source/config currency; coordinate with existing actual replay owner repair, no new semantic resolver.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "successor of 2459c99246751fd7695a585ea1081b43937174fb",
+        "validation": "Reviewed source integration; fresh compile, scoped controls and required gates pending. No full verification acceptance."
+      }
     },
     {
       "area": "audit",
@@ -60808,7 +60854,12 @@
       ],
       "api": "Actual ConditionalCollectionSourcePairingAdvice / ConditionalIruleSourceFlowAdvice and compiler Diagnostic::from_conditional_irule_source projection",
       "required_change": "Update actual quoted current Symptoms/UI messages to conditional source-pairing/runtime-applicability-unproved scope. General API protocol behavior in Why paragraphs is not refuted merely because this analyser source cannot prove runtime continuation. Retain independent actual provider/original assertions. Two actual message paragraphs, one current conditional diagnostic message contract.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "successor of 2459c99246751fd7695a585ea1081b43937174fb",
+        "validation": "Reviewed source integration; fresh compile, scoped controls and required gates pending. No full verification acceptance."
+      }
     },
     {
       "area": "audit",
@@ -60831,7 +60882,12 @@
       ],
       "api": "Actual DiagnosticSourceAuthoringPurpose::ConditionalSourceNoAction / Core diagnostic_context action-subject ingress",
       "required_change": "Correct explicit editor offers Add event disable all +return action assertion against actual current ConditionalSourceNoAction authoring purpose. This is actual action availability documentation, separate from message wording. Do not enable edits or infer runtime completion to match prose.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "successor of 2459c99246751fd7695a585ea1081b43937174fb",
+        "validation": "Reviewed source integration; fresh compile, scoped controls and required gates pending. No full verification acceptance."
+      }
     },
     {
       "area": "audit",
@@ -60854,7 +60910,12 @@
       ],
       "api": "Actual selected sanitizer effects and header-source flow diagnostic owner",
       "required_change": "Reconcile same-page assertion exact string map/regsub sanitization still warns with later explicit same CRLF map clears this diagnostic. Use actual selected sanitizer effect owner/controls to describe current scope; contradiction requires docs correction even while which behavior is correct remains an owner/control question.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "successor of 2459c99246751fd7695a585ea1081b43937174fb",
+        "validation": "Reviewed source integration; fresh compile, scoped controls and required gates pending. No full verification acceptance."
+      }
     },
     {
       "area": "audit",
@@ -60877,7 +60938,12 @@
       ],
       "api": "Actual selected list index-form rewrite source owner",
       "required_change": "Reconcile same-page only single-index lindex rewrites claim with later first index of multi-index lindex considered. Preserve actual selected original index owner and original assertions; no expected semantics derived from prose.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "successor of 2459c99246751fd7695a585ea1081b43937174fb",
+        "validation": "Reviewed source integration; fresh compile, scoped controls and required gates pending. No full verification acceptance."
+      }
     },
     {
       "area": "audit",
@@ -62107,7 +62173,12 @@
       ],
       "api": "Actual source owners pinned in root-audit-active-guidance40-read.json/proposals/10/actual_owner_evidence",
       "required_change": "Explain Symbol/Version chains, selected current physical/source projection and typed node/edge identities; remove inverse var_symbol lookup from rendered chain names. Preserve display labels as output only.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "successor of 2459c99246751fd7695a585ea1081b43937174fb",
+        "validation": "Reviewed source integration; fresh compile, scoped controls and required gates pending. No full verification acceptance."
+      }
     },
     {
       "area": "audit",
@@ -62129,7 +62200,12 @@
       ],
       "api": "Actual source owners pinned in root-audit-active-guidance40-read.json/proposals/11/actual_owner_evidence",
       "required_change": "Describe retained original full lexer config and distinct invocation/native policy; remove dialect-name rederivation, no-config CFG and Tcl9-only/Jim-unmodelled universal assertions. Native selection/arguments/currentness remain separate admission gates.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "successor of 2459c99246751fd7695a585ea1081b43937174fb",
+        "validation": "Reviewed source integration; fresh compile, scoped controls and required gates pending. No full verification acceptance."
+      }
     },
     {
       "area": "audit",
@@ -62151,7 +62227,12 @@
       ],
       "api": "Actual source owners pinned in root-audit-active-guidance40-read.json/proposals/12/actual_owner_evidence",
       "required_change": "Replace process-global mutable cross-document pack-leak explanation with immutable per-profile/environment/generation context owner. Actual iRules purpose gate remains independent; generic bytearray semantics outside naming excluded.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "successor of 2459c99246751fd7695a585ea1081b43937174fb",
+        "validation": "Reviewed source integration; fresh compile, scoped controls and required gates pending. No full verification acceptance."
+      }
     },
     {
       "area": "audit",
@@ -62426,7 +62507,12 @@
         }
       ],
       "required_change": "Maintained interactive Emacs example concatenates actual buffer-file-name into shell command text without shell-word encoding. A filename containing shell spaces/metacharacters is not represented as one original filename argument. Use actual argument-vector process entry or selected shell-word encoding; no original Tcl/Jim semantic, simulator or provider defect alleged.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "successor of 2459c99246751fd7695a585ea1081b43937174fb",
+        "validation": "Reviewed source integration; fresh compile, scoped controls and required gates pending. No full verification acceptance."
+      }
     },
     {
       "area": "audit",
@@ -62583,7 +62669,12 @@
       ],
       "api": "SourceCommandBindings diagnostic_slot_presence_at / diagnostic_command_slot_presence_at",
       "required_change": "Compiler bounded source peer confirms actual W123 semantic resolution uses positioned SourceCommandBindings/selected-slot presence; all_procs/classes/aliases maps serve suggestions only. Current semantic-resolution/header-only claim30–49 stale; memo dependency/cache behavior remains separate unknown, no inference from diagnostic consumer.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "successor of 2459c99246751fd7695a585ea1081b43937174fb",
+        "validation": "Reviewed source integration; fresh compile, scoped controls and required gates pending. No full verification acceptance."
+      }
     },
     {
       "area": "audit",
@@ -62638,7 +62729,12 @@
         }
       ],
       "required_change": "Describe MethodInventory keyed by module-issued ProcedureId; MethodCoordinate and reporting_label remain authoring/display metadata and may collide.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "successor of 2459c99246751fd7695a585ea1081b43937174fb",
+        "validation": "Reviewed source integration; fresh compile, scoped controls and required gates pending. No full verification acceptance."
+      }
     },
     {
       "area": "audit",
@@ -62684,7 +62780,12 @@
         }
       ],
       "required_change": "Qualify actual module-backed source requires retained original CommandTokens/current selected original operation and effective arguments; missing proof widens. Explicit moduleNone nominal compatibility is separate, without claiming package installation or Native Normal.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "successor of 2459c99246751fd7695a585ea1081b43937174fb",
+        "validation": "Reviewed source integration; fresh compile, scoped controls and required gates pending. No full verification acceptance."
+      }
     },
     {
       "area": "audit",
@@ -62753,7 +62854,12 @@
         }
       ],
       "required_change": "Replace blanket statement with actual interpreter pin/context and selected C/Jim operation/grammar policies. Keep actual backend supported subsets, current original objects/ABI/provider/currentness requirements and unexecuted conformance limits.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "successor of 2459c99246751fd7695a585ea1081b43937174fb",
+        "validation": "Reviewed source integration; fresh compile, scoped controls and required gates pending. No full verification acceptance."
+      }
     },
     {
       "area": "audit",
@@ -62806,7 +62912,12 @@
         }
       ],
       "required_change": "Document actual selected StructuredLowering and authored source assignment/append/listappend operand-layout query with current original invocation, frozenarity, configuration and replacement mutation/context proof; do not imply every custom RMW or arbitraryprefix is accepted.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "successor of 2459c99246751fd7695a585ea1081b43937174fb",
+        "validation": "Reviewed source integration; fresh compile, scoped controls and required gates pending. No full verification acceptance."
+      }
     },
     {
       "area": "audit",
@@ -62852,7 +62963,12 @@
         }
       ],
       "required_change": "Explain source-backed substitution first consumes retained NormalTaintInvocation transform projection under actual metadata; legacy transform_colour fallback requires explicit nominal metadata and no source tokens. Do not claim generic source sanitizer authority from command spelling.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "successor of 2459c99246751fd7695a585ea1081b43937174fb",
+        "validation": "Reviewed source integration; fresh compile, scoped controls and required gates pending. No full verification acceptance."
+      }
     },
     {
       "area": "audit",
@@ -131107,18 +131223,19 @@
   ],
   "implementation_progress": {
     "resumed_from": "554085e162823ea8bd126898d0c27b7b2a9f8628",
-    "utc": "2026-10-16T09:10:00Z",
+    "utc": "2026-10-16T09:18:05.355785+00:00",
     "audit_baseline_counts_unchanged": true,
     "total_required_units": 2158,
-    "implemented_pending_validation": 56,
+    "implemented_pending_validation": 79,
     "verified_complete": 0,
-    "not_started": 2102,
+    "not_started": 2079,
     "remaining_unverified_or_unimplemented": 2158,
     "additional_work_not_counted_as_catalogue_completion": [
       "VM no-argument Parent current-holder projection (catalogue mapping pending)",
       "MCP empty-pool candidate existing validation obligation (already adopted decoder, no new semantic migration)",
       "Baseline Runtime compile adapters in jim_capture_prefix/jim_output_name_stages; mapping/reconciliation pending.",
-      "Legacy Length descriptor issuer and other demonstrated missing shared-owner facets require bounded count reconciliation."
+      "Legacy Length descriptor issuer and other demonstrated missing shared-owner facets require bounded count reconciliation.",
+      "Jim physical info-body result must retain actual original body header without a body String getter; byte-query270 does not close that owner boundary."
     ],
     "latest_scoped_build": {
       "status": "FAIL_W125_TEST_IMPORT",
@@ -131194,6 +131311,46 @@
         "log": "runtime-import-source.log",
         "sha256": "74db820f7d4a9630fd6f9c5994c99b0e558b0f1e92d0c5061cb05f200f2f79c1",
         "scope": "Bounded selected test controls; no whole-repository, Native/provider or issue acceptance beyond actual controls."
+      },
+      {
+        "selector": "original_namespace_continuation_tests",
+        "head": "2459c99246751fd7695a585ea1081b43937174fb",
+        "PASS": 7,
+        "FAIL": 0,
+        "log": "runtime-2459-original_namespace_continuation_tests.log",
+        "sha256": "9905f6102bad0316fa7e86f35a0c7183da957de85688ffb26e8c9897aa67d43d",
+        "binary_sha256": "3aab6dfb0a9ca3d7f2244d6ac252dcfd0b693e442a21e6647565804da63bb8cb",
+        "scope": "Selected original controls only; no full-group, provider-equivalence or issue acceptance."
+      },
+      {
+        "selector": "original_jim_import",
+        "head": "2459c99246751fd7695a585ea1081b43937174fb",
+        "PASS": 7,
+        "FAIL": 0,
+        "log": "runtime-2459-original_jim_import.log",
+        "sha256": "386ce318229412e2e03ff62e008bb7dce3bc67ebe8f59ba771f310c328a3911d",
+        "binary_sha256": "3aab6dfb0a9ca3d7f2244d6ac252dcfd0b693e442a21e6647565804da63bb8cb",
+        "scope": "Selected original controls only; no full-group, provider-equivalence or issue acceptance."
+      },
+      {
+        "selector": "interp::native_jim_import",
+        "head": "2459c99246751fd7695a585ea1081b43937174fb",
+        "PASS": 13,
+        "FAIL": 0,
+        "log": "runtime-2459-interp-native_jim_import.log",
+        "sha256": "0087449642499e656c8148ad40333f3c6e893ae3dd17cb61246cef09e80113f8",
+        "binary_sha256": "3aab6dfb0a9ca3d7f2244d6ac252dcfd0b693e442a21e6647565804da63bb8cb",
+        "scope": "Selected original controls only; no full-group, provider-equivalence or issue acceptance."
+      },
+      {
+        "selector": "registered_legacy_length_converts_original_without_admitting_unknown_descriptors",
+        "head": "2459c99246751fd7695a585ea1081b43937174fb",
+        "PASS": 1,
+        "FAIL": 0,
+        "log": "runtime-2459-registered_legacy_length_converts_original_without_admitting_unknown_descriptors.log",
+        "sha256": "6f508d2dd6930da2c76dd1857be518fb24773eecfdb5ccb482aff38b89c77ddf",
+        "binary_sha256": "3aab6dfb0a9ca3d7f2244d6ac252dcfd0b693e442a21e6647565804da63bb8cb",
+        "scope": "Selected original controls only; no full-group, provider-equivalence or issue acceptance."
       }
     ],
     "provider_pairing": {
@@ -131210,18 +131367,15 @@
     "owner_facet_reconciliation": "New owner facets and VM Parent catalogue correspondence remain explicitly pending reconciliation; no extra unit completion or baseline count change inferred.",
     "runtime_build": {
       "status": "PASS",
-      "head": "52e659ed932a20f8e673b6b748bce4390dad4cc8",
-      "test_adapter_overlay_sha256": "124ed44ccb0f76c50a70c8cdee0d618b014c1522844c05f1df096ce3dd21ecc0",
-      "log": "/tmp/naming-runtime-build-52e659ed9-adapters.log",
-      "binary_sha256": "7cb9d75c6a505df489b956e1b3849d28515a0a4ada8f79d826a2db1c8a373b37",
-      "warnings": 12
+      "head": "2459c99246751fd7695a585ea1081b43937174fb",
+      "log": "/tmp/naming-runtime-build-2459c9924.log",
+      "binary_sha256": "3aab6dfb0a9ca3d7f2244d6ac252dcfd0b693e442a21e6647565804da63bb8cb",
+      "warnings": 12,
+      "overlay": null
     },
     "scoped_capture": "experiments/name-handling/results/owner-adoption-20261016/records.json",
     "pending_repairs": [
-      "Runtime two old var_get fixture APIs adapted to Option without assertion changes.",
-      "Namespace unknown operational Length gains explicit registered legacy descriptor issuer; generic Unknown remains refused.",
-      "Older Import fixtures reenter genuine namespace caller and test the reached getter result/currentness schedule; assertions retained.",
-      "W125 test segmenter qualification repaired."
+      "Repaired Compiler Logical-variable fixture premises and W125 qualification await a fresh workspace build and reruns."
     ]
   }
 }

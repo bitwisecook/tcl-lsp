@@ -131,7 +131,7 @@ gate is the shared purity classifier: `Traits::PURE` (or
 | O100 constant propagation | value into uses | Needs typed IR from a `lowering_hook`; blocked by `ESTABLISHES_VARIABLE_TRACE`, `CREATES_SCOPE_ALIAS` |
 | O102 load forwarding | literal into uses | Blocked by the same aliasing/trace traits and by any barrier statement |
 | O103 pure-proc folding | call → constant | Every callee must classify pure — one unregistered command in a proc poisons it |
-| O104 / O130 chain folds | `set`+`append`/`lappend` → one `set` | Escape gate is registry-driven; the heads themselves are name-hardcoded, so third-party RMW commands cannot join |
+| O104 / O130 chain folds | selected `set` plus append/list-append layout → one `set` | Requires a selected `StructuredLowering` source layout, retained current original invocation, effective arguments, matching lexer configuration, frozen arity, and mutation/context proof; this does not accept arbitrary RMW commands or prefixes |
 | O105 redundancy (GVN) | reuse a prior identical call | Production requires source-faithful semantic facts, `PURE \| CSE_CANDIDATE`, reusable `result_stability`, closed empty effects/transitions, and a complete per-site dispatch proof. Versioned-world results also key on their declared read domains; missing proof declines reuse |
 | O106 loop hoisting (LICM) | invariant out of loop | The production path uses the same semantic eligibility and dispatch proofs as GVN, plus the function's SCCP executability and loop-invariance checks; traits alone do not authorise a hoist |
 | O107 / O112 unreachable + constant branches | dead blocks, `if {0}` | Need structured IR: only commands with a `lowering_hook` (`If` / `While` / `For` / `Switch`) participate; the hook enum is closed |

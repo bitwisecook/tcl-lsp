@@ -62,6 +62,46 @@
       "log": "runtime-import-source.log",
       "sha256": "74db820f7d4a9630fd6f9c5994c99b0e558b0f1e92d0c5061cb05f200f2f79c1",
       "scope": "Bounded selected test controls; no whole-repository, Native/provider or issue acceptance beyond actual controls."
+    },
+    {
+      "selector": "original_namespace_continuation_tests",
+      "head": "2459c99246751fd7695a585ea1081b43937174fb",
+      "PASS": 7,
+      "FAIL": 0,
+      "log": "runtime-2459-original_namespace_continuation_tests.log",
+      "sha256": "9905f6102bad0316fa7e86f35a0c7183da957de85688ffb26e8c9897aa67d43d",
+      "binary_sha256": "3aab6dfb0a9ca3d7f2244d6ac252dcfd0b693e442a21e6647565804da63bb8cb",
+      "scope": "Selected original controls only; no full-group, provider-equivalence or issue acceptance."
+    },
+    {
+      "selector": "original_jim_import",
+      "head": "2459c99246751fd7695a585ea1081b43937174fb",
+      "PASS": 7,
+      "FAIL": 0,
+      "log": "runtime-2459-original_jim_import.log",
+      "sha256": "386ce318229412e2e03ff62e008bb7dce3bc67ebe8f59ba771f310c328a3911d",
+      "binary_sha256": "3aab6dfb0a9ca3d7f2244d6ac252dcfd0b693e442a21e6647565804da63bb8cb",
+      "scope": "Selected original controls only; no full-group, provider-equivalence or issue acceptance."
+    },
+    {
+      "selector": "interp::native_jim_import",
+      "head": "2459c99246751fd7695a585ea1081b43937174fb",
+      "PASS": 13,
+      "FAIL": 0,
+      "log": "runtime-2459-interp-native_jim_import.log",
+      "sha256": "0087449642499e656c8148ad40333f3c6e893ae3dd17cb61246cef09e80113f8",
+      "binary_sha256": "3aab6dfb0a9ca3d7f2244d6ac252dcfd0b693e442a21e6647565804da63bb8cb",
+      "scope": "Selected original controls only; no full-group, provider-equivalence or issue acceptance."
+    },
+    {
+      "selector": "registered_legacy_length_converts_original_without_admitting_unknown_descriptors",
+      "head": "2459c99246751fd7695a585ea1081b43937174fb",
+      "PASS": 1,
+      "FAIL": 0,
+      "log": "runtime-2459-registered_legacy_length_converts_original_without_admitting_unknown_descriptors.log",
+      "sha256": "6f508d2dd6930da2c76dd1857be518fb24773eecfdb5ccb482aff38b89c77ddf",
+      "binary_sha256": "3aab6dfb0a9ca3d7f2244d6ac252dcfd0b693e442a21e6647565804da63bb8cb",
+      "scope": "Selected original controls only; no full-group, provider-equivalence or issue acceptance."
     }
   ],
   "runtime_binary": {
@@ -72,8 +112,14 @@
     "overlay_sha256": "124ed44ccb0f76c50a70c8cdee0d618b014c1522844c05f1df096ce3dd21ecc0"
   },
   "limitations": [
-    "Original failed results retained; repaired controls require fresh builds/reruns.",
+    "Original failures remain retained alongside subsequent repaired controls; each result is bound to its actual source head and any overlay.",
     "Current gated acceptance, closed-issue regressions and original M12 comparison remain independent.",
     "No full source afterimages or binaries copied; Git commits retain source."
-  ]
+  ],
+  "runtime_binary_2459": {
+    "path": "target/debug/deps/tcl_runtime-61639851635952d4",
+    "sha256": "3aab6dfb0a9ca3d7f2244d6ac252dcfd0b693e442a21e6647565804da63bb8cb",
+    "head": "2459c99246751fd7695a585ea1081b43937174fb",
+    "overlay": null
+  }
 }

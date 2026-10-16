@@ -728,6 +728,20 @@ impl Procs for Interp {
         self.original_proc_body_query(name)
     }
 
+    fn proc_body_original_bytes(
+        &mut self,
+        original: &Self::Value,
+    ) -> Result<Option<tcl_runtime_api::ProcBodyBytesQuery>, Self::OperationError> {
+        if self
+            .native_invocation_dialect()
+            .native_jim_lookup_protocol()
+            .is_none()
+        {
+            return Ok(None);
+        }
+        self.original_proc_body_operand_query(*original).map(Some)
+    }
+
     fn proc_original_formal_list_value(
         &self,
         name: &[u8],
@@ -1444,6 +1458,13 @@ impl Namespaces for Interp {
             .var_table(ns.0 as usize)
             .cell(simple)
             .is_some()
+    }
+
+    fn namespace_report_parts_checked(
+        &mut self,
+        namespace: NsId,
+    ) -> Result<tcl_runtime_api::NativeNamespaceReportParts, Self::OriginalNameError> {
+        self.original_namespace_report_parts(namespace.0 as usize)
     }
 
     fn name_bytes(&self, ns: NsId) -> Vec<u8> {

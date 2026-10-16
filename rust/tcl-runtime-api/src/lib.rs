@@ -1803,6 +1803,17 @@ pub trait Aliases: tcl_syntax::value::ValueOps {
     }
 }
 
+/// Selected immutable namespace data for reporting, independent of live identity.
+/// Equal data can come from different namespace incarnations. These parts grant
+/// no lookup, cell, callable, entry, or successful-completion authority.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum NativeNamespaceReportParts {
+    /// Original constructed C components, including literal separators in members.
+    CConstructed(ByteNamespacePath),
+    /// Counted bytes from the reached original Jim flat namespace holder.
+    JimFlat(std::rc::Rc<[u8]>),
+}
+
 /// The namespace tree and actual command lookup owners.
 pub trait Namespaces {
     /// Full failure of an original name query and its retained command owner.
@@ -1882,9 +1893,11 @@ pub trait Namespaces {
     /// The fully-qualified name of namespace `ns` (`"::"` for the global root) —
     /// what `namespace current` reports.
     fn name(&self, ns: NsId) -> String;
-    /// The fully-qualified name a [`CommandId`] names (the inverse of
-    /// [`find_command`](Self::find_command)), or `None` for a stale/unknown id —
-    /// backs `namespace which`.
+    /// The current fully qualified reporting name of the selected [`CommandId`],
+    /// or `None` for a stale or unknown id. Backs `namespace which`.
+    ///
+    /// Distinct command slots can render as the same name. Retain the command
+    /// handle for identity and dispatch independently of this reporting text.
     fn command_name(&self, cmd: CommandId) -> Option<String>;
 
     // -- namespace-tree navigation (mirrors C's `Namespace` struct: `nsId`
@@ -2049,13 +2062,30 @@ pub trait Namespaces {
         core::str::from_utf8(simple).is_ok_and(|simple| self.namespace_var_exists(ns, simple))
     }
 
+    /// Snapshot selected namespace report data from its actual physical owner.
+    /// This is separate from Unicode/report spelling and supplies no live handle.
+    /// Implementations preserve the selected lifecycle and original getter stages.
+    ///
+    /// # Errors
+    /// The default has no original namespace report owner and refuses explicitly.
+    fn namespace_report_parts_checked(
+        &mut self,
+        _namespace: NsId,
+    ) -> Result<NativeNamespaceReportParts, Self::OriginalNameError> {
+        Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "original namespace report parts",
+        )
+        .into())
+    }
+
     /// [`name`](Self::name) as the bytes the namespace is actually keyed by.
     fn name_bytes(&self, ns: NsId) -> Vec<u8> {
         self.name(ns).into_bytes()
     }
 
-    /// [`command_name`](Self::command_name) as the bytes the command is
-    /// actually keyed by.
+    /// [`command_name`](Self::command_name) as report bytes. The default encodes
+    /// its String result as UTF-8; engines can preserve exact report bytes.
+    /// Rendered bytes carry no command-table identity.
     fn command_name_bytes(&self, cmd: CommandId) -> Option<Vec<u8>> {
         self.command_name(cmd).map(String::into_bytes)
     }
@@ -2193,6 +2223,17 @@ pub trait Procs: tcl_syntax::value::ValueOps {
         }))
     }
 
+    /// Query body bytes through the original command operand when represented.
+    /// `None` explicitly selects the existing byte-name compatibility adapter.
+    /// An original implementation returns a represented outcome or its terminal
+    /// failure; refusal never licenses retry through a rendered command name.
+    fn proc_body_original_bytes(
+        &mut self,
+        _original: &Self::Value,
+    ) -> Result<Option<ProcBodyBytesQuery>, Self::OperationError> {
+        Ok(None)
+    }
+
     /// Retain body bytes without inspecting or materialising any default object.
     fn proc_body_bytes(&mut self, name: &[u8]) -> Result<Option<Vec<u8>>, Self::OperationError> {
         Ok(self.proc_info_bytes(name)?.map(|info| info.body))
@@ -2218,6 +2259,15 @@ pub trait Procs: tcl_syntax::value::ValueOps {
         }
         Ok(ProcDefaultValue::MissingParameter)
     }
+}
+
+/// Body-byte query data, independent of a native body-result header or execution.
+#[derive(Debug, Clone)]
+pub enum ProcBodyBytesQuery {
+    /// Reached bytes of the actual selected declaration's body.
+    Body(Vec<u8>),
+    /// Original diagnostic spelling after the selected command was not a proc.
+    NotProcedure(Vec<u8>),
 }
 
 /// Result of native default lookup, preserving missing-definition distinctions.

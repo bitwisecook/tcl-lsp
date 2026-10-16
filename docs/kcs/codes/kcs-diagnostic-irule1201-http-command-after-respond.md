@@ -21,9 +21,11 @@ HTTP state is committed once `respond` or `redirect` is called. Any further head
 
 ## Symptoms
 
-- A yellow squiggle appears on the HTTP command that follows the response, with
-  the message "'HTTP::header' used after response is committed. HTTP context is
-  invalid after HTTP::respond/HTTP::redirect."
+- Conditional source-flow advice may underline a later HTTP-context command
+  with a message beginning `Conditional source flow (runtime reachability and
+  completion unproved): Possible HTTP-context operation`. It reports a source
+  ordering candidate; it does not prove a response executed or that later
+  runtime code is unreachable.
 
 ## Example that triggers it
 

@@ -118,9 +118,13 @@ classification if it appears in source anyway.
 
 ### Taint transforms
 
-`transform_colour` in `rust/tcl-compiler/src/taint.rs` reads the command's
-`taint_transform` colour from the registry, preferring a resolved
-subcommand's transform over the bare command's:
+For source-backed substitution, taint analysis first retains a
+`NormalTaintInvocation` under the actual registry metadata and reads its
+transform projection. A legacy `transform_colour` registry lookup is used
+only on the explicit nominal-metadata compatibility path when no source tokens
+are available. A command's spelling alone therefore does not grant a
+source-backed sanitizer classification. The transform colour is taken from
+the resolved operation (including a selected subcommand when present):
 
 - `URI::encode` on tainted data: adds `URL_ENCODED | CRLF_FREE`.
 - `HTML::encode` / `HTML::escape` / `htmlencode` on tainted data: adds
@@ -242,10 +246,11 @@ Every code below is a `DiagCode` variant in
 - To add taint tracking for a new command: set `taint_source: Some(colour)`
   on its `CommandSpec` for sources, or set the relevant `taint_*_sink*`
   fields (read by `classify_taint_sinks`) for sinks.
-- To add a new sanitiser: set `taint_transform: Some(colour)` on the
-  sanitising command's spec — `transform_colour` stamps it onto the result.
-  A colour above bit 14 will not reach the compiler until its mirror gains
-  the bit.
+- To add a new sanitiser: declare `taint_transform: Some(colour)` on the
+  command spec and ensure source-backed analysis can retain the selected
+  `NormalTaintInvocation`; the nominal fallback is restricted to its explicit
+  detached compatibility path. A colour above bit 14 will not reach the
+  compiler until its mirror gains the bit.
 - Taint colours join by intersection — if any path is unsanitised, the colour
   is lost at the merge point.
 

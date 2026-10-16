@@ -24,9 +24,11 @@ protocol is known to require collection.
 
 ## Symptoms
 
-- A yellow squiggle appears on the event's first statement, with the message
-  "'HTTP_REQUEST_DATA' will never fire without a client HTTP::collect call in
-  another event."
+- Conditional source-pairing advice may underline the event and use a
+  message beginning `Conditional source pairing (runtime applicability
+  unproved):`. The source inventory suggests a possible missing collection
+  pairing; it does not establish event activation, runtime applicability, or
+  that the handler will never fire.
 
 ## Example that triggers it
 

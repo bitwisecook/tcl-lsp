@@ -1,0 +1,12 @@
+
+running 7 tests
+test cmd_namespace::original_namespace_continuation_tests::original_namespace_children_keeps_selected_target_birth_across_pattern_callback ... ok
+test cmd_namespace::original_namespace_continuation_tests::original_namespace_unknown_checks_retired_handler_callback_before_new_publication ... ok
+test cmd_namespace::original_namespace_continuation_tests::original_namespace_unknown_validates_original_list_and_frame_before_replacing_handler ... ok
+test cmd_namespace::original_namespace_continuation_tests::original_namespace_upvar_transports_outer_namespace_check_through_original_target_conversion ... ok
+test cmd_namespace::original_namespace_continuation_tests::original_namespace_upvar_checks_namespace_before_target_getter_and_alias_publication ... ok
+test cmd_namespace::original_namespace_continuation_tests::original_namespace_path_checks_prior_targets_and_original_member_backing_before_commit ... ok
+test cmd_namespace::original_namespace_continuation_tests::original_namespace_children_path_unknown_upvar_keep_successful_getter_order_and_objects ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 2265 filtered out; finished in 3.55s
+

@@ -479,20 +479,18 @@ reaches the `set` and `return` hooks, which lower `set x $($a*2)` to the
 same `AssignExpr` as `set x [expr {$a*2}]`. In any other word position the
 sugar is an opaque dynamic word.
 
-**The backends are Tcl 9, by decision.** The resolved point reaches the
-front half of every backend — the VM's and CLI's ingress adapters resolve
-through `resolve_environment` — but what codegen emits and what `tcl-vm`
-and `runtime/rust` execute is Tcl 9 semantics: a profile projected for a
-non-Tcl point has `runtime_base = None` and so `vm_runtime_version = V9_0`,
-and the VM's own pin (`Vm::set_runtime_version`) is a `TclVersion`, a
-closed set of Tcl releases with no Jim rung. Dialect-aware emission and
-execution — lowering `$(…)`, Jim's list/dict/`expr` semantics, a VM pin that
-is a `DialectPoint` — is an **eventual**, recorded here and in
-`compiler/codegen-internals.md`. Every backend consumes the point-derived
-grammar and profile and never a name, so that change is a new rung on the
-same ladder, not a second resolution. The VM's list conversions
-(`Value::as_list`, `cmd_prefix`, `interp`, `expr`) split strictly for the
-same reason.
+**Runtime selection is pinned per interpreter context and operation.**
+`Interp::pin_context` resolves a `RuntimeContext` through the shared ingress
+seam and retains the selected environment, release point, build/package
+constraints, and registry overlay generation. The interpreter's selected
+invocation dialect is then used with operation-specific grammar and host
+policies; a dialect profile alone is not proof that every command or feature
+has backend support. C and Jim paths remain bounded by their actual supported
+operations, original object/ABI availability, provider, and currentness
+checks. The existence of a selected point therefore describes context
+selection, not complete cross-backend semantic parity. Conformance beyond
+the exercised runtime paths remains unproven; consult the runtime support
+and test records before relying on a particular feature.
 
 ---
 

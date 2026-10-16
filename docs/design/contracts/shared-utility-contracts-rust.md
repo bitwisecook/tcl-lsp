@@ -5129,3 +5129,23 @@ premises. Typed finding membership supplies conditional reporting only; its
 NoAction facet cannot mint a context-authoring subject. Unknown effects and
 strict runtime absence/Normal guards remain independent. Unsupported structured
 source phases have no advice.
+
+The existing VM `OriginalNameConsumerScope` projects ensemble List members via
+`OriginalNumericOps::list_with_original_caller_check`. Dictionary search carries
+the same scope through existing conversion and pair selection, retaining its
+original root, backing epoch and borrowed member roles. Exhaustion releases
+backing before the root and checks the caller after that release; conversion
+and member String getters cannot donate a new current caller.
+
+Runtime procedure byte queries retain actual C namespace tokens or the selected
+Jim declaration's original namespace holder, header birth and interpreter pool.
+Existing context bindings, when present, must match; query capture does not bind
+an unbound object to a Source. The original Jim command resolver carries outer
+checks through its existing getter/cache sequence. `ProcBodyBytesQuery` is byte
+report data, independent of physical body-result object ownership.
+
+`NativeNamespaceReportParts` is the immutable report transport owned through
+`Namespaces::namespace_report_parts_checked`. Runtime issues constructed C paths
+from actual retained namespace storage, or counted Jim bytes through the reached
+original holder without changing the caller namespace. Its default unavailable
+result is explicit. Report equality grants no identity or execution authority.

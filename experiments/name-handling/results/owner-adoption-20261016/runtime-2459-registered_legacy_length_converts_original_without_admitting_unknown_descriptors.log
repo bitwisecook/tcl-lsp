@@ -1,0 +1,6 @@
+
+running 1 test
+test value_ops::legacy_extension_length_tests::registered_legacy_length_converts_original_without_admitting_unknown_descriptors ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2271 filtered out; finished in 6.77s
+

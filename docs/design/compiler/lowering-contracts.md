@@ -24,8 +24,11 @@ trace facts they thread through; the contract below holds for all of them.
 - Unknown/dynamic constructs should degrade to explicit barrier/call shapes rather than silent assumptions.
 - Namespace/proc qualification should be normalised consistently.
 - TclOO method bodies (`oo::class create` / `oo::define`) are lifted to
-  `Module::methods` (`MethodDef`, keyed `{class_qname}::{method_name}`) by
-  `extract_oo_methods_pass` — a post-pass over the *assembled* module, run from
+  `Module::methods` (`MethodDef`) by module-issued `ProcedureId`; the
+  `MethodInventory` is keyed by that identity. `MethodCoordinate` and
+  `reporting_label` retain authoring/display metadata and may collide. The
+  bodies are extracted by `extract_oo_methods_pass` — a post-pass over the
+  *assembled* module, run from
   `lower_to_ir` after every chunk has been walked, so it is independent of
   incremental chunk caching. Replacement bodies of a redefined method are
   retained in `Module::redefined_methods`. The pass also merges each class's

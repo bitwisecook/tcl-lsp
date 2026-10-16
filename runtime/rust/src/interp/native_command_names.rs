@@ -694,14 +694,7 @@ impl Interp {
         let dialect = self.native_invocation_dialect();
         let Some(protocol) = dialect.native_command_name_protocol() else {
             if dialect.native_jim_lookup_protocol().is_some() {
-                // This supplied caller stage belongs to selected C NextTo;
-                // Jim's independent lookup worker has no such checked door.
-                if extra.is_some() {
-                    return Err(ValueError::CommandProtocolUnavailable(
-                        "original additional Jim command lookup stage",
-                    ));
-                }
-                return self.resolve_original_jim_command(current, original);
+                return self.resolve_original_jim_command_using(current, original, extra);
             }
             let bytes = self.original_command_lookup_bytes_using(original, extra)?;
             return Ok(self.resolve_dispatchable_with_generation(current, &bytes));

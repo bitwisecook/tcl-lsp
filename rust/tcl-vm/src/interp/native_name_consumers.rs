@@ -334,6 +334,51 @@ impl OriginalNameConsumerScope {
             .current_for_value(original)
     }
 
+    pub(crate) fn list(
+        &self,
+        vm: &mut Vm,
+        original: &Value,
+        protocol: tcl_syntax::native_string::NativeStringProtocol,
+    ) -> Result<crate::NativeListItems, CmdError> {
+        self.check(vm)?;
+        super::native_numeric_ops::OriginalNumericOps::in_original_scope(vm, &self.operation)?
+            .list_with_original_caller_check(original, protocol, |vm| self.check(vm))
+    }
+
+    pub(crate) fn dictionary_search(
+        &self,
+        vm: &mut Vm,
+        original: &Value,
+        protocol: tcl_syntax::native_string::NativeStringProtocol,
+    ) -> Result<crate::value::NativeDictionarySearch, CmdError> {
+        self.check(vm)?;
+        let selected = vm
+            .actual_native_invocation_dialect()
+            .native_string_protocol();
+        self.require(
+            vm,
+            selected == Some(protocol),
+            "original Name Dictionary protocol",
+        )?;
+        let vm = RefCell::new(vm);
+        let reached = original
+            .native_lifetime_lease()
+            .into_value()
+            .into_native_dictionary_search_with_strings(
+                protocol,
+                &mut || self.current_for_value(&mut vm.borrow_mut(), original),
+                &mut |value| self.read(&mut vm.borrow_mut(), value),
+            );
+        if let Err(error) = &reached
+            && let Some(cause) = error.native_execution_refusal()
+        {
+            vm.borrow_mut()
+                .retain_tcl_host_failure(TclHostFailure::Execution(cause.clone()));
+        }
+        self.check(&mut vm.borrow_mut())?;
+        reached
+    }
+
     pub(crate) fn read(&self, vm: &mut Vm, original: &Value) -> Result<Rc<[u8]>, CmdError> {
         self.check(vm)?;
         let lifetime = original.native_lifetime_lease();

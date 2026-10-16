@@ -1196,6 +1196,35 @@ impl EnsembleOptions {
     }
 }
 
+fn ensemble_original_list_member(
+    vm: &mut Vm,
+    original_names: &crate::interp::native_name_consumers::OriginalNameConsumerScope,
+    elements: &crate::NativeListItems,
+    index: usize,
+) -> Result<std::rc::Rc<[u8]>, tcl_cmd_core::CmdError> {
+    let value = elements.elements()?.get(index).ok_or(
+        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "original ensemble List member index",
+        ),
+    )?;
+    let bytes = original_names.read(vm, value)?;
+    elements.elements()?;
+    Ok(bytes)
+}
+
+fn ensemble_original_list_words(
+    vm: &mut Vm,
+    original_names: &crate::interp::native_name_consumers::OriginalNameConsumerScope,
+    elements: &crate::NativeListItems,
+) -> Result<Vec<tcl_core_types::NameBytes>, tcl_cmd_core::CmdError> {
+    (0..elements.elements()?.len())
+        .map(|index| {
+            ensemble_original_list_member(vm, original_names, elements, index)
+                .map(|bytes| tcl_core_types::NameBytes::from(bytes.as_ref()))
+        })
+        .collect()
+}
+
 /// Apply one `-option value` pair that `create` and `configure` share. The
 /// caller has already resolved the option word against its own table, so this
 /// only owns the value parsing (C's per-`case` bodies).
@@ -1224,17 +1253,10 @@ fn apply_shared_option(
         match which {
             SharedOption::Map => apply_ensemble_map(opts, val, vm, creating, protocol)?,
             SharedOption::Subcommands => {
-                let elems = val
-                    .native_object_list_elements(protocol)
-                    .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
-                let names = elems
-                    .iter()
-                    .map(|value| {
-                        original_names
-                            .read(vm, value)
-                            .map(|bytes| tcl_core_types::NameBytes::from(bytes.as_ref()))
-                    })
-                    .collect::<Result<Vec<_>, _>>()
+                let elems = original_names
+                    .list(vm, val, protocol)
+                    .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+                let names = ensemble_original_list_words(vm, &original_names, &elems)
                     .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
                 opts.subcommands = (!names.is_empty()).then_some(names);
                 opts.originals.subcommands = opts
@@ -1243,17 +1265,10 @@ fn apply_shared_option(
                     .map(|_| EnsembleObjectRole::new(NativeEnsembleRoot::pending(val)));
             }
             SharedOption::Parameters => {
-                let elems = val
-                    .native_object_list_elements(protocol)
-                    .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
-                opts.parameters = elems
-                    .iter()
-                    .map(|value| {
-                        original_names
-                            .read(vm, value)
-                            .map(|bytes| tcl_core_types::NameBytes::from(bytes.as_ref()))
-                    })
-                    .collect::<Result<Vec<_>, _>>()
+                let elems = original_names
+                    .list(vm, val, protocol)
+                    .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+                opts.parameters = ensemble_original_list_words(vm, &original_names, &elems)
                     .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
                 opts.originals.parameters = (!opts.parameters.is_empty())
                     .then(|| EnsembleObjectRole::new(NativeEnsembleRoot::pending(val)));
@@ -1263,17 +1278,10 @@ fn apply_shared_option(
                     .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
             }
             SharedOption::Unknown => {
-                let elements = val
-                    .native_object_list_elements(protocol)
-                    .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
-                let words = elements
-                    .iter()
-                    .map(|word| {
-                        original_names
-                            .read(vm, word)
-                            .map(|bytes| tcl_core_types::NameBytes::from(bytes.as_ref()))
-                    })
-                    .collect::<Result<Vec<_>, _>>()
+                let elements = original_names
+                    .list(vm, val, protocol)
+                    .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+                let words = ensemble_original_list_words(vm, &original_names, &elements)
                     .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
                 opts.unknown = (!words.is_empty()).then_some(words);
                 opts.originals.unknown = opts
@@ -1302,28 +1310,29 @@ fn apply_ensemble_map(
     let reached = (|| {
         use crate::command::native_ensemble_objects::NativeEnsembleRoot;
         use tcl_cmd_core::ensemble::EnsembleObjectRole;
-        let mut search = val
-            .native_lifetime_lease()
-            .into_value()
-            .into_native_dictionary_search(protocol)
-            .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
+        let mut search = original_names
+            .dictionary_search(vm, val, protocol)
+            .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
         let mut patched = None;
         let mut map = Vec::new();
         while let Some((key, value)) = search
-            .next_original_pair()
-            .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?
+            .next_original_pair_checked(&mut || original_names.current_for_value(vm, val))
+            .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?
         {
-            let elements = value
-                .native_object_list_elements(protocol)
-                .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
-            if elements.is_empty() {
+            let elements = original_names
+                .list(vm, &value, protocol)
+                .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+            if elements
+                .elements()
+                .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?
+                .is_empty()
+            {
                 return Err(err_with_code(
                     "ensemble subcommand implementations must be non-empty lists",
                     "TCL ENSEMBLE EMPTY_TARGET",
                 ));
             }
-            let original = original_names
-                .read(vm, &elements[0])
+            let original = ensemble_original_list_member(vm, &original_names, &elements, 0)
                 .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
             let mut prefix = None;
             let selected = vm
@@ -1333,10 +1342,21 @@ fn apply_ensemble_map(
                 )
                 .map_err(|error| vm.refuse_host_command(error.to_string()))?;
             if let std::borrow::Cow::Owned(qualified) = selected {
-                let mut words = elements.to_vec();
+                let mut words = elements
+                    .elements()
+                    .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?
+                    .to_vec();
                 words[0] = Value::from_native_string_bytes(qualified);
                 let copy = if creating {
-                    Value::native_list_constructor(elements.to_vec(), protocol)
+                    Value::native_list_constructor(
+                        elements
+                            .elements()
+                            .map_err(|error| {
+                                crate::command::completion_from_cmd_error(vm, error.into())
+                            })?
+                            .to_vec(),
+                        protocol,
+                    )
                 } else {
                     value.duplicate_native_object_in(protocol)
                 };
@@ -1353,21 +1373,17 @@ fn apply_ensemble_map(
                 .read(vm, &key)
                 .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
             let words = if let Some(prefix) = prefix {
-                prefix
-                    .native_object_list_elements(protocol)
-                    .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?
+                original_names
+                    .list(vm, &prefix, protocol)
+                    .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?
             } else {
                 elements
             };
-            let words = words
-                .iter()
-                .map(|word| {
-                    original_names
-                        .read(vm, word)
-                        .map(|bytes| Some(tcl_core_types::NameBytes::from(bytes.as_ref())))
-                })
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+            let words = ensemble_original_list_words(vm, &original_names, &words)
+                .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?
+                .into_iter()
+                .map(Some)
+                .collect();
             map.push((tcl_core_types::NameBytes::from(name.as_ref()), words));
         }
         drop(search);

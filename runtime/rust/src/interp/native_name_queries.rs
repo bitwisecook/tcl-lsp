@@ -21,22 +21,127 @@
 use super::native_operation_currency::NativeOperationScope;
 use super::{Command, ImportQueryPurpose, Interp, ProcDef};
 use crate::obj::{self, NativeObjectLifetime, TclObj};
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 use tcl_cmd_core::CmdError;
 use tcl_runtime_api::{ProcInfo, ProcParam};
 use tcl_syntax::value::ValueError;
 
+enum ProcedureQueryNamespace {
+    C {
+        token: tcl_runtime_api::native_namespace_name::NativeNamespaceNameToken,
+        lifecycle: tcl_syntax::native_namespace_name::NativeNamespaceLifecycle,
+    },
+    Jim {
+        namespace: crate::namespace::NsId,
+        holder: Weak<obj::Owned>,
+        original: NativeObjectLifetime,
+        context: Weak<crate::native_source::NativeJimObjectContext>,
+    },
+}
+impl ProcedureQueryNamespace {
+    fn capture(interpreter: &Interp, declaration: &ProcDef) -> Result<Self, CmdError> {
+        if interpreter
+            .native_invocation_dialect()
+            .native_jim_lookup_protocol()
+            .is_some()
+        {
+            let location = declaration.location();
+            let holder = location
+                .jim_namespace
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "original Jim procedure declaration namespace",
+                ))?;
+            obj::check_native_liveness(holder.as_ptr())?;
+            let context = interpreter.native_jim_object_context()?;
+            obj::validate_jim_allocator(holder.as_ptr(), &context.allocation_pool())?;
+            if crate::native_source::selected_string_protocol(holder.as_ptr()).is_some()
+                && !Rc::ptr_eq(&crate::native_source::context(holder.as_ptr())?, &context)
+            {
+                return Err(ValueError::CommandProtocolUnavailable(
+                    "foreign Jim procedure namespace object context",
+                )
+                .into());
+            }
+            return Ok(Self::Jim {
+                namespace: location.namespace,
+                holder: Rc::downgrade(&holder),
+                original: NativeObjectLifetime::retain(holder.as_ptr()),
+                context: Rc::downgrade(&context),
+            });
+        }
+        let token = interpreter
+            .native_namespace_token_at(declaration.namespace())
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "original procedure query namespace",
+            ))?;
+        let lifecycle = token.lifecycle();
+        Ok(Self::C { token, lifecycle })
+    }
+
+    fn check(&self, interpreter: &Interp, declaration: &ProcDef) -> Result<(), CmdError> {
+        let same = match self {
+            Self::C { token, lifecycle } => {
+                token.lifecycle() == *lifecycle
+                    && interpreter.namespaces().owns_namespace_name_token(token)
+                    && declaration.namespace() as u64 == token.token()
+            }
+            Self::Jim {
+                namespace,
+                holder,
+                original,
+                context,
+            } => {
+                original.checked_ptr()?;
+                let location = declaration.location();
+                let actual_context = interpreter.native_jim_object_context()?;
+                obj::validate_jim_allocator(original.as_ptr(), &actual_context.allocation_pool())?;
+                if crate::native_source::selected_string_protocol(original.as_ptr()).is_some()
+                    && !Rc::ptr_eq(
+                        &crate::native_source::context(original.as_ptr())?,
+                        &actual_context,
+                    )
+                {
+                    return Err(ValueError::CommandProtocolUnavailable(
+                        "foreign Jim procedure namespace object context",
+                    )
+                    .into());
+                }
+                location.namespace == *namespace
+                    && location.jim_namespace.as_ref().is_some_and(|current| {
+                        current.as_ptr() == original.as_ptr()
+                            && Weak::ptr_eq(holder, &Rc::downgrade(current))
+                    })
+                    && Weak::ptr_eq(context, &Rc::downgrade(&actual_context))
+            }
+        };
+        if same {
+            Ok(())
+        } else {
+            Err(
+                ValueError::CommandProtocolUnavailable("original procedure query namespace owner")
+                    .into(),
+            )
+        }
+    }
+}
+
 struct ProcedureQuery {
     generation: u64,
     declaration: Rc<ProcDef>,
-    namespace: tcl_runtime_api::native_namespace_name::NativeNamespaceNameToken,
-    lifecycle: tcl_syntax::native_namespace_name::NativeNamespaceLifecycle,
+    namespace: ProcedureQueryNamespace,
 }
 impl ProcedureQuery {
     fn capture(interpreter: &Interp, name: &[u8]) -> Result<Option<Self>, CmdError> {
         let Some(binding) = interpreter.import_query_binding(name) else {
             return Ok(None);
         };
+        Self::capture_binding(interpreter, binding)
+    }
+
+    fn capture_binding(
+        interpreter: &Interp,
+        binding: (Vec<u8>, u64, Command),
+    ) -> Result<Option<Self>, CmdError> {
         let Some(target) =
             interpreter.resolve_import_query(binding, ImportQueryPurpose::Introspection)
         else {
@@ -46,55 +151,50 @@ impl ProcedureQuery {
             return Ok(None);
         };
         let declaration = procedure.declaration();
-        let namespace = interpreter
-            .native_namespace_token_at(declaration.namespace())
-            .ok_or(ValueError::CommandProtocolUnavailable(
-                "original procedure query namespace",
-            ))?;
-        let lifecycle = namespace.lifecycle();
+        declaration.check_native_liveness()?;
+        let namespace = ProcedureQueryNamespace::capture(interpreter, &declaration)?;
         Ok(Some(Self {
             generation: target.generation,
             declaration,
             namespace,
-            lifecycle,
         }))
     }
-    fn check(
-        &self,
-        interpreter: &mut Interp,
-        scope: &NativeOperationScope,
-    ) -> Result<(), CmdError> {
+    fn check(&self, interpreter: &Interp, scope: &NativeOperationScope) -> Result<(), CmdError> {
         scope.currency().ensure_current_or_refuse()?;
         let same = interpreter.raw_command_by_generation(self.generation)
             .is_some_and(|command| matches!(command, Command::Proc(procedure) if Rc::ptr_eq(&procedure.declaration(), &self.declaration)));
-        if !same
-            || self.namespace.lifecycle() != self.lifecycle
-            || !interpreter
-                .namespaces()
-                .owns_namespace_name_token(&self.namespace)
-            || self.declaration.namespace() as u64 != self.namespace.token()
-        {
-            return Err(
-                interpreter.retain_name_query_refusal("original procedure query owner retired")
-            );
+        if !same {
+            return Err(interpreter
+                .clone()
+                .retain_name_query_refusal("original procedure query owner retired"));
         }
+        self.namespace
+            .check(interpreter, &self.declaration)
+            .map_err(|error| interpreter.clone().retain_name_query_error(error))?;
         self.declaration
             .check_native_liveness()
-            .map_err(|error| interpreter.retain_name_query_error(error.into()))
+            .map_err(|error| interpreter.clone().retain_name_query_error(error.into()))
     }
     fn bytes(
         &self,
         interpreter: &mut Interp,
         scope: &NativeOperationScope,
         original: *mut TclObj,
+        stage: Option<&dyn Fn() -> Result<(), CmdError>>,
     ) -> Result<Vec<u8>, CmdError> {
-        self.check(interpreter, scope)?;
+        let current = || {
+            if let Some(stage) = stage {
+                stage()?;
+            }
+            self.check(interpreter, scope)
+        };
+        current()?;
         let arguments =
             super::native_arguments::OriginalArguments::enter(interpreter, &[original])?;
-        let reached = arguments.bytes(0);
-        self.check(interpreter, scope)?;
+        let reached = arguments.bytes_using(0, &current);
+        current()?;
         drop(arguments);
-        self.check(interpreter, scope)?;
+        current()?;
         reached.map(|bytes| bytes.to_vec())
     }
 }
@@ -109,6 +209,92 @@ impl Interp {
     fn retain_name_query_refusal(&mut self, reason: &'static str) -> CmdError {
         self.retain_name_query_error(ValueError::CommandProtocolUnavailable(reason).into())
     }
+    pub(crate) fn original_proc_body_operand_query(
+        &mut self,
+        original: *mut TclObj,
+    ) -> Result<tcl_runtime_api::ProcBodyBytesQuery, CmdError> {
+        let arguments = super::native_arguments::OriginalArguments::enter(self, &[original])?;
+        let scope = NativeOperationScope::enter(self).map_err(CmdError::from_execution_refusal)?;
+        let current = self.current_ns();
+        let actual = self.clone();
+        if self
+            .native_invocation_dialect()
+            .native_jim_lookup_protocol()
+            .is_none()
+        {
+            return Err(arguments.retain_refusal(
+                ValueError::CommandProtocolUnavailable("original Jim procedure body query issuer")
+                    .into(),
+            ));
+        }
+        let namespace =
+            super::native_jim_lookup::OriginalJimLookupNamespace::capture(self, current)?;
+        let check = || {
+            arguments.check_original_for(&actual, 0, original)?;
+            namespace.check_current_arguments(&actual, &arguments)?;
+            Ok(())
+        };
+        let reached: Result<tcl_runtime_api::ProcBodyBytesQuery, CmdError> = (|| {
+            let selected = crate::list::with_native_conversion_check(
+                &check,
+                &|error| arguments.retain_refusal(error.into()),
+                |stage, _retain| {
+                    self.resolve_original_command_at_using(
+                        current,
+                        original,
+                        Some(&|_actual| stage()),
+                    )
+                },
+            )?;
+            check()?;
+            let query = match selected {
+                Some((command, Some(generation))) => {
+                    let (name, _) = self
+                        .raw_command_location_by_generation(generation)
+                        .ok_or_else(|| {
+                            arguments.retain_refusal(
+                                ValueError::CommandProtocolUnavailable(
+                                    "original procedure query command placement",
+                                )
+                                .into(),
+                            )
+                        })?;
+                    ProcedureQuery::capture_binding(self, (name, generation, command))?
+                }
+                Some((_command, None)) => {
+                    return Err(arguments.retain_refusal(
+                        ValueError::CommandProtocolUnavailable(
+                            "original procedure query command generation",
+                        )
+                        .into(),
+                    ));
+                }
+                None => None,
+            };
+            let result = if let Some(query) = &query {
+                tcl_runtime_api::ProcBodyBytesQuery::Body(query.bytes(
+                    self,
+                    &scope,
+                    query.declaration.body.checked_ptr()?,
+                    Some(&check),
+                )?)
+            } else {
+                tcl_runtime_api::ProcBodyBytesQuery::NotProcedure(
+                    arguments.bytes_using(0, &check)?.to_vec(),
+                )
+            };
+            check()?;
+            drop(query);
+            check()?;
+            Ok(result)
+        })();
+        if let Err(error) = &reached {
+            self.retain_name_query_error(error.clone());
+        }
+        check()?;
+        reached
+    }
+
     pub(crate) fn original_proc_body_query(
         &mut self,
         name: &[u8],
@@ -119,7 +305,7 @@ impl Interp {
             .as_ref()
             .map(|query| {
                 query.check(self, &scope)?;
-                query.bytes(self, &scope, query.declaration.body.checked_ptr()?)
+                query.bytes(self, &scope, query.declaration.body.checked_ptr()?, None)
             })
             .transpose();
         if let Err(error) = &reached {
@@ -145,7 +331,7 @@ impl Interp {
                 let default = parameter
                     .default
                     .as_ref()
-                    .map(|value| query.bytes(self, &scope, value.checked_ptr()?))
+                    .map(|value| query.bytes(self, &scope, value.checked_ptr()?, None))
                     .transpose()?;
                 params.push(ProcParam {
                     name: parameter.name.clone(),
@@ -153,7 +339,7 @@ impl Interp {
                 });
             }
             query.check(self, &scope)?;
-            let body = query.bytes(self, &scope, query.declaration.body.checked_ptr()?)?;
+            let body = query.bytes(self, &scope, query.declaration.body.checked_ptr()?, None)?;
             Ok(Some(ProcInfo { body, params }))
         })();
         if let Err(error) = &reached {

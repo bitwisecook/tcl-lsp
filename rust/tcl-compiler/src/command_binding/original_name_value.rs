@@ -1361,6 +1361,46 @@ impl super::SourceInvocationBinding {
         Some((&first.words, first.config))
     }
 
+    /// Static naming units from a retained Logical source vector, independently
+    /// of original invocation or Native value/currentness authority.
+    fn original_logical_source_written_name_input(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        written: usize,
+    ) -> Option<SignatureSourceNameInput> {
+        if self.original_written_words.is_some() || self.original_compiler_words.is_some() {
+            return None;
+        }
+        let (words, config) = self.original_logical_source_geometry_words(input)?;
+        let site = self.invocation_site()?;
+        let original = site
+            .source
+            .original_lexical_command(words, site.offset, config)?;
+        let policy = tcl_registry::InvocationDialect::of_profile(input.analyser_profile())
+            .authored_name_policy()?;
+        if tcl_registry::InvocationDialect::of_profile(input.unit_profile()).authored_name_policy()
+            != Some(policy)
+        {
+            return None;
+        }
+        let purpose =
+            crate::signature_scan::original_name::OriginalSourceNamePurpose::for_analysis_input(
+                input, None, policy,
+            );
+        if !matches!(
+            purpose,
+            crate::signature_scan::original_name::OriginalSourceNamePurpose::Logical(_, _)
+        ) {
+            return None;
+        }
+        purpose
+            .key(
+                original.native_words().get(written)?,
+                tcl_syntax::word_rules::WordValueRules::from_config(&config),
+            )
+            .map(SignatureSourceNameInput::OriginalWord)
+    }
+
     fn original_recorded_written_name_input(
         &self,
         written: usize,
@@ -1573,11 +1613,26 @@ impl super::SourceCommandBindings {
     ) -> Option<crate::signature_scan::original_name::SourceOriginalNamespaceOperand> {
         self.matches_original_source_image(image, config)
             .then_some(())?;
+        let logical = self.original_logical_source_name_advice_input();
+        let tape = match logical {
+            Some(input) => Some(self.original_source_transition_advice_tape_for(
+                input.borrowed_context_registry(),
+                super::OriginalSourceCataloguePurpose::CompletePrefix,
+            )?),
+            None => None,
+        };
         let mut found = None;
         for (input, binding) in self.original_written_name_observations_at_span(span, config)? {
+            let scope = match (logical, tape.as_ref()) {
+                (Some(owner), Some(tape)) => tape
+                    .logical_variable_scope_at(owner, image, span, &input)?
+                    .namespace(),
+                (None, None) => binding.original_operand_naming_scope(&input)?,
+                _ => return None,
+            };
             let operand = crate::signature_scan::original_name::SourceOriginalNamespaceOperand::new(
                 input.clone(),
-                binding.original_operand_naming_scope(&input)?,
+                scope,
                 binding.invocation_site()?.clone(),
             );
             if found.as_ref().is_some_and(|previous| previous != &operand) {
@@ -1596,12 +1651,16 @@ impl super::SourceCommandBindings {
         self.original_written_word_observations_at_span(span, config)?
             .into_iter()
             .map(|(_, written, binding)| {
-                let (words, retained_config) = binding.original_recorded_name_words()?;
-                let input = binding.original_recorded_written_name_input(
-                    written,
-                    words,
-                    retained_config,
-                )?;
+                let input = if let Some((words, retained_config)) =
+                    binding.original_recorded_name_words()
+                {
+                    binding.original_recorded_written_name_input(written, words, retained_config)?
+                } else {
+                    binding.original_logical_source_written_name_input(
+                        self.original_logical_source_name_advice_input()?,
+                        written,
+                    )?
+                };
                 Some((input, binding))
             })
             .collect()
@@ -1877,6 +1936,202 @@ mod graph_tests {
             span,
             card.original_name_input()
         ));
+    }
+
+    #[test]
+    fn logical_point_names_keep_original_source_words_and_strict_native_purpose() {
+        let source = "namespace eval N {variable x FIRST; set x AGAIN; puts $x}";
+        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
+        let realm = analysis.retained_command_realm().unwrap();
+        let bindings = realm.source_bindings_ref();
+        let config = analysis.body_lexer_config.unwrap();
+        let image = tcl_lexer::SourceImage::document(source);
+        let offset = u32::try_from(source.find("set x AGAIN").unwrap()).unwrap();
+        let span = tcl_lexer::Span::new(offset + 4, offset + 5);
+        let input = bindings
+            .original_written_name_input_at_span_in_source(&image, span, config)
+            .expect("original static Logical point name");
+        assert_eq!(input.bytes(), b"x");
+        assert_eq!(
+            input.policy().authority(),
+            tcl_syntax::naming::NamePolicyAuthority::AuthoredSimulation
+        );
+        assert_eq!(
+            input.original_word_key().unwrap().original_word().span(),
+            span
+        );
+        let observations = bindings
+            .original_written_word_observations_at_span(span, config)
+            .expect("independently retained point geometry");
+        assert!(observations.iter().all(|(_, _, binding)| {
+            binding
+                .variable_context
+                .execution_name_policy
+                .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)
+                .is_none()
+        }));
+        assert!(
+            bindings
+                .original_written_name_input_at_span_in_source(
+                    &tcl_lexer::SourceImage::document(&format!("{source} ")),
+                    span,
+                    config,
+                )
+                .is_none()
+        );
+        assert!(
+            bindings
+                .original_written_name_input_at_span_in_source(
+                    &tcl_lexer::SourceImage::native(source.as_bytes()),
+                    span,
+                    config,
+                )
+                .is_none()
+        );
+        let mut changed = config;
+        changed.strict_quoting = !changed.strict_quoting;
+        assert!(
+            bindings
+                .original_written_name_input_at_span_in_source(&image, span, changed)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn logical_conditional_receiver_point_names_keep_source_only_authority() {
+        let source = include_str!(
+            "../../../../experiments/name-handling/patterns/composed-callback-prefix/probes/positive.tcl"
+        );
+        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
+        let owner = analysis.resolved_input.as_ref().unwrap();
+        assert!(owner.has_logical_source_name_context());
+        let realm = analysis.retained_command_realm().unwrap();
+        let bindings = realm.source_bindings_ref();
+        let image = tcl_lexer::SourceImage::document(source);
+        let start = u32::try_from(source.find("after idle $cb").unwrap() + "after ".len()).unwrap();
+        let span = tcl_lexer::Span::new(start, start + 4);
+        let observations = bindings
+            .original_written_word_observations_at_span(span, owner.lexer_config())
+            .expect("genuine retained receiver source vector");
+        let (word, written, binding) = observations.iter().find(|(_, _, binding)| {
+            binding.declaration_layout_observations.as_deref().is_some_and(|rows| {
+                rows.iter().any(|row| row.issuer == super::super::declaration_layout::DeclarationLayoutIssuer::ConditionalReceiverSource)
+            })
+        }).expect("actual independently retained ConditionalReceiverSource observation");
+        assert!(binding.original_recorded_name_words().is_none());
+        let input = bindings
+            .original_written_name_input_at_span_in_source(&image, span, owner.lexer_config())
+            .expect("static name does not require declaration-only invocation words");
+        assert_eq!(input.bytes(), b"idle");
+        assert_eq!(input.original_word_key().unwrap().original_word(), word);
+        assert_eq!(
+            input.policy().authority(),
+            tcl_syntax::naming::NamePolicyAuthority::AuthoredSimulation
+        );
+        assert!(
+            binding
+                .original_retained_written_name_input(*written)
+                .is_none()
+        );
+        assert!(
+            bindings
+                .original_namespace_operand_at_span_in_source(&image, span, owner.lexer_config())
+                .is_none()
+        );
+        let mut changed = binding.clone();
+        let rows =
+            std::sync::Arc::make_mut(changed.declaration_layout_observations.as_mut().unwrap());
+        rows[0].config.strict_quoting = !rows[0].config.strict_quoting;
+        assert!(
+            changed
+                .original_logical_source_written_name_input(owner, *written)
+                .is_none()
+        );
+        let foreign = crate::analyser::ResolvedAnalysisInput::new(
+            owner.analyser_profile(),
+            owner.unit_profile(),
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry(),
+            owner.lexer_config(),
+        );
+        assert!(
+            binding
+                .original_logical_source_written_name_input(&foreign, *written)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn logical_namespace_point_operands_use_independent_original_frame_recipes() {
+        use crate::signature_scan::scope::SignatureNamespaceScope;
+        for (source, home) in [
+            ("namespace eval Target {}", None),
+            ("namespace eval N {namespace eval Target {}}", Some("N")),
+            (
+                "namespace eval N {proc p {} {namespace eval Target {}}}",
+                Some("N"),
+            ),
+        ] {
+            let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
+            let bindings = analysis
+                .retained_command_realm()
+                .unwrap()
+                .source_bindings_ref();
+            let config = analysis.body_lexer_config.unwrap();
+            let image = tcl_lexer::SourceImage::document(source);
+            let start = u32::try_from(source.find("Target").unwrap()).unwrap();
+            let span = tcl_lexer::Span::new(start, start + 6);
+            let operand = bindings
+                .original_namespace_operand_at_span_in_source(&image, span, config)
+                .unwrap_or_else(|| panic!("genuine source namespace recipe: {source}"));
+            assert_eq!(operand.name_input().bytes(), b"Target");
+            let SignatureNamespaceScope::C(namespace) = operand.context() else {
+                panic!("Logical C source recipe");
+            };
+            assert_eq!(
+                namespace.as_segments(),
+                home.into_iter()
+                    .map(tcl_core_types::NameBytes::from)
+                    .collect::<Vec<_>>()
+            );
+            assert!(
+                bindings
+                    .original_namespace_operand_at_span_in_source(
+                        &tcl_lexer::SourceImage::document(&format!("{source} ")),
+                        span,
+                        config,
+                    )
+                    .is_none()
+            );
+            let mut changed = config;
+            changed.strict_quoting = !changed.strict_quoting;
+            assert!(
+                bindings
+                    .original_namespace_operand_at_span_in_source(&image, span, changed)
+                    .is_none()
+            );
+        }
+        for source in [
+            "namespace eval $unknown {namespace eval Target {}}",
+            "oo::class create C {method m {} {namespace eval Target {}}}",
+            "set inert {namespace eval Target {}}",
+        ] {
+            let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
+            let config = analysis.body_lexer_config.unwrap();
+            let start = u32::try_from(source.find("Target").unwrap()).unwrap();
+            assert!(
+                analysis
+                    .retained_command_realm()
+                    .unwrap()
+                    .source_bindings_ref()
+                    .original_namespace_operand_at_span_in_source(
+                        &tcl_lexer::SourceImage::document(source),
+                        tcl_lexer::Span::new(start, start + 6),
+                        config,
+                    )
+                    .is_none(),
+                "{source}"
+            );
+        }
     }
 
     #[test]

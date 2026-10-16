@@ -485,19 +485,20 @@ Why it has not been done: each route needs its differential against every
 release's `tclsh` (or the package's own implementation); the classification
 carries no route.
 
-## Accepted — a route on a package's command assumes the package is loaded
+## Package command folds require source and selected-operation proof
 
-The analysis reads a package command's spec wherever its name resolves,
-whether or not the module requires the package (W120 reports the missing
-`package require`), and its routes are no exception: `[base32::encode abc]`
-folds to `MFRGG===` in a script that never loads `base32`, where the call
-raises `invalid command name`. Every other descriptor of the command — its
-arity, its purity, its roles — makes the same assumption.
+For module-backed source analysis, a package command fold is considered only
+when the original `CommandTokens` are retained and resolve to the current
+selected operation. The fold derives the effective arguments from that
+invocation; if the source, selection, or argument proof is missing, the
+analysis widens instead of applying the package route. This is a local
+semantic fold and does not prove that the package is installed or that the
+command will execute successfully at runtime. A missing `package require`
+remains a separate diagnostic concern.
 
-Why it is accepted: a package is often required by another file of the
-program, which a module cannot see, so gating each route on the module's own
-`package require` would cost the folds of every library split across files;
-the missing require is a diagnostic of its own.
+A detached `module = None` compatibility path can use nominal metadata under
+its explicit nominal policy. That path is not source-backed evidence and does
+not confer Native dispatch or `Normal` execution authority.
 
 ## Open — a standalone expression fold drops its command wrapper
 

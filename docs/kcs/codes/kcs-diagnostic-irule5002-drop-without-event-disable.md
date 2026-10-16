@@ -47,9 +47,12 @@ when HTTP_REQUEST {
 }
 ```
 
-Both words come *after* the `drop`: `event disable all` stops the remaining
-iRules, `return` stops the rest of this one. The editor offers **Add 'event
-disable all' + 'return'** as a code action.
+Both words in the example come *after* the `drop`: `event disable all`
+stops the remaining iRules, and `return` stops the rest of this one. For an
+ordinary IRULE5002 flow diagnostic with an independently current source
+subject, the editor can offer **Add 'event disable all' + 'return'**. The
+separate conditional source-flow diagnostic is advice only: its authoring
+purpose withholds a context-action subject, so it does not offer this edit.
 
 ## Limits
 

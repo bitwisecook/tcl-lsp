@@ -355,7 +355,8 @@ Use `compilation-mode` with a custom regexp:
 
 (defun run-irule-test ()
   (interactive)
-  (compile (concat "tclsh " (buffer-file-name))))
+  ;; Keep the filename as one shell argument, including spaces/metacharacters.
+  (compile (concat "tclsh " (shell-quote-argument (buffer-file-name)))))
 ```
 
 ### Sublime Text

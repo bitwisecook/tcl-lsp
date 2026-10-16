@@ -126,6 +126,12 @@ where
     O: ValueOps<Value = V> + Procs,
     O::OperationError: Into<CmdError>,
 {
+    if let Some(query) = ops.proc_body_original_bytes(name).map_err(Into::into)? {
+        return match query {
+            tcl_runtime_api::ProcBodyBytesQuery::Body(body) => Ok(ops.new_bytes(&body)),
+            tcl_runtime_api::ProcBodyBytesQuery::NotProcedure(name) => Err(not_a_proc(&name)),
+        };
+    }
     let n = ops.native_string_bytes(name)?;
     match ops.proc_body_bytes(&n).map_err(Into::into)? {
         Some(body) => Ok(ops.new_bytes(&body)),

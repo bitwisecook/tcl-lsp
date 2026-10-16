@@ -48,12 +48,13 @@ set name [gets stdin]
 puts [string map {"\n" "" "\r" ""} $name]
 ```
 
-The analyser still reports the sink afterwards: it clears the finding only
-when every appearance of the value is consumed by a call whose result is a
-fixed numeric or boolean type, as in `puts "input length: [string length
-$name]"`. Rewriting the text — `string map`, `regsub` — leaves attacker-derived
-text, so if you have sanitised the value in a way the analyser cannot see,
-suppress the code at that line.
+The analyser clears the finding for a known fixed numeric or boolean result,
+as in `puts "input length: [string length $name]"`. It also recognises a
+selected `string map` whose literal mapping proves that both CR and LF are
+removed and not reintroduced; the example above is such a mapping. Other text
+rewrites, including `regsub` cases without a corresponding proof, remain
+attacker-derived for this analysis. If you sanitise the value in a way the
+analyser cannot prove, suppress the code at that line.
 
 The injection T101 warns about is a CR or LF that forges a record boundary,
 so a value proven free of both clears the diagnostic. The analyser reads that

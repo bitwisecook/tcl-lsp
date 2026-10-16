@@ -413,6 +413,221 @@ fn jim_info_current_namespace_getter_stops_at_the_withdrawn_consumer_world() {
     unchanged_result(&vm, &result);
 }
 
+fn ensemble_configuration_vm(release: &str) -> (Vm, Rc<Formatter>, Rc<Cell<usize>>) {
+    let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect(release));
+    let formatter = Rc::new(Formatter::default());
+    let queries = Rc::new(Cell::new(0));
+    vm.set_host(Rc::new(FormatterHost {
+        actual: vm.host_rc(),
+        formatter: Rc::clone(&formatter),
+        queries: Rc::clone(&queries),
+    }));
+    let created = vm.invoke_host_original_object_vector(
+        &Value::string("namespace"),
+        &[
+            Value::string("ensemble"),
+            Value::string("create"),
+            Value::string("-command"),
+            Value::string("::E"),
+        ],
+    );
+    assert_eq!(created.code, crate::Code::Ok);
+    (vm, formatter, queries)
+}
+
+fn configure_ensemble(
+    vm: &mut Vm,
+    option: &str,
+    original: &Value,
+    later: &Value,
+) -> tcl_runtime_api::Completion<Value> {
+    vm.invoke_host_original_object_vector(
+        &Value::string("namespace"),
+        &[
+            Value::string("ensemble"),
+            Value::string("configure"),
+            Value::string("::E"),
+            Value::string(option),
+            original.clone(),
+            later.clone(),
+            Value::string("1"),
+        ],
+    )
+}
+
+#[test]
+fn ensemble_list_configuration_keeps_original_objects_and_checks_reached_caller_stages() {
+    for release in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        for option in ["-subcommands", "-parameters", "-unknown"] {
+            if release == "tcl8.5" && option == "-parameters" {
+                continue;
+            }
+            for withdraw in [false, true] {
+                let (mut vm, formatter, queries) = ensemble_configuration_vm(release);
+                let crate::command::Command::Ensemble(token) = vm.lookup_command("::E").unwrap()
+                else {
+                    panic!("actual selected ensemble");
+                };
+                let protocol = vm
+                    .actual_native_invocation_dialect()
+                    .native_string_protocol()
+                    .unwrap();
+                let original = Value::int(42);
+                let later =
+                    Value::native_list_constructor(vec![Value::string("-prefixes")], protocol);
+                if withdraw {
+                    *formatter.withdraw_on_query.borrow_mut() = Some(Rc::clone(&vm.name_world));
+                }
+                let configured = configure_ensemble(&mut vm, option, &original, &later);
+                assert_eq!(
+                    queries.get(),
+                    if withdraw { 1 } else { 2 },
+                    "{release}/{option}/{withdraw}"
+                );
+                if withdraw {
+                    assert_eq!(configured.code, crate::Code::Error);
+                    assert!(original.resident_string_bytes().is_none());
+                    assert!(original.cached_list_representation().is_none());
+                    assert!(later.resident_string_bytes().is_none());
+                    let def = token.config();
+                    assert!(
+                        def.subcommands.is_none()
+                            && def.parameters.is_empty()
+                            && def.unknown.is_none()
+                    );
+                    assert!(matches!(vm.execution_refusal.as_ref(), Some(
+                        NativeExecutionError::ValueAccessRefusal(
+                            tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                                "original Name consumer namespace and world",
+                            ),
+                        ),
+                    )));
+                } else {
+                    assert_eq!(configured.code, crate::Code::Ok);
+                    let members = original.cached_list_representation().unwrap().0;
+                    let member = members.elements().unwrap()[0].native_lifetime_lease();
+                    let references = member.value().native_object_reference_count();
+                    let queried = vm.invoke_host_original_object_vector(
+                        &Value::string("namespace"),
+                        &[
+                            Value::string("ensemble"),
+                            Value::string("configure"),
+                            Value::string("::E"),
+                            Value::string(option),
+                        ],
+                    );
+                    assert_eq!(queried.code, crate::Code::Ok);
+                    assert!(queried.result.is_same_object(&original));
+                    let after = original.cached_list_representation().unwrap().0;
+                    assert!(after.elements().unwrap()[0].is_same_object(member.value()));
+                    assert_eq!(member.value().native_object_reference_count(), references);
+                    assert!(vm.execution_refusal.is_none());
+                }
+                assert!(formatter.calls.borrow().is_empty());
+            }
+        }
+    }
+}
+
+#[test]
+fn ensemble_map_dictionary_conversion_keeps_original_members_and_caller_checks() {
+    for release in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        for withdraw in [false, true] {
+            let (mut vm, formatter, queries) = ensemble_configuration_vm(release);
+            let crate::command::Command::Ensemble(token) = vm.lookup_command("::E").unwrap() else {
+                panic!("actual selected ensemble");
+            };
+            let protocol = vm
+                .actual_native_invocation_dialect()
+                .native_string_protocol()
+                .unwrap();
+            let key = Value::int(42);
+            let key_lease = key.native_lifetime_lease();
+            let prefix = Value::native_list_constructor(
+                vec![Value::new_native_string_bytes(
+                    b"::target\xff\0tail".as_slice(),
+                )],
+                protocol,
+            );
+            let prefix_lease = prefix.native_lifetime_lease();
+            let original = Value::native_list_constructor(vec![key, prefix], protocol);
+            let later = Value::native_list_constructor(vec![Value::string("-prefixes")], protocol);
+            assert_eq!(key_lease.value().native_object_reference_count(), 1);
+            assert_eq!(prefix_lease.value().native_object_reference_count(), 1);
+            if withdraw {
+                *formatter.withdraw_on_query.borrow_mut() = Some(Rc::clone(&vm.name_world));
+            }
+            let configured = configure_ensemble(&mut vm, "-map", &original, &later);
+            assert_eq!(
+                queries.get(),
+                if withdraw { 1 } else { 2 },
+                "{release}/{withdraw}"
+            );
+            if withdraw {
+                assert_eq!(configured.code, crate::Code::Error);
+                assert!(key_lease.value().resident_string_bytes().is_none());
+                assert!(original.cached_dictionary_representation().is_none());
+                assert!(original.cached_list_representation().is_some());
+                assert!(later.resident_string_bytes().is_none());
+                assert!(token.config().map.is_empty());
+                assert!(vm.execution_refusal.is_some());
+            } else {
+                assert_eq!(configured.code, crate::Code::Ok);
+                let queried = vm.invoke_host_original_object_vector(
+                    &Value::string("namespace"),
+                    &[
+                        Value::string("ensemble"),
+                        Value::string("configure"),
+                        Value::string("::E"),
+                        Value::string("-map"),
+                    ],
+                );
+                assert_eq!(queried.code, crate::Code::Ok);
+                assert!(queried.result.is_same_object(&original));
+                let def = token.config();
+                assert_eq!(def.map[0].0.as_bytes(), b"42");
+                assert_eq!(
+                    def.map[0].1[0].as_ref().unwrap().as_bytes(),
+                    b"::target\xff\0tail"
+                );
+                assert!(vm.execution_refusal.is_none());
+            }
+            assert_eq!(key_lease.value().native_object_reference_count(), 1);
+            assert_eq!(prefix_lease.value().native_object_reference_count(), 1);
+            assert!(formatter.calls.borrow().is_empty());
+        }
+    }
+}
+
+#[test]
+fn ensemble_map_nested_prefix_list_getter_checks_the_original_caller() {
+    for release in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        let (mut vm, formatter, queries) = ensemble_configuration_vm(release);
+        let crate::command::Command::Ensemble(token) = vm.lookup_command("::E").unwrap() else {
+            panic!("actual selected ensemble");
+        };
+        let protocol = vm
+            .actual_native_invocation_dialect()
+            .native_string_protocol()
+            .unwrap();
+        let prefix = Value::int(42);
+        let prefix_lease = prefix.native_lifetime_lease();
+        let original = Value::from_native_dictionary_cache(vec![(Value::string("member"), prefix)]);
+        let later = Value::native_list_constructor(vec![Value::string("-prefixes")], protocol);
+        *formatter.withdraw_on_query.borrow_mut() = Some(Rc::clone(&vm.name_world));
+        let configured = configure_ensemble(&mut vm, "-map", &original, &later);
+        assert_eq!(configured.code, crate::Code::Error);
+        assert_eq!(queries.get(), 1, "{release}");
+        assert!(prefix_lease.value().resident_string_bytes().is_none());
+        assert!(prefix_lease.value().cached_list_representation().is_none());
+        assert_eq!(prefix_lease.value().native_object_reference_count(), 1);
+        assert!(later.resident_string_bytes().is_none());
+        assert!(token.config().map.is_empty());
+        assert!(formatter.calls.borrow().is_empty());
+        assert!(vm.execution_refusal.is_some());
+    }
+}
+
 #[test]
 fn original_jim_namespace_eval_uses_its_actual_holder_without_c_tree_registration() {
     // naming.embedding.original-host-publication-and-fact-transport

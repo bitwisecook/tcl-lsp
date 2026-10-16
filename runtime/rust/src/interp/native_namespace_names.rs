@@ -91,6 +91,82 @@ impl Interp {
         Ok(owner)
     }
 
+    /// Snapshot actual namespace reporting storage without recovering an address.
+    pub(crate) fn original_namespace_report_parts(
+        &mut self,
+        namespace: NsId,
+    ) -> Result<tcl_runtime_api::NativeNamespaceReportParts, tcl_cmd_core::CmdError> {
+        use super::native_arguments::OriginalArguments;
+        use tcl_runtime_api::NativeNamespaceReportParts;
+        let arguments = OriginalArguments::enter(self, &[])?;
+        let policy = self.name_policy_protocol().ok_or_else(|| {
+            arguments.retain_refusal(
+                ValueError::CommandProtocolUnavailable("namespace report naming issuer").into(),
+            )
+        })?;
+        if policy.recipe().is_jim084() {
+            let caller = super::native_jim_lookup::OriginalJimLookupNamespace::capture(
+                self,
+                self.current_ns(),
+            )?;
+            let target =
+                super::native_jim_lookup::OriginalJimLookupNamespace::capture(self, namespace)?;
+            let context = self.native_jim_object_context()?;
+            let original_context = std::rc::Rc::downgrade(&context);
+            let actual = self.clone();
+            let check = || {
+                caller.check_current_arguments(&actual, &arguments)?;
+                target.check(&actual)?;
+                let context = actual
+                    .native_jim_object_context()
+                    .map_err(|error| arguments.retain_refusal(error.into()))?;
+                if !std::rc::Weak::ptr_eq(&original_context, &std::rc::Rc::downgrade(&context)) {
+                    return Err(arguments.retain_refusal(
+                        ValueError::CommandProtocolUnavailable(
+                            "original namespace report Jim context",
+                        )
+                        .into(),
+                    ));
+                }
+                obj::validate_jim_allocator(target.original_ptr(), &context.allocation_pool())
+                    .map_err(|error| arguments.retain_refusal(error.into()))?;
+                if crate::native_source::selected_string_protocol(target.original_ptr()).is_some() {
+                    let bound = crate::native_source::context(target.original_ptr())
+                        .map_err(|error| arguments.retain_refusal(error.into()))?;
+                    if !std::rc::Rc::ptr_eq(&bound, &context) {
+                        return Err(arguments.retain_refusal(
+                            ValueError::CommandProtocolUnavailable(
+                                "foreign original namespace report object context",
+                            )
+                            .into(),
+                        ));
+                    }
+                }
+                Ok(())
+            };
+            check()?;
+            let reached = self.materialize_jim_namespace_using(namespace, &check);
+            check()?;
+            let bytes = reached?;
+            return Ok(NativeNamespaceReportParts::JimFlat(bytes));
+        }
+        let owner = self.original_namespace_consumer(&arguments)?;
+        owner.observe(namespace, &arguments)?;
+        let reached = self
+            .namespaces()
+            .native_context_path(namespace)
+            .ok_or_else(|| {
+                arguments.retain_refusal(
+                    ValueError::CommandProtocolUnavailable(
+                        "original constructed namespace report path",
+                    )
+                    .into(),
+                )
+            });
+        owner.check(&arguments)?;
+        reached.map(NativeNamespaceReportParts::CConstructed)
+    }
+
     /// Observe the actual holder through the existing namespace ledger.
     pub(crate) fn native_namespace_token_at(
         &self,

@@ -215,13 +215,15 @@ probed once per campaign (`null` if the probe failed). `version_skew` is true
 when the two engines emulate different release *lines* — treat every finding in
 a skewed run as suspect until the version difference is ruled out.
 
-`replay_metadata_version: 1` proves the record was written with a complete
-campaign configuration. Thus `tcl_version: null` is a legitimate newly
-recorded unpinned campaign and replays unpinned; an older release-less record
-missing the marker is refused rather than guessed at today's default. A valid
-explicit `tcl_version` remains replay-safe even in a record written before the
-marker. `summary` labels each namespace separately so release-specific records
-never collide.
+`replay_metadata_version: 1` marks the Tcl-release replay dimension. It
+lets replay distinguish an explicitly unpinned `tcl_version: null` from an
+older record that lacks the release field; a release-less record without the
+marker is refused rather than guessed at today's default. This marker does
+not certify the whole campaign configuration: generator rates are recorded
+and restored separately, and legacy records without them replay at current
+rates with a warning that the seed may generate a different script. An
+explicit recorded `tcl_version` remains usable even in a record predating the
+marker. `summary` labels release namespaces separately.
 
 `reference_stderr`/`subject_stderr` are always captured when the engine ran
 (independent of `--compare-error-text`), so a triager always has both

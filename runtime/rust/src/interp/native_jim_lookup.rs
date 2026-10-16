@@ -885,6 +885,22 @@ impl Interp {
         current: NsId,
         original: *mut TclObj,
     ) -> Result<Option<(Command, Option<u64>)>, ValueError> {
+        self.resolve_original_jim_command_using(current, original, None)
+    }
+
+    pub(super) fn resolve_original_jim_command_using(
+        &mut self,
+        current: NsId,
+        original: *mut TclObj,
+        stage: Option<&dyn Fn(&Interp) -> Result<(), ValueError>>,
+    ) -> Result<Option<(Command, Option<u64>)>, ValueError> {
+        let caller_current = |actual: &Interp| -> Result<(), ValueError> {
+            if let Some(stage) = stage {
+                stage(actual)?;
+            }
+            Ok(())
+        };
+        caller_current(self)?;
         let scope = super::native_operation_currency::NativeOperationScope::enter(self).map_err(
             |first| {
                 self.refuse_native_execution(first);
@@ -901,10 +917,12 @@ impl Interp {
                     "Jim original command lookup",
                 ))?;
         let _context = self.native_jim_object_context()?;
+        caller_current(self)?;
         let namespace_scope: OriginalJimLookupNamespace =
             OriginalJimLookupNamespace::capture(self, current)?;
         let lookup_interpreter = self.clone();
         let check_lookup = || {
+            caller_current(&lookup_interpreter)?;
             scope.currency().ensure_current_or_refuse().map_err(|_| {
                 ValueError::CommandProtocolUnavailable("original Jim lookup currency")
             })?;
@@ -944,7 +962,11 @@ impl Interp {
                     );
                     check_lookup()?;
                     let cached_bytes = cached_bytes?;
-                    let current_bytes = self.materialize_jim_namespace(current);
+                    let current_bytes = if stage.is_some() {
+                        self.materialize_jim_namespace_using(current, &check_lookup)
+                    } else {
+                        self.materialize_jim_namespace(current)
+                    };
                     check_lookup()?;
                     cached_bytes.as_ref() == current_bytes?.as_ref()
                 };
@@ -995,7 +1017,11 @@ impl Interp {
         }
         // JimQualifyName reaches its namespace length before the name getter,
         // including an absolute incoming command name. Capture remains getter-free.
-        let namespace_bytes = self.materialize_jim_namespace(current);
+        let namespace_bytes = if stage.is_some() {
+            self.materialize_jim_namespace_using(current, &check_lookup)
+        } else {
+            self.materialize_jim_namespace(current)
+        };
         check_lookup()?;
         namespace_bytes?;
         let bytes = self.native_object_string_bytes_using(original, &check_lookup, &|error| error);
@@ -1018,6 +1044,7 @@ impl Interp {
             let epoch = self.namespaces().jim_procedure_epoch();
             let namespace = namespace_scope.original_ptr();
             let check = || {
+                caller_current(self)?;
                 namespace_scope.check(self)?;
                 scope.currency().ensure_current_or_refuse().map_err(|_| {
                     ValueError::CommandProtocolUnavailable("original Jim command currency")
@@ -1050,6 +1077,7 @@ impl Interp {
             check()?;
             reached?;
         }
+        caller_current(self)?;
         // Project the same selected node only after preparation has settled.
         // Native miss returned above without changing its existing primary.
         Ok(token.and_then(|token| {

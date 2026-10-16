@@ -879,13 +879,35 @@ impl NativeDictionarySearch {
     pub(crate) fn next_original_pair(
         &mut self,
     ) -> Result<Option<(Value, Value)>, tcl_syntax::value::ValueError> {
+        self.next_original_pair_using(&mut None)
+    }
+
+    /// Carry the original caller across pair selection and exhausted-backing release.
+    pub(crate) fn next_original_pair_checked(
+        &mut self,
+        check: &mut dyn FnMut() -> Result<(), tcl_cmd_core::CmdError>,
+    ) -> Result<Option<(Value, Value)>, tcl_cmd_core::CmdError> {
+        self.next_original_pair_using(&mut Some(check))
+    }
+
+    fn next_original_pair_using<E: From<ValueError>>(
+        &mut self,
+        check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
+    ) -> Result<Option<(Value, Value)>, E> {
+        Value::native_stage_check(check)?;
+        if check.is_some()
+            && let Some(root) = &self.root
+        {
+            root.check_native_header()?;
+        }
         let Some(backing) = self.backing.as_ref() else {
             return Ok(None);
         };
         if backing.epoch.get() != self.epoch {
             return Err(tcl_syntax::value::ValueError::NativeFatalCondition(
                 tcl_syntax::raw_string::NativeFatalCondition::DictionarySearchConcurrentMutation,
-            ));
+            )
+            .into());
         }
         let pair = backing.with_pairs(|pairs| {
             pairs.get(self.next).map(|(key, value)| {
@@ -898,6 +920,12 @@ impl NativeDictionarySearch {
         self.next += usize::from(pair.is_some());
         if pair.is_none() {
             self.backing = None;
+        }
+        Value::native_stage_check(check)?;
+        if check.is_some()
+            && let Some(root) = &self.root
+        {
+            root.check_native_header()?;
         }
         Ok(pair)
     }
@@ -6117,16 +6145,43 @@ impl Value {
         self,
         protocol: NativeStringProtocol,
     ) -> Result<NativeDictionarySearch, tcl_syntax::value::ValueError> {
+        self.into_native_dictionary_search_using(protocol, &mut None, &mut None)
+    }
+
+    pub(crate) fn into_native_dictionary_search_with_strings(
+        self,
+        protocol: NativeStringProtocol,
+        check: &mut dyn FnMut() -> Result<(), tcl_cmd_core::CmdError>,
+        strings: &mut dyn FnMut(&Value) -> Result<Rc<[u8]>, tcl_cmd_core::CmdError>,
+    ) -> Result<NativeDictionarySearch, tcl_cmd_core::CmdError> {
+        self.into_native_dictionary_search_using(protocol, &mut Some(check), &mut Some(strings))
+    }
+
+    fn into_native_dictionary_search_using<E: From<ValueError>>(
+        self,
+        protocol: NativeStringProtocol,
+        check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
+        strings: &mut Option<&mut dyn FnMut(&Value) -> Result<Rc<[u8]>, E>>,
+    ) -> Result<NativeDictionarySearch, E> {
+        Self::native_stage_check(check)?;
+        if check.is_some() {
+            self.check_native_header()?;
+        }
         if protocol
             .tcl_version()
             .is_none_or(|version| version < tcl_dialect::TclVersion::V8_5)
         {
             return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                 "native C Dictionary search",
-            ));
+            )
+            .into());
         }
         if !matches!(*self.0.intrep.borrow(), IntRep::Dict(_)) {
-            drop(self.native_object_dict_pairs(protocol)?);
+            drop(self.native_object_dict_pairs_using(protocol, check, strings)?);
+            Self::native_stage_check(check)?;
+            if check.is_some() {
+                self.check_native_header()?;
+            }
         }
         self.seal_compound_string_protocol(protocol)
             .map_err(|error| {
@@ -6142,12 +6197,14 @@ impl Value {
             _ => unreachable!("native Dictionary search conversion"),
         };
         let epoch = backing.as_ref().map_or(0, |dict| dict.epoch.get());
-        Ok(NativeDictionarySearch {
+        let search = NativeDictionarySearch {
             root: Some(self),
             backing,
             next: 0,
             epoch,
-        })
+        };
+        Self::native_stage_check(check)?;
+        Ok(search)
     }
 
     /// Convert through the actual native object-list recipe, retaining original member values.
@@ -8108,6 +8165,99 @@ impl std::fmt::Debug for Value {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn checked_original_dictionary_search_keeps_epoch_and_borrowed_pair_roles() {
+        let protocol = NativeStringProtocol::C(tcl_dialect::TclVersion::V8_6);
+        let key = Value::new_native_string_bytes(b"k".as_slice());
+        let key_lease = key.native_lifetime_lease();
+        let member = Value::new_native_string_bytes(b"v".as_slice());
+        let member_lease = member.native_lifetime_lease();
+        let root = Value::from_native_dictionary_cache(vec![(key, member)]);
+        let mut checks = 0;
+        let mut search = root
+            .native_lifetime_lease()
+            .into_value()
+            .into_native_dictionary_search_with_strings(
+                protocol,
+                &mut || {
+                    checks += 1;
+                    Ok(())
+                },
+                &mut |_| panic!("cached Dictionary needs no String getter"),
+            )
+            .unwrap();
+        assert_eq!(checks, 2);
+        assert_eq!(key_lease.value().native_object_reference_count(), 1);
+        let pair = search
+            .next_original_pair_checked(&mut || Ok(()))
+            .unwrap()
+            .unwrap();
+        assert!(pair.0.is_same_object(key_lease.value()));
+        assert!(pair.1.is_same_object(member_lease.value()));
+        assert_eq!(key_lease.value().native_object_reference_count(), 1);
+        assert_eq!(member_lease.value().native_object_reference_count(), 1);
+        drop(pair);
+        let before = search.next;
+        if let IntRep::Dict(backing) = &*root.0.intrep.borrow() {
+            backing.epoch.set(backing.epoch.get() + 1);
+        } else {
+            panic!("original Dictionary backing");
+        }
+        let error = search
+            .next_original_pair_checked(&mut || Ok(()))
+            .unwrap_err();
+        assert_eq!(error.native_access_refusal(), Some(
+            tcl_syntax::raw_string::NativeValueAccessRefusal::FatalCondition(
+                tcl_syntax::raw_string::NativeFatalCondition::DictionarySearchConcurrentMutation,
+            ),
+        ));
+        assert_eq!(search.next, before);
+        assert!(search.backing.is_some());
+    }
+
+    #[test]
+    fn checked_original_dictionary_search_checks_exhaustion_after_backing_before_root_release() {
+        let protocol = NativeStringProtocol::C(tcl_dialect::TclVersion::V8_6);
+        let key = Value::new_native_string_bytes(b"k".as_slice());
+        let key_lease = key.native_lifetime_lease();
+        let member = Value::new_native_string_bytes(b"v".as_slice());
+        let member_lease = member.native_lifetime_lease();
+        let root = Value::from_native_dictionary_cache(vec![(key, member)]);
+        let mut search = root
+            .native_lifetime_lease()
+            .into_value()
+            .into_native_dictionary_search_with_strings(protocol, &mut || Ok(()), &mut |_| {
+                panic!("cached Dictionary needs no String getter")
+            })
+            .unwrap();
+        drop(
+            search
+                .next_original_pair_checked(&mut || Ok(()))
+                .unwrap()
+                .unwrap(),
+        );
+        root.replace_primary(IntRep::Str);
+        assert_eq!(key_lease.value().native_object_reference_count(), 1);
+        let mut observed = Vec::new();
+        assert!(
+            search
+                .next_original_pair_checked(&mut || {
+                    observed.push((
+                        key_lease.value().native_object_reference_count(),
+                        member_lease.value().native_object_reference_count(),
+                        root.native_object_reference_count(),
+                    ));
+                    Ok(())
+                })
+                .unwrap()
+                .is_none()
+        );
+        assert_eq!(observed, [(1, 1, 1), (0, 0, 1)]);
+        assert!(search.backing.is_none());
+        assert!(search.original_root().is_same_object(&root));
+        assert!(root.native_object_is_live());
+    }
+
     #[test]
     fn native_dictionary_member_publication_owns_borrowed_live_children() {
         // A software ownership control for the member-publication boundary.

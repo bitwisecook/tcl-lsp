@@ -666,3 +666,267 @@ fn logical_namespace_creation_keeps_its_explicit_simulation_and_internal_owner()
         .native_name_protocol()
         .is_none());
 }
+
+mod selected_report_parts_tests {
+    use super::*;
+    use crate::obj::Owned;
+    use std::cell::{Cell, RefCell};
+    use std::rc::Rc;
+    use tcl_core_types::{ByteNamespacePath, NameBytes};
+    use tcl_runtime_api::NativeNamespaceReportParts;
+
+    fn native(profile: &str) -> Interp {
+        Interp::with_native_core(
+            crate::interp::default_host(),
+            crate::environment::profile_for_dialect(profile),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap()
+    }
+    fn report(
+        actual: &mut Interp,
+        namespace: NsId,
+    ) -> Result<NativeNamespaceReportParts, tcl_cmd_core::CmdError> {
+        tcl_runtime_api::Namespaces::namespace_report_parts_checked(
+            actual,
+            tcl_runtime_api::NsId(u32::try_from(namespace).unwrap()),
+        )
+    }
+
+    #[test]
+    fn selected_c_namespace_reports_preserve_actual_components_across_display_collisions_and_retirement(
+    ) {
+        // Software storage geometry: constructed report data supplies no native input or identity proof.
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let mut actual = native(profile);
+            let first = [
+                NameBytes::from(b"a::b".as_slice()),
+                NameBytes::from(b"leaf\xff".as_slice()),
+            ];
+            let second = [
+                NameBytes::from(b"a".as_slice()),
+                NameBytes::from(b"b".as_slice()),
+                NameBytes::from(b"leaf\xff".as_slice()),
+            ];
+            let left = actual
+                .namespaces_mut()
+                .ensure_namespace_at_components(GLOBAL, &first);
+            let right = actual
+                .namespaces_mut()
+                .ensure_namespace_at_components(GLOBAL, &second);
+            assert_ne!(left, right);
+            assert_eq!(
+                actual.ns_qualified_name(left),
+                actual.ns_qualified_name(right)
+            );
+            let left_data = report(&mut actual, left).unwrap();
+            let right_data = report(&mut actual, right).unwrap();
+            assert_eq!(
+                left_data,
+                NativeNamespaceReportParts::CConstructed(ByteNamespacePath::from_segments(
+                    first.clone()
+                ))
+            );
+            assert_eq!(
+                right_data,
+                NativeNamespaceReportParts::CConstructed(ByteNamespacePath::from_segments(second))
+            );
+            assert_ne!(left_data, right_data);
+            actual.delete_namespace_by_id(left);
+            assert!(report(&mut actual, left).is_err());
+            assert_eq!(
+                left_data,
+                NativeNamespaceReportParts::CConstructed(ByteNamespacePath::from_segments(first))
+            );
+        }
+    }
+
+    #[test]
+    fn selected_c_namespace_report_retains_constructed_path_of_actual_dying_activation() {
+        let mut actual = native("tcl8.6");
+        let target = actual.ensure_global_namespace(b"::held::child");
+        let before = report(&mut actual, target).unwrap();
+        let saved = actual.current_ns();
+        actual.enter_namespace_activation(target);
+        actual.frames.borrow_mut().push_namespace(target);
+        actual.set_current_ns(target);
+        actual.delete_namespace_by_id(target);
+        assert!(!actual.namespaces().namespace_is_live(target));
+        assert_eq!(report(&mut actual, target).unwrap(), before);
+        let popped = actual.pop_native_call_frame();
+        actual.set_current_ns(saved);
+        actual.leave_namespace_activation(popped);
+        assert!(report(&mut actual, target).is_err());
+    }
+
+    thread_local! {
+        static ACTUAL: RefCell<Option<crate::interp::WeakInterp>> = const { RefCell::new(None) };
+        static ROLE: RefCell<Option<Rc<Owned>>> = const { RefCell::new(None) };
+        static READS: Cell<usize> = const { Cell::new(0) };
+        static MODE: Cell<u8> = const { Cell::new(0) };
+        static TARGET: Cell<NsId> = const { Cell::new(GLOBAL) };
+        static FIRST: RefCell<Option<tcl_runtime_api::NativeExecutionError>> = const { RefCell::new(None) };
+    }
+    struct Cleanup;
+    impl Drop for Cleanup {
+        fn drop(&mut self) {
+            ACTUAL.with(|actual| actual.borrow_mut().take());
+            ROLE.with(|role| role.borrow_mut().take());
+        }
+    }
+    extern "C" fn update(original: *mut TclObj) {
+        READS.with(|reads| reads.set(reads.get() + 1));
+        unsafe { obj::set_native_updater_string_rep(original, b"branch::leaf\0\xff", false) };
+        let mode = MODE.with(Cell::get);
+        if mode == 0 {
+            return;
+        }
+        let mut actual = ACTUAL
+            .with(|owner| {
+                owner
+                    .borrow()
+                    .as_ref()
+                    .and_then(crate::interp::WeakInterp::upgrade)
+            })
+            .unwrap();
+        actual.set_result_bytes(b"REACHED REPORT CALLBACK");
+        match mode {
+            1 => {
+                actual.refuse_host_command("original namespace report first cause");
+                FIRST.with(|first| *first.borrow_mut() = actual.native_execution_refusal());
+            }
+            2 => {
+                let original = actual.runtime_context();
+                let mut changed = original.clone();
+                changed
+                    .packages
+                    .push(("report-parts-control".into(), "1.0".into()));
+                actual.pin_context(&changed).unwrap();
+                actual.pin_context(&original).unwrap();
+            }
+            3 => actual.set_current_ns(TARGET.with(Cell::get)),
+            4 => {
+                let current = actual.current_ns();
+                actual.frames.borrow_mut().push(current);
+            }
+            5 => {
+                let retired = ROLE.with(|role| role.borrow_mut().take());
+                drop(retired);
+            }
+            _ => unreachable!(),
+        }
+    }
+    static ORIGINAL: obj::TclObjType = obj::TclObjType {
+        name: c"originalNamespaceReportParts".as_ptr(),
+        free_int_rep_proc: None,
+        dup_int_rep_proc: None,
+        update_string_proc: Some(update),
+        set_from_any_proc: None,
+    };
+    fn jim(mode: u8) -> (Interp, Cleanup, NsId, Owned) {
+        ACTUAL.with(|actual| actual.borrow_mut().take());
+        ROLE.with(|role| role.borrow_mut().take());
+        READS.with(|reads| reads.set(0));
+        MODE.with(|selected| selected.set(mode));
+        FIRST.with(|first| first.borrow_mut().take());
+        let mut actual = native("jimtcl");
+        let holder = Owned::fresh(obj::alloc_typed(&ORIGINAL, 0));
+        crate::native_source::bind_context(
+            holder.as_ptr(),
+            &actual.native_jim_object_context().unwrap(),
+        )
+        .unwrap();
+        let target = actual
+            .namespaces_mut()
+            .retain_unmaterialized_jim_namespace(Owned::retain(holder.as_ptr()));
+        let role = actual
+            .namespaces_mut()
+            .take_jim_namespace_owner(target)
+            .unwrap();
+        ROLE.with(|owner| *owner.borrow_mut() = Some(role));
+        TARGET.with(|selected| selected.set(target));
+        ACTUAL.with(|owner| *owner.borrow_mut() = Some(actual.downgrade()));
+        (actual, Cleanup, target, holder)
+    }
+
+    #[test]
+    fn selected_jim_report_reaches_original_holder_without_switching_caller_or_retaining_native_role(
+    ) {
+        let (mut actual, _cleanup, target, holder) = jim(0);
+        let caller = actual.current_ns();
+        let count = unsafe { (*holder.as_ptr()).ref_count };
+        actual.set_result_bytes(b"PRIOR");
+        let prior = actual.result_obj();
+        assert_ne!(caller, target);
+        assert!(actual.namespaces().native_context_path(target).is_none());
+        let snapshot = report(&mut actual, target).unwrap();
+        assert_eq!(
+            snapshot,
+            NativeNamespaceReportParts::JimFlat(Rc::from(b"branch::leaf\0\xff".as_slice()))
+        );
+        assert_eq!(READS.with(Cell::get), 1);
+        assert_eq!(actual.current_ns(), caller);
+        assert_eq!(actual.result_obj(), prior);
+        assert_eq!(unsafe { (*holder.as_ptr()).ref_count }, count);
+        assert_eq!(report(&mut actual, target).unwrap(), snapshot);
+        assert_eq!(READS.with(Cell::get), 1);
+        ROLE.with(|role| role.borrow_mut().take());
+        assert!(report(&mut actual, target).is_err());
+        assert_eq!(
+            snapshot,
+            NativeNamespaceReportParts::JimFlat(Rc::from(b"branch::leaf\0\xff".as_slice()))
+        );
+    }
+
+    #[test]
+    fn selected_jim_report_checks_first_cause_original_caller_and_target_after_reached_getter() {
+        for mode in [1, 2, 3, 4, 5] {
+            let (mut actual, _cleanup, target, holder) = jim(mode);
+            let error = report(&mut actual, target).unwrap_err();
+            assert_eq!(READS.with(Cell::get), 1, "{mode}");
+            assert_eq!(obj::bytes_of(holder.as_ptr()), b"branch::leaf\0\xff");
+            assert_eq!(
+                error.native_execution_refusal(),
+                actual.native_execution_refusal().as_ref()
+            );
+            assert!(actual.native_execution_refusal().is_some());
+            assert_eq!(actual.result_bytes(), b"REACHED REPORT CALLBACK");
+            if mode == 1 {
+                assert_eq!(
+                    FIRST.with(|first| first.borrow().clone()),
+                    actual.native_execution_refusal()
+                );
+            }
+            if mode == 4 {
+                actual.frames.borrow_mut().pop();
+            }
+            assert_eq!(actual.entered_native_operation_count(), 0);
+        }
+    }
+
+    #[test]
+    fn selected_report_parts_refuse_missing_issuer_and_absent_target_owner() {
+        let mut logical = Interp::new();
+        logical.set_dialect_profile(crate::environment::profile_for_dialect("irules"));
+        assert!(logical.name_policy_protocol().is_none());
+        assert!(report(&mut logical, GLOBAL).is_err());
+        let mut actual = native("jimtcl");
+        assert!(report(&mut actual, u32::MAX as usize).is_err());
+        let mut actual = native("jimtcl");
+        let foreign = native("jimtcl");
+        let holder = Owned::fresh(obj::new_string_bytes(b"foreign::scope"));
+        crate::native_source::bind_context(
+            holder.as_ptr(),
+            &foreign.native_jim_object_context().unwrap(),
+        )
+        .unwrap();
+        let target = actual
+            .namespaces_mut()
+            .retain_unmaterialized_jim_namespace(Owned::retain(holder.as_ptr()));
+        let _owner = actual
+            .namespaces_mut()
+            .take_jim_namespace_owner(target)
+            .unwrap();
+        assert!(report(&mut actual, target).is_err());
+    }
+}

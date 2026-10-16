@@ -4122,27 +4122,26 @@ impl Analyser {
             };
             // Implementation contract: naming.source.original-point-operand-projection
             // docs/design/analysis/name-resolution-proofs/original-point-operand-projection.md
-            let original_input = self.declaration_name_policy().and_then(|policy| {
-                crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
-                    original.word(argument)?,
-                    self.word_rules(),
-                    policy,
-                )
-                .map(crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord)
-            });
-            if original_input.is_none() {
-                // Registry assistance can still identify a potentially naming
-                // position when the original value producer is unavailable.
+            let logical = self.selected_logical_declaration_advice();
+            let (original_input, source_context) = self.original_namespace_reference_input(
+                original.word(argument),
+                tok.span,
+                invocation_offset,
+                scope_path,
+            );
+            if original_input.is_none() || (logical && source_context.is_none()) {
+                // The selected source role remains a coverage obligation
+                // when its value or independent Logical scope is unavailable.
                 if !self.result.namespace_name_unknowns.contains(&tok.span) {
                     self.result.namespace_name_unknowns.push(tok.span);
                 }
-                if crate::naming::is_dynamic_word(name) {
+                if original_input.is_none() && crate::naming::is_dynamic_word(name) {
                     continue;
                 }
             }
             self.result.namespace_refs.push(
                 super::types::NamespaceRef::from_original(
-                    self.declaration_namespace_scope(scope_path),
+                    source_context,
                     self.declaration_name_policy(),
                     name,
                     tok.span,
@@ -4153,6 +4152,71 @@ impl Analyser {
                 .with_original_input(original_input),
             );
         }
+    }
+
+    /// Join the role-selected original word to its source naming purpose.
+    /// Logical context comes from the independently retained invocation/frame,
+    /// never the reporting walk's current namespace. Native construction stays
+    /// terminal even when its original key is unavailable.
+    fn original_namespace_reference_input(
+        &self,
+        word: Option<&tcl_lexer::NativeWord>,
+        span: Span,
+        invocation_offset: u32,
+        scope_path: &[usize],
+    ) -> (
+        Option<crate::signature_scan::scope::SignatureSourceNameInput>,
+        Option<crate::signature_scan::scope::SignatureNamespaceScope>,
+    ) {
+        use crate::signature_scan::original_name::OriginalSourceNamePurpose;
+        use crate::signature_scan::scope::{SignatureSourceNameInput, SignatureSourceNameKey};
+
+        if !self.selected_logical_declaration_advice() {
+            let input = self.declaration_name_policy().and_then(|policy| {
+                SignatureSourceNameKey::from_original_native_word(word?, self.word_rules(), policy)
+                    .map(SignatureSourceNameInput::OriginalWord)
+            });
+            return (input, self.declaration_namespace_scope(scope_path));
+        }
+        let Some(owner) = self.result.resolved_input.as_ref() else {
+            return (None, None);
+        };
+        let image = tcl_lexer::SourceImage::document(&self.source);
+        if !self
+            .result
+            .matches_original_source_image(&image, owner.lexer_config())
+            || !self.head_identities.matches_resolved_analysis_input(owner)
+        {
+            return (None, None);
+        }
+        let Some((word, policy)) = word.zip(self.declaration_name_policy()) else {
+            return (None, None);
+        };
+        if word.image() != &image || word.config() != owner.lexer_config() {
+            return (None, None);
+        }
+        let purpose = OriginalSourceNamePurpose::for_analysis_input(
+            owner,
+            self.source_analysis_entry.as_deref(),
+            policy,
+        );
+        let OriginalSourceNamePurpose::Logical(_, _) = purpose else {
+            return (None, None);
+        };
+        let Some(input) = purpose
+            .key(word, self.word_rules())
+            .map(SignatureSourceNameInput::OriginalWord)
+        else {
+            return (None, None);
+        };
+        let context = self
+            .head_identities
+            .original_namespace_operand_at_span_in_source(&image, span, owner.lexer_config())
+            .filter(|operand| {
+                operand.site().offset == invocation_offset && operand.name_input() == &input
+            })
+            .map(|operand| operand.context().clone());
+        (Some(input), context)
     }
 
     /// Record each computed variable-name argument as a
@@ -7142,6 +7206,212 @@ mod tests {
             &[],
         );
         assert!(a.command_aliases.contains_key("::myset"));
+    }
+
+    #[test]
+    fn logical_namespace_references_keep_original_words_and_independent_frames() {
+        use crate::signature_scan::scope::SignatureNamespaceScope;
+        for (source, home) in [
+            ("namespace exists Target", None),
+            ("namespace eval N {namespace exists Target}", Some("N")),
+            (
+                "namespace eval N {proc p {} {namespace exists Target}}",
+                Some("N"),
+            ),
+        ] {
+            let result = Analyser::new().analyse(source, "tcl");
+            let start = u32::try_from(source.find("Target").unwrap()).unwrap();
+            let span = Span::new(start, start + 6);
+            let references = result
+                .namespace_refs
+                .iter()
+                .filter(|reference| reference.span == span)
+                .collect::<Vec<_>>();
+            assert_eq!(references.len(), 1, "one actual written operand: {source}");
+            let reference = references[0];
+            let input = reference
+                .original_name_input
+                .as_ref()
+                .expect("Logical original word");
+            assert_eq!(input.bytes(), b"Target");
+            let word = input.original_word_key().unwrap().original_word();
+            assert_eq!(word.image(), &tcl_lexer::SourceImage::document(source));
+            assert_eq!(word.config(), result.body_lexer_config.unwrap());
+            assert!(
+                crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
+                    word,
+                    tcl_syntax::word_rules::WordValueRules::from_config(&word.config()),
+                    input.policy(),
+                )
+                .is_none(),
+                "Logical word must not acquire Native purpose"
+            );
+            let SignatureNamespaceScope::C(context) = reference.source_context.as_ref().unwrap()
+            else {
+                panic!("Logical C namespace context");
+            };
+            assert_eq!(
+                context.as_segments(),
+                home.into_iter()
+                    .map(tcl_core_types::NameBytes::from)
+                    .collect::<Vec<_>>()
+            );
+            let SignatureNamespaceScope::C(target) = reference.source_namespace.as_ref().unwrap()
+            else {
+                panic!("Logical C namespace target");
+            };
+            assert_eq!(
+                target.as_segments(),
+                home.into_iter()
+                    .chain(["Target"])
+                    .map(tcl_core_types::NameBytes::from)
+                    .collect::<Vec<_>>()
+            );
+            assert!(!result.namespace_name_unknowns.contains(&span), "{source}");
+        }
+        let result = Analyser::new().analyse("namespace exists {}", "tcl");
+        assert_eq!(result.namespace_refs.len(), 1);
+        let reference = &result.namespace_refs[0];
+        assert_eq!(reference.original_name_input.as_ref().unwrap().bytes(), b"");
+        let SignatureNamespaceScope::C(target) = reference.source_namespace.as_ref().unwrap()
+        else {
+            panic!("empty original operand selects source root");
+        };
+        assert!(target.as_segments().is_empty());
+        assert!(result.namespace_name_unknowns.is_empty());
+    }
+
+    #[test]
+    fn logical_namespace_references_preserve_alias_written_indices_and_unknowns() {
+        let source =
+            "interp alias {} nsExists {} namespace exists; namespace eval N {nsExists Target}";
+        let result = Analyser::new().analyse(source, "tcl");
+        let start = u32::try_from(source.find("Target").unwrap()).unwrap();
+        let references = result
+            .namespace_refs
+            .iter()
+            .filter(|reference| reference.span == Span::new(start, start + 6))
+            .collect::<Vec<_>>();
+        assert_eq!(references.len(), 1, "alias's actual written NamespaceName");
+        let reference = references[0];
+        assert_eq!(
+            reference.original_name_input.as_ref().unwrap().bytes(),
+            b"Target"
+        );
+        assert_eq!(
+            reference
+                .source_namespace
+                .as_ref()
+                .unwrap()
+                .display()
+                .as_deref(),
+            Some("::N::Target")
+        );
+        assert!(!result.namespace_name_unknowns.contains(&reference.span));
+
+        let source = "interp alias {} nsFixed {} namespace exists Captured; nsFixed";
+        let result = Analyser::new().analyse(source, "tcl");
+        let call = u32::try_from(source.rfind("nsFixed").unwrap()).unwrap();
+        assert!(
+            result
+                .namespace_refs
+                .iter()
+                .all(|reference| reference.span.start() < call),
+            "captured prefix name has no written operand at the alias call"
+        );
+        assert!(
+            result
+                .namespace_name_unknowns
+                .iter()
+                .all(|span| span.start() < call)
+        );
+
+        let source = "proc p {ns} {namespace exists $ns; namespace exists ::other::$ns}";
+        for dialect in ["tcl", "tcl8.6"] {
+            let result = Analyser::new().analyse(source, dialect);
+            assert_eq!(
+                result
+                    .namespace_name_unknowns
+                    .iter()
+                    .map(|span| &source[span.as_range()])
+                    .collect::<Vec<_>>(),
+                ["$ns", "::other::$ns"],
+                "{dialect}"
+            );
+            assert!(
+                result.namespace_refs.is_empty(),
+                "dynamic source names remain unresolved: {dialect}"
+            );
+        }
+    }
+
+    #[test]
+    fn logical_namespace_reference_inputs_require_current_original_owners_and_sites() {
+        let source = "namespace eval N {namespace exists Target}";
+        let mut analyser = Analyser::new();
+        analyser.result = analyser.analyse(source, "tcl");
+        let reference = analyser
+            .result
+            .namespace_refs
+            .iter()
+            .find(|reference| reference.original_name == "Target")
+            .unwrap();
+        let span = reference.span;
+        let word = reference
+            .original_name_input
+            .as_ref()
+            .unwrap()
+            .original_word_key()
+            .unwrap()
+            .original_word()
+            .clone();
+        let offset = u32::try_from(source.find("namespace exists").unwrap()).unwrap();
+        let (input, context) =
+            analyser.original_namespace_reference_input(Some(&word), span, offset, &[]);
+        assert_eq!(input.as_ref().unwrap().bytes(), b"Target");
+        assert_eq!(
+            context.as_ref().unwrap().display().as_deref(),
+            Some("::N"),
+            "the caller's reporting scope path cannot donate a namespace"
+        );
+        let (input, context) =
+            analyser.original_namespace_reference_input(Some(&word), span, 0, &[]);
+        assert_eq!(input.as_ref().unwrap().bytes(), b"Target");
+        assert!(
+            context.is_none(),
+            "a foreign invocation cannot donate namespace geometry"
+        );
+
+        let owner = analyser.result.resolved_input.take().unwrap();
+        assert_eq!(
+            analyser.original_namespace_reference_input(Some(&word), span, offset, &[]),
+            (None, None)
+        );
+        analyser.result.resolved_input = Some(owner.clone());
+        let mut changed = owner.lexer_config();
+        changed.strict_quoting = !changed.strict_quoting;
+        analyser.result.body_lexer_config = Some(changed);
+        assert_eq!(
+            analyser.original_namespace_reference_input(Some(&word), span, offset, &[]),
+            (None, None)
+        );
+        analyser.result.body_lexer_config = Some(owner.lexer_config());
+        analyser.result.resolved_input = Some(crate::analyser::ResolvedAnalysisInput::new(
+            owner.analyser_profile(),
+            owner.unit_profile(),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
+            owner.lexer_config(),
+        ));
+        assert_eq!(
+            analyser.original_namespace_reference_input(Some(&word), span, offset, &[]),
+            (None, None)
+        );
+        analyser.result.resolved_input = Some(owner);
+        analyser.source.push(' ');
+        assert_eq!(
+            analyser.original_namespace_reference_input(Some(&word), span, offset, &[]),
+            (None, None)
+        );
     }
 
     fn diag_codes(source: &str, dialect: &str) -> Vec<(String, String)> {

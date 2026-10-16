@@ -1342,3 +1342,23 @@ method. Registration authenticates that exact static descriptor layout; raw
 unregistered descriptors remain unknown. Arbitrary conversion callbacks remain
 effectful and independently checked, so this class cannot issue stock-hook
 closure or successful cache evidence.
+
+Logical point-name projections retain the original whole word and explicit
+source naming purpose. Namespace operands obtain context from the independently
+retained invocation and variable-frame recipe; reporting scope paths cannot
+donate a namespace. A positive source name can survive missing scope as advice,
+while the missing scope remains an explicit coverage obligation. Native and
+original-declaration factories retain their narrower contracts.
+
+Procedure byte queries retain the selected declaration and exact binding
+generation. C retains its String-first name query; Jim can use the original
+command operand and actual declaration namespace holder, birth, allocator and
+existing interpreter context. Checks cross each reached getter and cleanup.
+Byte-query results do not represent the physical original body-result header.
+
+`Namespaces::namespace_report_parts_checked` snapshots actual constructed C
+components or reached Jim flat bytes under the selected namespace owner and
+original caller checks. Its default refuses unavailable ownership. Immutable
+report parts grant no namespace, command or variable identity; equal rendered
+names can represent distinct slots. Original object results retain their
+independent allocation and lifetime requirements.
