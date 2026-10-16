@@ -281,6 +281,11 @@ export async function activate(context: ExtensionContext) {
           command: "tcl-lsp.currentDiagnostics",
           arguments: [params],
         }),
+      requestProposal: (params) =>
+        activeClient.sendRequest("workspace/executeCommand", {
+          command: "tcl-lsp.proposalDiagnostics",
+          arguments: [params],
+        }),
       convert: (diagnostics) => activeClient.protocol2CodeConverter.asDiagnostics(diagnostics),
       setSessionDialectOverride: async (dialect) => {
         await activeClient.sendRequest("workspace/executeCommand", {

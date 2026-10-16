@@ -1119,6 +1119,35 @@
         "verified_complete": false
       },
       "implementation_scope": "Independently source-cleared exact component bundles and composed afterimages; native/platform/retained tests and required gates pending. No completion from source review."
+    },
+    {
+      "id": "lsp.owner.isolated-configured-proposal-diagnostics",
+      "kind": "shared_owner_extension",
+      "baseline_unit_ids": [
+        "lsp-editor-ai-iterate-currency",
+        "lsp-editor-fix-payload",
+        "lsp-editor-diagnostic-generation"
+      ],
+      "site_anchors": [
+        {
+          "path": "rust/tcl-lsp-server/src/proposal_diagnostics.rs",
+          "symbol": "Projection; build; recompute_class_factories; recompute_call_site_evidence"
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/current_diagnostics.rs",
+          "symbol": "Backend::produce_proposal_diagnostics; revalidate_proposal_capture"
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/provider_source.rs",
+          "symbol": "ProposalProviderSources; ConfiguredProviderSourceReport"
+        }
+      ],
+      "rationale": "One demonstrated missing hypothetical-source analysis owner facet: independently allocated full-configured project/database with genuine ID/path/input remap, request-local recovery cache, actual before-consumption/cache-hit provider ledger, and final original-source/config/project/provider joint currency. Existing completed-source diagnostic publication cannot donate its original report or delivery acknowledgement to a proposal. Count once for the grouped issuer purpose, not per projection/helper/provider/control/return field; actual editor callers keep separate baseline units.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false
+      },
+      "implementation_scope": "Exact whole RustV12/provider/recovery/poison source CLEAR plus4 actual endpoint controls and current-main/header union. Native compilation firstFAIL API/type/newtest Debug constraints; sameguard repair under review. Actualendpoint/portable/owner/repository gates pending. Selected original provider and unversioned disk typedunavailable. Syntaxcoverage supplies no graph/Native/Normal/edit grant."
     }
   ],
   "unverified_or_open": [
@@ -1130,28 +1159,28 @@
   ],
   "status_note": "Requirements are counted regardless of implementation presence. No additional requirement or baseline unit is verified complete.",
   "status": "accepted_additional_obligations_unverified",
-  "utc": "2026-10-16T18:04:48.462030+00:00",
+  "utc": "2026-10-16T20:12:41.529602+00:00",
   "accepted_delta": {
-    "semantic_code_changes": 52,
+    "semantic_code_changes": 53,
     "validation_code_repairs": 1,
     "authored_documentation": 0,
-    "all_required_changes": 53,
+    "all_required_changes": 54,
     "by_kind": {
       "shared_owner_repair": 9,
-      "shared_owner_extension": 28,
+      "shared_owner_extension": 29,
       "caller_migration": 14,
       "metadata_or_target_schema": 1,
       "validation_code_repair": 1
     }
   },
   "effective_counts": {
-    "semantic_code_changes": 1851,
+    "semantic_code_changes": 1852,
     "validation_code_repairs": 306,
     "authored_documentation": 54,
-    "all_required_changes": 2211
+    "all_required_changes": 2212
   },
   "implementation_progress": {
-    "implemented_pending_validation": 52,
+    "implemented_pending_validation": 53,
     "not_integrated": 1,
     "verified_complete": 0
   }

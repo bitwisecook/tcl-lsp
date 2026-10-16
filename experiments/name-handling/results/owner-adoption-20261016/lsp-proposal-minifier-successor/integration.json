@@ -1,0 +1,38 @@
+{
+  "utc": "2026-10-16T20:06:40.594173+00:00",
+  "source_head": "f46135314f6b4710ad30513e30b2169217bf4c87",
+  "packets": [
+    {
+      "path": "/tmp/lsp-proposal-diagnostics-owner/v12/proposal-diagnostics-v12.patch",
+      "sha256": "90374251a32e85c1e5e6212919489a8074b4af51113dc2850d3eb3062ec18de1"
+    },
+    {
+      "path": "/tmp/lsp-proposal-contract-v1/patches/proposal-diagnostics-agpl-header-only.patch",
+      "sha256": "e72d5d7127539cabb9e61f79bbab71f94f14c7b08731b6844218fc2bf8f7c88a"
+    },
+    {
+      "path": "/tmp/lsp-proposal-endpoint-controls-v1/endpoint-controls.patch",
+      "sha256": "0b9ebc3fe9a2219b7af6bbb181bc4e07f0df904e6f16ec9a5df613342ba94d3c"
+    },
+    {
+      "path": "/tmp/lsp-proposal-contract-v1/patches/editor-full-currentmain-to-v5.patch",
+      "sha256": "9bb3634a94bd049691e5218985bc6e87091bf1b28f690ffea57ddd7d224eeb3f"
+    },
+    {
+      "path": "/tmp/lsp-minifier-source-census-v1/source.patch",
+      "sha256": "b807fc854523be6a5d5581b616c18495162487593c1d78c732b10d5d0e4fa3a6"
+    },
+    {
+      "path": "/tmp/lsp-minifier-source-census-v1/contract.patch",
+      "sha256": "7d72fc0a952f480aed2c1a029a5c81f236bc57ab68173911048568af526a4d6d"
+    },
+    {
+      "path": "/tmp/lsp-proposal-contract-v2/lsp-proposal-contract-v2.patch",
+      "sha256": "2f6d770ab88abe0c4734dde60f0d161e00ba98e2fc637f42f9b229324130be3d"
+    }
+  ],
+  "source_review": "Independent exact component and whole proposal/editor CLEAR; Root applies current-main union of disjoint Server lib edits.",
+  "instrumentation_restored_before_integration": true,
+  "ordinary_compile": "pending",
+  "counts": "Root reconciliation pending; no verified-complete increment"
+}

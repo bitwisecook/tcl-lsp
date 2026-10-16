@@ -1,0 +1,14 @@
+{
+  "status": "SOURCE_SELECTION_CLEAR",
+  "retained338_unchanged": true,
+  "old_generator_immutable": true,
+  "new_reviewed_controls": 20,
+  "added_original_controls": 88,
+  "additions": 108,
+  "total": 446,
+  "source_files": 83,
+  "current_source_eligible": 446,
+  "all_old_control_listing_singletons": true,
+  "current_binary_or_listing_claim": false,
+  "execution": "Read-only Python source/hash/selection verification; no tests/listing/Cargo/Git/main mutations."
+}

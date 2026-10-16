@@ -1,0 +1,12 @@
+[
+  {
+    "path": "/workspace/naming-validation/lsp-member-comment-stage-diagnostic/input-before.json",
+    "sha256": "b4d904658adec6fcb73ee9eb103a871653c97b0ca598b13e23c62959865f2aec",
+    "count": 39000
+  },
+  {
+    "path": "/workspace/naming-validation/lsp-member-comment-stage-diagnostic/input-instrumented.json",
+    "sha256": "8c03725ea5d4d5e775ad0341f3da0beec7f4ed75038db4af97546c94b29b0782",
+    "count": 39000
+  }
+]

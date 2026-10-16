@@ -79,6 +79,66 @@ struct DiagnosticSourceExpectation {
     source: String,
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ProposalDiagnosticExpectation {
+    uri: Uri,
+    version: i32,
+    source: String,
+    proposal: String,
+}
+
+#[derive(Serialize)]
+#[serde(tag = "status", rename_all = "camelCase")]
+enum ProposalDiagnostics {
+    Complete {
+        uri: Uri,
+        version: i32,
+        source: String,
+        proposal: String,
+        revision: String,
+        #[serde(rename = "inputsEpoch")]
+        inputs_epoch: String,
+        #[serde(rename = "workspaceIndexGeneration")]
+        workspace_index_generation: String,
+        #[serde(rename = "resultId")]
+        result_id: String,
+        diagnostics: Vec<tower_lsp_server::ls_types::Diagnostic>,
+    },
+    Suppressed {
+        uri: Uri,
+        version: i32,
+        source: String,
+        proposal: String,
+        reason: DiagnosticSuppression,
+    },
+    Unavailable {
+        reason: DiagnosticUnavailable,
+    },
+}
+
+struct ProposalCurrentness<'a> {
+    expected: &'a ProposalDiagnosticExpectation,
+    document_revision: u64,
+    dialect: &'a str,
+    admission: &'a Arc<DocumentPathAdmission>,
+    inputs_epoch: u64,
+    database_revision: salsa::Revision,
+    project: tcl_lsp_db::Project,
+    members: &'a HashSet<Uri>,
+    rehomed_source_seeds: &'a HashMap<String, Vec<String>>,
+    token_configurations: &'a [(tcl_lsp_db::SourceFile, tcl_lsp_db::AnalyserConfig)],
+    source_receipts: &'a [(Uri, tcl_lsp_db::SourceFile, Arc<DocumentPathAdmission>)],
+    selected_original_file: tcl_lsp_db::SourceFile,
+    index_generation: u64,
+    class_factory_generation: u64,
+    evaluator_epoch: u64,
+    overlay_epoch: u64,
+    package_revision: u64,
+    folder_configs: &'a [(Uri, tcl_lsp_db::AnalyserConfig)],
+    global_config: tcl_lsp_db::AnalyserConfig,
+}
+
 struct DiagnosticReportExpectation {
     uri: Uri,
     version: Option<i32>,
@@ -368,6 +428,650 @@ impl Backend {
         serde_json::to_value(answer)
             .map(Some)
             .map_err(|_| jsonrpc::Error::internal_error())
+    }
+
+    /// Analyse proposed full source in an isolated project projection. This
+    /// report is not a push acknowledgement or a grant to edit the document.
+    pub(super) async fn proposal_diagnostics_command(
+        &self,
+        arguments: &[serde_json::Value],
+    ) -> jsonrpc::Result<Option<serde_json::Value>> {
+        let [argument] = arguments else {
+            return Err(jsonrpc::Error::invalid_params(
+                "Expected one proposal source expectation",
+            ));
+        };
+        let expected: ProposalDiagnosticExpectation = serde_json::from_value(argument.clone())
+            .map_err(|_| {
+                jsonrpc::Error::invalid_params("Expected {uri, version, source, proposal}")
+            })?;
+        let answer = match self.produce_proposal_diagnostics(&expected).await {
+            Ok(answer) => answer,
+            Err(reason) => ProposalDiagnostics::Unavailable { reason },
+        };
+        serde_json::to_value(answer)
+            .map(Some)
+            .map_err(|_| jsonrpc::Error::internal_error())
+    }
+
+    async fn produce_proposal_diagnostics(
+        &self,
+        expected: &ProposalDiagnosticExpectation,
+    ) -> Result<ProposalDiagnostics, DiagnosticUnavailable> {
+        let (document_revision, dialect, language_id, admission) = {
+            let documents = self.documents.lock("proposal_diagnostic_source").await;
+            let document = documents
+                .get(&expected.uri)
+                .ok_or(DiagnosticUnavailable::NotOpen)?;
+            if document.publication != DocumentPublication::Indexed
+                || document.version != Some(expected.version)
+                || document.raw() != expected.source
+            {
+                return Err(DiagnosticUnavailable::Stale);
+            }
+            (
+                document.revision,
+                document.dialect.clone(),
+                document.language_id.clone(),
+                document
+                    .path_admission
+                    .clone()
+                    .ok_or(DiagnosticUnavailable::Context)?,
+            )
+        };
+        admission
+            .check_for(&expected.uri, self.store.as_ref())
+            .map_err(|_| DiagnosticUnavailable::Context)?;
+        if Backend::is_bigip_dialect(&dialect) || is_apl_source(&expected.uri, &language_id) {
+            return Err(DiagnosticUnavailable::Unsupported);
+        }
+
+        let inputs = self
+            .diag_inputs(&expected.uri, tcl_lsp_core::profile_for_dialect(&dialect))
+            .await;
+        let inputs_epoch = inputs.inputs_epoch.ok_or(DiagnosticUnavailable::Stale)?;
+        if !inputs.toggles.diagnostics_enabled {
+            self.revalidate_suppressed_proposal(
+                expected,
+                document_revision,
+                &dialect,
+                &admission,
+                inputs_epoch,
+            )
+            .await?;
+            return Ok(ProposalDiagnostics::Suppressed {
+                uri: expected.uri.clone(),
+                version: expected.version,
+                source: expected.source.clone(),
+                proposal: expected.proposal.clone(),
+                reason: DiagnosticSuppression::Disabled,
+            });
+        }
+        if inputs.toggles.excluded {
+            self.revalidate_suppressed_proposal(
+                expected,
+                document_revision,
+                &dialect,
+                &admission,
+                inputs_epoch,
+            )
+            .await?;
+            return Ok(ProposalDiagnostics::Suppressed {
+                uri: expected.uri.clone(),
+                version: expected.version,
+                source: expected.source.clone(),
+                proposal: expected.proposal.clone(),
+                reason: DiagnosticSuppression::Excluded,
+            });
+        }
+
+        let handles = EvidenceHandles::from_inputs(&inputs);
+        let (
+            captured,
+            original_index,
+            index_generation,
+            factory_generation,
+            folder_configs,
+            global_config,
+            rehomed_source_seeds,
+            package_revision,
+        ) = {
+            let _analyser_inputs = self.analyser_inputs_gate.read().await;
+            if self.diag_inputs_epoch() != inputs_epoch {
+                return Err(DiagnosticUnavailable::Stale);
+            }
+            let _rehoming = inputs.rehoming_gate.lock().await;
+            let _live_publication = inputs.live_publication_gate.lock().await;
+            let captured = capture_cross_file_evidence_snapshot(&handles)
+                .await
+                .ok_or(DiagnosticUnavailable::Context)?;
+            let (index, generation) = {
+                let index = inputs.workspace_index.read().await;
+                (index.clone(), index.generation())
+            };
+            let factory_generation = *inputs.class_factory_generation.read().await;
+            let folder_configs = inputs.folder_db_configs.lock().await.clone();
+            let global_config = *inputs.db_config.lock().await;
+            let rehomed_source_seeds = inputs.rehomed_source_seeds.lock().await.clone();
+            let package_revision = inputs.package_resolver.read().await.revision();
+            (
+                captured,
+                index,
+                generation,
+                factory_generation,
+                folder_configs,
+                global_config,
+                rehomed_source_seeds,
+                package_revision,
+            )
+        };
+
+        let projected_rows = captured.project.files(&*captured.snapshot);
+        if projected_rows.len() != captured.members.len() {
+            return Err(DiagnosticUnavailable::Context);
+        }
+        let original_token_configurations = captured
+            .project
+            .token_configurations(&*captured.snapshot)
+            .clone()
+            .ok_or(DiagnosticUnavailable::Context)?;
+        if original_token_configurations.len() != projected_rows.len() {
+            return Err(DiagnosticUnavailable::Context);
+        }
+        let source_admissions = self
+            .source_path_admissions
+            .lock()
+            .map_err(|_| DiagnosticUnavailable::Context)?
+            .clone();
+        let mut source_inputs = Vec::with_capacity(projected_rows.len());
+        let mut source_receipts = Vec::with_capacity(projected_rows.len());
+        let mut project_uris = HashSet::with_capacity(projected_rows.len());
+        let mut selected_original_file = None;
+        for &file in projected_rows {
+            let Some((uri, _)) = captured
+                .files
+                .iter()
+                .find(|(_, candidate)| *candidate == file)
+            else {
+                return Err(DiagnosticUnavailable::Context);
+            };
+            if !project_uris.insert(uri.clone()) || !captured.members.contains(uri) {
+                return Err(DiagnosticUnavailable::Context);
+            }
+            let published = source_admissions
+                .get(uri)
+                .ok_or(DiagnosticUnavailable::Context)?;
+            if published.file != file {
+                return Err(DiagnosticUnavailable::Stale);
+            }
+            published
+                .admission
+                .check_for(uri, self.store.as_ref())
+                .map_err(|_| DiagnosticUnavailable::Context)?;
+            let source_path = published.admission.path().map(Path::to_path_buf);
+            let file_path = file.path(&*captured.snapshot).clone();
+            if file_path.as_deref() != published.admission.analyser_path()
+                || file_path.is_some() != source_path.is_some()
+            {
+                return Err(DiagnosticUnavailable::Context);
+            }
+            let mut mapped_configs = original_token_configurations
+                .iter()
+                .filter(|(mapped_file, _)| *mapped_file == file);
+            let config = mapped_configs
+                .next()
+                .map(|(_, config)| *config)
+                .ok_or(DiagnosticUnavailable::Context)?;
+            if mapped_configs.next().is_some() {
+                return Err(DiagnosticUnavailable::Context);
+            }
+            let resolved_config = longest_folder_match(&folder_configs, uri)
+                .copied()
+                .unwrap_or(global_config);
+            if config != resolved_config {
+                return Err(DiagnosticUnavailable::Context);
+            }
+            let row = proposal_diagnostics::SourceInput {
+                uri: uri.clone(),
+                text: file.text(&*captured.snapshot).clone(),
+                dialect: file.dialect(&*captured.snapshot).clone(),
+                path: file_path,
+                source_path,
+                external_call_sites: file.external_call_sites(&*captured.snapshot).clone(),
+                workspace_class_factories: file
+                    .workspace_class_factories(&*captured.snapshot)
+                    .clone(),
+                workspace_subclass_methods: file
+                    .workspace_subclass_methods(&*captured.snapshot)
+                    .clone(),
+                sidecar_stubs_epoch: file.sidecar_stubs_epoch(&*captured.snapshot),
+                config: proposal_diagnostics::ConfigInput {
+                    disabled_diagnostics: config.disabled_diagnostics(&*captured.snapshot).clone(),
+                    non_ascii_mode: config.non_ascii_mode(&*captured.snapshot),
+                    extra_commands: config.extra_commands(&*captured.snapshot).clone(),
+                    generic_variable_patterns: config
+                        .generic_variable_patterns(&*captured.snapshot)
+                        .clone(),
+                    bigip_version: config.bigip_version(&*captured.snapshot).clone(),
+                    spec_pack_key: config.spec_pack_key(&*captured.snapshot),
+                    targets: config.targets(&*captured.snapshot).clone(),
+                    package_provides: config.package_provides(&*captured.snapshot).clone(),
+                },
+            };
+            if uri == &expected.uri {
+                if !Arc::ptr_eq(&published.admission, &admission)
+                    || tcl_lexer::normalise_lone_cr(&row.text).as_ref()
+                        != tcl_lexer::normalise_lone_cr(&expected.source).as_ref()
+                {
+                    return Err(DiagnosticUnavailable::Stale);
+                }
+                selected_original_file = Some(file);
+            }
+            source_receipts.push((uri.clone(), file, Arc::clone(&published.admission)));
+            source_inputs.push(row);
+        }
+        if project_uris != captured.members {
+            return Err(DiagnosticUnavailable::Context);
+        }
+        let selected_original_file =
+            selected_original_file.ok_or(DiagnosticUnavailable::Context)?;
+        let proposal_sources = provider_source::ProposalProviderSources::new(
+            expected.uri.clone(),
+            selected_original_file,
+            Arc::clone(&admission),
+        )
+        .ok_or(DiagnosticUnavailable::Context)?;
+        let database_revision = captured.revision;
+        let original_project = captured.project;
+        let original_members = captured.members.clone();
+        let evaluator_epoch = tcl_registry::pack_hooks::evaluator_epoch();
+        let overlay_epoch = tcl_registry::overlay_epoch();
+        let captured_evaluator_epoch = tcl_lsp_db::EvaluatorEpoch::try_get(&*captured.snapshot)
+            .map_or(0, |epoch| epoch.generation(&*captured.snapshot));
+        let captured_overlay_epoch = tcl_lsp_db::OverlayEpoch::try_get(&*captured.snapshot)
+            .map_or(0, |epoch| epoch.generation(&*captured.snapshot));
+        if evaluator_epoch != captured_evaluator_epoch || overlay_epoch != captured_overlay_epoch {
+            return Err(DiagnosticUnavailable::Stale);
+        }
+        drop(captured);
+
+        let mut projection = proposal_diagnostics::build(
+            source_inputs,
+            &expected.uri,
+            tcl_lexer::normalise_lone_cr(&expected.proposal).as_ref(),
+            evaluator_epoch,
+            overlay_epoch,
+        )
+        .map_err(|_| DiagnosticUnavailable::Context)?;
+        if !proposal_diagnostics::recompute_class_factories(&mut projection).await
+            || !proposal_diagnostics::recompute_call_site_evidence(&mut projection).await
+        {
+            return Err(DiagnosticUnavailable::Context);
+        }
+
+        let detached_db = Arc::clone(&projection.db);
+        let detached_project = Arc::new(Mutex::new(Some(projection.project)));
+        let detached_workspace_index = Arc::new(TrackedRwLock::new(
+            "proposal_workspace_index",
+            original_index,
+        ));
+        let selected_file = projection.selected;
+        let selected_config = projection.selected_config;
+        let projected_rehomed_source_seeds = Arc::new(Mutex::new(rehomed_source_seeds.clone()));
+        let dialect_profile = tcl_lsp_core::profile_for_dialect(&dialect);
+        let analysis_text = tcl_lexer::normalise_lone_cr(&expected.proposal);
+        let salsa_ctx = SalsaAnalysisCtx {
+            db: &detached_db,
+            uri: &expected.uri,
+            file: Some(selected_file),
+            config: selected_config,
+            text: &analysis_text,
+            dialect: dialect_profile,
+        };
+        // Detached proposal indexes can share a numeric generation with the live
+        // index or another proposal while containing different declarations.
+        // Keep recovery allocations request-local instead of indexing them by
+        // that non-global generation alone.
+        let proposal_recovery_names = Arc::new(Mutex::new(RecoveryNameCache::default()));
+        let path_inputs = AnalyserPathInputs {
+            registry: Arc::clone(&inputs.registry),
+            extra_commands: &inputs.extra_commands,
+            generic_variable_patterns: inputs.generic_variable_patterns.as_deref(),
+            non_ascii_mode: inputs.non_ascii_mode,
+            db_project: &detached_project,
+            workspace_index: &detached_workspace_index,
+            rehomed_source_seeds: &projected_rehomed_source_seeds,
+            rehoming_gate: &inputs.rehoming_gate,
+            package_resolver: &inputs.package_resolver,
+            package_prefer: inputs.package_prefer,
+            provider_capture: provider_source::ProviderCaptureInputs {
+                db: &inputs.db,
+                files: &inputs.db_files,
+                global: &inputs.db_config,
+                folders: &inputs.folder_db_configs,
+                store: &inputs.store,
+                source_path_admissions: &inputs.source_path_admissions,
+                dialects: &inputs.provider_dialects,
+                proposal: Some(&proposal_sources),
+            },
+            recovery_names: &proposal_recovery_names,
+            entry_points: &inputs.entry_points,
+            folder_root: inputs.folder_root.as_deref(),
+            cross_file_resolution: inputs.toggles.xc.cross_file_resolution,
+        };
+        let recovery = RecoveryWidenCtx {
+            cache: path_inputs.recovery_names,
+            registry: &path_inputs.registry,
+            workspace_index: path_inputs.workspace_index,
+            package_resolver: path_inputs.package_resolver,
+            provider_capture: &path_inputs.provider_capture,
+            prefer: path_inputs.package_prefer,
+        };
+        let mut subclass_settled = false;
+        for _ in 0..CLASS_FACTORY_SYNC_ROUNDS {
+            let analysis = compute_base_analysis(
+                &inputs.client,
+                &salsa_ctx,
+                &inputs.disabled,
+                &inputs.extra_commands,
+                inputs.non_ascii_mode,
+                &recovery,
+            )
+            .await;
+            let analysis = match analysis {
+                ControlFlow::Continue(analysis) => analysis,
+                ControlFlow::Break(false) => return Err(DiagnosticUnavailable::Cancelled),
+                ControlFlow::Break(true) => return Err(DiagnosticUnavailable::ProviderError),
+            };
+            detached_workspace_index
+                .write()
+                .await
+                .replace_document(expected.uri.as_str(), &analysis);
+            let index = detached_workspace_index.read().await.clone();
+            let Some(changed) =
+                proposal_diagnostics::update_subclass_methods_from_index(&mut projection, &index)
+                    .await
+            else {
+                return Err(DiagnosticUnavailable::Context);
+            };
+            if !changed {
+                subclass_settled = true;
+                break;
+            }
+        }
+        if !subclass_settled {
+            return Err(DiagnosticUnavailable::Context);
+        }
+
+        let lift = LiftInputs {
+            text: &expected.proposal,
+            decode_report: None,
+            dialect: dialect_profile,
+            disabled: &inputs.disabled,
+            policy_layers: &inputs.policy_layers,
+            style_line_length: inputs.style_line_length,
+            xc_diagnostics: inputs.toggles.xc.xc_diagnostics,
+        };
+        let base = compute_base_analysis(
+            &inputs.client,
+            &salsa_ctx,
+            &inputs.disabled,
+            &inputs.extra_commands,
+            inputs.non_ascii_mode,
+            &recovery,
+        );
+        let project = inputs
+            .toggles
+            .xc
+            .cross_file_resolution
+            .then_some(projection.project);
+        let produced = match compute_deep_diagnostic_report(
+            &expected.uri,
+            &salsa_ctx,
+            &lift,
+            &path_inputs,
+            project,
+            base,
+        )
+        .await
+        {
+            ControlFlow::Continue(produced) => produced,
+            ControlFlow::Break((_, reason)) => return Err(reason),
+        };
+        produced.provider_completion?;
+        if produced.provider_sources.source_failure().is_some() {
+            return Err(DiagnosticUnavailable::Context);
+        }
+        let resolver = inputs.package_resolver.read().await;
+        if !produced.provider_sources.is_current(&resolver) {
+            return Err(DiagnosticUnavailable::Stale);
+        }
+        drop(resolver);
+        let diagnostics = produced
+            .result
+            .map_err(|_| DiagnosticUnavailable::ProviderError)?;
+
+        let currentness = ProposalCurrentness {
+            expected,
+            document_revision,
+            dialect: &dialect,
+            admission: &admission,
+            inputs_epoch,
+            database_revision,
+            project: original_project,
+            members: &original_members,
+            rehomed_source_seeds: &rehomed_source_seeds,
+            token_configurations: &original_token_configurations,
+            source_receipts: &source_receipts,
+            selected_original_file,
+            index_generation,
+            class_factory_generation: factory_generation,
+            evaluator_epoch,
+            overlay_epoch,
+            package_revision,
+            folder_configs: &folder_configs,
+            global_config,
+        };
+        let mut hasher = Sha256::new();
+        hasher.update(expected.uri.as_str().as_bytes());
+        hasher.update(expected.version.to_le_bytes());
+        hasher.update(expected.source.as_bytes());
+        hasher.update(expected.proposal.as_bytes());
+        hasher.update(
+            format!(
+                "{database_revision:?}:{inputs_epoch}:{index_generation}:{package_revision}:{evaluator_epoch}:{overlay_epoch}:{factory_generation}"
+            )
+            .as_bytes(),
+        );
+        hasher.update(format!("{:?}", inputs.registry.snapshot().semantic_key()).as_bytes());
+        let result_id = sha256_digest_hex(&hasher.finalize());
+        self.revalidate_proposal_capture(
+            &currentness,
+            &inputs,
+            &produced.provider_sources,
+            diagnostics,
+            result_id,
+        )
+        .await
+    }
+
+    async fn revalidate_proposal_capture(
+        &self,
+        currentness: &ProposalCurrentness<'_>,
+        inputs: &DiagInputs,
+        provider_sources: &provider_source::ConfiguredProviderSourceReport,
+        diagnostics: Vec<tower_lsp_server::ls_types::Diagnostic>,
+        result_id: String,
+    ) -> Result<ProposalDiagnostics, DiagnosticUnavailable> {
+        let _analyser_inputs = self.analyser_inputs_gate.read().await;
+        if self.diag_inputs_epoch() != currentness.inputs_epoch {
+            return Err(DiagnosticUnavailable::Stale);
+        }
+        let _rehoming = inputs.rehoming_gate.lock().await;
+        let _live_publication = inputs.live_publication_gate.lock().await;
+        let provider_admissions = provider_sources
+            .proposal_admissions()
+            .ok_or(DiagnosticUnavailable::Context)?;
+        let documents = self.documents.lock("proposal_diagnostic_revalidate").await;
+        let db = self
+            .db
+            .try_lock()
+            .map_err(|_| DiagnosticUnavailable::Pending)?;
+        let files = self
+            .db_files
+            .try_lock()
+            .map_err(|_| DiagnosticUnavailable::Pending)?;
+        let members = self
+            .db_project_members
+            .try_lock()
+            .map_err(|_| DiagnosticUnavailable::Pending)?;
+        let project = self
+            .db_project
+            .try_lock()
+            .map_err(|_| DiagnosticUnavailable::Pending)?;
+        let factory_generation = inputs
+            .class_factory_generation
+            .try_read()
+            .map_err(|_| DiagnosticUnavailable::Pending)?;
+        let current_folder_configs = inputs
+            .folder_db_configs
+            .try_lock()
+            .map_err(|_| DiagnosticUnavailable::Pending)?;
+        let current_global_config = inputs
+            .db_config
+            .try_lock()
+            .map_err(|_| DiagnosticUnavailable::Pending)?;
+        let current_rehomed_source_seeds = inputs
+            .rehomed_source_seeds
+            .try_lock()
+            .map_err(|_| DiagnosticUnavailable::Pending)?;
+        let index = inputs
+            .workspace_index
+            .try_read()
+            .map_err(|_| DiagnosticUnavailable::Pending)?;
+        let resolver = inputs
+            .package_resolver
+            .try_read()
+            .map_err(|_| DiagnosticUnavailable::Pending)?;
+        let published = self
+            .source_path_admissions
+            .try_lock()
+            .map_err(|_| DiagnosticUnavailable::Pending)?;
+        let document = documents
+            .get(&currentness.expected.uri)
+            .ok_or(DiagnosticUnavailable::Stale)?;
+        if document.publication != DocumentPublication::Indexed
+            || document.revision != currentness.document_revision
+            || document.version != Some(currentness.expected.version)
+            || document.raw() != currentness.expected.source
+            || document.dialect != currentness.dialect
+            || !document
+                .path_admission
+                .as_ref()
+                .is_some_and(|current| Arc::ptr_eq(current, currentness.admission))
+            || tcl_lsp_db::database_revision(&db) != currentness.database_revision
+            || files.get(&currentness.expected.uri) != Some(&currentness.selected_original_file)
+            || *members != *currentness.members
+            || *project != Some(currentness.project)
+            || currentness.project.token_configurations(&*db).as_deref()
+                != Some(currentness.token_configurations)
+            || *factory_generation != currentness.class_factory_generation
+            || current_folder_configs.as_slice() != currentness.folder_configs
+            || *current_global_config != currentness.global_config
+            || *current_rehomed_source_seeds != *currentness.rehomed_source_seeds
+            || index.generation() != currentness.index_generation
+            || resolver.revision() != currentness.package_revision
+            || tcl_registry::pack_hooks::evaluator_epoch() != currentness.evaluator_epoch
+            || tcl_registry::overlay_epoch() != currentness.overlay_epoch
+            || self.diag_inputs_epoch() != currentness.inputs_epoch
+        {
+            return Err(DiagnosticUnavailable::Stale);
+        }
+        let mut admissions = Vec::with_capacity(currentness.source_receipts.len());
+        for (uri, file, admission) in currentness.source_receipts {
+            let current = published.get(uri).ok_or(DiagnosticUnavailable::Stale)?;
+            if current.file != *file || !Arc::ptr_eq(&current.admission, admission) {
+                return Err(DiagnosticUnavailable::Stale);
+            }
+            admissions.push(admission.as_ref());
+        }
+        for (uri, file, admission) in &provider_admissions {
+            let current = published.get(uri).ok_or(DiagnosticUnavailable::Stale)?;
+            if current.file != *file || !Arc::ptr_eq(&current.admission, admission) {
+                return Err(DiagnosticUnavailable::Stale);
+            }
+            admissions.push(admission.as_ref());
+        }
+        let mut diagnostics = Some(diagnostics);
+        let mut outcome = None;
+        let check = DocumentPathAdmission::with_current(&admissions, self.store.as_ref(), || {
+            if self.diag_inputs_epoch() != currentness.inputs_epoch
+                || tcl_registry::pack_hooks::evaluator_epoch() != currentness.evaluator_epoch
+                || tcl_registry::overlay_epoch() != currentness.overlay_epoch
+                || !provider_sources.proposal_is_current(&resolver, &*db, &files, &*published)
+            {
+                return Err(DiagnosticUnavailable::Stale);
+            }
+            outcome = Some(ProposalDiagnostics::Complete {
+                uri: currentness.expected.uri.clone(),
+                version: currentness.expected.version,
+                source: currentness.expected.source.clone(),
+                proposal: currentness.expected.proposal.clone(),
+                revision: format!(
+                    "{:?}:{}",
+                    currentness.database_revision, currentness.document_revision
+                ),
+                inputs_epoch: currentness.inputs_epoch.to_string(),
+                workspace_index_generation: currentness.index_generation.to_string(),
+                result_id: result_id.clone(),
+                diagnostics: diagnostics.take().ok_or(DiagnosticUnavailable::Context)?,
+            });
+            Ok(())
+        })
+        .map_err(|_| DiagnosticUnavailable::Context)?;
+        check?;
+        outcome.ok_or(DiagnosticUnavailable::Context)
+    }
+
+    async fn revalidate_suppressed_proposal(
+        &self,
+        expected: &ProposalDiagnosticExpectation,
+        document_revision: u64,
+        dialect: &str,
+        admission: &Arc<DocumentPathAdmission>,
+        inputs_epoch: u64,
+    ) -> Result<(), DiagnosticUnavailable> {
+        let _analyser_inputs = self.analyser_inputs_gate.read().await;
+        if self.diag_inputs_epoch() != inputs_epoch {
+            return Err(DiagnosticUnavailable::Stale);
+        }
+        let documents = self
+            .documents
+            .lock("proposal_diagnostic_suppression_revalidate")
+            .await;
+        let document = documents
+            .get(&expected.uri)
+            .ok_or(DiagnosticUnavailable::Stale)?;
+        if document.publication != DocumentPublication::Indexed
+            || document.revision != document_revision
+            || document.version != Some(expected.version)
+            || document.raw() != expected.source
+            || document.dialect != dialect
+            || !document
+                .path_admission
+                .as_ref()
+                .is_some_and(|current| Arc::ptr_eq(current, admission))
+        {
+            return Err(DiagnosticUnavailable::Stale);
+        }
+        DocumentPathAdmission::with_current(&[admission.as_ref()], self.store.as_ref(), || {
+            if self.diag_inputs_epoch() != inputs_epoch {
+                Err(DiagnosticUnavailable::Stale)
+            } else {
+                Ok(())
+            }
+        })
+        .map_err(|_| DiagnosticUnavailable::Context)?
     }
 
     #[cfg(test)]
@@ -855,7 +1559,9 @@ impl Backend {
                     global: &inputs.db_config,
                     folders: &inputs.folder_db_configs,
                     store: &inputs.store,
+                    source_path_admissions: &inputs.source_path_admissions,
                     dialects: &inputs.provider_dialects,
+                    proposal: None,
                 },
                 recovery_names: &inputs.recovery_names,
                 entry_points: &inputs.entry_points,
@@ -891,6 +1597,12 @@ impl Backend {
                     ControlFlow::Break((_, reason)) => return Err(reason),
                 };
             produced.provider_completion?;
+            if !produced
+                .provider_sources
+                .is_current(&*inputs.package_resolver.read().await)
+            {
+                return Err(DiagnosticUnavailable::Stale);
+            }
             if !source.matches_completed_analysis(&produced.analysis) {
                 return Err(DiagnosticUnavailable::Context);
             }
@@ -1847,5 +2559,342 @@ mod tests {
                 .unwrap(),
         );
         assert_ne!(current.result_id.as_deref(), Some(previous.as_str()));
+    }
+}
+
+#[cfg(test)]
+mod proposal_endpoint_tests {
+    use super::*;
+
+    async fn publish_source(
+        backend: &Backend,
+        store: &vfs::MemoryStore,
+        path: &Path,
+        source: &str,
+        version: i32,
+    ) -> Uri {
+        let uri = Uri::from_file_path(path).unwrap();
+        store.upsert_uri(uri.as_str(), path, source.as_bytes().to_vec());
+        backend
+            .db_set_source(&uri, source, "tcl8.6".into())
+            .await
+            .expect("real configured SourceFile/project publication");
+        let admission = backend
+            .source_path_admissions
+            .lock()
+            .unwrap()
+            .get(&uri)
+            .unwrap()
+            .admission
+            .clone();
+        backend
+            .documents
+            .lock("proposal_endpoint_fixture")
+            .await
+            .insert(
+                uri.clone(),
+                DocumentState::with_version(source.into(), "tcl8.6".into(), version)
+                    .with_path_admission(admission)
+                    .with_language_id("tcl".into()),
+            );
+        let analysis = backend
+            .analysis_for(&uri, Arc::from(source), "tcl8.6".into())
+            .await
+            .expect("fixture retains the actual selected full analysis input");
+        backend
+            .workspace_index
+            .write()
+            .await
+            .replace_document(uri.as_str(), &analysis);
+        uri
+    }
+
+    async fn fixture() -> (Backend, Arc<vfs::MemoryStore>, Uri, Uri, PathBuf) {
+        let store = Arc::new(vfs::MemoryStore::new());
+        let mut backend = crate::tests::test_backend();
+        backend.store = store.clone();
+        let root = std::env::temp_dir().join("tcl-lsp-proposal-endpoint-controls");
+        let selected = publish_source(&backend, &store, &root.join("selected.tcl"), "", 7).await;
+        let other = publish_source(
+            &backend,
+            &store,
+            &root.join("other.tcl"),
+            "# unchanged second project input\n",
+            2,
+        )
+        .await;
+        // Use the real epoch issuers, after the actual selected registries and
+        // indexed analysis have been prepared. These are not guessed labels.
+        sync_evaluator_epoch(&backend.db).await;
+        sync_overlay_epoch(&backend.db).await;
+        (backend, store, selected, other, root)
+    }
+
+    async fn command(
+        backend: &Backend,
+        uri: &Uri,
+        version: i32,
+        source: &str,
+        proposal: &str,
+    ) -> serde_json::Value {
+        backend
+            .proposal_diagnostics_command(&[serde_json::json!({
+                "uri": uri,
+                "version": version,
+                "source": source,
+                "proposal": proposal,
+            })])
+            .await
+            .expect("actual proposal endpoint response")
+            .expect("serialized response")
+    }
+
+    fn same_optional_arc<T>(before: &Option<Arc<T>>, after: &Option<Arc<T>>) -> bool {
+        match (before, after) {
+            (None, None) => true,
+            (Some(before), Some(after)) => Arc::ptr_eq(before, after),
+            _ => false,
+        }
+    }
+
+    #[tokio::test]
+    async fn actual_proposal_command_changes_diagnostics_without_mutating_live_project() {
+        let (backend, _, selected, other, _) = fixture().await;
+        let index_generation = backend.workspace_index.read().await.generation();
+        let members = backend.db_project_members.lock().await.clone();
+        let project = backend.db_project.lock().await.unwrap();
+        let configurations = project
+            .token_configurations(&*backend.db.lock().await)
+            .clone();
+        let mut before = Vec::new();
+        let revision = {
+            let db = backend.db.lock().await;
+            let files = backend.db_files.lock().await;
+            for uri in [&selected, &other] {
+                let file = files[uri];
+                let config = configurations
+                    .as_ref()
+                    .unwrap()
+                    .iter()
+                    .find(|(candidate, _)| *candidate == file)
+                    .unwrap()
+                    .1;
+                before.push((
+                    uri.clone(),
+                    file,
+                    (
+                        file.text(&*db).clone(),
+                        file.dialect(&*db).clone(),
+                        file.path(&*db).clone(),
+                        file.sidecar_stubs_epoch(&*db),
+                        config.diagnostic_report_configuration(&*db),
+                    ),
+                    (
+                        file.external_call_sites(&*db).clone(),
+                        file.workspace_class_factories(&*db).clone(),
+                        file.workspace_subclass_methods(&*db).clone(),
+                    ),
+                ));
+            }
+            tcl_lsp_db::database_revision(&db)
+        };
+        let selected_admission = backend.source_path_admissions.lock().unwrap()[&selected]
+            .admission
+            .clone();
+        let clean = command(&backend, &selected, 7, "", "").await;
+        assert_eq!(clean["status"], "complete", "{clean}");
+        assert!(
+            clean["diagnostics"].as_array().unwrap().is_empty(),
+            "{clean}"
+        );
+        let invalid = command(&backend, &selected, 7, "", "set\n").await;
+        assert_eq!(invalid["status"], "complete", "{invalid}");
+        assert_eq!(invalid["uri"], selected.as_str());
+        assert_eq!(invalid["version"], 7);
+        assert_eq!(invalid["source"], "");
+        assert_eq!(invalid["proposal"], "set\n");
+        assert!(
+            invalid["diagnostics"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|diagnostic| diagnostic["code"] == "E002"),
+            "{invalid}"
+        );
+        assert_ne!(invalid["resultId"], clean["resultId"]);
+
+        let db = backend.db.lock().await;
+        let files = backend.db_files.lock().await;
+        assert_eq!(tcl_lsp_db::database_revision(&db), revision);
+        assert!(project.token_configurations(&*db) == &configurations);
+        for (uri, file, values, evidence) in &before {
+            assert!(files.get(uri) == Some(file));
+            let config = configurations
+                .as_ref()
+                .unwrap()
+                .iter()
+                .find(|(candidate, _)| candidate == file)
+                .unwrap()
+                .1;
+            assert_eq!(
+                (
+                    file.text(&*db).clone(),
+                    file.dialect(&*db).clone(),
+                    file.path(&*db).clone(),
+                    file.sidecar_stubs_epoch(&*db),
+                    config.diagnostic_report_configuration(&*db)
+                ),
+                *values
+            );
+            assert!(same_optional_arc(
+                &evidence.0,
+                file.external_call_sites(&*db)
+            ));
+            assert!(same_optional_arc(
+                &evidence.1,
+                file.workspace_class_factories(&*db)
+            ));
+            assert!(same_optional_arc(
+                &evidence.2,
+                file.workspace_subclass_methods(&*db)
+            ));
+        }
+        drop(files);
+        drop(db);
+        assert!(*backend.db_project.lock().await == Some(project));
+        assert_eq!(*backend.db_project_members.lock().await, members);
+        assert_eq!(
+            backend.workspace_index.read().await.generation(),
+            index_generation
+        );
+        let documents = backend.documents.lock("proposal_endpoint_unchanged").await;
+        let document = &documents[&selected];
+        assert_eq!(document.raw(), "");
+        assert_eq!(document.version, Some(7));
+        assert!(Arc::ptr_eq(
+            document.path_admission.as_ref().unwrap(),
+            &selected_admission
+        ));
+        assert_eq!(
+            documents[&other].raw(),
+            "# unchanged second project input\n"
+        );
+        assert_eq!(documents[&other].version, Some(2));
+        drop(documents);
+        assert!(
+            backend.pull_diag_cache.lock().await.is_empty(),
+            "proposal is not a push/cache publication"
+        );
+    }
+
+    #[tokio::test]
+    async fn actual_proposal_command_refuses_stale_original_and_withdrawn_source_admission() {
+        let (backend, store, selected, _, root) = fixture().await;
+        let first = command(&backend, &selected, 7, "", "").await;
+        assert_eq!(first["status"], "complete", "{first}");
+        let current_source = "# edited original source\n";
+        publish_source(
+            &backend,
+            &store,
+            &root.join("selected.tcl"),
+            current_source,
+            8,
+        )
+        .await;
+        let stale = command(&backend, &selected, 7, "", "set\n").await;
+        assert_eq!(stale["status"], "unavailable", "{stale}");
+        assert_eq!(stale["reason"], "stale");
+        let current = command(&backend, &selected, 8, current_source, "").await;
+        assert_eq!(current["status"], "complete", "{current}");
+        assert!(store.remove_uri(selected.as_str()));
+        let withdrawn = command(&backend, &selected, 8, current_source, "").await;
+        assert_eq!(withdrawn["status"], "unavailable", "{withdrawn}");
+        assert_eq!(withdrawn["reason"], "context");
+    }
+
+    #[tokio::test]
+    async fn actual_proposal_command_refuses_selected_provider_and_unversioned_disk_provider() {
+        for selected_is_provider in [true, false] {
+            let (backend, store, selected, _, root) = fixture().await;
+            let clean = command(&backend, &selected, 7, "", "").await;
+            assert_eq!(clean["status"], "complete", "{clean}");
+            let provider_path = if selected_is_provider {
+                root.join("selected.tcl")
+            } else {
+                let path = root.join("disk-provider.tcl");
+                // Readable SourceStore bytes are deliberately not a retained
+                // indexed SourceFile or a byte-version lease.
+                store.upsert(&path, b"proc provided {} {}\n".to_vec());
+                assert!(backend.store.read_source(&path).is_ok());
+                assert!(
+                    !backend
+                        .db_files
+                        .lock()
+                        .await
+                        .contains_key(&Uri::from_file_path(&path).unwrap())
+                );
+                path
+            };
+            let provider_name = provider_path.file_name().unwrap().to_str().unwrap();
+            backend
+                .package_resolver
+                .write()
+                .await
+                .add_original_pkg_index(
+                    &format!("package ifneeded own 1.0 {{source {provider_name}}}"),
+                    &root,
+                    &root.join("pkgIndex.tcl"),
+                    &|_| true,
+                    &|_| Vec::new(),
+                );
+            assert!(
+                backend
+                    .package_resolver
+                    .read()
+                    .await
+                    .provider_source_files()
+                    .contains(&provider_path)
+            );
+            let answer = command(
+                &backend,
+                &selected,
+                7,
+                "",
+                "package require own\nprovided\n",
+            )
+            .await;
+            assert_eq!(answer["status"], "unavailable", "{answer}");
+            assert_eq!(answer["reason"], "context");
+            let db = backend.db.lock().await;
+            let file = backend.db_files.lock().await[&selected];
+            assert_eq!(file.text(&*db), "");
+        }
+    }
+
+    #[tokio::test]
+    async fn actual_proposal_command_never_turns_suppression_or_incomplete_source_into_clean() {
+        let (backend, _, selected, _, _) = fixture().await;
+        backend
+            .feature_toggles
+            .lock()
+            .await
+            .set
+            .insert("diagnostics".into(), false);
+        backend.invalidate_diag_inputs();
+        let suppressed = command(&backend, &selected, 7, "", "").await;
+        assert_eq!(suppressed["status"], "suppressed", "{suppressed}");
+        assert_eq!(suppressed["reason"], "disabled");
+        assert!(suppressed.get("diagnostics").is_none());
+        backend
+            .feature_toggles
+            .lock()
+            .await
+            .set
+            .insert("diagnostics".into(), true);
+        backend.invalidate_diag_inputs();
+        let incomplete = command(&backend, &selected, 7, "", "proc unfinished {").await;
+        assert_eq!(incomplete["status"], "unavailable", "{incomplete}");
+        assert_eq!(incomplete["reason"], "context");
+        assert!(incomplete.get("diagnostics").is_none());
     }
 }

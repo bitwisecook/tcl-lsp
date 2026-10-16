@@ -1,0 +1,98 @@
+{
+  "utc": "2026-10-16T19:59:35.366585+00:00",
+  "source_head": "f46135314f6b4710ad30513e30b2169217bf4c87",
+  "ordinary": false,
+  "purpose": "One exact original member222 and comment232 diagnostic each; test-only stage tracing, no acceptance or assertion/fixture/budget changes.",
+  "patches": [
+    {
+      "path": "/tmp/sol-lsp-readonly-member-stage-instrumentation-v1/instrumentation.patch",
+      "sha256": "772da61164b7a7a13f5e00b49406d49ba8e585fb0b74185090b65603910767fb"
+    },
+    {
+      "path": "/tmp/luna-comment232-trace-v2/diagnostic-v2.patch",
+      "sha256": "13364e9888408dd2fee050c00d9930d8545e1407e3cf57ecc5a8b11b212f6959"
+    }
+  ],
+  "test_timeout_seconds": 180,
+  "listing_timeout_seconds": 30,
+  "runs": [
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-member-comment-stage-diagnostic/frozen-binaries/tcl_compiler-baa5681bd4f4c453",
+        "analyser::class_hierarchy::original_metadata::source_method_reference::tests::readonly_self_selectors_retain_own_and_inherited_source_members",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "timed_out": false,
+      "seconds": 0.617,
+      "log": "test-222.log",
+      "log_sha256": "75562ada91c69bdf9721a5fe18c7f5b49a13f2ab3b21da79a1b0a3704d08badb",
+      "selector": "analyser::class_hierarchy::original_metadata::source_method_reference::tests::readonly_self_selectors_retain_own_and_inherited_source_members",
+      "opt_in": {
+        "TCL_LSP_TRACE_READONLY_MEMBER_STAGES": "1"
+      },
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ]
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-member-comment-stage-diagnostic/frozen-binaries/tcl_compiler-baa5681bd4f4c453",
+        "analyser::utils::tests::script_comment_facts_reaches_nested_command_substitution_case_arms",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "timed_out": false,
+      "seconds": 0.265,
+      "log": "test-232.log",
+      "log_sha256": "ca6a819a594e9d3812e05310f514b6bad9c772c7dcbdf49c5a2636b452ba7e63",
+      "selector": "analyser::utils::tests::script_comment_facts_reaches_nested_command_substitution_case_arms",
+      "opt_in": {
+        "TCL_LSP_TRACE_COMMENT_CASE232": "1"
+      },
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ]
+    }
+  ],
+  "status": "DIAGNOSTIC_CAPTURE_COMPLETE_NO_ORDINARY_ACCEPTANCE",
+  "provider_environment": {
+    "TCL_LSP_JIMSH": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "TCL_LSP_TCL_BIN_DIR": "/workspace/.toolchains/tcl/bin",
+    "TCL_LSP_REQUIRE_ALL_TCL_ORACLES": "1",
+    "TCL_LSP_REQUIRE_JIM_ORACLE": "1"
+  },
+  "build": {
+    "exit_code": 0,
+    "seconds": 309.575
+  },
+  "artifact": {
+    "path": "/workspace/naming-validation/lsp-member-comment-stage-diagnostic/frozen-binaries/tcl_compiler-baa5681bd4f4c453",
+    "sha256": "e9c94564d945d4b40de61cf8c6a5dfbfff14e01ef2d54b92ef5d9ba5b630e98c",
+    "bytes": 250316576
+  },
+  "restoration": {
+    "whole_file_beforeimages_restored": true,
+    "full_input_count": 39000,
+    "full_input_drift": [],
+    "completed_utc": "2026-10-16T20:04:54.972781+00:00"
+  }
+}

@@ -1,0 +1,93 @@
+{
+  "immutable446_sha256": "4d6569c6f4f431b27200ac2bc1e2a618bcc9afa856241eab74f5ec98dd6ca811",
+  "retained": 446,
+  "proposed_new_names": 14,
+  "expected_total_if_current_source_and_listing_confirm": 460,
+  "current_source_or_binary_eligibility_claim": false,
+  "new_controls": [
+    {
+      "target": "tcl_lsp_server",
+      "selector": "provider_source::tests::proposal_selected_provider_refuses_old_schema_before_inventory_and_keeps_failure",
+      "reviewed_category": "provider capture",
+      "status": "PROPOSED_NAME_ONLY_NOT_CURRENT_SOURCE_ELIGIBILITY"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "provider_source::tests::actual_recovery_and_cache_hit_provider_receipts_survive_empty_deep_capture",
+      "reviewed_category": "provider capture",
+      "status": "PROPOSED_NAME_ONLY_NOT_CURRENT_SOURCE_ELIGIBILITY"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "provider_source::tests::proposal_unversioned_disk_provider_remains_unavailable_even_with_readable_bytes",
+      "reviewed_category": "provider capture",
+      "status": "PROPOSED_NAME_ONLY_NOT_CURRENT_SOURCE_ELIGIBILITY"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "provider_source::tests::lost_proposal_capture_owner_cannot_become_an_empty_source_report",
+      "reviewed_category": "provider capture",
+      "status": "PROPOSED_NAME_ONLY_NOT_CURRENT_SOURCE_ELIGIBILITY"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "provider_source::tests::poisoned_proposal_inventory_cannot_issue_empty_or_populated_source_completion",
+      "reviewed_category": "inventory poison",
+      "status": "PROPOSED_NAME_ONLY_NOT_CURRENT_SOURCE_ELIGIBILITY"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "recovery_source::tests::detached_indexes_with_equal_generations_keep_recovery_names_separate",
+      "reviewed_category": "detached recovery cache",
+      "status": "PROPOSED_NAME_ONLY_NOT_CURRENT_SOURCE_ELIGIBILITY"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "current_diagnostics::proposal_endpoint_tests::actual_proposal_command_changes_diagnostics_without_mutating_live_project",
+      "reviewed_category": "actual endpoint",
+      "status": "PROPOSED_NAME_ONLY_NOT_CURRENT_SOURCE_ELIGIBILITY"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "current_diagnostics::proposal_endpoint_tests::actual_proposal_command_refuses_stale_original_and_withdrawn_source_admission",
+      "reviewed_category": "actual endpoint",
+      "status": "PROPOSED_NAME_ONLY_NOT_CURRENT_SOURCE_ELIGIBILITY"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "current_diagnostics::proposal_endpoint_tests::actual_proposal_command_refuses_selected_provider_and_unversioned_disk_provider",
+      "reviewed_category": "actual endpoint",
+      "status": "PROPOSED_NAME_ONLY_NOT_CURRENT_SOURCE_ELIGIBILITY"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "current_diagnostics::proposal_endpoint_tests::actual_proposal_command_never_turns_suppression_or_incomplete_source_into_clean",
+      "reviewed_category": "actual endpoint",
+      "status": "PROPOSED_NAME_ONLY_NOT_CURRENT_SOURCE_ELIGIBILITY"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "minify::lexical_metadata::source_census_tests::minifier_source_census_owns_selected_full_vectors_and_complete_regions",
+      "reviewed_category": "minifier census",
+      "status": "PROPOSED_NAME_ONLY_NOT_CURRENT_SOURCE_ELIGIBILITY"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "minify::lexical_metadata::source_census_tests::minifier_source_census_retains_partial_candidates_without_barrier_absence",
+      "reviewed_category": "minifier census",
+      "status": "PROPOSED_NAME_ONLY_NOT_CURRENT_SOURCE_ELIGIBILITY"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "minify::lexical_metadata::source_census_tests::minifier_source_census_keeps_unrepresented_or_unknown_regions_incomplete",
+      "reviewed_category": "minifier census",
+      "status": "PROPOSED_NAME_ONLY_NOT_CURRENT_SOURCE_ELIGIBILITY"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "minify::lexical_metadata::source_census_tests::minifier_source_census_refuses_foreign_analysis_realm_and_full_config",
+      "reviewed_category": "minifier census",
+      "status": "PROPOSED_NAME_ONLY_NOT_CURRENT_SOURCE_ELIGIBILITY"
+    }
+  ]
+}

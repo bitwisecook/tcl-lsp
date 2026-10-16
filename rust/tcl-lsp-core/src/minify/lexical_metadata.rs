@@ -19,8 +19,8 @@
 //! Complete-word metadata for explicitly selected Logical authoring passes.
 
 use super::{MAX_MINIFY_DEPTH, MinifyEnv};
-use tcl_lexer::{NativeScriptCommandWords, NativeWord, SourceChannel, SourceImage, Span};
-use tcl_registry::{ArgRole, ResolvedInvocation};
+use tcl_lexer::{NativeScriptCommandWords, NativeWord, SourceImage};
+use tcl_registry::ResolvedInvocation;
 
 /// Same complete words and original before-argv Realm, without Native grants.
 pub(super) fn with_command_schema<T>(
@@ -132,209 +132,250 @@ pub(super) fn ascii_value(word: &NativeWord) -> Option<String> {
     String::from_utf8(tcl_syntax::word_rules::original_static_word_ascii_presentation(word)?).ok()
 }
 
-/// Original command regions from selected source roles and executable brackets.
-/// Data braces never become scripts merely because they contain Tcl-like text.
-pub(super) fn commands(source: &str, env: MinifyEnv<'_>) -> Option<Vec<NativeScriptCommandWords>> {
+/// Original selected source commands with independent completeness. Observed
+/// candidates are useful on partial input; absence/barrier users need complete.
+pub(super) struct CommandCensus<'a> {
+    analysis: &'a tcl_compiler::analyser::AnalysisResult,
+    coverage: crate::SourceSyntaxCoverage,
+    commands: Vec<NativeScriptCommandWords>,
+    original_vectors_complete: bool,
+}
+
+impl CommandCensus<'_> {
+    pub(super) fn observed_commands(&self) -> &[NativeScriptCommandWords] {
+        &self.commands
+    }
+
+    pub(super) fn is_complete(
+        &self,
+        source: &str,
+        analysis: &tcl_compiler::analyser::AnalysisResult,
+    ) -> bool {
+        std::ptr::eq(self.analysis, analysis)
+            && self.original_vectors_complete
+            && self.coverage.applicability(source, analysis)
+                == Some(crate::SourceSyntaxCoverageApplicability::Complete)
+    }
+}
+
+/// Reborrow the shared configured syntax census and each actual Logical whole
+/// vector. Missing schema/body/vector ownership remains explicit incomplete
+/// coverage; no local body/case/Expr/lambda walker infers missing regions.
+pub(super) fn command_census<'a>(source: &str, env: MinifyEnv<'a>) -> Option<CommandCensus<'a>> {
     // naming.minifier.complete-logical-metadata
     // docs/design/analysis/name-resolution-proofs/minifier-complete-logical-metadata.md
+    let analysis = env.analysis;
     let image = SourceImage::document(source);
-    let mut pending = vec![(Span::new(0, u32::try_from(source.len()).ok()?), 0)];
-    let mut visited = rustc_hash::FxHashSet::default();
-    let mut commands = Vec::new();
-    while let Some((region, depth)) = pending.pop() {
-        if MAX_MINIFY_DEPTH.exceeded(depth) {
-            return None;
-        }
-        if !visited.insert(region) {
-            continue;
-        }
-        let plan = tcl_lexer::native_script_words_in(image.clone(), region, env.config).ok()?;
-        if plan.fatal_tail.is_some() {
-            return None;
-        }
-        for command in plan.commands {
-            for word in &command.words {
-                for part in word.executable_parts().all_parts() {
-                    if let tcl_lexer::ExecutablePart::Command { body } = part.part {
-                        pending.push((body, depth + 1));
-                    }
-                }
-            }
-            if let Some(regions) = with_command_schema(env, &command, |schema| {
-                nested_regions(source, &command.words, schema, env)
-            }) {
-                pending.extend(regions.into_iter().map(|region| (region, depth + 1)));
-            }
-            commands.push(command);
-        }
-    }
-    commands.sort_by_key(|command| command.span.start());
-    Some(commands)
-}
-
-fn nested_regions(
-    source: &str,
-    words: &[NativeWord],
-    schema: &ResolvedInvocation<'_, '_>,
-    env: MinifyEnv<'_>,
-) -> Vec<Span> {
-    let mut regions = Vec::new();
-    let case = schema.authored_source_case_invocation();
-    let list = case
-        .as_ref()
-        .and_then(|(_, layout)| layout.clause_list_index);
-    if let Some((spec, layout)) = case {
-        if let Some(index) = layout.clause_list_index {
-            if let Some(word) = index.checked_add(1).and_then(|index| words.get(index)) {
-                regions.extend(case_regions(source, word, &spec));
-            }
-        } else if let Some(start) = layout.inline_clause_start {
-            let values = words.iter().skip(1).map(ascii_value).collect::<Vec<_>>();
-            let spellings = values
-                .iter()
-                .map(Option::as_deref)
-                .collect::<Option<Vec<_>>>();
-            if let Some(clauses) = spellings
-                .as_ref()
-                .and_then(|values| spec.inline_clauses(values, start))
-            {
-                regions.extend(clauses.into_iter().filter_map(|clause| {
-                    clause
-                        .body_index?
-                        .checked_add(1)
-                        .and_then(|index| words.get(index))
-                        .and_then(unchanged_body)
-                }));
-            }
-        }
-    }
-    let (roles, complete) = schema.authored_source_argument_roles();
-    if !complete {
-        return regions;
-    }
-    for (index, role) in roles {
-        let Some(argument) = schema
-            .semantics
-            .argument_offset
-            .checked_add(usize::from(index))
-        else {
-            continue;
-        };
-        if list == Some(argument) {
-            continue;
-        }
-        let Some(word) = argument.checked_add(1).and_then(|index| words.get(index)) else {
-            continue;
-        };
-        match role {
-            ArgRole::Body => regions.extend(unchanged_body(word)),
-            ArgRole::LambdaLiteral if unchanged_body(word).is_some() => {
-                regions.extend(
-                    tcl_compiler::lambda_literal::split_original_lambda_literal(word)
-                        .and_then(|lambda| lambda.braced_body()),
-                );
-            }
-            ArgRole::Expr => regions.extend(expression_regions(source, word, env)),
-            _ => {}
-        }
-    }
-    regions
-}
-
-fn unchanged_body(word: &NativeWord) -> Option<Span> {
-    if word.group().expand || word.image().channel() != SourceChannel::Document {
+    if !analysis.allows_lexical_declaration_advice()
+        || source != env.original_source
+        || analysis.resolved_input.as_ref() != Some(env.input)
+        || analysis.body_lexer_config != Some(env.config)
+        || env.config != env.input.lexer_config()
+        || !std::ptr::eq(analysis.retained_command_realm()?, env.identities)
+        || !std::ptr::eq(env.input.borrowed_context_registry(), env.context)
+        || env.registry.snapshot().semantic_key()
+            != env.context.commands().snapshot().semantic_key()
+        || env.dialect.cache_key() != env.input.unit_profile().cache_key()
+    {
         return None;
     }
-    let content = word.content_span().ok()?;
-    let raw = word.image().bytes().get(content.as_range())?;
-    match word.group().kind {
-        tcl_lexer::WordKind::Braced => (tcl_syntax::backslash::source_braced_word_bytes(
-            raw,
-            SourceChannel::Document,
-            word.config().brace_backslash_newline,
-        )
-        .as_ref()
-            == raw)
-            .then_some(content),
-        tcl_lexer::WordKind::Quoted
-            if word.executable_parts().all_parts().all(|part| {
-                matches!(
-                    part.part,
-                    tcl_lexer::ExecutablePart::Text(tcl_lexer::ExecutableText::Original)
-                )
-            }) =>
-        {
-            Some(content)
-        }
-        _ => None,
-    }
-}
-
-fn case_regions(source: &str, word: &NativeWord, spec: &tcl_registry::CaseListSpec) -> Vec<Span> {
-    let Some(content) =
-        unchanged_body(word).filter(|_| word.group().kind == tcl_lexer::WordKind::Braced)
-    else {
-        return Vec::new();
-    };
-    let Some(inner) = source.get(content.as_range()) else {
-        return Vec::new();
-    };
-    let shape = tcl_syntax::case_list::CaseListShape {
-        clause_flags: spec.clause_flags,
-        clause_value_flags: spec.clause_value_flags,
-    };
-    let clauses =
-        tcl_syntax::case_list::split_case_list_with_syntax(inner, &shape, word.config().list_parse);
-    if clauses
+    let coverage = crate::SourceSyntaxCoverage::capture(source, analysis)?;
+    if coverage
+        .script_regions(source, analysis)?
         .iter()
-        .any(|clause| !clause.valid || clause.body.is_none())
+        .any(|(_, depth)| MAX_MINIFY_DEPTH.exceeded(*depth))
     {
-        return Vec::new();
+        return None;
     }
-    clauses
-        .into_iter()
-        .filter_map(|clause| {
-            let body = clause.body.filter(|body| body.braced)?;
-            let range = body.content_range();
-            Some(Span::new(
-                content
-                    .start()
-                    .checked_add(u32::try_from(range.start).ok()?)?,
-                content
-                    .start()
-                    .checked_add(u32::try_from(range.end).ok()?)?,
-            ))
-        })
-        .collect()
+    let selected = coverage.commands(source, analysis)?;
+    let mut commands = Vec::with_capacity(selected.len());
+    let mut original_vectors_complete = true;
+    for command in selected {
+        let Some(original) = command.argv.first().and_then(|head| {
+            tcl_compiler::registry_invocation::source_structure::original_logical_source_words_at(
+                source,
+                analysis,
+                head.span.start(),
+            )
+        }) else {
+            original_vectors_complete = false;
+            continue;
+        };
+        if original.is_empty()
+            || original
+                .iter()
+                .any(|word| word.config() != env.config || word.image() != &image)
+        {
+            original_vectors_complete = false;
+            continue;
+        }
+        commands.push(NativeScriptCommandWords {
+            span: command.span,
+            source_extent: None,
+            words: original,
+        });
+    }
+    Some(CommandCensus {
+        analysis,
+        coverage,
+        commands,
+        original_vectors_complete,
+    })
 }
 
-fn expression_regions(source: &str, word: &NativeWord, env: MinifyEnv<'_>) -> Vec<Span> {
-    let Some(content) = unchanged_body(word) else {
-        return Vec::new();
-    };
-    let Some(expression) = source.as_bytes().get(content.as_range()) else {
-        return Vec::new();
-    };
-    let (tokens, unknown) = tcl_lexer::tokenise_expr_bytes_checked_with_expression_grammar(
-        expression,
-        &env.config.grammar_over(env.dialect.grammar),
-        env.dialect.expr_grammar_base,
-        env.dialect.f5_core_expr_grammar(),
-    );
-    if unknown {
-        return Vec::new();
+/// Positive-only compatibility view used by existing source geometry controls.
+/// This wrapper supplies no complete inventory or absence/barrier permission.
+#[cfg(test)]
+pub(super) fn commands(source: &str, env: MinifyEnv<'_>) -> Option<Vec<NativeScriptCommandWords>> {
+    Some(command_census(source, env)?.commands)
+}
+
+#[cfg(test)]
+mod source_census_tests {
+    use super::*;
+    use crate::minify::{MinifyEnv, original};
+    use tcl_compiler::analyser::{AnalysisResult, ResolvedAnalysisInput};
+
+    fn input() -> ResolvedAnalysisInput {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::context_for_profile(profile),
+            tcl_lexer::LexerConfig::for_profile(Some(profile)),
+        )
     }
-    let Some(terms) = tcl_lexer::expression_terms(expression, &tokens, env.config) else {
-        return Vec::new();
-    };
-    terms
-        .into_iter()
-        .filter(|term| term.kind == tcl_lexer::ExprTermKind::Command)
-        .filter_map(|term| {
-            Some(Span::new(
-                content.start().checked_add(term.value.start)?,
-                content.start().checked_add(term.value.end)?,
-            ))
+
+    fn with_analysis<T>(source: &str, project: impl FnOnce(MinifyEnv<'_>) -> T) -> T {
+        let input = input();
+        let analysis = original::analysis_with_input(source, &input);
+        let context = input.context_registry();
+        project(MinifyEnv {
+            original_source: source,
+            analysis: &analysis,
+            input: &input,
+            dialect: input.unit_profile(),
+            config: input.lexer_config(),
+            context: &context,
+            registry: context.commands(),
+            identities: analysis.retained_command_realm().unwrap(),
         })
-        .collect()
+    }
+
+    #[test]
+    fn minifier_source_census_owns_selected_full_vectors_and_complete_regions() {
+        // naming.minifier.complete-logical-metadata
+        // docs/design/analysis/name-resolution-proofs/minifier-complete-logical-metadata.md
+        for (source, count) in [
+            ("list {string equal -nocase A a}", 1),
+            ("if {1} {string equal -nocase A a}", 2),
+            ("list [string equal -nocase A a]", 2),
+        ] {
+            with_analysis(source, |env| {
+                let census = command_census(source, env).unwrap();
+                assert!(census.is_complete(source, env.analysis), "{source}");
+                assert_eq!(census.observed_commands().len(), count, "{source}");
+                assert!(census.observed_commands().iter().all(|command| {
+                    command.words.iter().all(|word| {
+                        word.image().bytes() == source.as_bytes() && word.config() == env.config
+                    })
+                }));
+                assert!(
+                    census
+                        .coverage
+                        .script_regions(source, env.analysis)
+                        .is_some()
+                );
+                assert!(!census.is_complete(&format!("#{source}"), env.analysis));
+                assert!(
+                    census
+                        .coverage
+                        .script_regions(&format!("#{source}"), env.analysis)
+                        .is_none()
+                );
+            });
+        }
+    }
+
+    #[test]
+    fn minifier_source_census_retains_partial_candidates_without_barrier_absence() {
+        // naming.minifier.complete-logical-metadata
+        // docs/design/analysis/name-resolution-proofs/minifier-complete-logical-metadata.md
+        let source = "string equal -nocase A a; if {1} $body";
+        with_analysis(source, |env| {
+            let census = command_census(source, env).unwrap();
+            assert!(!census.is_complete(source, env.analysis));
+            assert!(census.observed_commands().iter().any(|command| {
+                command
+                    .words
+                    .first()
+                    .is_some_and(|word| ascii_value(word).as_deref() == Some("string"))
+            }));
+            let (output, count) = crate::minify::lexical_keywords::abbreviate(source, env);
+            assert!(count > 0, "{output}");
+            assert!(output.starts_with("string "), "{output}");
+            assert!(output.ends_with("if {1} $body"), "{output}");
+        });
+        let source = "proc p {{longName default}} {return VALUE}; if {1} $body";
+        let (output, mapping) = crate::minify::compact_names(source, &input(), false);
+        assert_eq!(output, source);
+        assert!(mapping.variables.is_empty());
+        assert!(mapping.procs.is_empty());
+    }
+
+    #[test]
+    fn minifier_source_census_keeps_unrepresented_or_unknown_regions_incomplete() {
+        // naming.minifier.complete-logical-metadata
+        // docs/design/analysis/name-resolution-proofs/minifier-complete-logical-metadata.md
+        for source in [
+            "mystery",
+            "if {1} $body",
+            "apply {{} {string equal -nocase A a}}",
+            "list {unterminated",
+        ] {
+            with_analysis(source, |env| {
+                let census = command_census(source, env).unwrap();
+                assert!(!census.is_complete(source, env.analysis), "{source}");
+            });
+        }
+    }
+
+    #[test]
+    fn minifier_source_census_refuses_foreign_analysis_realm_and_full_config() {
+        // naming.minifier.complete-logical-metadata
+        // docs/design/analysis/name-resolution-proofs/minifier-complete-logical-metadata.md
+        let source = "string equal -nocase A a";
+        with_analysis(source, |env| {
+            assert!(
+                command_census(source, env)
+                    .unwrap()
+                    .is_complete(source, env.analysis)
+            );
+            assert!(command_census("string equal -nocase B b", env).is_none());
+            let config = tcl_lexer::LexerConfig {
+                leading_bom: match env.config.leading_bom {
+                    tcl_lexer::LeadingBom::Content => tcl_lexer::LeadingBom::Skip,
+                    tcl_lexer::LeadingBom::Skip => tcl_lexer::LeadingBom::Content,
+                },
+                ..env.config
+            };
+            assert!(command_census(source, MinifyEnv { config, ..env }).is_none());
+            let foreign: AnalysisResult = original::analysis_with_input(source, env.input);
+            assert!(
+                !command_census(source, env)
+                    .unwrap()
+                    .is_complete(source, &foreign)
+            );
+            assert!(
+                command_census(
+                    source,
+                    MinifyEnv {
+                        analysis: &foreign,
+                        ..env
+                    }
+                )
+                .is_none()
+            );
+        });
+    }
 }

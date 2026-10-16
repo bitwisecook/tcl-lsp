@@ -1,0 +1,100 @@
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-spectcl)
+   Compiling tcl-version v0.1.0 (/workspace/tcl-lsp/rust/tcl-version)
+   Compiling tcl-bigip-query v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip-query)
+   Compiling tcl-lsp-db v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-db)
+   Compiling tcl-explorer v0.1.0 (/workspace/tcl-lsp/rust/tcl-explorer)
+   Compiling f5-xc v0.1.0 (/workspace/tcl-lsp/rust/f5-xc)
+   Compiling tcl-diagram v0.1.0 (/workspace/tcl-lsp/rust/tcl-diagram)
+   Compiling tcl-lsp-server v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-server)
+error[E0433]: cannot find type `ProviderDialectInputs` in this scope
+   --> rust/tcl-lsp-server/src/recovery_source/tests.rs:489:20
+    |
+489 |     let dialects = ProviderDialectInputs::capture(&backend).await;
+    |                    ^^^^^^^^^^^^^^^^^^^^^ use of undeclared type `ProviderDialectInputs`
+    |
+help: a struct with a similar name exists
+    |
+489 -     let dialects = ProviderDialectInputs::capture(&backend).await;
+489 +     let dialects = ProviderCaptureInputs::capture(&backend).await;
+    |
+help: consider importing this struct
+    |
+  5 + use crate::provider_source::ProviderDialectInputs;
+    |
+
+error[E0308]: mismatched types
+    --> rust/tcl-lsp-server/src/current_diagnostics.rs:1602:30
+     |
+1602 |                 .is_current(&inputs.package_resolver.read().await)
+     |                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `PackageResolver`, found `RwLockReadGuard<'_, PackageResolver>`
+     |
+     = note: expected struct `PackageResolver`
+                found struct `tokio::sync::RwLockReadGuard<'_, PackageResolver>`
+
+error[E0599]: no method named `semantic_key` found for struct `std::sync::Arc<tcl_registry::CommandRegistry>` in the current scope
+   --> rust/tcl-lsp-server/src/current_diagnostics.rs:886:55
+    |
+886 |         hasher.update(format!("{:?}", inputs.registry.semantic_key()).as_bytes());
+    |                                                       ^^^^^^^^^^^^ method not found in `std::sync::Arc<tcl_registry::CommandRegistry>`
+
+error[E0277]: the trait bound `Array<u8, UInt<UInt<UInt<UInt<_, B0>, B0>, B0>, B0>>: LowerHex` is not satisfied
+   --> rust/tcl-lsp-server/src/current_diagnostics.rs:887:41
+    |
+887 |         let result_id = format!("{:x}", hasher.finalize());
+    |                                  ----   ^^^^^^^^^^^^^^^^^ the trait `LowerHex` is not implemented for `Array<u8, UInt<UInt<UInt<UInt<UInt<_, B0>, B0>, B0>, B0>, B0>>`
+    |                                  |
+    |                                  required by this formatting parameter
+    |
+    = help: the following other types implement trait `LowerHex`:
+              &T
+              &mut T
+              EffectRegion
+              EscapeFlag
+              EscapeFlags
+              FmtFlags
+              RenderedProperties
+              Saturating<T>
+            and 66 others
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_lsp_server-f29bc34dc668f467.long-type-11199702289953773133.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error[E0277]: `tcl_lsp_db::SourceFile` doesn't implement `Debug`
+    --> rust/tcl-lsp-server/src/current_diagnostics.rs:2729:9
+     |
+2729 |         assert_eq!(project.token_configurations(&*db), &configurations);
+     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `Debug` is not implemented for `tcl_lsp_db::SourceFile`
+     |
+help: the trait `Debug` is implemented for `std::option::Option<T>`
+    --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/option.rs:592:15
+
+error[E0277]: `AnalyserConfig` doesn't implement `Debug`
+    --> rust/tcl-lsp-server/src/current_diagnostics.rs:2729:9
+     |
+2729 |         assert_eq!(project.token_configurations(&*db), &configurations);
+     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `Debug` is not implemented for `AnalyserConfig`
+     |
+help: the trait `Debug` is implemented for `std::option::Option<T>`
+    --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/option.rs:592:15
+
+error[E0277]: `tcl_lsp_db::Project` doesn't implement `Debug`
+    --> rust/tcl-lsp-server/src/current_diagnostics.rs:2764:9
+     |
+2764 |         assert_eq!(*backend.db_project.lock().await, Some(project));
+     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `Debug` is not implemented for `tcl_lsp_db::Project`
+     |
+help: the trait `Debug` is conditionally implemented for `std::option::Option<T>`
+    --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/option.rs:592:15
+    ::: /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/option.rs:598:16
+     |
+     = note: unsatisfied requirement introduced here: `tcl_lsp_db::Project: Debug`
+
+Some errors have detailed explanations: E0277, E0308, E0433, E0599.
+For more information about an error, try `rustc --explain E0277`.
+error: could not compile `tcl-lsp-server` (lib test) due to 10 previous errors

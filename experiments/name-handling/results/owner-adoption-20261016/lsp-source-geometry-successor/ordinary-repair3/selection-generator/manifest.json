@@ -1,0 +1,92 @@
+{
+  "status": "SOURCE_SELECTION_CANDIDATE_NO_CURRENT_BINARY_BINDING",
+  "predecessor": {
+    "path": "/workspace/naming-validation/lsp-selected-owners-successor-repair2/selection.json",
+    "sha256": "2c214b636d5542b1654fe0036833ef32b0ea30856c03ca9344cc3a16382e939d",
+    "exact_controls": 338,
+    "all338_ordered_entries_verbatim": true,
+    "all_guard_environment_timeout_metadata_verbatim": true
+  },
+  "retained": 338,
+  "added_reviewed_new": 20,
+  "added_original": 88,
+  "total": 446,
+  "by_target": {
+    "tcl_compiler": 66,
+    "tcl_registry": 9,
+    "tcl_lsp_core": 285,
+    "tcl_lsp_db": 6,
+    "tcl_lsp_server": 80
+  },
+  "current_source_files": 83,
+  "all_current_source_eligible": true,
+  "all_338_original_ordered_metadata_and_guards_identical": true,
+  "predecessor_generator_unchanged": true,
+  "current_frozen_elf_or_listing_bindings": null,
+  "source_only_checks": [
+    "Exact old338 selection hash and old generator hash unchanged",
+    "All446 current source/module/test declarations, function bodies and Linux cfg eligible",
+    "All88 added original controls exact singleton in retained actual predecessor listings",
+    "Current source file hashes rechecked at publication",
+    "Independent read-only verification passed",
+    "Actual stale predecessor freeze refused at changed-source guard; no output written"
+  ],
+  "files": [
+    {
+      "path": "/tmp/lsp-source-geometry-selection/generate_selection.py",
+      "sha256": "2638af6c890e0ea78d6e446f1210b250df26a9fe4377485f2568e78627717078",
+      "bytes": 22788
+    },
+    {
+      "path": "/tmp/lsp-source-geometry-selection/selection-draft.json",
+      "sha256": "b0f4d5c956be1e8be78b9b31a2e0c4b5a596b5c24dfc37a5796cd08519406e0a",
+      "bytes": 2293872
+    },
+    {
+      "path": "/tmp/lsp-source-geometry-selection/selection-generation-summary.json",
+      "sha256": "690a0a3b5cb4a0c9b54b185e64c5a8fda3183d8331e50c33f66b8ca13335bb50",
+      "bytes": 2292
+    },
+    {
+      "path": "/tmp/lsp-source-geometry-selection/verify_selection.py",
+      "sha256": "6d4cd5ea4831522b4be8ecc62cbd974f1dcf6d4d14c7a3b2416b7955d8e7f4e4",
+      "bytes": 3191
+    },
+    {
+      "path": "/tmp/lsp-source-geometry-selection/source-selection-verification.json",
+      "sha256": "efffb09af0f17d494bb81761bb97f1642f844f83965bdb6e038ea68a5d4225d6",
+      "bytes": 469
+    },
+    {
+      "path": "/tmp/lsp-source-geometry-selection/current-source-files.json",
+      "sha256": "277bda00ec723e21c580cbd0064b0d7b19f9a75c909c181ca28c449ce8787477",
+      "bytes": 12670
+    },
+    {
+      "path": "/tmp/lsp-source-geometry-selection/selector-reconciliation.json",
+      "sha256": "6d6b04ca48fd1a1bb5c8580d057f00bf30b1a2a6ac0ea8a5ad3645cff3c3f591",
+      "bytes": 47276
+    },
+    {
+      "path": "/tmp/lsp-source-geometry-selection/generation.log",
+      "sha256": "690a0a3b5cb4a0c9b54b185e64c5a8fda3183d8331e50c33f66b8ca13335bb50",
+      "bytes": 2292
+    },
+    {
+      "path": "/tmp/lsp-source-geometry-selection/SOURCE-BASIS.md",
+      "sha256": "0ccb3d7ff544b70d03e48aa18799beaec95687c46234f9f87d2b3bdac82bbea1",
+      "bytes": 3403
+    },
+    {
+      "path": "/tmp/lsp-source-geometry-selection/ROOT-USAGE.md",
+      "sha256": "835f2e51f0ce03ee9b990b15d4b33c45a6c6b1c3fbc969db49ea9f5dfb30eccd",
+      "bytes": 1025
+    },
+    {
+      "path": "/tmp/lsp-source-geometry-selection/predecessor-freeze-refusal.log",
+      "sha256": "3c18ce702acfb07cf36b197207452e54b87ffd76499f04eeca86e0259645d0ed",
+      "bytes": 1315
+    }
+  ],
+  "execution": "No main-source mutations/Cargo/Git/build/test or listing execution."
+}

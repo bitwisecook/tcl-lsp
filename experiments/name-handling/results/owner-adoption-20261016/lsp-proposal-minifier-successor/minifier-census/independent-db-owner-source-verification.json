@@ -1,0 +1,25 @@
+{
+  "source_sha256": "b807fc854523be6a5d5581b616c18495162487593c1d78c732b10d5d0e4fa3a6",
+  "contract_sha256": "7d72fc0a952f480aed2c1a029a5c81f236bc57ab68173911048568af526a4d6d",
+  "manifest_sha256": "1044eed93e4f39d8b97239147ceb3531621907ab3dd433cba5a1c6e66fbbe6d3",
+  "all9_before_after_hashes_verified": true,
+  "fresh_fuzz0_afterhash_match": true,
+  "current_beforeimages": {
+    "rust/tcl-lsp-core/src/minify.rs": true,
+    "rust/tcl-lsp-core/src/minify/lexical_metadata.rs": true,
+    "rust/tcl-lsp-core/src/minify/lexical_keywords.rs": true,
+    "rust/tcl-lsp-core/src/minify/original.rs": true,
+    "rust/tcl-lsp-core/src/source_structure.rs": true,
+    "docs/design/analysis/name-resolution-proofs/minifier-complete-logical-metadata.md": true,
+    "docs/design/contracts/shared-utility-contracts-rust.md": true,
+    "docs/design/contracts/naming-consumer-matrix.md": true,
+    "docs/design/analysis/name-resolution-proofs/core-original-package-source-action-context.md": true
+  },
+  "old_test_only_actual_analysis_wiring": {
+    "rust/tcl-lsp-core/src/minify.rs": 1,
+    "rust/tcl-lsp-core/src/minify/original.rs": 4,
+    "rust/tcl-lsp-core/src/source_structure.rs": 0
+  },
+  "old_edit_and_formal_guard_region_byte_identical": true,
+  "execution": "not run"
+}

@@ -1,0 +1,21 @@
+{
+  "patch_sha256": "934c2d6f51d67caeeb348269f2416c94c31b36714acbf1249a1a33afc8fd7d83",
+  "files": [
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "before_sha256": "b22d72c8bf9cbc82322c2fede96c819789f10826746fb7f44963cfe082d137e4",
+      "after_sha256": "45a34c32d6803bf9f3c81d0ccc47fef4ea6e3edc46681d681a52b724375e1632"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/current_diagnostics.rs",
+      "before_sha256": "d452388c9e27c395cb2aa226635d829785486109dbfd46aa3b6aed5b7c5bffe7",
+      "after_sha256": "559ff8a1a51ad85afdd71069dac3debf906c1838cde3e0d72d49f2e480c5c6e8"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/recovery_source/tests.rs",
+      "before_sha256": "44211fbceeadb97c478252188a496ab4ea1e00ae90f462e87132854e522b94a0",
+      "after_sha256": "cfb061b42e9310bf694ea55fb7bbbd70f477661b62cf35f3e88e5fb4cc008ea0"
+    }
+  ],
+  "scope": "Same actual Registry snapshot, explicit existing guard dereference, qualified existing producer type, same equality predicates without nonexistent Debug, one factored existing SHA256 hex renderer with same digest bytes; no guard/assertion predicate/visibility/config changes."
+}

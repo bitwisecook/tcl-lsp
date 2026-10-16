@@ -1,0 +1,22 @@
+
+running 1 test
+test analyser::utils::tests::script_comment_facts_reaches_nested_command_substitution_case_arms ... COMMENT232 stage=record_comments span=Span { start: 0, end: 137 } depth=0 facts=[]
+COMMENT232 stage=record_comments span=Span { start: 12, end: 88 } depth=1 facts=[]
+COMMENT232 stage=visit_source_schema offset=12 base=12 depth=1
+COMMENT232 stage=source_words.realm matched=true
+COMMENT232 stage=source_words.selected result=false
+COMMENT232 stage=source_words.native result=false
+COMMENT232 stage=source_words result=none
+
+thread 'analyser::utils::tests::script_comment_facts_reaches_nested_command_substitution_case_arms' (246940) panicked at rust/tcl-compiler/src/analyser/utils.rs:2900:9:
+nested comment missing: []
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    analyser::utils::tests::script_comment_facts_reaches_nested_command_substitution_case_arms
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10275 filtered out; finished in 0.25s
+

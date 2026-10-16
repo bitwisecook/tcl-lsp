@@ -18,7 +18,7 @@
 
 import * as vscode from "vscode";
 import { getActiveDialect, getClient, isAiEnabled, isTclLanguage } from "../extension";
-import { runAgenticLoop } from "./agenticLoop";
+import { proposalReportEvidence, runAgenticLoop } from "./agenticLoop";
 import {
   documentWriteReceipt,
   ensureDocumentOpen,
@@ -249,6 +249,12 @@ async function handleFix(ctx: CommandContext): Promise<vscode.ChatResult> {
   });
 
   ctx.response.markdown(`## Fixed Tcl\n\n\`\`\`tcl\n${result.finalCode}\n\`\`\`\n`);
+  if (result.proposalReport) {
+    const report = result.proposalReport.response;
+    ctx.response.markdown(
+      `\nDiagnostics were captured for the proposal at ${report.uri}, source version ${report.version}.`,
+    );
+  }
   if (!result.clean) {
     renderDiagnosticSection(
       ctx.response,
@@ -259,10 +265,15 @@ async function handleFix(ctx: CommandContext): Promise<vscode.ChatResult> {
   }
 
   if (!result.documentSnapshot) throw new Error("Fix result has no current document snapshot");
+  const writeReceipt = documentWriteReceipt(result.documentSnapshot);
   ctx.response.button({
     command: "tclLsp.applyFix",
     title: "Apply fixes",
-    arguments: [result.finalCode, documentWriteReceipt(result.documentSnapshot)],
+    arguments: [
+      result.finalCode,
+      writeReceipt,
+      proposalReportEvidence(result.proposalReport, writeReceipt),
+    ],
   });
 
   return { metadata: { command: "fix", clean: result.clean, iterations: result.iterations } };

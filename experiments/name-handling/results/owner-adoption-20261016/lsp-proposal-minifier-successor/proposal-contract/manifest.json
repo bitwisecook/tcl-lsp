@@ -1,0 +1,19 @@
+{
+  "candidate": "lsp-proposal-diagnostics-contract-v2",
+  "status": "TMP-only immutable successor to contract-v1; design prose describes behaviour and limits only; review matrix and exact source receipts live in work packet metadata",
+  "patch_sha256": "2f6d770ab88abe0c4734dde60f0d161e00ba98e2fc637f42f9b229324130be3d",
+  "files": {
+    "check/docsroot/docs/design/README.md": "8beca789bdd559c82a6d1f26d16ef85dafe24b96d288c0b040163d4eec11db1e",
+    "docs/design/README.md": "d4c22c5f99930abb977ee0f763e271f25b208c0db442a9a47e24c709a37134e3",
+    "docs/design/contracts/lsp-proposal-diagnostics.md": "cef31d8f09dfc41f231facafa9efa34ae53198c45b7f080f93c7666b2753e0c0",
+    "docs/work/name-handling/experiments/lsp-proposal-diagnostics/packet.json": "14c0b5200e15529ac7491391408947e43983e224ca4eedc43f87b208199a220e",
+    "lsp-proposal-contract-v2.patch": "2f6d770ab88abe0c4734dde60f0d161e00ba98e2fc637f42f9b229324130be3d"
+  },
+  "packet": {
+    "rust_v12_sha256": "90374251a32e85c1e5e6212919489a8074b4af51113dc2850d3eb3062ec18de1",
+    "rust_header_only_patch_sha256": "e72d5d7127539cabb9e61f79bbab71f94f14c7b08731b6844218fc2bf8f7c88a",
+    "editor_full_composite_sha256": "9bb3634a94bd049691e5218985bc6e87091bf1b28f690ffea57ddd7d224eeb3f",
+    "editor_full_chain_review": "/tmp/lsp-proposal-contract-v1/independent-editor-full-chain-review-CLEAR.txt"
+  },
+  "validation": "No tests/builds; patch dry-run and hashes only"
+}

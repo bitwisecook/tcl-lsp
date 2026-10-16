@@ -1,0 +1,9 @@
+CLEAR — independent source/API compile-repair review
+
+Exact repair.patch 934c2d6f51d67caeeb348269f2416c94c31b36714acbf1249a1a33afc8fd7d83 and all three manifest afterimages match actual current main. Reverse zero-fuzz reconstruction yields all three exact beforeimage hashes in actual failed ordinary five-library input-before.json; forward zero-fuzz reapplication reproduces current afterimages. Actual source.diff SHA matches failed source-binding rust_diff_sha256 6224728fd5ece9f1fb9f76951f82f9d7acef62cc3b7f38614be6be84b7a43c40; failed exit101/39001inputs/0drift and ten build errors retained.
+
+The changes use the existing actual Registry snapshot semantic_key API; explicitly dereference the same live PackageResolver read guard; qualify the existing real ProviderDialectInputs type; and preserve both endpoint equality predicates while avoiding Debug bounds absent from Salsa handles. No guard, source/currentness/configuration condition, visibility, assertion predicate or context changes.
+
+The existing SHA256 digest-to-lowercase-hex byte loop is factored into one private helper. sha256_hex still hashes the same input exactly once and renders the same bytes, while the proposal ID renders its already finalized actual digest rather than requiring unavailable LowerHex on the digest container. The helper grants no identity or semantic proof; all existing result-ID inputs and currency checks remain intact.
+
+No demonstrated source blocker. No execution/build/gate success claimed; Root must run the fresh ordinary build. No main/Git/Cargo/tests performed by this reviewer.

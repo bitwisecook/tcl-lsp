@@ -1,0 +1,13 @@
+{
+  "status": "CURRENT_SOURCE_SELECTION_CLEAR_ONLY",
+  "selection_sha256": "bd16ed2fa10448ace5b74733f423dd5b84f6d44bfc8c0a0d20413049c2e147ab",
+  "generator_sha256": "25052ca5ba5389c29bbc87d039aa541f493e8be40c09598b9c6ccc61f82d5c89",
+  "retained446_ordered_entries_and_inherited_metadata_exact": true,
+  "unique_total": 460,
+  "reviewed_additions": 14,
+  "actual_current_source_module_files": 88,
+  "all460_source_cfg_native_linux_eligible": true,
+  "current_elf_or_listing_claim": false,
+  "no_build_test_listing_execution": true,
+  "freeze": "AWAIT_ROOT_EXPLICIT_ACTUAL_SUCCESSFUL_ORDINARY5LIB_DESTINATION"
+}

@@ -26,11 +26,11 @@ use tcl_registry::{InvocationWord, InvocationWords, ResolvedInvocation};
 pub(super) fn abbreviate(source: &str, env: MinifyEnv<'_>) -> (String, usize) {
     // naming.minifier.complete-logical-metadata
     // docs/design/analysis/name-resolution-proofs/minifier-complete-logical-metadata.md
-    let Some(commands) = lexical_metadata::commands(source, env) else {
+    let Some(census) = lexical_metadata::command_census(source, env) else {
         return (source.to_owned(), 0);
     };
     let mut edits = Vec::new();
-    for command in commands {
+    for command in census.observed_commands() {
         // Before-argv metadata cannot prove stability across dynamic argument
         // effects. The entire selected argv must be static original text.
         if command.words.iter().any(|word| {
@@ -42,8 +42,8 @@ pub(super) fn abbreviate(source: &str, env: MinifyEnv<'_>) -> (String, usize) {
         }) {
             continue;
         }
-        lexical_metadata::with_editable_command_schema(env, &command, |schema| {
-            abbreviate_command(env, &command, schema, &mut edits);
+        lexical_metadata::with_editable_command_schema(env, command, |schema| {
+            abbreviate_command(env, command, schema, &mut edits);
         });
     }
     let count = edits.len();

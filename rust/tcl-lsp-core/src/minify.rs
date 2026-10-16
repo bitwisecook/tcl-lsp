@@ -836,6 +836,7 @@ fn lexical_default(source: &str, analysis: &AnalysisResult) -> Result<String, Mi
         source,
         MinifyEnv {
             original_source: source,
+            analysis,
             input,
             dialect: input.unit_profile(),
             config: input.lexer_config(),
@@ -858,6 +859,8 @@ fn lexical_default(source: &str, analysis: &AnalysisResult) -> Result<String, Mi
 struct MinifyEnv<'a> {
     /// Complete unchanged source backing every borrowed rendering region.
     original_source: &'a str,
+    /// Actual analysis owning this complete source, input and Realm.
+    analysis: &'a AnalysisResult,
     /// Same immutable complete driver input sealed by the retained Realm.
     input: &'a tcl_compiler::analyser::ResolvedAnalysisInput,
     /// The document's dialect, for the lexer and the abbreviation tables.
@@ -1305,6 +1308,7 @@ fn compact_names(
     };
     let env = MinifyEnv {
         original_source: source,
+        analysis: &analysis,
         input,
         dialect: input.unit_profile(),
         config: input.lexer_config(),
@@ -1312,14 +1316,19 @@ fn compact_names(
         context: &context,
         identities,
     };
-    let Some(commands) = lexical_metadata::commands(source, env) else {
+    let Some(census) = lexical_metadata::command_census(source, env) else {
         return (source.to_owned(), SymbolMap::default());
     };
+    let commands = lexical_metadata::CommandCensus::observed_commands(&census);
     let mut symbol_map = SymbolMap::default();
     let mut edits: Vec<Edit> = Vec::new();
 
-    let barriers = find_rename_barriers(&analysis, env, &commands, isolated);
-    let rmw_targets = rmw_target_var_names(env, &commands);
+    let mut barriers = find_rename_barriers(&analysis, env, commands, isolated);
+    if !lexical_metadata::CommandCensus::is_complete(&census, source, &analysis) {
+        barriers.all_variable_scopes = true;
+        barriers.procs = true;
+    }
+    let rmw_targets = rmw_target_var_names(env, commands);
     let builtin_names: FxHashSet<&str> = context
         .command_names()
         .filter(|name| {
@@ -1928,6 +1937,7 @@ fn abbreviate_keywords(
         source,
         MinifyEnv {
             original_source: source,
+            analysis: &analysis,
             input,
             dialect: input.unit_profile(),
             config: input.lexer_config(),
@@ -2244,6 +2254,7 @@ fn collect_string_literals(
     let context = input.context_registry();
     let env = MinifyEnv {
         original_source: source,
+        analysis: &analysis,
         input,
         dialect: input.unit_profile(),
         config: input.lexer_config(),
@@ -2251,12 +2262,12 @@ fn collect_string_literals(
         context: &context,
         identities,
     };
-    let Some(commands) = lexical_metadata::commands(source, env) else {
+    let Some(census) = lexical_metadata::command_census(source, env) else {
         return Vec::new();
     };
     let mut fragments = Vec::new();
-    for command in commands {
-        for word in command.words.into_iter().skip(1) {
+    for command in census.observed_commands() {
+        for word in command.words.iter().skip(1) {
             if word.group().kind != tcl_lexer::WordKind::Quoted {
                 continue;
             }
@@ -3866,6 +3877,7 @@ mod tests {
             let context = input.context_registry();
             let env = MinifyEnv {
                 original_source: source,
+                analysis: &analysis,
                 input,
                 dialect: input.unit_profile(),
                 config: input.lexer_config(),

@@ -401,12 +401,12 @@
   "incoming_rust": "Incoming `origin/rust` is now `ca698d87c824da24053c7abe279bb505a0acd9cb` (#2477 compiled/direct evaluation, literal-index and error-reporting changes), unmerged and unadmitted. The audit counts are for work at the recorded baseline plus explicit work-source annexes. Recheck and reconcile incoming source before integration; no acceptance is donated from the incoming branch.",
   "implementation_progress": {
     "resumed_from": "554085e162823ea8bd126898d0c27b7b2a9f8628",
-    "utc": "2026-10-16T19:49:39.699663+00:00",
+    "utc": "2026-10-16T20:12:41.529602+00:00",
     "audit_baseline_counts_unchanged": true,
     "total_required_units": 2158,
-    "implemented_pending_validation": 266,
+    "implemented_pending_validation": 268,
     "verified_complete": 0,
-    "not_started": 1892,
+    "not_started": 1890,
     "remaining_unverified_or_unimplemented": 2158,
     "additional_work_not_counted_as_catalogue_completion": [
       "Native variable-expression read/cell/trace/child-body observer producer remains open; pure expression gap receipt grants no such authority.",
@@ -659,13 +659,13 @@
     },
     "additional_owner_annex": {
       "path": "docs/work/name-handling/implementation-owner-annex.json",
-      "required": 53,
-      "implemented_pending_validation": 52,
+      "required": 54,
+      "implemented_pending_validation": 53,
       "not_integrated": 1,
       "verified_complete": 0
     },
-    "effective_required_units": 2211,
-    "effective_implemented_pending_validation": 318,
+    "effective_required_units": 2212,
+    "effective_implemented_pending_validation": 321,
     "effective_verified_complete": 0,
     "incoming_remote": {
       "checked_utc": "2026-10-16T18:51:00Z",
@@ -835,8 +835,8 @@
       "scope": "Selected controls only. Completed99tests are65PASS34FAIL. Preview failure retained separately; no whole-group or gate acceptance.",
       "capture": "experiments/name-handling/results/owner-adoption-20261016/cli-mcp-server-889"
     },
-    "fully_implemented_pending_validation": 256,
-    "partially_implemented_pending_validation": 10,
+    "fully_implemented_pending_validation": 257,
+    "partially_implemented_pending_validation": 11,
     "runtime_report_adoptions": {
       "baseline_units": [
         "runtime:report.selected-command-variable-qualification:132",
@@ -1001,14 +1001,14 @@
         "validation": 122,
         "documentation": 2
       },
-      "lsp_integrated_pending_validation": 135,
+      "lsp_integrated_pending_validation": 137,
       "lsp_by_kind_integrated": {
-        "semantic": 48,
+        "semantic": 50,
         "validation": 85,
         "documentation": 2
       },
       "lsp_verified_complete": 0,
-      "lsp_without_integrated_implementation": 190,
+      "lsp_without_integrated_implementation": 188,
       "shared_dependencies": "Counted under their original Compiler/DB/Registry units or reconciled annex; not counted again as LSP consumers.",
       "deferred": "Runtime174 remaining54,VM133,RuntimeJim execution and BIG-IP source inventory/provider work; retain all existing artifacts.",
       "new_source_alias_caller_annex": "compiler.consumer.logical-source-alias-declaration-observations"
@@ -1648,7 +1648,7 @@
       "conditional_comment": "e6c39377 actual retained CaseBodyOperands allcandidate syntax, unknown state retained; original strong inventory and232 unchanged"
     },
     "last_30_minute_report": {
-      "utc": "2026-10-16T19:36:00Z",
+      "utc": "2026-10-16T20:06:00Z",
       "lsp_integrated": 135,
       "lsp_required": 325,
       "lsp_semantic": 48,
@@ -1658,14 +1658,15 @@
       "effective_integrated": 318,
       "effective_required": 2211,
       "verified": 0,
-      "next_report_utc": "2026-10-16T20:06:00Z",
-      "validation": "Ordinary5librarybuildPASS174.327s0warnings39000inputs0drift. First338setuprejectedmissingproviderenv, completecorrected338rerunrunningwithunchangedselection/artifacts/budgets andverifiedold310providerenvironment. Lastowner310errors. SourcegeometrysourceCLEAR5librarysuccessorbuildrunning."
+      "next_report_utc": "2026-10-16T20:36:00Z",
+      "validation": "Fullcorrected338=288PASS48FAIL2TIMEOUT;310retained2gains0regressions0drops. Freshsourcegeometry5libPASS356.191s0warnings39000inputs0drift.446replayrunning. Exactmember222/comment232tracescaptured andfull39000restored. Proposal/minifiernextforintegration atreporttime; notcountedyet."
     },
     "source_geometry_successor": {
       "baseline_new": [
         "lsp-definition-source-position-and-range-advice",
         "lsp-declaration-outline-configured-source",
-        "lsp-minifier-param-name-scan"
+        "lsp-minifier-param-name-scan",
+        "lsp-code-actions-package-presence-census"
       ],
       "new_annex": 0,
       "doclink_repair": "0c3803ce actual earlier-Written original prefix staticness restricts existing retained-path-source eligibility; existing source-document-link-selection obligation, count0",
@@ -1674,7 +1675,7 @@
       "ordinary_build": "PASS174.327s0warnings39000inputs0drift; actual5ELFs freeofstartupinstrumentation",
       "owner_gate": "Actual310errors/288.809s29361inputs0drift. Previous309; added9/removed8 exactdelta underreview. No rules/bounds/visibility relaxed.",
       "package_census": "0cefb7a0 exact-source positive/incomplete packagecensus+sharedsyntaxcoverage with distinct typed limits; existingbaseline ownerpurpose,0newannex",
-      "execution": "First ordinary build FAIL private call157.742s; repair1 FAIL missing variant docs9.925s;39000inputs0drift each. Public gate duplicate removal and variant docs repair applied. Ordinary repair2 five-library build running, no successor tests yet."
+      "execution": "Ordinaryrepair3PASS356.191s0warnings39000inputs0drift; previous3buildfailuresretained. Bound446=338retained+20new+88scopedexisting, SHA4d6569c6f4f431b27200ac2bc1e2a618bcc9afa856241eab74f5ec98dd6ca811; replayrunningafterbyteexacttrace restoration. No newcomplete results yet."
     },
     "selected_owner_actual338": {
       "status": "COMPLETE_SCOPED_ORDINARY_CAPTURE",
@@ -1710,6 +1711,22 @@
       "setup_rejected_capture": "First338 wholly excluded because Root omitted original provider environment/PATH; corrected run verifies exact original310 environment/PATH.",
       "capture": "experiments/name-handling/results/owner-adoption-20261016/lsp-selected-owners-successor-repair2/corrected-provider-replay",
       "limits": "Bounded selected controls only; no green repository gates or issue acceptance."
+    },
+    "proposal_minifier_successor": {
+      "baseline_new_full": [
+        "lsp-minifier-source-census-completeness"
+      ],
+      "baseline_new_partial": [
+        "lsp-editor-fix-payload"
+      ],
+      "new_annex": [
+        "lsp.owner.isolated-configured-proposal-diagnostics"
+      ],
+      "status": "integrated_pending_validation",
+      "other_partial_callers": "Proposal/application separation and full historical report evidence improved existing AI iterate/clean/Tcl action/diagnostic boundaries; remaining per-resource/fullordinaryreport contexts explicit, no fullupgrade.",
+      "editor_validation": "PASS actual TS/scopedPrettier/npmNode+browserbundles405inputs0drift; initialwrongbundlefilenamesretainedasRootinvocationfailure, actualscriptsrerunPASS.",
+      "native_validation": "First ordinary5libFAIL10API/type/newtestDebugerrors39001inputs0drift; samepredicate/no visibility repair under independentreview; freshrepairbuildpending.",
+      "capture": "experiments/name-handling/results/owner-adoption-20261016/lsp-proposal-minifier-successor"
     }
   }
 }

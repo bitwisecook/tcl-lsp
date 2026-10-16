@@ -18,7 +18,7 @@
 
 import * as vscode from "vscode";
 import { CommandContext } from "../types";
-import { runAgenticLoop } from "../agenticLoop";
+import { proposalReportEvidence, runAgenticLoop } from "../agenticLoop";
 import { documentWriteReceipt, snapshotDocumentSource } from "../codeUtils";
 import { waitForDiagnostics, renderDiagnosticSection } from "../diagnosticAccess";
 import { isTclLanguage } from "../../extension";
@@ -55,6 +55,12 @@ export async function handleFix(ctx: CommandContext): Promise<vscode.ChatResult>
   // Present result
   ctx.response.markdown(`## Fixed iRule\n\n\`\`\`tcl\n${result.finalCode}\n\`\`\`\n`);
 
+  if (result.proposalReport) {
+    const report = result.proposalReport.response;
+    ctx.response.markdown(
+      `\nDiagnostics were captured for the proposal at ${report.uri}, source version ${report.version}.`,
+    );
+  }
   if (result.clean) {
     ctx.response.markdown(`\nAll issues resolved in ${result.iterations} iteration(s).`);
   } else {
@@ -71,10 +77,15 @@ export async function handleFix(ctx: CommandContext): Promise<vscode.ChatResult>
 
   // Offer to apply only against the completed document snapshot.
   if (!result.documentSnapshot) throw new Error("Fix result has no current document snapshot");
+  const writeReceipt = documentWriteReceipt(result.documentSnapshot);
   ctx.response.button({
     command: "tclLsp.applyFix",
     title: "Apply fixes to document",
-    arguments: [result.finalCode, documentWriteReceipt(result.documentSnapshot)],
+    arguments: [
+      result.finalCode,
+      writeReceipt,
+      proposalReportEvidence(result.proposalReport, writeReceipt),
+    ],
   });
 
   return {

@@ -535,6 +535,7 @@ fn syntax_compaction(source: &str, analysis: &AnalysisResult) -> Result<String, 
     let context = input.context_registry();
     let env = super::MinifyEnv {
         original_source: source,
+        analysis,
         input,
         dialect: input.unit_profile(),
         config,
@@ -1235,6 +1236,7 @@ mod tests {
         let context = input.context_registry();
         let env = super::super::MinifyEnv {
             original_source: source,
+            analysis: &analysis,
             input,
             dialect: input.unit_profile(),
             config: input.lexer_config(),
@@ -1397,6 +1399,7 @@ mod tests {
         let context = input.context_registry();
         let env = super::super::MinifyEnv {
             original_source: source,
+            analysis: &analysis,
             input,
             dialect: input.unit_profile(),
             config: input.lexer_config(),
@@ -1668,6 +1671,7 @@ mod tests {
         let context = input.context_registry();
         project(super::super::MinifyEnv {
             original_source: source,
+            analysis: &analysis,
             input,
             dialect: input.unit_profile(),
             config: input.lexer_config(),
@@ -1996,6 +2000,7 @@ mod tests {
             let context = input.context_registry();
             let env = super::super::MinifyEnv {
                 original_source: source,
+                analysis: &analysis,
                 input,
                 dialect: input.unit_profile(),
                 config: input.lexer_config(),

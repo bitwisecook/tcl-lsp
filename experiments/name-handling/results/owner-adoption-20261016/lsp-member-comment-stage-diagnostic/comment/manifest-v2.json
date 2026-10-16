@@ -1,0 +1,30 @@
+{
+  "purpose": "test-only opt-in source-stage diagnosis for existing analyser::utils::tests::script_comment_facts_reaches_nested_command_substitution_case_arms; no semantic/query/control-flow/fixture/assertion/budget changes and not executed",
+  "selector": "analyser::utils::tests::script_comment_facts_reaches_nested_command_substitution_case_arms",
+  "enable_env": "TCL_LSP_TRACE_COMMENT_CASE232=1",
+  "patch": "/tmp/luna-comment232-trace-v2/diagnostic-v2.patch",
+  "patch_sha256": "13364e9888408dd2fee050c00d9930d8545e1407e3cf57ecc5a8b11b212f6959",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/analyser/utils.rs",
+      "before_sha256": "c0d8f4c067b56dd1a79267b6941ba3d451e0c2353bf0c7eacf80cfa8bfcf90ce",
+      "after_sha256": "41c3b855017d5197519fa30ebe97c2e7b4f86ffd1a952e90a310154cfde24031"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "before_sha256": "459d5e279e838e30b6d1038724510922484e8e036231cdd478d76993a6a2f0fd",
+      "after_sha256": "b8e3a85bc43bb9520837d7f3b54ee641b53842449b534bbd1b0f58fb5dd26576"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs",
+      "before_sha256": "17a12c241311f8ff4b4b70f0cabb31506f68292a36b9d3e2ab20395c2fef1baf",
+      "after_sha256": "2cfd49b9911e935d51c6547befe3a0850c5fa8fb3bfd21b34b75e4dedf525f01"
+    }
+  ],
+  "review_fixes": [
+    "Preserves conditional_source_case_bodies_for context mismatch short-circuit before the existing registry match query.",
+    "All trace bindings are #[cfg(test)] so production builds do not retain variables or empty branches.",
+    "Logs only the source-advice discriminant, not the full advice graph."
+  ],
+  "execution": "not run; root may authorize one exact diagnostic run with frozen binary/evidence"
+}

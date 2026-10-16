@@ -20,6 +20,7 @@ import * as vscode from "vscode";
 import { CommandContext } from "./types";
 import {
   DocumentSourceSnapshot,
+  DocumentWriteReceipt,
   extractCodeBlock,
   ensureDocumentOpen,
   replaceDocumentFromSnapshot,
@@ -30,8 +31,10 @@ import {
   acquireSessionDialectOverride,
   isAnalysisContextCurrent,
   waitForDiagnostics,
+  waitForProposalDiagnostics,
   formatDiagnosticsForLLM,
   SessionDialectOverrideLease,
+  ProposalDiagnosticsReport,
 } from "./diagnosticAccess";
 
 const MAX_ITERATIONS = 5;
@@ -43,6 +46,23 @@ export interface AgenticResult {
   remainingDiagnostics: vscode.Diagnostic[];
   clean: boolean;
   documentSnapshot?: DocumentSourceSnapshot;
+  proposalReport?: ProposalDiagnosticsReport & {
+    readonly sourceSnapshot: DocumentSourceSnapshot;
+  };
+}
+
+export function proposalReportEvidence(
+  report: AgenticResult["proposalReport"],
+  sourceReceipt: DocumentWriteReceipt,
+): unknown {
+  if (!report) return undefined;
+  // Chat command arguments are data-only. The actual source/session context is
+  // retained by the existing checked write receipt owner, not marshalled as
+  // live VS Code or transport objects.
+  return {
+    response: report.response,
+    sourceReceipt,
+  };
 }
 
 export interface AgenticLoopOptions {
@@ -66,6 +86,7 @@ export async function runAgenticLoop(
   const targetDialect = options.targetDialect;
   let currentCode = initialCode;
   let doc = existingDoc;
+  const analyzeAsProposal = existingDoc !== undefined;
   let documentSnapshot = options.sourceSnapshot;
   if (doc && !documentSnapshot) documentSnapshot = snapshotDocumentSource(doc);
   if (
@@ -115,17 +136,18 @@ export async function runAgenticLoop(
     result = await (async (): Promise<AgenticResult> => {
       let iteration = 0;
       let previousCount = Infinity;
+      let proposalReport: AgenticResult["proposalReport"];
 
       for (iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
         if (ctx.token.isCancellationRequested) break;
 
-        if (doc) {
+        if (doc && !analyzeAsProposal) {
           if (!documentSnapshot) throw new Error("Existing document has no source snapshot");
           const updated = await replaceDocumentFromSnapshot(documentSnapshot, currentCode);
           if (!updated) throw new Error("Document changed while the source-fix action was running");
           documentSnapshot = updated;
           doc = updated.document;
-        } else {
+        } else if (!doc) {
           doc = await ensureDocumentOpen(currentCode);
           if (doc.getText() !== currentCode) {
             throw new Error("New document changed before analysis could start");
@@ -142,10 +164,21 @@ export async function runAgenticLoop(
         ctx.response.progress(
           `Iteration ${iteration + 1}/${MAX_ITERATIONS}: analysing with LSP...`,
         );
-        const diagnostics = await waitForDiagnostics(doc.uri, {
-          timeout: DIAGNOSTIC_WAIT_MS,
-          expectedSource: currentCode,
-        });
+        let diagnostics: readonly vscode.Diagnostic[];
+        if (analyzeAsProposal) {
+          if (!documentSnapshot) throw new Error("Proposal analysis has no source snapshot");
+          const report = await waitForProposalDiagnostics(doc.uri, currentCode, {
+            timeout: DIAGNOSTIC_WAIT_MS,
+            expectedSource: documentSnapshot.fullSource,
+          });
+          proposalReport = Object.freeze({ ...report, sourceSnapshot: documentSnapshot });
+          diagnostics = report.diagnostics;
+        } else {
+          diagnostics = await waitForDiagnostics(doc.uri, {
+            timeout: DIAGNOSTIC_WAIT_MS,
+            expectedSource: currentCode,
+          });
+        }
         assertCurrent();
         const actionable = diagnostics.filter(
           (d) => d.severity <= vscode.DiagnosticSeverity.Warning,
@@ -159,6 +192,7 @@ export async function runAgenticLoop(
             remainingDiagnostics: [],
             clean: true,
             documentSnapshot,
+            proposalReport,
           };
         }
         if (actionable.length >= previousCount && iteration > 0) {
@@ -197,14 +231,26 @@ export async function runAgenticLoop(
 
       if (doc) {
         if (!documentSnapshot) throw new Error("Existing document has no source snapshot");
-        const updated = await replaceDocumentFromSnapshot(documentSnapshot, currentCode);
-        if (!updated) throw new Error("Document changed before the final source check");
-        documentSnapshot = updated;
-        doc = updated.document;
-        const finalDiags = await waitForDiagnostics(doc.uri, {
-          timeout: DIAGNOSTIC_WAIT_MS,
-          expectedSource: currentCode,
-        });
+        if (!analyzeAsProposal) {
+          const updated = await replaceDocumentFromSnapshot(documentSnapshot, currentCode);
+          if (!updated) throw new Error("Document changed before the final source check");
+          documentSnapshot = updated;
+          doc = updated.document;
+        }
+        let finalDiags: readonly vscode.Diagnostic[];
+        if (analyzeAsProposal) {
+          const report = await waitForProposalDiagnostics(doc.uri, currentCode, {
+            timeout: DIAGNOSTIC_WAIT_MS,
+            expectedSource: documentSnapshot.fullSource,
+          });
+          proposalReport = Object.freeze({ ...report, sourceSnapshot: documentSnapshot });
+          finalDiags = report.diagnostics;
+        } else {
+          finalDiags = await waitForDiagnostics(doc.uri, {
+            timeout: DIAGNOSTIC_WAIT_MS,
+            expectedSource: currentCode,
+          });
+        }
         assertCurrent();
         const remaining = finalDiags.filter((d) => d.severity <= vscode.DiagnosticSeverity.Warning);
         return {
@@ -213,6 +259,7 @@ export async function runAgenticLoop(
           remainingDiagnostics: remaining,
           clean: remaining.length === 0,
           documentSnapshot,
+          proposalReport,
         };
       }
       return {

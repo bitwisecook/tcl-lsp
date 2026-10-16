@@ -1,0 +1,25 @@
+{
+  "candidate": "lsp-proposal-diagnostics-contract-v3",
+  "status": "TMP-only documentation plus separate AGPL-header-only patch; does not change audit counts",
+  "inputs": {
+    "rust_v12_patch_sha256": "90374251a32e85c1e5e6212919489a8074b4af51113dc2850d3eb3062ec18de1",
+    "rust_v12_manifest_sha256": "b0d17cc55847512bbc4612f1a5f2927ee57f1fafaffe84eaf2844056e6291042",
+    "editor_v5_patch_sha256": "5b867173978d0e19891e7a13397dafb28ca986780a7e3302e43512809daebe54",
+    "syntax_coverage_patch_sha256": "0cefb7a0ed93ede475189cdc7554aa9da86c40610e05498b9f52cc34b3794aa8"
+  },
+  "header_only_successor": {
+    "file": "rust/tcl-lsp-server/src/proposal_diagnostics.rs",
+    "v12_sha256": "d9cb13efdf949413944da366af5fab3841361003aecc265abf68906b8dcef0fb",
+    "after_header_sha256": "36572539010ab39fb51b503bae632349a6913f2b496bdef5f6c5b44cabbcaf1d",
+    "semantics_changed": false
+  },
+  "docs_files": {
+    "docs/design/README.md": "6c0f1eb3c92bdeab622915954dfd0abd8583a706ec52bae313c3dfe1694851c2",
+    "docs/design/contracts/lsp-proposal-diagnostics.md": "3f60d376dca447a02671ee12c3f53929ddfd82054b72d5b890cc678e1d04d7a1"
+  },
+  "ts_new_sources_authored": 0,
+  "validation": "Header-only patch dry-run passed against exact V12 afterimage; full editor composite dry-run passed against all eight exact current-main beforeimages; docs patch dry-run passed against current README and new-file destination; no builds/tests.",
+  "editor_composite_patch_sha256": "9bb3634a94bd049691e5218985bc6e87091bf1b28f690ffea57ddd7d224eeb3f",
+  "header_patch_sha256": "e72d5d7127539cabb9e61f79bbab71f94f14c7b08731b6844218fc2bf8f7c88a",
+  "docs_patch_sha256": "c2d26b3cf63270c6b799f4d6eb12a723aa81b095389ce832cd6af530333b826f"
+}

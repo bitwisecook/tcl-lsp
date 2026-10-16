@@ -1,0 +1,1 @@
+Correct only the newly added overlay test to use the existing CommandRegistry::snapshot().semantic_key() API for both sides. Same genuine Registry comparison and assertions, no production change or visibility widening. Root checked definitions registry.rs969/1841. No old tests changed.

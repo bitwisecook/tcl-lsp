@@ -1,0 +1,68 @@
+{
+  "utc": "2026-10-16T20:09:00.603870+00:00",
+  "source_head": "f46135314f6b4710ad30513e30b2169217bf4c87",
+  "editor_diff_sha256": "3f3e63eb0e65fa9d5db32cccd3113c4250a095d54546576366ad4e33fcffdead",
+  "node": "v24.19.0",
+  "initial_bundle_invocation_failure": "Root first invoked nonexistent esbuild.js/esbuild.browser.js; TypeScript/Prettier had passed, bundling was not performed. Actual package.json bundle scripts used here.",
+  "status": "PASS",
+  "checks": [
+    {
+      "argv": [
+        "npx",
+        "tsc",
+        "--noEmit",
+        "-p",
+        "."
+      ],
+      "exit_code": 0,
+      "seconds": 3.463,
+      "log": "check-0.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "npx",
+        "prettier",
+        "--check",
+        "src/chat/diagnosticAccess.ts",
+        "src/chat/agenticLoop.ts",
+        "src/extension.ts",
+        "src/extensionBrowser.ts",
+        "src/test/currentDiagnostics.test.ts",
+        "src/chat/tclParticipant.ts",
+        "src/chat/commands/fix.ts",
+        "src/chat/commands/find-legacy.ts"
+      ],
+      "exit_code": 0,
+      "seconds": 1.033,
+      "log": "check-1.log",
+      "log_sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20"
+    },
+    {
+      "argv": [
+        "npm",
+        "run",
+        "bundle"
+      ],
+      "exit_code": 0,
+      "seconds": 0.357,
+      "log": "check-2.log",
+      "log_sha256": "6aeb4ad074bd6da3ec427175ad14b1a44ceecd9974216e718aeaddfdfc0907ff"
+    },
+    {
+      "argv": [
+        "npm",
+        "run",
+        "bundle:browser"
+      ],
+      "exit_code": 0,
+      "seconds": 0.315,
+      "log": "check-3.log",
+      "log_sha256": "62bc2867ca9c4cd095792899f370ef4f009b1d476bbd98cb385ce30e8e7ef414"
+    }
+  ],
+  "input_count": 405,
+  "input_drift": [],
+  "completed_utc": "2026-10-16T20:09:05.818046+00:00",
+  "host_execution": "VSCode GUI tests unexecuted; repository dependency installer blocked by read-only system apt directories. Compilation/bundles only."
+}

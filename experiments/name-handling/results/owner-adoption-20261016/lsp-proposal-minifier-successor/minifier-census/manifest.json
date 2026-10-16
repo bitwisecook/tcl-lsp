@@ -1,0 +1,81 @@
+{
+  "scope": "TMP only; no Cargo/main/Git/executable operations",
+  "baseline_unit": "lsp-minifier-source-census-completeness",
+  "deferred_distinct_unit": "lsp-minifier-claimed-name-inventory",
+  "existing_shared_owner": "Original checked source package-presence inventory / SourceSyntaxCoverage syntax facet",
+  "new_helper_annexes": 0,
+  "source_patch_sha256": "b807fc854523be6a5d5581b616c18495162487593c1d78c732b10d5d0e4fa3a6",
+  "contract_patch_sha256": "7d72fc0a952f480aed2c1a029a5c81f236bc57ab68173911048568af526a4d6d",
+  "files": [
+    {
+      "path": "rust/tcl-lsp-core/src/minify.rs",
+      "before_sha256": "aa06eac57756f36d4345d0ced8f5d29ac032a61642629e3d3326f7d3e20bbf52",
+      "after_sha256": "ada98b476f5a1ccd45e58292dc2d69ed96028cdfe38a07dd047883c8226c8770"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/minify/lexical_metadata.rs",
+      "before_sha256": "444bc2b7cb00305c8fd077adcbf9dec5a932b704cae661c0cde38ae9d7a8419a",
+      "after_sha256": "f7097cf0b59bb3ae1e7994d43aea7f179a0443dc06dfbfe254f8eaf62f4e3807"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/minify/lexical_keywords.rs",
+      "before_sha256": "b82ccaaf6bcd765f77c218a7516086f17d318a77656a608b1e3b34fb795289b2",
+      "after_sha256": "b120751db82a0947a344249d58425b324e9ae5b28bbd3bef4da84bf3342934e2"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/minify/original.rs",
+      "before_sha256": "f47b533fbb846e7008c83f0c81e7132129e0cdce12281f9dbc43812cb0df06c8",
+      "after_sha256": "2de12f703f30e0529f09105d9a7fc26c4ea1dcdf56a409dce8fed0d6b33f7842"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/source_structure.rs",
+      "before_sha256": "81dcc9da9b571726c6fb345d419024bbee21203771107beba1313966ae8865cf",
+      "after_sha256": "2fdc317c2232d792f1ddca50e7876e9eb5521b5196527ef6cbb14338b257f983"
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/minifier-complete-logical-metadata.md",
+      "before_sha256": "749ded92bb8390c6a74d9f1f577782be5243a17381501f91f527c89aee717d90",
+      "after_sha256": "962cf7d0779d0909f87aceedfd779aee2c1e298ea25faba2d130aa6a26931ba6"
+    },
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "before_sha256": "ee9743842e83e2b6061f954ce7a36ed1a434a81522c3a8b9c66a91dc8e50e3a8",
+      "after_sha256": "e6d239a8496a3c7e644461eb1983e9e52dd4462521961d4efc66254ec508e983"
+    },
+    {
+      "path": "docs/design/contracts/naming-consumer-matrix.md",
+      "before_sha256": "d9f04bafcb65efdc6493db16fb700337979cfd070c1cb7269d1d7345659c7051",
+      "after_sha256": "ed7788bbef487b3b2e3683b29d7dbb613613a22a27a17d5ef03e5330ceb01cfe"
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/core-original-package-source-action-context.md",
+      "before_sha256": "70ddb9a692b14ab7e4168a94233bd2ccd24847df97d9531309bdf9e7bcc5f60f",
+      "after_sha256": "bbc07357440adecffda7bc19f016278e9dd5c7fde582de0db81e7f510efc490e"
+    }
+  ],
+  "old_test_assertions_fixtures_options_unchanged": true,
+  "necessary_old_test_analysis_field_wiring": {
+    "rust/tcl-lsp-core/src/minify.rs": 1,
+    "rust/tcl-lsp-core/src/minify/original.rs": 4,
+    "rust/tcl-lsp-core/src/source_structure.rs": 0
+  },
+  "original_word_edit_formal_guards_byte_identical": true,
+  "limits_unchanged": {
+    "minifier": 128,
+    "shared_syntax": 256
+  },
+  "checks": [
+    "isolated rustfmt",
+    "allcurrentbeforeexact",
+    "fuzz0forward all9 exact",
+    "fullinverse all9 exact"
+  ],
+  "selectors": [
+    "minify::lexical_metadata::source_census_tests::minifier_source_census_owns_selected_full_vectors_and_complete_regions",
+    "minify::lexical_metadata::source_census_tests::minifier_source_census_retains_partial_candidates_without_barrier_absence",
+    "minify::lexical_metadata::source_census_tests::minifier_source_census_keeps_unrepresented_or_unknown_regions_incomplete",
+    "minify::lexical_metadata::source_census_tests::minifier_source_census_refuses_foreign_analysis_realm_and_full_config"
+  ],
+  "execution": "none",
+  "acceptance_advance": 0
+}

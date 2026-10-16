@@ -120,6 +120,12 @@ export interface CurrentDiagnosticsTransport {
   /** Stable opaque identity for one actual client/server session generation. */
   readonly sessionIdentity: object;
   request(params: { uri: string; version: number; source: string }): Promise<unknown>;
+  requestProposal?(params: {
+    uri: string;
+    version: number;
+    source: string;
+    proposal: string;
+  }): Promise<unknown>;
   convert(diagnostics: LspDiagnostic[]): Promise<vscode.Diagnostic[]>;
   setSessionDialectOverride?(dialect: string | null): Promise<void>;
   isCurrent(): boolean;
@@ -476,6 +482,11 @@ function isRevision(value: unknown): value is string {
   return typeof value === "string" && /^[0-9]+$/.test(value);
 }
 
+// Proposal revision combines the opaque Salsa revision and document revision.
+function isProposalRevision(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0;
+}
+
 function isPosition(value: unknown): value is { line: number; character: number } {
   return (
     isRecord(value) &&
@@ -684,6 +695,150 @@ export async function waitForDiagnostics(
     await delay(Math.min(100, Math.max(1, deadline - Date.now())));
   }
 
+  throw new CurrentDiagnosticsUnavailableError("timeout");
+}
+
+/**
+ * Analyse proposed text against one retained open-document source context. This
+ * request does not edit the document or fall back to diagnostics for a later
+ * document version; unavailable/suppressed results are never treated as clean.
+ */
+export interface ProposalDiagnosticsResponse {
+  readonly status: "complete";
+  readonly uri: string;
+  readonly version: number;
+  readonly source: string;
+  readonly proposal: string;
+  readonly revision: string;
+  readonly inputsEpoch: string;
+  readonly workspaceIndexGeneration: string;
+  readonly resultId: string;
+  readonly diagnostics: readonly LspDiagnostic[];
+}
+
+/** A completed proposal report, bound to the actual transport generation and document. */
+export interface ProposalDiagnosticsReport {
+  readonly response: ProposalDiagnosticsResponse;
+  readonly diagnostics: readonly vscode.Diagnostic[];
+  readonly sessionIdentity: object;
+  readonly document: vscode.TextDocument;
+}
+
+export async function waitForProposalDiagnostics(
+  uri: vscode.Uri,
+  proposal: string,
+  opts?: { timeout?: number; expectedSource?: string },
+): Promise<ProposalDiagnosticsReport> {
+  const deadline = Date.now() + (opts?.timeout ?? 5000);
+  const document = openedDocument(uri);
+  if (!document) throw new CurrentDiagnosticsUnavailableError("notOpen");
+  const source = opts?.expectedSource ?? document.getText();
+  if (document.getText() !== source) throw new CurrentDiagnosticsUnavailableError("stale");
+  const request = { uri: document.uri.toString(), version: document.version, source, proposal };
+
+  while (Date.now() < deadline) {
+    if (!snapshotMatches(uri, document, request.version, request.source)) {
+      throw new CurrentDiagnosticsUnavailableError("stale");
+    }
+    const transport = currentDiagnosticsTransportProvider?.();
+    if (!transport?.requestProposal) {
+      throw new CurrentDiagnosticsUnavailableError("clientUnavailable");
+    }
+    if (!transport.isCurrent()) {
+      await delay(Math.min(20, Math.max(1, deadline - Date.now())));
+      continue;
+    }
+
+    let raw: unknown;
+    try {
+      raw = await withinDeadline(transport.requestProposal(request), deadline);
+    } catch (error) {
+      if (error instanceof CurrentDiagnosticsUnavailableError) throw error;
+      throw new CurrentDiagnosticsUnavailableError("providerError");
+    }
+    if (!transport.isCurrent()) continue;
+    if (!snapshotMatches(uri, document, request.version, request.source)) {
+      throw new CurrentDiagnosticsUnavailableError("stale");
+    }
+    if (!isRecord(raw)) throw new CurrentDiagnosticsUnavailableError("malformedResponse");
+
+    if (raw.status === "unavailable") {
+      const reason = raw.reason;
+      if (reason === "pending" || reason === "stale") {
+        await delay(Math.min(100, Math.max(1, deadline - Date.now())));
+        continue;
+      }
+      if (
+        reason === "context" ||
+        reason === "providerError" ||
+        reason === "cancelled" ||
+        reason === "disabled" ||
+        reason === "excluded" ||
+        reason === "unsupported" ||
+        reason === "notOpen"
+      )
+        throw new CurrentDiagnosticsUnavailableError(reason);
+      throw new CurrentDiagnosticsUnavailableError("malformedResponse");
+    }
+    if (raw.status === "suppressed") {
+      if (
+        raw.uri !== request.uri ||
+        raw.version !== request.version ||
+        raw.source !== request.source ||
+        raw.proposal !== request.proposal
+      )
+        throw new CurrentDiagnosticsUnavailableError("malformedResponse");
+      if (raw.reason === "disabled" || raw.reason === "excluded") {
+        throw new CurrentDiagnosticsUnavailableError(raw.reason);
+      }
+      throw new CurrentDiagnosticsUnavailableError("malformedResponse");
+    }
+    if (
+      raw.status !== "complete" ||
+      raw.uri !== request.uri ||
+      raw.version !== request.version ||
+      raw.source !== request.source ||
+      raw.proposal !== request.proposal ||
+      !isProposalRevision(raw.revision) ||
+      !isRevision(raw.inputsEpoch) ||
+      !isRevision(raw.workspaceIndexGeneration) ||
+      typeof raw.resultId !== "string" ||
+      !validDiagnostics(raw.diagnostics)
+    )
+      throw new CurrentDiagnosticsUnavailableError("malformedResponse");
+
+    let diagnostics: vscode.Diagnostic[];
+    try {
+      if (Date.now() >= deadline) throw new CurrentDiagnosticsUnavailableError("timeout");
+      diagnostics = await withinDeadline(transport.convert(raw.diagnostics), deadline);
+      if (Date.now() >= deadline) throw new CurrentDiagnosticsUnavailableError("timeout");
+    } catch (error) {
+      if (error instanceof CurrentDiagnosticsUnavailableError) throw error;
+      throw new CurrentDiagnosticsUnavailableError("providerError");
+    }
+    if (!transport.isCurrent()) continue;
+    if (!snapshotMatches(uri, document, request.version, request.source)) {
+      throw new CurrentDiagnosticsUnavailableError("stale");
+    }
+    const response: ProposalDiagnosticsResponse = Object.freeze({
+      status: "complete",
+      uri: raw.uri,
+      version: raw.version,
+      source: raw.source,
+      proposal: raw.proposal,
+      revision: raw.revision,
+      inputsEpoch: raw.inputsEpoch,
+      workspaceIndexGeneration: raw.workspaceIndexGeneration,
+      resultId: raw.resultId,
+      diagnostics: Object.freeze([...raw.diagnostics]) as readonly LspDiagnostic[],
+    });
+    return Object.freeze({
+      response,
+      diagnostics: Object.freeze([...diagnostics]),
+      sessionIdentity: transport.sessionIdentity,
+      document,
+    });
+  }
   throw new CurrentDiagnosticsUnavailableError("timeout");
 }
 

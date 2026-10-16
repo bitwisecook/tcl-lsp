@@ -45,7 +45,9 @@ pub(super) struct ProviderCaptureInputs<'a> {
     pub global: &'a Arc<Mutex<tcl_lsp_db::AnalyserConfig>>,
     pub folders: &'a Arc<Mutex<Vec<(Uri, tcl_lsp_db::AnalyserConfig)>>>,
     pub store: &'a Arc<dyn vfs::SourceStore>,
+    pub source_path_admissions: &'a PublishedSourcePaths,
     pub dialects: &'a ProviderDialectInputs,
+    pub proposal: Option<&'a ProposalProviderSources>,
 }
 
 struct ProviderSettings {
@@ -81,6 +83,7 @@ impl ProviderSettings {
 
 enum ProviderSource {
     Indexed {
+        file: tcl_lsp_db::SourceFile,
         text: Arc<str>,
         dialect: String,
         input: Result<Arc<ResolvedAnalysisInput>, OverlayMiss>,
@@ -94,6 +97,7 @@ struct ProviderRow {
     factories: Option<Arc<tcl_compiler::analyser::ClassFactoryIndex>>,
     subclasses: Option<Arc<tcl_compiler::analyser::SubclassProvidedMethods>>,
     source: ProviderSource,
+    admission: Option<Arc<DocumentPathAdmission>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -103,6 +107,11 @@ pub(super) enum ProviderSourceUnavailable {
     Overlay(OverlayMiss),
     SourceCurrency,
     ResolverChanged,
+    /// The original selected resource cannot supply its old provider schema
+    /// to a hypothetical-source report. No proposal provider overlay is issued.
+    ProposalSelectedSource,
+    /// SourceStore supplies no retained byte-version lease for this disk input.
+    ProposalDiskSource,
 }
 
 pub(super) struct ProviderSourceInventory {
@@ -130,6 +139,137 @@ pub(super) struct ConfiguredProviderSources {
     store: Arc<dyn vfs::SourceStore>,
     dialects: ProviderDialectInputs,
     inventories: std::sync::Mutex<InventoryCache>,
+    proposal_selected: Option<ProposalProviderSelection>,
+    proposal_captures: Option<std::sync::Weak<ProviderCaptureLedger>>,
+}
+
+#[derive(Clone)]
+struct ProposalProviderSelection {
+    uri: Uri,
+    file: tcl_lsp_db::SourceFile,
+    admission: Arc<DocumentPathAdmission>,
+}
+
+type ProviderCaptureLedger = std::sync::Mutex<Vec<Arc<ConfiguredProviderSources>>>;
+
+/// Request-local original source dependency ledger. A capture is retained
+/// before any inventory can be consumed, including recovery and cache hits.
+/// Selected-resource providers remain unavailable without a proposal overlay.
+pub(super) struct ProposalProviderSources {
+    selected: ProposalProviderSelection,
+    captures: Arc<ProviderCaptureLedger>,
+}
+
+impl ProposalProviderSources {
+    pub(super) fn new(
+        uri: Uri,
+        file: tcl_lsp_db::SourceFile,
+        admission: Arc<DocumentPathAdmission>,
+    ) -> Option<Self> {
+        (admission.uri() == &uri).then_some(Self {
+            selected: ProposalProviderSelection {
+                uri,
+                file,
+                admission,
+            },
+            captures: Arc::new(std::sync::Mutex::new(Vec::new())),
+        })
+    }
+
+    fn retain(&self, sources: &Arc<ConfiguredProviderSources>) {
+        self.captures
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .push(Arc::clone(sources));
+    }
+}
+
+/// All actual source captures consumed by one deep report and its base passes.
+/// Original external receipts remain separate from hypothetical source input.
+pub(super) struct ConfiguredProviderSourceReport {
+    captures: Vec<Arc<ConfiguredProviderSources>>,
+    capture_failure: Option<ProviderSourceUnavailable>,
+}
+
+impl ConfiguredProviderSourceReport {
+    pub(super) fn from_capture(deep: Arc<ConfiguredProviderSources>) -> Self {
+        let snapshot = deep
+            .proposal_captures
+            .as_ref()
+            .map(|retained| {
+                let ledger = retained
+                    .upgrade()
+                    .ok_or(ProviderSourceUnavailable::SourceCurrency)?;
+                let captures = ledger
+                    .lock()
+                    .map_err(|_| ProviderSourceUnavailable::SourceCurrency)?
+                    .clone();
+                Ok::<_, ProviderSourceUnavailable>(captures)
+            })
+            .transpose();
+        let (mut captures, capture_failure) = match snapshot {
+            Ok(Some(captures)) => (captures, None),
+            Ok(None) => (Vec::new(), None),
+            Err(error) => (Vec::new(), Some(error)),
+        };
+        if !captures.iter().any(|capture| Arc::ptr_eq(capture, &deep)) {
+            captures.push(deep);
+        }
+        Self {
+            captures,
+            capture_failure,
+        }
+    }
+
+    /// Original provider failure, independently of currentness. Missing source
+    /// or unsupported proposal inputs cannot be reported as completed empty.
+    pub(super) fn source_failure(&self) -> Option<ProviderSourceUnavailable> {
+        self.capture_failure.clone().or_else(|| {
+            self.captures
+                .iter()
+                .find_map(|capture| match capture.inventories.lock() {
+                    Ok(inventories) => inventories
+                        .values()
+                        .find_map(|result| result.as_ref().err().cloned()),
+                    Err(_) => Some(ProviderSourceUnavailable::SourceCurrency),
+                })
+        })
+    }
+
+    pub(super) fn is_current(&self, resolver: &PackageResolver) -> bool {
+        self.capture_failure.is_none()
+            && self
+                .captures
+                .iter()
+                .all(|capture| capture.is_current(resolver))
+    }
+
+    pub(super) fn proposal_is_current(
+        &self,
+        resolver: &PackageResolver,
+        db: &dyn salsa::Database,
+        files: &HashMap<Uri, tcl_lsp_db::SourceFile>,
+        published: &HashMap<Uri, PublishedSourcePath>,
+    ) -> bool {
+        self.capture_failure.is_none()
+            && self
+                .captures
+                .iter()
+                .all(|capture| capture.proposal_is_current(resolver, db, files, published))
+    }
+
+    pub(super) fn proposal_admissions(
+        &self,
+    ) -> Option<Vec<(Uri, tcl_lsp_db::SourceFile, Arc<DocumentPathAdmission>)>> {
+        if self.capture_failure.is_some() {
+            return None;
+        }
+        let mut admissions = Vec::new();
+        for capture in &self.captures {
+            admissions.extend(capture.proposal_admissions()?);
+        }
+        Some(admissions)
+    }
 }
 
 impl ProviderCaptureInputs<'_> {
@@ -137,24 +277,51 @@ impl ProviderCaptureInputs<'_> {
         &self,
         resolver: &Arc<RwLock<PackageResolver>>,
         needed: bool,
-    ) -> ConfiguredProviderSources {
+    ) -> Arc<ConfiguredProviderSources> {
+        let (resolver_revision, paths) = {
+            let resolver = resolver.read().await;
+            (
+                resolver.revision(),
+                needed.then(|| resolver.provider_source_files()),
+            )
+        };
         if !needed {
-            return ConfiguredProviderSources {
-                resolver_revision: 0,
+            let sources = Arc::new(ConfiguredProviderSources {
+                resolver_revision,
                 rows: HashMap::new(),
                 store: Arc::clone(self.store),
                 dialects: self.dialects.clone(),
                 inventories: std::sync::Mutex::new(HashMap::new()),
-            };
+                proposal_selected: self.proposal.map(|proposal| proposal.selected.clone()),
+                proposal_captures: self
+                    .proposal
+                    .map(|proposal| Arc::downgrade(&proposal.captures)),
+            });
+            if let Some(proposal) = self.proposal {
+                proposal.retain(&sources);
+            }
+            return sources;
         }
-        let (resolver_revision, paths) = {
-            let resolver = resolver.read().await;
-            (resolver.revision(), resolver.provider_source_files())
-        };
+        let paths = paths.unwrap_or_default();
         // Configuration handles are copied before taking the DB lock. Source
         // walks and disk reads retain none of these locks or a Salsa snapshot.
         let folders = self.folders.lock().await.clone();
         let global = *self.global.lock().await;
+        let source_admissions: HashMap<_, _> = {
+            let published = self
+                .source_path_admissions
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            published
+                .iter()
+                .map(|(uri, published)| {
+                    (
+                        uri.clone(),
+                        (published.file, Arc::clone(&published.admission)),
+                    )
+                })
+                .collect()
+        };
         let rows = {
             let db = self.db.lock().await;
             let files = self.files.lock().await;
@@ -174,6 +341,7 @@ impl ProviderCaptureInputs<'_> {
                     let (source, factories, subclasses) = if let Some(&file) = files.get(&uri) {
                         (
                             ProviderSource::Indexed {
+                                file,
                                 text: Arc::from(file.text(&*db).as_str()),
                                 dialect: file.dialect(&*db).clone(),
                                 input: tcl_lsp_db::document_analysis_input(&*db, file, config),
@@ -184,6 +352,19 @@ impl ProviderCaptureInputs<'_> {
                     } else {
                         (ProviderSource::Disk, factories.clone(), None)
                     };
+                    let admission = match &source {
+                        ProviderSource::Indexed { file, .. } => source_admissions
+                            .get(&uri)
+                            .filter(|(published_file, admission)| {
+                                published_file == file
+                                    && admission
+                                        .path()
+                                        .is_some_and(|selected| selected == path.as_path())
+                                    && file.path(&*db).as_deref() == admission.analyser_path()
+                            })
+                            .map(|(_, admission)| Arc::clone(admission)),
+                        ProviderSource::Disk => None,
+                    };
                     Some((
                         path,
                         ProviderRow {
@@ -192,22 +373,116 @@ impl ProviderCaptureInputs<'_> {
                             factories,
                             subclasses,
                             source,
+                            admission,
                         },
                     ))
                 })
                 .collect()
         };
-        ConfiguredProviderSources {
+        let sources = Arc::new(ConfiguredProviderSources {
             resolver_revision,
             rows,
             store: Arc::clone(self.store),
             dialects: self.dialects.clone(),
             inventories: std::sync::Mutex::new(HashMap::new()),
+            proposal_selected: self.proposal.map(|proposal| proposal.selected.clone()),
+            proposal_captures: self
+                .proposal
+                .map(|proposal| Arc::downgrade(&proposal.captures)),
+        });
+        if let Some(proposal) = self.proposal {
+            proposal.retain(&sources);
         }
+        sources
     }
 }
 
 impl ConfiguredProviderSources {
+    /// Whether every source inventory consulted by the report still matches
+    /// its captured source/input, and the package resolver is unchanged.
+    pub(super) fn is_current(&self, resolver: &PackageResolver) -> bool {
+        if resolver.revision() != self.resolver_revision {
+            return false;
+        }
+        let inventories = match self.inventories.lock() {
+            Ok(inventories) => inventories,
+            // Ordinary original-source behavior remains separate. A proposal
+            // cannot infer complete dependencies from a partially updated map.
+            Err(_) if self.proposal_selected.is_some() => return false,
+            Err(error) => error.into_inner(),
+        };
+        inventories.values().all(|inventory| {
+            inventory
+                .as_ref()
+                .is_ok_and(|inventory| inventory.is_current())
+        })
+    }
+
+    /// Strict currency predicate for proposed-source reports. Indexed
+    /// providers are checked against the retained live Salsa handles and
+    /// admissions. A disk provider has no byte-version lease in SourceStore,
+    /// so a report which consumed one cannot claim currentness.
+    pub(super) fn proposal_is_current(
+        &self,
+        resolver: &PackageResolver,
+        db: &dyn salsa::Database,
+        files: &HashMap<Uri, tcl_lsp_db::SourceFile>,
+        published: &HashMap<Uri, PublishedSourcePath>,
+    ) -> bool {
+        if resolver.revision() != self.resolver_revision {
+            return false;
+        }
+        let Ok(inventories) = self.inventories.lock() else {
+            return false;
+        };
+        inventories.iter().all(|((path, _), result)| {
+            let Ok(inventory) = result else {
+                return false;
+            };
+            let Some(row) = self.rows.get(path) else {
+                return false;
+            };
+            let ProviderSource::Indexed {
+                file,
+                text,
+                dialect,
+                ..
+            } = &row.source
+            else {
+                return false;
+            };
+            let Some(admission) = row.admission.as_ref() else {
+                return false;
+            };
+            let Some(current) = published.get(&row.uri) else {
+                return false;
+            };
+            current.file == *file
+                && Arc::ptr_eq(&current.admission, admission)
+                && files.get(&row.uri) == Some(file)
+                && file.text(db).as_str() == text.as_ref()
+                && file.dialect(db) == dialect
+                && inventory.is_current()
+        })
+    }
+
+    pub(super) fn proposal_admissions(
+        &self,
+    ) -> Option<Vec<(Uri, tcl_lsp_db::SourceFile, Arc<DocumentPathAdmission>)>> {
+        let inventories = self.inventories.lock().ok()?;
+        inventories
+            .iter()
+            .map(|((path, _), result)| {
+                result.as_ref().ok()?;
+                let row = self.rows.get(path)?;
+                let ProviderSource::Indexed { file, .. } = &row.source else {
+                    return None;
+                };
+                Some((row.uri.clone(), *file, Arc::clone(row.admission.as_ref()?)))
+            })
+            .collect()
+    }
+
     pub(super) fn inventory(
         &self,
         path: &Path,
@@ -216,6 +491,30 @@ impl ConfiguredProviderSources {
     ) -> InventoryResult {
         if resolver.revision() != self.resolver_revision {
             return Err(ProviderSourceUnavailable::ResolverChanged);
+        }
+        if self.proposal_selected.as_ref().is_some_and(|selected| {
+            self.rows.get(path).is_some_and(|row| {
+                row.uri == selected.uri
+                    || matches!(&row.source, ProviderSource::Indexed { file, .. } if *file == selected.file)
+            }) || selected.admission.path().is_some_and(|selected_path| selected_path.as_os_str() == path.as_os_str())
+        }) {
+            let refused = Err(ProviderSourceUnavailable::ProposalSelectedSource);
+            self.inventories.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+                .insert((path.to_owned(), target), refused.clone());
+            return refused;
+        }
+        if self.proposal_selected.is_some()
+            && self
+                .rows
+                .get(path)
+                .is_some_and(|row| matches!(row.source, ProviderSource::Disk))
+        {
+            let refused = Err(ProviderSourceUnavailable::ProposalDiskSource);
+            self.inventories
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .insert((path.to_owned(), target), refused.clone());
+            return refused;
         }
         let key = (path.to_owned(), target);
         if let Some(inventory) = self
@@ -254,6 +553,7 @@ impl ConfiguredProviderSources {
                 text,
                 dialect,
                 input,
+                ..
             } => (
                 Arc::clone(text),
                 dialect.clone(),

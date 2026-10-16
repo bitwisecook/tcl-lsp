@@ -35,6 +35,7 @@
 /// through `tcl-lsp-core`.
 pub use tcl_lsp_core::config_ini;
 mod current_diagnostics;
+mod proposal_diagnostics;
 use current_diagnostics::{
     DiagnosticCacheReceipt, DiagnosticCompletionEntry, DiagnosticPass, DiagnosticSuppression,
     DiagnosticUnavailable,
@@ -183,9 +184,12 @@ use tower_lsp_server::ls_types::{
 use tower_lsp_server::{Client, LanguageServer};
 
 fn sha256_hex(bytes: &[u8]) -> String {
+    sha256_digest_hex(&Sha256::digest(bytes))
+}
+
+fn sha256_digest_hex(digest: &[u8]) -> String {
     use std::fmt::Write as _;
 
-    let digest = Sha256::digest(bytes);
     let mut encoded = String::with_capacity(digest.len() * 2);
     for byte in digest {
         write!(&mut encoded, "{byte:02x}")
@@ -6344,7 +6348,9 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
                 global: &inputs.db_config,
                 folders: &inputs.folder_db_configs,
                 store: &inputs.store,
+                source_path_admissions: &inputs.source_path_admissions,
                 dialects: &inputs.provider_dialects,
+                proposal: None,
             },
             recovery_names: &inputs.recovery_names,
             entry_points: &inputs.entry_points,
@@ -6582,6 +6588,7 @@ struct ProducedDiagnosticReport {
     analysis: Arc<AnalysisResult>,
     provider_completion: Result<(), DiagnosticUnavailable>,
     result: Result<Vec<tower_lsp_server::ls_types::Diagnostic>, crate::rt::JoinError>,
+    provider_sources: provider_source::ConfiguredProviderSourceReport,
 }
 
 async fn compute_deep_diagnostic_report(
@@ -6736,6 +6743,9 @@ async fn compute_deep_diagnostic_report(
         analysis,
         provider_completion,
         result,
+        provider_sources: provider_source::ConfiguredProviderSourceReport::from_capture(
+            provider_sources,
+        ),
     })
 }
 
@@ -24279,7 +24289,9 @@ impl Backend {
             global: &self.db_config,
             folders: &self.folder_db_configs,
             store: &self.store,
+            source_path_admissions: &self.source_path_admissions,
             dialects: &dialects,
+            proposal: None,
         }
         .capture(
             &self.package_resolver,
@@ -30512,6 +30524,9 @@ impl LanguageServer for Backend {
             "tcl-lsp.currentDiagnostics" => {
                 self.current_diagnostics_command(&params.arguments).await
             }
+            "tcl-lsp.proposalDiagnostics" => {
+                self.proposal_diagnostics_command(&params.arguments).await
+            }
             "tcl-lsp.getEffectiveConfig" => {
                 self.get_effective_config_command(&params.arguments).await
             }
@@ -35423,6 +35438,7 @@ fn build_server_capabilities(
                 "tcl-lsp.minimizeDiagnostic".to_owned(),
                 "tcl-lsp.renamePartition".to_owned(),
                 "tcl-lsp.currentDiagnostics".to_owned(),
+                "tcl-lsp.proposalDiagnostics".to_owned(),
                 "tcl-lsp.getEffectiveConfig".to_owned(),
                 "tcl-lsp.fixAllSafeIssues".to_owned(),
                 "tcl-lsp.listSubcommands".to_owned(),
@@ -44645,7 +44661,9 @@ info exists ::N::v\uD800";
             global: &backend.db_config,
             folders: &backend.folder_db_configs,
             store: &backend.store,
+            source_path_admissions: &backend.source_path_admissions,
             dialects: &dialects,
+            proposal: None,
         };
         let ctx = RecoveryWidenCtx {
             cache: &backend.recovery_names,

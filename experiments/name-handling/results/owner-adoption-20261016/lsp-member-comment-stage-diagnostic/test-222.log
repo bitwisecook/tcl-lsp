@@ -1,0 +1,87 @@
+
+running 1 test
+test analyser::class_hierarchy::original_metadata::source_method_reference::tests::readonly_self_selectors_retain_own_and_inherited_source_members ... READONLY_MEMBER_STAGE stage=query.enter offset=None count=0
+READONLY_MEMBER_STAGE stage=query.input.pass offset=None count=0
+READONLY_MEMBER_STAGE stage=query.realm.pass offset=None count=0
+READONLY_MEMBER_STAGE stage=query.current_guard.pass offset=None count=0
+READONLY_MEMBER_STAGE stage=query.tape.pass offset=None count=0
+READONLY_MEMBER_STAGE stage=query.classes.count offset=None count=1
+READONLY_MEMBER_STAGE stage=query.catalogue.count offset=None count=2
+READONLY_MEMBER_STAGE stage=capture.schema.enter offset=Some(55) count=0
+READONLY_MEMBER_STAGE stage=schema.enter offset=Some(55) count=0
+READONLY_MEMBER_STAGE stage=schema.input_realm.pass offset=Some(55) count=0
+READONLY_MEMBER_STAGE stage=schema.member_body.pass offset=Some(55) count=0
+READONLY_MEMBER_STAGE stage=schema.body_guard.pass offset=Some(55) count=0
+READONLY_MEMBER_STAGE stage=schema.source_words.pass offset=Some(55) count=0
+READONLY_MEMBER_STAGE stage=schema.dispatch_guard.pass offset=Some(55) count=0
+READONLY_MEMBER_STAGE stage=reborrow.enter offset=Some(55) count=0
+READONLY_MEMBER_STAGE stage=reborrow.current_guard.pass offset=Some(55) count=0
+READONLY_MEMBER_STAGE stage=reborrow.prepared.pass offset=Some(55) count=0
+READONLY_MEMBER_STAGE stage=reborrow.tape.pass offset=Some(55) count=0
+READONLY_MEMBER_STAGE stage=reborrow.barrier.pass offset=Some(55) count=0
+READONLY_MEMBER_STAGE stage=reborrow.catalogue.pass offset=Some(55) count=0
+READONLY_MEMBER_STAGE stage=reborrow.body.pass offset=Some(55) count=0
+READONLY_MEMBER_STAGE stage=reborrow.full_guard.pass offset=Some(55) count=0
+READONLY_MEMBER_STAGE stage=schema.reborrow.pass offset=Some(55) count=0
+READONLY_MEMBER_STAGE stage=schema.reborrow_equality.pass offset=Some(55) count=0
+READONLY_MEMBER_STAGE stage=schema.selector.pass offset=Some(55) count=0
+READONLY_MEMBER_STAGE stage=capture.schema.pass offset=Some(55) count=0
+READONLY_MEMBER_STAGE stage=capture.owner.enter offset=Some(55) count=0
+READONLY_MEMBER_STAGE stage=owner.enter offset=Some(39) count=1
+READONLY_MEMBER_STAGE stage=owner.region.pass offset=Some(39) count=0
+READONLY_MEMBER_STAGE stage=owner.original_command.pass offset=Some(39) count=0
+READONLY_MEMBER_STAGE stage=owner.parameters.count offset=Some(39) count=1
+READONLY_MEMBER_STAGE stage=owner.parameters.pass offset=Some(39) count=0
+READONLY_MEMBER_STAGE stage=owner.select.enter offset=Some(39) count=0
+READONLY_MEMBER_STAGE stage=owner.candidate.enter offset=Some(20) count=0
+READONLY_MEMBER_STAGE stage=owner.candidate.enter offset=Some(39) count=0
+READONLY_MEMBER_STAGE stage=owner.candidate.guard.pass offset=Some(39) count=0
+READONLY_MEMBER_STAGE stage=correspondence.enter offset=Some(39) count=0
+READONLY_MEMBER_STAGE stage=correspondence.geometry.pass offset=Some(39) count=0
+READONLY_MEMBER_STAGE stage=capture.schema.enter offset=Some(64) count=0
+READONLY_MEMBER_STAGE stage=schema.enter offset=Some(64) count=0
+READONLY_MEMBER_STAGE stage=schema.input_realm.pass offset=Some(64) count=0
+READONLY_MEMBER_STAGE stage=schema.member_body.pass offset=Some(64) count=0
+READONLY_MEMBER_STAGE stage=schema.body_guard.pass offset=Some(64) count=0
+READONLY_MEMBER_STAGE stage=schema.source_words.pass offset=Some(64) count=0
+READONLY_MEMBER_STAGE stage=schema.dispatch_guard.pass offset=Some(64) count=0
+READONLY_MEMBER_STAGE stage=reborrow.enter offset=Some(64) count=0
+READONLY_MEMBER_STAGE stage=reborrow.current_guard.pass offset=Some(64) count=0
+READONLY_MEMBER_STAGE stage=reborrow.prepared.pass offset=Some(64) count=0
+READONLY_MEMBER_STAGE stage=reborrow.tape.pass offset=Some(64) count=0
+READONLY_MEMBER_STAGE stage=reborrow.barrier.pass offset=Some(64) count=0
+READONLY_MEMBER_STAGE stage=reborrow.catalogue.pass offset=Some(64) count=0
+READONLY_MEMBER_STAGE stage=reborrow.body.pass offset=Some(64) count=0
+READONLY_MEMBER_STAGE stage=reborrow.full_guard.pass offset=Some(64) count=0
+READONLY_MEMBER_STAGE stage=schema.reborrow.pass offset=Some(64) count=0
+READONLY_MEMBER_STAGE stage=schema.reborrow_equality.pass offset=Some(64) count=0
+READONLY_MEMBER_STAGE stage=schema.selector.pass offset=Some(64) count=0
+READONLY_MEMBER_STAGE stage=capture.schema.pass offset=Some(64) count=0
+READONLY_MEMBER_STAGE stage=capture.owner.enter offset=Some(64) count=0
+READONLY_MEMBER_STAGE stage=owner.enter offset=Some(39) count=1
+READONLY_MEMBER_STAGE stage=owner.region.pass offset=Some(39) count=0
+READONLY_MEMBER_STAGE stage=owner.original_command.pass offset=Some(39) count=0
+READONLY_MEMBER_STAGE stage=owner.parameters.count offset=Some(39) count=1
+READONLY_MEMBER_STAGE stage=owner.parameters.pass offset=Some(39) count=0
+READONLY_MEMBER_STAGE stage=owner.select.enter offset=Some(39) count=0
+READONLY_MEMBER_STAGE stage=owner.candidate.enter offset=Some(20) count=0
+READONLY_MEMBER_STAGE stage=owner.candidate.enter offset=Some(39) count=0
+READONLY_MEMBER_STAGE stage=owner.candidate.guard.pass offset=Some(39) count=0
+READONLY_MEMBER_STAGE stage=correspondence.enter offset=Some(39) count=0
+READONLY_MEMBER_STAGE stage=correspondence.geometry.pass offset=Some(39) count=0
+READONLY_MEMBER_STAGE stage=query.result.count offset=None count=0
+
+thread 'analyser::class_hierarchy::original_metadata::source_method_reference::tests::readonly_self_selectors_retain_own_and_inherited_source_members' (246938) panicked at rust/tcl-compiler/src/analyser/class_hierarchy/original_metadata/source_method_reference.rs:637:17:
+assertion `left == right` failed: tcl8.6: oo::class create C {method ping {} {}; method body {} {my ping; my ping}}
+  left: 0
+ right: 2
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    analyser::class_hierarchy::original_metadata::source_method_reference::tests::readonly_self_selectors_retain_own_and_inherited_source_members
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10275 filtered out; finished in 0.57s
+

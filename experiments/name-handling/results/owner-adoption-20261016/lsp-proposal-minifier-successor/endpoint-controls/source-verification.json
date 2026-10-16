@@ -1,0 +1,8 @@
+{
+  "patch_sha256": "0b9ebc3fe9a2219b7af6bbb181bc4e07f0df904e6f16ec9a5df613342ba94d3c",
+  "manifest_sha256": "ef9c609a41801cae8f2c6973db49a07ee1f53fd9e84faae48ca86d9c4aa4d670",
+  "whole_old_file_prefix_byte_identical": true,
+  "fresh_fuzz0_apply_afterhash_matches": true,
+  "apply_output": "patching file rust/tcl-lsp-server/src/current_diagnostics.rs\n",
+  "execution": "not run"
+}

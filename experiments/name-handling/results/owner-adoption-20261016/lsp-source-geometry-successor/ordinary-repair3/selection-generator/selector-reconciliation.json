@@ -1,0 +1,866 @@
+[
+  {
+    "target": "tcl_compiler",
+    "selector": "registry_invocation::source_structure::original_logical_operand_prefix_tests::logical_operand_prefix_retains_only_static_earlier_written_words",
+    "purpose": "Original Logical earlier-Written prefix and static selected tail retain source/config/context before document-link constants; dynamic earlier operands withdraw.",
+    "category": "new-doclink-prefix",
+    "already_retained": false,
+    "actual_old_listing_singleton": false
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "document_links::original_logical_link_prefix_tests::logical_path_links_use_the_original_prefix_before_invocation_effects",
+    "purpose": "Original Logical earlier-Written prefix and static selected tail retain source/config/context before document-link constants; dynamic earlier operands withdraw.",
+    "category": "new-doclink-prefix",
+    "already_retained": false,
+    "actual_old_listing_singleton": false
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "document_links::original_logical_link_prefix_tests::logical_path_link_anchors_use_authentic_static_tail_words",
+    "purpose": "Original Logical earlier-Written prefix and static selected tail retain source/config/context before document-link constants; dynamic earlier operands withdraw.",
+    "category": "new-doclink-prefix",
+    "already_retained": false,
+    "actual_old_listing_singleton": false
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "document_links::original_logical_link_operand_order_tests::logical_path_prefix_constants_require_static_earlier_written_operands",
+    "purpose": "Original Logical earlier-Written prefix and static selected tail retain source/config/context before document-link constants; dynamic earlier operands withdraw.",
+    "category": "new-doclink-prefix",
+    "already_retained": false,
+    "actual_old_listing_singleton": false
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "definition::exact_source_position_advice_tests::exact_current_cursor_keeps_unicode_endline_and_declines_clamped_coordinates",
+    "purpose": "Exact current original UTF16 cursor/body/scope correspondence; stale/clamped/full-grammar and invented-scope refusals precede definition/declaration fallbacks.",
+    "category": "new-definition-position",
+    "already_retained": false,
+    "actual_old_listing_singleton": false
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "definition::exact_source_position_advice_tests::exact_source_cursor_withdraws_stale_input_and_full_grammar_changes",
+    "purpose": "Exact current original UTF16 cursor/body/scope correspondence; stale/clamped/full-grammar and invented-scope refusals precede definition/declaration fallbacks.",
+    "category": "new-definition-position",
+    "already_retained": false,
+    "actual_old_listing_singleton": false
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "definition::exact_source_position_advice_tests::source_scope_visibility_requires_original_body_correspondence_before_document_walk",
+    "purpose": "Exact current original UTF16 cursor/body/scope correspondence; stale/clamped/full-grammar and invented-scope refusals precede definition/declaration fallbacks.",
+    "category": "new-definition-position",
+    "already_retained": false,
+    "actual_old_listing_singleton": false
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "definition::exact_source_position_advice_tests::exact_current_cursor_preserves_crlf_multibyte_and_empty_final_line",
+    "purpose": "Exact current original UTF16 cursor/body/scope correspondence; stale/clamped/full-grammar and invented-scope refusals precede definition/declaration fallbacks.",
+    "category": "new-definition-position",
+    "already_retained": false,
+    "actual_old_listing_singleton": false
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "definition::exact_source_position_advice_tests::declaration_caller_uses_exact_source_cursor_before_any_fallback",
+    "purpose": "Exact current original UTF16 cursor/body/scope correspondence; stale/clamped/full-grammar and invented-scope refusals precede definition/declaration fallbacks.",
+    "category": "new-definition-position",
+    "already_retained": false,
+    "actual_old_listing_singleton": false
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "declaration_outline::tests::server_outline_uses_the_current_full_configured_analysis",
+    "purpose": "Actual full-configured source/selected overlay grammar and genuine original member inventory before Server declaration outline; Unicode/currentness/incomplete-body refusals.",
+    "category": "new-configured-outline",
+    "already_retained": false,
+    "actual_old_listing_singleton": false
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "declaration_outline::tests::server_outline_uses_the_selected_workspace_overlay_registry",
+    "purpose": "Actual full-configured source/selected overlay grammar and genuine original member inventory before Server declaration outline; Unicode/currentness/incomplete-body refusals.",
+    "category": "new-configured-outline",
+    "already_retained": false,
+    "actual_old_listing_singleton": false
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "declaration_outline::tests::server_outline_keeps_unicode_names_and_declines_incomplete_bodies",
+    "purpose": "Actual full-configured source/selected overlay grammar and genuine original member inventory before Server declaration outline; Unicode/currentness/incomplete-body refusals.",
+    "category": "new-configured-outline",
+    "already_retained": false,
+    "actual_old_listing_singleton": false
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "minify::original_formal_name_geometry_tests::compact_original_formal_fields_preserve_wrappers_and_unicode_defaults",
+    "purpose": "Genuine original formal-name field spans reach existing compaction while default/wrapper/Unicode data and source/grammar/dynamic refusals stay independent.",
+    "category": "new-minifier-formals",
+    "already_retained": false,
+    "actual_old_listing_singleton": false
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "minify::original_formal_name_geometry_tests::compact_original_formal_fields_reach_the_existing_editing_pass",
+    "purpose": "Genuine original formal-name field spans reach existing compaction while default/wrapper/Unicode data and source/grammar/dynamic refusals stay independent.",
+    "category": "new-minifier-formals",
+    "already_retained": false,
+    "actual_old_listing_singleton": false
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "minify::original_formal_name_geometry_tests::compact_original_formal_fields_refuse_cooked_dynamic_and_foreign_geometry",
+    "purpose": "Genuine original formal-name field spans reach existing compaction while default/wrapper/Unicode data and source/grammar/dynamic refusals stay independent.",
+    "category": "new-minifier-formals",
+    "already_retained": false,
+    "actual_old_listing_singleton": false
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "code_actions::package_presence_census_tests::package_census_uses_original_inventory_and_actual_overlay_operation",
+    "purpose": "Actual package-action original positive/incomplete source census, selected overlay operation/name words and reusable syntax-only typed completeness; full input/currentness and call-closure limits retained.",
+    "category": "new-package-census",
+    "already_retained": false,
+    "actual_old_listing_singleton": false
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "code_actions::package_presence_census_tests::package_action_census_cannot_lose_a_genuine_reference_with_report_rows",
+    "purpose": "Actual package-action original positive/incomplete source census, selected overlay operation/name words and reusable syntax-only typed completeness; full input/currentness and call-closure limits retained.",
+    "category": "new-package-census",
+    "already_retained": false,
+    "actual_old_listing_singleton": false
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "code_actions::package_presence_census_tests::package_census_retains_positive_named_sources_and_incomplete_regions",
+    "purpose": "Actual package-action original positive/incomplete source census, selected overlay operation/name words and reusable syntax-only typed completeness; full input/currentness and call-closure limits retained.",
+    "category": "new-package-census",
+    "already_retained": false,
+    "actual_old_listing_singleton": false
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "code_actions::package_presence_census_tests::package_census_preserves_genuine_absent_head_advice_and_current_input",
+    "purpose": "Actual package-action original positive/incomplete source census, selected overlay operation/name words and reusable syntax-only typed completeness; full input/currentness and call-closure limits retained.",
+    "category": "new-package-census",
+    "already_retained": false,
+    "actual_old_listing_singleton": false
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "code_actions::package_presence_census_tests::selected_syntax_coverage_keeps_package_and_call_closure_distinct",
+    "purpose": "Actual package-action original positive/incomplete source census, selected overlay operation/name words and reusable syntax-only typed completeness; full input/currentness and call-closure limits retained.",
+    "category": "new-package-census",
+    "already_retained": false,
+    "actual_old_listing_singleton": false
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "declaration::original_body_content_geometry_tests::declaration_body_regions_use_original_word_contents_and_keep_lambda_data",
+    "purpose": "Original declaration/body/alias/lambda/unknown caller scope and current-source geometry controls before changed exact-cursor caller.",
+    "category": "preserved-declaration-geometry",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "declaration::original_declaration_region_purpose_tests::original_declaration_regions_keep_actual_parent_config_and_nested_bom_geometry",
+    "purpose": "Original declaration/body/alias/lambda/unknown caller scope and current-source geometry controls before changed exact-cursor caller.",
+    "category": "preserved-declaration-geometry",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "declaration::tests::conditional_declaration_preview_declines_explicit_body_replacements",
+    "purpose": "Original declaration/body/alias/lambda/unknown caller scope and current-source geometry controls before changed exact-cursor caller.",
+    "category": "preserved-declaration-geometry",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "declaration::tests::declaration_does_not_resolve_an_unclosed_braced_reference",
+    "purpose": "Original declaration/body/alias/lambda/unknown caller scope and current-source geometry controls before changed exact-cursor caller.",
+    "category": "preserved-declaration-geometry",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "declaration::tests::declaration_scan_abstains_for_a_builtin_shadowed_by_a_user_proc",
+    "purpose": "Original declaration/body/alias/lambda/unknown caller scope and current-source geometry controls before changed exact-cursor caller.",
+    "category": "preserved-declaration-geometry",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "declaration::tests::declaration_scan_follows_a_renamed_scoping_command",
+    "purpose": "Original declaration/body/alias/lambda/unknown caller scope and current-source geometry controls before changed exact-cursor caller.",
+    "category": "preserved-declaration-geometry",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "declaration::tests::declaration_scan_follows_an_aliased_scoping_command",
+    "purpose": "Original declaration/body/alias/lambda/unknown caller scope and current-source geometry controls before changed exact-cursor caller.",
+    "category": "preserved-declaration-geometry",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "declaration::tests::declaration_scan_keeps_conditional_lexical_advice_after_a_dynamic_binding",
+    "purpose": "Original declaration/body/alias/lambda/unknown caller scope and current-source geometry controls before changed exact-cursor caller.",
+    "category": "preserved-declaration-geometry",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "declaration::tests::declaration_scan_maps_a_prefixed_body_without_reparsing_alias_argv",
+    "purpose": "Original declaration/body/alias/lambda/unknown caller scope and current-source geometry controls before changed exact-cursor caller.",
+    "category": "preserved-declaration-geometry",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "declaration::tests::declaration_scan_maps_alias_prefixes_to_original_local_operands",
+    "purpose": "Original declaration/body/alias/lambda/unknown caller scope and current-source geometry controls before changed exact-cursor caller.",
+    "category": "preserved-declaration-geometry",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "declaration::tests::declaration_scan_recurses_through_an_aliased_body_command",
+    "purpose": "Original declaration/body/alias/lambda/unknown caller scope and current-source geometry controls before changed exact-cursor caller.",
+    "category": "preserved-declaration-geometry",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "declaration::tests::declaration_scan_uses_the_declared_local_tail_of_a_global_name",
+    "purpose": "Original declaration/body/alias/lambda/unknown caller scope and current-source geometry controls before changed exact-cursor caller.",
+    "category": "preserved-declaration-geometry",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "declaration::tests::declaration_var_decoration_vectors_preserve_incomplete_braces",
+    "purpose": "Original declaration/body/alias/lambda/unknown caller scope and current-source geometry controls before changed exact-cursor caller.",
+    "category": "preserved-declaration-geometry",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "declaration::tests::global_declaration_in_proc_body",
+    "purpose": "Original declaration/body/alias/lambda/unknown caller scope and current-source geometry controls before changed exact-cursor caller.",
+    "category": "preserved-declaration-geometry",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "declaration::tests::global_declared_inside_apply_lambda_body_is_found",
+    "purpose": "Original declaration/body/alias/lambda/unknown caller scope and current-source geometry controls before changed exact-cursor caller.",
+    "category": "preserved-declaration-geometry",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "declaration::tests::global_declared_inside_apply_lambda_body_is_not_visible_outside_it",
+    "purpose": "Original declaration/body/alias/lambda/unknown caller scope and current-source geometry controls before changed exact-cursor caller.",
+    "category": "preserved-declaration-geometry",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "declaration::tests::global_declared_inside_control_flow_body_is_found",
+    "purpose": "Original declaration/body/alias/lambda/unknown caller scope and current-source geometry controls before changed exact-cursor caller.",
+    "category": "preserved-declaration-geometry",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "declaration::tests::logical_declaration_navigation_keeps_its_explicit_compatibility_scan",
+    "purpose": "Original declaration/body/alias/lambda/unknown caller scope and current-source geometry controls before changed exact-cursor caller.",
+    "category": "preserved-declaration-geometry",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "declaration::tests::namespace_variable_declaration_does_not_supply_a_global_bare_read",
+    "purpose": "Original declaration/body/alias/lambda/unknown caller scope and current-source geometry controls before changed exact-cursor caller.",
+    "category": "preserved-declaration-geometry",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "declaration::tests::non_variable_falls_back_to_definition",
+    "purpose": "Original declaration/body/alias/lambda/unknown caller scope and current-source geometry controls before changed exact-cursor caller.",
+    "category": "preserved-declaration-geometry",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "declaration::tests::original_alias_declaration_navigation_keeps_the_independent_local_operand",
+    "purpose": "Original declaration/body/alias/lambda/unknown caller scope and current-source geometry controls before changed exact-cursor caller.",
+    "category": "preserved-declaration-geometry",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "declaration::tests::original_declaration_navigation_declines_unowned_analysis_without_recapture",
+    "purpose": "Original declaration/body/alias/lambda/unknown caller scope and current-source geometry controls before changed exact-cursor caller.",
+    "category": "preserved-declaration-geometry",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "declaration::tests::original_logical_declarations_join_global_aliases_without_local_root_stripping",
+    "purpose": "Original declaration/body/alias/lambda/unknown caller scope and current-source geometry controls before changed exact-cursor caller.",
+    "category": "preserved-declaration-geometry",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "declaration::tests::original_logical_declarations_keep_qualified_targets_and_current_source_owners",
+    "purpose": "Original declaration/body/alias/lambda/unknown caller scope and current-source geometry controls before changed exact-cursor caller.",
+    "category": "preserved-declaration-geometry",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "declaration::tests::original_qualified_alias_declarations_keep_the_target_and_body_frame",
+    "purpose": "Original declaration/body/alias/lambda/unknown caller scope and current-source geometry controls before changed exact-cursor caller.",
+    "category": "preserved-declaration-geometry",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "declaration::tests::upvar_local_alias_is_a_declaration",
+    "purpose": "Original declaration/body/alias/lambda/unknown caller scope and current-source geometry controls before changed exact-cursor caller.",
+    "category": "preserved-declaration-geometry",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "declaration::tests::variable_declaration_in_namespace",
+    "purpose": "Original declaration/body/alias/lambda/unknown caller scope and current-source geometry controls before changed exact-cursor caller.",
+    "category": "preserved-declaration-geometry",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "definition::logical_variable_scope_owner_tests::logical_array_completion_keeps_the_actual_cursor_edit_extent",
+    "purpose": "Original full input/current source, caller/root/namespace/method distinction and unknown-body/source scope refusal guards for the shared exact-cursor owner.",
+    "category": "preserved-definition-scope-owner",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "definition::logical_variable_scope_owner_tests::logical_autoload_words_require_current_retained_logical_source",
+    "purpose": "Original full input/current source, caller/root/namespace/method distinction and unknown-body/source scope refusal guards for the shared exact-cursor owner.",
+    "category": "preserved-definition-scope-owner",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "definition::logical_variable_scope_owner_tests::logical_bare_procedure_writes_cannot_publish_namespace_coordinates",
+    "purpose": "Original full input/current source, caller/root/namespace/method distinction and unknown-body/source scope refusal guards for the shared exact-cursor owner.",
+    "category": "preserved-definition-scope-owner",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "definition::logical_variable_scope_owner_tests::logical_interpreter_source_body_cannot_borrow_the_parent_root",
+    "purpose": "Original full input/current source, caller/root/namespace/method distinction and unknown-body/source scope refusal guards for the shared exact-cursor owner.",
+    "category": "preserved-definition-scope-owner",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "definition::logical_variable_scope_owner_tests::logical_method_root_and_nested_declared_local_frames_stay_distinct",
+    "purpose": "Original full input/current source, caller/root/namespace/method distinction and unknown-body/source scope refusal guards for the shared exact-cursor owner.",
+    "category": "preserved-definition-scope-owner",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "definition::logical_variable_scope_owner_tests::logical_namespace_write_coordinates_require_current_source_and_store_cards",
+    "purpose": "Original full input/current source, caller/root/namespace/method distinction and unknown-body/source scope refusal guards for the shared exact-cursor owner.",
+    "category": "preserved-definition-scope-owner",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "definition::logical_variable_scope_owner_tests::logical_qualified_workspace_coordinate_uses_the_same_source_scope_owner",
+    "purpose": "Original full input/current source, caller/root/namespace/method distinction and unknown-body/source scope refusal guards for the shared exact-cursor owner.",
+    "category": "preserved-definition-scope-owner",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "definition::logical_variable_scope_owner_tests::logical_recorded_reads_use_the_same_root_current_and_unknown_source_tables",
+    "purpose": "Original full input/current source, caller/root/namespace/method distinction and unknown-body/source scope refusal guards for the shared exact-cursor owner.",
+    "category": "preserved-definition-scope-owner",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "definition::logical_variable_scope_owner_tests::logical_root_namespace_eval_keeps_the_same_root_declaration_table",
+    "purpose": "Original full input/current source, caller/root/namespace/method distinction and unknown-body/source scope refusal guards for the shared exact-cursor owner.",
+    "category": "preserved-definition-scope-owner",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "definition::logical_variable_scope_owner_tests::logical_scope_selector_current_image_and_domain_do_not_grant_edits",
+    "purpose": "Original full input/current source, caller/root/namespace/method distinction and unknown-body/source scope refusal guards for the shared exact-cursor owner.",
+    "category": "preserved-definition-scope-owner",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "definition::logical_variable_scope_owner_tests::logical_scope_selector_preserves_root_current_and_unknown_caller_source_tables",
+    "purpose": "Original full input/current source, caller/root/namespace/method distinction and unknown-body/source scope refusal guards for the shared exact-cursor owner.",
+    "category": "preserved-definition-scope-owner",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "definition::logical_variable_scope_owner_tests::logical_unknown_namespace_retains_body_tables_without_a_coordinate",
+    "purpose": "Original full input/current source, caller/root/namespace/method distinction and unknown-body/source scope refusal guards for the shared exact-cursor owner.",
+    "category": "preserved-definition-scope-owner",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "definition::logical_variable_scope_owner_tests::native_class_navigation_cannot_borrow_a_deleted_head_or_unknown_argument",
+    "purpose": "Original full input/current source, caller/root/namespace/method distinction and unknown-body/source scope refusal guards for the shared exact-cursor owner.",
+    "category": "preserved-definition-scope-owner",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "definition::logical_variable_scope_owner_tests::native_conditional_publication_navigation_preserves_source_table_refusals",
+    "purpose": "Original full input/current source, caller/root/namespace/method distinction and unknown-body/source scope refusal guards for the shared exact-cursor owner.",
+    "category": "preserved-definition-scope-owner",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "definition::logical_variable_scope_owner_tests::native_source_alias_candidates_cannot_borrow_logical_scope_or_edit_selection",
+    "purpose": "Original full input/current source, caller/root/namespace/method distinction and unknown-body/source scope refusal guards for the shared exact-cursor owner.",
+    "category": "preserved-definition-scope-owner",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "definition::logical_variable_scope_owner_tests::original_autoload_requests_keep_original_heads_current_input_and_caller_scope",
+    "purpose": "Original full input/current source, caller/root/namespace/method distinction and unknown-body/source scope refusal guards for the shared exact-cursor owner.",
+    "category": "preserved-definition-scope-owner",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "declaration_outline::tests::a_script_document_has_no_block_outline",
+    "purpose": "Original standalone configured pack/declaration-body versus ordinary-script outline purpose retained.",
+    "category": "preserved-standalone-outline",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "declaration_outline::tests::a_spec_pack_outlines_as_its_own_declaration_blocks",
+    "purpose": "Original standalone configured pack/declaration-body versus ordinary-script outline purpose retained.",
+    "category": "preserved-standalone-outline",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "declaration_outline::tests::every_block_is_an_outline_entry_under_the_block_that_contains_it",
+    "purpose": "Original standalone configured pack/declaration-body versus ordinary-script outline purpose retained.",
+    "category": "preserved-standalone-outline",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "code_actions::original_package_suggestion_tests::original_logical_package_action_requires_its_positive_vector_and_current_input",
+    "purpose": "Original actual package-name/source domain, selected namespace ownership, stale/full-input and standalone authoring guards retained around changed census.",
+    "category": "preserved-package-actions",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "code_actions::original_package_suggestion_tests::original_logical_package_hint_uses_selected_namespace_owner_not_package_spelling",
+    "purpose": "Original actual package-name/source domain, selected namespace ownership, stale/full-input and standalone authoring guards retained around changed census.",
+    "category": "preserved-package-actions",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "code_actions::original_package_suggestion_tests::original_package_action_uses_genuine_provision_and_requirement_operands",
+    "purpose": "Original actual package-name/source domain, selected namespace ownership, stale/full-input and standalone authoring guards retained around changed census.",
+    "category": "preserved-package-actions",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "code_actions::original_package_suggestion_tests::original_package_hint_declines_conflicting_unowned_and_foreign_context_rows",
+    "purpose": "Original actual package-name/source domain, selected namespace ownership, stale/full-input and standalone authoring guards retained around changed census.",
+    "category": "preserved-package-actions",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "code_actions::original_package_suggestion_tests::original_package_hint_keeps_literal_position_case_and_existing_require_guards",
+    "purpose": "Original actual package-name/source domain, selected namespace ownership, stale/full-input and standalone authoring guards retained around changed census.",
+    "category": "preserved-package-actions",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "code_actions::original_package_suggestion_tests::original_package_hint_requires_own_lookup_and_canonical_package_key",
+    "purpose": "Original actual package-name/source domain, selected namespace ownership, stale/full-input and standalone authoring guards retained around changed census.",
+    "category": "preserved-package-actions",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "code_actions::original_package_suggestion_tests::original_package_hint_uses_written_units_and_issuer_after_reporting_clear",
+    "purpose": "Original actual package-name/source domain, selected namespace ownership, stale/full-input and standalone authoring guards retained around changed census.",
+    "category": "preserved-package-actions",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "definition::tests::byte_offset_at_uses_lsp_utf16_columns",
+    "purpose": "Original cursor/UTF16/range and namespace-specific positive navigation controls remain unchanged.",
+    "category": "preserved-definition-cursor",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "definition::tests::span_to_range_translates_offsets",
+    "purpose": "Original cursor/UTF16/range and namespace-specific positive navigation controls remain unchanged.",
+    "category": "preserved-definition-cursor",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "definition::tests::span_to_range_uses_lsp_utf16_columns",
+    "purpose": "Original cursor/UTF16/range and namespace-specific positive navigation controls remain unchanged.",
+    "category": "preserved-definition-cursor",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "definition::tests::nextto_picks_occurrence_at_cursor_not_first_on_line",
+    "purpose": "Original cursor/UTF16/range and namespace-specific positive navigation controls remain unchanged.",
+    "category": "preserved-definition-cursor",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "definition::tests::jump_to_proc_definition_disambiguates_same_named_procs_by_cursor",
+    "purpose": "Original cursor/UTF16/range and namespace-specific positive navigation controls remain unchanged.",
+    "category": "preserved-definition-cursor",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "definition::tests::jump_to_proc_definition_in_two_level_nested_namespace_via_qualified_call",
+    "purpose": "Original cursor/UTF16/range and namespace-specific positive navigation controls remain unchanged.",
+    "category": "preserved-definition-cursor",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "definition::tests::jump_to_proc_param_bareword_declaration_resolves_to_itself",
+    "purpose": "Original cursor/UTF16/range and namespace-specific positive navigation controls remain unchanged.",
+    "category": "preserved-definition-cursor",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "definition::tests::param_definition_points_at_the_name_not_the_body",
+    "purpose": "Original cursor/UTF16/range and namespace-specific positive navigation controls remain unchanged.",
+    "category": "preserved-definition-cursor",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "document_symbols::tests::logical_outline_requires_current_complete_source_and_input",
+    "purpose": "Original real outline current-input, Unicode/opaque declaration, namespace and member role positives/refusals remain independent of declaration grammar.",
+    "category": "preserved-document-outline",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "document_symbols::tests::empty_source_yields_no_symbols",
+    "purpose": "Original real outline current-input, Unicode/opaque declaration, namespace and member role positives/refusals remain independent of declaration grammar.",
+    "category": "preserved-document-outline",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "document_symbols::tests::single_proc_emits_function_symbol",
+    "purpose": "Original real outline current-input, Unicode/opaque declaration, namespace and member role positives/refusals remain independent of declaration grammar.",
+    "category": "preserved-document-outline",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "document_symbols::tests::deeply_nested_namespaces_produce_a_symbol_tree",
+    "purpose": "Original real outline current-input, Unicode/opaque declaration, namespace and member role positives/refusals remain independent of declaration grammar.",
+    "category": "preserved-document-outline",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "document_symbols::tests::proc_symbol_range_contains_selection_range",
+    "purpose": "Original real outline current-input, Unicode/opaque declaration, namespace and member role positives/refusals remain independent of declaration grammar.",
+    "category": "preserved-document-outline",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "document_symbols::tests::original_outline_does_not_borrow_tcl9_member_roles_under_tcl86",
+    "purpose": "Original real outline current-input, Unicode/opaque declaration, namespace and member role positives/refusals remain independent of declaration grammar.",
+    "category": "preserved-document-outline",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "document_symbols::tests::oo_class_emits_class_symbol_with_method_children",
+    "purpose": "Original real outline current-input, Unicode/opaque declaration, namespace and member role positives/refusals remain independent of declaration grammar.",
+    "category": "preserved-document-outline",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "document_symbols::original::registry_ledger_tests::original_registry_outline_uses_sealed_roles_and_names_after_reporting_maps_clear",
+    "purpose": "Original real outline current-input, Unicode/opaque declaration, namespace and member role positives/refusals remain independent of declaration grammar.",
+    "category": "preserved-document-outline",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "document_symbols::original::tests::original_outline_groups_qualified_publications_by_typed_namespace_home",
+    "purpose": "Original real outline current-input, Unicode/opaque declaration, namespace and member role positives/refusals remain independent of declaration grammar.",
+    "category": "preserved-document-outline",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "document_symbols::original::tests::original_outline_preserves_opaque_declarations_and_canonical_moved_members_without_ui_maps",
+    "purpose": "Original real outline current-input, Unicode/opaque declaration, namespace and member role positives/refusals remain independent of declaration grammar.",
+    "category": "preserved-document-outline",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "document_symbols::original::tests::original_property_outline_keeps_per_name_kinds_and_opaque_redefinitions",
+    "purpose": "Original real outline current-input, Unicode/opaque declaration, namespace and member role positives/refusals remain independent of declaration grammar.",
+    "category": "preserved-document-outline",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "document_symbols::original::tests::original_readonly_loop_names_are_outline_cards_without_static_declaration_keys",
+    "purpose": "Original real outline current-input, Unicode/opaque declaration, namespace and member role positives/refusals remain independent of declaration grammar.",
+    "category": "preserved-document-outline",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "document_symbols::original::tests::original_write_advice_cards_do_not_require_or_donate_storage_symbols",
+    "purpose": "Original real outline current-input, Unicode/opaque declaration, namespace and member role positives/refusals remain independent of declaration grammar.",
+    "category": "preserved-document-outline",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "minify::tests::apply_lambda_multi_word_param_list_keeps_its_braces",
+    "purpose": "Original formal/default/wrapper, lexical grammar, Native owner and unknown binding/edit-coverage barriers preserve the pre-existing minification purpose.",
+    "category": "preserved-minifier-formals",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "minify::tests::compact_renames_param_name_not_other_defaults",
+    "purpose": "Original formal/default/wrapper, lexical grammar, Native owner and unknown binding/edit-coverage barriers preserve the pre-existing minification purpose.",
+    "category": "preserved-minifier-formals",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "minify::tests::compact_renames_proc_local_vars_and_params",
+    "purpose": "Original formal/default/wrapper, lexical grammar, Native owner and unknown binding/edit-coverage barriers preserve the pre-existing minification purpose.",
+    "category": "preserved-minifier-formals",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "minify::tests::original_minifier_body_parsing_keeps_bom_content_and_complete_parent_config",
+    "purpose": "Original formal/default/wrapper, lexical grammar, Native owner and unknown binding/edit-coverage barriers preserve the pre-existing minification purpose.",
+    "category": "preserved-minifier-formals",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "minify::tests::quote_stripping_uses_complete_configured_components",
+    "purpose": "Original formal/default/wrapper, lexical grammar, Native owner and unknown binding/edit-coverage barriers preserve the pre-existing minification purpose.",
+    "category": "preserved-minifier-formals",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "minify::original::tests::isolated_logical_formal_alpha_uses_general_bindings_and_preserves_defaults",
+    "purpose": "Original formal/default/wrapper, lexical grammar, Native owner and unknown binding/edit-coverage barriers preserve the pre-existing minification purpose.",
+    "category": "preserved-minifier-formals",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "minify::original::tests::logical_formal_alpha_requires_isolation_and_closed_binding_observability",
+    "purpose": "Original formal/default/wrapper, lexical grammar, Native owner and unknown binding/edit-coverage barriers preserve the pre-existing minification purpose.",
+    "category": "preserved-minifier-formals",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "minify::original::tests::native_compaction_uses_fixed_formal_owner_and_original_edit_coverage",
+    "purpose": "Original formal/default/wrapper, lexical grammar, Native owner and unknown binding/edit-coverage barriers preserve the pre-existing minification purpose.",
+    "category": "preserved-minifier-formals",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "minify::original::tests::original_minifier_declines_stale_images_full_configuration_changes_and_malformed_tail",
+    "purpose": "Original formal/default/wrapper, lexical grammar, Native owner and unknown binding/edit-coverage barriers preserve the pre-existing minification purpose.",
+    "category": "preserved-minifier-formals",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "minify::original::tests::lexical_custom_configuration_refuses_every_tier_without_fallback",
+    "purpose": "Original formal/default/wrapper, lexical grammar, Native owner and unknown binding/edit-coverage barriers preserve the pre-existing minification purpose.",
+    "category": "preserved-minifier-formals",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "minify::original::tests::lexical_head_value_keeps_expansion_and_opaque_units_unavailable",
+    "purpose": "Original formal/default/wrapper, lexical grammar, Native owner and unknown binding/edit-coverage barriers preserve the pre-existing minification purpose.",
+    "category": "preserved-minifier-formals",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_lsp_core",
+    "selector": "code_actions::tests::logical_package_hint_keeps_shared_written_colon_geometry",
+    "purpose": "Original Logical package subject geometry remains a separate authoring guard.",
+    "category": "preserved-package-actions",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_compiler",
+    "selector": "registry_invocation::source_structure::source_word_dialect_tests::original_package_insertion_uses_root_commands_split_lines_and_full_input",
+    "purpose": "Original root header/insertion/body/source-image purpose remains independent of package census.",
+    "category": "preserved-package-owner",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  },
+  {
+    "target": "tcl_registry",
+    "selector": "source_navigation::tests::original_package_reference_distinguishes_provision_query_and_selected_options",
+    "purpose": "Original selected require/provide query and option grammar owner remains unchanged.",
+    "category": "preserved-package-owner",
+    "already_retained": false,
+    "actual_old_listing_singleton": true
+  }
+]

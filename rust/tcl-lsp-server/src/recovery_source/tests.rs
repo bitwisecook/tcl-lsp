@@ -46,7 +46,9 @@ async fn recover_for_input(
         global: &backend.db_config,
         folders: &backend.folder_db_configs,
         store: &backend.store,
+        source_path_admissions: &backend.source_path_admissions,
         dialects: &dialects,
+        proposal: None,
     };
     let recovery = RecoveryWidenCtx {
         cache: &backend.recovery_names,
@@ -324,7 +326,9 @@ async fn malformed_recovery_refuses_populated_unavailable_missing_and_foreign_so
         global: &backend.db_config,
         folders: &backend.folder_db_configs,
         store: &backend.store,
+        source_path_admissions: &backend.source_path_admissions,
         dialects: &dialects,
+        proposal: None,
     };
     let context = RecoveryWidenCtx {
         cache: &backend.recovery_names,
@@ -476,4 +480,72 @@ async fn malformed_recovery_preserves_original_autoload_labels_and_root_marker()
     assert!(names.contains(":::owner::command"));
     assert!(names.contains("command"));
     assert!(!names.contains(":owner::command"));
+}
+
+#[tokio::test]
+async fn detached_indexes_with_equal_generations_keep_recovery_names_separate() {
+    let backend = crate::tests::test_backend();
+    let registry = backend.registry_for_dialect("tcl8.6").await;
+    let dialects = crate::provider_source::ProviderDialectInputs::capture(&backend).await;
+    let providers = ProviderCaptureInputs {
+        db: &backend.db,
+        files: &backend.db_files,
+        global: &backend.db_config,
+        folders: &backend.folder_db_configs,
+        store: &backend.store,
+        source_path_admissions: &backend.source_path_admissions,
+        dialects: &dialects,
+        proposal: None,
+    };
+    let prefer = backend.default_package_prefer().await;
+
+    let mut first_index = core_workspace_index::WorkspaceIndex::new();
+    first_index.add_document(
+        "file:///proposal-one.tcl",
+        &Analyser::new().analyse("proc proposal_one {} {}", "tcl8.6"),
+    );
+    let mut second_index = core_workspace_index::WorkspaceIndex::new();
+    second_index.add_document(
+        "file:///proposal-two.tcl",
+        &Analyser::new().analyse("proc proposal_two {} {}", "tcl8.6"),
+    );
+    assert_eq!(
+        first_index.generation(),
+        second_index.generation(),
+        "the adversarial projections deliberately collide on generation",
+    );
+    let generation = first_index.generation();
+    let first_index = Arc::new(TrackedRwLock::new("proposal_one_index", first_index));
+    let second_index = Arc::new(TrackedRwLock::new("proposal_two_index", second_index));
+    let first_cache = Arc::new(Mutex::new(RecoveryNameCache::default()));
+    let second_cache = Arc::new(Mutex::new(RecoveryNameCache::default()));
+    let first_ctx = RecoveryWidenCtx {
+        cache: &first_cache,
+        registry: &registry,
+        workspace_index: &first_index,
+        package_resolver: &backend.package_resolver,
+        provider_capture: &providers,
+        prefer,
+    };
+    let second_ctx = RecoveryWidenCtx {
+        cache: &second_cache,
+        registry: &registry,
+        workspace_index: &second_index,
+        package_resolver: &backend.package_resolver,
+        provider_capture: &providers,
+        prefer,
+    };
+    let resolver_revision = backend.package_resolver.read().await.revision();
+    let key = SharedRecoveryKey {
+        index_generation: generation,
+        resolver_revision,
+        base: Vec::new(),
+    };
+
+    let first_names = shared_recovery_names(&first_ctx, &key).await;
+    let second_names = shared_recovery_names(&second_ctx, &key).await;
+    assert!(first_names.contains("proposal_one"));
+    assert!(!first_names.contains("proposal_two"));
+    assert!(second_names.contains("proposal_two"));
+    assert!(!second_names.contains("proposal_one"));
 }

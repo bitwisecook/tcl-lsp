@@ -1,0 +1,89 @@
+{
+  "packet_type": "source-review and validation metadata",
+  "purpose": "Retain candidate provenance and caller assessment for the LSP proposal-diagnostics contract without putting development status into durable design prose.",
+  "audit_effect": "No catalogue, implementation-ledger, count, or verification-status changes are claimed.",
+  "rust": {
+    "candidate_patch": "/tmp/lsp-proposal-diagnostics-owner/v12/proposal-diagnostics-v12.patch",
+    "candidate_sha256": "90374251a32e85c1e5e6212919489a8074b4af51113dc2850d3eb3062ec18de1",
+    "manifest_sha256": "b0d17cc55847512bbc4612f1a5f2927ee57f1fafaffe84eaf2844056e6291042",
+    "source_review": "/tmp/lsp-proposal-diagnostics-owner/v12/independent-variable-order-review-CLEAR.txt",
+    "header_only_successor_patch": "/tmp/lsp-proposal-contract-v1/patches/proposal-diagnostics-agpl-header-only.patch",
+    "header_only_patch_sha256": "e72d5d7127539cabb9e61f79bbab71f94f14c7b08731b6844218fc2bf8f7c88a",
+    "headered_proposal_diagnostics_sha256": "36572539010ab39fb51b503bae632349a6913f2b496bdef5f6c5b44cabbcaf1d",
+    "review_scope": "Full Rust source composition only. Cargo, test, and end-to-end proposal efficacy checks were not run.",
+    "dependency": {
+      "name": "SourceSyntaxCoverage",
+      "patch_sha256": "0cefb7a0ed93ede475189cdc7554aa9da86c40610e05498b9f52cc34b3794aa8",
+      "manifest_sha256": "7450f1b47d7ae185a8646c0df19b79ec0bc2a8477b83065cfc0d0f6efc0dbf97",
+      "purpose": "Syntax coverage only; not call closure or dispatch."
+    }
+  },
+  "editor": {
+    "full_current_main_composite": "/tmp/lsp-proposal-contract-v1/patches/editor-full-currentmain-to-v5.patch",
+    "composite_sha256": "9bb3634a94bd049691e5218985bc6e87091bf1b28f690ffea57ddd7d224eeb3f",
+    "manifest": "/tmp/lsp-proposal-contract-v1/editor-full-manifest.json",
+    "full_chain_source_review": "/tmp/lsp-proposal-contract-v1/independent-editor-full-chain-review-CLEAR.txt",
+    "component_source_reviews": [
+      "/tmp/lsp-proposal-diagnostics-editor/v3/independent-variable-order-review-CLEAR.txt",
+      "/tmp/lsp-proposal-diagnostics-editor/v5/independent-variable-order-review-CLEAR.txt"
+    ],
+    "checks": {
+      "typescript_no_emit": "PASS on V1-V5 checked overlays",
+      "prettier": "PASS on V1-V5 checked overlays",
+      "node_bundle": "PASS on V1-V3; V4 wording-only delta and V5 serializer-only delta not rebundled",
+      "browser_bundle": "PASS on V1-V3; V4 wording-only delta and V5 serializer-only delta not rebundled",
+      "vscode_host_tests": "NOT RUN"
+    }
+  },
+  "audit_units": [
+    {
+      "id": "lsp-editor-ai-iterate-currency",
+      "assessment": "Candidate behaviour covers separate existing-document proposal iteration and checked final application; this is not an integrated or verified status update."
+    },
+    {
+      "id": "lsp-editor-existing-document-write",
+      "assessment": "Candidate behaviour covers the existing-document checked Apply route; new-document authoring remains separate."
+    },
+    {
+      "id": "lsp-editor-node-applyfix",
+      "assessment": "Candidate behaviour uses the checked write receipt at the Node sink."
+    },
+    {
+      "id": "lsp-editor-browser-applyfix",
+      "assessment": "Candidate behaviour uses the checked write receipt at the browser sink."
+    },
+    {
+      "id": "lsp-editor-fix-payload",
+      "assessment": "Partial: agentic fix route carries report and receipt; other fix/optimise and direct command callers need separate audit."
+    },
+    {
+      "id": "lsp-editor-source-snapshot",
+      "assessment": "Partial: existing-document fix route retains a source snapshot; explain, diff, XC and other string-returning selectors remain separate."
+    },
+    {
+      "id": "lsp-editor-diagnostic-generation",
+      "assessment": "Partial: typed proposal result exists; ordinary diagnostic waiters still expose plain arrays for other flows."
+    },
+    {
+      "id": "lsp-editor-ai-clean-claim",
+      "assessment": "Partial: existing-document proposal loop can make an as-of-proposal claim; generated-document and other URI-only flows remain outside this receipt."
+    },
+    {
+      "id": "lsp-editor-ai-validate-generation",
+      "assessment": "Partial: proposal loop is source-bound; other validation flows remain outside this receipt."
+    },
+    {
+      "id": "lsp-editor-ai-create-clean-report",
+      "assessment": "Open: this proposal path does not authenticate clean-report source construction."
+    },
+    {
+      "id": "lsp-editor-context-availability",
+      "assessment": "Open: proposal diagnostics do not authenticate event-metadata availability context."
+    }
+  ],
+  "patch_checks": {
+    "rust_header_only_dry_run": "PASS against exact V12 proposal_diagnostics afterimage",
+    "editor_composite_dry_run": "PASS against all eight current-main beforeimages; zero-fuzz apply verified by independent reviewer",
+    "contract_docs_dry_run": "PASS against current design README and new contract destination"
+  }
+}

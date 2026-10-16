@@ -1,0 +1,59 @@
+{
+  "candidate": "lsp-proposal-diagnostics-v12",
+  "status": "TMP-only immutable composite; independent full source review requested",
+  "patch_sha256": "90374251a32e85c1e5e6212919489a8074b4af51113dc2850d3eb3062ec18de1",
+  "ordered_components": [
+    {
+      "candidate": "lsp-proposal-diagnostics-v11",
+      "patch_sha256": "2dcb10c49a7d8f947381d637f445e6613fe9b9907b4f794d97214a134f06e529",
+      "manifest_sha256": "6b40d639c00a2d3a327ba153082a6b06c4ea3446a3ca036b3fd3b94443eb9ebb"
+    },
+    {
+      "candidate": "lsp-proposal-provider-poison-v2",
+      "patch_sha256": "53a8205411a7f55caf26f4c320a50bf17408292d385ddf3f833bbe0af15d4b71",
+      "manifest_sha256": "0b4eec38d20d76c689c5446f6d4baedb72072e30a9e11cd839aca8b1bd934af9"
+    }
+  ],
+  "files": {
+    "rust/tcl-lsp-server/src/lib.rs": {
+      "final_sha256": "6669068f17f8719f94952994701d204a519d049155ad5b414b2306a7cd0a4ed6"
+    },
+    "rust/tcl-lsp-server/src/current_diagnostics.rs": {
+      "final_sha256": "e1f19dd19e88e9e7a6cb4cf7d206bc84cee6a87292d8893aaf808fcd02725be7"
+    },
+    "rust/tcl-lsp-server/src/proposal_diagnostics.rs": {
+      "final_sha256": "d9cb13efdf949413944da366af5fab3841361003aecc265abf68906b8dcef0fb"
+    },
+    "rust/tcl-lsp-server/src/provider_source.rs": {
+      "final_sha256": "419634f395c9f08818773249df235d2802b5f67be47453f97842a550e8cb1a85"
+    },
+    "rust/tcl-lsp-server/src/provider_source/tests.rs": {
+      "final_sha256": "2536b5790dcb24da80ea221c3420d7506a8e417086972abc55787e6036dd0a22"
+    },
+    "rust/tcl-lsp-server/src/recovery_source/tests.rs": {
+      "final_sha256": "44211fbceeadb97c478252188a496ab4ea1e00ae90f462e87132854e522b94a0"
+    }
+  },
+  "dependencies": [
+    {
+      "candidate": "lsp-package-presence-census-v1",
+      "patch_sha256": "0cefb7a0ed93ede475189cdc7554aa9da86c40610e05498b9f52cc34b3794aa8",
+      "manifest_sha256": "7450f1b47d7ae185a8646c0df19b79ec0bc2a8477b83065cfc0d0f6efc0dbf97",
+      "purpose": "typed syntax coverage only, separate from call closure/dispatch"
+    }
+  ],
+  "repairs": [
+    "Proposal recovery names now use a request-local cache to prevent equal detached-index generations from aliasing different declarations.",
+    "Proposal provider inventory mutex poisoning maps to typed unavailable; currentness/admission accessors fail closed. Ordinary source behavior remains as before."
+  ],
+  "validation": {
+    "synthetic_v11_plus_poison_apply": "PASS; both poison afterimages exact",
+    "rustfmt": "component owner packets formatted changed Rust source",
+    "cargo": "not run; parent owns builds/tests"
+  },
+  "limits": [
+    "No Cargo/test execution.",
+    "Proposal provider selection and unversioned disk source remain typed unavailable.",
+    "No audit count claimed."
+  ]
+}

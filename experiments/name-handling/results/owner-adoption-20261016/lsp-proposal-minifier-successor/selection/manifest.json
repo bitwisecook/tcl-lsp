@@ -1,0 +1,21 @@
+{
+  "generator_sha256": "25052ca5ba5389c29bbc87d039aa541f493e8be40c09598b9c6ccc61f82d5c89",
+  "proposed_names_sha256": "758373c67733bc0b5969d1c5c1defdb9a00c9aff0a08f1eb1243fc23afc4b91a",
+  "root_usage_sha256": "f4ecfc06268ec5897d8ecf8e8efe13e3962332c1b7bd8aef22ba5d013316ea2a",
+  "immutable446_path": "/workspace/naming-validation/lsp-source-geometry-successor-repair3/selection.json",
+  "immutable446_sha256": "4d6569c6f4f431b27200ac2bc1e2a618bcc9afa856241eab74f5ec98dd6ca811",
+  "expected_counts_after_actual_source_verification": {
+    "tcl_compiler": 66,
+    "tcl_registry": 9,
+    "tcl_lsp_core": 289,
+    "tcl_lsp_db": 6,
+    "tcl_lsp_server": 90
+  },
+  "expected_total": 460,
+  "retained_ordered_controls": 446,
+  "new_proposed_names": 14,
+  "status": "PREPARED_ONLY_AWAIT_ROOT_INTEGRATION_NOTICE",
+  "syntax": "ast.parse PASS; generator not executed",
+  "current_source_binary_listing_eligibility": false,
+  "repository_writes_builds_tests_listings": false
+}

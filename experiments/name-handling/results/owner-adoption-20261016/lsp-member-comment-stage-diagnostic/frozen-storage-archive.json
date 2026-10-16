@@ -1,0 +1,14 @@
+{
+  "utc": "2026-10-16T20:08:24.225610+00:00",
+  "archive": "/workspace/naming-validation/archives/lsp-member-comment-stage-diagnostic-frozen.tar.zst",
+  "sha256": "c04cb60eed0f0630d4cda64197f2d681437c68909c714e5ece19067057c82543",
+  "bytes": 46840068,
+  "members": {
+    "tcl_compiler": {
+      "path": "/workspace/naming-validation/lsp-member-comment-stage-diagnostic/frozen-binaries/tcl_compiler-baa5681bd4f4c453",
+      "sha256": "e9c94564d945d4b40de61cf8c6a5dfbfff14e01ef2d54b92ef5d9ba5b630e98c",
+      "bytes": 250316576
+    }
+  },
+  "restoration": "Restore to original frozen-binaries paths and verify original SHA256 before execution. Lossless storage compaction only, no new acceptance."
+}

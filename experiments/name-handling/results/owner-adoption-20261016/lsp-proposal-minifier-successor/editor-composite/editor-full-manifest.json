@@ -1,0 +1,51 @@
+{
+  "candidate": "lsp-proposal-diagnostics-editor-full-v5",
+  "status": "TMP-only full composite from current main; V1-V5 source chain retained immutable",
+  "patch_sha256": "9bb3634a94bd049691e5218985bc6e87091bf1b28f690ffea57ddd7d224eeb3f",
+  "files": {
+    "src/chat/diagnosticAccess.ts": {
+      "before_sha256": "45161a425d2e981dc37e93fb2b243fd38ecb5d16b429beeb9a24137fd76385f5",
+      "after_sha256": "972a74057ce69f814de8ca6558f58ed361f09f567971b141f130cc868cfe0c5c"
+    },
+    "src/chat/agenticLoop.ts": {
+      "before_sha256": "6c5dff2b02545518e127643ae51e6fd1bece401cc74e79e006c075819cc9fda6",
+      "after_sha256": "0f6813ec2abe7c4e5fd9f16cbc8e3532a3feb1a42f4c31334fd9f390440012b6"
+    },
+    "src/extension.ts": {
+      "before_sha256": "9a1dd943ac381c1079e2e259686eb6995fe87e5410dc398af3b7f0ada9643c32",
+      "after_sha256": "b276de2881763eff548193f749cb532f8fd3726b66176200924d386faac997b0"
+    },
+    "src/extensionBrowser.ts": {
+      "before_sha256": "b6c05894cfd097b20b007d33a12b9fcb225c38da920932b3d724e91640f87f89",
+      "after_sha256": "bed9d7d6179e35055d2233c329f64d99ca3a7659ae588e888823bc2751bee131"
+    },
+    "src/test/currentDiagnostics.test.ts": {
+      "before_sha256": "389dd24a1cfdf711d088dc226a3f30773409af84534112af96b49e2e1082575c",
+      "after_sha256": "00608407bf977bbc3ea7f1e26ee6d832bd141bad84703fd2c9c64aed52d1337c"
+    },
+    "src/chat/tclParticipant.ts": {
+      "before_sha256": "f136fbb4d03d380521e5c511286b39746fb0312fd5a6075e0981ddbfdcf08e76",
+      "after_sha256": "8645a76bb6d51ab5e0ee8b91a43df2741960acb82df272b34a3a45ff0fc600c1"
+    },
+    "src/chat/commands/fix.ts": {
+      "before_sha256": "2fdc3e9d2868c92447770ccad53866f5cc8681a0b07c312299d2f494e0f08e27",
+      "after_sha256": "de86665c1ba370297cca85854c3823439c599069eb9e28905c8053a7b2e51735"
+    },
+    "src/chat/commands/find-legacy.ts": {
+      "before_sha256": "2cab469700466efb93c935c182bf0893c9e1d1c5ac61dc8518bb18621b6ea64a",
+      "after_sha256": "3018e9cf32e29676f7a211c46c9660e74b3bc3387feaaed4c634d34736ae4e90"
+    }
+  },
+  "components": {
+    "v1": "278386794646b7b82d9d13336f2a7463c2fae49e9e2fcc96b49e990fa4326994",
+    "v2": "f1c02799270b2073741e00b1f019f592654708481abeecb2278f72d37183e633",
+    "v3": "5b7823d9c8288b8b98d6f25db7274485fdc97497e312f165812f73d523a70fa1",
+    "v4": "888d802943ebf79637d52cfc9552574fa7029a39edb8b25dc30cae40f5620d37",
+    "v5": "5b867173978d0e19891e7a13397dafb28ca986780a7e3302e43512809daebe54"
+  },
+  "review_receipts": [
+    "/tmp/lsp-proposal-diagnostics-editor/v3/independent-variable-order-review-CLEAR.txt",
+    "/tmp/lsp-proposal-diagnostics-editor/v5/independent-variable-order-review-CLEAR.txt"
+  ],
+  "validation": "V1-V3 Node/TypeScript/Prettier/Node+browser bundle PASS; V4 tsc/Prettier PASS; V5 tsc/Prettier PASS; V5 bundles not rerun; VS Code host tests not run"
+}

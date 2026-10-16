@@ -35,7 +35,7 @@ import {
   renderDiagnosticSection,
   SessionDialectOverrideLease,
 } from "../diagnosticAccess";
-import { runAgenticLoop } from "../agenticLoop";
+import { proposalReportEvidence, runAgenticLoop } from "../agenticLoop";
 import { getActiveDialect, isTclLanguage } from "../../extension";
 
 /** Diagnostic codes that represent convertible legacy patterns. */
@@ -163,6 +163,12 @@ export async function handleFindLegacy(ctx: CommandContext): Promise<vscode.Chat
 
     ctx.response.markdown(`## Modernised iRule\n\n\`\`\`tcl\n${result.finalCode}\n\`\`\`\n`);
 
+    if (result.proposalReport) {
+      const report = result.proposalReport.response;
+      ctx.response.markdown(
+        `\nDiagnostics were captured for the proposal at ${report.uri}, source version ${report.version}.`,
+      );
+    }
     if (result.clean) {
       ctx.response.markdown(
         `\nConverted ${convertible.length} legacy pattern(s). Validated clean in ${result.iterations} iteration(s).`,
@@ -191,10 +197,15 @@ export async function handleFindLegacy(ctx: CommandContext): Promise<vscode.Chat
       result.documentSnapshot = { ...result.documentSnapshot, analysisContext: writeContext };
       overrideLease = undefined;
     }
+    const writeReceipt = documentWriteReceipt(result.documentSnapshot);
     ctx.response.button({
       command: "tclLsp.applyFix",
       title: "Apply modernised code",
-      arguments: [result.finalCode, documentWriteReceipt(result.documentSnapshot)],
+      arguments: [
+        result.finalCode,
+        writeReceipt,
+        proposalReportEvidence(result.proposalReport, writeReceipt),
+      ],
     });
 
     return {

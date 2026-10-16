@@ -170,6 +170,7 @@ fails.
 - [irule4005-racy-static-cross-event.md](contracts/irule4005-racy-static-cross-event.md)
   — the IRULE4005 racy `static::` cross-event contract.
 - [lexing.md](contracts/lexing.md) — token and range fidelity rules.
+- [lsp-proposal-diagnostics.md](contracts/lsp-proposal-diagnostics.md) — the isolated source-proposal diagnostic protocol and its boundary from checked edits.
 - [lsp-diagnostics-publication.md](contracts/lsp-diagnostics-publication.md) —
   the LSP diagnostics publication and suppression model.
 - [lsp-feature-providers.md](contracts/lsp-feature-providers.md) — the

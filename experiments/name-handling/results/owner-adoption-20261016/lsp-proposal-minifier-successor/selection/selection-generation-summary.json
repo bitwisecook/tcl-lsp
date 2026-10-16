@@ -1,0 +1,28 @@
+{
+  "retained": 446,
+  "additions": 14,
+  "total": 460,
+  "by_target": {
+    "tcl_compiler": 66,
+    "tcl_registry": 9,
+    "tcl_lsp_core": 289,
+    "tcl_lsp_db": 6,
+    "tcl_lsp_server": 90
+  },
+  "actual_new_categories": {
+    "proposal-provider-capture": 4,
+    "proposal-provider-poison": 1,
+    "proposal-recovery-cache": 1,
+    "proposal-actual-endpoint": 4,
+    "minifier-source-census": 4
+  },
+  "current_source_files_and_module_routes": 88,
+  "all446_original_entries_and_metadata_preserved": true,
+  "all_selected_source_cfg_current_native_linux_eligible": true,
+  "freeze_status": "AWAITING_ROOT_SUCCESSFUL_BUILD_AND_EXPLICIT_DESTINATION",
+  "execution": "Source/selection/hash reads only; no build/test/listing/Git/main writes",
+  "selection_path": "/tmp/lsp-proposal-minifier-selection/selection-source-only.json",
+  "selection_sha256": "bd16ed2fa10448ace5b74733f423dd5b84f6d44bfc8c0a0d20413049c2e147ab",
+  "generator_sha256": "25052ca5ba5389c29bbc87d039aa541f493e8be40c09598b9c6ccc61f82d5c89",
+  "immutable446_sha256": "4d6569c6f4f431b27200ac2bc1e2a618bcc9afa856241eab74f5ec98dd6ca811"
+}

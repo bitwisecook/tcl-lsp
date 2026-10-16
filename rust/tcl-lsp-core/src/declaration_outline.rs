@@ -499,7 +499,10 @@ mod tests {
             crate::source_structure::analyse_document(DOC, profile, registry.as_ref(), config);
         let current = crate::original_context::CurrentSourceContext::capture(DOC, &analysis)
             .expect("overlay-backed analysis remains current");
-        assert_eq!(current.registry().semantic_key(), registry.semantic_key());
+        assert_eq!(
+            current.registry().snapshot().semantic_key(),
+            registry.snapshot().semantic_key()
+        );
         let outline = declarations_from_analysis(DOC, &analysis);
         assert_eq!(
             outline

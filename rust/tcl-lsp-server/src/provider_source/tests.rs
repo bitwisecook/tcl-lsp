@@ -6,7 +6,7 @@ use super::*;
 use salsa::Setter as _;
 use tcl_lsp_core::package_resolver::{PackagePrefer, PackageRequirementAdvice};
 
-async fn capture(backend: &Backend) -> ConfiguredProviderSources {
+async fn capture(backend: &Backend) -> Arc<ConfiguredProviderSources> {
     let dialects = ProviderDialectInputs::capture(backend).await;
     ProviderCaptureInputs {
         db: &backend.db,
@@ -14,7 +14,9 @@ async fn capture(backend: &Backend) -> ConfiguredProviderSources {
         global: &backend.db_config,
         folders: &backend.folder_db_configs,
         store: &backend.store,
+        source_path_admissions: &backend.source_path_admissions,
         dialects: &dialects,
+        proposal: None,
     }
     .capture(&backend.package_resolver, true)
     .await
@@ -369,4 +371,321 @@ async fn configured_package_refinement_keeps_version_preference_and_unknown_prov
         ),
         Err(ProviderSourceUnavailable::MissingSource)
     ));
+}
+
+async fn proposal_provider_fixture(indexed: bool) -> (Backend, Uri, PathBuf, PathBuf) {
+    let library = std::env::temp_dir().join("tcl-lsp-proposal-provider-source/library");
+    let caller_path = library.parent().unwrap().join("caller.tcl");
+    let provider_path = library.join("owned.tcl");
+    let caller = Uri::from_file_path(&caller_path).unwrap();
+    let provider = Uri::from_file_path(&provider_path).unwrap();
+    let store = Arc::new(vfs::MemoryStore::new());
+    store.upsert_uri(
+        caller.as_str(),
+        &caller_path,
+        b"package require own\nproc unfinished {".to_vec(),
+    );
+    store.upsert_uri(
+        provider.as_str(),
+        &provider_path,
+        b"proc provided {} {}".to_vec(),
+    );
+    let mut backend = crate::tests::test_backend();
+    backend.store = store;
+    backend
+        .db_set_source(
+            &caller,
+            "package require own\nproc unfinished {",
+            "tcl8.6".to_owned(),
+        )
+        .await
+        .unwrap();
+    if indexed {
+        backend
+            .db_set_source(&provider, "proc provided {} {}", "tcl8.6".to_owned())
+            .await
+            .unwrap();
+    }
+    backend
+        .package_resolver
+        .write()
+        .await
+        .add_original_pkg_index(
+            "package ifneeded own 1.0 {source owned.tcl}",
+            &library,
+            &library.join("pkgIndex.tcl"),
+            &|_| true,
+            &|_| Vec::new(),
+        );
+    (backend, caller, caller_path, provider_path)
+}
+
+async fn proposal_provider_mode(backend: &Backend, uri: &Uri) -> ProposalProviderSources {
+    let file = backend.db_files.lock().await[uri];
+    let admission = backend
+        .source_path_admissions
+        .lock()
+        .unwrap()
+        .get(uri)
+        .unwrap()
+        .admission
+        .clone();
+    ProposalProviderSources::new(uri.clone(), file, admission).unwrap()
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn proposal_selected_provider_refuses_old_schema_before_inventory_and_keeps_failure() {
+    let (backend, _, _, path) = proposal_provider_fixture(true).await;
+    let uri = Uri::from_file_path(&path).unwrap();
+    let proposal = proposal_provider_mode(&backend, &uri).await;
+    let dialects = ProviderDialectInputs::capture(&backend).await;
+    let inputs = ProviderCaptureInputs {
+        db: &backend.db,
+        files: &backend.db_files,
+        global: &backend.db_config,
+        folders: &backend.folder_db_configs,
+        store: &backend.store,
+        source_path_admissions: &backend.source_path_admissions,
+        dialects: &dialects,
+        proposal: Some(&proposal),
+    };
+    let sources = inputs.capture(&backend.package_resolver, true).await;
+    let resolver = backend.package_resolver.read().await;
+    assert!(matches!(
+        sources.inventory(&path, Some(tcl_dialect::TclVersion::V8_6), &resolver),
+        Err(ProviderSourceUnavailable::ProposalSelectedSource)
+    ));
+    let report = ConfiguredProviderSourceReport::from_capture(sources);
+    assert_eq!(
+        report.source_failure(),
+        Some(ProviderSourceUnavailable::ProposalSelectedSource)
+    );
+    assert!(!report.is_current(&resolver));
+    assert!(report.proposal_admissions().is_none());
+    let db = backend.db.lock().await;
+    assert_eq!(
+        proposal.selected.file.text(&*db).as_str(),
+        "proc provided {} {}"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn actual_recovery_and_cache_hit_provider_receipts_survive_empty_deep_capture() {
+    let (backend, uri, _, provider_path) = proposal_provider_fixture(true).await;
+    let proposal = proposal_provider_mode(&backend, &uri).await;
+    let dialects = ProviderDialectInputs::capture(&backend).await;
+    let providers = ProviderCaptureInputs {
+        db: &backend.db,
+        files: &backend.db_files,
+        global: &backend.db_config,
+        folders: &backend.folder_db_configs,
+        store: &backend.store,
+        source_path_admissions: &backend.source_path_admissions,
+        dialects: &dialects,
+        proposal: Some(&proposal),
+    };
+    let config = backend.resolved_db_config(&uri).await;
+    let file = backend.db_files.lock().await[&uri];
+    let (disabled, extra, mode) = {
+        let db = backend.db.lock().await;
+        (
+            config.disabled_diagnostics(&*db).iter().cloned().collect(),
+            config.extra_commands(&*db).iter().cloned().collect(),
+            config.non_ascii_mode(&*db),
+        )
+    };
+    let registry = backend.registry_for_dialect("tcl8.6").await;
+    let recovery = RecoveryWidenCtx {
+        cache: &backend.recovery_names,
+        registry: &registry,
+        workspace_index: &backend.workspace_index,
+        package_resolver: &backend.package_resolver,
+        provider_capture: &providers,
+        prefer: tcl_lsp_core::package_resolver::PackagePrefer::Stable,
+    };
+    let ctx = SalsaAnalysisCtx {
+        db: &backend.db,
+        uri: &uri,
+        file: Some(file),
+        config,
+        text: "package require own\nproc unfinished {",
+        dialect: tcl_lsp_core::profile_for_dialect("tcl8.6"),
+    };
+    let mut recovered = None;
+    for _ in 0..2 {
+        let ControlFlow::Continue(analysis) =
+            compute_base_analysis(&backend.client, &ctx, &disabled, &extra, mode, &recovery).await
+        else {
+            panic!("the actual incomplete-source recovery pass must settle");
+        };
+        recovered = Some(analysis);
+    }
+    let recovered = recovered.unwrap();
+    let first_names = widen_recovery_extra_commands(&recovery, &extra, ctx.text, &recovered).await;
+    let cached_names = widen_recovery_extra_commands(&recovery, &extra, ctx.text, &recovered).await;
+    assert!(first_names.names.contains("provided"));
+    assert!(
+        Arc::ptr_eq(&first_names.names, &cached_names.names),
+        "actual recognition cache hit must retain its newly captured provider inputs too"
+    );
+    let deep = providers.capture(&backend.package_resolver, false).await;
+    let report = ConfiguredProviderSourceReport::from_capture(Arc::clone(&deep));
+    assert_eq!(report.source_failure(), None);
+    assert!(
+        report
+            .proposal_admissions()
+            .unwrap()
+            .iter()
+            .any(|(_, _, admission)| admission.path() == Some(provider_path.as_path()))
+    );
+    let resolver = backend.package_resolver.read().await;
+    {
+        let db = backend.db.lock().await;
+        let files = backend.db_files.lock().await;
+        let published = backend.source_path_admissions.lock().unwrap();
+        assert!(report.proposal_is_current(&resolver, &*db, &files, &published));
+    }
+    drop(resolver);
+    let provider_uri = Uri::from_file_path(&provider_path).unwrap();
+    backend
+        .db_set_source(&provider_uri, "proc changed {} {}", "tcl8.6".to_owned())
+        .await
+        .unwrap();
+    let resolver = backend.package_resolver.read().await;
+    let db = backend.db.lock().await;
+    let files = backend.db_files.lock().await;
+    let published = backend.source_path_admissions.lock().unwrap();
+    assert!(
+        deep.proposal_is_current(&resolver, &*db, &files, &published),
+        "empty later capture cannot replace an earlier dependency"
+    );
+    assert!(
+        !report.proposal_is_current(&resolver, &*db, &files, &published),
+        "actual earlier recovery inputs remain dependencies, including the cache-hit pass"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn proposal_unversioned_disk_provider_remains_unavailable_even_with_readable_bytes() {
+    let (backend, uri, _, path) = proposal_provider_fixture(false).await;
+    let proposal = proposal_provider_mode(&backend, &uri).await;
+    let dialects = ProviderDialectInputs::capture(&backend).await;
+    let sources = ProviderCaptureInputs {
+        db: &backend.db,
+        files: &backend.db_files,
+        global: &backend.db_config,
+        folders: &backend.folder_db_configs,
+        store: &backend.store,
+        source_path_admissions: &backend.source_path_admissions,
+        dialects: &dialects,
+        proposal: Some(&proposal),
+    }
+    .capture(&backend.package_resolver, true)
+    .await;
+    assert_eq!(
+        backend.store.read_source(&path).unwrap().0,
+        "proc provided {} {}"
+    );
+    let resolver = backend.package_resolver.read().await;
+    assert!(matches!(
+        sources.inventory(&path, Some(tcl_dialect::TclVersion::V8_6), &resolver),
+        Err(ProviderSourceUnavailable::ProposalDiskSource)
+    ));
+    let report = ConfiguredProviderSourceReport::from_capture(sources);
+    assert_eq!(
+        report.source_failure(),
+        Some(ProviderSourceUnavailable::ProposalDiskSource)
+    );
+    assert!(!report.is_current(&resolver));
+    assert!(report.proposal_admissions().is_none());
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn lost_proposal_capture_owner_cannot_become_an_empty_source_report() {
+    let (backend, uri, _, _) = proposal_provider_fixture(true).await;
+    let dialects = ProviderDialectInputs::capture(&backend).await;
+    let sources = {
+        let proposal = proposal_provider_mode(&backend, &uri).await;
+        ProviderCaptureInputs {
+            db: &backend.db,
+            files: &backend.db_files,
+            global: &backend.db_config,
+            folders: &backend.folder_db_configs,
+            store: &backend.store,
+            source_path_admissions: &backend.source_path_admissions,
+            dialects: &dialects,
+            proposal: Some(&proposal),
+        }
+        .capture(&backend.package_resolver, false)
+        .await
+    };
+    let report = ConfiguredProviderSourceReport::from_capture(sources);
+    let resolver = backend.package_resolver.read().await;
+    assert_eq!(
+        report.source_failure(),
+        Some(ProviderSourceUnavailable::SourceCurrency)
+    );
+    assert!(!report.is_current(&resolver));
+    assert!(report.proposal_admissions().is_none());
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn poisoned_proposal_inventory_cannot_issue_empty_or_populated_source_completion() {
+    for populated in [false, true] {
+        let (backend, uri, _, provider_path) = proposal_provider_fixture(true).await;
+        let proposal = proposal_provider_mode(&backend, &uri).await;
+        let dialects = ProviderDialectInputs::capture(&backend).await;
+        let sources = ProviderCaptureInputs {
+            db: &backend.db,
+            files: &backend.db_files,
+            global: &backend.db_config,
+            folders: &backend.folder_db_configs,
+            store: &backend.store,
+            source_path_admissions: &backend.source_path_admissions,
+            dialects: &dialects,
+            proposal: Some(&proposal),
+        }
+        .capture(&backend.package_resolver, populated)
+        .await;
+        let resolver = backend.package_resolver.read().await;
+        if populated {
+            assert!(
+                sources
+                    .inventory(
+                        &provider_path,
+                        Some(tcl_dialect::TclVersion::V8_6),
+                        &resolver
+                    )
+                    .is_ok()
+            );
+        }
+        let report = ConfiguredProviderSourceReport::from_capture(Arc::clone(&sources));
+        assert_eq!(report.source_failure(), None);
+        assert!(report.is_current(&resolver));
+        assert_eq!(
+            report.proposal_admissions().unwrap().len(),
+            usize::from(populated)
+        );
+        let db = backend.db.lock().await;
+        let files = backend.db_files.lock().await;
+        let published = backend.source_path_admissions.lock().unwrap();
+        assert!(report.proposal_is_current(&resolver, &*db, &files, &published));
+
+        // Poison the real captured inventory mutex, without replacing its map
+        // or synthesizing a report completion. Both vacuous and populated maps
+        // must become unavailable through every proposal reporting accessor.
+        let poisoned = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _inventory = sources.inventories.lock().unwrap();
+            panic!("actual provider inventory interrupted while locked");
+        }));
+        assert!(poisoned.is_err());
+        assert!(sources.inventories.is_poisoned());
+        assert_eq!(
+            report.source_failure(),
+            Some(ProviderSourceUnavailable::SourceCurrency)
+        );
+        assert!(!report.is_current(&resolver));
+        assert!(!report.proposal_is_current(&resolver, &*db, &files, &published));
+        assert!(report.proposal_admissions().is_none());
+    }
 }

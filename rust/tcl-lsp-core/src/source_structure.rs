@@ -115,6 +115,18 @@ impl SourceSyntaxCoverage {
             .then_some(self.structure.commands.as_slice())
     }
 
+    /// Actual selected script regions and their retained nesting depths.
+    /// This is source geometry only, for consumers with independent budgets;
+    /// unavailable/foreign source cannot borrow another capture's depths.
+    pub fn script_regions<'a>(
+        &'a self,
+        source: &str,
+        analysis: &AnalysisResult,
+    ) -> Option<&'a [(Span, u32)]> {
+        self.matches(source, analysis)
+            .then_some(self.structure.scripts.as_slice())
+    }
+
     /// Complete means every represented selected script syntax body was
     /// inspected; missing schemas, including absent heads, stay incomplete.
     pub fn applicability(

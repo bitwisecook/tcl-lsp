@@ -1,0 +1,26 @@
+{
+  "source_head": "f46135314f6b4710ad30513e30b2169217bf4c87",
+  "rust_diff_sha256": "6224728fd5ece9f1fb9f76951f82f9d7acef62cc3b7f38614be6be84b7a43c40",
+  "ordinary": true,
+  "instrumentation": false,
+  "single_job": true,
+  "test_debug": 0,
+  "packages": [
+    "tcl-compiler",
+    "tcl-lsp-core",
+    "tcl-lsp-db",
+    "tcl-registry",
+    "tcl-lsp-server"
+  ],
+  "status": "FAIL",
+  "input_before_count": 39001,
+  "utc": "2026-10-16T20:08:27.514447+00:00",
+  "command": "CARGO_PROFILE_TEST_DEBUG=0 cargo test --offline --locked -p tcl-compiler -p tcl-lsp-core -p tcl-lsp-db -p tcl-registry -p tcl-lsp-server --lib --no-run",
+  "scope": "Reviewed LSP isolated proposal/actual recovery-provider ledger/fullcontext/editor adapters and selected minifier syntax census successor; instrumentation restored on39000inputs. Includes14new actual provider/recovery/poison/endpoint/minifier controls, retains all446 for future replay. Previous source geometry: exact full-context UTF16 cursor and body/scope visibility; current-analysis original declaration outline with actual nonzero overlay Registry; genuine original formal-name minifier geometry under independent edit barriers; selected source package positive/incomplete census and shared typed syntax coverage; genuine earlier-Written operand continuity and static original anchor for Logical document links. Two exact UFCS call spellings and accurate private/public/internal contract routes preserve all guards; Registry2048-source traversal gate stays open. All original338controls and additional scoped controls retained for future replay. Runtime/VM/BIG-IP dedicated work paused; no execution/Normal/absence/edit authority from source geometry.",
+  "exit_code": 101,
+  "build_seconds": 170.973,
+  "input_after_count": 39001,
+  "input_drift_count": 0,
+  "input_drift": [],
+  "completed_utc": "2026-10-16T20:11:18.487460+00:00"
+}

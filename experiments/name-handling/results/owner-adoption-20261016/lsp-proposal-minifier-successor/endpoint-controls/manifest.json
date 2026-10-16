@@ -1,0 +1,18 @@
+{
+  "patch_sha256": "0b9ebc3fe9a2219b7af6bbb181bc4e07f0df904e6f16ec9a5df613342ba94d3c",
+  "prerequisite_v12_patch_sha256": "90374251a32e85c1e5e6212919489a8074b4af51113dc2850d3eb3062ec18de1",
+  "file": "rust/tcl-lsp-server/src/current_diagnostics.rs",
+  "before_sha256": "e1f19dd19e88e9e7a6cb4cf7d206bc84cee6a87292d8893aaf808fcd02725be7",
+  "after_sha256": "d452388c9e27c395cb2aa226635d829785486109dbfd46aa3b6aed5b7c5bffe7",
+  "source_basis_sha256": "cb5ca143dc91f78dc31447053839e086f49b43bcc69b5b62009308613a505782",
+  "entire_original_file_prefix_byte_identical": true,
+  "production_changes": false,
+  "new_selectors": [
+    "current_diagnostics::proposal_endpoint_tests::actual_proposal_command_changes_diagnostics_without_mutating_live_project",
+    "current_diagnostics::proposal_endpoint_tests::actual_proposal_command_refuses_stale_original_and_withdrawn_source_admission",
+    "current_diagnostics::proposal_endpoint_tests::actual_proposal_command_refuses_selected_provider_and_unversioned_disk_provider",
+    "current_diagnostics::proposal_endpoint_tests::actual_proposal_command_never_turns_suppression_or_incomplete_source_into_clean"
+  ],
+  "counts": "four new validation controls only; no owner/baseline acceptance claim",
+  "validation": "rustfmt/static hashes/prefix/zero-fuzz TMP only; no execution/main/Git/Cargo"
+}

@@ -1,0 +1,20 @@
+WHOLE-OWNER SOURCE CLEAR — immutable Rust composite V12
+Patch SHA256: 90374251a32e85c1e5e6212919489a8074b4af51113dc2850d3eb3062ec18de1
+Manifest SHA256: b0d17cc55847512bbc4612f1a5f2927ee57f1fafaffe84eaf2844056e6291042
+Reviewed full producer/provider/caller composition, including original provider566c, V11 request-local recovery cache, and poison repair53a8205411a7f55caf26f4c320a50bf17408292d385ddf3f833bbe0af15d4b71. Exact patch and ALL SIX final manifest afterimage hashes verified. All four non-provider afterimages equal reviewed V11; provider test old prefix byte-identical.
+
+Last HOLD resolved: poisoned inventories now give SourceCurrency in report source_failure, false proposal currentness, and None admissions. Shared currentness is strict for actual proposal mode while ordinary cache recovery remains separate. The new test poisons the actual std Mutex after establishing genuine clean empty/populated positives, then checks all four refusal surfaces. Aggregate ledger poison/loss remains terminal; no empty dependency set is fabricated. No old assertion changed.
+
+Whole producer boundaries reviewed:
+* Independent fresh TclDatabase, not a Salsa clone; all eight actual SourceFile fields and eight config fields copied with exact project membership/unique URI/per-file config mapping; only selected full source replaced. Actual admitted paths remain separate from URI/display/hint. Original source/URI/version/publication receipt required at ingress.
+* Existing SourceSyntaxCoverage preflights actual configured source completeness. It grants only syntax coverage; existing source-target/call-site owners retain dynamic/unknown graph debt. Factory, call-site and subclass facts are recomputed against the hypothetical project/index with bounded convergence, without mutating live DB/docs/index.
+* Actual provider captures are retained before consumption, including recovery and cache hits, in request-local strong ledger/weak backreferences. Aggregate report authenticates that ledger and includes every consumed capture. Selected original provider and unversioned disk inputs refuse before old source consumption; they are not silently substituted or interpreted as absent.
+* Recovery cache is request-local so equal numeric generations of different detached indexes cannot donate declaration names. Ordinary shared cache unchanged. Capture self-consistency is not treated as external source currency.
+* Complete report invokes the shared actual deep pipeline and requires provider completion/result success. Degraded/unavailable/suppressed states do not become Complete-empty. No current push ack/completion is borrowed.
+* Final source/config/project/index/resolver/evaluator/overlay/analysis epochs and original SourceFile/admission ledger identities are revalidated under joint live guards; only try-locks follow the document lock. Complete construction occurs inside the actual SourceStore publication lease over all original project and consumed provider admissions. No await is used as a substitute for that cross-thread lease.
+
+No additional concrete Rust type/API blocker found by source inspection. Actual compiler/API/privacy/gate acceptance remains unverified until Root's build; no visibility/checker changes or waiver are implied. Shared SourceSyntaxCoverage dependency must remain present. Missing provider capability intentionally remains typed unavailable; this is not universal proposal coverage or an efficacy/performance claim.
+
+Editor composition V5 separately SOURCE CLEAR at /tmp/lsp-proposal-diagnostics-editor/v5/independent-variable-order-review-CLEAR.txt. It carries historical full report data beside the original checked write receipt; proposal completion is not edit authority.
+
+No Cargo, tests, host execution, ordinary acceptance, count/completion claim, main writes or Git operations performed. Previous HOLD artifacts retained unchanged.

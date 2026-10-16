@@ -1,0 +1,218 @@
+[
+  {
+    "source": "/tmp/lsp-proposal-diagnostics-owner/v12/independent-variable-order-review-CLEAR.txt",
+    "source_sha256": "04e97058d4a173326f5522349e5e3d42eae030908bddc165391ce4adc6219f87",
+    "preserved": "experiments/name-handling/results/owner-adoption-20261016/lsp-proposal-minifier-successor/proposal-owner/independent-variable-order-review-CLEAR.txt",
+    "preserved_sha256": "04e97058d4a173326f5522349e5e3d42eae030908bddc165391ce4adc6219f87"
+  },
+  {
+    "source": "/tmp/lsp-proposal-diagnostics-owner/v12/manifest.json",
+    "source_sha256": "b0d17cc55847512bbc4612f1a5f2927ee57f1fafaffe84eaf2844056e6291042",
+    "preserved": "experiments/name-handling/results/owner-adoption-20261016/lsp-proposal-minifier-successor/proposal-owner/manifest.json",
+    "preserved_sha256": "b0d17cc55847512bbc4612f1a5f2927ee57f1fafaffe84eaf2844056e6291042"
+  },
+  {
+    "source": "/tmp/lsp-proposal-diagnostics-owner/v12/proposal-diagnostics-v12.patch",
+    "source_sha256": "90374251a32e85c1e5e6212919489a8074b4af51113dc2850d3eb3062ec18de1",
+    "preserved": "experiments/name-handling/results/owner-adoption-20261016/lsp-proposal-minifier-successor/proposal-owner/proposal-diagnostics-v12.patch.zst",
+    "preserved_sha256": "e94352380d08cb767d1a5471ef87c35326d999a67a59227d3625289a82b4727e"
+  },
+  {
+    "source": "/tmp/lsp-proposal-contract-v1/manifest-v3.json",
+    "source_sha256": "ae99b16b5cc1bf45ecab054008539c8543a4fe8201cb2ede569dcf86bf512fe0",
+    "preserved": "experiments/name-handling/results/owner-adoption-20261016/lsp-proposal-minifier-successor/editor-composite/manifest-v3.json",
+    "preserved_sha256": "ae99b16b5cc1bf45ecab054008539c8543a4fe8201cb2ede569dcf86bf512fe0"
+  },
+  {
+    "source": "/tmp/lsp-proposal-contract-v1/manifest-v2.json",
+    "source_sha256": "3ed25a5c6c0ab5b196c71d555ae085936cd306d7a32d55ef90c4465a9e8341a7",
+    "preserved": "experiments/name-handling/results/owner-adoption-20261016/lsp-proposal-minifier-successor/editor-composite/manifest-v2.json",
+    "preserved_sha256": "3ed25a5c6c0ab5b196c71d555ae085936cd306d7a32d55ef90c4465a9e8341a7"
+  },
+  {
+    "source": "/tmp/lsp-proposal-contract-v1/manifest-v1.json",
+    "source_sha256": "2070709340aa845db765905a66cbb5ba1d6c3153ff3f731f20b5684de2c58af4",
+    "preserved": "experiments/name-handling/results/owner-adoption-20261016/lsp-proposal-minifier-successor/editor-composite/manifest-v1.json",
+    "preserved_sha256": "2070709340aa845db765905a66cbb5ba1d6c3153ff3f731f20b5684de2c58af4"
+  },
+  {
+    "source": "/tmp/lsp-proposal-contract-v1/independent-editor-full-chain-review-CLEAR.txt",
+    "source_sha256": "df84dc32150b8491166a3af66a6fd772165c8744af5c245455374e9873d9f8a2",
+    "preserved": "experiments/name-handling/results/owner-adoption-20261016/lsp-proposal-minifier-successor/editor-composite/independent-editor-full-chain-review-CLEAR.txt",
+    "preserved_sha256": "df84dc32150b8491166a3af66a6fd772165c8744af5c245455374e9873d9f8a2"
+  },
+  {
+    "source": "/tmp/lsp-proposal-contract-v1/editor-full-manifest.json",
+    "source_sha256": "8297fe6cf29901e0ecc1be974beb4a4e5758b8b32353311b9e1702c571081770",
+    "preserved": "experiments/name-handling/results/owner-adoption-20261016/lsp-proposal-minifier-successor/editor-composite/editor-full-manifest.json",
+    "preserved_sha256": "8297fe6cf29901e0ecc1be974beb4a4e5758b8b32353311b9e1702c571081770"
+  },
+  {
+    "source": "/tmp/lsp-proposal-contract-v1/manifest.json",
+    "source_sha256": "2070709340aa845db765905a66cbb5ba1d6c3153ff3f731f20b5684de2c58af4",
+    "preserved": "experiments/name-handling/results/owner-adoption-20261016/lsp-proposal-minifier-successor/editor-composite/manifest.json",
+    "preserved_sha256": "2070709340aa845db765905a66cbb5ba1d6c3153ff3f731f20b5684de2c58af4"
+  },
+  {
+    "source": "/tmp/lsp-proposal-contract-v2/manifest.json",
+    "source_sha256": "fb85545898c834ab32936b136aae8c06f50ee58b12f621dde6b9d23100606b9d",
+    "preserved": "experiments/name-handling/results/owner-adoption-20261016/lsp-proposal-minifier-successor/proposal-contract/manifest.json",
+    "preserved_sha256": "fb85545898c834ab32936b136aae8c06f50ee58b12f621dde6b9d23100606b9d"
+  },
+  {
+    "source": "/tmp/lsp-proposal-contract-v2/lsp-proposal-contract-v2.patch",
+    "source_sha256": "2f6d770ab88abe0c4734dde60f0d161e00ba98e2fc637f42f9b229324130be3d",
+    "preserved": "experiments/name-handling/results/owner-adoption-20261016/lsp-proposal-minifier-successor/proposal-contract/lsp-proposal-contract-v2.patch.zst",
+    "preserved_sha256": "45f53d0c9e4cd0fa5625b0fbb6ee0ded1799fd4066c2113bb02495eaa267a26b"
+  },
+  {
+    "source": "/tmp/lsp-proposal-endpoint-controls-v1/independent-variable-order-review-CLEAR.txt",
+    "source_sha256": "ade079dc89a23585676a8b606be1bbc6861450d470a452f12a1d76d1332acb22",
+    "preserved": "experiments/name-handling/results/owner-adoption-20261016/lsp-proposal-minifier-successor/endpoint-controls/independent-variable-order-review-CLEAR.txt",
+    "preserved_sha256": "ade079dc89a23585676a8b606be1bbc6861450d470a452f12a1d76d1332acb22"
+  },
+  {
+    "source": "/tmp/lsp-proposal-endpoint-controls-v1/source-verification.json",
+    "source_sha256": "cf663a5e4e62d291d9b96a83f3a5365a8527947dfb7d7da1e52fc46c3fe1cfdd",
+    "preserved": "experiments/name-handling/results/owner-adoption-20261016/lsp-proposal-minifier-successor/endpoint-controls/source-verification.json",
+    "preserved_sha256": "cf663a5e4e62d291d9b96a83f3a5365a8527947dfb7d7da1e52fc46c3fe1cfdd"
+  },
+  {
+    "source": "/tmp/lsp-proposal-endpoint-controls-v1/selectors.txt",
+    "source_sha256": "8841b5ecf32e81c2ea0deb385f4f542a53c782d6d781138976aa67ba43e72b85",
+    "preserved": "experiments/name-handling/results/owner-adoption-20261016/lsp-proposal-minifier-successor/endpoint-controls/selectors.txt",
+    "preserved_sha256": "8841b5ecf32e81c2ea0deb385f4f542a53c782d6d781138976aa67ba43e72b85"
+  },
+  {
+    "source": "/tmp/lsp-proposal-endpoint-controls-v1/manifest.json",
+    "source_sha256": "ef9c609a41801cae8f2c6973db49a07ee1f53fd9e84faae48ca86d9c4aa4d670",
+    "preserved": "experiments/name-handling/results/owner-adoption-20261016/lsp-proposal-minifier-successor/endpoint-controls/manifest.json",
+    "preserved_sha256": "ef9c609a41801cae8f2c6973db49a07ee1f53fd9e84faae48ca86d9c4aa4d670"
+  },
+  {
+    "source": "/tmp/lsp-proposal-endpoint-controls-v1/SOURCE-BASIS.md",
+    "source_sha256": "cb5ca143dc91f78dc31447053839e086f49b43bcc69b5b62009308613a505782",
+    "preserved": "experiments/name-handling/results/owner-adoption-20261016/lsp-proposal-minifier-successor/endpoint-controls/SOURCE-BASIS.md",
+    "preserved_sha256": "cb5ca143dc91f78dc31447053839e086f49b43bcc69b5b62009308613a505782"
+  },
+  {
+    "source": "/tmp/lsp-proposal-endpoint-controls-v1/endpoint-controls.patch",
+    "source_sha256": "0b9ebc3fe9a2219b7af6bbb181bc4e07f0df904e6f16ec9a5df613342ba94d3c",
+    "preserved": "experiments/name-handling/results/owner-adoption-20261016/lsp-proposal-minifier-successor/endpoint-controls/endpoint-controls.patch.zst",
+    "preserved_sha256": "fde2b3735d122652267549fb5ebebcf6992152329948c3066d7b1efb9f974c6a"
+  },
+  {
+    "source": "/tmp/lsp-proposal-endpoint-controls-v1/package.py",
+    "source_sha256": "ed8cd8fc03b435c62b2d738cfd2d72abc31f6a3631de5c79f4dac6b267a769c2",
+    "preserved": "experiments/name-handling/results/owner-adoption-20261016/lsp-proposal-minifier-successor/endpoint-controls/package.py.zst",
+    "preserved_sha256": "04f990edfacfd5bf8a3e451b7601614598c8e7f962d10db8ad74d2da844d5e05"
+  },
+  {
+    "source": "/tmp/lsp-minifier-source-census-v1/independent-db-owner-review-CLEAR.txt",
+    "source_sha256": "8166aee18e2825c57ec65aa03a4a00b3655ddc83a67ab50a551026dc52fb1ce6",
+    "preserved": "experiments/name-handling/results/owner-adoption-20261016/lsp-proposal-minifier-successor/minifier-census/independent-db-owner-review-CLEAR.txt",
+    "preserved_sha256": "8166aee18e2825c57ec65aa03a4a00b3655ddc83a67ab50a551026dc52fb1ce6"
+  },
+  {
+    "source": "/tmp/lsp-minifier-source-census-v1/independent-db-owner-source-verification.json",
+    "source_sha256": "193112d6ae33fbd6acc125a236ad37cfcc3ea2b5c85bd474f7c5c00b8780624e",
+    "preserved": "experiments/name-handling/results/owner-adoption-20261016/lsp-proposal-minifier-successor/minifier-census/independent-db-owner-source-verification.json",
+    "preserved_sha256": "193112d6ae33fbd6acc125a236ad37cfcc3ea2b5c85bd474f7c5c00b8780624e"
+  },
+  {
+    "source": "/tmp/lsp-minifier-source-census-v1/manifest.json",
+    "source_sha256": "1044eed93e4f39d8b97239147ceb3531621907ab3dd433cba5a1c6e66fbbe6d3",
+    "preserved": "experiments/name-handling/results/owner-adoption-20261016/lsp-proposal-minifier-successor/minifier-census/manifest.json",
+    "preserved_sha256": "1044eed93e4f39d8b97239147ceb3531621907ab3dd433cba5a1c6e66fbbe6d3"
+  },
+  {
+    "source": "/tmp/lsp-minifier-source-census-v1/SOURCE-BASIS.md",
+    "source_sha256": "81b1b897e7eb3fc3312e7eac99b0545dd931ad056fe028245e540b4cfa212353",
+    "preserved": "experiments/name-handling/results/owner-adoption-20261016/lsp-proposal-minifier-successor/minifier-census/SOURCE-BASIS.md",
+    "preserved_sha256": "81b1b897e7eb3fc3312e7eac99b0545dd931ad056fe028245e540b4cfa212353"
+  },
+  {
+    "source": "/tmp/lsp-minifier-source-census-v1/contract.patch",
+    "source_sha256": "7d72fc0a952f480aed2c1a029a5c81f236bc57ab68173911048568af526a4d6d",
+    "preserved": "experiments/name-handling/results/owner-adoption-20261016/lsp-proposal-minifier-successor/minifier-census/contract.patch.zst",
+    "preserved_sha256": "485cb0da1828a79f5ef27dfa1c5ac193ae957e98669b25419e2516a231019a07"
+  },
+  {
+    "source": "/tmp/lsp-minifier-source-census-v1/source.patch",
+    "source_sha256": "b807fc854523be6a5d5581b616c18495162487593c1d78c732b10d5d0e4fa3a6",
+    "preserved": "experiments/name-handling/results/owner-adoption-20261016/lsp-proposal-minifier-successor/minifier-census/source.patch.zst",
+    "preserved_sha256": "01ba5aacdd76e990eb0143cb3fcfe350ef529cceecb709b0479c0b66a14a5dfe"
+  },
+  {
+    "source": "/tmp/lsp-minifier-source-census-v1/package.py",
+    "source_sha256": "e0aa4d4a436d0590f5825095bc8dba2207fd4c2ded52ea1f552e36107e58e01c",
+    "preserved": "experiments/name-handling/results/owner-adoption-20261016/lsp-proposal-minifier-successor/minifier-census/package.py.zst",
+    "preserved_sha256": "ff5851133ed4442fd9ca687ba37e0fe4909e7df057ae9b6149dca0774f37283f"
+  },
+  {
+    "source": "/tmp/lsp-proposal-compile-repair-v1/independent-db-owner-review-CLEAR.txt",
+    "source_sha256": "fad70f64c92d4ee2fb36cfd9ed6ba95dcae614a2694a7a1581eb044f0c53b8c9",
+    "preserved": "experiments/name-handling/results/owner-adoption-20261016/lsp-proposal-minifier-successor/compile-repair/independent-db-owner-review-CLEAR.txt",
+    "preserved_sha256": "fad70f64c92d4ee2fb36cfd9ed6ba95dcae614a2694a7a1581eb044f0c53b8c9"
+  },
+  {
+    "source": "/tmp/lsp-proposal-compile-repair-v1/manifest.json",
+    "source_sha256": "a1769e61ba5a5d81cf811cfc4db8fc2dddeb9f0d905a594d7012e41785f3b9d2",
+    "preserved": "experiments/name-handling/results/owner-adoption-20261016/lsp-proposal-minifier-successor/compile-repair/manifest.json",
+    "preserved_sha256": "a1769e61ba5a5d81cf811cfc4db8fc2dddeb9f0d905a594d7012e41785f3b9d2"
+  },
+  {
+    "source": "/tmp/lsp-proposal-compile-repair-v1/repair.patch",
+    "source_sha256": "934c2d6f51d67caeeb348269f2416c94c31b36714acbf1249a1a33afc8fd7d83",
+    "preserved": "experiments/name-handling/results/owner-adoption-20261016/lsp-proposal-minifier-successor/compile-repair/repair.patch.zst",
+    "preserved_sha256": "88d2ce0a9b487bbfc152b088c63cdf0562a18ed7350739a510454d525b08f6fe"
+  },
+  {
+    "source": "/tmp/lsp-proposal-minifier-selection/SOURCE-ONLY-RECEIPT.txt",
+    "source_sha256": "d50de4474a0279aacd5b23a60a6f3d9a36207f06d96146b337794c98cfc0a29a",
+    "preserved": "experiments/name-handling/results/owner-adoption-20261016/lsp-proposal-minifier-successor/selection/SOURCE-ONLY-RECEIPT.txt",
+    "preserved_sha256": "d50de4474a0279aacd5b23a60a6f3d9a36207f06d96146b337794c98cfc0a29a"
+  },
+  {
+    "source": "/tmp/lsp-proposal-minifier-selection/source-selection-verification.json",
+    "source_sha256": "581e3acf25179cdf83194c8b4ae66d41f1cf0141366aea26afd117240e9452c4",
+    "preserved": "experiments/name-handling/results/owner-adoption-20261016/lsp-proposal-minifier-successor/selection/source-selection-verification.json",
+    "preserved_sha256": "581e3acf25179cdf83194c8b4ae66d41f1cf0141366aea26afd117240e9452c4"
+  },
+  {
+    "source": "/tmp/lsp-proposal-minifier-selection/selection-generation-summary.json",
+    "source_sha256": "04a96efd110d0067091fb570909fbdf3aad463b2ebe0a7f8034015b36fc67bc4",
+    "preserved": "experiments/name-handling/results/owner-adoption-20261016/lsp-proposal-minifier-successor/selection/selection-generation-summary.json",
+    "preserved_sha256": "04a96efd110d0067091fb570909fbdf3aad463b2ebe0a7f8034015b36fc67bc4"
+  },
+  {
+    "source": "/tmp/lsp-proposal-minifier-selection/selection-source-only.json",
+    "source_sha256": "bd16ed2fa10448ace5b74733f423dd5b84f6d44bfc8c0a0d20413049c2e147ab",
+    "preserved": "experiments/name-handling/results/owner-adoption-20261016/lsp-proposal-minifier-successor/selection/selection-source-only.json.zst",
+    "preserved_sha256": "1b82674ae02a79f3cb402f27b46cb1f9d2d749987fefb062e3df1e438bef6a3c"
+  },
+  {
+    "source": "/tmp/lsp-proposal-minifier-selection/manifest.json",
+    "source_sha256": "066c9f5dd4b678f24f827c6960ba373689d1ee396cc2e7fc48241eab90c1b559",
+    "preserved": "experiments/name-handling/results/owner-adoption-20261016/lsp-proposal-minifier-successor/selection/manifest.json",
+    "preserved_sha256": "066c9f5dd4b678f24f827c6960ba373689d1ee396cc2e7fc48241eab90c1b559"
+  },
+  {
+    "source": "/tmp/lsp-proposal-minifier-selection/ROOT-USAGE.md",
+    "source_sha256": "f4ecfc06268ec5897d8ecf8e8efe13e3962332c1b7bd8aef22ba5d013316ea2a",
+    "preserved": "experiments/name-handling/results/owner-adoption-20261016/lsp-proposal-minifier-successor/selection/ROOT-USAGE.md",
+    "preserved_sha256": "f4ecfc06268ec5897d8ecf8e8efe13e3962332c1b7bd8aef22ba5d013316ea2a"
+  },
+  {
+    "source": "/tmp/lsp-proposal-minifier-selection/proposed-control-names.json",
+    "source_sha256": "758373c67733bc0b5969d1c5c1defdb9a00c9aff0a08f1eb1243fc23afc4b91a",
+    "preserved": "experiments/name-handling/results/owner-adoption-20261016/lsp-proposal-minifier-successor/selection/proposed-control-names.json",
+    "preserved_sha256": "758373c67733bc0b5969d1c5c1defdb9a00c9aff0a08f1eb1243fc23afc4b91a"
+  },
+  {
+    "source": "/tmp/lsp-proposal-minifier-selection/generate_selection.py",
+    "source_sha256": "25052ca5ba5389c29bbc87d039aa541f493e8be40c09598b9c6ccc61f82d5c89",
+    "preserved": "experiments/name-handling/results/owner-adoption-20261016/lsp-proposal-minifier-successor/selection/generate_selection.py.zst",
+    "preserved_sha256": "7c9d2741c6e0ac3377673d05296a1170ef412583d1dd2093b1e624aabafebd44"
+  }
+]

@@ -29,6 +29,7 @@ import {
   setCurrentDiagnosticsTransportProvider,
   setUnleasedSessionDialectOverride,
   waitForDiagnostics,
+  waitForProposalDiagnostics,
   type CurrentDiagnosticsTransport,
 } from "../chat/diagnosticAccess";
 import { activate, getDocUri } from "./helper";
@@ -460,6 +461,138 @@ suite("Chat current diagnostic publication adapter", () => {
       assert.strictEqual(result.length, 1);
       assert.strictEqual(result[0].code, "NEW");
       assert.strictEqual(oldConvertCalls, 0, "conversion must stay with the client that answered");
+    } finally {
+      lease.dispose();
+    }
+  });
+
+  test("proposal diagnostics bind complete results to one original source and proposal", async () => {
+    const document = await openFixture("set adapterProposalOriginal 1");
+    const source = document.getText();
+    const proposal = "set adapterProposalReplacement 1";
+    let seen: { uri: string; version: number; source: string; proposal: string } | undefined;
+    const activeTransport = transport(async () =>
+      complete(
+        {
+          uri: document.uri.toString(),
+          version: document.version,
+          source,
+        },
+        [diagnostic("PROPOSAL")],
+      ),
+    ) as CurrentDiagnosticsTransport & {
+      requestProposal(params: {
+        uri: string;
+        version: number;
+        source: string;
+        proposal: string;
+      }): Promise<unknown>;
+    };
+    activeTransport.requestProposal = async (request) => {
+      seen = request;
+      return {
+        status: "complete",
+        ...request,
+        revision: "Revision(4):17",
+        inputsEpoch: "2",
+        workspaceIndexGeneration: "3",
+        resultId: "proposal-1",
+        diagnostics: [diagnostic("PROPOSAL")],
+      };
+    };
+    const lease = setCurrentDiagnosticsTransportProvider(() => activeTransport);
+    try {
+      const result = await waitForProposalDiagnostics(document.uri, proposal, {
+        timeout: 1_000,
+        expectedSource: source,
+      });
+      assert.strictEqual(result.diagnostics.length, 1);
+      assert.strictEqual(result.diagnostics[0].code, "PROPOSAL");
+      assert.deepStrictEqual(
+        result.response,
+        {
+          status: "complete",
+          uri: document.uri.toString(),
+          version: document.version,
+          source,
+          proposal,
+          revision: "Revision(4):17",
+          inputsEpoch: "2",
+          workspaceIndexGeneration: "3",
+          resultId: "proposal-1",
+          diagnostics: [diagnostic("PROPOSAL")],
+        },
+        "the full producer response must remain attached to converted diagnostics",
+      );
+      assert.strictEqual(result.sessionIdentity, activeTransport.sessionIdentity);
+      assert.strictEqual(result.document, document);
+      assert.deepStrictEqual(seen, {
+        uri: document.uri.toString(),
+        version: document.version,
+        source,
+        proposal,
+      });
+      assert.strictEqual(
+        document.getText(),
+        source,
+        "proposal analysis must not mutate the source document",
+      );
+    } finally {
+      lease.dispose();
+    }
+  });
+
+  test("proposal diagnostics reject a source edit instead of rebasing the request", async () => {
+    const document = await openFixture("set adapterProposalStale 1");
+    const source = document.getText();
+    let answer: (() => void) | undefined;
+    let entered: (() => void) | undefined;
+    const requested = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    let calls = 0;
+    const activeTransport = transport(async () =>
+      complete(
+        {
+          uri: document.uri.toString(),
+          version: document.version,
+          source,
+        },
+        [],
+      ),
+    ) as CurrentDiagnosticsTransport & {
+      requestProposal(params: {
+        uri: string;
+        version: number;
+        source: string;
+        proposal: string;
+      }): Promise<unknown>;
+    };
+    activeTransport.requestProposal = async (request) => {
+      calls += 1;
+      entered?.();
+      await new Promise<void>((resolve) => {
+        answer = () => resolve();
+      });
+      return { status: "unavailable", reason: "stale" };
+    };
+    const lease = setCurrentDiagnosticsTransportProvider(() => activeTransport);
+    try {
+      const pending = waitForProposalDiagnostics(document.uri, "set candidate 1", {
+        timeout: 1_000,
+        expectedSource: source,
+      });
+      await requested;
+      const edit = new vscode.WorkspaceEdit();
+      edit.insert(document.uri, new vscode.Position(0, 0), "# changed\n");
+      await vscode.workspace.applyEdit(edit);
+      answer?.();
+      await assert.rejects(
+        pending,
+        (error: unknown) =>
+          error instanceof CurrentDiagnosticsUnavailableError && error.reason === "stale",
+      );
+      assert.strictEqual(calls, 1, "the original request must not retry against a later source");
     } finally {
       lease.dispose();
     }
