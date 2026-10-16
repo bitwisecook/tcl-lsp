@@ -50,6 +50,17 @@ pub fn llength<O: ValueOps>(ops: &mut O, value: &O::Value) -> Result<O::Value, C
     Ok(ops.new_int(ilen(n)))
 }
 
+/// The usage `lindex` gives under `release`: 8.4 and 8.5 spell its indices
+/// `?index...?`.
+#[must_use]
+pub fn lindex_usage(release: TclVersion) -> &'static str {
+    if release < TclVersion::V8_6 {
+        "lindex list ?index...?"
+    } else {
+        "lindex list ?index ...?"
+    }
+}
+
 /// `lindex list ?index ...?` — descend through each index; an out-of-range index
 /// yields the empty string, a malformed index spec errors.
 ///

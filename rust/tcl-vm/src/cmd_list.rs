@@ -76,7 +76,7 @@ fn cmd_llength(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 
 fn cmd_lindex(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((list, idxs)) = args.split_first() else {
-        return err_wrong_args("lindex list ?index ...?");
+        return err_wrong_args(list_core::lindex_usage(vm.runtime_version()));
     };
     adapt(vm, |vm| list_core::lindex(vm, list, idxs))
 }

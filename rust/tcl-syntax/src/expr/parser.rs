@@ -353,6 +353,15 @@ impl<'a> PrattParser<'a> {
             });
         }
 
+        // A `$` with no name is the text `$`, where the lexer keeps it.
+        if tok.kind == ExprTokenType::Variable && tok.text == "$" {
+            self.advance();
+            return Ok(ExprNode::CompiledWord {
+                text: "$".to_owned(),
+                braced: true,
+            });
+        }
+
         // Variable reference
         if tok.kind == ExprTokenType::Variable {
             let tok = self.advance();

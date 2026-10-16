@@ -687,6 +687,8 @@ pub struct FatalTail {
     /// compile whole ([`CompileFailure`]), which run nothing at all and
     /// replace the `while executing` frame `command_text` would log.
     pub compile_info: Option<String>,
+    /// The `-errorcode` the error carries, where it carries one.
+    pub error_code: Option<String>,
 }
 
 /// What a release that compiles a script whole compiles at once.
@@ -712,6 +714,9 @@ pub struct CompileFailure {
     /// One-based line of the outermost failing command (C's
     /// `iPtr->errorLine`).
     pub line: u32,
+    /// The `-errorcode` the error carries, where it carries one (a numeral
+    /// 8.4's expression parser cannot read).
+    pub error_code: Option<String>,
 }
 
 impl FatalTail {
@@ -726,6 +731,7 @@ impl FatalTail {
             command_text: String::new(),
             line: 0,
             compile_info: None,
+            error_code: None,
         }
     }
 
@@ -737,6 +743,7 @@ impl FatalTail {
             command_text: String::new(),
             line: failure.line,
             compile_info: Some(failure.error_info),
+            error_code: failure.error_code,
         }
     }
 }

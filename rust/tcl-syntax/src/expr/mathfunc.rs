@@ -473,6 +473,33 @@ pub fn accepts_boolean_operand(name: &str) -> bool {
     name == "bool"
 }
 
+/// The message and `-errorcode` `release` gives an argument of the math
+/// function `name` that is no number: 8.4's `ExprUnaryFunc` and kin one
+/// message and no code, from 8.5 the reader's own words with `TCL VALUE
+/// NUMBER`.
+#[must_use]
+pub fn non_numeric_argument_error(
+    name: &str,
+    value: &str,
+    release: tcl_dialect::TclVersion,
+) -> (String, &'static str) {
+    if release == tcl_dialect::TclVersion::V8_4 {
+        return (
+            "argument to math function didn't have numeric value".to_owned(),
+            "NONE",
+        );
+    }
+    let expected = if expects_floating_operand_error(name) {
+        "floating-point number"
+    } else {
+        "number"
+    };
+    (
+        format!("expected {expected} but got \"{value}\""),
+        "TCL VALUE NUMBER",
+    )
+}
+
 /// Whether a failed operand parse uses Tcl's floating-point error wording.
 /// This belongs beside the shared math-function table so runtimes do not
 /// re-derive the operand family from command names.

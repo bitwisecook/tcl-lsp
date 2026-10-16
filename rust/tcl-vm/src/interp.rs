@@ -12878,7 +12878,10 @@ impl Vm {
         } else {
             self.log_command_info_only(&tail.command_text, &tail.message, tail.line);
         }
-        err(tail.message)
+        match tail.error_code {
+            Some(code) => err_with_code(tail.message, &code),
+            None => err(tail.message),
+        }
     }
 
     pub(crate) fn seed_error_info(&mut self, info: String) {
@@ -13126,9 +13129,12 @@ impl Vm {
         // to it (F5's word operators).
         if self.runtime_version.parses_expressions_as_8_4()
             && self.pin.profile.f5_core_expr_grammar().is_none()
-            && let Err(message) = tcl_syntax::expr::syntax_84::parse_tcl84(src)
+            && let Err(error) = tcl_syntax::expr::syntax_84::parse_tcl84(src)
         {
-            return Err(TclError::new(message));
+            return Err(match error.error_code {
+                Some(code) => TclError::with_error_code(error.message, code),
+                None => TclError::new(error.message),
+            });
         }
         let node = parse_expr(src, Some(self.runtime_version.dialect_name()));
         if matches!(node, tcl_syntax::expr::ExprNode::Raw { .. }) {

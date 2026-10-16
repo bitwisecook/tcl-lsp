@@ -265,7 +265,7 @@ pub(crate) fn cvt_to_numeric(v: Value) -> Result<Value, TclError> {
         return Ok(big_value(&b));
     }
     if let Ok(d) = v.as_double() {
-        return Ok(Value::double(d));
+        return double_result(d);
     }
     // `as_double` rejects a bare `NaN`; as a whole-expression result it is a
     // domain error, not a value that survives.
@@ -324,7 +324,7 @@ fn operand_type_err(v: &Value, side: errors::OperandSide, op: &str) -> TclError 
     let release = errors::ambient_release();
     TclError::with_error_code(
         errors::illegal_operand_message(desc, &s, side, op, release),
-        errors::illegal_operand_error_code(desc, release),
+        errors::illegal_operand_error_code(desc, &s, release),
     )
 }
 
@@ -476,6 +476,10 @@ fn int_arith(op: BinOp, x: i128, y: i128) -> Result<Value, TclError> {
 
 fn dbl_arith(op: BinOp, x: f64, y: f64) -> Result<Value, TclError> {
     use BinOp::{Add, Div, Mul, Pow, Sub};
+    let release = errors::ambient_release();
+    if op == Div && y == 0.0 && errors::refuses_double_division_by_zero(release) {
+        return Err(divzero());
+    }
     let r = match op {
         Add => x + y,
         Sub => x - y,
@@ -502,9 +506,21 @@ fn dbl_arith(op: BinOp, x: f64, y: f64) -> Result<Value, TclError> {
     // operand check is belt-and-braces. (The `ARITH DOMAIN` errorCode is not
     // threaded, as noted for the operand errors above.)
     if r.is_nan() && !x.is_nan() && !y.is_nan() {
-        return Err(TclError::new("domain error: argument not in valid range"));
+        return Err(TclError::with_error_code(
+            errors::DOMAIN_MESSAGE,
+            errors::DOMAIN_CODE,
+        ));
     }
-    Ok(Value::double(r))
+    double_result(r)
+}
+
+/// A double an operation produced, or the error the release raises for it
+/// ([`errors::float_result_error`]).
+pub(crate) fn double_result(value: f64) -> Result<Value, TclError> {
+    match errors::float_result_error(value, errors::ambient_release()) {
+        Some((message, code)) => Err(TclError::with_error_code(message, code)),
+        None => Ok(Value::double(value)),
+    }
 }
 
 /// The integer-only binary operators: a (valid) floating-point operand is itself

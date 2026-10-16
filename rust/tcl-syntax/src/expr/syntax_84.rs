@@ -24,27 +24,48 @@
 //! syntax error there fails the whole compile; the command substitutions the
 //! expression holds are the scripts it compiles next.
 
+/// Why 8.4's parser refuses an expression: the message `Tcl_ParseExpr`
+/// leaves in the interpreter's result, and the error code a numeral it cannot
+/// read sets.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Tcl84ExprError {
+    /// The error message.
+    pub message: String,
+    /// The `-errorcode`, where the parser sets one.
+    pub error_code: Option<&'static str>,
+}
+
 /// What 8.4's parser makes of an expression: the command substitutions it
-/// holds, in order (the scripts between `[` and `]`, as written), or the
-/// message it refuses the expression with.
+/// holds, in order (the scripts between `[` and `]`, as written), or why it
+/// refuses the expression.
 ///
 /// # Errors
 ///
-/// The message `Tcl_ParseExpr` leaves in the interpreter's result.
-pub fn parse_tcl84(expr: &str) -> Result<Vec<String>, String> {
+/// The error `Tcl_ParseExpr` raises.
+pub fn parse_tcl84(expr: &str) -> Result<Vec<String>, Tcl84ExprError> {
     let mut parser = Parser {
         src: expr.as_bytes(),
         next: 0,
         lexeme: Lexeme::Unknown,
         start: 0,
         commands: Vec::new(),
+        error_code: None,
     };
-    parser.get_lexeme()?;
-    parser.cond_expr()?;
-    if parser.lexeme != Lexeme::End {
-        return Err(parser.syntax_error("extra tokens at end of expression"));
+    let parsed = parser.get_lexeme().and_then(|()| parser.cond_expr());
+    let parsed = parsed.and_then(|()| {
+        if parser.lexeme == Lexeme::End {
+            Ok(())
+        } else {
+            Err(parser.syntax_error("extra tokens at end of expression"))
+        }
+    });
+    match parsed {
+        Ok(()) => Ok(parser.commands),
+        Err(message) => Err(Tcl84ExprError {
+            message,
+            error_code: parser.error_code,
+        }),
     }
-    Ok(parser.commands)
 }
 
 /// `GetLexeme`'s token kinds.
@@ -138,6 +159,8 @@ struct Parser<'s> {
     lexeme: Lexeme,
     start: usize,
     commands: Vec<String>,
+    /// The error code of a numeral the lexer could not read.
+    error_code: Option<&'static str>,
 }
 
 impl Parser<'_> {
@@ -181,7 +204,12 @@ impl Parser<'_> {
             )
             && lexeme.end() > src
         {
-            check_number(&String::from_utf8_lossy(&self.src[src..lexeme.end()]))?;
+            if let Err((message, code)) =
+                check_number(&String::from_utf8_lossy(&self.src[src..lexeme.end()]))
+            {
+                self.error_code = code;
+                return Err(message);
+            }
             self.lexeme = Lexeme::Literal;
             self.start = src;
             self.next = lexeme.end();
@@ -449,21 +477,29 @@ fn skip_white_space(src: &[u8], mut at: usize) -> usize {
     }
 }
 
-/// What 8.4 makes of a numeral it reads in an expression: one past the wide
-/// range or the double range is an error there, as is a double that rounds
-/// to zero from non-zero digits.
-fn check_number(text: &str) -> Result<(), String> {
+/// What 8.4 makes of a numeral it reads in an expression: an integer it
+/// cannot convert (`Tcl_GetWideIntFromObj`), a bad octal one or one past the
+/// wide range, is an error there, as is a double past the double range or
+/// one that rounds to zero from non-zero digits (`TclExprFloatError`), each
+/// with its message and error code.
+fn check_number(text: &str) -> Result<(), (String, Option<&'static str>)> {
+    use super::errors;
     let flags = crate::number::ParseFlags::for_syntax(tcl_dialect::NumberSyntax::Tcl84);
+    let coded = |message: &str, code: &'static str| Err((message.to_owned(), Some(code)));
     match crate::number::parse_whole_with(text, flags) {
         Some(crate::number::Number::Big { .. }) => {
-            Err("integer value too large to represent".to_owned())
+            coded(errors::IOVERFLOW_MESSAGE, errors::IOVERFLOW_CODE)
         }
+        None if errors::check_bad_octal(text, false) => Err((
+            format!("expected integer but got \"{text}\" (looks like invalid octal number)"),
+            None,
+        )),
         // `strtod` reads `inf` without `ERANGE`; only an overflowing numeral
         // fails the parse.
         Some(crate::number::Number::Double(value))
             if value.is_infinite() && !text.to_ascii_lowercase().contains("inf") =>
         {
-            Err("floating-point value too large to represent".to_owned())
+            coded(errors::FLOAT_OVERFLOW_MESSAGE, errors::FLOAT_OVERFLOW_CODE)
         }
         Some(crate::number::Number::Double(value))
             if value == 0.0
@@ -471,7 +507,10 @@ fn check_number(text: &str) -> Result<(), String> {
                     mantissa.bytes().any(|byte| (b'1'..=b'9').contains(&byte))
                 }) =>
         {
-            Err("floating-point value too small to represent".to_owned())
+            coded(
+                errors::FLOAT_UNDERFLOW_MESSAGE,
+                errors::FLOAT_UNDERFLOW_CODE,
+            )
         }
         _ => Ok(()),
     }
@@ -663,10 +702,48 @@ mod tests {
                 "syntax error in expression \")\": unexpected close parenthesis",
             ),
         ] {
-            assert_eq!(parse_tcl84(expr).unwrap_err(), message, "{expr}");
+            let error = parse_tcl84(expr).unwrap_err();
+            assert_eq!(error.message, message, "{expr}");
+            assert_eq!(error.error_code, None, "{expr}");
         }
         assert_eq!(parse_tcl84("true").unwrap(), Vec::<String>::new());
         assert_eq!(parse_tcl84("$a(x) + [set y] + {z}").unwrap(), ["set y"]);
         assert_eq!(parse_tcl84("sin(1) + 0x1f").unwrap(), Vec::<String>::new());
+        assert_eq!(parse_tcl84("$").unwrap(), Vec::<String>::new());
+    }
+
+    /// The numerals tclsh 8.4.20 cannot read in `expr`, with the message and
+    /// error code of each.
+    #[test]
+    fn refuses_a_numeral_it_cannot_read() {
+        for (expr, message, code) in [
+            (
+                "08",
+                "expected integer but got \"08\" (looks like invalid octal number)",
+                None,
+            ),
+            (
+                "1 + 99999999999999999999",
+                "integer value too large to represent",
+                Some("ARITH IOVERFLOW {integer value too large to represent}"),
+            ),
+            (
+                "1e400",
+                "floating-point value too large to represent",
+                Some("ARITH OVERFLOW {floating-point value too large to represent}"),
+            ),
+            (
+                "1e-400",
+                "floating-point value too small to represent",
+                Some("ARITH UNDERFLOW {floating-point value too small to represent}"),
+            ),
+        ] {
+            let error = parse_tcl84(expr).unwrap_err();
+            assert_eq!(
+                (error.message.as_str(), error.error_code),
+                (message, code),
+                "{expr}"
+            );
+        }
     }
 }

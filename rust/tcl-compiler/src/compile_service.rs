@@ -517,6 +517,7 @@ fn fatal_tail_frame(
         command_text,
         line,
         compile_info: None,
+        error_code: None,
     }
 }
 

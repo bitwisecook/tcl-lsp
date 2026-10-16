@@ -111,7 +111,8 @@ fn llength(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `Tcl_LindexObjCmd` (`TclLindexList`/`TclLindexFlat`).
 fn lindex(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
-        return interp.wrong_args(b"lindex list ?index ...?");
+        let usage = list_core::lindex_usage(interp.runtime_version());
+        return interp.wrong_args(usage.as_bytes());
     }
     let compiled = (argv.len() == 3)
         .then(|| interp.compiled_index_argv(IndexCompiler::Lindex, argv, &[2]))

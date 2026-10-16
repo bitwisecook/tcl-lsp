@@ -1100,13 +1100,18 @@ fn parse_runtime_expr(
         Some(code) => crate::expr::ExprError::from_parts(message.into_bytes(), code.into_bytes()),
         None => crate::expr::ExprError::from_bytes(message.into_bytes()),
     };
-    // 8.4 parses with its own parser first, whose errors carry no code.
-    if release.parses_expressions_as_8_4() {
-        if let Err(message) = tcl_syntax::expr::syntax_84::parse_tcl84(source) {
-            return Err(error(message, None));
+    // 8.4 parses with its own parser first, whose errors carry a code only
+    // for a numeral it cannot read, and reads what it accepts as 8.4 does.
+    let eight_four = release.parses_expressions_as_8_4();
+    if eight_four {
+        if let Err(refused) = tcl_syntax::expr::syntax_84::parse_tcl84(source) {
+            return Err(error(
+                refused.message,
+                refused.error_code.map(str::to_owned),
+            ));
         }
     }
-    let node = tcl_syntax::expr::parse_expr(source, None);
+    let node = tcl_syntax::expr::parse_expr(source, eight_four.then(|| release.dialect_name()));
     if matches!(node, tcl_syntax::expr::ExprNode::Raw { .. }) {
         // C's own reason for the failure, as `ParseExpr` words it, under the
         // emulated release's grammar.

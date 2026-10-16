@@ -173,7 +173,16 @@ pub(crate) fn mathfunc(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         .map(|&o| crate::bignum::as_math_num(o))
         .collect();
     let Some(nums) = nums else {
-        return interp.set_error(b"argument to math function didn't have numeric value");
+        let unread = argv[1..]
+            .iter()
+            .find(|&&o| crate::bignum::as_math_num(o).is_none())
+            .map_or_else(Vec::new, |&o| obj::bytes_of(o));
+        let (message, code) = tcl_syntax::expr::mathfunc::non_numeric_argument_error(
+            &lname,
+            &String::from_utf8_lossy(&unread),
+            interp.runtime_version(),
+        );
+        return interp.error_with_code(message.as_bytes(), code.as_bytes());
     };
 
     // `set_result` adopts a fresh rc-0 obj (retains it; no extra drop needed).

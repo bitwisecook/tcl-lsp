@@ -8401,7 +8401,7 @@ impl Interp {
     }
 
     /// Raise a compile's refusal: its message, with its `while compiling`
-    /// frames and `tail` as the trace so far, and no error code.
+    /// frames and `tail` as the trace so far, and its error code.
     fn raise_compile_failure(
         &mut self,
         failure: &tcl_runtime_api::CompileFailure,
@@ -8411,7 +8411,8 @@ impl Interp {
         info.extend_from_slice(failure.error_info.as_bytes());
         info.extend_from_slice(tail);
         self.error_line.set(failure.line);
-        self.raise_with_info(failure.message.as_bytes(), &info, b"NONE")
+        let code = failure.error_code.as_deref().unwrap_or("NONE");
+        self.raise_with_info(failure.message.as_bytes(), &info, code.as_bytes())
     }
 
     /// Whether the commands now running are compiled as part of a procedure

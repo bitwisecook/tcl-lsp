@@ -217,7 +217,7 @@ impl Compile<'_> {
         if !self.parses_expressions {
             return Ok(());
         }
-        let scripts = tcl_syntax::expr::syntax_84::parse_tcl84(text).map_err(failure)?;
+        let scripts = tcl_syntax::expr::syntax_84::parse_tcl84(text).map_err(expression_failure)?;
         scripts.iter().try_for_each(|script| self.script(script))
     }
 
@@ -551,6 +551,15 @@ fn failure(message: String) -> CompileFailure {
         message,
         error_info: String::new(),
         line: 0,
+        error_code: None,
+    }
+}
+
+/// The failure 8.4's expression parser raises.
+fn expression_failure(error: tcl_syntax::expr::syntax_84::Tcl84ExprError) -> CompileFailure {
+    CompileFailure {
+        error_code: error.error_code.map(str::to_owned),
+        ..failure(error.message)
     }
 }
 

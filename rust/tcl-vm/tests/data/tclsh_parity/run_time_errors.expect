@@ -1,0 +1,710 @@
+==== 8.4 file ====
+1 <wrong # args: should be "string option arg ?arg ...?"> <NONE>
+1 <bad option "foo": must be bytelength, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, tolower, toupper, totitle, trim, trimleft, trimright, wordend, or wordstart> <NONE>
+1 <wrong # args: should be "lindex list ?index...?"> <NONE>
+1 <expected integer but got "08" (looks like invalid octal number)> <NONE>
+1 <expected integer but got "08" (looks like invalid octal number)> <NONE>
+1 <can't use invalid octal number as operand of "+"> <NONE>
+0 <$> <NONE>
+0 <1> <NONE>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+1 <argument to math function didn't have numeric value> <NONE>
+1 <can't use non-numeric string as operand of "+"> <NONE>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <can't use empty string as operand of "+"> <NONE>
+1 <can't use non-numeric string as operand of "+"> <NONE>
+1 <can't use invalid octal number as operand of "*"> <NONE>
+1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+1 <argument to math function didn't have numeric value> <NONE>
+1 <argument to math function didn't have numeric value> <NONE>
+1 <can't use non-numeric string as operand of "+"> <NONE>
+0 <$> <NONE>
+0 <b> <NONE>
+1 <wrong # args: should be "string option arg ?arg ...?"> <NONE>
+1 <bad option "foo": must be bytelength, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, tolower, toupper, totitle, trim, trimleft, trimright, wordend, or wordstart> <NONE>
+1 <wrong # args: should be "lindex list ?index...?"> <NONE>
+1 <expected integer but got "08" (looks like invalid octal number)> <NONE>
+1 <expected integer but got "08" (looks like invalid octal number)> <NONE>
+1 <can't use invalid octal number as operand of "+"> <NONE>
+0 <$> <NONE>
+0 <1> <NONE>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+1 <argument to math function didn't have numeric value> <NONE>
+1 <can't use non-numeric string as operand of "+"> <NONE>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <can't use empty string as operand of "+"> <NONE>
+1 <can't use non-numeric string as operand of "+"> <NONE>
+1 <can't use invalid octal number as operand of "*"> <NONE>
+1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+1 <argument to math function didn't have numeric value> <NONE>
+1 <argument to math function didn't have numeric value> <NONE>
+1 <can't use non-numeric string as operand of "+"> <NONE>
+0 <$> <NONE>
+0 <b> <NONE>
+1 <expected integer but got "08" (looks like invalid octal number)> <NONE>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+0 <$> <NONE>
+1 <wrong # args: should be "lindex list ?index...?"> <NONE>
+==== 8.4 stdin ====
+1 <wrong # args: should be "string option arg ?arg ...?"> <NONE>
+1 <bad option "foo": must be bytelength, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, tolower, toupper, totitle, trim, trimleft, trimright, wordend, or wordstart> <NONE>
+1 <wrong # args: should be "lindex list ?index...?"> <NONE>
+1 <expected integer but got "08" (looks like invalid octal number)> <NONE>
+1 <expected integer but got "08" (looks like invalid octal number)> <NONE>
+1 <can't use invalid octal number as operand of "+"> <NONE>
+0 <$> <NONE>
+0 <1> <NONE>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+1 <argument to math function didn't have numeric value> <NONE>
+1 <can't use non-numeric string as operand of "+"> <NONE>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <can't use empty string as operand of "+"> <NONE>
+1 <can't use non-numeric string as operand of "+"> <NONE>
+1 <can't use invalid octal number as operand of "*"> <NONE>
+1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+1 <argument to math function didn't have numeric value> <NONE>
+1 <argument to math function didn't have numeric value> <NONE>
+1 <can't use non-numeric string as operand of "+"> <NONE>
+0 <$> <NONE>
+0 <b> <NONE>
+1 <wrong # args: should be "string option arg ?arg ...?"> <NONE>
+1 <bad option "foo": must be bytelength, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, tolower, toupper, totitle, trim, trimleft, trimright, wordend, or wordstart> <NONE>
+1 <wrong # args: should be "lindex list ?index...?"> <NONE>
+1 <expected integer but got "08" (looks like invalid octal number)> <NONE>
+1 <expected integer but got "08" (looks like invalid octal number)> <NONE>
+1 <can't use invalid octal number as operand of "+"> <NONE>
+0 <$> <NONE>
+0 <1> <NONE>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+1 <argument to math function didn't have numeric value> <NONE>
+1 <can't use non-numeric string as operand of "+"> <NONE>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <can't use empty string as operand of "+"> <NONE>
+1 <can't use non-numeric string as operand of "+"> <NONE>
+1 <can't use invalid octal number as operand of "*"> <NONE>
+1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+1 <argument to math function didn't have numeric value> <NONE>
+1 <argument to math function didn't have numeric value> <NONE>
+1 <can't use non-numeric string as operand of "+"> <NONE>
+0 <$> <NONE>
+0 <b> <NONE>
+1 <expected integer but got "08" (looks like invalid octal number)> <NONE>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+0 <$> <NONE>
+1 <wrong # args: should be "lindex list ?index...?"> <NONE>
+==== 8.5 file ====
+1 <wrong # args: should be "string subcommand ?argument ...?"> <NONE>
+1 <unknown or ambiguous subcommand "foo": must be bytelength, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND foo>
+1 <wrong # args: should be "lindex list ?index...?"> <NONE>
+1 <invalid bareword "08" | in expression "08"; | should be "$08" or "{08}" or "08(...)" or ... (invalid octal number?)> <NONE>
+1 <invalid bareword "08" | in expression "08"; | should be "$08" or "{08}" or "08(...)" or ... (invalid octal number?)> <NONE>
+1 <can't use invalid octal number as operand of "+"> <ARITH DOMAIN {invalid octal number}>
+1 <invalid character "$" | in expression "$"> <NONE>
+0 <1> <NONE>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+0 <Inf> <NONE>
+0 <-Inf> <NONE>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+0 <-Inf> <NONE>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+1 <expected number but got "x"> <TCL VALUE NUMBER>
+1 <can't use non-numeric string as operand of "+"> <ARITH DOMAIN {non-numeric string}>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+1 <can't use empty string as operand of "+"> <ARITH DOMAIN {empty string}>
+1 <can't use invalid octal number as operand of "+"> <ARITH DOMAIN {invalid octal number}>
+1 <can't use invalid octal number as operand of "*"> <ARITH DOMAIN {invalid octal number}>
+0 <Inf> <NONE>
+1 <expected floating-point number but got "x"> <TCL VALUE NUMBER>
+1 <expected number but got ""> <TCL VALUE NUMBER>
+1 <invalid character "$" | in expression "$ + 1"> <NONE>
+0 <$> <NONE>
+0 <b> <NONE>
+1 <wrong # args: should be "string subcommand ?argument ...?"> <NONE>
+1 <unknown or ambiguous subcommand "foo": must be bytelength, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND foo>
+1 <wrong # args: should be "lindex list ?index...?"> <NONE>
+1 <invalid bareword "08" | in expression "08"; | should be "$08" or "{08}" or "08(...)" or ... (invalid octal number?)> <NONE>
+1 <invalid bareword "08" | in expression "08"; | should be "$08" or "{08}" or "08(...)" or ... (invalid octal number?)> <NONE>
+1 <can't use invalid octal number as operand of "+"> <ARITH DOMAIN {invalid octal number}>
+1 <invalid character "$" | in expression "$"> <NONE>
+0 <1> <NONE>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+0 <Inf> <NONE>
+0 <-Inf> <NONE>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+0 <-Inf> <NONE>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+1 <expected number but got "x"> <TCL VALUE NUMBER>
+1 <can't use non-numeric string as operand of "+"> <ARITH DOMAIN {non-numeric string}>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+1 <can't use empty string as operand of "+"> <ARITH DOMAIN {empty string}>
+1 <can't use invalid octal number as operand of "+"> <ARITH DOMAIN {invalid octal number}>
+1 <can't use invalid octal number as operand of "*"> <ARITH DOMAIN {invalid octal number}>
+0 <Inf> <NONE>
+1 <expected floating-point number but got "x"> <TCL VALUE NUMBER>
+1 <expected number but got ""> <TCL VALUE NUMBER>
+1 <invalid character "$" | in expression "$ + 1"> <NONE>
+0 <$> <NONE>
+0 <b> <NONE>
+1 <invalid bareword "08" | in expression "08"; | should be "$08" or "{08}" or "08(...)" or ... (invalid octal number?)> <NONE>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+1 <invalid character "$" | in expression "$"> <NONE>
+1 <wrong # args: should be "lindex list ?index...?"> <NONE>
+==== 8.5 stdin ====
+1 <wrong # args: should be "string subcommand ?argument ...?"> <NONE>
+1 <unknown or ambiguous subcommand "foo": must be bytelength, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND foo>
+1 <wrong # args: should be "lindex list ?index...?"> <NONE>
+1 <invalid bareword "08" | in expression "08"; | should be "$08" or "{08}" or "08(...)" or ... (invalid octal number?)> <NONE>
+1 <invalid bareword "08" | in expression "08"; | should be "$08" or "{08}" or "08(...)" or ... (invalid octal number?)> <NONE>
+1 <can't use invalid octal number as operand of "+"> <ARITH DOMAIN {invalid octal number}>
+1 <invalid character "$" | in expression "$"> <NONE>
+0 <1> <NONE>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+0 <Inf> <NONE>
+0 <-Inf> <NONE>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+0 <-Inf> <NONE>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+1 <expected number but got "x"> <TCL VALUE NUMBER>
+1 <can't use non-numeric string as operand of "+"> <ARITH DOMAIN {non-numeric string}>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+1 <can't use empty string as operand of "+"> <ARITH DOMAIN {empty string}>
+1 <can't use invalid octal number as operand of "+"> <ARITH DOMAIN {invalid octal number}>
+1 <can't use invalid octal number as operand of "*"> <ARITH DOMAIN {invalid octal number}>
+0 <Inf> <NONE>
+1 <expected floating-point number but got "x"> <TCL VALUE NUMBER>
+1 <expected number but got ""> <TCL VALUE NUMBER>
+1 <invalid character "$" | in expression "$ + 1"> <NONE>
+0 <$> <NONE>
+0 <b> <NONE>
+1 <wrong # args: should be "string subcommand ?argument ...?"> <NONE>
+1 <unknown or ambiguous subcommand "foo": must be bytelength, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND foo>
+1 <wrong # args: should be "lindex list ?index...?"> <NONE>
+1 <invalid bareword "08" | in expression "08"; | should be "$08" or "{08}" or "08(...)" or ... (invalid octal number?)> <NONE>
+1 <invalid bareword "08" | in expression "08"; | should be "$08" or "{08}" or "08(...)" or ... (invalid octal number?)> <NONE>
+1 <can't use invalid octal number as operand of "+"> <ARITH DOMAIN {invalid octal number}>
+1 <invalid character "$" | in expression "$"> <NONE>
+0 <1> <NONE>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+0 <Inf> <NONE>
+0 <-Inf> <NONE>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+0 <-Inf> <NONE>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+1 <expected number but got "x"> <TCL VALUE NUMBER>
+1 <can't use non-numeric string as operand of "+"> <ARITH DOMAIN {non-numeric string}>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+1 <can't use empty string as operand of "+"> <ARITH DOMAIN {empty string}>
+1 <can't use invalid octal number as operand of "+"> <ARITH DOMAIN {invalid octal number}>
+1 <can't use invalid octal number as operand of "*"> <ARITH DOMAIN {invalid octal number}>
+0 <Inf> <NONE>
+1 <expected floating-point number but got "x"> <TCL VALUE NUMBER>
+1 <expected number but got ""> <TCL VALUE NUMBER>
+1 <invalid character "$" | in expression "$ + 1"> <NONE>
+0 <$> <NONE>
+0 <b> <NONE>
+1 <invalid bareword "08" | in expression "08"; | should be "$08" or "{08}" or "08(...)" or ... (invalid octal number?)> <NONE>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+1 <invalid character "$" | in expression "$"> <NONE>
+1 <wrong # args: should be "lindex list ?index...?"> <NONE>
+==== 8.6 file ====
+1 <wrong # args: should be "string subcommand ?arg ...?"> <TCL WRONGARGS>
+1 <unknown or ambiguous subcommand "foo": must be bytelength, cat, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND foo>
+1 <wrong # args: should be "lindex list ?index ...?"> <TCL WRONGARGS>
+1 <invalid bareword "08" | in expression "08"; | should be "$08" or "{08}" or "08(...)" or ... (invalid octal number?)> <TCL PARSE EXPR BADNUMBER OCTAL>
+1 <invalid bareword "08" | in expression "08"; | should be "$08" or "{08}" or "08(...)" or ... (invalid octal number?)> <TCL PARSE EXPR BADNUMBER OCTAL>
+1 <can't use invalid octal number as operand of "+"> <ARITH DOMAIN {invalid octal number}>
+1 <invalid character "$" | in expression "$"> <TCL PARSE EXPR BADCHAR>
+0 <1> <NONE>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+0 <Inf> <NONE>
+0 <-Inf> <NONE>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+0 <-Inf> <NONE>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+1 <expected number but got "x"> <TCL VALUE NUMBER>
+1 <can't use non-numeric string as operand of "+"> <ARITH DOMAIN {non-numeric string}>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+1 <can't use empty string as operand of "+"> <ARITH DOMAIN {empty string}>
+1 <can't use invalid octal number as operand of "+"> <ARITH DOMAIN {invalid octal number}>
+1 <can't use invalid octal number as operand of "*"> <ARITH DOMAIN {invalid octal number}>
+0 <Inf> <NONE>
+1 <expected floating-point number but got "x"> <TCL VALUE NUMBER>
+1 <expected number but got ""> <TCL VALUE NUMBER>
+1 <invalid character "$" | in expression "$ + 1"> <TCL PARSE EXPR BADCHAR>
+0 <$> <NONE>
+0 <b> <NONE>
+1 <wrong # args: should be "string subcommand ?arg ...?"> <TCL WRONGARGS>
+1 <unknown or ambiguous subcommand "foo": must be bytelength, cat, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND foo>
+1 <wrong # args: should be "lindex list ?index ...?"> <TCL WRONGARGS>
+1 <invalid bareword "08" | in expression "08"; | should be "$08" or "{08}" or "08(...)" or ... (invalid octal number?)> <TCL PARSE EXPR BADNUMBER OCTAL>
+1 <invalid bareword "08" | in expression "08"; | should be "$08" or "{08}" or "08(...)" or ... (invalid octal number?)> <TCL PARSE EXPR BADNUMBER OCTAL>
+1 <can't use invalid octal number as operand of "+"> <ARITH DOMAIN {invalid octal number}>
+1 <invalid character "$" | in expression "$"> <TCL PARSE EXPR BADCHAR>
+0 <1> <NONE>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+0 <Inf> <NONE>
+0 <-Inf> <NONE>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+0 <-Inf> <NONE>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+1 <expected number but got "x"> <TCL VALUE NUMBER>
+1 <can't use non-numeric string as operand of "+"> <ARITH DOMAIN {non-numeric string}>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+1 <can't use empty string as operand of "+"> <ARITH DOMAIN {empty string}>
+1 <can't use invalid octal number as operand of "+"> <ARITH DOMAIN {invalid octal number}>
+1 <can't use invalid octal number as operand of "*"> <ARITH DOMAIN {invalid octal number}>
+0 <Inf> <NONE>
+1 <expected floating-point number but got "x"> <TCL VALUE NUMBER>
+1 <expected number but got ""> <TCL VALUE NUMBER>
+1 <invalid character "$" | in expression "$ + 1"> <TCL PARSE EXPR BADCHAR>
+0 <$> <NONE>
+0 <b> <NONE>
+1 <invalid bareword "08" | in expression "08"; | should be "$08" or "{08}" or "08(...)" or ... (invalid octal number?)> <TCL PARSE EXPR BADNUMBER OCTAL>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+1 <invalid character "$" | in expression "$"> <TCL PARSE EXPR BADCHAR>
+1 <wrong # args: should be "lindex list ?index ...?"> <TCL WRONGARGS>
+==== 8.6 stdin ====
+1 <wrong # args: should be "string subcommand ?arg ...?"> <TCL WRONGARGS>
+1 <unknown or ambiguous subcommand "foo": must be bytelength, cat, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND foo>
+1 <wrong # args: should be "lindex list ?index ...?"> <TCL WRONGARGS>
+1 <invalid bareword "08" | in expression "08"; | should be "$08" or "{08}" or "08(...)" or ... (invalid octal number?)> <TCL PARSE EXPR BADNUMBER OCTAL>
+1 <invalid bareword "08" | in expression "08"; | should be "$08" or "{08}" or "08(...)" or ... (invalid octal number?)> <TCL PARSE EXPR BADNUMBER OCTAL>
+1 <can't use invalid octal number as operand of "+"> <ARITH DOMAIN {invalid octal number}>
+1 <invalid character "$" | in expression "$"> <TCL PARSE EXPR BADCHAR>
+0 <1> <NONE>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+0 <Inf> <NONE>
+0 <-Inf> <NONE>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+0 <-Inf> <NONE>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+1 <expected number but got "x"> <TCL VALUE NUMBER>
+1 <can't use non-numeric string as operand of "+"> <ARITH DOMAIN {non-numeric string}>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+1 <can't use empty string as operand of "+"> <ARITH DOMAIN {empty string}>
+1 <can't use invalid octal number as operand of "+"> <ARITH DOMAIN {invalid octal number}>
+1 <can't use invalid octal number as operand of "*"> <ARITH DOMAIN {invalid octal number}>
+0 <Inf> <NONE>
+1 <expected floating-point number but got "x"> <TCL VALUE NUMBER>
+1 <expected number but got ""> <TCL VALUE NUMBER>
+1 <invalid character "$" | in expression "$ + 1"> <TCL PARSE EXPR BADCHAR>
+0 <$> <NONE>
+0 <b> <NONE>
+1 <wrong # args: should be "string subcommand ?arg ...?"> <TCL WRONGARGS>
+1 <unknown or ambiguous subcommand "foo": must be bytelength, cat, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND foo>
+1 <wrong # args: should be "lindex list ?index ...?"> <TCL WRONGARGS>
+1 <invalid bareword "08" | in expression "08"; | should be "$08" or "{08}" or "08(...)" or ... (invalid octal number?)> <TCL PARSE EXPR BADNUMBER OCTAL>
+1 <invalid bareword "08" | in expression "08"; | should be "$08" or "{08}" or "08(...)" or ... (invalid octal number?)> <TCL PARSE EXPR BADNUMBER OCTAL>
+1 <can't use invalid octal number as operand of "+"> <ARITH DOMAIN {invalid octal number}>
+1 <invalid character "$" | in expression "$"> <TCL PARSE EXPR BADCHAR>
+0 <1> <NONE>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+0 <Inf> <NONE>
+0 <-Inf> <NONE>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+0 <-Inf> <NONE>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+1 <expected number but got "x"> <TCL VALUE NUMBER>
+1 <can't use non-numeric string as operand of "+"> <ARITH DOMAIN {non-numeric string}>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+1 <can't use empty string as operand of "+"> <ARITH DOMAIN {empty string}>
+1 <can't use invalid octal number as operand of "+"> <ARITH DOMAIN {invalid octal number}>
+1 <can't use invalid octal number as operand of "*"> <ARITH DOMAIN {invalid octal number}>
+0 <Inf> <NONE>
+1 <expected floating-point number but got "x"> <TCL VALUE NUMBER>
+1 <expected number but got ""> <TCL VALUE NUMBER>
+1 <invalid character "$" | in expression "$ + 1"> <TCL PARSE EXPR BADCHAR>
+0 <$> <NONE>
+0 <b> <NONE>
+1 <invalid bareword "08" | in expression "08"; | should be "$08" or "{08}" or "08(...)" or ... (invalid octal number?)> <TCL PARSE EXPR BADNUMBER OCTAL>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+1 <invalid character "$" | in expression "$"> <TCL PARSE EXPR BADCHAR>
+1 <wrong # args: should be "lindex list ?index ...?"> <TCL WRONGARGS>
+==== 9.0 file ====
+1 <wrong # args: should be "string subcommand ?arg ...?"> <TCL WRONGARGS>
+1 <unknown or ambiguous subcommand "foo": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND foo>
+1 <wrong # args: should be "lindex list ?index ...?"> <TCL WRONGARGS>
+0 <8> <NONE>
+0 <8> <NONE>
+0 <9> <NONE>
+1 <invalid character "$" | in expression "$"> <TCL PARSE EXPR BADCHAR>
+0 <1> <NONE>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+0 <Inf> <NONE>
+0 <-Inf> <NONE>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+0 <-Inf> <NONE>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+1 <expected number but got "x"> <TCL VALUE NUMBER>
+1 <cannot use non-numeric string "x" as left operand of "+"> <ARITH DOMAIN {non-numeric string}>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+1 <cannot use non-numeric string "" as left operand of "+"> <ARITH DOMAIN {non-numeric string}>
+1 <cannot use non-numeric string "0o8" as left operand of "+"> <ARITH DOMAIN {non-numeric string}>
+0 <-16> <NONE>
+0 <Inf> <NONE>
+1 <expected floating-point number but got "x"> <TCL VALUE NUMBER>
+1 <expected number but got ""> <TCL VALUE NUMBER>
+1 <invalid character "$" | in expression "$ + 1"> <TCL PARSE EXPR BADCHAR>
+0 <$> <NONE>
+0 <b> <NONE>
+1 <wrong # args: should be "string subcommand ?arg ...?"> <TCL WRONGARGS>
+1 <unknown or ambiguous subcommand "foo": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND foo>
+1 <wrong # args: should be "lindex list ?index ...?"> <TCL WRONGARGS>
+0 <8> <NONE>
+0 <8> <NONE>
+0 <9> <NONE>
+1 <invalid character "$" | in expression "$"> <TCL PARSE EXPR BADCHAR>
+0 <1> <NONE>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+0 <Inf> <NONE>
+0 <-Inf> <NONE>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+0 <-Inf> <NONE>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+1 <expected number but got "x"> <TCL VALUE NUMBER>
+1 <cannot use non-numeric string "x" as left operand of "+"> <ARITH DOMAIN {non-numeric string}>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+1 <cannot use non-numeric string "" as left operand of "+"> <ARITH DOMAIN {non-numeric string}>
+1 <cannot use non-numeric string "0o8" as left operand of "+"> <ARITH DOMAIN {non-numeric string}>
+0 <-16> <NONE>
+0 <Inf> <NONE>
+1 <expected floating-point number but got "x"> <TCL VALUE NUMBER>
+1 <expected number but got ""> <TCL VALUE NUMBER>
+1 <invalid character "$" | in expression "$ + 1"> <TCL PARSE EXPR BADCHAR>
+0 <$> <NONE>
+0 <b> <NONE>
+0 <8> <NONE>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+1 <invalid character "$" | in expression "$"> <TCL PARSE EXPR BADCHAR>
+1 <wrong # args: should be "lindex list ?index ...?"> <TCL WRONGARGS>
+==== 9.0 stdin ====
+1 <wrong # args: should be "string subcommand ?arg ...?"> <TCL WRONGARGS>
+1 <unknown or ambiguous subcommand "foo": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND foo>
+1 <wrong # args: should be "lindex list ?index ...?"> <TCL WRONGARGS>
+0 <8> <NONE>
+0 <8> <NONE>
+0 <9> <NONE>
+1 <invalid character "$" | in expression "$"> <TCL PARSE EXPR BADCHAR>
+0 <1> <NONE>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+0 <Inf> <NONE>
+0 <-Inf> <NONE>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+0 <-Inf> <NONE>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+1 <expected number but got "x"> <TCL VALUE NUMBER>
+1 <cannot use non-numeric string "x" as left operand of "+"> <ARITH DOMAIN {non-numeric string}>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+1 <cannot use non-numeric string "" as left operand of "+"> <ARITH DOMAIN {non-numeric string}>
+1 <cannot use non-numeric string "0o8" as left operand of "+"> <ARITH DOMAIN {non-numeric string}>
+0 <-16> <NONE>
+0 <Inf> <NONE>
+1 <expected floating-point number but got "x"> <TCL VALUE NUMBER>
+1 <expected number but got ""> <TCL VALUE NUMBER>
+1 <invalid character "$" | in expression "$ + 1"> <TCL PARSE EXPR BADCHAR>
+0 <$> <NONE>
+0 <b> <NONE>
+1 <wrong # args: should be "string subcommand ?arg ...?"> <TCL WRONGARGS>
+1 <unknown or ambiguous subcommand "foo": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND foo>
+1 <wrong # args: should be "lindex list ?index ...?"> <TCL WRONGARGS>
+0 <8> <NONE>
+0 <8> <NONE>
+0 <9> <NONE>
+1 <invalid character "$" | in expression "$"> <TCL PARSE EXPR BADCHAR>
+0 <1> <NONE>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+0 <Inf> <NONE>
+0 <-Inf> <NONE>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+0 <-Inf> <NONE>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+1 <expected number but got "x"> <TCL VALUE NUMBER>
+1 <cannot use non-numeric string "x" as left operand of "+"> <ARITH DOMAIN {non-numeric string}>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+1 <cannot use non-numeric string "" as left operand of "+"> <ARITH DOMAIN {non-numeric string}>
+1 <cannot use non-numeric string "0o8" as left operand of "+"> <ARITH DOMAIN {non-numeric string}>
+0 <-16> <NONE>
+0 <Inf> <NONE>
+1 <expected floating-point number but got "x"> <TCL VALUE NUMBER>
+1 <expected number but got ""> <TCL VALUE NUMBER>
+1 <invalid character "$" | in expression "$ + 1"> <TCL PARSE EXPR BADCHAR>
+0 <$> <NONE>
+0 <b> <NONE>
+0 <8> <NONE>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+1 <invalid character "$" | in expression "$"> <TCL PARSE EXPR BADCHAR>
+1 <wrong # args: should be "lindex list ?index ...?"> <TCL WRONGARGS>
+==== 9.1 file ====
+1 <wrong # args: should be "string subcommand ?arg ...?"> <TCL WRONGARGS>
+1 <unknown or ambiguous subcommand "foo": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND foo>
+1 <wrong # args: should be "lindex list ?index ...?"> <TCL WRONGARGS>
+0 <8> <NONE>
+0 <8> <NONE>
+0 <9> <NONE>
+1 <invalid character "$" | in expression "$"> <TCL PARSE EXPR BADCHAR>
+0 <1> <NONE>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+0 <Inf> <NONE>
+0 <-Inf> <NONE>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+0 <-Inf> <NONE>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+1 <expected number but got "x"> <TCL VALUE NUMBER>
+1 <cannot use non-numeric string "x" as left operand of "+"> <ARITH DOMAIN {non-numeric string}>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+1 <cannot use non-numeric string "" as left operand of "+"> <ARITH DOMAIN {non-numeric string}>
+1 <cannot use non-numeric string "0o8" as left operand of "+"> <ARITH DOMAIN {non-numeric string}>
+0 <-16> <NONE>
+0 <Inf> <NONE>
+1 <expected floating-point number but got "x"> <TCL VALUE NUMBER>
+1 <expected number but got ""> <TCL VALUE NUMBER>
+1 <invalid character "$" | in expression "$ + 1"> <TCL PARSE EXPR BADCHAR>
+0 <$> <NONE>
+0 <b> <NONE>
+1 <wrong # args: should be "string subcommand ?arg ...?"> <TCL WRONGARGS>
+1 <unknown or ambiguous subcommand "foo": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND foo>
+1 <wrong # args: should be "lindex list ?index ...?"> <TCL WRONGARGS>
+0 <8> <NONE>
+0 <8> <NONE>
+0 <9> <NONE>
+1 <invalid character "$" | in expression "$"> <TCL PARSE EXPR BADCHAR>
+0 <1> <NONE>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+0 <Inf> <NONE>
+0 <-Inf> <NONE>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+0 <-Inf> <NONE>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+1 <expected number but got "x"> <TCL VALUE NUMBER>
+1 <cannot use non-numeric string "x" as left operand of "+"> <ARITH DOMAIN {non-numeric string}>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+1 <cannot use non-numeric string "" as left operand of "+"> <ARITH DOMAIN {non-numeric string}>
+1 <cannot use non-numeric string "0o8" as left operand of "+"> <ARITH DOMAIN {non-numeric string}>
+0 <-16> <NONE>
+0 <Inf> <NONE>
+1 <expected floating-point number but got "x"> <TCL VALUE NUMBER>
+1 <expected number but got ""> <TCL VALUE NUMBER>
+1 <invalid character "$" | in expression "$ + 1"> <TCL PARSE EXPR BADCHAR>
+0 <$> <NONE>
+0 <b> <NONE>
+0 <8> <NONE>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+1 <invalid character "$" | in expression "$"> <TCL PARSE EXPR BADCHAR>
+1 <wrong # args: should be "lindex list ?index ...?"> <TCL WRONGARGS>
+==== 9.1 stdin ====
+1 <wrong # args: should be "string subcommand ?arg ...?"> <TCL WRONGARGS>
+1 <unknown or ambiguous subcommand "foo": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND foo>
+1 <wrong # args: should be "lindex list ?index ...?"> <TCL WRONGARGS>
+0 <8> <NONE>
+0 <8> <NONE>
+0 <9> <NONE>
+1 <invalid character "$" | in expression "$"> <TCL PARSE EXPR BADCHAR>
+0 <1> <NONE>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+0 <Inf> <NONE>
+0 <-Inf> <NONE>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+0 <-Inf> <NONE>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+1 <expected number but got "x"> <TCL VALUE NUMBER>
+1 <cannot use non-numeric string "x" as left operand of "+"> <ARITH DOMAIN {non-numeric string}>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+1 <cannot use non-numeric string "" as left operand of "+"> <ARITH DOMAIN {non-numeric string}>
+1 <cannot use non-numeric string "0o8" as left operand of "+"> <ARITH DOMAIN {non-numeric string}>
+0 <-16> <NONE>
+0 <Inf> <NONE>
+1 <expected floating-point number but got "x"> <TCL VALUE NUMBER>
+1 <expected number but got ""> <TCL VALUE NUMBER>
+1 <invalid character "$" | in expression "$ + 1"> <TCL PARSE EXPR BADCHAR>
+0 <$> <NONE>
+0 <b> <NONE>
+1 <wrong # args: should be "string subcommand ?arg ...?"> <TCL WRONGARGS>
+1 <unknown or ambiguous subcommand "foo": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart> <TCL LOOKUP SUBCOMMAND foo>
+1 <wrong # args: should be "lindex list ?index ...?"> <TCL WRONGARGS>
+0 <8> <NONE>
+0 <8> <NONE>
+0 <9> <NONE>
+1 <invalid character "$" | in expression "$"> <TCL PARSE EXPR BADCHAR>
+0 <1> <NONE>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+0 <Inf> <NONE>
+0 <-Inf> <NONE>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+0 <-Inf> <NONE>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+1 <expected number but got "x"> <TCL VALUE NUMBER>
+1 <cannot use non-numeric string "x" as left operand of "+"> <ARITH DOMAIN {non-numeric string}>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+1 <cannot use non-numeric string "" as left operand of "+"> <ARITH DOMAIN {non-numeric string}>
+1 <cannot use non-numeric string "0o8" as left operand of "+"> <ARITH DOMAIN {non-numeric string}>
+0 <-16> <NONE>
+0 <Inf> <NONE>
+1 <expected floating-point number but got "x"> <TCL VALUE NUMBER>
+1 <expected number but got ""> <TCL VALUE NUMBER>
+1 <invalid character "$" | in expression "$ + 1"> <TCL PARSE EXPR BADCHAR>
+0 <$> <NONE>
+0 <b> <NONE>
+0 <8> <NONE>
+1 <divide by zero> <ARITH DIVZERO {divide by zero}>
+0 <Inf> <NONE>
+0 <Inf> <NONE>
+1 <invalid character "$" | in expression "$"> <TCL PARSE EXPR BADCHAR>
+1 <wrong # args: should be "lindex list ?index ...?"> <TCL WRONGARGS>
