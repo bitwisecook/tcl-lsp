@@ -1,0 +1,21 @@
+{
+  "patch_sha256": "57e91d93f870c35425e65689d912625e43f2b7a4aff5fcf5eb9faf09125e5e03",
+  "files": [
+    {
+      "path": "rust/tcl-registry/src/resolved_invocation.rs",
+      "base_sha256": "3f4882b1ac847352ec9f219f38a784697b5f7354c9c4925e1dd9830f550a2507",
+      "proposed_sha256": "f5635342aa2b79863ddbdb85af2c7505b0930533ba0d03901e243f0893a7d881"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/declaration_assistance.rs",
+      "base_sha256": "0a4654140134732db71ba629a0c3239c2cb7829a423adbdc389117fba52b1e91",
+      "proposed_sha256": "9dc8172443e3899e260a9e490b2552e841742169a54dade606ac03f67166a3c7"
+    }
+  ],
+  "validation": {
+    "rustfmt": "parsed both isolated files",
+    "patch_dry_run": "clean",
+    "cargo": "not run; root owns Cargo/main; production freeze respected",
+    "native_source_provenance": "source-provenance.json; all five C native probes agree, independent of Rust test status"
+  }
+}

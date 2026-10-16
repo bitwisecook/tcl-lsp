@@ -1,13 +1,13 @@
 # Centralised name handling on work
 
-Implementation has resumed from `554085e`. **98 baseline units** have reviewed
-implementation pending validation: 44 code units and all 54 authored-documentation
+Implementation has resumed from `554085e`. **103 baseline units** have reviewed
+implementation pending validation: 49 code units and all 54 authored-documentation
 units. **Zero units are verified complete**. Baseline counts remain **2,158**;
-2,060 baseline units have no integrated implementation. The bounded
+2,055 baseline units have no integrated implementation. The bounded
 [owner/caller annex](implementation-owner-annex.json) adds **28 demonstrated
 requirements**, all 28 of which have integrated implementation pending validation.
-Effective scope is **2,186 obligations**, with **126 integrated pending validation**
-and **2,060 not integrated**. These counts establish neither semantic acceptance
+Effective scope is **2,186 obligations**, with **131 integrated pending validation**
+and **2,055 not integrated**. These counts establish neither semantic acceptance
 nor completed gates.
 
 Development checkpoint `2d5823c90` is pushed to `work`. Its fresh ordinary
@@ -95,3 +95,9 @@ queries are 16 PASS and info controls 44 PASS. Availability diagnostic after
 restoring the bounded payload set reports 2,291 errors, zero missing files and
 zero unbound annotations. Source integration occurred during that run, so it
 is not immutable-source gate acceptance; evidence/census drift remains open.
+
+Five further baseline CLI/MCP boundaries adopt the existing emitter roster,
+actual report context status and optional shared dialect schema. Their target
+tests remain unexecuted. Logical alias applicability stays within baseline owner
+680; no extra owner requirement is counted. New pure-gap/body-descent corrections
+are source-reviewed and the successor seven-library test build is running.

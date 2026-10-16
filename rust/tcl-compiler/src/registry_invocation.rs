@@ -6279,22 +6279,21 @@ impl InvocationBodyAssistance {
     /// The actual original descriptor decides whether this script operand
     /// inherits the caller source context. A deferred/fresh-frame body cannot
     /// donate its locals to the enclosing procedure's parameter template.
-    pub(crate) fn logical_trait_body_inherits_caller(&self, argument: usize) -> Option<bool> {
+    pub(crate) fn logical_trait_caller_body(
+        &self,
+        argument: usize,
+    ) -> Option<OriginalSourceScriptBody> {
         let owned = self.logical_trait_invocation.as_ref()?;
         let word = owned.words.original_argument_word(argument)?;
         let context = owned.input.borrowed_context_registry();
-        let bodies = owned
+        let mut bodies = owned
             .words
             .source_script_bodies(context)
             .into_iter()
-            .filter(|body| body.original_container() == word)
-            .collect::<Vec<_>>();
-        (!bodies.is_empty()).then_some(())?;
-        Some(
-            bodies
-                .iter()
-                .all(|body| body.inherits_immediate_caller_source_context(context)),
-        )
+            .filter(|body| body.original_container() == word);
+        let body = bodies.next()?;
+        (bodies.next().is_none() && body.inherits_immediate_caller_source_context(context))
+            .then_some(body)
     }
 
     /// Symbolic local-copy and alias traits use the declaration's original

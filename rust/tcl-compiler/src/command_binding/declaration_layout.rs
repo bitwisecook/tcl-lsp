@@ -1706,6 +1706,7 @@ enum DeclarationSourceOperandLayoutKind {
 }
 
 impl DeclarationSourceOperandLayoutAdvice {
+    #[cfg(test)]
     pub(crate) fn dialect(&self) -> tcl_registry::InvocationDialect {
         match &self.kind {
             DeclarationSourceOperandLayoutKind::Original(advice) => advice.dialect(),
@@ -1836,6 +1837,7 @@ pub(crate) struct DeclarationSourceVariableOperandAdvice {
 }
 
 impl DeclarationSourceVariableOperandAdvice {
+    #[cfg(test)]
     pub(crate) fn name(&self) -> &str {
         &self.name
     }
@@ -4109,7 +4111,7 @@ mod tests {
         assert!(advice.current_advice(&tokens).is_some());
 
         let mut changed_world = bindings.clone();
-        Arc::make_mut(&mut changed_world.final_state).mark_opaque_binding_mutation();
+        std::sync::Arc::make_mut(&mut changed_world.final_state).mark_opaque_binding_mutation();
         let mut changed_world_tokens = tokens.clone();
         changed_world.stamp_original_tokens(&mut changed_world_tokens);
         assert!(advice.current_advice(&changed_world_tokens).is_none());
@@ -4145,7 +4147,8 @@ mod tests {
         );
         assert!(advice.current_advice(&other_tokens).is_none());
 
-        let DeclarationSourceOperandLayoutKind::Configured { layout, cache, .. } = &advice.kind
+        let super::DeclarationSourceOperandLayoutKind::Configured { layout, cache, .. } =
+            &advice.kind
         else {
             panic!("distinct source-only mapped carrier");
         };

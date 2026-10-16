@@ -1,0 +1,40 @@
+Tcl_GlobalObjCmd(dummy, interp, objc, objv)
+    ClientData dummy;		/* Not used. */
+    Tcl_Interp *interp;		/* Current interpreter. */
+    int objc;			/* Number of arguments. */
+    Tcl_Obj *CONST objv[];	/* Argument objects. */
+{
+    Interp *iPtr = (Interp *) interp;
+    register Tcl_Obj *objPtr;
+    char *varName;
+    register char *tail;
+    int result, i;
+
+    if (objc < 2) {
+	Tcl_WrongNumArgs(interp, 1, objv, "varName ?varName ...?");
+	return TCL_ERROR;
+    }
+
+    /*
+     * If we are not executing inside a Tcl procedure, just return.
+     */
+    
+    if ((iPtr->varFramePtr == NULL)
+	    || !iPtr->varFramePtr->isProcCallFrame) {
+	return TCL_OK;
+    }
+
+    for (i = 1;  i < objc;  i++) {
+	/*
+	 * Make a local variable linked to its counterpart in the global ::
+	 * namespace.
+	 */
+	
+	objPtr = objv[i];
+	varName = TclGetString(objPtr);
+
+	/*
+	 * The variable name might have a scope qualifier, but the name for
+         * the local "link" variable must be the simple name at the tail.
+	 */
+

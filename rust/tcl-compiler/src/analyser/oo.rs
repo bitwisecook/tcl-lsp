@@ -1435,7 +1435,7 @@ impl Analyser {
         let Some(word) = words.get(name_ordinal) else {
             return;
         };
-        if tcl_syntax::word_rules::original_static_word_ascii_presentation(word).as_deref()
+        if tcl_syntax::word_rules::original_static_word_unicode_value(word).as_deref()
             != Some(name.as_bytes())
         {
             return;

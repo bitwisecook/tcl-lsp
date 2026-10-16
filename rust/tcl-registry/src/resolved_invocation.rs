@@ -2577,6 +2577,43 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
         )
     }
 
+    /// Alias destination applicability in an independently retained Logical
+    /// Tcl source frame. The actual selected source descriptor must contain
+    /// this destination. Unversioned Tcl uses unanimous authored release
+    /// policies here; it does not acquire an execution policy, entered frame,
+    /// completed link or ordinary absence proof.
+    #[must_use]
+    pub fn authored_logical_source_alias_destination_is_active_in_frame(
+        &self,
+        destination: crate::VariableAliasDestination,
+        frame: crate::VariableAliasFrame,
+    ) -> Option<bool> {
+        let dialect = self.words.arguments().dialect()?;
+        if dialect.family() != Some(tcl_dialect::model::Family::Tcl)
+            || dialect.native_name_protocol().is_some()
+            || dialect.core_point.is_some()
+            || dialect.tcl_version.is_some()
+            || dialect.variable_lookup_policy.is_some()
+            || self.facts().arity_accepts_frozen_arguments() != Some(true)
+            || !self
+                .authored_logical_source_variable_aliases()?
+                .iter()
+                .any(|alias| alias.destination == destination)
+        {
+            return None;
+        }
+        let mut agreed = None;
+        for version in tcl_dialect::TclVersion::ALL {
+            let active = destination
+                .is_active_in_frame(frame, crate::InvocationDialect::for_version(version))?;
+            if agreed.is_some_and(|previous| previous != active) {
+                return None;
+            }
+            agreed = Some(active);
+        }
+        agreed
+    }
+
     /// Selected ordinary result-only return metadata preserves lexical
     /// binding names in the separate Logical authoring model. Zero or one
     /// exact result operand has no option fields. This source purpose does
@@ -11127,6 +11164,89 @@ mod logical_source_alias_projection_tests {
             );
         }
     }
+    #[test]
+    fn logical_alias_destination_applicability_retains_source_purpose_and_unknown_frames() {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let context = crate::model::ingress::context_for_profile(profile);
+        let dialect = crate::InvocationDialect::of_profile(profile);
+        assert_eq!(dialect.variable_lookup_policy, None);
+        let arguments = [crate::InvocationWord::Dynamic];
+        let selected = crate::model::assembly::resolve_structured_invocation_in_resolved_context(
+            context.commands(),
+            Some(context.context()),
+            crate::InvocationWords::structured(
+                crate::InvocationWord::Literal("global"),
+                &arguments,
+            )
+            .with_dialect(dialect),
+            tcl_dialect::model::InvocationRealm::RuleLoader,
+        );
+        let schema = selected.resolved().unwrap();
+        let original = schema.state_transitions();
+        let aliases = schema.authored_logical_source_variable_aliases().unwrap();
+        let [alias] = aliases.as_slice() else {
+            panic!("actual selected source alias");
+        };
+        assert_eq!(
+            alias.destination,
+            crate::VariableAliasDestination::ProcedureLocal
+        );
+        assert_eq!(
+            alias
+                .destination
+                .is_active_in_frame(crate::VariableAliasFrame::Namespace, dialect),
+            None
+        );
+        for (frame, expected) in [
+            (crate::VariableAliasFrame::Global, Some(false)),
+            (crate::VariableAliasFrame::Namespace, Some(false)),
+            (crate::VariableAliasFrame::Procedure, Some(true)),
+            (crate::VariableAliasFrame::Unknown, None),
+        ] {
+            assert_eq!(
+                schema.authored_logical_source_alias_destination_is_active_in_frame(
+                    alias.destination,
+                    frame,
+                ),
+                expected
+            );
+        }
+        assert_eq!(
+            schema.authored_logical_source_alias_destination_is_active_in_frame(
+                crate::VariableAliasDestination::CurrentNamespaceOrLocal,
+                crate::VariableAliasFrame::Namespace,
+            ),
+            None,
+            "a different destination has no selected descriptor receipt"
+        );
+        assert_eq!(schema.state_transitions(), original);
+        assert_eq!(dialect.variable_lookup_policy, None);
+
+        let native = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+        let selected_native =
+            crate::model::assembly::resolve_structured_invocation_in_resolved_context(
+                context.commands(),
+                Some(context.context()),
+                crate::InvocationWords::structured(
+                    crate::InvocationWord::Literal("global"),
+                    &arguments,
+                )
+                .with_dialect(native),
+                tcl_dialect::model::InvocationRealm::RuleLoader,
+            );
+        assert_eq!(
+            selected_native
+                .resolved()
+                .unwrap()
+                .authored_logical_source_alias_destination_is_active_in_frame(
+                    alias.destination,
+                    crate::VariableAliasFrame::Namespace,
+                ),
+            None,
+            "a Native dialect cannot enter the Logical-only facade"
+        );
+    }
+
     #[test]
     fn dictionary_source_phase_keeps_generic_unknown_and_additional_effects() {
         let profile = tcl_dialect::DialectProfile::plain_tcl();

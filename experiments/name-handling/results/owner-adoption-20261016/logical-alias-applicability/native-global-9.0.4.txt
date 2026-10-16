@@ -1,0 +1,40 @@
+Tcl_GlobalObjCmd(
+    TCL_UNUSED(void *),
+    Tcl_Interp *interp,		/* Current interpreter. */
+    int objc,			/* Number of arguments. */
+    Tcl_Obj *const objv[])	/* Argument objects. */
+{
+    Interp *iPtr = (Interp *) interp;
+    Tcl_Obj *objPtr, *tailPtr;
+    const char *varName;
+    const char *tail;
+    int result;
+	int i;
+
+    /*
+     * If we are not executing inside a Tcl procedure, just return.
+     */
+
+    if (!HasLocalVars(iPtr->varFramePtr)) {
+	return TCL_OK;
+    }
+
+    for (i=1 ; i<objc ; i++) {
+	/*
+	 * Make a local variable linked to its counterpart in the global ::
+	 * namespace.
+	 */
+
+	objPtr = objv[i];
+	varName = TclGetString(objPtr);
+
+	/*
+	 * The variable name might have a scope qualifier, but the name for
+	 * the local "link" variable must be the simple name at the tail.
+	 */
+
+	for (tail=varName ; *tail!='\0' ; tail++) {
+	    /* empty body */
+	}
+	while ((tail > varName) && ((tail[0] != ':') || (tail[-1] != ':'))) {
+	    tail--;

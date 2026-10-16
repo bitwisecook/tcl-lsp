@@ -1,0 +1,22 @@
+{
+  "basis": "Bounded source/tracking check only; no repository or Cargo changes.",
+  "baseline": {"checkpoint": "554085e162823ea8bd126898d0c27b7b2a9f8628", "required_changes": 2158, "integrated_units_reported_before_queued_tooling": 98},
+  "logical_alias_applicability": {
+    "patch": "/tmp/compiler-logical-alias-applicability/logical-alias-applicability.patch",
+    "current_symbols": [
+      {"path": "rust/tcl-registry/src/resolved_invocation.rs", "symbol": "ResolvedInvocation::authored_logical_source_alias_destination_is_active_in_frame"},
+      {"path": "rust/tcl-compiler/src/registry_invocation/declaration_assistance.rs", "symbol": "original_declaration_assistance; authored_logical_source_alias_destination_is_active_in_frame call"}
+    ],
+    "recommendation": "Do not add a distinct annex obligation or increment baseline. This is within compiler.source.logical-variable-scope-transport:680, whose required_change explicitly includes preserving unknown/alias/local symbol applicability while reborrowing original Logical body/frame/source scope. Existing declaration_assistance caller remains the same caller; Registry query is a purpose-correct realization of that owner contract, not a separate caller.",
+    "evidence_boundary": "Five pinned original Tcl C-source probes are recorded in the patch packet; Rust tests were not run by author. No Rust execution claim."
+  },
+  "tooling_ids": [
+    {"id": "root:registry.bigip-emitter-kind-roster:74:0", "status": "not_marked_integrated; source defect remains", "anchor": "rust/f5-cli/src/commands/tmsh.rs::VALID_KINDS"},
+    {"id": "root:mcp.naming-context-status:176:0", "status": "not_marked_integrated; source defect remains", "anchor": "rust/tcl-mcp/src/tools.rs::validate_with"},
+    {"id": "root:mcp.naming-context-status:177:0", "status": "not_marked_integrated; source defect remains", "anchor": "rust/tcl-mcp/src/tools.rs::review_with"},
+    {"id": "root:mcp.naming-context-status:178:0", "status": "not_marked_integrated; source defect remains", "anchor": "rust/tcl-mcp/src/tools.rs::find_legacy_with"},
+    {"id": "root:mcp.extract-variable-dialect-schema:192:0", "status": "not_marked_integrated; source defect remains", "anchor": "rust/tcl-mcp/src/tools.rs::extract_variable ToolDef"}
+  ],
+  "tracking_basis": "None of the five IDs occurs in current consumer-progress entries or implementation-owner-annex. Aggregate tracking reports 98 implemented-pending-validation but does not provide the complete ID list, so absence is stated as not marked integrated, corroborated by current source defects.",
+  "count_effect": "No count change: alias work maps to existing baseline owner; five tooling items are already baseline obligations within 2158, not additional work."
+}

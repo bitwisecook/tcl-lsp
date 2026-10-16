@@ -336,6 +336,7 @@ pub(super) struct OriginalDeclarationSourceOperandLayout {
 }
 
 impl OriginalDeclarationSourceOperandLayout {
+    #[cfg(test)]
     pub(super) const fn dialect(&self) -> tcl_registry::InvocationDialect {
         self.dialect
     }

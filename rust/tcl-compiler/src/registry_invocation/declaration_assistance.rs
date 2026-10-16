@@ -298,17 +298,21 @@ impl OriginalSourceVariableAliasOperands {
                     tcl_registry::VariableAliasFrame::Unknown
                 }
             });
-        Some(
-            self.logical_name_obligations
-                .iter()
-                .filter_map(|&(span, destination)| {
-                    (destination
-                        .and_then(|destination| destination.is_active_in_frame(frame, dialect))
-                        != Some(false))
-                    .then_some(span)
-                })
-                .collect(),
-        )
+        self.words
+            .with_source_schema(input.borrowed_context_registry(), |schema| {
+                self.logical_name_obligations
+                    .iter()
+                    .filter_map(|&(span, destination)| {
+                        (destination.and_then(|destination| {
+                            schema.authored_logical_source_alias_destination_is_active_in_frame(
+                                destination,
+                                frame,
+                            )
+                        }) != Some(false))
+                        .then_some(span)
+                    })
+                    .collect()
+            })
     }
 
     pub(crate) fn invocation_offset(&self) -> Option<u32> {
@@ -748,6 +752,49 @@ mod original_alias_source_schema_tests {
                 input.borrowed_context_registry(),
             )
             .expect("original unresolved alias naming receipt");
+            if source == "namespace eval N {global $unknown}" {
+                let head = aliases
+                    .words
+                    .head_source()
+                    .and_then(|head| head.word())
+                    .unwrap();
+                let super::super::source_structure::OriginalRegistrySource::SourceTransitions(
+                    advice,
+                ) = aliases.words.source()
+                else {
+                    panic!("actual original Logical alias declaration source");
+                };
+                let dialect = advice.dialect();
+                let policy = dialect.authored_name_policy().unwrap();
+                let purpose = crate::signature_scan::original_name::OriginalSourceNamePurpose::for_analysis_input(
+                    &input, None, policy,
+                );
+                let key = purpose
+                    .key(
+                        head,
+                        tcl_syntax::word_rules::WordValueRules::from_config(&input.lexer_config()),
+                    )
+                    .unwrap();
+                let scope = realm
+                    .original_logical_variable_scope_at(
+                        &input,
+                        head.image(),
+                        head.span(),
+                        &crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(key),
+                    )
+                    .expect("genuine independent original namespace source frame");
+                assert!(matches!(
+                    scope.alias_frame().unwrap().frame().layout(),
+                    crate::var_resolve::VariableExecutionFrame::NamespaceActivation { .. }
+                ));
+                assert_eq!(dialect.variable_lookup_policy, None);
+                assert_eq!(
+                    tcl_registry::VariableAliasDestination::ProcedureLocal
+                        .is_active_in_frame(tcl_registry::VariableAliasFrame::Namespace, dialect,),
+                    None,
+                    "source geometry must not supply the missing execution policy"
+                );
+            }
             let spans = aliases
                 .unresolved_logical_name_spans(&input, realm)
                 .expect("genuine complete original input and source frame");

@@ -1107,6 +1107,22 @@ continuity obligations; readonly reference association is distinct from an
 executed alias, physical cell or complete edit set. Rename refuses a conditional
 anchor and retains original coverage, source-container and collision checks.
 
+`ResolvedInvocation::authored_logical_source_alias_destination_is_active_in_frame`
+classifies only a destination present in the actual selected unversioned Tcl
+source alias descriptor with accepted original argv cardinality. It requires
+no Native point, release, name protocol or execution variable-lookup policy,
+and asks the existing `VariableAliasDestination` classifier under all five
+C Tcl release policy records. Only unanimous results supply conditional source
+applicability. The Compiler rechecks the complete current input, original
+image, full lexer configuration, ContextRegistry and realm, and obtains the
+activation class from its independently retained Logical source scope. Missing
+scope or unknown applicability keeps the source alias-name obligation; only
+`Some(false)` removes that destination's obligation. The ordinary plain Logical
+lookup policy remains unavailable. This query supplies no Native policy,
+entered frame, installed alias, physical cell, ordinary absence or Normal
+completion. Original operand evaluation, observers and earlier uncertainty
+retain their separate obligations.
+
 Readonly original Authored procedure declarations remain in their issued
 ID/card/body inventory and are excluded from independent executable roots.
 Top-level and other executable roots retain their existing purpose; the source

@@ -133,7 +133,8 @@ enum ExpressionRewrite<'a> {
 
 // Both token streams retain the exact selected expression grammar. Only gaps
 // classified by that lexer may disappear; token bytes and the checked Native
-// AST remain exact. Braced decoding correspondence is checked by the caller.
+// AST retain exact topology and lexer-issued leaf correspondence. Braced
+// decoding correspondence is checked by the caller.
 fn same_expression_gaps(
     original: &[u8],
     candidate: &[u8],
@@ -157,13 +158,18 @@ fn same_expression_gaps(
                 .filter(|token| {
                     !token.kind.is_skipped() && token.kind != tcl_lexer::ExprTokenType::Eof
                 })
-                .map(|token| (token.kind, token.text))
                 .collect::<Vec<_>>(),
         )
     };
-    if signature(original)
-        .zip(signature(candidate))
-        .is_none_or(|(old, new)| old != new)
+    let Some((original_tokens, candidate_tokens)) = signature(original).zip(signature(candidate))
+    else {
+        return false;
+    };
+    if original_tokens.len() != candidate_tokens.len()
+        || original_tokens
+            .iter()
+            .zip(&candidate_tokens)
+            .any(|(old, new)| old.kind != new.kind || old.text != new.text)
     {
         return false;
     }
@@ -176,7 +182,112 @@ fn same_expression_gaps(
         }
     }
     cursor == candidate.len()
-        && matches!(tcl_syntax::expr::parser::parse_expr_bytes_checked_with_context(candidate, parser), CheckedExprParse::Parsed(ref candidate) if candidate == tree)
+        && matches!(tcl_syntax::expr::parser::parse_expr_bytes_checked_with_context(candidate, parser), CheckedExprParse::Parsed(ref candidate) if same_pure_expression_tree(tree, candidate, &original_tokens, &candidate_tokens))
+}
+
+// Exact AST equality also compares source coordinates. Gap removal changes
+// those coordinates, so each unchanged leaf must instead address the same
+// paired original/candidate lexer token. No leaf extent is discarded.
+fn same_pure_expression_tree(
+    original: &ExprNode<Vec<u8>>,
+    candidate: &ExprNode<Vec<u8>>,
+    original_tokens: &[tcl_lexer::ExprToken<Vec<u8>>],
+    candidate_tokens: &[tcl_lexer::ExprToken<Vec<u8>>],
+) -> bool {
+    let mut pending = vec![(original, candidate)];
+    let mut visited = 0_u32;
+    while let Some((old, new)) = pending.pop() {
+        visited += 1;
+        if visited > 4096 {
+            return false;
+        }
+        match (old, new) {
+            (
+                ExprNode::Literal {
+                    text: old_text,
+                    start: old_start,
+                    end: old_end,
+                },
+                ExprNode::Literal {
+                    text: new_text,
+                    start: new_start,
+                    end: new_end,
+                },
+            )
+            | (
+                ExprNode::String {
+                    text: old_text,
+                    start: old_start,
+                    end: old_end,
+                },
+                ExprNode::String {
+                    text: new_text,
+                    start: new_start,
+                    end: new_end,
+                },
+            ) => {
+                if old_text != new_text
+                    || !original_tokens
+                        .iter()
+                        .zip(candidate_tokens)
+                        .any(|(old, new)| {
+                            old.start == *old_start
+                                && old.end == *old_end
+                                && new.start == *new_start
+                                && new.end == *new_end
+                                && old.text == *old_text
+                                && new.text == *new_text
+                                && old.kind == new.kind
+                        })
+                {
+                    return false;
+                }
+            }
+            (
+                ExprNode::Unary {
+                    op: old_op,
+                    operand: old_operand,
+                },
+                ExprNode::Unary {
+                    op: new_op,
+                    operand: new_operand,
+                },
+            ) if old_op == new_op => pending.push((old_operand, new_operand)),
+            (
+                ExprNode::Binary {
+                    op: old_op,
+                    left: old_left,
+                    right: old_right,
+                },
+                ExprNode::Binary {
+                    op: new_op,
+                    left: new_left,
+                    right: new_right,
+                },
+            ) if old_op == new_op => {
+                pending.push((old_right, new_right));
+                pending.push((old_left, new_left));
+            }
+            (
+                ExprNode::Ternary {
+                    condition: old_condition,
+                    true_branch: old_true,
+                    false_branch: old_false,
+                },
+                ExprNode::Ternary {
+                    condition: new_condition,
+                    true_branch: new_true,
+                    false_branch: new_false,
+                },
+            ) => {
+                pending.push((old_false, new_false));
+                pending.push((old_true, new_true));
+                pending.push((old_condition, new_condition));
+            }
+            _ => return false,
+        }
+    }
+    true
 }
 
 impl SourceInvocationBinding {
@@ -638,6 +749,55 @@ mod tests {
             commands.last()?,
             candidate,
         )
+    }
+
+    #[test]
+    fn original_expression_gap_tree_checks_issued_leaf_positions() {
+        let parser =
+            ExprParseContext::for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
+        let config = LexerConfig::for_profile(tcl_dialect::DialectProfile::find("tcl8.6"));
+        let original = b" 1 + 2 * 3 ";
+        let CheckedExprParse::Parsed(tree) =
+            tcl_syntax::expr::parser::parse_expr_bytes_checked_with_context(original, &parser)
+        else {
+            panic!("original checked Native tree");
+        };
+        assert!(same_expression_gaps(
+            original, b"1+2*3", &parser, config, &tree
+        ));
+        for candidate in [b"1+2*4".as_slice(), b"1-2*3", b"1+2* 3 + 0"] {
+            assert!(!same_expression_gaps(
+                original, candidate, &parser, config, &tree
+            ));
+        }
+        let mut wrong_position = tree.clone();
+        let ExprNode::Binary { left, .. } = &mut wrong_position else {
+            panic!("original binary");
+        };
+        let ExprNode::Literal { start, .. } = left.as_mut() else {
+            panic!("original literal");
+        };
+        *start += 1;
+        assert!(!same_expression_gaps(
+            original,
+            b"1+2*3",
+            &parser,
+            config,
+            &wrong_position
+        ));
+        let strings = b"{a  b} eq {a  b}";
+        let CheckedExprParse::Parsed(tree) =
+            tcl_syntax::expr::parser::parse_expr_bytes_checked_with_context(strings, &parser)
+        else {
+            panic!("original checked strings");
+        };
+        assert!(!same_expression_gaps(
+            strings,
+            b"{a b}eq{a b}",
+            &parser,
+            config,
+            &tree
+        ));
     }
 
     #[test]

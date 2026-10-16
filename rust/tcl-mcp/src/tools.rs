@@ -904,6 +904,7 @@ fn validate_with(args: &Value, inputs: &PolicyInputs) -> Value {
         }
     }
     json!({
+        "analysis_context_unavailable": report.analysis_context_status_data(),
         "categories": Value::Object(categories),
         "total": report.shown().count(),
         "suppressed": suppressed_json(&report, &sm, |_| true),
@@ -938,6 +939,7 @@ fn review_with(args: &Value, inputs: &PolicyInputs) -> Value {
             || meta.thread_codes.contains(code)
     });
     json!({
+        "analysis_context_unavailable": report.analysis_context_status_data(),
         "security": security,
         "taint": taint,
         "thread_safety": thread,
@@ -974,7 +976,12 @@ fn find_legacy_with(args: &Value, inputs: &PolicyInputs) -> Value {
     let suppressed = suppressed_json(&report, &sm, |code| {
         tcl_cli::CONVERTIBLE_CODES.contains(&code)
     });
-    json!({ "total": patterns.len(), "patterns": patterns, "suppressed": suppressed })
+    json!({
+        "analysis_context_unavailable": report.analysis_context_status_data(),
+        "total": patterns.len(),
+        "patterns": patterns,
+        "suppressed": suppressed
+    })
 }
 
 #[cfg(test)]
@@ -2078,6 +2085,7 @@ const TOOLS: &[ToolDef] = &[
             START_CHAR,
             END_LINE,
             END_CHAR,
+            DIALECT,
             ("var_name", "string", "New variable name (default 'result')"),
         ],
         required: &[

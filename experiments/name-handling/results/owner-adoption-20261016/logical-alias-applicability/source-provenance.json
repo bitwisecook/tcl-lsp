@@ -1,0 +1,62 @@
+{
+  "purpose": "Original C Tcl handler entry proves namespace/root ProcedureLocal global no-op before name getter; separate authored source consensus only, no Native permission",
+  "probe_sha256": "733c719aa2e4fc551aa8ab33ec8e96242c4f503ac3c325b7f8abd9b3eb87e8e5",
+  "initial_probe_correction": "First diagnostic used set root_value NAMESPACE within N; C namespace global fallback changed existing root variable, so procedure observed NAMESPACE. Captured original initial source/stdout separately. Corrected diagnostic uses variable root_value NAMESPACE to genuinely declare the namespace variable; the failing Compiler fixture inputs/assertions are unchanged.",
+  "rows": [
+    {
+      "version": "8.4.20",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclVar.c",
+      "source_sha256": "177628c7637491dffb4ba78f76e5dfdec21331c738c382f47ddb312721f05c9d",
+      "entry_line": 3876,
+      "excerpt": "native-global-8.4.20.txt",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "executable_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "stdout": "namespace:NAMESPACE\nprocedure:ROOT\n",
+      "exit_code": 0
+    },
+    {
+      "version": "8.5.19",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclVar.c",
+      "source_sha256": "24f29b0694b5e755f99ab98a0486a63807de9d368b81df65e71ebacb95817768",
+      "entry_line": 3987,
+      "excerpt": "native-global-8.5.19.txt",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "executable_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "stdout": "namespace:NAMESPACE\nprocedure:ROOT\n",
+      "exit_code": 0
+    },
+    {
+      "version": "8.6.18",
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclVar.c",
+      "source_sha256": "2af24d8fa81db05a2805652ac4359d55ec1e2ef8bbcdad86c4000e25dfd61946",
+      "entry_line": 4616,
+      "excerpt": "native-global-8.6.18.txt",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "executable_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "stdout": "namespace:NAMESPACE\nprocedure:ROOT\n",
+      "exit_code": 0
+    },
+    {
+      "version": "9.0.4",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclVar.c",
+      "source_sha256": "0ed96dbf7949b0cb84dabd6b9be971ceb00dd97458c87264cc03541c618496fc",
+      "entry_line": 5007,
+      "excerpt": "native-global-9.0.4.txt",
+      "executable": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "executable_sha256": "bb5493a311eea8879d4aa2fa4817720d008ee03cf88f06aefa4a6d7425857f8c",
+      "stdout": "namespace:NAMESPACE\nprocedure:ROOT\n",
+      "exit_code": 0
+    },
+    {
+      "version": "9.1.0",
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclVar.c",
+      "source_sha256": "270bf098d3a2817b117531713a49367729d030b9b3b05c10dfd4acbba7554759",
+      "entry_line": 5021,
+      "excerpt": "native-global-9.1.0.txt",
+      "executable": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "executable_sha256": "71b428e13bc04578fb9be4aa680915c67a7b7f3a7850f198032d98f363a077ce",
+      "stdout": "namespace:NAMESPACE\nprocedure:ROOT\n",
+      "exit_code": 0
+    }
+  ]
+}

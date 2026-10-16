@@ -834,19 +834,25 @@ fn scan_deep<'p>(
             .filter_map(|&(index, role)| (role == ArgRole::Body).then_some(index))
             .collect();
         for idx in body_indices {
-            if ctx.original_logical_body.is_some()
-                && view
-                    .as_ref()
-                    .and_then(|view| view.logical_trait_body_inherits_caller(idx))
-                    != Some(true)
-            {
+            let original_body = view
+                .as_ref()
+                .and_then(|view| view.logical_trait_caller_body(idx));
+            if ctx.original_logical_body.is_some() && original_body.is_none() {
                 continue;
             }
             let Some(body_text) = cmd_args.get(idx) else {
                 continue;
             };
             if let Some(token) = seg.argv.get(idx + 1) {
-                scan_deep_body(body_text, token, ctx, traits, &body_aliases, depth);
+                scan_deep_body(
+                    body_text,
+                    token,
+                    original_body.as_ref(),
+                    ctx,
+                    traits,
+                    &body_aliases,
+                    depth,
+                );
             }
         }
 
@@ -991,6 +997,7 @@ fn lambda_input_bindings<'p>(
 fn scan_deep_body<'p>(
     body_text: &str,
     token: &tcl_lexer::Token,
+    original_body: Option<&crate::registry_invocation::OriginalSourceScriptBody>,
     ctx: &ScanCtx<'p, '_>,
     traits: &mut HashMap<&'p str, HashSet<ProcArgTrait>>,
     aliases: &Aliases<'p>,
@@ -999,17 +1006,30 @@ fn scan_deep_body<'p>(
     if body_text.trim().is_empty() {
         return;
     }
-    let head = body_text.as_bytes();
-    if head
-        .first()
-        .is_some_and(|&byte| byte == b'$' || byte == b'[')
-        || head
-            .get(1)
-            .is_some_and(|&byte| byte == b'$' || byte == b'[')
-    {
-        return;
-    }
     let nested = ctx.nested(token, body_text);
+    if let Some(body) = original_body {
+        // The actual selected same-frame script owns these bytes. A leading
+        // substitution is Tcl code inside this source body, not a computed
+        // parent operand. No entered script or runtime value is supplied.
+        if nested.source_base != Some(body.content_span().start())
+            || !body.matches_original_content(body_text, body.content_span().start(), ctx.config)
+            || u32::try_from(body_text.len()).ok()
+                != Some(body.content_span().end() - body.content_span().start())
+        {
+            return;
+        }
+    } else {
+        let head = body_text.as_bytes();
+        if head
+            .first()
+            .is_some_and(|&byte| byte == b'$' || byte == b'[')
+            || head
+                .get(1)
+                .is_some_and(|&byte| byte == b'$' || byte == b'[')
+        {
+            return;
+        }
+    }
     scan_deep(body_text, &nested, traits, &mut aliases.clone(), depth + 1);
 }
 
@@ -1836,6 +1856,9 @@ mod tests {
         for (source, expected) in [
             ("proc outer {name} {proc inner {name} {$name}}", false),
             ("proc outer {name} {if 1 {$name}}", true),
+            ("proc outer {name} {if 1 {[$name]}}", true),
+            ("proc outer {name} {if 1 $name}", false),
+            ("proc outer {name} {if 1 [list $name]}", false),
         ] {
             let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
             let input = analysis.resolved_input.as_ref().unwrap();

@@ -1,0 +1,17 @@
+{
+  "unit_ids": [
+    "root:mcp.naming-context-status:176:0",
+    "root:mcp.naming-context-status:177:0",
+    "root:mcp.naming-context-status:178:0",
+    "root:mcp.extract-variable-dialect-schema:192:0"
+  ],
+  "file": "rust/tcl-mcp/src/tools.rs",
+  "old_sha256": "3904242b110f2135819a1b49530b93670c66f4d70f1e8e46cc81933abb136ef7",
+  "new_sha256": "b89b814cf1d300e652f4137cfa58f0a51e2a64854f56c37f45ec867a6ce7e47c",
+  "patch_path": "/tmp/mcp-tools-name-boundaries.patch",
+  "patch_sha256": "80864beb33ef4cd06403e4971e1e420ddd2626b3b0c4a6ba086b6c85e51f64db",
+  "changes": [
+    "add Report::analysis_context_status_data() to validate_with/review_with/find_legacy_with JSON output",
+    "add optional DIALECT ToolDef parameter to extract_variable; required/default resolver unchanged"
+  ]
+}
