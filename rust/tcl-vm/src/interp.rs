@@ -994,6 +994,32 @@ struct DebugSeams {
     last_key: Option<u64>,
 }
 
+/// C's `ERR_ALREADY_LOGGED` for the current error.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+enum ErrorLogged {
+    #[default]
+    No,
+    /// The current command level logged its frame, so the same bytecode
+    /// frame is not logged again; a frame boundary clears it.
+    Yes,
+    /// Logged across frame boundaries until a procedure boundary: 8.4's
+    /// `Tcl_ExprObj` leaves `ERR_ALREADY_LOGGED` set after an error in a
+    /// command substitution
+    /// ([`tcl_dialect::TclVersion::keeps_expression_substitution_errors_logged`]),
+    /// and only `TclCompEvalObj`, which runs a procedure body, clears it.
+    ThroughFrames,
+}
+
+impl ErrorLogged {
+    /// What a frame boundary leaves.
+    fn past_frame(self) -> Self {
+        match self {
+            Self::ThroughFrames => Self::ThroughFrames,
+            Self::No | Self::Yes => Self::No,
+        }
+    }
+}
+
 pub struct InterpState {
     /// The Tcl release whose number/expr grammar this VM emulates —
     /// threaded from `DialectProfile::vm_runtime_version` (dialect-profile
@@ -1299,13 +1325,7 @@ pub struct InterpState {
     /// its frame (so the same bytecode frame is not re-logged), cleared at a
     /// real frame boundary (a nested `eval`/`[subst]`, a proc/control body) so
     /// the enclosing command logs its own `invoked from within` frame.
-    error_logged: bool,
-    /// The current error stays logged across those frame boundaries until a
-    /// procedure boundary: 8.4's `Tcl_ExprObj` leaves `ERR_ALREADY_LOGGED` set
-    /// after an error in a command substitution
-    /// ([`tcl_dialect::TclVersion::keeps_expression_substitution_errors_logged`]),
-    /// and only `TclCompEvalObj`, which runs a procedure body, clears it.
-    error_logged_through_frames: bool,
+    error_logged: ErrorLogged,
     /// TIP 348's interpreter-local structured error stack. Its lazy reset
     /// keeps the last caught stack introspectable until a new error is logged.
     error_stack: ErrorStack<Value>,
@@ -1503,7 +1523,7 @@ pub(crate) struct ParkedFlow {
     ns_script_frames: Vec<usize>,
     recursion_depth: usize,
     error_info: Option<String>,
-    error_logged: bool,
+    error_logged: ErrorLogged,
     error_stack: ErrorStack<Value>,
     error_line: u32,
     invoked_name: Option<String>,
@@ -2360,8 +2380,7 @@ impl InterpState {
             pending_exit: None,
             script_caches: ScriptCaches::default(),
             error_info: None,
-            error_logged: false,
-            error_logged_through_frames: false,
+            error_logged: ErrorLogged::No,
             error_stack: ErrorStack::default(),
             error_line: 1,
             invoked_name: None,
@@ -10599,7 +10618,7 @@ impl Vm {
         self.error_info = p.error_info.take();
         self.error_line = p.error_line;
         std::mem::swap(&mut self.error_stack, &mut p.error_stack);
-        self.error_logged = false;
+        self.error_logged = ErrorLogged::No;
     }
 
     /// Fire `unset` variable traces on the current frame's genuine locals just
@@ -12617,7 +12636,7 @@ impl Vm {
         msg: &str,
         line: u32,
     ) {
-        if self.error_logged {
+        if self.error_logged() {
             return;
         }
         self.error_stack_log_value(context);
@@ -12627,7 +12646,7 @@ impl Vm {
     /// ErrorInfo-only half of command logging, for a parse error whose TIP 348
     /// context is recorded where it is raised.
     pub(crate) fn log_command_info_only(&mut self, cmd_text: &str, msg: &str, line: u32) {
-        if self.error_logged {
+        if self.error_logged() {
             return;
         }
         // The innermost logged command's line drives the enclosing `(procedure …
@@ -12660,7 +12679,7 @@ impl Vm {
             info.push_str("...");
         }
         info.push('"');
-        self.error_logged = true;
+        self.error_logged = ErrorLogged::Yes;
     }
 
     /// Append a `("<label>" body line N)` frame to the trace — the frame an
@@ -12686,7 +12705,7 @@ impl Vm {
         info.push_str("\n    (");
         info.push_str(text);
         info.push(')');
-        self.error_logged = self.error_logged_through_frames;
+        self.error_logged = self.error_logged.past_frame();
     }
 
     /// Append a `("<label>" body line N)` frame with an explicit `line` — for an
@@ -12701,7 +12720,7 @@ impl Vm {
         info.push_str("\" body line ");
         info.push_str(&line.to_string());
         info.push(')');
-        self.error_logged = self.error_logged_through_frames;
+        self.error_logged = self.error_logged.past_frame();
     }
 
     /// Seed `errorInfo` for an error that *originates* in a command (not from a
@@ -12715,7 +12734,7 @@ impl Vm {
         }
         let info = self.error_info.get_or_insert_with(|| msg.to_string());
         info.push_str(frame);
-        self.error_logged = false;
+        self.error_logged = ErrorLogged::No;
     }
 
     /// The current call frame's proc name (unqualified), or `None` at the global
@@ -12744,7 +12763,7 @@ impl Vm {
             "\n    (compiling body of proc \"{}{ellipsis}\", line {line})",
             &name[..cut]
         );
-        self.error_logged = false;
+        self.error_logged = ErrorLogged::No;
     }
 
     /// Append a `(procedure "<name>" line N)` frame — the frame a proc body adds
@@ -12765,7 +12784,7 @@ impl Vm {
     /// Start the `errorInfo` trace from `message` unless one is under way, so
     /// the next logged command reads `invoked from within`.
     pub(crate) fn seed_error_info_if_unset(&mut self, message: &str) {
-        if self.error_info.is_none() && !self.error_logged {
+        if self.error_info.is_none() && !self.error_logged() {
             self.error_info = Some(message.to_owned());
         }
     }
@@ -12797,8 +12816,7 @@ impl Vm {
         info.push_str("\" line ");
         info.push_str(&line.to_string());
         info.push(')');
-        self.error_logged = false;
-        self.error_logged_through_frames = false;
+        self.error_logged = ErrorLogged::No;
     }
 
     /// The lambda expression of the `apply` lambda whose body the current call
@@ -12821,7 +12839,7 @@ impl Vm {
         info.push_str(" trace on \"");
         info.push_str(name);
         info.push_str("\")");
-        self.error_logged = false;
+        self.error_logged = ErrorLogged::No;
     }
 
     /// The innermost logged command's source line (C's `iPtr->errorLine`).
@@ -12849,25 +12867,26 @@ impl Vm {
     /// Clear `ERR_ALREADY_LOGGED` at a frame boundary (a nested `eval`/`[subst]`
     /// returned an error), so the enclosing command logs its own frame.
     pub(crate) fn clear_error_logged(&mut self) {
-        self.error_logged = self.error_logged_through_frames;
+        self.error_logged = self.error_logged.past_frame();
     }
 
     /// Mark the current error's command logged (C's `ERR_ALREADY_LOGGED`).
     pub(crate) fn mark_error_logged(&mut self) {
-        self.error_logged = true;
+        if self.error_logged == ErrorLogged::No {
+            self.error_logged = ErrorLogged::Yes;
+        }
     }
 
     /// Mark the current error logged until a procedure boundary
-    /// ([`Self::error_logged_through_frames`]).
+    /// ([`ErrorLogged::ThroughFrames`]).
     pub(crate) fn mark_error_logged_through_frames(&mut self) {
-        self.error_logged = true;
-        self.error_logged_through_frames = true;
+        self.error_logged = ErrorLogged::ThroughFrames;
     }
 
     /// Whether the current error's command is already logged (C's
     /// `ERR_ALREADY_LOGGED`).
     pub(crate) fn error_logged(&self) -> bool {
-        self.error_logged
+        self.error_logged != ErrorLogged::No
     }
 
     /// Seed the `errorInfo` trace with an explicit value and mark it logged —
@@ -12887,7 +12906,7 @@ impl Vm {
     pub(crate) fn raise_fatal_tail(&mut self, tail: FatalTail) -> Completion<Value> {
         if let Some(info) = &tail.compile_info {
             self.error_info = Some(format!("{}{info}", tail.message));
-            self.error_logged = false;
+            self.error_logged = ErrorLogged::No;
             if tail.line != 0 {
                 self.error_line = tail.line;
             }
@@ -12904,7 +12923,7 @@ impl Vm {
 
     pub(crate) fn seed_error_info(&mut self, info: String) {
         self.error_info = Some(info);
-        self.error_logged = true;
+        self.error_logged = ErrorLogged::Yes;
     }
 
     /// Borrow the accumulated `errorInfo` without consuming the error episode.
@@ -12985,16 +13004,14 @@ impl Vm {
     fn reset_error_state_for_eval(&mut self) {
         self.error_stack.mark_reset();
         self.error_info = None;
-        self.error_logged = false;
-        self.error_logged_through_frames = false;
+        self.error_logged = ErrorLogged::No;
         self.error_line = 1;
     }
 
     /// Take the accumulated `errorInfo` trace (if any) and reset it for the next
     /// error — used when `catch` reports an error.
     pub(crate) fn take_error_info(&mut self) -> Option<String> {
-        self.error_logged = false;
-        self.error_logged_through_frames = false;
+        self.error_logged = ErrorLogged::No;
         self.error_stack.mark_reset();
         self.error_info.take()
     }
