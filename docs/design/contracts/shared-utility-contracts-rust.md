@@ -5168,3 +5168,11 @@ result header; legal deletion of the selected procedure does not invalidate its
 already-published body. Explicit byte queries retain their separate conversion
 purpose. C implementations decline the physical Jim hook before any getter and
 keep their existing String-first path.
+
+Logical positioned name and complete-command projections may reborrow the
+existing transition tape's original body-word owner when no declaration layout
+was issued. The owner retains its actual source origin, full input, context,
+configuration and complete vector; the original lexical-command projection
+reauthenticates that vector. A present declaration or Native receipt remains
+terminal. A separate retained tape site supports source scope checks without
+filling an unknown invocation binding or supplying Native entry.

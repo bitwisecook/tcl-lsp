@@ -382,7 +382,7 @@ impl Interp {
         original: *mut TclObj,
     ) -> Result<tcl_runtime_api::ProcBodyBytesQuery, CmdError> {
         let operand = OriginalProcedureBodyOperand::enter(self, original)?;
-        let reached = (|| {
+        let reached: Result<tcl_runtime_api::ProcBodyBytesQuery, CmdError> = (|| {
             let query = operand.select(self)?;
             let result = if let Some(query) = &query {
                 tcl_runtime_api::ProcBodyBytesQuery::Body(query.bytes(

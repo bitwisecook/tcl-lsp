@@ -1007,6 +1007,13 @@ impl super::CommandBindingRealm {
         if !advice.matches_context(context) || !advice.matches_source(image, config) {
             return None;
         }
+        if input.has_logical_source_name_context() {
+            return Some(
+                tape.logical_original_command_at(self.bindings.source_origin()?, input, offset)?
+                    .command()
+                    .clone(),
+            );
+        }
         let span = tcl_lexer::Span::new(
             advice.original_words().first()?.span().start(),
             advice.original_words().last()?.span().end(),

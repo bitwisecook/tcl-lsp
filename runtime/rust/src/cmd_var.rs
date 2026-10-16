@@ -651,6 +651,7 @@ mod member_trace_horizon;
 mod tests {
     use crate::counters;
     use crate::interp::{Code, Interp};
+    use tcl_syntax::value::ValueOps;
 
     thread_local! {
         static CANONICAL_RETIRED_NAMESPACE: std::cell::RefCell<Option<std::rc::Rc<crate::obj::Owned>>> = const { std::cell::RefCell::new(None) };
@@ -672,11 +673,11 @@ mod tests {
 
     thread_local! {
         static FORMAT_NAME: std::cell::Cell<*mut crate::obj::TclObj> = const { std::cell::Cell::new(std::ptr::null_mut()) };
-        static FORMAT_EVENTS: std::cell::RefCell<Vec<(&'static str, i64)>> = const { std::cell::RefCell::new(Vec::new()) };
+        static FORMAT_EVENTS: std::cell::RefCell<Vec<(&'static str, isize)>> = const { std::cell::RefCell::new(Vec::new()) };
     }
     extern "C" fn formatter_name_getter(original: *mut crate::obj::TclObj) {
         // SAFETY: the updater receives its live original header.
-        let references = unsafe { i64::from((*original).ref_count) };
+        let references = unsafe { (*original).ref_count };
         FORMAT_EVENTS.with(|events| events.borrow_mut().push(("getter", references)));
         // SAFETY: the updater owns this original String slot.
         unsafe { crate::obj::set_string_rep(original, b"item(k\0suffix)") };
@@ -684,7 +685,7 @@ mod tests {
     extern "C" fn formatter_old_result_retirement(_: *mut crate::obj::TclObj) {
         let original = FORMAT_NAME.with(std::cell::Cell::get);
         // SAFETY: the real formatter argument reference owns this live header.
-        let references = unsafe { i64::from((*original).ref_count) };
+        let references = unsafe { (*original).ref_count };
         FORMAT_EVENTS.with(|events| events.borrow_mut().push(("publication", references)));
     }
     static FORMAT_NAME_TYPE: crate::obj::TclObjType = crate::obj::TclObjType {
@@ -770,11 +771,17 @@ mod tests {
                         .native_invocation_dialect()
                         .native_jim_lookup_protocol()
                         .unwrap();
-                    assert!(interp.publish_original_jim_variable_error(
-                        original.as_ptr(),
-                        &|actual| caller.check_current_arguments(actual, &arguments),
-                        |bytes| tcl_cmd_core::var::native_jim_alias_error(protocol, tcl_syntax::native_jim_lookup::NativeJimAliasFailure::LocalElement, bytes),
-                    ).is_err());
+                    assert!(interp
+                        .publish_original_jim_variable_error(
+                            original.as_ptr(),
+                            &|actual| caller.check_current_arguments(actual, &arguments),
+                            |bytes| tcl_cmd_core::var::native_jim_alias_error(
+                                protocol,
+                                tcl_syntax::native_jim_lookup::NativeJimAliasFailure::LocalElement,
+                                bytes
+                            ),
+                        )
+                        .is_err());
                 } else {
                     assert_eq!(
                         interp.link_original_jim_upvar_objects(
@@ -1030,11 +1037,9 @@ list $root $nsresult $rootdict(k)
             );
             let impostor = Owned::fresh(obj::new_string_bytes(name));
             crate::native_source::bind_context(impostor.as_ptr(), &context).unwrap();
-            assert!(
-                interp
-                    .original_jim_namespace_text_object(impostor.as_ptr(), true, 3, &arguments)
-                    .is_err()
-            );
+            assert!(interp
+                .original_jim_namespace_text_object(impostor.as_ptr(), true, 3, &arguments)
+                .is_err());
         }
     }
 
@@ -1206,7 +1211,7 @@ list $root $nsresult $rootdict(k)
         // naming.variable.original-array-member-trace-retirement-horizon
         // docs/design/analysis/name-resolution-proofs/variable-original-array-member-trace-retirement-horizon.md
         // Whole public callback logs, including later-member trace registration.
-        use tcl_syntax::execution_conformance::{ExecutionDomain, vectors};
+        use tcl_syntax::execution_conformance::{vectors, ExecutionDomain};
         let cases: Vec<_> = vectors(ExecutionDomain::CommandBinding)
             .into_iter()
             .filter(|case| case.id.starts_with("variable_array_unset_"))
@@ -1243,7 +1248,7 @@ list $root $nsresult $rootdict(k)
 
     #[test]
     fn captured_increment_receivers_match_actual_native_releases() {
-        use tcl_syntax::execution_conformance::{ExecutionDomain, vectors};
+        use tcl_syntax::execution_conformance::{vectors, ExecutionDomain};
         let cases: Vec<_> = vectors(ExecutionDomain::CommandBinding)
             .into_iter()
             .filter(|case| {

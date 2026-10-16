@@ -131475,11 +131475,12 @@
     "owner_facet_reconciliation": "19 additional unverified obligations accepted in separate annex; baseline2158 unchanged;18 additional integrated pending validation. Further demonstrated formatter/preload/Logical source facets still under bounded reconciliation.",
     "runtime_build": {
       "status": "PASS",
-      "head": "2459c99246751fd7695a585ea1081b43937174fb",
-      "log": "/tmp/naming-runtime-build-2459c9924.log",
-      "binary_sha256": "3aab6dfb0a9ca3d7f2244d6ac252dcfd0b693e442a21e6647565804da63bb8cb",
-      "warnings": 12,
-      "overlay": null
+      "source": "80541dfbc successor with four Runtime compile repairs and reviewed Logical tape reborrow",
+      "log": "/tmp/naming-runtime-build-80541-successor-fixed.log",
+      "seconds": 56.11,
+      "overlay": null,
+      "warnings": 0,
+      "tests": "Fresh ordinary tests pending; instrumented predecessor binary replaced."
     },
     "scoped_capture": "experiments/name-handling/results/owner-adoption-20261016/records.json",
     "pending_repairs": [

@@ -1685,13 +1685,23 @@ impl super::SourceCommandBindings {
         }
         let origin = self.source_origin()?;
         let binding = self.invocation_at_source("", offset);
-        let site = binding.invocation_site()?;
-        if !std::sync::Arc::ptr_eq(&site.source, origin) || site.offset != offset {
-            return None;
+        if binding.original_written_words.is_some()
+            || binding.original_compiler_words.is_some()
+            || binding.declaration_layout_observations.is_some()
+        {
+            let site = binding.invocation_site()?;
+            if !std::sync::Arc::ptr_eq(&site.source, origin) || site.offset != offset {
+                return None;
+            }
+            let (words, retained_config) = binding.original_logical_source_geometry_words(input)?;
+            (retained_config == config).then_some(())?;
+            return origin.original_lexical_command(words, offset, config);
         }
-        let (words, retained_config) = binding.original_logical_source_geometry_words(input)?;
-        (retained_config == config).then_some(())?;
-        origin.original_lexical_command(words, offset, config)
+        self.original_source_transition_advice_tape_for(
+            input.borrowed_context_registry(),
+            super::OriginalSourceCataloguePurpose::CompletePrefix,
+        )?
+        .logical_original_command_at(origin, input, offset)
     }
 
     /// Require the complete caller image, including its input channel, before
@@ -1718,7 +1728,7 @@ impl super::SourceCommandBindings {
         config: tcl_lexer::LexerConfig,
     ) -> Option<SignatureSourceNameInput> {
         let mut found = None;
-        for (input, _) in self.original_written_name_observations_at_span(span, config)? {
+        for (input, _, _) in self.original_written_name_observations_at_span(span, config)? {
             if found.as_ref().is_some_and(|previous| previous != &input) {
                 return None;
             }
@@ -1748,7 +1758,9 @@ impl super::SourceCommandBindings {
             None => None,
         };
         let mut found = None;
-        for (input, binding) in self.original_written_name_observations_at_span(span, config)? {
+        for (input, binding, site) in
+            self.original_written_name_observations_at_span(span, config)?
+        {
             let scope = match (logical, tape.as_ref()) {
                 (Some(owner), Some(tape)) => tape
                     .logical_variable_scope_at(owner, image, span, &input)?
@@ -1759,7 +1771,7 @@ impl super::SourceCommandBindings {
             let operand = crate::signature_scan::original_name::SourceOriginalNamespaceOperand::new(
                 input.clone(),
                 scope,
-                binding.invocation_site()?.clone(),
+                site,
             );
             if found.as_ref().is_some_and(|previous| previous != &operand) {
                 return None;
@@ -1773,21 +1785,41 @@ impl super::SourceCommandBindings {
         &self,
         span: tcl_lexer::Span,
         config: tcl_lexer::LexerConfig,
-    ) -> Option<Vec<(SignatureSourceNameInput, super::SourceInvocationBinding)>> {
+    ) -> Option<
+        Vec<(
+            SignatureSourceNameInput,
+            super::SourceInvocationBinding,
+            super::CommandAllocationSite,
+        )>,
+    > {
         self.original_written_word_observations_at_span(span, config)?
             .into_iter()
-            .map(|(_, written, binding)| {
+            .map(|(word, written, binding, site)| {
                 let input = if let Some((words, retained_config)) =
                     binding.original_recorded_name_words()
                 {
                     binding.original_recorded_written_name_input(written, words, retained_config)?
-                } else {
+                } else if binding.declaration_layout_observations.is_some() {
                     binding.original_logical_source_written_name_input(
-                        self.original_logical_source_name_advice_input()?,
-                        written,
+                        self.original_logical_source_name_advice_input()?, written,
                     )?
+                } else {
+                    let owner = self.original_logical_source_name_advice_input()?;
+                    let policy = tcl_registry::InvocationDialect::of_profile(owner.analyser_profile())
+                        .authored_name_policy()?;
+                    if tcl_registry::InvocationDialect::of_profile(owner.unit_profile())
+                        .authored_name_policy() != Some(policy) { return None; }
+                    let purpose = crate::signature_scan::original_name::OriginalSourceNamePurpose::for_analysis_input(
+                        owner, None, policy,
+                    );
+                    if !matches!(purpose, crate::signature_scan::original_name::OriginalSourceNamePurpose::Logical(_, _)) {
+                        return None;
+                    }
+                    SignatureSourceNameInput::OriginalWord(purpose.key(
+                        &word, tcl_syntax::word_rules::WordValueRules::from_config(&config),
+                    )?)
                 };
-                Some((input, binding))
+                Some((input, binding, site))
             })
             .collect()
     }
@@ -1806,7 +1838,9 @@ impl super::SourceCommandBindings {
         self.matches_original_source_image(image, config)
             .then_some(())?;
         let mut selected = None;
-        for (word, _, binding) in self.original_written_word_observations_at_span(span, config)? {
+        for (word, _, binding, _) in
+            self.original_written_word_observations_at_span(span, config)?
+        {
             if binding
                 .variable_context
                 .execution_name_policy
@@ -1843,8 +1877,7 @@ impl super::SourceCommandBindings {
         self.matches_original_source_image(image, config)
             .then_some(())?;
         let mut selected = None;
-        for (word, _, binding) in self.original_written_word_observations_at_span(span, config)? {
-            let site = binding.invocation_site()?;
+        for (word, _, _, site) in self.original_written_word_observations_at_span(span, config)? {
             (site.source.source_image() == image).then_some(())?;
             let current = (word, site.offset);
             if selected
@@ -1862,7 +1895,14 @@ impl super::SourceCommandBindings {
         &self,
         span: tcl_lexer::Span,
         config: tcl_lexer::LexerConfig,
-    ) -> Option<Vec<(tcl_lexer::NativeWord, usize, super::SourceInvocationBinding)>> {
+    ) -> Option<
+        Vec<(
+            tcl_lexer::NativeWord,
+            usize,
+            super::SourceInvocationBinding,
+            super::CommandAllocationSite,
+        )>,
+    > {
         let origin = self.root_origin.as_ref()?;
         let mut found = Vec::new();
         let mut offsets = self
@@ -1921,7 +1961,33 @@ impl super::SourceCommandBindings {
             if ordinals.next().is_some() {
                 return None;
             }
-            found.push((native[written].clone(), written, binding));
+            let site = binding.invocation_site()?.clone();
+            found.push((native[written].clone(), written, binding, site));
+        }
+        if found.is_empty() {
+            if let Some(input) = self.original_logical_source_name_advice_input() {
+                if config != input.lexer_config() {
+                    return None;
+                }
+                let tape = self.original_source_transition_advice_tape_for(
+                    input.borrowed_context_registry(),
+                    super::OriginalSourceCataloguePurpose::CompletePrefix,
+                )?;
+                for (word, written, site) in
+                    tape.logical_original_word_observations_at_span(origin, input, span)?
+                {
+                    let binding = self.invocation_at_source("", site.offset);
+                    // A present original owner stays terminal even when its checks
+                    // refuse. Independent body geometry only fills an absent facet.
+                    if binding.original_written_words.is_some()
+                        || binding.original_compiler_words.is_some()
+                        || binding.declaration_layout_observations.is_some()
+                    {
+                        continue;
+                    }
+                    found.push((word, written, binding, site));
+                }
+            }
         }
         (!found.is_empty()).then_some(found)
     }
@@ -2089,7 +2155,7 @@ mod graph_tests {
         let observations = bindings
             .original_written_word_observations_at_span(span, config)
             .expect("independently retained point geometry");
-        assert!(observations.iter().all(|(_, _, binding)| {
+        assert!(observations.iter().all(|(_, _, binding, _)| {
             binding
                 .variable_context
                 .execution_name_policy
@@ -2139,7 +2205,7 @@ mod graph_tests {
         let observations = bindings
             .original_written_word_observations_at_span(span, owner.lexer_config())
             .expect("genuine retained receiver source vector");
-        let (word, written, binding) = observations.iter().find(|(_, _, binding)| {
+        let (word, written, binding, _) = observations.iter().find(|(_, _, binding, _)| {
             binding.declaration_layout_observations.as_deref().is_some_and(|rows| {
                 rows.iter().any(|row| row.issuer == super::super::declaration_layout::DeclarationLayoutIssuer::ConditionalReceiverSource)
             })
@@ -2298,6 +2364,87 @@ mod graph_tests {
                 .is_none(),
             "the surviving token and readonly receipt cannot upgrade a dropped source owner"
         );
+    }
+
+    #[test]
+    fn logical_source_body_vectors_reborrow_existing_tape_owners_without_native_entry() {
+        for (source, command, expected) in [
+            (
+                "namespace eval N {set x VALUE}",
+                "set x VALUE",
+                vec!["set", "x", "VALUE"],
+            ),
+            (
+                "proc p {} {$dispatch $value}",
+                "$dispatch $value",
+                vec!["$dispatch", "$value"],
+            ),
+            (
+                "oo::class create C {method run {} {set local VALUE}}",
+                "set local VALUE",
+                vec!["set", "local", "VALUE"],
+            ),
+        ] {
+            let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
+            let input = analysis.resolved_input.as_ref().unwrap();
+            let bindings = analysis
+                .retained_command_realm()
+                .unwrap()
+                .source_bindings_ref();
+            let image = tcl_lexer::SourceImage::document(source);
+            let offset = u32::try_from(source.find(command).unwrap()).unwrap();
+            let original = bindings
+                .original_logical_source_command_at_in_source(
+                    input,
+                    &image,
+                    offset,
+                    input.lexer_config(),
+                )
+                .expect("genuine original body vector remains independent of invocation selection");
+            assert_eq!(
+                original
+                    .native_words()
+                    .iter()
+                    .map(|word| word.try_text().unwrap())
+                    .collect::<Vec<_>>(),
+                expected
+            );
+            assert!(
+                original
+                    .native_words()
+                    .iter()
+                    .all(|word| word.image() == &image && word.config() == input.lexer_config())
+            );
+            assert!(
+                bindings
+                    .invocation_at_source("", offset)
+                    .original_recorded_command()
+                    .is_none(),
+                "readonly geometry grants no declaration or invocation words"
+            );
+            for stale in [
+                tcl_lexer::SourceImage::native(source.as_bytes()),
+                tcl_lexer::SourceImage::document(&format!("{source} ")),
+            ] {
+                assert!(
+                    bindings
+                        .original_logical_source_command_at_in_source(
+                            input,
+                            &stale,
+                            offset,
+                            input.lexer_config()
+                        )
+                        .is_none()
+                );
+            }
+            let mut config = input.lexer_config();
+            config.strict_quoting = !config.strict_quoting;
+            assert!(
+                bindings
+                    .original_logical_source_command_at_in_source(input, &image, offset, config)
+                    .is_none()
+            );
+        }
     }
 
     #[test]

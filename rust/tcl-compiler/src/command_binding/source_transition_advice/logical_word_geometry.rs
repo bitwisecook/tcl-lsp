@@ -64,12 +64,11 @@ impl OriginalLogicalBodyWords {
             original: Arc::from(original),
         })
     }
-    fn original_word(
+    pub(super) fn original_words(
         &self,
         origin: &Arc<SourceOriginId>,
         input: &ResolvedAnalysisInput,
-        span: Span,
-    ) -> Option<(NativeWord, u32)> {
+    ) -> Option<&[NativeWord]> {
         if !Arc::ptr_eq(&self.origin, origin)
             || &self.input != input
             || !input.has_logical_source_name_context()
@@ -83,7 +82,17 @@ impl OriginalLogicalBodyWords {
         {
             return None;
         }
-        let mut words = self.original.iter().filter(|word| {
+        Some(&self.original)
+    }
+
+    fn original_word(
+        &self,
+        origin: &Arc<SourceOriginId>,
+        input: &ResolvedAnalysisInput,
+        span: Span,
+    ) -> Option<(NativeWord, u32)> {
+        let original = self.original_words(origin, input)?;
+        let mut words = original.iter().filter(|word| {
             word.span() == span
                 || word
                     .tokens()

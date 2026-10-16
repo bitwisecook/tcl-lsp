@@ -757,6 +757,127 @@ impl OriginalSourceTransitionAdviceTape {
             .collect()
     }
 
+    /// Whole original syntax from independent Logical body/header owners.
+    /// The selected command/schema may be unavailable; this grants geometry only.
+    pub(crate) fn logical_original_command_at(
+        &self,
+        origin: &Arc<super::SourceOriginId>,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        offset: u32,
+    ) -> Option<Arc<crate::registry_invocation::OriginalSourceCommandProjection>> {
+        input.has_logical_source_name_context().then_some(())?;
+        let image = origin.source_image();
+        let config = input.lexer_config();
+        let mut selected: Option<&[NativeWord]> = None;
+        if let Some(receipt) = self.logical_body_words.get(&offset) {
+            selected = Some(receipt.as_ref()?.original_words(origin, input)?);
+        }
+        for advice in [
+            self.advice.get(&offset),
+            self.body_catalogue.get(&offset).and_then(Option::as_ref),
+            self.member_catalogue.get(&offset).and_then(Option::as_ref),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            if !Arc::ptr_eq(&advice.site().source, origin)
+                || advice.site().offset != offset
+                || advice.logical_source_input() != Some(input)
+                || !advice.matches_source(image, config)
+                || !advice.matches_context(input.borrowed_context_registry())
+            {
+                return None;
+            }
+            if selected.is_some_and(|previous| previous != advice.original_words()) {
+                return None;
+            }
+            selected = Some(advice.original_words());
+        }
+        let original = selected?;
+        if original.first()?.span().start() != offset
+            || original
+                .iter()
+                .any(|word| word.image() != image || word.config() != config)
+        {
+            return None;
+        }
+        // Reuse the existing complete-vector projection owner. Original body
+        // extents select parser input; reporting strings select nothing.
+        let region = tcl_lexer::Span::new(offset, original.last()?.span().end());
+        let body = SourceImage::from_bytes(image.bytes().get(region.as_range())?, image.channel());
+        let segments = crate::segmenter::segment_commands_image_with_offset_and_config(
+            &body,
+            offset,
+            config.nested(),
+        )?;
+        let [command] = segments.as_slice() else {
+            return None;
+        };
+        if command.is_partial {
+            return None;
+        }
+        let tokens = crate::ir::CommandTokens::from_segmented(
+            &tcl_lexer::SourceMap::from_image(image),
+            config,
+            command,
+        );
+        let projection = origin.original_lexical_command(tokens.words(), offset, config)?;
+        (projection.native_words() == original).then_some(projection)
+    }
+
+    pub(crate) fn logical_original_word_observations_at_span(
+        &self,
+        origin: &Arc<super::SourceOriginId>,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        span: tcl_lexer::Span,
+    ) -> Option<Vec<(NativeWord, usize, super::CommandAllocationSite)>> {
+        input.has_logical_source_name_context().then_some(())?;
+        if self.logical_body_words.values().any(Option::is_none) {
+            return None;
+        }
+        let offsets = self
+            .logical_body_words
+            .keys()
+            .chain(self.advice.keys())
+            .chain(self.body_catalogue.keys())
+            .chain(self.member_catalogue.keys())
+            .copied()
+            .filter(|offset| *offset <= span.start())
+            .collect::<BTreeSet<_>>();
+        let mut observations = Vec::new();
+        for offset in offsets {
+            let Some(projection) = self.logical_original_command_at(origin, input, offset) else {
+                continue;
+            };
+            let mut words = projection
+                .native_words()
+                .iter()
+                .enumerate()
+                .filter(|(_, word)| {
+                    word.span() == span
+                        || word
+                            .tokens()
+                            .first()
+                            .is_some_and(|token| token.span == span)
+                });
+            let Some((written, word)) = words.next() else {
+                continue;
+            };
+            if words.next().is_some() {
+                return None;
+            }
+            observations.push((
+                word.clone(),
+                written,
+                super::CommandAllocationSite {
+                    source: Arc::clone(origin),
+                    offset,
+                },
+            ));
+        }
+        Some(observations)
+    }
+
     /// Exact Logical catalogue words retain geometry without an entered invocation.
     pub(crate) fn logical_original_word_at_span(
         &self,

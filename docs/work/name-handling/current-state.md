@@ -10,14 +10,16 @@ Effective scope is **2,177 obligations**, with **115 integrated pending validati
 and **2,062 not integrated**. These counts establish neither semantic acceptance
 nor completed gates.
 
-Development checkpoint `1e5dfbdb0` is pushed to `work`. Its fresh ordinary
+Development checkpoint `80541dfbc` is pushed to `work`. Its fresh ordinary
 six-package workspace build passed in 9m18s. Selected controls are **164 PASS /
 79 FAIL**, with one zero-test invocation explicitly rejected. Core minifier
 controls are 92 PASS/50 FAIL and VM namespace controls 44 PASS/12 FAIL; all six
 actual VM report-parts controls and the import cleanup control pass. Exact logs,
 binary hashes and strict original-provider invocation scope are retained.
 The successor seven-package build failed on two new class adapter compile errors;
-reviewed narrow repairs are applied and await rerun. Jim variable, VM lookup and
+reviewed narrow repairs are applied and await rerun.
+The fresh ordinary Runtime successor build passes in 56.11s with zero warnings
+after four narrow compile repairs; current ordinary controls are pending. Jim variable, VM lookup and
 partial class/collection transport are integrated. Foreign constructor collections
 remain open. None of this changes the frozen M12 record or grants issue acceptance.
 
