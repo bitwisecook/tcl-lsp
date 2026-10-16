@@ -468,5 +468,20 @@
     "file": "repository-audit-progress-20261016T022818Z.tar.gz",
     "sha256": "b123ce923396c1161d1209aaa945a0f9796ddb11101f6b7a0c9003208703d9fe",
     "status": "INCOMPLETE cc24 source audit: 8898 provisional purpose rows; exact frozen primary partitions/source SHA/schema reconcile, no same-key duplicate candidates. Semantic aliases have independent reconciliation receipts but remaining work-kind/purpose/unit reconciliation and unexamined production/harness/guidance remain. Shared owners/display/metadata/exclusions included; NOT remaining-consumer total. No test/provider/generator/gate acceptance."
+  },
+  {
+    "file": "repository-audit-deep-delta-20261016T024542Z.tar.gz",
+    "sha256": "a2a1ac81c3b0749b37158674e3b16c6a47c3b9bbdc1f1155899fd9f0e4abb411",
+    "status": "Exact nested audit delta against repository-audit-deep-progress-20261015T220906Z.tar.gz SHA8813dc50abbc84c6c55a0ca2563df708c80ce8d8f8fcb7c60ad2bb092122d4fa; 981 changed/new verified members,0 deletions; source retention only, no review/execution acceptance."
+  },
+  {
+    "file": "repository-audit-progress-20261016T024610Z.tar.gz",
+    "sha256": "88587c20fdbd69f91e2f234c6eba4bc7f5f8a63f2e05e5307093fa87bf0f1c3d",
+    "status": "INCOMPLETE cc24 source audit: 8968 provisional purpose rows; exact frozen primary partitions/source SHA/schema reconcile, no same-key duplicate candidates. Semantic aliases have independent reconciliation receipts but remaining work-kind/purpose/unit reconciliation and unexamined production/harness/guidance remain. Shared owners/display/metadata/exclusions included; NOT remaining-consumer total. No test/provider/generator/gate acceptance."
+  },
+  {
+    "file": "repository-audit-db161-seal-20261016T0249.tar.gz",
+    "sha256": "7cd565ab8890353ca61dcd3926d2c97dfd75f3c76fe589edb2ea105f39ce2250",
+    "status": "Exact DB161 sealed correction supersedes transient DB162 auxiliary in024610primary; one Core Arraydefault668 owner only, no extra Registryowner/adopter. Five members verified; scope/source counts only, no repository total or execution."
   }
 ]
