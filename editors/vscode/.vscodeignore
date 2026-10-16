@@ -16,7 +16,6 @@ tsconfig.json
 
 # Dev tooling config
 .prettierignore
-eslint.config.cjs
 
 # Test artifacts
 out/test/**

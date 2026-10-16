@@ -69,8 +69,9 @@ upstream than `tcl.tk` / SourceForge on every cold session. The hook exports
 | CI actions and tool binaries | SHA pins and tool versions in `.github/`; canonical report workflows under `rust/bigip-report-gen/python/deploy/` |
 
 Dependency upgrades preserve host compatibility: `@types/vscode` follows the
-supported VS Code API floor, and TypeScript stays on 6.0.x while the latest
-`typescript-eslint` peer range requires `<6.1`. The WASI transport requires
+supported VS Code API floor, and the extension's `@types/node` stays on the
+newest line that does not pass the Node.js that floor ships (VS Code 1.95 is
+Electron 32 on Node.js 20.18, so `~20.17`). The WASI transport requires
 the Preview 1 `wasi` 0.11 API; the 0.12+ component API is not an in-place
 replacement. Browser crypto requires both the `getrandom` 0.2 `js` and 0.4
 `wasm_js` backends for the dependency generations that consume them. Keep

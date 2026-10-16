@@ -727,7 +727,7 @@ test-py-engine: py-venv ## Test the native f5report query-engine binding
 # `test-rust`.
 
 lint-ts: $(NPM_STAMP) ## Lint/format-check TypeScript extension code
-	@echo "==> Linting TypeScript code (ESLint + Prettier check)"
+	@echo "==> Format-checking TypeScript code (Prettier)"
 	cd $(EXT_DIR) && $(NPM) run lint
 
 format-ts: $(NPM_STAMP) ## Format TypeScript extension code with Prettier
@@ -764,7 +764,7 @@ build-report-pyz: build-report-assets ## Build a self-contained f5report .pyz (n
 	@echo "==> Built $(REPORT_PYZ)"
 
 lint-report-ts: $(REPORT_NPM_STAMP) ## Lint/format-check the shared report search modules
-	@echo "==> Linting shared report front-end (ESLint + Prettier check)"
+	@echo "==> Format-checking shared report front-end (Prettier)"
 	cd $(REPORT_SHARED_DIR) && $(NPM) run lint
 
 typecheck-report-ts: $(REPORT_NPM_STAMP) ## Type-check the shared report front-end with tsc
@@ -772,7 +772,7 @@ typecheck-report-ts: $(REPORT_NPM_STAMP) ## Type-check the shared report front-e
 	cd $(REPORT_SHARED_DIR) && $(NPM) run typecheck
 
 lint-spec-studio-ts: $(SPEC_STUDIO_NPM_STAMP) ## Lint/format-check the spec studio front-end
-	@echo "==> Linting spec studio front-end (ESLint + Prettier check)"
+	@echo "==> Format-checking spec studio front-end (Prettier)"
 	cd $(SPEC_STUDIO_WEB) && $(NPM) run lint
 
 typecheck-spec-studio-ts: $(SPEC_STUDIO_NPM_STAMP) ## Type-check the spec studio front-end with tsc
