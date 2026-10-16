@@ -73,6 +73,58 @@ fn merge() {
     );
 }
 
+#[cfg(unix)]
+#[test]
+fn merge_refuses_opaque_path_without_opening_replacement_sibling() {
+    use std::os::unix::ffi::OsStringExt;
+
+    let dir = std::env::temp_dir().join(format!("f5-merge-native-path-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("create temp dir");
+
+    let opaque_name = std::ffi::OsString::from_vec(b"input-\xff.conf".to_vec());
+    let opaque_path = dir.join(opaque_name);
+    let replacement_path = dir.join("input-\u{fffd}.conf");
+    let marker = "# Unicode replacement sibling sentinel\n";
+    std::fs::write(&opaque_path, "# opaque original file\n").expect("write opaque input");
+    std::fs::write(&replacement_path, marker).expect("write replacement sibling");
+
+    // This is the concrete alias that the former lossy conversion created.
+    assert_eq!(
+        PathBuf::from(opaque_path.to_string_lossy().as_ref()),
+        replacement_path
+    );
+    assert!(replacement_path.is_file());
+
+    let refused = Command::new(env!("CARGO_BIN_EXE_f5-query"))
+        .arg("merge")
+        .arg(&opaque_path)
+        .output()
+        .expect("run merge with opaque path");
+    assert_eq!(refused.status.code(), Some(2));
+    assert!(
+        refused.stdout.is_empty(),
+        "refusal must not emit merged data"
+    );
+    assert!(
+        String::from_utf8_lossy(&refused.stderr)
+            .contains("input path is not representable as Unicode"),
+        "unexpected diagnostic: {}",
+        String::from_utf8_lossy(&refused.stderr)
+    );
+
+    let accepted = Command::new(env!("CARGO_BIN_EXE_f5-query"))
+        .arg("merge")
+        .arg(&replacement_path)
+        .output()
+        .expect("run merge with Unicode replacement sibling");
+    assert_eq!(accepted.status.code(), Some(0));
+    assert!(String::from_utf8_lossy(&accepted.stdout).contains(marker));
+    assert!(accepted.stderr.is_empty());
+
+    std::fs::remove_dir_all(&dir).expect("remove temp dir");
+}
+
 #[test]
 fn split_then_merge() {
     // split a multi-partition fixture into a temp dir, then merge it back, and

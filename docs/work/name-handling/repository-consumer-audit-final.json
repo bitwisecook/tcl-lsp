@@ -7427,7 +7427,12 @@
       ],
       "api": "Existing actual original variable reference/ExecutablePartArena and source formal symbol/field owner",
       "required_change": "Private bare reference scanner3936 ASCII root logic and report param string matches feed finalise traits, with no observation=>Unused4050. Adopt actual configured original reference/formal symbol incidence and explicit unknown/truncated coverage. Keep UsesParam/UsedInCondition report purpose distinct from physical read.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "554085e162823ea8bd126898d0c27b7b2a9f8628",
+        "validation": "Reviewed V3 actual Module/body/formal/FunctionUnit/CFG/input and original word/AST observations integrated; Installed inventory excluded; incomplete observations withhold Unused. Rust check running, candidate tests unexecuted. V1 review defect claim retracted because full-Script guard already protected it."
+      }
     },
     {
       "area": "compiler",
@@ -49543,7 +49548,12 @@
       ],
       "api": "Existing tcl_bigip_io loader and genuine native Path ingress; extend same owner for Path if needed, not a local URI normaliser.",
       "required_change": "Actual PathBuf inputs converted with to_string_lossy then loaded as String; opaque names may resolve another actual file. Preserve native path or checked representability failure, separately from IO canonical URI issue.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "554085e162823ea8bd126898d0c27b7b2a9f8628",
+        "validation": "Source-reviewed exact native PathBuf representability refusal at existing String-based loader boundary; Unicode behavior retained. New Unix real-CLI opaque-vs-U+FFFD sibling control integrated but unexecuted."
+      }
     },
     {
       "area": "root",
@@ -49564,7 +49574,12 @@
       ],
       "api": "Existing tcl_bigip_io loader and genuine native Path ingress; extend same owner for Path if needed, not a local URI normaliser.",
       "required_change": "Actual PathBuf inputs converted with to_string_lossy then loaded as String; opaque names may resolve another actual file. Preserve native path or checked representability failure, separately from IO canonical URI issue.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "554085e162823ea8bd126898d0c27b7b2a9f8628",
+        "validation": "Source-reviewed exact native PathBuf representability refusal at existing String-based loader boundary; Unicode behavior retained. New Unix real-CLI opaque-vs-U+FFFD sibling control integrated but unexecuted."
+      }
     },
     {
       "area": "root",
@@ -49585,7 +49600,12 @@
       ],
       "api": "Shared tcl_bigip_io native Path ingress (extend existing owner if unavailable).",
       "required_change": "Actual Path converted with to_string_lossy then interpreted by loader as input name; preserve actual Path or explicit checked refusal.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "554085e162823ea8bd126898d0c27b7b2a9f8628",
+        "validation": "Source-reviewed exact native PathBuf representability refusal at existing String-based loader boundary; Unicode behavior retained. New Unix real-CLI opaque-vs-U+FFFD sibling control integrated but unexecuted."
+      }
     },
     {
       "area": "root",
@@ -49620,6 +49640,11 @@
             }
           }
         ]
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "554085e162823ea8bd126898d0c27b7b2a9f8628",
+        "validation": "Source-reviewed exact native PathBuf representability refusal at existing String-based loader boundary; Unicode behavior retained. New Unix real-CLI opaque-vs-U+FFFD sibling control integrated but unexecuted."
       }
     },
     {
@@ -49725,7 +49750,12 @@
       ],
       "api": "Shared tcl_bigip_io native Path ingress.",
       "required_change": "Actual Path converted with to_string_lossy before loading, losing opaque file identity. Extend existing IO owner if needed.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "554085e162823ea8bd126898d0c27b7b2a9f8628",
+        "validation": "Source-reviewed exact native PathBuf representability refusal at existing String-based loader boundary; Unicode behavior retained. New Unix real-CLI opaque-vs-U+FFFD sibling control integrated but unexecuted."
+      }
     },
     {
       "area": "root",
@@ -49932,7 +49962,12 @@
       ],
       "api": "Actual analysis.resolved_input.context_registry commands/profile; purpose-specific shared consumer.",
       "required_change": "Reobtains registry(dialect) independently after analyse rather than reborrowing actual held input. Retain same generation/context and existing Source/transform preconditions; downstream ownership issues counted at owners.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "554085e162823ea8bd126898d0c27b7b2a9f8628",
+        "validation": "Independent source review clears actual retained analysis ContextRegistry transport, terminal missing context and unchanged Core edit guards. Target Rust tests unexecuted."
+      }
     },
     {
       "area": "root",
@@ -49953,7 +49988,12 @@
       ],
       "api": "Actual analysis.resolved_input.context_registry commands/profile; purpose-specific shared consumer.",
       "required_change": "Reobtains registry(dialect) independently after analyse rather than reborrowing actual held input. Retain same generation/context and existing Source/transform preconditions; downstream ownership issues counted at owners.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "554085e162823ea8bd126898d0c27b7b2a9f8628",
+        "validation": "Independent source review clears actual retained analysis ContextRegistry transport, terminal missing context and unchanged Core edit guards. Target Rust tests unexecuted."
+      }
     },
     {
       "area": "root",
@@ -49974,7 +50014,12 @@
       ],
       "api": "Actual analysis.resolved_input.context_registry commands/profile; purpose-specific shared consumer.",
       "required_change": "Reobtains registry(dialect) independently after analyse rather than reborrowing actual held input. Retain same generation/context and existing Source/transform preconditions; downstream ownership issues counted at owners.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "554085e162823ea8bd126898d0c27b7b2a9f8628",
+        "validation": "Independent source review clears actual retained analysis ContextRegistry transport, terminal missing context and unchanged Core edit guards. Target Rust tests unexecuted."
+      }
     },
     {
       "area": "root",
@@ -49995,7 +50040,12 @@
       ],
       "api": "Actual analysis.resolved_input.context_registry commands/profile; purpose-specific shared consumer.",
       "required_change": "Reobtains registry(dialect) independently after analyse rather than reborrowing actual held input. Retain same generation/context and existing Source/transform preconditions; downstream ownership issues counted at owners.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "554085e162823ea8bd126898d0c27b7b2a9f8628",
+        "validation": "Independent source review clears actual retained analysis ContextRegistry transport, terminal missing context and unchanged Core edit guards. Target Rust tests unexecuted."
+      }
     },
     {
       "area": "root",
@@ -50016,7 +50066,12 @@
       ],
       "api": "Actual analysis.resolved_input.context_registry commands/profile; purpose-specific shared consumer.",
       "required_change": "Reobtains registry(dialect) independently after analyse rather than reborrowing actual held input. Retain same generation/context and existing Source/transform preconditions; downstream ownership issues counted at owners.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "554085e162823ea8bd126898d0c27b7b2a9f8628",
+        "validation": "Independent source review clears actual retained analysis ContextRegistry transport, terminal missing context and unchanged Core edit guards. Target Rust tests unexecuted."
+      }
     },
     {
       "area": "root",
@@ -64135,6 +64190,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "554085e162823ea8bd126898d0c27b7b2a9f8628",
+        "validation": "Source-reviewed exact JSON-RPC fields, native UTF8 socket byte budget and fail-closed fixture setup integrated. VSCode TypeScript noEmit and scoped Prettier pass. Full npm pipeline and preview-ticket/multi-folder execution pending."
       }
     },
     {
@@ -64165,6 +64225,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "554085e162823ea8bd126898d0c27b7b2a9f8628",
+        "validation": "Source-reviewed exact JSON-RPC fields, native UTF8 socket byte budget and fail-closed fixture setup integrated. VSCode TypeScript noEmit and scoped Prettier pass. Full npm pipeline and preview-ticket/multi-folder execution pending."
       }
     },
     {
@@ -65911,6 +65976,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "554085e162823ea8bd126898d0c27b7b2a9f8628",
+        "validation": "Source-reviewed exact JSON-RPC fields, native UTF8 socket byte budget and fail-closed fixture setup integrated. VSCode TypeScript noEmit and scoped Prettier pass. Full npm pipeline and preview-ticket/multi-folder execution pending."
       }
     },
     {
@@ -65941,6 +66011,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "554085e162823ea8bd126898d0c27b7b2a9f8628",
+        "validation": "Source-reviewed exact JSON-RPC fields, native UTF8 socket byte budget and fail-closed fixture setup integrated. VSCode TypeScript noEmit and scoped Prettier pass. Full npm pipeline and preview-ticket/multi-folder execution pending."
       }
     },
     {
@@ -65971,6 +66046,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "554085e162823ea8bd126898d0c27b7b2a9f8628",
+        "validation": "Source-reviewed exact JSON-RPC fields, native UTF8 socket byte budget and fail-closed fixture setup integrated. VSCode TypeScript noEmit and scoped Prettier pass. Full npm pipeline and preview-ticket/multi-folder execution pending."
       }
     },
     {
@@ -131374,12 +131454,12 @@
   ],
   "implementation_progress": {
     "resumed_from": "554085e162823ea8bd126898d0c27b7b2a9f8628",
-    "utc": "2026-10-16T11:56:00.927866+00:00",
+    "utc": "2026-10-16T12:40:22.962973+00:00",
     "audit_baseline_counts_unchanged": true,
     "total_required_units": 2158,
-    "implemented_pending_validation": 108,
+    "implemented_pending_validation": 124,
     "verified_complete": 0,
-    "not_started": 2050,
+    "not_started": 2034,
     "remaining_unverified_or_unimplemented": 2158,
     "additional_work_not_counted_as_catalogue_completion": [
       "Native variable-expression read/cell/trace/child-body observer producer remains open; pure expression gap receipt grants no such authority.",
@@ -131539,7 +131619,7 @@
     "withheld_drafts": [
       "Minifier command/argument alias construction: missing genuine source action/insertion owner; original unknown-command controls remain unchanged."
     ],
-    "owner_facet_reconciliation": "29 additional unverified requirements accepted; all29 integrated pending validation. Actual engine provenance owner is one distinct requirement; conditional parameter prefix remains existing Logical trait-body owner.",
+    "owner_facet_reconciliation": "30 additional unverified requirements accepted;29 integrated pendingvalidation,1notintegrated. Definition source-effect coverage includes mutable worker applicability once; dependent SourceSelf remains existing Logical navigation owner.",
     "runtime_build": {
       "status": "PASS",
       "seconds": 57.46,
@@ -131599,10 +131679,29 @@
         "limitation": "Source integrations occurred during the run. A stable-source full gate rerun remains necessary."
       },
       "census_path_classification": {
-        "tracked_missing_compressed": 158,
-        "present_tracked_without_rows": 101,
-        "availability_restoration_pending": true,
-        "evidence_hash_refresh": false
+        "tracked_missing_compressed": 0,
+        "present_tracked_without_rows": 0,
+        "availability_restoration_pending": false,
+        "evidence_hash_refresh": false,
+        "restored_compressed_files": 158,
+        "restored_compressed_bytes": 104319313,
+        "added_inventory_rows": 101,
+        "existing_census_rows_unchanged": true
+      },
+      "current_stable_run": {
+        "status": "FAIL",
+        "structural_errors": 2033,
+        "evidence_digest_drift": 1081,
+        "census_digest_drift": 952,
+        "path_drift": 0,
+        "missing_files": 0,
+        "pending_candidates": 0,
+        "unlinked_tests": 0,
+        "input_files": 49278,
+        "input_drift": 0,
+        "seconds": 356.6626031629967,
+        "capture": "experiments/name-handling/results/owner-adoption-20261016/proof-stable-6fa",
+        "scope": "Full unchanged checker with stable inputs; still red, no semantic run/status/hash refresh."
       }
     },
     "additional_facet_review": {
@@ -131613,19 +131712,24 @@
     },
     "additional_owner_annex": {
       "path": "docs/work/name-handling/implementation-owner-annex.json",
-      "required": 29,
+      "required": 30,
       "implemented_pending_validation": 29,
-      "not_integrated": 0,
+      "not_integrated": 1,
       "verified_complete": 0
     },
-    "effective_required_units": 2187,
-    "effective_implemented_pending_validation": 137,
+    "effective_required_units": 2188,
+    "effective_implemented_pending_validation": 153,
     "effective_verified_complete": 0,
     "incoming_remote": {
-      "rust": "5704753576d9e6d57ba7928c739dcbf726ce6bd1",
-      "issue": 2486,
+      "rust": "c60f938ddd2a8d92a3bc251c57fa3609d77593c3",
+      "issue": 2488,
+      "prior_tip": "5704753576d9e6d57ba7928c739dcbf726ce6bd1",
       "status": "unmerged_unadmitted",
-      "scope": "Toolchain and cross-project dependency updates; current work toolchain unchanged."
+      "changed_paths": [
+        ".claude/hooks/session-start.sh",
+        "docs/design/contracts/development-environment.md",
+        "scripts/dev/ensure-test-deps.sh"
+      ]
     },
     "ordinary_workspace_build": {
       "status": "PASS",
@@ -131666,10 +131770,11 @@
       "Temporary navigation overlay reversed byte-exact; diagnostic binary retained separately from ordinary selected controls."
     ],
     "latest_successor_check": {
-      "status": "RUNNING",
-      "log": "/tmp/naming-nine-package-check-source-prefix-vm.log",
-      "ordinary": true,
-      "scope": "Nine-package cargo check --tests only; not test execution. Previous compiler/CLI/MCP check failed three unqualified existing test ProviderSources names; import repaired."
+      "status": "PASS",
+      "seconds": 189,
+      "warnings": 1,
+      "log": "/tmp/naming-actual-availability-prefix-mcp-check.log",
+      "scope": "Four-package cargo check --tests; includes actual availability/prefix role/MCP repairs, excludes later five path callers. No test execution."
     },
     "vm_info_successor": {
       "integrated": "One actual engine provenance owner and two original fixture corrections (Jim actualhelperpairing, OO terminalrefusalchronology).",
@@ -131679,6 +131784,56 @@
         "capture": "workspace-9a92/tcl_vm-cmd_info--.log"
       },
       "acceptance": "Unexecuted successor; original log retained."
+    },
+    "latest_successor_build": {
+      "status": "PASS",
+      "log": "/tmp/naming-workspace-build-6fa-source-trace-editor.log",
+      "ordinary": true,
+      "source": "6fa086c78 + reviewed trace exclusion + editor validation changes",
+      "scope": "Seven selected library test targets, no execution until frozen.",
+      "seconds": 551,
+      "warnings": 0,
+      "capture": "/workspace/naming-validation/workspace-6fa",
+      "source_head": "6fa086c780e2ebbc4e8840d762ac70106e19d39f",
+      "source_diff_sha256": "890bec6afbaaddae1d5b71d45db47b17e3297fdd9cd723c276bfc06da89558c6",
+      "selected_controls": {
+        "PASS": 117,
+        "FAIL": 29,
+        "cohorts": 23,
+        "zero_test_runs": 0,
+        "prior_test_gains": 5,
+        "prior_test_regressions": 14,
+        "prior_test_drops": 0,
+        "added_tests": 9,
+        "capture": "experiments/name-handling/results/owner-adoption-20261016/workspace-6fa"
+      }
+    },
+    "editor_boundaries": {
+      "units": 5,
+      "typescript_no_emit": "PASS",
+      "scoped_prettier": "PASS",
+      "full_npm_compile": "PASS; provisioned Rust owner generation + TypeScript + Node/browser bundles;9 existing Rust build warnings; missing WASM distribution assets skipped by owner. No GUI/Web acceptance.",
+      "runtime_controls": "UNEXECUTED"
+    },
+    "trace_source_exclusion": {
+      "count": "Partial facet within baseline db.unit.rust.tcl-registry.src.source_name_ownership.72; no additional counted unit until its full owner requirement is implemented. Existing2749/mapped-owner callers already counted.",
+      "status": "integrated pending validation",
+      "purpose": "Typed trace registration lexical veto only; no Native read/cell/observer/lifetime authority."
+    },
+    "mcp_held_registry": {
+      "baseline_units": 5,
+      "new_owner_requirements": 0,
+      "status": "integrated pending target Rust checks/tests",
+      "scope": "hover, completion, rename, inline and refactor consume actual retained ContextRegistry; existing source/edit guards independent."
+    },
+    "remaining_ordinary_regressions": "Four info +tennamespace prior passes panic at native implementation namespace. Reviewed actual-availability repair90c73e integrated, execution pending.",
+    "latest_successor_check_current": {
+      "status": "PASS",
+      "log": "/tmp/naming-formal-observations-native-path-check.log",
+      "scope": "Four-package cargo check --tests including formal3936, path5/control and all previous actual availability/prefix/MCP repairs.",
+      "seconds": 163,
+      "warnings": 1,
+      "capture": "experiments/name-handling/results/owner-adoption-20261016/formal-reference-adoption/checked-source-binding.json"
     }
   }
 }

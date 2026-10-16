@@ -1,0 +1,10 @@
+{
+  "head": "6fa086c780e2ebbc4e8840d762ac70106e19d39f",
+  "status": "FAIL",
+  "checker_exit": 1,
+  "seconds": 356.6626031629967,
+  "input_files": 49278,
+  "input_drift": [],
+  "stable_input_gate_run": true,
+  "log_sha256": "103ee612b8dd84452a196a0f0bf4b80d506846b4b238c6a6a4a1438cfd010ef0"
+}

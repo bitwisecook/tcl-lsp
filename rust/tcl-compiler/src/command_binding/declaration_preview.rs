@@ -488,7 +488,7 @@ impl OriginalDeclarationSourceOperandLayout {
             &crate::ir::ExecutionNamespace::SourceContext(self.header.namespace.clone()),
             metadata,
             self.config,
-            crate::script_binds::Ownership::ScopeAliases,
+            crate::script_binds::Ownership::ScopeAliasesAndTraceRegistrations,
         );
         !effects.opaque && !effects.names.contains(&name.to_owned())
     }

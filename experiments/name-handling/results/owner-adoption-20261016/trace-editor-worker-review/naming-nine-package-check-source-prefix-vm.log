@@ -1,0 +1,110 @@
+   Compiling syn v3.0.6
+   Compiling thiserror-impl v2.0.21
+    Checking thiserror v2.0.21
+    Checking tcl-lexer v0.1.0 (/workspace/tcl-lsp/rust/tcl-lexer)
+    Checking tcl-syntax v0.1.0 (/workspace/tcl-lsp/rust/tcl-syntax)
+    Checking allocator-api2 v0.2.21
+    Checking smallvec v1.16.2
+    Checking hashbrown v0.17.1
+    Checking tcl-runtime-api v0.1.0 (/workspace/tcl-lsp/rust/tcl-runtime-api)
+    Checking indexmap v2.14.2
+    Checking serde_json v1.0.151
+    Checking tcl-cmd-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-cmd-core)
+    Checking tcl-regex v0.1.0 (/workspace/tcl-lsp/rust/tcl-regex)
+    Checking tcl-registry v0.1.0 (/workspace/tcl-lsp/rust/tcl-registry)
+    Checking tcl-bytecode v0.1.0 (/workspace/tcl-lsp/rust/tcl-bytecode)
+    Checking tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+    Checking tcl-vm v0.1.0 (/workspace/tcl-lsp/rust/tcl-vm)
+   Compiling serde_derive v1.0.229
+    Checking serde v1.0.229
+   Compiling displaydoc v0.2.7
+    Checking asn1-rs v0.7.2
+    Checking der-parser v10.0.0
+    Checking oid-registry v0.8.1
+    Checking x509-parser v0.18.1
+    Checking tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+    Checking tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+    Checking tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+    Checking tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+    Checking parking_lot_core v0.9.12
+    Checking tcl-engine-api v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-api)
+    Checking tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-tclvm)
+    Checking tcl-pkg-model v0.1.0 (/workspace/tcl-lsp/rust/tcl-pkg-model)
+    Checking tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-hooks)
+    Checking tcl-spectcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-spectcl)
+    Checking parking_lot v0.12.5
+    Checking temp-env v0.3.6
+   Compiling futures-macro v0.3.34
+   Compiling httparse v1.10.1
+    Checking futures-util v0.3.34
+   Compiling tokio-macros v2.7.2
+    Checking tokio v1.53.2
+    Checking futures-executor v0.3.34
+    Checking futures v0.3.34
+    Checking tokio-util v0.7.19
+    Checking dashmap v6.2.1
+   Compiling ref-cast-impl v1.0.27
+    Checking ref-cast v1.0.27
+    Checking borrow-or-share v0.2.4
+    Checking fluent-uri v0.4.1
+    Checking sync_wrapper v1.0.2
+    Checking tower-service v0.3.3
+    Checking tower-layer v0.3.3
+    Checking tower v0.5.3
+    Checking ls-types v0.0.6
+    Checking tower-lsp-server v0.23.0
+    Checking chrono v0.4.45
+    Checking ureq-proto v0.6.4
+    Checking ureq v3.4.2
+    Checking zip v8.6.0
+   Compiling clap_derive v4.6.7
+    Checking tcl-sandbox v0.1.0 (/workspace/tcl-lsp/rust/tcl-sandbox)
+   Compiling tcl-version v0.1.0 (/workspace/tcl-lsp/rust/tcl-version)
+    Checking tcl-pkg v0.1.0 (/workspace/tcl-lsp/rust/tcl-pkg)
+    Checking clap v4.6.7
+    Checking tcl-spec-studio v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-studio)
+    Checking tcl-cli-support v0.1.0 (/workspace/tcl-lsp/rust/tcl-cli-support)
+    Checking clap_complete v4.6.11
+    Checking russh-util v0.52.0
+    Checking russh v0.64.1
+    Checking russh-sftp v3.0.1
+    Checking tcl-bigip-io v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip-io)
+    Checking tcl-bigip-query v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip-query)
+    Checking tcl-irule-test v0.1.0 (/workspace/tcl-lsp/rust/tcl-irule-test)
+    Checking f5-cli v0.1.0 (/workspace/tcl-lsp/rust/f5-cli)
+    Checking hashlink v0.12.2
+   Compiling portable-atomic v1.15.0
+   Compiling typeid v1.0.3
+    Checking crossbeam-queue v0.3.14
+   Compiling salsa-macros v0.28.5
+    Checking boxcar v0.2.14
+    Checking thin-vec v0.2.20
+    Checking salsa-macro-rules v0.28.5
+    Checking inventory v0.3.24
+    Checking intrusive-collections v0.10.3
+    Checking salsa v0.28.5
+    Checking tcl-lsp-db v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-db)
+   Compiling darling_core v0.24.1
+   Compiling darling_macro v0.24.1
+   Compiling serde_derive_internals v0.30.0
+   Compiling schemars_derive v1.2.2
+   Compiling darling v0.24.1
+    Checking schemars v1.2.2
+    Checking rusqlite v0.40.2
+   Compiling rmcp-macros v3.5.0
+    Checking tcl-explorer v0.1.0 (/workspace/tcl-lsp/rust/tcl-explorer)
+    Checking tcl-diagram v0.1.0 (/workspace/tcl-lsp/rust/tcl-diagram)
+    Checking rmcp v3.5.0
+    Checking tcl-cli v0.1.0 (/workspace/tcl-lsp/rust/tcl-cli)
+    Checking f5-xc v0.1.0 (/workspace/tcl-lsp/rust/f5-xc)
+    Checking tcl-mcp v0.1.0 (/workspace/tcl-lsp/rust/tcl-mcp)
+warning: function `fixture_id` is never used
+  --> rust/tcl-compiler/tests/support/body_identity.rs:43:8
+   |
+43 | pub fn fixture_id<'a, T: FixtureBody + 'a>(
+   |        ^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-compiler` (test "pipeline_coverage") generated 1 warning
+    Finished `dev` profile [unoptimized] target(s) in 4m 59s

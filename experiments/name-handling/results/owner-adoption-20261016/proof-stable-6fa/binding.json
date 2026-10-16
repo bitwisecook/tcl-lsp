@@ -1,0 +1,15 @@
+{
+  "head": "6fa086c780e2ebbc4e8840d762ac70106e19d39f",
+  "source_diff_sha256": "890bec6afbaaddae1d5b71d45db47b17e3297fdd9cd723c276bfc06da89558c6",
+  "inputs_json_sha256": "898bc1e9921ec2d71ceb522a82c14bf7468fc46a11fcad500351326b238208d9",
+  "inputs_before_equals_after": true,
+  "structural_errors": 2033,
+  "evidence_digest_drift": 1081,
+  "census_digest_drift": 952,
+  "missing_files": 0,
+  "path_drift": 0,
+  "pending_candidates": 0,
+  "unbound_test_annotations": 0,
+  "gate_status": "FAIL",
+  "acceptance": "Full unchanged checker with stable inputs; no semantic execution or digest refresh."
+}

@@ -817,8 +817,20 @@ fn inline_variable(args: &Value) -> Value {
     let dialect = resolve_dialect(args, source);
     let (idx, off) = cursor(source, arg_u32(args, "line"), arg_u32(args, "character"));
     let analysis = analyse(source, &dialect);
-    match tcl_lsp_core::refactor::inline_variable(source, off, &analysis, &registry(&dialect), &idx)
-    {
+    let Some(context) = analysis
+        .resolved_input
+        .as_ref()
+        .map(|input| input.context_registry())
+    else {
+        return Value::Null;
+    };
+    match tcl_lsp_core::refactor::inline_variable(
+        source,
+        off,
+        &analysis,
+        context.commands().as_ref(),
+        &idx,
+    ) {
         Some(r) => refactoring_json(source, &r),
         None => Value::Null,
     }
@@ -1165,12 +1177,17 @@ fn hover(args: &Value) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
     let analysis = analyse(source, &dialect);
+    let context = analysis
+        .resolved_input
+        .as_ref()
+        .map(|input| input.context_registry());
+    let commands = context.as_ref().map(|context| context.commands().as_ref());
     match tcl_lsp_core::hover::hover(
         source,
         arg_u32(args, "line"),
         arg_u32(args, "character"),
         &analysis,
-        Some(&registry(&dialect)),
+        commands,
     ) {
         Some(h) => json!({ "contents": h.value }),
         None => Value::Null,
@@ -1181,12 +1198,17 @@ fn complete(args: &Value) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
     let analysis = analyse(source, &dialect);
+    let context = analysis
+        .resolved_input
+        .as_ref()
+        .map(|input| input.context_registry());
+    let commands = context.as_ref().map(|context| context.commands().as_ref());
     let items = tcl_lsp_core::completion::completions(
         source,
         arg_u32(args, "line"),
         arg_u32(args, "character"),
         &analysis,
-        Some(&registry(&dialect)),
+        commands,
         None,
         tcl_lsp_core::profile_for_dialect(&dialect),
     );
@@ -1260,6 +1282,11 @@ fn rename(args: &Value) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
     let analysis = analyse(source, &dialect);
+    let context = analysis
+        .resolved_input
+        .as_ref()
+        .map(|input| input.context_registry());
+    let commands = context.as_ref().map(|context| context.commands().as_ref());
     let edits = tcl_lsp_core::rename::rename(
         source,
         tcl_lsp_core::profile_for_dialect(&dialect),
@@ -1267,7 +1294,7 @@ fn rename(args: &Value) -> Value {
         arg_u32(args, "character"),
         arg_str(args, "new_name"),
         &analysis,
-        Some(&registry(&dialect)),
+        commands,
     );
     if edits.is_empty() {
         return Value::Null;
@@ -1432,7 +1459,6 @@ fn extract_datagroup(args: &Value) -> Value {
 fn refactor(args: &Value) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
-    let reg = registry(&dialect);
     let line_index = LineIndex::new(source);
     let start_off = line_index.offset_at_utf16(
         arg_u32(args, "start_line"),
@@ -1445,6 +1471,11 @@ fn refactor(args: &Value) -> Value {
         source,
     );
     let analysis = analyse(source, &dialect);
+    let context = analysis
+        .resolved_input
+        .as_ref()
+        .map(|input| input.context_registry());
+    let commands = context.as_ref().map(|context| context.commands());
     let mut available: Vec<Value> = Vec::new();
     let mut push = |tool: &str, r: Option<tcl_lsp_core::refactor::Refactoring>| {
         if let Some(r) = r {
@@ -1468,10 +1499,18 @@ fn refactor(args: &Value) -> Value {
             ),
         );
     }
-    push(
-        "inline_variable",
-        tcl_lsp_core::refactor::inline_variable(source, start_off, &analysis, &reg, &line_index),
-    );
+    if let Some(commands) = commands {
+        push(
+            "inline_variable",
+            tcl_lsp_core::refactor::inline_variable(
+                source,
+                start_off,
+                &analysis,
+                commands.as_ref(),
+                &line_index,
+            ),
+        );
+    }
     push(
         "if_to_switch",
         tcl_lsp_core::refactor::if_to_switch(source, start_off, &analysis, &line_index),

@@ -73,7 +73,7 @@ pub(crate) fn refresh_profile(vm: &mut Vm) {
 }
 
 fn native_ensemble_available(vm: &Vm) -> bool {
-    let dialect = vm.native_invocation_dialect();
+    let dialect = vm.actual_native_invocation_dialect();
     dialect.family() == Some(tcl_dialect::model::Family::Tcl)
         && dialect
             .tcl_version

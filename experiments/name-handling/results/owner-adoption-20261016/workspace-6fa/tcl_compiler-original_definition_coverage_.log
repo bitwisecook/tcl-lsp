@@ -1,0 +1,6 @@
+
+running 1 test
+test registry_invocation::source_scoped_body::script_purpose_tests::original_definition_coverage_requires_complete_parent_and_member_plans ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10235 filtered out; finished in 3.53s
+

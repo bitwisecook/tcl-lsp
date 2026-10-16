@@ -25,13 +25,17 @@ pub enum SourceNameOwnershipPurpose {
     BindingsOrNameReads,
     /// Local operands of typed variable-cell alias declarations.
     ScopeAliases,
+    /// Alias locals and the original variable subjects of trace registrations.
+    /// This is a lexical exclusion veto, not an installed observer or read fact.
+    ScopeAliasesAndTraceRegistrations,
 }
 
 /// Possible named operands, independent of interpolation, stores and current
 /// contents. An opaque residual prevents proving that a name is excluded.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SourceVariableNameOwnership {
-    /// Literal binding roots, including local names of alias declarations.
+    /// Literal source roots selected by this ownership purpose. Alias and
+    /// trace subjects remain lexical exclusions, not installed bindings.
     pub bindings: Vec<String>,
     /// Literal roots of inputs supplied by name, separate from interpolation.
     pub by_name_reads: Vec<String>,
@@ -42,6 +46,10 @@ pub struct SourceVariableNameOwnership {
 impl SourceVariableNameOwnership {
     fn include(names: &mut Vec<String>, name: &str) {
         let root = tcl_syntax::naming::split_element_ref(name).map_or(name, |(root, _)| root);
+        Self::include_root(names, root);
+    }
+
+    fn include_root(names: &mut Vec<String>, root: &str) {
         if !names.iter().any(|name| name == root) {
             names.push(root.to_owned());
         }
@@ -62,6 +70,45 @@ fn include_operand(
     } else {
         SourceVariableNameOwnership::include(names, name);
     }
+}
+
+/// The actual typed trace subject retains its own receiver ingress. An
+/// analytical string containing NUL cannot donate a counted Native byte value;
+/// unavailable subject geometry remains an opaque exclusion obligation.
+fn trace_registration_root(
+    invocation: &ResolvedInvocation<'_, '_>,
+    role_purpose: SourceRolePurpose,
+    subject: &crate::TransitionSubject,
+) -> Option<String> {
+    use crate::resolved_invocation::VariableReceiverOperandForm;
+    let argument = subject.argument_index()?;
+    let form = invocation.authored_source_variable_receiver_operand_form(argument)?;
+    if form != VariableReceiverOperandForm::TraceSubject {
+        return None;
+    }
+    let dialect = invocation.words.arguments().dialect()?;
+    let protocol = match role_purpose {
+        SourceRolePurpose::Original => dialect.native_name_protocol()?,
+        SourceRolePurpose::Logical => dialect.authored_name_policy()?.recipe(),
+    };
+    let original = if let Some(original) = subject.native_bytes() {
+        original
+    } else {
+        let original = subject.literal()?.as_bytes();
+        if original.contains(&0) {
+            return None;
+        }
+        original
+    };
+    let tcl_syntax::naming::NativeVariableInputForm::Combined(selected) =
+        form.input_form(protocol, original)?
+    else {
+        return None;
+    };
+    let projection = protocol.combined_variable_input(selected);
+    std::str::from_utf8(projection.root().selected())
+        .ok()
+        .map(str::to_owned)
 }
 
 impl ResolvedInvocation<'_, '_> {
@@ -96,7 +143,11 @@ impl ResolvedInvocation<'_, '_> {
         };
         out.opaque |= !complete;
         let arguments = self.words.arguments();
-        if purpose != SourceNameOwnershipPurpose::ScopeAliases {
+        if !matches!(
+            purpose,
+            SourceNameOwnershipPurpose::ScopeAliases
+                | SourceNameOwnershipPurpose::ScopeAliasesAndTraceRegistrations
+        ) {
             for (argument, role) in roles {
                 let argument = self.semantics.argument_offset + usize::from(argument);
                 if role == ArgRole::VarRead
@@ -142,6 +193,20 @@ impl ResolvedInvocation<'_, '_> {
                 }),
         };
         for fact in transitions.facts() {
+            if purpose == SourceNameOwnershipPurpose::ScopeAliasesAndTraceRegistrations {
+                if let StateTransition::Trace(crate::TraceTransition::Add {
+                    target: crate::TraceTarget::Variable(subject),
+                    ..
+                }) = &fact.transition
+                {
+                    match trace_registration_root(self, role_purpose, subject) {
+                        Some(root) => {
+                            SourceVariableNameOwnership::include_root(&mut out.bindings, &root)
+                        }
+                        None => out.opaque = true,
+                    }
+                }
+            }
             if let StateTransition::VariableCellAlias(alias) = &fact.transition {
                 if let Some(name) = alias.local.literal() {
                     SourceVariableNameOwnership::include(&mut out.bindings, name);
@@ -150,7 +215,9 @@ impl ResolvedInvocation<'_, '_> {
                 }
             }
         }
-        out.opaque |= transitions.widens(StateTransitionDomain::VariableCells)
+        out.opaque |= (purpose == SourceNameOwnershipPurpose::ScopeAliasesAndTraceRegistrations
+            && transitions.widens(StateTransitionDomain::VariableTraces))
+            || transitions.widens(StateTransitionDomain::VariableCells)
             || (self
                 .semantics
                 .traits
@@ -348,6 +415,87 @@ impl crate::CommandRegistry {
 #[cfg(test)]
 mod tests {
     use super::{SourceNameOwnershipPurpose, SourceRolePurpose};
+
+    #[test]
+    fn trace_registration_source_exclusion_keeps_subject_ingress_and_existing_purposes() {
+        use crate::InvocationWord::{Dynamic, KnownBytes, Literal};
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let context = crate::model::ingress::context_for_profile(profile);
+        let dialect = crate::InvocationDialect::of_profile(profile);
+        for (target, expected, opaque) in [
+            (Literal("local"), vec!["local"], false),
+            (Literal("other"), vec!["other"], false),
+            (Literal("local(key)"), vec!["local"], false),
+            (KnownBytes(b"local\0tail"), vec!["local"], false),
+            (Literal("local\0tail"), Vec::new(), true),
+            (Dynamic, Vec::new(), true),
+        ] {
+            let arguments = [
+                Literal("add"),
+                Literal("variable"),
+                target,
+                Literal("write"),
+                Literal("callback"),
+            ];
+            let selected =
+                crate::model::assembly::resolve_structured_invocation_in_resolved_context(
+                    context.commands(),
+                    Some(context.context()),
+                    crate::InvocationWords::structured(Literal("trace"), &arguments)
+                        .with_dialect(dialect),
+                    tcl_dialect::model::InvocationRealm::RuleLoader,
+                );
+            let schema = selected.resolved().unwrap();
+            let old = schema.authored_source_name_ownership(
+                SourceRolePurpose::Original,
+                SourceNameOwnershipPurpose::ScopeAliases,
+            );
+            assert!(
+                old.bindings.is_empty(),
+                "existing alias-only purpose: {target:?}"
+            );
+            let selected = schema.authored_source_name_ownership(
+                SourceRolePurpose::Original,
+                SourceNameOwnershipPurpose::ScopeAliasesAndTraceRegistrations,
+            );
+            assert_eq!(selected.bindings, expected, "{target:?}");
+            assert_eq!(selected.opaque, opaque, "{target:?}");
+        }
+        for arguments in [
+            vec![
+                Literal("add"),
+                Literal("command"),
+                Literal("local"),
+                Literal("rename"),
+                Literal("callback"),
+            ],
+            vec![
+                Literal("remove"),
+                Literal("variable"),
+                Literal("local"),
+                Literal("write"),
+                Literal("callback"),
+            ],
+        ] {
+            let selected =
+                crate::model::assembly::resolve_structured_invocation_in_resolved_context(
+                    context.commands(),
+                    Some(context.context()),
+                    crate::InvocationWords::structured(Literal("trace"), &arguments)
+                        .with_dialect(dialect),
+                    tcl_dialect::model::InvocationRealm::RuleLoader,
+                );
+            let selected = selected.resolved().unwrap().authored_source_name_ownership(
+                SourceRolePurpose::Original,
+                SourceNameOwnershipPurpose::ScopeAliasesAndTraceRegistrations,
+            );
+            assert!(
+                selected.bindings.is_empty(),
+                "a non-registration has no variable registration subject"
+            );
+            assert!(!selected.opaque);
+        }
+    }
 
     #[test]
     fn nominal_command_hazards_keep_literal_source_ordinals_without_availability() {

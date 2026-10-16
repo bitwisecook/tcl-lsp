@@ -1,0 +1,14 @@
+
+> tcl-lsp@0.0.0-dev precompile
+> make -C ../.. copy-canonical
+
+make: Entering directory '/workspace/tcl-lsp'
+==> Copying canonical diagnostics.json
+cp /workspace/tcl-lsp/ai/shared/diagnostics.json /workspace/tcl-lsp/editors/vscode/src/chat/canonical/diagnostics.json
+==> Copying canonical manifest.json
+cp /workspace/tcl-lsp/ai/prompts/manifest.json /workspace/tcl-lsp/editors/vscode/src/chat/canonical/manifest.json
+==> Generating AI system prompts (cargo xtask gen-ai-diagnostics)
+cd /workspace/tcl-lsp/ && cargo xtask gen-ai-diagnostics
+/bin/bash: line 1: cargo: command not found
+make: *** [Makefile:1795: /workspace/tcl-lsp/ai/prompts/tcl_system.md] Error 127
+make: Leaving directory '/workspace/tcl-lsp'

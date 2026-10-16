@@ -408,6 +408,9 @@ fn selected_name_ownership(
             SourceNameOwnershipPurpose::BindingsOrNameReads
         }
         crate::script_binds::Ownership::ScopeAliases => SourceNameOwnershipPurpose::ScopeAliases,
+        crate::script_binds::Ownership::ScopeAliasesAndTraceRegistrations => {
+            SourceNameOwnershipPurpose::ScopeAliasesAndTraceRegistrations
+        }
     };
     let mut found = false;
     let mut out = VariableWriteEffects::default();

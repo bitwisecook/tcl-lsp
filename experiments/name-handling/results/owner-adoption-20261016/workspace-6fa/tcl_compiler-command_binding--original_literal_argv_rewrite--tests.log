@@ -1,0 +1,12 @@
+
+running 7 tests
+test command_binding::original_literal_argv_rewrite::tests::authored_braced_argument_roundtrip_keeps_input_channels_and_escape_boundaries_separate ... ok
+test command_binding::original_literal_argv_rewrite::tests::original_expression_gap_tree_checks_issued_leaf_positions ... ok
+test command_binding::original_literal_argv_rewrite::tests::original_expression_gaps_decline_reads_callbacks_errors_and_source_reflection ... ok
+test command_binding::original_literal_argv_rewrite::tests::original_expression_gaps_retain_pure_native_completion_and_exact_input ... ok
+test command_binding::original_literal_argv_rewrite::tests::original_literal_bracing_normality_and_source_reflection_are_independent ... ok
+test command_binding::original_literal_argv_rewrite::tests::original_literal_expression_bracing_declines_substitution_functions_and_handler_changes ... ok
+test command_binding::original_literal_argv_rewrite::tests::original_literal_expression_bracing_preserves_native_argv_and_current_owners ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 10229 filtered out; finished in 19.74s
+

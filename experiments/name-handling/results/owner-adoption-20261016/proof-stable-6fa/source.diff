@@ -1,0 +1,483 @@
+diff --git a/rust/tcl-compiler/src/command_binding/declaration_layout.rs b/rust/tcl-compiler/src/command_binding/declaration_layout.rs
+index d2c79320a..33f0dfc3f 100644
+--- a/rust/tcl-compiler/src/command_binding/declaration_layout.rs
++++ b/rust/tcl-compiler/src/command_binding/declaration_layout.rs
+@@ -3288,7 +3288,7 @@ impl super::SourceInvocationBinding {
+                 || observation
+                     .source_body_name_ownership(
+                         registry,
+-                        crate::script_binds::Ownership::ScopeAliases,
++                        crate::script_binds::Ownership::ScopeAliasesAndTraceRegistrations,
+                     )
+                     .is_none_or(|effects| effects.opaque || effects.names.contains(&name))
+         }) {
+@@ -4235,6 +4235,93 @@ mod tests {
+         }
+     }
+ 
++    #[test]
++    fn declaration_scalar_trace_exclusions_retain_other_names_and_mapped_source_configurations() {
++        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
++        for (source, expected) in [
++            (
++                "proc trace_local {} {trace add variable l write callback; incr l}",
++                None,
++            ),
++            (
++                "proc trace_other {} {trace add variable other write callback; incr l}",
++                Some("l"),
++            ),
++            (
++                "proc trace_dynamic {} {trace add variable $target write callback; incr l}",
++                None,
++            ),
++        ] {
++            let (_owner, tokens) =
++                original_tokens(source, "incr l", source.rfind("incr l").unwrap());
++            let advice = tokens
++                .source_binding
++                .as_ref()
++                .unwrap()
++                .declaration_variable_operand_advice(registry, &tokens, &tokens.words()[1]);
++            assert_eq!(
++                advice
++                    .as_ref()
++                    .map(super::DeclarationVariableOperandAdvice::name),
++                expected,
++                "{source}"
++            );
++        }
++        let name = concat!("local", "\\", "\n", "name");
++        for same_name in [false, true] {
++            let target = if same_name {
++                format!("{{{name}}}")
++            } else {
++                "other".to_owned()
++            };
++            let body = format!("trace add variable {target} write callback; incr {{{name}}}");
++            let source = format!("proc trace_mapped {{}} {{{body}}}");
++            let command = format!("incr {{{name}}}");
++            for brace in [
++                tcl_dialect::BraceBackslashNewline::Folds,
++                tcl_dialect::BraceBackslashNewline::Literal,
++            ] {
++                let mut config =
++                    tcl_lexer::LexerConfig::from_grammar(registry.profile().unwrap().grammar);
++                config.brace_backslash_newline = brace;
++                config.strict_quoting = true;
++                let (_owner, tokens) = original_tokens_in_image_with_config(
++                    "tcl8.6",
++                    &tcl_lexer::SourceImage::document(&source),
++                    &command,
++                    source.rfind(&command).unwrap(),
++                    config,
++                );
++                let binding = tokens.source_binding.as_ref().unwrap();
++                let advice = binding.declaration_source_variable_operand_advice(
++                    registry,
++                    &tokens,
++                    &tokens.words()[1],
++                );
++                let expected = if same_name {
++                    None
++                } else {
++                    Some(match brace {
++                        tcl_dialect::BraceBackslashNewline::Folds => "local name",
++                        tcl_dialect::BraceBackslashNewline::Literal => name,
++                    })
++                };
++                assert_eq!(
++                    advice
++                        .as_ref()
++                        .map(super::DeclarationSourceVariableOperandAdvice::name),
++                    expected,
++                    "{brace:?}: {source}"
++                );
++                assert!(
++                    binding
++                        .declaration_variable_operand_advice(registry, &tokens, &tokens.words()[1])
++                        .is_none()
++                );
++            }
++        }
++    }
++
+     #[test]
+     fn original_destruction_operand_keys_follow_the_retained_alias_point() {
+         // Implementation contract: naming.variable.original-destruction-operand-keys
+diff --git a/rust/tcl-compiler/src/command_binding/declaration_preview.rs b/rust/tcl-compiler/src/command_binding/declaration_preview.rs
+index 28a04ca3e..409839c1e 100644
+--- a/rust/tcl-compiler/src/command_binding/declaration_preview.rs
++++ b/rust/tcl-compiler/src/command_binding/declaration_preview.rs
+@@ -488,7 +488,7 @@ impl OriginalDeclarationSourceOperandLayout {
+             &crate::ir::ExecutionNamespace::SourceContext(self.header.namespace.clone()),
+             metadata,
+             self.config,
+-            crate::script_binds::Ownership::ScopeAliases,
++            crate::script_binds::Ownership::ScopeAliasesAndTraceRegistrations,
+         );
+         !effects.opaque && !effects.names.contains(&name.to_owned())
+     }
+diff --git a/rust/tcl-compiler/src/ir_helpers/materialized_footprint.rs b/rust/tcl-compiler/src/ir_helpers/materialized_footprint.rs
+index cebf9f93b..967372fa4 100644
+--- a/rust/tcl-compiler/src/ir_helpers/materialized_footprint.rs
++++ b/rust/tcl-compiler/src/ir_helpers/materialized_footprint.rs
+@@ -408,6 +408,9 @@ fn selected_name_ownership(
+             SourceNameOwnershipPurpose::BindingsOrNameReads
+         }
+         crate::script_binds::Ownership::ScopeAliases => SourceNameOwnershipPurpose::ScopeAliases,
++        crate::script_binds::Ownership::ScopeAliasesAndTraceRegistrations => {
++            SourceNameOwnershipPurpose::ScopeAliasesAndTraceRegistrations
++        }
+     };
+     let mut found = false;
+     let mut out = VariableWriteEffects::default();
+diff --git a/rust/tcl-compiler/src/script_binds.rs b/rust/tcl-compiler/src/script_binds.rs
+index 6a44d4c9f..24dab92da 100644
+--- a/rust/tcl-compiler/src/script_binds.rs
++++ b/rust/tcl-compiler/src/script_binds.rs
+@@ -56,6 +56,10 @@ pub(crate) enum Ownership {
+     /// Names mentioned by registry-described scope-alias declarations.
+     /// This supplies lexical exclusion advice, not an installed alias.
+     ScopeAliases,
++    /// Source lexical veto for alias locals and trace registration subjects.
++    /// Complete negatives require the retained metadata footprint owner; the
++    /// legacy positive-only syntax helper cannot supply trace absence.
++    ScopeAliasesAndTraceRegistrations,
+ }
+ 
+ /// Conditional name ownership of one authentic original literal body.
+@@ -177,8 +181,12 @@ fn binds(
+             #[cfg(test)]
+             Ownership::DecodedBindings => &[ArgRole::VarWrite],
+             Ownership::BindingsOrNameReads => &[ArgRole::VarWrite, ArgRole::VarRead],
+-            Ownership::ScopeAliases if scope_alias => &[ArgRole::VarWrite],
+-            Ownership::ScopeAliases => &[],
++            Ownership::ScopeAliases | Ownership::ScopeAliasesAndTraceRegistrations
++                if scope_alias =>
++            {
++                &[ArgRole::VarWrite]
++            }
++            Ownership::ScopeAliases | Ownership::ScopeAliasesAndTraceRegistrations => &[],
+         };
+         if name_roles.iter().copied().flat_map(&at).any(|index| {
+             decoded_binding_root(script, &segment, index + 1, config)
+@@ -193,17 +201,18 @@ fn binds(
+         // `foreach {{first last}} …` binds one variable whose name contains a
+         // space, and a whitespace split reads it as the two fragments
+         // `{first` and `last}` and finds neither.
+-        if ownership != Ownership::ScopeAliases
+-            && at(ArgRole::LoopVarList)
+-                .into_iter()
+-                .filter_map(|index| args.get(index))
+-                .filter_map(|list| list_rules.split_list(list).ok())
+-                .flatten()
+-                .any(|word| {
+-                    let word = word.as_ref();
+-                    tcl_syntax::naming::split_element_ref(word).map_or(word, |(root, _)| root)
+-                        == name
+-                })
++        if !matches!(
++            ownership,
++            Ownership::ScopeAliases | Ownership::ScopeAliasesAndTraceRegistrations
++        ) && at(ArgRole::LoopVarList)
++            .into_iter()
++            .filter_map(|index| args.get(index))
++            .filter_map(|list| list_rules.split_list(list).ok())
++            .flatten()
++            .any(|word| {
++                let word = word.as_ref();
++                tcl_syntax::naming::split_element_ref(word).map_or(word, |(root, _)| root) == name
++            })
+         {
+             return true;
+         }
+diff --git a/rust/tcl-lsp-server/tests/preview_tickets_e2e.rs b/rust/tcl-lsp-server/tests/preview_tickets_e2e.rs
+index f23273395..dccc7bbbb 100644
+--- a/rust/tcl-lsp-server/tests/preview_tickets_e2e.rs
++++ b/rust/tcl-lsp-server/tests/preview_tickets_e2e.rs
+@@ -81,6 +81,25 @@ where
+ const RESPONSE_BACKSTOP: Duration = Duration::from_secs(30);
+ const ANALYSIS_BACKSTOP: Duration = Duration::from_secs(30);
+ 
++/// Parse one LSP JSON-RPC message body.
++fn json_rpc_message(body: &str) -> Option<serde_json::Value> {
++    serde_json::from_str(body).ok()
++}
++
++/// Match a response ID from the exact JSON field fragment used by callers.
++fn response_has_id(body: &str, id_field: &str) -> bool {
++    let Ok(expected_message) =
++        serde_json::from_str::<serde_json::Value>(&format!("{{{id_field}}}"))
++    else {
++        return false;
++    };
++    let Some(expected_id) = expected_message.get("id") else {
++        return false;
++    };
++    json_rpc_message(body).and_then(|message| message.get("id").cloned())
++        == Some(expected_id.clone())
++}
++
+ /// The response frame carrying `id`, skipping the notifications ahead of it.
+ ///
+ /// JSON-RPC promises exactly one response per request, so that response *is*
+@@ -102,7 +121,7 @@ where
+             return None;
+         }
+         match tokio::time::timeout(remaining, read_frame(reader)).await {
+-            Ok(body) if body.contains(id) => return Some(body),
++            Ok(body) if response_has_id(&body, id) => return Some(body),
+             Ok(_) => {}
+             Err(_) => return None,
+         }
+@@ -132,8 +151,14 @@ where
+         }
+         match tokio::time::timeout(remaining, read_frame(reader)).await {
+             Ok(body) => {
+-                if body.contains("publishDiagnostics") {
+-                    pending.retain(|uri| !body.contains(uri));
++                if let Some(message) = json_rpc_message(&body)
++                    && message.get("method").and_then(serde_json::Value::as_str)
++                        == Some("textDocument/publishDiagnostics")
++                    && let Some(uri) = message
++                        .pointer("/params/uri")
++                        .and_then(serde_json::Value::as_str)
++                {
++                    pending.retain(|pending_uri| *pending_uri != uri);
+                 }
+             }
+             Err(_) => return false,
+@@ -214,7 +239,18 @@ async fn published_codes(
+             return String::new();
+         }
+         match tokio::time::timeout(remaining, read_frame(reader)).await {
+-            Ok(body) if body.contains("publishDiagnostics") && body.contains(uri) => return body,
++            Ok(body)
++                if json_rpc_message(&body).is_some_and(|message| {
++                    message.get("method").and_then(serde_json::Value::as_str)
++                        == Some("textDocument/publishDiagnostics")
++                        && message
++                            .pointer("/params/uri")
++                            .and_then(serde_json::Value::as_str)
++                            == Some(uri)
++                }) =>
++            {
++                return body;
++            }
+             Ok(_) => {}
+             Err(_) => return String::new(),
+         }
+diff --git a/rust/tcl-registry/src/source_name_ownership.rs b/rust/tcl-registry/src/source_name_ownership.rs
+index 1f4ca6696..8feb4d27a 100644
+--- a/rust/tcl-registry/src/source_name_ownership.rs
++++ b/rust/tcl-registry/src/source_name_ownership.rs
+@@ -25,13 +25,17 @@ pub enum SourceNameOwnershipPurpose {
+     BindingsOrNameReads,
+     /// Local operands of typed variable-cell alias declarations.
+     ScopeAliases,
++    /// Alias locals and the original variable subjects of trace registrations.
++    /// This is a lexical exclusion veto, not an installed observer or read fact.
++    ScopeAliasesAndTraceRegistrations,
+ }
+ 
+ /// Possible named operands, independent of interpolation, stores and current
+ /// contents. An opaque residual prevents proving that a name is excluded.
+ #[derive(Debug, Clone, Default, PartialEq, Eq)]
+ pub struct SourceVariableNameOwnership {
+-    /// Literal binding roots, including local names of alias declarations.
++    /// Literal source roots selected by this ownership purpose. Alias and
++    /// trace subjects remain lexical exclusions, not installed bindings.
+     pub bindings: Vec<String>,
+     /// Literal roots of inputs supplied by name, separate from interpolation.
+     pub by_name_reads: Vec<String>,
+@@ -42,6 +46,10 @@ pub struct SourceVariableNameOwnership {
+ impl SourceVariableNameOwnership {
+     fn include(names: &mut Vec<String>, name: &str) {
+         let root = tcl_syntax::naming::split_element_ref(name).map_or(name, |(root, _)| root);
++        Self::include_root(names, root);
++    }
++
++    fn include_root(names: &mut Vec<String>, root: &str) {
+         if !names.iter().any(|name| name == root) {
+             names.push(root.to_owned());
+         }
+@@ -64,6 +72,45 @@ fn include_operand(
+     }
+ }
+ 
++/// The actual typed trace subject retains its own receiver ingress. An
++/// analytical string containing NUL cannot donate a counted Native byte value;
++/// unavailable subject geometry remains an opaque exclusion obligation.
++fn trace_registration_root(
++    invocation: &ResolvedInvocation<'_, '_>,
++    role_purpose: SourceRolePurpose,
++    subject: &crate::TransitionSubject,
++) -> Option<String> {
++    use crate::resolved_invocation::VariableReceiverOperandForm;
++    let argument = subject.argument_index()?;
++    let form = invocation.authored_source_variable_receiver_operand_form(argument)?;
++    if form != VariableReceiverOperandForm::TraceSubject {
++        return None;
++    }
++    let dialect = invocation.words.arguments().dialect()?;
++    let protocol = match role_purpose {
++        SourceRolePurpose::Original => dialect.native_name_protocol()?,
++        SourceRolePurpose::Logical => dialect.authored_name_policy()?.recipe(),
++    };
++    let original = if let Some(original) = subject.native_bytes() {
++        original
++    } else {
++        let original = subject.literal()?.as_bytes();
++        if original.contains(&0) {
++            return None;
++        }
++        original
++    };
++    let tcl_syntax::naming::NativeVariableInputForm::Combined(selected) =
++        form.input_form(protocol, original)?
++    else {
++        return None;
++    };
++    let projection = protocol.combined_variable_input(selected);
++    std::str::from_utf8(projection.root().selected())
++        .ok()
++        .map(str::to_owned)
++}
++
+ impl ResolvedInvocation<'_, '_> {
+     /// Conditional named operands from this already selected descriptor and
+     /// exact effective argv. Selection/availability and Logical applicability
+@@ -96,7 +143,11 @@ impl ResolvedInvocation<'_, '_> {
+         };
+         out.opaque |= !complete;
+         let arguments = self.words.arguments();
+-        if purpose != SourceNameOwnershipPurpose::ScopeAliases {
++        if !matches!(
++            purpose,
++            SourceNameOwnershipPurpose::ScopeAliases
++                | SourceNameOwnershipPurpose::ScopeAliasesAndTraceRegistrations
++        ) {
+             for (argument, role) in roles {
+                 let argument = self.semantics.argument_offset + usize::from(argument);
+                 if role == ArgRole::VarRead
+@@ -142,6 +193,20 @@ impl ResolvedInvocation<'_, '_> {
+                 }),
+         };
+         for fact in transitions.facts() {
++            if purpose == SourceNameOwnershipPurpose::ScopeAliasesAndTraceRegistrations {
++                if let StateTransition::Trace(crate::TraceTransition::Add {
++                    target: crate::TraceTarget::Variable(subject),
++                    ..
++                }) = &fact.transition
++                {
++                    match trace_registration_root(self, role_purpose, subject) {
++                        Some(root) => {
++                            SourceVariableNameOwnership::include_root(&mut out.bindings, &root)
++                        }
++                        None => out.opaque = true,
++                    }
++                }
++            }
+             if let StateTransition::VariableCellAlias(alias) = &fact.transition {
+                 if let Some(name) = alias.local.literal() {
+                     SourceVariableNameOwnership::include(&mut out.bindings, name);
+@@ -150,7 +215,9 @@ impl ResolvedInvocation<'_, '_> {
+                 }
+             }
+         }
+-        out.opaque |= transitions.widens(StateTransitionDomain::VariableCells)
++        out.opaque |= (purpose == SourceNameOwnershipPurpose::ScopeAliasesAndTraceRegistrations
++            && transitions.widens(StateTransitionDomain::VariableTraces))
++            || transitions.widens(StateTransitionDomain::VariableCells)
+             || (self
+                 .semantics
+                 .traits
+@@ -349,6 +416,87 @@ impl crate::CommandRegistry {
+ mod tests {
+     use super::{SourceNameOwnershipPurpose, SourceRolePurpose};
+ 
++    #[test]
++    fn trace_registration_source_exclusion_keeps_subject_ingress_and_existing_purposes() {
++        use crate::InvocationWord::{Dynamic, KnownBytes, Literal};
++        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
++        let context = crate::model::ingress::context_for_profile(profile);
++        let dialect = crate::InvocationDialect::of_profile(profile);
++        for (target, expected, opaque) in [
++            (Literal("local"), vec!["local"], false),
++            (Literal("other"), vec!["other"], false),
++            (Literal("local(key)"), vec!["local"], false),
++            (KnownBytes(b"local\0tail"), vec!["local"], false),
++            (Literal("local\0tail"), Vec::new(), true),
++            (Dynamic, Vec::new(), true),
++        ] {
++            let arguments = [
++                Literal("add"),
++                Literal("variable"),
++                target,
++                Literal("write"),
++                Literal("callback"),
++            ];
++            let selected =
++                crate::model::assembly::resolve_structured_invocation_in_resolved_context(
++                    context.commands(),
++                    Some(context.context()),
++                    crate::InvocationWords::structured(Literal("trace"), &arguments)
++                        .with_dialect(dialect),
++                    tcl_dialect::model::InvocationRealm::RuleLoader,
++                );
++            let schema = selected.resolved().unwrap();
++            let old = schema.authored_source_name_ownership(
++                SourceRolePurpose::Original,
++                SourceNameOwnershipPurpose::ScopeAliases,
++            );
++            assert!(
++                old.bindings.is_empty(),
++                "existing alias-only purpose: {target:?}"
++            );
++            let selected = schema.authored_source_name_ownership(
++                SourceRolePurpose::Original,
++                SourceNameOwnershipPurpose::ScopeAliasesAndTraceRegistrations,
++            );
++            assert_eq!(selected.bindings, expected, "{target:?}");
++            assert_eq!(selected.opaque, opaque, "{target:?}");
++        }
++        for arguments in [
++            vec![
++                Literal("add"),
++                Literal("command"),
++                Literal("local"),
++                Literal("rename"),
++                Literal("callback"),
++            ],
++            vec![
++                Literal("remove"),
++                Literal("variable"),
++                Literal("local"),
++                Literal("write"),
++                Literal("callback"),
++            ],
++        ] {
++            let selected =
++                crate::model::assembly::resolve_structured_invocation_in_resolved_context(
++                    context.commands(),
++                    Some(context.context()),
++                    crate::InvocationWords::structured(Literal("trace"), &arguments)
++                        .with_dialect(dialect),
++                    tcl_dialect::model::InvocationRealm::RuleLoader,
++                );
++            let selected = selected.resolved().unwrap().authored_source_name_ownership(
++                SourceRolePurpose::Original,
++                SourceNameOwnershipPurpose::ScopeAliasesAndTraceRegistrations,
++            );
++            assert!(
++                selected.bindings.is_empty(),
++                "a non-registration has no variable registration subject"
++            );
++            assert!(!selected.opaque);
++        }
++    }
++
+     #[test]
+     fn nominal_command_hazards_keep_literal_source_ordinals_without_availability() {
+         use crate::InvocationWord::{Dynamic, Expanded, Literal};

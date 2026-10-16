@@ -1,0 +1,14 @@
+{
+  "utc": "2026-10-16T12:45:10.267199+00:00",
+  "tip": "c60f938ddd2a8d92a3bc251c57fa3609d77593c3",
+  "prior_tip": "5704753576d9e6d57ba7928c739dcbf726ce6bd1",
+  "issue": 2488,
+  "subject": "build(cloud): Node 26 and Python 3.14 in remote sessions, ahead of the image's (#2488)",
+  "changed_paths_from_previous_tip": [
+    ".claude/hooks/session-start.sh",
+    "docs/design/contracts/development-environment.md",
+    "scripts/dev/ensure-test-deps.sh"
+  ],
+  "status": "unmerged_unadmitted",
+  "scope": "Cloud Node26/Python3.14 provisioning; existing #2486 toolchain/dependency update remains incoming. No source/validation acceptance borrowed."
+}

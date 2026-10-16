@@ -1,0 +1,21 @@
+{
+  "cohorts": 23,
+  "PASS": 117,
+  "FAIL": 29,
+  "zero_test_runs": 0,
+  "scope": "Selected frozen ordinary controls;19priorcohorts retained +4newgroups, not whole suite or completed audit units.",
+  "cohort_comparison": {
+    "retained_prior_cohorts": 19,
+    "added_cohorts": 4,
+    "drops": 0,
+    "old_counts": {
+      "PASS": 119,
+      "FAIL": 18
+    },
+    "new_retained_cohort_counts": {
+      "PASS": 110,
+      "FAIL": 27
+    },
+    "limits": "Aggregated counts alone do not identify individual-test gains or regressions; source fixture corrections separately recorded. VM registration panic regressions explicitly open."
+  }
+}

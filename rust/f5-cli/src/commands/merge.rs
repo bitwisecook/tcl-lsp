@@ -58,8 +58,11 @@ pub fn run_merge(
     let opts = crate::cli::PassphraseArgs::default().to_options();
     let mut chunks: Vec<String> = Vec::with_capacity(files.len());
     for f in &files {
-        let (_uri, src) = tcl_bigip_io::read_path(&f.to_string_lossy(), true, &opts)
-            .map_err(|e| anyhow::anyhow!("{e}"))?;
+        let path = f
+            .to_str()
+            .ok_or_else(|| anyhow::anyhow!("input path is not representable as Unicode"))?;
+        let (_uri, src) =
+            tcl_bigip_io::read_path(path, true, &opts).map_err(|e| anyhow::anyhow!("{e}"))?;
         chunks.push(src);
     }
 

@@ -1,0 +1,10 @@
+Independent source review: CLEAR exact patch90c73e940639ed473bcc9285258af9a24fbc7a362ff4a7bd5f987a9bb6df585b.
+Verified patch SHA and all three before/after image hashes. Reviewed all registration/refresh callers, actual-native/profile owner and real namespace ensemble bootstrap/retirement path.
+
+Exactly five physical availability predicates now consume actual_native_invocation_dialect: Info namespace-ensemble admission and String/Dict namespace registration plus unused-stock namespace retirement. The actual owner uses explicit active native activation or actual_engine_profile; when absent it returns plain unversioned Tcl, not runtime_version/native source fallback. Such an absent actual engine has no native release/namespace recipe and follows the existing ordinary public builtin registration path. Existing Native8.4/Jim/modern C distinctions therefore come from actual engine availability. Source_profile/native_execution_profile/native_invocation_dialect remain distinct and unchanged for Logical/source policy questions.
+
+Admission now agrees with already-actual release_subcommands and private namespace declaration/lookup. It neither invents an unavailable implementation namespace nor catches the old panic, changes scope/current namespace, installs a fake default engine or permits source metadata to identify Native handlers. User-replaced public/member tokens, stock identity checks, old member removal and actual unused bootstrap namespace retirement guards remain unchanged. No roster/parser/result/argv/test assertions or numerical budgets changed. Original info/namespace failures remain acceptance observations pending a rebuilt exact candidate; source clearance alone is no PASS claim.
+
+Count: partial correction inside existing vm-unit-0201/0530/0704 lifecycle boundaries using already counted vm.native.actual-engine-provenance-owner. No new owner/count, no full roster/parser/address closure claim.
+
+No Cargo/build/tests, main edits or Git by reviewer. Root owns exact execution acceptance and required gates.

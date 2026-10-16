@@ -1,0 +1,36 @@
+{
+  "unit_ids": [
+    "lsp.validation.19.00.fn0",
+    "lsp.validation.19.00.fn1",
+    "lsp.validation.19.00.fn2",
+    "lsp.validation.04.00.fn0",
+    "lsp.validation.05.00.fn0"
+  ],
+  "files": {
+    "rust/tcl-lsp-server/tests/preview_tickets_e2e.rs": {
+      "old_sha256": "861d425dca40e1d5fe490e4031c39231e9ab2e66f317cd66d2ffcbb6d1809f91",
+      "new_sha256": "f90c0bd61207ee06a66578a4837e411f86127a490da17c4ef7a32a8ff0348acb"
+    },
+    "editors/vscode/src/test/testUserDataDir.ts": {
+      "old_sha256": "b7d9a8940a9e3da5d5b39bb386056a03c267b78b9f5b012696d797fbba971822",
+      "new_sha256": "d06c676c33fce8c330251f1ca574fbd879677483483f7ed908341d74b94d076a"
+    },
+    "editors/vscode/src/test/runMultiFolderTest.ts": {
+      "old_sha256": "697084c4527984de3272029c928c9bc3895f9beaa6bcf920f35b1b94d5620a0f",
+      "new_sha256": "4d99a244cbc87a797aad478d4a66ac9feba14eec073c5eb17535d3ccc885eeba"
+    }
+  },
+  "patch_path": "/tmp/editor-tooling-boundaries.patch",
+  "patch_sha256": "4cc6a1cdba9b97acd5ad38ee827122ff22886908edc0e606c0d75502524302a1",
+  "owner_adoptions": [
+    "serde_json exact JSON-RPC `id`, `method`, and `params.uri` parsing; raw response body remains available to existing assertions",
+    "Node Buffer.byteLength(probeSocket, utf8) measures the byte extent used by the stated Unix socket path budget",
+    "filesystem setup exceptions now remain visible and stop the multi-folder suite rather than being treated as successful setup"
+  ],
+  "validation_targets": [
+    "cargo test -p tcl-lsp-server --test preview_tickets_e2e",
+    "VS Code TypeScript compile (`npm run compile` in editors/vscode)",
+    "make test-ext-multi-folder (root-owned; exercises the real multi-folder setup)"
+  ],
+  "preservation": "No original expected diagnostic assertions, source strings, request IDs, and timeout budgets changed; no test run or added assertion."
+}

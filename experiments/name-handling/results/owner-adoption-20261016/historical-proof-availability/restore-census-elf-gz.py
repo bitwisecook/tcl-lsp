@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# tcl-lsp — a language server and toolchain for Tcl
+# Copyright (C) 2026 James Deucker (bitwisecook)
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Restore only the 158 inventoried .elf.gz blobs from a pinned raw ref.
 
 Default is a read-only plan/preflight. --apply downloads to /tmp, verifies every

@@ -1907,6 +1907,71 @@ mod tests {
     }
 
     #[test]
+    fn original_logical_parameter_source_roles_keep_ordinary_frame_policy_unavailable() {
+        let source = "proc reader {name} {upvar 1 $name cell; set cell 1}";
+        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let realm = analysis.retained_command_realm().unwrap();
+        let cards = realm.original_logical_procedure_body_cards(input).unwrap();
+        let [body] = cards.as_slice() else {
+            panic!("one authentic original procedure body");
+        };
+        let content = body.scope().scope_body().content_span();
+        let text = &source[content.as_range()];
+        let segment =
+            segment_commands_with_offset_and_config(text, 0, input.lexer_config().nested())
+                .remove(0);
+        let view = crate::registry_invocation::logical_parameter_body_assistance(
+            &DocumentCommandSurface::new(analysis.resolved_registry().unwrap(), None),
+            realm,
+            body,
+            text,
+            &segment,
+            content.start(),
+        )
+        .expect("actual own-body Logical upvar source prefix");
+        let selected = view
+            .conditional_parameter_source_invocation(&["name"])
+            .expect("dedicated conditional source invocation");
+        let shape = view.conditional_parameter_source_shape(&["name"]).unwrap();
+        assert!(!selected.facts.arg_roles_complete);
+        assert!(shape.roles_complete);
+        assert!(!shape.written_argument_roles().is_empty());
+        assert!(view.parameter_role_advice().candidates().is_empty());
+        assert!(!view.parameter_role_advice().is_closed());
+        assert!(view.parameter_invocation(&["name"]).is_none());
+        assert!(view.caller_name_template_invocation().is_none());
+        assert!(view.definite_invocation.is_none());
+        assert!(view.definite_roles.is_empty());
+        assert!(view.definite_traits.is_empty());
+        assert!(
+            view.conditional_parameter_source_shape(&["other"])
+                .is_none()
+        );
+
+        for (fragment, count) in [("upvar 1", 1), ("set cell", 2)] {
+            let offset = u32::try_from(source.find(fragment).unwrap()).unwrap();
+            let words = crate::registry_invocation::source_structure::source_registry_words_at(
+                source, &analysis, offset,
+            )
+            .unwrap();
+            let crate::registry_invocation::source_structure::OriginalRegistrySource::SourceTransitions(advice) = words.source() else {
+                panic!("genuine actual source advice");
+            };
+            let prefix = body
+                .parameter_source_prefix(advice.original_words())
+                .unwrap();
+            assert!(prefix.matches_body(body, input));
+            assert_eq!(prefix.operations().len(), count);
+            assert_eq!(prefix.formal_read_count(), 1);
+            assert!(!prefix.current().unwrap().uncertain_operations().is_empty());
+            assert!(prefix.current().unwrap().obligations().contains(
+                &crate::command_binding::SourceCommandTransitionObligation::UnknownEarlierMutation,
+            ));
+        }
+    }
+
+    #[test]
     fn original_logical_parameter_roles_require_original_formal_order_before_role_application() {
         let source = "proc reader {name spare} {set $name 1}";
         let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");

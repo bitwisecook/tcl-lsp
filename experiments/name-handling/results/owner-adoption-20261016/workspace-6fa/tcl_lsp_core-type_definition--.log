@@ -1,0 +1,64 @@
+
+running 12 tests
+test type_definition::logical_member_type_tests::logical_declaration_and_self_selector_keep_the_original_member_owner ... 
+thread 'type_definition::logical_member_type_tests::logical_declaration_and_self_selector_keep_the_original_member_owner' (108557) panicked at rust/tcl-lsp-core/src/type_definition.rs:250:13:
+assertion `left == right` failed: target}: []
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test type_definition::logical_member_type_tests::logical_matching_data_and_nested_procedure_cannot_supply_a_member_selector ... ok
+test type_definition::logical_member_type_tests::logical_member_type_requires_current_source_input_configuration_and_metadata ... ok
+test type_definition::logical_member_type_tests::logical_replaced_self_dispatcher_cannot_borrow_registry_semantics ... ok
+test type_definition::logical_member_type_tests::logical_unicode_member_declaration_and_self_selector_keep_original_values ... 
+thread 'type_definition::logical_member_type_tests::logical_unicode_member_declaration_and_self_selector_keep_original_values' (108581) panicked at rust/tcl-lsp-core/src/type_definition.rs:265:17:
+assertion `left == right` failed: méthode: méthode}: []
+  left: 0
+ right: 1
+FAILED
+test type_definition::original_type_tests::original_method_type_navigation_uses_opaque_declaring_class_without_reporting_maps ... 
+thread 'type_definition::original_type_tests::original_method_type_navigation_uses_opaque_declaring_class_without_reporting_maps' (108582) panicked at rust/tcl-lsp-core/src/type_definition.rs:221:13:
+assertion `left == right` failed
+  left: 0
+ right: 1
+FAILED
+test type_definition::tests::lattice_typed_variable_jumps_to_inferred_class ... 
+thread 'type_definition::tests::lattice_typed_variable_jumps_to_inferred_class' (108583) panicked at rust/tcl-lsp-core/src/type_definition.rs:179:9:
+assertion `left == right` failed: []
+  left: 0
+ right: 1
+FAILED
+test type_definition::tests::method_word_in_class_body_jumps_to_class ... 
+thread 'type_definition::tests::method_word_in_class_body_jumps_to_class' (108590) panicked at rust/tcl-lsp-core/src/type_definition.rs:154:9:
+assertion `left == right` failed: []
+  left: 0
+ right: 1
+FAILED
+test type_definition::tests::unrelated_word_returns_empty ... ok
+test type_definition::tests::variable_jumps_to_class_in_its_own_namespace ... 
+thread 'type_definition::tests::variable_jumps_to_class_in_its_own_namespace' (108601) panicked at rust/tcl-lsp-core/src/type_definition.rs:200:9:
+assertion `left == right` failed: []
+  left: 0
+ right: 1
+FAILED
+test type_definition::tests::variable_jumps_to_inferred_class ... 
+thread 'type_definition::tests::variable_jumps_to_inferred_class' (108602) panicked at rust/tcl-lsp-core/src/type_definition.rs:131:9:
+assertion `left == right` failed: []
+  left: 0
+ right: 1
+FAILED
+test type_definition::tests::variable_without_known_class_returns_empty ... ok
+
+failures:
+
+failures:
+    type_definition::logical_member_type_tests::logical_declaration_and_self_selector_keep_the_original_member_owner
+    type_definition::logical_member_type_tests::logical_unicode_member_declaration_and_self_selector_keep_original_values
+    type_definition::original_type_tests::original_method_type_navigation_uses_opaque_declaring_class_without_reporting_maps
+    type_definition::tests::lattice_typed_variable_jumps_to_inferred_class
+    type_definition::tests::method_word_in_class_body_jumps_to_class
+    type_definition::tests::variable_jumps_to_class_in_its_own_namespace
+    type_definition::tests::variable_jumps_to_inferred_class
+
+test result: FAILED. 5 passed; 7 failed; 0 ignored; 0 measured; 3167 filtered out; finished in 9.44s
+

@@ -3288,7 +3288,7 @@ impl super::SourceInvocationBinding {
                 || observation
                     .source_body_name_ownership(
                         registry,
-                        crate::script_binds::Ownership::ScopeAliases,
+                        crate::script_binds::Ownership::ScopeAliasesAndTraceRegistrations,
                     )
                     .is_none_or(|effects| effects.opaque || effects.names.contains(&name))
         }) {
@@ -4022,12 +4022,24 @@ mod tests {
             let layout = binding
                 .declaration_source_operand_layout_advice(registry, &tokens)
                 .unwrap();
-            assert!(binding.declaration_operand_layout_advice(&tokens).is_none());
-            assert!(
-                binding
-                    .declaration_variable_operand_advice(registry, &tokens, &tokens.words()[1])
-                    .is_none()
-            );
+            let original_layout = binding.declaration_operand_layout_advice(&tokens);
+            let original_operand =
+                binding.declaration_variable_operand_advice(registry, &tokens, &tokens.words()[1]);
+            match brace {
+                tcl_dialect::BraceBackslashNewline::Folds => {
+                    assert!(original_layout.is_none());
+                    assert!(original_operand.is_none());
+                }
+                tcl_dialect::BraceBackslashNewline::Literal => {
+                    assert!(original_layout.is_some());
+                    assert_eq!(
+                        original_operand
+                            .as_ref()
+                            .map(super::DeclarationVariableOperandAdvice::name),
+                        Some(name)
+                    );
+                }
+            }
             assert_eq!(layout.config, config);
             assert_eq!(
                 layout.dialect().word_values.brace,
@@ -4232,6 +4244,93 @@ mod tests {
                 expected,
                 "{source}"
             );
+        }
+    }
+
+    #[test]
+    fn declaration_scalar_trace_exclusions_retain_other_names_and_mapped_source_configurations() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        for (source, expected) in [
+            (
+                "proc trace_local {} {trace add variable l write callback; incr l}",
+                None,
+            ),
+            (
+                "proc trace_other {} {trace add variable other write callback; incr l}",
+                Some("l"),
+            ),
+            (
+                "proc trace_dynamic {} {trace add variable $target write callback; incr l}",
+                None,
+            ),
+        ] {
+            let (_owner, tokens) =
+                original_tokens(source, "incr l", source.rfind("incr l").unwrap());
+            let advice = tokens
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .declaration_variable_operand_advice(registry, &tokens, &tokens.words()[1]);
+            assert_eq!(
+                advice
+                    .as_ref()
+                    .map(super::DeclarationVariableOperandAdvice::name),
+                expected,
+                "{source}"
+            );
+        }
+        let name = concat!("local", "\\", "\n", "name");
+        for same_name in [false, true] {
+            let target = if same_name {
+                format!("{{{name}}}")
+            } else {
+                "other".to_owned()
+            };
+            let body = format!("trace add variable {target} write callback; incr {{{name}}}");
+            let source = format!("proc trace_mapped {{}} {{{body}}}");
+            let command = format!("incr {{{name}}}");
+            for brace in [
+                tcl_dialect::BraceBackslashNewline::Folds,
+                tcl_dialect::BraceBackslashNewline::Literal,
+            ] {
+                let mut config =
+                    tcl_lexer::LexerConfig::from_grammar(registry.profile().unwrap().grammar);
+                config.brace_backslash_newline = brace;
+                config.strict_quoting = true;
+                let (_owner, tokens) = original_tokens_in_image_with_config(
+                    "tcl8.6",
+                    &tcl_lexer::SourceImage::document(&source),
+                    &command,
+                    source.rfind(&command).unwrap(),
+                    config,
+                );
+                let binding = tokens.source_binding.as_ref().unwrap();
+                let advice = binding.declaration_source_variable_operand_advice(
+                    registry,
+                    &tokens,
+                    &tokens.words()[1],
+                );
+                let expected = if same_name {
+                    None
+                } else {
+                    Some(match brace {
+                        tcl_dialect::BraceBackslashNewline::Folds => "local name",
+                        tcl_dialect::BraceBackslashNewline::Literal => name,
+                    })
+                };
+                assert_eq!(
+                    advice
+                        .as_ref()
+                        .map(super::DeclarationSourceVariableOperandAdvice::name),
+                    expected,
+                    "{brace:?}: {source}"
+                );
+                assert!(
+                    binding
+                        .declaration_variable_operand_advice(registry, &tokens, &tokens.words()[1])
+                        .is_none()
+                );
+            }
         }
     }
 

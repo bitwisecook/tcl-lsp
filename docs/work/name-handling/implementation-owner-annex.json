@@ -506,13 +506,31 @@
         {
           "path": "rust/tcl-compiler/src/registry_invocation.rs",
           "symbol": "logical_structured_invocation_with_metadata_context"
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/receiver_self_source.rs",
+          "symbol": "ReceiverSourceFrontier; ReceiverSourceCause; OriginalLogicalReceiverSelfSource; logical_source_self_dispatch_at"
+        },
+        {
+          "path": "rust/tcl-registry/src/registry.rs",
+          "symbol": "CommandRegistry::receiver_private_self_source_descriptor"
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+          "symbol": "AdviceGraph source-change/receiver-entry cause transport through actual source transitions and merges"
         }
       ],
-      "rationale": "One readonly Logical selected-member/source-frame owner; the Core caller is already the baseline lsp-type-definition-lexical-method unit and is not recounted. It grants navigation only, not execution/read/Native/Normal/edit authority.",
+      "rationale": "One readonly Logical selected-member/source-frame and genuine call-descriptor owner for type navigation. Its receiver-private Self source path requires an actual available Registry descriptor and authentic original member/body/command/frame/input, with typed source-change versus receiver-not-entered residuals kept independently of unchanged raw uncertainty. The frontier and descriptor are provenance/applicability stages inside this same source navigation issuer, not a general source-effect/absence or live receiver owner. The Core caller remains baseline lsp-type-definition-lexical-method and is not recounted; no execution/read/Native/Normal/edit authority follows.",
       "implementation": {
         "status": "implemented_pending_validation",
         "verified_complete": false
-      }
+      },
+      "implementation_scope": "Existing base Logical member/frame navigation owner integrated, unverified. Remaining receiver-private Self applicability/frontier transport has withheld candidate981b7d0fd85427013bb7de78d292b62f4f5a761187f901c411d291da805c1107, unformatted/uncompiled/unexecuted and NOT integrated or source-cleared. It depends terminally on genuine selected definition-worker applicability required by the separately counted definition deferred-storage effect-coverage facet; lexical c69 receipt alone cannot discharge that dependency.",
+      "remaining_required_implementation": [
+        "Genuine actual-root Logical source-change/receiver-entry cause frontier, preserving all raw uncertainty and withdrawal/currentness obligations.",
+        "Actual Registry receiver-private Self source descriptor with original full member/body/command/frame/input and selected declaration/side transport, without Native/private command fabrication.",
+        "Independently reviewed genuine worker-applicability dependency, then full original source-positive/refusal regression and required gate acceptance."
+      ]
     },
     {
       "id": "vm.native.jim-result-slot-retirement-and-adoption-owner",
@@ -603,6 +621,34 @@
         "verified_complete": false
       },
       "implementation_scope": "Missing actual engine remains absent; explicit active host capabilities and actual engine donors retained. Thirteen unchanged actual-purpose consumers source-reviewed; current Rust regression/gates pending."
+    },
+    {
+      "id": "compiler.source.selected-definition-deferred-storage-effect-coverage-owner",
+      "kind": "shared_owner_extension",
+      "baseline_unit_ids": [
+        "db.unit.db.workspace-class-display-cards"
+      ],
+      "site_anchors": [
+        {
+          "path": "rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs",
+          "symbol": "OriginalSourceDefinitionStorageCoverage; OriginalSourceScriptBody::definition_storage_coverage"
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs",
+          "symbol": "BodyWalk::regions; BodyEffectProjection::effects_complete"
+        }
+      ],
+      "rationale": "One actual selected-definition deferred-storage source-effect closure requirement, beyond readonly original constructor inventory/lifecycle. Complete genuine parent/member source, selected worker source occupancy/observer premises and actual source effect disposition must precede effects_complete without inventing entered frame/Native or subtracting debt. Count the grouped semantic boundary once, not per helper/member/release.",
+      "implementation": {
+        "status": "not_integrated_source_blocked",
+        "verified_complete": false
+      },
+      "open_boundaries": [
+        "actual selected worker/source graph occupancy and observer provenance",
+        "Native execution/Normal/installed members",
+        "default or inherited constructor effects",
+        "foreign constructor operand/read observer coverage"
+      ]
     }
   ],
   "unverified_or_open": [
@@ -614,28 +660,28 @@
   ],
   "status_note": "Requirements are counted regardless of implementation presence. No additional requirement or baseline unit is verified complete.",
   "status": "accepted_additional_obligations_unverified",
-  "utc": "2026-10-16T12:02:52.362994+00:00",
+  "utc": "2026-10-16T12:13:36.083444+00:00",
   "accepted_delta": {
-    "semantic_code_changes": 29,
+    "semantic_code_changes": 30,
     "validation_code_repairs": 0,
     "authored_documentation": 0,
-    "all_required_changes": 29,
+    "all_required_changes": 30,
     "by_kind": {
       "shared_owner_repair": 9,
-      "shared_owner_extension": 12,
+      "shared_owner_extension": 13,
       "caller_migration": 7,
       "metadata_or_target_schema": 1
     }
   },
   "effective_counts": {
-    "semantic_code_changes": 1828,
+    "semantic_code_changes": 1829,
     "validation_code_repairs": 305,
     "authored_documentation": 54,
-    "all_required_changes": 2187
+    "all_required_changes": 2188
   },
   "implementation_progress": {
     "implemented_pending_validation": 29,
-    "not_integrated": 0,
+    "not_integrated": 1,
     "verified_complete": 0
   }
 }

@@ -1,0 +1,31 @@
+    Checking tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+    Checking tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+    Checking tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+    Checking tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+    Checking tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-tclvm)
+    Checking tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+    Checking tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-hooks)
+    Checking tcl-spectcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-spectcl)
+   Compiling tcl-version v0.1.0 (/workspace/tcl-lsp/rust/tcl-version)
+    Checking tcl-spec-studio v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-studio)
+    Checking tcl-cli-support v0.1.0 (/workspace/tcl-lsp/rust/tcl-cli-support)
+    Checking tcl-bigip-io v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip-io)
+    Checking tcl-bigip-query v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip-query)
+    Checking tcl-irule-test v0.1.0 (/workspace/tcl-lsp/rust/tcl-irule-test)
+    Checking f5-cli v0.1.0 (/workspace/tcl-lsp/rust/f5-cli)
+    Checking tcl-explorer v0.1.0 (/workspace/tcl-lsp/rust/tcl-explorer)
+    Checking tcl-diagram v0.1.0 (/workspace/tcl-lsp/rust/tcl-diagram)
+    Checking tcl-cli v0.1.0 (/workspace/tcl-lsp/rust/tcl-cli)
+    Checking f5-xc v0.1.0 (/workspace/tcl-lsp/rust/f5-xc)
+    Checking tcl-mcp v0.1.0 (/workspace/tcl-lsp/rust/tcl-mcp)
+warning: function `fixture_id` is never used
+  --> rust/tcl-compiler/tests/support/body_identity.rs:43:8
+   |
+43 | pub fn fixture_id<'a, T: FixtureBody + 'a>(
+   |        ^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-compiler` (test "pipeline_coverage") generated 1 warning
+    Checking tcl-vm v0.1.0 (/workspace/tcl-lsp/rust/tcl-vm)
+    Finished `dev` profile [unoptimized] target(s) in 2m 43s

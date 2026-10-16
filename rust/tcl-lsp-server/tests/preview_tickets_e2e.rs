@@ -81,6 +81,25 @@ where
 const RESPONSE_BACKSTOP: Duration = Duration::from_secs(30);
 const ANALYSIS_BACKSTOP: Duration = Duration::from_secs(30);
 
+/// Parse one LSP JSON-RPC message body.
+fn json_rpc_message(body: &str) -> Option<serde_json::Value> {
+    serde_json::from_str(body).ok()
+}
+
+/// Match a response ID from the exact JSON field fragment used by callers.
+fn response_has_id(body: &str, id_field: &str) -> bool {
+    let Ok(expected_message) =
+        serde_json::from_str::<serde_json::Value>(&format!("{{{id_field}}}"))
+    else {
+        return false;
+    };
+    let Some(expected_id) = expected_message.get("id") else {
+        return false;
+    };
+    json_rpc_message(body).and_then(|message| message.get("id").cloned())
+        == Some(expected_id.clone())
+}
+
 /// The response frame carrying `id`, skipping the notifications ahead of it.
 ///
 /// JSON-RPC promises exactly one response per request, so that response *is*
@@ -102,7 +121,7 @@ where
             return None;
         }
         match tokio::time::timeout(remaining, read_frame(reader)).await {
-            Ok(body) if body.contains(id) => return Some(body),
+            Ok(body) if response_has_id(&body, id) => return Some(body),
             Ok(_) => {}
             Err(_) => return None,
         }
@@ -132,8 +151,14 @@ where
         }
         match tokio::time::timeout(remaining, read_frame(reader)).await {
             Ok(body) => {
-                if body.contains("publishDiagnostics") {
-                    pending.retain(|uri| !body.contains(uri));
+                if let Some(message) = json_rpc_message(&body)
+                    && message.get("method").and_then(serde_json::Value::as_str)
+                        == Some("textDocument/publishDiagnostics")
+                    && let Some(uri) = message
+                        .pointer("/params/uri")
+                        .and_then(serde_json::Value::as_str)
+                {
+                    pending.retain(|pending_uri| *pending_uri != uri);
                 }
             }
             Err(_) => return false,
@@ -214,7 +239,18 @@ async fn published_codes(
             return String::new();
         }
         match tokio::time::timeout(remaining, read_frame(reader)).await {
-            Ok(body) if body.contains("publishDiagnostics") && body.contains(uri) => return body,
+            Ok(body)
+                if json_rpc_message(&body).is_some_and(|message| {
+                    message.get("method").and_then(serde_json::Value::as_str)
+                        == Some("textDocument/publishDiagnostics")
+                        && message
+                            .pointer("/params/uri")
+                            .and_then(serde_json::Value::as_str)
+                            == Some(uri)
+                }) =>
+            {
+                return body;
+            }
             Ok(_) => {}
             Err(_) => return String::new(),
         }

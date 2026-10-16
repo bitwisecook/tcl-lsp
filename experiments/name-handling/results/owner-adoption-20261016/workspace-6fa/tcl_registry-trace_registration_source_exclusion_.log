@@ -1,0 +1,6 @@
+
+running 1 test
+test source_name_ownership::tests::trace_registration_source_exclusion_keeps_subject_ingress_and_existing_purposes ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1830 filtered out; finished in 0.07s
+

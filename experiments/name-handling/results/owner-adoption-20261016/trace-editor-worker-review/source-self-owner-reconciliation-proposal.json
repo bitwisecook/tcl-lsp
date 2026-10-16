@@ -1,0 +1,187 @@
+{
+  "status": "TMP_COUNT_PROPOSAL_ONLY_BOTH_CANDIDATES_WITHHELD",
+  "decision": {
+    "SourceSelf_additional_requirement_delta": 0,
+    "classification": "repair_existing_readonly_Logical_navigation_owner",
+    "DB_definition_effect_coverage_requirement_delta": 1,
+    "DB_delta_status": "already accepted in principle by root; materialize once only, not a second increment from this proposal",
+    "additional_worker_guard_requirement_delta": 0,
+    "verified_complete_delta": 0
+  },
+  "inputs": {
+    "SourceSelf_patch": {
+      "path": "/tmp/sol-navigation-followup/self-owner/source-self.patch",
+      "sha256": "981b7d0fd85427013bb7de78d292b62f4f5a761187f901c411d291da805c1107",
+      "status": "withheld/not integrated; no acceptance claim"
+    },
+    "DB_effect_patch": {
+      "path": "/tmp/db-definition-storage-coverage/definition-storage-coverage.c69edbde0eec2bbbc4f9d784ae3c295c61b6c1ba8550b669249d18d690186d27.patch",
+      "sha256": "c69edbde0eec2bbbc4f9d784ae3c295c61b6c1ba8550b669249d18d690186d27",
+      "status": "source-blocked/not integrated"
+    },
+    "annex": {
+      "path": "/workspace/tcl-lsp/docs/work/name-handling/implementation-owner-annex.json",
+      "sha256": "a07d4e5dd3078bf8fb3bd619cf952b99a6f13d4a4cff06f4750afd8fc0ad4726",
+      "requirement_count": 29
+    },
+    "final_catalogue": {
+      "path": "/workspace/tcl-lsp/docs/work/name-handling/repository-consumer-audit-final.json",
+      "sha256": "8f34a3c8a571e18e34cc9becf01383a8b158ceb7e1dd9c2b444f9349e27cd623",
+      "count_contract": "Actual changed integration boundary plus distinct purpose. Genuine missing semantic owner facet once; actual changed callers separate; unchanged dependencies not migrations. Implementation, validation repairs, existing unexecuted validation and docs separate.",
+      "baseline_unit_ids": [
+        "lsp-type-definition-lexical-method",
+        "db.unit.db.workspace-class-display-cards"
+      ]
+    }
+  },
+  "boundary_comparison": [
+    {
+      "stage": "typed source-change versus receiver-not-entered frontier",
+      "purpose": "Authenticate conditional Self source-navigation applicability without subtracting old raw debt or claiming entered receiver/global source completeness.",
+      "actual_consumer": "OriginalLogicalReceiverSelfSource::capture/SourceCommandBindings::logical_source_self_dispatch_at -> AnalysisResult::logical_source_member_type_at",
+      "count_under": "lsp.type-definition.logical-member-source-frame-owner",
+      "new_requirement": false
+    },
+    {
+      "stage": "Registry receiver-private Self source descriptor",
+      "purpose": "Actual available source vocabulary selected from authentic callable member/receiver schema; no canonical-head substitution or live/private-command lookup grant.",
+      "actual_consumer": "The same SourceSelf navigation receipt at capture/query only.",
+      "count_under": "lsp.type-definition.logical-member-source-frame-owner",
+      "new_requirement": false
+    },
+    {
+      "stage": "actual selected definition deferred-storage source-effect closure",
+      "purpose": "Permit BodyWalk to publish effects_complete rather than existing source graph widening for the actual immediate definition body.",
+      "actual_consumer": "BodyWalk::regions -> apply_schema_transition, also prerequisite to authentic SourceSelf original-member storage.",
+      "count_under": "compiler.source.selected-definition-deferred-storage-effect-coverage-owner",
+      "new_requirement": true
+    },
+    {
+      "stage": "genuine mutable definition-worker applicability/observer premise",
+      "purpose": "Guard the above actual effect-closure claim against replaced/renamed ::oo::define member workers or applicable observers; source metadata alone cannot do this.",
+      "actual_consumer": "Definition effect-coverage issuer/consumer and its dependent SourceSelf path.",
+      "count_under": "compiler.source.selected-definition-deferred-storage-effect-coverage-owner",
+      "new_requirement": false,
+      "reason": "Mandatory guard of already counted actual closure facet; no separate demonstrated live/Native caller/issuer purpose in the two drafts."
+    }
+  ],
+  "proposed_existing_navigation_row_before": {
+    "id": "lsp.type-definition.logical-member-source-frame-owner",
+    "kind": "shared_owner_extension",
+    "baseline_unit_ids": [
+      "lsp-type-definition-lexical-method"
+    ],
+    "site_anchors": [
+      {
+        "path": "rust/tcl-compiler/src/analyser/types/logical_members.rs",
+        "symbol": "AnalysisResult::logical_source_member_type_at"
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/declaration_layout.rs",
+        "symbol": "SourceCommandBindings::logical_source_member_frame_at_offset"
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/original_name_value.rs",
+        "symbol": "original_logical_source_command_at_in_source"
+      },
+      {
+        "path": "rust/tcl-compiler/src/registry_invocation.rs",
+        "symbol": "logical_structured_invocation_with_metadata_context"
+      }
+    ],
+    "rationale": "One readonly Logical selected-member/source-frame owner; the Core caller is already the baseline lsp-type-definition-lexical-method unit and is not recounted. It grants navigation only, not execution/read/Native/Normal/edit authority.",
+    "implementation": {
+      "status": "implemented_pending_validation",
+      "verified_complete": false
+    }
+  },
+  "proposed_existing_navigation_row_after": {
+    "id": "lsp.type-definition.logical-member-source-frame-owner",
+    "kind": "shared_owner_extension",
+    "baseline_unit_ids": [
+      "lsp-type-definition-lexical-method"
+    ],
+    "site_anchors": [
+      {
+        "path": "rust/tcl-compiler/src/analyser/types/logical_members.rs",
+        "symbol": "AnalysisResult::logical_source_member_type_at"
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/declaration_layout.rs",
+        "symbol": "SourceCommandBindings::logical_source_member_frame_at_offset"
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/original_name_value.rs",
+        "symbol": "original_logical_source_command_at_in_source"
+      },
+      {
+        "path": "rust/tcl-compiler/src/registry_invocation.rs",
+        "symbol": "logical_structured_invocation_with_metadata_context"
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/receiver_self_source.rs",
+        "symbol": "ReceiverSourceFrontier; ReceiverSourceCause; OriginalLogicalReceiverSelfSource; logical_source_self_dispatch_at"
+      },
+      {
+        "path": "rust/tcl-registry/src/registry.rs",
+        "symbol": "CommandRegistry::receiver_private_self_source_descriptor"
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+        "symbol": "AdviceGraph source-change/receiver-entry cause transport through actual source transitions and merges"
+      }
+    ],
+    "rationale": "One readonly Logical selected-member/source-frame and genuine call-descriptor owner for type navigation. Its receiver-private Self source path requires an actual available Registry descriptor and authentic original member/body/command/frame/input, with typed source-change versus receiver-not-entered residuals kept independently of unchanged raw uncertainty. The frontier and descriptor are provenance/applicability stages inside this same source navigation issuer, not a general source-effect/absence or live receiver owner. The Core caller remains baseline lsp-type-definition-lexical-method and is not recounted; no execution/read/Native/Normal/edit authority follows.",
+    "implementation": {
+      "status": "implemented_pending_validation",
+      "verified_complete": false
+    },
+    "implementation_scope": "Existing base Logical member/frame navigation owner integrated, unverified. Remaining receiver-private Self applicability/frontier transport has withheld candidate981b7d0fd85427013bb7de78d292b62f4f5a761187f901c411d291da805c1107, unformatted/uncompiled/unexecuted and NOT integrated or source-cleared. It depends terminally on genuine selected definition-worker applicability required by the separately counted definition deferred-storage effect-coverage facet; lexical c69 receipt alone cannot discharge that dependency.",
+    "remaining_required_implementation": [
+      "Genuine actual-root Logical source-change/receiver-entry cause frontier, preserving all raw uncertainty and withdrawal/currentness obligations.",
+      "Actual Registry receiver-private Self source descriptor with original full member/body/command/frame/input and selected declaration/side transport, without Native/private command fabrication.",
+      "Independently reviewed genuine worker-applicability dependency, then full original source-positive/refusal regression and required gate acceptance."
+    ]
+  },
+  "proposed_DB_requirement_row_once": {
+    "id": "compiler.source.selected-definition-deferred-storage-effect-coverage-owner",
+    "kind": "shared_owner_extension",
+    "baseline_unit_ids": [
+      "db.unit.db.workspace-class-display-cards"
+    ],
+    "site_anchors": [
+      {
+        "path": "rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs",
+        "symbol": "OriginalSourceDefinitionStorageCoverage; OriginalSourceScriptBody::definition_storage_coverage"
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs",
+        "symbol": "BodyWalk::regions; BodyEffectProjection::effects_complete"
+      }
+    ],
+    "rationale": "One actual selected-definition deferred-storage source-effect closure requirement, beyond readonly original constructor inventory/lifecycle. Complete genuine parent/member source, selected worker source occupancy/observer premises and actual source effect disposition must precede effects_complete without inventing entered frame/Native or subtracting debt. Count the grouped semantic boundary once, not per helper/member/release.",
+    "implementation": {
+      "status": "not_integrated",
+      "verified_complete": false
+    },
+    "open_boundaries": [
+      "actual selected worker/source graph occupancy and observer provenance",
+      "Native execution/Normal/installed members",
+      "default or inherited constructor effects",
+      "foreign constructor operand/read observer coverage"
+    ],
+    "implementation_scope": "Required distinct source-effect closure facet accepted by root for counting. c69edbde0eec2bbbc4f9d784ae3c295c61b6c1ba8550b669249d18d690186d27 remains source-blocked/not integrated: Registry member grammar has no actual worker-occupancy/observer premise before BodyWalk effects_complete. A genuine source-purpose selected worker/observer guard belongs to this requirement; SourceSelf may depend on it but cannot supply it from its source vocabulary descriptor."
+  },
+  "DB_row_already_present_in_input_annex": false,
+  "why_not_two_new_SourceSelf_rows": [
+    "Baseline and accepted navigation annex already require genuine selected member/call binding and actual readonly source frame instead of report-label matching. SourceSelf is the missing private-dispatch source case within that exact output and consumer purpose.",
+    "Typed residuals, transition/merge hooks and Registry descriptor are proof/provenance transport stages, not independently exported source-effect closure or Native facts. Candidate preserves old raw uncertainty and only its Self capture/query consumes the new frontier.",
+    "Adding a type, module or public metadata helper does not create a second requirement when its sole current semantic consumer is the already counted navigation issuer."
+  ],
+  "why_DB_still_distinct": [
+    "Existing explicit-constructor-body-coverage-owner retains readonly original constructor inventory/counted lifecycle through actual selected project constructor; it did not establish immediate definition source-effect completeness.",
+    "New BodyWalk branch changes the actual effect-completeness disposition and suppresses an ordinary graph widening, so it needs its own counted grouped source-effect closure facet. Its worker applicability proof is necessary for that very disposition, not an optional extra helper."
+  ],
+  "future_boundary_rule": "A later independently required live/Native private-worker issuer/caller, or a general source-effect frontier consumed for a different closure purpose, must be reconciled separately then. No such new purpose is demonstrated by these withheld drafts.",
+  "validation": "Count/provenance review only; no candidate source clearance, Rust/TS tests, builds, main changes or Git. All original positive obligations and source blocker remain open; requirements counted independently of implementation presence."
+}

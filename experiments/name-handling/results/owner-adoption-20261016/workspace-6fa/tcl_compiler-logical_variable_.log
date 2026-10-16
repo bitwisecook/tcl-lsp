@@ -1,0 +1,11 @@
+
+running 6 tests
+test analyser::handlers::tests::dynamic_apply_value_uses_checked_logical_variable_declaration ... ok
+test command_binding::source_transition_advice::logical_navigation::tests::logical_variable_occurrences_keep_alias_and_local_frame_boundaries ... ok
+test command_binding::source_transition_advice::logical_navigation::tests::logical_variable_occurrences_survive_unavailable_heads_and_paths ... ok
+test command_binding::source_transition_advice::logical_navigation::tests::logical_variable_scope_receipts_preserve_prior_unknowns_and_withdraw_conflicts ... ok
+test command_binding::source_transition_advice::logical_navigation::tests::logical_variable_scope_receipts_require_current_source_input_and_body ... ok
+test registry_invocation::source_structure::logical_variable_operands::tests::original_body_inventory_indexes_actual_source_sites_without_merging_images ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 10230 filtered out; finished in 26.80s
+

@@ -1,0 +1,1536 @@
+diff --git a/rust/f5-cli/src/commands/irule.rs b/rust/f5-cli/src/commands/irule.rs
+index 1b2eb21af..76fdc29a5 100644
+--- a/rust/f5-cli/src/commands/irule.rs
++++ b/rust/f5-cli/src/commands/irule.rs
+@@ -510,15 +510,7 @@ fn order_events_for_file(
+ 
+ /// Multiplicity category for a single event.
+ fn event_multiplicity(name: &str, events: &tcl_registry::events::EventRegistry) -> &'static str {
+-    if name == "RULE_INIT" {
+-        "init"
+-    } else if events.is_once_per_connection(name) {
+-        "once_per_connection"
+-    } else if events.is_per_request(name) {
+-        "per_request"
+-    } else {
+-        "unknown"
+-    }
++    events.multiplicity(name)
+ }
+ 
+ fn run_event_order(input: &IruleInputArgs, json: bool) -> Result<u8, u8> {
+@@ -1265,8 +1257,8 @@ fn run_minify(
+         } else {
+             format!("{joined}\n")
+         };
+-        let map_str = map_path.to_string_lossy();
+-        write_text(&map_str, &text).map_err(|_| 2u8)?;
++        let target = tcl_cli_support::OutputTarget::from_arg(Some(map_path));
++        tcl_cli_support::write_text_output(&target, &text).map_err(|_| 2u8)?;
+     }
+     Ok(0)
+ }
+diff --git a/rust/f5-cli/src/commands/query.rs b/rust/f5-cli/src/commands/query.rs
+index 154e9a83e..be10df673 100644
+--- a/rust/f5-cli/src/commands/query.rs
++++ b/rust/f5-cli/src/commands/query.rs
+@@ -57,7 +57,9 @@ use std::path::{Path, PathBuf};
+ 
+ use tcl_bigip_io::{read_path_source, resolve_passphrase};
+ use tcl_bigip_query::value::Value;
+-use tcl_bigip_query::{QueryError, QueryOptions, QueryResult, output, run_query};
++use tcl_bigip_query::{
++    QueryError, QueryOptions, QueryResult, TokenKind, output, run_query, tokenise,
++};
+ 
+ use crate::cli::FormatArgs;
+ 
+@@ -271,19 +273,33 @@ impl OutputModeFlags {
+     }
+ }
+ 
++/// Whether `name` is exactly one variable identifier in the query DSL.
++fn is_query_binding_identifier(name: &str) -> bool {
++    let source = format!("${name}");
++    let Ok(tokens) = tokenise(&source) else {
++        return false;
++    };
++    matches!(
++        tokens.as_slice(),
++        [name_token, eof_token]
++            if name_token.kind == TokenKind::DollarIdent
++                && name_token.value == tcl_bigip_query::LitValue::Str(name.to_owned())
++                && eof_token.kind == TokenKind::Eof
++    )
++}
++
+ /// Parse `--name NAME=PATH` bindings into a `name -> path` map, validating the
+ /// identifier and that the path was supplied as a positional input.
+ fn parse_name_bindings(
+     raw: &[String],
+     paths: &[String],
+ ) -> Result<std::collections::HashMap<String, String>, String> {
+-    let name_re = regex::Regex::new(r"^[A-Za-z_][A-Za-z0-9_-]*$").expect("valid regex");
+     let mut bindings = std::collections::HashMap::new();
+     for entry in raw {
+         let Some((nm, pth)) = entry.split_once('=') else {
+             return Err(format!("--name expects NAME=PATH (got '{entry}')"));
+         };
+-        if !name_re.is_match(nm) {
++        if !is_query_binding_identifier(nm) {
+             return Err(format!(
+                 "--name '{entry}': '{nm}' is not a valid DSL identifier \
+                  (letters, digits, '_', '-'; cannot start with a digit)"
+@@ -364,14 +380,13 @@ fn parse_input_bindings(
+     flag: &str,
+     allow_csv_headers: bool,
+ ) -> Result<Vec<InputBinding>, String> {
+-    let name_re = regex::Regex::new(r"^[A-Za-z_][A-Za-z0-9_-]*$").expect("valid regex");
+     let mut bindings: Vec<InputBinding> = Vec::new();
+     let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+     for entry in raw {
+         let Some((nm, pth)) = entry.split_once('=') else {
+             return Err(format!("{flag} expects NAME=PATH (got '{entry}')"));
+         };
+-        if !name_re.is_match(nm) {
++        if !is_query_binding_identifier(nm) {
+             return Err(format!(
+                 "{flag} '{entry}': '{nm}' is not a valid DSL identifier \
+                  (letters, digits, '_', '-'; cannot start with a digit)"
+@@ -438,7 +453,6 @@ fn split_csv_path_headers(
+ /// `(kind, name, path)` entries. KIND is validated against the registry by
+ /// the caller.
+ fn parse_custom_input_bindings(raw: &[String]) -> Result<Vec<(String, String, String)>, String> {
+-    let name_re = regex::Regex::new(r"^[A-Za-z_][A-Za-z0-9_-]*$").expect("valid regex");
+     let mut entries: Vec<(String, String, String)> = Vec::new();
+     let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+     // clap delivers the two-value `--input` flag as a flat list of pairs.
+@@ -459,7 +473,7 @@ fn parse_custom_input_bindings(raw: &[String]) -> Result<Vec<(String, String, St
+                 "--input {kind} expects NAME=PATH (got '{binding}')"
+             ));
+         };
+-        if !name_re.is_match(nm) {
++        if !is_query_binding_identifier(nm) {
+             return Err(format!(
+                 "--input {kind} '{binding}': '{nm}' is not a valid DSL \
+                  identifier (letters, digits, '_', '-'; cannot start with a digit)"
+@@ -1127,7 +1141,7 @@ mod certificate_test_fixture;
+ 
+ #[cfg(test)]
+ mod ucs_cert_tests {
+-    use super::{make_ucs_cert_reader, percent_decode, ucs_uri_to_path};
++    use super::{ProviderSources, make_ucs_cert_reader, percent_decode, ucs_uri_to_path};
+     use tcl_bigip_query::value::Value;
+ 
+     // Generate the filestore certificate locally; recover its identity from
+diff --git a/rust/tcl-compiler/src/analyser/oo.rs b/rust/tcl-compiler/src/analyser/oo.rs
+index 5fc8860b9..a973db00f 100644
+--- a/rust/tcl-compiler/src/analyser/oo.rs
++++ b/rust/tcl-compiler/src/analyser/oo.rs
+@@ -1448,7 +1448,7 @@ impl Analyser {
+         class.original_members.retain_logical_name_operand(
+             input,
+             words,
+-            name_ordinal,
++            (name_ordinal, body.0),
+             side,
+             (name_token.span, body_token.span),
+         );
+diff --git a/rust/tcl-compiler/src/analyser/param_traits.rs b/rust/tcl-compiler/src/analyser/param_traits.rs
+index 0e6070838..ff7199642 100644
+--- a/rust/tcl-compiler/src/analyser/param_traits.rs
++++ b/rust/tcl-compiler/src/analyser/param_traits.rs
+@@ -826,6 +826,9 @@ fn scan_deep<'p>(
+         // arg recurses just like a shipped one.
+         let roles = view.as_ref().map_or_else(Vec::new, |view| {
+             let mut roles = view.parameter_role_advice().written_roles();
++            if let Some(shape) = view.conditional_parameter_source_shape(ctx.parameters) {
++                roles.extend(shape.written_argument_roles());
++            }
+             roles.extend(view.declared_roles.iter().copied());
+             roles
+         });
+@@ -1140,6 +1143,33 @@ fn scan_command<'p>(
+         aliases.clear();
+         return;
+     };
++    if let Some(shape) = view.conditional_parameter_source_shape(ctx.parameters)
++        && let Some(selected) = view.conditional_parameter_source_invocation(ctx.parameters)
++    {
++        // Conditional symbolic source usage is a separate May report. Actual
++        // observer/lookup debt remains on its genuine prefix; no closed,
++        // definite, successful alias or runtime write follows from this path.
++        apply_arg_role_traits(
++            &shape.written_argument_roles(),
++            cmd_args,
++            braced,
++            values,
++            traits,
++        );
++        apply_possible_evaluation_traits(
++            std::slice::from_ref(shape),
++            cmd_args,
++            braced,
++            values,
++            traits,
++        );
++        record_selected_aliases(view, selected, values, traits, aliases);
++        apply_definite_writes(view, selected, values, traits, aliases);
++        if shape.may_execute_parameter_body() {
++            aliases.clear();
++        }
++        return;
++    }
+     if !view.parameter_role_advice().is_closed() {
+         aliases.clear();
+         apply_arg_role_traits(&view.declared_roles, cmd_args, braced, values, traits);
+@@ -1150,7 +1180,7 @@ fn scan_command<'p>(
+     let advice = view.parameter_role_advice();
+     apply_arg_role_traits(&advice.written_roles(), cmd_args, braced, values, traits);
+     apply_arg_role_traits(&view.declared_roles, cmd_args, braced, values, traits);
+-    apply_possible_evaluation_traits(advice, cmd_args, braced, values, traits);
++    apply_possible_evaluation_traits(advice.candidates(), cmd_args, braced, values, traits);
+     if let Some(selected) = view.parameter_invocation(ctx.parameters) {
+         record_selected_aliases(view, selected, values, traits, aliases);
+         apply_definite_writes(view, selected, values, traits, aliases);
+@@ -1163,14 +1193,14 @@ fn scan_command<'p>(
+ }
+ 
+ fn apply_possible_evaluation_traits<'p>(
+-    advice: &crate::registry_invocation::ParameterRoleAdvice,
++    candidates: &[crate::registry_invocation::RegistryInvocationShape],
+     args: &[String],
+     braced: &[bool],
+     values: &ArgumentValues<'p>,
+     traits: &mut HashMap<&'p str, HashSet<ProcArgTrait>>,
+ ) {
+     use tcl_registry::Traits;
+-    for candidate in advice.candidates() {
++    for candidate in candidates {
+         for (index, role) in candidate.written_argument_roles() {
+             if role == ArgRole::Body
+                 && !braced.get(index).copied().unwrap_or(false)
+@@ -1250,7 +1280,7 @@ fn record_selected_aliases<'p>(
+     traits: &mut HashMap<&'p str, HashSet<ProcArgTrait>>,
+     aliases: &mut Aliases<'p>,
+ ) {
+-    let Some((_, first)) = selected_alias_layout(selected) else {
++    let Some((_, first)) = selected_alias_layout(view, selected) else {
+         return;
+     };
+     for source in (first..selected.arguments.len()).step_by(2) {
+@@ -1288,9 +1318,13 @@ fn record_selected_aliases<'p>(
+ }
+ 
+ fn selected_alias_layout(
++    view: &crate::registry_invocation::InvocationBodyAssistance,
+     selected: &crate::registry_invocation::ResolvedStatementInvocation,
+ ) -> Option<(tcl_registry::frame_effect::FrameLevel, usize)> {
+     use tcl_registry::frame_effect::{FrameArgLayout, FrameArgumentResolution, FrameLevel};
++    if let Some(layout) = view.conditional_parameter_source_alias_layout(selected) {
++        return layout;
++    }
+     let namespace_alias = selected
+         .facts
+         .state_transitions
+@@ -1339,7 +1373,7 @@ fn apply_definite_writes<'p>(
+     traits: &mut HashMap<&'p str, HashSet<ProcArgTrait>>,
+     aliases: &mut Aliases<'p>,
+ ) {
+-    if selected_alias_layout(selected).is_some() {
++    if selected_alias_layout(view, selected).is_some() {
+         return;
+     }
+     // Freeze the read-side copy before applying this command's writes.
+@@ -1548,10 +1582,13 @@ pub fn caller_frame_upvar_params(
+         let Some(view) = ctx.body_assistance(body_source, seg) else {
+             continue;
+         };
+-        let Some(selected) = view.parameter_invocation(params) else {
++        let Some(selected) = view
++            .parameter_invocation(params)
++            .or_else(|| view.conditional_parameter_source_invocation(params))
++        else {
+             continue;
+         };
+-        let Some((level, first)) = selected_alias_layout(selected) else {
++        let Some((level, first)) = selected_alias_layout(&view, selected) else {
+             continue;
+         };
+         if !level.is_caller_frame() {
+@@ -1646,7 +1683,7 @@ pub fn caller_frame_literal_targets(
+         let Some(selected) = view.caller_name_template_invocation() else {
+             continue;
+         };
+-        if let Some((level, first)) = selected_alias_layout(selected) {
++        if let Some((level, first)) = selected_alias_layout(&view, selected) {
+             if !level.is_caller_frame() {
+                 continue;
+             }
+@@ -1765,6 +1802,10 @@ mod tests {
+         let traits = infer_param_traits(&["name"], text, env);
+         assert!(traits["name"].contains(&ProcArgTrait::VarWrite));
+         assert!(traits["name"].contains(&ProcArgTrait::VarRead));
++        assert_eq!(
++            caller_frame_upvar_params(&["name"], text, env),
++            HashSet::from(["name".to_owned()])
++        );
+         assert_eq!(
+             analysis
+                 .original_procedure_declarations()
+@@ -1810,9 +1851,56 @@ mod tests {
+             content.start(),
+         )
+         .unwrap();
+-        assert!(view.parameter_role_advice().is_closed());
+-        assert!(view.parameter_invocation(&["name"]).is_some());
++        // This current formal read retains real observer/lookup debt. Its
++        // source recipe must never become a closed execution candidate.
++        assert!(!view.parameter_role_advice().is_closed());
++        assert!(view.parameter_role_advice().candidates().is_empty());
++        assert!(view.parameter_invocation(&["name"]).is_none());
+         assert!(view.parameter_invocation(&["other"]).is_none());
++        assert!(view.caller_name_template_invocation().is_none());
++        let shape = view.conditional_parameter_source_shape(&["name"]).unwrap();
++        let selected = view
++            .conditional_parameter_source_invocation(&["name"])
++            .unwrap();
++        assert_eq!(shape.command, selected.facts.canonical_command);
++        assert_eq!(
++            shape.written_argument_roles(),
++            selected.written_argument_roles()
++        );
++        assert!(
++            view.conditional_parameter_source_shape(&["other"])
++                .is_none()
++        );
++        assert!(
++            view.conditional_parameter_source_invocation(&["other"])
++                .is_none()
++        );
++        let source_words = crate::registry_invocation::source_structure::source_registry_words_at(
++            source,
++            &analysis,
++            content.start(),
++        )
++        .unwrap();
++        let crate::registry_invocation::source_structure::OriginalRegistrySource::SourceTransitions(
++            advice,
++        ) = source_words.source()
++        else {
++            panic!("actual source advice");
++        };
++        let prefix = body
++            .parameter_source_prefix(advice.original_words())
++            .unwrap();
++        assert!(prefix.matches_body(body, input));
++        assert_eq!(prefix.operations().len(), 1);
++        assert_eq!(prefix.formal_read_count(), 1);
++        assert_eq!(
++            prefix.current().unwrap().original_words(),
++            advice.original_words()
++        );
++        assert!(!prefix.current().unwrap().uncertain_operations().is_empty());
++        assert!(prefix.current().unwrap().obligations().contains(
++            &crate::command_binding::SourceCommandTransitionObligation::UnknownEarlierMutation,
++        ));
+         assert!(view.definite_invocation.is_none());
+         assert!(view.definite_roles.is_empty());
+         assert!(view.definite_traits.is_empty());
+@@ -1902,6 +1990,54 @@ mod tests {
+         }
+     }
+ 
++    #[test]
++    fn conditional_parameter_source_prefix_keeps_unknown_callbacks_and_scope_mutations_terminal() {
++        for source in [
++            "proc reader {name} {unknown_effect; set $name 1}",
++            "proc reader {name} {eval $name; set $name 1}",
++            "proc reader {name} {set tmp [unknown_effect]; set $name 1}",
++            "proc reader {name} {trace add variable name read callback; set $name 1}",
++            "proc reader {name} {proc set {args} {}; set $name 1}",
++            "proc reader {name} {rename set old; set $name 1}",
++            "proc reader {name} {if 1 {unknown_effect}; set $name 1}",
++        ] {
++            let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
++            let input = analysis.resolved_input.as_ref().unwrap();
++            let realm = analysis.retained_command_realm().unwrap();
++            let cards = realm.original_logical_procedure_body_cards(input).unwrap();
++            let body = cards
++                .iter()
++                .find(|body| body.name() == Some("reader"))
++                .unwrap();
++            let offset = u32::try_from(source.rfind("set $name 1").unwrap()).unwrap();
++            let current = crate::registry_invocation::source_structure::source_registry_words_at(
++                source, &analysis, offset,
++            );
++            if let Some(current) = current {
++                let crate::registry_invocation::source_structure::OriginalRegistrySource::SourceTransitions(advice) = current.source() else { continue; };
++                assert!(
++                    body.parameter_source_prefix(advice.original_words())
++                        .is_none(),
++                    "{source}"
++                );
++            }
++            // An earlier eval can still report Eval at its own source point;
++            // it cannot donate later dynamic-name or alias-write observations.
++            let traits = &analysis
++                .original_procedure_declarations()
++                .find(|row| row.metadata().name == "reader")
++                .unwrap()
++                .metadata()
++                .param_traits;
++            assert!(
++                !traits
++                    .get("name")
++                    .is_some_and(|traits| traits.contains(&ProcArgTrait::DynamicNameLocal)),
++                "{source}"
++            );
++        }
++    }
++
+     #[test]
+     fn original_parameter_scans_keep_parent_input_and_nested_body_bom() {
+         // naming.source.original-configured-script-completeness
+diff --git a/rust/tcl-compiler/src/analyser/types.rs b/rust/tcl-compiler/src/analyser/types.rs
+index 26583ca59..7226a737c 100644
+--- a/rust/tcl-compiler/src/analyser/types.rs
++++ b/rust/tcl-compiler/src/analyser/types.rs
+@@ -589,6 +589,13 @@ pub struct ProcDef {
+     /// name.  Populated by ``infer_param_traits`` after the
+     /// body walk.  Empty when no traits inferred (parameter
+     /// unused, or proc body wasn't statically scannable).
++    ///
++    /// These are conditional May source-usage reports. They retain no actual
++    /// alias, variable cell, quiet observer, entered frame, Native/Normal or
++    /// completion grant. Consumers independently select the original callee,
++    /// formals and caller-source template before navigation or display. This
++    /// analyser type is separate from the IR-produced
++    /// [`crate::interprocedural::ProcArgTrait`] used by optimiser summaries.
+     pub param_traits: HashMap<String, std::collections::HashSet<ProcArgTrait>>,
+     /// Parameters whose *value* names a variable in the **immediate caller's**
+     /// frame — the `upvar 1 $param local` shape, and only that one.
+@@ -603,6 +610,8 @@ pub struct ProcDef {
+     /// caller-frame variable) must intersect the two rather than trust the
+     /// trait alone.  Populated by
+     /// [`super::param_traits::caller_frame_upvar_params`].
++    /// A symbolic source recipe only: conditional formal reads and unknown
++    /// observer/caller applicability cannot establish an entered caller alias.
+     pub caller_frame_params: std::collections::HashSet<String>,
+     /// **Literal** caller-frame names this proc binds in its immediate
+     /// caller's frame — spelled in the proc's *own* body (`upvar 1 name
+@@ -614,6 +623,7 @@ pub struct ProcDef {
+     /// receipt. Populated by
+     /// [`super::param_traits::caller_frame_literal_targets`]; empty when
+     /// the body binds none.
++    /// Readonly source usage, never a successful caller store or physical cell.
+     pub caller_frame_literals: std::collections::HashMap<String, bool>,
+ }
+ 
+diff --git a/rust/tcl-compiler/src/analyser/types/logical_members.rs b/rust/tcl-compiler/src/analyser/types/logical_members.rs
+index 200ced097..f5e0a0344 100644
+--- a/rust/tcl-compiler/src/analyser/types/logical_members.rs
++++ b/rust/tcl-compiler/src/analyser/types/logical_members.rs
+@@ -377,12 +377,18 @@ impl AnalysisResult {
+                     (MemberSide::ClassObject, &class.class_methods),
+                 ] {
+                     let has_frame = members.values().any(|method| {
+-                        method.body_span.start() == frame.source().base()
+-                            && image
+-                                .try_text()
+-                                .ok()
+-                                .and_then(|source| source.get(method.body_span.as_range()))
+-                                == frame.source().try_text().ok()
++                        class
++                            .original_members
++                            .logical_body_operand(side, method, input, image)
++                            .and_then(|body| body.content_span().ok())
++                            .is_some_and(|content| {
++                                content.start() == frame.source().base()
++                                    && image
++                                        .try_text()
++                                        .ok()
++                                        .and_then(|source| source.get(content.as_range()))
++                                        == frame.source().try_text().ok()
++                            })
+                     });
+                     if !has_frame {
+                         continue;
+diff --git a/rust/tcl-compiler/src/analyser/types/original_members.rs b/rust/tcl-compiler/src/analyser/types/original_members.rs
+index 2d34c6d9e..2a3fd8659 100644
+--- a/rust/tcl-compiler/src/analyser/types/original_members.rs
++++ b/rust/tcl-compiler/src/analyser/types/original_members.rs
+@@ -575,6 +575,7 @@ struct LogicalSourceMemberNameOperand {
+     input: crate::analyser::ResolvedAnalysisInput,
+     words: Vec<tcl_lexer::NativeWord>,
+     name_ordinal: usize,
++    body_ordinal: usize,
+     side: MemberSide,
+     name_span: tcl_lexer::Span,
+     body_span: tcl_lexer::Span,
+@@ -604,14 +605,15 @@ impl OriginalSourceMemberLedger {
+         &mut self,
+         input: crate::analyser::ResolvedAnalysisInput,
+         words: Vec<tcl_lexer::NativeWord>,
+-        name_ordinal: usize,
++        ordinals: (usize, usize),
+         side: MemberSide,
+         spans: (tcl_lexer::Span, tcl_lexer::Span),
+     ) {
+         self.logical_names.push(LogicalSourceMemberNameOperand {
+             input,
+             words,
+-            name_ordinal,
++            name_ordinal: ordinals.0,
++            body_ordinal: ordinals.1,
+             side,
+             name_span: spans.0,
+             body_span: spans.1,
+@@ -626,6 +628,30 @@ impl OriginalSourceMemberLedger {
+         input: &crate::analyser::ResolvedAnalysisInput,
+         image: &tcl_lexer::SourceImage,
+     ) -> Option<&tcl_lexer::NativeWord> {
++        let selected = self.logical_member_operands(side, method, input, image)?;
++        selected.words.get(selected.name_ordinal)
++    }
++
++    /// Registry-selected body from the same complete original member vector.
++    pub(crate) fn logical_body_operand(
++        &self,
++        side: MemberSide,
++        method: &MethodDef,
++        input: &crate::analyser::ResolvedAnalysisInput,
++        image: &tcl_lexer::SourceImage,
++    ) -> Option<&tcl_lexer::NativeWord> {
++        let selected = self.logical_member_operands(side, method, input, image)?;
++        let body = selected.words.get(selected.body_ordinal)?;
++        (body.tokens().first()?.span == selected.body_span).then_some(body)
++    }
++
++    fn logical_member_operands(
++        &self,
++        side: MemberSide,
++        method: &MethodDef,
++        input: &crate::analyser::ResolvedAnalysisInput,
++        image: &tcl_lexer::SourceImage,
++    ) -> Option<&LogicalSourceMemberNameOperand> {
+         input.has_logical_source_name_context().then_some(())?;
+         let mut matching = self.logical_names.iter().filter(|entry| {
+             entry.input == *input
+@@ -642,7 +668,7 @@ impl OriginalSourceMemberLedger {
+         });
+         let selected = matching.next()?;
+         matching.next().is_none().then_some(())?;
+-        selected.words.get(selected.name_ordinal)
++        Some(selected)
+     }
+ 
+     pub(crate) fn retain_logical_visibility_operand(
+diff --git a/rust/tcl-compiler/src/command_binding/declaration_layout.rs b/rust/tcl-compiler/src/command_binding/declaration_layout.rs
+index 878ccb03e..d2c79320a 100644
+--- a/rust/tcl-compiler/src/command_binding/declaration_layout.rs
++++ b/rust/tcl-compiler/src/command_binding/declaration_layout.rs
+@@ -1762,6 +1762,22 @@ impl DeclarationSourceOperandLayoutAdvice {
+         }
+     }
+ 
++    fn current_metadata_context(
++        &self,
++        registry: &tcl_registry::CommandRegistry,
++        tokens: &crate::ir::CommandTokens,
++    ) -> Option<Option<crate::registry_invocation::InvocationMetadataContext<'_>>> {
++        self.current_advice(tokens)?;
++        match &self.kind {
++            DeclarationSourceOperandLayoutKind::Original(advice) => advice
++                .original_declaration_metadata_context(registry, tokens)
++                .ok(),
++            DeclarationSourceOperandLayoutKind::Configured { layout, .. } => {
++                layout.source_metadata_context(registry, tokens).ok()
++            }
++        }
++    }
++
+     /// Registry candidates under the same original source configuration.
+     /// The callback receives conditional schema data, never a Normal handler.
+     pub(crate) fn with_conditional_registry_facts<T: PartialEq>(
+@@ -1775,9 +1791,7 @@ impl DeclarationSourceOperandLayoutAdvice {
+         ) -> Option<T>,
+     ) -> Option<T> {
+         let advice = self.current_advice(tokens)?;
+-        let metadata = advice
+-            .original_declaration_metadata_context(registry, tokens)
+-            .ok()?;
++        let metadata = self.current_metadata_context(registry, tokens)?;
+         let mut selected = None;
+         for target in advice.targets() {
+             if !target.registry_backed {
+@@ -1896,10 +1910,7 @@ impl super::SourceInvocationBinding {
+                 cache: Arc::downgrade(&cache),
+             },
+         };
+-        advice
+-            .current_advice(tokens)?
+-            .original_declaration_metadata_context(registry, tokens)
+-            .ok()?;
++        advice.current_metadata_context(registry, tokens)?;
+         Some(advice)
+     }
+ 
+@@ -4068,6 +4079,15 @@ mod tests {
+             .declaration_source_operand_layout_advice(registry, &tokens)
+             .expect("actual mapped original body source vector");
+         assert!(advice.current_advice(&tokens).is_some());
++        assert!(advice.current_metadata_context(registry, &tokens).is_some());
++        assert!(
++            advice
++                .current_advice(&tokens)
++                .unwrap()
++                .original_declaration_metadata_context(registry, &tokens)
++                .is_err(),
++            "the old Native declaration facade still requires its own invocation owner"
++        );
+         assert!(binding.declaration_operand_layout_advice(&tokens).is_none());
+ 
+         let mut withdrawn = bindings.clone();
+diff --git a/rust/tcl-compiler/src/command_binding/declaration_preview.rs b/rust/tcl-compiler/src/command_binding/declaration_preview.rs
+index ed8ddea13..28a04ca3e 100644
+--- a/rust/tcl-compiler/src/command_binding/declaration_preview.rs
++++ b/rust/tcl-compiler/src/command_binding/declaration_preview.rs
+@@ -361,6 +361,46 @@ impl OriginalDeclarationSourceOperandLayout {
+         )
+     }
+ 
++    /// Reborrow metadata of this sealed original source body. Unlike the
++    /// Native declaration facade, this does not require or mint a reached
++    /// invocation site. Its caller retains the exact current source attachment.
++    pub(super) fn source_metadata_context(
++        &self,
++        registry: &tcl_registry::CommandRegistry,
++        tokens: &crate::ir::CommandTokens,
++    ) -> Result<
++        Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
++        crate::registry_invocation::RegistryInvocationDecline,
++    > {
++        use crate::registry_invocation::{
++            OwnedInvocationMetadataContext, RegistryInvocationDecline,
++        };
++        let refusal = RegistryInvocationDecline::IncompleteResolution;
++        let state = &self.snapshot.state;
++        if tokens.synthetic.is_some()
++            || !tokens.original_words_match_argv_text()
++            || tokens.words() != self.words.as_ref()
++            || !self.current_original_body()
++            || state.baseline.registry_snapshot.as_ref()
++                != Some(&registry.snapshot().semantic_key())
++            || state.source_variables.invocation_dialect != Some(self.dialect)
++        {
++            return Err(refusal);
++        }
++        let owner = &state.baseline.metadata_context;
++        match owner {
++            OwnedInvocationMetadataContext::SuppliedSource(input) => owner
++                .metadata_context_for_source(registry, self.config, Some(input.unit_profile()))
++                .map(Some)
++                .ok_or(refusal),
++            OwnedInvocationMetadataContext::Standalone => {
++                owner.metadata_context(registry).ok_or(refusal)
++            }
++            OwnedInvocationMetadataContext::Supplied(_)
++            | OwnedInvocationMetadataContext::Unavailable => Err(refusal),
++        }
++    }
++
+     fn matches_original_bindings(&self, bindings: &SourceCommandBindings) -> bool {
+         let Some(actual) = bindings
+             .declaration_layouts
+diff --git a/rust/tcl-compiler/src/command_binding/source_transition_advice.rs b/rust/tcl-compiler/src/command_binding/source_transition_advice.rs
+index f25b9ca8c..f66906c76 100644
+--- a/rust/tcl-compiler/src/command_binding/source_transition_advice.rs
++++ b/rust/tcl-compiler/src/command_binding/source_transition_advice.rs
+@@ -11,6 +11,8 @@ mod interpreter_path;
+ pub use interpreter_path::OriginalSourceInterpreterPathBinding;
+ mod c_namespace;
+ mod logical_body;
++mod source_parameter_template;
++pub(crate) use source_parameter_template::OriginalLogicalParameterSourcePrefix;
+ mod logical_declaration;
+ mod logical_navigation;
+ mod logical_word_geometry;
+diff --git a/rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs b/rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs
+index 49f8b1482..5b9ac9f80 100644
+--- a/rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs
++++ b/rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs
+@@ -35,8 +35,18 @@ pub struct OriginalLogicalProcedureBody {
+     formal_topology: Option<Arc<crate::command_binding::formal_topology::OriginalFormalTopology>>,
+     earlier_unknown_mutations: bool,
+     module_entry: Option<crate::command_binding::SourceAnalysisEntry>,
++    parameter_source_prefixes: Arc<super::source_parameter_template::ParameterSourcePrefixCache>,
+ }
+ impl OriginalLogicalProcedureBody {
++    /// Conditional readonly source recipe at an authentic own-body command.
++    /// Cache contents are excluded from this body's semantic equality.
++    pub(crate) fn parameter_source_prefix(
++        &self,
++        original: &[NativeWord],
++    ) -> Option<&super::OriginalLogicalParameterSourcePrefix> {
++        self.parameter_source_prefixes.get(original)
++    }
++
+     pub(crate) fn retain_module_entry(
+         mut self,
+         entry: &crate::command_binding::SourceAnalysisEntry,
+@@ -394,7 +404,25 @@ impl LogicalBodyWalk<'_, '_> {
+             &mut prepared.graph,
+             &prepared.scope,
+             depth.checked_add(1)?,
+-        )
++        )?;
++        // Only this successful actual walk can populate the derived source
++        // prefix sidecar. Missing/partial walks cannot mint positive receipts.
++        if let Some(card) = tape
++            .logical_procedure_bodies
++            .get(&invocation.native.first()?.span().start())
++            .and_then(Option::as_ref)
++            .cloned()
++        {
++            let prefixes = super::source_parameter_template::capture_prefixes(
++                tape,
++                &card,
++                self.context.context,
++            );
++            if let Some(prefixes) = prefixes {
++                card.parameter_source_prefixes.retain(prefixes);
++            }
++        }
++        Some(())
+     }
+ 
+     #[inline(never)]
+@@ -497,6 +525,7 @@ impl LogicalBodyWalk<'_, '_> {
+             formal_topology,
+             earlier_unknown_mutations: !graph.uncertain_operations.is_empty(),
+             module_entry: None,
++            parameter_source_prefixes: Arc::default(),
+         });
+         super::source_class::merge_receipt(
+             &mut tape.logical_procedure_bodies,
+@@ -1717,4 +1746,41 @@ mod tests {
+             assert!(words_at(source, &analysis, fragment).is_none(), "{source}");
+         }
+     }
++
++    #[test]
++    fn logical_parameter_source_prefix_cache_warmth_is_not_body_identity() {
++        let source = "proc reader {name} {upvar 1 $name local; set local 1}";
++        let analysis = analyse_source(source);
++        let input = analysis.resolved_input.as_ref().unwrap();
++        let realm = analysis.retained_command_realm().unwrap();
++        let cards = realm.original_logical_procedure_body_cards(input).unwrap();
++        let [body] = cards.as_slice() else {
++            panic!("one actual body");
++        };
++        let offset = u32::try_from(source.find("upvar").unwrap()).unwrap();
++        let words = words_at(
++            source,
++            &analysis,
++            &source[offset as usize..source.len() - 1],
++        )
++        .unwrap();
++        let OriginalRegistrySource::SourceTransitions(advice) = words.source() else {
++            panic!("source advice");
++        };
++        assert!(
++            body.parameter_source_prefix(advice.original_words())
++                .is_some()
++        );
++        let mut cold = body.as_ref().clone();
++        cold.parameter_source_prefixes = std::sync::Arc::default();
++        assert_eq!(body.as_ref(), &cold);
++        assert!(
++            cold.parameter_source_prefix(advice.original_words())
++                .is_none()
++        );
++        assert!(
++            body.parameter_source_prefix(advice.original_words())
++                .is_some()
++        );
++    }
+ }
+diff --git a/rust/tcl-compiler/src/command_binding/source_transition_advice/source_parameter_template.rs b/rust/tcl-compiler/src/command_binding/source_transition_advice/source_parameter_template.rs
+new file mode 100644
+index 000000000..38275318d
+--- /dev/null
++++ b/rust/tcl-compiler/src/command_binding/source_transition_advice/source_parameter_template.rs
+@@ -0,0 +1,282 @@
++// tcl-lsp — a language server and toolchain for Tcl
++// Copyright (C) 2026 James Deucker (bitwisecook)
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++//! Conditional parameter-source prefixes from the actual completed Logical walk.
++
++use super::{
++    OriginalLogicalProcedureBody, OriginalSourceCommandTransitionAdvice,
++    OriginalSourceTransitionAdviceTape,
++};
++use crate::analyser::ResolvedAnalysisInput;
++use std::collections::BTreeMap;
++use std::sync::{Arc, OnceLock};
++use tcl_lexer::{ExecutablePart, NativeWord};
++use tcl_registry::model::ContextRegistry;
++
++/// Derived positive receipts only. Warming this cache changes no source-body
++/// identity, equality or binding semantics. No row retains a procedure card.
++#[derive(Debug, Default)]
++pub(super) struct ParameterSourcePrefixCache {
++    prefixes: OnceLock<BTreeMap<u32, OriginalLogicalParameterSourcePrefix>>,
++}
++impl PartialEq for ParameterSourcePrefixCache {
++    fn eq(&self, _other: &Self) -> bool {
++        true
++    }
++}
++impl Eq for ParameterSourcePrefixCache {}
++impl ParameterSourcePrefixCache {
++    pub(super) fn retain(&self, prefixes: BTreeMap<u32, OriginalLogicalParameterSourcePrefix>) {
++        if !prefixes.is_empty() {
++            let _ = self.prefixes.set(prefixes);
++        }
++    }
++    pub(super) fn get(
++        &self,
++        original: &[NativeWord],
++    ) -> Option<&OriginalLogicalParameterSourcePrefix> {
++        let prefix = self
++            .prefixes
++            .get()?
++            .get(&original.first()?.span().start())?;
++        (prefix.current()?.original_words() == original).then_some(prefix)
++    }
++}
++
++/// One retained symbolic input read. It is original lexical/formal source
++/// correspondence, never a quiet read, current value, cell or observer closure.
++#[derive(Debug, Clone, PartialEq, Eq)]
++struct ConditionalFormalSourceRead {
++    original: NativeWord,
++    parameter: usize,
++}
++
++/// Actual own-body source operations through one original invocation. All
++/// runtime lookup/observer/caller applicability debt stays on retained advice.
++/// This closes no execution, Native, Normal, successful alias or store query.
++#[derive(Debug, Clone, PartialEq, Eq)]
++pub(crate) struct OriginalLogicalParameterSourcePrefix {
++    input: ResolvedAnalysisInput,
++    scope: Arc<crate::command_binding::OriginalDeclaredLogicalBodyContext>,
++    formal: NativeWord,
++    parameters: Vec<tcl_syntax::formal_params::FormalParameter>,
++    operations: Vec<Arc<OriginalSourceCommandTransitionAdvice>>,
++    reads: Vec<Arc<ConditionalFormalSourceRead>>,
++}
++impl OriginalLogicalParameterSourcePrefix {
++    pub(crate) fn current(&self) -> Option<&OriginalSourceCommandTransitionAdvice> {
++        self.operations.last().map(Arc::as_ref)
++    }
++    pub(crate) fn matches_body(
++        &self,
++        body: &OriginalLogicalProcedureBody,
++        input: &ResolvedAnalysisInput,
++    ) -> bool {
++        &self.input == input
++            && self.scope == *body.scope()
++            && self.formal == *body.formal_original()
++            && self.parameters == body.parameters()
++            && body.matches_source(self.formal.image(), input)
++            && !body.has_earlier_unknown_mutations()
++    }
++    #[cfg(test)]
++    pub(crate) fn operations(&self) -> &[Arc<OriginalSourceCommandTransitionAdvice>] {
++        &self.operations
++    }
++    #[cfg(test)]
++    pub(crate) fn formal_read_count(&self) -> usize {
++        self.reads.len()
++    }
++}
++
++/// No new lookup occurs here. Complete own-body vectors must already occur in
++/// the actual Logical walk with the exact scope and selected descriptor advice.
++/// The first unrepresented/unknown operation withdraws later source templates;
++/// lexical position alone never repairs a missing walk row.
++pub(super) fn capture_prefixes(
++    tape: &OriginalSourceTransitionAdviceTape,
++    body: &OriginalLogicalProcedureBody,
++    context: &ContextRegistry,
++) -> Option<BTreeMap<u32, OriginalLogicalParameterSourcePrefix>> {
++    let input = body.scope().scope_body().source_words().source();
++    let crate::registry_invocation::source_structure::OriginalRegistrySource::SourceTransitions(
++        parent,
++    ) = input
++    else {
++        return None;
++    };
++    let input = parent.logical_source_input()?;
++    if body.has_earlier_unknown_mutations()
++        || !body.matches_source(body.formal_original().image(), input)
++        || !body.scope().scope_body().matches_context(context)
++    {
++        return None;
++    }
++    let commands = body.scope().scope_body().original_commands(context)?;
++    // Bounded immutable copies of actual existing receipts, not recursive
++    // sidecar edges or an independent source invocation catalogue.
++    if commands.len() > 128 {
++        return None;
++    }
++    let mut result = BTreeMap::new();
++    let mut operations: Vec<Arc<OriginalSourceCommandTransitionAdvice>> = Vec::new();
++    let mut reads = Vec::new();
++    for command in commands {
++        let offset = command.words.first()?.span().start();
++        let Some(actual) = tape
++            .logical_summary_scopes
++            .get(&offset)
++            .and_then(Option::as_ref)
++        else {
++            break;
++        };
++        if actual.original.as_ref() != command.words.as_slice() || actual.scope != *body.scope() {
++            break;
++        }
++        let Some(advice) = tape.advice.get(&offset) else {
++            break;
++        };
++        if tape.blocks_registry_source(offset)
++            || advice.original_words() != command.words.as_slice()
++            || advice.logical_source_input() != Some(input)
++            || advice.logical_scope.as_ref() != Some(body.scope())
++            || advice.declaration.is_some()
++            || !advice.lineage.is_empty()
++            || !advice.matches_source(body.formal_original().image(), input.lexer_config())
++            || !advice.matches_context(context)
++            || advice.roles.is_none()
++            || advice
++                .original_words()
++                .iter()
++                .any(|word| word.group().expand)
++        {
++            break;
++        }
++        let Some(current_reads) = formal_source_reads(advice.original_words(), body) else {
++            break;
++        };
++        // Every recorded uncertainty remains on its actual advice. It must
++        // correspond to an already represented own-body operation, rather
++        // than an unowned earlier callback or a missing source operation.
++        if advice.uncertain_operations().iter().any(|unknown| {
++            unknown.as_ref() != advice.original_words()
++                && !operations
++                    .iter()
++                    .any(|earlier| earlier.original_words() == unknown.as_ref())
++        }) {
++            break;
++        }
++        let source = body.formal_original().image().try_text().ok()?;
++        let Some(words) =
++            crate::registry_invocation::source_structure::source_transition_words_from_advice(
++                source,
++                input.lexer_config(),
++                context,
++                advice.clone(),
++            )
++        else {
++            break;
++        };
++        let Some((valid, subsequent)) = words
++            .with_source_schema(context, |schema| {
++                let valid = schema.facts().arg_roles_complete
++                    && schema.facts().arity_accepts_frozen_arguments() == Some(true);
++                let transitions = schema.authored_logical_source_state_transitions()?;
++                // Shared Registry impact owns command-name stability. It is a
++                // conditional source recipe only; observer callbacks stay debt.
++                let subsequent = schema.semantics.state_transitions.is_declared()
++                    && transitions.command_resolution_impact()
++                        == tcl_registry::CommandResolutionImpact::None
++                    && transitions.facts().iter().all(|fact| {
++                        matches!(
++                            fact.transition,
++                            tcl_registry::StateTransition::VariableCellAlias(_)
++                                | tcl_registry::StateTransition::Widen(_)
++                        )
++                    })
++                    && ![
++                        tcl_registry::StateTransitionDomain::VariableTraces,
++                        tcl_registry::StateTransitionDomain::CommandTraces,
++                        tcl_registry::StateTransitionDomain::ExecutionTraces,
++                        tcl_registry::StateTransitionDomain::InterpreterTopology,
++                        tcl_registry::StateTransitionDomain::InterpreterPolicy,
++                        tcl_registry::StateTransitionDomain::Interpreters,
++                        tcl_registry::StateTransitionDomain::ObjectDispatch,
++                    ]
++                    .into_iter()
++                    .any(|domain| transitions.widens(domain))
++                    && !words.roles().unwrap_or_default().iter().any(|(_, role)| {
++                        matches!(
++                            role,
++                            tcl_registry::ArgRole::Body
++                                | tcl_registry::ArgRole::Expr
++                                | tcl_registry::ArgRole::LambdaLiteral
++                                | tcl_registry::ArgRole::CommandPrefix
++                        )
++                    });
++                Some((valid, subsequent))
++            })
++            .flatten()
++        else {
++            break;
++        };
++        if !valid {
++            break;
++        }
++        operations.push(Arc::new(advice.clone()));
++        reads.extend(current_reads.into_iter().map(Arc::new));
++        result.insert(
++            offset,
++            OriginalLogicalParameterSourcePrefix {
++                input: input.clone(),
++                scope: Arc::clone(body.scope()),
++                formal: body.formal_original().clone(),
++                parameters: body.parameters().to_vec(),
++                operations: operations.clone(),
++                reads: reads.clone(),
++            },
++        );
++        if !subsequent {
++            break;
++        }
++    }
++    Some(result)
++}
++
++fn formal_source_reads(
++    original: &[NativeWord],
++    body: &OriginalLogicalProcedureBody,
++) -> Option<Vec<ConditionalFormalSourceRead>> {
++    let mut reads = Vec::new();
++    for word in original {
++        let arena = word.executable_parts();
++        if arena
++            .all_parts()
++            .all(|part| matches!(part.part, ExecutablePart::Text(_)))
++        {
++            continue;
++        }
++        let [part] = arena.list(arena.root()) else {
++            return None;
++        };
++        if !matches!(part.part, ExecutablePart::Variable { index: None, .. }) {
++            return None;
++        }
++        let spelling = std::str::from_utf8(arena.bytes(part.span)?).ok()?;
++        let name =
++            tcl_syntax::naming::whole_scalar_variable_reference_name(spelling, word.config())?;
++        let mut parameters = body
++            .parameters()
++            .iter()
++            .enumerate()
++            .filter(|(_, formal)| formal.name == name);
++        let (parameter, _) = parameters.next()?;
++        parameters.next().is_none().then_some(())?;
++        reads.push(ConditionalFormalSourceRead {
++            original: word.clone(),
++            parameter,
++        });
++    }
++    Some(reads)
++}
+diff --git a/rust/tcl-compiler/src/registry_invocation.rs b/rust/tcl-compiler/src/registry_invocation.rs
+index 316d0bea7..9bc07b136 100644
+--- a/rust/tcl-compiler/src/registry_invocation.rs
++++ b/rust/tcl-compiler/src/registry_invocation.rs
+@@ -5192,6 +5192,21 @@ pub struct RegistryInvocationShape {
+ }
+ 
+ impl RegistryInvocationShape {
++    /// Possible authored body evaluation within this shape. This establishes
++    /// no entered frame, callback execution or closed invocation alternatives.
++    pub(crate) fn may_execute_parameter_body(&self) -> bool {
++        self.possible_traits
++            .contains(tcl_registry::Traits::PERFORMS_SUBSTITUTION)
++            || self.roles.iter().any(|(_, role)| {
++                matches!(
++                    role,
++                    tcl_registry::ArgRole::Body
++                        | tcl_registry::ArgRole::LambdaLiteral
++                        | tcl_registry::ArgRole::CommandPrefix
++                )
++            })
++    }
++
+     fn from_hosted_source(
+         registry: &CommandRegistry,
+         context: InvocationMetadataContext<'_>,
+@@ -6173,19 +6188,9 @@ impl ParameterRoleAdvice {
+     }
+ 
+     pub(crate) fn may_execute_body(&self) -> bool {
+-        self.candidates.iter().any(|candidate| {
+-            candidate
+-                .possible_traits
+-                .contains(tcl_registry::Traits::PERFORMS_SUBSTITUTION)
+-                || candidate.roles.iter().any(|(_, role)| {
+-                    matches!(
+-                        role,
+-                        tcl_registry::ArgRole::Body
+-                            | tcl_registry::ArgRole::LambdaLiteral
+-                            | tcl_registry::ArgRole::CommandPrefix
+-                    )
+-                })
+-        })
++        self.candidates
++            .iter()
++            .any(RegistryInvocationShape::may_execute_parameter_body)
+     }
+ }
+ 
+@@ -6195,6 +6200,8 @@ struct ReceiverTraitInvocation {
+ }
+ 
+ struct LogicalTraitInvocation {
++    /// Separate conditional source recipe; never enters production closed advice.
++    source_parameter_shape: Option<RegistryInvocationShape>,
+     input: crate::analyser::ResolvedAnalysisInput,
+     body: std::sync::Arc<crate::command_binding::OriginalLogicalProcedureBody>,
+     words: source_structure::OriginalRegistryWords,
+@@ -6223,7 +6230,13 @@ impl InvocationBodyAssistance {
+         selected: &ResolvedStatementInvocation,
+         argument: usize,
+     ) -> Option<String> {
+-        std::ptr::eq(self.caller_name_template_invocation()?, selected).then_some(())?;
++        (self
++            .caller_name_template_invocation()
++            .is_some_and(|actual| std::ptr::eq(actual, selected))
++            || self
++                .conditional_parameter_source()
++                .is_some_and(|owned| std::ptr::eq(&owned.invocation, selected)))
++        .then_some(())?;
+         if let Some(owned) = &self.logical_trait_invocation
+             && std::ptr::eq(&owned.invocation, selected)
+         {
+@@ -6272,10 +6285,99 @@ impl InvocationBodyAssistance {
+             .or_else(|| {
+                 self.logical_trait_invocation
+                     .as_ref()
++                    .filter(|owned| owned.source_parameter_shape.is_none())
+                     .map(|owned| &owned.invocation)
+             })
+     }
+ 
++    fn conditional_parameter_source(&self) -> Option<&LogicalTraitInvocation> {
++        let owned = self.logical_trait_invocation.as_ref()?;
++        owned.source_parameter_shape.as_ref()?;
++        let source_structure::OriginalRegistrySource::SourceTransitions(advice) =
++            owned.words.source()
++        else {
++            return None;
++        };
++        let prefix = owned
++            .body
++            .parameter_source_prefix(advice.original_words())?;
++        prefix
++            .matches_body(&owned.body, &owned.input)
++            .then_some(())?;
++        (prefix.current() == Some(advice.as_ref())).then_some(owned)
++    }
++
++    /// Exact conditional own-formal source shape. Original observer/lookup
++    /// applicability stays retained on the body prefix, independently of the
++    /// closed execution candidate advice and successful caller operations.
++    pub(crate) fn conditional_parameter_source_shape(
++        &self,
++        parameters: &[&str],
++    ) -> Option<&RegistryInvocationShape> {
++        let owned = self.conditional_parameter_source()?;
++        owned
++            .body
++            .parameters()
++            .iter()
++            .map(|formal| formal.name.as_str())
++            .eq(parameters.iter().copied())
++            .then_some(())?;
++        owned.source_parameter_shape.as_ref()
++    }
++
++    /// Source-only symbolic operand layout. This is never returned by the
++    /// generic parameter/caller-template invocation or definite accessors.
++    pub(crate) fn conditional_parameter_source_invocation(
++        &self,
++        parameters: &[&str],
++    ) -> Option<&ResolvedStatementInvocation> {
++        self.conditional_parameter_source_shape(parameters)?;
++        Some(&self.conditional_parameter_source()?.invocation)
++    }
++
++    /// Conditional source alias layout from the same retained Registry source
++    /// schema. Outer None means this is not that purpose; inner None preserves
++    /// an unavailable layout without falling through to Native success rules.
++    pub(crate) fn conditional_parameter_source_alias_layout(
++        &self,
++        selected: &ResolvedStatementInvocation,
++    ) -> Option<Option<(tcl_registry::FrameLevel, usize)>> {
++        let owned = self.conditional_parameter_source()?;
++        std::ptr::eq(&owned.invocation, selected).then_some(())?;
++        Some(
++            owned
++                .words
++                .with_source_schema(owned.input.borrowed_context_registry(), |schema| {
++                    let aliases = schema.authored_logical_source_variable_aliases()?;
++                    if let Some(first) = aliases
++                        .iter()
++                        .filter_map(|alias| {
++                            matches!(
++                                alias.target,
++                                tcl_registry::VariableAliasTarget::Namespace { .. }
++                            )
++                            .then_some(alias.words.target)
++                        })
++                        .min()
++                    {
++                        return Some((tcl_registry::FrameLevel::Dynamic, first));
++                    }
++                    (schema.semantics.frame_effect?.layout
++                        == tcl_registry::FrameArgLayout::AliasPairs)
++                        .then_some(())?;
++                    match schema.authored_logical_source_frame_argument_layout()? {
++                        tcl_registry::frame_effect::FrameArgumentResolution::Valid {
++                            level,
++                            level_word_len,
++                        } => Some((level, level_word_len)),
++                        tcl_registry::frame_effect::FrameArgumentResolution::Unknown
++                        | tcl_registry::frame_effect::FrameArgumentResolution::Invalid => None,
++                    }
++                })
++                .flatten(),
++        )
++    }
++
+     /// The actual original descriptor decides whether this script operand
+     /// inherits the caller source context. A deferred/fresh-frame body cannot
+     /// donate its locals to the enclosing procedure's parameter template.
+@@ -6321,6 +6423,9 @@ impl InvocationBodyAssistance {
+             })
+             .or_else(|| {
+                 let owned = self.logical_trait_invocation.as_ref()?;
++                if owned.source_parameter_shape.is_some() {
++                    return None;
++                }
+                 let formal_names = owned
+                     .body
+                     .parameters()
+@@ -6984,7 +7089,13 @@ pub(crate) fn logical_parameter_body_assistance(
+         return None;
+     };
+     let scope = advice.logical_source_scope()?;
+-    if !advice.has_named_only_logical_summary_descriptor()
++    let conditional_source = body
++        .parameter_source_prefix(advice.original_words())
++        .is_some_and(|prefix| {
++            prefix.matches_body(body, input) && prefix.current() == Some(advice.as_ref())
++        });
++    let named_only = advice.has_named_only_logical_summary_descriptor();
++    if (!named_only && !conditional_source)
+         || scope.frame_recipe()
+             != crate::command_binding::OriginalDeclaredSourceBodyFrame::Procedure
+         || scope.scope_body() != body.scope().scope_body()
+@@ -7033,14 +7144,22 @@ pub(crate) fn logical_parameter_body_assistance(
+         command,
+         Some(context),
+     )?;
+-    view.parameter_advice = ParameterRoleAdvice {
+-        candidates: vec![RegistryInvocationShape::from_facts(
+-            &invocation.facts,
+-            invocation.effective.clone(),
+-        )],
+-        closed: true,
++    let shape =
++        RegistryInvocationShape::from_facts(&invocation.facts, invocation.effective.clone());
++    let source_parameter_shape = if named_only {
++        view.parameter_advice = ParameterRoleAdvice {
++            candidates: vec![shape],
++            closed: true,
++        };
++        None
++    } else {
++        // This source recipe retains unresolved formal-read/observer debt. It
++        // cannot donate candidates or closed state to execution assistance.
++        view.parameter_advice = ParameterRoleAdvice::default();
++        Some(shape)
+     };
+     view.logical_trait_invocation = Some(LogicalTraitInvocation {
++        source_parameter_shape,
+         input: input.clone(),
+         body: std::sync::Arc::clone(body),
+         words,
+diff --git a/rust/tcl-compiler/src/registry_invocation/source_structure/project_procedure_roles.rs b/rust/tcl-compiler/src/registry_invocation/source_structure/project_procedure_roles.rs
+index 54e32175c..16df24bce 100644
+--- a/rust/tcl-compiler/src/registry_invocation/source_structure/project_procedure_roles.rs
++++ b/rust/tcl-compiler/src/registry_invocation/source_structure/project_procedure_roles.rs
+@@ -213,11 +213,20 @@ pub fn original_project_procedure_arguments<'a>(
+     );
+     realm.stamp_original_tokens(&mut tokens);
+     let binding = tokens.source_binding.as_ref()?;
+-    let projection = binding.invocation_site()?.source.original_lexical_command(
+-        tokens.words(),
+-        offset,
+-        config,
+-    )?;
++    let projection = if input.has_logical_source_name_context() {
++        // Nested Logical bodies retain their actual complete source vector in
++        // the tape even when no invocation/declaration point exists. Geometry
++        // stays separate from the selected occupancy and formal checks below.
++        realm
++            .source_bindings_ref()
++            .original_logical_source_command_at_in_source(input, &image, offset, config)?
++    } else {
++        binding.invocation_site()?.source.original_lexical_command(
++            tokens.words(),
++            offset,
++            config,
++        )?
++    };
+     let actual = projection.command();
+     if actual.span != segment.span
+         || actual.argv != segment.argv
+@@ -484,7 +493,11 @@ mod tests {
+             for source in [
+                 "puts retained",
+                 "proc reader {value} {}; reader retained",
+-                "interp alias {} reader {} puts; reader retained",
++                if dialect == "jim" {
++                    "alias reader puts; reader retained"
++                } else {
++                    "interp alias {} reader {} puts; reader retained"
++                },
+                 "proc reader {value} {}; rename reader {}; reader retained",
+                 "unknown_mutation; reader retained",
+                 "reader [unknown_operand]",
+@@ -503,6 +516,95 @@ mod tests {
+         }
+     }
+ 
++    #[test]
++    fn project_procedure_arguments_jim_c_interp_syntax_has_no_alias_descriptor() {
++        let source = "interp alias {} reader {} puts; reader retained";
++        let analysis = Analyser::new().analyse(source, "jim");
++        let input = analysis.resolved_input.as_ref().unwrap();
++        let context = input.context_registry();
++        let arguments =
++            ["alias", "", "reader", "", "puts"].map(tcl_registry::InvocationWord::Literal);
++        let resolution =
++            tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(
++                context.commands(),
++                Some(context.context()),
++                tcl_registry::InvocationWords::structured(
++                    tcl_registry::InvocationWord::Literal("interp"),
++                    &arguments,
++                )
++                .with_dialect(tcl_registry::InvocationDialect::of_profile(
++                    input.unit_profile(),
++                )),
++                tcl_dialect::model::InvocationRealm::RuleLoader,
++            );
++        let selected = resolution
++            .resolved()
++            .expect("actual Jim interp factory descriptor");
++        assert_eq!(
++            selected.facts().arity_accepts_frozen_arguments(),
++            Some(false)
++        );
++        assert!(
++            selected
++                .state_transitions()
++                .command_bindings()
++                .next()
++                .is_none()
++        );
++        assert!(!analysis.command_aliases.contains_key("reader"));
++        assert!(!analysis.command_aliases.contains_key("::reader"));
++        // This malformed attempt is not Jim's alias surface. Its descriptor
++        // cannot manufacture an alias or a source normal-continuation grant.
++        // The separate stronger-occupant test uses actual `alias reader puts`.
++    }
++
++    #[test]
++    fn project_procedure_arguments_logical_nested_body_keeps_occupancy_guards() {
++        let library = Analyser::new().analyse(
++            "namespace eval N {proc reader {name} {upvar 1 $name cell; set cell 1}}; proc reader {name} {upvar 1 $name cell; set cell 1}",
++            "tcl",
++        );
++        let both = OriginalProjectProcedureRoles::capture(&library).unwrap();
++        let local_library = Analyser::new().analyse(
++            "namespace eval N {proc reader {name} {upvar 1 $name cell; set cell 1}}",
++            "tcl",
++        );
++        let local_only = OriginalProjectProcedureRoles::capture(&local_library).unwrap();
++        for (source, provider) in [
++            (
++                "namespace eval N {proc reader {value} {}; proc caller {} {reader retained}}",
++                &both,
++            ),
++            (
++                "namespace eval N {proc reader {value} {}; rename reader {}; proc caller {} {reader retained}}",
++                &local_only,
++            ),
++            (
++                "namespace eval N {proc reader {value} {}; rename reader {}; unknown_effect; proc caller {} {reader retained}}",
++                &both,
++            ),
++        ] {
++            let caller = Analyser::new().analyse(source, "tcl");
++            let offset = u32::try_from(source.rfind("reader retained").unwrap()).unwrap();
++            let command = crate::segmenter::segment_commands_with_offset_and_config(
++                &source[offset as usize..source.len() - 2],
++                offset,
++                caller.body_lexer_config.unwrap().nested(),
++            )
++            .remove(0);
++            assert!(
++                original_project_procedure_arguments(
++                    source,
++                    &caller,
++                    &command,
++                    std::slice::from_ref(provider),
++                )
++                .is_none(),
++                "actual local occupant, deleted local coordinate and earlier unknown remain terminal: {source}"
++            );
++        }
++    }
++
+     #[test]
+     fn project_procedure_arguments_keep_priority_ambiguity_and_class_blockers() {
+         for dialect in ["tcl", "tcl8.6"] {
+@@ -519,7 +621,9 @@ mod tests {
+             .remove(0);
+             let selected =
+                 original_project_procedure_arguments(source, &caller, &command, &providers)
+-                    .expect("genuine root fallback after local deletion");
++                    .unwrap_or_else(|| {
++                        panic!("{dialect}: genuine root fallback after local deletion")
++                    });
+             assert!(selected.declaration().name().slot().namespace.is_root());
+             let caller_source = "reader retained";
+             let caller = Analyser::new().analyse(caller_source, dialect);
+diff --git a/rust/tcl-vm/src/cmd_info/native_commands_tests.rs b/rust/tcl-vm/src/cmd_info/native_commands_tests.rs
+index 873f82e57..d1aed3b95 100644
+--- a/rust/tcl-vm/src/cmd_info/native_commands_tests.rs
++++ b/rust/tcl-vm/src/cmd_info/native_commands_tests.rs
+@@ -40,8 +40,9 @@ fn original_info_commands_matches_all_110_native_pattern_object_windows() {
+     let rows = include_str!("../../../tcl-registry/tests/data/native_info_commands/windows.tsv");
+     let mut count = 0;
+     for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+-        let mut vm = crate::native_fixture::interpreter(
++        let mut vm = crate::native_fixture::interpreter_with_scripted_libraries(
+             tcl_registry::model::ingress::resolve_environment(engine).unit_profile(),
++            &[tcl_registry::native_scripted_distribution::NativeScriptedLibrary::NamespaceInfo],
+         );
+         define_names(&mut vm);
+         let dialect = vm.actual_native_invocation_dialect();
+diff --git a/rust/tcl-vm/src/cmd_info/native_oo.rs b/rust/tcl-vm/src/cmd_info/native_oo.rs
+index 905e7e046..9909e2ad9 100644
+--- a/rust/tcl-vm/src/cmd_info/native_oo.rs
++++ b/rust/tcl-vm/src/cmd_info/native_oo.rs
+@@ -168,10 +168,6 @@ mod tests {
+             let rename =
+                 vm.invoke_command("rename", &[Value::string("O"), Value::string("renamed")]);
+             assert_eq!(rename.code, Code::Ok, "{version:?}");
+-            assert!(
+-                crate::cmd_oo::object_key(&mut vm, &original).is_err(),
+-                "{version:?} stale stringless name must refuse"
+-            );
+             let moved = Value::new_native_string_bytes(b"renamed".as_slice());
+             assert_eq!(crate::cmd_oo::object_key(&mut vm, &moved).unwrap(), object);
+             let after = crate::cmd_oo::object_namespace_name(&mut vm, object).unwrap();
+@@ -179,6 +175,10 @@ mod tests {
+                 after.resident_string_bytes(),
+                 namespace.resident_string_bytes()
+             );
++            assert!(
++                crate::cmd_oo::object_key(&mut vm, &original).is_err(),
++                "{version:?} stale stringless name must refuse"
++            );
+         }
+     }
+ 
+diff --git a/rust/tcl-vm/src/interp.rs b/rust/tcl-vm/src/interp.rs
+index 99fff7600..969aa0c8f 100644
+--- a/rust/tcl-vm/src/interp.rs
++++ b/rust/tcl-vm/src/interp.rs
+@@ -1287,8 +1287,8 @@ pub struct InterpState {
+     pub(crate) framework_builtins: Vec<crate::embed::FrameworkBuiltinCapability>,
+     pub(crate) active_native_profile: Option<&'static tcl_dialect::DialectProfile>,
+     /// The actual embedding engine, explicitly selected independently of source
+-    /// grammar, logical emulation and command availability. None retains the
+-    /// ordinary profile's measured engine; an availability override never sets it.
++    /// grammar, logical emulation and command availability. An absent explicit
++    /// engine supplies no measured Native execution point; availability cannot set it.
+     actual_engine_profile: Option<&'static tcl_dialect::DialectProfile>,
+     jim_object_context: RefCell<Option<Rc<crate::value::NativeJimObjectContext>>>,
+     native_c_result: RefCell<Option<Value>>,
+@@ -3014,7 +3014,7 @@ impl InterpState {
+     pub(crate) fn actual_native_execution_profile(&self) -> &'static tcl_dialect::DialectProfile {
+         self.active_native_profile
+             .or(self.actual_engine_profile)
+-            .unwrap_or_else(|| self.native_execution_profile())
++            .unwrap_or_else(tcl_dialect::DialectProfile::plain_tcl)
+     }
+ 
+     pub(crate) fn actual_native_invocation_dialect(&self) -> tcl_registry::InvocationDialect {
+diff --git a/rust/tcl-vm/src/value.rs b/rust/tcl-vm/src/value.rs
+index 87bee56f7..0c285038f 100644
+--- a/rust/tcl-vm/src/value.rs
++++ b/rust/tcl-vm/src/value.rs
+@@ -9492,12 +9492,12 @@ mod jim_result_publication_tests {
+             )));
+             let context = vm.borrow().native_jim_object_context().unwrap();
+             let operation = NativeOperationScope::enter(&mut vm.borrow_mut()).unwrap();
+-            let old = Value::new_native_string_bytes(b"PRIOR");
++            let old = Value::new_native_string_bytes(b"PRIOR".as_slice());
+             let old_view = old.native_lifetime_lease();
+             context.publish_result(&old);
+             drop(old);
+             let body = Rc::new(RefCell::new(Some(Value::native_list_constructor(
+-                vec![Value::new_native_string_bytes(b"return")],
++                vec![Value::new_native_string_bytes(b"return".as_slice())],
+                 NativeStringProtocol::Jim084,
+             ))));
+             let incoming = body.borrow().as_ref().unwrap().native_lifetime_lease();
+@@ -9548,7 +9548,7 @@ mod jim_result_publication_tests {
+     fn original_jim_borrowed_result_adoption_adds_only_the_actual_result_reference() {
+         let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("jim"));
+         let context = vm.native_jim_object_context().unwrap();
+-        let old = Value::new_native_string_bytes(b"PRIOR");
++        let old = Value::new_native_string_bytes(b"PRIOR".as_slice());
+         let old_view = old.native_lifetime_lease();
+         context.publish_result(&old);
+         drop(old);
+@@ -9579,8 +9579,8 @@ mod jim_result_publication_tests {
+         let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("jim"));
+         let body = Value::native_list_constructor(
+             vec![
+-                Value::new_native_string_bytes(b"return"),
+-                Value::new_native_string_bytes(b"BODY"),
++                Value::new_native_string_bytes(b"return".as_slice()),
++                Value::new_native_string_bytes(b"BODY".as_slice()),
+             ],
+             NativeStringProtocol::Jim084,
+         );
+@@ -9659,7 +9659,7 @@ mod jim_result_publication_tests {
+         for mode in 0..=2 {
+             let (vm, body, _) = original_body_fixture();
+             let context = vm.borrow().native_jim_object_context().unwrap();
+-            let prior = Value::new_native_string_bytes(b"PRIOR");
++            let prior = Value::new_native_string_bytes(b"PRIOR".as_slice());
+             let prior_view = prior.native_lifetime_lease();
+             context.publish_result(&prior);
+             drop(prior);

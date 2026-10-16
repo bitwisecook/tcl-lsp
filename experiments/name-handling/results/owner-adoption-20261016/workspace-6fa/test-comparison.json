@@ -1,0 +1,40 @@
+{
+  "old_tests": 137,
+  "new_tests": 146,
+  "drops": [],
+  "gains": [
+    "tcl_compiler::analyser::param_traits::tests::original_logical_parameter_roles_require_original_formal_order_before_role_application",
+    "tcl_compiler::command_binding::declaration_layout::tests::declaration_configured_scalar_operands_keep_existing_receiver_and_scope_refusals",
+    "tcl_compiler::command_binding::declaration_layout::tests::declaration_mapped_source_operands_keep_full_vector_owner_and_conflict_refusals",
+    "tcl_vm::cmd_info::native_commands_tests::original_info_commands_matches_all_110_native_pattern_object_windows",
+    "tcl_vm::cmd_info::native_oo::tests::specialized_object_info_keeps_original_cache_and_result_owners"
+  ],
+  "regressions": [
+    "tcl_vm::cmd_info::tests::errorstack_surface_follows_the_selected_runtime_release",
+    "tcl_vm::cmd_info::tests::math_enumeration_follows_the_registry_selected_surface",
+    "tcl_vm::cmd_info::tests::release_info_reads_the_selected_runtime_globals",
+    "tcl_vm::cmd_info::tests::shared_library_extension_comes_from_the_platform_owner",
+    "tcl_vm::cmd_namespace::original_ensemble_tests::counted_map_roots_and_native_cstring_collision_owners_are_independent",
+    "tcl_vm::cmd_namespace::original_ensemble_tests::explicit_subcommands_restrict_the_actual_map",
+    "tcl_vm::cmd_namespace::original_ensemble_tests::map_queries_keep_the_same_original_and_do_not_own_retired_configuration",
+    "tcl_vm::cmd_namespace::original_ensemble_tests::original_ensemble_options_use_actual_release_tables",
+    "tcl_vm::cmd_namespace::tests::code_keeps_non_unicode_bytes_and_uses_native_arity",
+    "tcl_vm::cmd_namespace::tests::code_refuses_an_unaudited_engine_outside_guest_completion",
+    "tcl_vm::cmd_namespace::tests::code_retains_original_objects_for_all_measured_native_prefixes",
+    "tcl_vm::cmd_namespace::tests::current_and_code_wrong_arity_retain_original_header_words",
+    "tcl_vm::cmd_namespace::tests::namespace_text_preserves_original_native_byte_names",
+    "tcl_vm::cmd_namespace::tests::native_namespace_bodies_propagate_return_and_inscope_requires_c_target"
+  ],
+  "added": {
+    "tcl_registry::source_name_ownership::tests::trace_registration_source_exclusion_keeps_subject_ingress_and_existing_purposes": "PASS",
+    "tcl_compiler::command_binding::declaration_layout::tests::declaration_scalar_trace_exclusions_retain_other_names_and_mapped_source_configurations": "FAIL",
+    "tcl_compiler::analyser::param_traits::tests::conditional_parameter_source_prefix_keeps_unknown_callbacks_and_scope_mutations_terminal": "PASS",
+    "tcl_compiler::registry_invocation::source_structure::project_procedure_roles::tests::project_procedure_arguments_preserve_stronger_occupants_and_barriers": "PASS",
+    "tcl_compiler::registry_invocation::source_structure::project_procedure_roles::tests::project_procedure_arguments_refuse_mismatched_or_stale_declaring_owner": "PASS",
+    "tcl_compiler::registry_invocation::source_structure::project_procedure_roles::tests::project_procedure_arguments_jim_c_interp_syntax_has_no_alias_descriptor": "PASS",
+    "tcl_compiler::registry_invocation::source_structure::project_procedure_roles::tests::project_procedure_arguments_logical_nested_body_keeps_occupancy_guards": "PASS",
+    "tcl_compiler::registry_invocation::source_structure::project_procedure_roles::tests::project_procedure_arguments_keep_priority_ambiguity_and_class_blockers": "FAIL",
+    "tcl_compiler::registry_invocation::source_structure::project_procedure_roles::tests::project_procedure_arguments_keep_declaring_formals_and_actual_call_geometry": "PASS"
+  },
+  "scope": "Exact maintained selectors and fixture corrections remain separately documented; comparison supplies no whole-suite acceptance."
+}

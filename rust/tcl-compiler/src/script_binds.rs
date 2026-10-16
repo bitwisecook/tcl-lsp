@@ -56,6 +56,10 @@ pub(crate) enum Ownership {
     /// Names mentioned by registry-described scope-alias declarations.
     /// This supplies lexical exclusion advice, not an installed alias.
     ScopeAliases,
+    /// Source lexical veto for alias locals and trace registration subjects.
+    /// Complete negatives require the retained metadata footprint owner; the
+    /// legacy positive-only syntax helper cannot supply trace absence.
+    ScopeAliasesAndTraceRegistrations,
 }
 
 /// Conditional name ownership of one authentic original literal body.
@@ -177,8 +181,12 @@ fn binds(
             #[cfg(test)]
             Ownership::DecodedBindings => &[ArgRole::VarWrite],
             Ownership::BindingsOrNameReads => &[ArgRole::VarWrite, ArgRole::VarRead],
-            Ownership::ScopeAliases if scope_alias => &[ArgRole::VarWrite],
-            Ownership::ScopeAliases => &[],
+            Ownership::ScopeAliases | Ownership::ScopeAliasesAndTraceRegistrations
+                if scope_alias =>
+            {
+                &[ArgRole::VarWrite]
+            }
+            Ownership::ScopeAliases | Ownership::ScopeAliasesAndTraceRegistrations => &[],
         };
         if name_roles.iter().copied().flat_map(&at).any(|index| {
             decoded_binding_root(script, &segment, index + 1, config)
@@ -193,17 +201,18 @@ fn binds(
         // `foreach {{first last}} …` binds one variable whose name contains a
         // space, and a whitespace split reads it as the two fragments
         // `{first` and `last}` and finds neither.
-        if ownership != Ownership::ScopeAliases
-            && at(ArgRole::LoopVarList)
-                .into_iter()
-                .filter_map(|index| args.get(index))
-                .filter_map(|list| list_rules.split_list(list).ok())
-                .flatten()
-                .any(|word| {
-                    let word = word.as_ref();
-                    tcl_syntax::naming::split_element_ref(word).map_or(word, |(root, _)| root)
-                        == name
-                })
+        if !matches!(
+            ownership,
+            Ownership::ScopeAliases | Ownership::ScopeAliasesAndTraceRegistrations
+        ) && at(ArgRole::LoopVarList)
+            .into_iter()
+            .filter_map(|index| args.get(index))
+            .filter_map(|list| list_rules.split_list(list).ok())
+            .flatten()
+            .any(|word| {
+                let word = word.as_ref();
+                tcl_syntax::naming::split_element_ref(word).map_or(word, |(root, _)| root) == name
+            })
         {
             return true;
         }

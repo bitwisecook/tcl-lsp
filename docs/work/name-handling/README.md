@@ -1,53 +1,22 @@
 # Centralised name handling on work
 
-Implementation has resumed from `554085e`. **108 baseline units** have reviewed
-implementation pending validation: 54 code units and all 54 authored-documentation
+Implementation has resumed from `554085e`. **124 baseline units** have reviewed
+implementation pending validation: 70 code units and all 54 authored-documentation
 units. **Zero units are verified complete**. Baseline counts remain **2,158**;
-2,050 baseline units have no integrated implementation. The bounded
-[owner/caller annex](implementation-owner-annex.json) adds **29 demonstrated
-requirements**, all 29 of which have integrated implementation pending validation.
-Effective scope is **2,187 obligations**, with **137 integrated pending validation**
-and **2,050 not integrated**. These counts establish neither semantic acceptance
+2,034 baseline units have no integrated implementation. The bounded
+[owner/caller annex](implementation-owner-annex.json) adds **30 demonstrated
+requirements**, 29 integrated pending validation and one blocked before integration.
+Effective scope is **2,188 obligations**, with **153 integrated pending validation**
+and **2,035 not integrated**. These counts establish neither semantic acceptance
 nor completed gates.
 
-Development checkpoint `2d5823c90` is pushed to `work`. Its fresh ordinary
-six-package workspace build passed in 9m18s. Selected controls are **164 PASS /
-79 FAIL**, with one zero-test invocation explicitly rejected. Core minifier
-controls are 92 PASS/50 FAIL and VM namespace controls 44 PASS/12 FAIL; all six
-actual VM report-parts controls and the import cleanup control pass. Exact logs,
-binary hashes and strict original-provider invocation scope are retained.
-The ordinary Runtime build at `35c8ce634` passed; selected controls were
-294 PASS/5 FAIL. In the two broad comparison groups all 197 prior passes were
-retained, with eight gains and zero regressions. Reviewed repairs for the five
-remaining failures are integrated. A fresh ordinary successor build passed in
-57.46s with zero warnings; its selected controls finished at 298 PASS/1 FAIL. The remaining local-cache
-fixture entered a fresh Native read after refusal; its reviewed correction
-inspects the original physical compiled slot. A fresh build and all 43 variable
-controls now pass. The workspace
-successor encountered 19 missing API docs and one test borrow error, now repaired;
-its seven-package rebuild compiled production libraries but found four
-new test-only scope errors in the instance-report control; moving that control
-to its existing helper module repairs the scope. Another build is pending. Genuine Logical receiver/navigation,
-parameter-trait source transport, pure expression-gap action and mode-preserving
-instance reports are integrated pending validation. Native variable expressions,
-foreign constructor collections and VM physical body transport remain open.
-
-The full proof checker at `2a86f7dfd` reported 3,574 errors. A reviewed repair
-addresses its 17 source/binding/document consistency messages and passes bounded
-108-owner/85-binding checks without changing evidence, result or status digests.
-The earlier current-source full rerun reports 3,403 errors. Thirteen small historical files (3,520,174 bytes)
-were restored with Git blob and all 164 retained proof hashes verified. This is
-availability restoration only; 638 native binary references across 470 paths
-remain missing. Census/evidence drift and required acceptance remain open.
-
-Exact selected ordinary results remain in the compact durable
-[control capture](../../../experiments/name-handling/results/owner-adoption-20261016/records.json).
-The [provider capture](../../../experiments/name-handling/oracles/provider-pairing-20261016/capture.json)
-authenticates six installed original setups, without semantic acceptance.
-Reviewed physical Jim body-result ownership, report serialization and compiled-stack
-purpose repairs are integrated; Rust execution remains pending. Alias edit
-authority, foreign class collections and separate VM physical-body adoption remain
-open. Historical M12 is unchanged. Progress reports use 30-minute intervals.
+Development checkpoint `6fa086c78` is pushed to `work`. The
+[current implementation and validation snapshot](current-state.md) records exact
+ordinary builds, selected failures, source-only limitations, restored evidence
+and pending gates. The [implementation ledger](implementation-ledger.md) retains
+remaining boundaries and the [owner annex](implementation-owner-annex.json)
+separates additional requirements from baseline units. No required repository
+gate or whole-issue acceptance is green. Progress reports use 30-minute intervals.
 
 The source/role audit is complete for **110,709 tracked baseline paths**, with explicit current-source annexes and zero unexamined paths. The reconciled catalogue contains **1,321 caller migrations**, **377 shared-owner repairs/extensions** and **101 metadata/target-schema changes**: **1,799 semantic code changes**. There are separately **305 validation-code repairs** and **54 authored-documentation corrections**, making **2,158 confirmed required changes**. These remain to be implemented. Examined requirements and original/provider provenance questions remain separate.
 

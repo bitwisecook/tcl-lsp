@@ -1,0 +1,354 @@
+
+> tcl-lsp@0.0.0-dev precompile
+> make -C ../.. copy-canonical
+
+make: Entering directory '/workspace/tcl-lsp'
+==> Generating AI system prompts (cargo xtask gen-ai-diagnostics)
+cd /workspace/tcl-lsp/ && cargo xtask gen-ai-diagnostics
+ Downloading crates ...
+  Downloaded unicode-xid v0.2.6
+  Downloaded rustc_lexer v0.1.0
+  Downloaded cargo-config2 v0.1.45
+   Compiling zeroize v1.9.0
+   Compiling subtle v2.6.1
+   Compiling num-traits v0.2.19
+   Compiling rand_core v0.10.1
+   Compiling hybrid-array v0.4.15
+   Compiling getrandom v0.4.3
+   Compiling cmov v0.5.4
+   Compiling ctutils v0.4.2
+   Compiling syn v3.0.6
+   Compiling crypto-common v0.2.2
+   Compiling block-buffer v0.12.1
+   Compiling digest v0.11.3
+   Compiling bitflags v2.13.2
+   Compiling thiserror-impl v2.0.21
+   Compiling thiserror v2.0.21
+   Compiling num-integer v0.1.47
+   Compiling tcl-core-types v0.1.0 (/workspace/tcl-lsp/rust/tcl-core-types)
+   Compiling tcl-dialect v0.1.0 (/workspace/tcl-lsp/rust/tcl-dialect)
+   Compiling memchr v2.8.3
+   Compiling sha2 v0.11.0
+   Compiling tcl-lexer v0.1.0 (/workspace/tcl-lsp/rust/tcl-lexer)
+   Compiling num-bigint v0.5.1
+   Compiling tcl-syntax v0.1.0 (/workspace/tcl-lsp/rust/tcl-syntax)
+   Compiling serde_core v1.0.229
+   Compiling base64ct v1.8.3
+   Compiling tcl-platform v0.1.0 (/workspace/tcl-lsp/rust/tcl-platform)
+   Compiling pem-rfc7468 v1.0.0
+   Compiling tcl-runtime-api v0.1.0 (/workspace/tcl-lsp/rust/tcl-runtime-api)
+   Compiling cpubits v0.1.1
+   Compiling crypto-bigint v0.7.5
+   Compiling der v0.8.2
+   Compiling sha1 v0.11.0
+   Compiling md-5 v0.11.0
+   Compiling tcl-cmd-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-cmd-core)
+   Compiling spki v0.8.0
+   Compiling aho-corasick v1.1.5
+   Compiling ff v0.14.0
+   Compiling regex-automata v0.4.18
+   Compiling tcl-regex v0.1.0 (/workspace/tcl-lsp/rust/tcl-regex)
+   Compiling syn v2.0.119
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp/rust/tcl-registry)
+   Compiling regex v1.13.1
+   Compiling group v0.14.0
+   Compiling pkcs8 v0.11.0
+   Compiling tcl-bytecode v0.1.0 (/workspace/tcl-lsp/rust/tcl-bytecode)
+   Compiling getrandom v0.2.17
+   Compiling base16ct v1.0.0
+   Compiling hashbrown v0.17.1
+   Compiling equivalent v1.0.2
+   Compiling serde v1.0.229
+   Compiling untrusted v0.9.0
+   Compiling minimal-lexical v0.2.1
+   Compiling nom v7.1.3
+   Compiling ring v0.17.14
+   Compiling indexmap v2.14.2
+   Compiling sec1 v0.8.1
+   Compiling synstructure v0.13.2
+   Compiling serde_derive v1.0.229
+   Compiling deranged v0.5.8
+   Compiling serde_json v1.0.151
+   Compiling powerfmt v0.2.0
+   Compiling time v0.3.55
+   Compiling asn1-rs-derive v0.6.0
+   Compiling unicode-general-category v1.1.0
+   Compiling elliptic-curve v0.14.1
+   Compiling rusticata-macros v4.1.0
+   Compiling asn1-rs-impl v0.2.0
+   Compiling primefield v0.14.0
+   Compiling signature v3.0.0
+   Compiling hmac v0.13.0
+   Compiling displaydoc v0.2.7
+   Compiling asn1-rs v0.7.2
+   Compiling rfc6979 v0.6.0
+   Compiling wnaf v0.14.1
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+   Compiling base64 v0.23.1
+   Compiling primeorder v0.14.0
+   Compiling tcl-host-c-abi v0.1.0 (/workspace/tcl-lsp/rust/tcl-host-c-abi)
+   Compiling ecdsa v0.17.0
+   Compiling num-bigint v0.4.8
+   Compiling aws-lc-rs v1.18.1
+   Compiling simd-adler32 v0.3.10
+   Compiling der-parser v10.0.0
+   Compiling oid-registry v0.8.1
+   Compiling crc32fast v1.5.2
+   Compiling pkcs1 v0.8.0-rc.4
+   Compiling crypto-primes v0.7.2
+   Compiling rustls-pki-types v1.15.1
+   Compiling lazy_static v1.5.1
+   Compiling log v0.4.34
+   Compiling data-encoding v2.11.1
+   Compiling linux-raw-sys v0.12.1
+   Compiling rustix v1.1.5
+   Compiling x509-parser v0.18.1
+   Compiling miniz_oxide v0.9.1
+   Compiling rsa v0.10.0-rc.18
+   Compiling p384 v0.14.0
+   Compiling p256 v0.14.0
+   Compiling tcl-host-native v0.1.0 (/workspace/tcl-lsp/rust/tcl-host-native)
+   Compiling aws-lc-sys v0.45.0
+   Compiling zlib-rs v0.6.8
+   Compiling flate2 v1.1.10
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+   Compiling ipnet v2.12.2
+   Compiling bytes v1.12.1
+   Compiling http v1.5.0
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+   Compiling rustls v0.23.45
+   Compiling rustls-webpki v0.103.15
+   Compiling httparse v1.10.1
+   Compiling tcl-vm v0.1.0 (/workspace/tcl-lsp/rust/tcl-vm)
+   Compiling tcl-engine-api v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-api)
+   Compiling utf8parse v0.2.2
+   Compiling winnow v1.0.4
+   Compiling once_cell v1.21.4
+   Compiling toml_parser v1.1.3+spec-1.1.0
+   Compiling anstyle-parse v1.0.0
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling ureq-proto v0.6.4
+   Compiling webpki-roots v1.0.9
+   Compiling tcl-pkg-model v0.1.0 (/workspace/tcl-lsp/rust/tcl-pkg-model)
+   Compiling serde_spanned v1.1.1
+   Compiling toml_datetime v1.1.1+spec-1.1.0
+   Compiling toml_writer v1.1.2+spec-1.1.0
+   Compiling tcl-userdirs v0.1.0 (/workspace/tcl-lsp/rust/tcl-userdirs)
+   Compiling bumpalo v3.20.3
+   Compiling proc-macro2 v1.0.107
+   Compiling is_terminal_polyfill v1.70.2
+   Compiling iana-time-zone v0.1.65
+   Compiling colorchoice v1.0.5
+   Compiling anstyle v1.0.14
+   Compiling percent-encoding v2.3.2
+   Compiling utf8-zero v0.8.1
+   Compiling anstyle-query v1.1.5
+   Compiling anstream v1.0.0
+   Compiling ureq v3.4.2
+   Compiling chrono v0.4.45
+   Compiling zopfli v0.8.3
+   Compiling toml v1.1.6+spec-1.1.0
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+   Compiling xattr v1.6.1
+   Compiling filetime v0.2.29
+   Compiling wait-timeout v0.2.1
+   Compiling quote v1.0.47
+   Compiling xxhash-rust v0.8.19
+   Compiling fnv v1.0.7
+   Compiling typed-path v0.12.3
+   Compiling unicode-width v0.2.2
+   Compiling papergrid v0.18.0
+   Compiling zip v8.6.0
+   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-spectcl)
+   Compiling tcl-sandbox v0.1.0 (/workspace/tcl-lsp/rust/tcl-sandbox)
+   Compiling tar v0.4.46
+   Compiling terminal_size v0.4.4
+   Compiling socket2 v0.6.5
+   Compiling rtoolbox v0.0.6
+   Compiling openssl-probe v0.2.1
+   Compiling clap_lex v1.1.1
+   Compiling tcl-runtime v0.1.0 (/workspace/tcl-lsp/runtime/rust)
+   Compiling clap_builder v4.6.7
+   Compiling clap_derive v4.6.7
+   Compiling rustls-native-certs v0.8.4
+   Compiling rpassword v7.5.4
+   Compiling dns-lookup v4.0.2
+   Compiling tcl-pkg v0.1.0 (/workspace/tcl-lsp/rust/tcl-pkg)
+   Compiling tcl-spec-studio v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-studio)
+   Compiling tabled v0.22.0
+   Compiling unicode-xid v0.2.6
+   Compiling rustc_lexer v0.1.0
+   Compiling tcl-cli-support v0.1.0 (/workspace/tcl-lsp/rust/tcl-cli-support)
+   Compiling tcl-bigip-query v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip-query)
+   Compiling clap v4.6.7
+   Compiling anyhow v1.0.104
+warning: multiple methods are never used
+    --> runtime/rust/src/frame.rs:1079:19
+     |
+ 744 | impl VarTable {
+     | ------------- methods in this implementation
+...
+1079 |     pub(crate) fn set_array_default(&mut self, name: &[u8], obj: *mut TclObj) {
+     |                   ^^^^^^^^^^^^^^^^^
+...
+1107 |     pub(crate) fn array_default(&self, name: &[u8]) -> Option<*mut TclObj> {
+     |                   ^^^^^^^^^^^^^
+...
+1112 |     pub(crate) fn unset_array_default(&mut self, name: &[u8]) {
+     |                   ^^^^^^^^^^^^^^^^^^^
+...
+1274 |     pub(crate) fn remove(&mut self, name: &[u8]) -> bool {
+     |                   ^^^^^^
+...
+1399 |     pub(crate) fn remove_elem(&mut self, name: &[u8], key: &[u8]) -> bool {
+     |                   ^^^^^^^^^^^
+...
+1481 |     pub(crate) fn is_array(&self, name: &[u8]) -> bool {
+     |                   ^^^^^^^^
+...
+1537 |     pub(crate) fn array_names(&self, name: &[u8]) -> Option<Vec<Vec<u8>>> {
+     |                   ^^^^^^^^^^^
+     |
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `remove_dictionary_element` is never used
+   --> runtime/rust/src/frame/container.rs:149:19
+    |
+ 15 | impl VarTable {
+    | ------------- method in this implementation
+...
+149 |     pub(super) fn remove_dictionary_element(&mut self, name: &[u8], key: &[u8]) -> bool {
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `new_binding` is never used
+   --> runtime/rust/src/frame/native_element_entry.rs:293:19
+    |
+219 | impl NativeElementAliasEntry {
+    | ---------------------------- method in this implementation
+...
+293 |     pub(crate) fn new_binding(&self) -> Rc<Self> {
+    |                   ^^^^^^^^^^^
+
+warning: methods `attested_identities`, `install_alias`, `install_alias_with_original`, and `define_proc_storage` are never used
+    --> runtime/rust/src/interp.rs:3397:8
+     |
+1914 | impl Interp {
+     | ----------- methods in this implementation
+...
+3397 |     fn attested_identities(
+     |        ^^^^^^^^^^^^^^^^^^^
+...
+3935 |     pub(crate) fn install_alias(
+     |                   ^^^^^^^^^^^^^
+...
+3947 |     pub(crate) fn install_alias_with_original(
+     |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+4706 |     pub(crate) fn define_proc_storage(
+     |                   ^^^^^^^^^^^^^^^^^^^
+
+warning: method `link_original_compiled_namespace_variable` is never used
+    --> runtime/rust/src/interp/native_variable_names.rs:1016:19
+     |
+ 105 | impl Interp {
+     | ----------- method in this implementation
+...
+1016 |     pub(crate) fn link_original_compiled_namespace_variable(
+     |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: associated function `from_original_checked` is never used
+   --> runtime/rust/src/interp/native_error_headers.rs:131:19
+    |
+ 19 | impl NativeReturnOptions {
+    | ------------------------ associated function in this implementation
+...
+131 |     pub(super) fn from_original_checked(
+    |                   ^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `original_jim_command_enumeration_keys` is never used
+   --> runtime/rust/src/namespace.rs:670:19
+    |
+547 | impl Namespaces {
+    | --------------- method in this implementation
+...
+670 |     pub(crate) fn original_jim_command_enumeration_keys(
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `finish` is never used
+    --> runtime/rust/src/vars.rs:3290:19
+     |
+3289 | impl OriginalArrayMemberPreparation {
+     | ----------------------------------- method in this implementation
+3290 |     pub(crate) fn finish(
+     |                   ^^^^^^
+
+warning: `tcl-runtime` (lib) generated 8 warnings
+   Compiling cargo-config2 v0.1.45
+   Compiling tcl-test-support v0.1.0 (/workspace/tcl-lsp/rust/tcl-test-support)
+   Compiling xtask v0.1.0 (/workspace/tcl-lsp/rust/xtask)
+warning: associated function `load` is never used
+   --> rust/xtask/src/owner_resolution/source_internal.rs:158:8
+    |
+157 | impl CrateModules {
+    | ----------------- associated function in this implementation
+158 |     fn load(root: &Path, crate_root: &Path, required: [&str; 2]) -> Result<Self, String> {
+    |        ^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `xtask` (bin "xtask") generated 1 warning
+    Finished `dev` profile [unoptimized] target(s) in 5m 15s
+     Running `target/debug/xtask gen-ai-diagnostics`
+==> Copying canonical irules_system.md
+cp /workspace/tcl-lsp/ai/prompts/irules_system.md /workspace/tcl-lsp/editors/vscode/src/chat/canonical/irules_system.md
+==> Copying canonical tcl_system.md
+cp /workspace/tcl-lsp/ai/prompts/tcl_system.md /workspace/tcl-lsp/editors/vscode/src/chat/canonical/tcl_system.md
+==> Copying canonical tk_system.md
+cp /workspace/tcl-lsp/ai/claude/skills/_prompts/tk_system.md /workspace/tcl-lsp/editors/vscode/src/chat/canonical/tk_system.md
+make: Leaving directory '/workspace/tcl-lsp'
+
+> tcl-lsp@0.0.0-dev compile
+> tsc -p ./ && npm run copy-canonical && npm run copy-core-js && npm run copy-wasm && npm run copy-web-assets && npm run bundle && npm run bundle:browser
+
+
+> tcl-lsp@0.0.0-dev copy-canonical
+> node -e "const fs=require('fs'),p=require('path');const s=p.join('src','chat','canonical'),d=p.join('out','chat','canonical');if(fs.existsSync(s)){fs.mkdirSync(d,{recursive:true});fs.readdirSync(s).forEach(f=>fs.copyFileSync(p.join(s,f),p.join(d,f)))}"
+
+
+> tcl-lsp@0.0.0-dev copy-core-js
+> node -e "const fs=require('fs'),p=require('path');const s=p.join('..','..','rust','tcl-cli','gui','explorer-core.js'),d=p.join('out','explorer-core.js');if(fs.existsSync(s)){fs.mkdirSync('out',{recursive:true});fs.copyFileSync(s,d)}"
+
+
+> tcl-lsp@0.0.0-dev copy-wasm
+> node -e "const fs=require('fs'),p=require('path');const dir=p.join('..','..','rust','tcl-cli','gui');['tcl_explorer_wasm.js','tcl_explorer_wasm_bg.wasm'].forEach(f=>{const s=p.join(dir,f);if(fs.existsSync(s)){fs.mkdirSync('out',{recursive:true});fs.copyFileSync(s,p.join('out',f))}})"
+
+
+> tcl-lsp@0.0.0-dev copy-web-assets
+> node scripts/copy-web-assets.cjs
+
+copy-web-assets: /workspace/tcl-lsp/rust/tcl-lsp-server-wasm/dist is missing worker.js, tcl_lsp_server_wasm.js, tcl_lsp_server_wasm_bg.wasm — skipping (run 'make lsp-server-wasm')
+
+> tcl-lsp@0.0.0-dev bundle
+> esbuild ./src/extension.ts --bundle --platform=node --target=node18 --format=cjs --external:vscode --outfile=out/extension.js --sourcemap --minify --tree-shaking=true --define:__SCREENSHOT_MODE__=false --loader:.md=text
+
+
+  out/extension.js      759.6kb
+  out/extension.js.map    2.4mb
+
+⚡ Done in 60ms
+
+> tcl-lsp@0.0.0-dev bundle:browser
+> esbuild ./src/extensionBrowser.ts --bundle --platform=browser --target=es2020 --format=cjs --external:vscode --outfile=out/extension.browser.js --sourcemap --minify --tree-shaking=true --loader:.md=text
+
+
+  out/extension.browser.js      482.2kb
+  out/extension.browser.js.map    1.8mb
+
+⚡ Done in 41ms
+npm notice
+npm notice New major version of npm available! 11.9.0 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice

@@ -1,0 +1,10 @@
+Independent source review: CLEAR exact test patch1a173bdc36369a6c876046d0e11643e1f73464ea7b9b8d3de6eed8ae627d703b.
+Verified patch SHA and exact cli.rs beforeimage0434c392fce15aaceea39d09987246f650c43442c1e82e8fbda87a39e3428355. Existing tests/inputs/goldens/selectors unchanged.
+
+The Unix-only test creates both genuinely distinct real files: an OsString::from_vec path containing0xFF and an actual Unicode U+FFFD sibling. Command::arg borrows the actual PathBuf/OsStr without Unicode conversion; Cli::Merge paths is Vec<PathBuf>, so clap's native path parser transports opaque bytes instead of rejecting a String input before the loader. Exact custom representability diagnostic, exit2 and empty stdout require the changed checked loader ingress. The sole to_string_lossy use is an adversarial assertion establishing the old alias; it is not used as the operational process argument.
+
+The existing former merge loop would identify the opaque path as a file, convert it lossily, successfully load the real replacement sibling and emit its sentinel with exit0. Thus the negative detects the concrete wrong-target regression through the full CLI/loader pipeline rather than mirroring a predicate. The same test's direct actual Unicode sibling invocation requires success, sentinel stdout and empty stderr, preserving valid Unicode behavior. No uncertain filesystem atime claim is made; source-level refusal before read and the observable CLI outcome establish the intended boundary.
+
+Unique test-specific PID directory follows the existing cli.rs fixture pattern; setup errors are terminal, files are distinct, subprocess completion precedes final cleanup, and no input or result assertion is swallowed. Original pipeline and all existing test budgets remain unchanged. No new wrapper/owner requirement.
+
+No test/build/main/Git actions by reviewer; root owns rustfmt/compilation and actual integration acceptance.

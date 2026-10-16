@@ -1,0 +1,17 @@
+{
+  "started_utc": "2026-10-16T12:15:39.732546+00:00",
+  "finished_utc": "2026-10-16T12:15:42.275471+00:00",
+  "url": "https://github.com/msteveb/jimtcl.git",
+  "argv": [
+    "git",
+    "ls-remote",
+    "https://github.com/msteveb/jimtcl.git",
+    "HEAD"
+  ],
+  "exit": 0,
+  "stdout": "5bac7c99ad65864c87da513e22e2f01703fa4e03\tHEAD\n",
+  "stderr": "",
+  "compiled_local_head": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+  "scope": "Latest upstream identity check only; no oracle semantic execution or library pairing inferred.",
+  "local_equals_upstream": true
+}

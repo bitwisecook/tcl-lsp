@@ -1,0 +1,7 @@
+{
+  "source_head": "9a92c4049be478e601744065018ec6ab609dc629",
+  "source_diff_sha256": "6a8f02957eca882caeab610af19d5d49cd785780191f6f322a7fc6ce9b2d6689",
+  "ordinary": true,
+  "command": "cargo check --offline (nine packages) --tests",
+  "acceptance": "Check-only; no test execution; in progress."
+}

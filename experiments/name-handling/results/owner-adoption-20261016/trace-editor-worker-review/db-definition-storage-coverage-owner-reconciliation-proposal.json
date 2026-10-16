@@ -1,0 +1,73 @@
+{
+  "status": "TMP_PROPOSAL_ONLY_SOURCE_BLOCKED_UNVERIFIED",
+  "reviewed_patch_sha256": "c69edbde0eec2bbbc4f9d784ae3c295c61b6c1ba8550b669249d18d690186d27",
+  "annex_input_sha256": "a07d4e5dd3078bf8fb3bd619cf952b99a6f13d4a4cff06f4750afd8fc0ad4726",
+  "baseline_unit_id": "db.unit.db.workspace-class-display-cards",
+  "related_existing_annex_id": "db.unit.db.workspace-class-display-cards:explicit-constructor-body-coverage-owner",
+  "decision": "one_distinct_source_effect_closure_facet",
+  "proposed_requirement": {
+    "id": "compiler.source.selected-definition-deferred-storage-effect-coverage-owner",
+    "kind": "shared_owner_extension",
+    "baseline_unit_ids": [
+      "db.unit.db.workspace-class-display-cards"
+    ],
+    "site_anchors": [
+      {
+        "path": "rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs",
+        "symbol": "OriginalSourceDefinitionStorageCoverage; OriginalSourceScriptBody::definition_storage_coverage"
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs",
+        "symbol": "BodyWalk::regions; BodyEffectProjection::effects_complete"
+      }
+    ],
+    "rationale": "One actual selected-definition deferred-storage source-effect closure requirement, beyond readonly original constructor inventory/lifecycle. Complete genuine parent/member source, selected worker source occupancy/observer premises and actual source effect disposition must precede effects_complete without inventing entered frame/Native or subtracting debt. Count the grouped semantic boundary once, not per helper/member/release.",
+    "implementation": {
+      "status": "proposed_patch_source_blocked",
+      "verified_complete": false
+    },
+    "open_boundaries": [
+      "actual selected worker/source graph occupancy and observer provenance",
+      "Native execution/Normal/installed members",
+      "default or inherited constructor effects",
+      "foreign constructor operand/read observer coverage"
+    ]
+  },
+  "proposed_count_delta": {
+    "semantic_code_changes": 1,
+    "validation_code_repairs": 0,
+    "authored_documentation": 0,
+    "all_required_changes": 1,
+    "by_kind": {
+      "shared_owner_extension": 1
+    },
+    "verified_complete": 0
+  },
+  "existing_input_counts_for_root_reconciliation": {
+    "accepted_delta": {
+      "semantic_code_changes": 29,
+      "validation_code_repairs": 0,
+      "authored_documentation": 0,
+      "all_required_changes": 29,
+      "by_kind": {
+        "shared_owner_repair": 9,
+        "shared_owner_extension": 12,
+        "caller_migration": 7,
+        "metadata_or_target_schema": 1
+      }
+    },
+    "effective_counts": {
+      "semantic_code_changes": 1828,
+      "validation_code_repairs": 305,
+      "authored_documentation": 54,
+      "all_required_changes": 2187
+    }
+  },
+  "not_recounted": [
+    "baseline DB class/instance caller unit",
+    "existing explicit constructor readonly inventory/lifecycle owner",
+    "existing Native private worker issuer",
+    "individual member/dialect/helper storage operations"
+  ],
+  "validation": "Count/source review only; no main/Cargo/Git. Parent owns integration and exact denominator updates."
+}

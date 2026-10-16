@@ -180,7 +180,11 @@ pub(super) fn capture_prefixes(
         };
         let Some((valid, subsequent)) = words
             .with_source_schema(context, |schema| {
-                let valid = schema.facts().arg_roles_complete
+                // Ordinary execution roles can remain unavailable without an
+                // optional-level policy. This retained Logical prefix consumes
+                // only the shared unanimous source-role question.
+                let (_, source_roles_complete) = schema.authored_logical_source_argument_roles();
+                let valid = source_roles_complete
                     && schema.facts().arity_accepts_frozen_arguments() == Some(true);
                 let transitions = schema.authored_logical_source_state_transitions()?;
                 // Shared Registry impact owns command-name stability. It is a

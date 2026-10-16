@@ -1,0 +1,10 @@
+{
+  "head": "6fa086c780e2ebbc4e8840d762ac70106e19d39f",
+  "source_diff_sha256": "ed70a1d87250558a4a13d39816cd45c09fd89548e5e00ec3684a98688c60f4ec",
+  "ordinary": true,
+  "status": "PASS_CHECK_ONLY",
+  "seconds": 163,
+  "warnings": 1,
+  "test_execution": false,
+  "scope": "Compiler/VM/F5/MCP cargo check --tests; source code unchanged during check."
+}

@@ -48,7 +48,7 @@ pub(crate) use source_receiver_names::{
 };
 mod original_word_data;
 pub(crate) use original_word_data::{
-    OriginalSourceArgument, original_literal_argument_data,
+    OriginalSourceArgument, original_command_words_for_module, original_literal_argument_data,
     original_literal_argument_data_for_module, original_lowered_expression_syntax,
     original_source_argument_for_module, original_source_argument_for_script,
 };
@@ -7102,8 +7102,16 @@ pub(crate) fn logical_parameter_body_assistance(
     {
         return None;
     }
-    let facts = words.with_source_schema(context, |schema| schema.facts().clone())?;
-    if !facts.arg_roles_complete || facts.arity_accepts_frozen_arguments() != Some(true) {
+    let (facts, source_roles) = words.with_source_schema(context, |schema| {
+        (
+            schema.facts().clone(),
+            conditional_source.then(|| schema.authored_logical_source_argument_roles()),
+        )
+    })?;
+    let named_only_roles = named_only && facts.arg_roles_complete;
+    if facts.arity_accepts_frozen_arguments() != Some(true)
+        || (!named_only_roles && !source_roles.as_ref().is_some_and(|(_, complete)| *complete))
+    {
         return None;
     }
     let mut tokens =
@@ -7144,17 +7152,21 @@ pub(crate) fn logical_parameter_body_assistance(
         command,
         Some(context),
     )?;
-    let shape =
+    let mut shape =
         RegistryInvocationShape::from_facts(&invocation.facts, invocation.effective.clone());
-    let source_parameter_shape = if named_only {
+    let source_parameter_shape = if named_only_roles {
         view.parameter_advice = ParameterRoleAdvice {
             candidates: vec![shape],
             closed: true,
         };
         None
     } else {
-        // This source recipe retains unresolved formal-read/observer debt. It
-        // cannot donate candidates or closed state to execution assistance.
+        // Only this separate shape consumes the source-role consensus. Keep
+        // ordinary InvocationFacts roles/completeness and all generic closed
+        // advice unchanged, including unavailable execution frame grammar.
+        let (roles, complete) = source_roles?;
+        shape.roles = roles;
+        shape.roles_complete = complete;
         view.parameter_advice = ParameterRoleAdvice::default();
         Some(shape)
     };

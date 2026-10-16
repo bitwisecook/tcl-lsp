@@ -439,6 +439,10 @@ preserving filesystem units and the existing `-` stdout convention. Event
 multiplicity reports consume the Registry descriptor; they establish no measured
 TMM firing order. MCP reports transport their actual analysis-context status,
 and extraction schemas expose the shared optional dialect input.
+MCP hover, completion, rename and inline/refactor adapters borrow the Registry
+retained by the actual resolved analysis input. Missing context remains a refusal;
+rebuilding a Registry from a dialect label cannot replace it. Existing source,
+currentness and edit guards remain independent of that metadata transport.
 
 SpecTcl native argument-role hook IDs resolve through
 `CommandRegistry::native_argument_role_hook`. Exact qualified command descriptors
@@ -952,6 +956,15 @@ alias templates establish no actual caller cell, reached alias or completed
 write. Isolated procedure-body authoring keeps its explicit Standalone purpose;
 supplied input refusal cannot borrow that ingress.
 
+Interprocedural formal-reference observations retain the actual Module, issued
+body ID, original formal topology and complete original command vectors. A
+supplied CompilationUnit additionally requires its actual FunctionUnit, prepared
+declaration CFG and full source metadata input. Authored expression incidence
+uses the unchanged retained Script and its actual expression node and base;
+Native expression folding keeps its separate guards. Missing, truncated or
+unsupported observations withhold `Unused`. Installed-only bodies remain outside
+the declaration-summary inventory and cannot borrow a declaration CFG.
+
 Original procedure report labels require the actual issued body ID, unique
 original procedure and current retained Module/Registry source correspondence.
 An Authored card projects its checked original Name spelling for display;
@@ -1013,6 +1026,13 @@ retained complete input/Registry/configuration. It does not require a reached
 invocation site. The ordinary Native declaration facade keeps its independent
 invocation-owner requirement; a refused carrier cannot retry that facade or
 manufacture a dispatch point.
+
+`ScopeAliasesAndTraceRegistrations` is a lexical exclusion purpose over the
+actual selected Registry transitions. Variable trace registration subjects keep
+their original receiver ingress before combined-variable root selection. Unknown
+subjects remain opaque; analytical NUL-containing text cannot supply counted
+Native bytes. Alias-only ownership keeps its separate meaning. These source
+exclusions establish no installed observer, actual read, cell or trace lifetime.
 
 Readonly source optimisation certificates retain complete actual unit mutation
 and trace dependencies. With those hazards, per-body reuse requires a nonempty
@@ -1475,6 +1495,12 @@ generation. C retains its String-first name query; Jim can use the original
 command operand and actual declaration namespace holder, birth, allocator and
 existing interpreter context. Checks cross each reached getter and cleanup.
 Byte-query results do not represent the physical original body-result header.
+
+The VM's actual execution profile comes only from its explicit actual engine or
+an active embedder capability. A source dialect, logical emulation profile or
+command-availability override cannot supply a missing measured Native execution
+point. Actual worker selection, native object policies and engine-sensitive
+compiler cache keys retain this same provenance boundary.
 
 `Namespaces::namespace_report_parts_checked` snapshots actual constructed C
 components or reached Jim flat bytes under the selected namespace owner and

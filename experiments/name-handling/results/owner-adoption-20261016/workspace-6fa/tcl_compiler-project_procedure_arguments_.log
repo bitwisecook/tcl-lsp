@@ -1,0 +1,20 @@
+
+running 6 tests
+test registry_invocation::source_structure::project_procedure_roles::tests::project_procedure_arguments_jim_c_interp_syntax_has_no_alias_descriptor ... ok
+test registry_invocation::source_structure::project_procedure_roles::tests::project_procedure_arguments_keep_declaring_formals_and_actual_call_geometry ... ok
+test registry_invocation::source_structure::project_procedure_roles::tests::project_procedure_arguments_keep_priority_ambiguity_and_class_blockers ... 
+thread 'registry_invocation::source_structure::project_procedure_roles::tests::project_procedure_arguments_keep_priority_ambiguity_and_class_blockers' (107060) panicked at rust/tcl-compiler/src/registry_invocation/source_structure/project_procedure_roles.rs:625:25:
+tcl: genuine root fallback after local deletion
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test registry_invocation::source_structure::project_procedure_roles::tests::project_procedure_arguments_logical_nested_body_keeps_occupancy_guards ... ok
+test registry_invocation::source_structure::project_procedure_roles::tests::project_procedure_arguments_preserve_stronger_occupants_and_barriers ... ok
+test registry_invocation::source_structure::project_procedure_roles::tests::project_procedure_arguments_refuse_mismatched_or_stale_declaring_owner ... ok
+
+failures:
+
+failures:
+    registry_invocation::source_structure::project_procedure_roles::tests::project_procedure_arguments_keep_priority_ambiguity_and_class_blockers
+
+test result: FAILED. 5 passed; 1 failed; 0 ignored; 0 measured; 10230 filtered out; finished in 50.26s
+

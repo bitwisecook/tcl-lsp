@@ -31,7 +31,7 @@ pub(crate) fn register(vm: &mut Vm) {
 
 fn register_string(vm: &mut Vm) {
     let Some(namespace) = vm
-        .native_invocation_dialect()
+        .actual_native_invocation_dialect()
         .ensemble_implementation_namespace(tcl_registry::EnsembleImplementationFamily::String)
     else {
         vm.register_stock_builtin("string", cmd_string);
@@ -62,7 +62,7 @@ pub(crate) fn refresh_profile(vm: &mut Vm) {
     }
     register_string(vm);
     if vm
-        .native_invocation_dialect()
+        .actual_native_invocation_dialect()
         .ensemble_implementation_namespace(tcl_registry::EnsembleImplementationFamily::String)
         .is_none()
     {

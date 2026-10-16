@@ -1,0 +1,40 @@
+{
+  "unit": "compiler.source.original-formal-reference-observations:3936",
+  "patch": "/tmp/compiler-formal-reference-observations-v3/formal-reference-observations-v3.patch",
+  "patch_sha256": "7cc7df805ad7547116860189325c2dd7f7d34ccede49cfe38a34205f2abaebf1",
+  "supersedes": [
+    {
+      "version": 1,
+      "sha256": "2306406804a869bedbb6db8a6730b7d945b138efd0183cd0e76810ac744aec0e",
+      "reason": "Explicit same selected Authored card/AST member pointer guard and whole FunctionUnit input correspondence added; original lowered Script guard retained."
+    },
+    {
+      "version": 2,
+      "sha256": "7cc7df805ad7547116860189325c2dd7f7d34ccede49cfe38a34205f2abaebf1",
+      "reason": "Rebase narrow export-only hunk onto root-integrated prefix621; no production logic/test change."
+    }
+  ],
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/interprocedural.rs",
+      "before_sha256": "e0b404f40d0be78633672659f6fd019def91acd2a32dc35af3e49f34a5f6180d",
+      "after_sha256": "bdc782f3461395f467b6ba75657596c6dd4e9fc1c795de6174e8122e108365e5",
+      "current_main_matches": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/original_word_data.rs",
+      "before_sha256": "de7378972a4977958faa12f68a9ee99e601065ccb397d5164aab3a39b0e8b45d",
+      "after_sha256": "e22d79e84f2d7b96979ea2050ff0766d59bcfb87c624e9c74db5fe8eead6414e",
+      "current_main_matches": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation.rs",
+      "before_sha256": "8c0fba20e731213afcfa55ab9cb17f37683c4cf66d1fc072d0bb0eb95c93ece4",
+      "after_sha256": "5d4c565e579e7f31c4ee2986ffedf4b93ab290c2ca08797dd6c10a0a4b0353d0",
+      "current_main_matches": true
+    }
+  ],
+  "dry_run_exit_code": 0,
+  "validation": "Isolated rustfmt parsing in v2 and patch --dry-run only. No Cargo/build/candidate Rust tests.",
+  "frozen_diagnosis": "/tmp/compiler-formal-reference-observations-v1/frozen-capsule-diagnosis.json"
+}

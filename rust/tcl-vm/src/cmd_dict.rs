@@ -164,7 +164,7 @@ impl tcl_cmd_core::native_dictionary::NativeDictionaryObjects for VmDictionaryOb
 pub(crate) fn register(vm: &mut Vm) {
     vm.refresh_scripted_distribution_libraries();
     let Some(namespace) = vm
-        .native_invocation_dialect()
+        .actual_native_invocation_dialect()
         .ensemble_implementation_namespace(tcl_registry::EnsembleImplementationFamily::Dict)
     else {
         vm.register_stock_builtin("dict", cmd_dict);
@@ -196,7 +196,7 @@ pub(crate) fn refresh_profile(vm: &mut Vm) {
     }
     register(vm);
     if vm
-        .native_invocation_dialect()
+        .actual_native_invocation_dialect()
         .ensemble_implementation_namespace(tcl_registry::EnsembleImplementationFamily::Dict)
         .is_none()
     {

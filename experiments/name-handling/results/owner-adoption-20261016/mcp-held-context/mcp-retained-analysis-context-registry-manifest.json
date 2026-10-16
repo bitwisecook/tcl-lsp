@@ -1,0 +1,17 @@
+{
+  "unit_ids": [
+    "root:source.mcp-held-registry:182:0",
+    "root:source.mcp-held-registry:183:0",
+    "root:source.mcp-held-registry:184:0",
+    "root:source.mcp-held-registry:185:0",
+    "root:source.mcp-held-registry:186:0"
+  ],
+  "file": "rust/tcl-mcp/src/tools.rs",
+  "old_sha256": "b89b814cf1d300e652f4137cfa58f0a51e2a64854f56c37f45ec867a6ce7e47c",
+  "new_sha256": "540d4f0cc03f9eb1c0939c08f8d0240317d9d2112c9c3fc294953a4bab57fa28",
+  "patch_path": "/tmp/mcp-retained-analysis-context-registry.patch",
+  "patch_sha256": "f69ae62461232fba69d3073459304e23b59cd6e34cc12b476d7de2cf46d0e16c",
+  "base_note": "Patch base includes already-integrated mcp.naming-context-status (176\u2013178) and extract-variable dialect schema (192) changes in this same file; no edits to those units are in this patch.",
+  "owner_api": "AnalysisResult.resolved_input -> ResolvedAnalysisInput::context_registry() -> ContextRegistry::commands(), retaining the analysis-issued context generation. If unavailable, optional-registry consumers receive None; direct inline-variable candidate returns Null; refactor omits only that candidate. No registry reconstructed from dialect String.",
+  "validation_target": "Existing tcl-mcp tests covering hover/completion/rename/refactor/inline-variable dispatch; root-owned `cargo test -p tcl-mcp` and relevant focused selectors after review. No tests run/added here."
+}

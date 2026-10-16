@@ -1,0 +1,16 @@
+Independent source review: CLEAR
+Reviewer: /root/sol_compiler
+Exact candidate: /tmp/parameter-prefix-source-role-repair/parameter-prefix-source-roles.621cd32e75a17245838e1a6307b7e3a3572ac421588fa64c79c085f41430dba7.patch
+SHA-256: 621cd32e75a17245838e1a6307b7e3a3572ac421588fa64c79c085f41430dba7
+
+All three manifest base/proposed hashes independently match their files. All three beforeimages match current main. patch --dry-run -p1 against main succeeds. No reviewer Cargo/build/test/main/Git action occurred. Source review is not execution acceptance.
+
+The prefix issuer still requires actual completed Logical walk rows, exact original full vectors/config/input/context/body scope/formals, no expansion, no declaration/move lineage, actual uncertainty operations represented in the same retained prefix and accepted frozen arity. It changes only the role-completeness question to the existing selected schema authored_logical_source_argument_roles. That shared query delegates optional-level frame grammar to unanimous existing authored C layouts on the same structured argv; ordinary variable_lookup_policy/InvocationFacts execution roles remain unchanged. Actual typed source transitions and command-resolution-impact/forbidden-widening/code-role continuation checks remain present.
+
+The adopter still authenticates actual realm/input/body/full content/base/metadata/selected SourceTransitions advice and Procedure frame. Its conditional_source branch requires the current retained own-body prefix to match this body/input and exact current advice. Named-only generic advice still requires ordinary facts.arg_roles_complete. Only a prefix-backed dedicated RegistryInvocationShape receives the source consensus roles; InvocationFacts in the retained ResolvedStatementInvocation remain ordinary/incomplete. Written-role remapping retains actual argument_offset and effective Written ordinals. Alias/expanded prefixes remain refused by the unchanged all-Written check.
+
+The dedicated shape clears generic ParameterRoleAdvice to its empty/unclosed default and remains gated behind conditional_parameter_source_shape/conditional_parameter_source_invocation, which recheck prefix/body/formal order/current advice. parameter_invocation and caller_name_template_invocation independently exclude source_parameter_shape Some. Unpositioned assistance clears definite invocation/roles/traits/scope and retains unknown/absent residuals. No Native frame policy, successful alias/store, quiet read, Normal or edit grant is introduced.
+
+New fixed control checks ordinary roles false vs dedicated source roles true; empty/unclosed generic candidates; refusal of generic parameter/caller-template/definite routes and wrong-formal roster; and actual upvar/following-set prefixes retaining exact read count, uncertainty operations and UnknownEarlierMutation debt. Existing positive sources/assertions and unknown-callback/scope-mutation refusal controls are unchanged.
+
+No blockers found. Root must compile and execute the original positive selectors plus the new source-policy/debt control before acceptance.

@@ -1,0 +1,13 @@
+
+> tcl-lsp@0.0.0-dev precompile
+> make -C ../.. copy-canonical
+
+make: Entering directory '/workspace/tcl-lsp'
+==> Generating AI system prompts (cargo xtask gen-ai-diagnostics)
+cd /workspace/tcl-lsp/ && cargo xtask gen-ai-diagnostics
+error: failed to download `cargo-config2 v0.1.45`
+
+Caused by:
+  attempting to make an HTTP request, but --offline was specified
+make: *** [Makefile:1795: /workspace/tcl-lsp/ai/prompts/tcl_system.md] Error 101
+make: Leaving directory '/workspace/tcl-lsp'

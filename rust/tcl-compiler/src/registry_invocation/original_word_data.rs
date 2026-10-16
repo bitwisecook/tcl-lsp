@@ -182,6 +182,54 @@ pub(crate) fn original_lowered_expression_syntax(
     matches.next().is_none().then_some(syntax)
 }
 
+/// Complete unchanged source words under their actual Module attachment.
+/// These lexical operands grant no evaluation, lookup, frame or read authority.
+pub(crate) fn original_command_words_for_module(
+    registry: &CommandRegistry,
+    module: &Module,
+    tokens: &CommandTokens,
+) -> Option<(tcl_lexer::LexerConfig, Vec<tcl_lexer::NativeWord>)> {
+    let retained = module.retained_source_bindings.as_deref()?;
+    retained.positioned_for_module(module, registry)?;
+    retained
+        .owns_original_analysis_attachment(tokens)
+        .then_some(())?;
+    let binding = tokens.source_binding.as_ref()?;
+    if binding.has_original_source_layout_owner() {
+        return original_command_words(tokens);
+    }
+    if binding.has_original_native_source_command() {
+        let input = module.source_metadata_input.as_ref()?;
+        let offset = binding.original_native_source_syntax_offset(tokens, input, registry)?;
+        let words = super::original_native_compiler_words(
+            &module.source,
+            tokens.words(),
+            offset,
+            input.lexer_config(),
+        )?;
+        return Some((input.lexer_config(), words));
+    }
+    if binding.has_original_logical_source_name_role_owner() {
+        let input = binding.original_logical_source_input_for_name_roles(tokens, registry)?;
+        (module.source_metadata_input.as_ref() == Some(input)).then_some(())?;
+        let selected = binding.original_logical_source_words(tokens, input, registry)?;
+        let super::source_structure::OriginalRegistrySource::SourceTransitions(advice) =
+            selected.source()
+        else {
+            return None;
+        };
+        return Some((input.lexer_config(), advice.original_words().to_vec()));
+    }
+    if let Some(scope) =
+        binding.original_authored_source_body_scope_for_name_roles(tokens, registry)
+    {
+        scope.matches_module(module).then_some(())?;
+        let words = scope.original_words(tokens, registry)?;
+        return Some((words.first()?.config(), words));
+    }
+    original_command_words(tokens)
+}
+
 fn original_command_words(
     tokens: &CommandTokens,
 ) -> Option<(tcl_lexer::LexerConfig, Vec<tcl_lexer::NativeWord>)> {
@@ -235,6 +283,41 @@ mod tests {
                     .retained_source_tokens_for_statement(statement)
             })
             .expect("retained complete original source vector")
+    }
+
+    #[test]
+    fn original_command_words_keep_actual_module_source_and_vector_owners() {
+        let (context, module) = original_module("puts $value");
+        let original = tokens(&module);
+        let (config, words) =
+            original_command_words_for_module(context.commands(), &module, original)
+                .expect("genuine original whole command");
+        assert_eq!(config, module.native_lexer_config());
+        assert_eq!(words.len(), original.words().len());
+        assert!(
+            words
+                .iter()
+                .all(|word| word.image() == &module.source && word.config() == config)
+        );
+        let mut changed = original.clone();
+        changed.argv_texts[1] = "$other".into();
+        assert!(original_command_words_for_module(context.commands(), &module, &changed).is_none());
+        let (_, foreign) = original_module("puts $value");
+        assert!(
+            original_command_words_for_module(context.commands(), &foreign, original).is_none()
+        );
+        let mut changed = module.clone();
+        changed.source = tcl_lexer::SourceImage::document("puts $other");
+        assert!(
+            original_command_words_for_module(context.commands(), &changed, original).is_none()
+        );
+        let mut changed = module.clone();
+        changed.lexer_config = tcl_lexer::LexerConfig::for_dialect("tcl9.1");
+        assert!(
+            original_command_words_for_module(context.commands(), &changed, original).is_none()
+        );
+        let foreign = CommandRegistry::build_default();
+        assert!(original_command_words_for_module(&foreign, &module, original).is_none());
     }
 
     #[test]
