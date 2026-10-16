@@ -154,12 +154,9 @@ fn coerce_sources(sources: &Bound<'_, PyAny>) -> PyResult<Vec<(String, String)>>
 /// Returns a flat `list` of result values (top-level streams flattened), unless
 /// `per_file=True`, in which case it returns `[(uri, [values]), …]` in source
 /// order.
-// The parameters are the Python keyword surface; pyo3 0.30 no longer hides the lint.
-#[allow(clippy::too_many_arguments)]
 #[pyfunction]
 #[pyo3(signature = (expr, sources, *, merge=false, partitions=None, enable_probes=false, per_file=false, side_inputs=None))]
 fn query(
-    py: Python<'_>,
     expr: &str,
     sources: &Bound<'_, PyAny>,
     merge: bool,
@@ -171,6 +168,7 @@ fn query(
     // for the query to reference (e.g. `$nat`, `$dns`, `$services`, `$cidrNames`).
     side_inputs: Option<Vec<(String, String, String)>>,
 ) -> PyResult<Py<PyAny>> {
+    let py = sources.py();
     let sources = coerce_sources(sources)?;
     let side = side_inputs
         .unwrap_or_default()
