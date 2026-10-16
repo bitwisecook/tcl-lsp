@@ -143,11 +143,12 @@ impl OriginalLookup {
 
     pub(super) fn read(&self, vm: &mut Vm) -> Result<Rc<[u8]>, CmdError> {
         self.check(vm)?;
-        let reached = vm.native_name_operand_bytes_checked(
+        let reached = vm.native_name_operand_bytes_checked_using(
             self.original
                 .as_ref()
                 .expect("entered original operand")
                 .value(),
+            &|vm| self.check(vm),
         );
         self.check(vm)?;
         reached
@@ -163,7 +164,8 @@ impl OriginalLookup {
             .jim_namespace
             .as_ref()
             .ok_or_else(|| vm.retain_name_query_refusal("original Jim namespace query holder"))?;
-        let reached = vm.native_name_operand_bytes_checked(holder.value());
+        let reached =
+            vm.native_name_operand_bytes_checked_using(holder.value(), &|vm| self.check(vm));
         self.check(vm)?;
         reached
     }
@@ -172,7 +174,9 @@ impl OriginalLookup {
         self.check(vm)?;
         let namespace = match &self.namespace {
             NamespaceExecutionContext::Resolved(id) => *id,
-            NamespaceExecutionContext::OriginalJim(context) => context.materialize(vm)?,
+            NamespaceExecutionContext::OriginalJim(context) => {
+                context.materialize_using(vm, &|vm| self.check(vm))?
+            }
         };
         if self.namespace_owner.borrow().is_none() {
             let owner = QueryNamespace::capture(vm, namespace)?;

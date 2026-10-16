@@ -1,0 +1,47 @@
+[
+  {
+    "declared_provider": "8.4.20",
+    "exe_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+    "exe_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+    "script_sha256": "b75fa30a3558b5766e4bfad0e14e7d77aa61ed1db07d534d642e087081141da7",
+    "exit": 0,
+    "stdout": "provider 8.4.20\n0 {unknown namespace in import pattern \"::missing::*\"}\n",
+    "stderr": ""
+  },
+  {
+    "declared_provider": "8.5.19",
+    "exe_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+    "exe_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+    "script_sha256": "b75fa30a3558b5766e4bfad0e14e7d77aa61ed1db07d534d642e087081141da7",
+    "exit": 0,
+    "stdout": "provider 8.5.19\n1 {unknown namespace in import pattern \"::missing::*\"}\n",
+    "stderr": ""
+  },
+  {
+    "declared_provider": "8.6.18",
+    "exe_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+    "exe_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+    "script_sha256": "b75fa30a3558b5766e4bfad0e14e7d77aa61ed1db07d534d642e087081141da7",
+    "exit": 0,
+    "stdout": "provider 8.6.18\n1 {unknown namespace in import pattern \"::missing::*\"}\n",
+    "stderr": ""
+  },
+  {
+    "declared_provider": "9.0.4",
+    "exe_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+    "exe_sha256": "bb5493a311eea8879d4aa2fa4817720d008ee03cf88f06aefa4a6d7425857f8c",
+    "script_sha256": "b75fa30a3558b5766e4bfad0e14e7d77aa61ed1db07d534d642e087081141da7",
+    "exit": 0,
+    "stdout": "provider 9.0.4\n1 {unknown namespace in import pattern \"::missing::*\"}\n",
+    "stderr": ""
+  },
+  {
+    "declared_provider": "9.1.0",
+    "exe_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+    "exe_sha256": "71b428e13bc04578fb9be4aa680915c67a7b7f3a7850f198032d98f363a077ce",
+    "script_sha256": "b75fa30a3558b5766e4bfad0e14e7d77aa61ed1db07d534d642e087081141da7",
+    "exit": 0,
+    "stdout": "provider 9.1.0\n1 {unknown namespace in import pattern \"::missing::*\"}\n",
+    "stderr": ""
+  }
+]

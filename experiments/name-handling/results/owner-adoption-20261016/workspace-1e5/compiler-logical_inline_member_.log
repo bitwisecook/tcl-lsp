@@ -1,0 +1,16 @@
+
+running 2 tests
+test analyser::original_members::tests::logical_inline_member_metadata_keeps_actual_original_name_and_body_words ... ok
+test analyser::original_members::tests::logical_inline_member_words_require_one_complete_retained_source_suffix ... 
+thread 'analyser::original_members::tests::logical_inline_member_words_require_one_complete_retained_source_suffix' (63112) panicked at rust/tcl-compiler/src/analyser/original_members.rs:1662:14:
+genuine retained receiver-source inline command
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    analyser::original_members::tests::logical_inline_member_words_require_one_complete_retained_source_suffix
+
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 10201 filtered out; finished in 1.02s
+

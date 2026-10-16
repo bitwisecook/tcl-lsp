@@ -161,6 +161,19 @@ pub fn semantic_tokens_project_for_inputs(
         return SemanticTokens::default();
     }
     let classes = project_class_index_for_inputs(db, project);
+    let mut class_providers = HashSet::new();
+    let class_cards = project
+        .files(db)
+        .iter()
+        .filter(|&&member| member != file && class_providers.insert(member))
+        .map(|&member| {
+            let member_config = configuration_for_file(db, project, member)?;
+            checked_file_token_facts_for_config(db, member, member_config)?
+                .class_cards
+                .clone()
+        })
+        .collect::<Option<Vec<_>>>()
+        .unwrap_or_default();
     let proc_roles = project_proc_var_index_for_inputs(db, project);
     let named_instances = project_named_instance_index_for_inputs(db, project);
     tcl_lsp_core::semantic_tokens::full_with_cu_and_facts(
@@ -170,6 +183,7 @@ pub fn semantic_tokens_project_for_inputs(
         cu.as_deref(),
         tcl_lsp_core::semantic_tokens::WorkspaceTokenFacts {
             classes: Some(&classes),
+            project_classes: Some(&class_cards),
             proc_roles: Some(&proc_roles),
             named_instances: Some(&named_instances),
             analysis: Some(&analysis),

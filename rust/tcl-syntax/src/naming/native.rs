@@ -5746,24 +5746,25 @@ fn jim_qualifiers_shared_empty_is_distinct_from_a_paired_root_counted_empty() {
             NativeNamespaceTextResult::SharedEmpty
         );
     }
-    #[test]
-    fn namespace_import_force_uses_only_exact_c_extent_and_declines_jim_control() {
-        for version in tcl_dialect::TclVersion::ALL {
-            let protocol = NativeNameProtocol::C(version);
-            for (original, expected) in [
-                (b"-force".as_slice(), true),
-                (b"-force\0ignored".as_slice(), true),
-                (b"-force\xc0\x80tail".as_slice(), false),
-                (b"-for".as_slice(), false),
-                (b"--".as_slice(), false),
-                (b"::source::member".as_slice(), false),
-            ] {
-                assert_eq!(protocol.namespace_import_forces(original), Ok(expected));
-            }
+}
+
+#[test]
+fn namespace_import_force_uses_only_exact_c_extent_and_declines_jim_control() {
+    for version in tcl_dialect::TclVersion::ALL {
+        let protocol = NativeNameProtocol::C(version);
+        for (original, expected) in [
+            (b"-force".as_slice(), true),
+            (b"-force\0ignored".as_slice(), true),
+            (b"-force\xc0\x80tail".as_slice(), false),
+            (b"-for".as_slice(), false),
+            (b"--".as_slice(), false),
+            (b"::source::member".as_slice(), false),
+        ] {
+            assert_eq!(protocol.namespace_import_forces(original), Ok(expected));
         }
-        assert_eq!(
-            NativeNameProtocol::Jim084.namespace_import_forces(b"-force"),
-            Err(NameProjectionUnavailable::PurposeNotModelled)
-        );
     }
+    assert_eq!(
+        NativeNameProtocol::Jim084.namespace_import_forces(b"-force"),
+        Err(NameProjectionUnavailable::PurposeNotModelled)
+    );
 }

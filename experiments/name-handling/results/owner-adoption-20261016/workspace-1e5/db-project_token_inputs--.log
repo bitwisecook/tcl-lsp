@@ -1,0 +1,40 @@
+
+running 7 tests
+test project_token_inputs::tests::project_source_roles_bind_original_optional_formals_and_keep_foreign_class_barriers ... 
+thread 'project_token_inputs::tests::project_source_roles_bind_original_optional_formals_and_keep_foreign_class_barriers' (63221) panicked at rust/tcl-lsp-db/src/project_token_inputs/tests.rs:484:9:
+assertion failed: is_variable(&semantic_tokens_project_for_inputs(&db, caller, project),
+    "reader FIRST retained", "retained")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test project_token_inputs::tests::project_source_roles_select_current_call_declaration_and_formals ... 
+thread 'project_token_inputs::tests::project_source_roles_select_current_call_declaration_and_formals' (63222) panicked at rust/tcl-lsp-db/src/project_token_inputs/tests.rs:438:13:
+assertion `left == right` failed: tcl: reader retained
+  left: false
+ right: true
+FAILED
+test project_token_inputs::tests::project_token_hints_deduplicate_actual_file_owners_without_merging_equal_labels ... ok
+test project_token_inputs::tests::project_token_hints_withdraw_when_another_members_source_owner_is_unavailable ... 
+thread 'project_token_inputs::tests::project_token_hints_withdraw_when_another_members_source_owner_is_unavailable' (63224) panicked at rust/tcl-lsp-db/src/project_token_inputs/tests.rs:225:5:
+assertion failed: !project_proc_var_index_for_inputs(&db, project).is_empty()
+FAILED
+test project_token_inputs::tests::project_tokens_keep_each_files_pack_roles_and_withdraw_changed_availability ... 
+thread 'project_token_inputs::tests::project_tokens_keep_each_files_pack_roles_and_withdraw_changed_availability' (63225) panicked at rust/tcl-lsp-db/src/project_token_inputs/tests.rs:83:5:
+the actual library role is retained
+FAILED
+test project_token_inputs::tests::supplied_project_cards_require_complete_unambiguous_current_file_mapping ... 
+thread 'project_token_inputs::tests::supplied_project_cards_require_complete_unambiguous_current_file_mapping' (63226) panicked at rust/tcl-lsp-db/src/project_token_inputs/tests.rs:303:5:
+assertion failed: !facts.named_instances.is_empty()
+FAILED
+test project_token_inputs::tests::supplied_project_indexes_keep_the_structure_only_firewall_across_source_edits ... ok
+
+failures:
+
+failures:
+    project_token_inputs::tests::project_source_roles_bind_original_optional_formals_and_keep_foreign_class_barriers
+    project_token_inputs::tests::project_source_roles_select_current_call_declaration_and_formals
+    project_token_inputs::tests::project_token_hints_withdraw_when_another_members_source_owner_is_unavailable
+    project_token_inputs::tests::project_tokens_keep_each_files_pack_roles_and_withdraw_changed_availability
+    project_token_inputs::tests::supplied_project_cards_require_complete_unambiguous_current_file_mapping
+
+test result: FAILED. 2 passed; 5 failed; 0 ignored; 0 measured; 180 filtered out; finished in 3.57s
+

@@ -184,3 +184,38 @@ fn scalar_reference_name(word: &NativeWord) -> Option<&str> {
 
 #[cfg(test)]
 mod tests;
+
+/// Actual selected source class/member owner before any project retagging.
+pub(super) fn insert_project_method(
+    ctx: ScriptCtx<'_>,
+    command: &SegmentedCommand,
+    providers: &[source_structure::OriginalProjectClassCards],
+    overrides: &mut FxHashMap<u32, ArgOverride>,
+) -> bool {
+    let Some(analysis) = ctx.analysis else {
+        return false;
+    };
+    let Some(class) = source_structure::original_project_receiver_class_with_sources(
+        ctx.full_source,
+        analysis,
+        command,
+        providers,
+        ctx.original_collections,
+    ) else {
+        return false;
+    };
+    if class.provides_method() {
+        super::mark_method_word(command, overrides);
+        if let Some(method) = command.texts.get(1) {
+            super::insert_user_configure_options(
+                command,
+                class.hierarchy(),
+                ctx.registry,
+                &class.metadata().qualified_name,
+                method,
+                overrides,
+            );
+        }
+    }
+    true
+}

@@ -1,0 +1,25 @@
+   Compiling tcl-syntax v0.1.0 (/workspace/tcl-lsp/rust/tcl-syntax)
+   Compiling tcl-runtime-api v0.1.0 (/workspace/tcl-lsp/rust/tcl-runtime-api)
+   Compiling tcl-cmd-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-cmd-core)
+   Compiling tcl-regex v0.1.0 (/workspace/tcl-lsp/rust/tcl-regex)
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp/rust/tcl-registry)
+   Compiling tcl-bytecode v0.1.0 (/workspace/tcl-lsp/rust/tcl-bytecode)
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+error[E0599]: no method named `matches_source` found for reference `&LogicalSourceClassDeclaration` in the current scope
+   --> rust/tcl-compiler/src/analyser/class_hierarchy/original_metadata.rs:564:25
+    |
+564 |                 logical.matches_source(self.record.name_input().source_image(), &self.input)
+    |                         ^^^^^^^^^^^^^^ method not found in `&LogicalSourceClassDeclaration`
+
+error[E0308]: mismatched types
+   --> rust/tcl-compiler/src/registry_invocation/source_structure/project_class_cards.rs:371:54
+    |
+371 |         || segment.expand_word.iter().any(|expanded| *expanded)
+    |                                                      ^^^^^^^^^ expected `bool`, found `Vec<bool>`
+    |
+    = note: expected type `bool`
+             found struct `Vec<bool>`
+
+Some errors have detailed explanations: E0308, E0599.
+For more information about an error, try `rustc --explain E0308`.
+error: could not compile `tcl-compiler` (lib) due to 2 previous errors

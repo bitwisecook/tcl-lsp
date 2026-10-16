@@ -244,8 +244,37 @@ pub fn original_project_procedure_arguments<'a>(
         providers,
     )?;
     let declaration = selected.metadata.as_ref()?;
-    let effective = crate::registry_invocation::effective_command_words(&tokens)?;
-    let arguments = crate::registry_invocation::frozen_argument_words(&tokens, &effective);
+    // The selected foreign header supplies conditional source topology only.
+    // Execution composition requires a proved target that this purpose never
+    // grants. Preserve this already-checked full Written vector instead: alias
+    // occupants, expansion and effectful operands were refused above.
+    let effective = crate::registry_invocation::EffectiveCommandWords {
+        words: tokens.words().to_vec(),
+        origins: (0..tokens.words().len())
+            .map(crate::registry_invocation::InvocationWordOrigin::Written)
+            .collect(),
+        binding_prefix: Vec::new(),
+    };
+    let arguments = projection
+        .native_words()
+        .iter()
+        .enumerate()
+        .skip(1)
+        .map(|(ordinal, word)| {
+            if input.has_logical_source_name_context() {
+                tcl_syntax::word_rules::original_static_word_unicode_value(word)
+                    .map_or(EffectiveInvocationWord::Dynamic, |value| {
+                        EffectiveInvocationWord::from_bytes(&value)
+                    })
+            } else {
+                binding
+                    .original_written_name_input(&tokens, ordinal)
+                    .map_or(EffectiveInvocationWord::Dynamic, |input| {
+                        EffectiveInvocationWord::from_bytes(input.bytes())
+                    })
+            }
+        })
+        .collect::<Vec<_>>();
     let bindings = if input.has_logical_source_name_context() {
         selected
             .logical
@@ -459,6 +488,7 @@ mod tests {
                 "proc reader {value} {}; rename reader {}; reader retained",
                 "unknown_mutation; reader retained",
                 "reader [unknown_operand]",
+                "reader $value",
                 "reader {*}{retained}",
                 "reader ONE TWO",
             ] {

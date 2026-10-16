@@ -280,7 +280,7 @@ impl OriginalJimLookupNamespace {
         }
         Ok(())
     }
-    pub(super) fn original_ptr(&self) -> *mut TclObj {
+    pub(crate) fn original_ptr(&self) -> *mut TclObj {
         self.original.as_ptr()
     }
     pub(super) fn check(&self, actual: &Interp) -> Result<(), ValueError> {

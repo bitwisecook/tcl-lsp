@@ -112,6 +112,23 @@ pub enum SourceAdviceNameInput {
     Logical(OriginalLogicalSourceNameInput),
 }
 impl SourceAdviceNameInput {
+    pub(crate) fn conditional_display_word(
+        word: &NativeWord,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        policy: Option<NamePolicyProtocol>,
+    ) -> Option<Self> {
+        (word.config() == input.lexer_config()).then_some(())?;
+        let policy = if input.has_logical_source_name_context() {
+            policy.is_none().then_some(())?;
+            AdviceNamingPolicy::Logical(input.clone())
+        } else {
+            AdviceNamingPolicy::Native(policy?)
+        };
+        original_words(std::slice::from_ref(word), &policy)?
+            .pop()?
+            .input
+    }
+
     /// Purpose-selected source units; these alone carry no runtime grant.
     #[must_use]
     pub fn bytes(&self) -> &[u8] {
@@ -700,6 +717,8 @@ pub(crate) struct OriginalSourceTransitionAdviceTape {
     logical_callbacks:
         BTreeMap<u32, Option<(Arc<[NativeWord]>, Vec<OriginalLogicalCallbackCandidates>)>>,
     class_publications: Option<OriginalSourceClassPublications>,
+    display_publications:
+        Option<crate::registry_invocation::source_structure::OriginalProjectClassCells>,
     scanned_procedure_declarations: BTreeSet<u32>,
     class_instance_calls: BTreeMap<u32, Option<OriginalSourceClassInstanceWords>>,
     callback_targets: BTreeMap<
@@ -2596,6 +2615,7 @@ impl OriginalSourceTransitionSeed {
         advice_context.retain_future_original_procedure_bodies(&mut tape, &graph);
         advice_context.retain_final_original_procedure_publications(&mut tape, &graph);
         advice_context.retain_final_original_class_publications(&mut tape, &graph);
+        advice_context.retain_final_class_display_publications(&mut tape, &graph);
         Some(tape)
     }
 }

@@ -6,6 +6,38 @@ use crate::obj::{self, Owned};
 use tcl_syntax::naming::{NativeJimNamespaceConstruction, NativeNameContext};
 use tcl_syntax::value::{ValueError, ValueOps};
 
+pub(crate) struct OriginalJimNamespaceObject {
+    allocation: obj::NativeObjectLifetime,
+    fresh: bool,
+}
+
+impl OriginalJimNamespaceObject {
+    fn new(original: *mut TclObj, fresh: bool) -> Self {
+        Self {
+            allocation: obj::NativeObjectLifetime::retain(original),
+            fresh,
+        }
+    }
+
+    pub(crate) fn checked_ptr(&self) -> Result<*mut TclObj, ValueError> {
+        self.allocation.checked_ptr()
+    }
+}
+
+impl Drop for OriginalJimNamespaceObject {
+    fn drop(&mut self) {
+        if self.fresh {
+            if let Ok(original) = self.allocation.checked_ptr() {
+                // SAFETY: the allocation lease pins this unpublished zero-reference header.
+                if unsafe { (*original).ref_count == 0 } {
+                    // SAFETY: no native owner remains on this private constructed result.
+                    unsafe { obj::free_obj(original) };
+                }
+            }
+        }
+    }
+}
+
 impl Interp {
     /// Materialize this actual Jim object context only at a reached namespace consumer.
     pub(crate) fn materialize_jim_namespace(
@@ -103,6 +135,20 @@ impl Interp {
         namespace: &Owned,
         original: *mut TclObj,
     ) -> Result<Owned, ValueError> {
+        let result =
+            self.jim_canonical_namespace_object_using(namespace.as_ptr(), original, &|_| {
+                Ok::<(), ValueError>(())
+            })?;
+        Ok(Owned::retain(result.checked_ptr()?))
+    }
+
+    pub(crate) fn jim_canonical_namespace_object_using<E: From<ValueError>>(
+        &mut self,
+        namespace: *mut TclObj,
+        original: *mut TclObj,
+        outer: &impl Fn(&Interp) -> Result<(), E>,
+    ) -> Result<OriginalJimNamespaceObject, E> {
+        outer(self)?;
         let protocol = self
             .name_policy_protocol()
             .ok_or(ValueError::CommandProtocolUnavailable(
@@ -116,16 +162,17 @@ impl Interp {
             },
         )?;
         obj::check_native_liveness(original)?;
-        obj::check_native_liveness(namespace.as_ptr())?;
+        obj::check_native_liveness(namespace)?;
         let original_allocation = obj::NativeObjectLifetime::retain(original);
-        let namespace_allocation = obj::NativeObjectLifetime::retain(namespace.as_ptr());
+        let namespace_allocation = obj::NativeObjectLifetime::retain(namespace);
         let current = self.current_ns();
         let frame = super::native_arguments::OriginalArgumentFrame::capture(self);
-        let check = |actual: &mut Interp| {
+        let check = |actual: &Interp| -> Result<(), E> {
+            outer(actual)?;
             scope.currency().ensure_current_or_refuse().map_err(|_| {
                 ValueError::CommandProtocolUnavailable("Jim canonical namespace currency")
             })?;
-            let checked = (|| {
+            let checked = (|| -> Result<(), ValueError> {
                 frame.check_frame(actual)?;
                 if actual.current_ns() != current {
                     return Err(ValueError::CommandProtocolUnavailable(
@@ -138,33 +185,36 @@ impl Interp {
             })();
             if let Err(error) = &checked {
                 if let Some(first) = error.native_access_refusal() {
-                    actual.refuse_native_execution(first.into());
+                    actual.clone().refuse_native_execution(first.into());
                 }
             }
-            checked
+            checked.map_err(E::from)
         };
-        let original_bytes = self.native_string_bytes(&original);
+        let actual = self.clone();
+        let original_bytes =
+            self.native_object_string_bytes_using(original, &|| check(&actual), &E::from)?;
         check(self)?;
-        let original_bytes = original_bytes?;
         if let Some(absolute) = protocol
             .jim_namespace_absolute_canonical_input(&original_bytes)
             .map_err(|_| {
                 ValueError::CommandProtocolUnavailable("Jim absolute namespace canonical name")
             })?
         {
-            return Ok(Owned::fresh(obj::new_string_bytes(absolute.selected())));
+            return Ok(OriginalJimNamespaceObject::new(
+                obj::new_string_bytes(absolute.selected()),
+                true,
+            ));
         }
         let is_current = self
             .namespaces()
             .jim_namespace_original_owner(current)
-            .is_some_and(|holder| holder.as_ptr() == namespace.as_ptr());
+            .is_some_and(|holder| holder.as_ptr() == namespace);
         let namespace_bytes = if is_current {
-            self.materialize_jim_namespace(current)
+            self.materialize_jim_namespace_using(current, &|| check(&actual))?
         } else {
-            self.native_string_bytes(&namespace.as_ptr())
+            self.native_object_string_bytes_using(namespace, &|| check(&actual), &E::from)?
         };
         check(self)?;
-        let namespace_bytes = namespace_bytes?;
         let path = tcl_core_types::ByteNamespacePath::root();
         let context = NativeNameContext::with_jim_namespace(&path, &namespace_bytes);
         let construction = protocol
@@ -172,15 +222,17 @@ impl Interp {
             .map_err(|_| {
                 ValueError::CommandProtocolUnavailable("Jim namespace canonical construction")
             })?;
-        let result = (|| match construction {
-            NativeJimNamespaceConstruction::RetainOriginal => Ok(Owned::retain(original)),
+        let result = match construction {
+            NativeJimNamespaceConstruction::RetainOriginal => {
+                OriginalJimNamespaceObject::new(original, false)
+            }
             NativeJimNamespaceConstruction::FreshString => {
                 let projection = protocol
                     .jim_namespace_canonical_input(context, &original_bytes)
                     .map_err(|_| {
                         ValueError::CommandProtocolUnavailable("Jim namespace canonical name")
                     })?;
-                Ok(Owned::fresh(obj::new_string_bytes(projection.selected())))
+                OriginalJimNamespaceObject::new(obj::new_string_bytes(projection.selected()), true)
             }
             NativeJimNamespaceConstruction::DuplicateNamespaceAndAppend => {
                 let dialect = self.native_invocation_dialect();
@@ -191,27 +243,96 @@ impl Interp {
                     dialect,
                     binary_recipe: dialect.byte_array_string_recipe(None),
                 };
-                let duplicate = Owned::fresh(obj::duplicate(namespace.as_ptr()));
-                let separator = Owned::fresh(obj::new_string_bytes(b"::"));
-                let receiver = crate::value_ops::RuntimeAppendValue::borrowed(duplicate.as_ptr());
-                let separator = crate::value_ops::RuntimeAppendValue::borrowed(separator.as_ptr());
+                let duplicate = obj::duplicate_with_stage_check(
+                    namespace,
+                    &mut || check(&actual),
+                    &mut |_| {},
+                )?;
+                let result = OriginalJimNamespaceObject::new(duplicate, true);
+                let receiver = crate::value_ops::RuntimeAppendValue::borrowed(duplicate);
                 let source = crate::value_ops::RuntimeAppendValue::borrowed(original);
-                let mut prepared = tcl_cmd_core::native_append::append_object(
+                let mut first = None;
+                let mut private_current = || -> Result<(), ValueError> {
+                    if let Err(error) = check(&actual) {
+                        first.get_or_insert(error);
+                        return Err(ValueError::CommandProtocolUnavailable(
+                            "Jim original canonical append",
+                        ));
+                    }
+                    result.checked_ptr()?;
+                    // SAFETY: the allocation lease pins this live private receiver.
+                    if unsafe { (*duplicate).ref_count != 0 } {
+                        return Err(ValueError::CommandProtocolUnavailable(
+                            "Jim private canonical receiver",
+                        ));
+                    }
+                    Ok(())
+                };
+                let appended = tcl_cmd_core::native_append::append_unshared_jim_cstring(
                     &operations,
                     append.recipe(),
-                    Some(&receiver),
-                    &separator,
-                )?;
-                tcl_cmd_core::native_append::append_continuation(
-                    &operations,
-                    &mut prepared,
-                    &source,
-                )?;
-                Ok(Owned::retain(prepared.value().as_ptr()))
+                    &receiver,
+                    b"::",
+                    &mut private_current,
+                )
+                .and_then(|()| {
+                    tcl_cmd_core::native_append::append_unshared_jim_object_checked(
+                        &operations,
+                        append.recipe(),
+                        &receiver,
+                        &source,
+                        &mut private_current,
+                    )
+                });
+                if let Some(error) = first {
+                    return Err(error);
+                }
+                appended?;
+                check(self)?;
+                result
             }
-        })();
+        };
         check(self)?;
-        result
+        Ok(result)
+    }
+
+    pub(crate) fn original_jim_namespace_text_object(
+        &mut self,
+        original: *mut TclObj,
+        tail: bool,
+        ordinal: usize,
+        arguments: &super::native_arguments::OriginalArguments,
+    ) -> Result<*mut TclObj, tcl_cmd_core::CmdError> {
+        let context = self.native_jim_object_context()?;
+        let namespace = self.current_ns();
+        let original_namespace =
+            super::native_jim_lookup::OriginalJimLookupNamespace::capture(self, namespace)?;
+        let check = |actual: &Interp| original_namespace.check_current_arguments(actual, arguments);
+        check(self)?;
+        arguments.check_original_for(self, ordinal, original)?;
+        let bytes = arguments.bytes_using(ordinal, &|| check(self));
+        check(self)?;
+        let bytes = bytes?;
+        let protocol = self
+            .name_policy_protocol()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "Jim namespace text issuer",
+            ))?
+            .recipe();
+        use tcl_syntax::naming::NativeNamespaceTextResult;
+        check(self)?;
+        let result = match protocol.namespace_text_result(&bytes, tail) {
+            NativeNamespaceTextResult::SharedEmpty => context.empty_object().as_ptr(),
+            NativeNamespaceTextResult::Original => original,
+            NativeNamespaceTextResult::Counted(bytes) => obj::new_string_bytes(bytes),
+            NativeNamespaceTextResult::Append(_) => {
+                return Err(ValueError::CommandProtocolUnavailable(
+                    "C append outside Jim namespace text producer",
+                )
+                .into());
+            }
+        };
+        Ok(result)
     }
 
     pub(crate) fn original_jim_namespace_text(
@@ -221,38 +342,13 @@ impl Interp {
         arguments: &super::native_arguments::OriginalArguments,
     ) -> Code {
         let reached = (|| -> Result<Code, tcl_cmd_core::CmdError> {
-            let context = self.native_jim_object_context()?;
+            let _context = self.native_jim_object_context()?;
             let namespace = self.current_ns();
             let original_namespace =
                 super::native_jim_lookup::OriginalJimLookupNamespace::capture(self, namespace)?;
-            let check =
-                |actual: &Interp| original_namespace.check_current_arguments(actual, arguments);
-            check(self)?;
-            arguments.check_original_for(self, 2, original)?;
-            let bytes = arguments.bytes_using(2, &|| check(self));
-            check(self)?;
-            let bytes = bytes?;
-            let protocol = self
-                .name_policy_protocol()
-                .ok_or(ValueError::CommandProtocolUnavailable(
-                    "Jim namespace text issuer",
-                ))?
-                .recipe();
-            use tcl_syntax::naming::NativeNamespaceTextResult;
-            match protocol.namespace_text_result(&bytes, tail) {
-                NativeNamespaceTextResult::SharedEmpty => {
-                    self.set_result(context.empty_object().as_ptr())
-                }
-                NativeNamespaceTextResult::Original => self.set_result(original),
-                NativeNamespaceTextResult::Counted(bytes) => self.set_result_bytes(bytes),
-                NativeNamespaceTextResult::Append(_) => {
-                    return Err(ValueError::CommandProtocolUnavailable(
-                        "C append outside Jim namespace text producer",
-                    )
-                    .into())
-                }
-            }
-            check(self)?;
+            let result = self.original_jim_namespace_text_object(original, tail, 2, arguments)?;
+            self.set_result(result);
+            original_namespace.check_current_arguments(self, arguments)?;
             Ok(Code::Ok)
         })();
         match reached {
@@ -704,10 +800,12 @@ mod tests {
             Code::Error
         );
         assert_eq!(interp.current_ns(), caller);
-        assert!(obj::native_object_snapshot(pointer)
-            .unwrap()
-            .resident
-            .is_none());
+        assert!(
+            obj::native_object_snapshot(pointer)
+                .unwrap()
+                .resident
+                .is_none()
+        );
         assert_eq!(obj::obj_type_ptr(pointer), original_type);
         assert_eq!(unsafe { (*pointer).ref_count }, references);
         assert!(interp.namespaces().native_context_path(namespace).is_none());
@@ -734,10 +832,12 @@ mod tests {
         );
         assert_eq!(interp.result_obj(), value.as_ptr());
         assert_eq!(interp.current_ns(), crate::namespace::GLOBAL);
-        assert!(obj::native_object_snapshot(body.as_ptr())
-            .unwrap()
-            .resident
-            .is_none());
+        assert!(
+            obj::native_object_snapshot(body.as_ptr())
+                .unwrap()
+                .resident
+                .is_none()
+        );
     }
 
     #[test]
@@ -815,9 +915,11 @@ mod tests {
             interp.root_command_context_checked().unwrap(),
             Some(tcl_runtime_api::ROOT_NS)
         );
-        assert!(interp
-            .find_namespace_bytes_checked(tcl_runtime_api::ROOT_NS, b"::")
-            .is_err());
+        assert!(
+            interp
+                .find_namespace_bytes_checked(tcl_runtime_api::ROOT_NS, b"::")
+                .is_err()
+        );
         interp
             .namespaces_mut()
             .adopt_jim_root_namespace(Owned::fresh(obj::new_string_bytes(b"")));

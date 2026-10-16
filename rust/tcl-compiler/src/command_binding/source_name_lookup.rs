@@ -195,6 +195,28 @@ impl OriginalCommandLookup {
             Item = (&'a crate::signature_scan::scope::SignatureSourceCommand, T),
         >,
     ) -> Option<Vec<T>> {
+        self.matching_external_source_advice_slots(
+            registry,
+            declarations
+                .into_iter()
+                .map(|(name, value)| (name.slot(), name.policy(), value)),
+        )
+    }
+
+    /// Conditional original source slots under the same positioned occupancy
+    /// guards. A slot receipt supplies no allocation or installed identity.
+    #[must_use]
+    pub fn matching_external_source_advice_slots<'a, T: Clone + Eq>(
+        &self,
+        registry: &tcl_registry::CommandRegistry,
+        declarations: impl IntoIterator<
+            Item = (
+                &'a ByteCommandSlot,
+                tcl_syntax::naming::NamePolicyProtocol,
+                T,
+            ),
+        >,
+    ) -> Option<Vec<T>> {
         if self.observations.is_empty() || self.callback_scope.is_some() {
             return None;
         }
@@ -253,7 +275,7 @@ impl OriginalCommandLookup {
                 *path = retained;
             }
         }
-        filtered.matching_publications(declarations)
+        filtered.matching_slot_publications(declarations)
     }
 
     /// First matching exact slots under their independently selected policies.

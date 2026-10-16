@@ -233,7 +233,10 @@ impl OriginalSourceTransitionAdviceTape {
     }
 }
 impl AdviceGraph {
-    fn source_instance_class_is_current(&self, instance: &OriginalSourceClassInstance) -> bool {
+    pub(super) fn source_instance_class_is_current(
+        &self,
+        instance: &OriginalSourceClassInstance,
+    ) -> bool {
         self.cells.values().any(|cell| {
             matches!(cell, AdviceCell::SourceClass(class)
             if class.factory() == instance.class_declaration().factory())

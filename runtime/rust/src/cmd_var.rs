@@ -212,17 +212,21 @@ pub(crate) fn variable(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         .native_jim_lookup_protocol()
         .is_none()
     {
-        return variable_entered(interp, argv);
+        return variable_entered(interp, argv, None);
     }
     let arguments = match crate::interp::native_arguments::OriginalArguments::enter(interp, argv) {
         Ok(arguments) => arguments,
         Err(error) => return interp.report_cmd_error(error),
     };
-    let reached = variable_entered(interp, argv);
+    let reached = variable_entered(interp, argv, Some(&arguments));
     arguments.finish(reached)
 }
 
-fn variable_entered(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+fn variable_entered(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    arguments: Option<&crate::interp::native_arguments::OriginalArguments>,
+) -> Code {
     let Some(grammar) = interp
         .native_invocation_dialect()
         .native_variable_declaration_protocol()
@@ -243,6 +247,125 @@ fn variable_entered(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             if code != Code::Ok {
                 return code;
             }
+        }
+        interp.set_result_bytes(b"");
+        return Code::Ok;
+    }
+    if let Some(arguments) = arguments {
+        if interp.current_ns() == crate::namespace::GLOBAL {
+            if let Err(error) = interp.native_jim_object_context() {
+                return interp.report_cmd_error(error.into());
+            }
+        }
+        let namespace =
+            match crate::interp::OriginalJimLookupNamespace::capture(interp, interp.current_ns()) {
+                Ok(namespace) => namespace,
+                Err(error) => return interp.report_cmd_error(error.into()),
+            };
+        let reached = (|| {
+            for (pair_index, pair) in argv[1..].chunks(2).enumerate() {
+                let ordinal = 1 + pair_index * 2;
+                let check = |actual: &Interp| {
+                    namespace.check_current_arguments(actual, arguments)?;
+                    arguments.check_original_for(actual, ordinal, pair[0])
+                };
+                let canonical = match interp.jim_canonical_namespace_object_using(
+                    namespace.original_ptr(),
+                    pair[0],
+                    &check,
+                ) {
+                    Ok(canonical) => canonical,
+                    Err(error) => return interp.report_cmd_error(error),
+                };
+                if let Err(error) = check(interp) {
+                    return interp.report_cmd_error(error);
+                }
+                let local = match interp
+                    .original_jim_namespace_text_object(pair[0], true, ordinal, arguments)
+                {
+                    Ok(local) => crate::obj::Owned::retain(local),
+                    Err(error) => return interp.report_cmd_error(error),
+                };
+                if interp.current_level() != 0 || interp.current_ns() != crate::namespace::GLOBAL {
+                    let scope =
+                        match crate::interp::native_operation_currency::NativeOperationScope::enter(
+                            interp,
+                        ) {
+                            Ok(scope) => scope,
+                            Err(first) => return interp.refuse_native_execution(first),
+                        };
+                    if let Err(error) = arguments.check() {
+                        return interp.report_cmd_error(error);
+                    }
+                    let target = match canonical.checked_ptr() {
+                        Ok(target) => target,
+                        Err(error) => return interp.report_cmd_error(error.into()),
+                    };
+                    let local_temporary = crate::obj::Owned::retain(local.as_ptr());
+                    let target = crate::obj::Owned::retain(target);
+                    let code = interp.link_original_jim_upvar_objects(
+                        target.as_ptr(),
+                        0,
+                        local_temporary.as_ptr(),
+                    );
+                    if let Err(error) = check(interp) {
+                        return interp.report_cmd_error(error);
+                    }
+                    let code = if code == Code::Error {
+                        let Some(protocol) = interp
+                            .native_invocation_dialect()
+                            .native_jim_lookup_protocol()
+                        else {
+                            return interp.report_cmd_error(
+                                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                                    "Jim namespace variable failure issuer",
+                                )
+                                .into(),
+                            );
+                        };
+                        match interp.publish_original_jim_variable_error(
+                            local_temporary.as_ptr(),
+                            &check,
+                            |bytes| {
+                                tcl_cmd_core::var::native_jim_namespace_variable_error(
+                                    protocol, bytes,
+                                )
+                            },
+                        ) {
+                            Ok(code) => code,
+                            Err(error) => return interp.report_cmd_error(error),
+                        }
+                    } else {
+                        code
+                    };
+                    drop(local_temporary);
+                    drop(target);
+                    if let Err(first) = scope.currency().ensure_current_or_refuse() {
+                        return interp.refuse_native_execution(first);
+                    }
+                    if code != Code::Ok {
+                        return code;
+                    }
+                }
+                if let Some(&value) = pair.get(1) {
+                    if let Err(code) = interp.assign_original_named_variable(local.as_ptr(), value)
+                    {
+                        return code;
+                    }
+                }
+                drop(local);
+                drop(canonical);
+                if let Err(error) = check(interp) {
+                    return interp.report_cmd_error(error);
+                }
+            }
+            Code::Ok
+        })();
+        if let Err(error) = namespace.check_current_arguments(interp, arguments) {
+            return interp.report_cmd_error(error);
+        }
+        if reached != Code::Ok {
+            return reached;
         }
         interp.set_result_bytes(b"");
         return Code::Ok;
@@ -273,38 +396,9 @@ fn variable_entered(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         // *through* it into the target namespace (the link makes the unqualified
         // tail resolve there, in a proc or at namespace scope alike).
         let local = tcl_syntax::naming::variable_local_name_bytes(protocol, &name);
-        if protocol.is_jim084() {
-            if interp.current_level() != 0 || current != crate::namespace::GLOBAL {
-                let namespace = match interp.jim_current_namespace_object() {
-                    Ok(namespace) => namespace,
-                    Err(error) => return interp.report_cmd_error(error.into()),
-                };
-                let canonical = match interp.jim_canonical_namespace_object(&namespace, argv[i]) {
-                    Ok(canonical) => canonical,
-                    Err(error) => return interp.report_cmd_error(error.into()),
-                };
-                let target_bytes = match interp.native_string_bytes(&canonical.as_ptr()) {
-                    Ok(bytes) => bytes,
-                    Err(error) => return interp.report_cmd_error(error.into()),
-                };
-                let local_original = crate::obj::Owned::fresh(crate::obj::new_string_bytes(&local));
-                let code = bind_upvar_at_original(
-                    interp,
-                    0,
-                    &target_bytes,
-                    &local,
-                    Some(canonical.as_ptr()),
-                    Some(local_original.as_ptr()),
-                );
-                if code != Code::Ok {
-                    return code;
-                }
-            }
-        } else {
-            let code = interp.make_variable_mapped(ns, &local, &tail);
-            if code != Code::Ok {
-                return code;
-            }
+        let code = interp.make_variable_mapped(ns, &local, &tail);
+        if code != Code::Ok {
+            return code;
         }
         if i + 1 < argv.len() {
             let value = argv[i + 1];
@@ -558,6 +652,392 @@ mod tests {
     use crate::counters;
     use crate::interp::{Code, Interp};
 
+    thread_local! {
+        static CANONICAL_RETIRED_NAMESPACE: std::cell::RefCell<Option<std::rc::Rc<crate::obj::Owned>>> = const { std::cell::RefCell::new(None) };
+    }
+
+    extern "C" fn retire_canonical_namespace_from_name(original: *mut crate::obj::TclObj) {
+        // SAFETY: this updater owns the live original's String slot.
+        unsafe { crate::obj::set_string_rep(original, b"child") };
+        CANONICAL_RETIRED_NAMESPACE.with(|slot| drop(slot.borrow_mut().take()));
+    }
+
+    static CANONICAL_RETIRE_NAME: crate::obj::TclObjType = crate::obj::TclObjType {
+        name: c"variable-canonical-retire-namespace".as_ptr(),
+        free_int_rep_proc: None,
+        dup_int_rep_proc: None,
+        update_string_proc: Some(retire_canonical_namespace_from_name),
+        set_from_any_proc: None,
+    };
+
+    thread_local! {
+        static FORMAT_NAME: std::cell::Cell<*mut crate::obj::TclObj> = const { std::cell::Cell::new(std::ptr::null_mut()) };
+        static FORMAT_EVENTS: std::cell::RefCell<Vec<(&'static str, i64)>> = const { std::cell::RefCell::new(Vec::new()) };
+    }
+    extern "C" fn formatter_name_getter(original: *mut crate::obj::TclObj) {
+        // SAFETY: the updater receives its live original header.
+        let references = unsafe { i64::from((*original).ref_count) };
+        FORMAT_EVENTS.with(|events| events.borrow_mut().push(("getter", references)));
+        // SAFETY: the updater owns this original String slot.
+        unsafe { crate::obj::set_string_rep(original, b"item(k\0suffix)") };
+    }
+    extern "C" fn formatter_old_result_retirement(_: *mut crate::obj::TclObj) {
+        let original = FORMAT_NAME.with(std::cell::Cell::get);
+        // SAFETY: the real formatter argument reference owns this live header.
+        let references = unsafe { i64::from((*original).ref_count) };
+        FORMAT_EVENTS.with(|events| events.borrow_mut().push(("publication", references)));
+    }
+    static FORMAT_NAME_TYPE: crate::obj::TclObjType = crate::obj::TclObjType {
+        name: c"variable-format-name".as_ptr(),
+        free_int_rep_proc: None,
+        dup_int_rep_proc: None,
+        update_string_proc: Some(formatter_name_getter),
+        set_from_any_proc: None,
+    };
+    static FORMAT_RESULT_TYPE: crate::obj::TclObjType = crate::obj::TclObjType {
+        name: c"variable-format-old-result".as_ptr(),
+        free_int_rep_proc: Some(formatter_old_result_retirement),
+        dup_int_rep_proc: None,
+        update_string_proc: None,
+        set_from_any_proc: None,
+    };
+    thread_local! {
+        static ALIAS_CALLER_CHANGE: std::cell::RefCell<Option<(Interp, usize, bool)>> = const { std::cell::RefCell::new(None) };
+    }
+    extern "C" fn change_alias_caller_from_name(original: *mut crate::obj::TclObj) {
+        // SAFETY: this updater owns the original live String slot.
+        unsafe { crate::obj::set_string_rep(original, b"item(k)") };
+        ALIAS_CALLER_CHANGE.with(|slot| {
+            if let Some((interp, namespace, frame)) = slot.borrow().as_ref() {
+                if *frame {
+                    interp.frames.borrow_mut().push(*namespace);
+                } else {
+                    interp.set_current_ns(*namespace);
+                }
+            }
+        });
+    }
+    static ALIAS_CALLER_NAME: crate::obj::TclObjType = crate::obj::TclObjType {
+        name: c"alias-caller-changing-name".as_ptr(),
+        free_int_rep_proc: None,
+        dup_int_rep_proc: None,
+        update_string_proc: Some(change_alias_caller_from_name),
+        set_from_any_proc: None,
+    };
+    #[test]
+    fn original_jim_alias_getter_and_formatter_refuse_caller_changes_before_publication() {
+        use crate::interp::native_arguments::OriginalArguments;
+        use crate::obj::{self, Owned};
+        for formatter in [false, true] {
+            for frame in [false, true] {
+                let mut interp = Interp::with_native_core(
+                    crate::interp::default_host(),
+                    crate::environment::profile_for_dialect("jimtcl"),
+                    tcl_registry::special_vars::NativeBootstrapInputs::default(),
+                )
+                .unwrap();
+                let context = interp.native_jim_object_context().unwrap();
+                let namespace_object = Owned::fresh(obj::new_string_bytes(b"P"));
+                crate::native_source::bind_context(namespace_object.as_ptr(), &context).unwrap();
+                let namespace = interp
+                    .namespaces_mut()
+                    .retain_unmaterialized_jim_namespace(namespace_object);
+                let original = Owned::fresh(obj::alloc_typed(&ALIAS_CALLER_NAME, 0));
+                let target = Owned::fresh(obj::new_string_bytes(b"target"));
+                let previous = Owned::fresh(obj::new_string_bytes(b"sentinel"));
+                for object in [&original, &target, &previous] {
+                    crate::native_source::bind_context(object.as_ptr(), &context).unwrap();
+                }
+                interp.set_result(previous.as_ptr());
+                let actual_namespace = if frame {
+                    crate::namespace::GLOBAL
+                } else {
+                    namespace
+                };
+                ALIAS_CALLER_CHANGE.with(|slot| {
+                    *slot.borrow_mut() = Some((interp.clone(), actual_namespace, frame))
+                });
+                if formatter {
+                    let arguments =
+                        OriginalArguments::enter(&interp, &[original.as_ptr(), target.as_ptr()])
+                            .unwrap();
+                    let caller = crate::interp::OriginalJimLookupNamespace::capture(
+                        &interp,
+                        interp.current_ns(),
+                    )
+                    .unwrap();
+                    let protocol = interp
+                        .native_invocation_dialect()
+                        .native_jim_lookup_protocol()
+                        .unwrap();
+                    assert!(interp.publish_original_jim_variable_error(
+                        original.as_ptr(),
+                        &|actual| caller.check_current_arguments(actual, &arguments),
+                        |bytes| tcl_cmd_core::var::native_jim_alias_error(protocol, tcl_syntax::native_jim_lookup::NativeJimAliasFailure::LocalElement, bytes),
+                    ).is_err());
+                } else {
+                    assert_eq!(
+                        interp.link_original_jim_upvar_objects(
+                            target.as_ptr(),
+                            0,
+                            original.as_ptr()
+                        ),
+                        Code::Error
+                    );
+                }
+                assert!(interp.native_execution_refusal().is_some());
+                assert_eq!(interp.result_obj(), previous.as_ptr());
+                ALIAS_CALLER_CHANGE.with(|slot| *slot.borrow_mut() = None);
+                if frame {
+                    interp.frames.borrow_mut().pop();
+                } else {
+                    interp.set_current_ns(crate::namespace::GLOBAL);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn original_jim_variable_formatter_getter_precedes_real_argument_reference_and_publication() {
+        use crate::interp::native_arguments::OriginalArguments;
+        use crate::obj::{self, Owned};
+        for namespace in [false, true] {
+            let mut interp = Interp::with_native_core(
+                crate::interp::default_host(),
+                crate::environment::profile_for_dialect("jimtcl"),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            let context = interp.native_jim_object_context().unwrap();
+            let original = Owned::fresh(obj::alloc_typed(&FORMAT_NAME_TYPE, 0));
+            let old_result = obj::alloc_typed(&FORMAT_RESULT_TYPE, 0);
+            for pointer in [original.as_ptr(), old_result] {
+                crate::native_source::bind_context(pointer, &context).unwrap();
+            }
+            FORMAT_NAME.with(|slot| slot.set(original.as_ptr()));
+            FORMAT_EVENTS.with(|events| events.borrow_mut().clear());
+            interp.set_result(old_result);
+            let arguments = OriginalArguments::enter(&interp, &[original.as_ptr()]).unwrap();
+            let protocol = interp
+                .native_invocation_dialect()
+                .native_jim_lookup_protocol()
+                .unwrap();
+            let code = interp
+                .publish_original_jim_variable_error(
+                    original.as_ptr(),
+                    &|actual| arguments.check_original_for(actual, 0, original.as_ptr()),
+                    |bytes| {
+                        if namespace {
+                            tcl_cmd_core::var::native_jim_namespace_variable_error(protocol, bytes)
+                        } else {
+                            tcl_cmd_core::var::native_jim_alias_error(
+                                protocol,
+                                tcl_syntax::native_jim_lookup::NativeJimAliasFailure::LocalElement,
+                                bytes,
+                            )
+                        }
+                    },
+                )
+                .unwrap();
+            assert_eq!(code, Code::Error);
+            assert_eq!(
+                FORMAT_EVENTS.with(|events| events.borrow().clone()),
+                vec![("getter", 1), ("publication", 2)]
+            );
+            // SAFETY: the test still owns this original's one caller reference.
+            assert_eq!(unsafe { (*original.as_ptr()).ref_count }, 1);
+            assert!(!interp.result_bytes().contains(&0));
+            FORMAT_NAME.with(|slot| slot.set(std::ptr::null_mut()));
+        }
+    }
+
+    #[test]
+    fn original_jim_variable_and_alias_nul_diagnostics_match_original_formatter() {
+        let mut interp = Interp::with_native_core(
+            crate::interp::default_host(),
+            crate::environment::profile_for_dialect("jimtcl"),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap();
+        let source = br#"set nulname [format "item(k%csuffix)" 0]
+set alias_status [catch {upvar #0 root $nulname} alias_message]
+set namespace_result [namespace eval P {
+    set nulname [format "item(k%csuffix)" 0]
+    set status [catch {variable $nulname value} message]
+    list $status $message
+}]
+list $alias_status $alias_message $namespace_result
+"#;
+        assert_eq!(interp.eval_str(source), Code::Ok);
+        assert_eq!(interp.result_bytes(), br#"1 {bad variable name "item(k": upvar won't create a scalar variable that looks like an array element} {1 {can't define "item(k": name refers to an element in an array}}"#);
+    }
+
+    #[test]
+    fn original_jim_variable_pipeline_matches_original_root_namespace_and_element_cases() {
+        let mut interp = Interp::with_native_core(
+            crate::interp::default_host(),
+            crate::environment::profile_for_dialect("jimtcl"),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap();
+        let source = br#"set root before
+variable root after
+set nsresult [namespace eval P {
+    variable marker first
+    variable marker second
+    set status [catch {variable item(k) value} message]
+    list $marker $status $message
+}]
+variable rootdict(k) value
+list $root $nsresult $rootdict(k)
+"#;
+        assert_eq!(interp.eval_str(source), Code::Ok);
+        assert_eq!(interp.result_bytes(), br#"after {second 1 {can't define "item(k)": name refers to an element in an array}} value"#);
+    }
+
+    #[test]
+    fn original_jim_variable_canonical_name_getter_cannot_keep_retired_namespace_alive() {
+        use crate::interp::native_arguments::OriginalArguments;
+        use crate::obj::{self, Owned};
+        let mut interp = Interp::with_native_core(
+            crate::interp::default_host(),
+            crate::environment::profile_for_dialect("jimtcl"),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap();
+        let context = interp.native_jim_object_context().unwrap();
+        let holder = obj::new_string_bytes(b"P");
+        crate::native_source::bind_context(holder, &context).unwrap();
+        let allocation = obj::NativeObjectLifetime::retain(holder);
+        let token = interp
+            .namespaces_mut()
+            .retain_unmaterialized_jim_namespace(Owned::fresh(holder));
+        let owner = interp
+            .namespaces_mut()
+            .take_jim_namespace_owner(token)
+            .unwrap();
+        CANONICAL_RETIRED_NAMESPACE.with(|slot| *slot.borrow_mut() = Some(owner));
+        interp.set_current_ns(token);
+        let original = Owned::fresh(obj::alloc_typed(&CANONICAL_RETIRE_NAME, 0));
+        crate::native_source::bind_context(original.as_ptr(), &context).unwrap();
+        let arguments = OriginalArguments::enter(&interp, &[original.as_ptr()]).unwrap();
+        let namespace = crate::interp::OriginalJimLookupNamespace::capture(&interp, token).unwrap();
+        let reached = interp.jim_canonical_namespace_object_using(
+            namespace.original_ptr(),
+            original.as_ptr(),
+            &|actual| namespace.check_current_arguments(actual, &arguments),
+        );
+        assert!(reached.is_err());
+        assert!(allocation.checked_ptr().is_err());
+        assert!(interp.native_execution_refusal().is_some());
+    }
+
+    #[test]
+    fn original_jim_canonical_producer_keeps_target_unowned_until_namespace_link() {
+        use crate::interp::native_arguments::OriginalArguments;
+        use crate::obj::{self, Owned};
+        for name in [b"plain".as_slice(), b"::absolute"] {
+            let mut interp = Interp::with_native_core(
+                crate::interp::default_host(),
+                crate::environment::profile_for_dialect("jimtcl"),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            let context = interp.native_jim_object_context().unwrap();
+            let original = Owned::fresh(obj::new_string_bytes(name));
+            crate::native_source::bind_context(original.as_ptr(), &context).unwrap();
+            let arguments = OriginalArguments::enter(&interp, &[original.as_ptr()]).unwrap();
+            let namespace =
+                crate::interp::OriginalJimLookupNamespace::capture(&interp, interp.current_ns())
+                    .unwrap();
+            // SAFETY: the argument and namespace receipts pin both live headers.
+            let counts = unsafe {
+                (
+                    (*original.as_ptr()).ref_count,
+                    (*namespace.original_ptr()).ref_count,
+                )
+            };
+            let canonical = interp
+                .jim_canonical_namespace_object_using(
+                    namespace.original_ptr(),
+                    original.as_ptr(),
+                    &|actual| namespace.check_current_arguments(actual, &arguments),
+                )
+                .unwrap();
+            let target = canonical.checked_ptr().unwrap();
+            assert_eq!(target == original.as_ptr(), name == b"plain");
+            // SAFETY: all pointers retain checked live allocations.
+            unsafe {
+                assert_eq!((*original.as_ptr()).ref_count, counts.0);
+                assert_eq!((*namespace.original_ptr()).ref_count, counts.1);
+                assert_eq!(
+                    (*target).ref_count,
+                    if target == original.as_ptr() {
+                        counts.0
+                    } else {
+                        0
+                    }
+                );
+            }
+            drop(canonical);
+            namespace
+                .check_current_arguments(&interp, &arguments)
+                .unwrap();
+        }
+    }
+
+    #[test]
+    fn original_jim_variable_local_tail_retains_actual_argument_and_ordinal() {
+        use crate::interp::native_arguments::OriginalArguments;
+        use crate::obj::{self, Owned};
+        for name in [b"plain".as_slice(), b"::qualified", b"plain\0::later"] {
+            let mut interp = Interp::with_native_core(
+                crate::interp::default_host(),
+                crate::environment::profile_for_dialect("jimtcl"),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            let head = Owned::fresh(obj::new_string_bytes(b"variable"));
+            let first = Owned::fresh(obj::new_string_bytes(b"earlier"));
+            let value = Owned::fresh(obj::new_string_bytes(b"value"));
+            let original = Owned::fresh(obj::new_string_bytes(name));
+            let context = interp.native_jim_object_context().unwrap();
+            for object in [&head, &first, &value, &original] {
+                crate::native_source::bind_context(object.as_ptr(), &context).unwrap();
+            }
+            let argv = [
+                head.as_ptr(),
+                first.as_ptr(),
+                value.as_ptr(),
+                original.as_ptr(),
+            ];
+            let arguments = OriginalArguments::enter(&interp, &argv).unwrap();
+            let local = interp
+                .original_jim_namespace_text_object(original.as_ptr(), true, 3, &arguments)
+                .unwrap();
+            let local = Owned::retain(local);
+            assert_eq!(local.as_ptr() == original.as_ptr(), name != b"::qualified");
+            assert_eq!(
+                interp
+                    .native_string_bytes(&local.as_ptr())
+                    .unwrap()
+                    .as_ref(),
+                if name == b"::qualified" {
+                    b"qualified".as_slice()
+                } else {
+                    name
+                }
+            );
+            let impostor = Owned::fresh(obj::new_string_bytes(name));
+            crate::native_source::bind_context(impostor.as_ptr(), &context).unwrap();
+            assert!(
+                interp
+                    .original_jim_namespace_text_object(impostor.as_ptr(), true, 3, &arguments)
+                    .is_err()
+            );
+        }
+    }
+
     #[test]
     fn original_upvar_error_publication_matches_all_six_native_sources() {
         // naming.variable.original-upvar-error-publication
@@ -726,7 +1206,7 @@ mod tests {
         // naming.variable.original-array-member-trace-retirement-horizon
         // docs/design/analysis/name-resolution-proofs/variable-original-array-member-trace-retirement-horizon.md
         // Whole public callback logs, including later-member trace registration.
-        use tcl_syntax::execution_conformance::{vectors, ExecutionDomain};
+        use tcl_syntax::execution_conformance::{ExecutionDomain, vectors};
         let cases: Vec<_> = vectors(ExecutionDomain::CommandBinding)
             .into_iter()
             .filter(|case| case.id.starts_with("variable_array_unset_"))
@@ -763,7 +1243,7 @@ mod tests {
 
     #[test]
     fn captured_increment_receivers_match_actual_native_releases() {
-        use tcl_syntax::execution_conformance::{vectors, ExecutionDomain};
+        use tcl_syntax::execution_conformance::{ExecutionDomain, vectors};
         let cases: Vec<_> = vectors(ExecutionDomain::CommandBinding)
             .into_iter()
             .filter(|case| {

@@ -1024,6 +1024,7 @@ pub fn full_with_cu_and_analysis(
             classes: analysis.map(AnalysisResult::class_hierarchy),
             proc_roles: proc_roles.as_ref(),
             named_instances: named_instances.as_ref(),
+            project_classes: None,
             analysis,
         },
     )
@@ -1068,6 +1069,7 @@ pub fn full_with_cu_and_classes_and_roles(
             classes,
             proc_roles,
             named_instances: None,
+            project_classes: None,
             analysis: None,
         },
     )
@@ -1143,6 +1145,7 @@ pub fn range_with_cu_and_analysis(
             classes: analysis.map(AnalysisResult::class_hierarchy),
             proc_roles: proc_roles.as_ref(),
             named_instances: named_instances.as_ref(),
+            project_classes: None,
             analysis,
         },
     )
@@ -1184,6 +1187,7 @@ pub fn range_with_cu_and_classes_and_roles(
             classes,
             proc_roles,
             named_instances: None,
+            project_classes: None,
             analysis: None,
         },
     )
@@ -1656,6 +1660,11 @@ pub type NamedInstanceMap = std::collections::HashMap<String, String>;
 pub struct WorkspaceTokenFacts<'a> {
     /// The workspace-merged class hierarchy, or the local single-file one.
     pub classes: Option<&'a ClassHierarchy>,
+    /// Original project class/factory/instance display cards. Present means
+    /// user-class roles require this typed owner, including after refusal.
+    pub project_classes: Option<
+        &'a [tcl_compiler::registry_invocation::source_structure::OriginalProjectClassCards],
+    >,
     /// The workspace-merged (or local) inferred proc parameter roles.
     pub proc_roles: Option<&'a VarNameArgRoles>,
     /// The workspace-merged (or local) `CLASS create NAME` bareword
@@ -1699,6 +1708,14 @@ fn insert_object_method_overrides(
     classes: Option<&ClassHierarchy>,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
+    if classes.is_some()
+        && let Some(providers) = ctx.project_classes
+        && receiver_source::insert_project_method(ctx, seg, providers, overrides)
+    {
+        return;
+    }
+    // Typed project mode cannot recover a refused source class from maps.
+    let classes = ctx.project_classes.is_none().then_some(classes).flatten();
     let registry = ctx.registry;
     let object_classes = ctx.object_classes;
     let document_floor = ctx
@@ -2923,9 +2940,13 @@ struct ScriptCtx<'a> {
     /// defined in another file resolves too.  `None` for
     /// the pure-segmentation path.
     classes: Option<&'a ClassHierarchy>,
+    project_classes: Option<
+        &'a [tcl_compiler::registry_invocation::source_structure::OriginalProjectClassCards],
+    >,
     /// The local analysis when this request has one, used only for document
     /// package floors on lifecycle-gated registry methods.
     analysis: Option<&'a AnalysisResult>,
+    original_collections: Option<&'a tcl_compiler::object_types::OriginalObjectCollectionSources>,
     original_roles: &'a original::OriginalTokenRoles,
     proc_roles: Option<&'a VarNameArgRoles>,
     /// The class whose definition body we are currently inside (as written at
@@ -3292,6 +3313,11 @@ fn collect_script(
         }
         if ctx.lexical {
             insert_lexical_user_overrides(ctx, &seg, &mut overrides);
+        } else if let Some(providers) = ctx.project_classes {
+            // Native lexical/report overlays remain guarded by has_head. This
+            // independent source-display branch requires the selected original
+            // class/instance and preserves stronger role overrides on insertion.
+            receiver_source::insert_project_method(ctx, &seg, providers, &mut overrides);
         }
         original::insert_definition_member_overrides(ctx, &seg, &mut overrides);
         let member_parameter_operands = original::definition_member_parameter_operands(ctx, &seg);
@@ -4561,6 +4587,7 @@ fn collect_entries(
         classes,
         proc_roles,
         named_instances,
+        project_classes,
         analysis,
     } = facts;
     let fresh_analysis;
@@ -4642,7 +4669,9 @@ fn collect_entries(
 
     // Logical object classification shares this compatibility handle map.
     // Native source roles never recover receiver identity from its labels.
-    if let Some(named) = named_instances {
+    if project_classes.is_none()
+        && let Some(named) = named_instances
+    {
         for (name, class) in named {
             object_classes
                 .entry(name.clone())
@@ -4685,6 +4714,11 @@ fn collect_entries(
 
     // Walk every segmented command (recursing into braced bodies, braced
     // expressions, and `[…]` command substitutions) and classify each token.
+    let original_collections = project_classes.and_then(|_| cu).and_then(|unit| {
+        tcl_compiler::object_types::OriginalObjectCollectionSources::capture(
+            source, analysis?, unit,
+        )
+    });
     let original_roles = original::OriginalTokenRoles::capture(source, analysis);
     let ctx = ScriptCtx {
         full_source: source,
@@ -4716,7 +4750,9 @@ fn collect_entries(
         object_classes: &object_classes,
         object_collections: &object_collections,
         classes,
+        project_classes,
         analysis,
+        original_collections: original_collections.as_ref(),
         original_roles: &original_roles,
         proc_roles,
         enclosing_class: None,

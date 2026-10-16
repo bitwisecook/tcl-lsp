@@ -1,0 +1,7 @@
+
+running 2 tests
+test interp::native_namespace_names::tests::selected_c_report_parts_keep_actual_constructed_geometry_and_retirement ... ok
+test interp::native_namespace_names::tests::selected_c_report_parts_keep_the_retained_dying_activation_then_refuse_retired_birth ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 1372 filtered out; finished in 0.61s
+

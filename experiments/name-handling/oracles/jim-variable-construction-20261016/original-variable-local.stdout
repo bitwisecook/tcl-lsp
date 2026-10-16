@@ -1,0 +1,4 @@
+ROOT after
+NAMESPACE second
+ELEMENT 1 {can't define "item(k)": name refers to an element in an array}
+ROOT_ELEMENT value

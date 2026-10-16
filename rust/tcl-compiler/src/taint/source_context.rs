@@ -77,18 +77,6 @@ impl<'a> TaintSourceContext<'a> {
         }
     }
 
-    pub(crate) fn for_cfg(registry: &CommandRegistry, cfg: &'a crate::cfg::Function) -> Self {
-        if cfg.metadata_context.is_standalone() {
-            return Self::standalone(registry, registry.profile());
-        }
-        let input = cfg.metadata_context.source_analysis_input();
-        Self::for_input(
-            registry,
-            input,
-            input.map_or_else(LexerConfig::default, ResolvedAnalysisInput::lexer_config),
-        )
-    }
-
     pub(crate) fn for_function(registry: &CommandRegistry, function: &'a FunctionUnit) -> Self {
         Self::for_input(
             registry,

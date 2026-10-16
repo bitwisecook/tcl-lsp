@@ -156,6 +156,7 @@ fn original_receiver_class_receipt_cannot_be_replaced_by_foreign_hierarchy_metad
             classes: Some(foreign.class_hierarchy()),
             proc_roles: None,
             named_instances: None,
+            project_classes: None,
             analysis: Some(&current),
         },
     ));

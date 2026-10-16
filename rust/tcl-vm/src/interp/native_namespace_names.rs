@@ -925,7 +925,11 @@ mod tests {
             .with_jim_current_namespace(|holder| Ok(holder.native_lifetime_lease()))
             .unwrap();
         let before = original.value().native_object_snapshot();
-        vm.refuse_host_command("original namespace report first cause".into());
+        assert_eq!(
+            vm.refuse_host_command("original namespace report first cause".into())
+                .code,
+            tcl_core_types::Code::Error,
+        );
         let first = vm.execution_refusal.clone().unwrap();
         let error = Namespaces::namespace_report_parts_checked(&mut vm, ROOT_NS).unwrap_err();
         assert_eq!(error.native_execution_refusal(), Some(&first));

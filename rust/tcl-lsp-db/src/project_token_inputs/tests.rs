@@ -516,3 +516,424 @@ fn project_source_roles_bind_original_optional_formals_and_keep_foreign_class_ba
         ));
     }
 }
+
+fn is_method(tokens: &SemanticTokens, source: &str, word: &str) -> bool {
+    let offset = u32::try_from(source.rfind(word).unwrap()).unwrap();
+    let target = tcl_lexer::LineIndex::new(source).position_at_utf16(offset, source);
+    let kind = u32::try_from(
+        tcl_lsp_core::semantic_tokens::legend_token_types()
+            .iter()
+            .position(|kind| *kind == "method")
+            .unwrap(),
+    )
+    .unwrap();
+    let (mut line, mut column) = (0, 0);
+    tokens.data.chunks_exact(5).any(|token| {
+        line += token[0];
+        column = if token[0] == 0 {
+            column + token[1]
+        } else {
+            token[1]
+        };
+        line == target.line && column == target.character.get() && token[3] == kind
+    })
+}
+
+#[test]
+fn project_class_display_keeps_original_factory_and_named_instance_cards() {
+    for dialect in ["tcl", "tcl8.6", "tcl9.0"] {
+        for source in ["[::C new] ping", "::obj ping"] {
+            let db = TclDatabase::default();
+            let config = configuration(&db, 0);
+            let library = SourceFile::new(
+                &db,
+                "oo::class create ::C {method ping {} {}}; ::C create ::obj".to_owned(),
+                dialect.to_owned(),
+                None,
+            );
+            let caller = SourceFile::new(&db, source.to_owned(), dialect.to_owned(), None);
+            let project = Project::with_token_configurations(
+                &db,
+                vec![library, caller],
+                Some(vec![(library, config), (caller, config)]),
+            );
+            assert!(
+                file_token_facts_for_config(&db, library, config)
+                    .class_cards
+                    .is_some()
+            );
+            assert!(
+                is_method(
+                    &semantic_tokens_project_for_inputs(&db, caller, project),
+                    source,
+                    "ping"
+                ),
+                "{dialect}: {source}"
+            );
+            assert!(!is_method(
+                &semantic_tokens(&db, caller, config),
+                source,
+                "ping"
+            ));
+        }
+    }
+}
+
+#[test]
+fn project_class_display_does_not_recover_refused_receipts_from_report_maps() {
+    for dialect in ["tcl", "tcl8.6", "tcl9.0"] {
+        let mut db = TclDatabase::default();
+        let config = configuration(&db, 0);
+        let library = SourceFile::new(
+            &db,
+            "oo::class create C {method ping {} {}}; C create obj".to_owned(),
+            dialect.to_owned(),
+            None,
+        );
+        let caller = SourceFile::new(&db, "[C new] ping".to_owned(), dialect.to_owned(), None);
+        let project = Project::with_token_configurations(
+            &db,
+            vec![library, caller],
+            Some(vec![(library, config), (caller, config)]),
+        );
+        for source in [
+            "proc C {args} {}; [C new] ping",
+            "proc C {args} {}; rename C {}; [C new] ping",
+            "interp alias {} C {} list; [C new] ping",
+            "unknown_effect; [C new] ping",
+            "proc obj {args} {}; obj ping",
+            "interp alias {} obj {} list; obj ping",
+        ] {
+            caller.set_text(&mut db).to(source.to_owned());
+            assert!(
+                !is_method(
+                    &semantic_tokens_project_for_inputs(&db, caller, project),
+                    source,
+                    "ping"
+                ),
+                "{dialect}: {source}"
+            );
+        }
+        caller.set_text(&mut db).to("obj ping".to_owned());
+        library
+            .set_text(&mut db)
+            .to("oo::class create C {method ping {} {}}; C create obj; rename obj {}".to_owned());
+        assert!(!is_method(
+            &semantic_tokens_project_for_inputs(&db, caller, project),
+            "obj ping",
+            "ping"
+        ));
+        // Retained class reports cannot restore a known deleted source slot.
+        assert!(
+            project_class_index_for_inputs(&db, project)
+                .classes
+                .contains_key("::C")
+        );
+        caller.set_text(&mut db).to("[C new] ping".to_owned());
+        assert!(is_method(
+            &semantic_tokens_project_for_inputs(&db, caller, project),
+            "[C new] ping",
+            "ping"
+        ));
+        project
+            .set_token_configurations(&mut db)
+            .to(Some(vec![(caller, config)]));
+        assert!(!is_method(
+            &semantic_tokens_project_for_inputs(&db, caller, project),
+            "[C new] ping",
+            "ping"
+        ));
+    }
+}
+
+#[test]
+fn project_configurable_display_preserves_cross_file_factory_positive() {
+    let db = TclDatabase::default();
+    let config = configuration(&db, 0);
+    let source = "[::Pin new] configure -node 5";
+    let library = SourceFile::new(
+        &db,
+        "oo::configurable create ::Pin {property node}".to_owned(),
+        "tcl9.0".to_owned(),
+        None,
+    );
+    let caller = SourceFile::new(&db, source.to_owned(), "tcl9.0".to_owned(), None);
+    let project = Project::with_token_configurations(
+        &db,
+        vec![library, caller],
+        Some(vec![(library, config), (caller, config)]),
+    );
+    assert!(is_method(
+        &semantic_tokens_project_for_inputs(&db, caller, project),
+        source,
+        "configure"
+    ));
+}
+
+#[test]
+fn project_class_collection_display_keeps_original_container_and_receiver_paths() {
+    for dialect in ["tcl", "tcl8.6", "tcl9.0"] {
+        let mut db = TclDatabase::default();
+        let config = configuration(&db, 0);
+        let caller = SourceFile::new(&db, String::new(), dialect.to_owned(), None);
+        let project =
+            Project::with_token_configurations(&db, vec![caller], Some(vec![(caller, config)]));
+        for (storage, expected) in [
+            (
+                "dict set values key [C new]; [dict get $values key] ping",
+                true,
+            ),
+            ("lappend values [C new]; [lindex $values 0] ping", true),
+            (
+                "dict set values key [C new]; rename C D; [dict get $values key] ping",
+                true,
+            ),
+            (
+                "dict set values key [C new]; set item [dict get $values key]; $item ping",
+                true,
+            ),
+            (
+                "lappend values [C new]; foreach item $values {$item ping}",
+                true,
+            ),
+            (
+                "dict set values key [C new]; dict for {key item} $values {$item ping}",
+                true,
+            ),
+            (
+                "dict set other key [C new]; [dict get $values key] ping",
+                false,
+            ),
+            (
+                "dict set values outer inner [C new]; [dict get $values outer] ping",
+                false,
+            ),
+            (
+                "dict lappend values key [C new]; [dict get $values key] ping",
+                false,
+            ),
+            (
+                "dict set values key UNKNOWN; [dict get $values key] ping",
+                false,
+            ),
+            (
+                "dict set values key [C new]; unknown_effect; [dict get $values key] ping",
+                false,
+            ),
+            (
+                "dict set values key [C new]; rename C {}; [dict get $values key] ping",
+                false,
+            ),
+        ] {
+            let source = format!("oo::class create C {{method ping {{}} {{}}}}; {storage}");
+            caller.set_text(&mut db).to(source.clone());
+            assert_eq!(
+                is_method(
+                    &semantic_tokens_project_for_inputs(&db, caller, project),
+                    &source,
+                    "ping"
+                ),
+                expected,
+                "{dialect}: {source}"
+            );
+        }
+    }
+}
+
+#[test]
+fn project_class_collection_display_retains_foreign_getter_unknown_barrier() {
+    for dialect in ["tcl", "tcl8.6", "tcl9.0"] {
+        let db = TclDatabase::default();
+        let config = configuration(&db, 0);
+        let library = SourceFile::new(
+            &db,
+            "oo::class create C {method ping {} {}}".to_owned(),
+            dialect.to_owned(),
+            None,
+        );
+        let source = "dict set values key [C new]; [dict get $values key] ping";
+        let caller = SourceFile::new(&db, source.to_owned(), dialect.to_owned(), None);
+        let project = Project::with_token_configurations(
+            &db,
+            vec![library, caller],
+            Some(vec![(library, config), (caller, config)]),
+        );
+        assert!(
+            !is_method(
+                &semantic_tokens_project_for_inputs(&db, caller, project),
+                source,
+                "ping"
+            ),
+            "{dialect}"
+        );
+    }
+}
+
+#[test]
+fn project_class_collection_field_display_uses_original_declaration_and_receiver_side() {
+    for dialect in ["tcl", "tcl8.6", "tcl9.0"] {
+        let mut db = TclDatabase::default();
+        let config = configuration(&db, 0);
+        let caller = SourceFile::new(&db, String::new(), dialect.to_owned(), None);
+        let project =
+            Project::with_token_configurations(&db, vec![caller], Some(vec![(caller, config)]));
+        for (cache, expected) in [
+            (
+                "oo::class create Cache {variable values; constructor {} {dict set values key [C new]}; method read {} {[dict get $values key] ping}}",
+                true,
+            ),
+            (
+                "oo::class create Cache {variable values; method put {} {dict set values key [C new]}; method read {} {[dict get $values key] ping}}",
+                true,
+            ),
+            (
+                "oo::class create Cache {method put {} {dict set values key [C new]}; method read {} {[dict get $values key] ping}}",
+                false,
+            ),
+            (
+                "oo::class create Cache {variable values; method put {} {dict set values key [C new]}; method read {values} {[dict get $values key] ping}}",
+                false,
+            ),
+            (
+                "oo::class create Cache {variable values; method put {} {dict set values key [C new]}; self method read {} {[dict get $values key] ping}}",
+                false,
+            ),
+            (
+                "oo::class create Cache {variable values; method put {} {dict set values key [C new]}}; oo::class create Other {variable values; method read {} {[dict get $values key] ping}}",
+                false,
+            ),
+        ] {
+            let source = format!("oo::class create C {{method ping {{}} {{}}}}; {cache}");
+            caller.set_text(&mut db).to(source.clone());
+            assert_eq!(
+                is_method(
+                    &semantic_tokens_project_for_inputs(&db, caller, project),
+                    &source,
+                    "ping"
+                ),
+                expected,
+                "{dialect}: {source}"
+            );
+        }
+    }
+}
+
+#[test]
+fn project_class_inherited_display_does_not_collapse_distinct_equal_content_files() {
+    for dialect in ["tcl", "tcl8.6", "tcl9.0"] {
+        let db = TclDatabase::default();
+        let config = configuration(&db, 0);
+        let library = "oo::class create Base {method ping {} {}}";
+        let a = SourceFile::new(&db, library.to_owned(), dialect.to_owned(), None);
+        let b = SourceFile::new(&db, library.to_owned(), dialect.to_owned(), None);
+        assert_ne!(a, b);
+        let source = "oo::class create C {superclass Base}; [C new] ping";
+        let caller = SourceFile::new(&db, source.to_owned(), dialect.to_owned(), None);
+        let one = Project::with_token_configurations(
+            &db,
+            vec![a, caller],
+            Some(vec![(a, config), (caller, config)]),
+        );
+        assert!(
+            is_method(
+                &semantic_tokens_project_for_inputs(&db, caller, one),
+                source,
+                "ping"
+            ),
+            "{dialect}: one foreign Base"
+        );
+        assert!(
+            is_method(
+                &semantic_tokens_project(&db, caller, one, config),
+                source,
+                "ping"
+            ),
+            "{dialect}: compatibility one foreign Base"
+        );
+        let project = Project::with_token_configurations(
+            &db,
+            vec![a, b, caller],
+            Some(vec![(a, config), (b, config), (caller, config)]),
+        );
+        assert!(
+            !is_method(
+                &semantic_tokens_project_for_inputs(&db, caller, project),
+                source,
+                "ping"
+            ),
+            "{dialect}"
+        );
+        assert!(
+            !is_method(
+                &semantic_tokens_project(&db, caller, project, config),
+                source,
+                "ping"
+            ),
+            "{dialect}: compatibility entrance"
+        );
+    }
+}
+
+#[test]
+fn project_class_foreign_equal_content_unknown_inventory_stays_terminal() {
+    for dialect in ["tcl", "tcl8.6", "tcl9.0"] {
+        let db = TclDatabase::default();
+        let config = configuration(&db, 0);
+        let library = SourceFile::new(
+            &db,
+            "oo::class create C {method ping {} {}}".to_owned(),
+            dialect.to_owned(),
+            None,
+        );
+        let source = "[C new] ping; unknown_effect";
+        let caller = SourceFile::new(&db, source.to_owned(), dialect.to_owned(), None);
+        let duplicate = SourceFile::new(&db, source.to_owned(), dialect.to_owned(), None);
+        assert_ne!(caller, duplicate);
+        let one = Project::with_token_configurations(
+            &db,
+            vec![library, caller],
+            Some(vec![(library, config), (caller, config)]),
+        );
+        assert!(
+            is_method(
+                &semantic_tokens_project_for_inputs(&db, caller, one),
+                source,
+                "ping"
+            ),
+            "{dialect}: caller-only later unknown is not an earlier lookup mutation"
+        );
+        assert!(
+            is_method(
+                &semantic_tokens_project(&db, caller, one, config),
+                source,
+                "ping"
+            ),
+            "{dialect}: compatibility control"
+        );
+        let foreign_unknown = Project::with_token_configurations(
+            &db,
+            vec![library, caller, duplicate],
+            Some(vec![
+                (library, config),
+                (caller, config),
+                (duplicate, config),
+            ]),
+        );
+        assert!(
+            !is_method(
+                &semantic_tokens_project_for_inputs(&db, caller, foreign_unknown),
+                source,
+                "ping"
+            ),
+            "{dialect}: distinct equal-content unknown provider"
+        );
+        assert!(
+            !is_method(
+                &semantic_tokens_project(&db, caller, foreign_unknown, config),
+                source,
+                "ping"
+            ),
+            "{dialect}: compatibility unknown provider"
+        );
+    }
+}

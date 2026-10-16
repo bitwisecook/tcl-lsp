@@ -1317,3 +1317,20 @@ impl super::CommandBindingRealm {
         Some(advice)
     }
 }
+
+impl super::CommandBindingRealm {
+    pub(crate) fn original_class_display_publications(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> Option<crate::registry_invocation::source_structure::OriginalProjectClassCells> {
+        self.matches_resolved_analysis_input(input).then_some(())?;
+        let image = self.original_source_image()?;
+        let context = input.context_registry();
+        let prepared = self.source_advice.get_or_prepare(&context, || {
+            self.bindings
+                .original_source_transition_advice_tape(&context)
+        });
+        let inventory = prepared.as_ref().as_ref()?.class_display_publications()?;
+        inventory.with_retained_input(image, input)
+    }
+}

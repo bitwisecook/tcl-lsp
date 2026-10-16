@@ -1,0 +1,27 @@
+
+running 4 tests
+test registry_invocation::source_structure::project_procedure_roles::tests::project_procedure_arguments_keep_declaring_formals_and_actual_call_geometry ... 
+thread 'registry_invocation::source_structure::project_procedure_roles::tests::project_procedure_arguments_keep_declaring_formals_and_actual_call_geometry' (63121) panicked at rust/tcl-compiler/src/registry_invocation/source_structure/project_procedure_roles.rs:412:18:
+tcl
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test registry_invocation::source_structure::project_procedure_roles::tests::project_procedure_arguments_keep_priority_ambiguity_and_class_blockers ... 
+thread 'registry_invocation::source_structure::project_procedure_roles::tests::project_procedure_arguments_keep_priority_ambiguity_and_class_blockers' (63122) panicked at rust/tcl-compiler/src/registry_invocation/source_structure/project_procedure_roles.rs:492:22:
+genuine root fallback after local deletion
+FAILED
+test registry_invocation::source_structure::project_procedure_roles::tests::project_procedure_arguments_preserve_stronger_occupants_and_barriers ... ok
+test registry_invocation::source_structure::project_procedure_roles::tests::project_procedure_arguments_refuse_mismatched_or_stale_declaring_owner ... 
+thread 'registry_invocation::source_structure::project_procedure_roles::tests::project_procedure_arguments_refuse_mismatched_or_stale_declaring_owner' (63210) panicked at rust/tcl-compiler/src/registry_invocation/source_structure/project_procedure_roles.rs:369:13:
+assertion failed: original_project_procedure_arguments(source, &caller, &command,
+        std::slice::from_ref(&provider)).is_some()
+FAILED
+
+failures:
+
+failures:
+    registry_invocation::source_structure::project_procedure_roles::tests::project_procedure_arguments_keep_declaring_formals_and_actual_call_geometry
+    registry_invocation::source_structure::project_procedure_roles::tests::project_procedure_arguments_keep_priority_ambiguity_and_class_blockers
+    registry_invocation::source_structure::project_procedure_roles::tests::project_procedure_arguments_refuse_mismatched_or_stale_declaring_owner
+
+test result: FAILED. 1 passed; 3 failed; 0 ignored; 0 measured; 10199 filtered out; finished in 27.94s
+

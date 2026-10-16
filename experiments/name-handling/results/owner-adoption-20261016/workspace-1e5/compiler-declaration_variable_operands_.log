@@ -1,0 +1,16 @@
+
+running 2 tests
+test command_binding::declaration_layout::tests::declaration_variable_operands_preserve_decoded_name_and_decline_aliases ... ok
+test command_binding::declaration_layout::tests::declaration_variable_operands_use_the_original_selected_word_configuration ... 
+thread 'command_binding::declaration_layout::tests::declaration_variable_operands_use_the_original_selected_word_configuration' (63115) panicked at rust/tcl-compiler/src/command_binding/declaration_layout.rs:3420:77:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    command_binding::declaration_layout::tests::declaration_variable_operands_use_the_original_selected_word_configuration
+
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 10201 filtered out; finished in 0.46s
+

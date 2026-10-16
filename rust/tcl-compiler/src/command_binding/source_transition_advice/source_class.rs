@@ -488,24 +488,8 @@ impl OriginalSourceConstructorCall {
         if first.original.group().expand {
             return None;
         }
-        let word = std::str::from_utf8(first.value.as_deref()?).ok()?;
-        if word.contains('\0') || class.class_methods.contains_key(word) {
-            return None;
-        }
-        let grammar = self.class.grammar(&context)?;
-        if let Some(method) = grammar.manufacturer(word) {
-            let visible = !class.class_unexports.contains(word)
-                && (method.visibility == MemberVisibility::Exported
-                    || class.class_exports.contains(word));
-            return visible.then_some(OriginalSourceConstructorShape::Method(method));
-        }
-        let name_at = grammar.conditional_construction_name_at(
-            word,
-            class.class_methods.keys().map(String::as_str),
-        )?;
-        (name_at == 0).then_some(OriginalSourceConstructorShape::BareWord {
-            constructor_args_from: 1,
-        })
+        self.class
+            .display_constructor_shape(class, first.input.as_ref()?, &context, None)
     }
     /// Exact source construction shape. Unexported methods, declared provider
     /// type methods and ambiguous or opaque selectors have no such projection.
@@ -526,67 +510,19 @@ impl OriginalSourceConstructorCall {
         if first.original.group().expand {
             return None;
         }
-        let bytes = first.value.as_deref()?;
-        if !bytes.is_ascii() || bytes.contains(&0) {
-            return None;
-        }
-        let word = std::str::from_utf8(bytes).ok()?;
-        let grammar = self.class.grammar(&context)?;
         let class = self.class.source_class(analysis)?;
-        let members = &class.metadata().original_members;
         let deferred = self
             .obligations
             .contains(&SourceCommandTransitionObligation::OriginalProcedureBodyApplicability)
             || self
                 .obligations
                 .contains(&SourceCommandTransitionObligation::DeferredLogicalBodyApplicability);
-        let methods = if deferred {
-            members.methods(crate::analyser::MemberSide::ClassObject)?
-        } else {
-            members
-                .methods_before_source_call(crate::analyser::MemberSide::ClassObject, self.site())?
-        };
-        let names = methods
-            .iter()
-            .map(|method| {
-                (
-                    tcl_core_types::NameBytes::from(method.original_name_input().bytes()),
-                    method.original_name_input().policy(),
-                )
-            })
-            .collect::<Vec<_>>();
-        if names.iter().any(|(name, _)| name.as_bytes() == bytes) {
-            return None;
-        }
-        if let Some(method) = grammar.manufacturer(word) {
-            let selector = first.input.as_ref()?.native_input()?;
-            let exported = method.visibility == MemberVisibility::Exported;
-            let visible = if deferred {
-                members.inherited_visibility_for_input(
-                    crate::analyser::MemberSide::ClassObject,
-                    selector,
-                    exported,
-                )?
-            } else {
-                members.inherited_visibility_before_source_call(
-                    crate::analyser::MemberSide::ClassObject,
-                    selector,
-                    exported,
-                    self.site(),
-                )?
-            };
-            return visible.then_some(OriginalSourceConstructorShape::Method(method));
-        }
-        let type_methods = names
-            .iter()
-            .map(|(name, _)| name.try_utf8())
-            .collect::<Result<Vec<_>, _>>()
-            .ok()?;
-        let name_at =
-            grammar.conditional_construction_name_at(word, type_methods.iter().copied())?;
-        (name_at == 0).then_some(OriginalSourceConstructorShape::BareWord {
-            constructor_args_from: 1,
-        })
+        self.class.display_constructor_shape(
+            class.metadata(),
+            first.input.as_ref()?,
+            &context,
+            (!deferred).then_some(self.site()),
+        )
     }
 }
 
@@ -1819,5 +1755,88 @@ mod tests {
                 "{mutation}"
             );
         }
+    }
+}
+
+impl OriginalSourceClassDeclaration {
+    /// Shared conditional display calculation after independent original class
+    /// and caller-word correspondence. No receiver, execution or allocation.
+    pub(crate) fn display_constructor_shape(
+        &self,
+        class: &ClassDef,
+        selector: &SourceAdviceNameInput,
+        context: &ContextRegistry,
+        before: Option<&super::super::CommandAllocationSite>,
+    ) -> Option<OriginalSourceConstructorShape> {
+        let bytes = selector.bytes();
+        let word = std::str::from_utf8(bytes).ok()?;
+        if word.contains('\0') {
+            return None;
+        }
+        let grammar = self.grammar(context)?;
+        if self.name_input().logical_input().is_some() {
+            selector.logical_input()?;
+            if class.class_methods.contains_key(word) {
+                return None;
+            }
+            if let Some(method) = grammar.manufacturer(word) {
+                let visible = !class.class_unexports.contains(word)
+                    && (method.visibility == MemberVisibility::Exported
+                        || class.class_exports.contains(word));
+                return visible.then_some(OriginalSourceConstructorShape::Method(method));
+            }
+            let name_at = grammar.conditional_construction_name_at(
+                word,
+                class.class_methods.keys().map(String::as_str),
+            )?;
+            return (name_at == 0).then_some(OriginalSourceConstructorShape::BareWord {
+                constructor_args_from: 1,
+            });
+        }
+        if !bytes.is_ascii() {
+            return None;
+        }
+        let input = selector.native_input()?;
+        (input.policy() == self.name_input().native_input()?.policy()).then_some(())?;
+        let members = &class.original_members;
+        let methods = match before {
+            Some(call) => members
+                .methods_before_source_call(crate::analyser::MemberSide::ClassObject, call)?,
+            None => members.methods(crate::analyser::MemberSide::ClassObject)?,
+        };
+        let names = methods
+            .iter()
+            .map(|method| method.original_name_input().bytes())
+            .collect::<Vec<_>>();
+        if names.iter().any(|name| *name == bytes) {
+            return None;
+        }
+        if let Some(method) = grammar.manufacturer(word) {
+            let exported = method.visibility == MemberVisibility::Exported;
+            let visible = match before {
+                Some(call) => members.inherited_visibility_before_source_call(
+                    crate::analyser::MemberSide::ClassObject,
+                    input,
+                    exported,
+                    call,
+                )?,
+                None => members.inherited_visibility_for_input(
+                    crate::analyser::MemberSide::ClassObject,
+                    input,
+                    exported,
+                )?,
+            };
+            return visible.then_some(OriginalSourceConstructorShape::Method(method));
+        }
+        let type_methods = names
+            .iter()
+            .map(|name| std::str::from_utf8(name))
+            .collect::<Result<Vec<_>, _>>()
+            .ok()?;
+        let name_at =
+            grammar.conditional_construction_name_at(word, type_methods.iter().copied())?;
+        (name_at == 0).then_some(OriginalSourceConstructorShape::BareWord {
+            constructor_args_from: 1,
+        })
     }
 }

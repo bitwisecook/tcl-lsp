@@ -1,0 +1,130 @@
+
+running 56 tests
+test cmd_namespace::native_jim_helpers::tests::explicit_source_selection_retires_only_its_original_bindings_on_engine_change ... ok
+test cmd_namespace::native_jim_helpers::tests::import_provenance_is_not_acquired_from_user_spelling_or_copied_source ... ok
+test cmd_namespace::native_jim_helpers::tests::installed_namespace_helpers_retain_actual_static_sources_and_one_filename ... ok
+test cmd_namespace::native_jim_helpers::tests::namespace_helpers_require_the_selected_source_extension_and_preserve_overlap ... ok
+test cmd_namespace::native_jim_helpers::tests::original_import_entry_requires_a_genuine_traversal_receipt_after_rename ... ok
+test cmd_namespace::native_jim_helpers::tests::original_namespace_helper_lookup_preserves_selector_and_argument_identity ... ok
+test cmd_namespace::native_jim_subcommands::tests::original_cache_is_installed_before_arity_and_consumed_without_a_string_getter ... ok
+test cmd_namespace::native_jim_subcommands::tests::rejected_selector_uses_the_actual_mutable_sort_result_and_preserves_sort_error_text ... ok
+test cmd_namespace::native_map_prefix_tests::original_counted_map_prefix_vectors_match_all_20_c_public_windows ... ok
+test cmd_namespace::native_store_tests::namespace_stores_match_native_existing_root_fresh_and_declared_controls ... ok
+test cmd_namespace::native_upvar_fixture_tests::jim_namespace_upvar_forwards_root_worker_without_changing_variable_frame ... 
+thread 'cmd_namespace::native_upvar_fixture_tests::jim_namespace_upvar_forwards_root_worker_without_changing_variable_frame' (65788) panicked at rust/tcl-vm/src/cmd_namespace.rs:2806:9:
+assertion `left == right` failed
+  left: Error
+ right: Ok
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test cmd_namespace::native_upvar_fixture_tests::namespace_upvar_grammar_and_target_cells_match_36_native_results ... 
+thread 'cmd_namespace::native_upvar_fixture_tests::namespace_upvar_grammar_and_target_cells_match_36_native_results' (65789) panicked at rust/tcl-vm/src/cmd_namespace.rs:2752:17:
+assertion `left == right` failed: jim/upvar-no-pairs
+  left: [105, 110, 118, 97, 108, 105, 100, 32, 99, 111, 109, 109, 97, 110, 100, 32, 110, 97, 109, 101, 32, 34, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 117, 112, 118, 97, 114, 34]
+ right: [119, 114, 111, 110, 103, 32, 35, 32, 97, 114, 103, 115, 58, 32, 115, 104, 111, 117, 108, 100, 32, 98, 101, 32, 34, 117, 112, 118, 97, 114, 32, 63, 108, 101, 118, 101, 108, 63, 32, 111, 116, 104, 101, 114, 86, 97, 114, 32, 109, 121, 86, 97, 114, 32, 63, 111, 116, 104, 101, 114, 86, 97, 114, 32, 109, 121, 86, 97, 114, 32, 46, 46, 46, 63, 34]
+FAILED
+test cmd_namespace::native_upvar_fixture_tests::namespace_upvar_original_vectors_match_eighteen_native_arity_windows ... 
+thread 'cmd_namespace::native_upvar_fixture_tests::namespace_upvar_original_vectors_match_eighteen_native_arity_windows' (65790) panicked at rust/tcl-vm/src/cmd_namespace.rs:2786:13:
+assertion `left == right` failed: jim	0	1	77726f6e67202320617267733a2073686f756c6420626520227570766172203f6c6576656c3f206f74686572566172206d79566172203f6f74686572566172206d79566172202e2e2e3f22
+  left: [105, 110, 118, 97, 108, 105, 100, 32, 99, 111, 109, 109, 97, 110, 100, 32, 110, 97, 109, 101, 32, 34, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 117, 112, 118, 97, 114, 34]
+ right: [119, 114, 111, 110, 103, 32, 35, 32, 97, 114, 103, 115, 58, 32, 115, 104, 111, 117, 108, 100, 32, 98, 101, 32, 34, 117, 112, 118, 97, 114, 32, 63, 108, 101, 118, 101, 108, 63, 32, 111, 116, 104, 101, 114, 86, 97, 114, 32, 109, 121, 86, 97, 114, 32, 63, 111, 116, 104, 101, 114, 86, 97, 114, 32, 109, 121, 86, 97, 114, 32, 46, 46, 46, 63, 34]
+FAILED
+test cmd_namespace::original_c_import_tests::import_commits_each_original_pattern_before_reaching_the_next_getter ... 
+thread 'cmd_namespace::original_c_import_tests::import_commits_each_original_pattern_before_reaching_the_next_getter' (65815) panicked at rust/tcl-vm/src/cmd_namespace.rs:3959:13:
+assertion failed: later.resident_string_bytes().is_none()
+FAILED
+test cmd_namespace::original_c_import_tests::import_force_uses_exact_leading_c_extent_and_later_force_remains_a_pattern ... 
+thread 'cmd_namespace::original_c_import_tests::import_force_uses_exact_leading_c_extent_and_later_force_remains_a_pattern' (65816) panicked at rust/tcl-vm/src/cmd_namespace.rs:4010:17:
+assertion failed: later.resident_string_bytes().is_none()
+FAILED
+test cmd_namespace::original_c_import_tests::import_keeps_opaque_original_pattern_bytes_and_actual_source_token ... ok
+test cmd_namespace::original_c_import_tests::import_preload_c84_direct_call_bypasses_ordinary_execution_trace ... ok
+test cmd_namespace::original_c_import_tests::import_preload_can_publish_source_before_validation_and_absence_never_enters_unknown ... ok
+test cmd_namespace::original_c_import_tests::import_preload_observes_actual_release_shadow_selection_before_validation ... ok
+test cmd_namespace::original_c_import_tests::import_preload_uses_fresh_c_extent_objects_and_restores_nested_original_vectors ... 
+thread 'cmd_namespace::original_c_import_tests::import_preload_uses_fresh_c_extent_objects_and_restores_nested_original_vectors' (65918) panicked at rust/tcl-vm/src/cmd_namespace.rs:4226:13:
+assertion failed: later.resident_string_bytes().is_none()
+FAILED
+test cmd_namespace::original_c_import_tests::import_publication_callback_refusal_stops_before_import_stamp_and_later_getter ... ok
+test cmd_namespace::original_c_parent_current_holder_tests::parent_without_operand_uses_the_entered_namespace_incarnation ... 
+thread 'cmd_namespace::original_c_parent_current_holder_tests::parent_without_operand_uses_the_entered_namespace_incarnation' (65923) panicked at rust/tcl-vm/src/cmd_namespace.rs:3789:9:
+assertion `left == right` failed
+  left: Ok
+ right: Error
+FAILED
+test cmd_namespace::original_ensemble_tests::configuration_namespace_result_refuses_component_with_no_native_c_spelling ... ok
+test cmd_namespace::original_ensemble_tests::configuration_namespace_result_retains_bytes_after_retirement_and_refuses_dead_owner ... ok
+test cmd_namespace::original_ensemble_tests::configuration_namespace_results_keep_exact_selected_bytes_and_primary ... ok
+test cmd_namespace::original_ensemble_tests::configuration_namespace_results_preserve_distinct_owners_with_equal_name_bytes ... ok
+test cmd_namespace::original_ensemble_tests::counted_map_roots_and_native_cstring_collision_owners_are_independent ... ok
+test cmd_namespace::original_ensemble_tests::explicit_subcommands_restrict_the_actual_map ... ok
+test cmd_namespace::original_ensemble_tests::map_queries_keep_the_same_original_and_do_not_own_retired_configuration ... ok
+test cmd_namespace::original_ensemble_tests::original_ensemble_options_use_actual_release_tables ... ok
+test cmd_namespace::original_export_tests::export_clear_control_is_exact_leading_and_uses_cstring_extent ... ok
+test cmd_namespace::original_export_tests::export_commits_each_original_pattern_before_a_later_getter_refusal ... ok
+test cmd_namespace::original_export_tests::export_invalid_pattern_stops_before_later_original_getter_and_keeps_prior_commits ... 
+thread 'cmd_namespace::original_export_tests::export_invalid_pattern_stops_before_later_original_getter_and_keeps_prior_commits' (65941) panicked at rust/tcl-vm/src/cmd_namespace.rs:2868:13:
+tcl8.4
+FAILED
+test cmd_namespace::original_export_tests::jim_export_noop_does_not_reach_original_operand_getters ... ok
+test cmd_namespace::original_jim_canonical_current_holder_tests::canonical_uses_the_original_holder_and_reached_namespace_getter ... ok
+test cmd_namespace::original_jim_canonical_current_holder_tests::equal_explicit_prefix_does_not_issue_the_current_namespace_coordinate ... ok
+test cmd_namespace::original_jim_import_tests::original_vm_jim_alias_query_keeps_explicit_root_context_after_destination_cache ... 
+thread 'cmd_namespace::original_jim_import_tests::original_vm_jim_alias_query_keeps_explicit_root_context_after_destination_cache' (65946) panicked at rust/tcl-vm/src/cmd_namespace.rs:3554:9:
+assertion `left == right` failed
+  left: Error
+ right: Ok
+FAILED
+test cmd_namespace::original_jim_import_tests::original_vm_jim_import_compares_whole_prefix_before_following_alias_chains ... ok
+test cmd_namespace::original_jim_import_tests::original_vm_jim_import_keeps_first_host_and_restored_context_terminal ... ok
+test cmd_namespace::original_jim_import_tests::original_vm_jim_import_uses_cached_prefix_without_reading_original_members ... 
+thread 'cmd_namespace::original_jim_import_tests::original_vm_jim_import_uses_cached_prefix_without_reading_original_members' (65949) panicked at rust/tcl-vm/src/cmd_namespace.rs:3581:9:
+assertion `left == right` failed
+  left: 1
+ right: 2
+FAILED
+test cmd_namespace::original_jim_namespace_text_result_tests::qualifiers_selects_the_actual_shared_empty_without_changing_root_or_tail_identity ... ok
+test cmd_namespace::original_jim_parent_current_holder_tests::parent_reaches_the_original_current_holder_only_for_its_no_argument_form ... ok
+test cmd_namespace::tests::code_construction_allocates_fresh_literal_headers_and_retains_original_roles ... ok
+test cmd_namespace::tests::code_keeps_non_unicode_bytes_and_uses_native_arity ... ok
+test cmd_namespace::tests::code_refuses_an_unaudited_engine_outside_guest_completion ... ok
+test cmd_namespace::tests::code_retains_original_objects_for_all_measured_native_prefixes ... ok
+test cmd_namespace::tests::code_uses_the_explicit_f5_logical_provider ... 
+thread 'cmd_namespace::tests::code_uses_the_explicit_f5_logical_provider' (65983) panicked at rust/tcl-vm/src/cmd_namespace.rs:2680:9:
+assertion `left == right` failed
+  left: Error
+ right: Ok
+FAILED
+test cmd_namespace::tests::current_and_code_wrong_arity_retain_original_header_words ... ok
+test cmd_namespace::tests::jim_code_direct_native_route_preserves_selected_recognition_but_requires_the_helper_for_construction ... ok
+test cmd_namespace::tests::jim_code_public_helper_retains_its_original_parsed_literals ... 
+thread 'cmd_namespace::tests::jim_code_public_helper_retains_its_original_parsed_literals' (65991) panicked at rust/tcl-vm/src/cmd_namespace.rs:2550:9:
+assertion `left == right` failed
+  left: 0
+ right: 4
+FAILED
+test cmd_namespace::tests::jim_namespace_frames_retain_the_actual_eval_and_scripted_tailcall_vectors ... ok
+test cmd_namespace::tests::namespace_frame_fetch_observes_withdrawn_ensemble_rewrite_at_publication ... ok
+test cmd_namespace::tests::namespace_frame_transport_borrows_headers_and_requires_original_invocation ... ok
+test cmd_namespace::tests::namespace_frames_retain_actual_public_and_worker_argument_objects ... ok
+test cmd_namespace::tests::namespace_text_preserves_original_native_byte_names ... ok
+test cmd_namespace::tests::native_namespace_bodies_propagate_return_and_inscope_requires_c_target ... ok
+
+failures:
+
+failures:
+    cmd_namespace::native_upvar_fixture_tests::jim_namespace_upvar_forwards_root_worker_without_changing_variable_frame
+    cmd_namespace::native_upvar_fixture_tests::namespace_upvar_grammar_and_target_cells_match_36_native_results
+    cmd_namespace::native_upvar_fixture_tests::namespace_upvar_original_vectors_match_eighteen_native_arity_windows
+    cmd_namespace::original_c_import_tests::import_commits_each_original_pattern_before_reaching_the_next_getter
+    cmd_namespace::original_c_import_tests::import_force_uses_exact_leading_c_extent_and_later_force_remains_a_pattern
+    cmd_namespace::original_c_import_tests::import_preload_uses_fresh_c_extent_objects_and_restores_nested_original_vectors
+    cmd_namespace::original_c_parent_current_holder_tests::parent_without_operand_uses_the_entered_namespace_incarnation
+    cmd_namespace::original_export_tests::export_invalid_pattern_stops_before_later_original_getter_and_keeps_prior_commits
+    cmd_namespace::original_jim_import_tests::original_vm_jim_alias_query_keeps_explicit_root_context_after_destination_cache
+    cmd_namespace::original_jim_import_tests::original_vm_jim_import_uses_cached_prefix_without_reading_original_members
+    cmd_namespace::tests::code_uses_the_explicit_f5_logical_provider
+    cmd_namespace::tests::jim_code_public_helper_retains_its_original_parsed_literals
+
+test result: FAILED. 44 passed; 12 failed; 0 ignored; 0 measured; 1318 filtered out; finished in 69.22s
+

@@ -108,7 +108,7 @@
         }
       ],
       "implementation": {
-        "status": "not_integrated",
+        "status": "implemented_pending_validation",
         "verified_complete": false
       }
     },
@@ -123,7 +123,7 @@
         }
       ],
       "implementation": {
-        "status": "not_integrated",
+        "status": "implemented_pending_validation",
         "verified_complete": false
       }
     },
@@ -205,7 +205,7 @@
         }
       ],
       "implementation": {
-        "status": "not_integrated",
+        "status": "implemented_pending_validation",
         "verified_complete": false
       }
     },
@@ -220,7 +220,7 @@
         }
       ],
       "implementation": {
-        "status": "not_integrated",
+        "status": "implemented_pending_validation",
         "verified_complete": false
       }
     },
@@ -356,7 +356,7 @@
   ],
   "status_note": "Requirements are counted regardless of implementation presence. No additional requirement or baseline unit is verified complete.",
   "status": "accepted_additional_obligations_unverified",
-  "utc": "2026-10-16T09:58:38.956554+00:00",
+  "utc": "2026-10-16T10:20:36.727676+00:00",
   "accepted_delta": {
     "semantic_code_changes": 19,
     "validation_code_repairs": 0,
@@ -376,8 +376,8 @@
     "all_required_changes": 2177
   },
   "implementation_progress": {
-    "implemented_pending_validation": 14,
-    "not_integrated": 5,
+    "implemented_pending_validation": 18,
+    "not_integrated": 1,
     "verified_complete": 0
   }
 }

@@ -1,0 +1,10 @@
+
+running 5 tests
+test interp::native_original_lookup::tests::original_jim_cache_adoption_acquires_namespace_role_after_old_primary_release ... ok
+test interp::native_original_lookup::tests::original_lookup_cache_hit_preserves_first_cause_after_context_change_and_restore ... ok
+test interp::native_original_lookup::tests::original_lookup_checks_reached_string_failure_before_cache_or_miss ... ok
+test interp::native_original_lookup::tests::original_selected_command_refuses_recreated_slot_after_actual_primary_retirement ... ok
+test interp::native_original_lookup::tests::shared_original_alias_consumer_preserves_prior_host_before_missing_name_presentation ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 1369 filtered out; finished in 0.75s
+

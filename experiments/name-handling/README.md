@@ -11,6 +11,8 @@ Existing command/variable/namespace vectors live in
 
 | Path | Meaning |
 | --- | --- |
+| [Original Jim variable construction](oracles/jim-variable-construction-20261016/evidence.json) | Canonical/Tail/Create versus root assignment, array-element distinction and CString formatter outputs; exact original scripts/provider hashes, independent of migratedRuntime acceptance. |
+| [Original C Import preload](oracles/c-import-preload-20261016/auto-import-shadow.json) | Actual C8.4 selected global direct helper versus C8.5+ current-namespace ordinary evaluation; global/local shadow and trace controls across all five releases. |
 | [Original C compiled-stack body](oracles/c-compiled-stack-body-20261016/results.json) | Dynamic Catch and For-start controls on all five original C releases, with same-header List→Bytecode observations where supported and exact original source entry slices; Rust controls unexecuted at capture. |
 | [Original Jim physical procedure body](oracles/jim-original-info-body-20261016/evidence.json) | Actual lazy body-header result without a body getter, warm original command cache, and separately bounded native-worker old-result deletion window; original probe only, Rust acceptance pending. |
 | [Original Jim assignment retirement](oracles/jim-assignment-retirement-20261016/) | Old-cell retirement precedes assignment; observer source, exact incoming/old counts and raw native output retained. |

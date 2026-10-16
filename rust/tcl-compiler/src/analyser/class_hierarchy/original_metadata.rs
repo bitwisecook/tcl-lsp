@@ -504,3 +504,236 @@ mod registry_provider_tests {
         }
     }
 }
+
+/// Original class/member inventory for conditional instance-side display.
+/// Native and positively retained Logical member owners remain independent.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OriginalInstanceClassMetadata {
+    record: SourceDeclarationMetadata<ClassDef>,
+    metadata: ClassDef,
+    input: crate::analyser::ResolvedAnalysisInput,
+    realm: std::sync::Arc<crate::realm::CommandBindingRealm>,
+    logical: Option<crate::analyser::types::LogicalSourceClassDeclaration>,
+    occupied_non_classes: Vec<crate::signature_scan::scope::SignatureSourceCommand>,
+}
+impl OriginalInstanceClassMetadata {
+    #[must_use]
+    pub fn capture(
+        analysis: &AnalysisResult,
+        factory: &crate::command_binding::OriginalSourceClassDeclaration,
+    ) -> Option<Self> {
+        let input = analysis.resolved_input.as_ref()?;
+        let mut records = analysis
+            .original_class_declarations()
+            .filter(|record| factory.matches_source_declaration(record));
+        let record = records.next()?;
+        records.next().is_none().then_some(())?;
+        let metadata = if input.has_logical_source_name_context() {
+            factory.logical_source_class(analysis)?
+        } else {
+            factory.source_class(analysis)?.metadata()
+        };
+        let logical = if input.has_logical_source_name_context() {
+            Some(analysis.logical_source_class_declaration(metadata)?.clone())
+        } else {
+            None
+        };
+        Some(Self {
+            record: record.clone(),
+            metadata: metadata.clone(),
+            input: input.clone(),
+            realm: std::sync::Arc::clone(analysis.retained_command_realm_arc()?),
+            logical,
+            occupied_non_classes: analysis
+                .original_procedure_declarations()
+                .map(|record| record.name().clone())
+                .collect(),
+        })
+    }
+    #[must_use]
+    pub const fn metadata(&self) -> &ClassDef {
+        &self.metadata
+    }
+    fn current(&self) -> bool {
+        self.realm.matches_resolved_analysis_input(&self.input)
+            && self.realm.matches_original_source_image(
+                self.record.name_input().source_image(),
+                self.input.lexer_config(),
+            )
+            && self.logical.as_ref().is_none_or(|logical| {
+                logical.matches_source(self.record.name_input().source_image(), &self.input)
+            })
+    }
+    fn own_method(
+        &self,
+        selector: &crate::command_binding::SourceAdviceNameInput,
+    ) -> Option<Option<OriginalInstanceMethodDisplay>> {
+        self.current().then_some(())?;
+        let methods = self
+            .metadata
+            .original_members
+            .methods(MemberSide::Instance)?;
+        let mut matches = Vec::new();
+        if let Some(logical) = &self.logical {
+            selector.logical_input()?;
+            for method in self.metadata.methods.values() {
+                let word = self.metadata.original_members.logical_name_operand(
+                    MemberSide::Instance,
+                    method,
+                    &self.input,
+                    self.record.name_input().source_image(),
+                )?;
+                if tcl_syntax::word_rules::original_static_word_unicode_value(word)?.as_slice()
+                    == selector.bytes()
+                {
+                    matches.push(OriginalInstanceMethodDisplay {
+                        metadata: method.clone(),
+                        native: None,
+                        logical: Some(logical.member(MemberSide::Instance, method)?),
+                    });
+                }
+            }
+        } else {
+            let input = selector.native_input()?;
+            for method in methods {
+                if method.original_name_input().policy() == input.policy()
+                    && method.original_name_input().bytes() == input.bytes()
+                {
+                    matches.push(OriginalInstanceMethodDisplay {
+                        metadata: method.metadata().clone(),
+                        native: Some(method),
+                        logical: None,
+                    });
+                }
+            }
+        }
+        match matches.len() {
+            0 => Some(None),
+            1 => Some(matches.pop()),
+            _ => None,
+        }
+    }
+    fn inherited_visibility(
+        &self,
+        selector: &crate::command_binding::SourceAdviceNameInput,
+        exported: bool,
+    ) -> Option<bool> {
+        self.current().then_some(())?;
+        if self.logical.is_some() {
+            selector.logical_input()?;
+            self.metadata
+                .original_members
+                .methods(MemberSide::Instance)?;
+            let name = std::str::from_utf8(selector.bytes()).ok()?;
+            Some(
+                self.metadata
+                    .original_members
+                    .logical_visibility_name(
+                        name,
+                        &self.input,
+                        self.record.name_input().source_image(),
+                    )
+                    .map_or(exported, |visibility| {
+                        visibility == tcl_registry::definer::MemberVisibility::Exported
+                    }),
+            )
+        } else {
+            self.metadata
+                .original_members
+                .inherited_visibility_for_input(
+                    MemberSide::Instance,
+                    selector.native_input()?,
+                    exported,
+                )
+        }
+    }
+}
+
+/// Exact original member selected for display, without dispatch or activation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OriginalInstanceMethodDisplay {
+    metadata: crate::analyser::MethodDef,
+    native: Option<crate::analyser::types::OriginalSourceMethodMetadata>,
+    logical: Option<crate::analyser::types::LogicalSourceMemberDeclaration>,
+}
+impl OriginalInstanceMethodDisplay {
+    #[must_use]
+    pub const fn metadata(&self) -> &crate::analyser::MethodDef {
+        &self.metadata
+    }
+}
+
+/// Complete represented instance-side source order and branch visibility.
+/// `Some(None)` means no represented member in this source inventory; it is
+/// neither interpreter absence nor permission to restore a report-map method.
+#[must_use]
+pub fn original_instance_method_display(
+    owners: &[OriginalInstanceClassMetadata],
+    root: usize,
+    selector: &crate::command_binding::SourceAdviceNameInput,
+) -> Option<Option<OriginalInstanceMethodDisplay>> {
+    if owners.iter().any(|owner| !owner.current()) {
+        return None;
+    }
+    let records = owners.iter().map(|owner| &owner.record).collect::<Vec<_>>();
+    let occupied = owners
+        .iter()
+        .flat_map(|owner| &owner.occupied_non_classes)
+        .collect::<Vec<_>>();
+    let order = original_instance_metadata_order_for_inventory(&records, root, &occupied)?;
+    let mut supers = HashMap::new();
+    let mut branches = vec![root];
+    for &index in &order {
+        supers.insert(
+            index,
+            original_direct_metadata_relations_for_records(
+                &records,
+                index,
+                OriginalSourceClassRelationKind::Superclass,
+                &occupied,
+            )?,
+        );
+        branches.extend(original_direct_metadata_relations_for_records(
+            &records,
+            index,
+            OriginalSourceClassRelationKind::Mixin,
+            &occupied,
+        )?);
+    }
+    branches.sort_by_key(|branch| order.iter().position(|index| index == branch));
+    branches.dedup();
+    let branches = branches
+        .into_iter()
+        .map(|branch| tcl_syntax::mro::tcloo_linearise(&branch, &supers, &HashMap::new()).ok())
+        .collect::<Option<Vec<_>>>()?;
+    for index in order {
+        let Some(method) = owners[index].own_method(selector)? else {
+            continue;
+        };
+        if method.metadata.visibility == "private" {
+            return None;
+        }
+        let mut exported = method.native.as_ref().map_or(
+            method.metadata.visibility == "public",
+            crate::analyser::types::OriginalSourceMethodMetadata::exported,
+        );
+        let branch = branches.iter().find(|branch| branch.contains(&index))?;
+        let position = branch.iter().position(|member| *member == index)?;
+        for &ancestor in branch[..position].iter().rev() {
+            exported = owners[ancestor].inherited_visibility(selector, exported)?;
+        }
+        return exported.then_some(Some(method));
+    }
+    // The source family may supply a builtin/generated member, but known
+    // visibility effects still precede that independent descriptor projection.
+    for branch in &branches {
+        let mut visible = true;
+        for &ancestor in branch.iter().rev() {
+            visible = owners[ancestor].inherited_visibility(selector, visible)?;
+        }
+        if !visible {
+            return None;
+        }
+    }
+    Some(None)
+}

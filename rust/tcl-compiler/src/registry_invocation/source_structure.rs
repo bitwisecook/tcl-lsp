@@ -27,6 +27,13 @@ pub use project_procedure_roles::{
     original_project_procedure_arguments,
 };
 
+mod project_class_cards;
+pub use project_class_cards::{
+    OriginalProjectClassCards, OriginalProjectReceiverClass, original_project_receiver_class,
+    original_project_receiver_class_in_unit, original_project_receiver_class_with_sources,
+};
+pub(crate) use project_class_cards::{OriginalProjectClassCells, ProjectClassCell};
+
 mod procedure;
 pub use procedure::{
     OriginalLogicalProcedureArguments, OriginalProcedureSourceDescriptor,

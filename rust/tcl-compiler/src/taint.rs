@@ -704,19 +704,6 @@ fn join_instance_predecessors<'a>(
     Some(joined)
 }
 
-pub(crate) fn local_instance_classes_with_initial(
-    cfg: &CfgFunction,
-    registry: &CommandRegistry,
-    initial: &InstanceClassState,
-) -> LocalInstanceClasses {
-    local_instance_classes_with_source(
-        cfg,
-        registry,
-        initial,
-        TaintSourceContext::for_cfg(registry, cfg),
-    )
-}
-
 fn local_instance_classes_with_source(
     cfg: &CfgFunction,
     registry: &CommandRegistry,

@@ -1,0 +1,486 @@
+
+running 142 tests
+test minify::constructed_compatibility_tests::constructed_minifier_call_sites_keep_original_indirect_and_naming_guards ... ok
+test minify::constructed_compatibility_tests::shared_minifier_call_sites_keep_same_names_in_their_actual_namespace ... ok
+test minify::original::tests::isolated_logical_formal_alpha_uses_general_bindings_and_preserves_defaults ... ok
+test minify::original::tests::lexical_case_shape_retains_dynamic_subject_and_expansion_uncertainty ... ok
+test minify::original::tests::lexical_complete_heads_preserve_computed_body_data ... ok
+test minify::original::tests::lexical_complete_static_heads_keep_selected_body_roles ... ok
+test minify::original::tests::lexical_context_refusal_retains_source_for_every_tier ... ok
+test minify::original::tests::lexical_custom_configuration_refuses_every_tier_without_fallback ... ok
+test minify::original::tests::lexical_head_value_checks_whole_image_config_and_tokens ... ok
+test minify::original::tests::lexical_head_value_keeps_expansion_and_opaque_units_unavailable ... ok
+test minify::original::tests::lexical_intermediate_source_retains_actual_input_generation ... ok
+test minify::original::tests::lexical_minifier_keeps_explicit_authoring_compaction_separate ... ok
+test minify::original::tests::lexical_roles_use_retained_context_instead_of_heterogeneous_last_spec ... ok
+test minify::original::tests::lexical_source_header_checks_retained_input_source_and_configuration ... ok
+test minify::original::tests::lexical_source_headers_keep_runtime_and_metadata_separate ... 
+thread 'minify::original::tests::lexical_source_headers_keep_runtime_and_metadata_separate' (63350) panicked at rust/tcl-lsp-core/src/minify/original.rs:1336:9:
+assertion failed: realm.invocation_at_source("if", 0).unknown
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test minify::original::tests::lexical_source_headers_refuse_dynamic_argv_and_prior_mutations ... ok
+test minify::original::tests::logical_barriers_use_complete_selected_form_and_unknown_coverage ... ok
+test minify::original::tests::logical_expression_lexing_retains_configured_names_and_contextual_boundaries ... ok
+test minify::original::tests::logical_formal_alpha_requires_isolation_and_closed_binding_observability ... ok
+test minify::original::tests::logical_keyword_metadata_edits_whole_selected_controls_only ... ok
+test minify::original::tests::logical_keyword_walk_distinguishes_data_from_selected_script_regions ... ok
+test minify::original::tests::logical_metadata_never_supplies_native_or_hosted_keyword_permission ... ok
+test minify::original::tests::logical_positioned_metadata_retains_unknown_values_and_exact_owner ... ok
+test minify::original::tests::logical_render_keeps_failed_original_regions_under_the_full_configuration ... ok
+test minify::original::tests::logical_render_roles_refuse_detached_and_changed_original_regions ... ok
+test minify::original::tests::logical_render_roles_retain_effective_alias_prefix_and_original_body ... 
+thread 'minify::original::tests::logical_render_roles_retain_effective_alias_prefix_and_original_body' (63767) panicked at rust/tcl-lsp-core/src/minify/original.rs:1589:13:
+interp alias {} choose {} if 1;choose { puts   yes }
+FAILED
+test minify::original::tests::native_compaction_uses_fixed_formal_owner_and_original_edit_coverage ... ok
+test minify::original::tests::native_compaction_uses_original_local_store_and_complete_edit_coverage ... ok
+test minify::original::tests::original_hosted_minifier_keeps_source_syntax_without_native_alpha_permission ... ok
+test minify::original::tests::original_hosted_syntax_compaction_preserves_zero_gap_word_and_bracket_boundaries ... ok
+test minify::original::tests::original_minifier_declines_stale_images_full_configuration_changes_and_malformed_tail ... ok
+test minify::original::tests::original_minifier_holds_custom_profile_and_registry_instead_of_resolving_its_label ... ok
+test minify::original::tests::original_minifier_refuses_naming_insertion_and_keywords_without_promoting_isolation ... ok
+test minify::original::tests::original_recursive_minification_uses_only_current_authenticated_script_regions ... ok
+test minify::original::tests::original_scalar_minification_declines_observers_stores_and_open_source ... ok
+test minify::original::tests::original_scalar_minification_keeps_isolation_and_other_pass_permissions_separate ... ok
+test minify::original::tests::original_scalar_minification_requires_equivalence_and_complete_edit_geometry ... ok
+test minify::original::tests::original_syntax_compaction_keeps_opaque_words_nested_scripts_and_expansion ... ok
+test minify::selected_scalar_reference_emission_tests::logical_scalar_emission_uses_selected_proposals_and_original_component_boundaries ... ok
+test minify::symbol_report_tests::symbol_report_round_trip_retains_all_literal_labels_and_sections ... ok
+test minify::symbol_report_tests::symbol_report_scope_labels_stay_separate_and_ambiguous_display_declines ... ok
+test minify::tests::a_non_bare_braced_name_keeps_its_braces ... 
+thread 'minify::tests::a_non_bare_braced_name_keeps_its_braces' (63956) panicked at rust/tcl-lsp-core/src/minify.rs:3903:9:
+set plain 1;puts ${plain}
+FAILED
+test minify::tests::abbreviates_ensemble_subcommand_in_irules ... 
+thread 'minify::tests::abbreviates_ensemble_subcommand_in_irules' (63978) panicked at rust/tcl-lsp-core/src/minify.rs:4814:9:
+assertion `left == right` failed
+  left: "string length $x"
+ right: "string le $x"
+FAILED
+test minify::tests::abbreviations::a_boolean_value_definition_keeps_its_bytes ... ok
+test minify::tests::abbreviations::a_keyword_with_no_shorter_unique_spelling_is_left_alone ... ok
+test minify::tests::abbreviations::a_prefix_a_later_release_makes_ambiguous_is_not_emitted_for_an_older_target ... ok
+test minify::tests::abbreviations::command_names_are_never_abbreviated ... ok
+test minify::tests::abbreviations::dynamic_and_expanded_words_are_never_abbreviated ... ok
+test minify::tests::abbreviations::option_words_shorten_too ... 
+thread 'minify::tests::abbreviations::option_words_shorten_too' (63999) panicked at rust/tcl-lsp-core/src/minify.rs:5141:13:
+puts [string equal -nocase $a $b]
+FAILED
+test minify::tests::abbreviations::subcommand_words_shorten_to_their_minimal_unique_prefix ... 
+thread 'minify::tests::abbreviations::subcommand_words_shorten_to_their_minimal_unique_prefix' (64000) panicked at rust/tcl-lsp-core/src/minify.rs:5131:13:
+puts [string length $x]
+FAILED
+test minify::tests::abbreviations::the_emitter_can_be_turned_off ... ok
+test minify::tests::aggressive_aliases_avoid_compacted_local_collisions ... 
+thread 'minify::tests::aggressive_aliases_avoid_compacted_local_collisions' (64026) panicked at rust/tcl-lsp-core/src/minify.rs:4690:9:
+assertion `left == right` failed
+  left: "proc handler {request} {mylongcmd $request;mylongcmd $request;mylongcmd $request}"
+ right: "set b mylongcmd;proc handler {a} {$b $a;$b $a;$b $a}"
+FAILED
+test minify::tests::aggressive_aliases_avoid_live_variable_names ... ok
+test minify::tests::aggressive_aliases_repeated_arguments ... 
+thread 'minify::tests::aggressive_aliases_repeated_arguments' (64028) panicked at rust/tcl-lsp-core/src/minify.rs:4597:9:
+assertion `left == right` failed
+  left: "foo --somelongflag;bar --somelongflag;baz --somelongflag"
+ right: "set a --somelongflag;foo $a;bar $a;baz $a"
+FAILED
+test minify::tests::aggressive_aliases_repeated_commands ... 
+thread 'minify::tests::aggressive_aliases_repeated_commands' (64029) panicked at rust/tcl-lsp-core/src/minify.rs:4589:9:
+assertion `left == right` failed
+  left: "mylongcommand a;mylongcommand b;mylongcommand c"
+ right: "set a mylongcommand;$a a;$a b;$a c"
+FAILED
+test minify::tests::aggressive_aliases_string_substrings ... 
+thread 'minify::tests::aggressive_aliases_string_substrings' (64030) panicked at rust/tcl-lsp-core/src/minify.rs:4605:9:
+assertion `left == right` failed
+  left: "puts \"the quick brown fox jumps\";puts \"the quick brown fox runs\""
+ right: "set a {the quick brown fox };puts ${a}jumps;puts ${a}runs"
+FAILED
+test minify::tests::aggressive_runs_optimise_compact_minify ... 
+thread 'minify::tests::aggressive_runs_optimise_compact_minify' (64031) panicked at rust/tcl-lsp-core/src/minify.rs:4725:9:
+assertion `left == right` failed
+  left: "proc greet {name} {set message \"hi $name\";return $message}"
+ right: "proc greet {b} {set a \"hi $b\";return $a}"
+FAILED
+test minify::tests::apply_lambda_body_minifies ... ok
+test minify::tests::apply_lambda_body_with_backslash_escape_decodes ... 
+thread 'minify::tests::apply_lambda_body_with_backslash_escape_decodes' (64033) panicked at rust/tcl-lsp-core/src/minify.rs:4121:9:
+assertion `left == right` failed: 
+input:    "apply {{} puts\\ hi}"
+got:      "apply {{} puts\\ hi}"
+expected: "apply {{} {puts hi}}"
+  left: "apply {{} puts\\ hi}"
+ right: "apply {{} {puts hi}}"
+FAILED
+test minify::tests::apply_lambda_multi_word_param_list_keeps_its_braces ... 
+thread 'minify::tests::apply_lambda_multi_word_param_list_keeps_its_braces' (64034) panicked at rust/tcl-lsp-core/src/minify.rs:4121:9:
+assertion `left == right` failed: 
+input:    "apply {{x y} {\n    return [expr {$x + $y}]\n}} 1 2"
+got:      "apply {{x y} {return [expr {$x + $y}]}} 1 2"
+expected: "apply {{x y} {return [expr {$x+$y}]}} 1 2"
+  left: "apply {{x y} {return [expr {$x + $y}]}} 1 2"
+ right: "apply {{x y} {return [expr {$x+$y}]}} 1 2"
+FAILED
+test minify::tests::bare_dollar_in_quoted_string_not_brace_wrapped ... ok
+test minify::tests::braced_var_stripping_follows_the_documents_release ... ok
+test minify::tests::collapses_commands_to_semicolons ... ok
+test minify::tests::collapses_intra_command_whitespace ... ok
+test minify::tests::compact_isolated_keeps_procs_when_reflection_present ... ok
+test minify::tests::compact_isolated_renames_global_vars ... 
+thread 'minify::tests::compact_isolated_renames_global_vars' (64053) panicked at rust/tcl-lsp-core/src/minify.rs:4401:9:
+assertion `left == right` failed
+  left: "set globalvar 1;puts $globalvar"
+ right: "set a 1;puts $a"
+FAILED
+test minify::tests::compact_isolated_renames_procs ... 
+thread 'minify::tests::compact_isolated_renames_procs' (64083) panicked at rust/tcl-lsp-core/src/minify.rs:4221:9:
+assertion `left == right` failed
+  left: "proc greet {name} {return $name};puts [greet world]"
+ right: "proc a {a} {return $a};puts [a world]"
+FAILED
+test minify::tests::compact_keeps_locals_when_info_exists_present ... ok
+test minify::tests::compact_keeps_locals_when_info_locals_present ... ok
+test minify::tests::compact_never_renames_array_members ... ok
+test minify::tests::compact_never_splits_unset_from_its_variable ... 
+thread 'minify::tests::compact_never_splits_unset_from_its_variable' (64087) panicked at rust/tcl-lsp-core/src/minify.rs:4281:9:
+assertion `left == right` failed
+  left: "proc f {} {set myvar 1;unset myvar;set other 2;return $other}"
+ right: "proc f {} {set myvar 1;unset myvar;set a 2;return $a}"
+FAILED
+test minify::tests::compact_non_isolated_keeps_global_vars ... ok
+test minify::tests::compact_renames_param_name_not_other_defaults ... 
+thread 'minify::tests::compact_renames_param_name_not_other_defaults' (64109) panicked at rust/tcl-lsp-core/src/minify.rs:4306:9:
+alpha name renamed: "proc f {{alpha 1} {beta alpha}} {return [list $alpha $beta]}"
+FAILED
+test minify::tests::compact_renames_proc_local_vars_and_params ... 
+thread 'minify::tests::compact_renames_proc_local_vars_and_params' (64110) panicked at rust/tcl-lsp-core/src/minify.rs:4209:9:
+assertion `left == right` failed
+  left: "proc greet {name} {set message \"hi $name\";return $message}"
+ right: "proc greet {b} {set a \"hi $b\";return $a}"
+FAILED
+test minify::tests::compact_renames_refs_inside_expr_and_command_subst ... 
+thread 'minify::tests::compact_renames_refs_inside_expr_and_command_subst' (64111) panicked at rust/tcl-lsp-core/src/minify.rs:4358:9:
+assertion `left == right` failed
+  left: "proc helper {value} {return [expr {$value * 2}]};proc main {} {set result [helper 21];puts $result}"
+ right: "proc helper {a} {return [expr {$a*2}]};proc main {} {set a [helper 21];puts $a}"
+FAILED
+test minify::tests::compact_renames_repeated_set_sites_in_lock_step ... 
+thread 'minify::tests::compact_renames_repeated_set_sites_in_lock_step' (64112) panicked at rust/tcl-lsp-core/src/minify.rs:4265:9:
+assertion `left == right` failed
+  left: "proc f {} {set myvar 1;set myvar 2;return $myvar}"
+ right: "proc f {} {set a 1;set a 2;return $a}"
+FAILED
+test minify::tests::compact_returns_symbol_map ... 
+thread 'minify::tests::compact_returns_symbol_map' (64113) panicked at rust/tcl-lsp-core/src/minify.rs:4389:9:
+assertion `left == right` failed
+  left: None
+ right: Some("a")
+FAILED
+test minify::tests::compact_symbol_map_has_no_array_member_section ... ok
+test minify::tests::compact_two_namespace_same_proc_name_is_deterministic_and_intact ... 
+thread 'minify::tests::compact_two_namespace_same_proc_name_is_deterministic_and_intact' (64115) panicked at rust/tcl-lsp-core/src/minify.rs:4755:13:
+assertion `left == right` failed: collision corrupted the output
+  left: "namespace eval a {proc dup {arg} {set collidevar [expr {$arg + 1}];return $collidevar}};namespace eval b {proc dup {collidevar} {return $collidevar}}"
+ right: "namespace ev a {proc dup {a} {set b [expr {$a+1}];return $b}};namespace ev b {proc dup {a} {return $a}}"
+FAILED
+test minify::tests::compact_upvar_blocks_all_scopes ... ok
+test minify::tests::compact_variable_reads_keep_original_braced_names_and_current_source ... 
+thread 'minify::tests::compact_variable_reads_keep_original_braced_names_and_current_source' (64155) panicked at rust/tcl-lsp-core/src/minify.rs:4320:9:
+proc helper {} {set longVariable VALUE;puts ${longVariable};puts $longVariable}
+FAILED
+test minify::tests::compresses_expr_whitespace ... 
+thread 'minify::tests::compresses_expr_whitespace' (64179) panicked at rust/tcl-lsp-core/src/minify.rs:4121:9:
+assertion `left == right` failed: 
+input:    "if {$a == 1} {\n    puts hi\n}\n"
+got:      "if {$a == 1} {puts hi}"
+expected: "if {$a==1} {puts hi}"
+  left: "if {$a == 1} {puts hi}"
+ right: "if {$a==1} {puts hi}"
+FAILED
+test minify::tests::deeply_nested_if_survives_minify ... ok
+test minify::tests::default_tier_never_introduces_variables ... ok
+test minify::tests::empty_source_minifies_to_empty ... ok
+test minify::tests::expr_comparison_inversion ... 
+thread 'minify::tests::expr_comparison_inversion' (65581) panicked at rust/tcl-lsp-core/src/minify.rs:4121:9:
+assertion `left == right` failed: 
+input:    "if {!($a == $b)} {puts x}\n"
+got:      "if {!($a == $b)} {puts x}"
+expected: "if {$a!=$b} {puts x}"
+  left: "if {!($a == $b)} {puts x}"
+ right: "if {$a!=$b} {puts x}"
+FAILED
+test minify::tests::expr_de_morgan_forward ... 
+thread 'minify::tests::expr_de_morgan_forward' (65582) panicked at rust/tcl-lsp-core/src/minify.rs:4121:9:
+assertion `left == right` failed: 
+input:    "if {!($a && $b)} {puts x}\n"
+got:      "if {!($a && $b)} {puts x}"
+expected: "if {!$a||!$b} {puts x}"
+  left: "if {!($a && $b)} {puts x}"
+ right: "if {!$a||!$b} {puts x}"
+FAILED
+test minify::tests::expr_de_morgan_reverse ... 
+thread 'minify::tests::expr_de_morgan_reverse' (65583) panicked at rust/tcl-lsp-core/src/minify.rs:4121:9:
+assertion `left == right` failed: 
+input:    "if {!$a || !$b} {puts x}\n"
+got:      "if {!$a || !$b} {puts x}"
+expected: "if {!$a||!$b} {puts x}"
+  left: "if {!$a || !$b} {puts x}"
+ right: "if {!$a||!$b} {puts x}"
+FAILED
+test minify::tests::expr_double_negation_not_folded ... ok
+test minify::tests::expr_no_change_when_already_minimal ... 
+thread 'minify::tests::expr_no_change_when_already_minimal' (65585) panicked at rust/tcl-lsp-core/src/minify.rs:4121:9:
+assertion `left == right` failed: 
+input:    "if {$a < $b} {puts x}\n"
+got:      "if {$a < $b} {puts x}"
+expected: "if {$a<$b} {puts x}"
+  left: "if {$a < $b} {puts x}"
+ right: "if {$a<$b} {puts x}"
+FAILED
+test minify::tests::expr_ordered_comparison_inversion_is_declined ... 
+thread 'minify::tests::expr_ordered_comparison_inversion_is_declined' (65586) panicked at rust/tcl-lsp-core/src/minify.rs:4121:9:
+assertion `left == right` failed: 
+input:    "if {!($a < $b)} {puts x}\n"
+got:      "if {!($a < $b)} {puts x}"
+expected: "if {!($a<$b)} {puts x}"
+  left: "if {!($a < $b)} {puts x}"
+ right: "if {!($a<$b)} {puts x}"
+FAILED
+test minify::tests::expr_shrink_nested_in_command_subst ... 
+thread 'minify::tests::expr_shrink_nested_in_command_subst' (65587) panicked at rust/tcl-lsp-core/src/minify.rs:4121:9:
+assertion `left == right` failed: 
+input:    "set y [expr {!($a==1 && $b==2)}]\n"
+got:      "set y [expr {!($a==1 && $b==2)}]"
+expected: "set y [expr {$a!=1||$b!=2}]"
+  left: "set y [expr {!($a==1 && $b==2)}]"
+ right: "set y [expr {$a!=1||$b!=2}]"
+FAILED
+test minify::tests::expr_string_and_membership_inversion_still_applies ... 
+thread 'minify::tests::expr_string_and_membership_inversion_still_applies' (65588) panicked at rust/tcl-lsp-core/src/minify.rs:4121:9:
+assertion `left == right` failed: 
+input:    "if {!($a eq \"x\")} {puts x}\n"
+got:      "if {!($a eq \"x\")} {puts x}"
+expected: "if {$a ne \"x\"} {puts x}"
+  left: "if {!($a eq \"x\")} {puts x}"
+ right: "if {$a ne \"x\"} {puts x}"
+FAILED
+test minify::tests::expression_commands_keep_configured_literal_closers_and_unavailable_extents ... 
+thread 'minify::tests::expression_commands_keep_configured_literal_closers_and_unavailable_extents' (65589) panicked at rust/tcl-lsp-core/src/minify.rs:3934:17:
+assertion `left == right` failed: tcl8.6: expr {[list {literal ] value}] + 1}
+  left: " + 1}"
+ right: "+1}"
+FAILED
+test minify::tests::expression_minification_preserves_original_array_index_name_data ... ok
+test minify::tests::keeps_braces_before_namespace_separator ... ok
+test minify::tests::keeps_braces_before_paren_in_quoted_word ... ok
+test minify::tests::keeps_braces_when_next_token_extends_bare_word ... ok
+test minify::tests::keeps_quotes_when_needed ... ok
+test minify::tests::keeps_tip461_word_operator_spacing ... ok
+test minify::tests::keeps_word_operator_spacing ... ok
+test minify::tests::keyword_abbreviation_follows_an_aliased_head ... 
+thread 'minify::tests::keyword_abbreviation_follows_an_aliased_head' (65602) panicked at rust/tcl-lsp-core/src/minify.rs:5286:9:
+an alias of `string` must abbreviate against `string`'s subcommand table; got "interp alias {} str {} string;str toupper $::env(HOME)"
+FAILED
+test minify::tests::live_name_inventory_uses_the_actual_complete_reference_grammar ... 
+thread 'minify::tests::live_name_inventory_uses_the_actual_complete_reference_grammar' (65620) panicked at rust/tcl-lsp-core/src/minify.rs:4495:13:
+Ω: {"a{b}c", "a::value", "a"}
+FAILED
+test minify::tests::minifies_switch_case_bodies ... 
+thread 'minify::tests::minifies_switch_case_bodies' (65621) panicked at rust/tcl-lsp-core/src/minify.rs:4121:9:
+assertion `left == right` failed: 
+input:    "switch $x {\n    a {\n        puts 1\n    }\n    b {\n        puts 2\n    }\n}\n"
+got:      "switch $x {\n    a {\n        puts 1\n    }\n    b {\n        puts 2\n    }\n}"
+expected: "switch $x {a {puts 1} b {puts 2}}"
+  left: "switch $x {\n    a {\n        puts 1\n    }\n    b {\n        puts 2\n    }\n}"
+ right: "switch $x {a {puts 1} b {puts 2}}"
+FAILED
+test minify::tests::minify_abstains_for_a_builtin_shadowed_by_a_user_proc ... ok
+test minify::tests::minify_abstains_for_a_dynamic_binding ... 
+thread 'minify::tests::minify_abstains_for_a_dynamic_binding' (65623) panicked at rust/tcl-lsp-core/src/minify.rs:5268:9:
+a dynamic rename must not take `if`'s body grammar away either
+FAILED
+test minify::tests::minify_follows_a_renamed_body_command ... ok
+test minify::tests::minify_follows_an_aliased_body_command ... ok
+test minify::tests::moderately_nested_if_still_minifies ... ok
+test minify::tests::nested_body_recursion ... 
+thread 'minify::tests::nested_body_recursion' (65627) panicked at rust/tcl-lsp-core/src/minify.rs:4121:9:
+assertion `left == right` failed: 
+input:    "proc f {} {\n    if {$x} {\n        set y 1\n    }\n}\n"
+got:      "proc f {} {if {$x} {\n        set y 1\n    }}"
+expected: "proc f {} {if {$x} {set y 1}}"
+  left: "proc f {} {if {$x} {\n        set y 1\n    }}"
+ right: "proc f {} {if {$x} {set y 1}}"
+FAILED
+test minify::tests::no_subcommand_abbreviation_in_plain_tcl ... ok
+test minify::tests::original_minifier_body_parsing_keeps_bom_content_and_complete_parent_config ... ok
+test minify::tests::original_static_folds_do_not_borrow_erasure_from_logical_source_values ... ok
+test minify::tests::parse_var_ref_reads_braced_names_by_the_documents_release ... ok
+test minify::tests::quote_stripping_follows_the_documents_dialect ... 
+thread 'minify::tests::quote_stripping_follows_the_documents_dialect' (65661) panicked at rust/tcl-lsp-core/src/minify.rs:3989:9:
+9.x reads one reference, so the quotes may go: puts "${a{b}c}"
+FAILED
+test minify::tests::quote_stripping_uses_complete_configured_components ... ok
+test minify::tests::recurses_into_command_substitution ... 
+thread 'minify::tests::recurses_into_command_substitution' (65670) panicked at rust/tcl-lsp-core/src/minify.rs:4121:9:
+assertion `left == right` failed: 
+input:    "set y [ expr {1 + 2} ]\n"
+got:      "set y [expr {1 + 2}]"
+expected: "set y [expr {1+2}]"
+  left: "set y [expr {1 + 2}]"
+ right: "set y [expr {1+2}]"
+FAILED
+test minify::tests::recurses_into_proc_body ... ok
+test minify::tests::remap_line_references_maps_proportionally ... ok
+test minify::tests::remap_line_references_procline_single_pass ... ok
+test minify::tests::rename_barriers_follow_the_resolved_head ... 
+thread 'minify::tests::rename_barriers_follow_the_resolved_head' (65679) panicked at rust/tcl-lsp-core/src/minify.rs:5336:9:
+a shadowed `upvar` must not keep barring compaction
+FAILED
+test minify::tests::renamed_switch_lookalike_user_command_untouched ... ok
+test minify::tests::static_fold_folds_sccp_constant_interpolation ... 
+thread 'minify::tests::static_fold_folds_sccp_constant_interpolation' (65681) panicked at rust/tcl-lsp-core/src/minify.rs:4508:9:
+assertion `left == right` failed
+  left: "set x 5\nputs \"n=$x\"\n"
+ right: "set x 5\nputs n=5\n"
+FAILED
+test minify::tests::static_fold_keeps_a_commented_command_substitution_well_formed ... ok
+test minify::tests::static_fold_keeps_a_quoted_command_substitution_well_formed ... ok
+test minify::tests::static_fold_quotes_carriage_return_value ... 
+thread 'minify::tests::static_fold_quotes_carriage_return_value' (65684) panicked at rust/tcl-lsp-core/src/minify.rs:4520:9:
+assertion `left == right` failed: set x "a\rb"
+puts "v=$x"
+
+  left: 0
+ right: 1
+FAILED
+test minify::tests::static_fold_skips_non_constant ... ok
+test minify::tests::still_unbraces_when_safe ... 
+thread 'minify::tests::still_unbraces_when_safe' (65686) panicked at rust/tcl-lsp-core/src/minify.rs:4171:9:
+safe unbrace did not happen:
+set a 1;puts ${a}.txt
+FAILED
+test minify::tests::string_alias_inventory_keeps_data_braces_inert_and_real_body_geometry ... ok
+test minify::tests::string_alias_reference_preserves_original_six_provider_suffix_values ... ok
+test minify::tests::string_alias_reference_rejects_escaped_insertion_and_split_unicode ... ok
+test minify::tests::strips_comments ... ok
+test minify::tests::strips_redundant_quotes ... 
+thread 'minify::tests::strips_redundant_quotes' (65703) panicked at rust/tcl-lsp-core/src/minify.rs:4121:9:
+assertion `left == right` failed: 
+input:    "puts \"hello\"\n"
+got:      "puts \"hello\""
+expected: "puts hello"
+  left: "puts \"hello\""
+ right: "puts hello"
+FAILED
+test minify::tests::switch_backslash_escaped_pattern_survives_verbatim ... 
+thread 'minify::tests::switch_backslash_escaped_pattern_survives_verbatim' (65704) panicked at rust/tcl-lsp-core/src/minify.rs:4121:9:
+assertion `left == right` failed: 
+input:    "switch $x {\n    a\\ b {puts one}\n    default {puts two}\n}\n"
+got:      "switch $x {\n    a\\ b {puts one}\n    default {puts two}\n}"
+expected: "switch $x {a\\ b {puts one} default {puts two}}"
+  left: "switch $x {\n    a\\ b {puts one}\n    default {puts two}\n}"
+ right: "switch $x {a\\ b {puts one} default {puts two}}"
+FAILED
+test minify::tests::switch_braced_and_quoted_multiword_patterns_keep_delimiters ... 
+thread 'minify::tests::switch_braced_and_quoted_multiword_patterns_keep_delimiters' (65705) panicked at rust/tcl-lsp-core/src/minify.rs:4121:9:
+assertion `left == right` failed: 
+input:    "switch $x {\n  {a b} { puts one }\n  \"c d\" { puts two }\n  default { puts def }\n}\n"
+got:      "switch $x {\n  {a b} { puts one }\n  \"c d\" { puts two }\n  default { puts def }\n}"
+expected: "switch $x {{a b} {puts one} \"c d\" {puts two} default {puts def}}"
+  left: "switch $x {\n  {a b} { puts one }\n  \"c d\" { puts two }\n  default { puts def }\n}"
+ right: "switch $x {{a b} {puts one} \"c d\" {puts two} default {puts def}}"
+FAILED
+test minify::tests::switch_dynamic_case_list_not_treated_as_case_list ... ok
+test minify::tests::switch_fallthrough_preserved ... 
+thread 'minify::tests::switch_fallthrough_preserved' (65707) panicked at rust/tcl-lsp-core/src/minify.rs:4121:9:
+assertion `left == right` failed: 
+input:    "switch $x {\n    a -\n    b {\n        puts 2\n    }\n}\n"
+got:      "switch $x {\n    a -\n    b {\n        puts 2\n    }\n}"
+expected: "switch $x {a - b {puts 2}}"
+  left: "switch $x {\n    a -\n    b {\n        puts 2\n    }\n}"
+ right: "switch $x {a - b {puts 2}}"
+FAILED
+test minify::tests::switch_hash_pattern_is_not_a_comment ... 
+thread 'minify::tests::switch_hash_pattern_is_not_a_comment' (65708) panicked at rust/tcl-lsp-core/src/minify.rs:4121:9:
+assertion `left == right` failed: 
+input:    "switch # {\n    # {puts matched}\n    default {puts default}\n}\n"
+got:      "switch # {\n    # {puts matched}\n    default {puts default}\n}"
+expected: "switch # {# {puts matched} default {puts default}}"
+  left: "switch # {\n    # {puts matched}\n    default {puts default}\n}"
+ right: "switch # {# {puts matched} default {puts default}}"
+FAILED
+test minify::tests::switch_hash_prefixed_pattern_and_semicolon_pattern_survive ... 
+thread 'minify::tests::switch_hash_prefixed_pattern_and_semicolon_pattern_survive' (65709) panicked at rust/tcl-lsp-core/src/minify.rs:4121:9:
+assertion `left == right` failed: 
+input:    "switch $x {\n    #foo {puts a}\n    {;} {puts b}\n    default {puts c}\n}\n"
+got:      "switch $x {\n    #foo {puts a}\n    {;} {puts b}\n    default {puts c}\n}"
+expected: "switch $x {#foo {puts a} {;} {puts b} default {puts c}}"
+  left: "switch $x {\n    #foo {puts a}\n    {;} {puts b}\n    default {puts c}\n}"
+ right: "switch $x {#foo {puts a} {;} {puts b} default {puts c}}"
+FAILED
+test minify::tests::switch_odd_length_case_list_preserved_verbatim ... ok
+test minify::tests::unminify_error_parse_round_trip ... ok
+test minify::tests::unminify_error_round_trips_via_symbol_map ... 
+thread 'minify::tests::unminify_error_round_trips_via_symbol_map' (65712) panicked at rust/tcl-lsp-core/src/minify.rs:4416:9:
+assertion `left == right` failed
+  left: "can't read \"name\": no such variable"
+ right: "can't read \"greet\": no such variable"
+FAILED
+
+failures:
+
+failures:
+    minify::original::tests::lexical_source_headers_keep_runtime_and_metadata_separate
+    minify::original::tests::logical_render_roles_retain_effective_alias_prefix_and_original_body
+    minify::tests::a_non_bare_braced_name_keeps_its_braces
+    minify::tests::abbreviates_ensemble_subcommand_in_irules
+    minify::tests::abbreviations::option_words_shorten_too
+    minify::tests::abbreviations::subcommand_words_shorten_to_their_minimal_unique_prefix
+    minify::tests::aggressive_aliases_avoid_compacted_local_collisions
+    minify::tests::aggressive_aliases_repeated_arguments
+    minify::tests::aggressive_aliases_repeated_commands
+    minify::tests::aggressive_aliases_string_substrings
+    minify::tests::aggressive_runs_optimise_compact_minify
+    minify::tests::apply_lambda_body_with_backslash_escape_decodes
+    minify::tests::apply_lambda_multi_word_param_list_keeps_its_braces
+    minify::tests::compact_isolated_renames_global_vars
+    minify::tests::compact_isolated_renames_procs
+    minify::tests::compact_never_splits_unset_from_its_variable
+    minify::tests::compact_renames_param_name_not_other_defaults
+    minify::tests::compact_renames_proc_local_vars_and_params
+    minify::tests::compact_renames_refs_inside_expr_and_command_subst
+    minify::tests::compact_renames_repeated_set_sites_in_lock_step
+    minify::tests::compact_returns_symbol_map
+    minify::tests::compact_two_namespace_same_proc_name_is_deterministic_and_intact
+    minify::tests::compact_variable_reads_keep_original_braced_names_and_current_source
+    minify::tests::compresses_expr_whitespace
+    minify::tests::expr_comparison_inversion
+    minify::tests::expr_de_morgan_forward
+    minify::tests::expr_de_morgan_reverse
+    minify::tests::expr_no_change_when_already_minimal
+    minify::tests::expr_ordered_comparison_inversion_is_declined
+    minify::tests::expr_shrink_nested_in_command_subst
+    minify::tests::expr_string_and_membership_inversion_still_applies
+    minify::tests::expression_commands_keep_configured_literal_closers_and_unavailable_extents
+    minify::tests::keyword_abbreviation_follows_an_aliased_head
+    minify::tests::live_name_inventory_uses_the_actual_complete_reference_grammar
+    minify::tests::minifies_switch_case_bodies
+    minify::tests::minify_abstains_for_a_dynamic_binding
+    minify::tests::nested_body_recursion
+    minify::tests::quote_stripping_follows_the_documents_dialect
+    minify::tests::recurses_into_command_substitution
+    minify::tests::rename_barriers_follow_the_resolved_head
+    minify::tests::static_fold_folds_sccp_constant_interpolation
+    minify::tests::static_fold_quotes_carriage_return_value
+    minify::tests::still_unbraces_when_safe
+    minify::tests::strips_redundant_quotes
+    minify::tests::switch_backslash_escaped_pattern_survives_verbatim
+    minify::tests::switch_braced_and_quoted_multiword_patterns_keep_delimiters
+    minify::tests::switch_fallthrough_preserved
+    minify::tests::switch_hash_pattern_is_not_a_comment
+    minify::tests::switch_hash_prefixed_pattern_and_semicolon_pattern_survive
+    minify::tests::unminify_error_round_trips_via_symbol_map
+
+test result: FAILED. 92 passed; 50 failed; 0 ignored; 0 measured; 3029 filtered out; finished in 413.50s
+

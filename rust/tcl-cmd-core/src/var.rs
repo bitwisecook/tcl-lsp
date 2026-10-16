@@ -81,7 +81,7 @@ where
     Ok(ops.new_list(items))
 }
 
-/// Publish a selected Jim link failure with its actual String producer and
+/// Publish a selected Jim link failure with its selected String producer and
 /// default error-code update. No C UPVAR classification is borrowed.
 #[must_use]
 pub fn native_jim_alias_error(
@@ -92,5 +92,15 @@ pub fn native_jim_alias_error(
     // naming.variable.original-upvar-error-publication
     // docs/design/analysis/name-resolution-proofs/variable-original-upvar-error-publication.md
     CmdError::new_bytes(protocol.alias_failure_message(failure, original))
+        .with_native_string_result(tcl_syntax::native_string::NativeStringProtocol::Jim084)
+}
+
+/// Publish Jim_CreateNamespaceVariable's local-name diagnostic.
+#[must_use]
+pub fn native_jim_namespace_variable_error(
+    protocol: tcl_syntax::native_jim_lookup::NativeJimLookupProtocol,
+    original_local: &[u8],
+) -> CmdError {
+    CmdError::new_bytes(protocol.namespace_variable_failure_message(original_local))
         .with_native_string_result(tcl_syntax::native_string::NativeStringProtocol::Jim084)
 }

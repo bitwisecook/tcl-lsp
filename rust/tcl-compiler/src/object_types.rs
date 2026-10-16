@@ -45,6 +45,13 @@
 //! every existing consumer is untouched.  Contract and consumer/soundness
 //! tables: `docs/design/compiler/object-type-lattice.md`.
 
+mod original_collection_sources;
+pub use original_collection_sources::{
+    OriginalCollectionElementSource, OriginalCollectionReceiverPath,
+    OriginalObjectCollectionSourceCandidates, OriginalObjectCollectionSources,
+    original_object_collection_sources_at,
+};
+
 use std::collections::{HashMap, HashSet};
 
 use tcl_lexer::Span;

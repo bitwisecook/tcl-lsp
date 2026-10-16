@@ -68,7 +68,7 @@ impl NativeJimLookupProtocol {
             Some(pattern) => NativeJimVariableInventoryLookup::Scan(pattern),
         }
     }
-    /// Original counted Jim alias error formatter. This has no C error tuple,
+    /// Original Jim alias error formatter after its counted String getter. This has no C error tuple,
     /// installed alias, selected frame or variable-cache authority.
     #[must_use]
     pub fn alias_failure_message(self, failure: NativeJimAliasFailure, original: &[u8]) -> Vec<u8> {
@@ -80,7 +80,7 @@ impl NativeJimLookupProtocol {
         } else {
             b"bad variable name \"".to_vec()
         };
-        message.extend_from_slice(original);
+        message.extend_from_slice(tcl_core_types::c_string_extent(original));
         message.extend_from_slice(match failure {
             NativeJimAliasFailure::LocalElement => {
                 b"\": upvar won't create a scalar variable that looks like an array element"
@@ -91,6 +91,16 @@ impl NativeJimLookupProtocol {
             }
             NativeJimAliasFailure::SelfLink => unreachable!("handled above"),
         });
+        message
+    }
+
+    /// Jim_CreateNamespaceVariable diagnostic after its counted local String getter.
+    /// This supplies no alias, variable cell or selected frame.
+    #[must_use]
+    pub fn namespace_variable_failure_message(self, original_local: &[u8]) -> Vec<u8> {
+        let mut message = b"can't define \"".to_vec();
+        message.extend_from_slice(tcl_core_types::c_string_extent(original_local));
+        message.extend_from_slice(b"\": name refers to an element in an array");
         message
     }
 

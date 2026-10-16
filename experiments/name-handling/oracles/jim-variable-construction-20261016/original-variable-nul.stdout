@@ -1,0 +1,1 @@
+1 {bad variable name "item(k": upvar won't create a scalar variable that looks like an array element} {1 {can't define "item(k": name refers to an element in an array}}

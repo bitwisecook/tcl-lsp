@@ -1,0 +1,88 @@
+   Compiling tcl-syntax v0.1.0 (/workspace/tcl-lsp/rust/tcl-syntax)
+   Compiling tcl-runtime-api v0.1.0 (/workspace/tcl-lsp/rust/tcl-runtime-api)
+   Compiling tcl-cmd-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-cmd-core)
+   Compiling tcl-regex v0.1.0 (/workspace/tcl-lsp/rust/tcl-regex)
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp/rust/tcl-registry)
+   Compiling tcl-bytecode v0.1.0 (/workspace/tcl-lsp/rust/tcl-bytecode)
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+warning: function `local_instance_classes_with_initial` is never used
+   --> rust/tcl-compiler/src/taint.rs:707:15
+    |
+707 | pub(crate) fn local_instance_classes_with_initial(
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: associated function `for_cfg` is never used
+  --> rust/tcl-compiler/src/taint/source_context.rs:80:19
+   |
+27 | impl<'a> TaintSourceContext<'a> {
+   | ------------------------------- associated function in this implementation
+...
+80 |     pub(crate) fn for_cfg(registry: &CommandRegistry, cfg: &'a crate::cfg::Function) -> Self {
+   |                   ^^^^^^^
+
+warning: `tcl-compiler` (lib) generated 2 warnings
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-vm v0.1.0 (/workspace/tcl-lsp/rust/tcl-vm)
+   Compiling tcl-engine-api v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-api)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+   Compiling tcl-pkg-model v0.1.0 (/workspace/tcl-lsp/rust/tcl-pkg-model)
+   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-spectcl)
+warning: `tcl-compiler` (lib test) generated 2 warnings (2 duplicates)
+   Compiling tcl-lsp-db v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-db)
+warning: function `int_add` is never used
+  --> rust/tcl-vm/src/value_ops.rs:60:15
+   |
+60 | pub(crate) fn int_add<'a>(
+   |               ^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `create_local_names` is never used
+    --> rust/tcl-vm/src/literal_pool.rs:1265:15
+     |
+1265 | pub(crate) fn create_local_names(
+     |               ^^^^^^^^^^^^^^^^^^
+
+warning: unused return value of `interp::Vm::refuse_host_command` that must be used
+   --> rust/tcl-vm/src/interp/native_namespace_names.rs:928:9
+    |
+928 |         vm.refuse_host_command("original namespace report first cause".into());
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_must_use)]` (part of `#[warn(unused)]`) on by default
+help: use `let _ = ...` to ignore the resulting value
+    |
+928 |         let _ = vm.refuse_host_command("original namespace report first cause".into());
+    |         +++++++
+
+warning: `tcl-vm` (lib test) generated 3 warnings
+warning: cannot test inner items
+    --> rust/tcl-syntax/src/naming/native.rs:5749:5
+     |
+5749 |     #[test]
+     |     ^^^^^^^
+     |
+     = note: `#[warn(unnameable_test_items)]` on by default
+
+warning: function `namespace_import_force_uses_only_exact_c_extent_and_declines_jim_control` is never used
+    --> rust/tcl-syntax/src/naming/native.rs:5750:8
+     |
+5750 |     fn namespace_import_force_uses_only_exact_c_extent_and_declines_jim_control() {
+     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-syntax` (lib test) generated 2 warnings
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 9m 18s
+  Executable unittests src/lib.rs (target/debug/deps/tcl_compiler-64037e22b395f236)
+  Executable unittests src/lib.rs (target/debug/deps/tcl_lsp_core-f8b3e987f580e80a)
+  Executable unittests src/lib.rs (target/debug/deps/tcl_lsp_db-9e321be92e8dc096)
+  Executable unittests src/lib.rs (target/debug/deps/tcl_registry-a9927d319bac91e1)
+  Executable unittests src/lib.rs (target/debug/deps/tcl_syntax-9e31cc9426373b70)
+  Executable unittests src/lib.rs (target/debug/deps/tcl_vm-10c288c6b81a0f5e)

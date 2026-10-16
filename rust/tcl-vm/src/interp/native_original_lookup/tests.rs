@@ -19,6 +19,10 @@ use tcl_syntax::{
 
 #[derive(Default)]
 struct Formatter {
+    queries: Cell<usize>,
+    builds: Cell<usize>,
+    withdraw_on_query: RefCell<Option<Rc<RefCell<NativeNameWorld>>>>,
+    retire_caller_on_query: Cell<bool>,
     calls: Cell<usize>,
     mode: Cell<u8>,
     caller: RefCell<Option<Value>>,
@@ -26,6 +30,7 @@ struct Formatter {
 }
 impl NativeIntegerFormatter for Formatter {
     fn build(&self) -> NativeIntegerFormatterBuild {
+        self.builds.set(self.builds.get() + 1);
         NativeIntegerFormatterBuild {
             version: [8, 4, 20, 0],
             sha256: [7; 32],
@@ -72,6 +77,13 @@ impl tcl_platform::Host for Host {
         self.actual.env()
     }
     fn native_integer_formatter(&self) -> Option<&dyn NativeIntegerFormatter> {
+        self.formatter.queries.set(self.formatter.queries.get() + 1);
+        if let Some(world) = self.formatter.withdraw_on_query.borrow_mut().take() {
+            world.borrow_mut().retire();
+        }
+        if self.formatter.retire_caller_on_query.replace(false) {
+            drop(self.formatter.caller.borrow_mut().take());
+        }
         Some(&*self.formatter)
     }
 }
@@ -319,4 +331,197 @@ fn shared_original_alias_consumer_preserves_prior_host_before_missing_name_prese
     assert_eq!(original.native_object_snapshot(), before);
     assert_eq!(original.native_object_reference_count(), 1);
     unchanged_result(&vm, &prior);
+}
+
+#[test]
+fn original_lookup_checks_namespace_world_after_the_reached_formatter_query() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // The supplied provider query withdraws the actual software world before String publication.
+    for withdraw in [false, true] {
+        let mut vm = actual("tcl8.4");
+        let formatter = Rc::new(Formatter::default());
+        vm.set_host(Rc::new(Host {
+            actual: vm.host_rc(),
+            formatter: Rc::clone(&formatter),
+        }));
+        command(&mut vm, i64::MIN.to_string().as_bytes());
+        let caller = Value::from_native_scalar_cache(
+            NativeScalarCache::Number(Number::Int(i64::MIN)),
+            None,
+            vm.actual_native_invocation_dialect(),
+        )
+        .unwrap();
+        let original = caller.native_lifetime_lease();
+        *formatter.caller.borrow_mut() = Some(caller);
+        let prior = preserved_result(&mut vm);
+        if withdraw {
+            *formatter.withdraw_on_query.borrow_mut() = Some(Rc::clone(&vm.name_world));
+        }
+        let reached = vm.native_command_from_original(original.value());
+        assert_eq!(formatter.queries.get(), 1);
+        assert_eq!(original.value().native_object_reference_count(), 1);
+        assert!(original.value().native_object_is_live());
+        if withdraw {
+            let error = reached.unwrap_err();
+            let expected = NativeExecutionError::ValueAccessRefusal(
+                NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "original lookup namespace and world",
+                ),
+            );
+            assert_eq!(error.native_execution_refusal(), Some(&expected));
+            assert_eq!(vm.execution_refusal.as_ref(), Some(&expected));
+            assert_eq!(formatter.builds.get(), 0);
+            assert_eq!(formatter.calls.get(), 0);
+            assert!(original.value().resident_string_bytes().is_none());
+            assert!(original.value().native_command_name_cache().is_none());
+        } else {
+            assert!(reached.unwrap().is_some());
+            assert!(formatter.builds.get() > 0);
+            assert_eq!(formatter.calls.get(), 1);
+            assert_eq!(&*formatter.counts.borrow(), &[1]);
+            assert_eq!(
+                original.value().resident_string_bytes().unwrap().as_ref(),
+                i64::MIN.to_string().as_bytes(),
+            );
+            assert!(original.value().native_command_name_cache().is_some());
+            assert!(vm.execution_refusal.is_none());
+        }
+        unchanged_result(&vm, &prior);
+    }
+}
+
+fn enter_original_jim_namespace(vm: &mut Vm, original: &Value) -> NamespaceExecutionContext {
+    let context = super::super::OriginalJimNamespaceContext::for_lambda(vm, original).unwrap();
+    vm.push_call_frame(Some("original_lookup_holder".into()), Vec::new());
+    vm.install_jim_procedure_namespace_owner(None, original.clone());
+    vm.push_procedure_namespace_context(super::super::ProcedureNamespace::OriginalJim(Rc::clone(
+        &context,
+    )));
+    NamespaceExecutionContext::OriginalJim(context)
+}
+
+#[test]
+fn original_jim_lookup_holder_getter_checks_the_lookup_world_at_the_provider_query() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // The entered original Jim frame supplies its real holder without materialising a token.
+    for withdraw in [false, true] {
+        let mut vm = actual("jim");
+        let formatter = Rc::new(Formatter::default());
+        vm.set_host(Rc::new(Host {
+            actual: vm.host_rc(),
+            formatter: Rc::clone(&formatter),
+        }));
+        let holder = Value::int(42);
+        let context = enter_original_jim_namespace(&mut vm, &holder);
+        let original = Value::new_native_string_bytes(b"head".as_slice());
+        let entered = OriginalLookup::enter_in_context(&mut vm, &context, &original).unwrap();
+        let before = holder.native_object_reference_count();
+        let namespaces = vm.name_world.borrow().ns_arena.len();
+        assert!(
+            entered
+                .jim_namespace_original()
+                .unwrap()
+                .is_same_object(&holder)
+        );
+        assert!(holder.resident_string_bytes().is_none());
+        let prior = preserved_result(&mut vm);
+        if withdraw {
+            *formatter.withdraw_on_query.borrow_mut() = Some(Rc::clone(&vm.name_world));
+        }
+        let reached = entered.read_jim_namespace(&mut vm);
+        let reached = entered.finish(&mut vm, reached);
+        assert_eq!(formatter.queries.get(), 1);
+        assert_eq!(formatter.calls.get(), 0);
+        assert_eq!(holder.native_object_reference_count(), before);
+        assert_eq!(vm.name_world.borrow().ns_arena.len(), namespaces);
+        assert!(context.resolved_token().is_none());
+        assert_eq!(original.native_object_reference_count(), 1);
+        if withdraw {
+            let expected = NativeExecutionError::ValueAccessRefusal(
+                NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "original lookup namespace and world",
+                ),
+            );
+            assert_eq!(
+                reached.unwrap_err().native_execution_refusal(),
+                Some(&expected)
+            );
+            assert_eq!(vm.execution_refusal.as_ref(), Some(&expected));
+            assert!(holder.resident_string_bytes().is_none());
+        } else {
+            assert_eq!(reached.unwrap().as_ref(), b"42");
+            assert_eq!(holder.resident_string_bytes().unwrap().as_ref(), b"42");
+            assert!(vm.execution_refusal.is_none());
+        }
+        unchanged_result(&vm, &prior);
+    }
+}
+
+#[test]
+fn original_jim_materialisation_checks_the_independent_lookup_operand_before_string_or_token() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // Retiring the separate operand leaves the original Jim context owner live.
+    for retire in [false, true] {
+        let mut vm = actual("jim");
+        let formatter = Rc::new(Formatter::default());
+        vm.set_host(Rc::new(Host {
+            actual: vm.host_rc(),
+            formatter: Rc::clone(&formatter),
+        }));
+        let holder = Value::int(42);
+        let context = enter_original_jim_namespace(&mut vm, &holder);
+        let caller = Value::new_native_string_bytes(b"head".as_slice());
+        let original = caller.native_lifetime_lease();
+        *formatter.caller.borrow_mut() = Some(caller);
+        let entered =
+            OriginalLookup::enter_in_context(&mut vm, &context, original.value()).unwrap();
+        let before = holder.native_object_reference_count();
+        let namespaces = vm.name_world.borrow().ns_arena.len();
+        let prior = preserved_result(&mut vm);
+        formatter.retire_caller_on_query.set(retire);
+        let reached = entered.materialize_namespace(&mut vm);
+        let reached = entered.finish(&mut vm, reached);
+        assert_eq!(formatter.queries.get(), 1);
+        assert_eq!(formatter.calls.get(), 0);
+        assert_eq!(holder.native_object_reference_count(), before);
+        assert_eq!(original.value().native_object_is_live(), !retire);
+        assert_eq!(
+            original.value().native_object_reference_count(),
+            usize::from(!retire)
+        );
+        let NamespaceExecutionContext::OriginalJim(owner) = &context else {
+            unreachable!();
+        };
+        assert!(owner.owner_is_current(&vm));
+        if retire {
+            let expected = NativeExecutionError::ValueAccessRefusal(
+                NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "retired native object header",
+                ),
+            );
+            assert_eq!(
+                reached.unwrap_err().native_execution_refusal(),
+                Some(&expected)
+            );
+            assert_eq!(vm.execution_refusal.as_ref(), Some(&expected));
+            assert!(holder.resident_string_bytes().is_none());
+            assert!(context.resolved_token().is_none());
+            assert_eq!(vm.name_world.borrow().ns_arena.len(), namespaces);
+        } else {
+            let token = reached.unwrap();
+            assert_eq!(context.resolved_token(), Some(token));
+            assert_eq!(vm.current_ns_id(), token);
+            assert_eq!(holder.resident_string_bytes().unwrap().as_ref(), b"42");
+            assert_eq!(
+                vm.name_world.borrow().jim_namespace_objects[&token].as_bytes(),
+                b"42"
+            );
+            assert_eq!(vm.name_world.borrow().ns_arena.len(), namespaces + 1);
+            assert!(vm.execution_refusal.is_none());
+        }
+        unchanged_result(&vm, &prior);
+    }
 }

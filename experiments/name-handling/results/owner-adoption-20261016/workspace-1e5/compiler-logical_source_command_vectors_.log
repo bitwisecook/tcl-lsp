@@ -1,0 +1,15 @@
+
+running 1 test
+test command_binding::original_name_value::graph_tests::logical_source_command_vectors_keep_genuine_conditional_receiver_geometry ... 
+thread 'command_binding::original_name_value::graph_tests::logical_source_command_vectors_keep_genuine_conditional_receiver_geometry' (63085) panicked at rust/tcl-compiler/src/command_binding/original_name_value.rs:2317:68:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    command_binding::original_name_value::graph_tests::logical_source_command_vectors_keep_genuine_conditional_receiver_geometry
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10202 filtered out; finished in 1.21s
+

@@ -11080,6 +11080,11 @@
             }
           }
         ]
+      },
+      "implementation": {
+        "status": "partially_implemented_pending_validation",
+        "checkpoint": "1e5dfbdb successor",
+        "validation": "Reviewed original object/currentness or genuine typed class-source transport integrated; ordinary successor build stopped on two class compile errors now narrowly repaired, complete rerun pending. Foreign constructor collections remain open."
       }
     },
     {
@@ -25748,7 +25753,12 @@
       ],
       "api": "Shared jim_canonical_namespace_object and namespace text/Tail original-owner recipes exist; actual variable original-object setter exists",
       "required_change": "Missing authentic always-reached canonical→actual NamespaceTail result/header producer and local original key/cell/cache transport. Current root branch skips original canonical/tail physical stages and var_set(local bytes) cannot issue original key owner; nonroot uses reconstructed local header. Preserve C branch and source-only fallback purposes separately.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "1e5dfbdb successor",
+        "validation": "Reviewed genuine original getters/namespace/frame/currentness and shared formatter/checked String transport; ordinary successor tests pending."
+      }
     },
     {
       "area": "runtime",
@@ -34140,7 +34150,12 @@
         "Existing checked_using String and materialize_using namespace owners already accept authentic caller checks. Actual OriginalLookup read/read_jim_namespace/materialize only check surrounding call, so pass existing self.check through every reached nested stage; preserve actual namespace incarnation/context/operand header and finish. No new resolver or weaker generic currentness.",
         "144/160/171 exactmethods;146/166 defaultgetter and175 defaultmaterialize substantive missingcallback transport."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "1e5dfbdb successor",
+        "validation": "Reviewed genuine original getters/namespace/frame/currentness and shared formatter/checked String transport; ordinary successor tests pending."
+      }
     },
     {
       "area": "vm",
@@ -131298,12 +131313,12 @@
   ],
   "implementation_progress": {
     "resumed_from": "554085e162823ea8bd126898d0c27b7b2a9f8628",
-    "utc": "2026-10-16T09:58:38.956554+00:00",
+    "utc": "2026-10-16T10:20:36.727676+00:00",
     "audit_baseline_counts_unchanged": true,
     "total_required_units": 2158,
-    "implemented_pending_validation": 94,
+    "implemented_pending_validation": 97,
     "verified_complete": 0,
-    "not_started": 2064,
+    "not_started": 2061,
     "remaining_unverified_or_unimplemented": 2158,
     "additional_work_not_counted_as_catalogue_completion": [
       "VM C import preload selected-dispatch owner facet integrated, bounded additional requirement annex mapping pending.",
@@ -131312,12 +131327,10 @@
       "Baseline runtime compile adapter mapping remains pending."
     ],
     "latest_scoped_build": {
-      "status": "RUNNING_AFTER_TYPE_AND_API_DOC_REPAIR",
-      "source": "861e1962 successor with reviewed physical-body and compiled-stack patches",
-      "failed_log": "/tmp/naming-workspace-build-861e-successor.log",
-      "log": "/tmp/naming-workspace-build-861e-successor-api-docs.log",
-      "repair": "Optional expansion vector guard and four required public API comments corrected; no assertions or lint guards changed.",
-      "second_failed_log": "/tmp/naming-workspace-build-861e-successor-fixed.log"
+      "status": "FAIL2_CLASS_ADAPTER_ERRORS",
+      "source": "1e5dfbdb successor",
+      "log": "/tmp/naming-workspace-build-1e5-successor.log",
+      "repair": "Added pure genuine Logical declaration source/input correspondence accessor and corrected optional expansion vector guard; rerun pending."
     },
     "required_gates": "Still not green; no PR acceptance.",
     "report_cadence_minutes": 30,
@@ -131459,7 +131472,7 @@
     "withheld_drafts": [
       "Minifier command/argument alias construction: missing genuine source action/insertion owner; original unknown-command controls remain unchanged."
     ],
-    "owner_facet_reconciliation": "19 additional unverified owner/caller obligations accepted in separate annex; baseline2158 unchanged;14 additional integrated pending validation.",
+    "owner_facet_reconciliation": "19 additional unverified obligations accepted in separate annex; baseline2158 unchanged;18 additional integrated pending validation. Further demonstrated formatter/preload/Logical source facets still under bounded reconciliation.",
     "runtime_build": {
       "status": "PASS",
       "head": "2459c99246751fd7695a585ea1081b43937174fb",
@@ -131470,7 +131483,11 @@
     },
     "scoped_capture": "experiments/name-handling/results/owner-adoption-20261016/records.json",
     "pending_repairs": [
-      "Repaired Compiler Logical-variable fixture premises and W125 qualification await a fresh workspace build and reruns."
+      "Compiler genuine Logical transition-tape point/vector source transport; genuine conditional receiver source producer; transformed procedure source mapping.",
+      "DB readonly Logical body/formal trait owner and source-only selected argument projection.",
+      "Core minifier expression/source edit producers and remaining alias transformation authority.",
+      "Twelve VM namespace controls; pending0147 successor tests and originalSyntaxforce test now moved to discoverable module scope.",
+      "Historical proof payload availability and reviewed digest/census drift; required gates remain unpassed."
     ],
     "proof_check": {
       "status": "FAIL",
@@ -131487,19 +131504,29 @@
     },
     "additional_facet_review": {
       "accepted_additional_units": 19,
-      "implemented_pending_validation": 14,
+      "implemented_pending_validation": 18,
       "verified_complete": 0,
       "annex": "implementation-owner-annex.json"
     },
     "additional_owner_annex": "implementation-owner-annex.json",
     "effective_required_units": 2177,
-    "effective_implemented_pending_validation": 108,
+    "effective_implemented_pending_validation": 115,
     "effective_verified_complete": 0,
     "incoming_remote": {
       "rust": "5704753576d9e6d57ba7928c739dcbf726ce6bd1",
       "issue": 2486,
       "status": "unmerged_unadmitted",
       "scope": "Toolchain and cross-project dependency updates; current work toolchain unchanged."
+    },
+    "ordinary_workspace_build": {
+      "status": "PASS",
+      "head": "1e5dfbdb0187f02f85bd114e93d94a4d9a29814b",
+      "seconds": 558,
+      "log": "workspace-1e5/naming-workspace-build-861e-successor-api-docs.log",
+      "capture": "experiments/name-handling/results/owner-adoption-20261016/workspace-1e5/records.json",
+      "PASS": 164,
+      "FAIL": 79,
+      "NO_TESTS": 1
     }
   }
 }

@@ -4561,10 +4561,10 @@ pub use project_token_inputs::{
 /// The cross-file facts the project-level token aggregates read from **one**
 /// file: its class definitions and its inferred variable-name argument roles.
 ///
-/// Deliberately small and `PartialEq`: it is the per-file firewall in front of
-/// [`project_class_index`] / [`project_proc_var_index`], so an edit that leaves
-/// a file's classes and parameter roles alone — which is nearly every keystroke
-/// — backdates here and the project aggregates do not re-execute at all.
+/// The structure-only per-file boundary retains original source-display
+/// receipts as well as compatibility projections. Original-image changes
+/// invalidate those receipts; unchanged aggregate display maps can backdate
+/// independently after their original providers have been checked.
 #[derive(Clone, Default, PartialEq)]
 pub struct FileTokenFacts {
     /// Classes declared in this file, keyed by qualified name.
@@ -4573,10 +4573,12 @@ pub struct FileTokenFacts {
     pub proc_roles: VarNameArgRoles,
     /// Bareword instance-command names this file binds via `CLASS create
     /// NAME`, mapped to the (locally-resolved) qualified class name — the
-    /// named-object dispatch form, gated on
-    /// `created_instance_commands` exactly like the LSP's
-    /// `receiver_instance_class`.
+    /// compatibility display projection. Actual project token retagging uses
+    /// `class_cards`, independently of this report membership.
     pub named_instances: HashMap<String, String>,
+    /// Genuine original class/factory/instance source-display owners.
+    pub class_cards:
+        Option<tcl_compiler::registry_invocation::source_structure::OriginalProjectClassCards>,
 }
 
 /// The light (structure-only) per-file tier feeding [`project_class_index`] and
@@ -4620,8 +4622,13 @@ fn token_facts_from_analysis(result: AnalysisResult) -> Arc<FileTokenFacts> {
         .filter(|(name, _)| result.created_instance_commands.contains(name.as_str()))
         .map(|(name, class)| (name.clone(), class.clone()))
         .collect();
+    let class_cards =
+        tcl_compiler::registry_invocation::source_structure::OriginalProjectClassCards::capture(
+            &result,
+        );
     Arc::new(FileTokenFacts {
         proc_roles: VarNameArgRoles::from_analysis(&result),
+        class_cards,
         classes: result.all_classes,
         named_instances,
     })
@@ -4784,6 +4791,14 @@ pub fn semantic_tokens_project(
     let registry = token_registry(db, file.dialect(db), config.spec_pack_key(db));
     let cu = document_compilation_unit_for(db, file, config);
     let classes = project_class_index(db, project);
+    let mut seen = HashSet::new();
+    let class_cards = project
+        .files(db)
+        .iter()
+        .filter(|&&member| member != file && seen.insert(member))
+        .map(|&file| file_token_facts(db, file).class_cards.clone())
+        .collect::<Option<Vec<_>>>()
+        .unwrap_or_default();
     let proc_roles = project_proc_var_index(db, project);
     let named_instances = project_named_instance_index(db, project);
     let analysis = file_analysis_incremental(db, file, config);
@@ -4794,6 +4809,7 @@ pub fn semantic_tokens_project(
         cu.as_deref(),
         tcl_lsp_core::semantic_tokens::WorkspaceTokenFacts {
             classes: Some(&classes),
+            project_classes: Some(&class_cards),
             proc_roles: Some(&proc_roles),
             named_instances: Some(&named_instances),
             analysis: Some(&analysis),

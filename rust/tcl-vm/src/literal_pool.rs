@@ -1261,14 +1261,6 @@ impl crate::Vm {
 
 pub(crate) type NativeLocalNameTable = tcl_runtime_api::native_literal::NativeLocalNameTable<Value>;
 
-#[cfg(test)]
-pub(crate) fn create_local_names(
-    world: &Rc<RefCell<NativeLiteralWorld>>,
-    names: &[Option<tcl_core_types::NameBytes>],
-    protocol: NativeStringProtocol,
-) -> Result<Rc<NativeLocalNameTable>, NativeLiteralUnavailable> {
-    create_local_names_using(world, names, protocol, None)
-}
 pub(crate) fn create_local_names_using(
     world: &Rc<RefCell<NativeLiteralWorld>>,
     names: &[Option<tcl_core_types::NameBytes>],

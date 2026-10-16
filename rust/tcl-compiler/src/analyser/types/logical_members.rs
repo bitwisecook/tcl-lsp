@@ -64,6 +64,16 @@ impl LogicalSourceMemberInsertion {
 }
 
 impl LogicalSourceClassDeclaration {
+    /// Immutable original image and complete retained input correspondence.
+    /// This supplies no current class, installed member or execution grant.
+    pub(crate) fn matches_source(
+        &self,
+        image: &SourceImage,
+        input: &ResolvedAnalysisInput,
+    ) -> bool {
+        input.has_logical_source_name_context() && self.image == *image && self.input == *input
+    }
+
     pub(crate) fn capture(
         image: SourceImage,
         input: ResolvedAnalysisInput,

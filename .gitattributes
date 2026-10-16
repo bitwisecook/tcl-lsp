@@ -36,3 +36,8 @@ experiments/name-handling/variable-namespace-query-bases/**/*.bin -text -whitesp
 experiments/name-handling/namespace-command-query/**/*.bin -text -whitespace
 experiments/name-handling/namespace-which-compiler/**/*.bin -text -whitespace
 experiments/name-handling/namespace-which-compiler/**/*.c.txt -whitespace
+
+# Preserve original provider output and source excerpt bytes.
+experiments/name-handling/oracles/**/*.stdout -whitespace
+experiments/name-handling/oracles/**/*.stderr -whitespace
+experiments/name-handling/oracles/**/*-source.txt -whitespace

@@ -1,0 +1,7 @@
+{
+  "provider_head": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+  "upstream_recheck_utc": "2026-10-16T10:17:39Z",
+  "source": "Original jim-namespace.c95-178 canonical/Tail/Create; jim.c4834-4925 alias; jim.c17127-17180 formatter. Exact source/executable hashes in sha256.txt.",
+  "scope": "Root/nonroot/element and embeddedNUL original scripts; software formatter/header/lifetime tests remain separate and unexecuted at capture.",
+  "limitations": "Original script capture is not migratedRuntime acceptance; relative capture paths and matching original static provider remain bound to recorded hashes."
+}

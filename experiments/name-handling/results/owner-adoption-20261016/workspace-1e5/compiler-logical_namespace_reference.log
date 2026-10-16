@@ -1,0 +1,25 @@
+
+running 3 tests
+test analyser::commands::tests::logical_namespace_reference_inputs_require_current_original_owners_and_sites ... 
+thread 'analyser::commands::tests::logical_namespace_reference_inputs_require_current_original_owners_and_sites' (63102) panicked at rust/tcl-compiler/src/analyser/commands.rs:7373:30:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test analyser::commands::tests::logical_namespace_references_keep_original_words_and_independent_frames ... 
+thread 'analyser::commands::tests::logical_namespace_references_keep_original_words_and_independent_frames' (63108) panicked at rust/tcl-compiler/src/analyser/commands.rs:7249:89:
+called `Option::unwrap()` on a `None` value
+FAILED
+test analyser::commands::tests::logical_namespace_references_preserve_alias_written_indices_and_unknowns ... 
+thread 'analyser::commands::tests::logical_namespace_references_preserve_alias_written_indices_and_unknowns' (63109) panicked at rust/tcl-compiler/src/analyser/commands.rs:7305:18:
+called `Option::unwrap()` on a `None` value
+FAILED
+
+failures:
+
+failures:
+    analyser::commands::tests::logical_namespace_reference_inputs_require_current_original_owners_and_sites
+    analyser::commands::tests::logical_namespace_references_keep_original_words_and_independent_frames
+    analyser::commands::tests::logical_namespace_references_preserve_alias_written_indices_and_unknowns
+
+test result: FAILED. 0 passed; 3 failed; 0 ignored; 0 measured; 10200 filtered out; finished in 1.63s
+

@@ -55,16 +55,6 @@ use tcl_syntax::value::{IntegerMagnitude, ValueError, ValueOps, string_char_len}
 use crate::interp::Vm;
 use crate::value::Value;
 
-/// Integer addition through the selected native numeral and arithmetic owners.
-#[cfg(test)]
-pub(crate) fn int_add<'a>(
-    dialect: impl Into<crate::expr::NumericContext<'a>>,
-    a: Option<&Value>,
-    b: &Value,
-) -> Result<Value, ValueError> {
-    int_add_using(dialect.into(), a, b, None)
-}
-
 /// The original integer-only parser, with an optional current operation owner.
 fn integer_number(
     context: crate::expr::NumericContext<'_>,
