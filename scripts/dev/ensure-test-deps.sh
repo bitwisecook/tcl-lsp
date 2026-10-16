@@ -111,7 +111,9 @@ TCLLIB_VERSION="2.0"
 # docs/design/contracts/development-environment.md,
 # and the CI `node-version`. Distro apt/dnf packages (Ubuntu 24.04 ships Node
 # 18) fall below this, so install from NodeSource when they would.
-NODE_MIN_MAJOR="24"
+NODE_MIN_MAJOR="26"
+# Node 25+ no longer bundles Corepack, which pins npm via `packageManager`.
+COREPACK_VERSION="0.36.0"
 
 CHECK_ONLY=0
 if [ "${1:-}" = "--check" ]; then
@@ -663,9 +665,24 @@ ensure_node() {
         case "$PKG" in
             apt-get) install_node_from_nodesource deb || run_install "Node.js (apt)" nodejs npm ;;
             dnf|yum) install_node_from_nodesource rpm || run_install "Node.js (dnf)" nodejs npm ;;
-            # Homebrew's `node` formula tracks the current major (>= 24).
+            # Homebrew's `node` formula tracks the current major (>= 26).
             brew)    run_install "Node.js (Homebrew)" node ;;
         esac
+    fi
+
+    # Corepack must sit beside the active node, or its npm shim lands next to
+    # some other install and never takes effect.
+    local node_dir; node_dir="$(dirname "$(command -v node 2>/dev/null || echo /nonexistent/node)")"
+    if [ ! -x "$node_dir/corepack" ]; then
+        if [ "$CHECK_ONLY" -eq 1 ]; then
+            note_missing "corepack ${COREPACK_VERSION}"
+        else
+            info "Installing corepack ${COREPACK_VERSION}"
+            $SUDO "$node_dir/npm" install -g --no-audit --no-fund "corepack@${COREPACK_VERSION}" >/dev/null
+        fi
+    fi
+    if [ "$CHECK_ONLY" -eq 0 ] && [ -x "$node_dir/corepack" ]; then
+        $SUDO "$node_dir/corepack" enable npm
     fi
 
     # Project-local tsc lives in editors/vscode/node_modules/.bin/tsc and

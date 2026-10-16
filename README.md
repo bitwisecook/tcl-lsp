@@ -2074,7 +2074,7 @@ an INI file you can commit alongside the project.
 
 - A Rust toolchain via [rustup](https://rustup.rs/); the workspace tracks the
   floating `stable` channel.
-- Node.js 24+ with npm (pinned via `packageManager`; run `corepack enable npm`)
+- Node.js 26+ with npm (pinned via `packageManager`; run `npm install -g corepack && corepack enable npm`)
 - VS Code 1.95+
 
 On macOS, run `make ensure-rust-deps` before the Rust/WASM gates. Stock Apple

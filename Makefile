@@ -12,7 +12,7 @@
 #   - Rust stable with cargo (via rustup).  The workspace tracks the floating
 #     `stable` channel pinned in rust-toolchain.toml; current stable is 1.99.1,
 #     released 2026-10-15.  `Cargo.toml` `rust-version` is authoritative.
-#   - Node.js 24+ with npm
+#   - Node.js 26+ with npm
 #   - macOS WASM builds: `make ensure-rust-deps` installs the pinned wasi-sdk;
 #     stock Apple clang has no wasm32 backend.
 #

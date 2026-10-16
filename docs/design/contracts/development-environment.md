@@ -11,9 +11,11 @@ names are the executable truth.
   2026-10-15). CI resolves `stable` at run time, so a fresh release can fail
   `pr-gate`'s `cargo clippy -D warnings` on untouched code the day it lands:
   `rustup update` before debugging a clippy failure you cannot reproduce.
-- **Node.js 24+** with npm for the VS Code extension. npm is pinned to v12 via
-  `packageManager` in `editors/vscode/package.json`; run
-  `corepack enable npm` once (bare `corepack enable` only shims pnpm/yarn).
+- **Node.js 26+** with npm for the VS Code extension. npm is pinned to v12 via
+  `packageManager` in `editors/vscode/package.json`. Node 25+ no longer
+  bundles Corepack: run `npm install -g corepack` and then `corepack enable
+  npm` once (bare `corepack enable` only shims pnpm/yarn).
+  `ensure-test-deps.sh` does both.
 - **Everything else** — `make install-test-deps` runs
   `scripts/dev/ensure-test-deps.sh` (tclsh 8.4–9.1 built from `tmp/`, node,
   kotlinc, Wasmtime, Binaryen, wasi-sdk, emacs, xvfb, tshark, …) on
@@ -57,6 +59,7 @@ upstream than `tcl.tk` / SourceForge on every cold session. The hook exports
 |---|---|
 | Rust channel | `rust-toolchain.toml`; `Cargo.toml` `rust-version` |
 | Node.js minimum | `.github/workflows/ci.yml` `node-version`; `NODE_MIN_MAJOR` in `ensure-test-deps.sh` |
+| Corepack | `COREPACK_VERSION` in `ensure-test-deps.sh`; the `npm install -g corepack@…` steps in `.github/workflows/ci.yml` |
 | Tcl / Tk patchlevels and source tags | `rust/tcl-dialect/data/reference-toolchains.tsv` (the fetch skill, host installer, and `tcl docker` source-build layers consume it) |
 | Wasmtime, Binaryen, wasi-sdk, tcllib (remote) | variables at the top of `.claude/hooks/session-start.sh` |
 | Wasmtime, wasi-sdk, tcllib (laptop) | variables near the top of `scripts/dev/ensure-test-deps.sh` |
