@@ -58,10 +58,7 @@ fn checked_file_token_facts_for_config(
     Some(token_facts_from_analysis(result))
 }
 
-fn project_facts(
-    db: &dyn TclDb,
-    project: Project,
-) -> Option<Vec<Arc<FileTokenFacts>>> {
+fn project_facts(db: &dyn TclDb, project: Project) -> Option<Vec<Arc<FileTokenFacts>>> {
     let mut providers = HashSet::new();
     project
         .files(db)
@@ -81,10 +78,53 @@ pub fn project_class_index_for_inputs(db: &dyn TclDb, project: Project) -> Arc<C
     merge_project_classes(project_facts(db, project).unwrap_or_default())
 }
 
-/// Inferred source parameter roles merged on the structure-only tier.
+/// Source-role declarations and original formals under each checked input.
+/// Caller selection remains the compiler's conditional original occurrence query.
 #[salsa::tracked(returns(clone))]
 pub fn project_proc_var_index_for_inputs(db: &dyn TclDb, project: Project) -> Arc<VarNameArgRoles> {
-    merge_project_proc_roles(project_facts(db, project).unwrap_or_default())
+    let mut seen = HashSet::new();
+    let providers = project
+        .files(db)
+        .iter()
+        .filter(|&&file| seen.insert(file))
+        .map(|&file| {
+            let config = configuration_for_file(db, project, file)?;
+            checked_file_source_roles_for_config(db, file, config)
+        })
+        .collect::<Option<Vec<_>>>();
+    Arc::new(VarNameArgRoles::from_project_source_roles(
+        providers
+            .unwrap_or_default()
+            .into_iter()
+            .map(|provider| (*provider).clone())
+            .collect(),
+    ))
+}
+
+#[salsa::tracked(returns(clone))]
+fn checked_file_source_roles_for_config(
+    db: &dyn TclDb,
+    file: SourceFile,
+    config: AnalyserConfig,
+) -> Option<Arc<tcl_compiler::registry_invocation::source_structure::OriginalProjectProcedureRoles>>
+{
+    let input = document_analysis_input(db, file, config).ok()?;
+    let analysis = document_analyser(db, file, config)
+        .with_resolved_input((*input).clone())
+        .structure_only()
+        .analyse(file.text(db), file.dialect(db));
+    if analysis.resolved_input.as_ref() != Some(input.as_ref())
+        || !analysis.matches_original_source_image(
+            &tcl_lexer::SourceImage::document(file.text(db)),
+            input.lexer_config(),
+        )
+    {
+        return None;
+    }
+    tcl_compiler::registry_invocation::source_structure::OriginalProjectProcedureRoles::capture(
+        &analysis,
+    )
+    .map(Arc::new)
 }
 
 /// Conditional named-instance hints, without Native allocation or dispatch.

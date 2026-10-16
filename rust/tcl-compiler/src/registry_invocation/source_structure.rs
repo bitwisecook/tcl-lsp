@@ -21,6 +21,12 @@ pub use source_load::{OriginalProjectSourceLoad, original_project_source_load_at
 mod logical_variable_operands;
 pub(crate) use logical_variable_operands::OriginalLogicalVariableOperands;
 
+mod project_procedure_roles;
+pub use project_procedure_roles::{
+    OriginalProjectProcedureArguments, OriginalProjectProcedureRoles,
+    original_project_procedure_arguments,
+};
+
 mod procedure;
 pub use procedure::{
     OriginalLogicalProcedureArguments, OriginalProcedureSourceDescriptor,
@@ -1260,8 +1266,13 @@ pub fn original_logical_source_words_at(
         == Some(input))
     .then_some(())?;
     let binding = realm.invocation_at_source("", offset);
-    let (_, tokens) = binding.original_recorded_command()?;
-    super::original_native_compiler_words(&image, tokens.words(), offset, config)
+    if let Some((_, tokens)) = binding.original_recorded_command() {
+        return super::original_native_compiler_words(&image, tokens.words(), offset, config);
+    }
+    let original = realm
+        .source_bindings_ref()
+        .original_logical_source_command_at_in_source(input, &image, offset, config)?;
+    Some(original.native_words().to_vec())
 }
 
 /// Original Registry-created instance syntax at its actual source occurrence.
@@ -3389,6 +3400,68 @@ mod tests {
         crate::analyser::Analyser::new()
             .with_resolved_input(input)
             .analyse(source, profile.name)
+    }
+
+    #[test]
+    fn logical_source_words_keep_complete_receiver_catalogue_vectors_and_current_inputs() {
+        let source = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../experiments/name-handling/patterns/composed-callback-prefix/probes/positive.tcl"
+        ));
+        let mut analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
+        let offset = u32::try_from(source.find("after idle $cb").unwrap()).unwrap();
+        assert!(
+            analysis
+                .retained_command_realm()
+                .unwrap()
+                .invocation_at_source("", offset)
+                .original_recorded_command()
+                .is_none(),
+            "the source catalogue must supply this complete vector"
+        );
+        let words = original_logical_source_words_at(source, &analysis, offset)
+            .expect("complete original Logical receiver source vector");
+        assert_eq!(
+            words
+                .iter()
+                .map(|word| word.try_text().unwrap())
+                .collect::<Vec<_>>(),
+            ["after", "idle", "$cb"]
+        );
+        let input = analysis.resolved_input.as_ref().unwrap().clone();
+        assert!(words.iter().all(
+            |word| word.image() == &tcl_lexer::SourceImage::document(source)
+                && word.config() == input.lexer_config()
+        ));
+        assert!(
+            original_logical_source_words_at(&format!("{source} "), &analysis, offset).is_none()
+        );
+        assert!(original_logical_source_words_at(source, &analysis, offset + 6).is_none());
+        analysis.resolved_input = None;
+        assert!(original_logical_source_words_at(source, &analysis, offset).is_none());
+        analysis.resolved_input = Some(input.clone());
+        let mut changed = input.lexer_config();
+        changed.strict_quoting = !changed.strict_quoting;
+        analysis.body_lexer_config = Some(changed);
+        assert!(original_logical_source_words_at(source, &analysis, offset).is_none());
+        analysis.body_lexer_config = Some(input.lexer_config());
+        analysis.resolved_input = Some(crate::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry(),
+            input.lexer_config(),
+        ));
+        assert!(original_logical_source_words_at(source, &analysis, offset).is_none());
+        let source = "list VALUE";
+        let logical = crate::analyser::Analyser::new().analyse(source, "tcl");
+        assert_eq!(
+            original_logical_source_words_at(source, &logical, 0)
+                .unwrap()
+                .len(),
+            2
+        );
+        let native = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+        assert!(original_logical_source_words_at(source, &native, 0).is_none());
     }
 
     #[test]

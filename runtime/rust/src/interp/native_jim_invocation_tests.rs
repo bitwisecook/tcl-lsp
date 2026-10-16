@@ -339,9 +339,7 @@ fn missing_jim_lookup_cannot_replace_a_withdrawn_original_unknown_header() {
     )
     .unwrap();
     let context = actual.native_jim_object_context().unwrap();
-    let retired =
-        context.release_object(tcl_runtime_api::jim_interpreter::JimInterpreterObjectRole::Unknown);
-    drop(retired);
+    context.release_object(tcl_runtime_api::jim_interpreter::JimInterpreterObjectRole::Unknown);
     assert!(crate::native_source::NativeJimObjectContext::unknown_object(&context).is_err());
     let head = word(&mut actual, b"absent");
     assert_eq!(

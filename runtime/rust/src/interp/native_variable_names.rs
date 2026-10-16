@@ -1160,10 +1160,6 @@ impl Interp {
         )
     }
 
-    fn original_c_alias_error(&mut self, message: &[u8], code: &[u8]) -> Code {
-        self.original_c_alias_error_using(message, code, None)
-    }
-
     fn original_c_alias_error_using(
         &mut self,
         message: &[u8],
@@ -1182,14 +1178,6 @@ impl Interp {
             tcl_cmd_core::CmdErrorCodeUpdate::Default
         };
         self.original_c_alias_diagnostic_using(message, code, stage)
-    }
-
-    fn original_c_alias_diagnostic(
-        &mut self,
-        message: &[u8],
-        code: tcl_cmd_core::CmdErrorCodeUpdate,
-    ) -> Code {
-        self.original_c_alias_diagnostic_using(message, code, None)
     }
 
     fn original_c_alias_diagnostic_using(
@@ -1261,16 +1249,6 @@ impl Interp {
         };
         let home = crate::frame::VarHome::Frame(self.frames.borrow().current_level());
         self.settle_original_c_alias_at_using(home, compiled, &local, target, stage)
-    }
-
-    fn settle_original_c_alias_at(
-        &mut self,
-        home: crate::frame::VarHome,
-        compiled: Option<usize>,
-        local: &[u8],
-        target: OriginalCLinkTarget,
-    ) -> Code {
-        self.settle_original_c_alias_at_using(home, compiled, local, target, None)
     }
 
     fn settle_original_c_alias_at_using(
@@ -2268,6 +2246,25 @@ impl Interp {
         self.check_original_c_name_stage(stage)
             .map_err(|error| self.report_cmd_error_using(error, stage))?;
         reached.map_err(|error| {
+            if error == crate::frame::VarError::DeletedNamespace
+                && selected.element.is_some()
+                && matches!(
+                    purpose,
+                    NativeVariableNameLookupPurpose::Write
+                        | NativeVariableNameLookupPurpose::QuietWrite
+                )
+            {
+                // TclLookupArrayElement fails before the value write. This
+                // original-object entry still supplies the root to its error
+                // tuple even when that root selected a compiled local cell.
+                return self.original_c_variable_failure_for_object_using(
+                    original,
+                    purpose,
+                    tcl_syntax::naming::NativeVariableDiagnosticReason::RetiredNamespace,
+                    tcl_syntax::naming::NativeVariableFailureSite::NameLookup,
+                    stage,
+                );
+            }
             self.original_c_lookup_var_error_using(original, purpose, error, stage)
         })
     }
@@ -3398,7 +3395,7 @@ mod tests {
                     .namespaces
                     .borrow()
                     .var_table(crate::namespace::GLOBAL)
-                    .binding_id(b"callback_target")
+                    .trace_binding_identity(b"callback_target")
                     .is_some();
                 assert_eq!(
                     target_born,
@@ -4326,12 +4323,17 @@ mod tests {
             Some(before_slot_cell),
             "same original cell after {version:?}/{case}"
         );
-        // Unset removes the visible binding; the retained original cache above
-        // still identifies the same compiled slot rather than a replacement.
-        assert_eq!(
-            interp.trace_identity(b"x").binding_id,
-            if case == 4 { None } else { before_cell }
-        );
+        // Unset withdraws the value, while the actual compiled Var allocation
+        // and the original cache keep their identity through undefinedness.
+        assert_eq!(interp.trace_identity(b"x").binding_id, before_cell);
+        if case == 4 {
+            let frames = interp.frames.borrow();
+            assert!(frames
+                .table(frames.current_level())
+                .unwrap()
+                .binding_id(b"x")
+                .is_none());
+        }
         if version >= tcl_dialect::TclVersion::V8_5 && case >= 2 {
             assert!(result.is_err());
             assert!(
@@ -5312,6 +5314,8 @@ mod original_assignment_tests {
         static EXPECTED: Cell<*mut TclObj> = const { Cell::new(std::ptr::null_mut()) };
         static CALLS: Cell<usize> = const { Cell::new(0) };
         static SAW_NEW: Cell<bool> = const { Cell::new(false) };
+        static SAW_OLD: Cell<bool> = const { Cell::new(false) };
+        static INCOMING_REFS: Cell<isize> = const { Cell::new(0) };
         static RELEASED: Cell<bool> = const { Cell::new(false) };
         static WRITES: Cell<usize> = const { Cell::new(0) };
     }
@@ -5336,7 +5340,7 @@ mod original_assignment_tests {
             crate::codegen_abi::tcl_runtime_set_current_interp(self.0);
         }
     }
-    extern "C" fn retire(_original: *mut TclObj) {
+    extern "C" fn retire(original: *mut TclObj) {
         CALLS.with(|value| value.set(value.get() + 1));
         let Some(mut interp) = (unsafe { crate::codegen_abi::current_interp().as_ref() }).cloned()
         else {
@@ -5345,12 +5349,28 @@ mod original_assignment_tests {
         let available =
             interp.frames.try_borrow_mut().is_ok() && interp.namespaces.try_borrow_mut().is_ok();
         RELEASED.with(|value| value.set(available));
-        let selected = if ELEMENT.with(Cell::get) {
-            interp.var_get_elem(b"arr", b"k")
+        if interp
+            .native_invocation_dialect()
+            .native_jim_lookup_protocol()
+            .is_some()
+        {
+            let selected = interp
+                .namespaces()
+                .var_table(crate::namespace::GLOBAL)
+                .published_scalar_header(b"target");
+            SAW_OLD.with(|value| value.set(selected == Some(original)));
+            assert_eq!(unsafe { (*original).ref_count }, 0);
+            INCOMING_REFS.with(|value| {
+                value.set(unsafe { (*EXPECTED.with(Cell::get)).ref_count });
+            });
         } else {
-            interp.var_get(b"target")
-        };
-        SAW_NEW.with(|value| value.set(selected == Some(EXPECTED.with(Cell::get))));
+            let selected = if ELEMENT.with(Cell::get) {
+                interp.var_get_elem(b"arr", b"k")
+            } else {
+                interp.var_get(b"target")
+            };
+            SAW_NEW.with(|value| value.set(selected == Some(EXPECTED.with(Cell::get))));
+        }
         match MODE.with(Cell::get) {
             1 => {
                 interp.refuse_host_command("first original assignment retirement");
@@ -5390,6 +5410,8 @@ mod original_assignment_tests {
         EXPECTED.with(|selected| selected.set(value));
         CALLS.with(|selected| selected.set(0));
         SAW_NEW.with(|selected| selected.set(false));
+        SAW_OLD.with(|selected| selected.set(false));
+        INCOMING_REFS.with(|selected| selected.set(0));
         RELEASED.with(|selected| selected.set(false));
         WRITES.with(|selected| selected.set(0));
     }
@@ -5461,7 +5483,8 @@ mod original_assignment_tests {
     fn original_jim_assignment_updates_actual_cached_cell_before_retirement_callback() {
         // naming.embedding.original-host-publication-and-fact-transport
         // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
-        // Original selected Jim VarVal; no C cache or native chronology grant.
+        // Jim_SetVariable keeps the old VarVal pointer during its decrement.
+        // A refused software continuation cannot perform the later assignment.
         for fresh_name in [false, true] {
             for mode in 0..=2 {
                 let mut interp = native("jim");
@@ -5486,12 +5509,32 @@ mod original_assignment_tests {
                     interp.assign_original_named_variable(selected.as_ptr(), next.as_ptr());
                 assert_eq!(assigned.is_ok(), mode == 0, "{fresh_name}/{mode}");
                 assert_eq!(CALLS.with(Cell::get), 1);
-                assert!(SAW_NEW.with(Cell::get));
+                assert!(SAW_OLD.with(Cell::get));
+                assert_eq!(INCOMING_REFS.with(Cell::get), 2);
                 assert!(RELEASED.with(Cell::get));
-                assert_eq!(interp.var_get(b"target"), Some(next.as_ptr()));
+                let published = interp
+                    .namespaces()
+                    .var_table(crate::namespace::GLOBAL)
+                    .published_scalar_header(b"target");
+                assert_eq!(published, (mode == 0).then_some(next.as_ptr()));
                 assert_eq!(interp.get_obj_result(), prior);
-                assert_eq!(unsafe { (*next.as_ptr()).ref_count }, 2);
+                assert_eq!(
+                    unsafe { (*next.as_ptr()).ref_count },
+                    if mode == 0 { 2 } else { 1 }
+                );
                 assert_eq!(interp.host_refusal_pending(), mode != 0);
+                if mode == 0 {
+                    assert_eq!(interp.var_get(b"target"), Some(next.as_ptr()));
+                } else {
+                    assert_eq!(assigned, Err(Code::Error));
+                    let cause = interp.native_execution_refusal().unwrap();
+                    if mode == 1 {
+                        assert!(
+                            matches!(cause, tcl_runtime_api::NativeExecutionError::HostCommandRefusal(host)
+                            if host.reason == "first original assignment retirement")
+                        );
+                    }
+                }
                 drop(current);
                 assert_eq!(interp.entered_native_operation_count(), 0);
             }

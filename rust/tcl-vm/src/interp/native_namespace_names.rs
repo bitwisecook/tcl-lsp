@@ -56,6 +56,17 @@ impl OriginalEnsembleNamespaceResult<'_> {
 }
 
 impl Vm {
+    /// Install explicit storage geometry for fixed tests; this supplies no native
+    /// operand spelling, lookup receipt, or production visibility extension.
+    #[cfg(test)]
+    pub(crate) fn install_constructed_namespace_test_fixture(
+        &mut self,
+        path: tcl_core_types::ByteNamespacePath,
+    ) -> NsId {
+        self.declare_namespace_path_with_origin(path.clone(), true);
+        self.definition_namespace_token_at_path(&path, true)
+    }
+
     pub(crate) fn original_jim_canonical_namespace_object(
         &mut self,
         namespace: &Value,

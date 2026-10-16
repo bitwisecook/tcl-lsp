@@ -1,0 +1,17 @@
+
+running 1 test
+
+thread 'interp::native_variable_names::tests::original_upvar_free_callback_checks_currency_before_cells_and_aliases' (47469) panicked at src/interp/native_variable_names.rs:3403:17:
+assertion `left == right` failed: C9 cell birth precedes the reached cache callback; C8 retirement precedes lookup
+  left: false
+ right: true
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test interp::native_variable_names::tests::original_upvar_free_callback_checks_currency_before_cells_and_aliases ... FAILED
+
+failures:
+
+failures:
+    interp::native_variable_names::tests::original_upvar_free_callback_checks_currency_before_cells_and_aliases
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2271 filtered out; finished in 0.75s
+

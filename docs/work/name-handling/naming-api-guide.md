@@ -116,14 +116,14 @@ This separates an already evaluated element name into its root and index. It doe
 For generating source, use the spelling constructor. Here `config` is the full configuration retained by the original document parser; this example is a fragment to place inside that consumer:
 
 ```rust
-use tcl_syntax::naming::scalar_source_reference;
+use tcl_syntax::naming::scalar_source_reference_followed_by;
 
 // Use the original document's full LexerConfig in a real consumer.
-let reference = scalar_source_reference("total count", config, true);
+let reference = scalar_source_reference_followed_by("total count", "::suffix", config);
 assert_eq!(reference.as_deref(), Some("${total count}"));
 ```
 
-The constructor checks that the complete proposed reference denotes the requested scalar name under that configuration. A caller inserting it into a larger word must also check the surrounding fragments. The minifier performs that additional check.
+Pass the entire following fragment to this constructor. It checks that the proposed scalar reference ends at the intended boundary under the original configuration. The minifier also checks the ordered components of the whole replacement word. These checks establish syntax; independent binding and edit checks still decide whether changing the source is permitted.
 
 ## A concrete source example
 
@@ -354,7 +354,7 @@ flowchart TD
 | [Type shapes](https://github.com/bitwisecook/tcl-lsp/blob/work/rust/tcl-compiler/src/types.rs) | Value types and represented element information |
 | [Abstract storage places](https://github.com/bitwisecook/tcl-lsp/blob/work/rust/tcl-registry/src/value_transfer/inputs.rs) | Scalar, array element and whole-array planning targets |
 
-The shared architecture exists; migration is still in progress. The completed source and role audit covers all 110,709 tracked baseline paths plus the explicitly reviewed changes on branch `work`, with zero unexamined paths. It confirms 1,321 caller migrations, 377 shared-owner repairs or extensions, and 101 metadata or target-schema changes: **1,799 semantic changes remain**. Another 305 validation repairs and 54 documentation corrections bring the confirmed total to **2,158 required changes**. Each entry identifies its source, purpose, shared API and required change. Examined provider and product questions remain separate and may establish additional work. This is an inventory of remaining work, not completed implementation. Repository gates are not green and #2286 remains open. The diagrams explain the contracts every integration must preserve; they do not claim that every consumer already follows them.
+The shared architecture exists; migration is still in progress. The completed audit covers 110,709 tracked baseline paths plus reviewed changes on branch `work`. Its baseline catalogue contains 1,799 semantic changes, 305 validation repairs and 54 documentation corrections: **2,158 required changes**. At checkpoint `2a86f7dfd`, 79 catalogue units have reviewed changes integrated (30 code and 49 documentation), with **zero units verified complete**; 2,079 have no integrated implementation yet. Additional demonstrated owner requirements are being reconciled separately. Required repository gates are not green and #2286 remains open. The diagrams explain the contracts every integration must preserve; they do not claim that every consumer already follows them.
 
 ## A little Rust vocabulary
 

@@ -259,7 +259,7 @@ fn format_tmsh_script(
     };
     if candidates.is_empty() {
         return format!(
-            "# tcl-lsp BIG-IP cleanup\n# Sources: {sources}\n# Roots (kept): {root_count} virtual server(s) / wide-IP(s)\n# Candidates: none — every object is referenced.\n"
+            "# tcl-lsp BIG-IP cleanup\n# Sources: {sources}\n# Roots (kept): {root_count} virtual server(s) / wide-IP(s)\n# Candidates: none — no eligible candidates in the supplied graph; unknown kinds and kept objects are excluded.\n"
         );
     }
     let mut lines = vec![

@@ -829,7 +829,7 @@ mod selected_report_parts_tests {
         READS.with(|reads| reads.set(0));
         MODE.with(|selected| selected.set(mode));
         FIRST.with(|first| first.borrow_mut().take());
-        let mut actual = native("jimtcl");
+        let actual = native("jimtcl");
         let holder = Owned::fresh(obj::alloc_typed(&ORIGINAL, 0));
         crate::native_source::bind_context(
             holder.as_ptr(),

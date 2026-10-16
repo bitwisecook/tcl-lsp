@@ -127,11 +127,12 @@ Internal layering:
   rejects overlapping edits.
 - `builtins/` — the function library (`ip`, `partition`,
   `rename`, `rename_partition`, …), split into per-category modules
-  (`net.rs`, `string.rs`, `rename.rs`, `graph.rs`, …); a registry binds
-  each function's signature and metadata so the same source feeds runtime
-  dispatch and `f5 query --help-builtins NAME`. The prose in
-  `docs/references/f5_query/builtins.md` is authored by hand; an xtask checks
-  only that its builtin heading names match the registry.
+  (`net.rs`, `string.rs`, `rename.rs`, `graph.rs`, …). The registry's
+  `BuiltinSpec` metadata feeds runtime dispatch and `f5 query
+  --help-builtins [NAME]`, which renders category, arity, dispatch flags, and
+  any registered note; it does not render the per-function prose. The prose
+  in `docs/references/f5_query/builtins.md` is authored by hand. An xtask
+  checks only that its builtin heading names match the registry.
 - `grammar.rs`, `examples.rs`, `manual.rs` — terminal-friendly grammar
   reference and the worked-example cookbook surfaced by
   `--help-dsl` / `--help-examples` / `--help-manual`.

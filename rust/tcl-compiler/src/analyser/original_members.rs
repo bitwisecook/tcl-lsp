@@ -516,19 +516,23 @@ impl Analyser {
             class.original_properties.withdraw(MemberSide::ClassObject);
             return;
         };
-        let native = tokens
-            .iter()
-            .map(|token| {
-                bindings
-                    .original_source_name_at_span(
-                        token.span,
-                        self.file_lexer_config(),
-                        self.word_rules(),
-                        policy,
-                    )
-                    .map(|original| original.name_input().original_word().clone())
-            })
-            .collect::<Option<Vec<_>>>();
+        let native = if self.selected_logical_declaration_advice() {
+            self.original_logical_inline_member_words(texts, tokens)
+        } else {
+            tokens
+                .iter()
+                .map(|token| {
+                    bindings
+                        .original_source_name_at_span(
+                            token.span,
+                            self.file_lexer_config(),
+                            self.word_rules(),
+                            policy,
+                        )
+                        .map(|original| original.name_input().original_word().clone())
+                })
+                .collect::<Option<Vec<_>>>()
+        };
         let Some(native) = native else {
             class.original_members.withdraw();
             class.original_relations.withdraw();
@@ -574,6 +578,48 @@ impl Analyser {
             class.original_properties.withdraw(MemberSide::Instance);
             class.original_properties.withdraw(MemberSide::ClassObject);
         }
+    }
+
+    /// Inline arguments must be the actual suffix of one retained Logical
+    /// command. Individual source words cannot assemble a new member vector.
+    fn original_logical_inline_member_words(
+        &self,
+        texts: &[String],
+        tokens: &[Token],
+    ) -> Option<Vec<NativeWord>> {
+        self.selected_logical_declaration_advice().then_some(())?;
+        let input = self.result.resolved_input.as_ref()?;
+        let image = SourceImage::document(&self.source);
+        if !self
+            .result
+            .matches_original_source_image(&image, input.lexer_config())
+            || !self.head_identities.matches_resolved_analysis_input(input)
+        {
+            return None;
+        }
+        let (_, offset) = self
+            .head_identities
+            .original_written_word_at_span_in_source(
+                &image,
+                tokens.first()?.span,
+                input.lexer_config(),
+            )?;
+        let original = self
+            .head_identities
+            .source_bindings_ref()
+            .original_logical_source_command_at_in_source(
+                input,
+                &image,
+                offset,
+                input.lexer_config(),
+            )?;
+        let first = original.native_words().len().checked_sub(tokens.len())?;
+        if original.command().argv.get(first..) != Some(tokens)
+            || original.command().texts.get(first..) != Some(texts)
+        {
+            return None;
+        }
+        Some(original.native_words().get(first..)?.to_vec())
     }
 }
 
@@ -1563,6 +1609,110 @@ fn original_two_word_role_word(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn logical_inline_member_metadata_keeps_actual_original_name_and_body_words() {
+        let source = "oo::class create C {}; oo::define C method added {arg} {return $arg}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let class = &analysis.all_classes["::C"];
+        let methods = class
+            .original_members
+            .methods(MemberSide::Instance)
+            .expect("genuine Logical inline source member ledger");
+        let [method] = methods.as_slice() else {
+            panic!("one actual inline declaration");
+        };
+        assert_eq!(method.original_name_input().bytes(), b"added");
+        let key = method.original_name_input().original_word_key().unwrap();
+        assert_eq!(key.original_word().image(), &SourceImage::document(source));
+        assert!(
+            SignatureSourceNameKey::from_original_native_word(
+                key.original_word(),
+                tcl_syntax::word_rules::WordValueRules::from_config(&key.original_word().config()),
+                key.policy()
+            )
+            .is_none()
+        );
+        assert_eq!(
+            method.parameters_word().unwrap().try_text().unwrap(),
+            "{arg}"
+        );
+        assert_eq!(
+            method.body_word().unwrap().try_text().unwrap(),
+            "{return $arg}"
+        );
+    }
+
+    #[test]
+    fn logical_inline_member_words_require_one_complete_retained_source_suffix() {
+        let source = "oo::class create C {method setup {} {oo::define C method added {arg} {return $arg}}}; C create object; object setup";
+        let mut analyser = Analyser::new();
+        analyser.result = analyser.analyse(source, "tcl");
+        let input = analyser.result.resolved_input.as_ref().unwrap().clone();
+        let offset = u32::try_from(source.find("oo::define").unwrap()).unwrap();
+        let original = analyser
+            .head_identities
+            .source_bindings_ref()
+            .original_logical_source_command_at_in_source(
+                &input,
+                &SourceImage::document(source),
+                offset,
+                input.lexer_config(),
+            )
+            .expect("genuine retained receiver-source inline command");
+        let texts = &original.command().texts[2..];
+        let tokens = &original.command().argv[2..];
+        let words = analyser
+            .original_logical_inline_member_words(texts, tokens)
+            .expect("the actual original inline member suffix");
+        assert_eq!(words.len(), 4);
+        assert_eq!(words[0].try_text().unwrap(), "method");
+        assert_eq!(words[1].try_text().unwrap(), "added");
+        assert_eq!(words[2].try_text().unwrap(), "{arg}");
+        assert_eq!(words[3].try_text().unwrap(), "{return $arg}");
+        let mut changed = texts.to_vec();
+        changed[1] = "renamed".into();
+        assert!(
+            analyser
+                .original_logical_inline_member_words(&changed, tokens)
+                .is_none()
+        );
+        let mut changed = tokens.to_vec();
+        changed.swap(2, 3);
+        assert!(
+            analyser
+                .original_logical_inline_member_words(texts, &changed)
+                .is_none()
+        );
+        assert!(
+            analyser
+                .original_logical_inline_member_words(&texts[..3], &tokens[..3])
+                .is_none(),
+            "a prefix cannot masquerade as the whole member suffix"
+        );
+        analyser.result.resolved_input = None;
+        assert!(
+            analyser
+                .original_logical_inline_member_words(texts, tokens)
+                .is_none()
+        );
+        analyser.result.resolved_input = Some(input.clone());
+        let mut config = input.lexer_config();
+        config.strict_quoting = !config.strict_quoting;
+        analyser.result.body_lexer_config = Some(config);
+        assert!(
+            analyser
+                .original_logical_inline_member_words(texts, tokens)
+                .is_none()
+        );
+        analyser.result.body_lexer_config = Some(input.lexer_config());
+        analyser.source.push(' ');
+        assert!(
+            analyser
+                .original_logical_inline_member_words(texts, tokens)
+                .is_none()
+        );
+    }
 
     #[test]
     fn logical_member_names_retain_source_ledgers_without_native_word_admission() {

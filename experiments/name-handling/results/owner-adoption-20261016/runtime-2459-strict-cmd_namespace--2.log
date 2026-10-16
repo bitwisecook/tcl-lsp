@@ -1,0 +1,17 @@
+
+running 1 test
+
+thread 'cmd_namespace::tests::jim_import_ignores_exports_overwrites_and_retains_missing_source_alias' (47126) panicked at src/cmd_namespace.rs:3065:13:
+assertion `left == right` failed: [105, 110, 118, 97, 108, 105, 100, 32, 99, 111, 109, 109, 97, 110, 100, 32, 110, 97, 109, 101, 32, 34, 101, 120, 105, 115, 116, 115, 34]
+  left: Error
+ right: Ok
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test cmd_namespace::tests::jim_import_ignores_exports_overwrites_and_retains_missing_source_alias ... FAILED
+
+failures:
+
+failures:
+    cmd_namespace::tests::jim_import_ignores_exports_overwrites_and_retains_missing_source_alias
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2271 filtered out; finished in 3.92s
+

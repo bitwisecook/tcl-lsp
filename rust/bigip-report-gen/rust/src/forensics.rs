@@ -568,7 +568,7 @@ pub fn collect_forensics(files: &[J], rules: &[J]) -> J {
         "attack": "T1505.003",
         "verdict": ir_verdict,
         "detail": if irule_findings.is_empty() {
-            "no iRule reaches a code / off-box sink from attacker input".to_string()
+            "no known signature matched the non-default iRule bodies with text available for this scan; this heuristic does not prove that code-execution or off-box flows are absent (default rules and missing or empty bodies are not assessed)".to_string()
         } else if !ir_alert.is_empty() {
             format!("{} iRule(s) flagged — e.g. {ir_reason}", irule_findings.len())
         } else {

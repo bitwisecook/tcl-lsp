@@ -371,6 +371,8 @@ pub struct VarNameArgRoles {
     /// re-adopted from another file's unambiguous entry.
     ambiguous: RoleAmbiguity,
     original: Vec<OriginalProcArgRoles>,
+    project_source:
+        Vec<tcl_compiler::registry_invocation::source_structure::OriginalProjectProcedureRoles>,
 }
 
 /// Retained byte publication and declaration identity for inferred assistance.
@@ -413,6 +415,29 @@ struct RoleAmbiguity {
 }
 
 impl VarNameArgRoles {
+    /// Retain genuine declaring source/formal owners for conditional cross-file
+    /// display. Report maps never select a call or reconstruct a formal binding.
+    #[must_use]
+    pub fn from_project_source_roles(
+        providers: Vec<
+            tcl_compiler::registry_invocation::source_structure::OriginalProjectProcedureRoles,
+        >,
+    ) -> Self {
+        Self {
+            project_source: providers,
+            ..Self::default()
+        }
+    }
+
+    /// Exact original cross-document provider transport, independently of the
+    /// compatibility maps used by standalone callers.
+    #[must_use]
+    pub fn project_source_roles(
+        &self,
+    ) -> &[tcl_compiler::registry_invocation::source_structure::OriginalProjectProcedureRoles] {
+        &self.project_source
+    }
+
     /// Infer the variable-name argument positions of every proc in `analysis`.
     #[must_use]
     pub fn from_analysis(analysis: &AnalysisResult) -> Self {
@@ -495,7 +520,9 @@ impl VarNameArgRoles {
         let mut read = RoleMapBuilder::default();
         let mut command = RoleMapBuilder::default();
         let mut original = Vec::new();
+        let mut project_source = Vec::new();
         for part in parts {
+            project_source.extend(part.project_source.iter().cloned());
             original.extend(part.original.iter().cloned());
             write.absorb(&part.write, &part.ambiguous.write);
             read.absorb(&part.read, &part.ambiguous.read);
@@ -503,6 +530,7 @@ impl VarNameArgRoles {
         }
         let mut result = Self::from_builders(write, read, command);
         result.original = original;
+        result.project_source = project_source;
         result
     }
 
@@ -517,6 +545,7 @@ impl VarNameArgRoles {
             read,
             command,
             original: Vec::new(),
+            project_source: Vec::new(),
             ambiguous: RoleAmbiguity {
                 write: write_ambiguous,
                 read: read_ambiguous,
@@ -531,6 +560,10 @@ impl VarNameArgRoles {
         self.write.is_empty()
             && self.read.is_empty()
             && self.command.is_empty()
+            && self
+                .project_source
+                .iter()
+                .all(|provider| !provider.has_roles())
             && self.original.iter().all(|roles| {
                 roles.write.is_empty() && roles.read.is_empty() && roles.command.is_empty()
             })
@@ -3525,6 +3558,22 @@ fn insert_original_proc_role_overrides(
     let Some(analysis) = ctx.analysis else {
         return Vec::new();
     };
+    if let Some(index) = ctx.proc_roles
+        && !index.project_source.is_empty()
+        && let Some(prototype) = tcl_compiler::registry_invocation::source_structure::original_project_procedure_arguments(
+            ctx.full_source, analysis, seg, &index.project_source,
+        )
+        && analysis.resolved_input.as_ref().is_some_and(|input| {
+            prototype.matches_source(&tcl_lexer::SourceImage::document(ctx.full_source), input)
+        })
+    {
+        let metadata = prototype.declaration().metadata();
+        return insert_original_procedure_argument_role_geometry(
+            seg, prototype.bindings(), prototype.arguments(), prototype.operands(),
+            [&proc_var_write_indices(metadata), &proc_var_read_indices(metadata), &proc_command_indices(metadata)],
+            overrides,
+        );
+    }
     if ctx.lexical {
         let Some(prototype) = tcl_compiler::registry_invocation::source_structure::original_logical_procedure_arguments(ctx.full_source, analysis, seg) else {
             return Vec::new();

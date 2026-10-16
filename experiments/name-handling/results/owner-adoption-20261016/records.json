@@ -102,6 +102,26 @@
       "sha256": "6f508d2dd6930da2c76dd1857be518fb24773eecfdb5ccb482aff38b89c77ddf",
       "binary_sha256": "3aab6dfb0a9ca3d7f2244d6ac252dcfd0b693e442a21e6647565804da63bb8cb",
       "scope": "Selected original controls only; no full-group, provider-equivalence or issue acceptance."
+    },
+    {
+      "selector": "cmd_namespace::",
+      "head": "2459c99246751fd7695a585ea1081b43937174fb",
+      "PASS": 160,
+      "FAIL": 5,
+      "log": "runtime-2459-cmd_namespace-.log",
+      "sha256": "6c4f3b645d87f07cee856579c21c883f89fbec10f94446fce12af23231c56a01",
+      "binary_sha256": "3aab6dfb0a9ca3d7f2244d6ac252dcfd0b693e442a21e6647565804da63bb8cb",
+      "scope": "Broader Runtime controls. Initial invocation omitted explicit provider environment; all eleven failing exact selectors also failed subsequent strict original-provider reruns. Neither run implies full-group acceptance."
+    },
+    {
+      "selector": "interp::native_variable_names::",
+      "head": "2459c99246751fd7695a585ea1081b43937174fb",
+      "PASS": 37,
+      "FAIL": 6,
+      "log": "runtime-2459-interp-native_variable_names-.log",
+      "sha256": "fe4ced8e024b1bba056b072732a8003b40ea0ed81af496cc6e298ccd8133ee4d",
+      "binary_sha256": "3aab6dfb0a9ca3d7f2244d6ac252dcfd0b693e442a21e6647565804da63bb8cb",
+      "scope": "Broader Runtime controls. Initial invocation omitted explicit provider environment; all eleven failing exact selectors also failed subsequent strict original-provider reruns. Neither run implies full-group acceptance."
     }
   ],
   "runtime_binary": {
@@ -121,5 +141,95 @@
     "sha256": "3aab6dfb0a9ca3d7f2244d6ac252dcfd0b693e442a21e6647565804da63bb8cb",
     "head": "2459c99246751fd7695a585ea1081b43937174fb",
     "overlay": null
-  }
+  },
+  "strict_failed_reruns": [
+    {
+      "log": "runtime-2459-strict-cmd_namespace--0.log",
+      "sha256": "c5ed539e27c4ba8172c9039753101ed69795e1c6ee6e4e2e3eda931576e954b8",
+      "head": "2459c99246751fd7695a585ea1081b43937174fb",
+      "binary_sha256": "3aab6dfb0a9ca3d7f2244d6ac252dcfd0b693e442a21e6647565804da63bb8cb",
+      "status": "FAIL",
+      "scope": "Exact unchanged failed selector with /tmp/naming-env.sh original C5/Jim provider settings."
+    },
+    {
+      "log": "runtime-2459-strict-cmd_namespace--1.log",
+      "sha256": "7bba015f311973987faed4e847a459649748ddb601e8ee420dc1eaf584a288f0",
+      "head": "2459c99246751fd7695a585ea1081b43937174fb",
+      "binary_sha256": "3aab6dfb0a9ca3d7f2244d6ac252dcfd0b693e442a21e6647565804da63bb8cb",
+      "status": "FAIL",
+      "scope": "Exact unchanged failed selector with /tmp/naming-env.sh original C5/Jim provider settings."
+    },
+    {
+      "log": "runtime-2459-strict-cmd_namespace--2.log",
+      "sha256": "75771163f3f4455c1f93cc528a586f4c17ef4f764aea41775b60c88a8621860a",
+      "head": "2459c99246751fd7695a585ea1081b43937174fb",
+      "binary_sha256": "3aab6dfb0a9ca3d7f2244d6ac252dcfd0b693e442a21e6647565804da63bb8cb",
+      "status": "FAIL",
+      "scope": "Exact unchanged failed selector with /tmp/naming-env.sh original C5/Jim provider settings."
+    },
+    {
+      "log": "runtime-2459-strict-cmd_namespace--3.log",
+      "sha256": "3aa1cb8d9c62f4cf8b617d52bf5aa798cc62b2a7ea9366bf10d8dd5fe89d01c0",
+      "head": "2459c99246751fd7695a585ea1081b43937174fb",
+      "binary_sha256": "3aab6dfb0a9ca3d7f2244d6ac252dcfd0b693e442a21e6647565804da63bb8cb",
+      "status": "FAIL",
+      "scope": "Exact unchanged failed selector with /tmp/naming-env.sh original C5/Jim provider settings."
+    },
+    {
+      "log": "runtime-2459-strict-cmd_namespace--4.log",
+      "sha256": "4b89f2929eb28b4c9a3e3a156ef82f556ce9a1ec6833e316f4b822858161630d",
+      "head": "2459c99246751fd7695a585ea1081b43937174fb",
+      "binary_sha256": "3aab6dfb0a9ca3d7f2244d6ac252dcfd0b693e442a21e6647565804da63bb8cb",
+      "status": "FAIL",
+      "scope": "Exact unchanged failed selector with /tmp/naming-env.sh original C5/Jim provider settings."
+    },
+    {
+      "log": "runtime-2459-strict-interp-native_variable_names--0.log",
+      "sha256": "f5902ff088dc252d6fe409ad594daf6dbdf3c409beb59fd1dad05981dc69f69b",
+      "head": "2459c99246751fd7695a585ea1081b43937174fb",
+      "binary_sha256": "3aab6dfb0a9ca3d7f2244d6ac252dcfd0b693e442a21e6647565804da63bb8cb",
+      "status": "FAIL",
+      "scope": "Exact unchanged failed selector with /tmp/naming-env.sh original C5/Jim provider settings."
+    },
+    {
+      "log": "runtime-2459-strict-interp-native_variable_names--1.log",
+      "sha256": "3afbb3cb7319141bf4b51f8af5921d77121df175a515c6c1c65022457f50320e",
+      "head": "2459c99246751fd7695a585ea1081b43937174fb",
+      "binary_sha256": "3aab6dfb0a9ca3d7f2244d6ac252dcfd0b693e442a21e6647565804da63bb8cb",
+      "status": "FAIL",
+      "scope": "Exact unchanged failed selector with /tmp/naming-env.sh original C5/Jim provider settings."
+    },
+    {
+      "log": "runtime-2459-strict-interp-native_variable_names--2.log",
+      "sha256": "0bbfbb3c2c8455e8c06755260c4f22f34eb2d8f58428248c27263278dbf2124c",
+      "head": "2459c99246751fd7695a585ea1081b43937174fb",
+      "binary_sha256": "3aab6dfb0a9ca3d7f2244d6ac252dcfd0b693e442a21e6647565804da63bb8cb",
+      "status": "FAIL",
+      "scope": "Exact unchanged failed selector with /tmp/naming-env.sh original C5/Jim provider settings."
+    },
+    {
+      "log": "runtime-2459-strict-interp-native_variable_names--3.log",
+      "sha256": "b96ee96a5f99d7c8ecd7cd32e87fc25b8e1c2481ceaed5e9a3e835912e645e08",
+      "head": "2459c99246751fd7695a585ea1081b43937174fb",
+      "binary_sha256": "3aab6dfb0a9ca3d7f2244d6ac252dcfd0b693e442a21e6647565804da63bb8cb",
+      "status": "FAIL",
+      "scope": "Exact unchanged failed selector with /tmp/naming-env.sh original C5/Jim provider settings."
+    },
+    {
+      "log": "runtime-2459-strict-interp-native_variable_names--4.log",
+      "sha256": "cd73baef6458e4c032487f0f84de1cf281e3def61890403a06c61a071f427c0d",
+      "head": "2459c99246751fd7695a585ea1081b43937174fb",
+      "binary_sha256": "3aab6dfb0a9ca3d7f2244d6ac252dcfd0b693e442a21e6647565804da63bb8cb",
+      "status": "FAIL",
+      "scope": "Exact unchanged failed selector with /tmp/naming-env.sh original C5/Jim provider settings."
+    },
+    {
+      "log": "runtime-2459-strict-interp-native_variable_names--5.log",
+      "sha256": "55a8cce3790cc3c743bc248aaab9dd529d634f27a220aca724da2099c4475175",
+      "head": "2459c99246751fd7695a585ea1081b43937174fb",
+      "binary_sha256": "3aab6dfb0a9ca3d7f2244d6ac252dcfd0b693e442a21e6647565804da63bb8cb",
+      "status": "FAIL",
+      "scope": "Exact unchanged failed selector with /tmp/naming-env.sh original C5/Jim provider settings."
+    }
+  ]
 }

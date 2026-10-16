@@ -567,7 +567,12 @@
       ],
       "api": "Existing original selected config/WordValueRules::from_config, shared variable receiver geometry and naming::is_qualified",
       "required_change": "Transport original full config into existing decoder/array-root geometry and shared qualifier predicate. Preserve scalar/local/formal/alias/traced/whole body ownership refusals and readonly diagnostic scope; separate actual body producer repair remains shared dependency.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "successor of 2a86f7dfd171d49eb72b70a31f7a8f1043c17d82",
+        "validation": "Reviewed source integration, compile and scoped controls pending; generated drift and required gates remain open."
+      }
     },
     {
       "area": "compiler",
@@ -702,7 +707,12 @@
       ],
       "api": "Genuine retained source catalogue/Logical original member whole-word and selected declaration source-purpose owner",
       "required_change": "Actual adapter519 reconstructs NativeWord through SourceBindings::original_source_name_at_span1540. That owner deliberately filters original_declaration_layouts1558 (OriginalDeclaration only) and from_original_native_word1527; ConditionalReceiverSource positive geometry/name owner notadmitted. Reuse genuineLogical retainedpoint/namefacets from existing source.logical-point-name-scope-transport family; keepdeclaration/Nativefactory contracts andreadonlylistname distinction. Oneactualinlineadopter, notduplicateownereverytoken.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "successor of 2a86f7dfd171d49eb72b70a31f7a8f1043c17d82",
+        "validation": "Reviewed source integration, compile and scoped controls pending; generated drift and required gates remain open."
+      }
     },
     {
       "area": "compiler",
@@ -732,7 +742,12 @@
       ],
       "api": "Existing genuine realm.original_source_catalogue_segment_at978 and retained Logical tape whole original command vector",
       "required_change": "Actual helper1259 requiresbinding.original_recorded_command, narrowerdeclaration/dispatch owner, despitegenuineLogicalinput1253andcompleteoriginalcontext. ConditionalReceiverSource positivewholevectorretainedtape notprojected. Coresemanticreceiver_source100 andpackageactions952 consumehelper; useactualLogicalcatalogue fullvector source alreadyshared, keepNative/declarationrecordedAPI purpose. Existingcallers unchangeddependencies unlessAPIchanges; notcountallthreeasnewrequiredunits.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "successor of 2a86f7dfd171d49eb72b70a31f7a8f1043c17d82",
+        "validation": "Reviewed source integration, compile and scoped controls pending; generated drift and required gates remain open."
+      }
     },
     {
       "area": "compiler",
@@ -10885,7 +10900,12 @@
       ],
       "api": "checked_file_token_facts_for_config; merge_project_proc_roles; OriginalLogicalProcedureArguments existing same-document owner",
       "required_change": "Authentic cross-file source-role/formal owner and selected original call transport remain absent; report VarNameArgRoles maps cannot reconstruct role authority or Native frame/command identity.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "successor of 2a86f7dfd171d49eb72b70a31f7a8f1043c17d82",
+        "validation": "Reviewed source integration, compile and scoped controls pending; generated drift and required gates remain open."
+      }
     },
     {
       "area": "db",
@@ -18831,7 +18851,12 @@
       "required_change": [
         "Header advertises removed Python/shared codes owner; exact template no live generator reader found. Remove/retire obsolete owner guidance/build dependency after durable current generator contract retained; not a current runtime naming resolver. No semantic test acceptance claimed."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "successor of 2a86f7dfd171d49eb72b70a31f7a8f1043c17d82",
+        "validation": "Reviewed source integration, compile and scoped controls pending; generated drift and required gates remain open."
+      }
     },
     {
       "area": "lsp",
@@ -20041,7 +20066,12 @@
       "required_change": [
         "Remove or accurately repurpose obsolete generated guidance/template during repository cleanup after all real source contracts retained. Do not restore independent codes registry or infer template activity from filename."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "successor of 2a86f7dfd171d49eb72b70a31f7a8f1043c17d82",
+        "validation": "Reviewed source integration, compile and scoped controls pending; generated drift and required gates remain open."
+      }
     },
     {
       "area": "lsp",
@@ -33615,7 +33645,12 @@
         "Shared selected namespace_code_handler_policy already owns preserve-vs-construct decision. Missing facet is generated ::namespace/inscope literal list recipe and physical allocation roles; extend existing namespaceCode owner, keep actual context/script holder and OriginalNameConsumerScope unchanged.",
         "220 correct invocation;265/266 actual local literal creation, not ordinary namespace lookup."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "successor of 2a86f7dfd171d49eb72b70a31f7a8f1043c17d82",
+        "validation": "Reviewed source integration, compile and scoped controls pending; generated drift and required gates remain open."
+      }
     },
     {
       "area": "vm",
@@ -33855,7 +33890,12 @@
         "Actual original script/concat/ns token owners already selected; both ns_eval/ns_inscope privately mint public namespace+selector values for call frame argv, losing renamed/worker original invoking head. Transport actual invoked head/selector/original argv from existing owner into push/eval frame purpose, preserve provider-specific reached getter/concat/lifetime stages. Script value itself already original when no concat.",
         "1867/1949 true methods;1893 inscope generated argv and1972 eval actual reconstruction. Original body selection1884/1963 unchanged."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "successor of 2a86f7dfd171d49eb72b70a31f7a8f1043c17d82",
+        "validation": "Reviewed source integration, compile and scoped controls pending; generated drift and required gates remain open."
+      }
     },
     {
       "area": "vm",
@@ -51689,6 +51729,11 @@
             }
           }
         ]
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "successor of 2a86f7dfd171d49eb72b70a31f7a8f1043c17d82",
+        "validation": "Reviewed source integration, compile and scoped controls pending; generated drift and required gates remain open."
       }
     },
     {
@@ -55642,7 +55687,12 @@
       ],
       "api": "Actual cleanup result/unknown/filter status",
       "required_change": "Empty eligible candidate list must not state every object referenced; mention filters/unknown/ineligible and actual eligible subset.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "successor of 2a86f7dfd171d49eb72b70a31f7a8f1043c17d82",
+        "validation": "Reviewed source integration, compile and scoped controls pending; generated drift and required gates remain open."
+      }
     },
     {
       "area": "audit",
@@ -57196,7 +57246,12 @@
       ],
       "api": "Existing actual signature findings + source coverage/exclusion obligations",
       "required_change": "Change actual no-findings claim no iRule reaches a code/off-box sink to honest known-pattern/conditional scope with skipped/unknown evidence. No mandate to implement full runtime proof for heuristic report.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "successor of 2a86f7dfd171d49eb72b70a31f7a8f1043c17d82",
+        "validation": "Reviewed source integration, compile and scoped controls pending; generated drift and required gates remain open."
+      }
     },
     {
       "area": "audit",
@@ -131223,12 +131278,12 @@
   ],
   "implementation_progress": {
     "resumed_from": "554085e162823ea8bd126898d0c27b7b2a9f8628",
-    "utc": "2026-10-16T09:18:05.355785+00:00",
+    "utc": "2026-10-16T09:42:44.299093+00:00",
     "audit_baseline_counts_unchanged": true,
     "total_required_units": 2158,
-    "implemented_pending_validation": 79,
+    "implemented_pending_validation": 90,
     "verified_complete": 0,
-    "not_started": 2079,
+    "not_started": 2068,
     "remaining_unverified_or_unimplemented": 2158,
     "additional_work_not_counted_as_catalogue_completion": [
       "VM no-argument Parent current-holder projection (catalogue mapping pending)",
@@ -131238,11 +131293,11 @@
       "Jim physical info-body result must retain actual original body header without a body String getter; byte-query270 does not close that owner boundary."
     ],
     "latest_scoped_build": {
-      "status": "FAIL_W125_TEST_IMPORT",
-      "head": "52e659ed932a20f8e673b6b748bce4390dad4cc8",
-      "log": "/tmp/naming-workspace-build-52e659ed9.log",
-      "errors": 1,
-      "cause": "One new W125 test omitted segmenter qualification; repaired with unchanged input/assertions. Complete workspace test build pending."
+      "status": "FAIL_VM_TEST_PRIVACY",
+      "head": "2a86f7dfd171d49eb72b70a31f7a8f1043c17d82",
+      "log": "/tmp/naming-workspace-build-2a86f7dfd.log",
+      "errors": 6,
+      "repair": "Six new fixture private-method calls repaired through existing original operand API or cfg(test)-only constructed geometry fixture; unchanged assertions. Complete rerun pending."
     },
     "required_gates": "Still not green; no PR acceptance.",
     "report_cadence_minutes": 30,
@@ -131351,6 +131406,26 @@
         "sha256": "6f508d2dd6930da2c76dd1857be518fb24773eecfdb5ccb482aff38b89c77ddf",
         "binary_sha256": "3aab6dfb0a9ca3d7f2244d6ac252dcfd0b693e442a21e6647565804da63bb8cb",
         "scope": "Selected original controls only; no full-group, provider-equivalence or issue acceptance."
+      },
+      {
+        "selector": "cmd_namespace::",
+        "head": "2459c99246751fd7695a585ea1081b43937174fb",
+        "PASS": 160,
+        "FAIL": 5,
+        "log": "runtime-2459-cmd_namespace-.log",
+        "sha256": "6c4f3b645d87f07cee856579c21c883f89fbec10f94446fce12af23231c56a01",
+        "binary_sha256": "3aab6dfb0a9ca3d7f2244d6ac252dcfd0b693e442a21e6647565804da63bb8cb",
+        "scope": "Broader Runtime controls. Initial invocation omitted explicit provider environment; all eleven failing exact selectors also failed subsequent strict original-provider reruns. Neither run implies full-group acceptance."
+      },
+      {
+        "selector": "interp::native_variable_names::",
+        "head": "2459c99246751fd7695a585ea1081b43937174fb",
+        "PASS": 37,
+        "FAIL": 6,
+        "log": "runtime-2459-interp-native_variable_names-.log",
+        "sha256": "fe4ced8e024b1bba056b072732a8003b40ea0ed81af496cc6e298ccd8133ee4d",
+        "binary_sha256": "3aab6dfb0a9ca3d7f2244d6ac252dcfd0b693e442a21e6647565804da63bb8cb",
+        "scope": "Broader Runtime controls. Initial invocation omitted explicit provider environment; all eleven failing exact selectors also failed subsequent strict original-provider reruns. Neither run implies full-group acceptance."
       }
     ],
     "provider_pairing": {
@@ -131376,6 +131451,22 @@
     "scoped_capture": "experiments/name-handling/results/owner-adoption-20261016/records.json",
     "pending_repairs": [
       "Repaired Compiler Logical-variable fixture premises and W125 qualification await a fresh workspace build and reruns."
-    ]
+    ],
+    "proof_check": {
+      "status": "FAIL",
+      "head": "2a86f7dfd171d49eb72b70a31f7a8f1043c17d82",
+      "log": "/tmp/naming-proof-check-2a86f7dfd.log",
+      "structural_errors": 3574,
+      "missing_payload_references": 802,
+      "census_path_drift": 729,
+      "census_digest_mismatch": 952,
+      "evidence_digest_mismatch": 1074,
+      "source_binding_document_mismatch": 17,
+      "limits": "Missing references/path drift overlap. No digest or evidence acceptance refreshed."
+    },
+    "additional_facet_review": {
+      "proposed_additional_units": 6,
+      "count_status": "Bounded source reconciliation prepared; root integration of annex pending. No baseline count or completed-unit increase inferred."
+    }
   }
 }

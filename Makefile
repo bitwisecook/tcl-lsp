@@ -1937,11 +1937,9 @@ check-generated: ## Verify generated catalogs are up to date
 	cd $(ROOT) && cargo xtask gen-editor-catalogs --check
 	cd $(ROOT) && cargo xtask gen-zed-queries --check
 
-# Generated editor settings from the Rust code registry
-#
-# Depends on: the Rust registries (source of truth) + the Jinja2 templates
-# the xtask generators render.
-SETTINGS_J2   := $(wildcard docs/generated/*.j2 editors/vscode/src/generated/*.j2 editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/settings/generated/*.j2 ai/prompts/*.j2 ai/claude/skills/*/*.j2)
+# Generated editor settings and AI files. The editor catalogues are rendered
+# directly from Rust registries; only active AI prompt/skill inputs use Jinja.
+SETTINGS_J2   := $(wildcard ai/prompts/*.j2 ai/claude/skills/*/*.j2)
 _SETTINGS_DEPS := $(SETTINGS_J2)
 
 editors/vscode/src/generated/diagnosticCatalog.ts: $(_SETTINGS_DEPS) $(REGISTRY_SRCS)

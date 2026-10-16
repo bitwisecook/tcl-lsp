@@ -304,21 +304,6 @@ fn cache_parsed_rep(obj: *mut TclObj, value: &NumVal) {
     }
 }
 
-/// Read `obj` as a double with `Tcl_GetDoubleFromObj`'s widening (an integer or
-/// bignum promotes), caching the parsed rep back onto the object. `None` is a
-/// non-numeric value; a NaN spelling yields `Some(NaN)`, which the boolean
-/// context rejects and the double context accepts.
-pub(crate) fn read_double(obj: *mut TclObj) -> Option<f64> {
-    match read(obj) {
-        Some(NumVal::Wide(w)) => Some(w as f64),
-        Some(NumVal::Float(f)) => Some(f),
-        // SAFETY: `m` owns a live mp_int; C promotes a bignum to the nearest
-        // double (±Inf past the range).
-        Some(NumVal::Big(m)) => Some(unsafe { mp_get_double(m.ptr()) }),
-        None => is_nan_operand(obj).then_some(f64::NAN),
-    }
-}
-
 /// Materialise a tower value as a fresh object, demoting a bignum that fits.
 fn to_obj(v: NumVal) -> *mut TclObj {
     match v {

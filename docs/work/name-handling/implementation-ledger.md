@@ -1,27 +1,30 @@
 # Remaining naming implementation obligations
 
-Implementation has resumed from `554085e`. Seventy-nine catalogue units have
-reviewed changes pending complete validation: 30 code units and 49 authored-doc
-units; **zero units are verified complete**. All **2,158** baseline units remain
-unverified or unimplemented (2,079 have no integrated implementation yet).
-Development checkpoint `2459c9924` is pushed to `work`. Its clean-source Runtime
-build passes. Fresh selected continuations (7), original Import fixtures (7),
-original/public Jim Import controls (13), and registered legacy Length control
-(1) all pass; earlier failures remain retained. Three Info-helper controls passed
-at the prior checkpoint. Compiler Logical variables were 4 PASS/2 FAIL, with
-repaired new fixture premises awaiting retest. The W125 test qualification is
-repaired; complete workspace test compilation remains pending. Newly integrated
-Logical point/namespace source transport, procedure byte queries, report parts
-and VM ensemble List/Dictionary caller checks await compilation and controls.
-The separate Jim physical info-body result-header/getter boundary remains open.
+Implementation has resumed from `554085e`. Ninety baseline catalogue units
+have reviewed changes pending complete validation: 36 code units and all 54
+authored-documentation units. **Zero units are verified complete**. All **2,158**
+baseline units remain unverified or unimplemented (2,068 have no integrated
+implementation yet). Six additional demonstrated owner/provider requirements
+have a bounded reconciliation proposal, pending root catalogue integration.
+Development checkpoint `2a86f7dfd` is pushed to `work`. The last clean-source
+Runtime build at `2459c9924` passes: selected continuation/import/Length controls
+are 28 PASS. Broader namespace controls are 160 PASS/5 FAIL and variable-name
+controls 37 PASS/6 FAIL. All eleven failures repeat with explicit original
+providers. Original failures and exact strict reruns remain retained.
+The workspace build at `2a86f7dfd` failed six new VM fixture private-method calls;
+the fixtures now use existing original APIs or an explicit test-only constructed
+storage fixture, with unchanged assertions. Full compilation/reruns remain open.
+The current proof checker reports 3,574 errors: missing retained payload references,
+stale census/evidence digests and source/binding/document drift. These have not
+been relabelled accepted or repaired by blindly updating hashes.
 Exact selected logs/source hashes are in the compact durable
 [control capture](../../../experiments/name-handling/results/owner-adoption-20261016/records.json).
 The [provider capture](../../../experiments/name-handling/oracles/provider-pairing-20261016/capture.json)
 authenticates all six installed C/Jim setup pairings, without semantic acceptance.
-Alias-action drafts remain withheld because the source-action owner is missing.
-Additional owner-facet and baseline test-repair count reconciliation stays open;
-no baseline completion is inferred from it. Historical M12 remains unchanged.
-Chat reports use 30-minute intervals; implementation and acceptance stay separate.
+Alias edit authority, class collection transport and Jim physical body-result
+ownership remain open. Further owner-facet and baseline validation-repair count
+reconciliation is explicit; historical M12 stays unchanged. Chat reports use
+30-minute intervals; implementation and acceptance remain separate.
 
 The source/role audit is complete for **110,709 tracked baseline paths**, with explicit current-source annexes and zero unexamined paths. The reconciled catalogue contains **1,321 caller migrations**, **377 shared-owner repairs/extensions** and **101 metadata/target-schema changes**: **1,799 semantic code changes**. There are separately **305 validation-code repairs** and **54 authored-documentation corrections**, making **2,158 confirmed required changes**. These remain to be implemented. Examined requirements and original/provider provenance questions remain separate.
 

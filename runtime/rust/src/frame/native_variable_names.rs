@@ -212,10 +212,6 @@ impl VarTable {
                 });
         }
     }
-    pub(super) fn retire_native_entry(&self, name: &[u8]) {
-        let retired = self.take_native_entry(name);
-        drop(retired);
-    }
     pub(super) fn take_native_entry(&self, name: &[u8]) -> Option<NativeHashKey> {
         self.entry_order.borrow_mut().remove(name);
         self.native_keys.borrow_mut().remove(name)
@@ -231,9 +227,6 @@ impl VarTable {
         } else {
             None
         }
-    }
-    pub(super) fn retire_jim_key(&self, name: &[u8]) {
-        drop(self.take_jim_key(name));
     }
     /// Native lookup succeeds on an undefined compiled Var as well as a hash
     /// shell. Creation precedes observers and gives the key its real owner.
@@ -367,12 +360,6 @@ impl FrameStack {
             .unwrap_or(false)
     }
 
-    pub(crate) fn retain_original_compiled_alias(
-        &mut self,
-        index: usize,
-    ) -> Option<Rc<super::NativeScalarAliasEntry>> {
-        self.select_original_compiled_alias(index, true)
-    }
     pub(crate) fn select_original_compiled_alias(
         &mut self,
         index: usize,

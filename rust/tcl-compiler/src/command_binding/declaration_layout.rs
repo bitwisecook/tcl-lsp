@@ -2742,24 +2742,21 @@ impl super::SourceInvocationBinding {
         {
             return None;
         }
-        let dialect = layout.dialect();
+        // Original overrides belong to this layout, independently of its dialect.
+        let config = layout.config;
         let crate::registry_invocation::EffectiveInvocationWord::Literal(name) =
             crate::registry_invocation::effective_invocation_word(
                 word,
-                dialect.lexer_grammar.escapes,
-                dialect.word_values,
+                config.escapes,
+                tcl_syntax::word_rules::WordValueRules::from_config(&config),
             )
         else {
             return None;
         };
-        if name.contains("::")
-            || tcl_syntax::naming::split_array_name_braced_for_style(
-                &name,
-                true,
-                dialect.lexer_grammar.braced_var,
-            )
-            .1
-            .is_some()
+        if tcl_syntax::naming::is_qualified(name.as_bytes())
+            || tcl_syntax::naming::split_array_name_braced_for_style(&name, true, config.braced_var)
+                .1
+                .is_some()
         {
             return None;
         }
@@ -2970,11 +2967,29 @@ mod tests {
         body: &str,
         offset: usize,
     ) -> (super::SourceCommandBindings, crate::ir::CommandTokens) {
+        let dialect = tcl_registry::InvocationDialect::of_point(
+            tcl_dialect::model::DialectPoint::of_dialect_name(Some(profile)).unwrap(),
+        );
+        original_tokens_in_image_with_config(
+            profile,
+            image,
+            body,
+            offset,
+            tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
+        )
+    }
+
+    fn original_tokens_in_image_with_config(
+        profile: &str,
+        image: &tcl_lexer::SourceImage,
+        body: &str,
+        offset: usize,
+        config: tcl_lexer::LexerConfig,
+    ) -> (super::SourceCommandBindings, crate::ir::CommandTokens) {
         let registry = tcl_registry::model::ingress::static_context_for(profile).commands();
         let dialect = tcl_registry::InvocationDialect::of_point(
             tcl_dialect::model::DialectPoint::of_dialect_name(Some(profile)).unwrap(),
         );
-        let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
         let bindings = super::SourceCommandBindings::analyse_image_in_frame_with_options(
             image,
             &crate::var_resolve::VariableExecutionFrame::Global,
@@ -3374,6 +3389,101 @@ mod tests {
                 binding
                     .declaration_variable_operand_advice(registry, &tokens, &changed)
                     .is_none()
+            );
+        }
+    }
+
+    #[test]
+    fn declaration_variable_operands_use_the_original_selected_word_configuration() {
+        let name = concat!("local", "\\", "\n", "name");
+        let source = format!("proc p {{}} {{incr {{{name}}}}}");
+        let body = format!("incr {{{name}}}");
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let dialect = tcl_registry::InvocationDialect::of_point(
+            tcl_dialect::model::DialectPoint::of_dialect_name(Some("tcl8.6")).unwrap(),
+        );
+        for brace in [
+            tcl_dialect::BraceBackslashNewline::Folds,
+            tcl_dialect::BraceBackslashNewline::Literal,
+        ] {
+            let mut config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
+            config.brace_backslash_newline = brace;
+            config.strict_quoting = true;
+            let (_, tokens) = original_tokens_in_image_with_config(
+                "tcl8.6",
+                &tcl_lexer::SourceImage::document(&source),
+                &body,
+                source.find(&body).unwrap(),
+                config,
+            );
+            let binding = tokens.source_binding.as_ref().unwrap();
+            let layout = binding.declaration_operand_layout_advice(&tokens).unwrap();
+            assert_eq!(layout.config, config);
+            assert_eq!(
+                layout.dialect().word_values.brace,
+                tcl_dialect::BraceBackslashNewline::Folds
+            );
+            let operand = binding
+                .declaration_variable_operand_advice(registry, &tokens, &tokens.words()[1])
+                .expect("genuine original scalar operand under its selected configuration");
+            let expected = match brace {
+                tcl_dialect::BraceBackslashNewline::Folds => "local name",
+                tcl_dialect::BraceBackslashNewline::Literal => name,
+            };
+            assert_eq!(operand.name(), expected, "{brace:?}");
+            let mut changed = tokens.clone();
+            changed.argv_texts[1] = "other".into();
+            assert!(
+                binding
+                    .declaration_variable_operand_advice(registry, &changed, &tokens.words()[1])
+                    .is_none()
+            );
+        }
+    }
+
+    #[test]
+    fn declaration_configured_scalar_operands_keep_existing_receiver_and_scope_refusals() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let mut config = tcl_lexer::LexerConfig::from_grammar(
+            tcl_dialect::DialectProfile::find("tcl8.6").unwrap().grammar,
+        );
+        config.brace_backslash_newline = tcl_dialect::BraceBackslashNewline::Literal;
+        for (source, body, expected) in [
+            ("proc p {} {incr {$n}}", "incr {$n}", Some("$n")),
+            ("proc p {} {incr {π}}", "incr {π}", Some("π")),
+            ("proc p {} {incr {arr(key)}}", "incr {arr(key)}", None),
+            (
+                r"proc p {} {incr local\x3a\x3aname}",
+                r"incr local\x3a\x3aname",
+                None,
+            ),
+            ("proc p {l} {incr l}", "incr l", None),
+            ("proc p {} {global l; incr l}", "incr l", None),
+            ("proc p {} {upvar #0 original l; incr l}", "incr l", None),
+            (
+                "proc p {} {trace add variable l write callback; incr l}",
+                "incr l",
+                None,
+            ),
+        ] {
+            let (_, tokens) = original_tokens_in_image_with_config(
+                "tcl8.6",
+                &tcl_lexer::SourceImage::document(source),
+                body,
+                source.find(body).unwrap(),
+                config,
+            );
+            let operand = tokens
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .declaration_variable_operand_advice(registry, &tokens, &tokens.words()[1]);
+            assert_eq!(
+                operand
+                    .as_ref()
+                    .map(super::DeclarationVariableOperandAdvice::name),
+                expected,
+                "{source}"
             );
         }
     }

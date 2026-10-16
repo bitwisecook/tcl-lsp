@@ -1,0 +1,17 @@
+
+running 1 test
+
+thread 'interp::native_variable_names::tests::original_local_cache_getter_order_matches_all_25_native_paths' (47471) panicked at src/interp/native_variable_names.rs:4331:9:
+assertion `left == right` failed
+  left: Some(VarId(486))
+ right: None
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test interp::native_variable_names::tests::original_local_cache_getter_order_matches_all_25_native_paths ... FAILED
+
+failures:
+
+failures:
+    interp::native_variable_names::tests::original_local_cache_getter_order_matches_all_25_native_paths
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2271 filtered out; finished in 0.91s
+

@@ -1,0 +1,15 @@
+{
+  "purpose": "Pinned original Jim_SetVariable old-pointer and future assignment observation; C harness positive controls, no software Host-abort claim",
+  "compile": "cc -std=c99 -Wall -Wextra -Werror -I /workspace/tcl-lsp/tmp/jimtcl-oracle observer.c /workspace/tcl-lsp/tmp/jimtcl-oracle/libjim.a -lm -lssl -lcrypto -lz -o observer",
+  "run": "./observer",
+  "provider_source": "tmp/jimtcl-oracle/jim.c:4758-4792",
+  "exit": 0,
+  "files_sha256": {
+    "evidence.txt": "91cf868f702c83d5dd993cdf2813016c4dc04b5d2542dd466bfea514de0c3b6b",
+    "sha256.txt": "d7070991a9ad7081bc675c4d2c8832c11fcf4ca62024c43a05558c9c4f213a64",
+    "stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout.txt": "b18342b6df5e826a229b07cbce9906ac5d97320affd5fcf8d8f939bbfac98e1b",
+    "observer.c": "71c5df8be64d0b54914a0763db2caaf922ead9dd8cf4f6dec809c8489b18a89b"
+  },
+  "excludes": "Compiled harness binary and original provider archive intentionally omitted. sha256.txt retains their identity."
+}

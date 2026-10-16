@@ -1,0 +1,15 @@
+
+running 1 test
+
+thread 'interp::native_variable_names::original_assignment_tests::original_jim_assignment_updates_actual_cached_cell_before_retirement_callback' (47467) panicked at src/interp/native_variable_names.rs:5489:17:
+assertion failed: SAW_NEW.with(Cell::get)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test interp::native_variable_names::original_assignment_tests::original_jim_assignment_updates_actual_cached_cell_before_retirement_callback ... FAILED
+
+failures:
+
+failures:
+    interp::native_variable_names::original_assignment_tests::original_jim_assignment_updates_actual_cached_cell_before_retirement_callback
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2271 filtered out; finished in 0.50s
+

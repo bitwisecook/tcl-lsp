@@ -1,0 +1,17 @@
+
+running 1 test
+
+thread 'cmd_namespace::tests::tcloo_roots_follow_their_introducing_release' (47314) panicked at src/cmd_namespace.rs:6447:13:
+assertion `left == right` failed
+  left: Error
+ right: Ok
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test cmd_namespace::tests::tcloo_roots_follow_their_introducing_release ... FAILED
+
+failures:
+
+failures:
+    cmd_namespace::tests::tcloo_roots_follow_their_introducing_release
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2271 filtered out; finished in 6.12s
+

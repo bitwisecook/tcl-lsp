@@ -5622,20 +5622,7 @@ impl Interp {
         current
     }
 
-    /// A command at `fqn` is being replaced or deleted: fire its `delete`
-    /// command traces, then drop every command/execution trace on it (the
-    /// command — and its trace list — go away). No-op when it has no traces.
-    ///
-    /// Only the *dying token's* traces are dropped. C frees `cmdPtr->tracePtr`,
-    /// so a trace the callback adds to the command being deleted dies with it,
-    /// while one it registers on a replacement it bound at the same name lives
-    /// on that new token.
-    fn on_command_replaced(&mut self, fqn: &[u8]) {
-        let dying = self.resolve_cmd_token(fqn);
-        self.fire_delete_traces_of_token(fqn, dying);
-    }
-
-    /// [`on_command_replaced`] for an exact binding the caller already holds.
+    /// Fire deletion traces for the exact binding the caller already holds.
     /// A fully-qualified name is not a token identity once a retained
     /// namespace and a same-named recreation both hold `::N::q`: resolving the
     /// name again would find the live one and fire its traces instead. An

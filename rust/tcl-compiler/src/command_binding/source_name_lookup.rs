@@ -183,6 +183,79 @@ impl OriginalCommandLookup {
         unanimous
     }
 
+    /// Conditional external source-display headers under this original lookup.
+    /// Positioned source occupants and unknown barriers remain terminal; deleted
+    /// slots cannot regain a foreign header. This proves no runtime absence,
+    /// installed command, formal binding, execution or entered frame.
+    #[must_use]
+    pub fn matching_external_source_advice_publications<'a, T: Clone + Eq>(
+        &self,
+        registry: &tcl_registry::CommandRegistry,
+        declarations: impl IntoIterator<
+            Item = (&'a crate::signature_scan::scope::SignatureSourceCommand, T),
+        >,
+    ) -> Option<Vec<T>> {
+        if self.observations.is_empty() || self.callback_scope.is_some() {
+            return None;
+        }
+        let registry_key = registry.snapshot().semantic_key();
+        let mut filtered = self.clone();
+        for row in &self.observations {
+            let state = &row.snapshot.state;
+            if state.baseline.registry_snapshot.as_ref() != Some(&registry_key)
+                || !row.entry.owns_source(&self.site.source, self.site.offset)
+                || state
+                    .baseline
+                    .execution_name_policy
+                    .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)
+                    != Some(self.policy())
+                || state.source_step_observed()
+                || state.has_opaque_domain()
+                || state.baseline.unknown_entry
+            {
+                return None;
+            }
+            for (original_path, path) in self.candidates.iter().zip(&mut filtered.candidates) {
+                let mut retained = Vec::new();
+                for slot in original_path {
+                    if state.baseline.declared_commands.keys().any(|name| {
+                        super::original_command_table::original_registry_metadata_slot(
+                            self.policy(),
+                            name,
+                        )
+                        .as_ref()
+                            == Some(slot)
+                    }) {
+                        return None;
+                    }
+                    let explicit = state.original_catalogue_bindings_for_slot(slot, self.policy());
+                    if !explicit.is_empty() {
+                        if explicit
+                            .iter()
+                            .all(|binding| matches!(binding, super::MayBinding::Missing))
+                        {
+                            continue;
+                        }
+                        return None;
+                    }
+                    let key = state.original_command_key_for_slot(slot, self.policy())?;
+                    let bindings = state.original_bindings_for_key(&key)?;
+                    if !bindings
+                        .iter()
+                        .all(|binding| matches!(binding, super::MayBinding::Missing))
+                    {
+                        return None;
+                    }
+                    if path.contains(slot) {
+                        retained.push(slot.clone());
+                    }
+                }
+                *path = retained;
+            }
+        }
+        filtered.matching_publications(declarations)
+    }
+
     /// First matching exact slots under their independently selected policies.
     /// Every original lookup alternative must select the same metadata set.
     /// Publications can belong to another source; the caller owns that join.

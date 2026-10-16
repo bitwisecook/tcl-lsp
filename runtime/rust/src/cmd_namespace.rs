@@ -3030,24 +3030,33 @@ namespace eval ::caller {
             })
             .chain(std::iter::once(&*jim))
         {
-            leak_free(|interp| {
-                interp.set_dialect_profile(profile);
-                assert_eq!(
-                    interp.eval_str(script),
-                    Code::Ok,
-                    "{}: {:?}",
-                    profile.name,
-                    interp.result_bytes()
-                );
-                let expected = if profile.namespace_import_binding()
-                    == Some(tcl_dialect::NamespaceImportBinding::SourceName)
-                {
-                    b"TWO TWO ::S::p 1 1 THREE THREE 1 1".as_slice()
-                } else {
-                    b"TWO TWO ::S::p 0 0 TWO TWO 0 0".as_slice()
-                };
-                assert_eq!(interp.result_bytes(), expected, "{}", profile.name);
-            });
+            leak_free_with(
+                || {
+                    Interp::with_native_core(
+                        crate::interp::default_host(),
+                        profile,
+                        tcl_registry::special_vars::NativeBootstrapInputs::default(),
+                    )
+                    .unwrap()
+                },
+                |interp| {
+                    assert_eq!(
+                        interp.eval_str(script),
+                        Code::Ok,
+                        "{}: {:?}",
+                        profile.name,
+                        interp.result_bytes()
+                    );
+                    let expected = if profile.namespace_import_binding()
+                        == Some(tcl_dialect::NamespaceImportBinding::SourceName)
+                    {
+                        b"TWO TWO ::S::p 1 1 THREE THREE 1 1".as_slice()
+                    } else {
+                        b"TWO TWO ::S::p 0 0 TWO TWO 0 0".as_slice()
+                    };
+                    assert_eq!(interp.result_bytes(), expected, "{}", profile.name);
+                },
+            );
         }
     }
 
@@ -3059,17 +3068,26 @@ namespace eval ::caller {
             "Jim",
             tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
         )));
-        leak_free(|interp| {
-            interp.set_dialect_profile(profile);
-            let script = br#"namespace eval S {proc p {} {return SOURCE}}; namespace eval D {proc p {} {return DESTINATION}; namespace import -force ::S::*; set imported [namespace import]}; rename S::p {}; set result [list [llength [info commands D::p]] [catch {D::p}] [catch {namespace origin D::p}] [namespace eval D {namespace import ::missing::*}] [namespace eval D {namespace export}]]; proc S::p {} {return REVIVED}; lappend result [D::p] [namespace origin D::p] [catch {namespace path}]; set result"#;
-            assert_eq!(
-                interp.eval_str(script),
-                Code::Ok,
-                "{:?}",
-                interp.result_bytes()
-            );
-            assert_eq!(interp.result_bytes(), b"1 1 1 {} {} REVIVED ::S::p 1");
-        });
+        leak_free_with(
+            || {
+                Interp::with_native_core(
+                    crate::interp::default_host(),
+                    profile,
+                    tcl_registry::special_vars::NativeBootstrapInputs::default(),
+                )
+                .unwrap()
+            },
+            |interp| {
+                let script = br#"namespace eval S {proc p {} {return SOURCE}}; namespace eval D {proc p {} {return DESTINATION}; namespace import -force ::S::*; set imported [namespace import]}; rename S::p {}; set result [list [llength [info commands D::p]] [catch {D::p}] [catch {namespace origin D::p}] [namespace eval D {namespace import ::missing::*}] [namespace eval D {namespace export}]]; proc S::p {} {return REVIVED}; lappend result [D::p] [namespace origin D::p] [catch {namespace path}]; set result"#;
+                assert_eq!(
+                    interp.eval_str(script),
+                    Code::Ok,
+                    "{:?}",
+                    interp.result_bytes()
+                );
+                assert_eq!(interp.result_bytes(), b"1 1 1 {} {} REVIVED ::S::p 1");
+            },
+        );
     }
 
     fn leak_free(body: impl FnOnce(&mut Interp)) {

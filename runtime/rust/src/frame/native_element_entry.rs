@@ -65,9 +65,6 @@ impl NativeElementEntries {
             .values()
             .any(|entry| entry.key == key && entry.aliases.get() != 0)
     }
-    pub(super) fn remove(&mut self, key: &[u8]) {
-        drop(self.take_key(key));
-    }
     pub(super) fn take_key(&mut self, key: &[u8]) -> Option<Owned> {
         let id = self.0.iter().find_map(|(id, entry)| {
             (entry.key == key && entry.aliases.get() == 0).then_some(*id)

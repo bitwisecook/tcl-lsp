@@ -1308,23 +1308,7 @@ fn append_native_list_elements_with_original<E>(
     Ok(value)
 }
 
-/// LIST_CONCAT duplicates its target before reaching source GetElements.
-pub(crate) fn concatenate_native_lists(
-    original: *mut TclObj,
-    source: *mut TclObj,
-    protocol: NativeStringProtocol,
-) -> Result<obj::Owned, tcl_syntax::value::ValueError> {
-    concatenate_native_lists_with_original(
-        original,
-        source,
-        protocol,
-        &|| Ok(()),
-        &|error| error,
-        false,
-    )
-}
-
-/// Same LIST_CONCAT worker, preserving its duplicate-before-source order.
+/// LIST_CONCAT duplicates its target before checked source GetElements.
 pub(crate) fn concatenate_native_lists_using<E>(
     original: *mut TclObj,
     source: *mut TclObj,
@@ -1543,22 +1527,6 @@ pub(crate) fn replace_elements_native(
         &|| Ok(()),
         &|error| error,
         None,
-    )
-}
-
-pub(crate) fn replace_elements_native_checked(
-    original: *mut TclObj,
-    elements: &[*mut TclObj],
-    protocol: NativeStringProtocol,
-    check: &impl Fn() -> Result<(), tcl_runtime_api::NativeExecutionError>,
-    refuse: &impl Fn(tcl_syntax::value::ValueError) -> tcl_runtime_api::NativeExecutionError,
-) -> Result<obj::Owned, tcl_cmd_core::CmdError> {
-    replace_elements_native_using(
-        original,
-        elements,
-        protocol,
-        &|| check().map_err(tcl_cmd_core::CmdError::from),
-        &|error| tcl_cmd_core::CmdError::from(refuse(error)),
     )
 }
 

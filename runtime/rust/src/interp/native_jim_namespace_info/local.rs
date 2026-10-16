@@ -211,7 +211,7 @@ impl OriginalNamespaceInfoDictionaryPath {
         self.value.checked_ptr()?;
         Ok(())
     }
-    pub(crate) fn selected(
+    pub(in crate::interp) fn selected(
         &self,
         actual: &Interp,
         root: &OriginalJimDictionaryRoot,
@@ -242,7 +242,7 @@ impl OriginalNamespaceInfoDictionaryPath {
         }
         Ok(())
     }
-    pub(crate) fn prepared(
+    pub(in crate::interp) fn prepared(
         &self,
         actual: &Interp,
         root: &OriginalJimDictionaryRoot,
@@ -270,7 +270,7 @@ impl OriginalNamespaceInfoDictionaryPath {
         *self.before.borrow_mut() = Some(OriginalDictionaryMutation::capture(prepared)?);
         Ok(())
     }
-    pub(crate) fn published(
+    pub(in crate::interp) fn published(
         &self,
         actual: &Interp,
         root: &OriginalJimDictionaryRoot,

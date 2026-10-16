@@ -1568,6 +1568,35 @@ impl super::SourceCommandBindings {
                 .is_some_and(|origin| origin.source_image() == image)
     }
 
+    /// One complete retained Logical command vector, including independent
+    /// receiver source catalogues. The existing lexical owner reauthenticates
+    /// every original word and the exact source/configuration/site. This grants
+    /// readonly source geometry, without declaration, dispatch or Native entry.
+    pub(crate) fn original_logical_source_command_at_in_source(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        image: &tcl_lexer::SourceImage,
+        offset: u32,
+        config: tcl_lexer::LexerConfig,
+    ) -> Option<std::sync::Arc<crate::registry_invocation::OriginalSourceCommandProjection>> {
+        if !input.has_logical_source_name_context()
+            || self.original_logical_source_name_advice_input() != Some(input)
+            || input.lexer_config() != config
+            || !self.matches_original_source_image(image, config)
+        {
+            return None;
+        }
+        let origin = self.source_origin()?;
+        let binding = self.invocation_at_source("", offset);
+        let site = binding.invocation_site()?;
+        if !std::sync::Arc::ptr_eq(&site.source, origin) || site.offset != offset {
+            return None;
+        }
+        let (words, retained_config) = binding.original_logical_source_geometry_words(input)?;
+        (retained_config == config).then_some(())?;
+        origin.original_lexical_command(words, offset, config)
+    }
+
     /// Require the complete caller image, including its input channel, before
     /// projecting a retained written value at a source extent.
     #[must_use]
@@ -2056,6 +2085,148 @@ mod graph_tests {
         assert!(
             binding
                 .original_logical_source_written_name_input(&foreign, *written)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn logical_source_command_vectors_keep_genuine_conditional_receiver_geometry() {
+        let source = include_str!(
+            "../../../../experiments/name-handling/patterns/composed-callback-prefix/probes/positive.tcl"
+        );
+        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let bindings = analysis
+            .retained_command_realm()
+            .unwrap()
+            .source_bindings_ref();
+        let image = tcl_lexer::SourceImage::document(source);
+        let offset = u32::try_from(source.find("after idle $cb").unwrap()).unwrap();
+        let binding = bindings.invocation_at_source("", offset);
+        assert!(binding.declaration_layout_observations.as_deref().unwrap().iter().any(|row| {
+            row.issuer == super::super::declaration_layout::DeclarationLayoutIssuer::ConditionalReceiverSource
+        }), "actual independently retained receiver source issuer");
+        assert!(binding.original_recorded_command().is_none());
+        let original = bindings
+            .original_logical_source_command_at_in_source(
+                input,
+                &image,
+                offset,
+                input.lexer_config(),
+            )
+            .expect("one genuine complete receiver source vector");
+        assert_eq!(
+            original
+                .native_words()
+                .iter()
+                .map(|word| word.try_text().unwrap())
+                .collect::<Vec<_>>(),
+            ["after", "idle", "$cb"]
+        );
+        assert_eq!(original.command().argv.len(), original.native_words().len());
+        assert!(
+            original
+                .native_words()
+                .iter()
+                .all(|word| word.image() == &image && word.config() == input.lexer_config())
+        );
+        assert!(
+            binding.original_recorded_command().is_none(),
+            "geometry cannot promote declaration authority"
+        );
+        for image in [
+            tcl_lexer::SourceImage::document(&format!("{source} ")),
+            tcl_lexer::SourceImage::native(source.as_bytes()),
+        ] {
+            assert!(
+                bindings
+                    .original_logical_source_command_at_in_source(
+                        input,
+                        &image,
+                        offset,
+                        input.lexer_config()
+                    )
+                    .is_none()
+            );
+        }
+        let mut changed = input.lexer_config();
+        changed.strict_quoting = !changed.strict_quoting;
+        assert!(
+            bindings
+                .original_logical_source_command_at_in_source(input, &image, offset, changed)
+                .is_none()
+        );
+        assert!(
+            bindings
+                .original_logical_source_command_at_in_source(
+                    input,
+                    &image,
+                    offset + 6,
+                    input.lexer_config()
+                )
+                .is_none()
+        );
+        let foreign = crate::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry(),
+            input.lexer_config(),
+        );
+        assert!(
+            bindings
+                .original_logical_source_command_at_in_source(
+                    &foreign,
+                    &image,
+                    offset,
+                    input.lexer_config()
+                )
+                .is_none()
+        );
+        for change_config in [true, false] {
+            let mut changed = bindings.clone();
+            let rows = changed
+                .declaration_layouts
+                .get_mut(binding.invocation_site().unwrap())
+                .unwrap();
+            let mut conflict = rows.iter().find(|row| row.issuer == super::super::declaration_layout::DeclarationLayoutIssuer::ConditionalReceiverSource).unwrap().clone();
+            if change_config {
+                conflict.config.strict_quoting = !conflict.config.strict_quoting;
+            } else {
+                conflict.words = std::sync::Arc::from(&conflict.words[..conflict.words.len() - 1]);
+            }
+            rows.push(conflict);
+            assert!(
+                changed
+                    .original_logical_source_command_at_in_source(
+                        input,
+                        &image,
+                        offset,
+                        input.lexer_config()
+                    )
+                    .is_none(),
+                "conflicting retained config/vector withdraws the projection"
+            );
+        }
+        let native = crate::analyser::Analyser::new().analyse("list VALUE", "tcl8.6");
+        let input = native.resolved_input.as_ref().unwrap();
+        let bindings = native
+            .retained_command_realm()
+            .unwrap()
+            .source_bindings_ref();
+        assert!(
+            bindings
+                .invocation_at_source("", 0)
+                .original_recorded_command()
+                .is_some()
+        );
+        assert!(
+            bindings
+                .original_logical_source_command_at_in_source(
+                    input,
+                    &tcl_lexer::SourceImage::document("list VALUE"),
+                    0,
+                    input.lexer_config()
+                )
                 .is_none()
         );
     }

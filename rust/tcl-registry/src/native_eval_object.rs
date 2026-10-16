@@ -25,6 +25,26 @@ pub enum EvalObjectPurpose {
     TraceCallback,
 }
 
+/// Namespace handler installing an evaluation frame, independent of body assembly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeNamespaceFramePurpose {
+    /// `namespace eval` retains the entered invocation.
+    Eval,
+    /// `namespace inscope` has no recorded argv in C8.4.
+    Inscope,
+}
+
+/// Original argument vector exposed by the selected namespace frame.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeNamespaceFrameArguments {
+    /// C8.4 inscope leaves the pushed frame's argument fields empty.
+    Empty,
+    /// C8.4 eval, C8.5 and Jim retain the actual entered handler vector.
+    Entered,
+    /// C8.6+ fetch the retained root of ensemble/alias rewriting, if present.
+    EnsembleRoot,
+}
+
 /// Independently installed logical script-object dispatcher.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum LogicalEvalObjectProvider {
@@ -39,6 +59,24 @@ pub struct NativeEvalObjectProtocol {
 }
 
 impl NativeEvalObjectProtocol {
+    /// Physical frame argument source in the retained namespace handlers.
+    /// This selects no namespace, script object, or argument spelling.
+    #[must_use]
+    pub const fn namespace_frame_arguments(
+        self,
+        purpose: NativeNamespaceFramePurpose,
+    ) -> NativeNamespaceFrameArguments {
+        match (self.version, purpose) {
+            (Some(TclVersion::V8_4), NativeNamespaceFramePurpose::Inscope) => {
+                NativeNamespaceFrameArguments::Empty
+            }
+            (Some(TclVersion::V8_6 | TclVersion::V9_0 | TclVersion::V9_1), _) => {
+                NativeNamespaceFrameArguments::EnsembleRoot
+            }
+            _ => NativeNamespaceFrameArguments::Entered,
+        }
+    }
+
     /// Source objects use the native compiler except selected direct C84
     /// evaluation and counted C trace callbacks. This does not admit an artifact.
     #[must_use]
@@ -177,6 +215,41 @@ impl InvocationDialect {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn namespace_frame_arguments_follow_the_retained_provider_handlers() {
+        use NativeNamespaceFrameArguments as Arguments;
+        use NativeNamespaceFramePurpose as Purpose;
+        for version in TclVersion::ALL {
+            let protocol = InvocationDialect::for_version(version)
+                .native_eval_object_protocol()
+                .unwrap();
+            for purpose in [Purpose::Eval, Purpose::Inscope] {
+                let expected = match (version, purpose) {
+                    (TclVersion::V8_4, Purpose::Inscope) => Arguments::Empty,
+                    (TclVersion::V8_4 | TclVersion::V8_5, _) => Arguments::Entered,
+                    _ => Arguments::EnsembleRoot,
+                };
+                assert_eq!(protocol.namespace_frame_arguments(purpose), expected);
+            }
+        }
+        let jim = InvocationDialect::of_profile(
+            crate::model::ingress::resolve_environment("jim").unit_profile(),
+        )
+        .native_eval_object_protocol()
+        .unwrap();
+        assert_eq!(
+            jim.namespace_frame_arguments(Purpose::Eval),
+            Arguments::Entered
+        );
+        let logical = InvocationDialect::of_profile(tcl_dialect::DialectProfile::irules())
+            .eval_object_protocol(Some(LogicalEvalObjectProvider::Tcl84CoreSimulation))
+            .unwrap();
+        assert_eq!(
+            logical.namespace_frame_arguments(Purpose::Inscope),
+            Arguments::Empty
+        );
+    }
 
     #[test]
     fn public_source_exit_consumes_only_the_actual_c_command_log_flag() {

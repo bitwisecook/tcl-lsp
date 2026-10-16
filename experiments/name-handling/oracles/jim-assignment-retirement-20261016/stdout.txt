@@ -1,0 +1,2 @@
+ASSIGN|fresh=0|code=0|callbacks=1|during_old=1|during_new=0|old_refs_during=0|incoming_refs_during=2|after_new=1|incoming_refs_after=2
+ASSIGN|fresh=1|code=0|callbacks=1|during_old=1|during_new=0|old_refs_during=0|incoming_refs_during=2|after_new=1|incoming_refs_after=2

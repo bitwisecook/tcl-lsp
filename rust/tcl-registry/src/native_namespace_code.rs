@@ -11,6 +11,24 @@ pub struct NativeNamespaceCodePolicy {
     rule: PrefixRule,
 }
 
+/// Physical construction route after the selected recognition predicate fails.
+/// The namespace context object has its own independent producer contract.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NamespaceCodeConstruction {
+    /// A fresh native List whose first two members are fresh untyped String
+    /// headers. The third member is the independently produced current context;
+    /// the fourth retains the same original script object without reparsing.
+    FreshList {
+        /// Counted literal bytes in exact head/selector order. These are local
+        /// generated constants and grant no command lookup or invocation identity.
+        fresh_string_literals: [&'static [u8]; 2],
+    },
+    /// Jim's installed original procedure evaluates its own parsed literal
+    /// objects through ordinary `list`. A direct native handler cannot recreate
+    /// those original literal allocations from their equal byte spelling.
+    ScriptedHelper,
+}
+
 /// A deliberately installed logical handler simulation, not native evidence.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LogicalNamespaceCodeProvider {
@@ -34,6 +52,24 @@ pub struct LogicalNamespaceCodePolicy {
 }
 
 impl NamespaceCodeHandlerPolicy {
+    /// Select the reached allocation route without changing recognition policy.
+    /// Logical C8.4 construction remains explicitly authored simulation.
+    #[must_use]
+    pub const fn construction(self) -> NamespaceCodeConstruction {
+        if matches!(
+            self,
+            Self::Native(NativeNamespaceCodePolicy {
+                rule: PrefixRule::Jim084
+            })
+        ) {
+            NamespaceCodeConstruction::ScriptedHelper
+        } else {
+            NamespaceCodeConstruction::FreshList {
+                fresh_string_literals: [b"::namespace", b"inscope"],
+            }
+        }
+    }
+
     /// The selected handler's recognition predicate on exact argument bytes.
     #[must_use]
     pub fn preserves_argument(self, bytes: &[u8]) -> bool {
@@ -143,6 +179,39 @@ mod tests {
         b"::namespace inscopeX",
         b"::namespace inscope \0",
     ];
+
+    #[test]
+    fn namespace_code_construction_keeps_native_and_scripted_literal_roles_separate() {
+        for version in tcl_dialect::TclVersion::ALL {
+            let policy = crate::InvocationDialect::for_version(version)
+                .namespace_code_handler_policy(None)
+                .unwrap();
+            assert_eq!(
+                policy.construction(),
+                NamespaceCodeConstruction::FreshList {
+                    fresh_string_literals: [b"::namespace", b"inscope"],
+                }
+            );
+        }
+        let jim = crate::InvocationDialect::of_profile(
+            crate::model::ingress::resolve_environment("jim").analyser_profile(),
+        );
+        assert_eq!(
+            jim.namespace_code_handler_policy(None)
+                .unwrap()
+                .construction(),
+            NamespaceCodeConstruction::ScriptedHelper
+        );
+        let logical = crate::InvocationDialect::of_profile(tcl_dialect::DialectProfile::irules())
+            .namespace_code_handler_policy(Some(LogicalNamespaceCodeProvider::Tcl84CoreSimulation))
+            .unwrap();
+        assert_eq!(
+            logical.construction(),
+            NamespaceCodeConstruction::FreshList {
+                fresh_string_literals: [b"::namespace", b"inscope"],
+            }
+        );
+    }
 
     #[test]
     fn handler_recognition_matches_all_66_measured_native_rows() {

@@ -261,6 +261,40 @@ pub(crate) fn jim_fixture_namespace(interpreter: &mut Interp, name: &[u8]) -> Ji
     captured
 }
 
+thread_local! {
+    static FIXTURE_CALL: RefCell<Option<(NsId, Vec<*mut TclObj>)>> = const { RefCell::new(None) };
+}
+fn fixture_namespace_call(interpreter: &mut Interp, _: &[*mut TclObj]) -> Code {
+    let (namespace, original) = FIXTURE_CALL.with(|call| call.borrow_mut().take().unwrap());
+    assert_eq!(interpreter.current_ns(), namespace);
+    assert_ne!(interpreter.frames.borrow().current_frame_index(), 0);
+    namespace_cmd(interpreter, &original)
+}
+fn namespace_call_in_fixture(
+    interpreter: &mut Interp,
+    namespace: Option<&JimFixtureNamespace>,
+    sub: &[u8],
+    inputs: &[&obj::Owned],
+) -> Code {
+    let Some(namespace) = namespace else {
+        return namespace_call(interpreter, sub, inputs);
+    };
+    let head = text(b"namespace");
+    let selector = text(sub);
+    let mut original = vec![head.as_ptr(), selector.as_ptr()];
+    original.extend(inputs.iter().map(|input| input.as_ptr()));
+    FIXTURE_CALL.with(|call| {
+        assert!(call.borrow().is_none());
+        *call.borrow_mut() = Some((namespace.token, original));
+    });
+    let _cleanup = FixtureCleanup(|| {
+        FIXTURE_CALL.with(|call| call.borrow_mut().take());
+    });
+    interpreter.register_builtin(b"consumerFixtureNamespaceCall", fixture_namespace_call);
+    let body = text(b"consumerFixtureNamespaceCall");
+    namespace_call(interpreter, b"eval", &[namespace.owner.as_ref(), &body])
+}
+
 fn namespace_call(interpreter: &mut Interp, sub: &[u8], inputs: &[&obj::Owned]) -> Code {
     let head = text(b"namespace");
     let sub = text(sub);
@@ -307,16 +341,28 @@ fn compare_namespace_patterns(engine: &str, capture: &str) -> usize {
             || interpreter.find_namespace_id(b"::d").unwrap(),
             |original| original.token,
         );
-        interpreter.set_current_ns(current);
+        if jim_namespace.is_none() {
+            interpreter.set_current_ns(current);
+        }
         if matches!(case, 0 | 1 | 2 | 3 | 4 | 12 | 14) {
             assert_eq!(
-                namespace_call(&mut interpreter, b"export", &[&text(b"old")]),
+                namespace_call_in_fixture(
+                    &mut interpreter,
+                    jim_namespace.as_ref(),
+                    b"export",
+                    &[&text(b"old")]
+                ),
                 Code::Ok
             );
         }
         if case == 8 {
             assert_eq!(
-                namespace_call(&mut interpreter, b"import", &[&text(b"::s::*")]),
+                namespace_call_in_fixture(
+                    &mut interpreter,
+                    jim_namespace.as_ref(),
+                    b"import",
+                    &[&text(b"::s::*")]
+                ),
                 Code::Ok
             );
         }
@@ -350,7 +396,8 @@ fn compare_namespace_patterns(engine: &str, capture: &str) -> usize {
         let mut operands: Vec<_> = flag.iter().collect();
         operands.extend(values.iter());
         crate::codegen_abi::tcl_runtime_set_current_interp(&mut interpreter);
-        let code = namespace_call(&mut interpreter, sub, &operands);
+        let code =
+            namespace_call_in_fixture(&mut interpreter, jim_namespace.as_ref(), sub, &operands);
         compare_worker(&mut interpreter, code, capture, case);
         let exports = interpreter.namespaces().exports(current).to_vec();
         set_list_bytes(&mut interpreter, &exports);

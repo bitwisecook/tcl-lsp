@@ -1,0 +1,13 @@
+Pinned original Jim scalar assignment observation
+
+Provider: /workspace/tcl-lsp/tmp/jimtcl-oracle/libjim.a, corresponding Jim_SetVariable source jim.c4758-4792.
+Compile: cc -std=c99 -Wall -Wextra -Werror -I /workspace/tcl-lsp/tmp/jimtcl-oracle /tmp/runtime-variable-failures/jim-assignment/observer.c /workspace/tcl-lsp/tmp/jimtcl-oracle/libjim.a -lm -lssl -lcrypto -lz -o /tmp/runtime-variable-failures/jim-assignment/observer
+Run: /tmp/runtime-variable-failures/jim-assignment/observer
+Exit: 0. Compiler clean. stdout.txt contains both cached and fresh original name-header controls; stderr.txt empty. sha256.txt identifies original provider source/header/archive and the harness source/binary.
+
+Both normal-success cases prove the old VarVal pointer remains selected during the old free-internal-representation callback, with old ref0 and the incoming caller+future-cell ref2 already acquired. After Jim_SetVariable returns successfully, the cell contains incoming/ref2. Callback pointer equality uses the actual queried old pointer and a recorded integer address; old fields are accessed only inside its active free callback. No retired pointer is dereferenced after Jim_SetVariable returns.
+
+The original Jim provider has no Runtime Host refusal or configuration epoch. The associated Rust fixture patch independently tests the existing strict refusal guard: mode0 must complete and publish incoming/ref2; modes1/2 must retain the reached first failure and stop before future assignment, release incoming future-cell ownership back to caller/ref1, and remove only the nonowning retired pointer. Existing result pointer and caller-storage-borrow assertions remain. C assignment semantics are unchanged; the callback retains its existing semantic cell-read path for C, while Jim observes published raw storage without trying to turn an actively retiring pointer into a live variable value.
+
+Rust candidate: /tmp/runtime-variable-failures/jim-test/jim-assignment-test.patch
+Only original_assignment_tests changes; no production store changes. Formatting and patch dry-run pass. Compilation/execution pending root.

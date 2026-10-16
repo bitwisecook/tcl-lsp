@@ -108,6 +108,25 @@ impl LogicalSourceProcedureDeclaration {
         })
     }
 
+    /// Conditional source argument topology from this exact original header.
+    /// Both current formal grammars must agree; no activation or value follows.
+    #[must_use]
+    pub fn source_argument_bindings(
+        &self,
+        arguments: usize,
+    ) -> Option<Vec<tcl_syntax::formal_params::FormalByteArgumentBinding>> {
+        if !self.matches_source(&self.image, &self.input)
+            || self.body.has_earlier_unknown_mutations()
+        {
+            return None;
+        }
+        crate::signature_scan::formal_count::logical_formal_argument_bindings(
+            self.body.parameters_text(),
+            self.body.parameters(),
+            arguments,
+        )
+    }
+
     /// Quoted insertion data from the retained source namespace and header.
     #[must_use]
     pub fn source_word(&self, config: LexerConfig) -> Option<String> {

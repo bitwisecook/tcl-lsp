@@ -84,9 +84,71 @@ fn project_tokens_keep_each_files_pack_roles_and_withdraw_changed_availability()
         !actual.proc_roles.is_empty(),
         "the actual library role is retained"
     );
+    let index = project_proc_var_index_for_inputs(&db, project);
+    let library_input = document_analysis_input(&db, library, library_config).unwrap();
+    let caller_input = document_analysis_input(&db, caller, caller_config).unwrap();
+    let library_analysis = document_analyser(&db, library, library_config)
+        .with_resolved_input((*library_input).clone())
+        .structure_only()
+        .analyse(library.text(&db), library.dialect(&db));
+    let caller_analysis = document_analyser(&db, caller, caller_config)
+        .with_resolved_input((*caller_input).clone())
+        .structure_only()
+        .analyse(caller.text(&db), caller.dialect(&db));
+    // Representation changed from joined report maps to genuine per-file
+    // declaration/formal owners. Compare that exact transport, then project
+    // the actual selected call back to the original library declaration.
+    use tcl_compiler::registry_invocation::source_structure::{
+        OriginalProjectProcedureRoles, original_project_procedure_arguments,
+    };
     assert_eq!(
-        *project_proc_var_index_for_inputs(&db, project),
-        actual.proc_roles
+        index.project_source_roles(),
+        &[
+            OriginalProjectProcedureRoles::capture(&library_analysis).unwrap(),
+            OriginalProjectProcedureRoles::capture(&caller_analysis).unwrap(),
+        ]
+    );
+    let command = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+        source,
+        0,
+        caller_input.lexer_config(),
+    )
+    .pop()
+    .unwrap();
+    let selected = original_project_procedure_arguments(
+        source,
+        &caller_analysis,
+        &command,
+        index.project_source_roles(),
+    )
+    .unwrap();
+    let expected = library_analysis
+        .original_procedure_declarations()
+        .next()
+        .unwrap();
+    assert_eq!(selected.declaration(), expected);
+    assert_eq!(
+        selected.bindings(),
+        &[
+            tcl_syntax::formal_params::FormalByteArgumentBinding::Value {
+                parameter: 0,
+                argument: 0
+            }
+        ]
+    );
+    assert_eq!(
+        selected.arguments(),
+        &[tcl_compiler::registry_invocation::EffectiveInvocationWord::from_bytes(b"retained")]
+    );
+    assert!(selected.matches_source(&tcl_lexer::SourceImage::document(source), &caller_input));
+    assert_eq!(
+        selected.declaration().metadata().param_traits,
+        expected.metadata().param_traits
+    );
+    assert!(
+        expected.metadata().param_traits.get("name").is_some_and(
+            |traits| traits.contains(&tcl_compiler::analyser::types::ProcArgTrait::VarRead)
+        )
     );
     assert!(is_variable(
         &semantic_tokens_project_for_inputs(&db, caller, project),
@@ -155,18 +217,36 @@ fn project_token_hints_withdraw_when_another_members_source_owner_is_unavailable
         Some(vec![(file, config), (other, other_config)]),
     );
     assert!(checked_file_token_facts_for_config(&db, other, other_config).is_some());
-    assert!(project_class_index_for_inputs(&db, project).classes.contains_key("::ProjectThing"));
+    assert!(
+        project_class_index_for_inputs(&db, project)
+            .classes
+            .contains_key("::ProjectThing")
+    );
     assert!(!project_proc_var_index_for_inputs(&db, project).is_empty());
     assert!(!project_named_instance_index_for_inputs(&db, project).is_empty());
     other_config.set_spec_pack_key(&mut db).to(u64::MAX - 2354);
     assert!(checked_file_token_facts_for_config(&db, other, other_config).is_none());
-    assert!(file_token_facts_for_config(&db, file, config).classes.contains_key("::ProjectThing"));
-    assert!(project_class_index_for_inputs(&db, project).classes.is_empty());
+    assert!(
+        file_token_facts_for_config(&db, file, config)
+            .classes
+            .contains_key("::ProjectThing")
+    );
+    assert!(
+        project_class_index_for_inputs(&db, project)
+            .classes
+            .is_empty()
+    );
     assert!(project_proc_var_index_for_inputs(&db, project).is_empty());
     assert!(project_named_instance_index_for_inputs(&db, project).is_empty());
     other_config.set_spec_pack_key(&mut db).to(0);
-    project.set_token_configurations(&mut db).to(Some(vec![(file, config)]));
-    assert!(project_class_index_for_inputs(&db, project).classes.is_empty());
+    project
+        .set_token_configurations(&mut db)
+        .to(Some(vec![(file, config)]));
+    assert!(
+        project_class_index_for_inputs(&db, project)
+            .classes
+            .is_empty()
+    );
     assert!(project_proc_var_index_for_inputs(&db, project).is_empty());
     assert!(project_named_instance_index_for_inputs(&db, project).is_empty());
 }
@@ -179,16 +259,31 @@ fn project_token_hints_deduplicate_actual_file_owners_without_merging_equal_labe
     let first = SourceFile::new(&db, source.to_owned(), "tcl".to_owned(), None);
     let second = SourceFile::new(&db, source.to_owned(), "tcl".to_owned(), None);
     let single = Project::with_token_configurations(&db, vec![first], Some(vec![(first, config)]));
-    let repeated = Project::with_token_configurations(&db, vec![first, first], Some(vec![(first, config)]));
-    assert!(project_class_index_for_inputs(&db, single).classes.contains_key("::ProjectThing"));
-    assert_eq!(project_class_index_for_inputs(&db, repeated), project_class_index_for_inputs(&db, single));
-    assert_eq!(project_class_index(&db, repeated), project_class_index(&db, single));
+    let repeated =
+        Project::with_token_configurations(&db, vec![first, first], Some(vec![(first, config)]));
+    assert!(
+        project_class_index_for_inputs(&db, single)
+            .classes
+            .contains_key("::ProjectThing")
+    );
+    assert_eq!(
+        project_class_index_for_inputs(&db, repeated),
+        project_class_index_for_inputs(&db, single)
+    );
+    assert_eq!(
+        project_class_index(&db, repeated),
+        project_class_index(&db, single)
+    );
     let distinct = Project::with_token_configurations(
         &db,
         vec![first, second],
         Some(vec![(first, config), (second, config)]),
     );
-    assert!(project_class_index_for_inputs(&db, distinct).classes.is_empty());
+    assert!(
+        project_class_index_for_inputs(&db, distinct)
+            .classes
+            .is_empty()
+    );
     assert!(project_class_index(&db, distinct).classes.is_empty());
 }
 
@@ -311,4 +406,113 @@ fn supplied_project_indexes_keep_the_structure_only_firewall_across_source_edits
             && !event.contains("function_lattice")),
         "{after:?}"
     );
+}
+
+#[test]
+fn project_source_roles_select_current_call_declaration_and_formals() {
+    let mut db = TclDatabase::default();
+    let config = configuration(&db, 0);
+    for dialect in ["tcl", "tcl8.6", "jim"] {
+        let library = SourceFile::new(&db, "proc reader {name} {upvar 1 $name cell; set cell 1}; proc puts {name} {upvar 1 $name cell; set cell 1}".to_owned(), dialect.to_owned(), None);
+        let caller = SourceFile::new(&db, "reader retained".to_owned(), dialect.to_owned(), None);
+        let project = Project::with_token_configurations(
+            &db,
+            vec![library, caller],
+            Some(vec![(library, config), (caller, config)]),
+        );
+        for (source, expected) in [
+            ("reader retained", true),
+            ("puts retained", false),
+            ("proc reader {value} {}; reader retained", false),
+            ("interp alias {} reader {} puts; reader retained", false),
+            (
+                "proc reader {value} {}; rename reader {}; reader retained",
+                false,
+            ),
+            ("unknown_mutation; reader retained", false),
+            ("reader [unknown_operand] retained", false),
+            ("reader {*}{retained}", false),
+        ] {
+            caller.set_text(&mut db).to(source.to_owned());
+            let tokens = semantic_tokens_project_for_inputs(&db, caller, project);
+            assert_eq!(
+                is_variable(&tokens, source, "retained"),
+                expected,
+                "{dialect}: {source}"
+            );
+        }
+        caller.set_text(&mut db).to("reader retained".to_owned());
+        let duplicate = SourceFile::new(&db, library.text(&db).clone(), dialect.to_owned(), None);
+        project
+            .set_files(&mut db)
+            .to(vec![library, caller, duplicate]);
+        project.set_token_configurations(&mut db).to(Some(vec![
+            (library, config),
+            (caller, config),
+            (duplicate, config),
+        ]));
+        assert!(!is_variable(
+            &semantic_tokens_project_for_inputs(&db, caller, project),
+            "reader retained",
+            "retained"
+        ));
+    }
+}
+
+#[test]
+fn project_source_roles_bind_original_optional_formals_and_keep_foreign_class_barriers() {
+    let mut db = TclDatabase::default();
+    let config = configuration(&db, 0);
+    for dialect in ["tcl", "tcl8.6"] {
+        let library = SourceFile::new(
+            &db,
+            "proc reader {{unused DEFAULT} name} {upvar 1 $name cell; set cell 1}".to_owned(),
+            dialect.to_owned(),
+            None,
+        );
+        let caller = SourceFile::new(
+            &db,
+            "reader FIRST retained".to_owned(),
+            dialect.to_owned(),
+            None,
+        );
+        let project = Project::with_token_configurations(
+            &db,
+            vec![library, caller],
+            Some(vec![(library, config), (caller, config)]),
+        );
+        assert!(is_variable(
+            &semantic_tokens_project_for_inputs(&db, caller, project),
+            "reader FIRST retained",
+            "retained"
+        ));
+        caller.set_text(&mut db).to("reader retained".to_owned());
+        assert!(!is_variable(
+            &semantic_tokens_project_for_inputs(&db, caller, project),
+            "reader retained",
+            "retained"
+        ));
+        caller
+            .set_text(&mut db)
+            .to("reader FIRST retained".to_owned());
+        let class_file = SourceFile::new(
+            &db,
+            "oo::class create reader {}".to_owned(),
+            dialect.to_owned(),
+            None,
+        );
+        project
+            .set_files(&mut db)
+            .to(vec![library, caller, class_file]);
+        project.set_token_configurations(&mut db).to(Some(vec![
+            (library, config),
+            (caller, config),
+            (class_file, config),
+        ]));
+        assert!(!is_variable(
+            &semantic_tokens_project_for_inputs(&db, caller, project),
+            "reader FIRST retained",
+            "retained"
+        ));
+    }
 }

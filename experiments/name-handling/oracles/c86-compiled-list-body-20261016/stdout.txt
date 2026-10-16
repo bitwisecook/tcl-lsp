@@ -1,0 +1,97 @@
+BEFORE {value is a list with a refcount of 3, object pointer at 0x5559f52490e0, internal representation 0x5559f525b110:(nil), no string representation}
+AFTER {value is a bytecode with a refcount of 3, object pointer at 0x5559f52490e0, internal representation 0x5559f52304b0:(nil), string representation "set foo(3) 3"}
+ROW 1 {can't set "foo(3)": upvar refers to variable in deleted namespace} {TCL LOOKUP VARNAME}
+ByteCode 0x0x5559f527d050, refCt 1, epoch 17, interp 0x0x5559f5208130 (epoch 17)
+  Source "\n    variable ::test_ns_var::foo\n    namespace delete..."
+  File "/tmp/runtime-variable-failures/c86-list-dispatch/probe.tcl" Line 2
+  Cmds 14, src 325, inst 165, litObjs 12, aux 0, stkDepth 5, code/src 0.00
+  Proc 0x0x5559f525d7e0, refCt 1, args 0, compiled locals 4
+      slot 0, scalar, "foo"
+      slot 1, scalar, "command"
+      slot 2, scalar, "code"
+      slot 3, scalar, "result"
+  Exception ranges 1, depth 1:
+      0: level 0, catch, pc 83-90, catch 95
+  Commands 14:
+      1: pc 0-9, src 5-31        2: pc 10-25, src 37-66
+      3: pc 26-39, src 72-102        4: pc 35-36, src 85-101
+      5: pc 40-66, src 108-171        6: pc 42-63, src 114-170
+      7: pc 53-58, src 127-169        8: pc 67-109, src 177-208
+      9: pc 76-106, src 187-207       10: pc 110-136, src 214-276
+     11: pc 112-133, src 220-275       12: pc 123-128, src 232-274
+     13: pc 137-163, src 282-323       14: pc 139-161, src 288-322
+  Command 1: "variable ::test_ns_var::foo..."
+    (0) push1 0 	# "::test_ns_var::foo"
+    (2) variable %v0 	# var "foo"
+    (7) nop 
+    (8) nop 
+    (9) nop 
+  Command 2: "namespace delete ::test_ns_var..."
+    (10) startCommand +15 1 	# next cmd at pc 25, 1 cmds start here
+    (19) push1 2 	# "::tcl::namespace::delete"
+    (21) push1 3 	# "::test_ns_var"
+    (23) invokeStk1 2 
+    (25) pop 
+  Command 3: "set command [list set foo(3) 3]..."
+    (26) startCommand +13 2 	# next cmd at pc 39, 2 cmds start here
+  Command 4: "list set foo(3) 3..."
+    (35) push1 4 	# "set foo(3) 3"
+    (37) storeScalar1 %v1 	# var "command"
+    (39) pop 
+  Command 5: "puts [list BEFORE [::tcl::unsupported::representation $..."
+    (40) push1 5 	# "puts"
+  Command 6: "list BEFORE [::tcl::unsupported::representation $comman..."
+    (42) startCommand +22 1 	# next cmd at pc 64, 1 cmds start here
+    (51) push1 6 	# "BEFORE"
+  Command 7: "::tcl::unsupported::representation $command..."
+    (53) push1 7 	# "::tcl::unsupported::representation"
+    (55) loadScalar1 %v1 	# var "command"
+    (57) invokeStk1 2 
+    (59) list 2 
+    (64) invokeStk1 2 
+    (66) pop 
+  Command 8: "set code [catch $command result]..."
+    (67) startCommand +42 2 	# next cmd at pc 109, 2 cmds start here
+  Command 9: "catch $command result..."
+    (76) loadScalar1 %v1 	# var "command"
+    (78) beginCatch4 0 
+    (83) dup 
+    (84) evalStk 
+    (85) reverse 2 
+    (90) pop 
+    (91) push1 8 	# "0"
+    (93) jump1 +5 	# pc 98
+    (95) pop 
+    (96) pushResult 
+    (97) pushReturnCode 
+    (98) endCatch 
+    (99) reverse 2 
+    (104) storeScalar1 %v3 	# var "result"
+    (106) pop 
+    (107) storeScalar1 %v2 	# var "code"
+    (109) pop 
+  Command 10: "puts [list AFTER [::tcl::unsupported::representation $c..."
+    (110) push1 5 	# "puts"
+  Command 11: "list AFTER [::tcl::unsupported::representation $command..."
+    (112) startCommand +22 1 	# next cmd at pc 134, 1 cmds start here
+    (121) push1 9 	# "AFTER"
+  Command 12: "::tcl::unsupported::representation $command..."
+    (123) push1 7 	# "::tcl::unsupported::representation"
+    (125) loadScalar1 %v1 	# var "command"
+    (127) invokeStk1 2 
+    (129) list 2 
+    (134) invokeStk1 2 
+    (136) pop 
+  Command 13: "puts [list ROW $code $result $::errorCode]..."
+    (137) push1 5 	# "puts"
+  Command 14: "list ROW $code $result $::errorCode..."
+    (139) startCommand +23 1 	# next cmd at pc 162, 1 cmds start here
+    (148) push1 10 	# "ROW"
+    (150) loadScalar1 %v2 	# var "code"
+    (152) loadScalar1 %v3 	# var "result"
+    (154) push1 11 	# "::errorCode"
+    (156) loadStk 
+    (157) list 4 
+    (162) invokeStk1 2 
+    (164) done 
+

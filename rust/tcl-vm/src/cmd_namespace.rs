@@ -23,7 +23,7 @@
 //! usage rewriting and callback dispatch. Jim's namespace objects remain flat
 //! objects independently of C namespace-tree components.
 
-use tcl_registry::native_eval_object::EvalObjectPurpose;
+use tcl_registry::native_eval_object::{EvalObjectPurpose, NativeNamespaceFramePurpose};
 use tcl_runtime_api::completion_options::ControlOptionPolicy;
 use tcl_runtime_api::{Code, Completion};
 
@@ -46,10 +46,8 @@ mod native_jim_subcommands;
 fn eval_in_ns(
     vm: &mut Vm,
     original: &Value,
-    body: &Value,
-    purpose: EvalObjectPurpose,
-    call_argv: Vec<Value>,
-    location: Option<tcl_runtime_api::script_source_location::ScriptSourceLocation>,
+    body: NamespaceBody<'_>,
+    frame_purpose: NativeNamespaceFramePurpose,
     create: bool,
 ) -> Completion<Value> {
     let original_names =
@@ -89,9 +87,15 @@ fn eval_in_ns(
         ) {
             return crate::command::completion_from_cmd_error(vm, error);
         }
+        // Native handlers fetch their frame argv after namespace lookup, whose
+        // getters can independently withdraw an active ensemble root rewrite.
+        let call_argv = match namespace_frame_arguments(vm, frame_purpose, &original_names) {
+            Ok(arguments) => arguments,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        };
         vm.push_ns_eval_token_frame(token, call_argv);
         vm.enter_ns_script();
-        let result = vm.eval_original_script_value(body, purpose, location);
+        let result = eval_namespace_body(vm, body);
         vm.leave_ns_script();
         vm.pop_ns();
         vm.pop_call_frame();
@@ -108,6 +112,109 @@ fn eval_in_ns(
         return crate::command::completion_from_cmd_error(vm, error);
     }
     reached
+}
+
+/// Original body operands retain their own source and concatenation protocols.
+/// Assembly occurs in the already selected namespace frame, after argv is set.
+enum NamespaceBody<'a> {
+    Eval(&'a [Value]),
+    Inscope {
+        script: &'a Value,
+        extra: &'a [Value],
+        jim: bool,
+    },
+}
+
+fn eval_namespace_body(
+    vm: &mut Vm,
+    body: NamespaceBody<'_>,
+) -> Result<Completion<Value>, crate::error::TclError> {
+    let concatenated;
+    let (body, purpose, location) = match body {
+        NamespaceBody::Eval([original]) => (
+            original,
+            EvalObjectPurpose::NamespaceBody,
+            original.source_location(),
+        ),
+        NamespaceBody::Eval(parts) => {
+            concatenated = tcl_cmd_core::list::concat_selected(vm, parts).map_err(|error| {
+                crate::error::TclError::from_completion(crate::command::completion_from_cmd_error(
+                    vm, error,
+                ))
+            })?;
+            (&concatenated, EvalObjectPurpose::NamespaceConcat, None)
+        }
+        NamespaceBody::Inscope { script, extra, jim } => {
+            let location = extra.is_empty().then(|| script.source_location()).flatten();
+            if extra.is_empty() && !jim {
+                (script, EvalObjectPurpose::NamespaceBody, location)
+            } else {
+                concatenated = inscope_script(vm, script, extra)
+                    .map_err(crate::error::TclError::from_completion)?;
+                (&concatenated, EvalObjectPurpose::NamespaceConcat, location)
+            }
+        }
+    };
+    vm.eval_original_script_value(body, purpose, location)
+}
+
+/// Carry the genuine invocation values into the selected namespace frame.
+/// A worker selector manufactured only for local dispatch is never an argv word.
+fn namespace_frame_arguments(
+    vm: &mut Vm,
+    purpose: NativeNamespaceFramePurpose,
+    original_names: &crate::interp::native_name_consumers::OriginalNameConsumerScope,
+) -> Result<Vec<Value>, tcl_cmd_core::CmdError> {
+    use tcl_registry::native_eval_object::NativeNamespaceFrameArguments;
+    use tcl_syntax::value::ValueError;
+
+    original_names.check(vm)?;
+    let recipe = vm
+        .eval_object_protocol()
+        .ok_or(ValueError::CommandProtocolUnavailable(
+            "original namespace frame argument issuer",
+        ))?
+        .namespace_frame_arguments(purpose);
+    if recipe == NativeNamespaceFrameArguments::Empty {
+        return Ok(Vec::new());
+    }
+    let entered = vm
+        .native_invocation
+        .arguments
+        .as_ref()
+        .ok_or(ValueError::CommandProtocolUnavailable(
+            "original namespace frame invocation vector",
+        ))?
+        .lifetime_view();
+    let words: Vec<_> = entered
+        .elements()?
+        .iter()
+        .map(Value::native_lifetime_lease)
+        .collect();
+    let words = if recipe == NativeNamespaceFrameArguments::EnsembleRoot {
+        let rewrites: Vec<_> = vm
+            .native_invocation
+            .usage_rewrites
+            .iter()
+            .map(|rewrite| tcl_cmd_core::ensemble::ArgumentUsageRewrite {
+                original_prefix: rewrite
+                    .original_prefix
+                    .iter()
+                    .map(Value::native_lifetime_lease)
+                    .collect(),
+                removed_words: rewrite.removed_words,
+            })
+            .collect();
+        tcl_cmd_core::ensemble::rewrite_argument_usage(&words, &rewrites)
+    } else {
+        words
+    };
+    for word in &words {
+        original_names.current_for_value(vm, word.value())?;
+    }
+    entered.elements()?;
+    original_names.check(vm)?;
+    Ok(words.into_iter().map(|word| word.into_value()).collect())
 }
 
 pub(crate) fn register(vm: &mut Vm) {
@@ -253,6 +360,18 @@ fn namespace_code_invocation(
         if policy.preserves_argument(&bytes) {
             return ok(script.clone());
         }
+        let tcl_registry::native_namespace_code::NamespaceCodeConstruction::FreshList {
+            fresh_string_literals: [head, selector],
+        } = policy.construction()
+        else {
+            return vm.refuse_host_command(
+                "namespace code construction requires the original scripted helper".into(),
+            );
+        };
+        // C's two generated constants each receive a fresh untyped String
+        // header. They do not borrow the caller's head or selector object.
+        let head = Value::new_native_string_bytes(head);
+        let selector = Value::new_native_string_bytes(selector);
         let context = match vm.native_namespace_result_object(
             vm.current_ns_id(),
             tcl_syntax::native_namespace_name::NativeNamespaceObjectProducer::CodeContext,
@@ -262,12 +381,7 @@ fn namespace_code_invocation(
         };
         ok(tcl_syntax::value::ValueOps::new_list(
             vm,
-            vec![
-                Value::string("::namespace"),
-                Value::string("inscope"),
-                context,
-                script.clone(),
-            ],
+            vec![head, selector, context, script.clone()],
         ))
     })();
     if let Err(error) = original_names.finish(vm) {
@@ -1912,28 +2026,14 @@ fn ns_inscope(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     let jim = vm
         .name_policy_protocol()
         .is_some_and(|policy| policy.recipe().is_jim084());
-    let concatenated;
-    let (body, purpose) = if extra.is_empty() && !jim {
-        (script, EvalObjectPurpose::NamespaceBody)
-    } else {
-        concatenated = match inscope_script(vm, script, extra) {
-            Ok(body) => body,
-            Err(completion) => return completion,
-        };
-        (&concatenated, EvalObjectPurpose::NamespaceConcat)
-    };
-    let mut call_argv = vec![Value::string("namespace"), Value::string("inscope")];
-    call_argv.extend(rest.iter().cloned());
     let create = vm
         .name_policy_protocol()
         .is_some_and(|policy| policy.recipe().is_jim084());
     eval_in_ns(
         vm,
         ns,
-        body,
-        purpose,
-        call_argv,
-        extra.is_empty().then(|| script.source_location()).flatten(),
+        NamespaceBody::Inscope { script, extra, jim },
+        NativeNamespaceFramePurpose::Inscope,
         create,
     )
 }
@@ -1991,28 +2091,11 @@ fn ns_eval(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
             "wrong # args: should be \"namespace eval name arg ?arg ...?\"",
         );
     }
-    let concatenated;
-    let (body, purpose) = if let [original] = body_parts {
-        (original, EvalObjectPurpose::NamespaceBody)
-    } else {
-        concatenated = match tcl_cmd_core::list::concat_selected(vm, body_parts) {
-            Ok(value) => value,
-            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
-        };
-        (&concatenated, EvalObjectPurpose::NamespaceConcat)
-    };
-    let mut call_argv = vec![Value::string("namespace"), Value::string("eval")];
-    call_argv.extend(rest.iter().cloned());
     eval_in_ns(
         vm,
         ns,
-        body,
-        purpose,
-        call_argv,
-        body_parts
-            .first()
-            .filter(|_| body_parts.len() == 1)
-            .and_then(Value::source_location),
+        NamespaceBody::Eval(body_parts),
+        NativeNamespaceFramePurpose::Eval,
         true,
     )
 }
@@ -2020,6 +2103,172 @@ fn ns_eval(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn capture_namespace_frame(vm: &mut Vm, _arguments: &[Value]) -> Completion<Value> {
+        ok(Value::list(vm.frame_argv(vm.current_level()).unwrap()))
+    }
+
+    #[test]
+    fn namespace_frames_retain_actual_public_and_worker_argument_objects() {
+        for version in tcl_dialect::TclVersion::ALL {
+            for member in ["eval", "inscope"] {
+                let profile =
+                    crate::environment::profile_for_dialect(version.dialect_profile_name());
+                for worker in [false, true] {
+                    if worker
+                        && matches!(
+                            version,
+                            tcl_dialect::TclVersion::V8_4 | tcl_dialect::TclVersion::V8_5
+                        )
+                    {
+                        continue;
+                    }
+                    let mut vm = crate::native_fixture::interpreter(profile);
+                    vm.register("captureNamespaceFrame", capture_namespace_frame);
+                    let target = Value::string("n");
+                    assert_eq!(
+                        vm.eval_source("namespace eval n {}").unwrap().code,
+                        Code::Ok
+                    );
+                    let head = Value::new_native_string_bytes(b"renamed namespace\xff".as_slice());
+                    let source = if worker {
+                        format!("::tcl::namespace::{member}")
+                    } else {
+                        "namespace".to_owned()
+                    };
+                    let renamed = vm.invoke_host_original_object_vector(
+                        &Value::string("rename"),
+                        &[Value::string(source), head.clone()],
+                    );
+                    assert_eq!(renamed.code, Code::Ok, "{version:?}/{member}/{worker}");
+                    let selector = Value::string(if member == "eval" { "ev" } else { "insc" });
+                    let body = Value::list(vec![Value::string("::captureNamespaceFrame")]);
+                    let mut arguments = Vec::new();
+                    if !worker {
+                        arguments.push(selector.clone());
+                    }
+                    arguments.extend([target.clone(), body.clone()]);
+                    let completion = vm.invoke_host_original_object_vector(&head, &arguments);
+                    assert_eq!(
+                        completion.code,
+                        Code::Ok,
+                        "{version:?}/{member}/{worker}: {:?}",
+                        completion.result.string_bytes()
+                    );
+                    let returned = completion.result.as_list().unwrap();
+                    if version == tcl_dialect::TclVersion::V8_4 && member == "inscope" {
+                        assert!(returned.is_empty());
+                    } else {
+                        assert_eq!(returned.len(), arguments.len() + 1);
+                        assert!(returned[0].is_same_object(&head));
+                        for (actual, original) in returned[1..].iter().zip(&arguments) {
+                            assert!(
+                                actual.is_same_object(original),
+                                "{version:?}/{member}/{worker}"
+                            );
+                        }
+                    }
+                    assert_eq!(vm.current_ns_id(), tcl_runtime_api::ROOT_NS);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn jim_namespace_frames_retain_the_actual_eval_and_scripted_tailcall_vectors() {
+        use tcl_registry::native_scripted_distribution::NativeScriptedLibrary;
+        let mut vm = crate::native_fixture::interpreter_with_scripted_libraries(
+            crate::environment::profile_for_dialect("jimtcl"),
+            &[NativeScriptedLibrary::NamespaceHelpers],
+        );
+        vm.register("captureNamespaceFrame", capture_namespace_frame);
+        let body = Value::list(vec![Value::string("::captureNamespaceFrame")]);
+        let target = Value::string("n");
+        let selector = Value::string("eval");
+        let head = Value::string("namespace");
+        let arguments = [selector.clone(), target.clone(), body.clone()];
+        let completion = vm.invoke_host_original_object_vector(&head, &arguments);
+        assert_eq!(completion.code, Code::Ok);
+        let returned = completion.result.as_list().unwrap();
+        assert_eq!(returned.len(), 4);
+        assert!(returned[0].is_same_object(&head));
+        for (actual, original) in returned[1..].iter().zip(&arguments) {
+            assert!(actual.is_same_object(original));
+        }
+        let inscope = vm.invoke_host_original_object_vector(
+            &head,
+            &[Value::string("inscope"), target.clone(), body.clone()],
+        );
+        assert_eq!(inscope.code, Code::Ok);
+        let returned = inscope.result.as_list().unwrap();
+        // The original distribution helper tailcalls namespace eval with its
+        // actual args List as a fourth operand; its caller head is not retained.
+        assert_eq!(returned.len(), 5);
+        assert_eq!(returned[0].string_bytes().as_ref(), b"namespace");
+        assert_eq!(returned[1].string_bytes().as_ref(), b"eval");
+        assert!(returned[2].is_same_object(&target));
+        assert!(returned[3].is_same_object(&body));
+        assert!(returned[4].as_list().unwrap().is_empty());
+    }
+
+    #[test]
+    fn namespace_frame_transport_borrows_headers_and_requires_original_invocation() {
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl9.0"));
+        let scope = crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(&mut vm)
+            .unwrap();
+        assert!(
+            namespace_frame_arguments(&mut vm, NativeNamespaceFramePurpose::Eval, &scope).is_err()
+        );
+        let words = std::rc::Rc::new(vec![
+            Value::string("worker"),
+            Value::string("n"),
+            Value::string("body"),
+        ]);
+        let references: Vec<_> = words
+            .iter()
+            .map(Value::native_object_reference_count)
+            .collect();
+        vm.native_invocation.arguments = Some(crate::NativeListItems::invocation_view(
+            std::rc::Rc::clone(&words),
+        ));
+        let transported =
+            namespace_frame_arguments(&mut vm, NativeNamespaceFramePurpose::Eval, &scope).unwrap();
+        for ((original, borrowed), references) in words.iter().zip(&transported).zip(references) {
+            assert!(original.is_same_object(borrowed));
+            assert_eq!(original.native_object_reference_count(), references);
+        }
+        drop(transported);
+        scope.finish(&mut vm).unwrap();
+    }
+
+    #[test]
+    fn namespace_frame_fetch_observes_withdrawn_ensemble_rewrite_at_publication() {
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl9.0"));
+        let scope = crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(&mut vm)
+            .unwrap();
+        let worker = Value::string("actual worker");
+        let original = Value::string("outer original");
+        vm.native_invocation.arguments =
+            Some(crate::NativeListItems::invocation_view(std::rc::Rc::new(
+                vec![worker.clone(), Value::string("n"), Value::string("body")],
+            )));
+        vm.native_invocation.usage_rewrites = vec![crate::command::NativeArgumentUsageRewrite {
+            original_prefix: vec![original.clone(), Value::string("member")],
+            removed_words: 1,
+        }];
+        let before =
+            namespace_frame_arguments(&mut vm, NativeNamespaceFramePurpose::Eval, &scope).unwrap();
+        assert!(before[0].is_same_object(&original));
+        vm.reset_native_ensemble_rewrite(
+            tcl_registry::native_ensemble_rewrite::EnsembleRewriteResetEvent::BeforeOrdinaryLookup,
+        )
+        .unwrap();
+        let after =
+            namespace_frame_arguments(&mut vm, NativeNamespaceFramePurpose::Eval, &scope).unwrap();
+        assert!(after[0].is_same_object(&worker));
+        assert_eq!(after.len(), 3);
+        scope.finish(&mut vm).unwrap();
+    }
 
     #[test]
     fn native_namespace_bodies_propagate_return_and_inscope_requires_c_target() {
@@ -2035,10 +2284,22 @@ mod tests {
             vm.set_dialect_profile(profile);
             vm.set_compiler(Box::new(BytecodeCompileService::default()));
             let arguments = [Value::string("n"), Value::string("return x")];
+            // These direct handler tests install the real caller vector explicitly;
+            // frame construction no longer invents a public command head.
+            let mut words = vec![Value::string("namespace"), Value::string("eval")];
+            words.extend_from_slice(&arguments);
+            vm.native_invocation.arguments = Some(crate::NativeListItems::invocation_view(
+                std::rc::Rc::new(words),
+            ));
             let returned = ns_eval(&mut vm, &arguments);
             assert_eq!(returned.code, Code::Return, "{}", profile.name);
             assert_eq!(returned.result.string_bytes().as_ref(), b"x");
             assert_eq!(vm.current_ns_id(), tcl_runtime_api::ROOT_NS);
+            let mut words = vec![Value::string("namespace"), Value::string("inscope")];
+            words.extend_from_slice(&arguments);
+            vm.native_invocation.arguments = Some(crate::NativeListItems::invocation_view(
+                std::rc::Rc::new(words),
+            ));
             let returned = ns_inscope(&mut vm, &arguments);
             assert_eq!(returned.code, Code::Return, "{}", profile.name);
             let absent = [Value::string("absent"), Value::string("return y")];
@@ -2114,8 +2375,16 @@ mod tests {
             .into_iter()
             .chain(std::iter::once(jim))
         {
-            let mut vm = Vm::with_output(Box::new(std::io::sink()));
-            vm.set_dialect_profile(profile);
+            let mut vm = if std::ptr::eq(profile, jim) {
+                crate::native_fixture::interpreter_with_scripted_libraries(
+                    profile,
+                    &[tcl_registry::native_scripted_distribution::NativeScriptedLibrary::NamespaceHelpers],
+                )
+            } else {
+                let mut vm = Vm::with_output(Box::new(std::io::sink()));
+                vm.set_dialect_profile(profile);
+                vm
+            };
             let preserved: &[usize] = if profile.vm_runtime_version == tcl_dialect::TclVersion::V8_4
                 && !std::ptr::eq(profile, jim)
             {
@@ -2127,11 +2396,20 @@ mod tests {
             };
             for (index, bytes) in specimens.into_iter().enumerate() {
                 let script = Value::from_string_bytes(bytes);
-                let result = namespace_code_invocation(
-                    &mut vm,
-                    std::slice::from_ref(&script),
-                    NamespaceInvocation::Public,
-                );
+                let result = if std::ptr::eq(profile, jim) {
+                    // Jim's actual namespace code command is a distribution
+                    // procedure; native C construction cannot supply its literals.
+                    vm.invoke_host_original_object_vector(
+                        &Value::string("namespace"),
+                        &[Value::string("code"), script.clone()],
+                    )
+                } else {
+                    namespace_code_invocation(
+                        &mut vm,
+                        std::slice::from_ref(&script),
+                        NamespaceInvocation::Public,
+                    )
+                };
                 assert_eq!(result.code, Code::Ok, "{}: {index}", profile.name);
                 if preserved.contains(&index) {
                     assert!(
@@ -2156,6 +2434,128 @@ mod tests {
             }
         }
         assert_eq!(rows, 66);
+    }
+
+    #[test]
+    fn code_construction_allocates_fresh_literal_headers_and_retains_original_roles() {
+        use tcl_syntax::native_object::NativeObjectCacheSnapshot as Cache;
+        use tcl_syntax::native_string::NativeStringStorageIdentity;
+        for version in tcl_dialect::TclVersion::ALL {
+            let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect(
+                version.dialect_profile_name(),
+            ));
+            let namespace = vm.activate_namespace_operand(b"opaque\xff").unwrap();
+            vm.push_ns_eval_token_frame(namespace, Vec::new());
+            let script = Value::new_native_string_bytes(b"command\xff\0tail".as_slice());
+            let before = script.native_object_snapshot();
+            let first = namespace_code_invocation(
+                &mut vm,
+                std::slice::from_ref(&script),
+                NamespaceInvocation::Public,
+            );
+            let second = namespace_code_invocation(
+                &mut vm,
+                std::slice::from_ref(&script),
+                NamespaceInvocation::Public,
+            );
+            assert_eq!(first.code, Code::Ok, "{version:?}");
+            assert_eq!(second.code, Code::Ok, "{version:?}");
+            assert!(!first.result.is_same_object(&second.result));
+            let snapshot = first.result.native_object_snapshot();
+            assert!(snapshot.resident.is_none());
+            assert!(matches!(snapshot.cache, Cache::List { length: 4, .. }));
+            let first_members = first.result.as_list().unwrap();
+            let second_members = second.result.as_list().unwrap();
+            for (index, bytes) in [b"::namespace".as_slice(), b"inscope".as_slice()]
+                .into_iter()
+                .enumerate()
+            {
+                assert!(!first_members[index].is_same_object(&second_members[index]));
+                let snapshot = first_members[index].native_object_snapshot();
+                assert_eq!(snapshot.resident.as_deref(), Some(bytes));
+                assert_eq!(
+                    snapshot.storage,
+                    Some(NativeStringStorageIdentity::Allocated)
+                );
+                assert_eq!(snapshot.cache, Cache::None);
+            }
+            assert_eq!(
+                first_members[2].resident_string_bytes().unwrap().as_ref(),
+                b"::opaque\xff"
+            );
+            if matches!(
+                version,
+                tcl_dialect::TclVersion::V9_0 | tcl_dialect::TclVersion::V9_1
+            ) {
+                assert_eq!(
+                    first_members[2].native_object_snapshot().cache,
+                    Cache::NamespaceName {
+                        version,
+                        resolved: true
+                    }
+                );
+            } else {
+                assert_eq!(first_members[2].native_object_snapshot().cache, Cache::None);
+            }
+            assert!(first_members[3].is_same_object(&script));
+            assert!(second_members[3].is_same_object(&script));
+            assert_eq!(script.native_object_snapshot(), before);
+            vm.pop_ns();
+            vm.pop_call_frame();
+        }
+    }
+
+    #[test]
+    fn jim_code_public_helper_retains_its_original_parsed_literals() {
+        use tcl_registry::native_scripted_distribution::NativeScriptedLibrary;
+        let mut vm = crate::native_fixture::interpreter_with_scripted_libraries(
+            crate::environment::profile_for_dialect("jimtcl"),
+            &[NativeScriptedLibrary::NamespaceHelpers],
+        );
+        let script = Value::new_native_string_bytes(b"command\xff\0tail".as_slice());
+        let head = Value::string("namespace");
+        let selector = Value::string("code");
+        let arguments = [selector.clone(), script.clone()];
+        let first = vm.invoke_host_original_object_vector(&head, &arguments);
+        let second = vm.invoke_host_original_object_vector(&head, &arguments);
+        assert_eq!(first.code, Code::Ok);
+        assert_eq!(second.code, Code::Ok);
+        assert!(!first.result.is_same_object(&second.result));
+        let first_members = first.result.as_list().unwrap();
+        let second_members = second.result.as_list().unwrap();
+        assert_eq!(first_members.len(), 4);
+        for index in 0..2 {
+            assert!(first_members[index].is_same_object(&second_members[index]));
+        }
+        assert_eq!(first_members[0].string_bytes().as_ref(), b"::namespace");
+        assert_eq!(first_members[1].string_bytes().as_ref(), b"inscope");
+        assert!(first_members[3].is_same_object(&script));
+        assert!(second_members[3].is_same_object(&script));
+        assert_eq!(script.string_bytes().as_ref(), b"command\xff\0tail");
+        assert!(!first_members[0].is_same_object(&head));
+        assert!(!first_members[1].is_same_object(&selector));
+    }
+
+    #[test]
+    fn jim_code_direct_native_route_preserves_selected_recognition_but_requires_the_helper_for_construction()
+     {
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("jimtcl"));
+        let recognised = Value::string("::namespace inscope ");
+        let preserved = namespace_code_invocation(
+            &mut vm,
+            std::slice::from_ref(&recognised),
+            NamespaceInvocation::Public,
+        );
+        assert_eq!(preserved.code, Code::Ok);
+        assert!(preserved.result.is_same_object(&recognised));
+        let script = Value::string("command");
+        let unsupported = namespace_code_invocation(
+            &mut vm,
+            std::slice::from_ref(&script),
+            NamespaceInvocation::Public,
+        );
+        assert_eq!(unsupported.code, Code::Error);
+        assert!(vm.refused_completion().is_some());
     }
 
     #[test]
@@ -2668,11 +3068,7 @@ mod original_ensemble_tests {
         )
         .unwrap();
         let cache = live.native_namespace_name_cache().unwrap();
-        assert!(
-            vm.delete_namespace_path(&tcl_core_types::ByteNamespacePath::from_segments([
-                b"held".as_slice(),
-            ]))
-        );
+        assert!(vm.delete_namespace_operand(b"::held").unwrap());
         assert_eq!(
             cache.namespace().unwrap().lifecycle(),
             tcl_syntax::native_namespace_name::NativeNamespaceLifecycle::Dead,
@@ -2699,8 +3095,7 @@ mod original_ensemble_tests {
             ([b"a".as_slice(), b":b".as_slice()], "::E2"),
         ] {
             let path = tcl_core_types::ByteNamespacePath::from_segments(segments);
-            vm.declare_namespace_path_with_origin(path.clone(), true);
-            let selected = vm.definition_namespace_token_at_path(&path, true);
+            let selected = vm.install_constructed_namespace_test_fixture(path);
             let name = tcl_runtime_api::Namespaces::name_bytes(&vm, selected);
             vm.push_ns_token(&name[2..], selected);
             let created = ns_ensemble_create(
@@ -2753,8 +3148,7 @@ mod original_ensemble_tests {
         let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl9.0"));
         let actual = vm.activate_namespace_operand(b"::a::b").unwrap();
         let impossible = tcl_core_types::ByteNamespacePath::from_segments([b"a::b".as_slice()]);
-        vm.declare_namespace_path_with_origin(impossible.clone(), true);
-        let constructed = vm.definition_namespace_token_at_path(&impossible, true);
+        let constructed = vm.install_constructed_namespace_test_fixture(impossible);
         assert_ne!(actual, constructed);
         assert_eq!(
             tcl_runtime_api::Namespaces::name_bytes(&vm, actual),
@@ -3364,12 +3758,7 @@ mod original_c_parent_current_holder_tests {
         assert_eq!(result.result.string_bytes().as_ref(), b"::outer");
         assert!(vm.native_namespace_token_has_owner(parent));
 
-        assert!(
-            vm.delete_namespace_path(&tcl_core_types::ByteNamespacePath::from_segments([
-                b"outer".as_slice(),
-                b"inner".as_slice(),
-            ]))
-        );
+        assert!(vm.delete_namespace_operand(b"::outer::inner").unwrap());
         let replacement = vm.activate_namespace_operand(b"::outer::inner").unwrap();
         assert_ne!(entered, replacement);
         let result = cmd_namespace(&mut vm, &arguments);
