@@ -1,10 +1,10 @@
 {
   "baseline": "cc24c394004fc187378ba0eefb6c2c5b2615fb00",
-  "utc": "2026-10-16T00:07:15.326414+00:00",
+  "utc": "2026-10-16T00:20:42.685872+00:00",
   "status": "RESUMED at user request; six audit lanes active. Source/build freeze retained. Complete actual source/operational/generated/guidance audit and canonical migration scale.",
   "paused": false,
   "remaining_consumer_total": null,
-  "provisional_records": 7377,
+  "provisional_records": 7567,
   "areas": [
     {
       "owner": "compiler",
@@ -15,16 +15,16 @@
         "production_source_read_embedded_tests_grouped": 36,
         "production_statements_and_owner_contracts_read_embedded_tests_grouped": 1,
         "full_source_read": 5,
-        "unexamined": 171,
-        "full_production_source_read_omitted_tests_unexamined": 380,
+        "unexamined": 158,
+        "full_production_source_read_omitted_tests_unexamined": 391,
         "bounded_actual_source_caller_trace_remainder_unexamined": 2,
-        "full_production_source_read_by_root_peer_exact_hash_receipt": 121,
-        "bounded_actual_caller_trace_by_root_peer_remainder_unexamined": 25,
-        "targeted_source_trace_file_remainder_unexamined": 14,
+        "full_production_source_read_by_root_peer_exact_hash_receipt": 129,
+        "bounded_actual_caller_trace_by_root_peer_remainder_unexamined": 22,
+        "targeted_source_trace_file_remainder_unexamined": 12,
         "exact_test_membership_with_external_helpers_read_inline_operations_unexamined": 26,
         "bounded_actual_lexical_diagnostic_caller_trace": 2,
         "bounded_declared_surface_ingress_trace": 2,
-        "bounded_actual_consumer_trace_remainder_unexamined": 6,
+        "bounded_actual_consumer_trace_remainder_unexamined": 5,
         "bounded_actual_caller_trace_remainder_unexamined": 3,
         "bounded_original_omitted_production_read_remainder_unexamined": 2,
         "full_test_only_operational_helper_source_read": 1,
@@ -36,22 +36,22 @@
         "complete_fixed_literal_data_classification_with_independent_validation_pending": 2
       },
       "reported_review_statuses": {
-        "source_reviewed": 168,
-        "production_reviewed_inline_tests_pending": 460,
-        "unexamined": 171,
-        "partial_remainder_unexamined": 56,
+        "source_reviewed": 169,
+        "production_reviewed_inline_tests_pending": 478,
+        "unexamined": 158,
+        "partial_remainder_unexamined": 50,
         "test_operational_inline_pending": 26,
         "operational_source_reviewed": 1,
         "manifest_classified_fixture": 3430
       },
-      "provisional_recorded_rows": 1192,
+      "provisional_recorded_rows": 1267,
       "provisional_dispositions": {
-        "shared_owner": 775,
-        "display_only": 40,
-        "migrated_validation_pending": 165,
-        "needs_migration": 137,
-        "pending_audit": 42,
-        "out_of_scope": 23,
+        "shared_owner": 825,
+        "display_only": 41,
+        "migrated_validation_pending": 166,
+        "needs_migration": 146,
+        "pending_audit": 55,
+        "out_of_scope": 24,
         "pending_validation": 10
       }
     },
@@ -169,11 +169,12 @@
         "explicit_manifest_experiment_rule": 6,
         "full_production_manual_review_inline_operations_pending": 259,
         "explicit_manifest_test_scope_rule": 236,
-        "explicit_manifest_rule": 9139,
+        "explicit_manifest_rule": 9113,
         "actual_full_source_read": 83,
-        "independent_peer_full_source_read_admitted": 142,
-        "pending_individual_harness_or_provenance_review": 30,
+        "independent_peer_full_source_read_admitted": 166,
         "exact_blob_duplicate_of_actual_read": 30,
+        "independent_peer_full_original_input_source_read": 26,
+        "independent_peer_actual_code_plus_strict_fixed_table_admitted": 6,
         "manual_helpers_plus_literal_grammar_classification": 1,
         "operational_source_read_with_exact_literal_table_classification_admitted": 1,
         "full_production_source_manual_review": 1
@@ -252,7 +253,7 @@
       "assigned_paths": 75753,
       "coverage_rows": 75753,
       "reported_review_modes": {
-        "inventory_only": 31540,
+        "inventory_only": 31520,
         "whole_operational_tooling_source_read": 23,
         "whole_guidance_or_config_read": 11,
         "whole_authored_guidance_read": 5,
@@ -274,45 +275,44 @@
         "whole_grammar_query_read": 2,
         "whole_guidance_read": 1,
         "fixed_shape_asset_data_review": 3,
-        "targeted_functions_read": 3,
-        "whole_production_and_inline_operational_tests_read": 12,
+        "whole_operational_source_read": 19,
+        "whole_independent_production_and_operational_peer_read": 9,
+        "whole_production_and_inline_operational_tests_read": 13,
         "whole_harness_read": 5,
         "whole_operational_fixed_shape_source_review": 2,
         "whole_production_and_inline_tests_read": 8,
         "fixed_shape_metadata_and_operational_source_read": 1,
-        "targeted_actual_caller_context_read": 1,
         "generated_fixed_shape_records_and_whole_operational_kernel": 2,
         "whole_authored_operational_metadata_source_read": 1,
         "targeted_actual_state_alias_caller_read": 2,
         "whole_reference_specimen_source_read": 1,
         "whole_production_peer_read": 14,
-        "whole_independent_production_and_operational_peer_read": 4,
         "whole_authored_fixture_read": 29,
-        "whole_operational_source_read": 13,
+        "whole_independent_operational_source_peer_read": 12,
         "whole_original_reference_specimen_read": 17,
         "generated_original_probe_record_projection": 82,
         "whole_authored_manifest_metadata_read": 5
       },
       "reported_review_statuses": {
-        "unexamined": 31540,
-        "reviewed": 44206,
-        "partial": 7
+        "unexamined": 31520,
+        "reviewed": 44230,
+        "partial": 3
       },
-      "provisional_recorded_rows": 2362,
+      "provisional_recorded_rows": 2477,
       "provisional_dispositions": {
-        "shared_owner": 942,
-        "display_only": 380,
-        "pending_audit": 222,
-        "out_of_scope": 295,
-        "needs_migration": 347,
-        "pending_validation": 176
+        "shared_owner": 979,
+        "display_only": 384,
+        "pending_audit": 245,
+        "out_of_scope": 303,
+        "needs_migration": 372,
+        "pending_validation": 194
       }
     }
   ],
   "primary_packet": {
-    "file": "repository-audit-progress-20261016T000712Z.tar.gz",
-    "sha256": "87a1cd57662645046e920ff7a80ebb9f2d93420c008611f63a17dabda7cfd510",
-    "verified_members": 1226
+    "file": "repository-audit-progress-20261016T002039Z.tar.gz",
+    "sha256": "6bb3a09a30d8b84aff1ac7072aa1474d404e4736185e091e6355edc3bf085dc4",
+    "verified_members": 1273
   },
   "nested_archive_base": {
     "archive_name": "repository-audit-deep-progress-20261015T220906Z.tar.gz",
@@ -561,9 +561,9 @@
   },
   "canonical_status": "audit-status.md",
   "nested_delta": {
-    "file": "repository-audit-deep-delta-20261016T000710Z.tar.gz",
-    "sha256": "61250d9477bd9cccc60a0546f3adb55b9c84070742d543ba0a000f5479679a98",
-    "status": "Exact nested audit delta against repository-audit-deep-progress-20261015T220906Z.tar.gz SHA8813dc50abbc84c6c55a0ca2563df708c80ce8d8f8fcb7c60ad2bb092122d4fa; 747 changed/new verified members,0 deletions; source retention only, no review/execution acceptance."
+    "file": "repository-audit-deep-delta-20261016T002037Z.tar.gz",
+    "sha256": "a449f1eb4cd3b65c1f5c0a5c0236a963c0dbbffb3927f5448a1cc23a406baf7d",
+    "status": "Exact nested audit delta against repository-audit-deep-progress-20261015T220906Z.tar.gz SHA8813dc50abbc84c6c55a0ca2563df708c80ce8d8f8fcb7c60ad2bb092122d4fa; 789 changed/new verified members,0 deletions; source retention only, no review/execution acceptance."
   },
   "root_canonical_proposal": {
     "counts": {
