@@ -38,7 +38,7 @@ idempotent; a warm container re-runs it in seconds.
 
 | Provided | Version | Where |
 |---|---|---|
-| Wasmtime | 49.0.2 | `/opt/wasmtime-49.0.2/`, on `PATH` as `wasmtime` |
+| Wasmtime | 49.0.3 | `/opt/wasmtime-49.0.3/`, on `PATH` as `wasmtime` |
 | Binaryen | 133 | `/opt/binaryen-133/`, `wasm-opt` / `wasm-merge` on `PATH` |
 | wasi-sdk | 34.0 | `/opt/wasi-sdk` (found by `runtime/rust/build.rs`) |
 | Rust | floating `stable` | `/root/.rustup`, `/root/.cargo` |

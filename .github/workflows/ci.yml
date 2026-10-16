@@ -1861,7 +1861,7 @@ jobs:
         if: needs.channel.outputs.docs_only != 'true'
         uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
-          tool: wasmtime@49.0.2
+          tool: wasmtime@49.0.3
 
       # wasi-sdk supplies the `clang` that compiles libtommath's C sources to
       # wasm objects.  The test finds it at the default /opt/wasi-sdk, so no
@@ -2052,7 +2052,7 @@ jobs:
         if: env.RUN_LSP_WASI == 'true'
         uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
-          tool: wasmtime@49.0.2
+          tool: wasmtime@49.0.3
 
       # binaryen supplies `wasm-opt`, which build-wasi.sh runs (safely — this
       # module has no wasm-bindgen externref table to mis-rebind).  The script
@@ -3405,7 +3405,7 @@ jobs:
           tool: wasm-bindgen-cli@0.2.129
 
       - name: Set up Java 17
-        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: temurin
           java-version: 17
