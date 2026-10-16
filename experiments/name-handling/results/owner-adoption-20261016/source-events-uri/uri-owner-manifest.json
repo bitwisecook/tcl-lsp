@@ -1,0 +1,16 @@
+{
+  "patch_sha256": "dedce74292277c41a03c174abf752662f0454881b878f2a1b064e60a356d5109",
+  "files": [
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "before_sha256": "fdd647dc0c4b47d132c0126ef2c251849def884354a545e5a2b601c2deb728e2",
+      "after_sha256": "e3351ad20b3f81a67323fa634e085982e362f8f783db72c16d0d5509adb50999",
+      "live_matches_before": true
+    }
+  ],
+  "depends_on": null,
+  "required_by": "Six caller patch d967acf18e0a1d808797a37fc382708a1a4f2c84cfadc28e09f1558189073e57 for opaque-native-path admission honesty",
+  "existing_baseline_scope": "lsp-server-path-uri-repair-policy",
+  "scope_limit": "Representability slice only; existing POSIX // authority policy debt remains. No additional owner facet or complete-six/whole-unit acceptance count claimed.",
+  "checks": "Direct rustfmt edition2024 skip_children passed on TMP; no Cargo/build/tests/main/Git."
+}

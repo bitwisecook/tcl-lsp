@@ -2684,6 +2684,91 @@ impl SourceCommandBindings {
         }
     }
 
+    /// Explicit readonly Authored source purpose at an actual retained row.
+    /// Raw source tokens and their authentic body/header own this projection;
+    /// an existing stronger point/declaration owner is never erased or replaced.
+    pub(crate) fn original_authored_declaration_source_tokens(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        scope: &crate::registry_invocation::OriginalAuthoredSourceBodyScope,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<crate::ir::CommandTokens> {
+        if let Some(binding) = tokens.source_binding.as_ref() {
+            let original =
+                binding.original_authored_source_body_scope_for_name_roles(tokens, registry)?;
+            std::ptr::eq(original, scope).then_some(())?;
+            let source_only = super::SourceInvocationBinding {
+                original_analysis_owner: scope.original_analysis_attachment().cloned(),
+                original_authored_source_body_scope: binding
+                    .original_authored_source_body_scope
+                    .clone(),
+                ..Default::default()
+            };
+            (binding == &source_only).then_some(())?;
+        }
+        let original = scope.original_words(tokens, registry)?;
+        let origin = self.source_origin()?;
+        let owner = self.original_analysis_owner.as_ref()?;
+        if self.lexer_config != Some(scope.config())
+            || origin.source_image() != scope.original_body_word().image()
+            || !Arc::ptr_eq(origin, &owner.source)
+            || !owner.metadata.is_standalone()
+            || self.source_metadata_owner() != &owner.metadata
+            || self.final_state.baseline.registry_snapshot.as_ref()
+                != Some(&registry.snapshot().semantic_key())
+            || scope
+                .original_analysis_attachment()
+                .is_none_or(|actual| !Arc::ptr_eq(actual, owner))
+        {
+            return None;
+        }
+        let site = CommandAllocationSite {
+            source: Arc::clone(origin),
+            offset: original.first()?.span().start(),
+        };
+        let observations = self.declaration_layouts.get(&site)?;
+        let rows = original_declaration_layouts(observations)?;
+        let span = crate::registry_invocation::original_written_script_body_span(
+            scope.original_body_word(),
+        )?;
+        let body_bytes = origin.source_image().bytes().get(span.as_range())?;
+        for row in rows {
+            let OriginalDiagnosticFrameEntry::DeclaredProcedure(body) = row.entry.as_ref() else {
+                return None;
+            };
+            if body.declaration_site() != scope.original_parent_site()?
+                || body.source.origin != site.source
+                || body.source.base() != span.start()
+                || body.source.text.bytes() != body_bytes
+                || &body.namespace != scope.namespace()
+                || row.words.as_ref() != tokens.words()
+                || row.config != scope.config()
+                || !row.entry.owns_source(&site.source, site.offset)
+                || !row.snapshot.state.baseline.metadata_context.is_standalone()
+            {
+                return None;
+            }
+        }
+        let first = observations
+            .iter()
+            .find(|row| row.issuer == DeclarationLayoutIssuer::OriginalDeclaration)?;
+        let binding = super::SourceInvocationBinding {
+            unknown: true,
+            dispatch_site: Some(site),
+            original_analysis_owner: Some(Arc::clone(owner)),
+            declaration_layout_observations: Some(Arc::from(observations.as_slice())),
+            declaration_flow_inventory: Some(self.current_declaration_flow_inventory()),
+            lookup_namespace: first.namespace.advisory_key()?,
+            lookup_namespace_key: first.namespace.clone(),
+            variable_context: Arc::clone(&first.snapshot.state.source_variables),
+            variable_frame: first.snapshot.state.variable_frame.clone(),
+            ..Default::default()
+        };
+        let mut result = tokens.clone();
+        result.source_binding = Some(binding);
+        Some(result)
+    }
+
     pub(super) fn attach_declaration_operand_layout(
         &self,
         mut binding: super::SourceInvocationBinding,

@@ -1,0 +1,7 @@
+Adopted-source full174 retains the complete172 predecessor and every historical Runtime baseline/selector. Exactly2 new Runtime namespace-text controls produce Runtime120/query51/Registry3. Query51/Registry3 unchanged. New Syntax pure producer and VM new1 identity control are outsideRuntime174.
+
+Original516rows24cases48COLD/REUSE phases measure qualifiers actual sharedempty for unpaired/noColon versus freshcountedempty for pairedROOT, tail originalargument identity, and actualgetter/header/resultprimary beforeStringgetter. Additional softwarecontrol changes actualcurrentnamespace duringnamegetter or priorresultretirement and preservesfirstrefusal. Ctext branches unchanged. Shared typedproducer supplies no namespace/token/object/lifetime grant.
+
+Actual Main238 exact Parent6435→Text6b690 sequence, all82 guarded paths and40 unique audited test functions are verified read-only. No implicit oldhash waiver; actual execution remains pending. Runner adds full172subset/exact2newsourceguards/count only. EarlierParent delta uses immutable172vs170, Upvar immutable170vs168, Delete immutable168vs165. Alloriginal provider/source/compiledinput/artifact/nonempty--list/exactrunning1+ok1/drift guards remain.
+
+Actual249158green separate;259165buildfailed101/0tests; actual268170buildfailed101/0tests, immutable. No165/168/170/172/174 or allRuntime/Native acceptance claimed. Rootalone execution after reviewed sourceadoption/binding; no preparerCargo/list/run/sourcegate.

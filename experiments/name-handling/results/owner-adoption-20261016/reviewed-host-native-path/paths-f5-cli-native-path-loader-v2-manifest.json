@@ -1,0 +1,54 @@
+{
+  "candidate_boundary": "one existing tcl-bigip-io path loader extension plus four audited consumer migrations; the owner extension is not a separate baseline unit and does not change the frozen 2158 count",
+  "baseline_units": [
+    "root:host.bigip-native-loader:66:0",
+    "root:host.bigip-native-loader:231:0",
+    "root:host.bigip-native-loader:238:0",
+    "root:host.bigip-native-loader:240:0"
+  ],
+  "already-integrated-excluded": [
+    "root:host.bigip-native-loader:139:0",
+    "root:host.bigip-native-loader:140:0",
+    "root:host.bigip-native-loader:146:0",
+    "root:host.bigip-native-loader:147:0",
+    "root:host.bigip-native-loader:161:0"
+  ],
+  "patch_sha256": "b9329514667f9e853be8842c124f3b50e7cf8854eb155fd60b8ca08ab8e7fe9f",
+  "change": "Make read_path/read_path_source/load_paths consume AsRef<Path>; carry actual path through canonicalize/read; explicitly refuse non-Unicode input/canonical targets because existing file URI contract is Unicode, before opening the selected file. The URI remains report identity, never an input path. Migrate tmsh, validate, diff, explain away from to_string_lossy. Existing Unicode/stdin/UCS/strict-source behavior is intended to remain byte-identical.",
+  "meaningful_control": "Unix owner regression covers opaque input path beside U+FFFD sibling plus Unicode symlink resolving to an opaque canonical target; both opaque paths refuse, Unicode sibling reads faithfully. Existing source assertions/selectors/budgets untouched.",
+  "validation_targets": [
+    "cargo test -p tcl-bigip-io native_path_loader_refuses_opaque_name_instead_of_selecting_replacement_sibling",
+    "cargo test -p tcl-bigip-io --test ucs",
+    "cargo test -p f5-cli --test tmsh",
+    "cargo test -p f5-cli --test validate",
+    "cargo test -p f5-cli --test cli diff_"
+  ],
+  "files": [
+    {
+      "path": "rust/tcl-bigip-io/src/paths.rs",
+      "old_sha256": "f717ba8d3d8e385257103e816d50dafbdb1e071f67ea334b9ffd3c2d68ab5612",
+      "new_sha256": "7e79a32df0ad88e3a40185cc15ac3079af5629786b5ec91feecb9fd855ecf0a0"
+    },
+    {
+      "path": "rust/f5-cli/src/commands/tmsh.rs",
+      "old_sha256": "242fa9cf1abad70b775f9a584cf8256f3d0bbeb66a7c96d1125e714c2dbfe178",
+      "new_sha256": "c190968361194821658fc410ecfcf541736b46f545a9bbafa0e158327672db56"
+    },
+    {
+      "path": "rust/f5-cli/src/commands/validate.rs",
+      "old_sha256": "faeda664b2d5eccfca5dcf8306004129965051cd9a57cec8fe4fed08b9b0cc0a",
+      "new_sha256": "025e4ba10a6cfc57180a4aba160e49c533655f2d741c8283abd5101e49a4d94e"
+    },
+    {
+      "path": "rust/f5-cli/src/commands/diff.rs",
+      "old_sha256": "1f14abd374e25ae90a9b004333bbafae0cf351d6c90bd3ea2ba34bb8063b991d",
+      "new_sha256": "0ee3b0162eb98731b8b3aa46c644703fe92f9056632d550d34b4706c9d4c7498"
+    },
+    {
+      "path": "rust/f5-cli/src/commands/explain.rs",
+      "old_sha256": "69f246211c0c4583b0db64660e1ff8db2b8bb53e3a73c5bbb03052997a1096b8",
+      "new_sha256": "0784b3b31d1cd2153831b56ad114cebe535829c0a6e2209843782ee7e4502f55"
+    }
+  ],
+  "supersedes": "V1 patch retained immutable at /tmp/f5-cli-native-path-loader-v1.patch; no production changes in V2"
+}

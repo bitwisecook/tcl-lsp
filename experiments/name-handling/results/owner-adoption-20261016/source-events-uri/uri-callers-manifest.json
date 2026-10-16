@@ -1,0 +1,211 @@
+{
+  "status": "TMP-only proposed patch, not integrated or validated by build/test; no source checkout changes",
+  "patch": "/tmp/lsp-validation-repairs/uri-owner-integration.patch",
+  "patch_sha256": "d967acf18e0a1d808797a37fc382708a1a4f2c84cfadc28e09f1558189073e57",
+  "patch_bytes": 3868,
+  "selected_catalogue_units": [
+    {
+      "id": "lsp.validation.07.00.fn0",
+      "purpose": "Actual native filesystem Path to protocol URI",
+      "family": "validation.native-path-uri",
+      "required_change": "Raw format!(file:// + root.to_string_lossy) neither retains non-Unicode host bytes nor escapes actual Unicode/path punctuation/platform geometry. Use the actual shared Path\u2192URI provider in operational test ingress rather than testing a substituted root spelling; production incoming URI repair cannot restore lost original path data.",
+      "sites": [
+        {
+          "path": "rust/tcl-lsp-server/tests/e2e/common/mod.rs",
+          "line": 737,
+          "source_sha256": "3c4ea46d766071203ecb2b5814fd225a4d8b1ff603f600f3d9658666177d7e73",
+          "symbol_or_region": "at_workspace_root",
+          "source_statement": "    pub fn at_workspace_root(root: &std::path::Path) -> Self {",
+          "scope": "Actual retained change anchor; adjacent unchanged assertions/callers are not extra units.",
+          "enclosing_function": {
+            "symbol": "at_workspace_root",
+            "start_line": 737,
+            "end_line": 741
+          }
+        }
+      ],
+      "baseline_source_annex": {
+        "source_annex": "lsp-audit-validation-boundary-units.json",
+        "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      }
+    },
+    {
+      "id": "lsp.validation.07.00.fn1",
+      "purpose": "Actual native filesystem Path to protocol URI",
+      "family": "validation.native-path-uri",
+      "required_change": "Raw format!(file:// + root.to_string_lossy) neither retains non-Unicode host bytes nor escapes actual Unicode/path punctuation/platform geometry. Use the actual shared Path\u2192URI provider in operational test ingress rather than testing a substituted root spelling; production incoming URI repair cannot restore lost original path data.",
+      "sites": [
+        {
+          "path": "rust/tcl-lsp-server/tests/e2e/common/mod.rs",
+          "line": 766,
+          "source_sha256": "3c4ea46d766071203ecb2b5814fd225a4d8b1ff603f600f3d9658666177d7e73",
+          "source_statement": "        lsp.initialize_at(&format!(\"file://{}\", root.to_string_lossy()));",
+          "scope": "Additional actual helper ingress already described by original recorded purpose; bounded exact source reborrow confirmed this anchor.",
+          "symbol_or_region": "with_config_at_root_env",
+          "enclosing_function": {
+            "symbol": "with_config_at_root_env",
+            "start_line": 760,
+            "end_line": 770
+          }
+        }
+      ],
+      "baseline_source_annex": {
+        "source_annex": "lsp-audit-validation-boundary-units.json",
+        "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      }
+    },
+    {
+      "id": "lsp.validation.07.00.fn2",
+      "purpose": "Actual native filesystem Path to protocol URI",
+      "family": "validation.native-path-uri",
+      "required_change": "Raw format!(file:// + root.to_string_lossy) neither retains non-Unicode host bytes nor escapes actual Unicode/path punctuation/platform geometry. Use the actual shared Path\u2192URI provider in operational test ingress rather than testing a substituted root spelling; production incoming URI repair cannot restore lost original path data.",
+      "sites": [
+        {
+          "path": "rust/tcl-lsp-server/tests/e2e/common/mod.rs",
+          "line": 785,
+          "source_sha256": "3c4ea46d766071203ecb2b5814fd225a4d8b1ff603f600f3d9658666177d7e73",
+          "source_statement": "            }",
+          "scope": "Additional actual helper ingress already described by original recorded purpose; bounded exact source reborrow confirmed this anchor.",
+          "symbol_or_region": "multi_root",
+          "enclosing_function": {
+            "symbol": "multi_root",
+            "start_line": 779,
+            "end_line": 796
+          }
+        },
+        {
+          "path": "rust/tcl-lsp-server/tests/e2e/common/mod.rs",
+          "line": 792,
+          "source_sha256": "3c4ea46d766071203ecb2b5814fd225a4d8b1ff603f600f3d9658666177d7e73",
+          "source_statement": "            })",
+          "scope": "Additional actual helper ingress already described by original recorded purpose; bounded exact source reborrow confirmed this anchor.",
+          "symbol_or_region": "multi_root",
+          "enclosing_function": {
+            "symbol": "multi_root",
+            "start_line": 779,
+            "end_line": 796
+          }
+        }
+      ],
+      "baseline_source_annex": {
+        "source_annex": "lsp-audit-validation-boundary-units.json",
+        "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      }
+    },
+    {
+      "id": "lsp.validation.07.02.fn0",
+      "purpose": "Actual native filesystem Path to protocol URI",
+      "family": "validation.native-path-uri",
+      "required_change": "Use genuine shared Path-to-URI construction for old/new/main expected and request URIs; preserve original disk operations and query assertions/budgets. Link same shared repair family as other actual fixture callers.",
+      "sites": [
+        {
+          "path": "rust/tcl-lsp-server/tests/e2e/rename.rs",
+          "line": 829,
+          "source_sha256": "5df079414388a6171756fb13a69160c4a9784edcd836af76749006bd63cafaad",
+          "symbol_or_region": "did_rename_files_retires_the_old_path_and_keeps_source_rehoming",
+          "source_statement": "    let uri_of = |p: &std::path::Path| format!(\"file://{}\", p.to_string_lossy());",
+          "scope": "Actual retained change anchor; adjacent unchanged assertions/callers are not extra units.",
+          "enclosing_function": {
+            "symbol": "did_rename_files_retires_the_old_path_and_keeps_source_rehoming",
+            "start_line": 813,
+            "end_line": 883
+          }
+        }
+      ],
+      "baseline_source_annex": {
+        "source_annex": "lsp-audit-validation-boundary-units.json",
+        "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      }
+    },
+    {
+      "id": "lsp.validation.07.03.fn0",
+      "purpose": "Actual native filesystem Path to protocol URI",
+      "family": "validation.native-path-uri",
+      "required_change": "Preserve actual Path and shared URI encoding; retain filesystem setup/.test payload and query expectations/budget unchanged.",
+      "sites": [
+        {
+          "path": "rust/tcl-lsp-server/tests/e2e/references.rs",
+          "line": 1025,
+          "source_sha256": "7797ed036aec2662c1a1a19672aec866fc300d1ce6460d1c4e5fda4ab4a3dcbc",
+          "symbol_or_region": "find_references_reaches_an_unopened_tcltest_file_923_idx27",
+          "source_statement": "    let uri = format!(\"file://{}\", lib.to_string_lossy());",
+          "scope": "Actual retained change anchor; adjacent unchanged assertions/callers are not extra units.",
+          "enclosing_function": {
+            "symbol": "find_references_reaches_an_unopened_tcltest_file_923_idx27",
+            "start_line": 998,
+            "end_line": 1044
+          }
+        }
+      ],
+      "baseline_source_annex": {
+        "source_annex": "lsp-audit-validation-boundary-units.json",
+        "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      }
+    },
+    {
+      "id": "lsp.validation.07.13.fn0",
+      "purpose": "Actual native filesystem Path to protocol URI",
+      "family": "validation.native-path-uri",
+      "required_change": "actual native workspace/pack/document Path rendered lossily as raw file URI",
+      "sites": [
+        {
+          "path": "rust/tcl-lsp-server/tests/e2e/spec_packs.rs",
+          "line": 80,
+          "source_sha256": "ebc19fbb79b4bb38097a798cd0223655eae1f27710e9698f5b9749a420570011",
+          "symbol_or_region": "file_uri",
+          "source_statement": "fn file_uri(path: &Path) -> String {",
+          "scope": "Actual retained change anchor; adjacent unchanged assertions/callers are not extra units.",
+          "enclosing_function": {
+            "symbol": "file_uri",
+            "start_line": 80,
+            "end_line": 82
+          }
+        }
+      ],
+      "baseline_source_annex": {
+        "source_annex": "lsp-audit-validation-boundary-units.json",
+        "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      }
+    }
+  ],
+  "files": {
+    "rust/tcl-lsp-server/tests/e2e/common/mod.rs": {
+      "old_sha256": "3c4ea46d766071203ecb2b5814fd225a4d8b1ff603f600f3d9658666177d7e73",
+      "new_sha256": "f54436acecf06067367dfeefcf1360abc3fbd48f30fa4fadc35fa92d2c4bda3a",
+      "old_bytes": 98655,
+      "new_bytes": 99171
+    },
+    "rust/tcl-lsp-server/tests/e2e/rename.rs": {
+      "old_sha256": "5df079414388a6171756fb13a69160c4a9784edcd836af76749006bd63cafaad",
+      "new_sha256": "25e7c40528d41ece0ca2402625d3065a1b2e871fe18416ba4ffedb44caac3137",
+      "old_bytes": 36137,
+      "new_bytes": 36239
+    },
+    "rust/tcl-lsp-server/tests/e2e/references.rs": {
+      "old_sha256": "7797ed036aec2662c1a1a19672aec866fc300d1ce6460d1c4e5fda4ab4a3dcbc",
+      "new_sha256": "935afdf3078f783d468208352b9595827125b6389a2e6e14eeca9177d261d577",
+      "old_bytes": 44826,
+      "new_bytes": 44905
+    },
+    "rust/tcl-lsp-server/tests/e2e/spec_packs.rs": {
+      "old_sha256": "ebc19fbb79b4bb38097a798cd0223655eae1f27710e9698f5b9749a420570011",
+      "new_sha256": "61bbc26dcf20be61ac4b990fe8c3ff4649d0d325c5d03e2b381985826bb3f6b0",
+      "old_bytes": 70322,
+      "new_bytes": 70405
+    }
+  },
+  "owner_api": {
+    "path": "rust/tcl-lsp-server/src/lib.rs",
+    "symbol": "canonical_file_uri",
+    "source_anchor": "pub fn canonical_file_uri<P: AsRef<Path>>(path: P) -> Option<Uri>",
+    "semantics": "Uses Uri::from_file_path, shared file-URI repair/canonical casing; returns None when the host path has no supported URI representation."
+  },
+  "change_summary": "Route native fixture paths through canonical_file_uri at six existing audited LSP test ingress purposes: common workspace root, configured workspace root, multi-root map/request, rename old/new/main paths, references file URI, and spec-pack file URI. Preserve test fixtures, JSON-RPC methods, selectors, expected outputs, and budgets. An unrepresentable path fails fixture construction explicitly instead of being lossy-rendered.",
+  "validation": "Read-only source/API inspection and generated patch/hash verification only. No tests, builds, or Cargo commands run by instruction. Parent should review compatibility and run its owned validation.",
+  "scope_limits": [
+    "No preview_tickets_e2e changes.",
+    "No VS Code files.",
+    "No test additions or assertion weakening.",
+    "No catalogue count increment: these map to six existing validation_code_repair IDs."
+  ]
+}

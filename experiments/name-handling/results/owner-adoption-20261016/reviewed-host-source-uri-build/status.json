@@ -1,0 +1,9 @@
+{
+  "status": "RUNNING",
+  "log": "/tmp/naming-reviewed-host-source-uri-build.log",
+  "source_binding": "source-binding.json",
+  "earlier_build_failure": "One E0616 direct private declaration field access. Root changed to existing declaration_site() accessor with identical selected site; no guard/authority change.",
+  "single_job": true,
+  "gate_acceptance": false,
+  "binary_freeze_pending": true
+}

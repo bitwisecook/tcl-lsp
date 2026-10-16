@@ -1,0 +1,37 @@
+{
+  "id": "naming.consumer.original-irules-source-context",
+  "record_before_sha256": "3f7121deca793ff8d3e33075c029f72d25965e5106b9d0bd28b640c997e7bcdd",
+  "implementation_files": [
+    {
+      "path": "rust/tcl-irules/src/source_context.rs",
+      "sha256": "1111582c6d9129758c3c0a1d17e907ca996eb44c0e8901f3b8e7a990efaa4473",
+      "bytes": 52459
+    },
+    {
+      "path": "rust/tcl-irules/src/when_block.rs",
+      "sha256": "ac0ff7730e46d7bf351eb16a925c5e04bc6e5df5b75674ac53b865d61f17a3a5",
+      "bytes": 11313
+    },
+    {
+      "path": "rust/tcl-irules/src/lib.rs",
+      "sha256": "7565c038a5e6e256ef75688120da30176df30cb680c331eaa678334f5460b0f8",
+      "bytes": 12204
+    },
+    {
+      "path": "rust/f5-cli/src/commands/explain.rs",
+      "sha256": "69f246211c0c4583b0db64660e1ff8db2b8bb53e3a73c5bbb03052997a1096b8",
+      "bytes": 19724
+    }
+  ],
+  "unchanged": [
+    "providers",
+    "source_anchors",
+    "replay",
+    "historical tests/owners/evidence prefixes and statuses"
+  ],
+  "additional_bindings": {
+    "owners": 6,
+    "tests": 4,
+    "implementation_evidence": 4
+  }
+}

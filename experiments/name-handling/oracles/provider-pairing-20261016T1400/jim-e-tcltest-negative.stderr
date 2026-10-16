@@ -1,0 +1,4 @@
+/workspace/tcl-lsp/tmp/jimtcl-oracle/tcltest.tcl:13: Error: can't read "::argv0": no such variable
+Can't load package tcltest
+Traceback (most recent call last):
+  File "/workspace/tcl-lsp/tmp/jimtcl-oracle/tcltest.tcl", line 13

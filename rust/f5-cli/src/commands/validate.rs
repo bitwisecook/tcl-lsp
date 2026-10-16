@@ -42,10 +42,6 @@ pub fn run_validate(
     format: &str,
     output: Option<&Path>,
 ) -> anyhow::Result<u8> {
-    let paths: Vec<String> = inputs
-        .iter()
-        .map(|p| p.to_string_lossy().into_owned())
-        .collect();
     // Load inputs via the UCS-aware loader with the default passphrase
     // provider; on I/O error, print `error: {e}` and return 2.
     let opts = tcl_bigip_io::PassphraseOptions {
@@ -54,7 +50,7 @@ pub fn run_validate(
         allow_prompt: true,
         prompt: Some(tcl_cli_support::prompt::read_ucs_passphrase),
     };
-    let loaded = match tcl_bigip_io::load_paths(&paths, &opts) {
+    let loaded = match tcl_bigip_io::load_paths(inputs, &opts) {
         Ok(l) => l,
         Err(e) => {
             eprintln!("error: {e}");

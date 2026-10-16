@@ -1,0 +1,347 @@
+{
+  "status": "RECOVERED_SELECTION_ONLY_NOT_EXECUTED_ON_CURRENT_SOURCE",
+  "test_argv": [
+    "{binary}",
+    "{selector}",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "test_timeout_seconds": 180,
+  "listing_argv": [
+    "{binary}",
+    "--list"
+  ],
+  "listing_timeout_seconds": 30,
+  "listing_guard": "nonempty actual intended binary listing; each exact selector occurs exactly once",
+  "run_count_guard": {
+    "running_counts": [
+      "1"
+    ],
+    "summaries": [
+      [
+        "ok",
+        "1",
+        "0"
+      ]
+    ],
+    "exit_code": 0,
+    "timed_out": false
+  },
+  "acceptance_requires_independent_current_receipts": [
+    "current ordinary source and compiled-input closure bound to actual artifacts",
+    "original provider source/interpreter/library/harness and linked-library validation",
+    "all original assertions unchanged or explicit reviewed source successor",
+    "no diagnostics environment; no source/binary/provider drift",
+    "complete selection and original budgets retained"
+  ],
+  "group": "integration55",
+  "total_exact_selectors": 55,
+  "expected_group_counts": {
+    "formatting_engine_residual": 55
+  },
+  "original_plan_sha256": "9ef72f35f538b38f526600402d8f601e16d884d1b3810df35ec28c0eb42e556e",
+  "groups": {
+    "formatting_engine_residual": [
+      "fmt_preserves_multibyte_utf8_words",
+      "fmt_collapses_backslash_newline_around_multibyte_chars",
+      "fmt_collapses_continuation_in_command_substitution",
+      "fmt_switch_raw_unbraced_bodies_reindented",
+      "fmt_switch_multitoken_raw_body_reindented",
+      "fmt_switch_dash_fallthrough_and_braced_body",
+      "fmt_switch_empty_braced_body_stays_inline",
+      "fmt_switch_dangling_final_pattern_emitted_alone",
+      "fmt_expr_wrap_preserves_parens_and_quotes",
+      "fmt_expr_wrap_skips_operators_in_brackets_and_braces",
+      "fmt_expr_wrap_skips_quoted_operand_in_while",
+      "fmt_short_expr_is_not_wrapped",
+      "fmt_long_word_line_splits_with_backslash_continuation",
+      "fmt_long_commented_out_code_splits",
+      "fmt_short_commented_code_not_split",
+      "fmt_long_quoted_string_is_left_unsplit_preserving_value",
+      "fmt_for_expands_only_the_body",
+      "fmt_for_with_unbraced_body_is_left_inline",
+      "fmt_for_with_too_few_args_falls_through",
+      "fmt_short_catch_body_stays_inline",
+      "fmt_never_inline_body_dict_for_always_expands",
+      "fmt_body_too_long_to_inline_expands",
+      "fmt_word_arg_collapsing_to_empty_is_dropped",
+      "fmt_param_list_with_nested_default_braces_normalised",
+      "fmt_enforce_braced_variables_rewrites_dollar_refs",
+      "fmt_expand_command_word_is_not_misclassified",
+      "fmt_bare_hash_comment_preserved",
+      "fmt_hashes_only_comment_preserved",
+      "fmt_comment_hash_spacing_toggle",
+      "fmt_blank_lines_between_proc_and_block",
+      "fmt_max_consecutive_blank_lines_config",
+      "fmt_trailing_comments_after_blank_run",
+      "fmt_namespace_eval_body_recurses",
+      "fmt_deeply_nested_bodies_indent_by_level",
+      "fmt_ensure_final_newline_disabled",
+      "fmt_trim_trailing_whitespace_disabled_keeps_clean_lines",
+      "fmt_crlf_line_ending_applied",
+      "fmt_empty_input_yields_single_newline",
+      "fmt_is_idempotent_on_complex_input",
+      "fmt_tab_indent_style",
+      "formatting_returns_single_full_document_edit_when_dirty",
+      "formatting_returns_no_edit_when_already_normalised",
+      "formatting_with_honours_explicit_config",
+      "range_formatting_inside_proc_picks_up_prefix_brace_depth",
+      "range_formatting_no_edit_when_slice_already_clean",
+      "range_formatting_clamps_end_past_eof_to_last_line",
+      "range_formatting_last_line_without_trailing_newline_anchors_at_eof",
+      "range_formatting_crlf_finalisation",
+      "range_formatting_brace_delta_ignores_string_braces_in_prefix",
+      "fmt_auto_line_ending_follows_the_document",
+      "fmt_explicit_line_ending_still_overrides_auto",
+      "formatting_edit_range_spans_a_lone_cr_document",
+      "formatting_edit_range_spans_a_mixed_line_ending_document",
+      "range_formatting_cuts_the_slice_on_the_client_line_model",
+      "range_formatting_reports_no_edit_for_an_already_formatted_crlf_slice"
+    ]
+  },
+  "execution_order": [
+    {
+      "target": "formatting_engine_residual",
+      "selector": "fmt_preserves_multibyte_utf8_words"
+    },
+    {
+      "target": "formatting_engine_residual",
+      "selector": "fmt_collapses_backslash_newline_around_multibyte_chars"
+    },
+    {
+      "target": "formatting_engine_residual",
+      "selector": "fmt_collapses_continuation_in_command_substitution"
+    },
+    {
+      "target": "formatting_engine_residual",
+      "selector": "fmt_switch_raw_unbraced_bodies_reindented"
+    },
+    {
+      "target": "formatting_engine_residual",
+      "selector": "fmt_switch_multitoken_raw_body_reindented"
+    },
+    {
+      "target": "formatting_engine_residual",
+      "selector": "fmt_switch_dash_fallthrough_and_braced_body"
+    },
+    {
+      "target": "formatting_engine_residual",
+      "selector": "fmt_switch_empty_braced_body_stays_inline"
+    },
+    {
+      "target": "formatting_engine_residual",
+      "selector": "fmt_switch_dangling_final_pattern_emitted_alone"
+    },
+    {
+      "target": "formatting_engine_residual",
+      "selector": "fmt_expr_wrap_preserves_parens_and_quotes"
+    },
+    {
+      "target": "formatting_engine_residual",
+      "selector": "fmt_expr_wrap_skips_operators_in_brackets_and_braces"
+    },
+    {
+      "target": "formatting_engine_residual",
+      "selector": "fmt_expr_wrap_skips_quoted_operand_in_while"
+    },
+    {
+      "target": "formatting_engine_residual",
+      "selector": "fmt_short_expr_is_not_wrapped"
+    },
+    {
+      "target": "formatting_engine_residual",
+      "selector": "fmt_long_word_line_splits_with_backslash_continuation"
+    },
+    {
+      "target": "formatting_engine_residual",
+      "selector": "fmt_long_commented_out_code_splits"
+    },
+    {
+      "target": "formatting_engine_residual",
+      "selector": "fmt_short_commented_code_not_split"
+    },
+    {
+      "target": "formatting_engine_residual",
+      "selector": "fmt_long_quoted_string_is_left_unsplit_preserving_value"
+    },
+    {
+      "target": "formatting_engine_residual",
+      "selector": "fmt_for_expands_only_the_body"
+    },
+    {
+      "target": "formatting_engine_residual",
+      "selector": "fmt_for_with_unbraced_body_is_left_inline"
+    },
+    {
+      "target": "formatting_engine_residual",
+      "selector": "fmt_for_with_too_few_args_falls_through"
+    },
+    {
+      "target": "formatting_engine_residual",
+      "selector": "fmt_short_catch_body_stays_inline"
+    },
+    {
+      "target": "formatting_engine_residual",
+      "selector": "fmt_never_inline_body_dict_for_always_expands"
+    },
+    {
+      "target": "formatting_engine_residual",
+      "selector": "fmt_body_too_long_to_inline_expands"
+    },
+    {
+      "target": "formatting_engine_residual",
+      "selector": "fmt_word_arg_collapsing_to_empty_is_dropped"
+    },
+    {
+      "target": "formatting_engine_residual",
+      "selector": "fmt_param_list_with_nested_default_braces_normalised"
+    },
+    {
+      "target": "formatting_engine_residual",
+      "selector": "fmt_enforce_braced_variables_rewrites_dollar_refs"
+    },
+    {
+      "target": "formatting_engine_residual",
+      "selector": "fmt_expand_command_word_is_not_misclassified"
+    },
+    {
+      "target": "formatting_engine_residual",
+      "selector": "fmt_bare_hash_comment_preserved"
+    },
+    {
+      "target": "formatting_engine_residual",
+      "selector": "fmt_hashes_only_comment_preserved"
+    },
+    {
+      "target": "formatting_engine_residual",
+      "selector": "fmt_comment_hash_spacing_toggle"
+    },
+    {
+      "target": "formatting_engine_residual",
+      "selector": "fmt_blank_lines_between_proc_and_block"
+    },
+    {
+      "target": "formatting_engine_residual",
+      "selector": "fmt_max_consecutive_blank_lines_config"
+    },
+    {
+      "target": "formatting_engine_residual",
+      "selector": "fmt_trailing_comments_after_blank_run"
+    },
+    {
+      "target": "formatting_engine_residual",
+      "selector": "fmt_namespace_eval_body_recurses"
+    },
+    {
+      "target": "formatting_engine_residual",
+      "selector": "fmt_deeply_nested_bodies_indent_by_level"
+    },
+    {
+      "target": "formatting_engine_residual",
+      "selector": "fmt_ensure_final_newline_disabled"
+    },
+    {
+      "target": "formatting_engine_residual",
+      "selector": "fmt_trim_trailing_whitespace_disabled_keeps_clean_lines"
+    },
+    {
+      "target": "formatting_engine_residual",
+      "selector": "fmt_crlf_line_ending_applied"
+    },
+    {
+      "target": "formatting_engine_residual",
+      "selector": "fmt_empty_input_yields_single_newline"
+    },
+    {
+      "target": "formatting_engine_residual",
+      "selector": "fmt_is_idempotent_on_complex_input"
+    },
+    {
+      "target": "formatting_engine_residual",
+      "selector": "fmt_tab_indent_style"
+    },
+    {
+      "target": "formatting_engine_residual",
+      "selector": "formatting_returns_single_full_document_edit_when_dirty"
+    },
+    {
+      "target": "formatting_engine_residual",
+      "selector": "formatting_returns_no_edit_when_already_normalised"
+    },
+    {
+      "target": "formatting_engine_residual",
+      "selector": "formatting_with_honours_explicit_config"
+    },
+    {
+      "target": "formatting_engine_residual",
+      "selector": "range_formatting_inside_proc_picks_up_prefix_brace_depth"
+    },
+    {
+      "target": "formatting_engine_residual",
+      "selector": "range_formatting_no_edit_when_slice_already_clean"
+    },
+    {
+      "target": "formatting_engine_residual",
+      "selector": "range_formatting_clamps_end_past_eof_to_last_line"
+    },
+    {
+      "target": "formatting_engine_residual",
+      "selector": "range_formatting_last_line_without_trailing_newline_anchors_at_eof"
+    },
+    {
+      "target": "formatting_engine_residual",
+      "selector": "range_formatting_crlf_finalisation"
+    },
+    {
+      "target": "formatting_engine_residual",
+      "selector": "range_formatting_brace_delta_ignores_string_braces_in_prefix"
+    },
+    {
+      "target": "formatting_engine_residual",
+      "selector": "fmt_auto_line_ending_follows_the_document"
+    },
+    {
+      "target": "formatting_engine_residual",
+      "selector": "fmt_explicit_line_ending_still_overrides_auto"
+    },
+    {
+      "target": "formatting_engine_residual",
+      "selector": "formatting_edit_range_spans_a_lone_cr_document"
+    },
+    {
+      "target": "formatting_engine_residual",
+      "selector": "formatting_edit_range_spans_a_mixed_line_ending_document"
+    },
+    {
+      "target": "formatting_engine_residual",
+      "selector": "range_formatting_cuts_the_slice_on_the_client_line_model"
+    },
+    {
+      "target": "formatting_engine_residual",
+      "selector": "range_formatting_reports_no_edit_for_an_already_formatted_crlf_slice"
+    }
+  ],
+  "build_argv": [
+    "cargo",
+    "test",
+    "--offline",
+    "-p",
+    "tcl-lsp-core",
+    "--test",
+    "formatting_engine_residual",
+    "--no-run",
+    "--message-format=json"
+  ],
+  "timeout_basis": "Retained failclosed replay253 runner default --timeout180, no per-selector overrides in original plan.",
+  "scope": "Actual Main236 after adopted229inline0ac/230formatter181/231IRulesd070, ordinary271 or later fresh artifacts after ALL TEMP exact declared-path+whole-closure restoration. Source-inventoried affected old formatting_engine_residual controls; fresh cargo test -p tcl-lsp-core --test formatting_engine_residual --no-run --message-format=json artifact/listing singleton guard required. No previous executed baseline claimed; preserve every assertion. Not a replacement for Core acceptance or88formatter annex.",
+  "retained_runner_limit": "Original failclosed replay253 final exit checks source/binary/count shape, not every test pass. Evaluate captured exit and ok1/0 summary explicitly; do not treat runner exit0 as all-PASS.",
+  "environment": {
+    "mode": "inherit Root ordinary environment unchanged, as original failclosed253 runner does",
+    "reject_nonempty": [
+      "TCL_LSP_TRACE_*",
+      "TCL_LSP_NATIVE_CODEGEN_DIAGNOSTIC"
+    ]
+  },
+  "listing_timeout_basis": "New compact adapter bound30s; original failclosed253 Formatter runner had no explicit listing timeout."
+}

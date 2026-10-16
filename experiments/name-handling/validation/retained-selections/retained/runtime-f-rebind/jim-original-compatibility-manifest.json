@@ -1,0 +1,22 @@
+{
+  "package": "tcl-runtime",
+  "manifest": "runtime/rust/Cargo.toml",
+  "features": [
+    "engine"
+  ],
+  "target": "lib",
+  "exact": [
+    "interp::native_jim_lookup::tests::original_jim_lookup_primaries_match_native_key_and_cache_ownership",
+    "interp::native_jim_lookup::tests::jim_original_variable_frame_miss_and_unrelated_unset_match_native_controls",
+    "interp::native_jim_lookup::tests::jim_original_command_replacement_and_rename_preserve_miss_primary",
+    "interp::native_jim_lookup::tests::jim_cache_namespace_equality_uses_counted_original_objects_not_c_arena_tokens",
+    "interp::native_jim_lookup::tests::jim_deleted_active_original_head_hits_only_until_the_real_invocation_retires",
+    "interp::native_jim_lookup::tests::foreign_jim_lookup_receipts_refuse_without_mutating_the_original",
+    "cmd_error::tests::automatic_jim_error_stacks_match_the_actual_native_interpreter",
+    "cmd_error::tests::jim_automatic_stack_uses_evaluation_receipts_before_unwinding",
+    "cmd_error::tests::native_jim_error_keeps_raw_stack_trace_and_does_not_publish_c_globals",
+    "interp::tests::jim_diagnostic_argv_borrows_preserve_sharing_and_lazy_string_representation"
+  ],
+  "scope": "Ten preserved original Jim cache/lifetime/error-stack/argv controls, additional to inherited85+new4. Automatic interpreter comparison preserves all20 original scripts; exact selector list must be confirmed against fresh built binary.",
+  "expected_count": 10
+}

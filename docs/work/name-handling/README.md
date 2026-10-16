@@ -1,17 +1,17 @@
 # Centralised name handling on work
 
-Implementation has resumed from `554085e`. **133 baseline units** have reviewed
-implementation pending validation: 79 code units and all 54 authored-documentation
+Implementation has resumed from `554085e`. **143 baseline units** have reviewed
+implementation pending validation: 89 code units and all 54 authored-documentation
 units. These include two explicitly partial callers (DB class cards and Runtime132).
 **Zero units are verified complete**. Baseline counts remain **2,158**;
-2,025 baseline units have no integrated implementation. The bounded
-[owner/caller annex](implementation-owner-annex.json) adds **32 demonstrated
-requirements**, 30 integrated pending validation and two blocked before integration.
-Effective scope is **2,190 obligations**, with **163 integrated pending validation**
-and **2,027 not integrated**. These counts establish neither semantic acceptance
+2,015 baseline units have no integrated implementation. The bounded
+[owner/caller annex](implementation-owner-annex.json) adds **33 demonstrated
+requirements**, 31 integrated pending validation and two blocked before integration.
+Effective scope is **2,191 obligations**, with **174 integrated pending validation**
+and **2,017 not integrated**. These counts establish neither semantic acceptance
 nor completed gates.
 
-Development checkpoint `6fa086c78` is pushed to `work`. The
+Development checkpoint `b96b7b49e` is pushed to `work`. The
 [current implementation and validation snapshot](current-state.md) records exact
 ordinary builds, selected failures, source-only limitations, restored evidence
 and pending gates. The [implementation ledger](implementation-ledger.md) retains

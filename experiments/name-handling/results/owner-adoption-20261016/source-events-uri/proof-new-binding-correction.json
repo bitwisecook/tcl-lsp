@@ -1,0 +1,7 @@
+{
+  "scope": "Only newly appended Explain implementation evidence updated after reviewed NativePath caller integration, before canonical admission. Historical evidence unchanged.",
+  "path": "rust/f5-cli/src/commands/explain.rs",
+  "sha256": "0784b3b31d1cd2153831b56ad114cebe535829c0a6e2209843782ee7e4502f55",
+  "canonical_record_count": 2606,
+  "independent_final_review": "proof-independent-review-final.txt"
+}

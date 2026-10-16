@@ -1,0 +1,15 @@
+Review: CLEAR for the bounded source change; runtime/platform validation remains pending.
+
+Reviewed artifact: `/tmp/lsp-uri-owner-representability/uri-owner-representability.patch`, SHA-256 `dedce74292277c41a03c174abf752662f0454881b878f2a1b064e60a356d5109`.
+
+The checkout's `rust/tcl-lsp-server/src/lib.rs` remains exactly the manifest before-image (`fdd647dc0c4b47d132c0126ef2c251849def884354a545e5a2b601c2deb728e2`). The URI caller patch is unchanged; no checkout files changed. Patch SHA independently matches. `git apply --check` against the checkout passed as a read-only applicability check. No Cargo/build/test command was run.
+
+Source/API review:
+
+- `ls-types-0.0.6/src/uri.rs::Uri::from_file_path` borrows absolute paths, but for relative paths calls `strict_canonicalize`; that is `std::fs::canonicalize` on Unix and `std::fs::canonicalize` plus removal of a Windows `VerbatimDisk` prefix on Windows. Both platform branches later serialize with `to_string_lossy`, so checking the input relative spelling alone would not prevent opaque target bytes from becoming U+FFFD in a URI.
+- The patch mirrors actual path selection before admitting Unicode: absolute paths retain spelling; relative paths resolve once through `std::fs::canonicalize`; `selected.to_str()?` refuses an opaque selected path; that same selected path is passed to the provider. This correctly allows literal U+FFFD (valid UTF-8) and tests an ASCII relative symlink whose canonical target is an opaque name.
+- For relative Windows paths, the new `canonicalize` selection retains the extended disk prefix until the existing `repair_file_uri_from_path` stage. That stage already recognizes/removes the encoded `%3F/` marker and then canonicalizes the URI spelling. `strict_canonicalize` in the dependency strips this prefix earlier; the final shared repair appears intended to preserve prior output. No Windows execution is claimed, so root should retain cross-platform validation as an open check.
+- Absolute non-existent paths remain supported, relative non-existent paths remain unavailable, and no filesystem canonicalization is added for absolute paths. The new tests cover those distinctions, actual opaque-byte vs literal U+FFFD names, Unicode/space encoding, and relative symlink resolution.
+- The patch does not change the POSIX `//` authority policy or claim whole `lsp-server-path-uri-repair-policy` completion. It adds no independent owner count. The six caller IDs remain separate caller-adoption obligations and are not marked complete by this owner patch alone.
+
+No blocking source issue found. Parent review still owns merge/integration and platform-aware test validation; especially verify Windows `VerbatimDisk` output equivalence and existing Unix tests in a build-enabled step.

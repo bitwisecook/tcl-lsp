@@ -1,0 +1,6 @@
+{
+  "source_head": "b96b7b49eef942c71e87d6a61e7e6030813c69d4",
+  "source_diff_sha256": "f062f7939a6f51c11e5a20c6bf399e4b858ce02e247668f3a1efaa179bc85fcc",
+  "ordinary": true,
+  "note": "Includes Root existing declaration_site() accessor correction after retained E0616 private-field initial build failure; no semantic guard change."
+}

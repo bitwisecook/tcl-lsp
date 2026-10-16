@@ -130,7 +130,9 @@ pub(crate) fn original_authored_scalar_invocation(
     }
     let variables = advice.original_variable_context();
     if variables.frame_kind != crate::var_resolve::VariableFrameKind::Local
-        || variables.execution_name_policy.is_some()
+        || variables
+            .execution_name_policy
+            .is_some_and(|policy| !scope.retains_authored_source_name_policy(policy))
         || variables.interpreter.is_some()
         || variables.execution.is_some()
         || variables.hosted_execution_context.is_some()
@@ -502,6 +504,161 @@ mod tests {
         assert!(std::ptr::eq(read.function(), function));
         assert_eq!(read.symbol(), definitions[1].symbol());
         assert_eq!(read.version(), Some(definitions[1].version()));
+    }
+
+    #[test]
+    fn authored_scalar_source_stamp_keeps_actual_parent_rows_and_terminal_points() {
+        let environment = tcl_registry::model::ingress::resolve_environment("tcl8.6");
+        let context = environment.default_context_registry();
+        let registry = context.commands();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(environment.unit_profile().grammar);
+        let source = "proc a {used spare} {set local 1; list retained; return $used}\nproc b {} {set other 2}";
+        let unit = crate::compilation_unit::CompilationUnit::build_for_with_config(
+            source, registry, false, config,
+        );
+        let module = &unit.ir_module;
+        let retained = module.retained_source_bindings.as_ref().unwrap();
+        let bindings = retained.positioned_for_module(module, registry).unwrap();
+        let (&id, _) = module
+            .original_authored_declaration_body_units
+            .iter()
+            .find(|(_, card)| card.name() == "a")
+            .unwrap();
+        let procedure = &module.body_units[&id];
+        let tokens = procedure
+            .body
+            .retained_source_tokens_for_statement(&procedure.body.statements[0])
+            .unwrap();
+        let binding = tokens.source_binding.as_ref().unwrap();
+        let scope = binding
+            .original_authored_scalar_body_scope(tokens, registry)
+            .unwrap();
+        let source_policy = module
+            .source_entry
+            .options()
+            .execution_name_policy()
+            .unwrap();
+        assert!(scope.retains_authored_source_name_policy(source_policy));
+        assert!(original_authored_scalar_invocation(tokens, registry).is_some());
+        let source_only = procedure
+            .body
+            .retained_source_tokens_for_statement(&procedure.body.statements[1])
+            .unwrap();
+        let source_scope = source_only
+            .source_binding
+            .as_ref()
+            .unwrap()
+            .original_authored_source_body_scope_for_name_roles(source_only, registry)
+            .unwrap();
+        assert!(
+            bindings
+                .original_authored_declaration_source_tokens(source_only, source_scope, registry)
+                .is_some()
+        );
+        let mut mixed = source_only.clone();
+        mixed.source_binding.as_mut().unwrap().may_be_absent = true;
+        assert!(
+            bindings
+                .original_authored_declaration_source_tokens(&mixed, source_scope, registry)
+                .is_none()
+        );
+        let mut mixed = source_only.clone();
+        mixed
+            .source_binding
+            .as_mut()
+            .unwrap()
+            .evaluated_argument_values
+            .push(None);
+        assert!(
+            bindings
+                .original_authored_declaration_source_tokens(&mixed, source_scope, registry)
+                .is_none()
+        );
+        let first = tokens.words().first().unwrap().source().span.start();
+        let end = tokens.words().last().unwrap().source().span.end();
+        let text = &source[first as usize..end as usize];
+        let segments =
+            crate::segmenter::segment_commands_with_offset_and_config(text, first, config.nested());
+        let [segment] = segments.as_slice() else {
+            panic!("one original raw source command");
+        };
+        let raw =
+            crate::ir::CommandTokens::from_segmented(&module.source.source_map(), config, segment);
+        assert!(raw.source_binding.is_none());
+        let selected = bindings
+            .original_authored_declaration_source_tokens(&raw, scope, registry)
+            .expect("genuine source-only declaration row");
+        let selected_binding = selected.source_binding.as_ref().unwrap();
+        assert!(selected_binding.has_original_source_layout_owner());
+        assert!(
+            selected_binding
+                .original_authored_declaration_scalar_layout(&selected, registry)
+                .is_some()
+        );
+        assert!(selected_binding.proved_execution_target().is_none());
+        assert!(selected_binding.execution_is_unknown());
+        assert!(
+            super::super::normal_representation_invocation_with_metadata_context(
+                registry, None, &selected
+            )
+            .is_none()
+        );
+        assert!(
+            super::super::admitted_native_compiler_invocation(registry, None, &selected).is_none()
+        );
+        assert!(
+            bindings
+                .original_authored_declaration_source_tokens(&selected, scope, registry)
+                .is_none()
+        );
+        let mut ordinary = raw.clone();
+        bindings.stamp_original_tokens(&mut ordinary);
+        assert!(
+            ordinary
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .has_original_source_layout_owner()
+        );
+        assert!(
+            bindings
+                .original_authored_declaration_source_tokens(&ordinary, scope, registry)
+                .is_none()
+        );
+        let mut changed = raw.clone();
+        changed.argv_texts[0].push('_');
+        assert!(
+            bindings
+                .original_authored_declaration_source_tokens(&changed, scope, registry)
+                .is_none()
+        );
+        let (&other, _) = module
+            .original_authored_declaration_body_units
+            .iter()
+            .find(|(_, card)| card.name() == "b")
+            .unwrap();
+        let other = &module.body_units[&other];
+        let other_tokens = other
+            .body
+            .retained_source_tokens_for_statement(&other.body.statements[0])
+            .unwrap();
+        let other_scope = other_tokens
+            .source_binding
+            .as_ref()
+            .unwrap()
+            .original_authored_scalar_body_scope(other_tokens, registry)
+            .unwrap();
+        assert!(
+            bindings
+                .original_authored_declaration_source_tokens(&raw, other_scope, registry)
+                .is_none()
+        );
+        let foreign = tcl_registry::model::ingress::static_context_for("tcl9.0");
+        assert!(
+            bindings
+                .original_authored_declaration_source_tokens(&raw, scope, foreign.commands())
+                .is_none()
+        );
     }
 
     #[test]

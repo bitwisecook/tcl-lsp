@@ -50,8 +50,9 @@ pub use event_handlers::{
 
 mod source_context;
 pub use source_context::{
-    IrulesSourceObligation, OriginalHostedSourceVariableReferences, OriginalIrulesSourceCommand,
-    OriginalIrulesSourceContext, original_hosted_source_variable_references,
+    IrulesSourceObligation, IrulesWhenSourceInventory, OriginalHostedSourceVariableReferences,
+    OriginalIrulesSourceCommand, OriginalIrulesSourceContext, OriginalIrulesWhenDeclaration,
+    OriginalIrulesWhenInventory, original_hosted_source_variable_references,
 };
 mod source_object;
 pub use source_object::{
@@ -68,7 +69,9 @@ pub use executable::{
     executable_closure_builds_for_tests, reset_executable_closure_builds_for_tests,
 };
 mod when_block;
-pub use when_block::{WhenBlock, when_block_candidates, when_block_is_empty, when_blocks};
+pub use when_block::{
+    WhenBlock, when_block_candidates, when_block_is_empty, when_blocks, when_source_inventory,
+};
 
 pub mod ilx;
 pub use ilx::{

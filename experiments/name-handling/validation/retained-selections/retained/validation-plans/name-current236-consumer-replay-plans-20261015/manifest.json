@@ -1,0 +1,58 @@
+{
+  "plans": [
+    {
+      "plan": "/tmp/name-current236-consumer-replay-plans-20261015/core-ordinary247-plan.json",
+      "sha256": "e0d28cdcd4ab7e374c6ddec72929d2d5a630e918cddae3f24523afad684b47b5",
+      "exact_count": 247,
+      "predecessor": "/tmp/name-formatter-object-consumer-future-replay-annexes-20261015/core-future247-plan.json",
+      "predecessor_sha256": "244c03a28ce5c4c2c2cb202d59e0a6387256a435b7af5a4948f68bedcff325de"
+    },
+    {
+      "plan": "/tmp/name-current236-consumer-replay-plans-20261015/irules-object19-annex-plan.json",
+      "sha256": "fda0ce5133dd8983423d9ff94708e5f158f55f7d731d6fcbde6980131fafc32a",
+      "exact_count": 19,
+      "predecessor": "/tmp/name-formatter-object-consumer-future-replay-annexes-20261015/irules-object19-annex-plan.json",
+      "predecessor_sha256": "40b468429a156e86eab9f175f43cb4e7771f3eb62d1954963d224f67a47a7982"
+    },
+    {
+      "plan": "/tmp/name-current236-consumer-replay-plans-20261015/core-formatting88-annex-plan.json",
+      "sha256": "2d4596695318ebdaf97eec0f3dc1c3fbe6329c005e2bd1f4da14ef0bf591d835",
+      "exact_count": 88,
+      "predecessor": "/tmp/name-formatter-object-consumer-future-replay-annexes-20261015/core-formatting88-annex-plan.json",
+      "predecessor_sha256": "1bbfc925976451c548edcb68f8552d5ad2613f097d0741dae14d4b0b8a6e422a"
+    },
+    {
+      "plan": "/tmp/name-current236-consumer-replay-plans-20261015/formatting_engine_residual-affected-plan.json",
+      "sha256": "9ef72f35f538b38f526600402d8f601e16d884d1b3810df35ec28c0eb42e556e",
+      "exact_count": 55,
+      "predecessor": "/tmp/name-formatter-object-consumer-future-replay-annexes-20261015/formatting_engine_residual-affected-plan.json",
+      "predecessor_sha256": "ec20d82dea3c498090f15841e65543bcc7f68669ca57664f0baacaaf3fef740d"
+    },
+    {
+      "plan": "/tmp/name-current236-consumer-replay-plans-20261015/lsp_core_residual-affected-plan.json",
+      "sha256": "af57cba11f44b72c27860b27aad24ba817bd3cd7e5c9b82d60e40f73e218a79c",
+      "exact_count": 15,
+      "predecessor": "/tmp/name-formatter-object-consumer-future-replay-annexes-20261015/lsp_core_residual-affected-plan.json",
+      "predecessor_sha256": "e80121f44feadcb6bebd3415c34d740b0dd89142969866dd48095adcc8370bfa"
+    }
+  ],
+  "actual_current_afterimages": [
+    {
+      "path": "/workspace/tcl-lsp/rust/tcl-lsp-core/src/refactor/inline_variable.rs",
+      "after_sha256": "6f0e35a1906c862f1738b44f6c5ecaec50a8164aed132f92b9fd3b3558c9595f",
+      "source_packet_sha256": "0ac78a85e6356f8cd237bcbbe149d6565e52c3f8af50939161258a9228e5e3a9"
+    },
+    {
+      "path": "/workspace/tcl-lsp/rust/tcl-lsp-core/src/formatting/engine.rs",
+      "after_sha256": "fbdc7fab42074c6679aeefdaabdde07d4d18348570410b034e9bd844c0a2c5f6",
+      "source_packet_sha256": "181356f29fb0e2eae203eaad29739bcc7961721c9de658f5d4b712ede062862f"
+    },
+    {
+      "path": "/workspace/tcl-lsp/rust/tcl-irules/src/walker.rs",
+      "after_sha256": "8888e9f1396e75425f9222c86ccb7511249215607f8d9d86d1f2a47ee66303a7",
+      "source_packet_sha256": "d07006f3207039b8d09ff4637d87046958267981e9d2ddee0f6f7571fc748e45"
+    }
+  ],
+  "preservation": "Core247 original actual265243 prefix/order untouched plus4 reviewed newlyadopted selectors. IRules19 all18existing source-defined tests plusnew1; old execution baseline not claimed. Formatter88 retains86actual265listed oldfunctions+2new; integration55/15 require separate actual test target builds. Existing MCP43, Server15, Lexer11 and all other actual265 scopes remain unchanged and separate.",
+  "status": "Plans only; no Cargo/test/listing execution by author"
+}

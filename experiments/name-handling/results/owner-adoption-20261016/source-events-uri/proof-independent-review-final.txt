@@ -1,0 +1,25 @@
+CLEAR — final SourceWhen canonical extension review
+Record naming.consumer.original-irules-source-context
+Reviewed input /tmp/source-when-proof-additions/proposal-records-reviewed.json
+SHA-2561ab23be171c855c9c5a14651e02a2daccc54bcd7cd0493f17b6893642d9f41ac
+
+The sole pending hash issue is closed. The reviewed proposal differs from the immutable original proposal ONLY in newly appended evidence source-when-implementation-3 SHA, now current Explain0784b3b31d1cd2153831b56ad114cebe535829c0a6e2209843782ee7e4502f55. All4 current implementation hashes match live files. No historical hash is refreshed. Immutable original proposal/source-bindings retain their original image provenance and are not the final corrected input.
+
+The actual canonical manifest record exactly equals the reviewed input; total2606 remains unchanged. Prior record identity/kind/document/problem/question, all7 provider answers/status/evidence, source_anchors and replay are unchanged. All9 old test/status rows and all13 old owner rows remain exact prefixes, as does old empty evidence. Appended conclusion/scope preserves every old character and confines the new purpose to readonly SourceWhen event-word/body/vector inventory, unavailable/partial/complete-empty source coverage and explicit conditional mutation/lookup/namespace obligations. No executed test/handler/body/frame/Normal/Native or appliance result is attached.
+
+All6 added actual owner symbols and4 exact source test selectors were independently checked against current source in the initial review. Root's correction changes no owner/test/prose. The durable contract now contains the exact proposed SourceWhen paragraph once. It accurately retains original source ownership/debt, incomplete-versus-empty distinction and independence of stronger executable/Native inventories. The initial TMP apply raced root's already-applied contract and detected the reverse; it affected TMP copies only. Final acceptance is based on exact current paragraph equality/presence, not that reverse TMP operation.
+
+Read-only current canonical/proposal JSON comparisons, historical prefix checks, current SHA checks and exact current contract text inspection only. No canonical updater, main edit, Cargo, compilation, tests, Git or network by reviewer. Root owns actual validation/gate outcomes. No new proof ID or count was introduced.
+
+{
+  "status": "CLEAR",
+  "reviewed_proposal_sha256": "1ab23be171c855c9c5a14651e02a2daccc54bcd7cd0493f17b6893642d9f41ac",
+  "canonical_record_exactly_equals_reviewed_input": true,
+  "manifest_total": 2606,
+  "only_original_proposal_change": "new source-when-implementation-3 current Explain SHA",
+  "all_four_current_implementation_hashes_match": true,
+  "providers_statuses_anchors_replay_identity_unchanged": true,
+  "all_old_test_owner_evidence_prefixes_preserved": true,
+  "contract_prose_exact_paragraph_occurrences": 1,
+  "reviewer_main_edits_builds_updater": false
+}

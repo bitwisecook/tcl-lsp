@@ -17021,7 +17021,12 @@
       "required_change": [
         "Treats POSIX // as remote authority on every host, unlike shared actualPath owner Windows-only UNC. Unix ls_types to_file_path ignores authority, so //server/share can return /share. Remaining production path→URI policy/owner migration; incoming URI repair is a distinct purpose and must not be broadened."
       ],
-      "links": {}
+      "links": {},
+      "partial_repair_note": {
+        "slice": "Actual selected Path Unicode representability admission before lossy provider.",
+        "status": "integrated_pending_validation",
+        "remaining": "Catalogue POSIX // authority policy and owner migration unchanged/open; not counted as an integrated catalogue unit."
+      }
     },
     {
       "area": "lsp",
@@ -48947,7 +48952,12 @@
       ],
       "api": "tcl_bigip_io::read_path/read_path_source existing loader owner; std::path::Path transport",
       "required_change": "PathBuf is converted via to_string_lossy then passed to file open API; unsupported native path bytes may select another file. Extend genuine loader native-Path ingress or explicitly checked refusal, retaining stdin/UCS/source purposes; do not reconstruct path from a display label.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of b96b7b49e",
+        "validation": "Actual native Path passes through existing shared loader. Original and selected canonical target both require lossless URI representation; no lossy filename reopen. Original checks retained; opaque/U+FFFD sibling and Unicode-symlink-to-opaque controls added. Ordinary build/execution pending."
+      }
     },
     {
       "area": "root",
@@ -50534,7 +50544,12 @@
       ],
       "api": "tcl_bigip_io Path/source ingress; preserve original Path instead of display",
       "required_change": "PathBuf -> lossy String -> load_paths loses exact input name before shared loader. Same API extension as other CLI load consumers, distinct actual call site.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of b96b7b49e",
+        "validation": "Actual native Path passes through existing shared loader. Original and selected canonical target both require lossless URI representation; no lossy filename reopen. Original checks retained; opaque/U+FFFD sibling and Unicode-symlink-to-opaque controls added. Ordinary build/execution pending."
+      }
     },
     {
       "area": "root",
@@ -50702,7 +50717,12 @@
       ],
       "api": "Shared BIGIP IO Path ingress and actual retained source",
       "required_change": "to_string_lossy before read_path loses original input identity; local SCF conversion owner has independent recorded grammar debt.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of b96b7b49e",
+        "validation": "Actual native Path passes through existing shared loader. Original and selected canonical target both require lossless URI representation; no lossy filename reopen. Original checks retained; opaque/U+FFFD sibling and Unicode-symlink-to-opaque controls added. Ordinary build/execution pending."
+      }
     },
     {
       "area": "root",
@@ -50744,7 +50764,12 @@
       ],
       "api": "BIGIP IO actual Path ingress",
       "required_change": "PathBuf -> lossy String before load_paths, distinct actual live consumer.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of b96b7b49e",
+        "validation": "Actual native Path passes through existing shared loader. Original and selected canonical target both require lossless URI representation; no lossy filename reopen. Original checks retained; opaque/U+FFFD sibling and Unicode-symlink-to-opaque controls added. Ordinary build/execution pending."
+      }
     },
     {
       "area": "root",
@@ -64338,6 +64363,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of b96b7b49e",
+        "validation": "Six actual Path-to-URI caller purposes use existing canonical_file_uri, with reviewed selected-path lossless admission repair. Original fixtures/assertions/selectors/budgets unchanged; fresh target validation pending."
       }
     },
     {
@@ -64368,6 +64398,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of b96b7b49e",
+        "validation": "Six actual Path-to-URI caller purposes use existing canonical_file_uri, with reviewed selected-path lossless admission repair. Original fixtures/assertions/selectors/budgets unchanged; fresh target validation pending."
       }
     },
     {
@@ -64411,6 +64446,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of b96b7b49e",
+        "validation": "Six actual Path-to-URI caller purposes use existing canonical_file_uri, with reviewed selected-path lossless admission repair. Original fixtures/assertions/selectors/budgets unchanged; fresh target validation pending."
       }
     },
     {
@@ -64471,6 +64511,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of b96b7b49e",
+        "validation": "Six actual Path-to-URI caller purposes use existing canonical_file_uri, with reviewed selected-path lossless admission repair. Original fixtures/assertions/selectors/budgets unchanged; fresh target validation pending."
       }
     },
     {
@@ -64501,6 +64546,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of b96b7b49e",
+        "validation": "Six actual Path-to-URI caller purposes use existing canonical_file_uri, with reviewed selected-path lossless admission repair. Original fixtures/assertions/selectors/budgets unchanged; fresh target validation pending."
       }
     },
     {
@@ -65085,6 +65135,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of b96b7b49e",
+        "validation": "Six actual Path-to-URI caller purposes use existing canonical_file_uri, with reviewed selected-path lossless admission repair. Original fixtures/assertions/selectors/budgets unchanged; fresh target validation pending."
       }
     },
     {
@@ -131502,12 +131557,12 @@
   ],
   "implementation_progress": {
     "resumed_from": "554085e162823ea8bd126898d0c27b7b2a9f8628",
-    "utc": "2026-10-16T13:24:11.505667+00:00",
+    "utc": "2026-10-16T13:57:25.611755+00:00",
     "audit_baseline_counts_unchanged": true,
     "total_required_units": 2158,
-    "implemented_pending_validation": 133,
+    "implemented_pending_validation": 143,
     "verified_complete": 0,
-    "not_started": 2025,
+    "not_started": 2015,
     "remaining_unverified_or_unimplemented": 2158,
     "additional_work_not_counted_as_catalogue_completion": [
       "Native variable-expression read/cell/trace/child-body observer producer remains open; pure expression gap receipt grants no such authority.",
@@ -131667,7 +131722,7 @@
     "withheld_drafts": [
       "Minifier command/argument alias construction: missing genuine source action/insertion owner; original unknown-command controls remain unchanged."
     ],
-    "owner_facet_reconciliation": "32 additional unverified requirements:30 integrated pending validation,2 not integrated. The newly demonstrated dynamic-key source-reference layout is counted once; unchanged graph/grep callers are not recounted.",
+    "owner_facet_reconciliation": "33 additional unverified requirements:31 integrated pending validation,2 not integrated. New explain Source-event caller counted once; Registry events baseline remains unchanged/open.",
     "runtime_build": {
       "status": "PASS",
       "seconds": 57.46,
@@ -131760,13 +131815,13 @@
     },
     "additional_owner_annex": {
       "path": "docs/work/name-handling/implementation-owner-annex.json",
-      "required": 32,
-      "implemented_pending_validation": 30,
+      "required": 33,
+      "implemented_pending_validation": 31,
       "not_integrated": 2,
       "verified_complete": 0
     },
-    "effective_required_units": 2190,
-    "effective_implemented_pending_validation": 163,
+    "effective_required_units": 2191,
+    "effective_implemented_pending_validation": 174,
     "effective_verified_complete": 0,
     "incoming_remote": {
       "rust": "c60f938ddd2a8d92a3bc251c57fa3609d77593c3",
@@ -131940,7 +131995,7 @@
       "scope": "Selected controls only. Completed99tests are65PASS34FAIL. Preview failure retained separately; no whole-group or gate acceptance.",
       "capture": "experiments/name-handling/results/owner-adoption-20261016/cli-mcp-server-889"
     },
-    "fully_implemented_pending_validation": 131,
+    "fully_implemented_pending_validation": 141,
     "partially_implemented_pending_validation": 2,
     "runtime_report_adoptions": {
       "baseline_units": [
@@ -131951,12 +132006,13 @@
       "full_callers": 2,
       "partial_callers": 1,
       "new_owner_requirements": 0,
-      "status": "source_reviewed_integrated_runtime_execution_pending"
+      "status": "integrated_selected_original_controls_PASS_111_full_gates_pending"
     },
     "hosts_forwarding_class_build": {
-      "status": "running",
-      "log": "/tmp/naming-hosts-forwarding-class-next-build.log",
-      "source": "cd0+reviewed Authored forwarding5, Registry configuration-reference layout3 and Runtime report2; Runtime controls require separate actual manifest build."
+      "status": "PASS_after_recorded_three_type_errors",
+      "seconds": 443,
+      "warnings": 0,
+      "repair": "Explicit actual source inventory Result<Vec<_>> collection type; no changed guard or test."
     },
     "five_library_cd0": {
       "source_head": "cd0c431946e42357497e2e28bf7286d0cd1d8c8e",
@@ -131973,6 +132029,95 @@
       "scope": "Selected controls only, no whole-suite/issue/Native provider/repository gate acceptance. Fixed original selectors/budgets preserved.",
       "capture": "experiments/name-handling/results/owner-adoption-20261016/five-library-cd0",
       "comparison": "experiments/name-handling/results/owner-adoption-20261016/five-library-cd0/test-comparison.json"
+    },
+    "hosts_forwarding_class": {
+      "source_head": "cd0c431946e42357497e2e28bf7286d0cd1d8c8e",
+      "source_diff_sha256": "2495ba6a086c7831f65e3bb99bf312ae29e75e36a56c0ac7b1d517e6381f8136",
+      "ordinary": true,
+      "groups": 12,
+      "PASS": 95,
+      "FAIL": 29,
+      "zero_test_runs": 0,
+      "build": {
+        "status": "PASS",
+        "seconds": 443,
+        "warnings": 0
+      },
+      "scope": "Selected original controls; no full-suite, issue, Native provider equivalence or repository gate acceptance.",
+      "capture": "experiments/name-handling/results/owner-adoption-20261016/hosts-forwarding-class"
+    },
+    "runtime_report_adoptions_execution": {
+      "source_head": "cd0c431946e42357497e2e28bf7286d0cd1d8c8e",
+      "source_diff_sha256": "2495ba6a086c7831f65e3bb99bf312ae29e75e36a56c0ac7b1d517e6381f8136",
+      "ordinary": true,
+      "groups": 11,
+      "PASS": 111,
+      "FAIL": 0,
+      "zero_test_runs": 0,
+      "build": {
+        "status": "PASS",
+        "seconds": 83,
+        "warnings": 0
+      },
+      "scope": "Selected original controls; no full-suite, issue, Native provider equivalence or repository gate acceptance.",
+      "capture": "experiments/name-handling/results/owner-adoption-20261016/runtime-report-adoptions"
+    },
+    "next_uri_validation": {
+      "baseline_units": [
+        "lsp.validation.07.00.fn0",
+        "lsp.validation.07.00.fn1",
+        "lsp.validation.07.00.fn2",
+        "lsp.validation.07.02.fn0",
+        "lsp.validation.07.03.fn0",
+        "lsp.validation.07.13.fn0"
+      ],
+      "count": 6,
+      "status": "integrated_pending_validation",
+      "owner_repair_count": 0,
+      "scope": "Separate existing canonical_file_uri selected-path representability slice; original // authority policy debt stays open, no whole-owner completion counted."
+    },
+    "source_event_inventory": {
+      "new_caller_annex": "f5.explain.original-source-event-inventory",
+      "baseline_delta": 0,
+      "shared_owner_delta": 0,
+      "status": "integrated_pending_validation"
+    },
+    "native_path_loader_four": {
+      "baseline_units": [
+        "root:host.bigip-native-loader:231:0",
+        "root:host.bigip-native-loader:238:0",
+        "root:host.bigip-native-loader:240:0",
+        "root:host.bigip-native-loader:66:0"
+      ],
+      "baseline_delta": 4,
+      "new_owner_delta": 0,
+      "scope": "Existing checked native path ingress owner adopts realPath inputs instead of local lossy conversion; no new independent requirement.",
+      "status": "integrated_pending_validation"
+    },
+    "reviewed_host_source_uri_build": {
+      "status": "running",
+      "log": "/tmp/naming-reviewed-host-source-uri-build.log",
+      "source_binding": "/workspace/naming-validation/reviewed-host-source-uri/source-binding.json",
+      "first_build": "Compiler E0616 private declaration field; fixed via existing declaration_site() accessor. Failed log retained; no guard change."
+    },
+    "runtime174_replay": {
+      "status": "running_exact_library120_subgroup_only",
+      "full_selection": 174,
+      "groups": {
+        "tcl_runtime": 120,
+        "native_namespace_command_query": 51,
+        "tcl_registry": 3
+      },
+      "capture": "/workspace/naming-validation/runtime174-current",
+      "selection_sha256": "0c757949d6ae2d2790f3fc6f50c94eb5c55fa3b17d7dae094b8a78054ce5d5cf",
+      "full_acceptance": false
+    },
+    "provider_recheck_current": {
+      "status": "PASS_SETUP_ONLY",
+      "providers": 6,
+      "jim_upstream_head": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+      "capture": "/workspace/naming-validation/runtime174-current/provider-pairing",
+      "scope": "Actual original source inventories, installedbinary/loadedlibraries/init/tcltest pairing. No whole Runtime semantic or issue acceptance."
     }
   }
 }

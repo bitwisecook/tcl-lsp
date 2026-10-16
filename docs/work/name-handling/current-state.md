@@ -1,21 +1,23 @@
 # Current naming state and validation
 
-Implementation has resumed from `554085e`. **133 baseline units** have reviewed
-implementation pending validation: 79 code units and all 54 authored-documentation
+Implementation has resumed from `554085e`. **143 baseline units** have reviewed
+implementation pending validation: 89 code units and all 54 authored-documentation
 units. These include two explicitly partial callers (DB class cards and Runtime132).
 **Zero units are verified complete**. Baseline counts remain **2,158**;
-2,025 baseline units have no integrated implementation. The bounded
-[owner/caller annex](implementation-owner-annex.json) adds **32 demonstrated
-requirements**, 30 integrated pending validation and two blocked before integration.
-Effective scope is **2,190 obligations**, with **163 integrated pending validation**
-and **2,027 not integrated**. These counts establish neither semantic acceptance
+2,015 baseline units have no integrated implementation. The bounded
+[owner/caller annex](implementation-owner-annex.json) adds **33 demonstrated
+requirements**, 31 integrated pending validation and two blocked before integration.
+Effective scope is **2,191 obligations**, with **174 integrated pending validation**
+and **2,017 not integrated**. These counts establish neither semantic acceptance
 nor completed gates.
 
 Latest reviewed successor ordinary execution is **95 PASS / 29 FAIL** across 12 Host/Registry/Compiler groups, following a **7m23s zero-warning build**. All 99 previously selected Host tests remain, with seven grep gains and zero prior-PASS regressions; the original forwarding control also gains a pass. Two parameter-trait and 27 CLI/MCP failures remain. The real opaque-environment resolver child and opaque-directory controls pass. The first build's three collection-type errors are retained alongside the successful explicit `Result<Vec<_>>` repair. [Capture](../../../experiments/name-handling/results/owner-adoption-20261016/hosts-forwarding-class/summary.json).
 
 A separate actual Runtime-manifest ordinary build passes in **1m23s with zero warnings**. Its 11 selected groups are **111 PASS / zero FAIL**, retaining the previous 103 selected checks and adding eight exact qualification/lifetime/Jim controls. Runtime132 remains partial and the original full Runtime174 group remains unexecuted. [Capture](../../../experiments/name-handling/results/owner-adoption-20261016/runtime-report-adoptions/summary.json).
 
-Development checkpoint `cd0c43194` is pushed to `work`. Its reviewed successor now includes six further baseline CLI/Core adoptions,
+The next reviewed successor includes genuine Authored declaration-row stamping and report-only alias observations, Source event inventory/explain transport, selected-path URI representability plus six URI validation callers, fixed Host bootstrap storage and four actual native-path loader callers. A single-job ordinary build is running with exact source binding; its earlier compiler private-field error is retained and repaired through the existing accessor. These changes do not establish execution or gate acceptance. The recovered exact Runtime174 plan is 120 Runtime library + 51 namespace-query integration + three Registry controls; its library subgroup replay has started, with full-group acceptance still pending. Fresh original C/Jim provider pairing passes independently.
+
+Development checkpoint `b96b7b49e` is pushed to `work`. Its reviewed successor now includes six further baseline CLI/Core adoptions,
 scalar source configuration reborrow, a dedicated source parameter-role facade
 and the remaining physical ensemble availability repairs. The five-library ordinary build and selected execution are recorded below. Its prior scope includes typed trace lexical exclusions,
 editor validation, retained MCP context, explicit native-path refusal, conditional

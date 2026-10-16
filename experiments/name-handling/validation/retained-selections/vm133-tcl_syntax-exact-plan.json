@@ -1,0 +1,22 @@
+{
+  "exact": [
+    "naming::native::jim_command_hash_comparison_tests::original_jim_hash_comparison_retains_counted_zero_bytes_and_root_geometry",
+    "naming::hidden_invocation::tests::original_hidden_options_keep_release_and_ordinal_meanings",
+    "naming::native::tests::original_lambda_namespace_preserves_counted_object_and_lookup_purposes",
+    "naming::native::tests::jim_lambda_namespace_keeps_the_counted_original_context_object",
+    "naming::native::tests::namespace_creation_parent_route_uses_its_original_cstring_extent",
+    "naming::native::namespace_creation_conflict_keeps_original_spelling_and_selected_extent",
+    "naming::native::empty_namespace_creation_diagnostic_requires_its_selected_address_reason"
+  ],
+  "filters": [],
+  "temporary_diagnostics": false,
+  "test_timeouts": {
+    "naming::native::jim_command_hash_comparison_tests::original_jim_hash_comparison_retains_counted_zero_bytes_and_root_geometry": 180,
+    "naming::hidden_invocation::tests::original_hidden_options_keep_release_and_ordinal_meanings": 180,
+    "naming::native::tests::original_lambda_namespace_preserves_counted_object_and_lookup_purposes": 180,
+    "naming::native::tests::jim_lambda_namespace_keeps_the_counted_original_context_object": 180,
+    "naming::native::tests::namespace_creation_parent_route_uses_its_original_cstring_extent": 180,
+    "naming::native::namespace_creation_conflict_keeps_original_spelling_and_selected_extent": 180,
+    "naming::native::empty_namespace_creation_diagnostic_requires_its_selected_address_reason": 180
+  }
+}

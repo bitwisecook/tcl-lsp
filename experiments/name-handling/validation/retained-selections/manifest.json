@@ -1,0 +1,42 @@
+{
+  "status": "RECOVERED_EXACT_SELECTIONS_NO_CURRENT_EXECUTION",
+  "supersedes": "/tmp/naming-retained-selection-recovery-v2",
+  "retained_members_manifest_sha256": "cb35cc205533abf18d7ee100cce7a4ad08cdce8f56e6a1588a32b32f4de46360",
+  "files": {
+    "README.md": "0cf9aabc895bff1f961874467daa419138db02137fd52a93af804c3abd7b98e9",
+    "formatter88-selection.json": "d81b351c25701eed5143ff4c5aeb17c48e2d7c585c246feae91e37220056b436",
+    "formatter88-tcl_lsp_core-exact-plan.json": "d0ee9ba972df0e831b804eb78121070756b06603566b5ccf1858da6f84f104c2",
+    "integration15-lsp_core_residual-exact-plan.json": "829c2aedf0e3a4611250931b3d63d5753d21ef0f742031145a4414e522bfde50",
+    "integration15-selection.json": "1690315ba6481907682da9f294b18a078f099321b4fef9a0722c5d370c156573",
+    "integration55-formatting_engine_residual-exact-plan.json": "22b90615cb2ba99d03de2596d2590987ed9d07cbcca7c33a32402da89a8965fa",
+    "integration55-selection.json": "8540d92b68aac8e8ea14c2955b6b2bf9c5656e223383ff7c7c5acee8f843f9be",
+    "replay-selection.py": "aaa269431e0a0f3024367d0a2528b4671408e11cf7a57e801caa2429f181e6c3",
+    "retained-members.json": "cb35cc205533abf18d7ee100cce7a4ad08cdce8f56e6a1588a32b32f4de46360",
+    "runtime174-native_namespace_command_query-exact-plan.json": "c38c27b785d65e830cd8c1ffec07e4769f460e09fea792511611f69140bfa35a",
+    "runtime174-selection.json": "0c757949d6ae2d2790f3fc6f50c94eb5c55fa3b17d7dae094b8a78054ce5d5cf",
+    "runtime174-tcl_registry-exact-plan.json": "f40e691f7527cc6f36e1729944f8a832f094cc9dcdf8cf0ba6d64bf2d5ae266e",
+    "runtime174-tcl_runtime-exact-plan.json": "eaf314ad55141a7a3c3bc2fa02add3826d2fc1aefb904a54170b8eb7612c93a6",
+    "vm133-cross_interp_alias_e2e-exact-plan.json": "81403985c91323aef1950b3b540402ed6366c3ce914fa9264383ff7193e62dbf",
+    "vm133-native_compilation_conformance-exact-plan.json": "77cf8350013a2bdcf57251943198f0789455fdd00ceb662b80586edd1f4698d5",
+    "vm133-selection.json": "b03197e43a4131c5079f7c1cd59d01b5b97b3b2767024bf580e4747770fa0571",
+    "vm133-tcl_syntax-exact-plan.json": "5814ed06a14051eb1e23ccf01ad4e2be5f89aa49ac19f99ae8c43738b9c11cd9",
+    "vm133-tcl_vm-exact-plan.json": "14355c9e4aa4cbaf674a0a9893750518d67c3d77a7df7fb7a32788ac216d9267"
+  },
+  "counts": {
+    "Runtime174": {
+      "tcl_runtime": 120,
+      "native_namespace_command_query": 51,
+      "tcl_registry": 3
+    },
+    "VM133": {
+      "tcl_vm": 117,
+      "native_compilation_conformance": 7,
+      "cross_interp_alias_e2e": 2,
+      "tcl_syntax": 7
+    },
+    "Formatter88": 88,
+    "integration55": 55,
+    "integration15": 15
+  },
+  "execution": "No Cargo, provider, network, test or actual artifact listing executed; new adapter AST syntax checked only."
+}

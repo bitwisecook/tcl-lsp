@@ -1,0 +1,511 @@
+{
+  "status": "RECOVERED_SELECTION_ONLY_NOT_EXECUTED_ON_CURRENT_SOURCE",
+  "test_argv": [
+    "{binary}",
+    "{selector}",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "test_timeout_seconds": 180,
+  "listing_argv": [
+    "{binary}",
+    "--list"
+  ],
+  "listing_timeout_seconds": 30,
+  "listing_guard": "nonempty actual intended binary listing; each exact selector occurs exactly once",
+  "run_count_guard": {
+    "running_counts": [
+      "1"
+    ],
+    "summaries": [
+      [
+        "ok",
+        "1",
+        "0"
+      ]
+    ],
+    "exit_code": 0,
+    "timed_out": false
+  },
+  "acceptance_requires_independent_current_receipts": [
+    "current ordinary source and compiled-input closure bound to actual artifacts",
+    "original provider source/interpreter/library/harness and linked-library validation",
+    "all original assertions unchanged or explicit reviewed source successor",
+    "no diagnostics environment; no source/binary/provider drift",
+    "complete selection and original budgets retained"
+  ],
+  "group": "Formatter88",
+  "total_exact_selectors": 88,
+  "expected_group_counts": {
+    "tcl_lsp_core": 88
+  },
+  "original_plan_sha256": "2d4596695318ebdaf97eec0f3dc1c3fbe6329c005e2bd1f4da14ef0bf591d835",
+  "groups": {
+    "tcl_lsp_core": [
+      "formatting::engine::tests::align_comments_to_code_toggles_reindentation",
+      "formatting::engine::tests::analysed_layout_retains_supplied_entry_and_provider_world_without_recapture",
+      "formatting::engine::tests::apply_lambda_body_indents_and_params_normalise",
+      "formatting::engine::tests::apply_lambda_body_with_backslash_escape_decodes",
+      "formatting::engine::tests::apply_lambda_namespace_element_preserved",
+      "formatting::engine::tests::backslash_newline_collapse_handles_crlf",
+      "formatting::engine::tests::backslash_newline_keeps_preceding_spaces_in_quoted_string",
+      "formatting::engine::tests::bare_dollar_in_quoted_string_is_not_brace_wrapped",
+      "formatting::engine::tests::blank_lines_between_procs",
+      "formatting::engine::tests::bracket_continuations_preserve_nested_word_data",
+      "formatting::engine::tests::case_list_alias_formatting_uses_the_binding_at_each_call_position",
+      "formatting::engine::tests::case_list_rename_formatting_uses_the_binding_at_each_call_position",
+      "formatting::engine::tests::collapses_blank_lines_to_max",
+      "formatting::engine::tests::command_count_retains_complete_body_grammar",
+      "formatting::engine::tests::command_substitution_preserved",
+      "formatting::engine::tests::comments_preserved",
+      "formatting::engine::tests::control_flow_always_expands",
+      "formatting::engine::tests::count_body_commands_counts_top_level_statements",
+      "formatting::engine::tests::deeply_nested_bodies",
+      "formatting::engine::tests::deeply_nested_if_survives_formatting",
+      "formatting::engine::tests::dynamic_head_is_left_alone",
+      "formatting::engine::tests::empty_proc_body",
+      "formatting::engine::tests::enforce_braced_expr_braces_expr_and_conditions",
+      "formatting::engine::tests::enforce_braced_expr_off_by_default",
+      "formatting::engine::tests::enforce_braced_expr_preserves_expansion_tail",
+      "formatting::engine::tests::enforce_braced_variables_rewrites_dollar_refs",
+      "formatting::engine::tests::every_if_clause_shape_formats",
+      "formatting::engine::tests::every_try_handler_shape_formats",
+      "formatting::engine::tests::expand_prefix_preserved",
+      "formatting::engine::tests::expect_case_list_formatter_preserves_descriptor_fields_and_formats_only_actions",
+      "formatting::engine::tests::expression_wrapping_preserves_string_terms_and_declines_comments",
+      "formatting::engine::tests::for_keeps_start_and_next_inline",
+      "formatting::engine::tests::force_expr_wrap",
+      "formatting::engine::tests::force_split_long_line",
+      "formatting::engine::tests::foreach_body",
+      "formatting::engine::tests::formatting_abstains_for_a_builtin_shadowed_by_a_user_proc",
+      "formatting::engine::tests::formatting_abstains_for_a_dynamic_binding",
+      "formatting::engine::tests::formatting_budget_preserves_complete_source_before_analysis",
+      "formatting::engine::tests::formatting_follows_a_renamed_body_command",
+      "formatting::engine::tests::formatting_follows_an_aliased_body_command",
+      "formatting::engine::tests::formatting_follows_an_aliased_clause_list_command",
+      "formatting::engine::tests::if_else",
+      "formatting::engine::tests::incomplete_case_list_recovery_is_presentation_only_and_idempotent",
+      "formatting::engine::tests::irule_brace_chain_gets_a_space",
+      "formatting::engine::tests::keyword_lookalike_data_words_are_not_keywords",
+      "formatting::engine::tests::logical_default_formatting_retains_its_whole_context_over_mixed_specs",
+      "formatting::engine::tests::malformed_clauses_stay_stable_and_idempotent",
+      "formatting::engine::tests::min_body_commands_keeps_single_command_body_inline",
+      "formatting::engine::tests::moderately_nested_if_still_formats",
+      "formatting::engine::tests::multi_hash_comment",
+      "formatting::engine::tests::multiline_braced_data_keeps_its_original_continuation",
+      "formatting::engine::tests::nested_indentation",
+      "formatting::engine::tests::original_formatter_body_parsing_keeps_bom_content_and_complete_parent_config",
+      "formatting::engine::tests::original_formatter_range_uses_the_selected_script_prologue_purpose",
+      "formatting::engine::tests::original_lambda_spacing_checks_nested_formals_before_emission",
+      "formatting::engine::tests::original_param_spacing_declines_foreign_word_and_full_config",
+      "formatting::engine::tests::original_param_spacing_retains_native_children_and_opaque_units",
+      "formatting::engine::tests::original_source_formatting_braces_only_a_retained_literal_equivalence",
+      "formatting::engine::tests::original_source_formatting_keeps_opaque_formal_word_verbatim",
+      "formatting::engine::tests::original_source_formatting_uses_effective_roles_without_widening_captured_operands",
+      "formatting::engine::tests::param_list_backslash_newline_preserves_arity",
+      "formatting::engine::tests::param_list_escaped_space_stays_one_parameter",
+      "formatting::engine::tests::param_list_malformed_preserved_verbatim",
+      "formatting::engine::tests::param_list_normalised",
+      "formatting::engine::tests::param_list_shapes_round_trip_and_are_idempotent",
+      "formatting::engine::tests::proc_body_indents",
+      "formatting::engine::tests::procedure_spacing_uses_selected_source_traits",
+      "formatting::engine::tests::qualified_control_flow_formats_like_the_bare_form",
+      "formatting::engine::tests::quoted_string_preserved",
+      "formatting::engine::tests::replace_semicolons_disabled_keeps_commands_inline",
+      "formatting::engine::tests::rooted_and_namespaced_case_list_aliases_format_at_their_positions",
+      "formatting::engine::tests::semicolon_splits_commands",
+      "formatting::engine::tests::simple_command",
+      "formatting::engine::tests::switch_body",
+      "formatting::engine::tests::switch_body_preserves_comments",
+      "formatting::engine::tests::switch_case_list_formatter_follows_release_matrix",
+      "formatting::engine::tests::the_irules_profile_alone_decides_the_ghost_separator",
+      "formatting::engine::tests::then_in_the_else_body_slot_is_not_a_keyword",
+      "formatting::engine::tests::trailing_comment",
+      "formatting::engine::tests::trailing_trim_preserves_spaces_inside_multiline_braces",
+      "formatting::engine::tests::trailing_trim_still_trims_ordinary_code_lines",
+      "formatting::engine::tests::trim_preserves_multiline_braced_string_interior",
+      "formatting::engine::tests::trim_preserves_multiline_quoted_string_interior",
+      "formatting::engine::tests::trim_still_strips_structural_trailing_whitespace",
+      "formatting::engine::tests::try_finally",
+      "formatting::engine::tests::while_body",
+      "formatting::engine::original_variable_reconstruction_tests::variable_style_proposals_keep_original_array_indices_and_selected_name_grammar",
+      "formatting::engine::original_variable_reconstruction_tests::configured_variable_reconstruction_reborrows_whole_words_and_refuses_changed_tokens"
+    ]
+  },
+  "execution_order": [
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::align_comments_to_code_toggles_reindentation"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::analysed_layout_retains_supplied_entry_and_provider_world_without_recapture"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::apply_lambda_body_indents_and_params_normalise"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::apply_lambda_body_with_backslash_escape_decodes"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::apply_lambda_namespace_element_preserved"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::backslash_newline_collapse_handles_crlf"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::backslash_newline_keeps_preceding_spaces_in_quoted_string"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::bare_dollar_in_quoted_string_is_not_brace_wrapped"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::blank_lines_between_procs"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::bracket_continuations_preserve_nested_word_data"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::case_list_alias_formatting_uses_the_binding_at_each_call_position"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::case_list_rename_formatting_uses_the_binding_at_each_call_position"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::collapses_blank_lines_to_max"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::command_count_retains_complete_body_grammar"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::command_substitution_preserved"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::comments_preserved"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::control_flow_always_expands"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::count_body_commands_counts_top_level_statements"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::deeply_nested_bodies"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::deeply_nested_if_survives_formatting"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::dynamic_head_is_left_alone"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::empty_proc_body"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::enforce_braced_expr_braces_expr_and_conditions"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::enforce_braced_expr_off_by_default"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::enforce_braced_expr_preserves_expansion_tail"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::enforce_braced_variables_rewrites_dollar_refs"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::every_if_clause_shape_formats"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::every_try_handler_shape_formats"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::expand_prefix_preserved"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::expect_case_list_formatter_preserves_descriptor_fields_and_formats_only_actions"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::expression_wrapping_preserves_string_terms_and_declines_comments"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::for_keeps_start_and_next_inline"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::force_expr_wrap"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::force_split_long_line"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::foreach_body"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::formatting_abstains_for_a_builtin_shadowed_by_a_user_proc"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::formatting_abstains_for_a_dynamic_binding"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::formatting_budget_preserves_complete_source_before_analysis"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::formatting_follows_a_renamed_body_command"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::formatting_follows_an_aliased_body_command"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::formatting_follows_an_aliased_clause_list_command"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::if_else"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::incomplete_case_list_recovery_is_presentation_only_and_idempotent"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::irule_brace_chain_gets_a_space"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::keyword_lookalike_data_words_are_not_keywords"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::logical_default_formatting_retains_its_whole_context_over_mixed_specs"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::malformed_clauses_stay_stable_and_idempotent"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::min_body_commands_keeps_single_command_body_inline"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::moderately_nested_if_still_formats"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::multi_hash_comment"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::multiline_braced_data_keeps_its_original_continuation"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::nested_indentation"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::original_formatter_body_parsing_keeps_bom_content_and_complete_parent_config"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::original_formatter_range_uses_the_selected_script_prologue_purpose"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::original_lambda_spacing_checks_nested_formals_before_emission"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::original_param_spacing_declines_foreign_word_and_full_config"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::original_param_spacing_retains_native_children_and_opaque_units"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::original_source_formatting_braces_only_a_retained_literal_equivalence"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::original_source_formatting_keeps_opaque_formal_word_verbatim"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::original_source_formatting_uses_effective_roles_without_widening_captured_operands"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::param_list_backslash_newline_preserves_arity"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::param_list_escaped_space_stays_one_parameter"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::param_list_malformed_preserved_verbatim"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::param_list_normalised"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::param_list_shapes_round_trip_and_are_idempotent"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::proc_body_indents"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::procedure_spacing_uses_selected_source_traits"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::qualified_control_flow_formats_like_the_bare_form"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::quoted_string_preserved"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::replace_semicolons_disabled_keeps_commands_inline"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::rooted_and_namespaced_case_list_aliases_format_at_their_positions"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::semicolon_splits_commands"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::simple_command"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::switch_body"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::switch_body_preserves_comments"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::switch_case_list_formatter_follows_release_matrix"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::the_irules_profile_alone_decides_the_ghost_separator"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::then_in_the_else_body_slot_is_not_a_keyword"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::trailing_comment"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::trailing_trim_preserves_spaces_inside_multiline_braces"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::trailing_trim_still_trims_ordinary_code_lines"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::trim_preserves_multiline_braced_string_interior"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::trim_preserves_multiline_quoted_string_interior"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::trim_still_strips_structural_trailing_whitespace"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::try_finally"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::tests::while_body"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::original_variable_reconstruction_tests::variable_style_proposals_keep_original_array_indices_and_selected_name_grammar"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "formatting::engine::original_variable_reconstruction_tests::configured_variable_reconstruction_reborrows_whole_words_and_refuses_changed_tokens"
+    }
+  ],
+  "build_argv": [
+    "cargo",
+    "test",
+    "--offline",
+    "-p",
+    "tcl-lsp-core",
+    "--lib",
+    "--no-run",
+    "--message-format=json"
+  ],
+  "timeout_basis": "Retained failclosed replay253 runner default --timeout180, no per-selector overrides in original plan.",
+  "scope": "Actual Main236 after adopted229inline0ac/230formatter181/231IRulesd070, ordinary271 or later fresh artifacts after ALL TEMP exact declared-path+whole-closure restoration. 86 old formatter engine controls from actual265 authoritative listing, preserved order, plus2new. Separate annex, do not replace/drop full current Core243. Old86 compiled listing is not an executed PASS baseline. Exact singleton/listing/run1/source0/binarysame/tracesabsent required.",
+  "retained_runner_limit": "Original failclosed replay253 final exit checks source/binary/count shape, not every test pass. Evaluate captured exit and ok1/0 summary explicitly; do not treat runner exit0 as all-PASS.",
+  "environment": {
+    "mode": "inherit Root ordinary environment unchanged, as original failclosed253 runner does",
+    "reject_nonempty": [
+      "TCL_LSP_TRACE_*",
+      "TCL_LSP_NATIVE_CODEGEN_DIAGNOSTIC"
+    ]
+  },
+  "listing_timeout_basis": "New compact adapter bound30s; original failclosed253 Formatter runner had no explicit listing timeout."
+}

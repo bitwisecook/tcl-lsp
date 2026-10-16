@@ -88,6 +88,79 @@ pub struct OriginalIrulesSourceContext {
     source_vectors: Vec<(Span, OriginalRegistryWords)>,
 }
 
+/// An original source handler, retaining conditional applicability and body
+/// provenance. It establishes no installed handler, entered frame or TMM event.
+#[derive(Debug, Clone)]
+pub struct OriginalIrulesWhenDeclaration {
+    event: SourceIrulesEventBody,
+    words: OriginalRegistryWords,
+}
+
+impl OriginalIrulesWhenDeclaration {
+    /// Literal event from the genuine lowering declaration producer.
+    #[must_use]
+    pub fn event(&self) -> &str {
+        self.event.event()
+    }
+
+    /// Original body/header provenance, without an entered handler frame.
+    #[must_use]
+    pub const fn event_source(&self) -> &SourceIrulesEventBody {
+        &self.event
+    }
+
+    /// Actual complete vector and its chronological conditional source card.
+    /// Lookup, namespace and prior mutation obligations remain on this owner.
+    #[must_use]
+    pub const fn words(&self) -> &OriginalRegistryWords {
+        &self.words
+    }
+}
+
+/// Source declarations with independently reported coverage. Empty declarations
+/// imply an empty source inventory only when no original top-level site refused.
+#[derive(Debug, Clone)]
+pub struct OriginalIrulesWhenInventory {
+    source: OriginalIrulesSourceContext,
+    declarations: Vec<OriginalIrulesWhenDeclaration>,
+    unavailable_sites: Vec<Span>,
+}
+
+impl OriginalIrulesWhenInventory {
+    /// Conditional source declarations in original source order.
+    #[must_use]
+    pub fn declarations(&self) -> &[OriginalIrulesWhenDeclaration] {
+        &self.declarations
+    }
+
+    /// Original top-level sites whose source selection or body owner refused.
+    #[must_use]
+    pub fn unavailable_sites(&self) -> &[Span] {
+        &self.unavailable_sites
+    }
+
+    /// Coverage of original top-level source syntax, never runtime event absence.
+    #[must_use]
+    pub fn is_complete(&self) -> bool {
+        self.unavailable_sites.is_empty()
+    }
+
+    /// Complete retained source/context/configuration owner for these cards.
+    #[must_use]
+    pub const fn source_context(&self) -> &OriginalIrulesSourceContext {
+        &self.source
+    }
+}
+
+/// A missing complete owner differs from an owned, possibly partial inventory.
+#[derive(Debug, Clone)]
+pub enum IrulesWhenSourceInventory {
+    /// No genuine complete source/configuration/context inventory is available.
+    Unavailable,
+    /// Source cards retain all conditional lookup and mutation obligations.
+    Available(OriginalIrulesWhenInventory),
+}
+
 fn contains(outer: Span, inner: Span) -> bool {
     outer.start() <= inner.start() && inner.end() <= outer.end()
 }
@@ -510,7 +583,12 @@ impl OriginalIrulesSourceContext {
         let (image, config) = tcl_compiler::source_graph::current_analysis(source, analysis)?;
         let retained = analysis.resolved_input.as_ref()?;
         if !retained.unit_profile().is_irules()
-            || !analysis.has_original_vendor_source_names()
+            || (!analysis.has_original_vendor_source_names()
+                && !(tcl_lexer::Lexer::with_config(source, config)
+                    .tokenise_all()
+                    .is_ok()
+                    && tcl_syntax::event_handler::script_commands(source, config).is_empty()))
+            || !retained.has_hosted_source_name_context()
             || retained.context_registry().context() != context.context()
             || retained
                 .context_registry()
@@ -749,6 +827,63 @@ impl OriginalIrulesSourceContext {
                 (command.span, words)
             })
             .collect()
+    }
+
+    /// Project existing original event/body cards through the exact top-level
+    /// source vectors. No Native target or Cow head label can donate this join.
+    #[must_use]
+    pub fn when_source_inventory(&self, source: &str) -> IrulesWhenSourceInventory {
+        // naming.consumer.original-irules-source-context
+        // docs/design/analysis/name-resolution-proofs/original-irules-source-context.md
+        if !self.matches_source(source)
+            || tcl_lexer::Lexer::with_config(source, self.config)
+                .tokenise_all()
+                .is_err()
+        {
+            return IrulesWhenSourceInventory::Unavailable;
+        }
+        let mut declarations = Vec::new();
+        let mut unavailable_sites = Vec::new();
+        for (span, words) in self.top_level_source_vectors(source) {
+            let Some(words) = words else {
+                unavailable_sites.push(span);
+                continue;
+            };
+            let Some(handler) = words.with_source_schema(&self.context_registry, |schema| {
+                schema.semantics.traits.contains(Traits::IS_EVENT_HANDLER)
+            }) else {
+                unavailable_sites.push(span);
+                continue;
+            };
+            if !handler {
+                continue;
+            }
+            let Some(event_word) = words.original_argument_word(0) else {
+                unavailable_sites.push(span);
+                continue;
+            };
+            let mut matches = self.events.iter().filter(|event| {
+                event.event_word(&self.image, self.config, self.context_registry.commands())
+                    == Some(event_word)
+            });
+            let Some(event) = matches.next() else {
+                unavailable_sites.push(span);
+                continue;
+            };
+            if matches.next().is_some() {
+                unavailable_sites.push(span);
+                continue;
+            }
+            declarations.push(OriginalIrulesWhenDeclaration {
+                event: event.clone(),
+                words: words.clone(),
+            });
+        }
+        IrulesWhenSourceInventory::Available(OriginalIrulesWhenInventory {
+            source: self.clone(),
+            declarations,
+            unavailable_sites,
+        })
     }
 
     /// Actual event-body declarations; presence is not event reachability.

@@ -35,7 +35,10 @@ pub(crate) use original_procedure_call::{
     original_source_procedure_ids_for_word_for_module,
 };
 mod authored_body_scope;
-pub(crate) use authored_body_scope::OriginalAuthoredSourceBodyScope;
+pub(crate) use authored_body_scope::{
+    OriginalAuthoredFormalAliasObservation, OriginalAuthoredSourceBodyScope,
+    original_authored_parameter_source_command_for_module,
+};
 pub(crate) use source_scoped_body::original_written_script_body_span;
 mod authored_source_bodies;
 pub use authored_source_bodies::OriginalAuthoredProcedureBody;

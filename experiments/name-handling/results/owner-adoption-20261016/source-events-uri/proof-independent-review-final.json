@@ -1,0 +1,12 @@
+{
+  "status": "CLEAR",
+  "reviewed_proposal_sha256": "1ab23be171c855c9c5a14651e02a2daccc54bcd7cd0493f17b6893642d9f41ac",
+  "canonical_record_exactly_equals_reviewed_input": true,
+  "manifest_total": 2606,
+  "only_original_proposal_change": "new source-when-implementation-3 current Explain SHA",
+  "all_four_current_implementation_hashes_match": true,
+  "providers_statuses_anchors_replay_identity_unchanged": true,
+  "all_old_test_owner_evidence_prefixes_preserved": true,
+  "contract_prose_exact_paragraph_occurrences": 1,
+  "reviewer_main_edits_builds_updater": false
+}

@@ -1,0 +1,147 @@
+{
+  "status": "RECOVERED_SELECTION_ONLY_NOT_EXECUTED_ON_CURRENT_SOURCE",
+  "test_argv": [
+    "{binary}",
+    "{selector}",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "test_timeout_seconds": 180,
+  "listing_argv": [
+    "{binary}",
+    "--list"
+  ],
+  "listing_timeout_seconds": 30,
+  "listing_guard": "nonempty actual intended binary listing; each exact selector occurs exactly once",
+  "run_count_guard": {
+    "running_counts": [
+      "1"
+    ],
+    "summaries": [
+      [
+        "ok",
+        "1",
+        "0"
+      ]
+    ],
+    "exit_code": 0,
+    "timed_out": false
+  },
+  "acceptance_requires_independent_current_receipts": [
+    "current ordinary source and compiled-input closure bound to actual artifacts",
+    "original provider source/interpreter/library/harness and linked-library validation",
+    "all original assertions unchanged or explicit reviewed source successor",
+    "no diagnostics environment; no source/binary/provider drift",
+    "complete selection and original budgets retained"
+  ],
+  "group": "integration15",
+  "total_exact_selectors": 15,
+  "expected_group_counts": {
+    "lsp_core_residual": 15
+  },
+  "original_plan_sha256": "af57cba11f44b72c27860b27aad24ba817bd3cd7e5c9b82d60e40f73e218a79c",
+  "groups": {
+    "lsp_core_residual": [
+      "fmt_collapses_backslash_continuation_in_command_subst",
+      "fmt_for_special_case_inlines_init_and_next_expands_body",
+      "fmt_switch_empty_and_dash_fallthrough_bodies",
+      "fmt_try_on_clause_keyword_is_structural",
+      "fmt_param_list_with_nested_default_braces_normalised",
+      "fmt_tab_indented_body_reindented_to_spaces",
+      "fmt_comment_hash_spacing_honours_config",
+      "fmt_commented_out_code_collapses_continuation",
+      "fmt_crlf_line_ending_config_applied",
+      "fmt_expand_single_line_bodies_config",
+      "fmt_enforce_braced_variables_rewrites_refs",
+      "fmt_force_expr_wrap_at_logical_operators",
+      "fmt_syntax_error_input_is_not_dropped",
+      "fmt_is_idempotent_on_its_own_output",
+      "fmt_already_formatted_is_unchanged"
+    ]
+  },
+  "execution_order": [
+    {
+      "target": "lsp_core_residual",
+      "selector": "fmt_collapses_backslash_continuation_in_command_subst"
+    },
+    {
+      "target": "lsp_core_residual",
+      "selector": "fmt_for_special_case_inlines_init_and_next_expands_body"
+    },
+    {
+      "target": "lsp_core_residual",
+      "selector": "fmt_switch_empty_and_dash_fallthrough_bodies"
+    },
+    {
+      "target": "lsp_core_residual",
+      "selector": "fmt_try_on_clause_keyword_is_structural"
+    },
+    {
+      "target": "lsp_core_residual",
+      "selector": "fmt_param_list_with_nested_default_braces_normalised"
+    },
+    {
+      "target": "lsp_core_residual",
+      "selector": "fmt_tab_indented_body_reindented_to_spaces"
+    },
+    {
+      "target": "lsp_core_residual",
+      "selector": "fmt_comment_hash_spacing_honours_config"
+    },
+    {
+      "target": "lsp_core_residual",
+      "selector": "fmt_commented_out_code_collapses_continuation"
+    },
+    {
+      "target": "lsp_core_residual",
+      "selector": "fmt_crlf_line_ending_config_applied"
+    },
+    {
+      "target": "lsp_core_residual",
+      "selector": "fmt_expand_single_line_bodies_config"
+    },
+    {
+      "target": "lsp_core_residual",
+      "selector": "fmt_enforce_braced_variables_rewrites_refs"
+    },
+    {
+      "target": "lsp_core_residual",
+      "selector": "fmt_force_expr_wrap_at_logical_operators"
+    },
+    {
+      "target": "lsp_core_residual",
+      "selector": "fmt_syntax_error_input_is_not_dropped"
+    },
+    {
+      "target": "lsp_core_residual",
+      "selector": "fmt_is_idempotent_on_its_own_output"
+    },
+    {
+      "target": "lsp_core_residual",
+      "selector": "fmt_already_formatted_is_unchanged"
+    }
+  ],
+  "build_argv": [
+    "cargo",
+    "test",
+    "--offline",
+    "-p",
+    "tcl-lsp-core",
+    "--test",
+    "lsp_core_residual",
+    "--no-run",
+    "--message-format=json"
+  ],
+  "timeout_basis": "Retained failclosed replay253 runner default --timeout180, no per-selector overrides in original plan.",
+  "scope": "Actual Main236 after adopted229inline0ac/230formatter181/231IRulesd070, ordinary271 or later fresh artifacts after ALL TEMP exact declared-path+whole-closure restoration. Source-inventoried affected old lsp_core_residual controls; fresh cargo test -p tcl-lsp-core --test lsp_core_residual --no-run --message-format=json artifact/listing singleton guard required. No previous executed baseline claimed; preserve every assertion. Not a replacement for Core acceptance or88formatter annex.",
+  "retained_runner_limit": "Original failclosed replay253 final exit checks source/binary/count shape, not every test pass. Evaluate captured exit and ok1/0 summary explicitly; do not treat runner exit0 as all-PASS.",
+  "environment": {
+    "mode": "inherit Root ordinary environment unchanged, as original failclosed253 runner does",
+    "reject_nonempty": [
+      "TCL_LSP_TRACE_*",
+      "TCL_LSP_NATIVE_CODEGEN_DIAGNOSTIC"
+    ]
+  },
+  "listing_timeout_basis": "New compact adapter bound30s; original failclosed253 Formatter runner had no explicit listing timeout."
+}

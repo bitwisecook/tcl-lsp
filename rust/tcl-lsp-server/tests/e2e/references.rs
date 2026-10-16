@@ -1022,7 +1022,9 @@ fn find_references_reaches_an_unopened_tcltest_file_923_idx27() {
     .expect("write a.test");
 
     let mut lsp = Lsp::at_workspace_root(&root);
-    let uri = format!("file://{}", lib.to_string_lossy());
+    let uri = tcl_lsp_server::canonical_file_uri(&lib)
+        .expect("fixture path has a representable file URI")
+        .to_string();
     lsp.open_ready(&uri, &std::fs::read_to_string(&lib).expect("read"));
 
     // The workspace index is built asynchronously; poll (via

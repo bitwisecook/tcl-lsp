@@ -2134,6 +2134,10 @@ struct LocalFacts {
     param_trait_flags: HashMap<String, HashSet<ProcArgTrait>>,
     param_references: HashSet<String>,
     param_observations_incomplete: bool,
+    /// Conditional source incidence only; never participates in Native alias,
+    /// effects, purity, successful caller templates or physical cell summaries.
+    source_parameter_aliases:
+        HashMap<String, crate::registry_invocation::OriginalAuthoredFormalAliasObservation>,
     /// Local variable names this proc aliased into global /
     /// enclosing-namespace scope via `global` / `variable` / `upvar
     /// #0`. A later bare `set g` / `incr g` / `append g` to one of
@@ -2203,6 +2207,7 @@ impl Default for LocalFacts {
             param_trait_flags: HashMap::new(),
             param_references: HashSet::new(),
             param_observations_incomplete: true,
+            source_parameter_aliases: HashMap::new(),
             global_aliases: HashSet::new(),
             upvar_aliases: HashMap::new(),
             impure_beyond_links: true,
@@ -2421,6 +2426,81 @@ fn note_original_authored_body_call_parameters(ctx: ScanCtx<'_>, facts: &mut Loc
             .all(|call| call.accepts_arguments() && ctx.known.contains(&call.id()))
     {
         note_original_command_params(ctx, ProcArgTrait::ForwardedToCallee, facts);
+    }
+}
+
+/// Source-only alias/formal incidence follows actual represented sibling
+/// commands; runtime entry/lookup/observer uncertainty remains explicit.
+fn note_original_authored_alias_parameters(ctx: ScanCtx<'_>, facts: &mut LocalFacts) {
+    let command = ctx.current_tokens.and_then(|tokens| {
+        crate::registry_invocation::original_authored_parameter_source_command_for_module(
+            tokens,
+            ctx.source_module,
+            ctx.registry,
+        )
+    });
+    let Some(command) = command.filter(|command| Some(command.body()) == ctx.parameter_body) else {
+        facts.source_parameter_aliases.clear();
+        return;
+    };
+    // The source recipe supplies no entered body, actual lookup or observer
+    // closure, even when the original symbolic argument layout is complete.
+    if !command.aliases().is_empty() || !facts.source_parameter_aliases.is_empty() {
+        facts.param_observations_incomplete |= command.has_unproved_applicability();
+    }
+    facts
+        .source_parameter_aliases
+        .retain(|_, alias| alias.belongs_to(&command));
+    let mut declarations = HashSet::new();
+    for alias in command.aliases() {
+        if let Some(parameter) = command
+            .alias_target_formal(alias)
+            .filter(|parameter| ctx.params.contains(*parameter))
+        {
+            facts.param_references.insert(parameter.to_owned());
+            facts
+                .param_trait_flags
+                .entry(parameter.to_owned())
+                .or_default()
+                .insert(ProcArgTrait::VarRead);
+        }
+        let Some(local) = command.literal(alias.words.local) else {
+            facts.source_parameter_aliases.clear();
+            continue;
+        };
+        if !command.local_scalar(local) || alias.local.literal() != Some(local) {
+            facts.source_parameter_aliases.clear();
+            continue;
+        }
+        declarations.insert(local.to_owned());
+        facts.source_parameter_aliases.remove(local);
+        if let Some(observation) = command.caller_alias(alias) {
+            facts
+                .source_parameter_aliases
+                .insert(local.to_owned(), observation);
+        }
+    }
+    for &(argument, role) in command.roles() {
+        if role != tcl_registry::ArgRole::VarWrite {
+            continue;
+        }
+        let Some(local) = command.literal(argument) else {
+            facts.source_parameter_aliases.clear();
+            continue;
+        };
+        if declarations.contains(local) {
+            continue;
+        }
+        if let Some(alias) = facts.source_parameter_aliases.get(local) {
+            facts
+                .param_trait_flags
+                .entry(alias.parameter().to_owned())
+                .or_default()
+                .insert(ProcArgTrait::VarWrite);
+        }
+    }
+    if !command.continues() {
+        facts.source_parameter_aliases.clear();
     }
 }
 
@@ -2688,6 +2768,8 @@ fn possible_body_id(word: &str, ctx: ScanCtx<'_>) -> Option<ProcedureId> {
 /// [`scan_statement`]'s own `Statement::Barrier` arm (unscanned code must
 /// not be silently under-counted as pure / effect-free).
 fn scan_script(script: &crate::ir::Script, ctx: ScanCtx<'_>, facts: &mut LocalFacts, depth: u32) {
+    // Different scripts/branches cannot donate conditional alias continuation.
+    facts.source_parameter_aliases.clear();
     if MAX_INTERPROCEDURAL_WALK_DEPTH.exceeded(depth) {
         facts.param_observations_incomplete = true;
         facts.has_barrier = true;
@@ -2705,6 +2787,7 @@ fn scan_script(script: &crate::ir::Script, ctx: ScanCtx<'_>, facts: &mut LocalFa
             depth,
         );
     }
+    facts.source_parameter_aliases.clear();
 }
 
 /// Process a `Statement::Call` for interprocedural facts: side-
@@ -3722,6 +3805,7 @@ fn scan_statement(
         ..ctx
     };
     note_original_command_references(ctx, facts);
+    note_original_authored_alias_parameters(ctx, facts);
     note_original_authored_body_call_parameters(ctx, facts);
     let ctx = scan_retained_substitutions(retained_tokens, ctx, facts);
     if let Some(tokens) = retained_tokens {
@@ -7022,6 +7106,156 @@ mod tests {
             &identities,
             None,
         )
+    }
+
+    #[test]
+    fn original_authored_alias_reports_keep_source_formals_frames_and_unknown_debts() {
+        let source = "proc p {n v spare} {upvar 1 $n x; set x $v}";
+        let (context, unit) = original_reference_unit(source);
+        let registry = context.commands();
+        let module = &unit.ir_module;
+        let (&id, _) = module
+            .original_authored_declaration_body_units
+            .iter()
+            .next()
+            .unwrap();
+        let procedure = &module.body_units[&id];
+        let tokens = procedure
+            .body
+            .retained_source_tokens_for_statement(&procedure.body.statements[0])
+            .unwrap();
+        let command =
+            crate::registry_invocation::original_authored_parameter_source_command_for_module(
+                tokens, module, registry,
+            )
+            .expect("actual original alias source row");
+        assert_eq!(command.body(), id);
+        assert!(command.has_unproved_applicability());
+        let [alias] = command.aliases() else {
+            panic!("one Registry alias declaration");
+        };
+        let held = command
+            .caller_alias(alias)
+            .expect("conditional caller alias incidence");
+        assert_eq!(held.parameter(), "n");
+        let write = procedure
+            .body
+            .retained_source_tokens_for_statement(&procedure.body.statements[1])
+            .unwrap();
+        let write =
+            crate::registry_invocation::original_authored_parameter_source_command_for_module(
+                write, module, registry,
+            )
+            .expect("actual retained source successor");
+        assert!(held.belongs_to(&write));
+        let facts = original_reference_facts(&unit, registry);
+        let observed = &facts[&id];
+        assert!(observed.param_trait_flags["n"].contains(&ProcArgTrait::VarRead));
+        assert!(observed.param_trait_flags["n"].contains(&ProcArgTrait::VarWrite));
+        assert!(observed.param_observations_incomplete);
+        assert!(observed.has_unknown_calls);
+        assert!(observed.upvar_aliases.is_empty());
+        assert!(observed.global_aliases.is_empty());
+        assert!(observed.name_params.is_empty());
+        assert!(observed.source_parameter_aliases.is_empty());
+        assert!(
+            observed
+                .effect_writes
+                .intersects(EffectRegion::UNKNOWN_STATE)
+        );
+        assert!(
+            tokens
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .proved_execution_target()
+                .is_none()
+        );
+        let cloned = tokens.clone();
+        assert!(
+            crate::registry_invocation::original_authored_parameter_source_command_for_module(
+                &cloned, module, registry
+            )
+            .is_none()
+        );
+        let mut changed = module.clone();
+        changed.lexer_config.strict_quoting = !changed.lexer_config.strict_quoting;
+        assert!(
+            crate::registry_invocation::original_authored_parameter_source_command_for_module(
+                tokens, &changed, registry
+            )
+            .is_none()
+        );
+        let mut changed = module.clone();
+        changed.body_units.get_mut(&id).unwrap().params_raw = "other".to_owned();
+        assert!(
+            crate::registry_invocation::original_authored_parameter_source_command_for_module(
+                tokens, &changed, registry
+            )
+            .is_none()
+        );
+        assert!(
+            crate::registry_invocation::original_authored_parameter_source_command_for_module(
+                tokens,
+                module,
+                tcl_registry::model::ingress::static_context_for("tcl9.0").commands()
+            )
+            .is_none()
+        );
+
+        for body in [
+            "upvar #0 $n x; set x 1",
+            "upvar 0 $n x; set x 1",
+            "upvar 2 $n x; set x 1",
+            "upvar $level $n x; set x 1",
+            "upvar 1 $n x; unknownCommand; set x 1",
+            "upvar 1 $n x; global x; set x 1",
+            "if {1} {upvar 1 $n x}; set x 1",
+        ] {
+            let source = format!("proc p {{n level}} {{{body}}}");
+            let (context, unit) = original_reference_unit(&source);
+            let (&id, _) = unit
+                .ir_module
+                .original_authored_declaration_body_units
+                .iter()
+                .next()
+                .unwrap();
+            let facts = original_reference_facts(&unit, context.commands());
+            assert!(
+                !facts[&id]
+                    .param_trait_flags
+                    .get("n")
+                    .is_some_and(|traits| traits.contains(&ProcArgTrait::VarWrite)),
+                "{body}"
+            );
+            assert!(facts[&id].upvar_aliases.is_empty(), "{body}");
+        }
+        let (context, unit) = original_reference_unit("proc p {::n} {upvar 1 $::n x; set x 1}");
+        let (&id, _) = unit
+            .ir_module
+            .original_authored_declaration_body_units
+            .iter()
+            .next()
+            .unwrap();
+        let facts = original_reference_facts(&unit, context.commands());
+        assert!(
+            !facts[&id]
+                .param_trait_flags
+                .get("::n")
+                .is_some_and(|traits| traits.contains(&ProcArgTrait::VarWrite))
+        );
+        let (context, unit) =
+            original_reference_unit("proc p {n other} {upvar 1 $n x; upvar 1 $other x; set x 1}");
+        let (&id, _) = unit
+            .ir_module
+            .original_authored_declaration_body_units
+            .iter()
+            .next()
+            .unwrap();
+        let facts = original_reference_facts(&unit, context.commands());
+        assert!(facts[&id].param_trait_flags["n"].contains(&ProcArgTrait::VarRead));
+        assert!(!facts[&id].param_trait_flags["n"].contains(&ProcArgTrait::VarWrite));
+        assert!(facts[&id].param_trait_flags["other"].contains(&ProcArgTrait::VarWrite));
     }
 
     #[test]

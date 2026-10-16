@@ -227,17 +227,13 @@ fn explain_virtual(model: &Model, vs: &Value) -> Vec<Section> {
             .resolve(ExplainKind::Rule, rref)
             .unwrap_or_else(|| rref.to_owned());
         if let Some(rule) = model.get(ExplainKind::Rule, &resolved) {
-            let body = rule.get("source").and_then(Value::as_str).unwrap_or("");
-            let events: BTreeSet<String> = tcl_irules::when_blocks(body)
-                .into_iter()
-                .map(|block| block.event)
-                .collect();
-            let loc = count_irule_lines(body);
-            let event_str = if events.is_empty() {
-                "(no when blocks)".to_owned()
-            } else {
-                events.into_iter().collect::<Vec<_>>().join(", ")
-            };
+            let body = rule.get("source").and_then(Value::as_str);
+            let loc = count_irule_lines(body.unwrap_or(""));
+            let inventory = body.map_or(
+                tcl_irules::IrulesWhenSourceInventory::Unavailable,
+                tcl_irules::when_source_inventory,
+            );
+            let event_str = source_event_summary(inventory);
             rules.push(format!("{resolved} — {loc} loc; events: {event_str}"));
         } else {
             rules.push(format!("{rref} (unresolved)"));
@@ -299,6 +295,31 @@ fn explain_virtual(model: &Model, vs: &Value) -> Vec<Section> {
     sections.push(("default pool", or_none(pool_lines)));
 
     sections
+}
+
+/// Source declaration labels, never an installed or executed handler census.
+fn source_event_summary(inventory: tcl_irules::IrulesWhenSourceInventory) -> String {
+    let tcl_irules::IrulesWhenSourceInventory::Available(inventory) = inventory else {
+        return "(event inventory unavailable)".to_owned();
+    };
+    let events: BTreeSet<&str> = inventory
+        .declarations()
+        .iter()
+        .map(|event| event.event())
+        .collect();
+    if events.is_empty() {
+        return if inventory.is_complete() {
+            "(no when blocks)".to_owned()
+        } else {
+            "(event inventory unavailable)".to_owned()
+        };
+    }
+    let names = events.into_iter().collect::<Vec<_>>().join(", ");
+    if inventory.is_complete() {
+        names
+    } else {
+        format!("{names} (additional source declarations unavailable)")
+    }
 }
 
 fn explain_pool_lines(pool: &Value) -> Vec<String> {
@@ -485,11 +506,7 @@ pub fn run_explain(
     // Resolve inputs via the UCS-aware loader, so a `.ucs` — plain or encrypted
     // — is transparently extracted to SCF and parsed just like a `.conf`/`.scf`.
     let opts = crate::cli::PassphraseArgs::default().to_options();
-    let paths: Vec<String> = inputs
-        .iter()
-        .map(|p| p.to_string_lossy().into_owned())
-        .collect();
-    let configs: Vec<BigipConfig> = tcl_bigip_io::load_paths(&paths, &opts)
+    let configs: Vec<BigipConfig> = tcl_bigip_io::load_paths(inputs, &opts)
         .map_err(|e| anyhow::anyhow!("{e}"))?
         .into_iter()
         .map(|loaded| loaded.config)
@@ -548,4 +565,29 @@ fn py_repr(s: &str) -> String {
         '\''
     };
     format!("{quote}{s}{quote}")
+}
+
+#[cfg(test)]
+mod source_event_tests {
+    use super::source_event_summary;
+
+    #[test]
+    // naming.consumer.original-irules-source-context
+    // docs/design/analysis/name-resolution-proofs/original-irules-source-context.md
+    fn source_event_report_separates_owned_empty_and_unavailable() {
+        assert_eq!(
+            source_event_summary(tcl_irules::IrulesWhenSourceInventory::Unavailable),
+            "(event inventory unavailable)"
+        );
+        assert_eq!(
+            source_event_summary(tcl_irules::when_source_inventory("# empty source\n")),
+            "(no when blocks)"
+        );
+        assert_eq!(
+            source_event_summary(tcl_irules::when_source_inventory(
+                "when HTTP_REQUEST {}; when CLIENT_ACCEPTED {}"
+            )),
+            "CLIENT_ACCEPTED, HTTP_REQUEST"
+        );
+    }
 }

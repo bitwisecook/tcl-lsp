@@ -1,0 +1,40 @@
+{
+  "purpose": "Host-owned distribution/bootstrap root storage when actual engine and active native profile are absent",
+  "count": {
+    "existing_owner": "vm.native.actual-engine-provenance-owner",
+    "additional_owner_requirements": 0,
+    "baseline_callers": "existing VM bootstrap/constructor family; no whole baseline closure claimed"
+  },
+  "patch_sha256": "7b5513254f6bc87585a91bebf2bb66604a6ca2a7289359008352b3a284e5bafc",
+  "files": {
+    "rust/tcl-vm/src/interp.rs": {
+      "base_sha256": "0c6c6cdb260b705d0974b300b035195feb6aebd4bebacb93a4b8789fa6e9b68e",
+      "edit_sha256": "11008e623c6bf2561dc1d1edc8a1d617d6adc976cb8840dd9e6528b8d66eff27"
+    }
+  },
+  "diagnosis": {
+    "frozen_suite": "/workspace/naming-validation/five-library-cd0",
+    "binary": "/workspace/naming-validation/five-library-cd0/frozen-binaries/tcl_vm-80b96b754505a5a3",
+    "binary_sha256": "cdc6fb88ab7fabf82afbee1dcc402c1a832c011c89a0c00249e6cd8b899636f5",
+    "logs": [
+      "/workspace/naming-validation/five-library-cd0/tcl_vm-cmd_info--.log",
+      "/workspace/naming-validation/five-library-cd0/tcl_vm-cmd_namespace--.log"
+    ],
+    "counts": "Info19PASS5FAIL and Namespace47PASS10FAIL, all15 at host bootstrap ensure_array expect4260; not candidate acceptance"
+  },
+  "validation": {
+    "cargo": "not run; Root sole build owner",
+    "tests": "not run; authored fixed assertions only",
+    "format": "isolated rustfmt skip_children true edition2024",
+    "patch": "final patch --dry-run -p1 clean against unchanged current main"
+  },
+  "selectors": [
+    "interp::host_bootstrap_storage_tests::distribution_host_bootstrap_owns_storage_without_a_native_name_policy",
+    "interp::host_bootstrap_storage_tests::host_release_slot_keeps_a_name_link_to_a_missing_array_element",
+    "cmd_info::",
+    "cmd_namespace::",
+    "interp::native_bootstrap::native_core_root_cells_match_six_original_constructor_inventories",
+    "interp::native_child_constructor_tests::jim_child_bootstrap_values_have_the_child_allocator_birth"
+  ],
+  "revision": "V2: shared unchanged resolved scalar storage preserves missing-element NameLink branch"
+}

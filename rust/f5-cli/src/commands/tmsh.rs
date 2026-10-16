@@ -37,9 +37,8 @@ pub fn run_tmsh(
     modify: bool,
     include: &[String],
 ) -> anyhow::Result<u8> {
-    let path_str = path.to_string_lossy();
     let opts = crate::cli::PassphraseArgs::default().to_options();
-    let (_uri, source) = match read_path(&path_str, false, &opts) {
+    let (_uri, source) = match read_path(path, false, &opts) {
         Ok(pair) => pair,
         Err(e) => {
             eprintln!("error: {e}");

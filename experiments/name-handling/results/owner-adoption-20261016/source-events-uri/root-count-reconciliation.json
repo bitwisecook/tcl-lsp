@@ -1,0 +1,19 @@
+{
+  "baseline_adopters": [
+    "lsp.validation.07.00.fn0",
+    "lsp.validation.07.00.fn1",
+    "lsp.validation.07.00.fn2",
+    "lsp.validation.07.02.fn0",
+    "lsp.validation.07.03.fn0",
+    "lsp.validation.07.13.fn0"
+  ],
+  "baseline_delta": 6,
+  "new_annex_caller": "f5.explain.original-source-event-inventory",
+  "new_annex_delta": 1,
+  "shared_owner_delta": 0,
+  "remaining_registry_events_baseline": "Unchanged/open",
+  "remaining_uri_policy": "POSIX // authority unchanged/open",
+  "events_manifest_correction": "Old manifest partial baseline description superseded: no baseline implemented/partial delta. Explain caller only.",
+  "uri_manifest_correction": "Old claim unsupported paths return None requires the separately reviewed selected-path admission repair now integrated.",
+  "verified_complete": 0
+}

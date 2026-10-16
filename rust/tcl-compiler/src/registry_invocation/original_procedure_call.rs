@@ -208,8 +208,8 @@ pub(crate) fn original_authored_body_procedure_calls_for_module<'a>(
     owners.next().is_none().then_some(())?;
     // Reborrow the already retained actual source row, exactly as the scalar
     // source producer does. This clone is private to this readonly call receipt.
-    let mut declared = tokens.clone();
-    positioned.stamp_original_tokens(&mut declared);
+    let declared =
+        positioned.original_authored_declaration_source_tokens(tokens, scope, registry)?;
     let advice = declared
         .source_binding
         .as_ref()?

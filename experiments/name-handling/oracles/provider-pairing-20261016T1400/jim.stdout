@@ -1,0 +1,7 @@
+patchlevel=0.84-9-g5bac7c9
+executable=/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh
+auto_path=/workspace/tcl-lsp/tmp/jimtcl-oracle /workspace/tcl-lsp/tmp/jimtcl-oracle/install/lib/jim
+support=/workspace/tcl-lsp/tmp/jimtcl-oracle/tcltest.tcl
+support_command=::test
+tests_run=0
+pairing=accepted

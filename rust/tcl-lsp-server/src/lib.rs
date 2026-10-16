@@ -32740,7 +32740,12 @@ fn whole_line_range(
 /// they are two documents to everything keyed by URI: find-references,
 /// workspace symbols, and rename each see one file twice.
 ///
-/// The canonicalisation starts with `ls_types`' own `from_file_path`, then
+/// Relative paths retain the provider's filesystem canonicalisation requirement;
+/// absolute paths need not exist and keep their supplied spelling. The selected
+/// actual path must be losslessly representable as Unicode: opaque native units
+/// return `None`, while a literal Unicode replacement character remains data.
+///
+/// URI construction uses `ls_types`' own `from_file_path`, then
 /// [`uri_norm::repair_file_uri_from_path`] gives a leading `//` the authority
 /// shape `VS Code`'s `URI.file` uses on every host and removes Windows-only
 /// extended-length markers. Finally, [`uri_norm::canonical_uri_string`] pins
@@ -32749,6 +32754,16 @@ fn whole_line_range(
 #[must_use]
 pub fn canonical_file_uri<P: AsRef<Path>>(path: P) -> Option<Uri> {
     let path = path.as_ref();
+    // Match the provider's actual path selection before admitting Unicode.
+    // A relative ASCII symlink can resolve to opaque native filename units;
+    // checking its written spelling would still permit a replacement URI.
+    let selected = if path.is_absolute() {
+        std::borrow::Cow::Borrowed(path)
+    } else {
+        std::borrow::Cow::Owned(std::fs::canonicalize(path).ok()?)
+    };
+    selected.to_str()?;
+    let path = selected.as_ref();
     let raw = match Uri::from_file_path(path) {
         Some(raw) => raw,
         // wasm32-unknown-unknown only; `cfg!` rather than `#[cfg]` so the
@@ -35790,6 +35805,77 @@ info exists ::N::v\uD800";
         let child = resolve_source_uri(app.as_str(), "lib/util.tcl").unwrap();
         let expected = Uri::from_file_path("/proj/lib/util.tcl").unwrap();
         assert_eq!(child, expected.as_str());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn canonical_file_uri_declines_opaque_actual_path_without_replacement_alias() {
+        use std::os::unix::{ffi::OsStringExt, fs::symlink};
+        let workspace = TmpWs::new("uri-native-path");
+        let opaque = workspace
+            .0
+            .join(std::ffi::OsString::from_vec(b"opaque-\xff.tcl".to_vec()));
+        let replacement = workspace.0.join("opaque-\u{fffd}.tcl");
+        let unicode = workspace.0.join("space é.tcl");
+        for path in [&opaque, &replacement, &unicode] {
+            std::fs::write(path, "original fixture").unwrap();
+        }
+        assert!(canonical_file_uri(&opaque).is_none());
+        let replacement_uri =
+            canonical_file_uri(&replacement).expect("literal replacement character is Unicode");
+        assert!(replacement_uri.as_str().ends_with("/opaque-%EF%BF%BD.tcl"));
+        assert!(
+            canonical_file_uri(&unicode)
+                .unwrap()
+                .as_str()
+                .ends_with("/space%20%C3%A9.tcl")
+        );
+
+        let link = workspace.0.join("ascii-link.tcl");
+        symlink(&opaque, &link).unwrap();
+        assert!(
+            canonical_file_uri(&link).is_some(),
+            "absolute symlinks keep their written path"
+        );
+        let cwd = std::env::current_dir().unwrap();
+        let mut relative = PathBuf::new();
+        for _ in cwd.components().skip(1) {
+            relative.push("..");
+        }
+        relative.push(link.strip_prefix("/").unwrap());
+        assert!(!relative.is_absolute());
+        assert!(relative.to_str().is_some());
+        assert_eq!(
+            std::fs::canonicalize(&relative).unwrap(),
+            std::fs::canonicalize(&opaque).unwrap()
+        );
+        assert!(
+            canonical_file_uri(&relative).is_none(),
+            "admission must inspect the actual canonical target, not the ASCII symlink spelling"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn canonical_file_uri_preserves_absolute_and_relative_existence_policy() {
+        let workspace = TmpWs::new("uri-existence");
+        let absent = workspace.0.join("absent é.tcl");
+        assert!(!absent.exists());
+        assert!(
+            canonical_file_uri(&absent)
+                .unwrap()
+                .as_str()
+                .ends_with("/absent%20%C3%A9.tcl")
+        );
+        let cwd = std::env::current_dir().unwrap();
+        let mut relative = PathBuf::new();
+        for _ in cwd.components().skip(1) {
+            relative.push("..");
+        }
+        relative.push(absent.strip_prefix("/").unwrap());
+        assert!(canonical_file_uri(&relative).is_none());
+        std::fs::write(&absent, "original fixture").unwrap();
+        assert_eq!(canonical_file_uri(&relative), canonical_file_uri(&absent));
     }
 
     #[cfg(unix)]

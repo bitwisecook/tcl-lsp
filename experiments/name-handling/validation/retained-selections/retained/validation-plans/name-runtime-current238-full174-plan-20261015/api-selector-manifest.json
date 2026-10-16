@@ -1,0 +1,14 @@
+{
+  "package": "tcl-runtime-api",
+  "target": "lib",
+  "source_path": "rust/tcl-runtime-api/src/jim_error_stack.rs",
+  "source_sha256": "3cd20267741acffe515ae504da82970f03bf87069a9e6df261f64eb40d83c920",
+  "exact": [
+    "jim_error_stack::tests::capture_selects_proc_levels_and_retains_materialized_invocations",
+    "jim_error_stack::tests::script_failure_has_no_command_and_missing_frame_is_unknown",
+    "jim_error_stack::tests::explicit_trace_survives_unwinding_until_a_new_evaluation_captures",
+    "jim_error_stack::tests::frame_selection_reads_only_actual_selected_coordinates"
+  ],
+  "expected_count": 4,
+  "scope": "Separate actual API binary: three unchanged originals and one new shared frame-coordinate selector control. No Runtime/oracle execution claim."
+}

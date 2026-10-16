@@ -1,0 +1,22 @@
+{
+  "unit": "compiler.source.original-formal-reference-observations:3936",
+  "new_unit_count": 0,
+  "supersedes": "/tmp/compiler-authored-declaration-source-stamp-v3/authored-declaration-source-stamp-v3.patch",
+  "base_sha256": {
+    "rust/tcl-compiler/src/command_binding/declaration_layout.rs": "cc107dd859b62dba789be4516d3341163ec8569ffd08613c0d58ca328a5a96ea",
+    "rust/tcl-compiler/src/lowering/mod.rs": "986eff807d15dffa5ed2e74ac08b0f81d8f19bdc55e6805b20307b55f54dec56",
+    "rust/tcl-compiler/src/registry_invocation/authored_body_scope.rs": "c5ed3408809938161241ff3c5d02d73893683a21883d6682c6c67d5e8c2e6aa4",
+    "rust/tcl-compiler/src/registry_invocation/authored_controls.rs": "82f4116ac84f93c090af08f2bde477559fee62b8877d34eb5fc64a34548cf5a6",
+    "rust/tcl-compiler/src/registry_invocation/original_procedure_call.rs": "e83abb198f7d7939da55e7ba91e08ea91cb2ce42aaaa418e66844cd39d4f11d7"
+  },
+  "edit_sha256": {
+    "rust/tcl-compiler/src/command_binding/declaration_layout.rs": "f9ff1682d7c5e5379866199656b3ede7f5fe188088beb006e62c97d04408e8da",
+    "rust/tcl-compiler/src/lowering/mod.rs": "cdfe2e168b3c9530ac2bc01607f1fb036588598aef8c6ea2bc8fda720a8b893d",
+    "rust/tcl-compiler/src/registry_invocation/authored_body_scope.rs": "f3dddde6f1eacb7e397b58ae4141417ecb3e216ccddfa06517bd2256b687cdb2",
+    "rust/tcl-compiler/src/registry_invocation/authored_controls.rs": "bf8ce558570b6bfcca5b49a2f01c143d30c8fc733deca27e0bb097fdb3ae269b",
+    "rust/tcl-compiler/src/registry_invocation/original_procedure_call.rs": "cadc57035e9eaf3c3ab1929bb25cb33dee042f580f7278a1c9d3fb3b8f23ea12"
+  },
+  "patch_sha256": "d1df1b64dcf1513fedcbc0d66d9b458c7eb1ff275aed0617b13b244531460213",
+  "candidate_tests": "not run; Root owns Cargo/main",
+  "frozen_diagnosis": "/tmp/compiler-scalar-source-transport-cd0-diagnosis-v1/manifest.json"
+}

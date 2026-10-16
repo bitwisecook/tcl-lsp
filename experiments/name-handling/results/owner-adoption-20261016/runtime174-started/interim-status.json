@@ -1,0 +1,15 @@
+{
+  "status": "RUNNING_LIBRARY_SUBGROUP_ONLY",
+  "utc": "2026-10-16T14:04:39.838773+00:00",
+  "completed_selected_library_runs": 94,
+  "PASS": 94,
+  "FAIL": 0,
+  "full_Runtime174_acceptance": false,
+  "remaining_required_groups": {
+    "native_namespace_command_query": 51,
+    "tcl_registry": 3
+  },
+  "capture": "/workspace/naming-validation/runtime174-current",
+  "selection_sha256": "0c757949d6ae2d2790f3fc6f50c94eb5c55fa3b17d7dae094b8a78054ce5d5cf",
+  "provider_pairing": "experiments/name-handling/oracles/provider-pairing-20261016T1400/capture.json"
+}

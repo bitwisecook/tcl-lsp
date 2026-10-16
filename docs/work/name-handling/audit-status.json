@@ -401,12 +401,12 @@
   "incoming_rust": "Incoming `origin/rust` is now `ca698d87c824da24053c7abe279bb505a0acd9cb` (#2477 compiled/direct evaluation, literal-index and error-reporting changes), unmerged and unadmitted. The audit counts are for work at the recorded baseline plus explicit work-source annexes. Recheck and reconcile incoming source before integration; no acceptance is donated from the incoming branch.",
   "implementation_progress": {
     "resumed_from": "554085e162823ea8bd126898d0c27b7b2a9f8628",
-    "utc": "2026-10-16T13:24:11.505667+00:00",
+    "utc": "2026-10-16T13:57:25.611755+00:00",
     "audit_baseline_counts_unchanged": true,
     "total_required_units": 2158,
-    "implemented_pending_validation": 133,
+    "implemented_pending_validation": 143,
     "verified_complete": 0,
-    "not_started": 2025,
+    "not_started": 2015,
     "remaining_unverified_or_unimplemented": 2158,
     "additional_work_not_counted_as_catalogue_completion": [
       "Native variable-expression read/cell/trace/child-body observer producer remains open; pure expression gap receipt grants no such authority.",
@@ -566,7 +566,7 @@
     "withheld_drafts": [
       "Minifier command/argument alias construction: missing genuine source action/insertion owner; original unknown-command controls remain unchanged."
     ],
-    "owner_facet_reconciliation": "32 additional unverified requirements:30 integrated pending validation,2 not integrated. The newly demonstrated dynamic-key source-reference layout is counted once; unchanged graph/grep callers are not recounted.",
+    "owner_facet_reconciliation": "33 additional unverified requirements:31 integrated pending validation,2 not integrated. New explain Source-event caller counted once; Registry events baseline remains unchanged/open.",
     "runtime_build": {
       "status": "PASS",
       "seconds": 57.46,
@@ -659,13 +659,13 @@
     },
     "additional_owner_annex": {
       "path": "docs/work/name-handling/implementation-owner-annex.json",
-      "required": 32,
-      "implemented_pending_validation": 30,
+      "required": 33,
+      "implemented_pending_validation": 31,
       "not_integrated": 2,
       "verified_complete": 0
     },
-    "effective_required_units": 2190,
-    "effective_implemented_pending_validation": 163,
+    "effective_required_units": 2191,
+    "effective_implemented_pending_validation": 174,
     "effective_verified_complete": 0,
     "incoming_remote": {
       "rust": "c60f938ddd2a8d92a3bc251c57fa3609d77593c3",
@@ -839,7 +839,7 @@
       "scope": "Selected controls only. Completed99tests are65PASS34FAIL. Preview failure retained separately; no whole-group or gate acceptance.",
       "capture": "experiments/name-handling/results/owner-adoption-20261016/cli-mcp-server-889"
     },
-    "fully_implemented_pending_validation": 131,
+    "fully_implemented_pending_validation": 141,
     "partially_implemented_pending_validation": 2,
     "runtime_report_adoptions": {
       "baseline_units": [
@@ -905,6 +905,63 @@
       },
       "scope": "Selected original controls; no full-suite, issue, Native provider equivalence or repository gate acceptance.",
       "capture": "experiments/name-handling/results/owner-adoption-20261016/runtime-report-adoptions"
+    },
+    "next_uri_validation": {
+      "baseline_units": [
+        "lsp.validation.07.00.fn0",
+        "lsp.validation.07.00.fn1",
+        "lsp.validation.07.00.fn2",
+        "lsp.validation.07.02.fn0",
+        "lsp.validation.07.03.fn0",
+        "lsp.validation.07.13.fn0"
+      ],
+      "count": 6,
+      "status": "integrated_pending_validation",
+      "owner_repair_count": 0,
+      "scope": "Separate existing canonical_file_uri selected-path representability slice; original // authority policy debt stays open, no whole-owner completion counted."
+    },
+    "source_event_inventory": {
+      "new_caller_annex": "f5.explain.original-source-event-inventory",
+      "baseline_delta": 0,
+      "shared_owner_delta": 0,
+      "status": "integrated_pending_validation"
+    },
+    "native_path_loader_four": {
+      "baseline_units": [
+        "root:host.bigip-native-loader:231:0",
+        "root:host.bigip-native-loader:238:0",
+        "root:host.bigip-native-loader:240:0",
+        "root:host.bigip-native-loader:66:0"
+      ],
+      "baseline_delta": 4,
+      "new_owner_delta": 0,
+      "scope": "Existing checked native path ingress owner adopts realPath inputs instead of local lossy conversion; no new independent requirement.",
+      "status": "integrated_pending_validation"
+    },
+    "reviewed_host_source_uri_build": {
+      "status": "running",
+      "log": "/tmp/naming-reviewed-host-source-uri-build.log",
+      "source_binding": "/workspace/naming-validation/reviewed-host-source-uri/source-binding.json",
+      "first_build": "Compiler E0616 private declaration field; fixed via existing declaration_site() accessor. Failed log retained; no guard change."
+    },
+    "runtime174_replay": {
+      "status": "running_exact_library120_subgroup_only",
+      "full_selection": 174,
+      "groups": {
+        "tcl_runtime": 120,
+        "native_namespace_command_query": 51,
+        "tcl_registry": 3
+      },
+      "capture": "/workspace/naming-validation/runtime174-current",
+      "selection_sha256": "0c757949d6ae2d2790f3fc6f50c94eb5c55fa3b17d7dae094b8a78054ce5d5cf",
+      "full_acceptance": false
+    },
+    "provider_recheck_current": {
+      "status": "PASS_SETUP_ONLY",
+      "providers": 6,
+      "jim_upstream_head": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+      "capture": "/workspace/naming-validation/runtime174-current/provider-pairing",
+      "scope": "Actual original source inventories, installedbinary/loadedlibraries/init/tcltest pairing. No whole Runtime semantic or issue acceptance."
     }
   }
 }

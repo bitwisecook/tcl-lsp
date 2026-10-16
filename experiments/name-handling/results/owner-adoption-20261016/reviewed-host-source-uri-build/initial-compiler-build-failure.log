@@ -1,0 +1,10 @@
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp/rust/tcl-registry)
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+error[E0616]: field `declaration` of struct `DeclaredProcedureBody` is private
+    --> rust/tcl-compiler/src/command_binding/declaration_layout.rs:2739:22
+     |
+2739 |             if &body.declaration != scope.original_parent_site()?
+     |                      ^^^^^^^^^^^ private field
+
+For more information about this error, try `rustc --explain E0616`.
+error: could not compile `tcl-compiler` (lib) due to 1 previous error

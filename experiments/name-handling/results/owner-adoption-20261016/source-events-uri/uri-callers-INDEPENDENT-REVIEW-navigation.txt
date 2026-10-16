@@ -1,0 +1,69 @@
+Independent source review of uri-owner-integration.patch
+SHA-256 d967acf18e0a1d808797a37fc382708a1a4f2c84cfadc28e09f1558189073e57
+
+Verdict: CLEAR as the six bounded existing-owner CALLER ADOPTIONS, with an
+explicit unresolved provider limitation. Do not report complete non-Unicode
+native-path fidelity or validation acceptance. The manifest's assertion that
+unsupported original native paths return None is inaccurate for current owner.
+No main/Git/Cargo/build/tests performed. Patch dry-run passes. Independently
+verified patch hash, four live before hashes and four candidate after hashes.
+
+All six IDs exist in the actual authoritative final catalogue with the expected
+validation_code_repair kind and validation.native-path-uri family:
+- lsp.validation.07.00.fn0: ordinary real workspace root initialisation.
+- lsp.validation.07.00.fn1: actual environment/configured root initialisation.
+- lsp.validation.07.00.fn2: multi-root scoped configuration key and corresponding
+  workspaceFolders protocol URI; the two sites are ONE original unit.
+- lsp.validation.07.02.fn0: rename old/new/main request+expected URI construction.
+- lsp.validation.07.03.fn0: unopened Tcltest references actual file URI ingress.
+- lsp.validation.07.13.fn0: spec-pack root/document/watched-file URI helper.
+This is six pre-existing callable-boundary purposes, not six files or two units
+for the multi-root pair. Their shared family is not six different owner facets.
+
+The patch changes only native Path-to-URI construction. Fixtures, actual Path
+values, raw test sources, file writes/renames, request method and JSON field
+names, assertions, selectors, thresholds and settle budgets are unchanged.
+Preview files are untouched. Deliberately malformed URI tests/direct raw
+initialize_at URI ingress remain independent and unmodified. No filtering or
+conditional omission replaces a failing path; failed Option conversion is an
+explicit fixture construction failure.
+
+Actual canonical_file_uri semantics were traced into locked dependency source:
+/workspace/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ls-types-0.0.6/src/uri.rs
+- lines 215-224: absolute paths pass directly; relative paths alone use
+  strict_canonicalize (filesystem existence required, symlinks/cwd resolved).
+  Despite the dependency doc comment, absolute paths need not exist.
+- lines 232-244: both host branches call fragment.to_string_lossy(); invalid
+  Unicode native filename units are replaced BEFORE URI percent encoding.
+- canonical_file_uri then repairs platform authority/extended-prefix geometry
+  and canonicalises drive-letter / percent-escape CASE, with no fs lookup.
+Thus the absolute not-yet-created renamed new_path remains representable and
+unchanged as a path counterfactual. Spec-pack workspace already explicitly fs
+canonicalises its root before the helper; this patch adds none. Current
+ordinary/reference/rename/multi-root fixtures derive from temp_dir+ordinary
+components. Relative helper inputs would now be canonicalised and must exist;
+none of the changed concrete rename/reference/spec-pack uses depends on a
+missing relative path. No new absolute symlink resolution is introduced.
+
+URI->JSON: Uri exposes fluent_uri's string display; serde implementation also
+serialises as_str(). Calling to_string once then json! serialises that exact
+URI string. JSON escaping is not URI percent escaping: '%' is not URI-encoded
+again. Literal spaces/#/?/% are handled once by the actual Path owner before
+JSON. Scoped map keys and workspace folder values use the same canonical owner.
+Ordinary POSIX ASCII spellings stay identical; Windows drive/UNC and punctuation
+now follow the server's actual canonical protocol policy.
+
+P2 remaining owner limitation (pre-existing, not introduced by this caller
+patch): POSIX /work/<0xff>.tcl becomes a URI containing %EF%BF%BD, returned as
+Some, so neither expect nor parent canonicalisation detects loss of the original
+native name. Calling a shared function removes competing caller algebra but
+cannot provide a stronger native-name representation than its implementation.
+The existing Core file_uri::from_path owner explicitly declines such paths via
+to_str()? and has a non_unicode_paths_do_not_publish_a_replacement_character_uri
+control; it does not currently offer a faithful byte URI route either. Therefore
+correct the manifest and keep non-Unicode path fidelity OPEN under the genuine
+central owner boundary. Do not substitute ASCII temporary roots, silently skip
+those inputs, or add a caller-local encoder. A future byte-faithful owner needs
+its own actual supported-platform contract and roundtrip/adversary evidence.
+
+No binary acceptance or native provider result is asserted by this source review.

@@ -2827,9 +2827,10 @@ impl<'r> Lowerer<'r> {
         if self.readonly_authored_body {
             if let Some(scope) = &self.authored_source_scope {
                 let mut scalar = None;
-                if let Some(bindings) = &self.source_bindings {
-                    let mut declared = tokens.clone();
-                    bindings.stamp_original_tokens(&mut declared);
+                if let Some(bindings) = &self.source_bindings
+                    && let Some(mut declared) = bindings
+                        .original_authored_declaration_source_tokens(&tokens, scope, self.registry)
+                {
                     let original = declared.clone();
                     let retained = declared.source_binding.as_mut().and_then(|binding| {
                         binding.retain_original_authored_scalar_body_scope(

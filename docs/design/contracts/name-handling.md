@@ -637,6 +637,17 @@ or dynamic priority setters retain uncertainty; a later literal setter can
 restore authored priority advice. Source reports grant no event activation or
 appliance priority result.
 
+`when_source_inventory` projects actual lowered event/body declarations through
+that same retained source context and exact original top-level vectors. Its
+`IrulesWhenSourceInventory` result separates unavailable ownership from an owned
+inventory; missing source sites remain explicit beside any conditional rows.
+Declarations retain their original vendor cards, chronological lookup/namespace
+alternatives and preceding unknown mutation debt. Only complete source coverage
+with no declarations supplies an empty source inventory. CLI `explain` reports
+unavailable coverage explicitly instead of claiming no source when blocks.
+These source labels grant no installed handler, entered event frame, TMM
+execution or Native identity; stronger executable inventories remain separate.
+
 The private `tcl::clock::ParseFormatArgs`, `tcl::clock::getenv` and
 `tcl::clock::GetDateFields` workers have selected native C8.6 registry admission,
 shipped runtime backing and absent native compiler hooks. The parser and date

@@ -1,0 +1,12 @@
+{
+  "exact": [
+    "jim_c_style_interpreter_alias_surfaces_are_explicitly_unsupported",
+    "jim_child_handle_aliases_keep_original_parent_lookup_and_retirement"
+  ],
+  "filters": [],
+  "temporary_diagnostics": false,
+  "test_timeouts": {
+    "jim_c_style_interpreter_alias_surfaces_are_explicitly_unsupported": 180,
+    "jim_child_handle_aliases_keep_original_parent_lookup_and_retirement": 180
+  }
+}

@@ -1,0 +1,1508 @@
+{
+  "schema_version": 1,
+  "utc_start": "2026-10-16T14:00:27.078328+00:00",
+  "question": "Do installed original provider executables select their matching original script/test support under the shared source-tree execution environment?",
+  "scope": "setup/pairing acceptance only; no semantic conformance or unmeasured capability claim",
+  "owner": {
+    "source_tree_execution": "tcl_test_support::run_script_from_source_tree -> tclsh_from_source_tree -> run_script_with_libraries",
+    "selection_test": "tcl_test_support::tests::source_tree_execution_selects_matching_original_init_and_tcltest",
+    "execution_adapter": "capture.py mirrors owner environment with original raw process channels; C scripts supplied on stdin, Jim script uses file mode so argv0 exists"
+  },
+  "harness": [
+    {
+      "path": "/workspace/naming-validation/runtime174-current/provider-pairing/capture.py",
+      "realpath": "/workspace/naming-validation/runtime174-current/provider-pairing/capture.py",
+      "bytes": 12594,
+      "sha256": "82a31b078e52b1f31edeb59248d62a7d9bb77ef4fdbfb4ddfac6eda7e555f678"
+    },
+    {
+      "path": "/workspace/naming-validation/runtime174-current/provider-pairing/c-probe.tcl",
+      "realpath": "/workspace/naming-validation/runtime174-current/provider-pairing/c-probe.tcl",
+      "bytes": 1263,
+      "sha256": "cf5437f529fbcdd42ab04dea3fff1d40ea19abf643dff16ca470155c08e2fdef"
+    },
+    {
+      "path": "/workspace/naming-validation/runtime174-current/provider-pairing/jim-probe.tcl",
+      "realpath": "/workspace/naming-validation/runtime174-current/provider-pairing/jim-probe.tcl",
+      "bytes": 750,
+      "sha256": "01e56d8a0d14586e46b40b5840e3ba0a7a7bbb68d2d9ecd29570abcbe495a854"
+    }
+  ],
+  "repository_owners": [
+    {
+      "path": "/workspace/tcl-lsp/rust/tcl-dialect/data/reference-toolchains.tsv",
+      "realpath": "/workspace/tcl-lsp/rust/tcl-dialect/data/reference-toolchains.tsv",
+      "bytes": 163,
+      "sha256": "3832de4718477a58175e466aa3040953cd92bb5a5313c3c8aab34e515f0e5a2d"
+    },
+    {
+      "path": "/workspace/tcl-lsp/rust/tcl-test-support/src/lib.rs",
+      "realpath": "/workspace/tcl-lsp/rust/tcl-test-support/src/lib.rs",
+      "bytes": 43937,
+      "sha256": "73f8b63cb8e5bb1d7dbcf783b3baace1e8d0bdf4d20fac169a0bed76bef59adf"
+    },
+    {
+      "path": "/workspace/tcl-lsp/rust/tcl-test-support/src/jim.rs",
+      "realpath": "/workspace/tcl-lsp/rust/tcl-test-support/src/jim.rs",
+      "bytes": 11936,
+      "sha256": "e00f2eee74da2cf5f0d5124f250f5437502df2e460261f6d93d8e5192e2f3f2f"
+    },
+    {
+      "path": "/workspace/tcl-lsp/rust/tcl-test-support/jim-reference.txt",
+      "realpath": "/workspace/tcl-lsp/rust/tcl-test-support/jim-reference.txt",
+      "bytes": 177,
+      "sha256": "0808a582c3e9a7191196b430bfdb4b17341d50a603bfca8e678c0d78808beaba"
+    },
+    {
+      "path": "/workspace/tcl-lsp/scripts/dev/tcl-reference-toolchains.sh",
+      "realpath": "/workspace/tcl-lsp/scripts/dev/tcl-reference-toolchains.sh",
+      "bytes": 5490,
+      "sha256": "655d9125235466a12d2d9eb8db04c59dd3ee1a52304d4f3e364a6215fe51564b"
+    },
+    {
+      "path": "/workspace/tcl-lsp/scripts/dev/ensure-jim-oracle.sh",
+      "realpath": "/workspace/tcl-lsp/scripts/dev/ensure-jim-oracle.sh",
+      "bytes": 2381,
+      "sha256": "a3b693b8b0c3f505a645036c407781303cff013531492f9f2549930e69dddc07"
+    }
+  ],
+  "providers": [
+    {
+      "provider": "C Tcl",
+      "patchlevel": "8.4.20",
+      "release": "8.4",
+      "source_tag_from_owner": "core-8-4-20",
+      "source_root": "/workspace/tcl-lsp/tmp/tcl8.4.20",
+      "executable": {
+        "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+        "realpath": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+        "bytes": 887256,
+        "sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85"
+      },
+      "selected_source_and_support": [
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tcl.h",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tcl.h",
+          "bytes": 84169,
+          "sha256": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclBasic.c",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclBasic.c",
+          "bytes": 203688,
+          "sha256": "cab6d4decd1a3e365fe3cef49a2d5430dfef01cd775dd7d34f98064032f3a81a"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclNamesp.c",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclNamesp.c",
+          "bytes": 128490,
+          "sha256": "cd23865ee8d4b0ce81874d519b24de5b84a16c116ed3593ead366946b0512cbb"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdMZ.c",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdMZ.c",
+          "bytes": 143201,
+          "sha256": "b374cf4353b86235b189d432239a1eedf8e854eab266b701e9d9625b969d27dc"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/init.tcl",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/init.tcl",
+          "bytes": 22434,
+          "sha256": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/package.tcl",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/package.tcl",
+          "bytes": 25560,
+          "sha256": "3373e053b6b698e9aaf66542b97be199b59beb9a7eb73878238c0915a844343f"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/tcltest/pkgIndex.tcl",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/tcltest/pkgIndex.tcl",
+          "bytes": 611,
+          "sha256": "30d8ec3404ae35102274f991e84f7cdda6bb84181d60328ae50c2c6143ccd4de"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/tcltest/tcltest.tcl",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/tcltest/tcltest.tcl",
+          "bytes": 98952,
+          "sha256": "edda8af864f40c3d92c318472213497477616cc18089028c72c03852ecc9f587"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/tests/all.tcl",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl8.4.20/tests/all.tcl",
+          "bytes": 557,
+          "sha256": "5eb310ac82ec19396457a22045ce45b1b721645cb2889c5678ee4df48a541ba0"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/tests/tcltest.test",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl8.4.20/tests/tcltest.test",
+          "bytes": 50178,
+          "sha256": "63caa34b5ca838ca124845db620bddffbc0fe1046eb34b5d931887ce946134cd"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclConfig.sh",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclConfig.sh",
+          "bytes": 7148,
+          "sha256": "319a62a558ed2e52306c04602d7b5ed621e6ecc6c80722a9c692ba327a270b84"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/config.status",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/config.status",
+          "bytes": 8719,
+          "sha256": "7468528e9c8a7bfe4dec62e548bad887218143c5dd6ddf378d8189d045a2d2d5"
+        }
+      ],
+      "static_tcl_archives": [
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a",
+          "bytes": 1485660,
+          "sha256": "d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtclstub8.4.a",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtclstub8.4.a",
+          "bytes": 2580,
+          "sha256": "e75f3f9f6bbdb74e2dbafcfb428dad12ee8ffaed512618af5a6ee279daf1d457"
+        }
+      ],
+      "runtime_dependencies": {
+        "inspection": {
+          "utc_start": "2026-10-16T14:00:28.153378+00:00",
+          "utc_end": "2026-10-16T14:00:28.160415+00:00",
+          "argv": [
+            "ldd",
+            "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh"
+          ],
+          "cwd": "/workspace/naming-validation/runtime174-current/provider-pairing",
+          "exit": 0,
+          "stdout": {
+            "file": "c-8.4.20-ldd.stdout",
+            "bytes": 222,
+            "sha256": "9a90dc2cdb0286bff96c0dfd305f259c352820daffb797f381b04076893605b9"
+          },
+          "stderr": {
+            "file": "c-8.4.20-ldd.stderr",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        },
+        "actual_shared_objects": [
+          {
+            "path": "/lib/x86_64-linux-gnu/libm.so.6",
+            "realpath": "/usr/lib/x86_64-linux-gnu/libm.so.6",
+            "bytes": 977112,
+            "sha256": "6d567d53e895273ca14a1f9dc164fc6c8d39aed2f60aa46a733c2784228915f3"
+          },
+          {
+            "path": "/lib/x86_64-linux-gnu/libc.so.6",
+            "realpath": "/usr/lib/x86_64-linux-gnu/libc.so.6",
+            "bytes": 1995216,
+            "sha256": "fa430b8f298f817a266046af84a77533185ad6fc4406c7d3787b5a0a0c207826"
+          },
+          {
+            "path": "/lib64/ld-linux-x86-64.so.2",
+            "realpath": "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+            "bytes": 225672,
+            "sha256": "438c546d8e8cc48496bf3a95f753051afd9db66a629a74e31a9ded71586b56e0"
+          }
+        ]
+      },
+      "invocation": {
+        "utc_start": "2026-10-16T14:00:28.130074+00:00",
+        "utc_end": "2026-10-16T14:00:28.144062+00:00",
+        "argv": [
+          "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh"
+        ],
+        "cwd": "/workspace/naming-validation/runtime174-current/provider-pairing",
+        "exit": 0,
+        "stdout": {
+          "file": "c-8.4.20.stdout",
+          "bytes": 340,
+          "sha256": "058395e6ed7a50061f5576ed8e2075d00b29e9c73fe51f9d486025b1d6856b00"
+        },
+        "stderr": {
+          "file": "c-8.4.20.stderr",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      },
+      "environment_changes": {
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+        "TCLLIBPATH": "removed",
+        "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix",
+        "PAIRING_EXPECTED_PATCHLEVEL": "8.4.20",
+        "PAIRING_EXPECTED_TCLTEST": "2.2.11"
+      },
+      "acceptance": true,
+      "original_input_inventory_validation": {
+        "inventory": {
+          "path": "/workspace/tcl-lsp/experiments/name-handling/upstream-integrity/core-8-4-20.json",
+          "realpath": "/workspace/tcl-lsp/experiments/name-handling/upstream-integrity/core-8-4-20.json",
+          "bytes": 17546,
+          "sha256": "24b31272b539ca44f38b6761b377989dcebb1474d141ab7a9794e3650127970c"
+        },
+        "immutable_commit": "9ccfe9d1b35741ff7323837f6485ffe48b06fad9",
+        "scope": [
+          "generic/tcl.h",
+          "library/**",
+          "tests/**"
+        ],
+        "expected_count": 233,
+        "matched_count": 233,
+        "mismatch_count": 0,
+        "mismatches": [],
+        "current_named_input_inventory_sha256": "327b83cf5ed8f5aa74576d8ee0d624a99329345b9c596487199294e6a03fdde4",
+        "aggregate_recipe": "SHA256 of UTF-8 lines: file SHA256, two spaces, original relative path, LF; paths sorted by existing immutable inventory",
+        "all_match": true
+      },
+      "existing_upstream_integrity_reuse": [],
+      "existing_init_integrity_reuse": {
+        "original_record": {
+          "path": "/workspace/tcl-lsp/experiments/name-handling/rename-window-slot-identity/8.4.20/provenance.json",
+          "realpath": "/workspace/tcl-lsp/experiments/name-handling/rename-window-slot-identity/8.4.20/provenance.json",
+          "bytes": 3555,
+          "sha256": "b9c0cba895c20e2bad2647945e598d2b9b5aa709b3a56dcbf49eecd123980c16"
+        },
+        "expected_init_sha256": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b",
+        "matches": true
+      }
+    },
+    {
+      "provider": "C Tcl",
+      "patchlevel": "8.5.19",
+      "release": "8.5",
+      "source_tag_from_owner": "core-8-5-19",
+      "source_root": "/workspace/tcl-lsp/tmp/tcl8.5.19",
+      "executable": {
+        "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+        "realpath": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+        "bytes": 1281128,
+        "sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961"
+      },
+      "selected_source_and_support": [
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tcl.h",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tcl.h",
+          "bytes": 86963,
+          "sha256": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclBasic.c",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclBasic.c",
+          "bytes": 203084,
+          "sha256": "d09c16386ea0376dc3590a74ded2c6e2bcef5079f2b1a3785545bad37c7ead63"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclNamesp.c",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclNamesp.c",
+          "bytes": 210509,
+          "sha256": "60f944eb9ab669e183a546297c5aa6c8b62af0f79cdab115c74d37497c1fd83f"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdMZ.c",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdMZ.c",
+          "bytes": 104190,
+          "sha256": "fe2c67a2097ece2e07d9345a5edf416b5fbc891276349e360f9c25da1cc8f348"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/init.tcl",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/init.tcl",
+          "bytes": 24873,
+          "sha256": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/package.tcl",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/package.tcl",
+          "bytes": 23329,
+          "sha256": "be3df25f0cf653c20b69784aee0fd719634d5421746b5b1141bc0592a59841c9"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/tm.tcl",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/tm.tcl",
+          "bytes": 11739,
+          "sha256": "5d86054b2ce7ecb7ad39a6a2ee7afc98816a837e9819ce7b7c31c19ba0b123cf"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/tcltest/pkgIndex.tcl",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/tcltest/pkgIndex.tcl",
+          "bytes": 610,
+          "sha256": "29c57ad6fe369a9fed7d378471aec5a7bdd5bd153c57222f83485245a3f23e44"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/tcltest/tcltest.tcl",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/tcltest/tcltest.tcl",
+          "bytes": 99905,
+          "sha256": "db4e5898291e7fd3cf522e9c9c5b714d81d6d148ba53ed2052073d12327f8d8d"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/tests/all.tcl",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl8.5.19/tests/all.tcl",
+          "bytes": 543,
+          "sha256": "bbe888854ce607aa5ee8d39f81ee76e467083c0a2ffa2c987f973c6ddf78c8d0"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/tests/tcltest.test",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl8.5.19/tests/tcltest.test",
+          "bytes": 50721,
+          "sha256": "483b9bd33eba4792ccdbc9ac9a4cf597963a6ac1d0fbd9b7d751eb38b68abdbd"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclConfig.sh",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclConfig.sh",
+          "bytes": 7160,
+          "sha256": "60d6662add9fe3944a1958da095cc7fddb93b0f5b4d55a6ce865dddf61e51a1c"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/config.status",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/config.status",
+          "bytes": 29335,
+          "sha256": "3d068b5b70a8f4617ee7635482b398a90537e37f9c7025942d6ea424db581d3b"
+        }
+      ],
+      "static_tcl_archives": [
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a",
+          "bytes": 2214696,
+          "sha256": "99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtclstub8.5.a",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtclstub8.5.a",
+          "bytes": 3730,
+          "sha256": "24898a5ac478917d6fc46b7922bb37071df69ed66f6eafcd75ba29fd73e0d04f"
+        }
+      ],
+      "runtime_dependencies": {
+        "inspection": {
+          "utc_start": "2026-10-16T14:00:28.236703+00:00",
+          "utc_end": "2026-10-16T14:00:28.242928+00:00",
+          "argv": [
+            "ldd",
+            "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh"
+          ],
+          "cwd": "/workspace/naming-validation/runtime174-current/provider-pairing",
+          "exit": 0,
+          "stdout": {
+            "file": "c-8.5.19-ldd.stdout",
+            "bytes": 222,
+            "sha256": "0a1d4b3528aca64051450f8d2be23f5ed089608997896a9b111d8924cc982d3f"
+          },
+          "stderr": {
+            "file": "c-8.5.19-ldd.stderr",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        },
+        "actual_shared_objects": [
+          {
+            "path": "/lib/x86_64-linux-gnu/libm.so.6",
+            "realpath": "/usr/lib/x86_64-linux-gnu/libm.so.6",
+            "bytes": 977112,
+            "sha256": "6d567d53e895273ca14a1f9dc164fc6c8d39aed2f60aa46a733c2784228915f3"
+          },
+          {
+            "path": "/lib/x86_64-linux-gnu/libc.so.6",
+            "realpath": "/usr/lib/x86_64-linux-gnu/libc.so.6",
+            "bytes": 1995216,
+            "sha256": "fa430b8f298f817a266046af84a77533185ad6fc4406c7d3787b5a0a0c207826"
+          },
+          {
+            "path": "/lib64/ld-linux-x86-64.so.2",
+            "realpath": "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+            "bytes": 225672,
+            "sha256": "438c546d8e8cc48496bf3a95f753051afd9db66a629a74e31a9ded71586b56e0"
+          }
+        ]
+      },
+      "invocation": {
+        "utc_start": "2026-10-16T14:00:28.215626+00:00",
+        "utc_end": "2026-10-16T14:00:28.227745+00:00",
+        "argv": [
+          "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh"
+        ],
+        "cwd": "/workspace/naming-validation/runtime174-current/provider-pairing",
+        "exit": 0,
+        "stdout": {
+          "file": "c-8.5.19.stdout",
+          "bytes": 339,
+          "sha256": "486b524e6bb0488ad6293d3dfb5c6ee5b419124c41a3d173df2871a2662b93f5"
+        },
+        "stderr": {
+          "file": "c-8.5.19.stderr",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      },
+      "environment_changes": {
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+        "TCLLIBPATH": "removed",
+        "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix",
+        "PAIRING_EXPECTED_PATCHLEVEL": "8.5.19",
+        "PAIRING_EXPECTED_TCLTEST": "2.3.8"
+      },
+      "acceptance": true,
+      "original_input_inventory_validation": {
+        "inventory": {
+          "path": "/workspace/tcl-lsp/experiments/name-handling/upstream-integrity/core-8-5-19.json",
+          "realpath": "/workspace/tcl-lsp/experiments/name-handling/upstream-integrity/core-8-5-19.json",
+          "bytes": 76084,
+          "sha256": "78c99229a589a330c2c669474c365041f2d6f918a09744e849ac571b678ef268"
+        },
+        "immutable_commit": "160d612a6b2b1c2c0db27236d648b7bc1364570c",
+        "scope": [
+          "generic/tcl.h",
+          "library/**",
+          "tests/**"
+        ],
+        "expected_count": 969,
+        "matched_count": 969,
+        "mismatch_count": 0,
+        "mismatches": [],
+        "current_named_input_inventory_sha256": "9bd0895f010a23969247c27ad4f13aca74c3d3efce5edf673262559582152b07",
+        "aggregate_recipe": "SHA256 of UTF-8 lines: file SHA256, two spaces, original relative path, LF; paths sorted by existing immutable inventory",
+        "all_match": true
+      },
+      "existing_upstream_integrity_reuse": [
+        {
+          "original_record": {
+            "path": "/workspace/tcl-lsp/experiments/name-handling/namespace-which-compiler/upstream-source-integrity.json",
+            "realpath": "/workspace/tcl-lsp/experiments/name-handling/namespace-which-compiler/upstream-source-integrity.json",
+            "bytes": 2087,
+            "sha256": "84f5e779a6e88f9afe6d516abeee6cc354d8dfca0a5d519442b2705cfb86736e"
+          },
+          "immutable_commit": "160d612a6b2b1c2c0db27236d648b7bc1364570c",
+          "source_path": "generic/tclCompCmds.c",
+          "current_source_sha256": "117274255882a35828318ccbfab476c180622310187c5e3a4796867b48ba7414",
+          "expected_git_blob": "3b234b0fe84bae86145af63e106874cbb9014346",
+          "actual_git_blob": "3b234b0fe84bae86145af63e106874cbb9014346",
+          "matches": true
+        }
+      ],
+      "existing_init_integrity_reuse": {
+        "original_record": {
+          "path": "/workspace/tcl-lsp/experiments/name-handling/rename-window-slot-identity/8.5.19/provenance.json",
+          "realpath": "/workspace/tcl-lsp/experiments/name-handling/rename-window-slot-identity/8.5.19/provenance.json",
+          "bytes": 3556,
+          "sha256": "ed4f7bb6a6e7d2ae8c9bd8f2e192b71d0a07dd2db59bdc77e5f32621a681d6d5"
+        },
+        "expected_init_sha256": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1",
+        "matches": true
+      }
+    },
+    {
+      "provider": "C Tcl",
+      "patchlevel": "8.6.18",
+      "release": "8.6",
+      "source_tag_from_owner": "core-8-6-18",
+      "source_root": "/workspace/tcl-lsp/tmp/tcl8.6.18",
+      "executable": {
+        "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "realpath": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "bytes": 1915312,
+        "sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c"
+      },
+      "selected_source_and_support": [
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tcl.h",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tcl.h",
+          "bytes": 94296,
+          "sha256": "aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclBasic.c",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclBasic.c",
+          "bytes": 264771,
+          "sha256": "19e28c2c9fbcd27e7e538a06960f0d806d04f8c25d94499cf9eb9031f8440198"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclNamesp.c",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclNamesp.c",
+          "bytes": 153092,
+          "sha256": "b4b3095f69b2192f13bf355d70a0efeb9aa78b5e6ceccf6b17536cc5e9be1e24"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCmdMZ.c",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCmdMZ.c",
+          "bytes": 143022,
+          "sha256": "c2fe2deb95449c94c2719dca830d4e57ec4a436741199da39122d772888e849e"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl",
+          "bytes": 25023,
+          "sha256": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/package.tcl",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/package.tcl",
+          "bytes": 23564,
+          "sha256": "0227624ef7ab99d60f0aa76e74419c34267a322db36cf945e66ed705525eedc0"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/tm.tcl",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/tm.tcl",
+          "bytes": 11789,
+          "sha256": "0b102f22297356a9873a81224962fde4cbd4b59889c54b1d0632695701eb10fe"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/tcltest/pkgIndex.tcl",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/tcltest/pkgIndex.tcl",
+          "bytes": 628,
+          "sha256": "26cbf5ae8928a273e8404ddb5d92c0d086eb1cb64369db9365930388feecd199"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/tcltest/tcltest.tcl",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/tcltest/tcltest.tcl",
+          "bytes": 105217,
+          "sha256": "03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/tests/all.tcl",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl8.6.18/tests/all.tcl",
+          "bytes": 1000,
+          "sha256": "84d710d37d8c7cd2070062ddd89254aaf25f0d9f827e11c27995575829da825c"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/tests/tcltest.test",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl8.6.18/tests/tcltest.test",
+          "bytes": 51649,
+          "sha256": "36ee581043837407535a1f3bc97d7f9c04210433644d5f4e944d7c89bd721332"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/manifest.uuid",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl8.6.18/manifest.uuid",
+          "bytes": 45,
+          "sha256": "5ae420a9b0579e54853ba276e9e4792fc8096aa9263c5a1d9c122949fff18b17"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclConfig.sh",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclConfig.sh",
+          "bytes": 7978,
+          "sha256": "661a8cf02373f7ef5fe3bbd6bac12fac4c5e330f4e7ed744cb06c289602dcd79"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/config.status",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/config.status",
+          "bytes": 30355,
+          "sha256": "8349cc541860709eb77b814c872ec107dae631791f386780225bc1a5898286cd"
+        }
+      ],
+      "static_tcl_archives": [
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+          "bytes": 3243720,
+          "sha256": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtclstub8.6.a",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtclstub8.6.a",
+          "bytes": 7644,
+          "sha256": "0ef8b75b1e3e593c984fe4f0b4824753138905d3bca297982e93a5830e3e3d7c"
+        }
+      ],
+      "runtime_dependencies": {
+        "inspection": {
+          "utc_start": "2026-10-16T14:00:28.443897+00:00",
+          "utc_end": "2026-10-16T14:00:28.449170+00:00",
+          "argv": [
+            "ldd",
+            "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh"
+          ],
+          "cwd": "/workspace/naming-validation/runtime174-current/provider-pairing",
+          "exit": 0,
+          "stdout": {
+            "file": "c-8.6.18-ldd.stdout",
+            "bytes": 289,
+            "sha256": "76ccf35d4e50f4ba1a8776029d68a441df0432998dddc5a31e31905afd38ebfe"
+          },
+          "stderr": {
+            "file": "c-8.6.18-ldd.stderr",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        },
+        "actual_shared_objects": [
+          {
+            "path": "/lib/x86_64-linux-gnu/libz.so.1",
+            "realpath": "/usr/lib/x86_64-linux-gnu/libz.so.1.3.1",
+            "bytes": 125376,
+            "sha256": "85590dd58edf5445e18bc7193e5ebc01ac5841f1ae187e97705a662e90c6421e"
+          },
+          {
+            "path": "/lib/x86_64-linux-gnu/libm.so.6",
+            "realpath": "/usr/lib/x86_64-linux-gnu/libm.so.6",
+            "bytes": 977112,
+            "sha256": "6d567d53e895273ca14a1f9dc164fc6c8d39aed2f60aa46a733c2784228915f3"
+          },
+          {
+            "path": "/lib/x86_64-linux-gnu/libc.so.6",
+            "realpath": "/usr/lib/x86_64-linux-gnu/libc.so.6",
+            "bytes": 1995216,
+            "sha256": "fa430b8f298f817a266046af84a77533185ad6fc4406c7d3787b5a0a0c207826"
+          },
+          {
+            "path": "/lib64/ld-linux-x86-64.so.2",
+            "realpath": "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+            "bytes": 225672,
+            "sha256": "438c546d8e8cc48496bf3a95f753051afd9db66a629a74e31a9ded71586b56e0"
+          }
+        ]
+      },
+      "invocation": {
+        "utc_start": "2026-10-16T14:00:28.418991+00:00",
+        "utc_end": "2026-10-16T14:00:28.433168+00:00",
+        "argv": [
+          "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh"
+        ],
+        "cwd": "/workspace/naming-validation/runtime174-current/provider-pairing",
+        "exit": 0,
+        "stdout": {
+          "file": "c-8.6.18.stdout",
+          "bytes": 356,
+          "sha256": "449980c01c2414b06e6dc7e2b7845d7ad3977d082d98d5f562bd979f569e9fc6"
+        },
+        "stderr": {
+          "file": "c-8.6.18.stderr",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      },
+      "environment_changes": {
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+        "TCLLIBPATH": "removed",
+        "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix",
+        "PAIRING_EXPECTED_PATCHLEVEL": "8.6.18",
+        "PAIRING_EXPECTED_TCLTEST": "2.5.11"
+      },
+      "acceptance": true,
+      "original_input_inventory_validation": {
+        "inventory": {
+          "path": "/workspace/tcl-lsp/experiments/name-handling/upstream-integrity/core-8-6-18.json",
+          "realpath": "/workspace/tcl-lsp/experiments/name-handling/upstream-integrity/core-8-6-18.json",
+          "bytes": 78957,
+          "sha256": "b547c6da1e097ab8063845a9a1e3ca825e13b995e88da69e4025747f43547c85"
+        },
+        "immutable_commit": "515167c897a7c8066abfbd71e8fe7bd8bf3569de",
+        "scope": [
+          "generic/tcl.h",
+          "library/**",
+          "tests/**"
+        ],
+        "expected_count": 1007,
+        "matched_count": 1007,
+        "mismatch_count": 0,
+        "mismatches": [],
+        "current_named_input_inventory_sha256": "1181995536c454cb27e78955dec6a03f4992a68c676b3c8002fa8a67f7a21b06",
+        "aggregate_recipe": "SHA256 of UTF-8 lines: file SHA256, two spaces, original relative path, LF; paths sorted by existing immutable inventory",
+        "all_match": true
+      },
+      "existing_upstream_integrity_reuse": [
+        {
+          "original_record": {
+            "path": "/workspace/tcl-lsp/experiments/name-handling/namespace-which-compiler/upstream-source-integrity.json",
+            "realpath": "/workspace/tcl-lsp/experiments/name-handling/namespace-which-compiler/upstream-source-integrity.json",
+            "bytes": 2087,
+            "sha256": "84f5e779a6e88f9afe6d516abeee6cc354d8dfca0a5d519442b2705cfb86736e"
+          },
+          "immutable_commit": "515167c897a7c8066abfbd71e8fe7bd8bf3569de",
+          "source_path": "generic/tclCompCmdsGR.c",
+          "current_source_sha256": "edda78b970816ff347e08c5f2f957c42b23915bc4fc8410d9d2cfdedba162d8d",
+          "expected_git_blob": "6db9520c655c2dc07260ffdb51fd0c046133b689",
+          "actual_git_blob": "6db9520c655c2dc07260ffdb51fd0c046133b689",
+          "matches": true
+        }
+      ],
+      "existing_init_integrity_reuse": {
+        "original_record": {
+          "path": "/workspace/tcl-lsp/experiments/name-handling/rename-window-slot-identity/8.6.18/provenance.json",
+          "realpath": "/workspace/tcl-lsp/experiments/name-handling/rename-window-slot-identity/8.6.18/provenance.json",
+          "bytes": 3556,
+          "sha256": "6098b8a861fde6455cd51f3f168b25a36626c9ee2c761430935763fe5c6e8337"
+        },
+        "expected_init_sha256": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35",
+        "matches": true
+      }
+    },
+    {
+      "provider": "C Tcl",
+      "patchlevel": "9.0.4",
+      "release": "9.0",
+      "source_tag_from_owner": "core-9-0-4",
+      "source_root": "/workspace/tcl-lsp/tmp/tcl9.0.4",
+      "executable": {
+        "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+        "realpath": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+        "bytes": 3471033,
+        "sha256": "bb5493a311eea8879d4aa2fa4817720d008ee03cf88f06aefa4a6d7425857f8c"
+      },
+      "selected_source_and_support": [
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tcl.h",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tcl.h",
+          "bytes": 93953,
+          "sha256": "eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclBasic.c",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclBasic.c",
+          "bytes": 282535,
+          "sha256": "6d995c1af94fea92717183882ca41775fe8c0e088def163f6ac8fe699cbffc67"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclNamesp.c",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclNamesp.c",
+          "bytes": 157723,
+          "sha256": "73e79904d662d12564dd7d35f922fd896566411524a6e14c6454325f2ce17b8d"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCmdMZ.c",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCmdMZ.c",
+          "bytes": 138453,
+          "sha256": "080e201d1a09760aad4fedd9835e2091fd663d405d32d034f32dd0918d9006cc"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/init.tcl",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/init.tcl",
+          "bytes": 23574,
+          "sha256": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/package.tcl",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/package.tcl",
+          "bytes": 24081,
+          "sha256": "473bf551d3156a144d6483ce730c72add640168a3ab426b3ee0b122f6d06a96e"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/tm.tcl",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/tm.tcl",
+          "bytes": 11904,
+          "sha256": "7c1de0bc512b362c26d489bd332f3d883041d98c2ed1cc99b4d64cd97e646786"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/tcltest/pkgIndex.tcl",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/tcltest/pkgIndex.tcl",
+          "bytes": 628,
+          "sha256": "26cbf5ae8928a273e8404ddb5d92c0d086eb1cb64369db9365930388feecd199"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/tcltest/tcltest.tcl",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/tcltest/tcltest.tcl",
+          "bytes": 105217,
+          "sha256": "03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/tests/all.tcl",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl9.0.4/tests/all.tcl",
+          "bytes": 988,
+          "sha256": "9364cacb730946d6d94a85cc21e2f19712eaf172cdb1f07da10a1189b777f17b"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/tests/tcltest.test",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl9.0.4/tests/tcltest.test",
+          "bytes": 51557,
+          "sha256": "ed41adc4f893e6a6621befa069b03612ef8e6f622ba22aac7337c9e5eba113f2"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/manifest.uuid",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl9.0.4/manifest.uuid",
+          "bytes": 45,
+          "sha256": "5ae420a9b0579e54853ba276e9e4792fc8096aa9263c5a1d9c122949fff18b17"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclConfig.sh",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclConfig.sh",
+          "bytes": 8068,
+          "sha256": "cf6f93b09949ceddf21ee3735d130954255e559d8fa714ac3b5aafd81418492f"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/config.status",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/config.status",
+          "bytes": 30213,
+          "sha256": "49c830d8e9fa6e9458d3196988b1a3f873de5b3b7cdfbb1adbc1c567972c6cd5"
+        }
+      ],
+      "static_tcl_archives": [
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+          "bytes": 3866102,
+          "sha256": "03952fc8f4ce92d40beed17156ea3c5a579652832c1fe610b920e9c9154a8a53"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtclstub.a",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtclstub.a",
+          "bytes": 13832,
+          "sha256": "112a0f370e5c8d8a93cb414e469026966356df63514791a5c78459698a9028c8"
+        }
+      ],
+      "runtime_dependencies": {
+        "inspection": {
+          "utc_start": "2026-10-16T14:00:28.646789+00:00",
+          "utc_end": "2026-10-16T14:00:28.653500+00:00",
+          "argv": [
+            "ldd",
+            "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh"
+          ],
+          "cwd": "/workspace/naming-validation/runtime174-current/provider-pairing",
+          "exit": 0,
+          "stdout": {
+            "file": "c-9.0.4-ldd.stdout",
+            "bytes": 289,
+            "sha256": "fbb94a34541a0b1cdb6826816bdbf9c45c720affced9731ba598160535e897fa"
+          },
+          "stderr": {
+            "file": "c-9.0.4-ldd.stderr",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        },
+        "actual_shared_objects": [
+          {
+            "path": "/lib/x86_64-linux-gnu/libz.so.1",
+            "realpath": "/usr/lib/x86_64-linux-gnu/libz.so.1.3.1",
+            "bytes": 125376,
+            "sha256": "85590dd58edf5445e18bc7193e5ebc01ac5841f1ae187e97705a662e90c6421e"
+          },
+          {
+            "path": "/lib/x86_64-linux-gnu/libm.so.6",
+            "realpath": "/usr/lib/x86_64-linux-gnu/libm.so.6",
+            "bytes": 977112,
+            "sha256": "6d567d53e895273ca14a1f9dc164fc6c8d39aed2f60aa46a733c2784228915f3"
+          },
+          {
+            "path": "/lib/x86_64-linux-gnu/libc.so.6",
+            "realpath": "/usr/lib/x86_64-linux-gnu/libc.so.6",
+            "bytes": 1995216,
+            "sha256": "fa430b8f298f817a266046af84a77533185ad6fc4406c7d3787b5a0a0c207826"
+          },
+          {
+            "path": "/lib64/ld-linux-x86-64.so.2",
+            "realpath": "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+            "bytes": 225672,
+            "sha256": "438c546d8e8cc48496bf3a95f753051afd9db66a629a74e31a9ded71586b56e0"
+          }
+        ]
+      },
+      "invocation": {
+        "utc_start": "2026-10-16T14:00:28.617226+00:00",
+        "utc_end": "2026-10-16T14:00:28.635887+00:00",
+        "argv": [
+          "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh"
+        ],
+        "cwd": "/workspace/naming-validation/runtime174-current/provider-pairing",
+        "exit": 0,
+        "stdout": {
+          "file": "c-9.0.4.stdout",
+          "bytes": 351,
+          "sha256": "64cb753397382a02a39497cb7c03da30e2adfd794f646a3207c4bb93103bb9eb"
+        },
+        "stderr": {
+          "file": "c-9.0.4.stderr",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      },
+      "environment_changes": {
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+        "TCLLIBPATH": "removed",
+        "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix",
+        "PAIRING_EXPECTED_PATCHLEVEL": "9.0.4",
+        "PAIRING_EXPECTED_TCLTEST": "2.5.11"
+      },
+      "acceptance": true,
+      "original_input_inventory_validation": {
+        "inventory": {
+          "path": "/workspace/tcl-lsp/experiments/name-handling/upstream-integrity/core-9-0-4.json",
+          "realpath": "/workspace/tcl-lsp/experiments/name-handling/upstream-integrity/core-9-0-4.json",
+          "bytes": 83772,
+          "sha256": "bc99ac5b588d60d38750f5921dfa3a2bb0629f708982202d8718e1fdec37c7df"
+        },
+        "immutable_commit": "c655b4770b1d6d32a8cbffd6cef59db6029fe19e",
+        "scope": [
+          "generic/tcl.h",
+          "library/**",
+          "tests/**"
+        ],
+        "expected_count": 1068,
+        "matched_count": 1068,
+        "mismatch_count": 0,
+        "mismatches": [],
+        "current_named_input_inventory_sha256": "d342fe5b8ec4152323f4ca1a99c1cb121dedbaa4f36786b751c00036829aa867",
+        "aggregate_recipe": "SHA256 of UTF-8 lines: file SHA256, two spaces, original relative path, LF; paths sorted by existing immutable inventory",
+        "all_match": true
+      },
+      "existing_upstream_integrity_reuse": [
+        {
+          "original_record": {
+            "path": "/workspace/tcl-lsp/experiments/name-handling/namespace-which-compiler/upstream-source-integrity.json",
+            "realpath": "/workspace/tcl-lsp/experiments/name-handling/namespace-which-compiler/upstream-source-integrity.json",
+            "bytes": 2087,
+            "sha256": "84f5e779a6e88f9afe6d516abeee6cc354d8dfca0a5d519442b2705cfb86736e"
+          },
+          "immutable_commit": "c655b4770b1d6d32a8cbffd6cef59db6029fe19e",
+          "source_path": "generic/tclCompCmdsGR.c",
+          "current_source_sha256": "d0a2ad66de4a067375d2486e682a6d66e10ee08e2e91603af2fab63fc397d1db",
+          "expected_git_blob": "d7d4af247dda886375dd24985e2aa47659261e92",
+          "actual_git_blob": "d7d4af247dda886375dd24985e2aa47659261e92",
+          "matches": true
+        }
+      ],
+      "existing_init_integrity_reuse": {
+        "original_record": {
+          "path": "/workspace/tcl-lsp/experiments/name-handling/rename-window-slot-identity/9.0.4/provenance.json",
+          "realpath": "/workspace/tcl-lsp/experiments/name-handling/rename-window-slot-identity/9.0.4/provenance.json",
+          "bytes": 3541,
+          "sha256": "6be3427da092c17ec83f97dac138ae8d96f6624e78860c8e29db4bd85c993383"
+        },
+        "expected_init_sha256": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a",
+        "matches": true
+      }
+    },
+    {
+      "provider": "C Tcl",
+      "patchlevel": "9.1.0",
+      "release": "9.1",
+      "source_tag_from_owner": "core-9-1-0",
+      "source_root": "/workspace/tcl-lsp/tmp/tcl9.1.0",
+      "executable": {
+        "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+        "realpath": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+        "bytes": 3717328,
+        "sha256": "71b428e13bc04578fb9be4aa680915c67a7b7f3a7850f198032d98f363a077ce"
+      },
+      "selected_source_and_support": [
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tcl.h",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tcl.h",
+          "bytes": 92559,
+          "sha256": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclBasic.c",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclBasic.c",
+          "bytes": 292230,
+          "sha256": "5f52206bed251629baedd8ef8cc0f7ae1237bf9a7edc7d4bca76d3932f8870d2"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclNamesp.c",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclNamesp.c",
+          "bytes": 157214,
+          "sha256": "fce8ca8ee9a21f2e87f7a1917e7a2e4109f9fadf72fd0e585673d1450409b815"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdMZ.c",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdMZ.c",
+          "bytes": 142116,
+          "sha256": "62be408d1faa29a35d3e30eacc4986fd9f1a973f7efcd474b3a2a9082ded512f"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/init.tcl",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/init.tcl",
+          "bytes": 18886,
+          "sha256": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/package.tcl",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/package.tcl",
+          "bytes": 23293,
+          "sha256": "a1b01ef4a09299dc30efcf3cfd647a3b99efc945bf8f1980a43d9fc43f075b26"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/tm.tcl",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/tm.tcl",
+          "bytes": 11904,
+          "sha256": "7c1de0bc512b362c26d489bd332f3d883041d98c2ed1cc99b4d64cd97e646786"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/tcltest/pkgIndex.tcl",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/tcltest/pkgIndex.tcl",
+          "bytes": 627,
+          "sha256": "7372fd028e8165994e6c1e0ee2e3f3f7551ff75def535a414443e9e6c0138c65"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/tcltest/tcltest.tcl",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/tcltest/tcltest.tcl",
+          "bytes": 105632,
+          "sha256": "0113aee4c0edbd2d6f0235693d24dc896a7ad30f8eb30f255ef24a1d2982d311"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/tests/all.tcl",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl9.1.0/tests/all.tcl",
+          "bytes": 989,
+          "sha256": "4f45dc26bbb70d98858ef5ed0dbf84713e0277c17093453754b7567205c35eda"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/tests/tcltest.test",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl9.1.0/tests/tcltest.test",
+          "bytes": 52754,
+          "sha256": "b65522598ce01de4019ec324d6d79ed350f12823c750714ea46f4ec485f337f2"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/manifest.uuid",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl9.1.0/manifest.uuid",
+          "bytes": 45,
+          "sha256": "5ae420a9b0579e54853ba276e9e4792fc8096aa9263c5a1d9c122949fff18b17"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclConfig.sh",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclConfig.sh",
+          "bytes": 8096,
+          "sha256": "33047daf0b6406de44f1951fc5f42d3187d706f689b5bbc80c93b2e0c83a12cc"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/config.status",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/config.status",
+          "bytes": 30246,
+          "sha256": "3ea91fe62af5479ca7c5e52fce42751934e8b8e3ba2e3ac88b3f6823872802e4"
+        }
+      ],
+      "static_tcl_archives": [
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+          "bytes": 4113386,
+          "sha256": "fd887b5a0e3a1ad7c435e0c2c7a0f113c32fcef7dc9fbcc6d98bd407a61c6a23"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtclstub.a",
+          "realpath": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtclstub.a",
+          "bytes": 13832,
+          "sha256": "680eebaa4b33b96ed49231bd9d840d0400865619d0d7a94aff88967ed074ab45"
+        }
+      ],
+      "runtime_dependencies": {
+        "inspection": {
+          "utc_start": "2026-10-16T14:00:28.870307+00:00",
+          "utc_end": "2026-10-16T14:00:28.876666+00:00",
+          "argv": [
+            "ldd",
+            "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh"
+          ],
+          "cwd": "/workspace/naming-validation/runtime174-current/provider-pairing",
+          "exit": 0,
+          "stdout": {
+            "file": "c-9.1.0-ldd.stdout",
+            "bytes": 289,
+            "sha256": "f87d40c361a967f39d6b936d41444fa4c8456bf9fa374480e905a76aebfad7f0"
+          },
+          "stderr": {
+            "file": "c-9.1.0-ldd.stderr",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        },
+        "actual_shared_objects": [
+          {
+            "path": "/lib/x86_64-linux-gnu/libz.so.1",
+            "realpath": "/usr/lib/x86_64-linux-gnu/libz.so.1.3.1",
+            "bytes": 125376,
+            "sha256": "85590dd58edf5445e18bc7193e5ebc01ac5841f1ae187e97705a662e90c6421e"
+          },
+          {
+            "path": "/lib/x86_64-linux-gnu/libm.so.6",
+            "realpath": "/usr/lib/x86_64-linux-gnu/libm.so.6",
+            "bytes": 977112,
+            "sha256": "6d567d53e895273ca14a1f9dc164fc6c8d39aed2f60aa46a733c2784228915f3"
+          },
+          {
+            "path": "/lib/x86_64-linux-gnu/libc.so.6",
+            "realpath": "/usr/lib/x86_64-linux-gnu/libc.so.6",
+            "bytes": 1995216,
+            "sha256": "fa430b8f298f817a266046af84a77533185ad6fc4406c7d3787b5a0a0c207826"
+          },
+          {
+            "path": "/lib64/ld-linux-x86-64.so.2",
+            "realpath": "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+            "bytes": 225672,
+            "sha256": "438c546d8e8cc48496bf3a95f753051afd9db66a629a74e31a9ded71586b56e0"
+          }
+        ]
+      },
+      "invocation": {
+        "utc_start": "2026-10-16T14:00:28.838385+00:00",
+        "utc_end": "2026-10-16T14:00:28.857709+00:00",
+        "argv": [
+          "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh"
+        ],
+        "cwd": "/workspace/naming-validation/runtime174-current/provider-pairing",
+        "exit": 0,
+        "stdout": {
+          "file": "c-9.1.0.stdout",
+          "bytes": 350,
+          "sha256": "3eb04e35199e47fce902cdeb28cf60983f5767da50f899682344e2f46bed2ac2"
+        },
+        "stderr": {
+          "file": "c-9.1.0.stderr",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      },
+      "environment_changes": {
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+        "TCLLIBPATH": "removed",
+        "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix",
+        "PAIRING_EXPECTED_PATCHLEVEL": "9.1.0",
+        "PAIRING_EXPECTED_TCLTEST": "2.6.0"
+      },
+      "acceptance": true,
+      "original_input_inventory_validation": {
+        "inventory": {
+          "path": "/workspace/tcl-lsp/experiments/name-handling/upstream-integrity/core-9-1-0.json",
+          "realpath": "/workspace/tcl-lsp/experiments/name-handling/upstream-integrity/core-9-1-0.json",
+          "bytes": 84906,
+          "sha256": "96b2169041f2fb9f4a43c875c3eafd856c6aeebf8e68b3aa29bbbf809b74c313"
+        },
+        "immutable_commit": "0c6bad08d91fa2ad51f05a50a41f8c1ea82ce985",
+        "scope": [
+          "generic/tcl.h",
+          "library/**",
+          "tests/**"
+        ],
+        "expected_count": 1082,
+        "matched_count": 1082,
+        "mismatch_count": 0,
+        "mismatches": [],
+        "current_named_input_inventory_sha256": "c5413031d80a9e0bbdb3dafee36c0438bbf2087dd1579fea32f92c70da21c454",
+        "aggregate_recipe": "SHA256 of UTF-8 lines: file SHA256, two spaces, original relative path, LF; paths sorted by existing immutable inventory",
+        "all_match": true
+      },
+      "existing_upstream_integrity_reuse": [
+        {
+          "original_record": {
+            "path": "/workspace/tcl-lsp/experiments/name-handling/namespace-which-compiler/upstream-source-integrity.json",
+            "realpath": "/workspace/tcl-lsp/experiments/name-handling/namespace-which-compiler/upstream-source-integrity.json",
+            "bytes": 2087,
+            "sha256": "84f5e779a6e88f9afe6d516abeee6cc354d8dfca0a5d519442b2705cfb86736e"
+          },
+          "immutable_commit": "0c6bad08d91fa2ad51f05a50a41f8c1ea82ce985",
+          "source_path": "generic/tclCompCmdsGR.c",
+          "current_source_sha256": "3656eddb1d634083343f182212b4874aa0939940382cf20252a171b155305fd1",
+          "expected_git_blob": "60af16bb1796dbdf377f5d9cc3b02f0fee0a5349",
+          "actual_git_blob": "60af16bb1796dbdf377f5d9cc3b02f0fee0a5349",
+          "matches": true
+        }
+      ],
+      "existing_init_integrity_reuse": {
+        "original_record": {
+          "path": "/workspace/tcl-lsp/experiments/name-handling/rename-window-slot-identity/9.1.0/provenance.json",
+          "realpath": "/workspace/tcl-lsp/experiments/name-handling/rename-window-slot-identity/9.1.0/provenance.json",
+          "bytes": 3538,
+          "sha256": "63e2726edc9807db238eb1646ab59dbf063ee66fce034701682bc4a06516bc98"
+        },
+        "expected_init_sha256": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f",
+        "matches": true
+      }
+    },
+    {
+      "provider": "Jim",
+      "source_root": "/workspace/tcl-lsp/tmp/jimtcl-oracle",
+      "reference": {
+        "repository": "https://github.com/msteveb/jimtcl.git",
+        "revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+        "commit_date": "2026-10-01T08:54:24+10:00",
+        "version": "0.84",
+        "patchlevel": "0.84-9-g5bac7c9"
+      },
+      "executable": {
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "realpath": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "bytes": 438632,
+        "sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891"
+      },
+      "static_library": {
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/libjim.a",
+        "realpath": "/workspace/tcl-lsp/tmp/jimtcl-oracle/libjim.a",
+        "bytes": 652760,
+        "sha256": "2e75f1e259dc7896fa6996ebe2ad0fb5de2864770a772a0d102b2b6306280c61"
+      },
+      "selected_source_and_support": [
+        {
+          "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim.c",
+          "realpath": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim.c",
+          "bytes": 546686,
+          "sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim.h",
+          "realpath": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim.h",
+          "bytes": 56502,
+          "sha256": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh.c",
+          "realpath": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh.c",
+          "bytes": 6144,
+          "sha256": "a0db99e0d9d562dbbc7ed97813669e6039547548c7e9612a1dc5503b6860668c"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim-namespace.c",
+          "realpath": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim-namespace.c",
+          "bytes": 11686,
+          "sha256": "22bb6fb5fcea8ce8ec7e3eecbfe5ebd5ee290b9b725101ff4e4a1c0e9abed7f3"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/initjimsh.tcl",
+          "realpath": "/workspace/tcl-lsp/tmp/jimtcl-oracle/initjimsh.tcl",
+          "bytes": 4358,
+          "sha256": "8e0cf2dee783435d849882f6f0cfa1917d4ceeee3b60e1d53d9eb361017a601a"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/_initjimsh.c",
+          "realpath": "/workspace/tcl-lsp/tmp/jimtcl-oracle/_initjimsh.c",
+          "bytes": 4299,
+          "sha256": "23644c8ddef5f094a163ff8a6eeed5590dbe513564424cab1887f5e86c4fd359"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/tclcompat.tcl",
+          "realpath": "/workspace/tcl-lsp/tmp/jimtcl-oracle/tclcompat.tcl",
+          "bytes": 4402,
+          "sha256": "38b692f0b36959df1e4f5ffeca482fb573d3664c294f80e4739d0624a98c0694"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/_tclcompat.c",
+          "realpath": "/workspace/tcl-lsp/tmp/jimtcl-oracle/_tclcompat.c",
+          "bytes": 4248,
+          "sha256": "267d2799ec9fd3a6420696846131ec1b1dfea7951a596647676f16482ff99e15"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/tcltest.tcl",
+          "realpath": "/workspace/tcl-lsp/tmp/jimtcl-oracle/tcltest.tcl",
+          "bytes": 10918,
+          "sha256": "21f225ae1ef2f8fe631a808a99ad9e4a80077a3dadb6f74ea2ca020787511dce"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim-config.h",
+          "realpath": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim-config.h",
+          "bytes": 200,
+          "sha256": "d092046fe07c2ec14b77da74304135da24725d766e1c9fd74ee32eeb07702221"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimautoconf.h",
+          "realpath": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimautoconf.h",
+          "bytes": 3488,
+          "sha256": "053feea9504ac654a94c28e21985d9bf8b0f9afcd83c51211d108813c05d6c65"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/auto.def",
+          "realpath": "/workspace/tcl-lsp/tmp/jimtcl-oracle/auto.def",
+          "bytes": 24860,
+          "sha256": "d41e44e1b023c6061535b0b8729137dfe53b9f500ebd46e3eeb8762a7eb4a11c"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/config.log",
+          "realpath": "/workspace/tcl-lsp/tmp/jimtcl-oracle/config.log",
+          "bytes": 4724,
+          "sha256": "8e698f70b0d289c2f8ca72e3385fe00a61eb7e27de8436f13a2aca42e1f0f613"
+        }
+      ],
+      "runtime_dependencies": {
+        "inspection": {
+          "utc_start": "2026-10-16T14:00:29.115932+00:00",
+          "utc_end": "2026-10-16T14:00:29.122708+00:00",
+          "argv": [
+            "ldd",
+            "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh"
+          ],
+          "cwd": "/workspace/naming-validation/runtime174-current/provider-pairing",
+          "exit": 0,
+          "stdout": {
+            "file": "jim-ldd.stdout",
+            "bytes": 510,
+            "sha256": "5413906e1a3689475fdb88f3347ba75a457970c978dba23f95cba0e52a47de8c"
+          },
+          "stderr": {
+            "file": "jim-ldd.stderr",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        },
+        "actual_shared_objects": [
+          {
+            "path": "/lib/x86_64-linux-gnu/libm.so.6",
+            "realpath": "/usr/lib/x86_64-linux-gnu/libm.so.6",
+            "bytes": 977112,
+            "sha256": "6d567d53e895273ca14a1f9dc164fc6c8d39aed2f60aa46a733c2784228915f3"
+          },
+          {
+            "path": "/lib/x86_64-linux-gnu/libssl.so.3",
+            "realpath": "/usr/lib/x86_64-linux-gnu/libssl.so.3",
+            "bytes": 1101760,
+            "sha256": "4b34859318555bf96d518131bed5fc4d5e35fefa4e1729f49eaa26bd05263850"
+          },
+          {
+            "path": "/lib/x86_64-linux-gnu/libcrypto.so.3",
+            "realpath": "/usr/lib/x86_64-linux-gnu/libcrypto.so.3",
+            "bytes": 6517312,
+            "sha256": "8bb5f3fdffe280d4453eb79a4663c2c47af70b7c247fe2e94e2da703cee1fd3d"
+          },
+          {
+            "path": "/lib/x86_64-linux-gnu/libz.so.1",
+            "realpath": "/usr/lib/x86_64-linux-gnu/libz.so.1.3.1",
+            "bytes": 125376,
+            "sha256": "85590dd58edf5445e18bc7193e5ebc01ac5841f1ae187e97705a662e90c6421e"
+          },
+          {
+            "path": "/lib/x86_64-linux-gnu/libc.so.6",
+            "realpath": "/usr/lib/x86_64-linux-gnu/libc.so.6",
+            "bytes": 1995216,
+            "sha256": "fa430b8f298f817a266046af84a77533185ad6fc4406c7d3787b5a0a0c207826"
+          },
+          {
+            "path": "/lib64/ld-linux-x86-64.so.2",
+            "realpath": "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+            "bytes": 225672,
+            "sha256": "438c546d8e8cc48496bf3a95f753051afd9db66a629a74e31a9ded71586b56e0"
+          },
+          {
+            "path": "/lib/x86_64-linux-gnu/libzstd.so.1",
+            "realpath": "/usr/lib/x86_64-linux-gnu/libzstd.so.1.5.7",
+            "bytes": 825336,
+            "sha256": "27f07c9a49c2c956bcfb64cd4712976586a66facbf15fc7f09bc37413b5f2b21"
+          }
+        ]
+      },
+      "local_revision": {
+        "utc_start": "2026-10-16T14:00:29.087073+00:00",
+        "utc_end": "2026-10-16T14:00:29.091118+00:00",
+        "argv": [
+          "git",
+          "-C",
+          "/workspace/tcl-lsp/tmp/jimtcl-oracle",
+          "rev-parse",
+          "HEAD"
+        ],
+        "cwd": "/workspace/naming-validation/runtime174-current/provider-pairing",
+        "exit": 0,
+        "stdout": {
+          "file": "jim-local-revision.stdout",
+          "bytes": 41,
+          "sha256": "d6871c3697d0a50df0677833206c147f4873986bb59a4317c8509cb433365243"
+        },
+        "stderr": {
+          "file": "jim-local-revision.stderr",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      },
+      "tracked_source_status": {
+        "utc_start": "2026-10-16T14:00:29.091136+00:00",
+        "utc_end": "2026-10-16T14:00:29.099968+00:00",
+        "argv": [
+          "git",
+          "-C",
+          "/workspace/tcl-lsp/tmp/jimtcl-oracle",
+          "status",
+          "--porcelain",
+          "--untracked-files=no"
+        ],
+        "cwd": "/workspace/naming-validation/runtime174-current/provider-pairing",
+        "exit": 0,
+        "stdout": {
+          "file": "jim-tracked-status.stdout",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "stderr": {
+          "file": "jim-tracked-status.stderr",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      },
+      "matches_manifest_revision": true,
+      "tracked_source_clean": true,
+      "matches_latest_upstream_at_execution": true,
+      "invocation": {
+        "utc_start": "2026-10-16T14:00:29.100155+00:00",
+        "utc_end": "2026-10-16T14:00:29.105465+00:00",
+        "argv": [
+          "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+          "/workspace/naming-validation/runtime174-current/provider-pairing/jim-probe.tcl"
+        ],
+        "cwd": "/workspace/naming-validation/runtime174-current/provider-pairing",
+        "exit": 0,
+        "stdout": {
+          "file": "jim.stdout",
+          "bytes": 290,
+          "sha256": "582896e2f7cc30c10b53e6818025314a9159d918436e0d01c1eee16ec64818ab"
+        },
+        "stderr": {
+          "file": "jim.stderr",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      },
+      "environment_changes": {
+        "TCL_LIBRARY": "removed",
+        "TCLLIBPATH": "removed",
+        "JIMLIB": "removed",
+        "PAIRING_EXPECTED_PATCHLEVEL": "0.84-9-g5bac7c9",
+        "PAIRING_JIM_SUPPORT": "/workspace/tcl-lsp/tmp/jimtcl-oracle/tcltest.tcl"
+      },
+      "support_selection": "explicitly sources the original tree tcltest.tcl in file mode; embedded initjimsh/tclcompat input hashes retained separately",
+      "acceptance": true,
+      "negative_setup_surface": {
+        "invocation": {
+          "utc_start": "2026-10-16T14:00:29.105497+00:00",
+          "utc_end": "2026-10-16T14:00:29.109529+00:00",
+          "argv": [
+            "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+            "-e",
+            "puts [info patchlevel]; puts [info nameofexecutable]; puts [info commands info]; puts [package require tcltest]"
+          ],
+          "cwd": "/workspace/naming-validation/runtime174-current/provider-pairing",
+          "exit": 1,
+          "stdout": {
+            "file": "jim-e-tcltest-negative.stdout",
+            "bytes": 64,
+            "sha256": "0c2ef0a531aa548fcd7fb7b5120e1fe1b83b2a7e4ff1d651a8715c1862956f86"
+          },
+          "stderr": {
+            "file": "jim-e-tcltest-negative.stderr",
+            "bytes": 228,
+            "sha256": "75ca521e32f0c022b7e9d17ab421f96a18843761170e2e806e934fae1ed4f25b"
+          }
+        },
+        "expected_limitation": "Jim -e has no argv0; original tcltest.tcl source refuses before setup completes",
+        "failed_as_expected": true
+      }
+    }
+  ],
+  "jim_upstream_recheck": {
+    "utc_start": "2026-10-16T14:00:27.080097+00:00",
+    "utc_end": "2026-10-16T14:00:28.129901+00:00",
+    "argv": [
+      "git",
+      "ls-remote",
+      "https://github.com/msteveb/jimtcl.git",
+      "HEAD"
+    ],
+    "cwd": "/workspace/naming-validation/runtime174-current/provider-pairing",
+    "exit": 0,
+    "stdout": {
+      "file": "jim-upstream-head.stdout",
+      "bytes": 46,
+      "sha256": "b462d0ddec77db10702025a9671e50c806eb85e8302b25428dc376895bb87de9"
+    },
+    "stderr": {
+      "file": "jim-upstream-head.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "head": "5bac7c99ad65864c87da513e22e2f01703fa4e03"
+  },
+  "utc_end": "2026-10-16T14:00:29.131635+00:00",
+  "all_pairings_accepted": true,
+  "all_retained_c_input_inventories_match": true,
+  "limitations": [
+    "Only setup, identity and explicit script/test support pairing were executed; no command-name or runtime semantics were tested.",
+    "Named source/support files and static archives are hashed; existing immutable C input inventories are validated by reference without duplicating their file lists; no source/binary copy is retained.",
+    "C source tags come from the shared reference manifest; existing immutable compiler-source integrity records are reused where available, and matching init hashes are checked independently.",
+    "Hashing a static archive records its installed build input; it is not a reproducible-build proof that the entire archive was linked.",
+    "Jim startup support is embedded in the executable; initjimsh/tclcompat generated-C and original Tcl inputs are hashed, without a separate native execution proof for each helper.",
+    "The historical shared-owner PASS log is independent supporting evidence, not substituted for these actual process captures."
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "exact": [
+    "automatic_jim_errors_retain_actual_evaluation_frames_and_source_locations",
+    "jim_alias_retains_root_slot_and_caller_lookup_and_frame",
+    "jim_rooted_alias_publication_matches_original_native_source_and_values",
+    "alias_publication_uses_current_c_holder_and_preserves_jim_incompatible_api",
+    "child_alias_publication_matches_original_supported_provider_apis",
+    "namespace_usage_and_alias_objv_dispatch_match_actual_native_contexts",
+    "missing_alias_targets_preserve_native_handler_selection_and_resolution"
+  ],
+  "filters": [],
+  "temporary_diagnostics": false,
+  "test_timeouts": {
+    "automatic_jim_errors_retain_actual_evaluation_frames_and_source_locations": 180,
+    "jim_alias_retains_root_slot_and_caller_lookup_and_frame": 180,
+    "jim_rooted_alias_publication_matches_original_native_source_and_values": 180,
+    "alias_publication_uses_current_c_holder_and_preserves_jim_incompatible_api": 180,
+    "child_alias_publication_matches_original_supported_provider_apis": 180,
+    "namespace_usage_and_alias_objv_dispatch_match_actual_native_contexts": 180,
+    "missing_alias_targets_preserve_native_handler_selection_and_resolution": 180
+  }
+}

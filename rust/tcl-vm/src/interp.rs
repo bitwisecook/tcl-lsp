@@ -4105,11 +4105,11 @@ impl Vm {
     /// the one table both this VM and `runtime/rust` read, so the two engines
     /// cannot report different patch levels for the same emulated release.
     fn write_release_globals(&mut self) {
-        self.write_scalar_raw(
+        self.write_host_bootstrap_scalar(
             "tcl_version",
             Value::string(self.runtime_version.as_package_version()),
         );
-        self.write_scalar_raw(
+        self.write_host_bootstrap_scalar(
             "tcl_patchLevel",
             Value::string(self.runtime_version.patchlevel()),
         );
@@ -4221,12 +4221,59 @@ impl Vm {
     /// so library scripts (tcltest) that read them at load time work.
     fn bootstrap_globals(&mut self) {
         self.rebootstrap_host_globals();
-        self.write_scalar_raw("argv", Value::list(Vec::new()));
-        self.write_scalar_raw("argv0", Value::string("tcltest"));
-        self.write_scalar_raw("argc", Value::int(0));
+        self.write_host_bootstrap_scalar("argv", Value::list(Vec::new()));
+        self.write_host_bootstrap_scalar("argv0", Value::string("tcltest"));
+        self.write_host_bootstrap_scalar("argc", Value::int(0));
         self.write_release_globals();
         self.install_native_precision_trace();
-        self.write_scalar_raw("tcl_interactive", Value::int(0));
+        self.write_host_bootstrap_scalar("tcl_interactive", Value::int(0));
+    }
+
+    /// Fixed host slots are already selected root-table keys, not guest names.
+    fn write_host_bootstrap_scalar(&mut self, name: &'static str, value: Value) {
+        if self.actual_engine_profile.is_some() || self.active_native_profile.is_some() {
+            self.write_scalar_raw(name, value);
+            return;
+        }
+        let binding = VarBinding {
+            owner: VarTableOwner::Namespace(ROOT_NS),
+            name: NameBytes::from(name),
+        };
+        let resolved = self
+            .resolve_binding_var(binding, None, &mut HashSet::new())
+            .expect("host root slot");
+        self.write_scalar_resolved_raw(resolved, value);
+    }
+
+    fn install_host_bootstrap_array(&mut self, name: &'static str) -> VarId {
+        let binding = VarBinding {
+            owner: VarTableOwner::Namespace(ROOT_NS),
+            name: NameBytes::from(name),
+        };
+        self.bind_new_var(&binding, Local::Array(VarTable::new()))
+            .expect("host root array allocation")
+    }
+
+    fn write_host_bootstrap_element(&mut self, parent: VarId, key: &str, value: &str) {
+        let existing = match self.var_arena.get(parent).map(crate::vars::VarCell::state) {
+            Some(Local::Array(elements)) => elements.get(key).copied(),
+            _ => unreachable!("host-owned array"),
+        };
+        if let Some(id) = existing {
+            let _ = self
+                .var_arena
+                .replace_state(id, Local::Scalar(Value::string(value)));
+            return;
+        }
+        let id = self
+            .var_arena
+            .alloc_element(Local::Scalar(Value::string(value)), parent, key)
+            .expect("host array member allocation");
+        if self.var_arena.array_insert(parent, key, id) {
+            self.var_arena.bind(id);
+        } else {
+            self.var_arena.discard_unbound(id);
+        }
     }
 
     fn unset_global_raw(&mut self, name: &str) {
@@ -4255,6 +4302,20 @@ impl Vm {
         }
         for name in tcl_platform::bootstrap::HOST_PATH_GLOBALS {
             self.unset_global_raw(name);
+        }
+        if self.actual_engine_profile.is_none() && self.active_native_profile.is_none() {
+            let platform = self.install_host_bootstrap_array("tcl_platform");
+            let environment = self.install_host_bootstrap_array("env");
+            self.write_host_bootstrap_scalar("tcl_library", Value::string(snapshot.tcl_library()));
+            self.write_host_bootstrap_scalar("auto_path", Value::list(Vec::new()));
+            for (name, value) in snapshot.platform() {
+                self.write_host_bootstrap_element(platform, name, value);
+            }
+            for (name, value) in snapshot.environment() {
+                self.write_host_bootstrap_element(environment, name, value);
+            }
+            self.limits.confined_stores = confined;
+            return;
         }
         self.ensure_array("::tcl_platform")
             .expect("fresh tcl_platform array");
@@ -20123,6 +20184,10 @@ impl Vm {
         let Some(resolved) = self.resolve_var_from(name, self.current_level()) else {
             return;
         };
+        self.write_scalar_resolved_raw(resolved, value);
+    }
+
+    fn write_scalar_resolved_raw(&mut self, resolved: ResolvedVar, value: Value) {
         if self.dictionary_variable_containers()
             && let Some(key) = &resolved.elem
         {
@@ -33696,5 +33761,196 @@ mod original_c_import_preload_cleanup_tests {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod host_bootstrap_storage_tests {
+    use super::*;
+
+    struct BootstrapEnvironment {
+        revision: &'static str,
+    }
+    impl tcl_platform::Env for BootstrapEnvironment {
+        fn get(&self, key: &str) -> Option<String> {
+            self.vars()
+                .into_iter()
+                .find(|(name, _)| name == key)
+                .map(|(_, value)| value)
+        }
+        fn set(&self, _: &str, _: &str) {
+            panic!("host bootstrap must not mutate the environment");
+        }
+        fn vars(&self) -> Vec<(String, String)> {
+            vec![
+                ("USER".into(), "bootstrap-user".into()),
+                ("TCL_LIBRARY".into(), format!("/library/{}", self.revision)),
+                ("literal::key(x)".into(), self.revision.into()),
+            ]
+        }
+        fn cwd(&self) -> Result<String, tcl_platform::HostError> {
+            Err(tcl_platform::HostError::Unsupported)
+        }
+        fn chdir(&self, _: &str) -> Result<(), tcl_platform::HostError> {
+            Err(tcl_platform::HostError::Unsupported)
+        }
+    }
+    struct BootstrapHost {
+        actual: Rc<dyn Host>,
+        environment: BootstrapEnvironment,
+    }
+    impl Host for BootstrapHost {
+        fn capabilities(&self) -> tcl_platform::Capabilities {
+            self.actual.capabilities()
+        }
+        fn clock(&self) -> &dyn tcl_platform::Clock {
+            self.actual.clock()
+        }
+        fn stdio(&self) -> &dyn tcl_platform::StdIo {
+            self.actual.stdio()
+        }
+        fn env(&self) -> &dyn tcl_platform::Env {
+            &self.environment
+        }
+    }
+    fn host(vm: &Vm, revision: &'static str) -> Rc<dyn Host> {
+        Rc::new(BootstrapHost {
+            actual: vm.host_rc(),
+            environment: BootstrapEnvironment { revision },
+        })
+    }
+    fn root(vm: &Vm, name: &str) -> VarId {
+        *vm.frames[0]
+            .locals
+            .get(name)
+            .expect("actual host root slot")
+    }
+    fn bytes(vm: &Vm, id: VarId) -> Vec<u8> {
+        let Local::Scalar(value) = vm.var_arena.get(id).unwrap().state() else {
+            panic!("host scalar cell");
+        };
+        value
+            .resident_string_bytes()
+            .expect("host authored string")
+            .to_vec()
+    }
+    fn array_member(vm: &Vm, array: VarId, key: &str) -> VarId {
+        let Local::Array(table) = vm.var_arena.get(array).unwrap().state() else {
+            panic!("host array cell");
+        };
+        *table.get(key).expect("actual counted host element")
+    }
+
+    #[test]
+    fn distribution_host_bootstrap_owns_storage_without_a_native_name_policy() {
+        let mut vm = Vm::with_output(Box::new(std::io::sink()));
+        assert!(vm.actual_engine_profile.is_none());
+        assert!(vm.active_native_profile.is_none());
+        assert!(vm.name_policy_protocol().is_none());
+        assert!(vm.execution_name_policy().is_none());
+        assert!(vm.execution_refusal.is_none());
+        for name in [
+            "argv",
+            "argv0",
+            "argc",
+            "tcl_version",
+            "tcl_patchLevel",
+            "tcl_interactive",
+            "auto_path",
+            "tcl_library",
+        ] {
+            assert!(
+                matches!(
+                    vm.var_arena.get(root(&vm, name)).unwrap().state(),
+                    Local::Scalar(_)
+                ),
+                "{name}"
+            );
+        }
+        assert_eq!(bytes(&vm, root(&vm, "argv0")), b"tcltest");
+        assert_eq!(
+            bytes(&vm, root(&vm, "tcl_version")),
+            vm.runtime_version.as_package_version().as_bytes()
+        );
+        let first_host = host(&vm, "first");
+        vm.set_host(first_host);
+        assert!(vm.execution_refusal.is_none());
+        let first_env = root(&vm, "env");
+        let first_element = array_member(&vm, first_env, "literal::key(x)");
+        assert_eq!(bytes(&vm, first_element), b"first");
+        assert_eq!(bytes(&vm, root(&vm, "tcl_library")), b"/library/first");
+        let platform = root(&vm, "tcl_platform");
+        assert_eq!(
+            bytes(&vm, array_member(&vm, platform, "user")),
+            b"bootstrap-user"
+        );
+        let second_host = host(&vm, "second");
+        vm.set_host(second_host);
+        assert!(vm.execution_refusal.is_none());
+        let second_env = root(&vm, "env");
+        assert_ne!(first_env, second_env);
+        assert!(vm.var_arena.get(first_env).is_none());
+        assert!(vm.var_arena.get(first_element).is_none());
+        assert_eq!(
+            bytes(&vm, array_member(&vm, second_env, "literal::key(x)")),
+            b"second"
+        );
+        assert_eq!(bytes(&vm, root(&vm, "tcl_library")), b"/library/second");
+        assert!(vm.actual_engine_profile.is_none());
+        assert!(vm.active_native_profile.is_none());
+        assert!(vm.name_policy_protocol().is_none());
+        assert!(vm.execution_name_policy().is_none());
+        assert!(vm.ensure_array("guest").is_err());
+        let first = vm.execution_refusal.clone().expect("genuine guest refusal");
+        assert!(!vm.frames[0].locals.contains_key("guest"));
+        let third_host = host(&vm, "third");
+        vm.set_host(third_host);
+        assert_eq!(vm.execution_refusal.as_ref(), Some(&first));
+        assert_eq!(bytes(&vm, root(&vm, "tcl_library")), b"/library/third");
+        assert!(vm.actual_engine_profile.is_none());
+        assert!(vm.name_policy_protocol().is_none());
+    }
+
+    #[test]
+    fn host_release_slot_keeps_a_name_link_to_a_missing_array_element() {
+        let mut vm = Vm::with_output(Box::new(std::io::sink()));
+        let array = vm.install_host_bootstrap_array("host-target");
+        vm.write_host_bootstrap_element(array, "retained", "unchanged");
+        let retained = array_member(&vm, array, "retained");
+        let root_slot = VarBinding {
+            owner: VarTableOwner::Namespace(ROOT_NS),
+            name: NameBytes::from("tcl_version"),
+        };
+        let link = vm
+            .bind_new_var(
+                &root_slot,
+                Local::NameLink(NameLink {
+                    original_target: None,
+                    binding: VarBinding {
+                        owner: VarTableOwner::Namespace(ROOT_NS),
+                        name: NameBytes::from("host-target"),
+                    },
+                    element: Some(NameBytes::from("missing::key(x)")),
+                }),
+            )
+            .unwrap();
+        vm.write_release_globals();
+        assert_eq!(root(&vm, "tcl_version"), link);
+        assert!(matches!(
+            vm.var_arena.get(link).unwrap().state(),
+            Local::NameLink(_)
+        ));
+        assert_eq!(root(&vm, "host-target"), array);
+        assert_eq!(array_member(&vm, array, "retained"), retained);
+        assert_eq!(bytes(&vm, retained), b"unchanged");
+        let installed = array_member(&vm, array, "missing::key(x)");
+        assert_eq!(
+            bytes(&vm, installed),
+            vm.runtime_version.as_package_version().as_bytes()
+        );
+        assert!(vm.actual_engine_profile.is_none());
+        assert!(vm.active_native_profile.is_none());
+        assert!(vm.name_policy_protocol().is_none());
+        assert!(vm.execution_refusal.is_none());
     }
 }

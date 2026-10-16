@@ -736,7 +736,10 @@ impl Lsp {
     /// pay that barrier.
     pub fn at_workspace_root(root: &std::path::Path) -> Self {
         let mut lsp = Self::spawn(json!({ "features": { "linkedEditingRange": true } }));
-        lsp.initialize_at(&format!("file://{}", root.to_string_lossy()));
+        let root_uri = tcl_lsp_server::canonical_file_uri(root)
+            .expect("workspace root has a representable file URI")
+            .to_string();
+        lsp.initialize_at(&root_uri);
         lsp
     }
 
@@ -763,7 +766,10 @@ impl Lsp {
         env: &[(&str, &str)],
     ) -> Self {
         let mut lsp = Self::spawn_with_env(config, env);
-        lsp.initialize_at(&format!("file://{}", root.to_string_lossy()));
+        let root_uri = tcl_lsp_server::canonical_file_uri(root)
+            .expect("workspace root has a representable file URI")
+            .to_string();
+        lsp.initialize_at(&root_uri);
         let requested = lsp.shared.tcllsp_config.lock().unwrap().clone();
         lsp.settle_config(&requested);
         lsp
@@ -781,14 +787,20 @@ impl Lsp {
         {
             let mut map = lsp.shared.folder_configs.lock().unwrap();
             for (root, config) in folders {
-                map.insert(format!("file://{}", root.to_string_lossy()), config.clone());
+                let uri = tcl_lsp_server::canonical_file_uri(root)
+                    .expect("workspace folder has a representable file URI")
+                    .to_string();
+                map.insert(uri, config.clone());
             }
         }
         let roots: Vec<Value> = folders
             .iter()
             .enumerate()
             .map(|(i, (root, _))| {
-                json!({ "uri": format!("file://{}", root.to_string_lossy()), "name": format!("root{i}") })
+                let uri = tcl_lsp_server::canonical_file_uri(root)
+                    .expect("workspace folder has a representable file URI")
+                    .to_string();
+                json!({ "uri": uri, "name": format!("root{i}") })
             })
             .collect();
         lsp.initialize_with_folders(&roots);

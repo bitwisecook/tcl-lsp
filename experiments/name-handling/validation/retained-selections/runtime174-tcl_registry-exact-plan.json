@@ -1,0 +1,14 @@
+{
+  "exact": [
+    "native_alias_registration::tests::alias_registration_coordinates_are_provider_and_purpose_selected",
+    "native_alias_registration::tests::modern_alias_query_retains_registration_coordinate_without_replacement_authority",
+    "model::context::tests::catalogue_case_advice_keeps_exact_names_availability_and_ambiguity"
+  ],
+  "filters": [],
+  "temporary_diagnostics": false,
+  "test_timeouts": {
+    "native_alias_registration::tests::alias_registration_coordinates_are_provider_and_purpose_selected": 180,
+    "native_alias_registration::tests::modern_alias_query_retains_registration_coordinate_without_replacement_authority": 180,
+    "model::context::tests::catalogue_case_advice_keeps_exact_names_availability_and_ambiguity": 180
+  }
+}

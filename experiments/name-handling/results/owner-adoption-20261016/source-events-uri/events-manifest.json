@@ -1,0 +1,35 @@
+{
+  "patch_sha256": "fb865bcba5f20a1a5be6b7377ba6f54b969d45abf82015d0bc76a4a221c37266",
+  "baseline_unit": "db.unit.registry.events.boundary-selected-source-transport",
+  "caller_count_note": "F5 explain source-event wiring is actual demonstrated consumer, not contextual-reference 239 or loader 240; no per-file unit count.",
+  "files": [
+    {
+      "path": "rust/f5-cli/src/commands/explain.rs",
+      "before_sha256": "71f996659c6abacfa293669914d9ac774d62e778d745d52f546baab5286a2d48",
+      "after_sha256": "fb969176f0d39cce976c5a55a19a986cbc643780db4d1c3f0a162e20cf2018c8",
+      "live_matches_before": true
+    },
+    {
+      "path": "rust/tcl-irules/src/lib.rs",
+      "before_sha256": "6d29d6bc412605b5ed5607d14f02f7d121ac32cb994c88d3fd56047586248b45",
+      "after_sha256": "ec4435bf1b1eb2c1feb3a40a070abc10496b2d92bfca2a5d1518e51ccb4929a0",
+      "live_matches_before": true
+    },
+    {
+      "path": "rust/tcl-irules/src/source_context.rs",
+      "before_sha256": "f674d6de768d1fe78e49042d7699d340b56636ca88cc54963abe88c12e297cb1",
+      "after_sha256": "f94c720f3c10eae04dca74bf5bb4495e257990891b124a34ed603c72a0efbd62",
+      "live_matches_before": true
+    },
+    {
+      "path": "rust/tcl-irules/src/when_block.rs",
+      "before_sha256": "2e41a4aaae5abf3395e7413f68386bd039f96d7e8aaea0f854757562091a9b5e",
+      "after_sha256": "9f8777cd3ce156da1a6113014abd23f076c071f4b1d0d770a739075b3bb9f700",
+      "live_matches_before": true
+    }
+  ],
+  "validation": "All live beforeimages matched; patch dry-run passed. No formatting/Cargo/build/tests/Git/main modifications.",
+  "distinct_baseline_scope_touched": 1,
+  "completed_baseline_units": 0,
+  "completion_note": "Bounded SourceWhen/explain transport within existing unit; remaining general Registry facade/inherited-priority consumers not claimed complete."
+}

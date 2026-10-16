@@ -78,7 +78,9 @@ fn write(path: &Path, body: &str) {
 }
 
 fn file_uri(path: &Path) -> String {
-    format!("file://{}", path.to_string_lossy())
+    tcl_lsp_server::canonical_file_uri(path)
+        .expect("pack fixture path has a representable file URI")
+        .to_string()
 }
 
 /// Tell the server a pack file moved, exactly as a client's file watcher would.
