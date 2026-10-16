@@ -222,6 +222,158 @@ pub fn word_cursor_prefix_in(
     }))
 }
 
+/// A configured original argv cursor. This retains whole source grouping and
+/// an honest parse cut, including dynamic/expanded and unfinished arguments.
+/// Only the original head is a complete NativeWord. Active arguments retain
+/// geometry without an evaluated value, semantic role or entered frame.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ArgumentCursor {
+    image: SourceImage,
+    config: LexerConfig,
+    region: Span,
+    command: Span,
+    head: crate::NativeWord,
+    word_index: usize,
+    words: usize,
+    empty_boundary: bool,
+    cut: Option<crate::ParseCut>,
+}
+impl ArgumentCursor {
+    /// Exact independently supplied lexical source region.
+    #[must_use]
+    pub const fn region_span(&self) -> Span {
+        self.region
+    }
+
+    /// Complete original image/channel/configuration and selected lexical region.
+    #[must_use]
+    pub fn matches_source(&self, image: &SourceImage, region: Span, config: LexerConfig) -> bool {
+        self.image == *image && self.region == region && self.config == config
+    }
+    /// Original full command extent; no synthetic closing delimiter is added.
+    #[must_use]
+    pub const fn command_span(&self) -> Span {
+        self.command
+    }
+    /// Real whole written head geometry, without selected-command identity.
+    #[must_use]
+    pub fn head_span(&self) -> Span {
+        self.head.span()
+    }
+    /// Complete original written head; semantic name/lookup owners are separate.
+    #[must_use]
+    pub const fn head_word(&self) -> &crate::NativeWord {
+        &self.head
+    }
+    /// Original argv ordinal, including dynamic and expanded written words.
+    #[must_use]
+    pub const fn word_index(&self) -> usize {
+        self.word_index
+    }
+    /// Number of whole grouped written words; expansions do not imply argc.
+    #[must_use]
+    pub const fn written_word_count(&self) -> usize {
+        self.words
+    }
+    /// The cursor follows actual separating trivia within this command.
+    #[must_use]
+    pub const fn is_empty_boundary(&self) -> bool {
+        self.empty_boundary
+    }
+    /// Genuine selected-parser cut at or before this lexical command. Missing
+    /// cut means no retained syntax cut, never execution or lookup completion.
+    #[must_use]
+    pub const fn parse_cut(&self) -> Option<crate::ParseCut> {
+        self.cut
+    }
+}
+
+/// Original configured argv geometry at a source cursor. The caller owns the
+/// script-region purpose; this lexer facet does not discover executable bodies.
+/// Unlike literal completion prefixes, dynamic and expanded source words retain
+/// their actual written ordinal. No evaluated or Native formal role is issued.
+///
+/// # Errors
+/// Returns unavailable geometry, token stream or original group extent.
+pub fn argument_cursor_in(
+    image: &SourceImage,
+    region: Span,
+    cursor: u32,
+    config: LexerConfig,
+) -> Result<Option<ArgumentCursor>, WordCursorUnavailable> {
+    if region.start() > cursor || cursor > region.end() || region.end() as usize > image.len() {
+        return Err(WordCursorUnavailable::SourceGeometry);
+    }
+    let tokens = crate::source_region_tokens_in(image, region, config)
+        .map_err(|_| WordCursorUnavailable::LexicalStream)?;
+    if tokens.iter().any(|token| {
+        token.kind == TokenType::Comment
+            && token.span.start() <= cursor
+            && cursor <= token.span.end()
+    }) {
+        return Ok(None);
+    }
+    let commands = crate::group_commands_bytes(&tokens, image.bytes(), config);
+    let cut = crate::first_parse_cut_image_in_checked(&commands, &tokens, image, config)
+        .map_err(|_| WordCursorUnavailable::LexicalStream)?;
+    for (index, command) in commands.iter().enumerate() {
+        let Some(head_group) = command.words.first() else {
+            continue;
+        };
+        if head_group.expand {
+            continue;
+        }
+        let head = crate::NativeWord::from_group(image.clone(), config, &tokens, head_group)
+            .map_err(|_| WordCursorUnavailable::WordShape)?;
+        let extent = command
+            .source_extent(&tokens, region.end() as usize)
+            .ok_or(WordCursorUnavailable::SourceGeometry)?;
+        let mut active = None;
+        let mut preceding = 0;
+        for (ordinal, word) in command.words.iter().enumerate() {
+            let span =
+                crate::NativeWord::written_span_from_group(image.bytes(), config, &tokens, word)
+                    .map_err(|_| WordCursorUnavailable::SourceGeometry)?;
+            if span.end() <= cursor {
+                preceding += 1;
+            }
+            if span.start() <= cursor && cursor <= span.end() {
+                active = Some((ordinal, false));
+                break;
+            }
+        }
+        if active.is_none() && extent.start() <= cursor && cursor <= extent.end() {
+            let last = tokens.iter().rev().find(|token| {
+                token.span.start() < cursor
+                    && token.span.start() >= extent.start()
+                    && token.kind != TokenType::Eof
+                    && !(token.kind == TokenType::Eol && token.span.is_empty())
+            });
+            if last.is_some_and(|token| token.kind == TokenType::Sep) {
+                active = Some((preceding, true));
+            }
+        }
+        let Some((word_index, empty_boundary)) = active else {
+            continue;
+        };
+        if word_index == 0 {
+            return Ok(None);
+        }
+        return Ok(Some(ArgumentCursor {
+            image: image.clone(),
+            config,
+            region,
+            command: extent,
+            head,
+            word_index,
+            words: command.words.len(),
+            empty_boundary,
+            cut: cut.filter(|cut| cut.command <= index),
+        }));
+    }
+    Ok(None)
+}
+
 /// Source cursor geometry that cannot be represented by this variable purpose.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VariableCursorUnavailable {
@@ -786,6 +938,73 @@ mod tests {
         assert_eq!(
             variable_cursor_prefix_in(&image, Span::new(0, 5), 8, config),
             Err(VariableCursorUnavailable::SourceGeometry)
+        );
+    }
+}
+
+#[cfg(test)]
+mod argument_cursor_tests {
+    use super::*;
+    fn at(source: &str, offset: usize) -> Option<ArgumentCursor> {
+        let image = SourceImage::document(source);
+        argument_cursor_in(
+            &image,
+            Span::new(0, u32::try_from(source.len()).unwrap()),
+            u32::try_from(offset).unwrap(),
+            LexerConfig::default(),
+        )
+        .unwrap()
+    }
+    #[test]
+    fn argument_cursor_retains_dynamic_expanded_and_future_suffix_ordinals() {
+        for (source, needle, ordinal) in [
+            ("cmd $value tail", "$value", 1),
+            ("cmd {*}{alpha beta} tail", "beta", 1),
+            ("cmd first   future", "   ", 2),
+            ("cmd {ordinary body data} tail", "body", 1),
+        ] {
+            let cursor = at(source, source.find(needle).unwrap() + 1).unwrap();
+            assert_eq!(cursor.word_index(), ordinal, "{source}");
+            assert_eq!(cursor.head_word().try_text().unwrap(), "cmd");
+            assert_eq!(cursor.written_word_count(), 3);
+        }
+    }
+    #[test]
+    fn argument_cursor_keeps_incomplete_source_cut_and_never_adds_a_closer() {
+        for source in ["cmd {unfinished", "cmd \"unfinished"] {
+            let cursor = at(source, source.len()).unwrap();
+            assert_eq!(cursor.word_index(), 1);
+            assert_eq!(cursor.command_span().end() as usize, source.len());
+            assert_eq!(
+                cursor.parse_cut().unwrap().completeness(),
+                crate::ParseCutCompleteness::Incomplete
+            );
+            assert_eq!(cursor.head_word().image().bytes(), source.as_bytes());
+        }
+    }
+    #[test]
+    fn argument_cursor_separates_comments_boundaries_foreign_source_and_config() {
+        assert!(at("cmd first\n# comment", 14).is_none());
+        assert!(at("cmd first\n", 10).is_none());
+        assert!(at("cmd first", 2).is_none());
+        let source = "cmd first ";
+        let cursor = at(source, source.len()).unwrap();
+        assert!(cursor.is_empty_boundary());
+        assert_eq!(cursor.word_index(), 2);
+        let image = SourceImage::document(source);
+        let region = Span::new(0, u32::try_from(source.len()).unwrap());
+        assert!(cursor.matches_source(&image, region, LexerConfig::default()));
+        assert!(!cursor.matches_source(
+            &SourceImage::document("cmd other "),
+            region,
+            LexerConfig::default()
+        ));
+        let mut changed = LexerConfig::default();
+        changed.expand_syntax = !changed.expand_syntax;
+        assert!(!cursor.matches_source(&image, region, changed));
+        assert_eq!(
+            argument_cursor_in(&image, region, region.end() + 1, LexerConfig::default()),
+            Err(WordCursorUnavailable::SourceGeometry)
         );
     }
 }

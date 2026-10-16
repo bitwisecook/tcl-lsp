@@ -481,6 +481,7 @@ fn stores_row(row: &Stmt, log: &mut Log) -> Option<DeclaredStores> {
     let mut outcome: Option<OutcomeKind> = None;
     let mut i = 1;
     while i < row.words.len() {
+        let rejected_flag_word = row.words[i].clone();
         match row.words[i].text.as_str() {
             "-targets" => {
                 let words = list_words(&next_text(&row.words, &mut i));
@@ -509,7 +510,7 @@ fn stores_row(row: &Stmt, log: &mut Log) -> Option<DeclaredStores> {
                     );
                 }
             }
-            other => log.unknown_flag("stores", row.line, other),
+            _ => log.unknown_flag("stores", row.line, &rejected_flag_word),
         }
         i += 1;
     }
@@ -541,6 +542,7 @@ fn iterate_block(word: &Word, log: &mut Log) -> Option<DeclaredIteration> {
         let key = row.word_text(0).to_owned();
         let mut i = 1;
         while i < row.words.len() {
+            let rejected_flag_word = row.words[i].clone();
             let flag = row.words[i].text.clone();
             match (key.as_str(), flag.as_str()) {
                 ("binder" | "iterable" | "body" | "cardinality", "-arg") => {
@@ -596,7 +598,7 @@ fn iterate_block(word: &Word, log: &mut Log) -> Option<DeclaredIteration> {
                         ),
                     ),
                 },
-                _ => log.unknown_flag(&key, row.line, &flag),
+                _ => log.unknown_flag(&key, row.line, &rejected_flag_word),
             }
             i += 1;
         }
@@ -998,7 +1000,7 @@ fn budget_row(row: &Stmt, log: &mut Log) -> ImplementationBudget {
             "-wall-clock" => &mut budget.wall_clock_ms,
             "-value-bytes" => &mut budget.value_bytes,
             other => {
-                log.unknown_flag("budget", row.line, other);
+                log.unknown_flag_value("budget", row.line, other);
                 continue;
             }
         };
@@ -1551,6 +1553,8 @@ speclib probe 2.2 {
     fn a_native_id_a_table_holds_installs_its_value() {
         fn word(text: &str) -> Word {
             Word {
+                local_source: None,
+                original_source: None,
                 text: text.to_owned(),
                 braced: false,
                 line: 1,

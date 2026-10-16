@@ -221,6 +221,17 @@ impl LogicalSourceMemberDeclaration {
             &self.class.image,
         )
     }
+    /// Exact original body operand from the retained Registry member vector.
+    /// This supplies source syntax, never an entered receiver or method frame.
+    #[must_use]
+    pub fn original_body_word(&self) -> Option<&tcl_lexer::NativeWord> {
+        self.class.class.original_members.logical_body_operand(
+            self.side,
+            &self.method,
+            &self.class.input,
+            &self.class.image,
+        )
+    }
 }
 
 impl AnalysisResult {
@@ -345,6 +356,68 @@ impl AnalysisResult {
         self.logical_self_selector_at(image, config, cursor, input)
     }
 
+    /// Original declaring member behind the actual retained source frame at
+    /// this occurrence. Unrepresented bodies cannot infer a caller from spans.
+    #[must_use]
+    pub fn logical_source_member_frame_at(
+        &self,
+        image: &SourceImage,
+        config: tcl_lexer::LexerConfig,
+        cursor: u32,
+    ) -> Option<LogicalSourceMemberDeclaration> {
+        let input = self.resolved_input.as_ref()?;
+        if input.lexer_config() != config
+            || !self.matches_original_source_image(image, config)
+            || !self.allows_retained_logical_declaration_advice()
+        {
+            return None;
+        }
+        let bindings = self.retained_command_realm()?.source_bindings_ref();
+        let frame =
+            crate::command_binding::SourceCommandBindings::logical_source_member_frame_at_offset(
+                bindings, input, image, cursor, config,
+            )?;
+        if !matches!(
+            frame.frame().layout(),
+            crate::var_resolve::VariableExecutionFrame::ReceiverMethod { .. }
+        ) {
+            return None;
+        }
+        let mut selected = None;
+        for class in self.all_classes.values() {
+            let Some(owner) = self.logical_source_class_declaration(class) else {
+                continue;
+            };
+            for (side, members) in [
+                (MemberSide::Instance, &class.methods),
+                (MemberSide::ClassObject, &class.class_methods),
+            ] {
+                for method in members.values() {
+                    let matches = class
+                        .original_members
+                        .logical_body_operand(side, method, input, image)
+                        .and_then(|body| body.content_span().ok())
+                        .is_some_and(|content| {
+                            content.start() == frame.source().base()
+                                && image
+                                    .try_text()
+                                    .ok()
+                                    .and_then(|source| source.get(content.as_range()))
+                                    == frame.source().try_text().ok()
+                        });
+                    if matches {
+                        let member = owner.member(side, method)?;
+                        if selected.is_some() {
+                            return None;
+                        }
+                        selected = Some(member);
+                    }
+                }
+            }
+        }
+        selected
+    }
+
     fn logical_member_declarations_at(
         &self,
         image: &SourceImage,
@@ -393,13 +466,8 @@ impl AnalysisResult {
         let contains =
             |word: &tcl_lexer::NativeWord| word.span().as_range().contains(&(cursor as usize));
         let mut selected = None;
-        let frame = bindings.logical_source_member_frame_at_offset(input, image, cursor, config)?;
-        if !matches!(
-            frame.frame().layout(),
-            crate::var_resolve::VariableExecutionFrame::ReceiverMethod { .. }
-        ) {
-            return None;
-        }
+        let caller = self.logical_source_member_frame_at(image, config, cursor)?;
+        let caller_class = self.logical_source_member_class(&caller)?;
         for invocation in &self.command_invocations {
             let Some(command) = bindings.original_logical_source_command_at_in_source(
                 input,
@@ -445,21 +513,7 @@ impl AnalysisResult {
                     (MemberSide::Instance, &class.methods),
                     (MemberSide::ClassObject, &class.class_methods),
                 ] {
-                    let has_frame = members.values().any(|method| {
-                        class
-                            .original_members
-                            .logical_body_operand(side, method, input, image)
-                            .and_then(|body| body.content_span().ok())
-                            .is_some_and(|content| {
-                                content.start() == frame.source().base()
-                                    && image
-                                        .try_text()
-                                        .ok()
-                                        .and_then(|source| source.get(content.as_range()))
-                                        == frame.source().try_text().ok()
-                            })
-                    });
-                    if !has_frame {
+                    if !std::ptr::eq(class, caller_class) || side != caller.side() {
                         continue;
                     }
                     for method in members.values() {
@@ -1146,7 +1200,6 @@ mod logical_navigation_receipt_tests {
 
 #[cfg(test)]
 mod logical_relation_navigation_tests {
-    use super::*;
     use crate::analyser::Analyser;
     use crate::command_binding::LogicalSourceClassRelationTarget;
 

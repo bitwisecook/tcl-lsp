@@ -126,6 +126,14 @@ export interface CurrentDiagnosticsTransport {
     source: string;
     proposal: string;
   }): Promise<unknown>;
+  requestTransform?(
+    command: import("../documentTransform").DocumentTransformCommand,
+    source: import("../documentTransform").DocumentTransformRequest,
+    options: readonly unknown[],
+  ): Promise<unknown>;
+  validateTransform?(
+    receipt: import("../documentTransform").DocumentTransformReceipt & { replacement: string },
+  ): Promise<unknown>;
   convert(diagnostics: LspDiagnostic[]): Promise<vscode.Diagnostic[]>;
   setSessionDialectOverride?(dialect: string | null): Promise<void>;
   isCurrent(): boolean;

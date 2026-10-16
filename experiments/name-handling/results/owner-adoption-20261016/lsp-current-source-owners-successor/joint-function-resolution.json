@@ -1,0 +1,7 @@
+{
+  "only_joint_function": "code_lenses",
+  "resolution": "complete combined file equals reviewed LensV3 afterimage; Native branch equals corrected NativeV2 except required logical_identity:None field",
+  "combined_sha256": "374541409d5f97bea1077974154d591f91b5279f56e6ab9a02317dee9423d32e",
+  "NativeV2_branch_sha256": "434d6b73ad1d6246a00b625cedd8a60e7a0f603f03155ccab8ec93b0a9c76540",
+  "no_semantic_guard_merge": true
+}

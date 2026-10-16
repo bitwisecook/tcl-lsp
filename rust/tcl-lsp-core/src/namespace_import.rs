@@ -148,6 +148,58 @@
 use crate::source_graph::{RunOrder, RunPoint};
 use tcl_syntax::glob::string_match;
 
+/// Temporal interpretation private to the namespace source-report owner.
+/// A SourceHorizon result is conditional advice, never an alias liveness fact.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum NamespaceStatementPurpose {
+    Modeled,
+    SourceHorizon,
+}
+impl NamespaceStatementPurpose {
+    pub(crate) fn precedence(
+        self,
+        order: &RunOrder,
+        event: RunPoint<'_>,
+        query: RunPoint<'_>,
+    ) -> Option<bool> {
+        match self {
+            Self::Modeled => order
+                .navigation_precedence(event, query)?
+                .modeled_source_exclusion(),
+            Self::SourceHorizon if query.at == u32::MAX => {
+                order.source_advice_after_document(event, query.uri)
+            }
+            Self::SourceHorizon => order.source_advice_statement_precedence(event, query),
+        }
+    }
+    pub(crate) fn comparison(
+        self,
+        order: &RunOrder,
+        a: RunPoint<'_>,
+        b: RunPoint<'_>,
+    ) -> Option<std::cmp::Ordering> {
+        let answer = order.navigation_comparison(a, b)?;
+        match self {
+            Self::Modeled => answer.modeled_source_exclusion(),
+            Self::SourceHorizon => order.source_advice_statement_comparison(a, b),
+        }
+    }
+    fn in_effect(self, order: &RunOrder, event: RunPoint<'_>, query: Option<RunPoint<'_>>) -> bool {
+        match self {
+            Self::Modeled => in_effect_at(order, event, query),
+            Self::SourceHorizon => {
+                query.is_none_or(|query| self.precedence(order, event, query).unwrap_or(true))
+            }
+        }
+    }
+    fn after(self, order: &RunOrder, later: RunPoint<'_>, earlier: RunPoint<'_>) -> bool {
+        match self {
+            Self::Modeled => ran_after(order, later, earlier),
+            Self::SourceHorizon => self.precedence(order, later, earlier) == Some(false),
+        }
+    }
+}
+
 /// What is known about "had `source_ns` exported this name when the import
 /// ran?" — three-valued, because *absence of an export record* is only
 /// evidence where the export records themselves are visible.
@@ -382,10 +434,24 @@ pub fn export_patterns_in_effect<'e, P>(
     order: &RunOrder,
     import_site: RunPoint<'_>,
 ) -> Vec<P> {
+    export_patterns_for_purpose(
+        events,
+        order,
+        import_site,
+        NamespaceStatementPurpose::Modeled,
+    )
+}
+
+pub(crate) fn export_patterns_for_purpose<'e, P>(
+    events: impl Iterator<Item = ExportEvent<'e, P>>,
+    order: &RunOrder,
+    import_site: RunPoint<'_>,
+    purpose: NamespaceStatementPurpose,
+) -> Vec<P> {
     let mut patterns = Vec::new();
     let mut clears = Vec::new();
     for ev in events {
-        if !in_effect_at(order, ev.at, Some(import_site)) {
+        if !purpose.in_effect(order, ev.at, Some(import_site)) {
             continue;
         }
         if ev.clears {
@@ -396,7 +462,7 @@ pub fn export_patterns_in_effect<'e, P>(
     }
     patterns
         .into_iter()
-        .filter(|(_, p)| !clears.iter().any(|&c| ran_after(order, c, *p)))
+        .filter(|(_, p)| !clears.iter().any(|&c| purpose.after(order, c, *p)))
         .map(|(pattern, _)| pattern)
         .collect()
 }
@@ -416,6 +482,29 @@ pub fn exported_original_at_import_site<'e>(
     order: &RunOrder,
     import_site: RunPoint<'_>,
 ) -> ExportVerdict {
+    exported_original_for_purpose(
+        events,
+        slot,
+        policy,
+        order,
+        import_site,
+        NamespaceStatementPurpose::Modeled,
+    )
+}
+
+pub(crate) fn exported_original_for_purpose<'e>(
+    events: impl Iterator<
+        Item = (
+            &'e tcl_compiler::signature_scan::original_name::SourceNamespaceExport,
+            RunPoint<'e>,
+        ),
+    >,
+    slot: &tcl_core_types::ByteCommandSlot,
+    policy: tcl_syntax::naming::NamePolicyProtocol,
+    order: &RunOrder,
+    import_site: RunPoint<'_>,
+    purpose: NamespaceStatementPurpose,
+) -> ExportVerdict {
     if !tcl_syntax::native_glob::NativeGlobProtocol::from_name_policy(policy)
         .export_filter_applies()
     {
@@ -428,7 +517,7 @@ pub fn exported_original_at_import_site<'e>(
     if matching.is_empty() {
         return ExportVerdict::Unknown;
     }
-    let surviving = export_patterns_in_effect(
+    let surviving = export_patterns_for_purpose(
         matching.into_iter().map(|(event, at)| ExportEvent {
             pattern: event,
             clears: event.clears(),
@@ -436,6 +525,7 @@ pub fn exported_original_at_import_site<'e>(
         }),
         order,
         import_site,
+        purpose,
     );
     let mut unknown = false;
     for event in surviving {
@@ -626,10 +716,19 @@ pub fn alias_live_at(
     order: &RunOrder,
     query: Option<RunPoint<'_>>,
 ) -> bool {
+    alias_for_purpose(events, order, query, NamespaceStatementPurpose::Modeled)
+}
+
+pub(crate) fn alias_for_purpose(
+    events: &mut dyn Iterator<Item = AliasEvent<'_>>,
+    order: &RunOrder,
+    query: Option<RunPoint<'_>>,
+    purpose: NamespaceStatementPurpose,
+) -> bool {
     let mut installs: Vec<RunPoint<'_>> = Vec::new();
     let mut removals: Vec<RunPoint<'_>> = Vec::new();
     for ev in events {
-        if !in_effect_at(order, ev.at, query) {
+        if !purpose.in_effect(order, ev.at, query) {
             continue;
         }
         match ev.kind {
@@ -639,7 +738,7 @@ pub fn alias_live_at(
     }
     installs
         .iter()
-        .any(|&i| !removals.iter().any(|&r| ran_after(order, r, i)))
+        .any(|&i| !removals.iter().any(|&r| purpose.after(order, r, i)))
 }
 
 #[cfg(test)]

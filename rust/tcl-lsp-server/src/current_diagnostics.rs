@@ -162,9 +162,12 @@ pub(super) struct PublishedDiagnosticReport {
     suppression: Option<DiagnosticSuppression>,
 }
 
-struct CurrentDiagnosticInput {
+/// Exact source-file/input/publication metadata, without diagnostic completion.
+/// Transform results reborrow this existing metadata owner independently of
+/// push delivery, diagnostic suppression or the direct-report pipeline.
+pub(super) struct CurrentDiagnosticInput {
     file: tcl_lsp_db::SourceFile,
-    input: Arc<tcl_compiler::analyser::ResolvedAnalysisInput>,
+    pub(super) input: Arc<tcl_compiler::analyser::ResolvedAnalysisInput>,
     database_revision: salsa::Revision,
 }
 
@@ -175,7 +178,7 @@ struct CurrentDiagnosticRead<'a> {
 }
 
 impl CurrentDiagnosticInput {
-    fn matches_locked(
+    pub(super) fn matches_locked(
         &self,
         uri: &Uri,
         admission: &DocumentPathAdmission,
@@ -1092,7 +1095,7 @@ impl Backend {
             .await
     }
 
-    async fn current_diagnostic_input_parts(
+    pub(super) async fn current_diagnostic_input_parts(
         &self,
         uri: &Uri,
         source: &str,

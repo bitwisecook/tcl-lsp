@@ -18,6 +18,11 @@
 
 import * as assert from "assert";
 import * as vscode from "vscode";
+import {
+  captureDocumentTransform,
+  requestDocumentTransform,
+  applyDocumentTransform,
+} from "../documentTransform";
 import { activate, getDocUri, scaledTimeout } from "./helper";
 import {
   applyDocumentWrite,
@@ -218,5 +223,97 @@ suite("Command Registration", () => {
     await vscode.window.showTextDocument(doc);
     // Should not throw
     await vscode.commands.executeCommand("tclLsp.formatDocument");
+  });
+});
+
+suite("Source-bound document transforms", () => {
+  test("actual transform result cannot overwrite a buffer changed during confirmation", async () => {
+    await activate(getDocUri("simple.tcl"));
+    const document = await vscode.workspace.openTextDocument(getDocUri("simple.tcl"));
+    const editor = await vscode.window.showTextDocument(document);
+    const original = document.getText();
+    try {
+      const snapshot = captureDocumentTransform(document);
+      assert.ok(snapshot, "actual client session and resource configuration");
+      const result = await requestDocumentTransform<{ source: string }>(
+        snapshot,
+        "tcl-lsp.minifyDocument",
+      );
+      assert.ok(result, "actual source-bound server result");
+      await editor.edit((edit) =>
+        edit.insert(new vscode.Position(0, 0), "# changed while confirming\n"),
+      );
+      const changed = document.getText();
+      assert.strictEqual(await applyDocumentTransform(snapshot, result), false);
+      assert.strictEqual(document.getText(), changed);
+      const current = captureDocumentTransform(document);
+      assert.ok(current);
+      const fresh = await requestDocumentTransform<{ source: string }>(
+        current,
+        "tcl-lsp.minifyDocument",
+      );
+      assert.ok(fresh);
+      assert.strictEqual(await applyDocumentTransform(current, fresh), true);
+      assert.strictEqual(document.getText(), fresh.source);
+    } finally {
+      await editor.edit((edit) =>
+        edit.replace(new vscode.Range(0, 0, document.lineCount, 0), original),
+      );
+    }
+  });
+});
+
+suite("Source-bound transform configuration", () => {
+  test("a settings change while confirming cannot reuse the earlier response", async () => {
+    await activate(getDocUri("simple.tcl"));
+    const document = await vscode.workspace.openTextDocument(getDocUri("simple.tcl"));
+    const snapshot = captureDocumentTransform(document);
+    assert.ok(snapshot);
+    const result = await requestDocumentTransform<{ source: string }>(
+      snapshot,
+      "tcl-lsp.minifyDocument",
+    );
+    assert.ok(result);
+    const source = document.getText();
+    const configuration = vscode.workspace.getConfiguration("tclLsp.optimiser", document.uri);
+    const before = configuration.get<boolean>("enabled", true);
+    try {
+      await configuration.update("enabled", !before, undefined);
+      assert.strictEqual(await applyDocumentTransform(snapshot, result), false);
+      assert.strictEqual(document.getText(), source);
+    } finally {
+      await configuration.update("enabled", before, undefined);
+    }
+  });
+});
+
+suite("Source-bound transform no-op acceptance", () => {
+  test("an unchanged result still requires its actual server receipt", async () => {
+    await activate(getDocUri("simple.tcl"));
+    const document = await vscode.workspace.openTextDocument({
+      language: "tcl",
+      content: "puts hello\n",
+    });
+    await vscode.window.showTextDocument(document);
+    const snapshot = captureDocumentTransform(document);
+    assert.ok(snapshot);
+    const result = await requestDocumentTransform<{ source: string }>(
+      snapshot,
+      "tcl-lsp.fixAllSafeIssues",
+    );
+    assert.ok(result);
+    assert.strictEqual(result.source, snapshot.source.fullSource, "actual no-op safe-fix response");
+    const foreign = {
+      ...result,
+      editReceipt: { ...result.editReceipt, id: `unissued-${result.editReceipt.id}` },
+    };
+    assert.strictEqual(
+      await applyDocumentTransform(snapshot, foreign),
+      false,
+      "the actual server refuses an unissued handle even for unchanged text",
+    );
+    assert.strictEqual(document.getText(), snapshot.source.fullSource);
+    assert.strictEqual(await applyDocumentTransform(snapshot, result), true);
+    assert.strictEqual(document.getText(), snapshot.source.fullSource);
   });
 });

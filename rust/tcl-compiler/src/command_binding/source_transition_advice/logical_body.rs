@@ -774,6 +774,7 @@ impl LogicalBodyWalk<'_, '_> {
             .flatten();
         let operand_barrier =
             self.retain_deferred_operand_header(tape, graph, native, &head, (scope, depth))?;
+        OriginalSourceTransitionAdviceTape::retain_logical_procedure_call(tape, graph, native);
         let Some((selected, mut arguments, lineage)) = original_selection
             .or_else(|| graph.resolve(&head))
             .or_else(|| graph.readonly_logical_source_candidate(&head, native, scope))

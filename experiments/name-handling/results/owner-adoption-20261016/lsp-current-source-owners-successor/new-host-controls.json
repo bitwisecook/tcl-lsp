@@ -1,0 +1,9 @@
+{
+  "source": "editors/vscode/src/test/commands.test.ts",
+  "new_unexecuted_titles": [
+    "actual transform result cannot overwrite a buffer changed during confirmation",
+    "a settings change while confirming cannot reuse the earlier response",
+    "an unchanged result still requires its actual server receipt"
+  ],
+  "execution": "none"
+}

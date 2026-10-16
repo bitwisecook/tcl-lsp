@@ -65,6 +65,11 @@ import {
   workspaceEditFromLsp,
 } from "./clientCore";
 import { DiffDiagnosticsSuppressor } from "./diffAnalysis";
+import {
+  captureDocumentTransform,
+  requestDocumentTransform,
+  applyDocumentTransform,
+} from "./documentTransform";
 import { applyDocumentWrite } from "./chat/codeUtils";
 import {
   invalidateAnalysisContext,
@@ -197,6 +202,16 @@ export async function activate(context: ExtensionContext) {
           command: "tcl-lsp.proposalDiagnostics",
           arguments: [params],
         }),
+      requestTransform: (command, source, options) =>
+        activeClient.sendRequest("workspace/executeCommand", {
+          command,
+          arguments: [source, ...options],
+        }),
+      validateTransform: (receipt) =>
+        activeClient.sendRequest("workspace/executeCommand", {
+          command: "tcl-lsp.validateDocumentTransform",
+          arguments: [receipt],
+        }),
       convert: (diagnostics) => activeClient.protocol2CodeConverter.asDiagnostics(diagnostics),
       setSessionDialectOverride: async (dialect) => {
         await activeClient.sendRequest("workspace/executeCommand", {
@@ -227,8 +242,8 @@ export async function activate(context: ExtensionContext) {
 
   context.subscriptions.push(
     workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration("tclLsp")) invalidateAnalysisContext();
       if (e.affectsConfiguration("tclLsp.dialect")) {
-        invalidateAnalysisContext();
         updateDialectStatusBar();
         updateIruleContext(window.activeTextEditor);
       }
@@ -732,11 +747,24 @@ async function executeServerCommand<T>(command: string, args: unknown[]): Promis
 async function optimiseDocument(): Promise<void> {
   const editor = activeTclEditor("run optimisations");
   if (!editor) return;
-  const result = await executeServerCommand<{
+  const snapshot = captureDocumentTransform(editor.document);
+  if (!snapshot) {
+    window.showWarningMessage(
+      "The document analysis context is unavailable. Try again when the server is ready.",
+    );
+    return;
+  }
+  const result = await requestDocumentTransform<{
     optimisations: Array<Record<string, unknown>>;
     source: string;
-  }>("tcl-lsp.optimiseDocument", [editor.document.uri.toString()]);
-  if (!result?.optimisations?.length) {
+  }>(snapshot, "tcl-lsp.optimiseDocument");
+  if (!result) {
+    window.showWarningMessage(
+      "A current document transform is unavailable. Run the command again.",
+    );
+    return;
+  }
+  if (!result.optimisations?.length) {
     window.showInformationMessage("No optimisations found.");
     return;
   }
@@ -747,8 +775,10 @@ async function optimiseDocument(): Promise<void> {
     "Cancel",
   );
   if (proceed !== "Apply") return;
-  const fullRange = editor.document.validateRange(new Range(0, 0, Infinity, Infinity));
-  await editor.edit((editBuilder) => editBuilder.replace(fullRange, result.source));
+  if (!(await applyDocumentTransform(snapshot, result))) {
+    window.showWarningMessage("The document or analysis context changed. Run the command again.");
+    return;
+  }
   window.showInformationMessage(`Applied ${count} optimisation${count === 1 ? "" : "s"}.`);
 }
 
@@ -780,11 +810,24 @@ async function showOptimisations(): Promise<void> {
 async function fixAllSafeIssues(): Promise<void> {
   const editor = activeTclEditor("apply safe fixes");
   if (!editor) return;
-  const result = await executeServerCommand<{
+  const snapshot = captureDocumentTransform(editor.document);
+  if (!snapshot) {
+    window.showWarningMessage(
+      "The document analysis context is unavailable. Try again when the server is ready.",
+    );
+    return;
+  }
+  const result = await requestDocumentTransform<{
     source: string;
     applied: Array<{ code: string; description: string; safety: string }>;
-  }>("tcl-lsp.fixAllSafeIssues", [editor.document.uri.toString()]);
-  if (!result?.applied?.length) {
+  }>(snapshot, "tcl-lsp.fixAllSafeIssues");
+  if (!result) {
+    window.showWarningMessage(
+      "A current document transform is unavailable. Run the command again.",
+    );
+    return;
+  }
+  if (!result.applied?.length) {
     window.showInformationMessage("No safe auto-fixes available.");
     return;
   }
@@ -794,8 +837,10 @@ async function fixAllSafeIssues(): Promise<void> {
     "Cancel",
   );
   if (proceed !== "Apply") return;
-  const fullRange = editor.document.validateRange(new Range(0, 0, Infinity, Infinity));
-  await editor.edit((editBuilder) => editBuilder.replace(fullRange, result.source));
+  if (!(await applyDocumentTransform(snapshot, result))) {
+    window.showWarningMessage("The document or analysis context changed. Run the command again.");
+    return;
+  }
   window.showInformationMessage(
     `Applied ${result.applied.length} safe fix${result.applied.length === 1 ? "" : "es"}.`,
   );
@@ -809,6 +854,13 @@ async function formatDocument(): Promise<void> {
 async function minifyDocument(): Promise<void> {
   const editor = activeTclEditor("minify");
   if (!editor) return;
+  const snapshot = captureDocumentTransform(editor.document);
+  if (!snapshot) {
+    window.showWarningMessage(
+      "The document analysis context is unavailable. Try again when the server is ready.",
+    );
+    return;
+  }
   const mode = await window.showQuickPick(
     [
       {
@@ -841,14 +893,20 @@ async function minifyDocument(): Promise<void> {
   );
   if (!mode) return;
 
-  const result = await executeServerCommand<{
+  const result = await requestDocumentTransform<{
     source: string;
     originalLength: number;
     minifiedLength: number;
     symbolMap?: string;
     optimisationsApplied?: number;
-  }>("tcl-lsp.minifyDocument", [editor.document.uri.toString(), ...mode.args]);
-  if (!result?.source) {
+  }>(snapshot, "tcl-lsp.minifyDocument", mode.args);
+  if (!result) {
+    window.showWarningMessage(
+      "A current document transform is unavailable. Run the command again.",
+    );
+    return;
+  }
+  if (!result.source) {
     window.showInformationMessage("Nothing to minify.");
     return;
   }
@@ -860,8 +918,10 @@ async function minifyDocument(): Promise<void> {
     "Cancel",
   );
   if (proceed !== "Apply") return;
-  const fullRange = editor.document.validateRange(new Range(0, 0, Infinity, Infinity));
-  await editor.edit((editBuilder) => editBuilder.replace(fullRange, result.source));
+  if (!(await applyDocumentTransform(snapshot, result))) {
+    window.showWarningMessage("The document or analysis context changed. Run the command again.");
+    return;
+  }
   window.showInformationMessage(
     `Minified: ${result.originalLength} → ${result.minifiedLength} characters.`,
   );

@@ -1,0 +1,15 @@
+{
+  "utc": "2026-10-16T23:07:33.065598+00:00",
+  "removed_duplicate_download_cache_only": [
+    {
+      "path": "/workspace/.toolchains/gradle/gradle-9.8.0",
+      "reason": "Root-created duplicate standalone extraction; every file hash matches actual wrapper-owned distribution"
+    },
+    {
+      "path": "/workspace/.toolchains/OpenJDK17U-jdk_x64_linux_hotspot_17.0.20.1_1.tar.gz",
+      "reason": "Root-owned download cache; original extracted JDK retained with release URL/checksum for exact redownload",
+      "sha256": "3808d1d15e3ec6bd5b84057fb5d84c33d8a1536a258146bcea2e603fc726e08e",
+      "bytes": 193252603
+    }
+  ]
+}

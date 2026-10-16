@@ -740,6 +740,16 @@ impl SourceOrderContext {
         })
     }
 
+    pub(crate) fn source_text(&self) -> Option<&str> {
+        self.image.try_text().ok()
+    }
+    pub(crate) fn matches_input(
+        &self,
+        input: &tcl_compiler::analyser::ResolvedAnalysisInput,
+    ) -> bool {
+        &self.input == input && self.realm.matches_resolved_analysis_input(input)
+    }
+
     fn site(&self, at: u32) -> Option<&OriginalSourceOrderSite> {
         if !self.realm.matches_resolved_analysis_input(&self.input)
             || !self
@@ -1108,6 +1118,72 @@ impl RunOrder {
         }
     }
 
+    /// Conditional compatibility within an actually represented statement
+    /// horizon. An unentered sibling/deferred body is never a root event.
+    pub(crate) fn source_advice_statement_precedence(
+        &self,
+        event: RunPoint<'_>,
+        query: RunPoint<'_>,
+    ) -> Option<bool> {
+        let event = self.original_point(event)?;
+        let query = self.original_point(query)?;
+        if event.enclosing_body.is_some()
+            && (event.uri != query.uri || event.enclosing_body != query.enclosing_body)
+        {
+            return None;
+        }
+        let (event, query) = self.common_original_frame(event, query)?;
+        let relation = tcl_compiler::analyser::indirection::in_effect_within(
+            event.at,
+            query.at,
+            query.enclosing_body,
+        );
+        Self::trusted(relation, event, query).then_some(relation)
+    }
+
+    pub(crate) fn source_advice_statement_comparison(
+        &self,
+        a: RunPoint<'_>,
+        b: RunPoint<'_>,
+    ) -> Option<std::cmp::Ordering> {
+        let a = self.original_point(a)?;
+        let b = self.original_point(b)?;
+        if (a.enclosing_body.is_some() || b.enclosing_body.is_some())
+            && (a.uri != b.uri || a.enclosing_body != b.enclosing_body)
+        {
+            return None;
+        }
+        self.comparison_relation(a, b)
+    }
+
+    /// A declared readonly end-of-document query, not an original command or
+    /// executed completion. Unknown tails/entry remain debt at the caller.
+    pub(crate) fn source_advice_after_document(
+        &self,
+        event: RunPoint<'_>,
+        uri: &str,
+    ) -> Option<bool> {
+        let contexts = self.source_contexts.as_ref()?;
+        let context = contexts.get(uri)?;
+        let event = self.original_point(event)?;
+        // Root text ending does not enter a deferred procedure/method body.
+        if event.enclosing_body.is_some() {
+            return None;
+        }
+        let query = RunPoint {
+            uri,
+            at: u32::try_from(context.image.bytes().len()).ok()?,
+            enclosing_body: None,
+        };
+        let (event, query) = self.common_original_frame(event, query)?;
+        let relation = tcl_compiler::analyser::indirection::in_effect_within(
+            event.at,
+            query.at,
+            query.enclosing_body,
+        );
+        Self::trusted(relation, event, query).then_some(relation)
+    }
+
     /// Resolve [`Self::alternatives`] for every document up front: the root
     /// walk and the ambiguity test do not depend on the point being asked
     /// about, so they belong here rather than on the per-call path.
@@ -1316,6 +1392,10 @@ impl RunOrder {
     fn common_frame(&self, a: RunPoint<'_>, b: RunPoint<'_>) -> Option<(Placed, Placed)> {
         let a = self.original_point(a)?;
         let b = self.original_point(b)?;
+        self.common_original_frame(a, b)
+    }
+
+    fn common_original_frame(&self, a: RunPoint<'_>, b: RunPoint<'_>) -> Option<(Placed, Placed)> {
         let own = |p: RunPoint<'_>| Placed {
             at: p.at,
             enclosing_body: p.enclosing_body,

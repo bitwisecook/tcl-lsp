@@ -1,0 +1,7 @@
+{
+  "utc": "2026-10-16T23:12:21.269322+00:00",
+  "scope": "Remove only failed incomplete Root-owned Gradle IDEA SDK extraction after actualsetupfailure; original downloaded compressed SDK/package and all source/logs retained. No test efficacy result.",
+  "failed_transform": "/workspace/.toolchains/gradle/caches/9.8.0/transforms/a7f18c43dbc1c6da487b8f29ecd8b631",
+  "incomplete_files": 2484,
+  "logical_bytes": 3542253284
+}

@@ -21,6 +21,12 @@
 //! This module lives below both consumers because SpecTcl depends on Core's
 //! VFS. It owns no loader, filesystem access, registration or execution facts.
 
+mod original_word;
+pub use original_word::{
+    LocalPackSourceWord, OriginalPackSourceStatement, OriginalPackSourceWord,
+    original_pack_source_statements,
+};
+
 use std::ops::Range;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;

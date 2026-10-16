@@ -31,6 +31,30 @@ impl LogicalNavigationScope {
     }
 }
 
+/// Exact root-source geometry reborrowed independently of command lookup.
+/// Only the whole-source traversal's genuine Document recipe can issue this.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct OriginalLogicalDocumentWords {
+    input: ResolvedAnalysisInput,
+    original: Arc<[NativeWord]>,
+    origin: Arc<crate::command_binding::SourceOriginId>,
+}
+impl OriginalLogicalDocumentWords {
+    pub(super) fn matches_source(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        input: &ResolvedAnalysisInput,
+        original: &[NativeWord],
+    ) -> bool {
+        &self.input == input
+            && input.has_logical_source_name_context()
+            && self.origin.source_image() == image
+            && self.original.as_ref() == original
+            && LogicalNavigationScope::Document(Arc::clone(&self.origin))
+                .owns_words(original, input)
+    }
+}
+
 /// Original variable geometry retains its source frame independently of head lookup.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct OriginalLogicalVariableWords {
@@ -81,6 +105,37 @@ impl OriginalLogicalVariableWords {
             && self.scope.owns_words(&self.original, input)
     }
 
+    /// Reborrow common original whole-word/source-frame geometry. No variable
+    /// occurrence, naming lookup, entered frame or read capability is issued.
+    pub(super) fn matches_original_source_words(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        input: &ResolvedAnalysisInput,
+        original: &[NativeWord],
+    ) -> bool {
+        self.matches_source(image, input) && self.original.as_ref() == original
+    }
+
+    pub(super) fn document_words(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        input: &ResolvedAnalysisInput,
+        original: &[NativeWord],
+    ) -> Option<OriginalLogicalDocumentWords> {
+        let LogicalNavigationScope::Document(origin) = &self.scope else {
+            return None;
+        };
+        self.matches_source(image, input).then_some(())?;
+        let document = OriginalLogicalDocumentWords {
+            input: self.input.clone(),
+            original: Arc::clone(&self.original),
+            origin: Arc::clone(origin),
+        };
+        document
+            .matches_source(image, input, original)
+            .then_some(document)
+    }
+
     pub(super) fn variable_source_scope(
         &self,
         span: tcl_lexer::Span,
@@ -127,10 +182,6 @@ pub struct OriginalLogicalCommandCandidates {
 }
 
 impl OriginalLogicalCommandCandidates {
-    pub(super) fn is_original_document_scope(&self) -> bool {
-        matches!(self.scope, LogicalNavigationScope::Document(_))
-    }
-
     fn capture(
         graph: &AdviceGraph,
         original: &[NativeWord],
@@ -189,6 +240,29 @@ impl OriginalLogicalCommandCandidates {
             candidates,
             earlier_unknown_mutations: !graph.uncertain_operations.is_empty(),
         })
+    }
+
+    /// Genuine whole-document source issuer, only for the separate Document
+    /// recipe. Missing here does not imply an absent or entered caller frame.
+    #[must_use]
+    pub fn original_document_source_origin(
+        &self,
+    ) -> Option<&crate::command_binding::SourceOriginId> {
+        match &self.scope {
+            LogicalNavigationScope::Document(origin) => Some(origin),
+            LogicalNavigationScope::Declared(_) => None,
+        }
+    }
+
+    /// Original declared caller recipe. None here positively denotes this
+    /// receipt's separate Document recipe, not absent or unknown scope data.
+    /// The complete receipt supplies source ancestry, never an entered frame.
+    #[must_use]
+    pub fn declared_source_context(&self) -> Option<&OriginalDeclaredLogicalBodyContext> {
+        match &self.scope {
+            LogicalNavigationScope::Declared(scope) => Some(scope),
+            LogicalNavigationScope::Document(_) => None,
+        }
     }
 
     /// Whole original head, independently of reporting labels and diagnostics.
@@ -349,6 +423,13 @@ impl OriginalLogicalAbsoluteCommandCandidate {
             earlier_unknown_mutations: !graph.uncertain_operations.is_empty(),
         })
     }
+    /// Complete original vector retained by this genuine body-syntax issuer.
+    /// This is source geometry, never a caller namespace or selected target.
+    #[must_use]
+    pub fn original_words(&self) -> &[NativeWord] {
+        &self.original
+    }
+
     /// The root-independent coordinate of this authentic absolute source head.
     #[must_use]
     pub const fn coordinates(&self) -> &[ByteCommandSlot; 1] {
@@ -660,6 +741,20 @@ impl OriginalSourceTransitionAdviceTape {
 }
 
 impl OriginalSourceTransitionAdviceTape {
+    pub(super) fn original_logical_source_word_context(
+        &self,
+        input: &ResolvedAnalysisInput,
+        original: &[NativeWord],
+    ) -> Option<OriginalLogicalVariableWords> {
+        let head = original.first()?;
+        let held = self
+            .logical_variable_words
+            .get(&head.span().start())?
+            .as_ref()?;
+        held.matches_original_source_words(head.image(), input, original)
+            .then(|| held.clone())
+    }
+
     pub(super) fn merge_logical_navigation(
         &mut self,
         offset: u32,

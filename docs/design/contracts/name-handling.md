@@ -1771,7 +1771,13 @@ their independent admission and source predicates.
 The original call hierarchy's no-resolved-reference branch uses the same
 OriginalCommandLookup::matching_source_advice_publications owner as original
 declaration selection. Genuine publication sites travel with independently
-current headers. Ordered coordinates alone cannot donate a target around an
+current headers. An empty positioned publication result may separately consult
+matching_external_source_advice_publications for independently current foreign
+source headers. That existing conditional owner requires genuinely missing
+lookup slots, removes explicit deleted slots, and refuses builtin, local or
+alias occupants and unknown observations. An unavailable positioned result is
+terminal, and a later header in the consuming source is not an external source
+publication. Neither purpose proves that a foreign file was loaded. Ordered coordinates alone cannot donate a target around an
 actual builtin/local/alias occupant, deletion, unknown entry, observed step or
 opaque source barrier. A source declaration candidate remains readonly source
 advice and grants no Native dispatch, entered call, Normal or edit permission.
@@ -1779,7 +1785,9 @@ advice and grants no Native dispatch, entered call, Normal or edit permission.
 The consuming document retains its current complete input/source/configuration
 through FrameWalk and the existing selected-script command inventory. Its actual
 stamped original head, lookup and reference must agree with the reporting
-projection; missing or foreign correspondence declines. Prepare nominates only
+projection; missing or foreign correspondence declines. Invocation ranges
+correspond to the original segmenter's command-head token, independently of
+the full command extent and complete reborrowed vector. Prepare nominates only
 the genuine whole written head under an exact current UTF16 position. Equal text
 in an argument or stale report geometry cannot select the call. Declaring
 sources retain independent full input/currentness, and result spans use the
@@ -1820,3 +1828,209 @@ selector also recognises relation operands, so only an independently genuine
 original declaration Name word or constructor head may enter its fallback. A
 missing, unknown or ambiguous relation cannot fall through as a declaration or
 constructor selection and lose its original operand/receiver receipt.
+
+
+### Logical CALL hierarchy source selection and host publication
+
+The actual Server CALL prepare, incoming and outgoing paths use sealed
+`LogicalCallIdentity` through the existing bounded declaration registry's CALL
+schema 3. Native schema 1 and TYPE schema 2 remain separate. Client name,
+detail, range and selectionRange are presentation only; a missing, evicted,
+wrong-kind or unissued token cannot reselect a current declaration by text.
+
+The compiler's original procedure Name/body and genuine declared-body ancestry,
+original member Name/body and actual retained member-frame join supply readonly
+source owners. The existing positioned Logical candidate query and workspace
+candidate owner select possible procedure headers without a reporting-name
+inverse. The actual first occupied class/nonprocedure and ambiguous local
+selection remain terminal; source-known foreign duplicates remain separate
+possible positives with applicability debt. The member-frame projection shares
+the same genuine ReceiverMethod/body/parent/full-input predicate with the
+existing self-selector owner; it cannot supply an entered receiver namespace.
+A missing source ancestry is unknown, never the document root. Only the
+original Document recipe may group a root source occurrence. Unsupported
+anonymous and foreign/inherited member providers remain unrepresented debt.
+
+Every issued CALL identity retains its actual declaration source/input and,
+when selected by a call, the independent consuming source/input plus original
+request or member operand. Follow-up reissues both the caller and target join.
+The positive shared syntax command inventory is separate from call-graph
+closure: incomplete bodies and dynamic/unrepresented heads retain debt, and
+syntax Complete grants no reached call, dispatch, runtime frame or absence.
+`LogicalCallAdvice` retains this debt and the original source evidence through
+publication. A false retained-debt bit is not a complete workspace call census.
+Standard LSP items/ranges project possible source positives only.
+
+The host also retains actual prepare-time publication data in the same bounded
+registry row: analyser/factory epochs, SourceFile/database revision, full input,
+URI/path/provider admission, open/document/URI publication revisions and version,
+dialect generations, and actual indexed revision/source context plus the whole-index mutation generation. The opaque
+`LogicalCallHostPublication` container compares these typed host values only;
+it issues no source or semantic authority. The Server mints it from the actual
+lease inputs, never a text hash or fabricated clock. Follow-up requires the
+same host stamp; equal bytes cannot renew a provider or index publication.
+The unchanged all-document readonly SourceStore/provider transaction accepts
+publication only while a nonblocking actual index read retains that same stamp.
+A missing or busy owner remains unavailable. Native and TYPE wire behaviour,
+source reference publication and all existing compatibility assertions remain
+independent. This is a partial migration of audited CALL unit 642; it does not
+close unsupported inherited-provider/call-graph coverage or duplicate TYPE or
+original procedure fallback unit 614.
+
+
+### Logical readonly lens declaration and publication
+
+The existing required Core613 and Server722 consumers use genuine retained
+Logical procedure headers, completed class snapshots and original member
+Name/body/side vectors. A declaration-only issuer shares CALL's private
+selection constructor without fabricating a cursor or hierarchy item. Display
+labels, final report-map keys and client lens ranges cannot issue identity.
+Distinct source allocations and URI owners remain distinct, including
+superseded procedure headers. Class reference positives use the existing whole
+original class-command/factory source owner; equal source bytes in another URI
+cannot supply the declaration.
+
+`LogicalLensIdentity` uses separate bounded-registry schema4, independent of
+Native1, TYPE2 and CALL3. The same equality-only host publication container
+retains the actual preparing Server stamp: full input/source, SourceFile/DB,
+provider admission, document/version/URI publication and per-document plus whole
+index generation. No text, new receipt or displayed label can recreate that
+stamp. Resolution reborrows the same selection and original participants,
+rejects unknown/evicted/stale/foreign tokens and legacy qname/range payloads,
+and publishes only inside the existing readonly final SourceStore/provider and
+DB/config/publication lease with the current index held by try-read. Its anchor
+comes from the genuine current declaration, never the client's old range.
+
+Reference-purpose output is deliberately PARTIAL. Authentic possible CALL
+occurrences are a subset of references; local class-command occurrences retain
+their own whole original argv, selected factory, source/input and obligations.
+Unsupported property/lifecycle, captured/noncall references and foreign class
+providers remain unrepresented debt. Counts are positive lower bounds with the
+existing Partial renderer; zero is unavailable, not absence. Missing source
+coverage never supplies zero or an editable reference inventory. The normal
+Native identity/reference guards and complete edit inventories remain separate.
+This packet does not claim full Core613/Server722 closure or fix retained old
+complete-count assertions by dropping qualifiers. Existing Native compatibility
+qname presentation now uses the already selected identity's reporting_key;
+that projection supplies no new source or runtime identity.
+
+CALL schema 3 and the companion source-lens schema 4 additionally retain the
+issuing registry's original 16-byte OS/Web Crypto allocation discriminator in
+their wire data. It is a lossless JSON byte array, independent of source bytes,
+clocks, counters, names and publication stamps. A fresh Backend cannot accept
+an earlier session's coincident row token even if URI/source/publication inputs
+otherwise agree. Missing randomness withholds only these new kinds; their
+resolver checks the exact present discriminator before selecting any row.
+The token/nonce merely locates a retained receipt and grants no semantic or
+Native authority. Full source/provider publication revalidation is still
+required. Native schema 1 and TYPE schema 2 keep their exact two-field wire
+shape and strict rejection of extra session fields; their selectors and
+source-currency purpose are unchanged. The shared sealed `wire_session::EditorWireSession::allocate` owner uses the
+existing locked getrandom 0.2.17 Native/WASI/browser issuer directly, without a
+fallback to time, source hashes, process-local reset counters or absent-owner
+equality.
+
+The original definition-script coordinate owner retains the actual lowerer's selected Name and Body ordinals and object-definition mode alongside its issued allocation. Current reborrow checks that selection against the same shared selected-word layout reader for either genuine original-layout route. The Logical fallback issuer retains its stronger-owner refusal; this transport does not turn syntax coordinates into execution, dispatch, binding, edit or absence authority.
+
+
+### Original whole-document transform results
+
+The Server's minify, optimise and safe-fix commands accept an explicit original
+`{uri, version, source}` request as well as their unchanged legacy URI form.
+Only the explicit request can receive a source-associated result handle. Each
+private ledger independently allocates its own `EditorWireSession` from the
+shared actual OS/WASI/Web Crypto entropy owner. The lossless 16-byte issuer is
+retained in the receipt and must match the same ledger before a numeric handle
+is considered. Another Backend's equal counter/source/version/result cannot
+substitute its allocation; missing entropy withholds only new bound results.
+The transport nonce supplies no source, Native or semantic identity, and no
+CALL registry's session is borrowed. The private allocation-local ledger retains the actual returned replacement, the
+original raw source and document revision/version/language, the original
+SourceFile/publication/provider path admission, the complete selected analysis
+input and Registry, configuration/policy values, and actual input/factory/overlay
+and evaluator generations. Each existing worker pass retains its own actual
+source/input/Registry. Minify and optimise must match the original complete
+SourceFile input and full normalised source; retained equal bytes or generations
+alone cannot admit a different worker input. Safe-fix uses a distinct retained
+parameter bundle as the actual configured-analyser producer. Its exact original
+mode, extra commands, PackSet allocation, resource inputs, policy, dialect and
+decode metadata are reborrowed before publication; it never borrows the document
+analyser's workspace facts or purpose.
+
+Issuance and post-dialog validation reborrow the original source/input/provider
+under the existing current publication kernel. Missing or changed ownership is
+unavailable, never a new request, a refreshed old handle or a known-empty result.
+The handle authenticates only its original replacement bytes and supplies no
+semantic-equivalence, Native, command-world, edit-plan or diagnostic-completion
+permission. Minifier edit barriers, optimiser policy/groups, per-instance safe
+fixes, reanalysis and raw-EOL handling remain independent and unchanged. Legacy
+URI-only responses remain unbound data for their existing callers; they cannot
+pass the new editing entrypoints' receipt admission.
+
+Node and Browser retain the actual `DocumentSourceSnapshot`, pinned client
+transport/session, analysis context and complete resource settings before the
+mode picker/request. Actual settings changes invalidate the existing analysis
+context, including change-and-restore sequences. They compare the same source,
+version, document allocation, language, resource settings and context after
+request and confirmation, then validate the same Server result inside the
+existing snapshot replacement owner after editor focusing and immediately
+before editing. An unchanged-source result also requires the same admission
+before success is presented. Unknown/stale responses decline; Apply cannot
+repair identity.
+The existing symbol-map display follows only a successful checked replacement.
+This is currentness at each actual publication/edit boundary, not a distributed
+filesystem lock or a claim that a remote provider cannot change afterwards.
+
+Implementation contract: `naming.lsp.original-document-transform-currency` in
+[source-current-document-transforms.md](../analysis/name-resolution-proofs/source-current-document-transforms.md).
+
+
+### Positioned Logical procedure signatures and original argument cursors
+
+Actual signature help uses `CurrentSourcePosition` for an exact UTF16
+round-trip against the complete current image/input/configuration. The lexer
+`ArgumentCursor` retains configured grouping in the genuinely selected
+executable region: complete original head, real whole-command extent, written
+argv ordinal, empty delimiter boundary and genuine shared parse cut. It lexes
+the whole original region, never a truncated prefix, and issues no repaired
+active word or synthetic closer. Dynamic and expanded written arguments retain
+their geometry; expansion children and captured-prefix ordinals retain the
+existing independently selected Native adapters. Literal completion-prefix
+restrictions and expression cursor purposes remain separate.
+
+The original source transition kernel keeps a distinct Logical procedure
+Definition cell. It retains the actual Registry-selected original transition
+and follows the same shared slot/alias/move/delete/cycle owner as other source
+cells. Native SourceProcedure and Descriptor selection remain separate. This
+adds no second resolver and cannot make the Logical cell a Native procedure or
+Registry descriptor. The common original whole-word/source-frame context is
+borrowed without variable occurrence/read authority; absolute member syntax
+retains its own namespace-free issuer. Missing frames never supply the root.
+
+`OriginalLogicalProcedureCall` retains the exact call vector/full input/source
+recipe, actual definition transition, selected conditional source slot,
+alias/move lineage and captured prefix. Its declaration join requires the
+independently genuine Logical header's original factory site, whole vector,
+descriptor, parent source/input/context and original formals. Final reporting
+procedure maps, namespace labels and alias terminal strings cannot nominate or
+repair that owner. Rendering uses original header coordinate/formals rather
+than mutable report names/parameters. The actual Native signature branch keeps
+its original strong called-procedure selector and remains terminal.
+
+Earlier unknown mutations and current operand effects remain applicability
+obligations in the selected receipt and source-signature documentation. A source
+formal list supplies descriptive labels only, not a Native ParamList, accepted
+arity, cell, frame or entered body. Missing/conflicting headers, deleted or
+occupied nonprocedure cells, unavailable foreign/future providers, unsupported
+relative member namespaces and unrepresented Logical expansions remain unknown;
+there is no report-map or nominal built-in repair. Built-in fallback retains
+its own original source schema under the complete current Registry availability
+context. The explicit standalone optional Registry control remains unchanged.
+
+This migrates the actual Core 636/637 purposes; it does not claim complete
+project procedure/call coverage, cross-file declaration ownership, Native
+execution, Normal, absence or edit authority. Original tests and fixtures stay
+unchanged. Shared new source facets are counted by their demonstrated owner
+purpose, never once per helper, test or call site.
+
+Logical math syntax may reborrow the actual root traversal's whole original Document words independently of command candidate coordinates. The geometry receipt retains full input, original source origin and exact word vector; it cannot come from a declared/body scope. Unknown namespace paths still make command/function coordinates and source declaration inventories unavailable. Original alias lineage and earlier-unknown mutation obligations remain attached; Registry builtin metadata remains conditional documentation, never an installed function or execution/edit/absence grant.

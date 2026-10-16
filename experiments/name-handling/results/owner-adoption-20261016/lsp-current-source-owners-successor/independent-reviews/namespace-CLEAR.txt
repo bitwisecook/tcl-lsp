@@ -1,0 +1,13 @@
+Independent source/contract review: CLEAR
+
+Patch SHA256: 3c4e6734025178f914f7817c29ab9932f200a3d27a4a8e32f146678ec937040c
+Manifest SHA256: d368e3e09778ea20913382808a67f202f33a8195a99c8fc6f880b9a5bae601e3
+V2-to-V3 delta SHA256: f6141459d2abbf5923f5bffb7cc6435f150a23a773771457f16da2d67ba1922d
+
+Reviewed the whole V2 source and the immutable V3 delta. V3 closes all three V2 holds: every new public API has source-purpose documentation; the actual cross_document_hover caller preserves ConditionalEmpty/ConditionalCandidates as terminal before autoload, including candidates whose hover is unavailable; the pub(super) Backend helper is removed only from the public manifest cell while its real internal route remains. The test-only convenience resolver is accurately cfg(test), with its only remaining callers in retained tests.
+
+The shared temporal kernel keeps Modeled and SourceHorizon purposes distinct. Conditional namespace candidates retain unknown entry/completion, observer, alternative and lifecycle debts; they do not supply command-world/run-order completion, binding/edit, Native execution or absence authority. Original wildcard/forget geometry uses the genuine held source and shared name-pattern owner. Both rename builders, prepare and preflight select Binding; readonly terminal unknown avoids autoload. The factored source preflight retains actual source file/input/publication/path and index/registry correspondence without introducing a full analysis per document. Added provider reads have no measured cost claim and unchanged budgets remain obligations.
+
+Independent verification: all eight current base and afterimage hashes; fresh fuzz=0 forward/inverse application; six Rust syntax parses; all 1,020 old test function namespace/byte bodies unchanged. Evidence: /tmp/namespace-advice-v3-independent-sol-compiler/source-verification.json
+
+No Cargo, build, test, test-list, native probe, trace, main edit or Git operation performed. This is source/contract clearance only, with no execution, efficacy, gate-PASS or count claim.

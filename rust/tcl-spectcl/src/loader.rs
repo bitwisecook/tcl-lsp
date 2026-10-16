@@ -95,7 +95,9 @@ use tcl_compiler::parsing::spectcl_source::{
 };
 use tcl_core_types::DiagCode;
 use tcl_dialect::TclVersion;
-use tcl_lexer::{LeadingBom, LexerConfig, TokenType};
+#[cfg(test)]
+use tcl_lexer::LeadingBom;
+use tcl_lexer::{LexerConfig, TokenType};
 use tcl_registry::ScriptLookupScope;
 use tcl_registry::abbrev::PrefixMatching;
 use tcl_registry::arg_role::{AppendedArity, ArgRole};
@@ -260,6 +262,12 @@ struct Log {
     command: String,
 }
 
+struct RejectedWordSubject {
+    original: Option<tcl_compiler::parsing::spectcl_source::OriginalPackSourceWord>,
+    word: String,
+    kind: tcl_lsp_core::code_actions::SpecPackNoticeKind,
+}
+
 impl Log {
     /// Record a use of `word`, which no vocabulary before `since` has.
     fn since(&mut self, line: u32, word: &str, since: &'static str) {
@@ -385,45 +393,52 @@ impl Log {
         let word = quotable(raw);
         let message = format!("unknown property `{word}` dropped");
         self.unknown_word(stmt.line, raw, message);
-        self.attach_subject(
-            stmt.line,
-            raw,
-            tcl_lsp_core::code_actions::SpecPackNoticeKind::Property,
-        );
+        self.attach_subject(RejectedWordSubject {
+            original: stmt
+                .words
+                .first()
+                .and_then(|word| word.original_source.clone()),
+            word: raw.to_owned(),
+            kind: tcl_lsp_core::code_actions::SpecPackNoticeKind::Property,
+        });
     }
 
-    fn attach_subject(
-        &mut self,
-        line: u32,
-        word: &str,
-        kind: tcl_lsp_core::code_actions::SpecPackNoticeKind,
-    ) {
+    fn attach_subject(&mut self, subject: RejectedWordSubject) {
         let Some(source) = &self.source else {
             return;
         };
-        // The loader's fixed pack grammar is independent of document Native naming.
-        let config = LexerConfig {
-            leading_bom: LeadingBom::Skip,
-            ..LexerConfig::default()
+        let Some(original) = subject
+            .original
+            .filter(|original| original.image().bytes() == source.as_bytes())
+        else {
+            return;
         };
-        let subject = tcl_lsp_core::code_actions::SpecPackNoticeSubject::from_loader(
-            source, config, line, word, kind,
+        let geometry = tcl_lsp_core::code_actions::SpecPackNoticeSubject::from_original_word(
+            original,
+            &subject.word,
+            subject.kind,
         );
         if let Some(notice) = self.notices.last_mut() {
-            notice.subject = subject;
+            notice.subject = geometry.filter(|geometry| geometry.line() == notice.line);
         }
     }
 
-    fn unknown_flag(&mut self, row: &str, line: u32, flag: &str) {
+    // Detached evaluated/list values report notices without a source subject.
+    fn unknown_flag_value(&mut self, row: &str, line: u32, flag: &str) {
         let message = format!("unknown flag `{}` on `{row}` dropped", quotable(flag));
         self.unknown_word(line, flag, message);
-        self.attach_subject(
-            line,
-            flag,
-            tcl_lsp_core::code_actions::SpecPackNoticeKind::Flag {
+    }
+
+    fn unknown_flag(&mut self, row: &str, line: u32, flag: &Word) {
+        let message = format!("unknown flag `{}` on `{row}` dropped", quotable(&flag.text));
+        self.unknown_word(line, &flag.text, message);
+        self.attach_subject(RejectedWordSubject {
+            original: flag.original_source.clone(),
+            word: flag.text.clone(),
+            kind: tcl_lsp_core::code_actions::SpecPackNoticeKind::Flag {
                 row: row.to_owned(),
             },
-        );
+        });
     }
 }
 
@@ -475,6 +490,9 @@ pub(crate) struct Word {
     /// an inline descriptor block from a descriptor named by a bare word.
     pub(crate) braced: bool,
     pub(crate) line: u32,
+    pub(crate) local_source: Option<tcl_compiler::parsing::spectcl_source::LocalPackSourceWord>,
+    pub(crate) original_source:
+        Option<tcl_compiler::parsing::spectcl_source::OriginalPackSourceWord>,
 }
 
 /// One `word word…` declaration.
@@ -549,7 +567,45 @@ impl FileBom {
 /// a fix for a reachable bug — see [`crate::cache`]'s `Memo` for why the two
 /// dispositions cannot currently meet in one memo.
 pub(crate) fn statements(source: &str, base_line: u32, bom: FileBom) -> Vec<Stmt> {
-    if let Some(hit) = crate::cache::memo_get(source, base_line, bom) {
+    if let Some(mut hit) = crate::cache::memo_get(source, base_line, bom) {
+        let config = source_config(bom);
+        let count = hit.len();
+        let owned = hit.iter().enumerate().all(|(row, stmt)| {
+            stmt.words.iter().enumerate().all(|(ordinal, word)| {
+                word.original_source.is_none()
+                    && word.local_source.as_ref().is_some_and(|original| {
+                        original.matches_fragment(source, config, count, row, ordinal)
+                            && original.captured_text() == word.text
+                            && original.is_braced() == word.braced
+                            && original
+                                .local_line()
+                                .and_then(|line| base_line.checked_add(line))
+                                == Some(word.line)
+                    })
+            })
+        });
+        if !owned {
+            // Disk rows retain values only. Reborrow their entire actual CST
+            // vector under this exact source/config; never trust stored spans.
+            let parsed = segment(source, base_line, bom);
+            let agrees = hit.len() == parsed.len()
+                && hit.iter().zip(&parsed).all(|(a, b)| {
+                    a.line == b.line
+                        && a.words.len() == b.words.len()
+                        && a.words.iter().zip(&b.words).all(|(a, b)| {
+                            a.text == b.text && a.braced == b.braced && a.line == b.line
+                        })
+                });
+            for (row, stmt) in hit.iter_mut().enumerate() {
+                for (ordinal, word) in stmt.words.iter_mut().enumerate() {
+                    word.original_source = None;
+                    word.local_source = agrees
+                        .then(|| parsed[row].words[ordinal].local_source.clone())
+                        .flatten();
+                }
+            }
+            crate::cache::memo_retain_original_rows(source, base_line, bom, &hit);
+        }
         return hit;
     }
     let parsed = segment(source, base_line, bom);
@@ -557,14 +613,18 @@ pub(crate) fn statements(source: &str, base_line: u32, bom: FileBom) -> Vec<Stmt
     parsed
 }
 
+fn source_config(bom: FileBom) -> LexerConfig {
+    pack_source_lexer_config(match bom {
+        FileBom::Skip => tcl_lexer::SourceSegmentationPurpose::WholeInput,
+        FileBom::Content => tcl_lexer::SourceSegmentationPurpose::NestedScript,
+    })
+}
+
 /// The uncached segmentation — [`statements`] minus the memo.
 fn segment(source: &str, base_line: u32, bom: FileBom) -> Vec<Stmt> {
-    let parsed = pack_source_statements(
+    let parsed = tcl_compiler::parsing::spectcl_source::original_pack_source_statements(
         source,
-        pack_source_lexer_config(match bom {
-            FileBom::Skip => tcl_lexer::SourceSegmentationPurpose::WholeInput,
-            FileBom::Content => tcl_lexer::SourceSegmentationPurpose::NestedScript,
-        }),
+        source_config(bom),
     );
     let mut line_starts: Vec<usize> = vec![0];
     for (offset, byte) in source.bytes().enumerate() {
@@ -582,15 +642,19 @@ fn segment(source: &str, base_line: u32, bom: FileBom) -> Vec<Stmt> {
 
     parsed
         .into_iter()
-        .map(|segment| {
+        .map(|original| {
+            let segment = original.row();
             let words: Vec<Word> = segment
                 .texts
                 .iter()
                 .zip(segment.argv.iter())
-                .map(|(text, token)| Word {
+                .enumerate()
+                .map(|(ordinal, (text, token))| Word {
                     text: text.clone(),
                     braced: token.kind == TokenType::Str && !token.in_quote,
                     line: line_of(token.span.start() as usize),
+                    local_source: original.local_word(ordinal),
+                    original_source: None,
                 })
                 .collect();
             let line = words.first().map_or(base_line, |w| w.line);
@@ -605,7 +669,7 @@ fn segment(source: &str, base_line: u32, bom: FileBom) -> Vec<Stmt> {
 /// of a `hover` summary is a character the author typed and must survive into
 /// the string the registry gets.
 pub(crate) fn block(word: &Word) -> Vec<Stmt> {
-    statements(&word.text, word.line, FileBom::Content)
+    body_statements(&word.text, word.line, word.original_source.as_ref())
 }
 
 /// Segment a whole pack source — the loader's entry into [`statements`], and
@@ -616,7 +680,28 @@ pub(crate) fn block(word: &Word) -> Vec<Stmt> {
 /// writes "UTF-8 with BOM" otherwise loses its entire `speclib` declaration —
 /// the first word decodes as `\u{feff}speclib`, which matches nothing.
 pub(crate) fn pack_statements(source: &str) -> Vec<Stmt> {
-    statements(source, 1, FileBom::Skip)
+    let mut rows = statements(source, 1, FileBom::Skip);
+    for row in &mut rows {
+        for word in &mut row.words {
+            word.original_source = word.local_source.as_ref().map(|word| word.in_document());
+        }
+    }
+    rows
+}
+
+fn body_statements(
+    source: &str,
+    base_line: u32,
+    parent: Option<&tcl_compiler::parsing::spectcl_source::OriginalPackSourceWord>,
+) -> Vec<Stmt> {
+    let mut rows = statements(source, base_line, FileBom::Content);
+    for row in &mut rows {
+        for word in &mut row.words {
+            word.original_source =
+                parent.and_then(|parent| word.local_source.as_ref()?.in_body(parent));
+        }
+    }
+    rows
 }
 
 /// Locate the top-level `speclib` statement's version word: the byte range
@@ -1585,7 +1670,7 @@ fn ambient_package_row(stmt: &Stmt, log: &mut Log) -> Option<AmbientPackage> {
         return None;
     }
     for extra in stmt.words.iter().skip(3) {
-        log.unknown_flag("ambient_package", stmt.line, &extra.text);
+        log.unknown_flag("ambient_package", stmt.line, extra);
     }
     Some(AmbientPackage {
         name: leak_str(name),
@@ -1629,10 +1714,11 @@ fn special_var_row(
     let words = &stmt.words;
     let mut i = 2;
     while i < words.len() {
+        let rejected_flag_word = words[i].clone();
         let flag = words[i].text.clone();
         if !["-kind", "-access", "-origin", "-dialects", "-startup"].contains(&flag.as_str()) {
             // An unknown flag consumes no value.
-            log.unknown_flag("special_var", stmt.line, &flag);
+            log.unknown_flag("special_var", stmt.line, &rejected_flag_word);
             i += 1;
             continue;
         }
@@ -1783,6 +1869,7 @@ fn co_provides_row(stmt: &Stmt, log: &mut Log) -> Option<CoProvides> {
     let words = &stmt.words;
     let mut i = 2;
     while i < words.len() {
+        let rejected_flag_word = words[i].clone();
         match words[i].text.as_str() {
             "-requires-exact" => {
                 let package = next_text(words, &mut i);
@@ -1800,7 +1887,7 @@ fn co_provides_row(stmt: &Stmt, log: &mut Log) -> Option<CoProvides> {
                     row.when = Some(leak_str(&predicate));
                 }
             }
-            other => log.unknown_flag("co_provides", stmt.line, other),
+            _ => log.unknown_flag("co_provides", stmt.line, &rejected_flag_word),
         }
         i += 1;
     }
@@ -1837,6 +1924,7 @@ fn file_extension_row(stmt: &Stmt, log: &mut Log) -> Option<FileExtension> {
     let words = &stmt.words;
     let mut i = 2;
     while i < words.len() {
+        let rejected_flag_word = words[i].clone();
         match words[i].text.as_str() {
             "-name" => {
                 let name = next_text(words, &mut i);
@@ -1859,7 +1947,7 @@ fn file_extension_row(stmt: &Stmt, log: &mut Log) -> Option<FileExtension> {
                     ),
                 }
             }
-            other => log.unknown_flag("file_extension", stmt.line, other),
+            _ => log.unknown_flag("file_extension", stmt.line, &rejected_flag_word),
         }
         i += 1;
     }
@@ -2145,6 +2233,7 @@ fn value_rows(stmts: &[Stmt], log: &mut Log) -> Vec<ArgValue> {
         let mut i = 2;
         let words = &stmt.words;
         while i < words.len() {
+            let rejected_flag_word = words[i].clone();
             match words[i].text.as_str() {
                 "-detail" => {
                     row.detail = leak_str(&next_text(words, &mut i));
@@ -2167,7 +2256,7 @@ fn value_rows(stmts: &[Stmt], log: &mut Log) -> Vec<ArgValue> {
                     if lifecycle_flag(&mut row.lifecycle, other, words, &mut i) {
                         log.v11(stmt.line, other);
                     } else {
-                        log.unknown_flag("value", stmt.line, other);
+                        log.unknown_flag("value", stmt.line, &rejected_flag_word);
                     }
                 }
             }
@@ -2270,12 +2359,13 @@ fn stamp_gate(stmt: &Stmt, from: usize, what: &str, log: &mut Log) -> StampGate 
     let mut gated = false;
     let mut i = from;
     while i < words.len() {
+        let rejected_flag_word = words[i].clone();
         let flag = words[i].text.clone();
         if lifecycle_flag(&mut lifecycle, &flag, words, &mut i) {
             log.since(stmt.line, &flag, "2.2");
             gated = true;
         } else {
-            log.unknown_flag(stmt.word_text(0), stmt.line, &flag);
+            log.unknown_flag(stmt.word_text(0), stmt.line, &rejected_flag_word);
         }
         i += 1;
     }
@@ -2913,6 +3003,7 @@ fn parse_arity(stmt: &Stmt, log: &mut Log) -> (Arity, Option<Lifecycle>) {
     let mut gated = false;
     let mut i = 2;
     while i < words.len() {
+        let rejected_flag_word = words[i].clone();
         let flag = words[i].text.clone();
         if lifecycle_flag(&mut lifecycle, &flag, words, &mut i) {
             log.v12(stmt.line, &flag);
@@ -2927,7 +3018,7 @@ fn parse_arity(stmt: &Stmt, log: &mut Log) -> (Arity, Option<Lifecycle>) {
             }
             "-step" => arity.step = next_text(words, &mut i).parse().unwrap_or(0),
             "-also" => arity.also_exact = next_text(words, &mut i).parse().ok(),
-            other => log.unknown_flag("arity", stmt.line, other),
+            _ => log.unknown_flag("arity", stmt.line, &rejected_flag_word),
         }
         i += 1;
     }
@@ -3205,6 +3296,7 @@ fn deprecation_fix_from(
 
     let mut i = start;
     while i < words.len() {
+        let rejected_flag_word = words[i].clone();
         let flag = words[i].text.clone();
         match flag.as_str() {
             "-replace" => {
@@ -3230,7 +3322,7 @@ fn deprecation_fix_from(
                     safety = chosen;
                 }
             }
-            other => log.unknown_flag("deprecation_fix", line, other),
+            _ => log.unknown_flag("deprecation_fix", line, &rejected_flag_word),
         }
         i += 1;
     }
@@ -3277,6 +3369,7 @@ fn parse_setter_constraint(stmt: &Stmt, log: &mut Log) -> Option<SetterConstrain
     let words = &stmt.words;
     let mut i = 2;
     while i < words.len() {
+        let rejected_flag_word = words[i].clone();
         let flag = words[i].text.clone();
         match flag.as_str() {
             "-prefix" => required_prefix = leak_str(&next_text(words, &mut i)),
@@ -3288,7 +3381,7 @@ fn parse_setter_constraint(stmt: &Stmt, log: &mut Log) -> Option<SetterConstrain
                 }
             }
             "-message" => message = leak_str(&next_text(words, &mut i)),
-            other => log.unknown_flag("setter_constraint", stmt.line, other),
+            _ => log.unknown_flag("setter_constraint", stmt.line, &rejected_flag_word),
         }
         i += 1;
     }
@@ -3312,11 +3405,12 @@ fn parse_byte_array_payload(stmt: &Stmt, log: &mut Log) -> Option<BytePayloadSpe
     let words = &stmt.words;
     let mut i = 1;
     while i < words.len() {
+        let rejected_flag_word = words[i].clone();
         let flag = words[i].text.clone();
         match flag.as_str() {
             "-replace-data-index" => replace_data_index = next_text(words, &mut i).parse().ok(),
             "-message-flag-shift" => message_flag_shift = true,
-            other => log.unknown_flag("byte_array_payload", stmt.line, other),
+            _ => log.unknown_flag("byte_array_payload", stmt.line, &rejected_flag_word),
         }
         i += 1;
     }
@@ -3349,6 +3443,7 @@ fn parse_defines_symbol(stmt: &Stmt, log: &mut Log) -> Option<SymbolDef> {
     let words = &stmt.words;
     let mut i = 1;
     while i < words.len() {
+        let rejected_flag_word = words[i].clone();
         let flag = words[i].text.clone();
         match flag.as_str() {
             "-name-arg" => name_arg = next_text(words, &mut i).parse().ok(),
@@ -3363,7 +3458,7 @@ fn parse_defines_symbol(stmt: &Stmt, log: &mut Log) -> Option<SymbolDef> {
                     log,
                 );
             }
-            other => log.unknown_flag("defines_symbol", stmt.line, other),
+            _ => log.unknown_flag("defines_symbol", stmt.line, &rejected_flag_word),
         }
         i += 1;
     }
@@ -3485,7 +3580,7 @@ fn parse_handle_binding(text: &str, line: u32, log: &mut Log) -> Option<HandleBi
                     });
                 }
             }
-            other => log.unknown_flag("binds_handle", line, other),
+            other => log.unknown_flag_value("binds_handle", line, other),
         }
         i += 2;
     }
@@ -3530,6 +3625,7 @@ fn object_class_row(
     let words = &stmt.words;
     let mut i = 2;
     while i < words.len() {
+        let rejected_flag_word = words[i].clone();
         match words[i].text.as_str() {
             "-superclass" => superclasses = list_words(&next_text(words, &mut i)),
             "-allow-unknown" => allow_unknown_methods = true,
@@ -3555,7 +3651,7 @@ fn object_class_row(
             // The one unflagged word left is the member block, and it is
             // always last.
             _ if words[i].braced && i + 1 == words.len() => body = Some(&words[i]),
-            other => log.unknown_flag("object_class", stmt.line, other),
+            _ => log.unknown_flag("object_class", stmt.line, &rejected_flag_word),
         }
         i += 1;
     }
@@ -3712,6 +3808,7 @@ impl ArgRows {
         let words = &stmt.words;
         let mut i = 2;
         while i < words.len() {
+            let rejected_flag_word = words[i].clone();
             let flag = words[i].text.clone();
             match flag.as_str() {
                 "-role" => {
@@ -3794,7 +3891,7 @@ impl ArgRows {
                         }
                     }
                 }
-                other => log.unknown_flag("arg", stmt.line, other),
+                _ => log.unknown_flag("arg", stmt.line, &rejected_flag_word),
             }
             i += 1;
         }
@@ -3985,6 +4082,7 @@ fn option_effect_family_row(stmt: &Stmt, log: &mut Log) -> Option<OptionEffectFa
     let mut surface = None;
     let mut i = 0;
     while i < words.len() {
+        let rejected_flag_word = words[i].clone();
         match words[i].text.as_str() {
             "base" => {
                 let text = next_text(&words, &mut i);
@@ -4020,7 +4118,7 @@ fn option_effect_family_row(stmt: &Stmt, log: &mut Log) -> Option<OptionEffectFa
                     available::from_texts(&["tcl".to_owned(), format!("{text}-")], stmt.line, log)
                         .surface;
             }
-            other => log.unknown_flag("option_effect_family", stmt.line, other),
+            _ => log.unknown_flag("option_effect_family", stmt.line, &rejected_flag_word),
         }
         i += 1;
     }
@@ -4069,6 +4167,7 @@ fn option_row(
     let words = &stmt.words;
     let mut i = 2;
     while i < words.len() {
+        let rejected_flag_word = words[i].clone();
         let flag = words[i].text.clone();
         match flag.as_str() {
             "-takes" => {
@@ -4257,7 +4356,7 @@ fn option_row(
             }
             other => {
                 if !lifecycle_flag(&mut option.lifecycle, other, words, &mut i) {
-                    log.unknown_flag("option", stmt.line, other);
+                    log.unknown_flag("option", stmt.line, &rejected_flag_word);
                 }
             }
         }
@@ -4611,6 +4710,7 @@ fn clause_grammar_value(stmt: &Stmt, log: &mut Log) -> Option<&'static ClauseGra
     let words = &stmt.words;
     let mut i = 2;
     while i < words.len() {
+        let rejected_flag_word = words[i].clone();
         match words[i].text.as_str() {
             "-available" => {
                 log.v20(stmt.line, "-available");
@@ -4624,7 +4724,7 @@ fn clause_grammar_value(stmt: &Stmt, log: &mut Log) -> Option<&'static ClauseGra
                     log,
                 );
             }
-            other => log.unknown_flag("clause_grammar", stmt.line, other),
+            _ => log.unknown_flag("clause_grammar", stmt.line, &rejected_flag_word),
         }
         i += 1;
     }
@@ -4808,6 +4908,7 @@ fn clause_row_flags(
     let words = &stmt.words;
     let what = stmt.word_text(0);
     while i < words.len() {
+        let rejected_flag_word = words[i].clone();
         match words[i].text.as_str() {
             "-timing" => {
                 let name = next_text(words, &mut i);
@@ -4852,7 +4953,7 @@ fn clause_row_flags(
                 let availability = available::from_flag(&text, stmt.line, log);
                 apply_availability(&mut row.surface, availability, "clause row", stmt.line, log);
             }
-            other => log.unknown_flag(what, stmt.line, other),
+            _ => log.unknown_flag(what, stmt.line, &rejected_flag_word),
         }
         i += 1;
     }
@@ -5062,6 +5163,7 @@ fn member_option_row(stmt: &Stmt, log: &mut Log) -> Option<MemberOptionRow> {
     let words = &stmt.words;
     let mut i = 4;
     while i < words.len() {
+        let rejected_flag_word = words[i].clone();
         match words[i].text.as_str() {
             "-role" => {
                 let name = next_text(words, &mut i);
@@ -5095,7 +5197,7 @@ fn member_option_row(stmt: &Stmt, log: &mut Log) -> Option<MemberOptionRow> {
                     log,
                 );
             }
-            other => log.unknown_flag("member_option", stmt.line, other),
+            _ => log.unknown_flag("member_option", stmt.line, &rejected_flag_word),
         }
         i += 1;
     }
@@ -5385,6 +5487,7 @@ fn member_row(stmt: &Stmt, log: &mut Log) -> Option<MemberSpec> {
     let words = &stmt.words;
     let mut i = 2;
     while i < words.len() {
+        let rejected_flag_word = words[i].clone();
         match words[i].text.as_str() {
             "-effect" => {
                 let text = next_text(words, &mut i);
@@ -5426,7 +5529,7 @@ fn member_row(stmt: &Stmt, log: &mut Log) -> Option<MemberSpec> {
                 slot_op = enum_by_name(SLOT_OPS, &name, "slot operation", stmt.line, log);
             }
             "-dedup" => dedup = true,
-            other => log.unknown_flag("member", stmt.line, other),
+            _ => log.unknown_flag("member", stmt.line, &rejected_flag_word),
         }
         i += 1;
     }
@@ -5524,6 +5627,7 @@ fn builtin_object_method_row(stmt: &Stmt, log: &mut Log) -> BuiltinObjectMethod 
     let words = &stmt.words;
     let mut i = 2;
     while i < words.len() {
+        let rejected_flag_word = words[i].clone();
         match words[i].text.as_str() {
             "-unexported" => method.visibility = MemberVisibility::Unexported,
             "-receiver" => {
@@ -5539,7 +5643,7 @@ fn builtin_object_method_row(stmt: &Stmt, log: &mut Log) -> BuiltinObjectMethod 
                 }
             }
             "-detail" => method.detail = leak_str(&next_text(words, &mut i)),
-            other => log.unknown_flag("builtin_object_method", stmt.line, other),
+            _ => log.unknown_flag("builtin_object_method", stmt.line, &rejected_flag_word),
         }
         i += 1;
     }
@@ -5555,13 +5659,14 @@ fn member_body_command_row(stmt: &Stmt, log: &mut Log) -> MemberBodyCommand {
     let words = &stmt.words;
     let mut i = 2;
     while i < words.len() {
+        let rejected_flag_word = words[i].clone();
         match words[i].text.as_str() {
             "-detail" => command.detail = leak_str(&next_text(words, &mut i)),
             "-binds-handle" => {
                 let text = next_text(words, &mut i);
                 command.binds_handle = parse_handle_binding(&text, stmt.line, log);
             }
-            other => log.unknown_flag("member_body_command", stmt.line, other),
+            _ => log.unknown_flag("member_body_command", stmt.line, &rejected_flag_word),
         }
         i += 1;
     }
@@ -5579,6 +5684,7 @@ fn manufacturer_row(stmt: &Stmt, log: &mut Log) -> ManufacturerMethod {
     let words = &stmt.words;
     let mut i = 2;
     while i < words.len() {
+        let rejected_flag_word = words[i].clone();
         match words[i].text.as_str() {
             "-unexported" => method.visibility = MemberVisibility::Unexported,
             "-names-instance-at" => {
@@ -5590,7 +5696,7 @@ fn manufacturer_row(stmt: &Stmt, log: &mut Log) -> ManufacturerMethod {
             "-constructor-args-from" => {
                 method.constructor_args_from = next_text(words, &mut i).parse().unwrap_or(0);
             }
-            other => log.unknown_flag("manufacturer", stmt.line, other),
+            _ => log.unknown_flag("manufacturer", stmt.line, &rejected_flag_word),
         }
         i += 1;
     }
@@ -5750,6 +5856,7 @@ fn event_handler_priority_row(stmt: &Stmt, log: &mut Log) -> Option<EventHandler
     let words = &stmt.words;
     let mut index = 1;
     while index < words.len() {
+        let rejected_flag_word = words[index].clone();
         match words[index].text.as_str() {
             "-keyword" => policy.keyword = leak_str(&next_text(words, &mut index)),
             "-default" => {
@@ -5770,7 +5877,7 @@ fn event_handler_priority_row(stmt: &Stmt, log: &mut Log) -> Option<EventHandler
             }
             "-higher-runs-first" => policy.lower_runs_first = false,
             "-warn-implicit" => policy.warn_when_implicit = true,
-            other => log.unknown_flag("event_handler_priority", stmt.line, other),
+            _ => log.unknown_flag("event_handler_priority", stmt.line, &rejected_flag_word),
         }
         index += 1;
     }
@@ -5869,12 +5976,13 @@ fn event_requirement_form_row(stmt: &Stmt, log: &mut Log) -> EventRequirementFor
     let words = &stmt.words;
     let mut index = 2;
     while index < words.len() {
+        let rejected_flag_word = words[index].clone();
         match words[index].text.as_str() {
             "-only-in" => only_in = list_words(&next_text(words, &mut index)),
             _ if words[index].braced => {
                 requires = Some(event_requires_block(&block(&words[index]), log));
             }
-            other => log.unknown_flag("event_requirement_form", stmt.line, other),
+            _ => log.unknown_flag("event_requirement_form", stmt.line, &rejected_flag_word),
         }
         index += 1;
     }
@@ -6515,6 +6623,7 @@ fn apply_command_stmt(
             let mut release_subcommands: &'static [&'static str] = &[];
             let mut index = 2;
             while index < stmt.words.len() {
+                let rejected_flag_word = stmt.words[index].clone();
                 match stmt.word_text(index) {
                     "-container-option" => {
                         index += 1;
@@ -6541,7 +6650,7 @@ fn apply_command_stmt(
                             log.say(stmt.line, "`-release-subcommands` needs a list");
                         }
                     }
-                    other => log.unknown_flag("tk_geometry", stmt.line, other),
+                    _ => log.unknown_flag("tk_geometry", stmt.line, &rejected_flag_word),
                 }
                 index += 1;
             }
@@ -7323,6 +7432,7 @@ fn repeat_row(stmt: &Stmt, log: &mut Log) -> Option<tcl_registry::repeated::Repe
     let words = &stmt.words;
     let mut i = 2;
     while i < words.len() {
+        let rejected_flag_word = words[i].clone();
         match words[i].text.as_str() {
             "-from" => layout.start = next_text(words, &mut i).parse().unwrap_or(0),
             "-stride" => layout.stride = next_text(words, &mut i).parse().unwrap_or(1),
@@ -7331,7 +7441,7 @@ fn repeat_row(stmt: &Stmt, log: &mut Log) -> Option<tcl_registry::repeated::Repe
             }
             "-optional-leading" => layout.optional_leading_word = true,
             "-conditional" => layout.conditional_binding = true,
-            other => log.unknown_flag("repeat", stmt.line, other),
+            _ => log.unknown_flag("repeat", stmt.line, &rejected_flag_word),
         }
         i += 1;
     }
@@ -7349,6 +7459,7 @@ fn form_row(stmt: &Stmt, log: &mut Log) -> FormSpec {
     let words = &stmt.words;
     let mut i = 3;
     while i < words.len() {
+        let rejected_flag_word = words[i].clone();
         match words[i].text.as_str() {
             "-dialects" => {
                 let text = next_text(words, &mut i);
@@ -7370,7 +7481,7 @@ fn form_row(stmt: &Stmt, log: &mut Log) -> FormSpec {
                 if lifecycle_flag(&mut form.lifecycle, other, words, &mut i) {
                     log.v11(stmt.line, other);
                 } else {
-                    log.unknown_flag("form", stmt.line, other);
+                    log.unknown_flag("form", stmt.line, &rejected_flag_word);
                 }
             }
         }
@@ -7400,6 +7511,7 @@ fn side_effect_row(stmt: &Stmt, log: &mut Log) -> Option<SideEffect> {
     let words = &stmt.words;
     let mut i = 2;
     while i < words.len() {
+        let rejected_flag_word = words[i].clone();
         match words[i].text.as_str() {
             "-reads" => effect.reads = true,
             "-writes" => effect.writes = true,
@@ -7431,7 +7543,7 @@ fn side_effect_row(stmt: &Stmt, log: &mut Log) -> Option<SideEffect> {
                 if lifecycle_flag(&mut effect.lifecycle, other, words, &mut i) {
                     log.v11(stmt.line, other);
                 } else {
-                    log.unknown_flag("side_effect", stmt.line, other);
+                    log.unknown_flag("side_effect", stmt.line, &rejected_flag_word);
                 }
             }
         }
@@ -7531,6 +7643,7 @@ fn option_relation_row(
     let words = &stmt.words;
     let mut i = first_flag;
     while i < words.len() {
+        let rejected_flag_word = words[i].clone();
         match words[i].text.as_str() {
             "-dialects" => {
                 let text = next_text(words, &mut i);
@@ -7557,7 +7670,7 @@ fn option_relation_row(
                 if lifecycle_flag(&mut relation.lifecycle, other, words, &mut i) {
                     log.v11(stmt.line, other);
                 } else {
-                    log.unknown_flag(statement, stmt.line, other);
+                    log.unknown_flag(statement, stmt.line, &rejected_flag_word);
                 }
             }
         }
@@ -7574,6 +7687,7 @@ fn frame_effect_row(stmt: &Stmt, log: &mut Log) -> Option<FrameEffectSpec> {
     let words = &stmt.words;
     let mut i = 1;
     while i < words.len() {
+        let rejected_flag_word = words[i].clone();
         match words[i].text.as_str() {
             "-level-word" => {
                 let name = next_text(words, &mut i);
@@ -7590,7 +7704,7 @@ fn frame_effect_row(stmt: &Stmt, log: &mut Log) -> Option<FrameEffectSpec> {
                     log,
                 );
             }
-            other => log.unknown_flag("frame_effect", stmt.line, other),
+            _ => log.unknown_flag("frame_effect", stmt.line, &rejected_flag_word),
         }
         i += 1;
     }
@@ -7869,6 +7983,7 @@ fn widening_row(stmt: &Stmt, log: &mut Log) -> Option<StateTransitionWideningRul
     let words = &stmt.words;
     let mut i = 1;
     while i < words.len() {
+        let rejected_flag_word = words[i].clone();
         match words[i].text.as_str() {
             "-operands" => operands = operand_layout(&next_text(words, &mut i), stmt.line, log),
             "-domains" => {
@@ -7880,7 +7995,7 @@ fn widening_row(stmt: &Stmt, log: &mut Log) -> Option<StateTransitionWideningRul
                     log,
                 );
             }
-            other => log.unknown_flag("widen", stmt.line, other),
+            _ => log.unknown_flag("widen", stmt.line, &rejected_flag_word),
         }
         i += 1;
     }
@@ -7923,6 +8038,7 @@ fn coverage_row(stmt: &Stmt, log: &mut Log) -> Option<TransitionEffectCoverage> 
     let words = &stmt.words;
     let mut i = 2;
     while i < words.len() {
+        let rejected_flag_word = words[i].clone();
         match words[i].text.as_str() {
             "-domains" => {
                 let text = next_text(words, &mut i);
@@ -7938,7 +8054,7 @@ fn coverage_row(stmt: &Stmt, log: &mut Log) -> Option<TransitionEffectCoverage> 
                     );
                 }
             }
-            other => log.unknown_flag("covers", stmt.line, other),
+            _ => log.unknown_flag("covers", stmt.line, &rejected_flag_word),
         }
         i += 1;
     }
@@ -8377,7 +8493,7 @@ fn selector_row(stmt: &Stmt, log: &mut Log) -> Option<LiteralArgumentPrefix> {
     for flag in stmt.words.iter().skip(2) {
         match flag.text.as_str() {
             "-exact" => prefix_matching = PrefixMatching::Strict,
-            other => log.unknown_flag("selector", stmt.line, other),
+            _ => log.unknown_flag("selector", stmt.line, flag),
         }
     }
     Some(LiteralArgumentPrefix {
@@ -9024,6 +9140,7 @@ fn sub_subcommand_row(stmt: &Stmt, tables: &PackTables, log: &mut Log) -> SubSub
     let words = &stmt.words;
     let mut i = 2;
     while i < words.len() {
+        let rejected_flag_word = words[i].clone();
         match words[i].text.as_str() {
             "-native_compilation" => {
                 let _ = next_text(words, &mut i);
@@ -9063,7 +9180,7 @@ fn sub_subcommand_row(stmt: &Stmt, tables: &PackTables, log: &mut Log) -> SubSub
                 if lifecycle_flag(&mut row.lifecycle, other, words, &mut i) {
                     log.v11(stmt.line, other);
                 } else {
-                    log.unknown_flag("sub_subcommand", stmt.line, other);
+                    log.unknown_flag("sub_subcommand", stmt.line, &rejected_flag_word);
                 }
             }
         }
@@ -9132,9 +9249,10 @@ fn versioned_arg_value_row(
     let words = &stmt.words;
     let mut i = 3;
     while i < words.len() {
+        let rejected_flag_word = words[i].clone();
         let flag = words[i].text.clone();
         if !lifecycle_flag(&mut gate.lifecycle, &flag, words, &mut i) {
-            log.unknown_flag("versioned_arg_value", stmt.line, &flag);
+            log.unknown_flag("versioned_arg_value", stmt.line, &rejected_flag_word);
         }
         i += 1;
     }

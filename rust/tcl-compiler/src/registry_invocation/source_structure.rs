@@ -1723,6 +1723,19 @@ pub fn source_handle_construction_at(
     super::source_publication::OriginalSourceHandleConstruction::capture(words, &context)
 }
 
+/// Conditional original procedure header at this exact source call horizon.
+/// Alias prefixes and actual definition transitions stay held; missing original
+/// owners remain unavailable, never a report-name or Native target fallback.
+#[must_use]
+pub fn source_logical_procedure_call_at(
+    source: &str,
+    analysis: &AnalysisResult,
+    offset: u32,
+) -> Option<crate::command_binding::OriginalLogicalProcedureCall> {
+    let (input, realm) = logical_source_candidate_context(source, analysis)?;
+    crate::realm::CommandBindingRealm::original_logical_procedure_call_at(realm, input, offset)
+}
+
 /// Ordered readonly Logical candidates at this exact original source command.
 /// Caller scope, path and name bytes remain source recipes; candidates prove no
 /// installed command, reached declaration, body entry or edit permission.
@@ -5905,8 +5918,11 @@ mod conditional_native_case_receipt_tests {
     use super::*;
 
     fn source_context(source: &str) -> OriginalSourceRegistryContext {
-        let profile =
-            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
+        source_context_in(source, "tcl9.0")
+    }
+
+    fn source_context_in(source: &str, dialect: &str) -> OriginalSourceRegistryContext {
+        let profile = tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
         let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
         let generation = crate::environment_ingress::context_for_profile(profile);
         let context = std::sync::Arc::new(
@@ -5918,7 +5934,7 @@ mod conditional_native_case_receipt_tests {
                 profile,
                 profile,
                 context,
-                tcl_lexer::LexerConfig::for_file_dialect("tcl9.0"),
+                tcl_lexer::LexerConfig::for_file_dialect(dialect),
             ),
         )
     }
@@ -5950,7 +5966,7 @@ mod conditional_native_case_receipt_tests {
     #[test]
     fn nested_native_case_receipt_retains_actual_vector_unknown_selection_and_debts() {
         let source = "mystery; set result [switch $kind {alpha {# first\nputs first} beta {# second\nputs second}}]";
-        let syntax = source_context(source);
+        let syntax = source_context_in(source, "tcl8.4");
         let command = child_command(&syntax);
         let context = syntax.editing_input().context_registry();
         let words = syntax.conditional_native_case_words(&command).unwrap();
@@ -6054,6 +6070,41 @@ mod conditional_native_case_receipt_tests {
             replaced
                 .conditional_native_case_words(&child_command(&replaced))
                 .is_none()
+        );
+    }
+    #[test]
+    fn nested_native_two_argument_case_retains_selected_optionless_protocol() {
+        let source = "mystery; set result [switch $kind {alpha {# first\nputs first} beta {# second\nputs second}}]";
+        let syntax = source_context(source);
+        let command = child_command(&syntax);
+        let context = syntax.editing_input().context_registry();
+        let words = syntax.conditional_native_case_words(&command).unwrap();
+        let OriginalRegistrySource::ConditionalNativeSource(applicability) = words.source() else {
+            panic!("case syntax cannot borrow ordinary invocation selection");
+        };
+        assert!(applicability.has_unknown_residual());
+        assert!(applicability.may_be_absent());
+        assert!(words.roles().is_none());
+        assert!(!words.operands_preserve_source_lookup());
+        assert!(matches!(
+            words.arguments().first(),
+            Some(crate::registry_invocation::EffectiveInvocationWord::Dynamic)
+        ));
+        let candidates = words.conditional_source_case_bodies(&context).unwrap();
+        assert!(!candidates.selection_unknown());
+        assert_eq!(
+            candidates
+                .bodies()
+                .iter()
+                .map(|body| &source[body.content_span().as_range()])
+                .collect::<Vec<_>>(),
+            vec!["# first\nputs first", "# second\nputs second"]
+        );
+        assert!(
+            super::super::source_scoped_body::source_script_bodies_for_mutation_coverage(
+                &words, &context
+            )
+            .is_none()
         );
     }
 }

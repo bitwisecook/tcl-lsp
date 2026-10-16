@@ -4497,6 +4497,7 @@ name = "tcl-lsp-core"
 version = "0.1.0"
 dependencies = [
  "fluent-uri",
+ "getrandom 0.2.17",
  "regex",
  "rustc-hash",
  "serde",

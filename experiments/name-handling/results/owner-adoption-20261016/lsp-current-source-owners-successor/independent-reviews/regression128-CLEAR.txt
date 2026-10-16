@@ -1,0 +1,14 @@
+Independent source/contract review: CLEAR
+
+Patch SHA256: a38f85e3dab153627223a2afc4787c4dd7c6c10a36839dc265dc0f1160a41c12
+Manifest SHA256: e5fb419262e38439bdf2abe48d1cb0a2f4bf38596e80bfc9b087346a61ac8f80
+
+Reviewed the complete three-file packet, actual record_direct_command_invocation producer and both existing OriginalCommandLookup source-advice matchers. The invocation range is the authentic original head Token span, so joining it to the selected segmenter's argv[0].span preserves the correct representative independently of the complete NativeWord/full command extent. The retained FrameWalk/selected-script inventory and reissued full tokens, original name input, lookup and strong-reference equality remain mandatory. Cursor selection still requires genuine whole original head geometry and exact current UTF16/source/configuration.
+
+Ordinary matching_source_advice_publications None remains terminal. Only an available empty result enters the existing conditional external-source owner. Every declaring identity reborrows genuine current full source/input/configuration/metadata. Only foreign SourceImage headers enter that branch; URI/report labels cannot manufacture source identity, and the consumer's forward declaration is excluded. Actual classes remain competitors, all original namespace alternatives require unanimous source selection, and exactly one Procedure is required.
+
+The reused external matcher checks actual selected Registry semantic snapshot, authentic source site/frame ownership and independently retained name policy; source-step/opaque/unknown/declared-command/callback states refuse. Its current slot observations require Missing rather than an unresolved report name; explicit deletion removes a slot, while builtin/local/alias occupants remain terminal. No runtime loading, installed call, Native frame/dispatch, Normal completion, complete graph, absence or edit permission follows. Existing resolved-reference, method/math and Server lifetime/publication routes are untouched.
+
+Independently verified all three current base/afterimage hashes, fresh fuzz=0 forward/inverse application, Rust syntax parse, all ten old test-module function items byte-identical, original Server128 function equal to its before56 capture and actual failure-log SHA. Evidence: /tmp/sol-compiler-review-call128/source-verification.json. New fixed controls cover the original root fixture and argument-bearing head geometry, duplicate/stale source owners, occupants/deletion/unknown and same-source forward-header refusal.
+
+No Cargo, build, tests/list, native probe, trace, main writes or Git. The original128 runtime first refusal remains unmeasured; this is source/contract clearance, not execution, efficacy, gate PASS or count advancement.

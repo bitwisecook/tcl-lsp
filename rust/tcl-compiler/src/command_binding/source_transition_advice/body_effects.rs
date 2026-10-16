@@ -1222,6 +1222,11 @@ impl BodyWalk<'_, '_> {
             graph.record_uncertainty(&native.words);
             return Some(());
         };
+        OriginalSourceTransitionAdviceTape::retain_logical_procedure_call(
+            tape,
+            graph,
+            &native.words,
+        );
         let Some((command, mut arguments, lineage)) =
             original_selection.or_else(|| graph.resolve(&head))
         else {

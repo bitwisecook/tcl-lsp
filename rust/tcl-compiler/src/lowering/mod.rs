@@ -5772,6 +5772,8 @@ impl<'r> Lowerer<'r> {
             definition_scope: Some(self.module.retain_definition_script_source(
                 definer,
                 call.body_idx,
+                call.name_idx,
+                call.per_object,
                 body_content_offset,
                 call.grammar,
                 call.descriptor,

@@ -1,0 +1,56 @@
+CLEAR — independent source/API/contract review of exact immutable V2
+
+Patch SHA256 b18ca854e3834e5e378512f72585cb5624ded85991956c297f1f180cfd012093
+Manifest SHA256 f7eb362ec191e2df90552d4b678d59e1bd3528d765e9438bf932c29a61401e04
+
+V1 HOLD068b2c66 is closed within the bounded source-only geometry purpose:
+- Every evaluated speclib/command/subcommand/environment/dialect body now calls
+  VerbatimBody::original_for_capture before copying only its geometry. The new
+  shared Compiler query compares the complete retained literal original header
+  and argv, refuses expanded/computed unbraced shapes, and requires exact actual
+  captured body bytes. Reader text/selection and registration results remain
+  on their established paths; no new interpreter or DSL resolver is added.
+- Root same-line ambiguity withholds original geometry. Existing body same-line
+  ambiguity permanently clears candidate geometry; later removal cannot restore
+  a previously ambiguous candidate.
+- run_body checks the genuine immediate parent against the source-only body
+  stack and holds unavailable parents as Some(None), never None -> root. Both
+  ordinary success and returned error pop that stack. Actual State::source_stmt
+  also checks immediate parent continuity after its existing row-value match,
+  so nested bodies/global Skeleton row matches cannot restore withdrawn geometry.
+- The stack grants original source correspondence only, not an entered Native
+  frame, executed path, lookup closure, Normal or edit permission. Geometry and
+  supplied kind remain distinct from actual private loader rejection detectors
+  and independent current Core document/Registry/action admission.
+- New genuine evaluate_pack helper and variable-body mismatch control requires
+  real unknown-property notices and requires every subject to remain None.
+  Cold/disk-warm/static selected-site positives and original fixtures/assertions
+  remain. The new control is unexecuted; no runtime efficacy is claimed.
+
+Independent verification:
+- All12 manifest before/after hashes and actual current bases exact.
+- Exact patch/manifest hash bindings, fresh fuzz0/no-offset forward+inverse apply,
+  all10 changed Rust files parse.
+- All134 original test functions preserved:132 exact; two differ only by new
+  synthetic Word fields explicitly None. Five new source selectors present.
+- Eight V1 Rust afterimages byte-exact. New production delta is limited to the
+  two shared geometry comparisons and evaluated-body correspondence/continuity;
+  Core selected-subject/current Registry and cache/flag detector behavior transfer
+  from the complete V1 source pass.
+- V2 shared-contract beforeimage includes the current independently integrated
+  Case work; its existing rows are preserved by the narrow565 addition.
+  Added private internal routes retain valid self/static grammar, real entries
+  and matching visibility. No owner gate execution was performed.
+- Existing dependency direction, cache format/version and semantic value stream
+  unchanged. No trusted serialised geometry, cooked offset inverse, Native cast,
+  complete absence from missing representation, new allow or unsafe.
+
+Scope remains PARTIAL565: old compatibility from_loader and its exact same-line
+negative stay separate. This source CLEAR does not close that whole unit or
+advance counts. No Server718 standing/range authority, Native execution/cell,
+Normal, physical occupancy, generic edit equivalence or runtime target follows.
+
+Static receipt:
+/tmp/sol-project-loader-notice-independent-review-v2/source-verification.json
+
+No Cargo/build/test/list/ELF/trace/gate execution, main edits or Git occurred.

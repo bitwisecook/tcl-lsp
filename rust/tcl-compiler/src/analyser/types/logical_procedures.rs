@@ -68,6 +68,15 @@ impl LogicalSourceProcedureDeclaration {
         std::str::from_utf8(self.body.summary_coordinate().simple.as_bytes()).ok()
     }
 
+    /// Exact original declaration Name word from its retained Logical scope.
+    /// This readonly operand grants no installation, lookup or body entry.
+    #[must_use]
+    pub fn original_name_word(&self) -> Option<&tcl_lexer::NativeWord> {
+        self.matches_source(&self.image, &self.input)
+            .then_some(())?;
+        Some(self.body.scope().scope_name_input()?.original_word())
+    }
+
     /// Original Logical header coordinate for readonly declaration candidates.
     /// This rechecks the selected Name word and retained namespace; it supplies
     /// no publication, call binding or availability of the procedure.
@@ -160,6 +169,36 @@ impl LogicalSourceProcedureDeclaration {
     ) -> Option<&tcl_lexer::NativeWord> {
         self.matches_source(image, input).then_some(())?;
         Some(self.body.scope().scope_body().original_container())
+    }
+
+    /// Descriptive formals of this exact original Logical source header. No
+    /// Native ParamList grammar, effective binding or frame is issued.
+    #[must_use]
+    pub fn original_source_formals(&self) -> Option<&[tcl_syntax::formal_params::FormalParameter]> {
+        self.matches_source(&self.image, &self.input)
+            .then_some(())?;
+        Some(self.body.parameters())
+    }
+    pub(crate) fn matches_original_source_transition(
+        &self,
+        analysis: &AnalysisResult,
+        transition: &crate::command_binding::OriginalSourceCommandTransition,
+    ) -> bool {
+        if !self.matches_context(analysis) || self.body.site() != transition.site() {
+            return false;
+        }
+        let crate::registry_invocation::source_structure::OriginalRegistrySource::SourceTransitions(
+            parent,
+        ) = self.body.scope().scope_body().source_words().source()
+        else {
+            return false;
+        };
+        parent.site() == transition.site()
+            && parent.original_words() == transition.original_words()
+            && parent.command() == transition.descriptor()
+            && parent.logical_source_input() == Some(&self.input)
+            && parent.matches_source(&self.image, self.input.lexer_config())
+            && parent.matches_context(self.input.borrowed_context_registry())
     }
 
     /// Original declared metadata for presentation, never invocation admission.

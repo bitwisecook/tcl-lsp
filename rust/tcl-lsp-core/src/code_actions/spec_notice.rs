@@ -10,20 +10,22 @@ use tcl_compiler::analyser::AnalysisResult;
 use tcl_lexer::{LexerConfig, NativeWord, SourceImage, Span};
 use tcl_registry::{CommandRegistry, RegistrySemanticKey};
 
-/// The loader's actual rejected vocabulary position, independent of prose.
+/// Property/flag position metadata, independent of diagnostic prose.
+/// Actual loader rejection remains the producer's separately owned fact.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SpecPackNoticeKind {
-    /// A rejected property of the current definition row.
+    /// Property-position metadata for the current definition row.
     Property,
-    /// A rejected flag in a particular definition row vocabulary.
+    /// Flag-position metadata for a particular definition row vocabulary.
     Flag {
-        /// The loader-selected row whose flag vocabulary applies.
+        /// The supplied row whose flag vocabulary the consumer must validate.
         row: String,
     },
 }
 
-/// A unique literal source word of an actual loader rejection.
-/// The complete original pack image and producer grammar remain retained.
+/// Original source geometry and supplied notice-kind metadata. This does not
+/// certify that the loader rejected the word or grant an edit: diagnostic and
+/// actual current document grammar admission remain independent.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SpecPackNoticeSubject {
     image: SourceImage,
@@ -32,10 +34,11 @@ pub struct SpecPackNoticeSubject {
     word: String,
     span: Span,
     line: u32,
+    original: Option<tcl_compiler::parsing::spectcl_source::OriginalPackSourceWord>,
 }
 impl SpecPackNoticeSubject {
-    /// Bind a loader-supplied kind/word to one unchanged lexical source site.
-    /// Computed, escaped, ambiguous and absent sites cannot issue an edit subject.
+    /// Legacy unpositioned geometry lookup; this does not authenticate a loader rejection.
+    /// Computed, escaped, ambiguous and absent sites cannot issue a geometry subject.
     #[must_use]
     pub fn from_loader(
         source: &str,
@@ -145,19 +148,59 @@ impl SpecPackNoticeSubject {
             word: word.into(),
             span: *span,
             line,
+            original: None,
         })
     }
-    /// The complete pack image retained at loader rejection.
+
+    /// Retain an actual selected source word and explicit notice-kind metadata.
+    /// The caller must own the rejection separately. No line/name search,
+    /// inferred DSL body or loader-causality/edit permission is supplied here.
+    #[must_use]
+    pub fn from_original_word(
+        original: tcl_compiler::parsing::spectcl_source::OriginalPackSourceWord,
+        word: &str,
+        kind: SpecPackNoticeKind,
+    ) -> Option<Self> {
+        if original.plain_ascii()? != word {
+            return None;
+        }
+        match &kind {
+            SpecPackNoticeKind::Property if original.ordinal() != 0 => return None,
+            SpecPackNoticeKind::Flag { row } => {
+                if original.ordinal() == 0
+                    || !word.starts_with('-')
+                    || original.captured_statement_head() != row
+                {
+                    return None;
+                }
+            }
+            SpecPackNoticeKind::Property => {}
+        }
+        let line = original.statement_line()?;
+        let span = original.content_span()?;
+        let image = original.image().clone();
+        let config = original.config();
+        original.matches_source(&image, config).then_some(Self {
+            image,
+            config,
+            kind,
+            word: word.into(),
+            span,
+            line,
+            original: Some(original),
+        })
+    }
+    /// The complete original pack image retained by this source subject.
     #[must_use]
     pub fn image(&self) -> &SourceImage {
         &self.image
     }
-    /// The typed vocabulary position selected by the loader.
+    /// Supplied vocabulary-position metadata, not loader-causality proof.
     #[must_use]
     pub fn kind(&self) -> &SpecPackNoticeKind {
         &self.kind
     }
-    /// The rejected literal source word, independently of its notice text.
+    /// The original literal source word, independently of notice text.
     #[must_use]
     pub fn word(&self) -> &str {
         &self.word
@@ -167,7 +210,7 @@ impl SpecPackNoticeSubject {
     pub const fn span(&self) -> Span {
         self.span
     }
-    /// The original one-based source line selected by the loader.
+    /// The original one-based source line retained by the source subject.
     #[must_use]
     pub const fn line(&self) -> u32 {
         self.line
@@ -275,16 +318,25 @@ impl SpecPackNoticeData {
         }
         // Producer and consumer syntax configurations are independent. Both
         // must select the same exact literal extent in the unchanged image.
-        let Some(current) = SpecPackNoticeSubject::from_loader(
-            source,
-            config,
-            self.subject.line,
-            &self.subject.word,
-            self.subject.kind.clone(),
-        ) else {
-            return false;
+        let current = if let Some(original) = &self.subject.original {
+            let Some(original) = original.reborrow(&image, config) else {
+                return false;
+            };
+            SpecPackNoticeSubject::from_original_word(
+                original,
+                &self.subject.word,
+                self.subject.kind.clone(),
+            )
+        } else {
+            SpecPackNoticeSubject::from_loader(
+                source,
+                config,
+                self.subject.line,
+                &self.subject.word,
+                self.subject.kind.clone(),
+            )
         };
-        current.span == self.subject.span
+        current.is_some_and(|subject| subject.span == self.subject.span)
     }
 }
 
@@ -424,6 +476,60 @@ mod tests {
                 1,
                 "arty",
                 SpecPackNoticeKind::Property
+            )
+            .is_none()
+        );
+    }
+    #[test]
+    fn original_spec_notice_selected_geometry_keeps_duplicate_sites_distinct() {
+        let source = "speclib demo 1 {command demo {arty 1; arty 2}}";
+        let config = tcl_compiler::parsing::spectcl_source::pack_source_lexer_config(
+            tcl_lexer::SourceSegmentationPurpose::WholeInput,
+        );
+        let root =
+            tcl_compiler::parsing::spectcl_source::original_pack_source_statements(source, config)
+                [0]
+            .local_word(3)
+            .unwrap()
+            .in_document();
+        let body = root.body_word(0, 2).unwrap();
+        let first = SpecPackNoticeSubject::from_original_word(
+            body.body_word(0, 0).unwrap(),
+            "arty",
+            SpecPackNoticeKind::Property,
+        )
+        .unwrap();
+        let second = SpecPackNoticeSubject::from_original_word(
+            body.body_word(1, 0).unwrap(),
+            "arty",
+            SpecPackNoticeKind::Property,
+        )
+        .unwrap();
+        assert_ne!(first.span(), second.span());
+        assert_eq!(first.line(), second.line());
+        assert!(
+            SpecPackNoticeSubject::from_original_word(
+                body.body_word(0, 1).unwrap(),
+                "1",
+                SpecPackNoticeKind::Property
+            )
+            .is_none()
+        );
+        assert!(
+            SpecPackNoticeSubject::from_original_word(
+                body.body_word(0, 0).unwrap(),
+                "arity",
+                SpecPackNoticeKind::Property
+            )
+            .is_none()
+        );
+        assert!(
+            SpecPackNoticeSubject::from_original_word(
+                body.body_word(0, 1).unwrap(),
+                "1",
+                SpecPackNoticeKind::Flag {
+                    row: "other".into()
+                }
             )
             .is_none()
         );

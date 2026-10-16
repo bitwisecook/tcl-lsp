@@ -36,6 +36,8 @@ pub struct OriginalDefinitionScriptSource {
     tokens: CommandTokens,
     words: Vec<NativeWord>,
     body: usize,
+    name: usize,
+    per_object: bool,
     content: Span,
     declaration: Span,
     grammar: &'static tcl_registry::definer::DefinitionBodyGrammar,
@@ -53,6 +55,8 @@ impl PartialEq for OriginalDefinitionScriptSource {
             && self.tokens == other.tokens
             && self.words == other.words
             && self.body == other.body
+            && self.name == other.name
+            && self.per_object == other.per_object
             && self.content == other.content
             && self.declaration == other.declaration
             && std::ptr::eq(self.grammar, other.grammar)
@@ -66,6 +70,8 @@ impl OriginalDefinitionScriptSource {
         id: ProcedureId,
         tokens: &CommandTokens,
         body: usize,
+        name: usize,
+        per_object: bool,
         offset: u32,
         grammar: &'static tcl_registry::definer::DefinitionBodyGrammar,
         descriptor: tcl_registry::CanonicalCommandDescriptorKey<'static>,
@@ -76,6 +82,7 @@ impl OriginalDefinitionScriptSource {
             || module.source_entry.native_entry.is_some()
             || module.source_entry.unknown_entry
             || !module.procedure_ids.owns(id)
+            || name >= tokens.words().len()
             || !tokens.original_words_match_argv_text()
             || tokens.synthetic.is_some()
             || module.registry_snapshot.as_ref()?.semantic_key()
@@ -144,6 +151,8 @@ impl OriginalDefinitionScriptSource {
             tokens: tokens.clone(),
             words: command.words.clone(),
             body,
+            name,
+            per_object,
             content,
             declaration,
             grammar,
@@ -213,6 +222,8 @@ impl Module {
         &mut self,
         tokens: &CommandTokens,
         body: usize,
+        name: usize,
+        per_object: bool,
         offset: u32,
         grammar: &'static tcl_registry::definer::DefinitionBodyGrammar,
         descriptor: tcl_registry::CanonicalCommandDescriptorKey<'static>,
@@ -220,7 +231,7 @@ impl Module {
     ) -> ProcedureId {
         let id = self.procedure_ids.allocate();
         if let Some(source) = OriginalDefinitionScriptSource::capture(
-            self, id, tokens, body, offset, grammar, descriptor, registry,
+            self, id, tokens, body, name, per_object, offset, grammar, descriptor, registry,
         ) {
             self.original_definition_scripts
                 .insert(id, std::sync::Arc::new(source));
@@ -238,16 +249,8 @@ impl Module {
             if source.body_word().tokens().first()?.span != class.body_span {
                 return None;
             }
-            let layout = crate::registry_invocation::original_logical_source_definition_layout(
-                registry,
-                self.source_metadata_input.as_ref()?,
-                &source.tokens,
-            )?;
-            if layout.per_object
-                || layout.body_word != source.body
-                || layout.descriptor != source.descriptor
-                || !std::ptr::eq(layout.grammar, source.grammar)
-                || source.words.get(layout.name_word)?.tokens().first()?.span != class.name_span
+            if source.per_object
+                || source.words.get(source.name)?.tokens().first()?.span != class.name_span
             {
                 return None;
             }
@@ -270,19 +273,18 @@ impl Module {
         let selected = crate::registry_invocation::source_structure::original_logical_registry_words_for_module(
             self, registry, &source.tokens,
         )?;
-        selected
-            .written_argument_roles()
-            .contains(&(source.body.checked_sub(1)?, tcl_registry::ArgRole::Body))
-            .then_some(())?;
-        selected.with_source_schema(source.input.borrowed_context_registry(), |schema| {
-            let grammar = schema.authored_source_definition_body_grammar()?;
-            (schema.descriptor_key() == source.descriptor
-                && std::ptr::eq(grammar, source.grammar)
-                && schema
-                    .authored_source_script_arguments()?
-                    .contains(&source.body.checked_sub(1)?))
-            .then_some(source.as_ref())
-        })?
+        let layout =
+            crate::registry_invocation::original_source_definition_layout_from_selected_words(
+                &selected,
+                &source.input,
+                &source.tokens,
+            )?;
+        (layout.name_word == source.name
+            && layout.body_word == source.body
+            && layout.per_object == source.per_object
+            && layout.descriptor == source.descriptor
+            && std::ptr::eq(layout.grammar, source.grammar))
+        .then_some(source.as_ref())
     }
 }
 
@@ -406,6 +408,40 @@ mod tests {
         );
         let mut changed = module.clone();
         changed.source_metadata_input = None;
+        assert!(
+            changed
+                .original_definition_script_source(id, registry)
+                .is_none()
+        );
+    }
+    #[test]
+    fn issued_definition_reborrow_rejects_changed_selected_name_and_object_mode() {
+        let source = "oo::class create C {method m {} {return VALUE}}";
+        let module = original_module(source);
+        let registry = module.resolved_registry();
+        let id = module
+            .methods
+            .values()
+            .next()
+            .unwrap()
+            .definition_scope
+            .unwrap();
+        assert!(
+            module
+                .original_definition_script_source(id, registry)
+                .is_some()
+        );
+        let mut changed = module.clone();
+        std::sync::Arc::make_mut(changed.original_definition_scripts.get_mut(&id).unwrap()).name =
+            0;
+        assert!(
+            changed
+                .original_definition_script_source(id, registry)
+                .is_none()
+        );
+        let mut changed = module.clone();
+        std::sync::Arc::make_mut(changed.original_definition_scripts.get_mut(&id).unwrap())
+            .per_object = true;
         assert!(
             changed
                 .original_definition_script_source(id, registry)

@@ -325,6 +325,13 @@ impl OriginalDeclaredLogicalBodyContext {
         &self.namespace
     }
 
+    /// Independently retained enclosing source recipe. Missing ancestry cannot
+    /// identify the document root or an entered caller frame.
+    #[must_use]
+    pub fn parent_source_context(&self) -> Option<&Self> {
+        self.parent.as_deref()
+    }
+
     /// Source-only frame recipe selected by the retained Registry body schema.
     #[must_use]
     pub const fn frame_recipe(&self) -> OriginalDeclaredSourceBodyFrame {

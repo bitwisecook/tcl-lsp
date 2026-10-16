@@ -1,0 +1,17 @@
+Independent host source review: CLEAR
+
+Patch SHA-256: d199ae0e738a56d728cf24ce65fa27b2a2294cd9abb91165379e764b9956b71f
+Manifest SHA-256: 190796913d7d6fa1e2252dc3a8224cafb7ac82d8f543b75237a443a25aa1f86a
+Delta SHA-256: 442186d9ad4bd2b1684775cc26f99e0fb33941e2441084787e34132de0e3a835
+All existing-file beforeimages match current sources.
+
+Host validation requires a JSON array of exactly 16 integer bytes in [0,255]
+for the issuer. The same original `editReceipt` is spread into the validation
+request without stripping or rewriting issuer, id, URI, version, or source.
+The returned result shape is checked before use; the existing optional-admit
+writer and V2 post-await checks remain byte-for-byte in this V3 packet.
+The referenced `EditorWireSession` producer is transparently serde-encoded
+`[u8;16]` and is an explicit external source dependency not yet in current
+Main; composition/build remains Root's responsibility.
+
+No build, test, runtime, or execution claim is made by this source review.

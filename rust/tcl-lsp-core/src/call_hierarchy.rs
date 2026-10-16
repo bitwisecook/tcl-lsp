@@ -31,18 +31,28 @@
 //! Alias routes may retain the canonical target allocation while direct editable
 //! spelling remains a separate question.
 //!
-//! Explicit lexical declaration advice uses the compatibility scanners below:
-//! procedure body spans and registry-selected method shapes group local call
-//! sites. Synthetic names and reporting maps in that path do not supply Native
-//! identity. The compatibility server can use [`unresolved_outgoing_calls`] and
-//! [`incoming_calls_for_target`] under the same independently selected advice
-//! contract.
+//! Production Logical CALL publication uses the sealed [`LogicalCallIdentity`]
+//! and typed [`LogicalCallAdvice`] inventory adapters. They retain original
+//! source requests, caller ancestry and independent source/input currentness;
+//! missing representations remain applicability debt through the host lease.
+//!
+//! Explicit standalone lexical compatibility scanners below retain their
+//! original callers and assertions. Their reporting fields cannot construct a
+//! production Logical CALL identity or cast to Native source authority.
 
 use tcl_compiler::analyser::{AnalysisResult, ClassDef, MemberSide, MethodDef, ProcDef};
 use tcl_lexer::LineIndex;
 
 use crate::definition::LspRange;
 use crate::hover::find_word_span_at_position;
+
+mod logical_source;
+pub(crate) use logical_source::declared_logical_source_items;
+pub use logical_source::{
+    LogicalCallAdvice, LogicalCallHierarchyEdge, LogicalCallHierarchyItem, LogicalCallIdentity,
+    logical_incoming_from_inventory, logical_outgoing_from_inventory,
+    prepare_logical_from_inventory,
+};
 
 /// One hierarchy item — proc identification plus its name and
 /// definition span for editor display.

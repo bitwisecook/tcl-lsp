@@ -1,0 +1,16 @@
+{
+  "utc": "2026-10-16T23:02:25.511500+00:00",
+  "source_head": "4ac51e087bfaefa05b14db27f7da06b15250ae6e",
+  "command": [
+    "make",
+    "test-jetbrains"
+  ],
+  "status": "FAILED_OR_BLOCKED_ACTUAL_GATE",
+  "scope": "Actual original wrapper/Gradle98, originalIntelliJ2025.3SDK and Kotlin JVM17 plugin test gate. No fakeSDK/stubcompile; setup failure is not test outcome.",
+  "input_count": 67,
+  "gradle_distribution_sha256": "bafd5ce9cfaea0fbccfdc8439a1ac42fbd4cd9c89dc9a988228d8a2639a58e6c",
+  "exit_code": 2,
+  "seconds": 547.1702186990005,
+  "input_drift": [],
+  "completed_utc": "2026-10-16T23:11:32.765887+00:00"
+}

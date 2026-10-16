@@ -7,6 +7,7 @@
 //! A wire locator reselects a retained identity; it cannot manufacture an
 //! original operand, command installation, dispatch entry or edit capability.
 
+use crate::wire_session::EditorWireSession;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, VecDeque};
 use tcl_compiler::analyser::types::{
@@ -998,26 +999,126 @@ pub fn readonly_reference_report(
 
 /// Compact editor data locating a sealed readonly receipt. Decoding the token
 /// supplies no declaration or native authority until the registry reselects it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub struct OriginalDeclarationHandle {
     schema: u8,
     token: u64,
+    // Lossless JSON bytes identify this registry allocation only. Legacy
+    // Native/TYPE wire objects retain exactly their existing two fields.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    session: Option<EditorWireSession>,
 }
+
+impl<'de> Deserialize<'de> for OriginalDeclarationHandle {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Legacy {
+            schema: u8,
+            token: u64,
+        }
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Session {
+            schema: u8,
+            token: u64,
+            session: EditorWireSession,
+        }
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Wire {
+            Session(Session),
+            Legacy(Legacy),
+        }
+        match Wire::deserialize(deserializer)? {
+            Wire::Legacy(wire) => Ok(Self {
+                schema: wire.schema,
+                token: wire.token,
+                session: None,
+            }),
+            Wire::Session(wire) if matches!(wire.schema, 3 | 4) => Ok(Self {
+                schema: wire.schema,
+                token: wire.token,
+                session: Some(wire.session),
+            }),
+            Wire::Session(_) => Err(serde::de::Error::custom(
+                "session discriminator is only valid for Logical CALL/lens handles",
+            )),
+        }
+    }
+}
+
+/// Session-only host publication payload. This stores and compares an actual
+/// host-owned typed stamp; it cannot issue semantic/source authority and is
+/// never serialised into editor data. Different host stamp types never match.
+#[derive(Debug, Clone)]
+pub struct LogicalCallHostPublication(std::sync::Arc<dyn HostPublicationValue>);
+trait HostPublicationValue: std::fmt::Debug + Send + Sync {
+    fn as_any(&self) -> &dyn std::any::Any;
+    fn same_value(&self, other: &dyn HostPublicationValue) -> bool;
+}
+impl<T: std::fmt::Debug + Eq + Send + Sync + 'static> HostPublicationValue for T {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+    fn same_value(&self, other: &dyn HostPublicationValue) -> bool {
+        other
+            .as_any()
+            .downcast_ref::<T>()
+            .is_some_and(|other| self == other)
+    }
+}
+impl LogicalCallHostPublication {
+    /// Retain a host-owned stamp independently of the source selection. This
+    /// constructor checks no host currency; its actual issuer must do so under
+    /// the host's publication lease before issuing or resolving a readonly handle.
+    #[must_use]
+    pub fn retain<T: std::fmt::Debug + Eq + Send + Sync + 'static>(stamp: T) -> Self {
+        Self(std::sync::Arc::new(stamp))
+    }
+}
+impl PartialEq for LogicalCallHostPublication {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.same_value(other.0.as_ref())
+    }
+}
+impl Eq for LogicalCallHostPublication {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum RetainedDeclaration {
     Original(OriginalDeclarationIdentity),
     LogicalClass(crate::type_hierarchy::LogicalHierarchyClass),
+    LogicalCall {
+        identity: crate::call_hierarchy::LogicalCallIdentity,
+        publication: LogicalCallHostPublication,
+    },
+    LogicalLens {
+        identity: crate::code_lens::LogicalLensIdentity,
+        publication: LogicalCallHostPublication,
+    },
 }
 
 /// Bounded session-owned declaration receipt storage. Tokens never alias an
 /// evicted record and full source equality is checked on every resolution.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct OriginalDeclarationRegistry {
     next: u64,
     rows: BTreeMap<u64, RetainedDeclaration>,
     order: VecDeque<u64>,
+    // Real OS/Web Crypto allocation randomness, never source/name authority.
+    // Failure withholds the new session-scoped kinds independently of legacy
+    // Native/TYPE issuance and resolution.
+    session: Option<EditorWireSession>,
+}
+impl Default for OriginalDeclarationRegistry {
+    fn default() -> Self {
+        Self {
+            next: 0,
+            rows: BTreeMap::new(),
+            order: VecDeque::new(),
+            session: EditorWireSession::allocate(),
+        }
+    }
 }
 
 impl OriginalDeclarationRegistry {
@@ -1037,15 +1138,53 @@ impl OriginalDeclarationRegistry {
     ) -> Option<OriginalDeclarationHandle> {
         self.issue_retained(RetainedDeclaration::LogicalClass(identity), 2)
     }
+    /// Retain a genuine Logical CALL selection under its own wire kind.
+    #[must_use]
+    pub fn issue_logical_call(
+        &mut self,
+        identity: crate::call_hierarchy::LogicalCallIdentity,
+        publication: LogicalCallHostPublication,
+    ) -> Option<OriginalDeclarationHandle> {
+        self.issue_retained(
+            RetainedDeclaration::LogicalCall {
+                identity,
+                publication,
+            },
+            3,
+        )
+    }
+    /// Retain a genuine Logical source lens under its own wire schema.
+    /// The equality-only host payload must be minted inside the actual source,
+    /// provider and index publication lease; it supplies no semantic authority.
+    #[must_use]
+    pub fn issue_logical_lens(
+        &mut self,
+        identity: crate::code_lens::LogicalLensIdentity,
+        publication: LogicalCallHostPublication,
+    ) -> Option<OriginalDeclarationHandle> {
+        self.issue_retained(
+            RetainedDeclaration::LogicalLens {
+                identity,
+                publication,
+            },
+            4,
+        )
+    }
     fn issue_retained(
         &mut self,
         identity: RetainedDeclaration,
         schema: u8,
     ) -> Option<OriginalDeclarationHandle> {
+        let session = if matches!(schema, 3 | 4) {
+            Some(self.session?)
+        } else {
+            None
+        };
         if let Some((token, _)) = self.rows.iter().find(|(_, row)| *row == &identity) {
             return Some(OriginalDeclarationHandle {
                 schema,
                 token: *token,
+                session,
             });
         }
         let token = self.next.checked_add(1)?;
@@ -1055,7 +1194,11 @@ impl OriginalDeclarationRegistry {
         }
         self.rows.insert(token, identity);
         self.order.push_back(token);
-        Some(OriginalDeclarationHandle { schema, token })
+        Some(OriginalDeclarationHandle {
+            schema,
+            token,
+            session,
+        })
     }
     /// Reselect the authentic current metadata by its retained full receipt.
     #[must_use]
@@ -1094,6 +1237,63 @@ impl OriginalDeclarationRegistry {
         identity
             .is_current(uri, source, analysis)
             .then(|| identity.clone())
+    }
+    /// Session allocation is a transport discriminator, independent of source
+    /// equality and genuine publication revalidation. Missing entropy refuses
+    /// before any row can be selected, including in a fresh registry.
+    fn matches_logical_session(&self, handle: OriginalDeclarationHandle) -> bool {
+        self.session.is_some() && handle.session == self.session
+    }
+
+    /// Reborrow the current source CALL receipt. Native and TYPE tokens cannot
+    /// cast to CALL, and client labels/ranges do not participate in selection.
+    #[must_use]
+    pub fn resolve_logical_call(
+        &self,
+        handle: OriginalDeclarationHandle,
+        uri: &str,
+        documents: &[OriginalDeclarationDocument<'_>],
+        current_publication: &LogicalCallHostPublication,
+    ) -> Option<crate::call_hierarchy::LogicalCallIdentity> {
+        if handle.schema != 3 || !self.matches_logical_session(handle) {
+            return None;
+        }
+        let RetainedDeclaration::LogicalCall {
+            identity,
+            publication,
+        } = self.rows.get(&handle.token)?
+        else {
+            return None;
+        };
+        (publication == current_publication
+            && identity.uri() == uri
+            && identity.is_current_in(documents))
+        .then(|| identity.clone())
+    }
+    /// Reselect a current Logical lens without reading client labels/ranges.
+    /// Native, TYPE and CALL handles cannot cast to this separate schema.
+    #[must_use]
+    pub fn resolve_logical_lens(
+        &self,
+        handle: OriginalDeclarationHandle,
+        uri: &str,
+        documents: &[OriginalDeclarationDocument<'_>],
+        current_publication: &LogicalCallHostPublication,
+    ) -> Option<crate::code_lens::LogicalLensIdentity> {
+        if handle.schema != 4 || !self.matches_logical_session(handle) {
+            return None;
+        }
+        let RetainedDeclaration::LogicalLens {
+            identity,
+            publication,
+        } = self.rows.get(&handle.token)?
+        else {
+            return None;
+        };
+        (publication == current_publication
+            && identity.uri() == uri
+            && identity.is_current_in(documents))
+        .then(|| identity.clone())
     }
 }
 
@@ -1586,5 +1786,110 @@ mod own_object_identity_tests {
             "file:///a.tcl",
         );
         assert!(lenses.iter().any(|lens| lens.identity.as_ref() == Some(&a)));
+    }
+}
+
+#[cfg(test)]
+mod logical_session_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn missing_random_allocation_withholds_logical_call_without_changing_legacy_wire() {
+        let source = "proc helper {} {}\nhelper\n";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let document = OriginalDeclarationDocument {
+            uri: "file:///session-failure.tcl",
+            source,
+            analysis: &analysis,
+        };
+        let advice =
+            crate::call_hierarchy::prepare_logical_from_inventory(document.uri, 0, 5, &[document])
+                .unwrap();
+        let identity = advice.possible_source_items()[0].identity().clone();
+        let publication = LogicalCallHostPublication::retain(());
+        let mut registry = OriginalDeclarationRegistry::default();
+        registry.session = None;
+        assert!(
+            registry
+                .issue_logical_call(identity.clone(), publication.clone())
+                .is_none()
+        );
+        assert!(registry.rows.is_empty());
+        let legacy = registry
+            .issue(
+                OriginalDeclarationIdentity::for_document(document.uri, source, &analysis).unwrap(),
+            )
+            .unwrap();
+        assert_eq!(
+            serde_json::to_value(legacy).unwrap(),
+            serde_json::json!({"schema":1,"token":1})
+        );
+        assert!(
+            registry
+                .resolve(legacy, document.uri, source, &analysis)
+                .is_some()
+        );
+        // A genuine retained CALL from an entropy-available issuer cannot be
+        // reborrowed once the current allocation owner is unavailable.
+        let mut issuer = OriginalDeclarationRegistry::default();
+        let handle = issuer
+            .issue_logical_call(identity, publication.clone())
+            .unwrap();
+        assert!(
+            issuer
+                .resolve_logical_call(handle, document.uri, &[document], &publication)
+                .is_some()
+        );
+        issuer.session = None;
+        assert!(
+            issuer
+                .resolve_logical_call(handle, document.uri, &[document], &publication)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn session_wire_bytes_are_lossless_and_legacy_shapes_stay_strict() {
+        let nonce: EditorWireSession =
+            serde_json::from_value(serde_json::json!(vec![255; 16])).unwrap();
+        for schema in [3, 4] {
+            let handle = OriginalDeclarationHandle {
+                schema,
+                token: 1,
+                session: Some(nonce),
+            };
+            let value = serde_json::to_value(handle).unwrap();
+            assert_eq!(value["session"], serde_json::json!(vec![255; 16]));
+            assert_eq!(
+                serde_json::from_value::<OriginalDeclarationHandle>(value).unwrap(),
+                handle
+            );
+        }
+        for schema in [1, 2] {
+            let legacy = serde_json::json!({"schema":schema,"token":1});
+            let handle: OriginalDeclarationHandle = serde_json::from_value(legacy.clone()).unwrap();
+            assert_eq!(serde_json::to_value(handle).unwrap(), legacy);
+            for session in [serde_json::json!(nonce), serde_json::Value::Null] {
+                assert!(
+                    serde_json::from_value::<OriginalDeclarationHandle>(
+                        serde_json::json!({"schema":schema,"token":1,"session":session})
+                    )
+                    .is_err()
+                );
+            }
+        }
+        for session in [
+            serde_json::json!([0]),
+            serde_json::json!(vec![256; 16]),
+            serde_json::Value::Null,
+        ] {
+            assert!(
+                serde_json::from_value::<OriginalDeclarationHandle>(
+                    serde_json::json!({"schema":3,"token":1,"session":session})
+                )
+                .is_err()
+            );
+        }
     }
 }

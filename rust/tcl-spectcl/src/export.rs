@@ -159,6 +159,8 @@ impl Registration {
 /// rule the evaluation loader's own capture uses.
 pub(crate) fn synth_word(text: &str, line: u32) -> Word {
     Word {
+        local_source: None,
+        original_source: None,
         braced: text.is_empty() || text.contains(char::is_whitespace),
         text: text.to_owned(),
         line,
@@ -356,11 +358,15 @@ pub fn export_pack(pack: &Pack) -> String {
 pub fn export_pack_reporting(pack: &Pack) -> (String, Vec<ExportLoss>) {
     let mut out = Out::default();
     let name = Word {
+        local_source: None,
+        original_source: None,
         text: pack.name.clone(),
         braced: false,
         line: 1,
     };
     let version = Word {
+        local_source: None,
+        original_source: None,
         text: pack.dsl_version.clone(),
         braced: false,
         line: 1,
@@ -426,6 +432,8 @@ mod tests {
             spelling(&Word {
                 text: text.to_owned(),
                 braced,
+                local_source: None,
+                original_source: None,
                 line: 1,
             })
         };

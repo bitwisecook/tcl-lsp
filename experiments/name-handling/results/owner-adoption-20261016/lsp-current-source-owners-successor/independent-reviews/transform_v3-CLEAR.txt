@@ -1,0 +1,5 @@
+SOURCE CLEAR — Root independent source review
+UTC 2026-10-16T23:03:06.177914+00:00
+PatchSHA256 d199ae0e738a56d728cf24ce65fa27b2a2294cd9abb91165379e764b9956b71f
+ActualSourceFile/fullinput/Registry/provider metadata retained independently of completed diagnostics. Document workers require fullinput+source correspondence; distinct safe-fix bundle invokes existing configured_analyser with retained exact parameters and PackSet allocation. Finalactualsource/path/input/config/policy/currentgeneration guards surround issue/validate; real ledger independently allocates EditorWireSession, requires lossless issuer before numeric rowlookup, entropy unavailable refuses newboundresults. LegacyURI unchanged. Both constructors and exhaustiveBackenddestructure updated. HostV2noop/ordinarycurrency andV3codec separately LunaCLR. ActualCargo/typecheck/controls remainpending.
+All actualcurrent beforeimages, fresh zero-fuzz/zero-offset application and afterimage hashes independently verified. Scoped real rustfmt parsing/formatcheck passes. No Cargo/typecheck/test/provider execution, efficacy, gate acceptance or counts.

@@ -1,0 +1,5 @@
+SOURCE CLEAR — Root independent source review
+UTC 2026-10-16T23:03:06.544653+00:00
+PatchSHA256 9538ce532aaade5555060b79d474443e087ddff0b689c771fb08d0e178b60441
+Actual lowerer DefinerCall Name/body/per_object retained at existing issued definition allocation. Genuine currentModule/wholeinput/source/Registry/entry checks retained; current issued reborrow uses actual selected words from shared two-route reborrow plus common original layout reader, validates exactName/Body/objectmode/descriptor/grammar. Existing Logicalfallback stronger-owner refusal remains terminal; no ClassDef report geometry reconstruction. Originalclass body caller first reborrows current issuedrecord before retainedName/Body comparison. Oldsource tests preserved, oneadditive tamper control. Actual597 firstrefusal/cohort efficacy unmeasured.
+All actualcurrent beforeimages, fresh zero-fuzz/zero-offset application and afterimage hashes independently verified. Scoped real rustfmt parsing/formatcheck passes. No Cargo/typecheck/test/provider execution, efficacy, gate acceptance or counts.

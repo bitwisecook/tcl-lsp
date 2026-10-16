@@ -40,6 +40,17 @@ pub(crate) fn original_logical_source_definition_layout(
         return None;
     }
     let words = binding.original_logical_source_words(tokens, input, registry)?;
+    original_source_definition_layout_from_selected_words(&words, input, tokens)
+}
+
+/// Selected source layout data shared by fallback and stronger original owners.
+/// The caller retains the actual words/input; this issues no definition or body.
+pub(crate) fn original_source_definition_layout_from_selected_words(
+    words: &super::OriginalRegistryWords,
+    input: &ResolvedAnalysisInput,
+    tokens: &CommandTokens,
+) -> Option<OriginalLogicalSourceDefinitionLayout> {
+    input.has_logical_source_name_context().then_some(())?;
     if words.origins().len() != tokens.words().len()
         || !words
             .origins()

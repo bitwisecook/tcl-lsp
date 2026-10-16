@@ -1,0 +1,60 @@
+{
+  "all_rust_files_parse": true,
+  "rust_files": 45,
+  "every_reviewed_changed_or_new_function_byte_exact": false,
+  "joint_function_compositions": [
+    {
+      "ingredient": "native_presentation_v2",
+      "path": "rust/tcl-lsp-core/src/code_lens.rs",
+      "function": "fn:code_lenses",
+      "ingredient_sha256": "c4a0909d11e903af4017997ea9fdf191539bcd727ee7d591b06df59275033c72",
+      "combined_sha256": "fea931b7861ff070190e7f4e84e9d22104e829bc9abcba0028cf4917d003f838"
+    }
+  ],
+  "reviewed_modified_new_function_count": 474,
+  "old_test_context_function_count": 2037,
+  "old_test_context_functions_byte_equal": 2031,
+  "existing_test_function_changes": [
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "key": "mod:conditional_native_case_receipt_tests::fn:source_context",
+      "before_sha256": "d7e368024687b0b0584601f6c5360370bc9c9aae3dabf90e7b103f255755b665",
+      "after_sha256": "c9894e45221c1c57b03b1f09c751e47f2d02575d7fccf7ea66138c536cf4603c"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "key": "mod:conditional_native_case_receipt_tests::fn:nested_native_case_receipt_retains_actual_vector_unknown_selection_and_debts",
+      "before_sha256": "3978a42b743d8c64c1090903caaaa0574ebda059d036fb0023a0edb5dbcaad4e",
+      "after_sha256": "663b7b477f02c47c988ea8440a4a9bb23b70427cc3cec2d0a30d8066f2c01fd2"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "key": "mod:tests::fn:test_backend_over",
+      "before_sha256": "f59b58b5112ffe907f9908f68934718892815c56e95d1b8a530d7dd04674eb57",
+      "after_sha256": "a146e7dced3b8e71c4ec641993881cb8bb9c4e77febc7169d38c2fc16528a182"
+    },
+    {
+      "path": "rust/tcl-spectcl/src/export.rs",
+      "key": "mod:tests::fn:a_word_takes_the_narrowest_verbatim_spelling_that_carries_it",
+      "before_sha256": "e5de72a704295dfdb3e70a1ddbdaaf45652e38825660a6406e5d9a48069b0cc0",
+      "after_sha256": "e1419146b371f3518ba1007eed4159c1810a8c103e74653822e25c8c2cfec3e3"
+    },
+    {
+      "path": "rust/tcl-spectcl/src/loader/semantics.rs",
+      "key": "mod:tests::fn:a_native_id_a_table_holds_installs_its_value",
+      "before_sha256": "8eb39ce62554be44dd67cdf864221072a1d0ba08cdc80b80894b88f7ae9948a4",
+      "after_sha256": "efff76ecfe93253b92512fcd43d625fa2aff63cc1f5ff11fd7a6641641a6803c"
+    },
+    {
+      "path": "rust/tcl-spectcl/src/loader/semantics.rs",
+      "key": "mod:tests::fn:a_native_id_a_table_holds_installs_its_value::fn:word",
+      "before_sha256": "bf4a3de1075c1950e386709c00f1d425b77ac1fe58da6c49431b8050d28245f1",
+      "after_sha256": "a9bd55d216cb3ddc44cde2ba9b0c2f1fe9d7ea34d6c291685531367fcbbb8f1a"
+    }
+  ],
+  "existing_test_changes_scope": "Only exact reviewed fixture/helper changes; original assertion macro bytes independently identical",
+  "new_test_context_function_count": 85,
+  "unused_import_cleanup_exact": "logical_members::logical_relation_navigation_tests only; all function bytes equal CALLV2",
+  "all_reviewed_documentation_changes_present": true,
+  "execution": "none: static AST/source retention only"
+}

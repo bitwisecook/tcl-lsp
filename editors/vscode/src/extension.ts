@@ -93,6 +93,11 @@ import { openSpecStudio, prepareSpecStudioStorage } from "./specStudio";
 import { registerHighlightingHealthChecks } from "./highlightingHealth";
 import { ensureStickyScrollDefaultModel } from "./stickyScrollHealth";
 import { DiffDiagnosticsSuppressor } from "./diffAnalysis";
+import {
+  captureDocumentTransform,
+  requestDocumentTransform,
+  applyDocumentTransform,
+} from "./documentTransform";
 import { applyDocumentWrite } from "./chat/codeUtils";
 import {
   LANGUAGE_ID_DIALECTS,
@@ -286,6 +291,16 @@ export async function activate(context: ExtensionContext) {
           command: "tcl-lsp.proposalDiagnostics",
           arguments: [params],
         }),
+      requestTransform: (command, source, options) =>
+        activeClient.sendRequest("workspace/executeCommand", {
+          command,
+          arguments: [source, ...options],
+        }),
+      validateTransform: (receipt) =>
+        activeClient.sendRequest("workspace/executeCommand", {
+          command: "tcl-lsp.validateDocumentTransform",
+          arguments: [receipt],
+        }),
       convert: (diagnostics) => activeClient.protocol2CodeConverter.asDiagnostics(diagnostics),
       setSessionDialectOverride: async (dialect) => {
         await activeClient.sendRequest("workspace/executeCommand", {
@@ -351,8 +366,8 @@ export async function activate(context: ExtensionContext) {
   // the browser entry.
   context.subscriptions.push(
     workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration("tclLsp")) invalidateAnalysisContext();
       if (e.affectsConfiguration("tclLsp.dialect")) {
-        invalidateAnalysisContext();
         // The setting changed (``tclLsp.selectDialect``, or the user editing
         // settings.json).  The server picks it up from its own
         // ``workspace/configuration`` pull; all that is left here is the
@@ -1119,14 +1134,26 @@ async function optimiseDocument(): Promise<void> {
     window.showWarningMessage("Open a Tcl file to run optimisations.");
     return;
   }
+  const snapshot = captureDocumentTransform(editor.document);
+  if (!snapshot) {
+    window.showWarningMessage(
+      "The document analysis context is unavailable. Try again when the server is ready.",
+    );
+    return;
+  }
 
-  const uri = editor.document.uri.toString();
-  const result = (await client.sendRequest("workspace/executeCommand", {
-    command: "tcl-lsp.optimiseDocument",
-    arguments: [uri],
-  })) as { optimisations: Array<Record<string, unknown>>; source: string } | null;
+  const result = await requestDocumentTransform<{
+    optimisations: Array<Record<string, unknown>>;
+    source: string;
+  }>(snapshot, "tcl-lsp.optimiseDocument");
 
-  if (!result || !result.optimisations || result.optimisations.length === 0) {
+  if (!result) {
+    window.showWarningMessage(
+      "A current document transform is unavailable. Run the command again.",
+    );
+    return;
+  }
+  if (!result.optimisations || result.optimisations.length === 0) {
     window.showInformationMessage("No optimisations found.");
     return;
   }
@@ -1139,10 +1166,10 @@ async function optimiseDocument(): Promise<void> {
   );
 
   if (proceed === "Apply") {
-    const fullRange = editor.document.validateRange(new Range(0, 0, Infinity, Infinity));
-    await editor.edit((editBuilder) => {
-      editBuilder.replace(fullRange, result.source);
-    });
+    if (!(await applyDocumentTransform(snapshot, result))) {
+      window.showWarningMessage("The document or analysis context changed. Run the command again.");
+      return;
+    }
     window.showInformationMessage(`Applied ${count} optimisation${count === 1 ? "" : "s"}.`);
   }
 }
@@ -1196,6 +1223,13 @@ async function minifyDocument(): Promise<void> {
     window.showWarningMessage("Open a Tcl file to minify.");
     return;
   }
+  const snapshot = captureDocumentTransform(editor.document);
+  if (!snapshot) {
+    window.showWarningMessage(
+      "The document analysis context is unavailable. Try again when the server is ready.",
+    );
+    return;
+  }
 
   const mode = await window.showQuickPick(
     [
@@ -1241,19 +1275,21 @@ async function minifyDocument(): Promise<void> {
     return;
   }
 
-  const uri = editor.document.uri.toString();
-  const result = (await client.sendRequest("workspace/executeCommand", {
-    command: "tcl-lsp.minifyDocument",
-    arguments: [uri, mode.compact, mode.aggressive, mode.isolated],
-  })) as {
+  const result = await requestDocumentTransform<{
     source: string;
     originalLength: number;
     minifiedLength: number;
     symbolMap?: string;
     optimisationsApplied?: number;
-  } | null;
+  }>(snapshot, "tcl-lsp.minifyDocument", [mode.compact, mode.aggressive, mode.isolated]);
 
-  if (!result || !result.source) {
+  if (!result) {
+    window.showWarningMessage(
+      "A current document transform is unavailable. Run the command again.",
+    );
+    return;
+  }
+  if (!result.source) {
     window.showInformationMessage("Nothing to minify.");
     return;
   }
@@ -1267,10 +1303,10 @@ async function minifyDocument(): Promise<void> {
   );
 
   if (proceed === "Apply") {
-    const fullRange = editor.document.validateRange(new Range(0, 0, Infinity, Infinity));
-    await editor.edit((editBuilder) => {
-      editBuilder.replace(fullRange, result.source);
-    });
+    if (!(await applyDocumentTransform(snapshot, result))) {
+      window.showWarningMessage("The document or analysis context changed. Run the command again.");
+      return;
+    }
     const optSuffix =
       result.optimisationsApplied != null && result.optimisationsApplied > 0
         ? ` (${result.optimisationsApplied} optimisations applied)`
@@ -1544,21 +1580,30 @@ async function fixAllSafeIssues(): Promise<void> {
     window.showWarningMessage("Open a Tcl file to apply safe fixes.");
     return;
   }
+  const snapshot = captureDocumentTransform(editor.document);
+  if (!snapshot) {
+    window.showWarningMessage(
+      "The document analysis context is unavailable. Try again when the server is ready.",
+    );
+    return;
+  }
 
-  const uri = editor.document.uri.toString();
-  const result = (await client.sendRequest("workspace/executeCommand", {
-    command: "tcl-lsp.fixAllSafeIssues",
-    arguments: [uri],
-  })) as {
+  const result = await requestDocumentTransform<{
     // `safety` is the fix's classification. Only
     // `semantics-equivalent` fixes reach this list — the server applies
     // nothing else in bulk — so it is reported for traceability rather than
     // filtered on here.
     source: string;
     applied: Array<{ code: string; description: string; safety: string }>;
-  } | null;
+  }>(snapshot, "tcl-lsp.fixAllSafeIssues");
 
-  if (!result || !result.applied || result.applied.length === 0) {
+  if (!result) {
+    window.showWarningMessage(
+      "A current document transform is unavailable. Run the command again.",
+    );
+    return;
+  }
+  if (!result.applied || result.applied.length === 0) {
     window.showInformationMessage("No safe auto-fixes available.");
     return;
   }
@@ -1572,10 +1617,10 @@ async function fixAllSafeIssues(): Promise<void> {
     return;
   }
 
-  const fullRange = editor.document.validateRange(new Range(0, 0, Infinity, Infinity));
-  await editor.edit((editBuilder) => {
-    editBuilder.replace(fullRange, result.source);
-  });
+  if (!(await applyDocumentTransform(snapshot, result))) {
+    window.showWarningMessage("The document or analysis context changed. Run the command again.");
+    return;
+  }
   window.showInformationMessage(
     `Applied ${result.applied.length} safe fix${result.applied.length === 1 ? "" : "es"}.`,
   );

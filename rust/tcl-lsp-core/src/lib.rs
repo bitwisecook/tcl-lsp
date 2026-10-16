@@ -118,6 +118,7 @@ pub mod type_hierarchy;
 pub mod variable_symbol;
 pub mod vendor_declaration;
 pub mod vfs;
+pub mod wire_session;
 pub mod workspace_index;
 pub mod workspace_symbols;
 

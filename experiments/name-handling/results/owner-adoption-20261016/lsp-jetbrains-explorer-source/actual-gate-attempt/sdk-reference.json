@@ -1,0 +1,9 @@
+{
+  "scope": "Actual original Gradle IDEA2025.3 download retained outsideGit; failed incompleteextractremoved, noKotlin/testoutcome.",
+  "path": "/workspace/.toolchains/gradle/caches/modules-2/files-2.1/idea/idea/2025.3/a77e5097fd02dadd1a8f850d278b877c8294d41e/idea-2025.3.tar.gz",
+  "bytes": 1515485267,
+  "sha256": "13f4174ba16c1cef04871cb261433536d002586c269a809392c20ee3f94959f5",
+  "actual_gradle_cache_artifact_key": "a77e5097fd02dadd1a8f850d278b877c8294d41e",
+  "configured_product": "intellijIdeaUltimate(\"2025.3\")",
+  "configured_plugin": "org.jetbrains.intellij.platform2.19.0"
+}

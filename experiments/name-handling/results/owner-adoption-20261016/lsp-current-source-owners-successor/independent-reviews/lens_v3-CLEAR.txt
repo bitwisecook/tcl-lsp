@@ -1,0 +1,47 @@
+WHOLE SOURCE/CONTRACT CLEAR — LensV3 partial Core613/Server722
+
+Patch52a0650dfe1e63d10726c0499d12f50fdbd903ce05dcfbbc7786d107e2476462
+Manifest817a77a1f411850e47722047c2e28754b508a4dd9670556841d49dd8ff40d8a7
+
+Closes V1's demonstrated schema4 fresh-session token aliasing HOLD. The actual
+resolve_logical_lens now requires the CALLV3 registry's exact original present
+session discriminator BEFORE row lookup. It reuses the independently reviewed
+sealed EditorWireSession allocator/retained owner and strict codec, not a new
+clock/hash/fresh-publication substitute. Existing genuine identity, URI/full
+input/source/reissued header and actual publication equality/final provider,
+DB/config/index/epoch leases remain independent and unchanged. New actual two-
+Backend endpoint control issues genuine sameURI/source rows with equal numeric
+schema/token, proves both own resolves are live, then refuses the prior session
+on the second Backend. Old five lens controls and dependency tests stay exact.
+
+The rest of the whole source pass retains the reviewed V1 semantics: genuine
+Header/Member/Class Name/body/side/parent/input declarations; actual retained
+Procedure head/member selector Evidence projected for reference purpose; local
+class-command argv/factory receipt and actual target reborrow; current whole
+source/config/Realm and all participating owners; opaque schema4 instead of
+client names/ranges; actual initial and followup Server adopters with the same
+original host stamp and final SourceStore/provider/index lease. Coverage stays
+Partial, including positive CALL subsets; unknown property/lifecycle/capture/
+noncall/foreign class providers remain debt, and zero never proves absence or
+reference census. No physical/Native/entered/Normal/edit grant. Native branches
+remain unchanged except the reviewed required logical_identity:None field.
+No full613/722 closure or count advancement follows.
+
+Independently verified all9 manifest before/after hashes, correct CALLV3 57d5 +
+NativeV2 b041 dependent content, fresh zero-fuzz/no-offset forward and inverse,
+all7 Rust parses and25 whole old dependency test-named modules byte-identical.
+All7 Rust afterimages are exactly LensV2 afterimages, whose only new semantic
+change from V1 is the required session guard on top of unchanged CALLV3 issuer.
+The earlier malformed V2 documentation duplicates are gone. Name contract base
+is exactly CALLV3. Shared contract base is exactly CALLV3+NativeV2 content with
+the single existing Native reporting_key private route inserted BEFORE CALL's
+independent private route block instead of after it; its bytes/count and every
+other byte are exact. This harmless row placement is disclosed, not a new owner
+or provenance assumption. New Lens source/private route and session guard rows
+name actual APIs/calls/visibility. No checker/visibility weakening.
+
+V1/V2 remain immutable HOLD; this unique V3 is the cleared successor. Root's
+combined contract grammar cleanup is separately authorized and recorded in its
+new union; this packet is unchanged. Independent static verification adjacent.
+No Cargo/build/test/list/trace/gate/host/IDE execution or efficacy/performance/
+source acceptance. Root owns final integration/ordinary validation/counts.

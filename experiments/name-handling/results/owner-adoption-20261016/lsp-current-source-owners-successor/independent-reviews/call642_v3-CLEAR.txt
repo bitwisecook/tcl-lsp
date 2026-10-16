@@ -1,0 +1,58 @@
+WHOLE SOURCE/CONTRACT CLEAR — CALLV3, existing partial CALL642 purpose
+
+Patch57d5aaf4dd3b97e67dfe02372bd8da3ee2c863047f00312e871e55d0ddd0764d
+Manifestdf4c26aaea3bd58de113129adcdd55d9fbd2587e9febe036e170b3c75249d15e
+Exact V2→V3 deltac59611a1a5d869c34babc1abea9bc7392615fe0e1e9a657c4f8976364d9c2215
+
+This closes the demonstrated CALL3 fresh-registry/session aliasing source HOLD.
+The sealed shared EditorWireSession::allocate reads16 actual getrandom bytes
+once in each OriginalDeclarationRegistry::default. Actual Native/WASI/browser
+random-provider branches and the existing cached/locked0.2.17+js dependency
+were checked. Error produces None, not a hash/time/reset counter/default issuer.
+The source of the transport discriminator is independent from source identity,
+semantic policy, Native entry, body/frame execution or currentness.
+
+The immutable registry retains that original issuer. issue_retained refuses
+new schema3/4 kinds before deduplication/mutation if it is absent. CALL3 resolve
+requires exact Some issuer agreement BEFORE any token-row lookup, then retains
+all original identity/URI/fullinput/source and actual host-publication guards.
+Missing/foreign old-session wire cannot authenticate a fresh row's publication
+merely because numeric tokens/source/URI coincide. The shared fixed16-byte JSON
+array is lossless through JS; manual strict decoding refuses malformed arrays,
+extra fields and even session:null on legacy Native1/TYPE2. Legacy two-field
+serialization and Native/TYPE selector method bodies remain exact. Recognizing
+companion schema4 at the shared codec is no claim that Lens4 resolve is fixed;
+its actual resolver must independently call the same session guard in a reviewed
+successor. Existing LensV1 remains HOLD.
+
+All V2 declaration Name/body/side/parent/fullinput/Realm/Registry source selection,
+original fullargv/evidence, unknown/inherited/body/provider debt and Partial CALL
+coverage stay unchanged. No display-name inverse or currentness/absence/Native/
+Normal/edit grant is added. Actual Server preparation, source capture, original
+publication stamps, current index epochs and final SourceStore/provider/DB leases
+are byte-identical to V2. New fresh-Backend control uses genuine DB/document/
+analysis/index ingress and real prepare/incoming/outgoing endpoints: each own
+publication has positives before oldA wire is refused by B despite equal URI,
+source and numeric token. Two further controls cover the actual unavailable-
+issuer carrier/legacy independence and lossless strict wire shapes. All are
+unexecuted; this is a source review rather than a test/host pass.
+
+Independently verified all16 actual current before/after hashes, fresh zero-fuzz/
+no-offset whole forward/inverse including new-file absence, exact V2 delta apply
+and all resulting hashes, all12 Rust parses and40 complete V2 test-named modules
+byte-identical. All other V2 semantic source files and every Server production
+byte remain exact; Native/TYPE issue+resolve method bodies exact. Cargo.lock
+only adds the Core dependency edge to existing locked getrandom0.2.17; no package
+version, checksum or other dependency changes. Shared public owner/module route
+and the real private session-guard call are registered without visibility or
+checker weakening. Detailed independent-db-static-verification.json adjacent.
+
+Root identified one harmless final contract sentence/extra-blank-line defect;
+Root explicitly authorizes truthful grammar-only tidying in the NEW combined
+union, with exact old/new text recorded there. This immutable packet stays
+unchanged. No source semantic correction remains in this review.
+
+No Cargo/build/test/list/trace/gate execution, efficacy/performance/full-purpose
+closure/count/main/Git claim. Root owns actual ordinary/platform validation,
+final union review and integration. This existing642 purpose remains partial
+for unsupported inherited/provider/call coverage as already documented.

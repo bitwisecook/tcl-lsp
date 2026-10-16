@@ -61,7 +61,7 @@ OLD {}` / `interp alias {} NAME {}` — a plain rename is not one, because the
 alias holds the command object and survives it).  `glob_imports` and the exact
 form's `import_gate` both carry `forced`, so a non-`-force` import onto a name
 the target namespace already **defines** installs nothing, while a `-force` one
-replaces it.  `WorkspaceIndex::resolve_wildcard_import` therefore takes a
+replaces it.  `WorkspaceIndex::resolve_wildcard_import_for_binding` therefore takes a
 `CallSite` (the calling document plus the call's own offset): removals are a
 question about the *call*, not the import, and the same shared decision
 function the same-document resolver uses
@@ -528,3 +528,46 @@ Native declaration rows keep their existing `OriginalIndexedSourceLocation`
 validation against the actual current analysis. The Logical owner supports only
 readonly report-location projection: it establishes no Native identity, lookup,
 execution, complete-workspace absence or source-edit authority.
+## Conditional namespace statement-horizon reports
+
+`WorkspaceIndex::conditional_namespace_import_advice` separately retains actual
+indexed source images/full inputs/Realms, original import/export/forget operands,
+source order and index revision. Its selected target is an independently held
+source publication matched through the actual final import pattern, not a
+report-name lookup. The existing temporal fold kernel is reused with a private
+source-horizon purpose; `modeled_source_exclusion`, Native export oracles,
+ordinary settlement and binding/edit folds retain their stronger purpose.
+
+A written query uses its genuine source statement. The legacy report-only
+`u32::MAX` query spelling declares an end-of-document source horizon using the
+retained image extent; it does not issue an original command, enter a body or
+claim root completion. An unknown foreign query remains unplaced. Deferred or
+sibling bodies cannot donate root-horizon effects. Actual original forget
+patterns use the shared selected Native glob purposes and decline unsupported
+policy/context; raw lifecycle labels cannot retire source candidates. Missing
+operation evidence, uncertain chronology and unknown alternatives remain debt.
+
+`resolve_wildcard_import` is now only the explicit legacy compatibility
+presentation of that sealed advice. Its positive is conditional source navigation;
+its empty projection is neither complete candidate inventory nor live-slot
+absence. The preceding historical install/liveness explanation describes the
+strong modeled fold, exposed as `resolve_wildcard_import_for_binding`; it does
+not turn a source graph into interpreter chronology.
+
+Server readonly fallback retains the typed advice until its current index,
+source/configuration/publication and original provider leases agree. The existing
+readonly source preflight/currentness kernel is shared without recomputing full
+analysis just to validate currency. Unavailable advice is terminal and cannot
+fall through as an autoload miss. Both actual cross-document rename paths,
+prepare-rename and edit preflight explicitly retain Binding purpose; internal
+settlement continues to use its independent private strong index. The source
+report supplies no Native identity, installed alias, completed namespace effect,
+absence, execution or edit permission. Additional source lifecycle/body-replacement
+coverage remains unrepresented rather than inferred from raw labels.
+
+
+Readonly hover retains the conditional selection disposition through its own
+second legacy autoload tier. Both an empty conditional report and a conditional
+candidate whose current owner cannot supply hover text terminate without a new
+autoload donor. Ordinary genuine misses retain their existing library lookup;
+Binding callers cannot receive either conditional selection variant.

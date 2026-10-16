@@ -1,0 +1,14 @@
+SOURCE / CONTRACT CLEAR — Math683 root Document geometry transport
+Reviewer: /root/sol_compiler
+Patch: 6bf25c82eff9eafd3d6c29afda994c4573bf9d7314d054c7d68b202635a706f6
+Manifest: ebd5d37421f0ec3d68b176fc1048bd28d2960a8b20b0a22445d6d7ab57a6201a
+
+Reviewed all four file deltas and their actual original producers/adopters. OriginalLogicalDocumentWords is private source geometry, issued only by the existing original root traversal's LogicalNavigationScope::Document inventory. That traversal still requires the actual baseline metadata/input correspondence, no Native/hosted/vendor/unknown entry, original origin and current root namespace. Declared/body scopes cannot issue it; missing member/body/source context cannot become Document. Reborrow retains exact complete input, full original NativeWord vector, source origin and selected lexer configuration. Existing receipt merge conflict handling is unchanged.
+
+The math producer still validates original parent source/input/selected context, accepted schema arity, original Plain/Current interpreter purpose, no frame reach/deferred body/expansion, genuine complete roles, original Written expression operand/value/content span, shared configured expression grammar and actual function ordinal. Realm full-input/source/config/current prepared-tape checks and AnalysisResult reissue remain intact. The new geometry receipt replaces only the inappropriate command-candidate prerequisite. logical_coordinates and unknown path refusal remain unchanged; coordinates/source declarations can remain unavailable while geometry and conditional Registry documentation survive. Parent alias lineage, unknown mutation and operand debts remain retained; no builtin/alias lookup winner, Native dispatch, read/edit/Normal or absence permission is supplied.
+
+Independent verification: all four current-main beforeimages and all four afterimage hashes match; fresh patch --fuzz=0 forward and inverse reproduce exact hashes with no offsets; both Rust files parse. All 22 original test/helper function items under the two test modules remain byte-identical. Precision: manifest old_test_modules_byte_exact counts modules whose original function items were checked; the math module itself gains the new test, so this is not whole-module byte equality. The unused is_original_document_scope method had only the two replaced math consumers; no remaining source call was found.
+
+Source evidence supports the owner-purpose correction. The actual frozen683 first private refusal was not traced; no efficacy claim follows. The additive unknown-prefix/vector/image control is unexecuted. No Cargo, builds, tests, traces, Git, main edits, gate execution, tracking/count advance or acceptance claim. Signature636/637 has disjoint logical_navigation accessors; integration must union narrow hunks rather than overwrite whole afterimages.
+
+Independent evidence: /tmp/sol-compiler-math683-review/source-verification.json

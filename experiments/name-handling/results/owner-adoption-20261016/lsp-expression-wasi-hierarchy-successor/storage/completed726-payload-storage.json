@@ -1,0 +1,36 @@
+{
+  "utc": "2026-10-16T22:56:07.566355+00:00",
+  "scope": "Storage only after complete726 postflight; all five archive members and loose hashes reverified before unlink. Restore archive and reverify before any future execution.",
+  "archive": "/workspace/naming-validation/archives/lsp-expression-wasi-hierarchy-successor-frozen.tar.zst",
+  "archive_sha256": "c982f4f1ded39675f7942469d5e2da8fd49a4d9970baa42670db8f431b30324c",
+  "all_archive_member_hashes_verified": true,
+  "complete_invocation_sha256": "fb1a6c75d0550e2be7c87074db399e7cc8b52e9dd92fb1c40b2c85ce45f5237a",
+  "removed_loose_frozen_payloads": [
+    {
+      "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+      "bytes": 250965376,
+      "sha256": "82460a484bccb9b3a3b9f1470a50f414bca48707f4a8d0bec950038abb1ce0e5"
+    },
+    {
+      "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+      "bytes": 199914656,
+      "sha256": "ea99bbc57847477cf743dff3ac662c9f58ed54d8b9c18fd527d1029fefb73d8a"
+    },
+    {
+      "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/frozen-binaries/tcl_lsp_db-c55af6efd9493cee",
+      "bytes": 214271472,
+      "sha256": "6db51a4cfc472895f44ef359fb3b3891d172a09c8e7390cbbc6755a5dfe435eb"
+    },
+    {
+      "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+      "bytes": 336436176,
+      "sha256": "1d3a45c16af9f1435cb808732c77fff324221d8ecad6cb879429941baa20396a"
+    },
+    {
+      "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/frozen-binaries/tcl_registry-cd1f97b64f8e3752",
+      "bytes": 61962720,
+      "sha256": "9bf7d3ae31939b95b2b6ec1d45948013cdb8395f1087972d8a5ad2bc093d1936"
+    }
+  ],
+  "bytes_reclaimed": 1063550400
+}

@@ -1,0 +1,8 @@
+SOURCE CLEAR — new case725 fixture premise correction only
+
+Patch6a8432296b5b226087fe91f5f4e338895b35cec98b08e978bd0ba50a54c1d3fc.
+Independently checked actual current beforehash, exact after/hash, fresh zero-fuzz forward/inverse and Rust AST. Production and all source preceding the existing conditional_native_case_receipt_tests module are byte-identical. Every existing function except the narrow context helper and first new725 test is byte-identical; that test differs only in source_context_in(source,"tcl8.4"), with every original source/assertion unchanged. Original second9.0 refusal test byte-identical.
+
+Actual existing Registry case_bodies::tests::dynamic_two_argument_subject_uses_the_selected_optionless_protocol asserts selection_unknown iff TclVersion::V8_4 across ALL versions. The selected full environment/profile/context/Registry and LexerConfig are now genuinely8.4 for that ambiguity positive. Original9.0 helper path stays9.0 and the new9.0 counterpart asserts actual optionless selection=false while retaining Dynamic operands, lookup/unknown/absence residuals and mutation-coverage refusal. No grammar/producer/policy weakening, oracle/Native inference, count or old232 assertion change.
+
+No Cargo/build/test/list/trace/gate execution, main/Git mutation or efficacy acceptance. Root owns ordinary replay.

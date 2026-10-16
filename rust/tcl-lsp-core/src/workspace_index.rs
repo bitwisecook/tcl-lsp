@@ -100,9 +100,19 @@ pub struct LogicalWorkspaceCommandCandidate {
     name_span: Span,
     /// Optional descriptive signature summary.
     detail: Option<String>,
+    procedure: Option<tcl_compiler::analyser::types::LogicalSourceProcedureDeclaration>,
 }
 
 impl LogicalWorkspaceCommandCandidate {
+    /// Genuine selected source header; class/nonprocedure candidates remain
+    /// distinct occupants and cannot become a procedure via reporting ranges.
+    #[must_use]
+    pub fn procedure_declaration(
+        &self,
+    ) -> Option<&tcl_compiler::analyser::types::LogicalSourceProcedureDeclaration> {
+        self.procedure.as_ref()
+    }
+
     /// Independently indexed declaring document; display names cannot replace it.
     #[must_use]
     pub fn uri(&self) -> &str {
@@ -5659,6 +5669,7 @@ impl WorkspaceIndex {
                         qualified_name: metadata.qualified_name.clone(),
                         name_span: metadata.name_span,
                         detail: Some(format!("({} params)", metadata.params.len())),
+                        procedure: Some(declaration.clone()),
                     });
                 }
             }
@@ -5684,6 +5695,7 @@ impl WorkspaceIndex {
                         qualified_name: class.qualified_name.clone(),
                         name_span: class.name_span,
                         detail: None,
+                        procedure: None,
                     });
                 }
             }
@@ -6797,35 +6809,33 @@ impl WorkspaceIndex {
         })
     }
 
-    /// Resolve a bare call through a wildcard `namespace import NS::*` —
-    /// the cross-document analogue of `tcl-lsp-core`'s in-document
-    /// `definition::resolve_called_proc` / `resolve_class_target_at`
-    /// wildcard-import fallback, for when `NS` is defined in a **different**
-    /// file. `namespace import` binds to the *namespace*, not the file that
-    /// wrote it (real Tcl: `namespace eval ::app { namespace import
-    /// ::mymod::* }` in a shared "imports.tcl" makes `::mymod`'s exports
-    /// visible to every `::app`-namespace proc regardless of which file its
-    /// body lives in) — so every recorded [`WorkspaceGlobImport`] whose
-    /// `ns` matches is in scope, not only ones recorded in the calling
-    /// document.
+    /// Project readonly conditional namespace-import source advice for a
+    /// bare call. The legacy qualified-name string is presentation only: a
+    /// positive establishes no live alias or Native command identity, and
+    /// None establishes no complete candidate inventory or namespace absence.
+    /// Unknown entry/completion/observer/lifecycle alternatives remain retained
+    /// in [`Self::conditional_namespace_import_advice`]. Edit/binding consumers
+    /// must use the independently guarded [`Self::resolve_wildcard_import_for_binding`].
     ///
-    /// `resolution_candidates` is the call's own ordered candidate list
-    /// (`word`'s caller namespace, then each `namespace path` entry, then
-    /// global — [`tcl_syntax::naming::command_resolution_candidates`]); for
-    /// each candidate, this checks whether *that* candidate's namespace has
-    /// an in-scope glob import whose tail pattern glob-matches `word`. A
-    /// wildcard import only ever imports names its source namespace has
-    /// actually `namespace export`ed — an unexported sibling command is
-    /// **not** reachable through it (tclsh9.0/8.6-verified: `invalid command
-    /// name` calling it bare) — so this also requires the pattern's source
-    /// namespace to have exported a covering pattern, and a real proc/class
-    /// definition to exist anywhere in the workspace at the resolved
-    /// qualified name. Returns that qualified name, `::`-rooted, or `None`.
-    ///
-    /// Restricted to a genuine bareword `word` (no embedded `::`), matching
-    /// the in-document resolver.
+    /// `resolution_candidates` preserves the caller's authored order; `call`
+    /// supplies an actual written point or the explicit legacy report horizon.
+    /// Qualified words decline, matching the existing bareword query purpose.
     #[must_use]
     pub fn resolve_wildcard_import(
+        &self,
+        word: &str,
+        resolution_candidates: &[String],
+        call: CallSite<'_>,
+    ) -> Option<String> {
+        self.conditional_namespace_import_advice(word, resolution_candidates, call)?
+            .compatibility_report()
+            .map(str::to_owned)
+    }
+
+    /// Existing binding/edit interpretation, independently retaining modeled
+    /// exclusion guards. Conditional report advice cannot enter this path.
+    #[must_use]
+    pub fn resolve_wildcard_import_for_binding(
         &self,
         word: &str,
         resolution_candidates: &[String],
@@ -6837,6 +6847,71 @@ impl WorkspaceIndex {
             call,
             &WildcardImportIndex::build(self),
         )
+    }
+
+    /// Source-only namespace relationship under its retained statement horizon.
+    /// No candidate is a live-slot absence or a completed namespace operation.
+    #[must_use]
+    pub fn conditional_namespace_import_advice(
+        &self,
+        word: &str,
+        resolution_candidates: &[String],
+        call: CallSite<'_>,
+    ) -> Option<ConditionalNamespaceImportAdvice> {
+        let documents = self
+            .docs
+            .iter()
+            .map(|document| {
+                Some(NamespaceAdviceDocument {
+                    uri: document.uri.clone(),
+                    context: document.source_order_context.clone()?,
+                    revision: document.revision,
+                })
+            })
+            .collect::<Option<Vec<_>>>()?;
+        let wci = WildcardImportIndex::build_for_purpose(
+            self,
+            crate::namespace_import::NamespaceStatementPurpose::SourceHorizon,
+        );
+        let selected =
+            self.resolve_wildcard_import_target_indexed(word, resolution_candidates, call, &wci);
+        let subjects = selected
+            .as_ref()
+            .and_then(|target| target.pattern)
+            .map(|pattern| {
+                wci.original_subjects
+                    .iter()
+                    .copied()
+                    .filter(|command| {
+                        pattern.matched_imported_command_tail(command) == Some(word.as_bytes())
+                    })
+                    .cloned()
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        let target = subjects.first().and_then(|first| {
+            subjects
+                .iter()
+                .all(|subject| subject.slot() == first.slot() && subject.policy() == first.policy())
+                .then(|| first.source_spelling())
+                .flatten()
+        });
+        Some(ConditionalNamespaceImportAdvice {
+            target,
+            subjects,
+            documents,
+            order: self.run_order(),
+            generation: self.generation(),
+            patterns: self
+                .docs
+                .iter()
+                .flat_map(|document| document.original_namespace_patterns.iter().cloned())
+                .collect(),
+            exports: self
+                .namespace_exports()
+                .filter_map(|event| event.original.clone())
+                .collect(),
+        })
     }
 
     /// The indexed core of [`Self::resolve_wildcard_import`], taking a
@@ -6855,6 +6930,17 @@ impl WorkspaceIndex {
         call: CallSite<'_>,
         wci: &WildcardImportIndex<'_>,
     ) -> Option<String> {
+        self.resolve_wildcard_import_target_indexed(word, resolution_candidates, call, wci)
+            .map(|target| target.report)
+    }
+
+    fn resolve_wildcard_import_target_indexed<'i>(
+        &self,
+        word: &str,
+        resolution_candidates: &[String],
+        call: CallSite<'_>,
+        wci: &WildcardImportIndex<'i>,
+    ) -> Option<ImportChainTarget<'i>> {
         if tcl_syntax::naming::is_qualified(word.as_bytes()) {
             return None;
         }
@@ -6888,21 +6974,26 @@ impl WorkspaceIndex {
     /// kills the call (oracle: forgetting `::C::p` inside `::B` makes
     /// `::A::p` an `invalid command name` too, because deleting an imported
     /// command deletes the commands imported from it).
-    fn follow_import_chain(
+    fn follow_import_chain<'i>(
         &self,
         ns: &str,
         word: &str,
         call: CallSite<'_>,
-        wci: &WildcardImportIndex<'_>,
-    ) -> Option<String> {
+        wci: &WildcardImportIndex<'i>,
+    ) -> Option<ImportChainTarget<'i>> {
         let mut current = ns.to_owned();
         for _ in 0..tcl_compiler::analyser::indirection::MAX_COMMAND_NAME_HOPS {
-            let hop = self.import_hop(&current, word, call, wci)?;
-            let target = tcl_syntax::naming::qualify(&hop, word);
+            let row = self.import_hop(&current, word, call, wci)?;
+            let import: &'i WorkspaceGlobImport = row.imp;
+            let hop = &import.source_ns;
+            let target = tcl_syntax::naming::qualify(hop, word);
             if self.workspace_command_exists(&target) {
-                return Some(target);
+                return Some(ImportChainTarget {
+                    report: target,
+                    pattern: import.original_pattern.as_ref(),
+                });
             }
-            current = hop;
+            current = hop.clone();
         }
         None
     }
@@ -6924,13 +7015,13 @@ impl WorkspaceIndex {
     ///
     /// …and then the edge must still be *there*
     /// ([`WildcardImportIndex::alias_live_at`]).
-    fn import_hop(
+    fn import_hop<'w, 'i>(
         &self,
         ns: &str,
         word: &str,
         call: CallSite<'_>,
-        wci: &WildcardImportIndex<'_>,
-    ) -> Option<String> {
+        wci: &'w WildcardImportIndex<'i>,
+    ) -> Option<&'w GlobImportRow<'i>> {
         let imports = wci.imports_by_ns.get(ns)?;
         // The **latest** live install wins, not the first match: a second
         // import of the same name — `-force`, or after a forget — replaces
@@ -6949,14 +7040,137 @@ impl WorkspaceIndex {
             .filter(|row| {
                 let target = tcl_syntax::naming::qualify(ns, word);
                 row.imp.forced
-                    || !(self.defines_command(&target)
-                        || row.declares_builtin_at(&target)
+                    || !((wci.purpose
+                        == crate::namespace_import::NamespaceStatementPurpose::Modeled
+                        && (self.defines_command(&target) || row.declares_builtin_at(&target)))
                         || wci.conflicting_alias_at(ns, &row.imp.source_ns, word, row.site()))
             })
             .filter(|row| wci.alias_live_at(ns, &row.imp.source_ns, word, row.site(), call))
             .enumerate()
             .max_by_key(|(seq, row)| (row.imp.uri == call.uri, row.imp.at, *seq))
-            .map(|(_, row)| row.imp.source_ns.clone())
+            .map(|(_, row)| row)
+    }
+}
+
+struct ImportChainTarget<'a> {
+    report: String,
+    pattern: Option<&'a tcl_compiler::signature_scan::original_name::SourceNamespacePattern>,
+}
+
+/// One actual document input consumed by conditional namespace source advice.
+#[derive(Debug, Clone)]
+pub struct NamespaceAdviceDocument {
+    uri: String,
+    context: crate::source_graph::SourceOrderContext,
+    revision: u64,
+}
+impl NamespaceAdviceDocument {
+    /// The independently retained indexed document URI.
+    #[must_use]
+    pub fn uri(&self) -> &str {
+        &self.uri
+    }
+    /// Full original source text; unavailable text never becomes an empty image.
+    #[must_use]
+    pub fn source(&self) -> Option<&str> {
+        self.context.source_text()
+    }
+    /// Match the exact retained full analysis input and its original Realm.
+    #[must_use]
+    pub fn matches_input(&self, input: &tcl_compiler::analyser::ResolvedAnalysisInput) -> bool {
+        self.context.matches_input(input)
+    }
+}
+
+/// Remaining obligations of a conditional namespace relationship report.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConditionalNamespaceDebt {
+    /// Source geometry does not establish entry or successful completion.
+    EntryAndCompletion,
+    /// Namespace observers and effects have not been discharged.
+    NamespaceObservers,
+    /// Unmodeled alternative command/namespace outcomes remain possible.
+    UnknownAlternatives,
+    /// Raw lifecycle/body-replacement rows supply no operation receipt.
+    UnrepresentedLifecycle,
+}
+
+/// A readonly conditional relationship, not a command identity or edit proof.
+/// Unknown entry/completion/observer and unmodeled alternatives always remain.
+#[derive(Debug, Clone)]
+pub struct ConditionalNamespaceImportAdvice {
+    target: Option<String>,
+    subjects: Vec<tcl_compiler::signature_scan::scope::SignatureSourceCommand>,
+    documents: Vec<NamespaceAdviceDocument>,
+    order: Arc<crate::source_graph::RunOrder>,
+    generation: u64,
+    patterns: Vec<tcl_compiler::signature_scan::original_name::SourceNamespacePattern>,
+    exports: Vec<tcl_compiler::signature_scan::original_name::SourceNamespaceExport>,
+}
+impl ConditionalNamespaceImportAdvice {
+    /// Explicit legacy presentation only. None is not live namespace absence.
+    #[must_use]
+    pub fn compatibility_report(&self) -> Option<&str> {
+        self.target.as_deref()
+    }
+    /// Actual source contexts consumed by this conditional relationship.
+    #[must_use]
+    pub fn documents(&self) -> &[NamespaceAdviceDocument] {
+        &self.documents
+    }
+    /// Always conditional, including an empty modeled candidate set.
+    #[must_use]
+    pub const fn has_unresolved_operation_debt(&self) -> bool {
+        true
+    }
+    /// These debts survive both positive and empty compatibility projections.
+    #[must_use]
+    pub const fn debts(&self) -> &[ConditionalNamespaceDebt] {
+        &[
+            ConditionalNamespaceDebt::EntryAndCompletion,
+            ConditionalNamespaceDebt::NamespaceObservers,
+            ConditionalNamespaceDebt::UnknownAlternatives,
+            ConditionalNamespaceDebt::UnrepresentedLifecycle,
+        ]
+    }
+
+    /// Authenticate the original subjects, contexts, revisions and order allocation.
+    #[must_use]
+    pub fn matches_index(&self, index: &WorkspaceIndex) -> bool {
+        self.subjects.iter().all(|subject| {
+            index.docs.iter().any(|document| {
+                document
+                    .original_procs
+                    .iter()
+                    .any(|declaration| declaration.name() == subject)
+                    || document
+                        .original_classes
+                        .iter()
+                        .any(|declaration| declaration.name() == subject)
+            })
+        }) && self.generation == index.generation()
+            && Arc::ptr_eq(&self.order, &index.run_order())
+            && self.documents.iter().all(|document| {
+                index
+                    .slots
+                    .get(&document.uri)
+                    .and_then(|slot| index.docs.get(*slot))
+                    .is_some_and(|current| {
+                        current.revision == document.revision
+                            && current.source_order_context.as_ref() == Some(&document.context)
+                    })
+            })
+            && self.patterns.iter().all(|pattern| {
+                index
+                    .docs
+                    .iter()
+                    .any(|document| document.original_namespace_patterns.contains(pattern))
+            })
+            && self.exports.iter().all(|export| {
+                index
+                    .namespace_exports()
+                    .any(|event| event.original.as_ref() == Some(export))
+            })
     }
 }
 
@@ -7002,6 +7216,7 @@ impl<'a> ExportGate<'a> {
         original: Option<&tcl_compiler::signature_scan::original_name::SourceNamespacePattern>,
         subjects: &[&'a tcl_compiler::signature_scan::scope::SignatureSourceCommand],
         native_source_known: bool,
+        purpose: crate::namespace_import::NamespaceStatementPurpose,
     ) -> Self {
         if let Some(original) = original {
             if tcl_syntax::native_glob::NativeGlobProtocol::from_name_policy(
@@ -7010,15 +7225,16 @@ impl<'a> ExportGate<'a> {
             .export_filter_applies()
                 && exports_by_ns.values().flatten().any(|event| {
                     event.unknown
-                        && order
-                            .navigation_precedence(
+                        && purpose
+                            .precedence(
+                                order,
                                 RunPoint {
                                     uri: &event.uri,
                                     at: event.at,
                                     enclosing_body: event.enclosing_body,
                                 },
                                 site.point(),
-                            ).and_then(crate::source_graph::SourceNavigationOrder::modeled_source_exclusion)
+                            )
                             .unwrap_or(true)
                 })
             {
@@ -7029,7 +7245,7 @@ impl<'a> ExportGate<'a> {
                 .copied()
                 .filter(|name| {
                     original.matches_imported_command(name.slot(), name.policy()) == Some(true)
-                        && crate::namespace_import::exported_original_at_import_site(
+                        && crate::namespace_import::exported_original_for_purpose(
                             exports_by_ns.values().flatten().filter_map(|event| {
                                 Some((
                                     event.original.as_ref()?,
@@ -7044,6 +7260,7 @@ impl<'a> ExportGate<'a> {
                             name.policy(),
                             order,
                             site.point(),
+                            purpose,
                         ) == ExportVerdict::Exported
                 })
                 .filter_map(|name| {
@@ -7068,8 +7285,12 @@ impl<'a> ExportGate<'a> {
                 .copied()
                 .filter(|event| event.original.is_none() && !event.unknown),
         );
-        let surviving =
-            crate::namespace_import::exports_in_effect(&mut events, order, site.point());
+        let surviving = crate::namespace_import::export_patterns_for_purpose(
+            &mut events,
+            order,
+            site.point(),
+            purpose,
+        );
         let (literal, globs) = surviving
             .into_iter()
             .partition::<Vec<_>, _>(|p| tcl_syntax::glob::is_literal(p));
@@ -7249,6 +7470,11 @@ impl<'a> ExactImportRow<'a> {
 /// than re-scanned per call site — see
 /// [`WorkspaceIndex::resolve_wildcard_import_indexed`]'s doc for why.
 struct WildcardImportIndex<'a> {
+    source_patterns: Vec<(
+        &'a str,
+        &'a tcl_compiler::signature_scan::original_name::SourceNamespacePattern,
+    )>,
+    purpose: crate::namespace_import::NamespaceStatementPurpose,
     original_subjects: Vec<&'a tcl_compiler::signature_scan::scope::SignatureSourceCommand>,
     imports_by_ns: std::collections::HashMap<&'a str, NamespaceImports<'a>>,
     /// Every **exact** `namespace import` link, by importing namespace. The
@@ -7280,6 +7506,16 @@ struct WildcardImportIndex<'a> {
 
 impl<'a> WildcardImportIndex<'a> {
     fn build(index: &'a WorkspaceIndex) -> Self {
+        Self::build_for_purpose(
+            index,
+            crate::namespace_import::NamespaceStatementPurpose::Modeled,
+        )
+    }
+
+    fn build_for_purpose(
+        index: &'a WorkspaceIndex,
+        purpose: crate::namespace_import::NamespaceStatementPurpose,
+    ) -> Self {
         // Exports first: every import row's gate is decided against them here,
         // once, instead of once per call site.
         let mut exports_by_ns: std::collections::HashMap<&str, Vec<&WorkspaceNamespaceExport>> =
@@ -7314,6 +7550,7 @@ impl<'a> WildcardImportIndex<'a> {
                         imp.original_pattern.as_ref(),
                         &original_subjects,
                         imp.native_source.is_some(),
+                        purpose,
                     ),
                     registry: index.registry_for(&imp.uri),
                 });
@@ -7337,6 +7574,7 @@ impl<'a> WildcardImportIndex<'a> {
                             gate.original_pattern.as_ref(),
                             &original_subjects,
                             gate.native_source.is_some(),
+                            purpose,
                         ),
                     });
             }
@@ -7383,6 +7621,17 @@ impl<'a> WildcardImportIndex<'a> {
             .map(|(ns, rows)| (ns, NamespaceImports::index(rows)))
             .collect();
         Self {
+            source_patterns: index
+                .docs
+                .iter()
+                .flat_map(|document| {
+                    document
+                        .original_namespace_patterns
+                        .iter()
+                        .map(|pattern| (document.uri.as_str(), pattern))
+                })
+                .collect(),
+            purpose,
             original_subjects,
             imports_by_ns,
             exact_by_ns,
@@ -7466,6 +7715,7 @@ impl<'a> WildcardImportIndex<'a> {
         importing_ns: &'e str,
         source_ns: &'e str,
         name: &'e str,
+        install_at: ImportSite<'e>,
         destroy_point: impl Fn(&'e WorkspaceCommandDeletion) -> RunPoint<'e> + 'e,
     ) -> impl Iterator<Item = crate::namespace_import::AliasEvent<'e>> + 'e {
         use crate::namespace_import::{AliasEvent, AliasEventKind};
@@ -7476,6 +7726,24 @@ impl<'a> WildcardImportIndex<'a> {
             .unwrap_or_default()
             .iter()
             .filter(move |f| {
+                if self.purpose == crate::namespace_import::NamespaceStatementPurpose::SourceHorizon
+                {
+                    return self.source_patterns.iter().any(|(uri, forget)| {
+                        *uri == f.uri
+                            && forget.span().start() == f.at
+                            && forget.purpose()
+                                == tcl_syntax::naming::NativeNamePurpose::NamespaceForgetPattern
+                            && self.source_patterns.iter().any(|(uri, import)| {
+                                *uri == install_at.uri
+                                    && import.span().start() == install_at.at
+                                    && self.original_subjects.iter().any(|command| {
+                                        command.slot().simple.try_utf8().ok() == Some(name)
+                                            && forget.forgets_source_import(import, command)
+                                                == Some(true)
+                                    })
+                            })
+                    });
+                }
                 f.source_ns.as_deref().is_none_or(|src| {
                     unroot_rooted_key(src).unwrap_or(src)
                         == unroot_rooted_key(source_ns).unwrap_or(source_ns)
@@ -7498,6 +7766,9 @@ impl<'a> WildcardImportIndex<'a> {
             .map(Vec::as_slice)
             .unwrap_or_default()
             .iter()
+            .filter(move |_| {
+                self.purpose == crate::namespace_import::NamespaceStatementPurpose::Modeled
+            })
             .map(move |&(uri, at)| AliasEvent {
                 kind: AliasEventKind::Remove,
                 at: RunPoint {
@@ -7513,6 +7784,9 @@ impl<'a> WildcardImportIndex<'a> {
             .map(Vec::as_slice)
             .unwrap_or_default()
             .iter()
+            .filter(move |_| {
+                self.purpose == crate::namespace_import::NamespaceStatementPurpose::Modeled
+            })
             .map(move |d| AliasEvent {
                 kind: AliasEventKind::Remove,
                 at: destroy_point(d),
@@ -7559,13 +7833,18 @@ impl<'a> WildcardImportIndex<'a> {
         });
         let mut events =
             install.chain(
-                self.removal_events(importing_ns, source_ns, name, |d| RunPoint {
+                self.removal_events(importing_ns, source_ns, name, install_at, |d| RunPoint {
                     uri: d.uri.as_str(),
                     at: d.at,
                     enclosing_body: None,
                 }),
             );
-        crate::namespace_import::alias_live_at(&mut events, &self.order, Some(call.point()))
+        crate::namespace_import::alias_for_purpose(
+            &mut events,
+            &self.order,
+            Some(call.point()),
+            self.purpose,
+        )
     }
 
     /// Whether `ns` already holds a live alias for `name` from a namespace
@@ -7653,9 +7932,8 @@ impl<'a> WildcardImportIndex<'a> {
                     .map(|other| (other.gate.source_ns.as_str(), other.site(), &other.exported)),
             );
         earlier.any(|(other_source, other_site, other_exported)| {
-            self.order
-                .navigation_comparison(other_site.point(), site.point())
-                .and_then(crate::source_graph::SourceNavigationOrder::modeled_source_exclusion)
+            self.purpose
+                .comparison(&self.order, other_site.point(), site.point())
                 == Some(std::cmp::Ordering::Less)
                 && !ns_eq(other_source, source_ns)
                 && other_exported.covers(name)
@@ -7709,14 +7987,17 @@ impl<'a> WildcardImportIndex<'a> {
             kind: AliasEventKind::Install,
             at: gate.site(uri).point(),
         });
-        let mut events =
-            install.chain(
-                self.removal_events(importing_ns, &gate.source_ns, &gate.name, |d| RunPoint {
-                    uri: d.uri.as_str(),
-                    at: d.at,
-                    enclosing_body: None,
-                }),
-            );
+        let mut events = install.chain(self.removal_events(
+            importing_ns,
+            &gate.source_ns,
+            &gate.name,
+            gate.site(uri),
+            |d| RunPoint {
+                uri: d.uri.as_str(),
+                at: d.at,
+                enclosing_body: None,
+            },
+        ));
         crate::namespace_import::alias_live_at(&mut events, &self.order, None)
     }
 
@@ -13812,6 +14093,103 @@ p\uD801";
                 "no export rows for ::tcl::mathop, so nothing is admissible",
             );
         }
+    }
+
+    #[test]
+    fn conditional_namespace_horizon_keeps_binding_and_report_purposes_separate() {
+        let (module, export, import) = import_order_modules();
+        let app = analyse("source mod.tcl\nsource imp.tcl\nsource exp.tcl\n");
+        let index = sourced_index([
+            ("file:///p/mod.tcl", &module),
+            ("file:///p/exp.tcl", &export),
+            ("file:///p/imp.tcl", &import),
+            ("file:///p/app.tcl", &app),
+        ]);
+        let candidates = ["::app::helper".to_owned(), "::helper".to_owned()];
+        let advice = index
+            .conditional_namespace_import_advice(
+                "helper",
+                &candidates,
+                call_from("file:///p/caller.tcl"),
+            )
+            .unwrap();
+        assert!(
+            advice.compatibility_report().is_none(),
+            "the source route cannot use a later export"
+        );
+        assert!(advice.has_unresolved_operation_debt());
+        assert!(
+            advice
+                .debts()
+                .contains(&ConditionalNamespaceDebt::UnknownAlternatives)
+        );
+        assert!(advice.matches_index(&index));
+        assert_eq!(
+            index
+                .resolve_wildcard_import_for_binding(
+                    "helper",
+                    &candidates,
+                    call_from("file:///p/caller.tcl")
+                )
+                .as_deref(),
+            Some("::mymod::helper"),
+            "readonly horizon advice cannot suppress a binding candidate"
+        );
+    }
+
+    #[test]
+    fn conditional_namespace_forget_preserves_unknowns_and_current_index_owner() {
+        let (module, export, import) = import_order_modules();
+        let app = analyse(
+            "source mod.tcl\nsource exp.tcl\nsource imp.tcl\nnamespace eval ::app {namespace forget ::mymod::helper}\n",
+        );
+        let mut index = sourced_index([
+            ("file:///p/mod.tcl", &module),
+            ("file:///p/exp.tcl", &export),
+            ("file:///p/imp.tcl", &import),
+            ("file:///p/app.tcl", &app),
+        ]);
+        let candidates = ["::app::helper".to_owned(), "::helper".to_owned()];
+        let advice = index
+            .conditional_namespace_import_advice(
+                "helper",
+                &candidates,
+                call_at("file:///p/app.tcl", u32::MAX),
+            )
+            .unwrap();
+        assert!(advice.compatibility_report().is_none());
+        assert!(
+            advice.has_unresolved_operation_debt(),
+            "empty report is never namespace absence"
+        );
+        assert_eq!(
+            index
+                .resolve_wildcard_import_for_binding(
+                    "helper",
+                    &candidates,
+                    call_at("file:///p/app.tcl", u32::MAX)
+                )
+                .as_deref(),
+            Some("::mymod::helper")
+        );
+        let dynamic = analyse(
+            "source mod.tcl\nsource exp.tcl\nsource imp.tcl\nnamespace eval ::app {namespace forget $unknown}\n",
+        );
+        index.replace_document("file:///p/app.tcl", &dynamic);
+        assert!(!advice.matches_index(&index));
+        let unknown = index
+            .conditional_namespace_import_advice(
+                "helper",
+                &candidates,
+                call_at("file:///p/app.tcl", u32::MAX),
+            )
+            .unwrap();
+        assert_eq!(unknown.compatibility_report(), Some("::mymod::helper"));
+        assert!(
+            unknown
+                .debts()
+                .contains(&ConditionalNamespaceDebt::UnrepresentedLifecycle)
+        );
     }
 }
 

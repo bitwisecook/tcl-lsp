@@ -1,0 +1,20 @@
+{
+  "scope": "Restore listed exact receipt filenames with zstd -dc; all raw hashes equal immutablemanifest. No afterimages/ELFs/fullindexes stored.",
+  "members": [
+    {
+      "compressed": "exact-composition.json.zst",
+      "original": "exact-composition.json",
+      "original_sha256": "0a4c1ee47b3cb0a40798e3efba4a0f6b10e66d97e56a901be8b355b3a7f3d798"
+    },
+    {
+      "compressed": "reviewed-function-hashes.json.zst",
+      "original": "reviewed-function-hashes.json",
+      "original_sha256": "ec84e411824c4ce6e350f03b483e5ec5ebd3c52b06a9575671d40d3074232cee"
+    },
+    {
+      "compressed": "all-function-hashes.json.zst",
+      "original": "all-function-hashes.json",
+      "original_sha256": "ef5b341a262352f36b485e23daa9af9a4520ddb2a6fe1cb58c79d9189ca5c6a9"
+    }
+  ]
+}

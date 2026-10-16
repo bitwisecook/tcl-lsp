@@ -154,7 +154,7 @@ pub use source_transition_advice::{
 pub use source_transition_advice::{
     OriginalLogicalAbsoluteCommandCandidate, OriginalLogicalCallbackCandidates,
     OriginalLogicalCommandCandidates, OriginalLogicalMathFunctionOccurrence,
-    OriginalLogicalProcedureBody, OriginalLogicalSourceNameInput,
+    OriginalLogicalProcedureBody, OriginalLogicalProcedureCall, OriginalLogicalSourceNameInput,
     OriginalSourceAuthoredCommandPrefix, OriginalSourceCallbackProcedureLookup,
     OriginalSourceCallbackProcedureRefusal, OriginalSourceCallbackProcedureTarget,
     OriginalSourceCallbackProcedureTargetKind, OriginalSourceCallbackRegistration,

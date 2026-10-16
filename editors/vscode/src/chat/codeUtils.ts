@@ -253,6 +253,7 @@ function sameUri(left: vscode.Uri, right: vscode.Uri): boolean {
 export async function replaceDocumentFromSnapshot(
   snapshot: DocumentSourceSnapshot,
   replacement: string,
+  admit?: () => Promise<boolean>,
 ): Promise<DocumentSourceSnapshot | undefined> {
   const document = snapshot.document;
   if (
@@ -269,7 +270,21 @@ export async function replaceDocumentFromSnapshot(
   ) {
     return undefined;
   }
-  if (replacement === snapshot.fullSource) return snapshot;
+  if (replacement === snapshot.fullSource) {
+    // A no-op still presents an accepted server result to the user. The new
+    // optional admission must run before that acceptance, just as for edits.
+    if (
+      admit &&
+      (!(await admit()) ||
+        !isDocumentSourceSnapshotCurrent(snapshot) ||
+        !isAnalysisContextCurrent(snapshot.analysisContext) ||
+        vscode.workspace
+          .getConfiguration("tclLsp", document.uri)
+          .get<string>("dialect", DEFAULT_DIALECT) !== snapshot.resourceDialectHint)
+    )
+      return undefined;
+    return snapshot;
+  }
 
   const editor = await vscode.window.showTextDocument(document);
   if (
@@ -283,6 +298,18 @@ export async function replaceDocumentFromSnapshot(
     editor.document !== document
   ) {
     return undefined;
+  }
+  if (admit) {
+    if (
+      !(await admit()) ||
+      !isDocumentSourceSnapshotCurrent(snapshot) ||
+      !isAnalysisContextCurrent(snapshot.analysisContext) ||
+      vscode.workspace
+        .getConfiguration("tclLsp", document.uri)
+        .get<string>("dialect", DEFAULT_DIALECT) !== snapshot.resourceDialectHint ||
+      editor.document !== document
+    )
+      return undefined;
   }
   const applied = await editor.edit((edit) => {
     edit.replace(new vscode.Range(0, 0, document.lineCount, 0), replacement);

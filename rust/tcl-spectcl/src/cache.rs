@@ -455,6 +455,43 @@ pub(crate) fn memo_put(source: &str, base_line: u32, bom: FileBom, stmts: &[Stmt
     });
 }
 
+/// Reattach only checked derived syntax to an existing value-identical memo row.
+/// No original full-document parent or serialized position is admitted here.
+pub(crate) fn memo_retain_original_rows(
+    source: &str,
+    base_line: u32,
+    bom: FileBom,
+    stmts: &[Stmt],
+) {
+    MEMO.with(|cell| {
+        let mut guard = cell.borrow_mut();
+        let Some(memo) = guard.as_mut() else {
+            return;
+        };
+        let Some(retained) = memo.entries.get_mut(&memo_key(source, base_line, bom)) else {
+            return;
+        };
+        if retained.len() != stmts.len()
+            || !retained.iter().zip(stmts).all(|(a, b)| {
+                a.line == b.line
+                    && a.words.len() == b.words.len()
+                    && a.words
+                        .iter()
+                        .zip(&b.words)
+                        .all(|(a, b)| a.text == b.text && a.braced == b.braced && a.line == b.line)
+            })
+        {
+            return;
+        }
+        for (retained, actual) in retained.iter_mut().zip(stmts) {
+            for (retained, actual) in retained.words.iter_mut().zip(&actual.words) {
+                retained.original_source = None;
+                retained.local_source.clone_from(&actual.local_source);
+            }
+        }
+    });
+}
+
 /// Run `body` with `seed` installed as this thread's memo, returning the
 /// result and the memo as it ended up.
 ///
@@ -685,6 +722,8 @@ fn get_stmts(reader: &mut Reader<'_>) -> Option<Vec<Stmt>> {
             list.push(Word {
                 text,
                 braced,
+                local_source: None,
+                original_source: None,
                 line: word_line,
             });
         }
@@ -1067,5 +1106,71 @@ speclib mylib 1 {
         clear().expect("clear a populated cache");
         assert!(cache.entries().is_empty());
         clear().expect("clear an absent cache");
+    }
+    #[test]
+    fn original_loader_notice_sites_survive_cold_and_disk_warm_cache_without_serialised_geometry() {
+        let _guard = LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let cache = CacheDir::new("original-notice-sites");
+        let source = "speclib demo 1 {command demo {arty 1; arty 2; arg 0 -rle Body}}";
+        let cold = evaluate_pack_cached(source, Tier::Bundled, WorkspaceTrust::Trusted);
+        assert_eq!(cache.entries().len(), 1);
+        forget_snapshots();
+        let warm = evaluate_pack_cached(source, Tier::Bundled, WorkspaceTrust::Trusted);
+        let subjects = |pack: &Pack| {
+            pack.notices
+                .iter()
+                .filter_map(|notice| notice.subject.clone())
+                .collect::<Vec<_>>()
+        };
+        let cold_subjects = subjects(&cold);
+        let warm_subjects = subjects(&warm);
+        assert_eq!(cold_subjects, warm_subjects);
+        let repeated: Vec<_> = warm_subjects
+            .iter()
+            .filter(|subject| subject.word() == "arty")
+            .collect();
+        assert_eq!(repeated.len(), 2);
+        assert_ne!(repeated[0].span(), repeated[1].span());
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "spectcl");
+        for subject in &warm_subjects {
+            let data = tcl_lsp_core::code_actions::ContextDiagnosticData::from_spec_pack_notice(
+                subject, &analysis,
+            )
+            .expect("actual loader subject and independent current source grammar");
+            let mut diagnostic = tcl_lsp_core::code_actions::ContextDiagnostic {
+                code: tcl_lsp_core::code_actions::SPEC_PACK_DIAGNOSTIC_CODE.into(),
+                message: "display-only notice".into(),
+                range: tcl_lsp_core::definition::LspRange {
+                    start_line: 0,
+                    start_character: 0,
+                    end_line: 0,
+                    end_character: u32::try_from(source.len()).unwrap(),
+                },
+                data: Some(data),
+            };
+            let actions = tcl_lsp_core::code_actions::spec_pack_quick_fixes(
+                source,
+                &analysis,
+                std::slice::from_ref(&diagnostic),
+            );
+            assert_eq!(actions.len(), 1, "{}", subject.word());
+            let edit = &actions[0].edits[0];
+            assert_eq!(edit.range.start_character, subject.span().start());
+            assert_eq!(
+                edit.new_text,
+                if subject.word() == "arty" {
+                    "arity"
+                } else {
+                    "-role"
+                }
+            );
+            diagnostic.message.clear();
+            assert_eq!(
+                actions,
+                tcl_lsp_core::code_actions::spec_pack_quick_fixes(source, &analysis, &[diagnostic])
+            );
+        }
     }
 }

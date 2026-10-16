@@ -22,7 +22,7 @@ use tcl_lexer::{NativeWord, SourceImage, Span};
 pub struct OriginalLogicalMathFunctionOccurrence {
     parent: Arc<OriginalSourceCommandTransitionAdvice>,
     original: NativeWord,
-    document: Option<super::OriginalLogicalCommandCandidates>,
+    document: Option<super::logical_navigation::OriginalLogicalDocumentWords>,
     effective_argument: usize,
     name: tcl_registry::mathfunc::OriginalSourceFunctionName,
     span: Span,
@@ -97,9 +97,7 @@ impl OriginalLogicalMathFunctionOccurrence {
             && match (self.parent.logical_source_scope(), &self.document) {
                 (Some(scope), None) => scope.namespace_recipe() == &self.namespace,
                 (None, Some(document)) => {
-                    document.is_original_document_scope()
-                        && document.matches_source(image, input)
-                        && document.original_words() == self.parent.original_words()
+                    document.matches_source(image, input, self.parent.original_words())
                         && self.namespace == ByteNamespacePath::root()
                 }
                 _ => false,
@@ -236,19 +234,22 @@ impl AdviceInvocationContext<'_> {
                 return;
             }
             let Some(document) = tape
-                .logical_navigation
+                .logical_variable_words
                 .get(&parent.site().offset)
                 .and_then(Option::as_ref)
-                .filter(|document| {
-                    document.is_original_document_scope()
-                        && document.matches_source(self.origin.source_image(), input)
-                        && document.original_words() == parent.original_words()
-                        && namespace == &ByteNamespacePath::root()
+                .and_then(|words| {
+                    super::logical_navigation::OriginalLogicalVariableWords::document_words(
+                        words,
+                        self.origin.source_image(),
+                        input,
+                        parent.original_words(),
+                    )
                 })
+                .filter(|_| namespace == &ByteNamespacePath::root())
             else {
                 return;
             };
-            Some(document.clone())
+            Some(document)
         };
         let Some(roles) = parent.roles() else {
             return;
@@ -515,5 +516,33 @@ mod tests {
                 "{profile}"
             );
         }
+    }
+    #[test]
+    fn unknown_namespace_path_keeps_document_math_syntax_without_lookup_candidates() {
+        let source = "interp alias {} compute {} expr; unknown_prefix; compute {max(1, 2)}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let offset = u32::try_from(source.find("max(").unwrap()).unwrap();
+        let occurrence = analysis
+            .logical_math_function_at(source, offset)
+            .expect("actual root expression scope is independent of command candidate lookup");
+        assert!(occurrence.has_earlier_unknown_mutations());
+        assert!(occurrence.coordinates().is_none());
+        assert!(occurrence.source_declarations(&analysis).is_none());
+        assert!(occurrence.builtin_metadata(&analysis).is_some());
+        assert!(!occurrence.parent().lineage().is_empty());
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let document = occurrence.document.as_ref().unwrap();
+        assert!(document.matches_source(
+            occurrence.original.image(),
+            input,
+            occurrence.parent().original_words()
+        ));
+        assert!(!document.matches_source(
+            occurrence.original.image(),
+            input,
+            &occurrence.parent().original_words()[..1]
+        ));
+        let changed = SourceImage::document(&format!("{source} "));
+        assert!(!document.matches_source(&changed, input, occurrence.parent().original_words()));
     }
 }

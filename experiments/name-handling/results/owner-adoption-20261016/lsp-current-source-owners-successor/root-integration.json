@@ -1,0 +1,10 @@
+{
+  "utc": "2026-10-16T23:16:02.622486+00:00",
+  "patch_sha256": "406e5ee1f713adc8a2097e87e0d20bd324d1d9d7bc695e6aa7a9a1f55485fecc",
+  "manifest_sha256": "e06e71e6c5cde8314e1ddda671b5c00bfedf3e2125aba5df09953ae2cb75246a",
+  "files": 58,
+  "all_before_and_after_hashes_match": true,
+  "zero_fuzz_zero_offset": true,
+  "scope": "Actual source integration only; no build/tests/efficacy/acceptance. All11ingredient independent source receipts retained. Runtime/VM/BIGIP dedicatedwork deferred.",
+  "frozen_prior726_complete_postflight": true
+}

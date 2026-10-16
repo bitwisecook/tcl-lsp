@@ -1,0 +1,345 @@
+{
+  "scope": "Storagecompaction of old generated target executable cache only; exact fullELFs preserved and reverified before removal, restore/decompress+verifyhash before any use. No activeCargo/rustc; currentreplaycomplete. No source/provider/evidence records deleted.",
+  "members": [
+    {
+      "original_path": "/workspace/tcl-lsp/target/debug/deps/tcl_lsp_server-a9b77dcfdfc59d6a",
+      "sha256": "35d3380332b522a0716e335ebd3e79094f0e3000e84814604a2809946c4b5354",
+      "bytes": 155760872,
+      "mode": 33216,
+      "archive": "/workspace/naming-validation/archives/old-owned-target-cache-executables/tcl_lsp_server-a9b77dcfdfc59d6a.zst",
+      "archive_bytes": 28096562,
+      "archive_sha256": "4bd5b6899c6eca7cfa45a97337c427e16173d1f6558a6deabb27346d4ab0ca68",
+      "decompressed_member_sha256_verified": true
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/target/debug/deps/xtask-5b1a28af6f19de54",
+      "sha256": "aa3795fe5b011792863332a428890222484eca7cbdf6a819f2d0a566920c314d",
+      "bytes": 104300920,
+      "mode": 33216,
+      "archive": "/workspace/naming-validation/archives/old-owned-target-cache-executables/xtask-5b1a28af6f19de54.zst",
+      "archive_bytes": 21680587,
+      "archive_sha256": "44994a028ad3b8b2dca709e19ad85589dda85a30dfabb3d88ee2a1443171b9ca",
+      "decompressed_member_sha256_verified": true
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/target/debug/deps/f5_query-d3c853bb1633a7a7",
+      "sha256": "26b31ade53762fec4e6388bd5222f163c4b84e1efc642b6301c0ef51fd27b38a",
+      "bytes": 219284336,
+      "mode": 33216,
+      "archive": "/workspace/naming-validation/archives/old-owned-target-cache-executables/f5_query-d3c853bb1633a7a7.zst",
+      "archive_bytes": 47252026,
+      "archive_sha256": "bbec3bc2625e96269b7ff50684a3a0d0a036a34aef2b6aefdf650aace41e6d82",
+      "decompressed_member_sha256_verified": true
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/target/debug/deps/tcl-4250f7dc361aeb03",
+      "sha256": "f34c2367aff2288f9c4fbae98f91e7fd0daf8035383249f7191a67d3cfc8e689",
+      "bytes": 200455896,
+      "mode": 33216,
+      "archive": "/workspace/naming-validation/archives/old-owned-target-cache-executables/tcl-4250f7dc361aeb03.zst",
+      "archive_bytes": 43641642,
+      "archive_sha256": "8007aaba2394eb30bf7bd63baac45129530cf040d24aea11d160fda4da63fdf4",
+      "decompressed_member_sha256_verified": true
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/target/debug/deps/bpf_tcl_codegen-96bad892dfdf87d8",
+      "sha256": "f36cc52f58677446104715fdf50d448719f0d8715f1076a63a5cea0f170b3392",
+      "bytes": 66398248,
+      "mode": 33216,
+      "archive": "/workspace/naming-validation/archives/old-owned-target-cache-executables/bpf_tcl_codegen-96bad892dfdf87d8.zst",
+      "archive_bytes": 12526230,
+      "archive_sha256": "9e9a884ae023618a68a002efd534efd491a07f20e8b6940ec576f2201f7085ff",
+      "decompressed_member_sha256_verified": true
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/target/debug/deps/bigip_report_gen_rust-0f3908fd62489f5e",
+      "sha256": "7d2ae0fac7ca2b679e48d3a12802ba7427bd0df33709175de24fe932ebc19f33",
+      "bytes": 142458184,
+      "mode": 33216,
+      "archive": "/workspace/naming-validation/archives/old-owned-target-cache-executables/bigip_report_gen_rust-0f3908fd62489f5e.zst",
+      "archive_bytes": 30236977,
+      "archive_sha256": "65eba4b842b73daaa38c03408f5a77c8ce0d6c98b60829d081485b1e9707ca9e",
+      "decompressed_member_sha256_verified": true
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/target/debug/deps/tcl_lsp_server-183d11f130af1a06",
+      "sha256": "8fbc900cf8b6821e988142e6ffdfc4d80ebfe5933507f9dce22d05b72e8825ba",
+      "bytes": 272013144,
+      "mode": 33216,
+      "archive": "/workspace/naming-validation/archives/old-owned-target-cache-executables/tcl_lsp_server-183d11f130af1a06.zst",
+      "archive_bytes": 52537152,
+      "archive_sha256": "d26b6042d22fddacfd3387119c26dfa041d2ce586af276319d53a04ded48bc3b",
+      "decompressed_member_sha256_verified": true
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/target/debug/deps/smoke-7faf1a49399e2337",
+      "sha256": "6104035a2c53cc2b5c0c61ecfa7dc3ffcbd37ac20ba2185b54fee508ea76213e",
+      "bytes": 277464680,
+      "mode": 33216,
+      "archive": "/workspace/naming-validation/archives/old-owned-target-cache-executables/smoke-7faf1a49399e2337.zst",
+      "archive_bytes": 53539518,
+      "archive_sha256": "1dbee7801b70115d3ca41381e1763a1f18e186c721679ca139d37f963870d148",
+      "decompressed_member_sha256_verified": true
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/target/debug/deps/sandbox_isolation-cca3bdf72f20d9cd",
+      "sha256": "cc9fe5bc7637c92c4ea43d509088febec07f4015b0e330a60e03d760b0d15dbf",
+      "bytes": 83774088,
+      "mode": 33216,
+      "archive": "/workspace/naming-validation/archives/old-owned-target-cache-executables/sandbox_isolation-cca3bdf72f20d9cd.zst",
+      "archive_bytes": 16735013,
+      "archive_sha256": "fe91f995bb3d1761fd9ba0d6f4a5905f27b2ecb6f31ea37cd4b13253b7e8aa7a",
+      "decompressed_member_sha256_verified": true
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/target/debug/deps/pkga_e2e-5625a404de5b7a13",
+      "sha256": "657c4883d9a63f6085d470a53845b7aee998eb0e5510b67e7ebe4c18b7b4f539",
+      "bytes": 83699704,
+      "mode": 33216,
+      "archive": "/workspace/naming-validation/archives/old-owned-target-cache-executables/pkga_e2e-5625a404de5b7a13.zst",
+      "archive_bytes": 16718070,
+      "archive_sha256": "b2221d0029f86c179baaa75244c66626cb98ca57895cf1f29a503565360b69b3",
+      "decompressed_member_sha256_verified": true
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/target/debug/deps/factory-76b23bff4d7e38e6",
+      "sha256": "ced0d133272f4c4b57e902f4ab3335898ed40903c00b9c1bc110cac3d5f2586a",
+      "bytes": 83489528,
+      "mode": 33216,
+      "archive": "/workspace/naming-validation/archives/old-owned-target-cache-executables/factory-76b23bff4d7e38e6.zst",
+      "archive_bytes": 16672149,
+      "archive_sha256": "f4a9f5f0b25a27c7edfeca1d9d688b6a5eb6d46f2d8da68504824621abfc3ff4",
+      "decompressed_member_sha256_verified": true
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/target/debug/deps/tcl_spectcl-2d77ca29715b28a0",
+      "sha256": "b1d8a7a8ba04db7b567164414fd566f899be1e273e04b69595bd69b36ed96196",
+      "bytes": 120549416,
+      "mode": 33216,
+      "archive": "/workspace/naming-validation/archives/old-owned-target-cache-executables/tcl_spectcl-2d77ca29715b28a0.zst",
+      "archive_bytes": 23750950,
+      "archive_sha256": "76a61937ef1b10a375e26f1681215ff473690169993bc3f1112d22be4223c3eb",
+      "decompressed_member_sha256_verified": true
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/target/debug/deps/tcl_cli_support-e889691d88f22cfd",
+      "sha256": "5fe61de1c1e6d9f3ccc3419e320d3f0ecd50257e52f82298a148913f99ed6f40",
+      "bytes": 132694904,
+      "mode": 33216,
+      "archive": "/workspace/naming-validation/archives/old-owned-target-cache-executables/tcl_cli_support-e889691d88f22cfd.zst",
+      "archive_bytes": 26675501,
+      "archive_sha256": "8a479d6da615a7e7d09de5c1468416683cc3949a96513243dc2b5b7a30b206a8",
+      "decompressed_member_sha256_verified": true
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/target/debug/deps/f5_cli-feed8c346407f7a7",
+      "sha256": "84bc054d67060ab38c4e3ea5ec7ea22ccf162f578d4c63391c69c73a4ba813fa",
+      "bytes": 147632256,
+      "mode": 33216,
+      "archive": "/workspace/naming-validation/archives/old-owned-target-cache-executables/f5_cli-feed8c346407f7a7.zst",
+      "archive_bytes": 29887823,
+      "archive_sha256": "7f2a88a7c1163993eb15ec460b3e2358729eee632a471459e6233d09b5bd388b",
+      "decompressed_member_sha256_verified": true
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/target/debug/deps/tcl_cli-07546adc36e3e870",
+      "sha256": "0003b664499435c6f3d7c6393736e5788c3ea766deb630425867403666caef9a",
+      "bytes": 168078800,
+      "mode": 33216,
+      "archive": "/workspace/naming-validation/archives/old-owned-target-cache-executables/tcl_cli-07546adc36e3e870.zst",
+      "archive_bytes": 35118778,
+      "archive_sha256": "8fba4f283b39a797cfbf2a8a8c05e9f0b263c9a02f3e34e983bdc630864a252f",
+      "decompressed_member_sha256_verified": true
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/target/debug/deps/tcl_pkg-fcca3bfbdc31493f",
+      "sha256": "2866c36a55221da7262cb3a341e6cb5d611dab318f13e1f0c152a01258cafa8e",
+      "bytes": 41182808,
+      "mode": 33216,
+      "archive": "/workspace/naming-validation/archives/old-owned-target-cache-executables/tcl_pkg-fcca3bfbdc31493f.zst",
+      "archive_bytes": 11514354,
+      "archive_sha256": "204828d51dfcaa6ccde03a0d6438863aca5d301f97c7356d11bebbb6af36c757",
+      "decompressed_member_sha256_verified": true
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/target/debug/deps/tcl_bigip_io-2a36a700312aeabc",
+      "sha256": "d5c35c78bd520ff73de146e9d57f3080c747065b805470b1786473d1fa3ed925",
+      "bytes": 63514384,
+      "mode": 33216,
+      "archive": "/workspace/naming-validation/archives/old-owned-target-cache-executables/tcl_bigip_io-2a36a700312aeabc.zst",
+      "archive_bytes": 12283676,
+      "archive_sha256": "2442b00c3536309ca942925938811c329a3ebaff344bc020a9f3e76f9b4536c8",
+      "decompressed_member_sha256_verified": true
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/target/debug/deps/tcl_bigip_query-386da9a5c449a726",
+      "sha256": "c65e767d7a62579bdb6cb3f2ac3e72893fd11327cff0d10ab231a16d550d0137",
+      "bytes": 108069472,
+      "mode": 33216,
+      "archive": "/workspace/naming-validation/archives/old-owned-target-cache-executables/tcl_bigip_query-386da9a5c449a726.zst",
+      "archive_bytes": 22214867,
+      "archive_sha256": "6ff6be542ec8fc4d869edead43dd72bfc2cdcba0c0e222918b717b104b681314",
+      "decompressed_member_sha256_verified": true
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/target/debug/deps/tcl_lsp_db-9db8be7dd6d22ab4",
+      "sha256": "9e10ef37049aeb1d3cc514477e946be885e294b72e808cfc596aef5271f63253",
+      "bytes": 138739928,
+      "mode": 33216,
+      "archive": "/workspace/naming-validation/archives/old-owned-target-cache-executables/tcl_lsp_db-9db8be7dd6d22ab4.zst",
+      "archive_bytes": 26807535,
+      "archive_sha256": "f12b1147f521825fc173562608d63c38faffd02e2ef21e4a01bf0561e2b483e5",
+      "decompressed_member_sha256_verified": true
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/target/debug/deps/tcl_explorer-93d82db67ed18c0c",
+      "sha256": "92554d9c2a0d4f7129649711c043b3151815730e4387ac6bf7e9def1842a94c5",
+      "bytes": 138815640,
+      "mode": 33216,
+      "archive": "/workspace/naming-validation/archives/old-owned-target-cache-executables/tcl_explorer-93d82db67ed18c0c.zst",
+      "archive_bytes": 27642732,
+      "archive_sha256": "802ef0508c03033b7cc89f4c6eb723e6ce9fb5c80a731d8f73be035ad637fc6f",
+      "decompressed_member_sha256_verified": true
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/target/debug/deps/tcl_spec_studio-3c2a1dd6997f1a56",
+      "sha256": "e2b35f0eddc5758511b053df69235aa1fe101ccaf6a026d29d0314e1d18f2b42",
+      "bytes": 140996800,
+      "mode": 33216,
+      "archive": "/workspace/naming-validation/archives/old-owned-target-cache-executables/tcl_spec_studio-3c2a1dd6997f1a56.zst",
+      "archive_bytes": 28290250,
+      "archive_sha256": "d86d52dd7f6d8f075c1ef96b27a183ae67c5fab9a2ba89e0b81621330ac28369",
+      "decompressed_member_sha256_verified": true
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/target/debug/deps/tcl_spec_hooks-0c3bf0d9fa7a6737",
+      "sha256": "6d245e11c21ac690f51de07373e1277a730f2ac03bd9c603e254d84d94270c27",
+      "bytes": 82880128,
+      "mode": 33216,
+      "archive": "/workspace/naming-validation/archives/old-owned-target-cache-executables/tcl_spec_hooks-0c3bf0d9fa7a6737.zst",
+      "archive_bytes": 16528044,
+      "archive_sha256": "1837a07c6b6c36bb33b252b024f2e90cc49e13c993ee6c93224353f1f17d1004",
+      "decompressed_member_sha256_verified": true
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/target/debug/deps/tcl_engine_tclvm-1357c44e22c843cf",
+      "sha256": "fca44085412609aff31cbacce66ab3893885b8ae99403d08eb8b8b67815c148d",
+      "bytes": 82866784,
+      "mode": 33216,
+      "archive": "/workspace/naming-validation/archives/old-owned-target-cache-executables/tcl_engine_tclvm-1357c44e22c843cf.zst",
+      "archive_bytes": 16520018,
+      "archive_sha256": "ac3092c527fbd1d1c3593323191872c14bea56bbd8a7193f6b29a03dbccf0f51",
+      "decompressed_member_sha256_verified": true
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/target/debug/deps/f5_xc-f0a991c01d48256a",
+      "sha256": "beb5f148a8d5c75d77dd814494e346f918b68a05c3ec8e5833123f2856e152aa",
+      "bytes": 64235600,
+      "mode": 33216,
+      "archive": "/workspace/naming-validation/archives/old-owned-target-cache-executables/f5_xc-f0a991c01d48256a.zst",
+      "archive_bytes": 11949167,
+      "archive_sha256": "20ba9f2df1c401e22c5b9513c6a60933c2ddae421b5e34211b4d01ddb445e170",
+      "decompressed_member_sha256_verified": true
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/target/debug/deps/tcl_diagram-88b69c19aec95343",
+      "sha256": "32660c2e2c2765008989d03074b3e52f0339e535ce645b7caf331e9ca4f8cb33",
+      "bytes": 74534080,
+      "mode": 33216,
+      "archive": "/workspace/naming-validation/archives/old-owned-target-cache-executables/tcl_diagram-88b69c19aec95343.zst",
+      "archive_bytes": 14422818,
+      "archive_sha256": "92d0eb1019a8baa69e37415f3b43a8c148ea479eeba0d3b1262c9c3d715bb033",
+      "decompressed_member_sha256_verified": true
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/target/debug/deps/tcl_debugger-480136389f3f1979",
+      "sha256": "28ca7b5923e1d027c182abaa6ce22e8c82de9c2f7cd08693e665c458f3079f62",
+      "bytes": 84013528,
+      "mode": 33216,
+      "archive": "/workspace/naming-validation/archives/old-owned-target-cache-executables/tcl_debugger-480136389f3f1979.zst",
+      "archive_bytes": 16893304,
+      "archive_sha256": "f2dcbad5fa4792b1924fcaa14b448d090dff9717ae0d5af83f1e193e623a0967",
+      "decompressed_member_sha256_verified": true
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/target/debug/deps/tcl_sslictcl-7f0d8b2c6b8fb5a5",
+      "sha256": "1bc0c8041a98247c3d2ed49494c5207ace81e71ff84f23b487379fcaeeb35136",
+      "bytes": 66672280,
+      "mode": 33216,
+      "archive": "/workspace/naming-validation/archives/old-owned-target-cache-executables/tcl_sslictcl-7f0d8b2c6b8fb5a5.zst",
+      "archive_bytes": 13936443,
+      "archive_sha256": "7f24bf177c4dd60b3d1371f57d68259ff8b8bba81e76f55a476c2fa9cfcfb3f2",
+      "decompressed_member_sha256_verified": true
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/target/debug/deps/bpf_tcl_ir-806d329f4f2e71bb",
+      "sha256": "2a02b7e67a4b7c43d3986aee502d8100a1316a0cfe76d2afc79beda62fa4d3ee",
+      "bytes": 68955384,
+      "mode": 33216,
+      "archive": "/workspace/naming-validation/archives/old-owned-target-cache-executables/bpf_tcl_ir-806d329f4f2e71bb.zst",
+      "archive_bytes": 13115421,
+      "archive_sha256": "d5f7a6ad5ea0d2578d0342164b478a6ae375a54bff3e675faac42ad996ab8fd9",
+      "decompressed_member_sha256_verified": true
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/target/debug/deps/tcl_irule_test-bf1e0a20147e1ae4",
+      "sha256": "5727799cea8f794dd02b23764ae01e031fc63c453a7ed97e6f10a8fd4c9141fc",
+      "bytes": 102494680,
+      "mode": 33216,
+      "archive": "/workspace/naming-validation/archives/old-owned-target-cache-executables/tcl_irule_test-bf1e0a20147e1ae4.zst",
+      "archive_bytes": 20123223,
+      "archive_sha256": "bfc3cbccf3a944ba30a8d3cd119ca328ecb57199311645a4f2bc37f4bc4deb27",
+      "decompressed_member_sha256_verified": true
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/target/debug/deps/tcl_irules-caae00612d53a864",
+      "sha256": "1ca49c551a2cb6d6839a083acd9a28e80961aa156f050e53cfcdd0f07cae60fd",
+      "bytes": 63701992,
+      "mode": 33216,
+      "archive": "/workspace/naming-validation/archives/old-owned-target-cache-executables/tcl_irules-caae00612d53a864.zst",
+      "archive_bytes": 11729927,
+      "archive_sha256": "4fc33a1d5de56c40328a5752980fcf3fecb38f6cd8ffc3eec050b76ee4c27e72",
+      "decompressed_member_sha256_verified": true
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/target/debug/deps/tcl_bigip-38e883a37c96d187",
+      "sha256": "a9b6c5f93ba5cbff841447fdd390e275f01279c80f62fab4d9326199309cb484",
+      "bytes": 98044912,
+      "mode": 33216,
+      "archive": "/workspace/naming-validation/archives/old-owned-target-cache-executables/tcl_bigip-38e883a37c96d187.zst",
+      "archive_bytes": 18968341,
+      "archive_sha256": "688e93f10e66f6596ccd7f4f66ab3522c32163b74e627f38eba32705eee0a621",
+      "decompressed_member_sha256_verified": true
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/target/debug/deps/xtask-e2d35992e08cee75",
+      "sha256": "04e9ef89bc6bcace696e4c157369faa589214339d77560e22b4c5e6e9173e5ef",
+      "bytes": 252831576,
+      "mode": 33216,
+      "archive": "/workspace/naming-validation/archives/old-owned-target-cache-executables/xtask-e2d35992e08cee75.zst",
+      "archive_bytes": 50708056,
+      "archive_sha256": "39f3caf36c5b622c1ce22d71ba43aa7539c8f68b64bda52e964237ed455fd158",
+      "decompressed_member_sha256_verified": true
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/target/debug/deps/tcl_cli_support-c4c3631427c24177",
+      "sha256": "cca5f1304e930d8dfba0c24a6a5787bd6d6e9baae663d9746de9a1c140becc71",
+      "bytes": 365251520,
+      "mode": 33216,
+      "archive": "/workspace/naming-validation/archives/old-owned-target-cache-executables/tcl_cli_support-c4c3631427c24177.zst",
+      "archive_bytes": 69934656,
+      "archive_sha256": "3c08245dc13ef90493b8d941c3e0059176dd1a43197e5e368e132430d6585fde",
+      "decompressed_member_sha256_verified": true
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/target/debug/deps/tcl_spectcl-a8eed7d1d518985a",
+      "sha256": "8e5aa0416fa11eb937e6cc8c6bc38c01c5ccdfca0a1d6c51f32bfb2e70e8fc15",
+      "bytes": 307513248,
+      "mode": 33216,
+      "archive": "/workspace/naming-validation/archives/old-owned-target-cache-executables/tcl_spectcl-a8eed7d1d518985a.zst",
+      "archive_bytes": 57941811,
+      "archive_sha256": "f5e5302200c9c401a653043fbf2412121a8e05201167be2edc55f944215f5b16",
+      "decompressed_member_sha256_verified": true
+    }
+  ]
+}

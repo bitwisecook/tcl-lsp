@@ -1,0 +1,512 @@
+[
+  {
+    "ingredient": "math_document_scope",
+    "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_math.rs",
+    "function": "mod:tests::fn:unknown_namespace_path_keeps_document_math_syntax_without_lookup_candidates",
+    "sha256": "6f1cc591096c43e42bea2983aef8e2e571ba1609745696fd09b7c83843186b23"
+  },
+  {
+    "ingredient": "signature",
+    "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_procedure_invocation.rs",
+    "function": "mod:tests::fn:analyse",
+    "sha256": "225b8e34bcbb023d80ed88be052a8953b2a928de2d74f4493742936a6e3aaf85"
+  },
+  {
+    "ingredient": "signature",
+    "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_procedure_invocation.rs",
+    "function": "mod:tests::fn:logical_calls_keep_actual_prior_definition_alias_prefix_move_and_replacement",
+    "sha256": "3e1c9326213f50aed939819248120c10a04fd527f615452af890835a8c3d6318"
+  },
+  {
+    "ingredient": "signature",
+    "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_procedure_invocation.rs",
+    "function": "mod:tests::fn:logical_call_selection_retains_unknown_debt_and_refuses_deleted_or_dynamic_heads",
+    "sha256": "537cee128a8a1ca8e0a5af6fc82a857d13c1af3fd5868552fcc42055b1317667"
+  },
+  {
+    "ingredient": "signature",
+    "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_procedure_invocation.rs",
+    "function": "mod:tests::fn:logical_header_join_rejects_missing_source_input_config_and_foreign_word_data",
+    "sha256": "7978694f5b4b1fccd2f76fc655c291f08ecb566ad888c40abe50f6171016aef8"
+  },
+  {
+    "ingredient": "class_source",
+    "path": "rust/tcl-compiler/src/ir/definition_script.rs",
+    "function": "mod:tests::fn:issued_definition_reborrow_rejects_changed_selected_name_and_object_mode",
+    "sha256": "054ea053ce7e92c255ee5023ca12c43a21c66ce8479711daf91039bf31e1d5e1"
+  },
+  {
+    "ingredient": "loader565",
+    "path": "rust/tcl-compiler/src/parsing/spectcl_source/original_word.rs",
+    "function": "mod:tests::fn:original_pack_word_geometry_keeps_selected_rows_parents_and_full_configuration",
+    "sha256": "36b0250106d8d49bd96baf13402f6cbea884ac8cd3facebc4df01a8f49e713a0"
+  },
+  {
+    "ingredient": "loader565",
+    "path": "rust/tcl-compiler/src/parsing/spectcl_source/original_word.rs",
+    "function": "mod:tests::fn:original_pack_word_geometry_never_inverts_cooked_or_malformed_containers",
+    "sha256": "7ef84982ae8764d44c77dde7da96eede026faa43aec42e4a5e937113594e980b"
+  },
+  {
+    "ingredient": "case725",
+    "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+    "function": "mod:conditional_native_case_receipt_tests::fn:source_context_in",
+    "sha256": "aa7f65eacb82c3c3004f7a2fe97362c7ecaecea8385a25b13afeff7bd1b22997"
+  },
+  {
+    "ingredient": "case725",
+    "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+    "function": "mod:conditional_native_case_receipt_tests::fn:nested_native_two_argument_case_retains_selected_optionless_protocol",
+    "sha256": "c0bb0adaaa6b8381da5bf8350d1acf38f8a04bb685e2b166c5ff3333798cd85b"
+  },
+  {
+    "ingredient": "signature",
+    "path": "rust/tcl-lexer/src/word_parts/cursor.rs",
+    "function": "mod:argument_cursor_tests::fn:at",
+    "sha256": "86d5bbd57bd6974a1eabd7319363290e9d0ecd2ac6e30a4bd9573727f2744301"
+  },
+  {
+    "ingredient": "signature",
+    "path": "rust/tcl-lexer/src/word_parts/cursor.rs",
+    "function": "mod:argument_cursor_tests::fn:argument_cursor_retains_dynamic_expanded_and_future_suffix_ordinals",
+    "sha256": "c6e42b0bbfe6b2d274c9daf62948fbee4354808ba7d89d3b515cad9de313834a"
+  },
+  {
+    "ingredient": "signature",
+    "path": "rust/tcl-lexer/src/word_parts/cursor.rs",
+    "function": "mod:argument_cursor_tests::fn:argument_cursor_keeps_incomplete_source_cut_and_never_adds_a_closer",
+    "sha256": "353a44c0a349b0e8c533735ace43359edcfae997bcab611aa68b5baabced2936"
+  },
+  {
+    "ingredient": "signature",
+    "path": "rust/tcl-lexer/src/word_parts/cursor.rs",
+    "function": "mod:argument_cursor_tests::fn:argument_cursor_separates_comments_boundaries_foreign_source_and_config",
+    "sha256": "da809026d54d6deafb4b62b0c5c2e3b475a8c1c5968497df726f8b004f26bee1"
+  },
+  {
+    "ingredient": "call642_v3",
+    "path": "rust/tcl-lsp-core/src/call_hierarchy/logical_source.rs",
+    "function": "mod:tests::fn:document",
+    "sha256": "f9b6c9418e7ef985a900443c64b8888a18886a9fe45885380a106df7d71799bc"
+  },
+  {
+    "ingredient": "call642_v3",
+    "path": "rust/tcl-lsp-core/src/call_hierarchy/logical_source.rs",
+    "function": "mod:tests::fn:prepare",
+    "sha256": "99e8576798bd600dd70df460eedd99e6539d56812224652e8689b5d7ef0de0e8"
+  },
+  {
+    "ingredient": "call642_v3",
+    "path": "rust/tcl-lsp-core/src/call_hierarchy/logical_source.rs",
+    "function": "mod:tests::fn:genuine_cross_file_prepare_and_both_edge_directions_keep_header_and_caller_owners",
+    "sha256": "a3b32b1fc21e486e87d8f4851b9edad851d5e56065c2dd5291d808f8cb7233b7"
+  },
+  {
+    "ingredient": "call642_v3",
+    "path": "rust/tcl-lsp-core/src/call_hierarchy/logical_source.rs",
+    "function": "mod:tests::fn:bounded_call_kind_cannot_cast_native_type_unissued_or_rebound_consumer",
+    "sha256": "1fa982a53e6e62fb2ac829acb1fe0a5c877e67262de9a06f3710b0d8c9e5d9cf"
+  },
+  {
+    "ingredient": "call642_v3",
+    "path": "rust/tcl-lsp-core/src/call_hierarchy/logical_source.rs",
+    "function": "mod:tests::fn:independent_source_input_uri_and_original_operand_currency_are_required",
+    "sha256": "1c43fdf6251eb8597873e7eefc45e12d871f4c395c30fd4c62c6793b1dfc59a4"
+  },
+  {
+    "ingredient": "call642_v3",
+    "path": "rust/tcl-lsp-core/src/call_hierarchy/logical_source.rs",
+    "function": "mod:tests::fn:root_requires_its_genuine_document_recipe_and_data_or_dynamic_heads_do_not_select",
+    "sha256": "cecb3395f661f2ea4b7c15700b0be5acc251de64f4d62a7ac141d74d55584117"
+  },
+  {
+    "ingredient": "call642_v3",
+    "path": "rust/tcl-lsp-core/src/call_hierarchy/logical_source.rs",
+    "function": "mod:tests::fn:genuine_own_member_frame_and_selectors_keep_unrepresented_inherited_alternatives",
+    "sha256": "c951db616cdb566f9a2ef4ac1d86cfc7e60aed75423c715b064acec0e3eeb448"
+  },
+  {
+    "ingredient": "call642_v3",
+    "path": "rust/tcl-lsp-core/src/call_hierarchy/logical_source.rs",
+    "function": "mod:tests::fn:original_unicode_cr_geometry_and_duplicate_providers_remain_possible_source_advice",
+    "sha256": "2983bd5bd083cc953f469d221edaa8fd53b43497dae669ee2373e4cb18f0925c"
+  },
+  {
+    "ingredient": "lens_v3",
+    "path": "rust/tcl-lsp-core/src/call_hierarchy/logical_source.rs",
+    "function": "mod:tests::fn:document",
+    "sha256": "f9b6c9418e7ef985a900443c64b8888a18886a9fe45885380a106df7d71799bc"
+  },
+  {
+    "ingredient": "lens_v3",
+    "path": "rust/tcl-lsp-core/src/call_hierarchy/logical_source.rs",
+    "function": "mod:tests::fn:prepare",
+    "sha256": "99e8576798bd600dd70df460eedd99e6539d56812224652e8689b5d7ef0de0e8"
+  },
+  {
+    "ingredient": "lens_v3",
+    "path": "rust/tcl-lsp-core/src/call_hierarchy/logical_source.rs",
+    "function": "mod:tests::fn:genuine_cross_file_prepare_and_both_edge_directions_keep_header_and_caller_owners",
+    "sha256": "a3b32b1fc21e486e87d8f4851b9edad851d5e56065c2dd5291d808f8cb7233b7"
+  },
+  {
+    "ingredient": "lens_v3",
+    "path": "rust/tcl-lsp-core/src/call_hierarchy/logical_source.rs",
+    "function": "mod:tests::fn:bounded_call_kind_cannot_cast_native_type_unissued_or_rebound_consumer",
+    "sha256": "1fa982a53e6e62fb2ac829acb1fe0a5c877e67262de9a06f3710b0d8c9e5d9cf"
+  },
+  {
+    "ingredient": "lens_v3",
+    "path": "rust/tcl-lsp-core/src/call_hierarchy/logical_source.rs",
+    "function": "mod:tests::fn:independent_source_input_uri_and_original_operand_currency_are_required",
+    "sha256": "1c43fdf6251eb8597873e7eefc45e12d871f4c395c30fd4c62c6793b1dfc59a4"
+  },
+  {
+    "ingredient": "lens_v3",
+    "path": "rust/tcl-lsp-core/src/call_hierarchy/logical_source.rs",
+    "function": "mod:tests::fn:root_requires_its_genuine_document_recipe_and_data_or_dynamic_heads_do_not_select",
+    "sha256": "cecb3395f661f2ea4b7c15700b0be5acc251de64f4d62a7ac141d74d55584117"
+  },
+  {
+    "ingredient": "lens_v3",
+    "path": "rust/tcl-lsp-core/src/call_hierarchy/logical_source.rs",
+    "function": "mod:tests::fn:genuine_own_member_frame_and_selectors_keep_unrepresented_inherited_alternatives",
+    "sha256": "c951db616cdb566f9a2ef4ac1d86cfc7e60aed75423c715b064acec0e3eeb448"
+  },
+  {
+    "ingredient": "lens_v3",
+    "path": "rust/tcl-lsp-core/src/call_hierarchy/logical_source.rs",
+    "function": "mod:tests::fn:original_unicode_cr_geometry_and_duplicate_providers_remain_possible_source_advice",
+    "sha256": "2983bd5bd083cc953f469d221edaa8fd53b43497dae669ee2373e4cb18f0925c"
+  },
+  {
+    "ingredient": "loader565",
+    "path": "rust/tcl-lsp-core/src/code_actions/spec_notice.rs",
+    "function": "mod:tests::fn:original_spec_notice_selected_geometry_keeps_duplicate_sites_distinct",
+    "sha256": "a4ad61a6db905161fc08e5e4ab962ce5531c5723dae13ae2e296fbd8321b79e2"
+  },
+  {
+    "ingredient": "native_presentation_v2",
+    "path": "rust/tcl-lsp-core/src/code_lens.rs",
+    "function": "mod:native_lens_presentation_tests::fn:native_own_object_method_lens_keeps_identity_when_class_display_key_is_unavailable",
+    "sha256": "4353d6c2c70266a07fe3b93de1715ab499c15b3caedaa71da76521fe7c42962a"
+  },
+  {
+    "ingredient": "lens_v3",
+    "path": "rust/tcl-lsp-core/src/code_lens.rs",
+    "function": "mod:native_lens_presentation_tests::fn:native_own_object_method_lens_keeps_identity_when_class_display_key_is_unavailable",
+    "sha256": "4353d6c2c70266a07fe3b93de1715ab499c15b3caedaa71da76521fe7c42962a"
+  },
+  {
+    "ingredient": "lens_v3",
+    "path": "rust/tcl-lsp-core/src/code_lens/logical_source.rs",
+    "function": "mod:tests::fn:lens_headers_keep_superseded_allocations_and_independent_uri_owners",
+    "sha256": "4325bc6810979aa27b23a61907adb9ce2a4e470792b195f2b14eebf02eff4210"
+  },
+  {
+    "ingredient": "lens_v3",
+    "path": "rust/tcl-lsp-core/src/code_lens/logical_source.rs",
+    "function": "mod:tests::fn:genuine_call_sites_are_partial_reference_evidence_and_stale_source_refuses",
+    "sha256": "54a56cd6ac09dcc4bd8e3af587e6411cdbe4d17817864abdafff9a9c147e1232"
+  },
+  {
+    "ingredient": "lens_v3",
+    "path": "rust/tcl-lsp-core/src/code_lens/logical_source.rs",
+    "function": "mod:class_reference_tests::fn:class_call_keeps_actual_local_factory_and_does_not_borrow_equal_foreign_bytes",
+    "sha256": "9f19f064034896eff382394b7286af19f96341d402541f5effdbdedca822e62f"
+  },
+  {
+    "ingredient": "regression128",
+    "path": "rust/tcl-lsp-core/src/original_call_hierarchy.rs",
+    "function": "mod:external_procedure_advice_tests::fn:original_root_call_reborrows_head_and_conditional_external_header",
+    "sha256": "26b1c10dd03f55ed5de678c9e7fcf2d55bca0b3904edc59795d59d13c88fb370"
+  },
+  {
+    "ingredient": "regression128",
+    "path": "rust/tcl-lsp-core/src/original_call_hierarchy.rs",
+    "function": "mod:external_procedure_advice_tests::fn:external_root_header_preserves_occupants_deletions_and_unknowns",
+    "sha256": "7d9859dc179dc79046cbf8739adcfcc636ddf235b20f7c4c476f5ce20770e4ef"
+  },
+  {
+    "ingredient": "call642_v3",
+    "path": "rust/tcl-lsp-core/src/original_declaration.rs",
+    "function": "mod:logical_session_tests::fn:missing_random_allocation_withholds_logical_call_without_changing_legacy_wire",
+    "sha256": "7382b0e08844ac7a44d077103be653efd3cc2970143e963ccd6f43c26cb60f45"
+  },
+  {
+    "ingredient": "call642_v3",
+    "path": "rust/tcl-lsp-core/src/original_declaration.rs",
+    "function": "mod:logical_session_tests::fn:session_wire_bytes_are_lossless_and_legacy_shapes_stay_strict",
+    "sha256": "caada27de946776d61dd88a2b896a8515d1f09a8f250a032fd1584a5e4babf35"
+  },
+  {
+    "ingredient": "lens_v3",
+    "path": "rust/tcl-lsp-core/src/original_declaration.rs",
+    "function": "mod:logical_session_tests::fn:missing_random_allocation_withholds_logical_call_without_changing_legacy_wire",
+    "sha256": "7382b0e08844ac7a44d077103be653efd3cc2970143e963ccd6f43c26cb60f45"
+  },
+  {
+    "ingredient": "lens_v3",
+    "path": "rust/tcl-lsp-core/src/original_declaration.rs",
+    "function": "mod:logical_session_tests::fn:session_wire_bytes_are_lossless_and_legacy_shapes_stay_strict",
+    "sha256": "caada27de946776d61dd88a2b896a8515d1f09a8f250a032fd1584a5e4babf35"
+  },
+  {
+    "ingredient": "signature",
+    "path": "rust/tcl-lsp-core/src/signature_help.rs",
+    "function": "mod:original_logical_query_tests::fn:analyse",
+    "sha256": "225b8e34bcbb023d80ed88be052a8953b2a928de2d74f4493742936a6e3aaf85"
+  },
+  {
+    "ingredient": "signature",
+    "path": "rust/tcl-lsp-core/src/signature_help.rs",
+    "function": "mod:original_logical_query_tests::fn:help",
+    "sha256": "ac996cf4a46ccc1cd8e6bcaa9644cfe79c0a54845c983d879e4d3996834f1a68"
+  },
+  {
+    "ingredient": "signature",
+    "path": "rust/tcl-lsp-core/src/signature_help.rs",
+    "function": "mod:original_logical_query_tests::fn:signature_uses_genuine_logical_header_horizon_and_alias_prefix_without_report_maps",
+    "sha256": "da3f3539a542bcae968bbe4fcbff979c29ad63015c12af9b6b0055681cecb196"
+  },
+  {
+    "ingredient": "signature",
+    "path": "rust/tcl-lsp-core/src/signature_help.rs",
+    "function": "mod:original_logical_query_tests::fn:signature_keeps_real_namespace_frame_and_declines_unowned_equal_spelling",
+    "sha256": "27327208417b20cc892b55c8120e78d175bdc69976eff2626aef8a7da3e21639"
+  },
+  {
+    "ingredient": "signature",
+    "path": "rust/tcl-lsp-core/src/signature_help.rs",
+    "function": "mod:original_logical_query_tests::fn:signature_cursor_unicode_cr_and_utf16_positions_do_not_clamp",
+    "sha256": "d8e7a540d3fc3ad7e7e20af16224714b3bbc3b2e0a341274609fb7cb2aa914b8"
+  },
+  {
+    "ingredient": "signature",
+    "path": "rust/tcl-lsp-core/src/signature_help.rs",
+    "function": "mod:original_logical_query_tests::fn:signature_preserves_unknown_lookup_and_dynamic_argument_applicability",
+    "sha256": "7e9437c8aa6dc3ef48a4681f2b890d628e446af75bd6eab6da150dae8519cf97"
+  },
+  {
+    "ingredient": "signature",
+    "path": "rust/tcl-lsp-core/src/signature_help.rs",
+    "function": "mod:original_logical_query_tests::fn:current_argument_cursor_retains_unclosed_source_without_a_repaired_word",
+    "sha256": "42eb0386a6191a68d0e6c53c4bfb86d2f3d9968f1b28f82e6d534267ec495862"
+  },
+  {
+    "ingredient": "namespace",
+    "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+    "function": "mod:tests::fn:conditional_namespace_horizon_keeps_binding_and_report_purposes_separate",
+    "sha256": "903db98c7b3c3904711519e553ea4050ffcd7b8025108802c72c744b5b42433c"
+  },
+  {
+    "ingredient": "namespace",
+    "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+    "function": "mod:tests::fn:conditional_namespace_forget_preserves_unknowns_and_current_index_owner",
+    "sha256": "34f2a650049499d699f7e73f774313b0adc91a8f586461c6bd62aa7aeb3bf2b1"
+  },
+  {
+    "ingredient": "transform_v3",
+    "path": "rust/tcl-lsp-server/src/document_transform.rs",
+    "function": "mod:tests::fn:open",
+    "sha256": "9976f3425b2e4dcdabf7b257b16c53651abefe8c69b3163ff642cd9a0e667544"
+  },
+  {
+    "ingredient": "transform_v3",
+    "path": "rust/tcl-lsp-server/src/document_transform.rs",
+    "function": "mod:tests::fn:snapshot",
+    "sha256": "48692a90cf2b8ea29769f934d58841a388476ba7036d656de4f076f39bc1c347"
+  },
+  {
+    "ingredient": "transform_v3",
+    "path": "rust/tcl-lsp-server/src/document_transform.rs",
+    "function": "mod:tests::fn:validate",
+    "sha256": "f120e651974479f1972348076d8f889b24a07e11edec97dc461dd347d9f88e01"
+  },
+  {
+    "ingredient": "transform_v3",
+    "path": "rust/tcl-lsp-server/src/document_transform.rs",
+    "function": "mod:tests::fn:original_document_transforms_keep_actual_result_and_refuse_changed_source",
+    "sha256": "e712861b5e98c488102527d4fa9dadada81b9f2e207c7a7bd9f59901a18bf2b1"
+  },
+  {
+    "ingredient": "transform_v3",
+    "path": "rust/tcl-lsp-server/src/document_transform.rs",
+    "function": "mod:tests::fn:original_document_transforms_bind_each_worker_and_leave_legacy_results_unbound",
+    "sha256": "5a00045b7914783a500da974305c472e08bb208e50354977e5936555ec17970f"
+  },
+  {
+    "ingredient": "transform_v3",
+    "path": "rust/tcl-lsp-server/src/document_transform.rs",
+    "function": "mod:tests::fn:original_document_transforms_refuse_configuration_and_reopened_source",
+    "sha256": "76e63f87946d005613c50df5a28761a60e48ccebf86198b73cde6420784df692"
+  },
+  {
+    "ingredient": "transform_v3",
+    "path": "rust/tcl-lsp-server/src/document_transform.rs",
+    "function": "mod:tests::fn:original_document_transform_receipts_cannot_cross_fresh_backend_issuers",
+    "sha256": "c9a02983527532ef0b514b0351be7e7d555d1cd566d85926f6bfd7d7f6d99b6a"
+  },
+  {
+    "ingredient": "transform_v3",
+    "path": "rust/tcl-lsp-server/src/document_transform.rs",
+    "function": "mod:worker_purpose_tests::fn:document_transform_worker_requires_the_actual_complete_original_input",
+    "sha256": "b7041a1b56e80e59f4e79c6ce0157e063b47886e63ce90a1ff0be25f3647a2e5"
+  },
+  {
+    "ingredient": "transform_v3",
+    "path": "rust/tcl-lsp-server/src/document_transform.rs",
+    "function": "mod:worker_purpose_tests::fn:safe_fix_transform_retains_its_actual_configured_worker_parameters",
+    "sha256": "bc4097f2d656f148507cd78db49e8cbd75fc2eb960188b7182e7fc1cab382cac"
+  },
+  {
+    "ingredient": "call642_v3",
+    "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+    "function": "mod:logical_call_wire_tests::fn:register",
+    "sha256": "701b30f45ff050caaa792919486afee33b31ee1aaa5f3fc29cc8929b1be33c3b"
+  },
+  {
+    "ingredient": "call642_v3",
+    "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+    "function": "mod:logical_call_wire_tests::fn:prepare",
+    "sha256": "6b0eded8c899cff2adb6c99d7e5470845d9f59167915f0144496c82cdc7adac2"
+  },
+  {
+    "ingredient": "call642_v3",
+    "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+    "function": "mod:logical_call_wire_tests::fn:actual_call_handlers_use_opaque_current_source_selection_not_client_fields",
+    "sha256": "0c58ccb1d9e6b50ac8b763c3a07228f4c9257f7754b97c0c1b4ef6773facc2f5"
+  },
+  {
+    "ingredient": "call642_v3",
+    "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+    "function": "mod:logical_call_wire_tests::fn:equal_bytes_republication_and_reindex_cannot_renew_prepared_call_stamp",
+    "sha256": "6bc408662617b861bc033f1d468c598ba78ad87b0169f25504d7518e361fbd6c"
+  },
+  {
+    "ingredient": "call642_v3",
+    "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+    "function": "mod:logical_call_wire_tests::fn:typed_call_debt_and_parent_target_stamps_survive_until_final_source_lease",
+    "sha256": "8ac8768bb705949d9673306fed8658f32c2a4f066bcfc662e1b0f3cf66458c53"
+  },
+  {
+    "ingredient": "call642_v3",
+    "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+    "function": "mod:logical_call_wire_tests::fn:missing_actual_index_stamp_is_unavailable_even_with_equal_source_and_analysis",
+    "sha256": "76e99983ae96f7911cf05cd83d8107c43be05faa91395b5d914af1a1ee723048"
+  },
+  {
+    "ingredient": "call642_v3",
+    "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+    "function": "mod:logical_call_provider_generation_tests::fn:newly_indexed_provider_invalidates_old_call_stamp_with_all_retained_rows_unchanged",
+    "sha256": "01952a64f0e71f4606b0a49448f3252aee53e4e500c21c491ce8018d715f9e86"
+  },
+  {
+    "ingredient": "call642_v3",
+    "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+    "function": "mod:logical_call_backend_session_tests::fn:prepare",
+    "sha256": "ea54d0f829a784624a902f11050be11884b705fc8f833555f268c648ef0cac96"
+  },
+  {
+    "ingredient": "call642_v3",
+    "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+    "function": "mod:logical_call_backend_session_tests::fn:fresh_backend_rejects_prior_session_call_on_both_real_endpoints",
+    "sha256": "701c5d2649ed4890ea7897e43c52bef42e005a8229b86a7bdaef953ec8ecc095"
+  },
+  {
+    "ingredient": "lens_v3",
+    "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+    "function": "mod:logical_call_wire_tests::fn:register",
+    "sha256": "701b30f45ff050caaa792919486afee33b31ee1aaa5f3fc29cc8929b1be33c3b"
+  },
+  {
+    "ingredient": "lens_v3",
+    "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+    "function": "mod:logical_call_wire_tests::fn:prepare",
+    "sha256": "6b0eded8c899cff2adb6c99d7e5470845d9f59167915f0144496c82cdc7adac2"
+  },
+  {
+    "ingredient": "lens_v3",
+    "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+    "function": "mod:logical_call_wire_tests::fn:actual_call_handlers_use_opaque_current_source_selection_not_client_fields",
+    "sha256": "0c58ccb1d9e6b50ac8b763c3a07228f4c9257f7754b97c0c1b4ef6773facc2f5"
+  },
+  {
+    "ingredient": "lens_v3",
+    "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+    "function": "mod:logical_call_wire_tests::fn:equal_bytes_republication_and_reindex_cannot_renew_prepared_call_stamp",
+    "sha256": "6bc408662617b861bc033f1d468c598ba78ad87b0169f25504d7518e361fbd6c"
+  },
+  {
+    "ingredient": "lens_v3",
+    "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+    "function": "mod:logical_call_wire_tests::fn:typed_call_debt_and_parent_target_stamps_survive_until_final_source_lease",
+    "sha256": "8ac8768bb705949d9673306fed8658f32c2a4f066bcfc662e1b0f3cf66458c53"
+  },
+  {
+    "ingredient": "lens_v3",
+    "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+    "function": "mod:logical_call_wire_tests::fn:missing_actual_index_stamp_is_unavailable_even_with_equal_source_and_analysis",
+    "sha256": "76e99983ae96f7911cf05cd83d8107c43be05faa91395b5d914af1a1ee723048"
+  },
+  {
+    "ingredient": "lens_v3",
+    "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+    "function": "mod:logical_call_provider_generation_tests::fn:newly_indexed_provider_invalidates_old_call_stamp_with_all_retained_rows_unchanged",
+    "sha256": "01952a64f0e71f4606b0a49448f3252aee53e4e500c21c491ce8018d715f9e86"
+  },
+  {
+    "ingredient": "lens_v3",
+    "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+    "function": "mod:logical_lens_wire_tests::fn:register",
+    "sha256": "4200ee4c28e9dcda0615ce49b103d69fd2ca3ff8b7f09e505c5c1993b3828206"
+  },
+  {
+    "ingredient": "lens_v3",
+    "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+    "function": "mod:logical_lens_wire_tests::fn:helper_lens",
+    "sha256": "f5fe74db3888aea06debdd91bfa74dafb29ad19b74fac1ac6566eb049feaac23"
+  },
+  {
+    "ingredient": "lens_v3",
+    "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+    "function": "mod:logical_lens_wire_tests::fn:logical_lens_reuses_opaque_source_selection_not_client_range_or_label",
+    "sha256": "d98f13963ec13a667bb51a92b93c366412fd0528649dc3c91a71fefc61d33b18"
+  },
+  {
+    "ingredient": "lens_v3",
+    "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+    "function": "mod:logical_lens_wire_tests::fn:logical_lens_old_publication_and_legacy_or_unknown_handles_stay_inert",
+    "sha256": "e4cb8ba517e2fb45417a76234eb857100d2ca11b2886ed11e77cda2aa059c446"
+  },
+  {
+    "ingredient": "lens_v3",
+    "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+    "function": "mod:logical_lens_wire_tests::fn:logical_lens_equal_counter_from_another_backend_cannot_select_this_session",
+    "sha256": "61d67da325c5efadeb99cad40ddc8eb8b967b12d3aa74c6aef8a203734bdb2b8"
+  },
+  {
+    "ingredient": "lens_v3",
+    "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+    "function": "mod:logical_call_backend_session_tests::fn:prepare",
+    "sha256": "ea54d0f829a784624a902f11050be11884b705fc8f833555f268c648ef0cac96"
+  },
+  {
+    "ingredient": "lens_v3",
+    "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+    "function": "mod:logical_call_backend_session_tests::fn:fresh_backend_rejects_prior_session_call_on_both_real_endpoints",
+    "sha256": "701c5d2649ed4890ea7897e43c52bef42e005a8229b86a7bdaef953ec8ecc095"
+  },
+  {
+    "ingredient": "loader565",
+    "path": "rust/tcl-spectcl/src/cache.rs",
+    "function": "mod:tests::fn:original_loader_notice_sites_survive_cold_and_disk_warm_cache_without_serialised_geometry",
+    "sha256": "1cfc6c0155855a9072338950fc9667592e3fae907ed784c6835d96e9bdb010f0"
+  },
+  {
+    "ingredient": "loader565",
+    "path": "rust/tcl-spectcl/src/loader/eval.rs",
+    "function": "mod:original_notice_body_capture_tests::fn:original_loader_notice_geometry_refuses_helper_and_changed_evaluated_parent_bodies",
+    "sha256": "fec88b5c51fdde53d803c29ec3edbbc1e0328c91aa96a8553269d5f5d88e2240"
+  }
+]

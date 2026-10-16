@@ -497,6 +497,23 @@ struct VerbatimBody {
     /// The body word's own line — the base line of the nested unit,
     /// exactly what [`block`] numbers a nested body from.
     body_line: u32,
+    original: Option<tcl_compiler::parsing::spectcl_source::OriginalPackSourceWord>,
+}
+impl VerbatimBody {
+    fn original_for_capture(
+        &self,
+        head: &str,
+        args: &[String],
+        actual_body: &str,
+    ) -> Option<tcl_compiler::parsing::spectcl_source::OriginalPackSourceWord> {
+        self.original
+            .as_ref()
+            .filter(|original| {
+                original.matches_literal_statement_capture(head, args)
+                    && original.captured_text() == actual_body
+            })
+            .cloned()
+    }
 }
 
 /// The verbatim skeleton of the file: the first `speclib`'s body, each
@@ -557,18 +574,24 @@ impl VerbatimIndex {
             source: Rc::from(source),
             ..Self::default()
         };
-        let config =
-            super::pack_source_lexer_config(tcl_lexer::SourceSegmentationPurpose::WholeInput);
-        let Some(body) =
-            tcl_compiler::parsing::spectcl_source::first_pack_source_body(source, config)
-                .filter(|body| body.is_braced())
-        else {
+        let top = pack_statements(source);
+        let Some(statement) = top.iter().find(|stmt| stmt.word_text(0) == "speclib") else {
+            return index;
+        };
+        let Some(body) = statement.arg(3).filter(|word| word.braced) else {
             return index;
         };
         index.speclib = Some(VerbatimBody {
-            stmt_line: body.statement_line(),
-            text: body.text().to_owned(),
-            body_line: body.body_line(),
+            stmt_line: statement.line,
+            text: body.text.clone(),
+            body_line: body.line,
+            original: (top
+                .iter()
+                .filter(|row| row.word_text(0) == "speclib" && row.line == statement.line)
+                .count()
+                == 1)
+                .then(|| body.original_source.clone())
+                .flatten(),
         });
         index
     }
@@ -588,6 +611,12 @@ impl VerbatimIndex {
     fn take(&mut self, word: &'static str, name: &str, line: u32) -> Option<VerbatimBody> {
         let entries = self.skeleton().bodies.get_mut(&(word, name.to_owned()))?;
         let at = entries.iter().position(|body| body.stmt_line == line)?;
+        let unambiguous = entries.iter().filter(|body| body.stmt_line == line).count() == 1;
+        if !unambiguous {
+            for body in entries.iter_mut().filter(|body| body.stmt_line == line) {
+                body.original = None;
+            }
+        }
         Some(entries.remove(at))
     }
 
@@ -596,13 +625,28 @@ impl VerbatimIndex {
     /// invocation (a loop body, a helper proc) attributes to a line whose
     /// source statement has a different head word or width, so it misses
     /// and keeps its evaluated capture.
-    fn row(&mut self, word: &str, arg_count: usize, line: u32) -> Option<Stmt> {
-        self.skeleton()
-            .rows
-            .get(&line)?
+    fn row(&mut self, word: &str, args: &[String], line: u32) -> Option<Stmt> {
+        let entries = self.skeleton().rows.get(&line)?;
+        let mut matching = entries
             .iter()
-            .find(|stmt| stmt.word_text(0) == word && stmt.words.len() == arg_count + 1)
-            .cloned()
+            .filter(|stmt| stmt.word_text(0) == word && stmt.words.len() == args.len() + 1);
+        let mut selected = matching.next()?.clone();
+        // Keep the established evaluated-reader choice. Source geometry is a
+        // separate purpose: ambiguity or changed actual arguments cannot donate
+        // an original source word to a notice.
+        if matching.next().is_some()
+            || !selected
+                .words
+                .iter()
+                .skip(1)
+                .zip(args)
+                .all(|(word, value)| word.text == *value)
+        {
+            for word in &mut selected.words {
+                word.original_source = None;
+            }
+        }
+        Some(selected)
     }
 }
 
@@ -673,6 +717,7 @@ impl Skeleton {
                 stmt_line: stmt.line,
                 text: body.text.clone(),
                 body_line: body.line,
+                original: body.original_source.clone(),
             });
     }
 }
@@ -704,6 +749,10 @@ struct State {
     /// The absolute base line of each unit being evaluated, innermost
     /// last; a captured statement's absolute line is `base + relative - 1`.
     base_lines: Vec<u32>,
+    // Source-only original container correspondence. None remains unavailable
+    // through nested bodies; reader values and entered execution are independent.
+    original_body_sources:
+        Vec<Option<tcl_compiler::parsing::spectcl_source::OriginalPackSourceWord>>,
     /// The union of the pack's declared support so far (`default
     /// available` / `default dialects`), the set `available?` answers
     /// against. `None` = nothing declared = everything.
@@ -765,8 +814,30 @@ impl State {
             return None;
         }
         self.verbatim
-            .row(word, args.len(), line)
+            .row(word, args, line)
             .filter(substitution_free)
+            .map(|mut row| {
+                let parent = self.original_body_sources.last();
+                let owned = match parent {
+                    Some(None) => false,
+                    Some(Some(parent)) => row.words.iter().all(|word| {
+                        word.original_source
+                            .as_ref()
+                            .is_some_and(|original| original.matches_original_parent(Some(parent)))
+                    }),
+                    None => row.words.iter().all(|word| {
+                        word.original_source
+                            .as_ref()
+                            .is_some_and(|original| original.matches_original_parent(None))
+                    }),
+                };
+                if !owned {
+                    for word in &mut row.words {
+                        word.original_source = None;
+                    }
+                }
+                row
+            })
     }
 
     /// A captured invocation as a [`Stmt`]: the file's verbatim statement
@@ -791,12 +862,16 @@ fn blockish(text: &str) -> bool {
 fn capture_stmt(word: &str, args: &[String], line: u32) -> Stmt {
     let mut words = Vec::with_capacity(args.len() + 1);
     words.push(Word {
+        local_source: None,
+        original_source: None,
         text: word.to_owned(),
         braced: blockish(word),
         line,
     });
     for arg in args {
         words.push(Word {
+            local_source: None,
+            original_source: None,
             text: arg.clone(),
             braced: blockish(arg),
             line,
@@ -947,11 +1022,13 @@ fn stage_speclib(
         };
         let block = match verbatim {
             Some(vb) => BodyText {
+                original: vb.original_for_capture("speclib", args, &body),
                 text: vb.text,
                 base: vb.body_line,
                 verbatim: true,
             },
             None => BodyText {
+                original: None,
                 text: body,
                 base: line,
                 verbatim: false,
@@ -999,11 +1076,13 @@ fn command_handler(state: &Rc<RefCell<State>>, fast_path: bool) -> WordHandler {
             let mut st = state.borrow_mut();
             match st.verbatim.take("command", &name, line) {
                 Some(vb) => BodyText {
+                    original: vb.original_for_capture("command", args, &body),
                     text: vb.text,
                     base: vb.body_line,
                     verbatim: true,
                 },
                 None => BodyText {
+                    original: None,
                     text: body,
                     base: line,
                     verbatim: false,
@@ -1029,6 +1108,7 @@ struct BodyText {
     text: String,
     base: u32,
     verbatim: bool,
+    original: Option<tcl_compiler::parsing::spectcl_source::OriginalPackSourceWord>,
 }
 
 /// Evaluate one `command` body in a fresh command scope and stage the
@@ -1089,11 +1169,13 @@ fn subcommand_handler(state: &Rc<RefCell<State>>, fast_path: bool) -> WordHandle
             let mut st = state.borrow_mut();
             match st.verbatim.take("subcommand", &name, line) {
                 Some(vb) => BodyText {
+                    original: vb.original_for_capture("subcommand", args, &body),
                     text: vb.text,
                     base: vb.body_line,
                     verbatim: true,
                 },
                 None => BodyText {
+                    original: None,
                     text: body,
                     base: line,
                     verbatim: false,
@@ -1168,11 +1250,13 @@ fn block_handler(word: &'static str, state: &Rc<RefCell<State>>, fast_path: bool
             let mut st = state.borrow_mut();
             match st.verbatim.take(word, &name, line) {
                 Some(verbatim) => BodyText {
+                    original: verbatim.original_for_capture(word, args, &args[body_at]),
                     text: verbatim.text,
                     base: verbatim.body_line,
                     verbatim: true,
                 },
                 None => BodyText {
+                    original: None,
                     text: args[body_at].clone(),
                     base: line,
                     verbatim: false,
@@ -1390,6 +1474,7 @@ fn stage_include(
         std::mem::replace(&mut st.in_include, true)
     };
     let body = BodyText {
+        original: None,
         text,
         base: 1,
         verbatim: true,
@@ -1415,16 +1500,35 @@ fn run_body(
     state: &Rc<RefCell<State>>,
     body: &BodyText,
 ) -> Result<(), String> {
-    if body.verbatim && drive.fast_path {
-        let stmts = statements(&body.text, body.base, FileBom::Content);
-        if stmts.iter().all(static_stmt) {
-            return drive_static(drive, state, &stmts);
+    let original = {
+        let state = state.borrow();
+        body.original
+            .as_ref()
+            .filter(|original| match state.original_body_sources.last() {
+                Some(None) => false,
+                Some(Some(parent)) => original.matches_original_parent(Some(parent)),
+                None => original.matches_original_parent(None),
+            })
+            .cloned()
+    };
+    state
+        .borrow_mut()
+        .original_body_sources
+        .push(original.clone());
+    let outcome = (|| {
+        if body.verbatim && drive.fast_path {
+            let stmts = super::body_statements(&body.text, body.base, original.as_ref());
+            if stmts.iter().all(static_stmt) {
+                return drive_static(drive, state, &stmts);
+            }
         }
-    }
-    match drive.ctx {
-        Some(ctx) => ctx.eval_body(&body.text),
-        None => Err(NEEDS_INTERPRETER.to_owned()),
-    }
+        match drive.ctx {
+            Some(ctx) => ctx.eval_body(&body.text),
+            None => Err(NEEDS_INTERPRETER.to_owned()),
+        }
+    })();
+    state.borrow_mut().original_body_sources.pop();
+    outcome
 }
 
 /// General Tcl whose dispatch reads or writes interpreter state — a
@@ -1507,6 +1611,7 @@ fn drive_static(
                     continue;
                 };
                 let block = BodyText {
+                    original: body.original_source.clone(),
                     text: body.text.clone(),
                     base: body.line,
                     verbatim: true,
@@ -1521,6 +1626,7 @@ fn drive_static(
                     continue;
                 };
                 let block = BodyText {
+                    original: body.original_source.clone(),
                     text: body.text.clone(),
                     base: body.line,
                     verbatim: true,
@@ -1573,6 +1679,7 @@ fn drive_static(
                 };
                 let body = &stmt.words[body_at];
                 let block = BodyText {
+                    original: body.original_source.clone(),
                     text: body.text.clone(),
                     base: body.line,
                     verbatim: true,
@@ -2292,6 +2399,39 @@ mod original_head_namespace_tests {
             let rows = statements(source, 1, FileBom::Content);
             assert_eq!(rows.len(), 1, "{source}");
             assert!(static_stmt(&rows[0]), "{source}");
+        }
+    }
+}
+
+#[cfg(test)]
+mod original_notice_body_capture_tests {
+    use super::*;
+
+    #[test]
+    fn original_loader_notice_geometry_refuses_helper_and_changed_evaluated_parent_bodies() {
+        // Genuine evaluated captures disagree with an existing same-line source
+        // declaration. The established reader may keep its verbatim text, but
+        // neither that preference nor a later row match may restore ownership.
+        for source in [
+            "speclib demo 1 {proc emit {} {command demo {arty 9}}; emit; command demo {arty 1}}",
+            "speclib demo 1 {set body {arty 9}; command demo $body; command demo {arty 1}}",
+        ] {
+            let pack = evaluate_pack(source);
+            let notices: Vec<_> = pack
+                .notices
+                .iter()
+                .filter(|notice| notice.message.contains("unknown property `arty`"))
+                .collect();
+            assert!(
+                !notices.is_empty(),
+                "the real loader must still report: {:?}",
+                pack.notices
+            );
+            assert!(
+                notices.iter().all(|notice| notice.subject.is_none()),
+                "a changed/helper parent cannot donate original source geometry: {:?}",
+                pack.notices
+            );
         }
     }
 }

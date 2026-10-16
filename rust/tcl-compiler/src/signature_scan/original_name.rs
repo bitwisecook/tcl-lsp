@@ -972,6 +972,50 @@ impl SourceNamespacePattern {
             .ok()
     }
 
+    /// Conditional source relation between an actual forget pattern and an
+    /// independently retained import/publication. This supplies no executed
+    /// removal or live-slot absence. Unsupported policy/context stays unknown.
+    #[must_use]
+    pub fn forgets_source_import(
+        &self,
+        import: &Self,
+        command: &super::scope::SignatureSourceCommand,
+    ) -> Option<bool> {
+        use tcl_syntax::{
+            naming::{NativeNamePurpose, NativeNamespacePatternSource},
+            native_glob::{NativeGlobProtocol, NativeNameGlobPurpose},
+        };
+        if self.purpose != NativeNamePurpose::NamespaceForgetPattern
+            || import.purpose != NativeNamePurpose::NamespaceImportPattern
+            || self.input.policy() != import.input.policy()
+            || self.input.policy() != command.policy()
+            || self.context != import.context
+            || !matches!(self.context, super::scope::SignatureNamespaceScope::C(_))
+        {
+            return None;
+        }
+        if !import.matches_imported_command(command.slot(), command.policy())? {
+            return Some(false);
+        }
+        let purpose = match self.parts.source.as_ref() {
+            Some(NativeNamespacePatternSource::C(namespace)) => {
+                if namespace != &command.slot().namespace {
+                    return Some(false);
+                }
+                NativeNameGlobPurpose::ForgetOriginFilter
+            }
+            None => NativeNameGlobPurpose::ForgetOwnSearch,
+            _ => return None,
+        };
+        NativeGlobProtocol::from_name_policy(command.policy())
+            .match_name_pattern(
+                purpose,
+                self.parts.tail.as_bytes(),
+                command.slot().simple.as_bytes(),
+            )
+            .ok()
+    }
+
     /// Borrow the actual imported tail from a matching retained publication.
     /// Jim's source slot contains one flat key, not C namespace components.
     /// This projection supplies no live alias, completed handler or Native proof.

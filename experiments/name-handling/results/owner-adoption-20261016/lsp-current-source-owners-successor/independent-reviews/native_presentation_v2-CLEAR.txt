@@ -1,0 +1,12 @@
+SOURCE/CONTRACT CLEAR — Native lens presentation V2 only
+
+Patch b041ff7a750da8e6dbaf915e96100cb073be16f025df828ecaa257431f86fba9
+Manifest 55193319819b8f83a7be6555f5404a3bf02dacce0b72351c7e800e77d39426ce
+
+Independently verified both actual current beforeimages and after hashes, fresh zero-fuzz forward/inverse patch and Rust AST parse. Whole existing code_lens test suffix is byte-identical.
+
+The qualified existing reporting_key call supplies presentation only. Unlike held 85ced's ?-only projection, unwrap_or_else(identity.label) preserves real object-owner method identities: class_metadata deliberately refuses object_owner and reporting_key therefore returns None. This follows existing original_call_hierarchy::item. identity, span, reference count, title, coverage and prior Native/current-source/refusal gates are untouched. The new genuine opaque C8.6 own-object control explicitly checks that missing class display metadata does not delete the independently retained lens identity.
+
+Existing owner source path and qualified static private route match the actual call; no visibility or checker weakening, new owner count or complete613/722 claim. Old85ced is superseded/HOLD and excluded from admission.
+
+No build/test/list/trace/gate/Kotlin/IDE execution or efficacy acceptance. Root owns ordinary validation and integration.

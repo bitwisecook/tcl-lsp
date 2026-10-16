@@ -1,0 +1,27 @@
+CLEAR — independent source review of /tmp/naming-build-next-lsp-owner-union-v2.py
+
+Launcher SHA256: 3dd36175e13de32165ae4a9d8831bc1d096ca5b3451ecfbce5705ff0424dd19e
+The earlier V1 HOLD at build-next-lsp-owner-launcher-review.txt is superseded
+for this V2 launcher only; V1 itself remains unchanged.
+
+The command is offline and locked, compiles the exact five native library test
+harnesses with `--lib --no-run`, requires `CARGO_PROFILE_TEST_DEBUG=0` and
+`CARGO_BUILD_JOBS=1`, and does not execute tests or traces. The supplied exact
+union manifest is hashed and every listed afterimage must match the current
+source tree before the build. Its full path list (including newly added,
+untracked files) is unioned with the historical 39,002-input list and tracked
+Rust/runtime/scripts/specs/Cargo inputs for before/after drift checks. The
+manifest hash is retained in the binding. This closes V1's untracked-source
+omission, provided Root passes the final approved manifest.
+
+After Cargo exits successfully and all source inputs remain unchanged, the
+launcher requires exactly one reported executable for each of the five named
+packages, moves those files (rather than copying them) into the frozen output,
+checks SHA256 and byte count before/after relocation, then scans each ELF for
+the specified instrumentation markers. It does not accept a predecessor ELF
+by path alone. The recorded `source.diff` and exact union manifest together
+bind the tracked patch and all candidate afterimages.
+
+No launcher execution, Cargo, build, test, trace, or source-tree mutation was
+performed for this review. Approval is limited to the launcher source and its
+gates; it is not a build result or selector-listing authority.

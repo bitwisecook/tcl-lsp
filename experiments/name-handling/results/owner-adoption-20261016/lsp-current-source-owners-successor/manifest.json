@@ -1,0 +1,711 @@
+{
+  "status": "immutable source-only integration proposal, Root final review/admission pending",
+  "patch": "next-rust-union.patch",
+  "patch_sha256": "406e5ee1f713adc8a2097e87e0d20bd324d1d9d7bc695e6aa7a9a1f55485fecc",
+  "patch_bytes": 596028,
+  "files": [
+    {
+      "path": "Cargo.lock",
+      "before_sha256": "1317aa820c0946737c2c79978dcedd98f55fd9dcd69a32edc88dce850c9f6a05",
+      "after_sha256": "e1333cc82f679ac59bd34c51d62465d61ae7f6f57878122c6107c95255fba3bf",
+      "new": false,
+      "ingredients": [
+        "call642_v3"
+      ]
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/source-current-document-transforms.md",
+      "before_sha256": null,
+      "after_sha256": "9c3850b8d3d5f56ed7d6b36b863e6d8cd3d8ca96db702664053f43a795f6316e",
+      "new": true,
+      "ingredients": [
+        "transform_v3"
+      ]
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/typed-spec-pack-notice-actions.md",
+      "before_sha256": "af9653e4a0f8a9b62f43976b3b7fda130ff03b1a8a2bd8e7aa5445cae8032c45",
+      "after_sha256": "39119389b05fbef0ea5c7c91df3f1560e70e1293281c9ba18af05215f12005f1",
+      "new": false,
+      "ingredients": [
+        "loader565"
+      ]
+    },
+    {
+      "path": "docs/design/contracts/name-handling.md",
+      "before_sha256": "6a2aa5a82d8028054233cfea555047a99832319bc6b0c018d3bff890eb0e47f8",
+      "after_sha256": "ca7c19cf6049661f697f83e4940cb2b4784428de6e1a340d8d94af6d3ea58f94",
+      "new": false,
+      "ingredients": [
+        "call642_v3",
+        "regression128",
+        "class_source",
+        "transform_v3",
+        "signature",
+        "math_document_scope",
+        "lens_v3"
+      ]
+    },
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "before_sha256": "aa047028531f24850d2bfa61d2c2eda63fc43c445515f109ad96eb11abb9946d",
+      "after_sha256": "5f871eb8ef5b85b8debdfbeda2ef7667f600a10a719e89cd83e9c100de13f99c",
+      "new": false,
+      "ingredients": [
+        "loader565",
+        "namespace",
+        "call642_v3",
+        "regression128",
+        "native_presentation_v2",
+        "class_source",
+        "transform_v3",
+        "signature",
+        "math_document_scope",
+        "lens_v3"
+      ]
+    },
+    {
+      "path": "docs/design/contracts/workspace-indexing.md",
+      "before_sha256": "82cb5b4a100a1a8afb5cd2955611e8f964d79872f99b5014ed61432fdf8bfa66",
+      "after_sha256": "750000507eedc0c0ca057101f8d0b45a18029172a98095b1e141feacf9b755af",
+      "new": false,
+      "ingredients": [
+        "namespace"
+      ]
+    },
+    {
+      "path": "editors/vscode/src/chat/codeUtils.ts",
+      "before_sha256": "9b6cae80a1780467a71eda3972eb224b911f79de33adf83e4ccd73457e75b720",
+      "after_sha256": "705e5de26c14ed45cfa6b74be18d18157e0e678f3e83c80bf0fc10f9e091dcef",
+      "new": false,
+      "ingredients": [
+        "transform_v3"
+      ]
+    },
+    {
+      "path": "editors/vscode/src/chat/diagnosticAccess.ts",
+      "before_sha256": "3535f6fa1ac84955de5342c851bf9b4c18ee2047350dda81f47c3c2601925a1a",
+      "after_sha256": "f0e025769ff156bdaec9b62f3fc724ce83c3f42c535927f5c92586cd2de6f7cb",
+      "new": false,
+      "ingredients": [
+        "transform_v3"
+      ]
+    },
+    {
+      "path": "editors/vscode/src/documentTransform.ts",
+      "before_sha256": null,
+      "after_sha256": "9d0eb41106bb35318e1069ca3b3443fc55f8d6b7d3f1df91575d95774a94963d",
+      "new": true,
+      "ingredients": [
+        "transform_v3"
+      ]
+    },
+    {
+      "path": "editors/vscode/src/extension.ts",
+      "before_sha256": "b276de2881763eff548193f749cb532f8fd3726b66176200924d386faac997b0",
+      "after_sha256": "a3df74ca1a1d18f0fd4aec66d02d50664e855253ce0fbaba0a997558d36ad685",
+      "new": false,
+      "ingredients": [
+        "transform_v3"
+      ]
+    },
+    {
+      "path": "editors/vscode/src/extensionBrowser.ts",
+      "before_sha256": "bed9d7d6179e35055d2233c329f64d99ca3a7659ae588e888823bc2751bee131",
+      "after_sha256": "a3701cfd08040c75e8c4d09d2b9cacc83ce7b043a0915b90cacb92737a4be549",
+      "new": false,
+      "ingredients": [
+        "transform_v3"
+      ]
+    },
+    {
+      "path": "editors/vscode/src/test/commands.test.ts",
+      "before_sha256": "8d6cf1f0400527f831fce418063bdeddc51e2741182c106bd582514ded5c9955",
+      "after_sha256": "0ec5cfe2cbc8ab67be78b95f8a617d34fdd58a0aa70867044feee8ff6b746802",
+      "new": false,
+      "ingredients": [
+        "transform_v3"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/types/logical_members.rs",
+      "before_sha256": "026bb15394f9343ba6aa5ceaa330c5361c86813344a3e4f3b05ec7274073096d",
+      "after_sha256": "ed0c04ebf92cc0c400af5c2ebf4f413fe4d0af01228b94547c388693b40e9abf",
+      "new": false,
+      "ingredients": [
+        "call642_v3"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/types/logical_procedures.rs",
+      "before_sha256": "74be1232a8b6ce1bf8ba72a2123e2ca0f3affc0f7da725be0e095b0d928ca15a",
+      "after_sha256": "acb649335c8cf033970fc5917e1091af40bbe69a3ad5499b5f402b479e263233",
+      "new": false,
+      "ingredients": [
+        "call642_v3",
+        "signature"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding.rs",
+      "before_sha256": "135d819f797ef8683089a3f042a761980742be3c44b0b19682a88bd1d1a249a5",
+      "after_sha256": "5aaa90178bb97463984b52dfa2688b9aef6d1523a8f52343434806a50fead4d0",
+      "new": false,
+      "ingredients": [
+        "signature"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_declared_command/logical_body.rs",
+      "before_sha256": "12ba80aa0ecd5499ba555503173a8120a5762f4fb927ca47d17ff6ddf8101d47",
+      "after_sha256": "0d9597b88e6846b8f21398645be880386aa4596c31fba5c94079a6cedef65917",
+      "new": false,
+      "ingredients": [
+        "call642_v3"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "before_sha256": "b0de30f2ec572bba47caee44ba789bf7afc47202bebcb018581c0a3c63808ef7",
+      "after_sha256": "0b4e6edfae879cc1cbdeefd8a923f4706b1f1b062592d6feba485004df59bc4d",
+      "new": false,
+      "ingredients": [
+        "signature"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs",
+      "before_sha256": "7966775a9d64125683577b7eeba93732c61568966e0f9e9a1ee101d7bcc6a50a",
+      "after_sha256": "8e9bcbe3603362e385eea30ff07a621232b9ed9d7deb750e1093fe553c9a8a67",
+      "new": false,
+      "ingredients": [
+        "signature"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs",
+      "before_sha256": "b994467f3a8c0acc4c87787e1e0f0454dae068609bd8d40bec14e3fa073e8234",
+      "after_sha256": "7fc916e7915c22946e0291b633156cdacdcf201246cf35a66fc641d44515ad87",
+      "new": false,
+      "ingredients": [
+        "signature"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_math.rs",
+      "before_sha256": "823a349c97254073f1d46f4952076c5b4f260c36cc46bc60b3eb8494927f8188",
+      "after_sha256": "c1bec2e0dca20c5c70694d21f13302a2b895f4bc4e1eea47f803206f310c7dd5",
+      "new": false,
+      "ingredients": [
+        "math_document_scope"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_navigation.rs",
+      "before_sha256": "bf6c4bc8a79e57006b05fa3e0c8d8669ccbcaac23ca678d37297ad837944ff6f",
+      "after_sha256": "962cfc9b612dfdfc5544608b84fb1c8ac24f91c325b71e1ffe460a2f075e7110",
+      "new": false,
+      "ingredients": [
+        "call642_v3",
+        "signature",
+        "math_document_scope"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_procedure_invocation.rs",
+      "before_sha256": null,
+      "after_sha256": "961dca414930a302125e45144d675584ab2ec4425b50f3845aeec436a8b72aeb",
+      "new": true,
+      "ingredients": [
+        "signature"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/ir/definition_script.rs",
+      "before_sha256": "dae1596e140b1cf2749d47aaf4752edabed53bb085ccd1f87c4c0ca8fd186fec",
+      "after_sha256": "26cb4b3bf191ff548af3d6e34e2ea935356e6f9243eeb72600ae5066e64af784",
+      "new": false,
+      "ingredients": [
+        "class_source"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/lowering/mod.rs",
+      "before_sha256": "3938ef9e07f2f98ffd84d853bd2f7d50446c3bb719c26142d6b96b7d15ffebfc",
+      "after_sha256": "8194b09095567a66dfdc581baa3c8c089d5e77af8ff1423f671772726a64e0d7",
+      "new": false,
+      "ingredients": [
+        "class_source"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/parsing/spectcl_source.rs",
+      "before_sha256": "435f5c5083e20201d8b857791f2461867891f8c61d9dcc951853c786993aa89b",
+      "after_sha256": "44e8db04499bb4ae02c8436ca8cb4396e85bc172f0116a567eb7595f69fdb4d3",
+      "new": false,
+      "ingredients": [
+        "loader565"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/parsing/spectcl_source/original_word.rs",
+      "before_sha256": null,
+      "after_sha256": "680c34122f20be883cd4b4ff47f576992b6df792bd11607db8ce0f9f6bc39023",
+      "new": true,
+      "ingredients": [
+        "loader565"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/realm/source_transition_advice.rs",
+      "before_sha256": "2e19190b5ef7dadf914e30c166fc92188d10af8555f809f28891726de989cb3d",
+      "after_sha256": "da03677c3e488df509d84a3f80df6badb48da2e7073e33a5d8c786a1b0115f90",
+      "new": false,
+      "ingredients": [
+        "signature"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation.rs",
+      "before_sha256": "0d915617d8f94dbd13bdaec8df97c297ed271daf4e49249aed78bc741285f29e",
+      "after_sha256": "9dc92908161471433ee3a9761eb088cf2ea246e90106f32b8b68676eab79a0b6",
+      "new": false,
+      "ingredients": [
+        "class_source"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_definition.rs",
+      "before_sha256": "97fe371ccc59ab2a9fecc8c11a73a1b23ce5240e43789cb5c20d6cb10937211d",
+      "after_sha256": "70d2f80bbcd950bf66530b89077918641327ad9bf214cb8330acdf1238a26171",
+      "new": false,
+      "ingredients": [
+        "class_source"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "before_sha256": "fe7eddd190f4e968e2133476668ae721f569635379dab88173e59d5cb57a5359",
+      "after_sha256": "3643fcf6cba618e1760a4ac2866aaa7099e406e3b0bcbcf5434c614836b10ee0",
+      "new": false,
+      "ingredients": [
+        "case725",
+        "signature"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/signature_scan/original_name.rs",
+      "before_sha256": "69486c2b83d4feb1bf1168f3f969216d374a8f94c855ce292f6bafa88af417f9",
+      "after_sha256": "eef7aeccd6c92c868fa56dc5a5cb1493ab43633113d33e6cb8f0e2773b045cd0",
+      "new": false,
+      "ingredients": [
+        "namespace"
+      ]
+    },
+    {
+      "path": "rust/tcl-lexer/src/word_parts.rs",
+      "before_sha256": "58ca473737b75ac7b3df9062333edeae3efb7339ef06eba261cb6cd76a090922",
+      "after_sha256": "09c5bf7e62af9dce008ccb37c081c170a93b0b4578ecf341444ae1ac5f88bac9",
+      "new": false,
+      "ingredients": [
+        "signature"
+      ]
+    },
+    {
+      "path": "rust/tcl-lexer/src/word_parts/cursor.rs",
+      "before_sha256": "4cd4f57cf047ff311fac06826f35fabcdb1c5ac83cd3cd5fe742f5a6b1763fae",
+      "after_sha256": "d47c9185341ee8a2be054efed4ed3dec8bdd7309413846101e45ee73089c68dd",
+      "new": false,
+      "ingredients": [
+        "signature"
+      ]
+    },
+    {
+      "path": "rust/tcl-lsp-core/Cargo.toml",
+      "before_sha256": "1e473efd7da54f270169d8f1f2eb7c5f27cd320eb33deacee8ba01c4fc30cdb1",
+      "after_sha256": "f39c50c55c65485fb8210ebb32ac1bb6256d448b6382e748db500ada63f01b6a",
+      "new": false,
+      "ingredients": [
+        "call642_v3"
+      ]
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/call_hierarchy.rs",
+      "before_sha256": "142d79c6b5255bd44a5db8413e3bd90b897690ea0ef215c80e011398c1177368",
+      "after_sha256": "aeec9ac0fcc8f8c7cb6d00bdde2799baf2c79e36fa8dbf3a88cf834118e7bc51",
+      "new": false,
+      "ingredients": [
+        "call642_v3",
+        "lens_v3"
+      ]
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/call_hierarchy/logical_source.rs",
+      "before_sha256": null,
+      "after_sha256": "89ea3ae61a12a2956b1ef6b7667493a0c916d7a9d583d00c4970805bf22a90e9",
+      "new": true,
+      "ingredients": [
+        "call642_v3",
+        "lens_v3"
+      ]
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/code_actions/spec_notice.rs",
+      "before_sha256": "4f29bd8556a73c170200dc049087aa7f5c0eedcbfa9904e574489d18d9125a91",
+      "after_sha256": "c7e99cdff95ae7b36bcbce53ce8e2aeabdcf9622695fee3b74817a470e3e6c6b",
+      "new": false,
+      "ingredients": [
+        "loader565"
+      ]
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/code_lens.rs",
+      "before_sha256": "e174824dbf56ce866c0354cd582f9313b94d639a15d2b8297c3d5ee9b9e13849",
+      "after_sha256": "374541409d5f97bea1077974154d591f91b5279f56e6ab9a02317dee9423d32e",
+      "new": false,
+      "ingredients": [
+        "native_presentation_v2",
+        "lens_v3"
+      ]
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/code_lens/logical_source.rs",
+      "before_sha256": null,
+      "after_sha256": "8a862858f19e6848cff2b00041bdba7adcbe738876c32fe12a2d42debe9bb4e4",
+      "new": true,
+      "ingredients": [
+        "lens_v3"
+      ]
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/lib.rs",
+      "before_sha256": "e0fe795193a626b5bf47f21a8e8bb2230cc59827a59987432e7350c8c48bfc5b",
+      "after_sha256": "4b1467e17d20fd9ed8a6690b4c6cb8cda33fd8f0c920e2be6ea761a9bb4f1653",
+      "new": false,
+      "ingredients": [
+        "call642_v3"
+      ]
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/namespace_import.rs",
+      "before_sha256": "5f0efe45172878eb34c97dc7d84a7f2adaf00a4d32b154590526d82c83cf2903",
+      "after_sha256": "783b43949eba73af3499d38684ebf50fd003d0f0951a33b70c041be9ee20fb69",
+      "new": false,
+      "ingredients": [
+        "namespace"
+      ]
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/original_call_hierarchy.rs",
+      "before_sha256": "009218e62dda2e4e821723b3cd9e857f0bc496625784c237ef345045eecca060",
+      "after_sha256": "ee9b8df27044f14952c7f186e7965b5aa3069ef4f538a9220ad8f674be34b219",
+      "new": false,
+      "ingredients": [
+        "regression128"
+      ]
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/original_declaration.rs",
+      "before_sha256": "bb6f15a1bf50416fc3366b237377e51b0c5168cd7feed8f2cc48cfd33ab1509c",
+      "after_sha256": "30752aacc53c47f6fdd672c9088f85d4c3489a89695a7c1e4853385eed565dab",
+      "new": false,
+      "ingredients": [
+        "call642_v3",
+        "lens_v3"
+      ]
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/signature_help.rs",
+      "before_sha256": "94e13e2eb905f9eeaa3a68e41c9f1018d97af570abd67e7163b2382e9ad8978c",
+      "after_sha256": "d270a1b84d1d08639ef430dc51428f3837abda433f682482f83094f4a1219311",
+      "new": false,
+      "ingredients": [
+        "signature"
+      ]
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/source_graph.rs",
+      "before_sha256": "f9f102963b2dfb44f71d97f05ac33dc50d7e7067bfe9dd895d024fec4bb79000",
+      "after_sha256": "8090cc5cc4704c0819a79b78857b4f3b39e04f0e7dc8f391c830a21718f29992",
+      "new": false,
+      "ingredients": [
+        "namespace"
+      ]
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/wire_session.rs",
+      "before_sha256": null,
+      "after_sha256": "fa9cbf3b8adbd0bc59a7b0b61c07e1f1ec888c75a326fca22c06223b81cdd54a",
+      "new": true,
+      "ingredients": [
+        "call642_v3"
+      ]
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+      "before_sha256": "72878469e968e8b758f9d05eb4c800d2b0099e9115242ea4b4a41156b24baacc",
+      "after_sha256": "8b478facb27f8936570319ed8e69b10a02345f5590bad8c81ddd6c6551cf5ab4",
+      "new": false,
+      "ingredients": [
+        "namespace",
+        "call642_v3"
+      ]
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/current_diagnostics.rs",
+      "before_sha256": "a9d7c1f0116ebb43ad23c60604da9cb651c2fc033c0ddfd26a0f2ed3899442af",
+      "after_sha256": "49c26a17ad9edf1fa35536c4bbe3b7b75874d01f87be23ace9b8ad82818c8953",
+      "new": false,
+      "ingredients": [
+        "transform_v3"
+      ]
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/document_transform.rs",
+      "before_sha256": null,
+      "after_sha256": "f6417e66695c321bc0af944f216949f322de855eb4152373fef91f583452fd48",
+      "new": true,
+      "ingredients": [
+        "transform_v3"
+      ]
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "before_sha256": "6f20a22a139a91c3f55ebbc7bba6945efab672741ab2b9d62613c7747c906de8",
+      "after_sha256": "a4a7a4c77c62836af785638f14bea21f12ad55d3ae503dcf33e53051ff6473cc",
+      "new": false,
+      "ingredients": [
+        "namespace",
+        "call642_v3",
+        "transform_v3",
+        "lens_v3"
+      ]
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+      "before_sha256": "9d544269622059b8ef7f882b9ab1814e78c25779da532ed21edbcdcc8970f2a2",
+      "after_sha256": "d16fc2457abd385583510eff65a268217c92dffb37a63d4535c9fcfebdd645a0",
+      "new": false,
+      "ingredients": [
+        "namespace",
+        "call642_v3",
+        "lens_v3"
+      ]
+    },
+    {
+      "path": "rust/tcl-spectcl/src/cache.rs",
+      "before_sha256": "5ec24b69a9607b3bb832e3e126eac84c58df58c834e06be337770f6884c8bff6",
+      "after_sha256": "1b433ca6db5335e7e1549185cb8f7ae8ead8fc70d2d225677eb63762a8857a07",
+      "new": false,
+      "ingredients": [
+        "loader565"
+      ]
+    },
+    {
+      "path": "rust/tcl-spectcl/src/export.rs",
+      "before_sha256": "395b4e83c3570b17f5b0f8ecd00c93208559428b2d53614a0a917556f1e27f38",
+      "after_sha256": "7a31baa4d936e3468489fb577ebceb5ca135c2f140c44bb0d0a193c5d89e60dc",
+      "new": false,
+      "ingredients": [
+        "loader565"
+      ]
+    },
+    {
+      "path": "rust/tcl-spectcl/src/loader.rs",
+      "before_sha256": "a5049b2ccbf232a8c65b3a82319b87bc7583a9bbb58504fe4f0a75c8b4fb6e92",
+      "after_sha256": "638e156dd767ca302bfd0f0e05c99a2053301b890217f4f717c4b18a9c0ce001",
+      "new": false,
+      "ingredients": [
+        "loader565"
+      ]
+    },
+    {
+      "path": "rust/tcl-spectcl/src/loader/dialect_block.rs",
+      "before_sha256": "253bfa549e1f25b8b9bcf0bc02db39ffad27206384a4ace871c17fd8c73dde26",
+      "after_sha256": "5c418bf06fdcac65df78e037df73f3fc1f72d1f0bd81b97dda8bffb313840e91",
+      "new": false,
+      "ingredients": [
+        "loader565"
+      ]
+    },
+    {
+      "path": "rust/tcl-spectcl/src/loader/environment_block.rs",
+      "before_sha256": "f23b033f77e2e6025a573d1f72cc7db9a9ca159ec57f287675ae4b9e786eac61",
+      "after_sha256": "b32dbdb105e0b609ef198c887fcc0990498594bb5b9aeeb6e6513c19cac8fb2c",
+      "new": false,
+      "ingredients": [
+        "loader565"
+      ]
+    },
+    {
+      "path": "rust/tcl-spectcl/src/loader/eval.rs",
+      "before_sha256": "da776c6ccd701ef9d9d32a751d7dd6c5edd41e09ddd011d89ab7cdfd4677d29c",
+      "after_sha256": "8d0643de2c26cc391466b7b6215e706446b5570cf869a9c01eb0ebd97e48a96d",
+      "new": false,
+      "ingredients": [
+        "loader565"
+      ]
+    },
+    {
+      "path": "rust/tcl-spectcl/src/loader/semantics.rs",
+      "before_sha256": "f96e5342e76f8913d026c43addd9a144501c3d4aaac8ac25faaf75a5bd77228b",
+      "after_sha256": "b6d887e44849eaafe2685793279375b87666db371334222d98e8aa040e47d92f",
+      "new": false,
+      "ingredients": [
+        "loader565"
+      ]
+    }
+  ],
+  "file_count": 58,
+  "rust_files": 45,
+  "ingredients": [
+    {
+      "name": "loader565",
+      "patch": "/tmp/lsp-loader-notice-original-subject-v2/repair.patch",
+      "patch_sha256": "b18ca854e3834e5e378512f72585cb5624ded85991956c297f1f180cfd012093",
+      "manifest": "/tmp/lsp-loader-notice-original-subject-v2/manifest.json",
+      "manifest_sha256": "f7eb362ec191e2df90552d4b678d59e1bd3528d765e9438bf932c29a61401e04",
+      "independent_review": "/tmp/lsp-loader-notice-original-subject-v2/independent-project-review-CLEAR.txt",
+      "independent_review_sha256": "8fe3b6d4fa7c3821334386d7861c58693ba7cfaa7077ddf4d40711d07299f4ac"
+    },
+    {
+      "name": "namespace",
+      "patch": "/tmp/lsp-conditional-namespace-advice-v3/conditional-namespace-advice.patch",
+      "patch_sha256": "3c4e6734025178f914f7817c29ab9932f200a3d27a4a8e32f146678ec937040c",
+      "manifest": "/tmp/lsp-conditional-namespace-advice-v3/manifest.json",
+      "manifest_sha256": "d368e3e09778ea20913382808a67f202f33a8195a99c8fc6f880b9a5bae601e3",
+      "independent_review": "/tmp/lsp-conditional-namespace-advice-v3/independent-sol-compiler-review-CLEAR.txt",
+      "independent_review_sha256": "b29a458ab1bdd78a815a44871ad7532fb8a6ce7c288b4b230885f97e954750b4"
+    },
+    {
+      "name": "call642_v3",
+      "patch": "/tmp/lsp-logical-call-wire-v3/logical-call-wire.57d5aaf4dd3b97e67dfe02372bd8da3ee2c863047f00312e871e55d0ddd0764d.patch",
+      "patch_sha256": "57d5aaf4dd3b97e67dfe02372bd8da3ee2c863047f00312e871e55d0ddd0764d",
+      "manifest": "/tmp/lsp-logical-call-wire-v3/manifest.json",
+      "manifest_sha256": "df4c26aaea3bd58de113129adcdd55d9fbd2587e9febe036e170b3c75249d15e",
+      "independent_review": "/tmp/lsp-logical-call-wire-v3/independent-db-owner-review-CLEAR.txt",
+      "independent_review_sha256": "851b0d179ad7ca2d508bea4d64b55a1f646058d336b8e5d9be90558a9772a142"
+    },
+    {
+      "name": "regression128",
+      "patch": "/tmp/lsp-original-call-external-source-repair-v1/repair.patch",
+      "patch_sha256": "a38f85e3dab153627223a2afc4787c4dd7c6c10a36839dc265dc0f1160a41c12",
+      "manifest": "/tmp/lsp-original-call-external-source-repair-v1/manifest.json",
+      "manifest_sha256": "e5fb419262e38439bdf2abe48d1cb0a2f4bf38596e80bfc9b087346a61ac8f80",
+      "independent_review": "/tmp/lsp-original-call-external-source-repair-v1/independent-sol-compiler-review-CLEAR.txt",
+      "independent_review_sha256": "83ba4826b5bacf5b619c20fbc23e87f24a4caf8a4b438cbe59020b1be77d09f0"
+    },
+    {
+      "name": "native_presentation_v2",
+      "patch": "/workspace/naming-validation/agent-work/native-lens-presentation-v2/native-lens-presentation-v2.patch",
+      "patch_sha256": "b041ff7a750da8e6dbaf915e96100cb073be16f025df828ecaa257431f86fba9",
+      "manifest": "/workspace/naming-validation/agent-work/native-lens-presentation-v2/manifest.json",
+      "manifest_sha256": "55193319819b8f83a7be6555f5404a3bf02dacce0b72351c7e800e77d39426ce",
+      "independent_review": "/workspace/naming-validation/agent-work/native-lens-presentation-v2/independent-db-owner-native-v2-review-CLEAR.txt",
+      "independent_review_sha256": "22a198c4e681475883a407f0d7df3e1abb8e5dc512fbdc71e82c4d3eb3940f32"
+    },
+    {
+      "name": "case725",
+      "patch": "/workspace/naming-validation/agent-work/case725-fixture-v1/repair.patch",
+      "patch_sha256": "6a8432296b5b226087fe91f5f4e338895b35cec98b08e978bd0ba50a54c1d3fc",
+      "manifest": "/workspace/naming-validation/agent-work/case725-fixture-v1/manifest.json",
+      "manifest_sha256": "e726d516a477c0b7ca83b6e87c16c2528c99eca1a233f2c80aaaa7aedfec92b4",
+      "independent_review": "/workspace/naming-validation/agent-work/case725-fixture-v1/independent-db-owner-review-CLEAR.txt",
+      "independent_review_sha256": "0d7e20e7be78dde5adc68d20b036f6ddf16e5073058c722cdaa2e876a8ee4d22"
+    },
+    {
+      "name": "class_source",
+      "patch": "/workspace/naming-validation/agent-work/logical-class-definition-source-v1/class-definition-source.patch",
+      "patch_sha256": "9538ce532aaade5555060b79d474443e087ddff0b689c771fb08d0e178b60441",
+      "manifest": "/workspace/naming-validation/agent-work/logical-class-definition-source-v1/manifest.json",
+      "manifest_sha256": "e3560eac0d83ccd2d30dc50cc49f56e05e86e68b0066457b2b1d5bf23dd5c1b9",
+      "independent_review": "/workspace/naming-validation/agent-work/logical-class-definition-source-v1/independent-root-review-CLEAR.txt",
+      "independent_review_sha256": "055ea15a6e929bd5a7ea00a0124f26b4c1b60a20cb97a6ef943b7cd02ca1aedc"
+    },
+    {
+      "name": "transform_v3",
+      "patch": "/tmp/lsp-document-transform-currency-v3/repair.patch",
+      "patch_sha256": "d199ae0e738a56d728cf24ce65fa27b2a2294cd9abb91165379e764b9956b71f",
+      "manifest": "/tmp/lsp-document-transform-currency-v3/manifest.json",
+      "manifest_sha256": "190796913d7d6fa1e2252dc3a8224cafb7ac82d8f543b75237a443a25aa1f86a",
+      "independent_review": "/tmp/lsp-document-transform-currency-v3/independent-root-review-CLEAR.txt",
+      "independent_review_sha256": "1968b93da06b49ce83eb48a6931c8f08b3f76971c72a29804573bf4d0c80cd8d"
+    },
+    {
+      "name": "signature",
+      "patch": "/tmp/lsp-signature-original-query-v1/signature-original-query.1a0d86672b130dfa0fe460668dae4006d56e0fcd6b9c9b4d55cf73470b563a33.patch",
+      "patch_sha256": "1a0d86672b130dfa0fe460668dae4006d56e0fcd6b9c9b4d55cf73470b563a33",
+      "manifest": "/tmp/lsp-signature-original-query-v1/manifest.json",
+      "manifest_sha256": "cddede05082a8646e283403dec9a74e7cfab3e4103c2f60b978f1b21a6700ac4",
+      "independent_review": "/tmp/lsp-signature-original-query-v1/independent-sol-compiler-review-CLEAR.txt",
+      "independent_review_sha256": "6ba9e77beedd81127127a5603f225b6808aa827b7173cb994ea7397af89fe5a8"
+    },
+    {
+      "name": "math_document_scope",
+      "patch": "/workspace/naming-validation/agent-work/logical-math-document-scope-v1/logical-math-document-scope-v1.patch",
+      "patch_sha256": "6bf25c82eff9eafd3d6c29afda994c4573bf9d7314d054c7d68b202635a706f6",
+      "manifest": "/workspace/naming-validation/agent-work/logical-math-document-scope-v1/manifest.json",
+      "manifest_sha256": "ebd5d37421f0ec3d68b176fc1048bd28d2960a8b20b0a22445d6d7ab57a6201a",
+      "independent_review": "/workspace/naming-validation/agent-work/logical-math-document-scope-v1/independent-sol-compiler-review-CLEAR.txt",
+      "independent_review_sha256": "958af8d4c5b5441b0b75cf1216fca33c63ab6dc75c1634ebf1cc88927330099d"
+    },
+    {
+      "name": "lens_v3",
+      "patch": "/workspace/naming-validation/agent-work/lsp-logical-lens-wire-v3/logical-lens-wire-v3.patch",
+      "patch_sha256": "52a0650dfe1e63d10726c0499d12f50fdbd903ce05dcfbbc7786d107e2476462",
+      "manifest": "/workspace/naming-validation/agent-work/lsp-logical-lens-wire-v3/manifest.json",
+      "manifest_sha256": "817a77a1f411850e47722047c2e28754b508a4dd9670556841d49dd8ff40d8a7",
+      "independent_review": "/workspace/naming-validation/agent-work/lsp-logical-lens-wire-v3/independent-db-owner-review-CLEAR.txt",
+      "independent_review_sha256": "6d691999f98354aba6a1ddc39644426485b119538a5d60bfcf665540b078cbfd"
+    }
+  ],
+  "cleanup": {
+    "path": "rust/tcl-compiler/src/analyser/types/logical_members.rs",
+    "module": "logical_relation_navigation_tests",
+    "change": "remove exactly one unused use super::*; existing module only",
+    "authorization": "Root explicit bounded cleanup; observed warning in actual build513",
+    "other_imports_or_function_bytes_changed": false
+  },
+  "excluded": [
+    {
+      "patch_sha256": "85cedc999afea9039c68a1d6634a71e51deef8d48b3a557022f5228175009253",
+      "disposition": "HOLD/superseded by independently reviewed b041ff7a, not admitted",
+      "reason": "?-only reporting projection drops genuine own-object method lens identity"
+    },
+    {
+      "purpose": "TransformV1/V2 prior session-unclear packets",
+      "disposition": "HOLD/superseded; reviewed TransformV3 only included"
+    },
+    {
+      "purpose": "held LensV1/V2 and old CALLV2/29union0731",
+      "disposition": "HOLD/superseded; only reviewed CALLV3 and LensV3 admitted as ingredients"
+    },
+    {
+      "purpose": "Workspacecache387ec910 and incomplete workspace currency successor",
+      "disposition": "HOLD/excluded"
+    }
+  ],
+  "composition": "Exact current-common-base line edit union; all same-position independent insertions retained in ingredient order; no overlapping replacement edits. All reviewed source nodes retained; the only joint function code_lenses equals reviewed LensV3 and Native branch equals NativeV2 except required None field, proven in joint-function-resolution.json. No semantic guard merge.",
+  "verification_receipts": {
+    "exact-composition.json": "0a4c1ee47b3cb0a40798e3efba4a0f6b10e66d97e56a901be8b355b3a7f3d798",
+    "authorized-cleanups.json": "0a7ef92ad050e9642aa915eb4c2fcb2ff61c33a1ed71cd8195cdda06ace24414",
+    "joint-function-resolution.json": "c54f02a29e496848bc1ad8d5c285377c2d5c8e182bbfd35acc7e2c2b70ef0184",
+    "retention-verification.json": "2201b93207fdb6968790502853b60cc8b79d24309740be1fd50eab1beaf2dcfe",
+    "reviewed-function-hashes.json": "ec84e411824c4ce6e350f03b483e5ec5ebd3c52b06a9575671d40d3074232cee",
+    "new-control-function-hashes.json": "ba50b93e44e941d8ad42d59fb887ff0e7bf8b05ba051f651ee68aee346baea53",
+    "all-function-hashes.json": "ef5b341a262352f36b485e23daa9af9a4520ddb2a6fe1cb58c79d9189ca5c6a9",
+    "patch-verification.json": "ab8c40058b72013824051d8835b65ca4b5f1907a6c33c0eebd5d3ab27f7e9865",
+    "COMPOSITION-BASIS.md": "de749b720ba14c57ed8ceb897e7f18046cbaa01de1283d1afdac6f55b7b4c2bf",
+    "ingredients.json": "8cd1bb30ebdcb4863997e99bd5892f80b508e0bc4f930c454ec6a1d91274e536",
+    "compose.py": "de5125724cb525c5e7c482199ce26960680272bce441cfe1bdc45e1f82559df1",
+    "verify-retention.py": "7267c50f48c28c768034ef51b4032f1340b89064ba6235ef9a2b243105efacd1",
+    "freeze.py": "af32e2df528bc4c3ff13ec114fbd465747a6aeb7f81316fa9c0b87a18a047467",
+    "new-rust-controls.json": "6feb32cbce448da46da2e0f32999bfcf4a845cc4b382214b072a142f584ea170",
+    "new-host-controls.json": "220ab586df5c5f90986989681f3c29c3f7aee4bc6573d2ed19f200ccb55e286b"
+  },
+  "validation": "Static source/hash/AST/retention and exact temporary patch application only. No Cargo/build/tests/listing/tracing/gates, source acceptance, runtime efficacy, performance, full input/ELF binding, Git/main edits or counts claimed.",
+  "new_Rust_source_control_count": 50,
+  "new_host_control_count": 3,
+  "joint_function_resolution": "code_lenses complete file equals reviewed LensV3; Native branch equals reviewed NativeV2 except required newNone field",
+  "existing_test_assertion_macro_bytes": "all unchanged, including six explicitly reviewed helper/fixture initializer changes"
+}

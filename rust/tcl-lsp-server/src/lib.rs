@@ -35,6 +35,7 @@
 /// through `tcl-lsp-core`.
 pub use tcl_lsp_core::config_ini;
 mod current_diagnostics;
+mod document_transform;
 mod proposal_diagnostics;
 use current_diagnostics::{
     DiagnosticCacheReceipt, DiagnosticCompletionEntry, DiagnosticPass, DiagnosticSuppression,
@@ -230,6 +231,9 @@ enum DocumentPathAdmission {
 
 #[derive(Debug, Clone)]
 enum DocumentSourceUnavailable {
+    ConditionalAdvice {
+        uri: Uri,
+    },
     Path {
         uri: Uri,
         cause: uri_norm::DocumentFilePathUnavailable,
@@ -265,6 +269,11 @@ type DocumentSourceResult<T> = Result<T, DocumentSourceUnavailable>;
 impl std::fmt::Display for DocumentSourceUnavailable {
     fn fmt(&self, out: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::ConditionalAdvice { uri } => write!(
+                out,
+                "conditional source advice for {} is unavailable",
+                uri.as_str()
+            ),
             Self::Path { uri, cause } => {
                 write!(out, "source URI {} is unavailable: {cause:?}", uri.as_str())
             }
@@ -868,6 +877,29 @@ impl DocumentState {
 
     fn dialect_resolution_pending(&self) -> bool {
         self.dialect_resolution_generation != self.resolved_dialect_generation
+    }
+}
+
+/// Readonly source relationships cannot be used by edit/binding consumers.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum WorkspaceSymbolPurpose {
+    ReadonlySourceAdvice,
+    Binding,
+}
+
+/// A conditional empty report is terminal, never an autoload absence proof.
+enum WorkspaceSymbolSelection {
+    Miss,
+    Candidates(Vec<String>),
+    ConditionalCandidates(Vec<String>),
+    ConditionalEmpty,
+}
+impl WorkspaceSymbolSelection {
+    fn report(self) -> Vec<String> {
+        match self {
+            Self::Candidates(names) | Self::ConditionalCandidates(names) => names,
+            Self::Miss | Self::ConditionalEmpty => Vec::new(),
+        }
     }
 }
 
@@ -6829,7 +6861,7 @@ async fn publish_fast_tier(
 /// folder holds its own ([`FolderConfig::policy_layers`]), and longest-prefix
 /// matching over folders — the one LSP-specific part of the resolution —
 /// picks between them ([`Backend::resolved_policy_layers`]).
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 struct PolicyLayers {
     global: serde_json::Value,
     editor: serde_json::Value,
@@ -8318,6 +8350,8 @@ enum DiskRemovalPolicy<'a> {
 /// with the `Backend` rather than leaked for the process lifetime.
 pub struct Backend {
     client: Client,
+    /// Actual source-bound transform results awaiting a final editor admission.
+    document_transforms: std::sync::Mutex<document_transform::TransformLedger>,
     /// Persistent latest-wins diagnostics delivery, isolated from every
     /// request-critical lock.
     diagnostic_publisher: Arc<DiagnosticPublisher>,
@@ -10076,6 +10110,7 @@ impl Backend {
         Self {
             client,
             diagnostic_publisher,
+            document_transforms: std::sync::Mutex::new(Default::default()),
             documents: Arc::new(DocumentStore::default()),
             diag_slots: Arc::new(Mutex::new(HashMap::new())),
             default_dialect: Mutex::new(DEFAULT_SESSION_DIALECT.to_owned()),
@@ -14843,6 +14878,7 @@ impl Backend {
             // Not keyed by a URI.
             client: _,
             diagnostic_publisher: _,
+            document_transforms: _,
             default_dialect: _,
             default_dialect_explicit: _,
             warned_session_dialect: _,
@@ -16722,13 +16758,30 @@ impl Backend {
         }
         // Cross-document tier: a proc / class defined in a sibling document
         // the workspace index knows about.
-        let symbols = self
-            .resolve_workspace_symbols(uri, source, analysis, pos)
+        let selection = self
+            .resolve_workspace_symbol_selection_for_purpose(
+                uri,
+                source,
+                analysis,
+                pos,
+                WorkspaceSymbolPurpose::ReadonlySourceAdvice,
+            )
             .await?;
+        let conditional = matches!(
+            &selection,
+            WorkspaceSymbolSelection::ConditionalEmpty
+                | WorkspaceSymbolSelection::ConditionalCandidates(_)
+        );
+        let symbols = selection.report();
         for qualified in &symbols {
             if let Some(hover) = self.hover_for_indexed_symbol(qualified).await? {
                 return Ok(Some(hover));
             }
+        }
+        // A conditional report has unresolved alternatives, even if a selected
+        // source owner cannot supply hover text. It never proves an autoload miss.
+        if conditional {
+            return Ok(None);
         }
         // Autoload tier, hover's twin of the definition one: the command is
         // defined nowhere in the open workspace, but `tclIndex` /
@@ -17103,10 +17156,10 @@ impl Backend {
             .collect())
     }
 
-    /// Resolve the proc / class symbol at `pos` (a bare command word, not a
-    /// `$var`) to its **runtime identity set**.  Used by cross-document
-    /// references / rename / definition to identify which symbols' call
-    /// sites to gather.
+    /// Resolve proc/class source report candidates at `pos` (a bare command
+    /// word, not a `$var`). Readonly navigation may retain conditional namespace
+    /// relationships; those report names are not runtime identities. The
+    /// explicit Binding path keeps the independent existing edit/binding fold.
     ///
     /// Two cursor shapes resolve, both namespace-exact:
     ///
@@ -17125,13 +17178,15 @@ impl Backend {
     /// Anything else (a bareword argument, whitespace, a `$var`) resolves to
     /// nothing (an empty set), so no coincidental word links to a sibling
     /// symbol.
-    async fn resolve_workspace_symbols_indexed(
+
+    async fn resolve_workspace_symbols_indexed_for_purpose(
         &self,
         uri: &Uri,
         source: &str,
         analysis: &AnalysisResult,
         pos: Position,
-    ) -> Vec<String> {
+        purpose: WorkspaceSymbolPurpose,
+    ) -> DocumentSourceResult<WorkspaceSymbolSelection> {
         if !analysis.allows_lexical_declaration_advice()
             || analysis.body_lexer_config.is_none_or(|config| {
                 !analysis.matches_original_source_image(
@@ -17140,13 +17195,13 @@ impl Backend {
                 )
             })
         {
-            return Vec::new();
+            return Ok(WorkspaceSymbolSelection::Miss);
         }
         if core_hover::find_var_at_position(source, pos.line, pos.character).is_some() {
-            return Vec::new();
+            return Ok(WorkspaceSymbolSelection::Miss);
         }
         let Some(offset) = line_col_to_byte_offset(source, pos.line, pos.character) else {
-            return Vec::new();
+            return Ok(WorkspaceSymbolSelection::Miss);
         };
         let covers =
             |sp: tcl_lexer::Span| (sp.start() as usize) <= offset && offset < (sp.end() as usize);
@@ -17158,7 +17213,13 @@ impl Backend {
             .await
             .logical_declaration_source_names_at(uri.as_str(), source, analysis, offset_u32)
         {
-            return names;
+            return Ok(
+                if purpose == WorkspaceSymbolPurpose::Binding && names.is_empty() {
+                    WorkspaceSymbolSelection::Miss
+                } else {
+                    WorkspaceSymbolSelection::Candidates(names)
+                },
+            );
         }
 
         let Some(inv) = analysis
@@ -17166,7 +17227,7 @@ impl Backend {
             .iter()
             .find(|i| covers(i.range))
         else {
-            return Vec::new();
+            return Ok(WorkspaceSymbolSelection::Miss);
         };
         {
             let index = self.workspace_index.read().await;
@@ -17174,7 +17235,7 @@ impl Backend {
             // see the same command universe hover and diagnostics do.
             let registry = self.registry_for_dialect(&analysis.dialect).await;
             if workspace_reporting_context(analysis, &registry).is_none() {
-                return Vec::new();
+                return Ok(WorkspaceSymbolSelection::Miss);
             }
             let exports = index.export_snapshot();
             if let Some(cand) = settle_call_against_workspace(
@@ -17191,7 +17252,9 @@ impl Backend {
                 // locally; follow the link so the cursor resolves to the
                 // command it ultimately runs, gathering its references with
                 // that command's.
-                return vec![index.resolve_command_target(cand)];
+                return Ok(WorkspaceSymbolSelection::Candidates(vec![
+                    index.resolve_command_target(cand),
+                ]));
             }
             // The exact-candidate loop above only ever matches a *real*
             // command (or an exact `namespace import`'s `WorkspaceCommandLink`)
@@ -17205,7 +17268,37 @@ impl Backend {
             // `definition::resolve_called_proc` / `resolve_class_target_at`
             // apply in-document, extended to a source namespace defined in
             // another file.
-            if let Some(target) = index.resolve_wildcard_import(
+            if purpose == WorkspaceSymbolPurpose::ReadonlySourceAdvice {
+                let advice = index
+                    .conditional_namespace_import_advice(
+                        &inv.name,
+                        &inv.resolution_candidates,
+                        core_workspace_index::CallSite {
+                            uri: uri.as_str(),
+                            at: inv.range.start(),
+                            enclosing_body: analysis
+                                .innermost_definition_body_span(inv.range.start()),
+                        },
+                    )
+                    .ok_or_else(|| DocumentSourceUnavailable::ConditionalAdvice {
+                        uri: uri.clone(),
+                    })?;
+                drop(index);
+                return self
+                    .finish_conditional_namespace_advice(&advice)
+                    .await?
+                    .map(|names| {
+                        if names.is_empty() {
+                            WorkspaceSymbolSelection::ConditionalEmpty
+                        } else {
+                            WorkspaceSymbolSelection::ConditionalCandidates(names)
+                        }
+                    })
+                    .ok_or_else(|| DocumentSourceUnavailable::ConditionalAdvice {
+                        uri: uri.clone(),
+                    });
+            }
+            if let Some(target) = index.resolve_wildcard_import_for_binding(
                 &inv.name,
                 &inv.resolution_candidates,
                 core_workspace_index::CallSite {
@@ -17214,10 +17307,10 @@ impl Backend {
                     enclosing_body: analysis.innermost_definition_body_span(inv.range.start()),
                 },
             ) {
-                return vec![target];
+                return Ok(WorkspaceSymbolSelection::Candidates(vec![target]));
             }
         }
-        Vec::new()
+        Ok(WorkspaceSymbolSelection::Miss)
     }
 
     /// Resolve against the current index, then populate the autoload/package
@@ -17226,6 +17319,7 @@ impl Backend {
     /// `workspace_scan_gate`, and a workspace scan takes `rehoming_gate` while
     /// merging its results. Nesting those gates in the opposite order would
     /// deadlock a navigation request against an in-flight scan.
+    #[cfg(test)]
     async fn resolve_workspace_symbols(
         &self,
         uri: &Uri,
@@ -17233,14 +17327,65 @@ impl Backend {
         analysis: &AnalysisResult,
         pos: Position,
     ) -> DocumentSourceResult<Vec<String>> {
+        self.resolve_workspace_symbols_for_purpose(
+            uri,
+            source,
+            analysis,
+            pos,
+            WorkspaceSymbolPurpose::ReadonlySourceAdvice,
+        )
+        .await
+    }
+
+    async fn resolve_workspace_symbols_for_binding(
+        &self,
+        uri: &Uri,
+        source: &str,
+        analysis: &AnalysisResult,
+        pos: Position,
+    ) -> DocumentSourceResult<Vec<String>> {
+        self.resolve_workspace_symbols_for_purpose(
+            uri,
+            source,
+            analysis,
+            pos,
+            WorkspaceSymbolPurpose::Binding,
+        )
+        .await
+    }
+
+    async fn resolve_workspace_symbols_for_purpose(
+        &self,
+        uri: &Uri,
+        source: &str,
+        analysis: &AnalysisResult,
+        pos: Position,
+        purpose: WorkspaceSymbolPurpose,
+    ) -> DocumentSourceResult<Vec<String>> {
+        self.resolve_workspace_symbol_selection_for_purpose(uri, source, analysis, pos, purpose)
+            .await
+            .map(WorkspaceSymbolSelection::report)
+    }
+
+    async fn resolve_workspace_symbol_selection_for_purpose(
+        &self,
+        uri: &Uri,
+        source: &str,
+        analysis: &AnalysisResult,
+        pos: Position,
+        purpose: WorkspaceSymbolPurpose,
+    ) -> DocumentSourceResult<WorkspaceSymbolSelection> {
         if !analysis.allows_lexical_declaration_advice() {
-            return Ok(Vec::new());
+            return Ok(WorkspaceSymbolSelection::Miss);
         }
         let indexed = self
-            .resolve_workspace_symbols_indexed(uri, source, analysis, pos)
-            .await;
-        if !indexed.is_empty() {
-            return Ok(indexed);
+            .resolve_workspace_symbols_indexed_for_purpose(uri, source, analysis, pos, purpose)
+            .await?;
+        match indexed {
+            WorkspaceSymbolSelection::Candidates(_)
+            | WorkspaceSymbolSelection::ConditionalCandidates(_)
+            | WorkspaceSymbolSelection::ConditionalEmpty => return Ok(indexed),
+            WorkspaceSymbolSelection::Miss => {}
         }
 
         // Autoload tier: the command resolves nowhere in the open
@@ -17253,13 +17398,18 @@ impl Backend {
             pos.line,
             pos.character,
         ) else {
-            return Ok(Vec::new());
+            return Ok(WorkspaceSymbolSelection::Miss);
         };
-        Ok(self
+        let names = self
             .ensure_library_indexed(uri, analysis, &word, &namespace)
             .await?
             .into_iter()
-            .collect())
+            .collect::<Vec<_>>();
+        Ok(if names.is_empty() {
+            WorkspaceSymbolSelection::Miss
+        } else {
+            WorkspaceSymbolSelection::Candidates(names)
+        })
     }
 
     /// Prepare any on-demand library indexing without holding
@@ -17278,13 +17428,49 @@ impl Backend {
         analysis: &AnalysisResult,
         pos: Position,
     ) -> DocumentSourceResult<(tokio::sync::MutexGuard<'a, ()>, Vec<String>)> {
+        self.resolved_symbol_index_snapshot_for_purpose(
+            uri,
+            source,
+            analysis,
+            pos,
+            WorkspaceSymbolPurpose::ReadonlySourceAdvice,
+        )
+        .await
+    }
+
+    async fn resolved_symbol_index_snapshot_for_binding<'a>(
+        &'a self,
+        uri: &Uri,
+        source: &str,
+        analysis: &AnalysisResult,
+        pos: Position,
+    ) -> DocumentSourceResult<(tokio::sync::MutexGuard<'a, ()>, Vec<String>)> {
+        self.resolved_symbol_index_snapshot_for_purpose(
+            uri,
+            source,
+            analysis,
+            pos,
+            WorkspaceSymbolPurpose::Binding,
+        )
+        .await
+    }
+
+    async fn resolved_symbol_index_snapshot_for_purpose<'a>(
+        &'a self,
+        uri: &Uri,
+        source: &str,
+        analysis: &AnalysisResult,
+        pos: Position,
+        purpose: WorkspaceSymbolPurpose,
+    ) -> DocumentSourceResult<(tokio::sync::MutexGuard<'a, ()>, Vec<String>)> {
         let preflight = self
-            .resolve_workspace_symbols(uri, source, analysis, pos)
+            .resolve_workspace_symbols_for_purpose(uri, source, analysis, pos, purpose)
             .await?;
         let guard = self.rehomed_index_guard().await?;
         let symbols = self
-            .resolve_workspace_symbols_indexed(uri, source, analysis, pos)
-            .await;
+            .resolve_workspace_symbols_indexed_for_purpose(uri, source, analysis, pos, purpose)
+            .await?
+            .report();
         if !symbols.is_empty() || preflight.is_empty() {
             return Ok((guard, symbols));
         }
@@ -17295,12 +17481,13 @@ impl Backend {
         // once more around the resulting index state.
         drop(guard);
         let _ = self
-            .resolve_workspace_symbols(uri, source, analysis, pos)
+            .resolve_workspace_symbols_for_purpose(uri, source, analysis, pos, purpose)
             .await?;
         let guard = self.rehomed_index_guard().await?;
         let symbols = self
-            .resolve_workspace_symbols_indexed(uri, source, analysis, pos)
-            .await;
+            .resolve_workspace_symbols_indexed_for_purpose(uri, source, analysis, pos, purpose)
+            .await?
+            .report();
         Ok((guard, symbols))
     }
 
@@ -19379,7 +19566,7 @@ impl Backend {
         changes: &mut std::collections::HashMap<Uri, Vec<TextEdit>>,
     ) -> DocumentSourceResult<bool> {
         let (rehoming_guard, symbols) = self
-            .resolved_symbol_index_snapshot(uri, source, analysis, pos)
+            .resolved_symbol_index_snapshot_for_binding(uri, source, analysis, pos)
             .await?;
         let intents = {
             let index = self.workspace_index.read().await;
@@ -19421,7 +19608,7 @@ impl Backend {
         source_plan: &mut WorkspaceSourcePlanToken,
     ) -> DocumentSourceResult<()> {
         let (rehoming_guard, symbols) = self
-            .resolved_symbol_index_snapshot(uri, source, analysis, pos)
+            .resolved_symbol_index_snapshot_for_binding(uri, source, analysis, pos)
             .await?;
         if symbols.is_empty() {
             return Ok(());
@@ -19912,6 +20099,7 @@ impl Backend {
     /// Conditional incoming source calls in sibling documents. The actual
     /// selected declaration supplies procedure/member kind, original name and
     /// member side; reporting labels cannot reconstruct this target.
+    #[cfg(test)]
     async fn cross_document_incoming_calls(
         &self,
         current_uri: &Uri,
@@ -20041,6 +20229,7 @@ impl Backend {
     /// item pointing at the sibling definition (URI + name span →
     /// range against that document's source), and keeps the call
     /// ranges from the *current* document.
+    #[cfg(test)]
     async fn cross_document_outgoing_calls(
         &self,
         current_uri: &Uri,
@@ -20153,7 +20342,9 @@ impl Backend {
     /// Handle the `tcl-lsp.minifyDocument` workspace command.
     ///
     /// Arguments (positional, matching the editor extensions):
-    /// `[uri: string, compact: bool, aggressive: bool, isolated: bool]`.
+    /// `[uri-or-source-snapshot, compact: bool, aggressive: bool, isolated: bool]`.
+    /// A snapshot `{uri, version, source}` also receives an original result
+    /// receipt for post-dialog validation. Legacy URI-only results are unbound.
     /// Returns a JSON object with `source`, `originalLength`,
     /// `minifiedLength`, and — for the compact / aggressive tiers —
     /// `symbolMap` (and `optimisationsApplied` for aggressive).
@@ -20161,15 +20352,14 @@ impl Backend {
         &self,
         args: &[serde_json::Value],
     ) -> jsonrpc::Result<Option<serde_json::Value>> {
-        let Some(uri_str) = args.first().and_then(serde_json::Value::as_str) else {
+        let Some(request) = document_transform::TransformRequest::parse(args.first()) else {
             return Ok(None);
         };
-        let Ok(uri) = Uri::from_str(uri_str) else {
-            return Ok(None);
-        };
+        let uri = request.uri().clone();
         let Some(doc) = self.read_local_document(&uri).await? else {
             return Ok(None);
         };
+        let source_receipt = self.capture_transform_source(&request, &doc).await?;
         let compact = args
             .get(1)
             .and_then(serde_json::Value::as_bool)
@@ -20187,8 +20377,13 @@ impl Backend {
         // reconstruct its naming policy or command store.
         let text = doc.text.clone();
         let analysis = self
-            .analysis_for(&uri, Arc::clone(&doc.text), doc.dialect)
+            .analysis_for(&uri, Arc::clone(&doc.text), doc.dialect.clone())
             .await?;
+        let worker = document_transform::TransformWorkerSource::for_document(
+            &doc.text,
+            &analysis,
+            source_receipt.as_deref(),
+        );
         let value = crate::rt::spawn_blocking(move || {
             let tier = if aggressive {
                 core_minify::MinifyTier::Aggressive
@@ -20233,7 +20428,8 @@ impl Backend {
             message: format!("minify worker panicked: {err}").into(),
             data: None,
         })?;
-        Ok(Some(value))
+        self.finish_document_transform(source_receipt, worker.into_iter().collect(), value)
+            .await
     }
 
     /// Build the versioned, static Tk UI model for an open document.
@@ -20348,7 +20544,9 @@ impl Backend {
 
     /// Handle the `tcl-lsp.optimiseDocument` workspace command.
     ///
-    /// Arguments: `[uri, profile?]`.  Runs the optimiser over the document
+    /// Arguments: `[uri-or-source-snapshot, profile?]`. Snapshot requests retain
+    /// an original result receipt; URI-only results remain legacy and unbound.
+    /// Runs the optimiser over the document
     /// for the profile in force's passes (multi-pass for `aggressive`,
     /// single-pass otherwise), applies the rewrites the document's policy
     /// shows, and returns `{source, optimisations}` — the optimised text
@@ -20379,15 +20577,14 @@ impl Backend {
     ) -> jsonrpc::Result<Option<serde_json::Value>> {
         use tcl_compiler::optimiser::profiles::OptimisationProfile;
 
-        let Some(uri_str) = args.first().and_then(serde_json::Value::as_str) else {
+        let Some(request) = document_transform::TransformRequest::parse(args.first()) else {
             return Ok(None);
         };
-        let Ok(uri) = Uri::from_str(uri_str) else {
-            return Ok(None);
-        };
+        let uri = request.uri().clone();
         let Some(doc) = self.read_local_document(&uri).await? else {
             return Ok(None);
         };
+        let source_receipt = self.capture_transform_source(&request, &doc).await?;
         let requested = args
             .get(1)
             .and_then(serde_json::Value::as_str)
@@ -20406,6 +20603,11 @@ impl Backend {
         let layers = self.resolved_policy_layers(&uri).await;
         let text = analysis_text.into_owned();
         let dialect = doc.dialect.clone();
+        let worker = document_transform::TransformWorkerSource::for_document(
+            &doc.text,
+            &analysis,
+            source_receipt.as_deref(),
+        );
         let value = crate::rt::spawn_blocking(move || {
             tcl_spectcl::hooks::ensure_thread_host();
             // A command the user invoked reads no whole-document gate:
@@ -20461,7 +20663,8 @@ impl Backend {
             message: format!("optimise worker panicked: {err}").into(),
             data: None,
         })?;
-        Ok(Some(value))
+        self.finish_document_transform(source_receipt, worker.into_iter().collect(), value)
+            .await
     }
 
     /// Handle the `tcl-lsp.unminifyError` workspace command.
@@ -21387,15 +21590,14 @@ impl Backend {
         &self,
         args: &[serde_json::Value],
     ) -> jsonrpc::Result<Option<serde_json::Value>> {
-        let Some(uri_str) = args.first().and_then(serde_json::Value::as_str) else {
+        let Some(request) = document_transform::TransformRequest::parse(args.first()) else {
             return Ok(None);
         };
-        let Ok(uri) = Uri::from_str(uri_str) else {
-            return Ok(None);
-        };
+        let uri = request.uri().clone();
         let Some(doc) = self.read_local_document(&uri).await? else {
             return Ok(None);
         };
+        let source_receipt = self.capture_transform_source(&request, &doc).await?;
         let na_mode = *self.non_ascii_mode.lock().await;
         // The document's own layers decide what shows, and their production
         // skip is what the analyser leaves uncomputed, so a code a folder
@@ -21405,9 +21607,19 @@ impl Backend {
         let disabled = layers.production_skip();
         let decode_report = doc.decode_report;
         let extra: HashSet<String> = self.extra_commands.lock().await.iter().cloned().collect();
-        let pack_key = self.spec_packs().await.key;
+        let packs = self.spec_packs().await;
         let resource = self.resource_analyser_inputs(Some(&uri)).await;
         let dialect = doc.dialect.clone();
+        let worker_configuration = Arc::new(document_transform::FixAllWorkerConfiguration {
+            disabled,
+            na_mode,
+            extra,
+            packs,
+            resource,
+            policy: layers,
+            dialect,
+            decode_report,
+        });
         // The one place that legitimately owns a copy: fix-all *rewrites* the
         // source in a loop, so it needs a mutable buffer of its own rather than
         // a share of the immutable snapshot.  It copies from `raw()` because
@@ -21417,22 +21629,25 @@ impl Backend {
         // byte-length preserving, so a fix span resolved against one applies
         // unchanged to the other.
         let mut source = doc.raw().to_owned();
-        let value = crate::rt::spawn_blocking(move || {
+        let (value, workers) = crate::rt::spawn_blocking(move || {
+            let mut workers = Vec::new();
+            let mut worker_sources_complete = true;
             let mut applied: Vec<serde_json::Value> = Vec::new();
             for _ in 0..FIX_ALL_MAX_PASSES {
-                let mut analyser = Self::configured_analyser(
-                    disabled.clone(),
-                    na_mode,
-                    extra.clone(),
-                    pack_key,
-                    resource.clone(),
-                );
                 let analysis_source = tcl_lexer::normalise_lone_cr(&source);
-                let analysis = analyser.analyse(&analysis_source, &dialect);
+                let (analysis, worker) = document_transform::FixAllWorkerConfiguration::analyse(
+                    &worker_configuration,
+                    &analysis_source,
+                );
+                if let Some(worker) = worker {
+                    workers.push(worker);
+                } else {
+                    worker_sources_complete = false;
+                }
                 let policy = document_policy(
-                    &layers,
-                    decode_report.as_ref(),
-                    tcl_lsp_core::profile_for_dialect(&dialect),
+                    &worker_configuration.policy,
+                    worker_configuration.decode_report.as_ref(),
+                    tcl_lsp_core::profile_for_dialect(&worker_configuration.dialect),
                     core_policy::Directives::from_analysis(&analysis, &source),
                 );
                 let report = core_policy::apply(analyser_findings(&analysis.diagnostics), &policy);
@@ -21466,7 +21681,10 @@ impl Backend {
                 }
                 source = new_source;
             }
-            serde_json::json!({ "source": source, "applied": applied })
+            (
+                serde_json::json!({ "source": source, "applied": applied }),
+                worker_sources_complete.then_some(workers),
+            )
         })
         .await
         .map_err(|err| jsonrpc::Error {
@@ -21474,7 +21692,8 @@ impl Backend {
             message: format!("fix-all worker panicked: {err}").into(),
             data: None,
         })?;
-        Ok(Some(value))
+        self.finish_document_transform(source_receipt, workers.unwrap_or_default(), value)
+            .await
     }
 
     /// The fixes one "Fix All Safe Issues" pass may apply from `report`:
@@ -29035,47 +29254,8 @@ impl LanguageServer for Backend {
             }
             return Ok((!lifted.is_empty()).then_some(lifted));
         }
-        // A call edge is a call resolution, so the hierarchy needs the same
-        // export view definition uses.
-        let exports = self.export_snapshot().await;
-        let uri_key = uri.as_str().to_owned();
-        let items = crate::rt::spawn_blocking(move || {
-            core_call_hierarchy::prepare_in_program(
-                &doc.text,
-                pos.line,
-                pos.character,
-                &analysis,
-                core_definition::CallResolution::document_only().in_program(
-                    core_definition::ProgramExports {
-                        uri: &uri_key,
-                        oracle: exports.as_ref(),
-                    },
-                ),
-            )
-        })
-        .await
-        .map_err(|err| jsonrpc::Error {
-            code: jsonrpc::ErrorCode::InternalError,
-            message: format!("call_hierarchy worker panicked: {err}").into(),
-            data: None,
-        })?;
-        if items.is_empty() {
-            return Ok(None);
-        }
-        let lifted = items
-            .into_iter()
-            .map(|i| CallHierarchyItem {
-                name: i.name,
-                kind: SymbolKind::FUNCTION,
-                tags: None,
-                detail: i.detail,
-                uri: uri.clone(),
-                range: lift_lsp_range(i.range),
-                selection_range: lift_lsp_range(i.selection_range),
-                data: None,
-            })
-            .collect();
-        Ok(Some(lifted))
+        let items = self.readonly_logical_call_prepare(&uri, pos).await?;
+        Ok(items.filter(|items| !items.is_empty()))
     }
 
     async fn incoming_calls(
@@ -29132,80 +29312,13 @@ impl LanguageServer for Backend {
             }
             return Ok(Some(lifted));
         }
-        let core_item = core_call_hierarchy::CallHierarchyItem {
-            identity: None,
-            name: item.name,
-            detail: item.detail,
-            range: CoreLspRange {
-                start_line: item.range.start.line,
-                start_character: item.range.start.character,
-                end_line: item.range.end.line,
-                end_character: item.range.end.character,
-            },
-            selection_range: CoreLspRange {
-                start_line: item.selection_range.start.line,
-                start_character: item.selection_range.start.character,
-                end_line: item.selection_range.end.line,
-                end_character: item.selection_range.end.character,
-            },
-        };
-        let analysis = self
-            .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
-            .await?;
-        let Some(target) =
-            core_call_hierarchy::LogicalCallTarget::capture(&doc.text, &analysis, &core_item)
-        else {
-            return Ok(Some(Vec::new()));
-        };
-        let doc_text = doc.text.clone();
-        let doc_dialect = doc.dialect.clone();
-        let local_item = core_item.clone();
-        let local_analysis = analysis.clone();
-        let exports = self.export_snapshot().await;
-        let uri_key = uri.as_str().to_owned();
-        let local = crate::rt::spawn_blocking(move || {
-            core_call_hierarchy::incoming_calls_in_program(
-                &doc_text,
-                tcl_lsp_core::profile_for_dialect(&doc_dialect),
-                &local_item,
-                &local_analysis,
-                core_definition::CallResolution::document_only().in_program(
-                    core_definition::ProgramExports {
-                        uri: &uri_key,
-                        oracle: exports.as_ref(),
-                    },
-                ),
-            )
-        })
-        .await
-        .map_err(|err| jsonrpc::Error {
-            code: jsonrpc::ErrorCode::InternalError,
-            message: format!("incoming_calls worker panicked: {err}").into(),
-            data: None,
-        })?;
-        // Tag local results with the request URI.
-        let mut tagged: Vec<(Uri, core_call_hierarchy::IncomingCall)> =
-            local.into_iter().map(|c| (uri.clone(), c)).collect();
-        // Cross-document callers: run the externally-targeted
-        // incoming-calls pass over every *other* analysed doc.
-        tagged.extend(self.cross_document_incoming_calls(&uri, &target).await?);
-        let lifted = tagged
-            .into_iter()
-            .map(|(doc_uri, c)| CallHierarchyIncomingCall {
-                from: CallHierarchyItem {
-                    name: c.from.name,
-                    kind: SymbolKind::FUNCTION,
-                    tags: None,
-                    detail: c.from.detail,
-                    uri: doc_uri,
-                    range: lift_lsp_range(c.from.range),
-                    selection_range: lift_lsp_range(c.from.selection_range),
-                    data: None,
-                },
-                from_ranges: c.from_ranges.into_iter().map(lift_lsp_range).collect(),
-            })
-            .collect();
-        Ok(Some(lifted))
+        let edges = self.readonly_logical_call_walk(&item, true).await?;
+        Ok(edges.map(|edges| {
+            edges
+                .into_iter()
+                .map(|(from, from_ranges)| CallHierarchyIncomingCall { from, from_ranges })
+                .collect()
+        }))
     }
 
     async fn outgoing_calls(
@@ -29262,78 +29375,13 @@ impl LanguageServer for Backend {
             }
             return Ok(Some(lifted));
         }
-        let core_item = core_call_hierarchy::CallHierarchyItem {
-            identity: None,
-            name: item.name,
-            detail: item.detail,
-            range: CoreLspRange {
-                start_line: item.range.start.line,
-                start_character: item.range.start.character,
-                end_line: item.range.end.line,
-                end_character: item.range.end.character,
-            },
-            selection_range: CoreLspRange {
-                start_line: item.selection_range.start.line,
-                start_character: item.selection_range.start.character,
-                end_line: item.selection_range.end.line,
-                end_character: item.selection_range.end.character,
-            },
-        };
-        let analysis = self
-            .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
-            .await?;
-        // Cross-document edges: callees defined in sibling files.
-        let cross = self
-            .cross_document_outgoing_calls(
-                &uri,
-                &doc.text,
-                tcl_lsp_core::profile_for_dialect(&doc.dialect),
-                &core_item,
-                &analysis,
-            )
-            .await?;
-        let local_uri = uri.clone();
-        let local_analysis = analysis.clone();
-        let exports = self.export_snapshot().await;
-        let uri_key = uri.as_str().to_owned();
-        let outgoing = crate::rt::spawn_blocking(move || {
-            core_call_hierarchy::outgoing_calls_in_program(
-                &doc.text,
-                tcl_lsp_core::profile_for_dialect(&doc.dialect),
-                &core_item,
-                &local_analysis,
-                core_definition::CallResolution::document_only().in_program(
-                    core_definition::ProgramExports {
-                        uri: &uri_key,
-                        oracle: exports.as_ref(),
-                    },
-                ),
-            )
-        })
-        .await
-        .map_err(|err| jsonrpc::Error {
-            code: jsonrpc::ErrorCode::InternalError,
-            message: format!("outgoing_calls worker panicked: {err}").into(),
-            data: None,
-        })?;
-        let mut lifted: Vec<CallHierarchyOutgoingCall> = outgoing
-            .into_iter()
-            .map(|c| CallHierarchyOutgoingCall {
-                to: CallHierarchyItem {
-                    name: c.to.name,
-                    kind: SymbolKind::FUNCTION,
-                    tags: None,
-                    detail: c.to.detail,
-                    uri: local_uri.clone(),
-                    range: lift_lsp_range(c.to.range),
-                    selection_range: lift_lsp_range(c.to.selection_range),
-                    data: None,
-                },
-                from_ranges: c.from_ranges.into_iter().map(lift_lsp_range).collect(),
-            })
-            .collect();
-        lifted.extend(cross);
-        Ok(Some(lifted))
+        let edges = self.readonly_logical_call_walk(&item, false).await?;
+        Ok(edges.map(|edges| {
+            edges
+                .into_iter()
+                .map(|(to, from_ranges)| CallHierarchyOutgoingCall { to, from_ranges })
+                .collect()
+        }))
     }
 
     async fn prepare_type_hierarchy(
@@ -30246,81 +30294,16 @@ impl LanguageServer for Backend {
             }
             return Ok((!lifted.is_empty()).then_some(lifted));
         }
-        // S-code-lens-rich: surface per-proc reference counts
-        // above each definition.  The provider walks
-        // `analysis.command_invocations` per proc, plus the
-        // workspace index for cross-document call sites, so the
-        // count reflects workspace-wide usage.  Share the index with
-        // the worker via a refcounted handle and take the read lock
-        // inside the blocking closure, so the count walk holds a
-        // shared read lock instead of a private copy.
-        let workspace_index = Arc::clone(&self.workspace_index);
-        let uri_str = uri.to_string();
-        let worker_uri = uri_str.clone();
-        let lenses = crate::rt::spawn_blocking(move || {
-            let workspace = workspace_index.blocking_read();
-            core_code_lens::code_lenses(
-                &doc.text,
-                tcl_lsp_core::profile_for_dialect(&doc.dialect),
-                Some(&analysis),
-                Some(&*workspace),
-                &worker_uri,
-            )
-        })
-        .await
-        .map_err(|err| jsonrpc::Error {
-            code: jsonrpc::ErrorCode::InternalError,
-            message: format!("code_lens worker panicked: {err}").into(),
-            data: None,
-        })?;
-        if lenses.is_empty() {
-            return Ok(None);
-        }
-        let lifted = lenses
-            .into_iter()
-            .map(|l| {
-                let has_qname = !l.qname.is_empty();
-                CodeLens {
-                    range: lift_lsp_range(l.range),
-                    // Carry the qualified name *and* the document URI so
-                    // `codeLens/resolve` can recompute the count against the
-                    // live workspace and attach the clickable command.  Every
-                    // lens kind (proc, class, method, classmethod) carries a
-                    // qname today; a lens with none stays eagerly-resolved
-                    // below as a defensive fallback for a future lens kind
-                    // that genuinely has no re-identifiable symbol.
-                    data: has_qname
-                        .then(|| serde_json::json!({ "qname": l.qname, "uri": uri_str.clone() })),
-                    // A reference-count lens is returned WITHOUT a command so the
-                    // client calls `codeLens/resolve`, which attaches the
-                    // clickable `tcl-lsp.showReferences` command with its
-                    // `[uri, position, locations]` arguments.  Setting a command
-                    // here would mark the lens resolved, the client would skip
-                    // `resolve`, and the lens would render as an inert bare title
-                    // rendering as "reference is not active".
-                    command: (!has_qname).then_some(tower_lsp_server::ls_types::Command {
-                        title: l.command_title,
-                        command: l.command,
-                        arguments: None,
-                    }),
-                }
-            })
-            .collect();
-        Ok(Some(lifted))
+        Ok(self
+            .readonly_logical_lenses(&uri)
+            .await?
+            .filter(|lenses| !lenses.is_empty()))
     }
 
-    /// Resolve a code lens to its authoritative reference-count title.
-    ///
-    /// The server advertises lenses
-    /// eagerly with a count, but the client calls `codeLens/resolve`
-    /// before display; recomputing here against the *current* document and
-    /// workspace keeps the title consistent with Find All References even
-    /// when the workspace changed since the lens was produced.
-    ///
-    /// A lens with no `{qname, uri}` data is returned unchanged — its eager
-    /// title stands.  Every lens kind this server currently emits (proc,
-    /// class, method, classmethod) carries `data`, so this is a defensive
-    /// fallback rather than the common case.
+    /// Resolve a current readonly source lens by its retained opaque identity.
+    /// Client labels and old ranges cannot select a declaration. Native and
+    /// Logical schemas remain separate; partial positive counts never close a
+    /// reference census, and a stale or unavailable selection stays inert.
     async fn code_lens_resolve(&self, lens: CodeLens) -> jsonrpc::Result<CodeLens> {
         if lens
             .data
@@ -30369,67 +30352,21 @@ impl LanguageServer for Backend {
             lens.command = Some(report.lens_command(uri, position));
             return Ok(lens);
         }
-        let Some((qname, uri)) = lens
-            .data
-            .as_ref()
-            .and_then(serde_json::Value::as_object)
-            .and_then(|data| {
-                let qname = data.get("qname").and_then(serde_json::Value::as_str)?;
-                let uri = data.get("uri").and_then(serde_json::Value::as_str)?;
-                Some((qname.to_owned(), Uri::from_str(uri).ok()?))
-            })
-        else {
-            return Ok(lens);
-        };
-        let Some(doc) = self.read_document(&uri).await? else {
-            return Ok(lens);
-        };
-        let analysis = self
-            .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
-            .await?;
-        if !analysis.allows_lexical_declaration_advice() {
-            let mut lens = lens;
-            lens.command = None;
-            return Ok(lens);
-        }
         let mut lens = lens;
-        // Existence check only — is `qname` one of *this* document's own
-        // lenses at all? Recomputing the whole document's lens set
-        // (`code_lenses`, O(every proc + every class + every member's own
-        // reference-resolution walk)) to answer it would discard that result
-        // the moment the check passed: the title below always comes from
-        // `reference_locations_at`, never from `code_lenses`'s own count.
-        // `lens_qname_exists` answers the same question with direct lookups
-        // against `analysis`'s own tables, so a click on one lens does not
-        // re-derive every *other* lens in the document.
-        if core_code_lens::lens_qname_exists(&analysis, &qname) {
-            // Resolve the actual reference locations so clicking the lens opens
-            // a peek (the lens title alone is informational — a bare title with
-            // no command is rendered but inert, the "reference is not active"
-            // shape).  The locations feed the client-side
-            // `tcl-lsp.showReferences` wrapper, which converts them and
-            // delegates to the built-in `editor.action.showReferences`.
-            let position = lens.range.start;
-            let locations = self
-                .reference_locations_at(&uri, &doc, &analysis, position)
-                .await?;
-            let arguments = vec![
-                serde_json::Value::String(uri.to_string()),
-                serde_json::to_value(position).unwrap_or(serde_json::Value::Null),
-                serde_json::to_value(&locations).unwrap_or(serde_json::Value::Null),
-            ];
-            lens.command = Some(tower_lsp_server::ls_types::Command {
-                // The label counts exactly the sites the click opens — the
-                // core provider's own count is single-document for a class
-                // member (see `tcl_lsp_core::code_lens`'s module doc), so
-                // reusing it here would show a smaller number than the peek
-                // it hands the editor.
-                title: core_code_lens::reference_count_title(locations.len()),
-                command: "tcl-lsp.showReferences".to_owned(),
-                arguments: Some(arguments),
-            });
-        }
-        Ok(lens)
+        lens.command = None;
+        let Some((uri, handle)) = lens.data.as_ref().and_then(|data| {
+            let uri = data.get("uri")?.as_str()?.parse::<Uri>().ok()?;
+            let handle = serde_json::from_value(data.get("logicalSourceLens")?.clone()).ok()?;
+            Some((uri, handle))
+        }) else {
+            // Old qname/range payloads and unknown handles cannot reissue a
+            // source declaration or borrow the current document's authority.
+            return Ok(lens);
+        };
+        Ok(self
+            .readonly_logical_lens_resolve(&uri, handle)
+            .await?
+            .unwrap_or(lens))
     }
 
     async fn code_action(
@@ -30585,6 +30522,10 @@ impl LanguageServer for Backend {
     ) -> jsonrpc::Result<Option<serde_json::Value>> {
         match params.command.as_str() {
             "tcl-lsp.minifyDocument" => self.minify_document_command(&params.arguments).await,
+            "tcl-lsp.validateDocumentTransform" => {
+                self.validate_document_transform_command(&params.arguments)
+                    .await
+            }
             "tcl-lsp.optimiseDocument" => self.optimise_document_command(&params.arguments).await,
             "tcl-lsp.unminifyError" => Ok(Self::unminify_error_command(&params.arguments)),
             "tcl-lsp.describeIruleEvent" => {
@@ -30879,7 +30820,7 @@ impl LanguageServer for Backend {
             return Ok(None);
         };
         if !self
-            .resolve_workspace_symbols(&uri, &doc.text, &analysis, pos)
+            .resolve_workspace_symbols_for_binding(&uri, &doc.text, &analysis, pos)
             .await?
             .is_empty()
         {
@@ -30998,7 +30939,7 @@ impl LanguageServer for Backend {
             && !core_rename::is_builtin_command_name(&new_name, &registry)
         {
             let _ = self
-                .resolve_workspace_symbols(&uri, &doc.text, &analysis, pos)
+                .resolve_workspace_symbols_for_binding(&uri, &doc.text, &analysis, pos)
                 .await?;
             source_plan = self.capture_workspace_source_plan().await;
         }
@@ -35553,6 +35494,7 @@ fn build_server_capabilities(
         execute_command_provider: Some(ExecuteCommandOptions {
             commands: vec![
                 "tcl-lsp.minifyDocument".to_owned(),
+                "tcl-lsp.validateDocumentTransform".to_owned(),
                 "tcl-lsp.optimiseDocument".to_owned(),
                 "tcl-lsp.unminifyError".to_owned(),
                 "tcl-lsp.describeIruleEvent".to_owned(),
@@ -43788,6 +43730,7 @@ info exists ::N::v\uD800";
         Backend {
             client,
             diagnostic_publisher,
+            document_transforms: std::sync::Mutex::new(Default::default()),
             documents: Arc::new(DocumentStore::default()),
             diag_slots: Arc::new(Mutex::new(HashMap::new())),
             default_dialect: Mutex::new("tcl8.6".to_owned()),

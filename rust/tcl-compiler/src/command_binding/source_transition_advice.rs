@@ -15,6 +15,8 @@ mod source_parameter_template;
 pub(crate) use source_parameter_template::OriginalLogicalParameterSourcePrefix;
 mod logical_declaration;
 mod logical_math;
+mod logical_procedure_invocation;
+pub use logical_procedure_invocation::OriginalLogicalProcedureCall;
 mod logical_navigation;
 pub use logical_math::OriginalLogicalMathFunctionOccurrence;
 mod logical_word_geometry;
@@ -698,6 +700,10 @@ enum AdviceCell {
     RegisteredInstance(Arc<OriginalSourceRegisteredInstance>),
     SourceClass(Arc<OriginalSourceClassDeclaration>),
     SourceProcedure(Arc<source_procedure::OriginalSourceProcedureBody>),
+    LogicalSourceProcedure {
+        definition: Arc<OriginalSourceCommandTransition>,
+        lineage: Vec<Arc<OriginalSourceCommandTransition>>,
+    },
     ClassInstance(Arc<OriginalSourceClassInstance>),
     Alias {
         target: Box<SourceAdviceNameInput>,
@@ -760,6 +766,7 @@ pub(crate) struct OriginalSourceTransitionAdviceTape {
     native_procedure_may_commands:
         BTreeMap<u32, Option<native_declared_body::OriginalNativeSourceMayCommand>>,
     logical_procedure_bodies: BTreeMap<u32, Option<Arc<OriginalLogicalProcedureBody>>>,
+    logical_procedure_calls: BTreeMap<u32, Option<OriginalLogicalProcedureCall>>,
     logical_procedure_catalogue_refusals: BTreeSet<LogicalProcedureCatalogueRefusal>,
     logical_variable_scopes:
         BTreeMap<(u32, u32), Option<Arc<super::OriginalDeclaredLogicalBodyContext>>>,
@@ -1138,6 +1145,9 @@ impl OriginalSourceTransitionAdviceTape {
     }
 
     fn extend_inventory(&mut self, other: Self) {
+        for (offset, call) in other.logical_procedure_calls {
+            source_class::merge_receipt(&mut self.logical_procedure_calls, offset, call);
+        }
         for (offset, prefix) in other.arity_prefixes {
             source_class::merge_receipt(&mut self.arity_prefixes, offset, prefix);
         }
@@ -1310,6 +1320,13 @@ fn lookup_key(policy: &AdviceNamingPolicy, bytes: &[u8]) -> Option<ByteCommandSl
         )),
     }
 }
+struct SourceAliasCellSelection<'a> {
+    cell: &'a AdviceCell,
+    slot: ByteCommandSlot,
+    prefix: Vec<SourceAdviceWord>,
+    lineage: Vec<Arc<OriginalSourceCommandTransition>>,
+}
+
 impl AdviceGraph {
     fn new(
         context: &ContextRegistry,
@@ -1534,6 +1551,7 @@ impl AdviceGraph {
             | AdviceCell::Deleted
             | AdviceCell::Declared(_)
             | AdviceCell::SourceProcedure(_)
+            | AdviceCell::LogicalSourceProcedure { .. }
             | AdviceCell::SourceClass(_)
             | AdviceCell::ClassInstance(_)
             | AdviceCell::RegisteredInstance(_)
@@ -1558,6 +1576,7 @@ impl AdviceGraph {
                 | AdviceCell::SourceClass(_)
                 | AdviceCell::ClassInstance(_)
                 | AdviceCell::SourceProcedure(_)
+                | AdviceCell::LogicalSourceProcedure { .. }
                 | AdviceCell::Declared(_),
             ) => {
                 blocked = true;
@@ -1617,30 +1636,18 @@ impl AdviceGraph {
         Some((command.clone(), Vec::new(), Vec::new()))
     }
 
-    fn resolve(
+    /// Shared original alias/captured-prefix traversal. Terminal cell kind
+    /// remains a separate purpose; this issues no Registry or Native target.
+    fn resolve_source_cell(
         &self,
         input: &SourceAdviceNameInput,
-    ) -> Option<(
-        String,
-        Vec<SourceAdviceWord>,
-        Vec<Arc<OriginalSourceCommandTransition>>,
-    )> {
+    ) -> Option<SourceAliasCellSelection<'_>> {
         let start = self.lookup_head_key(input.bytes())?;
         if tcl_syntax::naming::alias_chain_loops(start.clone(), |key| match self.cells.get(key) {
             Some(AdviceCell::Alias { target, lookup, .. }) => {
                 Ok::<_, ()>(Some(self.alias_target_key(target, *lookup).ok_or(())?))
             }
-            Some(AdviceCell::Descriptor(_, _)) | None => Ok(None),
-            Some(
-                AdviceCell::Shadowed
-                | AdviceCell::Deleted
-                | AdviceCell::CreatedInterpreter(_)
-                | AdviceCell::RegisteredInstance(_)
-                | AdviceCell::SourceClass(_)
-                | AdviceCell::ClassInstance(_)
-                | AdviceCell::SourceProcedure(_)
-                | AdviceCell::Declared(_),
-            ) => Err(()),
+            _ => Ok(None),
         })
         .ok()?
         {
@@ -1650,11 +1657,8 @@ impl AdviceGraph {
         let mut prefix = Vec::new();
         let mut lineage = Vec::new();
         loop {
-            match self.cells.get(&key)? {
-                AdviceCell::Descriptor(command, steps) => {
-                    lineage.extend(steps.iter().cloned());
-                    return Some((command.clone(), prefix, lineage));
-                }
+            let cell = self.cells.get(&key)?;
+            match cell {
                 AdviceCell::Alias {
                     target,
                     prefix: captured,
@@ -1667,18 +1671,31 @@ impl AdviceGraph {
                     lineage.extend(steps.iter().cloned());
                     key = self.alias_target_key(target, *lookup)?;
                 }
-                AdviceCell::Shadowed
-                | AdviceCell::Deleted
-                | AdviceCell::CreatedInterpreter(_)
-                | AdviceCell::RegisteredInstance(_)
-                | AdviceCell::SourceClass(_)
-                | AdviceCell::ClassInstance(_)
-                | AdviceCell::SourceProcedure(_)
-                | AdviceCell::Declared(_) => {
-                    return None;
+                _ => {
+                    return Some(SourceAliasCellSelection {
+                        cell,
+                        slot: key,
+                        prefix,
+                        lineage,
+                    });
                 }
             }
         }
+    }
+    fn resolve(
+        &self,
+        input: &SourceAdviceNameInput,
+    ) -> Option<(
+        String,
+        Vec<SourceAdviceWord>,
+        Vec<Arc<OriginalSourceCommandTransition>>,
+    )> {
+        let mut selected = self.resolve_source_cell(input)?;
+        let AdviceCell::Descriptor(command, steps) = selected.cell else {
+            return None;
+        };
+        selected.lineage.extend(steps.iter().cloned());
+        Some((command.clone(), selected.prefix, selected.lineage))
     }
     fn apply(&mut self, receipt: &Arc<OriginalSourceCommandTransition>) -> Option<()> {
         for fact in receipt.transitions.facts() {
@@ -1798,6 +1815,16 @@ impl AdviceGraph {
             AdviceCell::SourceProcedure(procedure) => {
                 AdviceCell::SourceProcedure(Arc::new(procedure.moved(to_key.clone(), receipt)))
             }
+            AdviceCell::LogicalSourceProcedure {
+                definition,
+                mut lineage,
+            } => {
+                lineage.push(Arc::clone(receipt));
+                AdviceCell::LogicalSourceProcedure {
+                    definition,
+                    lineage,
+                }
+            }
             AdviceCell::Declared(_) => AdviceCell::Shadowed,
             AdviceCell::Shadowed | AdviceCell::Deleted => return None,
         };
@@ -1812,12 +1839,22 @@ impl AdviceGraph {
     ) -> Option<()> {
         let input = |subject| receipt.input(subject);
         match transition {
-            CommandBindingTransition::Define { name, .. } => {
+            CommandBindingTransition::Define { name, kind } => {
                 let key =
                     self.publication_key(input(name)?.bytes(), AdvicePublicationPurpose::Define)?;
                 self.remove_namespace_import_origin(&key);
                 self.namespace_imports.remove(&key);
-                self.cells.insert(key, AdviceCell::Shadowed);
+                let cell = if matches!(self.policy, AdviceNamingPolicy::Logical(_))
+                    && *kind == tcl_registry::CommandBindingDefinitionKind::Procedure
+                {
+                    AdviceCell::LogicalSourceProcedure {
+                        definition: Arc::clone(receipt),
+                        lineage: Vec::new(),
+                    }
+                } else {
+                    AdviceCell::Shadowed
+                };
+                self.cells.insert(key, cell);
             }
             CommandBindingTransition::Move { from, to } => {
                 self.apply_move(receipt, from, to)?;
@@ -2530,6 +2567,11 @@ impl AdviceInvocationContext<'_> {
             tape.registry_barriers
                 .insert(invocation.words.first()?.span().start());
         }
+        OriginalSourceTransitionAdviceTape::retain_logical_procedure_call(
+            tape,
+            graph,
+            &invocation.words,
+        );
         if self.retain_source_header_relations(graph, tape, &invocation.words, &head) {
             return Some(());
         }

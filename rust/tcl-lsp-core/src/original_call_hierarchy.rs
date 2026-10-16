@@ -164,11 +164,14 @@ pub fn prepare(
     let Some(command) = calls.at_cursor(offset) else {
         return Vec::new();
     };
+    let Some(head) = command.argv.first() else {
+        return Vec::new();
+    };
     let mut invocations = document
         .analysis
         .command_invocations
         .iter()
-        .filter(|invocation| invocation.range == command.span);
+        .filter(|invocation| invocation.range == head.span);
     let Some(invocation) = invocations.next() else {
         return Vec::new();
     };
@@ -260,11 +263,9 @@ impl<'a> OriginalProcedureCalls<'a> {
     ) -> Option<tcl_compiler::ir::CommandTokens> {
         let lookup = invocation.original_lookup.as_ref()?;
         let mut commands = self.commands.iter().filter(|command| {
-            command.span == invocation.range
-                && command
-                    .argv
-                    .first()
-                    .is_some_and(|head| head.span.start() == lookup.site().offset)
+            command.argv.first().is_some_and(|head| {
+                head.span == invocation.range && head.span.start() == lookup.site().offset
+            })
         });
         let command = commands.next()?;
         commands.all(|other| other == command).then_some(())?;
@@ -337,35 +338,54 @@ fn procedure_target(
     // Positioned source advice preserves occupants and unknown observations.
     // Header coordinates alone cannot supply the missing reference.
     let registry = consumer.analysis.resolved_registry()?;
-    let headers = documents.iter().flat_map(|document| {
-        document
-            .analysis
-            .original_procedure_declarations()
-            .filter_map(move |row| {
-                OriginalDeclarationIdentity::for_procedure(
-                    document.uri,
-                    document.source,
-                    document.analysis,
-                    row,
+    let headers = documents
+        .iter()
+        .flat_map(|document| {
+            document
+                .analysis
+                .original_procedure_declarations()
+                .filter_map(move |row| {
+                    OriginalDeclarationIdentity::for_procedure(
+                        document.uri,
+                        document.source,
+                        document.analysis,
+                        row,
+                    )
+                    .map(|identity| (row.name(), row.declaration_site(), identity))
+                })
+                .chain(
+                    document
+                        .analysis
+                        .original_class_declarations()
+                        .filter_map(move |row| {
+                            OriginalDeclarationIdentity::for_class(
+                                document.uri,
+                                document.source,
+                                document.analysis,
+                                row,
+                            )
+                            .map(|identity| (row.name(), row.declaration_site(), identity))
+                        }),
                 )
-                .map(|identity| (row.name(), row.declaration_site(), identity))
-            })
-            .chain(
-                document
-                    .analysis
-                    .original_class_declarations()
-                    .filter_map(move |row| {
-                        OriginalDeclarationIdentity::for_class(
-                            document.uri,
-                            document.source,
-                            document.analysis,
-                            row,
-                        )
-                        .map(|identity| (row.name(), row.declaration_site(), identity))
-                    }),
-            )
-    });
-    let selected = lookup.matching_source_advice_publications(registry, headers)?;
+        })
+        .collect::<Vec<_>>();
+    let selected = lookup.matching_source_advice_publications(
+        registry,
+        headers
+            .iter()
+            .map(|(name, site, identity)| (*name, *site, identity.clone())),
+    )?;
+    let selected = if selected.is_empty() {
+        lookup.matching_external_source_advice_publications(
+            registry,
+            headers
+                .into_iter()
+                .filter(|(_, _, identity)| identity.image() != lookup.site().source.source_image())
+                .map(|(name, _, identity)| (name, identity)),
+        )?
+    } else {
+        selected
+    };
     match selected.as_slice() {
         [one] if one.role() == OriginalDeclarationRole::Procedure => Some(one.clone()),
         _ => None,
@@ -1089,5 +1109,127 @@ mod positioned_procedure_strong_reference_tests {
                 assert_eq!(identity.uri(), documents[0].uri);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod external_procedure_advice_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn original_root_call_reborrows_head_and_conditional_external_header() {
+        for (source, provider_source) in [
+            ("shared_helper\n", "proc shared_helper {} {}\n"),
+            ("shared_helper retained\n", "proc shared_helper args {}\n"),
+        ] {
+            let provider = Analyser::new().analyse(provider_source, "tcl8.6");
+            let analysis = Analyser::new().analyse(source, "tcl8.6");
+            let documents = [
+                OriginalCallDocument {
+                    uri: "file:///main.tcl",
+                    source,
+                    analysis: &analysis,
+                },
+                OriginalCallDocument {
+                    uri: "file:///lib.tcl",
+                    source: provider_source,
+                    analysis: &provider,
+                },
+            ];
+            let calls = OriginalProcedureCalls::capture(documents[0]).unwrap();
+            let command = calls.at_cursor(0).unwrap();
+            let invocation = analysis.command_invocations.first().unwrap();
+            assert_eq!(invocation.range, command.argv[0].span);
+            if command.argv.len() > 1 {
+                assert_ne!(invocation.range, command.span);
+            }
+            assert!(invocation.resolved_command_reference.is_none());
+            assert!(calls.tokens(invocation).is_some());
+            let selected = prepare(documents[0].uri, 0, 0, &documents, None);
+            assert_eq!(selected.len(), 1, "{source}");
+            let identity = selected[0].identity.as_ref().unwrap();
+            assert_eq!(identity.uri(), documents[1].uri);
+            assert!(identity.is_current(documents[1].uri, provider_source, &provider));
+            assert_eq!(identity.input().unwrap().bytes(), b"shared_helper");
+            let duplicates = [
+                documents[0],
+                documents[1],
+                OriginalCallDocument {
+                    uri: "file:///other-lib.tcl",
+                    ..documents[1]
+                },
+            ];
+            assert!(prepare(documents[0].uri, 0, 0, &duplicates, None).is_empty());
+            if command.argv.len() > 1 {
+                let mut whole_command = invocation.clone();
+                whole_command.range = command.span;
+                assert!(procedure_target(&documents, &calls, &whole_command).is_none());
+            }
+            let stale = [
+                documents[0],
+                OriginalCallDocument {
+                    source: "proc changed args {}\n",
+                    ..documents[1]
+                },
+            ];
+            assert!(prepare(documents[0].uri, 0, 0, &stale, None).is_empty());
+        }
+    }
+
+    #[test]
+    fn external_root_header_preserves_occupants_deletions_and_unknowns() {
+        for (source, provider_source) in [
+            ("list retained", "proc list args {}"),
+            (
+                "interp alias {} shared_helper {} list; shared_helper retained",
+                "proc shared_helper args {}",
+            ),
+            (
+                "proc shared_helper args {}; rename shared_helper {}; shared_helper retained",
+                "proc shared_helper args {}",
+            ),
+            (
+                "mystery; shared_helper retained",
+                "proc shared_helper args {}",
+            ),
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl8.6");
+            let provider = Analyser::new().analyse(provider_source, "tcl8.6");
+            let documents = [
+                OriginalCallDocument {
+                    uri: "file:///main.tcl",
+                    source,
+                    analysis: &analysis,
+                },
+                OriginalCallDocument {
+                    uri: "file:///lib.tcl",
+                    source: provider_source,
+                    analysis: &provider,
+                },
+            ];
+            let invocation = analysis.command_invocations.last().unwrap();
+            let position =
+                LineIndex::new_lsp(source).position_at_utf16(invocation.range.start(), source);
+            assert!(
+                prepare(
+                    documents[0].uri,
+                    position.line,
+                    position.character.get(),
+                    &documents,
+                    None
+                )
+                .is_empty(),
+                "{source}"
+            );
+        }
+        let source = "shared_helper retained; proc shared_helper args {}";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let documents = [OriginalCallDocument {
+            uri: "file:///main.tcl",
+            source,
+            analysis: &analysis,
+        }];
+        assert!(prepare(documents[0].uri, 0, 0, &documents, None).is_empty());
     }
 }

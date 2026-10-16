@@ -1,0 +1,17 @@
+{
+  "scope": "Storage receipts only. Full payloads remain outsideGit. Exact original archive/member hashes verified before original loosecache deletion. Library cache regeneratable. Byte totals describe logical payload sizes; overlay filesystem physical free space differs.",
+  "compressed_members": [
+    {
+      "file": "old-library-cache-reclamation.json.zst",
+      "raw_sha256": "26f00210a2eb68226b41498f307e067554f9a3f5841665dec50104868d79f617",
+      "raw_bytes": 712969,
+      "compressed_bytes": 169428
+    },
+    {
+      "file": "old-tmp-packet-storage-relocation-editor.json.zst",
+      "raw_sha256": "c846b79b20743ddf22d80a4f7715199c56e2a21fa5a6143db226bf380ff5dc49",
+      "raw_bytes": 289057,
+      "compressed_bytes": 19090
+    }
+  ]
+}

@@ -384,6 +384,7 @@ fn release_row(dialect: &mut PackDialect, stmt: &Stmt, log: &mut Log) -> bool {
     let words = &stmt.words;
     let mut index = 2;
     while index < words.len() {
+        let rejected_flag_word = words[index].clone();
         match words[index].text.as_str() {
             "-build" => {
                 let named = next_text(words, &mut index);
@@ -402,8 +403,8 @@ fn release_row(dialect: &mut PackDialect, stmt: &Stmt, log: &mut Log) -> bool {
                     }
                 }
             }
-            other => {
-                log.unknown_flag("release", stmt.line, other);
+            _ => {
+                log.unknown_flag("release", stmt.line, &rejected_flag_word);
             }
         }
         index += 1;
@@ -455,7 +456,7 @@ fn axis_row(dialect: &mut PackDialect, stmt: &Stmt, log: &mut Log) -> bool {
         return false;
     };
     for extra in stmt.words.iter().skip(3) {
-        log.unknown_flag("axis", stmt.line, &extra.text);
+        log.unknown_flag("axis", stmt.line, extra);
     }
     dialect.axes.push(PackDialectAxis {
         axis: axis.name,
