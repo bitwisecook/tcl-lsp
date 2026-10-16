@@ -1,0 +1,2 @@
+tmp/jimtcl-oracle/_load-static-exts.c:5:int Jim_InitStaticExtensions(Jim_Interp *interp)
+tmp/jimtcl-oracle/jimautoconf.h:123:#define jim_ext_namespace 1

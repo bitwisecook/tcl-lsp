@@ -1,0 +1,16 @@
+
+running 1 test
+missing original Jim inventory key: name=[80, 58, 58, 78, 58, 58, 109, 97, 114, 107, 101, 114], existing_jim=None
+
+thread 'cmd_namespace::native_holder_routing::original_ensemble_holder_source_controls_match_all_native_providers' (53165) panicked at src/cmd_namespace/native_holder_routing.rs:101:5:
+jim/ensemble/2/ORIGINAL: refusal=Some(CommandProtocolUnavailable("original Jim inventory key owner")), admission=None
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test cmd_namespace::native_holder_routing::original_ensemble_holder_source_controls_match_all_native_providers ... FAILED
+
+failures:
+
+failures:
+    cmd_namespace::native_holder_routing::original_ensemble_holder_source_controls_match_all_native_providers
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2283 filtered out; finished in 8.18s
+

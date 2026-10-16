@@ -1,0 +1,82 @@
+[
+  {
+    "version": "8.4.20",
+    "binary": "/workspace/.toolchains/tcl/bin/tclsh8.4",
+    "binary_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4",
+    "exit": 0,
+    "source": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclExecute.c",
+    "source_sha256": "970975c51cf8b78a291b92289cfeac8f023bd126c5d227ae5fa3c7d426a60c77",
+    "eval_stk_line": 1628,
+    "result_lines": [
+      "RESULT catch_site 0 VALUE",
+      "RESULT for_site 0 VALUE"
+    ],
+    "physical_header_pairs": 0,
+    "executable": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+    "executable_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85"
+  },
+  {
+    "version": "8.5.19",
+    "binary": "/workspace/.toolchains/tcl/bin/tclsh8.5",
+    "binary_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935",
+    "exit": 0,
+    "source": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclExecute.c",
+    "source_sha256": "de5706aa9022663636927515066d4630cbfe8ded754dceaca7ae61ee8612b47d",
+    "eval_stk_line": 2561,
+    "result_lines": [
+      "RESULT catch_site 0 VALUE",
+      "RESULT for_site 0 VALUE"
+    ],
+    "physical_header_pairs": 0,
+    "executable": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+    "executable_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961"
+  },
+  {
+    "version": "8.6.18",
+    "binary": "/workspace/.toolchains/tcl/bin/tclsh8.6",
+    "binary_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0",
+    "exit": 0,
+    "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclExecute.c",
+    "source_sha256": "2a29cf5e54d1b2ac4ddf56a6f38556bbfb9c8e8913800377c84a6f0bb8caa491",
+    "eval_stk_line": 3011,
+    "result_lines": [
+      "RESULT catch_site 0 VALUE",
+      "RESULT for_site 0 VALUE"
+    ],
+    "physical_header_pairs": 2,
+    "executable": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+    "executable_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c"
+  },
+  {
+    "version": "9.0.4",
+    "binary": "/workspace/.toolchains/tcl/bin/tclsh9.0",
+    "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18",
+    "exit": 0,
+    "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclExecute.c",
+    "source_sha256": "0c42699cdcf610813ce77e2a6fec505f12d82a87b110950c92824fdf30d3c42a",
+    "eval_stk_line": 2723,
+    "result_lines": [
+      "RESULT catch_site 0 VALUE",
+      "RESULT for_site 0 VALUE"
+    ],
+    "physical_header_pairs": 2,
+    "executable": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+    "executable_sha256": "bb5493a311eea8879d4aa2fa4817720d008ee03cf88f06aefa4a6d7425857f8c"
+  },
+  {
+    "version": "9.1.0",
+    "binary": "/workspace/.toolchains/tcl/bin/tclsh9.1",
+    "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c",
+    "exit": 0,
+    "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclExecute.c",
+    "source_sha256": "9dd4e9a080136f2ce36ee8f9acf4a30e770cc5fc417519468c785d76013151f4",
+    "eval_stk_line": 2991,
+    "result_lines": [
+      "RESULT catch_site 0 VALUE",
+      "RESULT for_site 0 VALUE"
+    ],
+    "physical_header_pairs": 2,
+    "executable": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+    "executable_sha256": "71b428e13bc04578fb9be4aa680915c67a7b7f3a7850f198032d98f363a077ce"
+  }
+]

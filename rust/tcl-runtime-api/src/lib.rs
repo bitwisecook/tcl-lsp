@@ -1803,16 +1803,7 @@ pub trait Aliases: tcl_syntax::value::ValueOps {
     }
 }
 
-/// Selected immutable namespace data for reporting, independent of live identity.
-/// Equal data can come from different namespace incarnations. These parts grant
-/// no lookup, cell, callable, entry, or successful-completion authority.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum NativeNamespaceReportParts {
-    /// Original constructed C components, including literal separators in members.
-    CConstructed(ByteNamespacePath),
-    /// Counted bytes from the reached original Jim flat namespace holder.
-    JimFlat(std::rc::Rc<[u8]>),
-}
+pub use tcl_syntax::naming::NativeNamespaceReportParts;
 
 /// The namespace tree and actual command lookup owners.
 pub trait Namespaces {
@@ -2223,6 +2214,17 @@ pub trait Procs: tcl_syntax::value::ValueOps {
         }))
     }
 
+    /// Select an actual original body-result header when this engine represents it.
+    /// `None` explicitly selects byte compatibility. A represented refusal is
+    /// terminal; consumers keep the returned owner through immediate publication.
+    fn proc_body_original_value(
+        &mut self,
+        _original: &Self::Value,
+    ) -> Result<Option<ProcBodyValueQuery<Self::Value, Self::OperationError>>, Self::OperationError>
+    {
+        Ok(None)
+    }
+
     /// Query body bytes through the original command operand when represented.
     /// `None` explicitly selects the existing byte-name compatibility adapter.
     /// An original implementation returns a represented outcome or its terminal
@@ -2259,6 +2261,33 @@ pub trait Procs: tcl_syntax::value::ValueOps {
         }
         Ok(ProcDefaultValue::MissingParameter)
     }
+}
+
+/// Checked borrowed body header without an extra native object or procedure role.
+/// The issuer preserves allocation safety and original operation currency until
+/// the consumer's actual result setter acquires its own result reference.
+pub trait OriginalProcedureBodyValue<V, E> {
+    /// Borrow the original header immediately before its actual result publication.
+    ///
+    /// # Errors
+    /// Refuses stale allocation, declaration, caller or original operation state.
+    fn checked_value(&self) -> Result<V, E>;
+
+    /// Finish after actual publication, then release only allocation transports.
+    /// A legal old-result callback can delete the queried declaration; this
+    /// frontier checks original operation/caller currency, not continued binding.
+    ///
+    /// # Errors
+    /// Retains the first Host cause or changed original operation/caller state.
+    fn finish(self: Box<Self>) -> Result<(), E>;
+}
+
+/// Original body query outcome, distinct from a freshly constructed byte report.
+pub enum ProcBodyValueQuery<V, E> {
+    /// Actual original header and its allocation/currentness transport.
+    Body(Box<dyn OriginalProcedureBodyValue<V, E>>),
+    /// Original diagnostic spelling; diagnostic producer selection is independent.
+    NotProcedure(Vec<u8>),
 }
 
 /// Body-byte query data, independent of a native body-result header or execution.

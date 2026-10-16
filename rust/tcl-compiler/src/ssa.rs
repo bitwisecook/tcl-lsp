@@ -6434,6 +6434,161 @@ fn linked_option_definition_name(
     )
 }
 
+/// Selected source option metadata keeps its effective ordinal and genuine
+/// written operand separately. This grants no physical definition or store.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct OriginalLinkedOptionWrite {
+    effective_argument: usize,
+    written_argument: usize,
+    scope: tcl_registry::VariableScope,
+}
+
+fn selected_source_option_writes(
+    schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+) -> Option<Vec<(usize, tcl_registry::VariableScope)>> {
+    schema.authored_source_argument_roles().1.then_some(())?;
+    schema.semantics.options.prefix_occurrences(
+        schema
+            .words
+            .arguments()
+            .slice_from(schema.semantics.argument_offset),
+    )?;
+    Some(
+        schema
+            .authored_source_variable_name_arguments()
+            .into_iter()
+            .filter(|(_, role)| *role == tcl_registry::ArgRole::VarWrite)
+            .filter_map(|(argument, _)| {
+                Some((
+                    argument,
+                    schema.authored_source_option_variable_scope_at(argument)?,
+                ))
+            })
+            .collect(),
+    )
+}
+
+fn original_command_option_writes(
+    tokens: &CommandTokens,
+    metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
+    registry: &CommandRegistry,
+) -> Option<Vec<OriginalLinkedOptionWrite>> {
+    tokens
+        .source_binding
+        .as_ref()?
+        .original_source_advice_purpose(tokens, metadata, registry)?;
+    let advice =
+        crate::registry_invocation::original_registry_invocation_assistance_with_metadata_context(
+            registry,
+            Some(metadata),
+            tokens,
+        )?;
+    advice.unanimous_command_words()?;
+    let mut selected = None;
+    for shape in &advice.candidates {
+        let writes =
+            shape.with_source_schema(registry, metadata, tokens, selected_source_option_writes)?;
+        let writes = writes
+            .into_iter()
+            .filter_map(|(effective_argument, scope)| {
+                let crate::registry_invocation::InvocationWordOrigin::Written(written) = shape
+                    .effective
+                    .origins
+                    .get(effective_argument.checked_add(1)?)?
+                else {
+                    return None;
+                };
+                Some(OriginalLinkedOptionWrite {
+                    effective_argument,
+                    written_argument: written.checked_sub(1)?,
+                    scope,
+                })
+            })
+            .collect::<Vec<_>>();
+        if selected
+            .as_ref()
+            .is_some_and(|previous| previous != &writes)
+        {
+            return None;
+        }
+        selected = Some(writes);
+    }
+    selected
+}
+
+fn original_instance_option_writes(
+    tokens: &CommandTokens,
+    metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
+    registry: &CommandRegistry,
+) -> Option<Vec<OriginalLinkedOptionWrite>> {
+    let source = tokens
+        .source_binding
+        .as_ref()?
+        .original_registered_instance_source_for_tokens(tokens, metadata, registry)?;
+    let context = metadata
+        .source_analysis_input()?
+        .borrowed_context_registry();
+    source
+        .instance()
+        .descriptor(context)?
+        .traits
+        .contains(tcl_registry::Traits::TAINTS_VAR_WRITES)
+        .then_some(())?;
+    let writes = source.with_source_schema(context, |schema| {
+        schema
+            .semantics
+            .traits
+            .contains(tcl_registry::Traits::CONFIGURES_INSTANCE_OPTIONS)
+            .then_some(())?;
+        let offset = schema.semantics.argument_offset;
+        let options = schema
+            .semantics
+            .options
+            .prefix_occurrences(schema.words.arguments().slice_from(offset))?;
+        Some(
+            selected_source_option_writes(schema)?
+                .into_iter()
+                .filter(|(argument, _)| {
+                    argument.checked_sub(offset).is_some_and(|relative| {
+                        options.iter().any(|occurrence| {
+                            occurrence.values.contains(&relative)
+                                && occurrence
+                                    .option
+                                    .is_some_and(tcl_registry::hover::OptionSpec::taints_var_write)
+                        })
+                    })
+                })
+                .collect::<Vec<_>>(),
+        )
+    })??;
+    let mut selected = Vec::new();
+    for (effective_argument, scope) in writes {
+        let word = source.argument_word(effective_argument)?;
+        if word.group().expand {
+            return None;
+        }
+        // A captured prefix keeps its earlier source word. Only the actual
+        // current complete vector can supply this call's written operand.
+        let mut written = source
+            .original_words()
+            .iter()
+            .enumerate()
+            .filter_map(|(written, original)| (original == word).then_some(written));
+        let Some(index) = written.next() else {
+            continue;
+        };
+        if written.next().is_some() {
+            return None;
+        }
+        selected.push(OriginalLinkedOptionWrite {
+            effective_argument,
+            written_argument: index.checked_sub(1)?,
+            scope,
+        });
+    }
+    Some(selected)
+}
+
 fn original_global_root_frame(
     tokens: &CommandTokens,
     metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
@@ -6461,7 +6616,6 @@ fn mirror_top_level_global_option_defs(
         for statement in &mut block.statements {
             let Statement::Call {
                 command,
-                canonical_command,
                 args,
                 defs,
                 tokens,
@@ -6481,22 +6635,20 @@ fn mirror_top_level_global_option_defs(
             if original_global_root_frame(tokens, metadata, registry).is_none() {
                 continue;
             }
-            let name = canonical_command.as_deref().unwrap_or(command);
-            let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-            let aliases: Vec<String> = registry
-                .arg_indices_for_role(name, &arg_refs, tcl_registry::ArgRole::VarWrite)
+            let Some(writes) = original_command_option_writes(tokens, metadata, registry) else {
+                continue;
+            };
+            let aliases: Vec<String> = writes
                 .into_iter()
-                .filter(|&index| {
-                    registry.option_variable_scope(
-                        name,
-                        &arg_refs,
-                        index,
-                        registry.own_surface_query(),
-                    ) == Some(tcl_registry::VariableScope::Global)
-                })
-                .filter_map(|index| {
-                    let global =
-                        linked_option_definition_name(tokens, index, true, metadata, registry)?;
+                .filter(|write| write.scope == tcl_registry::VariableScope::Global)
+                .filter_map(|write| {
+                    let global = linked_option_definition_name(
+                        tokens,
+                        write.written_argument,
+                        true,
+                        metadata,
+                        registry,
+                    )?;
                     let bare = tcl_syntax::naming::unroot_rooted_key(&global)?;
                     (!tcl_syntax::naming::is_qualified(bare.as_bytes()) && defs.contains(&global))
                         .then_some(bare.to_owned())
@@ -6510,21 +6662,21 @@ fn mirror_top_level_global_option_defs(
     changed
 }
 
-/// Use the retained receiver facts when constructing the module CFG.
+/// Retain source option definitions under the genuine selected instance schema.
+/// Physical SSA definitions still require the independent Normal projection in
+/// `defs_of_in_context`; this source metadata supplies no such permission.
 pub(crate) fn enrich_instance_option_defs_with_initial(
     func: &mut cfg::Function,
     registry: &CommandRegistry,
-    initial: &crate::taint::InstanceClassState,
+    _initial: &crate::taint::InstanceClassState,
 ) -> HashSet<String> {
     let Some(Some(metadata)) = func.metadata_context.metadata_context(registry) else {
         return HashSet::new();
     };
-    let classes = crate::taint::local_instance_classes_with_initial(func, registry, initial);
     let mut instance_defs = HashSet::new();
     for block in func.blocks.values_mut() {
         for statement in &mut block.statements {
             let Statement::Call {
-                span,
                 command,
                 args,
                 defs,
@@ -6542,80 +6694,32 @@ pub(crate) fn enrich_instance_option_defs_with_initial(
             {
                 continue;
             }
-            if args.is_empty() {
-                continue;
-            }
-            let Some(config) = metadata
-                .source_analysis_input()
-                .map(crate::analyser::ResolvedAnalysisInput::lexer_config)
-                .or_else(|| {
-                    tokens
-                        .source_binding
-                        .as_ref()?
-                        .original_lexer_config_for_tokens(tokens)
-                })
-            else {
+            let Some(writes) = original_instance_option_writes(tokens, metadata, registry) else {
                 continue;
             };
-            let receiver = tokens.words().first().map(|word| (word, config));
-            let Some(class) =
-                crate::taint::unique_instance_class(receiver, Some(&classes), Some(span.start()))
-            else {
-                continue;
-            };
-            let invocation_args: Vec<&str> = args.iter().map(String::as_str).collect();
-            let Some(invocation) = registry.resolve_instance_invocation(
-                class,
-                command,
-                &invocation_args,
-                registry.own_surface_query(),
-            ) else {
-                continue;
-            };
-            if !invocation
-                .semantics
-                .traits
-                .contains(tcl_registry::Traits::CONFIGURES_INSTANCE_OPTIONS)
-            {
-                continue;
-            }
-            let option_args: Vec<&str> = args[1..].iter().map(String::as_str).collect();
-            for (option_index, candidate) in args[1..].iter().enumerate() {
-                if tcl_registry::taint::taints_var_write(
+            for write in writes {
+                let global = write.scope == tcl_registry::VariableScope::Global;
+                let Some(name) = linked_option_definition_name(
+                    tokens,
+                    write.written_argument,
+                    global,
+                    metadata,
                     registry,
-                    class,
-                    &option_args,
-                    registry.own_surface_query(),
-                    candidate,
-                ) {
-                    let global = registry.option_variable_scope(
-                        class,
-                        &option_args,
-                        option_index,
-                        registry.own_surface_query(),
-                    ) == Some(tcl_registry::VariableScope::Global);
-                    let Some(name) = linked_option_definition_name(
-                        tokens,
-                        option_index + 1,
-                        global,
-                        metadata,
-                        registry,
-                    ) else {
-                        continue;
-                    };
-                    instance_defs.insert(name.clone());
-                    if !defs.contains(&name) {
-                        defs.push(name.clone());
-                    }
-                    if global
-                        && original_global_root_frame(tokens, metadata, registry).is_some()
-                        && let Some(bare) = tcl_syntax::naming::unroot_rooted_key(&name)
-                        && !tcl_syntax::naming::is_qualified(bare.as_bytes())
-                    {
-                        instance_defs.insert(bare.to_owned());
-                        if !defs.iter().any(|defined| defined == bare) {
-                            defs.push(bare.to_owned());
-                        }
+                ) else {
+                    continue;
+                };
+                instance_defs.insert(name.clone());
+                if !defs.contains(&name) {
+                    defs.push(name.clone());
+                }
+                if global
+                    && original_global_root_frame(tokens, metadata, registry).is_some()
+                    && let Some(bare) = tcl_syntax::naming::unroot_rooted_key(&name)
+                    && !tcl_syntax::naming::is_qualified(bare.as_bytes())
+                {
+                    instance_defs.insert(bare.to_owned());
+                    if !defs.iter().any(|defined| defined == bare) {
+                        defs.push(bare.to_owned());
                     }
                 }
             }
@@ -11257,6 +11361,250 @@ mod tests {
         // Second statement (set y $x): uses x=1, defs y=1
         assert_eq!(entry_blk.statements[1].uses.get(&sx), Some(&1));
         assert_eq!(entry_blk.statements[1].defs.get(&sy), Some(&1));
+    }
+
+    fn logical_option_metadata_fixture(
+        source: &str,
+    ) -> (
+        std::sync::Arc<tcl_registry::model::ContextRegistry>,
+        crate::compilation_unit::CompilationUnit,
+    ) {
+        static OPTIONS: &[tcl_registry::hover::OptionSpec] = &[
+            tcl_registry::hover::OptionSpec {
+                name: "-global",
+                value: tcl_registry::hover::OptionValue::global_var_name(),
+                ..tcl_registry::hover::OptionSpec::DEFAULT
+            },
+            tcl_registry::hover::OptionSpec {
+                name: "-local",
+                value: tcl_registry::hover::OptionValue::var_name(),
+                ..tcl_registry::hover::OptionSpec::DEFAULT
+            },
+            tcl_registry::hover::OptionSpec {
+                name: "-new",
+                value: tcl_registry::hover::OptionValue::global_var_name(),
+                surface: Some(tcl_dialect::model::SpecSurface::TCL90_PLUS),
+                ..tcl_registry::hover::OptionSpec::DEFAULT
+            },
+        ];
+        let baseline = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let mut registry = baseline
+            .commands()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
+        registry.insert(tcl_registry::CommandSpec {
+            name: "scope-owner",
+            options: OPTIONS,
+            arity: tcl_registry::Arity::any(),
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        let context =
+            std::sync::Arc::new(baseline.with_command_store(std::sync::Arc::new(registry)));
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let entry =
+            crate::command_binding::SourceAnalysisEntry::for_logical_source(&input).unwrap();
+        let unit = crate::compilation_unit::CompilationUnit::build_with_analysis_input(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry: context.commands(),
+                config,
+                dialect: Some(profile),
+                defer_top_level: false,
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            &input,
+        );
+        (context, unit)
+    }
+
+    #[test]
+    fn selected_option_writes_keep_source_schema_scope_and_alias_ordinals() {
+        use tcl_registry::VariableScope::{CurrentFrame, Global};
+        for (source, expected) in [
+            (
+                "scope-owner -g value -local local",
+                vec![(1, 1, Global), (3, 3, CurrentFrame)],
+            ),
+            (
+                "interp alias {} scoped {} scope-owner -global; scoped value",
+                vec![(1, 0, Global)],
+            ),
+            (
+                "interp alias {} fixed {} scope-owner -global captured; fixed",
+                vec![],
+            ),
+        ] {
+            let (context, unit) = logical_option_metadata_fixture(source);
+            let registry = context.commands();
+            let metadata = unit
+                .top_level
+                .invocation_metadata_context_for_module(registry, &unit.ir_module)
+                .unwrap();
+            let tokens = unit
+                .ir_module
+                .top_level
+                .statements
+                .last()
+                .unwrap()
+                .tokens()
+                .unwrap();
+            let writes = original_command_option_writes(tokens, metadata, registry)
+                .expect("authentic selected original source options");
+            assert_eq!(
+                writes
+                    .iter()
+                    .map(|write| (
+                        write.effective_argument,
+                        write.written_argument,
+                        write.scope
+                    ))
+                    .collect::<Vec<_>>(),
+                expected,
+                "{source}"
+            );
+            assert!(
+                SsaInvocationContext::supplied(registry, Some(metadata))
+                    .normal(tokens)
+                    .is_none(),
+                "readonly option metadata cannot establish a Native handler"
+            );
+            let mut changed = tokens.clone();
+            changed.argv_texts[0] = "scope-owner".into();
+            changed.argv_texts.push("foreign".into());
+            assert!(original_command_option_writes(&changed, metadata, registry).is_none());
+        }
+        for source in [
+            "scope-owner $option value",
+            "scope-owner {*}$options",
+            "scope-owner -new value",
+            "proc scope-owner args {}; scope-owner -global value",
+        ] {
+            let (context, unit) = logical_option_metadata_fixture(source);
+            let metadata = unit
+                .top_level
+                .invocation_metadata_context_for_module(context.commands(), &unit.ir_module)
+                .unwrap();
+            let tokens = unit
+                .ir_module
+                .top_level
+                .statements
+                .last()
+                .unwrap()
+                .tokens()
+                .unwrap();
+            assert!(
+                original_command_option_writes(tokens, metadata, context.commands()).is_none(),
+                "unknown/unavailable/replaced option selection: {source}"
+            );
+        }
+    }
+
+    #[test]
+    fn selected_instance_option_writes_keep_genuine_factory_and_written_receiver() {
+        for (source, expected) in [
+            ("entry .e; .e configure -textvariable value", vec![(2, 2)]),
+            (
+                "entry .e; interp alias {} configureEntry {} .e configure -textvariable; configureEntry value",
+                vec![(2, 0)],
+            ),
+            (
+                "entry .e; interp alias {} fixed {} .e configure -textvariable captured; fixed",
+                vec![],
+            ),
+        ] {
+            let (context, unit) = logical_option_metadata_fixture(source);
+            let registry = context.commands();
+            let metadata = unit
+                .top_level
+                .invocation_metadata_context_for_module(registry, &unit.ir_module)
+                .unwrap();
+            let tokens = unit
+                .ir_module
+                .top_level
+                .statements
+                .last()
+                .unwrap()
+                .tokens()
+                .unwrap();
+            let writes = original_instance_option_writes(tokens, metadata, registry)
+                .expect("authentic original selected Registry instance descriptor");
+            assert_eq!(
+                writes
+                    .iter()
+                    .map(|write| (write.effective_argument, write.written_argument))
+                    .collect::<Vec<_>>(),
+                expected,
+                "{source}"
+            );
+            assert!(
+                writes
+                    .iter()
+                    .all(|write| write.scope == tcl_registry::VariableScope::Global)
+            );
+            assert!(
+                SsaInvocationContext::supplied(registry, Some(metadata))
+                    .normal(tokens)
+                    .is_none()
+            );
+            assert!(
+                unit.top_level
+                    .ssa
+                    .blocks
+                    .values()
+                    .flat_map(|block| &block.statements)
+                    .all(|statement| statement.defs.is_empty()),
+                "source option schema supplies no physical store: {source}"
+            );
+            let mut detached = tokens.clone();
+            detached.source_binding = None;
+            assert!(original_instance_option_writes(&detached, metadata, registry).is_none());
+        }
+        for source in [
+            "entry .e; proc .e args {}; .e configure -textvariable value",
+            "label .e; .e configure -textvariable value",
+            "set w [entry .e]; unknown; $w configure -textvariable value",
+        ] {
+            let (context, unit) = logical_option_metadata_fixture(source);
+            let metadata = unit
+                .top_level
+                .invocation_metadata_context_for_module(context.commands(), &unit.ir_module)
+                .unwrap();
+            let tokens = unit
+                .ir_module
+                .top_level
+                .statements
+                .last()
+                .unwrap()
+                .tokens()
+                .unwrap();
+            assert!(
+                original_instance_option_writes(tokens, metadata, context.commands()).is_none(),
+                "{source}"
+            );
+        }
+        let (context, unit) = original_operand_metadata_fixture();
+        let (block, index, _) = original_setter_definition_point(&unit.top_level);
+        let tokens = SsaSourceView::at_statement(&unit.top_level.ssa, block, index)
+            .source_tokens()
+            .unwrap();
+        let metadata = unit
+            .top_level
+            .invocation_metadata_context_for_module(context.commands(), &unit.ir_module)
+            .unwrap();
+        assert!(
+            SsaInvocationContext::supplied(context.commands(), Some(metadata))
+                .normal(tokens)
+                .is_some(),
+            "the independent actual Native setter/store eligibility remains available"
+        );
     }
 
     #[test]

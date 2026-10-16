@@ -1,0 +1,49 @@
+2561:     case INST_EVAL_STK: {
+2562: 	/*
+2563: 	 * Note to maintainers: it is important that INST_EVAL_STK pop its
+2564: 	 * argument from the stack before jumping to checkForCatch! DO NOT
+2565: 	 * OPTIMISE!
+2566: 	 */
+2567: 
+2568: 	Tcl_Obj *objPtr = OBJ_AT_TOS;
+2569: 
+2570: 	DECACHE_STACK_INFO();
+2571: 
+2572: 	/*
+2573: 	 * TIP #280: The invoking context is left NULL for a dynamically
+2574: 	 * constructed command. We cannot match its lines to the outer
+2575: 	 * context.
+2576: 	 */
+2577: 
+2578: 	result = TclCompEvalObj(interp, objPtr, NULL, 0);
+2579: 	CACHE_STACK_INFO();
+2580: 	if (result == TCL_OK) {
+2581: 	    /*
+2582: 	     * Normal return; push the eval's object result.
+2583: 	     */
+2584: 
+2585: 	    objResultPtr = Tcl_GetObjResult(interp);
+2586: 	    TRACE_WITH_OBJ(("\"%.30s\" => ", O2S(objPtr)),
+2587: 		    Tcl_GetObjResult(interp));
+2588: 
+2589: 	    /*
+2590: 	     * Reset the interp's result to avoid possible duplications of
+2591: 	     * large objects [Bug 781585]. We do not call Tcl_ResetResult to
+2592: 	     * avoid any side effects caused by the resetting of errorInfo and
+2593: 	     * errorCode [Bug 804681], which are not needed here. We chose
+2594: 	     * instead to manipulate the interp's object result directly.
+2595: 	     *
+2596: 	     * Note that the result object is now in objResultPtr, it keeps
+2597: 	     * the refCount it had in its role of iPtr->objResultPtr.
+2598: 	     */
+2599: 
+2600: 	    TclNewObj(objPtr);
+2601: 	    Tcl_IncrRefCount(objPtr);
+2602: 	    iPtr->objResultPtr = objPtr;
+2603: 	    NEXT_INST_F(1, 1, -1);
+2604: 	} else {
+2605: 	    cleanup = 1;
+2606: 	    goto processExceptionReturn;
+2607: 	}
+2608:     }
+2609: 

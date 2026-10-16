@@ -1,0 +1,111 @@
+{
+  "files": [
+    "runtime/rust/src/cmd_info.rs",
+    "runtime/rust/src/interp/native_name_queries/tests.rs",
+    "runtime/rust/src/interp/native_name_queries.rs",
+    "runtime/rust/src/state_traits.rs",
+    "rust/tcl-cmd-core/src/info.rs",
+    "rust/tcl-runtime-api/src/lib.rs"
+  ],
+  "scope": "Actual Runtime Jim info-body success header publication; existing unit270 explicit byte queries remain byte facades. C compatibility path stays String-first. No main/Git/Cargo/Rust build writes.",
+  "shared_facets": [
+    "Procs physical original body hook, default explicit compatibility None, purpose-specific original-header capsule and represented NotProcedure outcome.",
+    "Core body_result carries actual original capsule to its caller; existing body remains explicit byte facade. Runtime info_body migrates to body_result and holds capsule across actual result setter.",
+    "Existing Runtime query owner extracts common original-operand resolver/check transport and shares finite import/alias walk. Physical capsule stores Weak<ProcDef>, selected generation, actual namespace weak observations and allocation-only NativeObjectLifetime, original argv/caller/frame/operation currency."
+  ],
+  "no_extra_native_roles": "No Owned body, ValueOps::pin_value, NativeProcedureReference or active-command reference added for query safety. The capsule contains no strong ProcDef or Rc<Owned> namespace. checked_value temporarily upgrades Weak only before publication and drops that Rc before returning the pointer. NativeObjectLifetime preserves allocation memory but cannot revive retired object/header roles. Actual set_result supplies the first real new body result+1 before old-result retirement.",
+  "publication_frontier": "Before publication validate selected declaration allocation, generation, actual Jim namespace/context/allocator, original operand header, caller frame/current namespace and entered operation currency. After setter, finish validates first Host/caller/currency and actual result header; it deliberately does not require the legally deleted command/declaration/namespace role to survive an old-result callback.",
+  "original_source": [
+    {
+      "path": "tmp/jimtcl-oracle/jim.c",
+      "anchors": "16239-16259",
+      "meaning": "INFO_BODY Jim_GetCommand on original argv2 and direct Jim_SetResult(bodyObjPtr), with no body String getter/fresh byte result."
+    },
+    {
+      "path": "tmp/jimtcl-oracle/jim.h",
+      "anchors": "671-676",
+      "meaning": "Jim_SetResult incoming +1 then old-result decrement/free then interpreter result slot assignment."
+    },
+    {
+      "path": "tmp/jimtcl-oracle/jim.c",
+      "anchors": "11130-11141",
+      "meaning": "JimInvokeCommand clears prior result before native Info worker. Callback-at-body-publication comparison is a bounded actual native cmdProc window with an injected old result, separate from ordinary full Eval."
+    },
+    {
+      "path": "tmp/jimtcl-oracle/jim.c",
+      "anchors": "4519-4530;3889-3894",
+      "meaning": "Command-name cache retains namespace, not Proc resources; real command deletion retires body reference. Query must not keep a protective command/declaration native role."
+    }
+  ],
+  "original_probe": {
+    "source": "/tmp/runtime-physical-body/original-info-body.c",
+    "provider_head": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+    "upstream_recheck": "upstream-head-network.stdout/.stderr/.exit records successful ls-remote HEAD at execution; initial restricted proxy failure separately recorded upstream-head.* (not native failure).",
+    "compile": "cc -std=c99 -Wall -Wextra -Werror -I/workspace/tcl-lsp/tmp/jimtcl-oracle /tmp/runtime-physical-body/original-info-body.c /workspace/tcl-lsp/tmp/jimtcl-oracle/libjim.a -lm -lssl -lcrypto -lz -o /tmp/runtime-physical-body/original-info-body",
+    "initialization": "Jim_CreateInterp; Jim_RegisterCoreCommands; Jim_InitStaticExtensions; actual proc definition via Jim_EvalObjVector on original lazy body and retained formal list; actual Info native worker from genuine Jim_GetCommand(info).",
+    "argv": [
+      "proc",
+      "::Holder::p",
+      "original empty formal List",
+      "original lazy body"
+    ],
+    "query_argv": [
+      "info",
+      "body",
+      "::Holder::p"
+    ],
+    "execute": "ulimit -t 10; ulimit -v 524288; timeout 15 /tmp/runtime-physical-body/original-info-body",
+    "limits": {
+      "cpu_seconds": 10,
+      "virtual_memory_kib": 524288,
+      "wall_seconds": 15
+    },
+    "compile_exit": 0,
+    "execute_exit": 0,
+    "stdout": "execute.stdout",
+    "stderr": "execute.stderr (empty)",
+    "hashes": "sha256.txt",
+    "binary": "SHA retained, executable removed; no binary artifact retained.",
+    "actual_observations": [
+      "Cold primitive, warm stringless-name cache and ordinary full Eval return same original body header; lazy primary unchanged; body getters=0.",
+      "Bounded primitive prior-result finalizer sees old result slot and body references2 before deleting procedure→1 after; worker returns success and same original body result; cleanup frees body exactly once, getters=0."
+    ],
+    "host_controls": "Host refusal and configuration/caller abort tests are software controls only; they are not observations of the C native probe.",
+    "static_provider": "Existing original libjim.a SHA in sha256.txt; object roster static-provider-members.txt; generated extension/introspection declarations static-provider-config.txt; pinned jim.c/jim.h SHA retained.",
+    "working_directory": "/workspace/tcl-lsp",
+    "upstream_head_success": "5bac7c99ad65864c87da513e22e2f01703fa4e03"
+  },
+  "new_tests": [
+    "jim_original_body_value_publishes_same_lazy_header_without_body_or_warm_name_getter",
+    "jim_original_body_value_capsule_keeps_memory_but_no_native_declaration_or_body_role",
+    "jim_original_body_result_reference_precedes_old_result_delete_and_legal_retirement",
+    "jim_original_body_value_rechecks_caller_and_selected_declaration_before_publication",
+    "jim_original_body_value_name_callbacks_refuse_before_body_result_or_cache"
+  ],
+  "tests_scope": "All existing270 byte-purpose positive/Host/getter assertions remain unchanged under explicitly byte-compatible body facade. New actual Runtime public-dispatch controls verify physical header without body getter; actual selected native Builtin primitive window covers old-result deletion. C original hook None assertion added to existing finite import/getter positive. No successes rewritten into expected refusal.",
+  "validation": {
+    "executed": [
+      "Standalone pinned original C provider probe compile/run PASS",
+      "Isolated rustfmt on changed modules and patch dry-run PASS"
+    ],
+    "pending": [
+      "Rust compile and five new Runtime controls",
+      "Existing270 byte/namespace/name callback suite",
+      "C finite import/getter controls and cmd_info positive suite",
+      "Required root gates"
+    ],
+    "forbidden_not_run": "No Cargo/rustc/shared-target/main/Git writes.",
+    "suggested_runtime_filters": [
+      "interp::native_name_queries::tests::jim_procedure_namespace_tests::jim_original_body_value",
+      "interp::native_name_queries::tests::jim_procedure_namespace_tests::jim_original_body_result_reference_precedes_old_result_delete_and_legal_retirement",
+      "interp::native_name_queries::tests::jim_procedure_namespace_tests",
+      "cmd_info::"
+    ]
+  },
+  "open_boundaries": [
+    "NotProcedure/missing-command diagnostic wording and producer differ from original Jim: existing compatibility diagnostic purpose is retained explicitly; no equivalence claim or diagnostic-header repair in this success-body unit.",
+    "VM actual physical Jim body adapter remains separate: VM continues explicitly byte-compatible info::body until its own genuine body owner is represented.",
+    "Catalogue must reconcile this missing shared physical-result owner and Runtime actual adapter separately from unit270 byte query; suggested owner/runtime/core units are exact new-facet obligations, not merely re-counted270 completion."
+  ],
+  "evidence_scope": "Executed original C provider probe only; new Rust controls authored and unexecuted at capture. Source/primitive/full-Eval distinctions retained."
+}

@@ -3444,6 +3444,10 @@ pub(crate) struct OriginalSourceAnalysisOwner {
     source: Arc<SourceOriginId>,
     metadata: crate::registry_invocation::OwnedInvocationMetadataContext,
     config: tcl_lexer::LexerConfig,
+    // Derived readonly source metadata cannot change this owner's identity.
+    registered_instance_sources: std::sync::OnceLock<
+        std::sync::Weak<original_name_value::OriginalRegisteredInstanceSourceCache>,
+    >,
 }
 impl PartialEq for OriginalSourceAnalysisOwner {
     fn eq(&self, other: &Self) -> bool {
@@ -3476,6 +3480,10 @@ impl OriginalSourceAnalysisOwner {
 #[derive(Debug, Clone, Default)]
 pub struct SourceCommandBindings {
     original_analysis_owner: Option<Arc<OriginalSourceAnalysisOwner>>,
+    // The original analysis retains derived receipts through Module lifetime.
+    // Equality and execution identity remain independent of cache warmth.
+    original_registered_instance_sources:
+        Arc<original_name_value::OriginalRegisteredInstanceSourceCache>,
     declaration_preview_depth: usize,
     compilation_scope: tcl_runtime_api::SourceCompilationScope,
     lexer_config: Option<tcl_lexer::LexerConfig>,
@@ -6820,6 +6828,7 @@ impl SourceCommandBindings {
                 source: Arc::clone(source),
                 metadata: state.baseline.metadata_context.clone(),
                 config,
+                registered_instance_sources: std::sync::OnceLock::new(),
             })
         });
         let namespace_key = frame

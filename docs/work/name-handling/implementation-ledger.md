@@ -1,30 +1,38 @@
 # Remaining naming implementation obligations
 
-Implementation has resumed from `554085e`. Ninety baseline catalogue units
-have reviewed changes pending complete validation: 36 code units and all 54
-authored-documentation units. **Zero units are verified complete**. All **2,158**
-baseline units remain unverified or unimplemented (2,068 have no integrated
-implementation yet). Six additional demonstrated owner/provider requirements
-have a bounded reconciliation proposal, pending root catalogue integration.
-Development checkpoint `2a86f7dfd` is pushed to `work`. The last clean-source
-Runtime build at `2459c9924` passes: selected continuation/import/Length controls
-are 28 PASS. Broader namespace controls are 160 PASS/5 FAIL and variable-name
-controls 37 PASS/6 FAIL. All eleven failures repeat with explicit original
-providers. Original failures and exact strict reruns remain retained.
-The workspace build at `2a86f7dfd` failed six new VM fixture private-method calls;
-the fixtures now use existing original APIs or an explicit test-only constructed
-storage fixture, with unchanged assertions. Full compilation/reruns remain open.
-The current proof checker reports 3,574 errors: missing retained payload references,
-stale census/evidence digests and source/binding/document drift. These have not
-been relabelled accepted or repaired by blindly updating hashes.
-Exact selected logs/source hashes are in the compact durable
+Implementation has resumed from `554085e`. **94 baseline units** have reviewed
+implementation pending validation: 40 code units and all 54 authored-documentation
+units. **Zero units are verified complete**. Baseline counts remain **2,158**;
+2,064 baseline units have no integrated implementation. The bounded
+[owner/caller annex](implementation-owner-annex.json) adds **19 demonstrated
+requirements**, of which 14 have integrated implementation pending validation.
+Effective scope is **2,177 obligations**, with **108 integrated pending validation**
+and **2,069 not integrated**. These counts establish neither semantic acceptance
+nor completed gates.
+
+Development checkpoint `861e1962` is pushed to `work`; reviewed successor changes
+are being compiled. The first workspace successor build stopped on one new
+optional-vector type error in project role transport. The guard is corrected and
+four missing required API comments were then corrected, and the same six-package build is running again. The last ordinary Runtime build at
+`2459c9924` passed; its selected continuation/import/Length controls were 28 PASS,
+and broader controls were 197 PASS/11 FAIL. All eleven exact strict-provider
+failures remain retained. Instrumented diagnostics were removed byte-exactly;
+their binary is not ordinary current-source validation.
+
+The full proof checker at `2a86f7dfd` reported 3,574 errors. A reviewed repair
+addresses its 17 source/binding/document consistency messages and passes bounded
+108-owner/85-binding checks without changing evidence, result or status digests.
+The full gate has not been rerun. Missing historical payloads and remaining
+census/evidence drift remain explicit.
+
+Exact selected ordinary results remain in the compact durable
 [control capture](../../../experiments/name-handling/results/owner-adoption-20261016/records.json).
 The [provider capture](../../../experiments/name-handling/oracles/provider-pairing-20261016/capture.json)
-authenticates all six installed C/Jim setup pairings, without semantic acceptance.
-Alias edit authority, class collection transport and Jim physical body-result
-ownership remain open. Further owner-facet and baseline validation-repair count
-reconciliation is explicit; historical M12 stays unchanged. Chat reports use
-30-minute intervals; implementation and acceptance remain separate.
+authenticates six installed original setups, without semantic acceptance.
+Reviewed physical Jim body-result ownership, report serialization and compiled-stack
+purpose repairs are integrated; Rust execution remains pending. Alias edit
+authority, foreign class collections and separate VM physical-body adoption remain
+open. Historical M12 is unchanged. Progress reports use 30-minute intervals.
 
 The source/role audit is complete for **110,709 tracked baseline paths**, with explicit current-source annexes and zero unexamined paths. The reconciled catalogue contains **1,321 caller migrations**, **377 shared-owner repairs/extensions** and **101 metadata/target-schema changes**: **1,799 semantic code changes**. There are separately **305 validation-code repairs** and **54 authored-documentation corrections**, making **2,158 confirmed required changes**. These remain to be implemented. Examined requirements and original/provider provenance questions remain separate.
 

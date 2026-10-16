@@ -1,0 +1,51 @@
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp/rust/tcl-registry)
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+warning: function `local_instance_classes_with_initial` is never used
+   --> rust/tcl-compiler/src/taint.rs:707:15
+    |
+707 | pub(crate) fn local_instance_classes_with_initial(
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: associated function `for_cfg` is never used
+  --> rust/tcl-compiler/src/taint/source_context.rs:80:19
+   |
+27 | impl<'a> TaintSourceContext<'a> {
+   | ------------------------------- associated function in this implementation
+...
+80 |     pub(crate) fn for_cfg(registry: &CommandRegistry, cfg: &'a crate::cfg::Function) -> Self {
+   |                   ^^^^^^^
+
+error: missing documentation for a method
+   --> rust/tcl-compiler/src/registry_invocation/source_structure/project_procedure_roles.rs:158:5
+    |
+158 |     pub fn declaration(&self) -> &SourceDeclarationMetadata<ProcDef> {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+note: the lint level is defined here
+   --> rust/tcl-compiler/src/lib.rs:83:9
+    |
+ 83 | #![deny(missing_docs)]
+    |         ^^^^^^^^^^^^
+
+error: missing documentation for a method
+   --> rust/tcl-compiler/src/registry_invocation/source_structure/project_procedure_roles.rs:162:5
+    |
+162 |     pub fn bindings(&self) -> &[tcl_syntax::formal_params::FormalByteArgumentBinding] {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: missing documentation for a method
+   --> rust/tcl-compiler/src/registry_invocation/source_structure/project_procedure_roles.rs:166:5
+    |
+166 |     pub fn arguments(&self) -> &[EffectiveInvocationWord] {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: missing documentation for a method
+   --> rust/tcl-compiler/src/registry_invocation/source_structure/project_procedure_roles.rs:170:5
+    |
+170 |     pub fn operands(&self) -> &[Option<OriginalOperandSource>] {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `tcl-compiler` (lib) generated 2 warnings
+error: could not compile `tcl-compiler` (lib) due to 4 previous errors; 2 warnings emitted

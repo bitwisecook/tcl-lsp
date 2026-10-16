@@ -94,6 +94,7 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 
 - [runtime/rust/src/cmd_alias.rs](../../../../runtime/rust/src/cmd_alias.rs), `cmd_alias::tests::child_alias_publication_matches_original_supported_provider_apis` (linked): Independent Runtime alias conformance compares the complete original measured public rows after provider-version metadata through the selected supported API; no extra native process, private key/cell or frame identity follows.
 - [rust/tcl-vm/tests/native_compilation_conformance.rs](../../../../rust/tcl-vm/tests/native_compilation_conformance.rs), `native_compilation_conformance::child_alias_publication_matches_original_supported_provider_apis` (linked): Full original source and retained provider stdout bind VM public conformance after version metadata; actual assertions require separate validation receipts and do not establish private interpreter storage or API equivalence.
+- [runtime/rust/src/cmd_alias.rs](../../../../runtime/rust/src/cmd_alias.rs), `cmd_alias::tests::jim_child_alias_result_is_born_in_the_actual_parent_allocator` (linked): The actual Jim child alias API returns an empty result owned by the genuine parent allocator and object context; the distinct actual child allocator/context refuses that result. Parent and child retain no Host refusal. This software ownership control is separate from the captured public provider rows and supplies no private native allocation observation.
 
 A named test is a coverage binding, not a claim that it executed.
 

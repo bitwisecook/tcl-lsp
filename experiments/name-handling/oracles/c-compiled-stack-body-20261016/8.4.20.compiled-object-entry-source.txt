@@ -1,0 +1,170 @@
+965: TclCompEvalObj(interp, objPtr)
+966: #else
+967: TclCompEvalObj(interp, objPtr, invoker, word)
+968: #endif
+969:     Tcl_Interp *interp;
+970:     Tcl_Obj *objPtr;
+971: #ifdef TCL_TIP280
+972:     CONST CmdFrame* invoker; /* Frame of the command doing the eval  */
+973:     int             word;    /* Index of the word which is in objPtr */
+974: #endif
+975: {
+976:     register Interp *iPtr = (Interp *) interp;
+977:     register ByteCode* codePtr;		/* Tcl Internal type of bytecode. */
+978:     int oldCount = iPtr->cmdCount;	/* Used to tell whether any commands
+979: 					 * at all were executed. */
+980:     char *script;
+981:     int numSrcBytes;
+982:     int result;
+983:     Namespace *namespacePtr;
+984: 
+985: 
+986:     /*
+987:      * Check that the interpreter is ready to execute scripts
+988:      */
+989: 
+990:     iPtr->numLevels++;
+991:     if (TclInterpReady(interp) == TCL_ERROR) {
+992: 	iPtr->numLevels--;
+993: 	return TCL_ERROR;
+994:     }
+995: 
+996:     if (iPtr->varFramePtr != NULL) {
+997:         namespacePtr = iPtr->varFramePtr->nsPtr;
+998:     } else {
+999:         namespacePtr = iPtr->globalNsPtr;
+1000:     }
+1001: 
+1002:     /* 
+1003:      * If the object is not already of tclByteCodeType, compile it (and
+1004:      * reset the compilation flags in the interpreter; this should be 
+1005:      * done after any compilation).
+1006:      * Otherwise, check that it is "fresh" enough.
+1007:      */
+1008: 
+1009:     if (objPtr->typePtr != &tclByteCodeType) {
+1010:         recompileObj:
+1011: 	iPtr->errorLine = 1; 
+1012: 
+1013: #ifdef TCL_TIP280
+1014: 	/* TIP #280. Remember the invoker for a moment in the interpreter
+1015: 	 * structures so that the byte code compiler can pick it up when
+1016: 	 * initializing the compilation environment, i.e. the extended
+1017: 	 * location information.
+1018: 	 */
+1019: 
+1020: 	iPtr->invokeCmdFramePtr = invoker;
+1021: 	iPtr->invokeWord        = word;
+1022: #endif
+1023: 	result = tclByteCodeType.setFromAnyProc(interp, objPtr);
+1024: #ifdef TCL_TIP280
+1025: 	iPtr->invokeCmdFramePtr = NULL;
+1026: #endif
+1027: 
+1028: 	if (result != TCL_OK) {
+1029: 	    iPtr->numLevels--;
+1030: 	    return result;
+1031: 	}
+1032: 	codePtr = (ByteCode *) objPtr->internalRep.otherValuePtr;
+1033:     } else {
+1034: 	/*
+1035: 	 * Make sure the Bytecode hasn't been invalidated by, e.g., someone 
+1036: 	 * redefining a command with a compile procedure (this might make the 
+1037: 	 * compiled code wrong). 
+1038: 	 * The object needs to be recompiled if it was compiled in/for a 
+1039: 	 * different interpreter, or for a different namespace, or for the 
+1040: 	 * same namespace but with different name resolution rules. 
+1041: 	 * Precompiled objects, however, are immutable and therefore
+1042: 	 * they are not recompiled, even if the epoch has changed.
+1043: 	 *
+1044: 	 * To be pedantically correct, we should also check that the
+1045: 	 * originating procPtr is the same as the current context procPtr
+1046: 	 * (assuming one exists at all - none for global level).  This
+1047: 	 * code is #def'ed out because [info body] was changed to never
+1048: 	 * return a bytecode type object, which should obviate us from
+1049: 	 * the extra checks here.
+1050: 	 */
+1051: 	codePtr = (ByteCode *) objPtr->internalRep.otherValuePtr;
+1052: 	if (((Interp *) *codePtr->interpHandle != iPtr)
+1053: 	        || (codePtr->compileEpoch != iPtr->compileEpoch)
+1054: #ifdef CHECK_PROC_ORIGINATION	/* [Bug: 3412 Pedantic] */
+1055: 		|| (codePtr->procPtr != NULL && !(iPtr->varFramePtr &&
+1056: 			iPtr->varFramePtr->procPtr == codePtr->procPtr))
+1057: #endif
+1058: 	        || (codePtr->nsPtr != namespacePtr)
+1059: 	        || (codePtr->nsEpoch != namespacePtr->resolverEpoch)) {
+1060:             if (codePtr->flags & TCL_BYTECODE_PRECOMPILED) {
+1061:                 if ((Interp *) *codePtr->interpHandle != iPtr) {
+1062:                     panic("Tcl_EvalObj: compiled script jumped interps");
+1063:                 }
+1064: 	        codePtr->compileEpoch = iPtr->compileEpoch;
+1065:             } else {
+1066: 		/*
+1067: 		 * This byteCode is invalid: free it and recompile
+1068: 		 */
+1069:                 tclByteCodeType.freeIntRepProc(objPtr);
+1070: 		goto recompileObj;
+1071: 	    }
+1072: 	}
+1073:     }
+1074: 
+1075:     /*
+1076:      * Execute the commands. If the code was compiled from an empty string,
+1077:      * don't bother executing the code.
+1078:      */
+1079: 
+1080:     numSrcBytes = codePtr->numSrcBytes;
+1081:     if ((numSrcBytes > 0) || (codePtr->flags & TCL_BYTECODE_PRECOMPILED)) {
+1082: 	/*
+1083: 	 * Increment the code's ref count while it is being executed. If
+1084: 	 * afterwards no references to it remain, free the code.
+1085: 	 */
+1086: 	
+1087: 	codePtr->refCount++;
+1088: 	result = TclExecuteByteCode(interp, codePtr);
+1089: 	codePtr->refCount--;
+1090: 	if (codePtr->refCount <= 0) {
+1091: 	    TclCleanupByteCode(codePtr);
+1092: 	}
+1093:     } else {
+1094: 	result = TCL_OK;
+1095:     }
+1096:     iPtr->numLevels--;
+1097: 
+1098: 
+1099:     /*
+1100:      * If no commands at all were executed, check for asynchronous
+1101:      * handlers so that they at least get one change to execute.
+1102:      * This is needed to handle event loops written in Tcl with
+1103:      * empty bodies.
+1104:      */
+1105: 
+1106:     if ((oldCount == iPtr->cmdCount) && Tcl_AsyncReady()) {
+1107: 	result = Tcl_AsyncInvoke(interp, result);
+1108:     
+1109: 
+1110: 	/*
+1111: 	 * If an error occurred, record information about what was being
+1112: 	 * executed when the error occurred.
+1113: 	 */
+1114: 	
+1115: 	if ((result == TCL_ERROR) && !(iPtr->flags & ERR_ALREADY_LOGGED)) {
+1116: 	    script = Tcl_GetStringFromObj(objPtr, &numSrcBytes);
+1117: 	    Tcl_LogCommandInfo(interp, script, script, numSrcBytes);
+1118: 	}
+1119:     }
+1120: 
+1121:     /*
+1122:      * Set the interpreter's termOffset member to the offset of the
+1123:      * character just after the last one executed. We approximate the offset
+1124:      * of the last character executed by using the number of characters
+1125:      * compiled. 
+1126:      */
+1127: 
+1128:     iPtr->termOffset = numSrcBytes;
+1129:     iPtr->flags &= ~ERR_ALREADY_LOGGED;
+1130: 
+1131:     return result;
+1132: }
+1133: 
+1134: /*

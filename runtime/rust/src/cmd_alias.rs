@@ -2154,6 +2154,8 @@ mod tests {
         assert!(!receiver.host_refusal_pending());
     }
 
+    // Native proof: naming.alias.original-child-interpreter-publication
+    // docs/design/analysis/name-resolution-proofs/alias-original-child-interpreter-publication.md
     #[test]
     fn child_alias_publication_matches_original_supported_provider_apis() {
         let source = include_bytes!(

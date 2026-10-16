@@ -1044,7 +1044,7 @@ impl Interp {
             Ok(value) => value,
             Err(code) => return code,
         };
-        self.eval_generic_control_body(original.as_ptr())
+        self.eval_compiled_stack_control_body(original.as_ptr())
     }
     pub(super) fn body_control_operand(
         &mut self,
@@ -1295,7 +1295,7 @@ impl Interp {
                         None
                     };
                     let code = if let Some(original) = dynamic {
-                        self.eval_generic_control_body(original.as_ptr())
+                        self.eval_compiled_stack_control_body(original.as_ptr())
                     } else {
                         self.execute_body_region(
                             artifact,
@@ -1570,3 +1570,204 @@ mod no_tower_owner_tests;
 
 #[cfg(test)]
 mod original_cat_boundary_tests;
+
+#[cfg(test)]
+mod compiled_stack_object_tests {
+    use super::*;
+    use tcl_dialect::TclVersion;
+    use tcl_syntax::native_object::NativeObjectCacheSnapshot;
+
+    fn native(profile: &str) -> Interp {
+        Interp::with_native_core(
+            crate::interp::default_host(),
+            crate::environment::profile_for_dialect(profile),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .expect("authenticated original core constructor")
+    }
+
+    fn original_list(interp: &Interp, words: &[&[u8]]) -> obj::Owned {
+        let words = words
+            .iter()
+            .map(|word| obj::Owned::fresh(obj::new_string_bytes(word)))
+            .collect::<Vec<_>>();
+        obj::Owned::fresh(
+            interp.new_list_object(&words.iter().map(obj::Owned::as_ptr).collect::<Vec<_>>()),
+        )
+    }
+
+    fn assert_compiled(original: &obj::Owned, version: TclVersion) {
+        let snapshot = obj::native_object_snapshot(original.as_ptr()).unwrap();
+        assert!(snapshot.resident.is_some(), "{version:?}");
+        assert!(
+            matches!(snapshot.cache,
+                NativeObjectCacheSnapshot::Bytecode { version: actual } if actual == version
+            ),
+            "{version:?}: {snapshot:?}"
+        );
+        assert!(
+            cache(original.as_ptr()).is_some(),
+            "actual emitted body artifact"
+        );
+    }
+
+    #[test]
+    fn compiled_stack_control_sites_compile_the_same_original_list_header() {
+        for (profile, version) in [
+            ("tcl8.4", TclVersion::V8_4),
+            ("tcl8.5", TclVersion::V8_5),
+            ("tcl8.6", TclVersion::V8_6),
+            ("tcl9.0", TclVersion::V9_0),
+            ("tcl9.1", TclVersion::V9_1),
+        ] {
+            for (source, catch) in [
+                (&b"proc p {body} {catch $body result; set result}"[..], true),
+                (
+                    &b"proc p {body} {for $body 0 {} {}; set written}"[..],
+                    false,
+                ),
+            ] {
+                let mut interp = native(profile);
+                assert_eq!(interp.eval_str(source), Code::Ok, "{profile}");
+                let original = original_list(&interp, &[b"set", b"written", b"VALUE"]);
+                let before = obj::native_object_snapshot(original.as_ptr()).unwrap();
+                assert!(before.resident.is_none(), "{profile}");
+                assert!(matches!(
+                    before.cache,
+                    NativeObjectCacheSnapshot::List { length: 3, .. }
+                ));
+                let head = obj::Owned::fresh(obj::new_string_bytes(b"p"));
+                let code = interp.eval_original_object_vector(&[head.as_ptr(), original.as_ptr()]);
+                assert_eq!(code, Code::Ok, "{profile}: {:?}", interp.result_bytes());
+                assert_eq!(interp.result_bytes(), b"VALUE", "{profile}");
+                assert!(!interp.host_refusal_pending(), "{profile}");
+                let procedure = interp.proc_def(b"p").unwrap();
+                let artifact =
+                    cache(procedure.body.as_ptr()).expect("actual outer compiler artifact");
+                assert!(
+                    artifact
+                        .scripts
+                        .values()
+                        .flat_map(|script| &script.commands)
+                        .any(|command| {
+                            let Operation::Control(control) = &command.operation else {
+                                return false;
+                            };
+                            match &control.recipe.outcome {
+                                NativeControlOutcome::Inline(NativeControlInstruction::Catch {
+                                    body,
+                                    ..
+                                }) => catch && body.script.is_none(),
+                                NativeControlOutcome::Inline(NativeControlInstruction::For {
+                                    start,
+                                    ..
+                                }) => !catch && start.script.is_none(),
+                                _ => false,
+                            }
+                        }),
+                    "{profile}: retained EVAL_STK recipe"
+                );
+                assert_compiled(&original, version);
+            }
+        }
+    }
+
+    fn original_element(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+        assert_eq!(argv.len(), 2);
+        interp.set_result(argv[1]);
+        Code::Ok
+    }
+
+    #[test]
+    fn compiled_stack_purpose_keeps_generic_lists_and_literal_compilation_distinct() {
+        for (profile, version) in [
+            ("tcl8.4", TclVersion::V8_4),
+            ("tcl8.5", TclVersion::V8_5),
+            ("tcl8.6", TclVersion::V8_6),
+            ("tcl9.0", TclVersion::V9_0),
+            ("tcl9.1", TclVersion::V9_1),
+        ] {
+            let mut interp = native(profile);
+            interp.register_builtin(b"original_element", original_element);
+            let element = obj::Owned::fresh(obj::new_string_bytes(b"VALUE"));
+            let head = obj::Owned::fresh(obj::new_string_bytes(b"original_element"));
+            for resident in [false, true] {
+                let generic =
+                    obj::Owned::fresh(interp.new_list_object(&[head.as_ptr(), element.as_ptr()]));
+                if resident {
+                    assert_eq!(
+                        interp.eval_object_bytes(generic.as_ptr()).unwrap(),
+                        b"original_element VALUE"
+                    );
+                }
+                assert_eq!(
+                    interp.eval_generic_control_body(generic.as_ptr()),
+                    Code::Ok,
+                    "{profile}"
+                );
+                if version == TclVersion::V8_4 {
+                    assert_compiled(&generic, version);
+                } else {
+                    let snapshot = obj::native_object_snapshot(generic.as_ptr()).unwrap();
+                    assert_eq!(snapshot.resident.is_some(), resident, "{profile}");
+                    assert!(matches!(
+                        snapshot.cache,
+                        NativeObjectCacheSnapshot::List { length: 2, .. }
+                    ));
+                    assert_eq!(
+                        interp.result_obj(),
+                        element.as_ptr(),
+                        "original List element identity"
+                    );
+                }
+            }
+            for resident in [false, true] {
+                let selected = original_list(&interp, &[b"original_element", b"VALUE"]);
+                if resident {
+                    assert_eq!(
+                        interp
+                            .eval_object_bytes(selected.as_ptr())
+                            .unwrap()
+                            .as_slice(),
+                        b"original_element VALUE"
+                    );
+                    let snapshot = obj::native_object_snapshot(selected.as_ptr()).unwrap();
+                    assert!(
+                        matches!(snapshot.cache, NativeObjectCacheSnapshot::List { canonical, .. } if canonical == (version != TclVersion::V8_4)),
+                        "{profile}: reached native List updater"
+                    );
+                }
+                assert_eq!(
+                    interp.eval_compiled_stack_control_body(selected.as_ptr()),
+                    Code::Ok,
+                    "{profile}"
+                );
+                assert_eq!(interp.result_bytes(), b"VALUE", "{profile}");
+                assert_compiled(&selected, version);
+            }
+            let literal = obj::Owned::fresh(obj::new_string_bytes(b"original_element VALUE"));
+            assert_eq!(
+                interp.eval_generic_control_body(literal.as_ptr()),
+                Code::Ok,
+                "{profile}"
+            );
+            assert_eq!(interp.result_bytes(), b"VALUE", "{profile}");
+            assert_compiled(&literal, version);
+        }
+    }
+
+    #[test]
+    fn compiled_stack_rejects_jim_before_changing_the_original_header() {
+        let mut interp = native("jim");
+        let original = original_list(&interp, &[b"set", b"written", b"VALUE"]);
+        let before = obj::native_object_snapshot(original.as_ptr()).unwrap();
+        assert_eq!(
+            interp.eval_compiled_stack_control_body(original.as_ptr()),
+            Code::Error
+        );
+        assert_eq!(
+            obj::native_object_snapshot(original.as_ptr()).unwrap(),
+            before
+        );
+    }
+}

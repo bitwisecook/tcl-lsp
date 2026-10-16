@@ -728,6 +728,23 @@ impl Procs for Interp {
         self.original_proc_body_query(name)
     }
 
+    fn proc_body_original_value(
+        &mut self,
+        original: &Self::Value,
+    ) -> Result<
+        Option<tcl_runtime_api::ProcBodyValueQuery<Self::Value, Self::OperationError>>,
+        Self::OperationError,
+    > {
+        if self
+            .native_invocation_dialect()
+            .native_jim_lookup_protocol()
+            .is_none()
+        {
+            return Ok(None);
+        }
+        self.original_proc_body_value_query(*original).map(Some)
+    }
+
     fn proc_body_original_bytes(
         &mut self,
         original: &Self::Value,

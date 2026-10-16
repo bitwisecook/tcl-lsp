@@ -2080,7 +2080,12 @@
       ],
       "api": "original_source_advice_purpose + original_written_name_input; shared source name geometry; unique_instance_class; raw Registry role/scope and instance metadata lookups",
       "required_change": "Carry authentic selected invocation/instance option descriptor and original effective ordinal through existing schema owner rather than requerying command/canonical/class Strings and own_surface_query. Preserve readonly catalogue assistance versus physical store distinction.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "861e1962d7d1c8899e92050a09d673a7dd9f6256 successor",
+        "validation": "Reviewed actual typed source option receiver or genuine namespace report-parts adoption; fresh ordinary compilation/tests and required gates pending."
+      }
     },
     {
       "area": "compiler",
@@ -23695,6 +23700,11 @@
       "required_change": "Helper appends :: and candidate to rendered namespace report locally. Need actual selected namespace path/key transport through shared purpose-correct qualified-report constructor; rendered qualified names must not become reconstructed identity. Existing sorting/duplicate/context policies independently retained.",
       "links": {
         "required_shared_owner_unit": "runtime:report.native-namespace-parts:owner"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "861e1962d7d1c8899e92050a09d673a7dd9f6256 successor",
+        "validation": "Reviewed actual typed source option receiver or genuine namespace report-parts adoption; fresh ordinary compilation/tests and required gates pending."
       }
     },
     {
@@ -23719,6 +23729,11 @@
       "required_change": "Local rendered namespace + :: + table-key construction remains outside central name owner; need actual selected path/key report purpose, not String inverse. Original returned variable-key/result headers remain separate physical obligation.",
       "links": {
         "required_shared_owner_unit": "runtime:report.native-namespace-parts:owner"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "861e1962d7d1c8899e92050a09d673a7dd9f6256 successor",
+        "validation": "Reviewed actual typed source option receiver or genuine namespace report-parts adoption; fresh ordinary compilation/tests and required gates pending."
       }
     },
     {
@@ -33763,7 +33778,12 @@
         "Actual C Import original -force/pattern/alias publication ordered owner transport",
         "The complete semantic review below retains existing guards and bounds this specific purpose; sibling purposes are separately mapped."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "861e1962 successor",
+        "validation": "Independent reviewed ordered pattern getters/checked selection and original preload route with corrected head→operand temporary retirement before result reset. New Rust controls not run."
+      }
     },
     {
       "area": "vm",
@@ -131278,26 +131298,26 @@
   ],
   "implementation_progress": {
     "resumed_from": "554085e162823ea8bd126898d0c27b7b2a9f8628",
-    "utc": "2026-10-16T09:42:44.299093+00:00",
+    "utc": "2026-10-16T09:58:38.956554+00:00",
     "audit_baseline_counts_unchanged": true,
     "total_required_units": 2158,
-    "implemented_pending_validation": 90,
+    "implemented_pending_validation": 94,
     "verified_complete": 0,
-    "not_started": 2068,
+    "not_started": 2064,
     "remaining_unverified_or_unimplemented": 2158,
     "additional_work_not_counted_as_catalogue_completion": [
-      "VM no-argument Parent current-holder projection (catalogue mapping pending)",
-      "MCP empty-pool candidate existing validation obligation (already adopted decoder, no new semantic migration)",
-      "Baseline Runtime compile adapters in jim_capture_prefix/jim_output_name_stages; mapping/reconciliation pending.",
-      "Legacy Length descriptor issuer and other demonstrated missing shared-owner facets require bounded count reconciliation.",
-      "Jim physical info-body result must retain actual original body header without a body String getter; byte-query270 does not close that owner boundary."
+      "VM C import preload selected-dispatch owner facet integrated, bounded additional requirement annex mapping pending.",
+      "Jim Create namespace-variable diagnostic formatting owner facet demonstrated, patch still under review.",
+      "MCP empty-pool candidates remain an existing validation obligation; decoder adoption gives no acceptance.",
+      "Baseline runtime compile adapter mapping remains pending."
     ],
     "latest_scoped_build": {
-      "status": "FAIL_VM_TEST_PRIVACY",
-      "head": "2a86f7dfd171d49eb72b70a31f7a8f1043c17d82",
-      "log": "/tmp/naming-workspace-build-2a86f7dfd.log",
-      "errors": 6,
-      "repair": "Six new fixture private-method calls repaired through existing original operand API or cfg(test)-only constructed geometry fixture; unchanged assertions. Complete rerun pending."
+      "status": "RUNNING_AFTER_TYPE_AND_API_DOC_REPAIR",
+      "source": "861e1962 successor with reviewed physical-body and compiled-stack patches",
+      "failed_log": "/tmp/naming-workspace-build-861e-successor.log",
+      "log": "/tmp/naming-workspace-build-861e-successor-api-docs.log",
+      "repair": "Optional expansion vector guard and four required public API comments corrected; no assertions or lint guards changed.",
+      "second_failed_log": "/tmp/naming-workspace-build-861e-successor-fixed.log"
     },
     "required_gates": "Still not green; no PR acceptance.",
     "report_cadence_minutes": 30,
@@ -131439,7 +131459,7 @@
     "withheld_drafts": [
       "Minifier command/argument alias construction: missing genuine source action/insertion owner; original unknown-command controls remain unchanged."
     ],
-    "owner_facet_reconciliation": "New owner facets and VM Parent catalogue correspondence remain explicitly pending reconciliation; no extra unit completion or baseline count change inferred.",
+    "owner_facet_reconciliation": "19 additional unverified owner/caller obligations accepted in separate annex; baseline2158 unchanged;14 additional integrated pending validation.",
     "runtime_build": {
       "status": "PASS",
       "head": "2459c99246751fd7695a585ea1081b43937174fb",
@@ -131462,11 +131482,24 @@
       "census_digest_mismatch": 952,
       "evidence_digest_mismatch": 1074,
       "source_binding_document_mismatch": 17,
-      "limits": "Missing references/path drift overlap. No digest or evidence acceptance refreshed."
+      "limits": "Missing references/path drift overlap. No digest or evidence acceptance refreshed.",
+      "reviewed_repair": "17 selected source/binding/document consistency messages repaired without changing evidence/result/status digests. Bounded108owner/85binding checks pass; full gate rerun pending."
     },
     "additional_facet_review": {
-      "proposed_additional_units": 6,
-      "count_status": "Bounded source reconciliation prepared; root integration of annex pending. No baseline count or completed-unit increase inferred."
+      "accepted_additional_units": 19,
+      "implemented_pending_validation": 14,
+      "verified_complete": 0,
+      "annex": "implementation-owner-annex.json"
+    },
+    "additional_owner_annex": "implementation-owner-annex.json",
+    "effective_required_units": 2177,
+    "effective_implemented_pending_validation": 108,
+    "effective_verified_complete": 0,
+    "incoming_remote": {
+      "rust": "5704753576d9e6d57ba7928c739dcbf726ce6bd1",
+      "issue": 2486,
+      "status": "unmerged_unadmitted",
+      "scope": "Toolchain and cross-project dependency updates; current work toolchain unchanged."
     }
   }
 }

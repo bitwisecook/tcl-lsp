@@ -400,6 +400,13 @@ impl CommandBindingRealm {
         {
             binding.retain_original_logical_source_advice(advice);
         }
+        self.retain_original_registered_instance_source(tokens);
+        for (_, binding) in &tokens.nested_bindings {
+            if let Some((_, mut child)) = binding.original_recorded_command() {
+                child.source_binding = Some(binding.clone());
+                self.retain_original_registered_instance_source(&child);
+            }
+        }
         if let Some(input) = self.source_input.as_ref()
             && input.has_logical_source_name_context()
         {
@@ -418,6 +425,43 @@ impl CommandBindingRealm {
                 }
             }
         }
+    }
+
+    fn retain_original_registered_instance_source(&self, tokens: &crate::ir::CommandTokens) {
+        let Some(input) = self.source_input.as_ref() else {
+            return;
+        };
+        if !self.matches_resolved_analysis_input(input) {
+            return;
+        }
+        let Some(binding) = tokens.source_binding.as_ref() else {
+            return;
+        };
+        let Some(config) = binding.original_lexer_config_for_tokens(tokens) else {
+            return;
+        };
+        let Some(site) = binding.invocation_site() else {
+            return;
+        };
+        if !self.matches_original_source_image(site.source.source_image(), config)
+            || config != input.lexer_config()
+        {
+            return;
+        }
+        let Some(original) =
+            site.source
+                .original_lexical_command(tokens.words(), site.offset, config)
+        else {
+            return;
+        };
+        let Some(receipt) =
+            self.original_source_registered_instance_words(input, original.native_words())
+        else {
+            return;
+        };
+        let _ = self
+            .bindings
+            .retain_original_registered_instance_source(input, receipt);
     }
 
     /// Cursor geometry from an actual rejected procedure's body-delimiter cut.

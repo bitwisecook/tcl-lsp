@@ -1087,12 +1087,23 @@ fn info_body(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 3 {
         return interp.wrong_args_for_prefix(argv, 2, b"procname");
     }
-    match tcl_cmd_core::info::body(interp, &argv[2]) {
-        Ok(v) => {
-            interp.set_result(v);
+    match tcl_cmd_core::info::body_result(interp, &argv[2]) {
+        Ok(tcl_cmd_core::info::BodyResult::Value(value)) => {
+            interp.set_result(value);
             Code::Ok
         }
-        Err(e) => interp.report_cmd_error(e),
+        Ok(tcl_cmd_core::info::BodyResult::Original(owner)) => {
+            let original = match owner.checked_value() {
+                Ok(original) => original,
+                Err(error) => return interp.report_cmd_error(error),
+            };
+            interp.set_result(original);
+            match owner.finish() {
+                Ok(()) => Code::Ok,
+                Err(error) => interp.report_cmd_error(error),
+            }
+        }
+        Err(error) => interp.report_cmd_error(error),
     }
 }
 

@@ -27,6 +27,7 @@
 
 use tcl_runtime_api::{Frames, Introspect, Namespaces, NsId, Procs, ROOT_NS, VarStore};
 use tcl_syntax::glob::{is_literal_bytes, string_match_bytes};
+use tcl_syntax::naming::native_qualified_inventory_report_bytes;
 use tcl_syntax::native_glob::{NativeGlobProtocol, NativeNameGlobPurpose};
 use tcl_syntax::value::ValueOps;
 
@@ -118,9 +119,37 @@ where
     Ok(ops.new_bool(present))
 }
 
+/// A byte-compatible value or an original header retained through publication.
+pub enum BodyResult<V, E> {
+    /// Result constructed by the existing byte-compatible adapter.
+    Value(V),
+    /// Actual original body header; publish while this owner is still alive.
+    Original(Box<dyn tcl_runtime_api::OriginalProcedureBodyValue<V, E>>),
+}
+
+/// Select the actual original body-result owner before explicit byte compatibility.
+/// Represented refusal is terminal and cannot trigger a second name query.
+pub fn body_result<O, V>(
+    ops: &mut O,
+    name: &V,
+) -> Result<BodyResult<V, O::OperationError>, CmdError>
+where
+    O: ValueOps<Value = V> + Procs,
+    O::OperationError: Into<CmdError>,
+{
+    if let Some(query) = ops.proc_body_original_value(name).map_err(Into::into)? {
+        return match query {
+            tcl_runtime_api::ProcBodyValueQuery::Body(owner) => Ok(BodyResult::Original(owner)),
+            tcl_runtime_api::ProcBodyValueQuery::NotProcedure(name) => Err(not_a_proc(&name)),
+        };
+    }
+    body(ops, name).map(BodyResult::Value)
+}
+
 /// `info body procname` — the source body of procedure `name`. Errors with
 /// `"name" isn't a procedure` when `name` does not name a user proc. Mirrors
-/// C's `InfoBodyCmd`.
+/// C's `InfoBodyCmd`. This byte compatibility facade materialises body bytes;
+/// original-header consumers use [`body_result`] and retain its publication owner.
 pub fn body<O, V>(ops: &mut O, name: &V) -> Result<V, CmdError>
 where
     O: ValueOps<Value = V> + Procs,
@@ -222,6 +251,7 @@ fn not_a_proc(name: &[u8]) -> CmdError {
 pub fn command_list<O, V>(ops: &mut O, pattern: Option<&V>, procs_only: bool) -> Result<V, CmdError>
 where
     O: ValueOps<Value = V> + Namespaces,
+    O::OriginalNameError: Into<CmdError>,
 {
     let pat = pattern
         .map(|value| ops.native_string_bytes(value).map(|bytes| bytes.to_vec()))
@@ -428,6 +458,7 @@ where
 pub fn vars<O, V>(ops: &mut O, pattern: Option<&V>) -> Result<V, CmdError>
 where
     O: ValueOps<Value = V> + Namespaces + Frames,
+    O::OriginalNameError: Into<CmdError>,
 {
     match selected_variable_inventory_policy(ops)? {
         tcl_dialect::VariableLookupPolicy::Jim => return jim_namespace_variables(ops, pattern),
@@ -513,6 +544,7 @@ where
 pub fn consts<O, V>(ops: &mut O, pattern: Option<&V>) -> Result<V, CmdError>
 where
     O: ValueOps<Value = V> + Namespaces + Frames,
+    O::OriginalNameError: Into<CmdError>,
 {
     let pat = pattern
         .map(|p| ops.native_string_bytes(p).map(|bytes| bytes.to_vec()))
@@ -563,7 +595,7 @@ where
 }
 
 fn qualified_listing_bytes<O, F, M>(
-    ops: &O,
+    ops: &mut O,
     prefix: &[u8],
     tail: &[u8],
     cur: NsId,
@@ -572,6 +604,7 @@ fn qualified_listing_bytes<O, F, M>(
 ) -> Result<Vec<Vec<u8>>, CmdError>
 where
     O: Namespaces,
+    O::OriginalNameError: Into<CmdError>,
     F: Fn(&O, NsId) -> Vec<Vec<u8>>,
     M: Fn(&[u8], &[u8]) -> Result<bool, CmdError>,
 {
@@ -585,28 +618,30 @@ where
     };
     let mut raw = enumerate(ops, id);
     raw.sort();
-    let mut prefix_bytes = ops.name_bytes(id);
-    if id != ROOT_NS {
-        prefix_bytes.extend_from_slice(b"::");
-    }
+    let report_parts = ops.namespace_report_parts_checked(id).map_err(Into::into)?;
     let mut names = Vec::new();
     for name in raw {
         if matches(tail, &name)? {
-            let mut full_name = prefix_bytes.clone();
-            full_name.extend_from_slice(&name);
-            names.push(full_name);
+            names.push(native_qualified_inventory_report_bytes(
+                &report_parts,
+                &name,
+            ));
         }
     }
     Ok(names)
 }
 
-fn qualified_variable_listing_bytes<O: Namespaces>(
-    ops: &O,
+fn qualified_variable_listing_bytes<O>(
+    ops: &mut O,
     prefix: &[u8],
     tail: &[u8],
     current: NsId,
     matcher: NativeGlobProtocol,
-) -> Result<Vec<Vec<u8>>, CmdError> {
+) -> Result<Vec<Vec<u8>>, CmdError>
+where
+    O: Namespaces,
+    O::OriginalNameError: Into<CmdError>,
+{
     let target = if prefix.is_empty() {
         Some(ROOT_NS)
     } else {
@@ -616,10 +651,9 @@ fn qualified_variable_listing_bytes<O: Namespaces>(
         return Ok(Vec::new());
     };
     let names = ops.vars_in_bytes_checked(target)?;
-    let mut prefix = ops.name_bytes(target);
-    if target != ROOT_NS {
-        prefix.extend_from_slice(b"::");
-    }
+    let report_parts = ops
+        .namespace_report_parts_checked(target)
+        .map_err(Into::into)?;
     Ok(filter_ordered_names(
         names,
         Some(tail),
@@ -627,11 +661,7 @@ fn qualified_variable_listing_bytes<O: Namespaces>(
         NativeNameGlobPurpose::InfoVariablesSearch,
     )?
     .into_iter()
-    .map(|name| {
-        let mut full = prefix.clone();
-        full.extend_from_slice(&name);
-        full
-    })
+    .map(|name| native_qualified_inventory_report_bytes(&report_parts, &name))
     .collect())
 }
 
@@ -737,6 +767,243 @@ fn split_last_qualifier_bytes(p: &[u8]) -> Option<(&[u8], &[u8])> {
 #[cfg(test)]
 mod tests {
     use super::complete;
+
+    use crate::error::CmdError;
+    use std::{cell::RefCell, rc::Rc};
+    use tcl_core_types::{ByteNamespacePath, CommandId};
+    use tcl_runtime_api::{Namespaces, NativeNamespaceReportParts, NsId, ROOT_NS};
+    use tcl_syntax::native_glob::NativeGlobProtocol;
+
+    struct ReportInventory {
+        target: Option<NsId>,
+        parts: Result<NativeNamespaceReportParts, CmdError>,
+        keys: Vec<Vec<u8>>,
+        events: Rc<RefCell<Vec<&'static str>>>,
+    }
+
+    impl ReportInventory {
+        fn new(parts: NativeNamespaceReportParts, keys: &[&[u8]]) -> Self {
+            Self {
+                target: Some(NsId(7)),
+                parts: Ok(parts),
+                keys: keys.iter().map(|key| key.to_vec()).collect(),
+                events: Rc::default(),
+            }
+        }
+    }
+
+    impl Namespaces for ReportInventory {
+        type OriginalNameError = CmdError;
+
+        fn find_command(&self, _: NsId, _: &str) -> Option<CommandId> {
+            unreachable!()
+        }
+        fn current(&self) -> NsId {
+            NsId(3)
+        }
+        fn name(&self, _: NsId) -> String {
+            panic!("report text is not selected namespace data")
+        }
+        fn command_name(&self, _: CommandId) -> Option<String> {
+            unreachable!()
+        }
+        fn find_namespace(&self, _: NsId, _: &str) -> Option<NsId> {
+            unreachable!()
+        }
+        fn parent(&self, _: NsId) -> Option<NsId> {
+            unreachable!()
+        }
+        fn children(&self, _: NsId) -> Vec<NsId> {
+            unreachable!()
+        }
+        fn commands_in(&self, _: NsId) -> Vec<String> {
+            unreachable!()
+        }
+        fn procs_in(&self, _: NsId) -> Vec<String> {
+            unreachable!()
+        }
+        fn vars_in(&self, _: NsId) -> Vec<String> {
+            unreachable!()
+        }
+        fn consts_in(&self, _: NsId) -> Vec<String> {
+            unreachable!()
+        }
+        fn namespace_var_exists(&self, _: NsId, _: &str) -> bool {
+            unreachable!()
+        }
+        fn command_origin(&self, _: CommandId) -> Option<CommandId> {
+            unreachable!()
+        }
+
+        fn find_namespace_bytes_checked(
+            &self,
+            current: NsId,
+            original: &[u8],
+        ) -> Result<Option<NsId>, tcl_syntax::value::ValueError> {
+            assert_eq!(current, NsId(3));
+            assert_eq!(original, b"selected");
+            self.events.borrow_mut().push("lookup");
+            Ok(self.target)
+        }
+
+        fn commands_in_bytes(&self, namespace: NsId) -> Vec<Vec<u8>> {
+            assert_eq!(Some(namespace), self.target);
+            self.events.borrow_mut().push("commands");
+            self.keys.clone()
+        }
+
+        fn vars_in_bytes_checked(
+            &self,
+            namespace: NsId,
+        ) -> Result<Vec<Vec<u8>>, tcl_syntax::value::ValueError> {
+            assert_eq!(Some(namespace), self.target);
+            self.events.borrow_mut().push("variables");
+            Ok(self.keys.clone())
+        }
+
+        fn namespace_report_parts_checked(
+            &mut self,
+            namespace: NsId,
+        ) -> Result<NativeNamespaceReportParts, Self::OriginalNameError> {
+            assert_eq!(Some(namespace), self.target);
+            self.events.borrow_mut().push("report");
+            self.parts.clone()
+        }
+    }
+
+    #[test]
+    fn qualified_command_reports_use_selected_parts_after_sorted_inventory() {
+        let parts = NativeNamespaceReportParts::CConstructed(ByteNamespacePath::from_segments([
+            b"a:".as_slice(),
+            b"branch\0\xff",
+        ]));
+        let mut ops = ReportInventory::new(parts, &[b"z", b":p", b":p"]);
+        let events = ops.events.clone();
+        let names = super::qualified_listing_bytes(
+            &mut ops,
+            b"selected",
+            b"*",
+            NsId(3),
+            Namespaces::commands_in_bytes,
+            |pattern, _| {
+                assert_eq!(pattern, b"*");
+                events.borrow_mut().push("match");
+                Ok(true)
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            names,
+            [
+                b"::a:::branch\0\xff:::p".to_vec(),
+                b"::a:::branch\0\xff:::p".to_vec(),
+                b"::a:::branch\0\xff::z".to_vec(),
+            ]
+        );
+        assert_eq!(
+            *events.borrow(),
+            ["lookup", "commands", "report", "match", "match", "match"]
+        );
+    }
+
+    #[test]
+    fn qualified_variable_reports_keep_native_order_duplicates_and_counted_keys() {
+        let parts = NativeNamespaceReportParts::CConstructed(ByteNamespacePath::from_segments([
+            b"owner".as_slice(),
+        ]));
+        let mut ops = ReportInventory::new(parts, &[b"z\0tail", b"raw\xff", b"raw\xff", b"a"]);
+        let names = super::qualified_variable_listing_bytes(
+            &mut ops,
+            b"selected",
+            b"*",
+            NsId(3),
+            NativeGlobProtocol::authored_tcl(tcl_dialect::TclVersion::V9_1),
+        )
+        .unwrap();
+        assert_eq!(
+            names,
+            [
+                b"::owner::z\0tail".to_vec(),
+                b"::owner::raw\xff".to_vec(),
+                b"::owner::raw\xff".to_vec(),
+                b"::owner::a".to_vec(),
+            ]
+        );
+        assert_eq!(*ops.events.borrow(), ["lookup", "variables", "report"]);
+    }
+
+    #[test]
+    fn qualified_inventory_report_refusal_is_terminal_with_first_host_cause() {
+        let cause = tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+            tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                "original selected report getter",
+            ),
+        );
+        let mut ops = ReportInventory::new(
+            NativeNamespaceReportParts::CConstructed(ByteNamespacePath::root()),
+            &[b"p"],
+        );
+        ops.parts = Err(cause.clone().into());
+        let command = super::qualified_listing_bytes(
+            &mut ops,
+            b"selected",
+            b"*",
+            NsId(3),
+            Namespaces::commands_in_bytes,
+            |_, _| panic!("a refused report cannot reach matching"),
+        )
+        .unwrap_err();
+        assert_eq!(command.native_execution_refusal(), Some(&cause));
+        assert_eq!(*ops.events.borrow(), ["lookup", "commands", "report"]);
+        ops.events.borrow_mut().clear();
+        let variables = super::qualified_variable_listing_bytes(
+            &mut ops,
+            b"selected",
+            b"*",
+            NsId(3),
+            NativeGlobProtocol::authored_tcl(tcl_dialect::TclVersion::V9_1),
+        )
+        .unwrap_err();
+        assert_eq!(variables.native_execution_refusal(), Some(&cause));
+        assert_eq!(*ops.events.borrow(), ["lookup", "variables", "report"]);
+    }
+
+    #[test]
+    fn qualified_inventory_absent_namespace_and_root_keep_selected_control_flow() {
+        let mut ops = ReportInventory::new(
+            NativeNamespaceReportParts::CConstructed(ByteNamespacePath::root()),
+            &[b"p"],
+        );
+        ops.target = None;
+        assert!(
+            super::qualified_listing_bytes(
+                &mut ops,
+                b"selected",
+                b"*",
+                NsId(3),
+                Namespaces::commands_in_bytes,
+                |_, _| unreachable!(),
+            )
+            .unwrap()
+            .is_empty()
+        );
+        assert_eq!(*ops.events.borrow(), ["lookup"]);
+        ops.events.borrow_mut().clear();
+        ops.target = Some(ROOT_NS);
+        assert_eq!(
+            super::qualified_listing_bytes(
+                &mut ops,
+                b"",
+                b"p",
+                NsId(3),
+                Namespaces::commands_in_bytes,
+                |pattern, candidate| Ok(pattern == candidate),
+            )
+            .unwrap(),
+            [b"::p".to_vec()]
+        );
+        assert_eq!(*ops.events.borrow(), ["commands", "report"]);
+    }
 
     #[test]
     fn native_variable_filter_preserves_order_and_duplicate_declarations() {

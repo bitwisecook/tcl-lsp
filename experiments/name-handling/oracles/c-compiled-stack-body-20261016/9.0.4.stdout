@@ -1,0 +1,73 @@
+BEFORE {value is a list with a refcount of 4, object pointer at 0x5578790eec50, internal representation 0x55787911c2d0:0x0, no string representation}
+RESULT catch_site 0 VALUE
+AFTER {value is a bytecode with a refcount of 4, object pointer at 0x5578790eec50, internal representation 0x557879129c00:0x0, string representation "set written V..."}
+BEFORE {value is a list with a refcount of 4, object pointer at 0x5578790eeb00, internal representation 0x557879127970:0x0, no string representation}
+RESULT for_site 0 VALUE
+AFTER {value is a bytecode with a refcount of 4, object pointer at 0x5578790eeb00, internal representation 0x5578791204e0:0x0, string representation "set written V..."}
+ByteCode 0x557879129a00, refCt 1, epoch 21, interp 0x5578790a6a10 (epoch 21)
+  Source "catch $body result; set result"
+  File "/tmp/runtime-compiled-stack/oracle/probe.tcl" Line 6
+  Cmds 2, src 30, inst 44, litObjs 1, aux 0, stkDepth 2, code/src 0.00
+  Proc 0x55787911c6d0, refCt 1, args 1, compiled locals 2
+      slot 0, scalar, arg, "body"
+      slot 1, scalar, "result"
+  Exception ranges 1, depth 1:
+      0: level 0, catch, pc 7-14, catch 19
+  Commands 2:
+      1: pc 0-31, src 0-17        2: pc 32-42, src 20-29
+  Command 1: "catch $body result..."
+    (0) loadScalar1 %v0 	# var "body"
+    (2) beginCatch4 0 
+    (7) dup 
+    (8) evalStk 
+    (9) reverse 2 
+    (14) pop 
+    (15) push1 0 	# "0"
+    (17) jump1 +5 	# pc 22
+    (19) pop 
+    (20) pushResult 
+    (21) pushReturnCode 
+    (22) endCatch 
+    (23) reverse 2 
+    (28) storeScalar1 %v1 	# var "result"
+    (30) pop 
+    (31) pop 
+  Command 2: "set result"
+    (32) startCommand +11 1 	# next cmd at pc 43, 1 cmds start here
+    (41) loadScalar1 %v1 	# var "result"
+    (43) done 
+
+ByteCode 0x557879129c00, refCt 1, epoch 21, interp 0x5578790a6a10 (epoch 21)
+  Source "for $body 0 {} {}; set written"
+  File "/tmp/runtime-compiled-stack/oracle/probe.tcl" Line 7
+  Cmds 2, src 30, inst 32, litObjs 2, aux 0, stkDepth 1, code/src 0.00
+  Proc 0x55787911c850, refCt 1, args 1, compiled locals 2
+      slot 0, scalar, arg, "body"
+      slot 1, scalar, "written"
+  Exception ranges 2, depth 1:
+      0: level 0, loop, pc 6-7, continue 9, break 17
+      1: level 0, loop, pc 9-10, continue -1, break 17
+  Commands 2:
+      1: pc 0-19, src 0-16        2: pc 20-30, src 19-29
+  Command 1: "for $body 0 {} {}..."
+    (0) loadScalar1 %v0 	# var "body"
+    (2) evalStk 
+    (3) pop 
+    (4) jump1 +8 	# pc 12
+    (6) nop 
+    (7) nop 
+    (8) nop 
+    (9) nop 
+    (10) nop 
+    (11) nop 
+    (12) push1 1 	# "0"
+    (14) nop 
+    (15) jumpTrue1 -9 	# pc 6
+    (17) nop 
+    (18) nop 
+    (19) nop 
+  Command 2: "set written"
+    (20) startCommand +11 1 	# next cmd at pc 31, 1 cmds start here
+    (29) loadScalar1 %v1 	# var "written"
+    (31) done 
+

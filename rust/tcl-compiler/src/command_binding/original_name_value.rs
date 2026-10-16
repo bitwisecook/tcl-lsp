@@ -725,6 +725,63 @@ pub(crate) struct OriginalBodyWrittenWordOwner {
     input: crate::analyser::ResolvedAnalysisInput,
 }
 
+/// Derived instance schemas are owned by one retained analysis, independently
+/// of binding identity. A conflicting genuine receipt permanently withdraws
+/// that site's projection; the analysis owner holds only a weak cache link.
+#[derive(Debug, Default)]
+pub(super) struct OriginalRegisteredInstanceSourceCache {
+    entries: std::sync::Mutex<
+        std::collections::BTreeMap<
+            u32,
+            Option<std::sync::Arc<super::OriginalSourceRegisteredInstanceWords>>,
+        >,
+    >,
+}
+
+impl super::SourceInvocationBinding {
+    /// Genuine original instance syntax and selected constructor descriptor.
+    /// This readonly schema supplies no live receiver, store or Normal grant.
+    pub(crate) fn original_registered_instance_source_for_tokens(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<std::sync::Arc<super::OriginalSourceRegisteredInstanceWords>> {
+        if tokens.source_binding.as_ref() != Some(self) || !metadata.matches_registry(registry) {
+            return None;
+        }
+        self.original_source_advice_purpose(tokens, metadata, registry)?;
+        let input = metadata.source_analysis_input()?;
+        let owner = self.original_analysis_owner.as_ref()?;
+        let config = self.original_lexer_config_for_tokens(tokens)?;
+        let site = self.invocation_site()?;
+        if owner.metadata.source_analysis_input() != Some(input)
+            || owner.config != config
+            || config != input.lexer_config()
+            || !std::sync::Arc::ptr_eq(&owner.source, &site.source)
+        {
+            return None;
+        }
+        let cache = owner.registered_instance_sources.get()?.upgrade()?;
+        let receipt = cache
+            .entries
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get(&site.offset)?
+            .as_ref()?
+            .clone();
+        let original = site
+            .source
+            .original_lexical_command(tokens.words(), site.offset, config)?;
+        let context = input.borrowed_context_registry();
+        (receipt.site() == site
+            && std::sync::Arc::ptr_eq(&receipt.site().source, &site.source)
+            && receipt.matches_source_context(site.source.source_image(), config, context)
+            && receipt.original_words() == original.native_words())
+        .then_some(receipt)
+    }
+}
+
 impl super::SourceCommandBindings {
     /// Freeze written geometry before any structural namespace memo is selected.
     /// The caller independently authenticates the original body and namespace.
@@ -1552,6 +1609,46 @@ impl super::SourceInvocationBinding {
 }
 
 impl super::SourceCommandBindings {
+    pub(crate) fn retain_original_registered_instance_source(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        receipt: super::OriginalSourceRegisteredInstanceWords,
+    ) -> Option<()> {
+        let owner = self.original_analysis_owner.as_ref()?;
+        if !owner.matches(self, input)
+            || !std::sync::Arc::ptr_eq(&receipt.site().source, &owner.source)
+            || !receipt.matches_source_context(
+                owner.source.source_image(),
+                owner.config,
+                input.borrowed_context_registry(),
+            )
+        {
+            return None;
+        }
+        let cache = &self.original_registered_instance_sources;
+        let linked = owner
+            .registered_instance_sources
+            .get_or_init(|| std::sync::Arc::downgrade(cache));
+        if !std::sync::Weak::ptr_eq(linked, &std::sync::Arc::downgrade(cache)) {
+            return None;
+        }
+        let mut entries = cache
+            .entries
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        match entries.entry(receipt.site().offset) {
+            std::collections::btree_map::Entry::Vacant(entry) => {
+                entry.insert(Some(std::sync::Arc::new(receipt)));
+            }
+            std::collections::btree_map::Entry::Occupied(mut entry) => {
+                if entry.get().as_deref() != Some(&receipt) {
+                    entry.insert(None);
+                }
+            }
+        }
+        Some(())
+    }
+
     /// Whether the retained root analysis has this exact source image, input
     /// channel and complete lexer configuration. This is correspondence only;
     /// it supplies no completed-source, current value or invocation receipt.
@@ -2086,6 +2183,120 @@ mod graph_tests {
             binding
                 .original_logical_source_written_name_input(&foreign, *written)
                 .is_none()
+        );
+    }
+
+    #[test]
+    fn registered_instance_sources_keep_original_identity_and_source_owner_lifetime() {
+        let source = "entry .e; .e configure -textvariable value";
+        let (bindings, tokens, input) = {
+            let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
+            let input = analysis.resolved_input.as_ref().unwrap().clone();
+            let realm = analysis.retained_command_realm().unwrap();
+            let offset = u32::try_from(source.find(".e configure").unwrap()).unwrap();
+            let command = crate::segmenter::segment_commands_with_offset_and_config(
+                &source[offset as usize..],
+                offset,
+                input.lexer_config(),
+            )
+            .remove(0);
+            let mut tokens = crate::ir::CommandTokens::from_segmented(
+                &tcl_lexer::SourceMap::new(source),
+                input.lexer_config(),
+                &command,
+            );
+            realm.stamp_original_tokens(&mut tokens);
+            let before = tokens.source_binding.clone();
+            realm.stamp_original_tokens(&mut tokens);
+            assert_eq!(
+                tokens.source_binding, before,
+                "cache warmth cannot change invocation identity"
+            );
+            (realm.source_bindings_ref().clone(), tokens, input)
+        };
+        let registry = input.borrowed_context_registry().commands();
+        let metadata = crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+            registry, &input,
+        )
+        .unwrap();
+        let binding = tokens.source_binding.as_ref().unwrap();
+        let receipt = binding
+            .original_registered_instance_source_for_tokens(&tokens, metadata, registry)
+            .expect(
+                "the retained source bindings keep original instance metadata after realm drop",
+            );
+        assert_eq!(receipt.instance().factory().command(), "entry");
+        assert_eq!(receipt.original_words().len(), 4);
+        assert_eq!(
+            receipt.argument_word(2).unwrap().try_text().unwrap(),
+            "value"
+        );
+        assert_eq!(
+            receipt.with_source_schema(input.borrowed_context_registry(), |schema| schema
+                .authored_source_option_variable_scope_at(2)),
+            Some(Some(tcl_registry::VariableScope::Global))
+        );
+        let mut foreign_cache = bindings.clone();
+        foreign_cache.original_registered_instance_sources = std::sync::Arc::default();
+        assert!(
+            foreign_cache
+                .retain_original_registered_instance_source(&input, receipt.as_ref().clone())
+                .is_none(),
+            "an established owner link cannot be overwritten by another optional cache"
+        );
+        assert!(
+            binding
+                .original_registered_instance_source_for_tokens(&tokens, metadata, registry)
+                .is_some()
+        );
+        let mut changed = tokens.clone();
+        changed.argv_texts[3] = "foreign".into();
+        assert!(
+            changed
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .original_registered_instance_source_for_tokens(&changed, metadata, registry)
+                .is_none()
+        );
+        let standalone = crate::registry_invocation::InvocationMetadataContext::from(
+            input.borrowed_context_registry(),
+        );
+        assert!(
+            binding
+                .original_registered_instance_source_for_tokens(&tokens, standalone, registry)
+                .is_none()
+        );
+        let mut config = input.lexer_config();
+        config.strict_quoting = !config.strict_quoting;
+        let foreign = crate::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            input.context_registry(),
+            config,
+        );
+        let metadata_foreign =
+            crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+                registry, &foreign,
+            )
+            .unwrap();
+        assert!(
+            binding
+                .original_registered_instance_source_for_tokens(&tokens, metadata_foreign, registry)
+                .is_none()
+        );
+        let cache = std::sync::Arc::downgrade(&bindings.original_registered_instance_sources);
+        drop(foreign_cache);
+        drop(bindings);
+        assert!(
+            cache.upgrade().is_none(),
+            "no receipt/analysis-owner strong cycle retains derived source authority"
+        );
+        assert!(
+            binding
+                .original_registered_instance_source_for_tokens(&tokens, metadata, registry)
+                .is_none(),
+            "the surviving token and readonly receipt cannot upgrade a dropped source owner"
         );
     }
 

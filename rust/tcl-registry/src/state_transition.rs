@@ -693,14 +693,7 @@ impl NamespaceTransition {
         policy: tcl_syntax::naming::NamePolicyProtocol,
     ) -> Option<(bool, &'a [&'a [u8]])> {
         let forced = patterns.first().map_or(Some(false), |first| {
-            policy
-                .recipe()
-                .namespace_pattern_input(
-                    first,
-                    tcl_syntax::naming::NativeNamePurpose::NamespaceImportPattern,
-                )
-                .ok()
-                .map(|input| input.selected() == b"-force")
+            policy.recipe().namespace_import_forces(first).ok()
         })?;
         Some((forced, &patterns[usize::from(forced)..]))
     }

@@ -1362,3 +1362,13 @@ original caller checks. Its default refuses unavailable ownership. Immutable
 report parts grant no namespace, command or variable identity; equal rendered
 names can represent distinct slots. Original object results retain their
 independent allocation and lifetime requirements.
+
+Qualified command and variable inventories consume immutable
+`NativeNamespaceReportParts` from their actual namespace provider. The shared
+serializer preserves counted original Jim bytes and genuine C path components;
+these reports cannot reconstruct a namespace, command or variable identity.
+Original Jim procedure-body publication retains the actual body header through
+`OriginalProcedureBodyValue`. Allocation memory and weak declaration observations
+supply no extra native role. The actual result setter owns the new result before
+old-result retirement, and post-publication validation permits legal declaration
+deletion while preserving original caller currency and first refusal.

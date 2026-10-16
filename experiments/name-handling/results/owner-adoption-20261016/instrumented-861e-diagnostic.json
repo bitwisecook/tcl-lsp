@@ -1,0 +1,17 @@
+{
+  "ordinary_source_head": "861e1962d7d1c8899e92050a09d673a7dd9f6256",
+  "diagnostic_overlay_sha256": "2f679f6ca1253802aedd5dca2b34878547b60ee1ba4e446513d1ea250d5fdb44",
+  "instrumented_binary_sha256": "0d293e9f820c356eabec4d695561d7707ecc36de99262cafd70dd639d6892bb1",
+  "status": "TWO_DIAGNOSTIC_FAILURES_NOT_ORDINARY_ACCEPTANCE",
+  "logs": [
+    {
+      "path": "naming-runtime-instrumented-ensemble.log",
+      "sha256": "ec2989430d1c2dfae67e0670eeca4d03a97a3a4bdf3fc2e884cd4fd1aa9c49b9"
+    },
+    {
+      "path": "naming-runtime-instrumented-tcloo.log",
+      "sha256": "efc1b9b8f784dd038c7fb79201e0a0c9a324967c9b427167cda4e717f5218db0"
+    }
+  ],
+  "restoration": "Temporary diagnostic source overlay byte-exact reversed and verified before ordinary source integration/builds. Binary remains instrumented until rebuilt."
+}

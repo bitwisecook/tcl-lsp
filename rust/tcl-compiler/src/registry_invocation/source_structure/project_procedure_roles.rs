@@ -154,18 +154,22 @@ pub struct OriginalProjectProcedureArguments<'a> {
 }
 
 impl OriginalProjectProcedureArguments<'_> {
+    /// The selected foreign procedure declaration with its original source metadata.
     #[must_use]
     pub fn declaration(&self) -> &SourceDeclarationMetadata<ProcDef> {
         self.declaration
     }
+    /// Original formal topology bound to this unchanged written argument vector.
     #[must_use]
     pub fn bindings(&self) -> &[tcl_syntax::formal_params::FormalByteArgumentBinding] {
         &self.bindings
     }
+    /// Effective argument words retaining their actual written correspondence.
     #[must_use]
     pub fn arguments(&self) -> &[EffectiveInvocationWord] {
         &self.arguments
     }
+    /// Original source operands at their corresponding effective argument positions.
     #[must_use]
     pub fn operands(&self) -> &[Option<OriginalOperandSource>] {
         &self.operands
@@ -191,7 +195,10 @@ pub fn original_project_procedure_arguments<'a>(
     let image = SourceImage::document(source);
     if config != input.lexer_config()
         || !analysis.matches_original_source_image(&image, config)
-        || segment.expand_word.iter().any(|expanded| *expanded)
+        || segment
+            .expand_word
+            .as_ref()
+            .is_some_and(|expanded| expanded.iter().any(|expanded| *expanded))
     {
         return None;
     }

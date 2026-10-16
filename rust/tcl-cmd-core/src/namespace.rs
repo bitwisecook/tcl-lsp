@@ -319,17 +319,51 @@ pub fn import_pattern<O: Namespaces + ?Sized>(
     destination: NsId,
     pattern: &[u8],
 ) -> Result<ImportPattern, ImportPatternError> {
+    let qualifier = import_pattern_qualifier(pattern)?;
+    let source = ops.find_namespace_bytes(destination, qualifier);
+    import_pattern_from_source(ops, destination, pattern, source)
+}
+
+/// The same import gate with full checked namespace lookup refusal transport.
+/// It resolves once and returns that selected source/tail to the binding owner.
+///
+/// # Errors
+/// A host lookup refusal remains outside the ordinary pattern diagnostic.
+pub fn import_pattern_checked<O: Namespaces + ?Sized>(
+    ops: &O,
+    destination: NsId,
+    pattern: &[u8],
+) -> Result<Result<ImportPattern, ImportPatternError>, tcl_syntax::value::ValueError> {
+    let qualifier = match import_pattern_qualifier(pattern) {
+        Ok(qualifier) => qualifier,
+        Err(error) => return Ok(Err(error)),
+    };
+    let source = ops.find_namespace_bytes_checked(destination, qualifier)?;
+    Ok(import_pattern_from_source(
+        ops,
+        destination,
+        pattern,
+        source,
+    ))
+}
+
+fn import_pattern_qualifier(pattern: &[u8]) -> Result<&[u8], ImportPatternError> {
     if pattern.is_empty() {
         return Err(ImportPatternError::Empty);
     }
-    let qualifier = match qualifier(pattern) {
-        Qualifier::Absolute(prefix) | Qualifier::Relative(prefix) => prefix,
-        Qualifier::Unqualified => {
-            return Err(ImportPatternError::Unqualified(pattern.to_vec()));
-        }
-    };
-    let source = ops
-        .find_namespace_bytes(destination, qualifier)
+    match qualifier(pattern) {
+        Qualifier::Absolute(prefix) | Qualifier::Relative(prefix) => Ok(prefix),
+        Qualifier::Unqualified => Err(ImportPatternError::Unqualified(pattern.to_vec())),
+    }
+}
+
+fn import_pattern_from_source<O: Namespaces + ?Sized>(
+    ops: &O,
+    destination: NsId,
+    pattern: &[u8],
+    source: Option<NsId>,
+) -> Result<ImportPattern, ImportPatternError> {
+    let source = source
         .filter(|source| ops.namespace_is_live(*source))
         .ok_or_else(|| ImportPatternError::Unknown(pattern.to_vec()))?;
     if source == destination {

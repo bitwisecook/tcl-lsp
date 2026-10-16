@@ -160,18 +160,33 @@ impl ProcedureQuery {
         }))
     }
     fn check(&self, interpreter: &Interp, scope: &NativeOperationScope) -> Result<(), CmdError> {
+        Self::check_selected(
+            interpreter,
+            scope,
+            self.generation,
+            &self.declaration,
+            &self.namespace,
+        )
+    }
+    fn check_selected(
+        interpreter: &Interp,
+        scope: &NativeOperationScope,
+        generation: u64,
+        declaration: &Rc<ProcDef>,
+        namespace: &ProcedureQueryNamespace,
+    ) -> Result<(), CmdError> {
         scope.currency().ensure_current_or_refuse()?;
-        let same = interpreter.raw_command_by_generation(self.generation)
-            .is_some_and(|command| matches!(command, Command::Proc(procedure) if Rc::ptr_eq(&procedure.declaration(), &self.declaration)));
+        let same = interpreter.raw_command_by_generation(generation)
+            .is_some_and(|command| matches!(command, Command::Proc(procedure) if Rc::ptr_eq(&procedure.declaration(), declaration)));
         if !same {
             return Err(interpreter
                 .clone()
                 .retain_name_query_refusal("original procedure query owner retired"));
         }
-        self.namespace
-            .check(interpreter, &self.declaration)
+        namespace
+            .check(interpreter, declaration)
             .map_err(|error| interpreter.clone().retain_name_query_error(error))?;
-        self.declaration
+        declaration
             .check_native_liveness()
             .map_err(|error| interpreter.clone().retain_name_query_error(error.into()))
     }
@@ -199,6 +214,159 @@ impl ProcedureQuery {
     }
 }
 
+struct OriginalProcedureBodyOperand {
+    scope: NativeOperationScope,
+    arguments: super::native_arguments::OriginalArguments,
+    caller: super::native_jim_lookup::OriginalJimLookupNamespace,
+    actual: Interp,
+    current: crate::namespace::NsId,
+    original: *mut TclObj,
+}
+impl OriginalProcedureBodyOperand {
+    fn enter(actual: &Interp, original: *mut TclObj) -> Result<Self, CmdError> {
+        let arguments = super::native_arguments::OriginalArguments::enter(actual, &[original])?;
+        let scope =
+            NativeOperationScope::enter(actual).map_err(CmdError::from_execution_refusal)?;
+        if actual
+            .native_invocation_dialect()
+            .native_jim_lookup_protocol()
+            .is_none()
+            || actual
+                .native_invocation_dialect()
+                .native_jim_info_protocol()
+                .is_none()
+        {
+            return Err(arguments.retain_refusal(
+                ValueError::CommandProtocolUnavailable("original Jim procedure body query issuer")
+                    .into(),
+            ));
+        }
+        let current = actual.current_ns();
+        let result = Self {
+            caller: super::native_jim_lookup::OriginalJimLookupNamespace::capture(actual, current)?,
+            actual: actual.clone(),
+            current,
+            original,
+            scope,
+            arguments,
+        };
+        result.check()?;
+        Ok(result)
+    }
+    fn check(&self) -> Result<(), CmdError> {
+        self.arguments
+            .check_original_for(&self.actual, 0, self.original)?;
+        self.scope.currency().ensure_current_or_refuse()?;
+        self.caller
+            .check_current_arguments(&self.actual, &self.arguments)
+    }
+    fn select(&self, interpreter: &mut Interp) -> Result<Option<ProcedureQuery>, CmdError> {
+        let selected = crate::list::with_native_conversion_check(
+            &|| self.check(),
+            &|error| self.arguments.retain_refusal(error.into()),
+            |stage, _retain| {
+                interpreter.resolve_original_command_at_using(
+                    self.current,
+                    self.original,
+                    Some(&|_actual| stage()),
+                )
+            },
+        )?;
+        self.check()?;
+        let query = match selected {
+            Some((command, Some(generation))) => {
+                let (name, _) = interpreter
+                    .raw_command_location_by_generation(generation)
+                    .ok_or_else(|| {
+                        self.arguments.retain_refusal(
+                            ValueError::CommandProtocolUnavailable(
+                                "original procedure query command placement",
+                            )
+                            .into(),
+                        )
+                    })?;
+                ProcedureQuery::capture_binding(interpreter, (name, generation, command))?
+            }
+            Some((_command, None)) => {
+                return Err(self.arguments.retain_refusal(
+                    ValueError::CommandProtocolUnavailable(
+                        "original procedure query command generation",
+                    )
+                    .into(),
+                ));
+            }
+            None => None,
+        };
+        Ok(query)
+    }
+}
+
+struct OriginalProcedureBodyResult {
+    operand: OriginalProcedureBodyOperand,
+    generation: u64,
+    declaration: Weak<ProcDef>,
+    namespace: ProcedureQueryNamespace,
+    body: NativeObjectLifetime,
+}
+impl tcl_runtime_api::OriginalProcedureBodyValue<*mut TclObj, CmdError>
+    for OriginalProcedureBodyResult
+{
+    fn checked_value(&self) -> Result<*mut TclObj, CmdError> {
+        let reached = (|| {
+            self.operand.check()?;
+            let actual = &self.operand.actual;
+            let declaration =
+                self.declaration
+                    .upgrade()
+                    .ok_or(ValueError::CommandProtocolUnavailable(
+                        "original body-result declaration retired",
+                    ))?;
+            ProcedureQuery::check_selected(
+                actual,
+                &self.operand.scope,
+                self.generation,
+                &declaration,
+                &self.namespace,
+            )?;
+            let original = self.body.checked_ptr()?;
+            if declaration.body.checked_ptr()? != original {
+                return Err(ValueError::CommandProtocolUnavailable(
+                    "original body-result header changed",
+                )
+                .into());
+            }
+            let context = actual.native_jim_object_context()?;
+            obj::validate_jim_allocator(original, &context.allocation_pool())?;
+            if crate::native_source::selected_string_protocol(original).is_some()
+                && !Rc::ptr_eq(&crate::native_source::context(original)?, &context)
+            {
+                return Err(ValueError::CommandProtocolUnavailable(
+                    "foreign original body-result context",
+                )
+                .into());
+            }
+            drop(declaration);
+            self.operand.check()?;
+            Ok(original)
+        })();
+        reached.map_err(|error| self.operand.arguments.retain_refusal(error))
+    }
+    fn finish(self: Box<Self>) -> Result<(), CmdError> {
+        self.operand.check()?;
+        let original = self
+            .body
+            .checked_ptr()
+            .map_err(|error| self.operand.arguments.retain_refusal(error.into()))?;
+        if self.operand.actual.result_obj() != original {
+            return Err(self.operand.arguments.retain_refusal(
+                ValueError::CommandProtocolUnavailable("original body-result publication header")
+                    .into(),
+            ));
+        }
+        Ok(())
+    }
+}
+
 impl Interp {
     fn retain_name_query_error(&mut self, error: CmdError) -> CmdError {
         if let Some(cause) = error.native_execution_refusal() {
@@ -213,86 +381,70 @@ impl Interp {
         &mut self,
         original: *mut TclObj,
     ) -> Result<tcl_runtime_api::ProcBodyBytesQuery, CmdError> {
-        let arguments = super::native_arguments::OriginalArguments::enter(self, &[original])?;
-        let scope = NativeOperationScope::enter(self).map_err(CmdError::from_execution_refusal)?;
-        let current = self.current_ns();
-        let actual = self.clone();
-        if self
-            .native_invocation_dialect()
-            .native_jim_lookup_protocol()
-            .is_none()
-        {
-            return Err(arguments.retain_refusal(
-                ValueError::CommandProtocolUnavailable("original Jim procedure body query issuer")
-                    .into(),
-            ));
-        }
-        let namespace =
-            super::native_jim_lookup::OriginalJimLookupNamespace::capture(self, current)?;
-        let check = || {
-            arguments.check_original_for(&actual, 0, original)?;
-            namespace.check_current_arguments(&actual, &arguments)?;
-            Ok(())
-        };
-        let reached: Result<tcl_runtime_api::ProcBodyBytesQuery, CmdError> = (|| {
-            let selected = crate::list::with_native_conversion_check(
-                &check,
-                &|error| arguments.retain_refusal(error.into()),
-                |stage, _retain| {
-                    self.resolve_original_command_at_using(
-                        current,
-                        original,
-                        Some(&|_actual| stage()),
-                    )
-                },
-            )?;
-            check()?;
-            let query = match selected {
-                Some((command, Some(generation))) => {
-                    let (name, _) = self
-                        .raw_command_location_by_generation(generation)
-                        .ok_or_else(|| {
-                            arguments.retain_refusal(
-                                ValueError::CommandProtocolUnavailable(
-                                    "original procedure query command placement",
-                                )
-                                .into(),
-                            )
-                        })?;
-                    ProcedureQuery::capture_binding(self, (name, generation, command))?
-                }
-                Some((_command, None)) => {
-                    return Err(arguments.retain_refusal(
-                        ValueError::CommandProtocolUnavailable(
-                            "original procedure query command generation",
-                        )
-                        .into(),
-                    ));
-                }
-                None => None,
-            };
+        let operand = OriginalProcedureBodyOperand::enter(self, original)?;
+        let reached = (|| {
+            let query = operand.select(self)?;
             let result = if let Some(query) = &query {
                 tcl_runtime_api::ProcBodyBytesQuery::Body(query.bytes(
                     self,
-                    &scope,
+                    &operand.scope,
                     query.declaration.body.checked_ptr()?,
-                    Some(&check),
+                    Some(&|| operand.check()),
                 )?)
             } else {
                 tcl_runtime_api::ProcBodyBytesQuery::NotProcedure(
-                    arguments.bytes_using(0, &check)?.to_vec(),
+                    operand
+                        .arguments
+                        .bytes_using(0, &|| operand.check())?
+                        .to_vec(),
                 )
             };
-            check()?;
+            operand.check()?;
             drop(query);
-            check()?;
+            operand.check()?;
             Ok(result)
         })();
         if let Err(error) = &reached {
             self.retain_name_query_error(error.clone());
         }
-        check()?;
+        operand.check()?;
         reached
+    }
+
+    pub(crate) fn original_proc_body_value_query(
+        &mut self,
+        original: *mut TclObj,
+    ) -> Result<tcl_runtime_api::ProcBodyValueQuery<*mut TclObj, CmdError>, CmdError> {
+        let operand = OriginalProcedureBodyOperand::enter(self, original)?;
+        let query = operand
+            .select(self)
+            .map_err(|error| operand.arguments.retain_refusal(error))?;
+        let Some(query) = query else {
+            let name = operand
+                .arguments
+                .bytes_using(0, &|| operand.check())?
+                .to_vec();
+            operand.check()?;
+            return Ok(tcl_runtime_api::ProcBodyValueQuery::NotProcedure(name));
+        };
+        query.check(self, &operand.scope)?;
+        let body = NativeObjectLifetime::retain(query.declaration.body.checked_ptr()?);
+        let declaration = Rc::downgrade(&query.declaration);
+        let ProcedureQuery {
+            generation,
+            declaration: selected,
+            namespace,
+        } = query;
+        drop(selected);
+        let result = OriginalProcedureBodyResult {
+            operand,
+            generation,
+            declaration,
+            namespace,
+            body,
+        };
+        tcl_runtime_api::OriginalProcedureBodyValue::checked_value(&result)?;
+        Ok(tcl_runtime_api::ProcBodyValueQuery::Body(Box::new(result)))
     }
 
     pub(crate) fn original_proc_body_query(

@@ -1,0 +1,36 @@
+--- a/runtime/rust/src/cmd_namespace.rs
++++ b/runtime/rust/src/cmd_namespace.rs
+@@ -6464,7 +6464,10 @@
+             // A user object named after a 9.0-only builtin stays callable.
+             assert_eq!(
+                 i.eval_str(b"oo::class create lpop {method m {} {return M}}; [lpop new] m"),
+-                Code::Ok
++                Code::Ok,
++                "result={:?}; refusal={:?}",
++                i.result_bytes(),
++                i.native_execution_refusal()
+             );
+             assert_eq!(i.result_bytes(), b"M");
+             i.set_runtime_version(tcl_dialect::TclVersion::V9_0);
+--- a/runtime/rust/src/frame/native_variable_names.rs
++++ b/runtime/rust/src/frame/native_variable_names.rs
+@@ -117,9 +117,16 @@
+                 Some(super::Var::Scalar(_) | super::Var::Link(_)) => {}
+             }
+             cell.check_owned_value_role()?;
+-            let key = held_keys.get(name).filter(|key| key.jim).ok_or(
+-                ValueError::CommandProtocolUnavailable("original Jim inventory key owner"),
+-            )?;
++            let key = held_keys.get(name).filter(|key| key.jim).ok_or_else(|| {
++                #[cfg(test)]
++                if std::env::var_os("TCL_RUNTIME_TRACE_MISSING_JIM_KEY").is_some() {
++                    eprintln!(
++                        "missing original Jim inventory key: name={name:?}, existing_jim={:?}",
++                        held_keys.get(name).map(|key| key.jim)
++                    );
++                }
++                ValueError::CommandProtocolUnavailable("original Jim inventory key owner")
++            })?;
+             crate::obj::check_native_liveness(key._original.as_ptr())?;
+             keys.push(OriginalJimVariableInventoryKey {
+                 keys: Rc::downgrade(&self.native_keys),

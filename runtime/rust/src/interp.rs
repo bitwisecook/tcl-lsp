@@ -2919,6 +2919,18 @@ impl Interp {
         }
     }
 
+    /// Observe the selected surface at an existing slot without reinterpreting
+    /// its namespace components or recovering identity from a reporting name.
+    pub(crate) fn has_visible_command_in_slot(&self, namespace: NsId, simple: &[u8]) -> bool {
+        let namespaces = self.namespaces();
+        namespaces.command_in(namespace, simple).is_some_and(|command| {
+            self.command_visible_for_surface_at(
+                &command,
+                namespaces.command_generation(namespace, simple),
+            )
+        })
+    }
+
     /// Resolve `name` (from namespace `origin`) to a command handle, applying
     /// the availability gate of [`Self::builtin_command_visible_for_surface`]
     /// to the **final** resolved builtin identity: a builtin the emulated
@@ -14014,6 +14026,19 @@ impl Interp {
         original: *mut TclObj,
         location: Option<(Option<Rc<[u8]>>, u32)>,
     ) -> Code {
+        self.eval_original_control_body_location_with_purpose(
+            tcl_registry::native_eval_object::EvalObjectPurpose::ControlBody,
+            original,
+            location,
+        )
+    }
+
+    fn eval_original_control_body_location_with_purpose(
+        &mut self,
+        purpose: tcl_registry::native_eval_object::EvalObjectPurpose,
+        original: *mut TclObj,
+        location: Option<(Option<Rc<[u8]>>, u32)>,
+    ) -> Code {
         let mut frame = self.inherited_cmd_frame();
         match location {
             Some((file, line)) => {
@@ -14027,31 +14052,21 @@ impl Interp {
                 frame.line_base = 0;
             }
         }
-        self.eval_original_body_framed(
-            tcl_registry::native_eval_object::EvalObjectPurpose::ControlBody,
-            original,
-            frame,
-        )
+        self.eval_original_body_framed(purpose, original, frame)
     }
 
     pub(crate) fn eval_generic_control_body(&mut self, original: *mut TclObj) -> Code {
-        let mut frame = self.inherited_cmd_frame();
-        match self.arg_loc(original) {
-            Some((file, line)) => {
-                frame.kind = FrameKind::Source;
-                frame.file = file;
-                frame.line_base = line.saturating_sub(1);
-            }
-            None => {
-                frame.kind = FrameKind::Eval;
-                frame.file = None;
-                frame.line_base = 0;
-            }
-        }
-        self.eval_original_body_framed(
-            tcl_registry::native_eval_object::EvalObjectPurpose::ControlBody,
+        self.eval_original_control_body_location(original, self.arg_loc(original))
+    }
+
+    /// Only admitted Native control instructions select this dynamic-body entry.
+    /// C EVAL_STK compiles the original header with a NULL invoker, even when
+    /// that header retains a canonical List or an outer literal location.
+    fn eval_compiled_stack_control_body(&mut self, original: *mut TclObj) -> Code {
+        self.eval_original_control_body_location_with_purpose(
+            tcl_registry::native_eval_object::EvalObjectPurpose::CompiledStack,
             original,
-            frame,
+            None,
         )
     }
 
@@ -14119,6 +14134,18 @@ impl Interp {
                 .into(),
             );
         };
+        let compiled_stack = matches!(
+            purpose,
+            tcl_registry::native_eval_object::EvalObjectPurpose::CompiledStack
+        );
+        if compiled_stack && !protocol.compiles_source(purpose) {
+            return self.report_cmd_error(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "native compiled-stack script-object dispatch",
+                )
+                .into(),
+            );
+        }
         let snapshot = match obj::native_object_snapshot(owner.as_ptr()) {
             Ok(snapshot) => snapshot,
             Err(error) => return self.report_cmd_error(error.into()),
@@ -14146,6 +14173,14 @@ impl Interp {
         {
             match self.prepare_original_c_body(owner.as_ptr(), self.current_ns.get(), None) {
                 Ok(Some(artifact)) => return self.execute_original_c_body(&artifact, frame),
+                Ok(None) if compiled_stack => {
+                    return self.report_cmd_error(
+                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "native compiled-stack body artifact",
+                        )
+                        .into(),
+                    );
+                }
                 Ok(None) => {}
                 Err(code) => return code,
             }

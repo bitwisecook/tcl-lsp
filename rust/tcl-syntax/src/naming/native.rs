@@ -1618,6 +1618,22 @@ impl NativeNameProtocol {
             .map(|input| input.selected() == b"-clear")
     }
 
+    /// Select C's sole leading import control before per-pattern effects.
+    /// The first original operand uses the same C-string extent as import.
+    ///
+    /// # Errors
+    /// Jim's original helper has no C `-force` control declaration.
+    pub fn namespace_import_forces(
+        self,
+        original: &[u8],
+    ) -> Result<bool, NameProjectionUnavailable> {
+        if self.is_jim084() {
+            return Err(NameProjectionUnavailable::PurposeNotModelled);
+        }
+        self.namespace_pattern_input(original, NativeNamePurpose::NamespaceImportPattern)
+            .map(|input| input.selected() == b"-force")
+    }
+
     /// Select a namespace command pattern before qualifier parsing or storage.
     /// C export/import/forget entry points receive C strings. Jim's import
     /// helper receives the same extent; its export/forget APIs have no C recipe.
@@ -3071,6 +3087,41 @@ pub fn native_command_source_word(
     )
 }
 
+/// Selected immutable namespace data for reporting, independent of live identity.
+/// Equal data can come from different namespace incarnations. These parts grant
+/// no lookup, cell, callable, entry, or successful-completion authority.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum NativeNamespaceReportParts {
+    /// Original constructed C components, including literal separators in members.
+    CConstructed(ByteNamespacePath),
+    /// Counted bytes from the reached original Jim flat namespace holder.
+    JimFlat(std::rc::Rc<[u8]>),
+}
+
+/// Qualified inventory report from selected namespace data and a retained member key.
+/// This pure projection never reparses a namespace report or issues a live slot,
+/// lookup input, original object header, or successful-completion capability.
+#[must_use]
+pub fn native_qualified_inventory_report_bytes(
+    namespace: &NativeNamespaceReportParts,
+    member: &[u8],
+) -> Vec<u8> {
+    match namespace {
+        NativeNamespaceReportParts::CConstructed(path) => {
+            native_command_full_name_bytes(&ByteCommandSlot::new(path.clone(), member.into()))
+        }
+        NativeNamespaceReportParts::JimFlat(flat) => {
+            let mut report = b"::".to_vec();
+            report.extend_from_slice(flat);
+            if !flat.is_empty() {
+                report.extend_from_slice(b"::");
+            }
+            report.extend_from_slice(member);
+            report
+        }
+    }
+}
+
 /// `TclGetCommandFullName` reporting bytes from an already selected native slot.
 /// Literal colons and non-text bytes remain data; this projection supplies no
 /// source spelling, lookup key or command identity.
@@ -3153,6 +3204,55 @@ mod tests {
         TclVersion::V9_0,
         TclVersion::V9_1,
     ];
+
+    #[test]
+    fn qualified_inventory_reports_preserve_constructed_components_and_flat_bytes() {
+        let constructed =
+            NativeNamespaceReportParts::CConstructed(ByteNamespacePath::from_segments([
+                b"a:".as_slice(),
+                b"branch\0\xff",
+            ]));
+        assert_eq!(
+            native_qualified_inventory_report_bytes(&constructed, b":p\0\xfe"),
+            b"::a:::branch\0\xff:::p\0\xfe",
+        );
+        let flat =
+            NativeNamespaceReportParts::JimFlat(std::rc::Rc::from(b"a:::branch\0\xff".as_slice()));
+        assert_eq!(
+            native_qualified_inventory_report_bytes(&flat, b":p\0\xfe"),
+            b"::a:::branch\0\xff:::p\0\xfe",
+        );
+        // Colliding reports do not make the selected storage interchangeable.
+        assert_ne!(constructed, flat);
+        for root in [
+            NativeNamespaceReportParts::CConstructed(ByteNamespacePath::root()),
+            NativeNamespaceReportParts::JimFlat(std::rc::Rc::from(b"".as_slice())),
+        ] {
+            assert_eq!(native_qualified_inventory_report_bytes(&root, b"p"), b"::p");
+        }
+    }
+
+    #[test]
+    fn qualified_inventory_report_never_reinterprets_a_flat_separator_spelling() {
+        let flat = NativeNamespaceReportParts::JimFlat(std::rc::Rc::from(b"::".as_slice()));
+        assert_eq!(
+            native_qualified_inventory_report_bytes(&flat, b"p"),
+            b"::::::p"
+        );
+        let first = NativeNamespaceReportParts::CConstructed(ByteNamespacePath::from_segments([
+            b"a:".as_slice(),
+            b"b",
+        ]));
+        let second = NativeNamespaceReportParts::CConstructed(ByteNamespacePath::from_segments([
+            b"a".as_slice(),
+            b":b",
+        ]));
+        assert_ne!(first, second);
+        assert_eq!(
+            native_qualified_inventory_report_bytes(&first, b"p"),
+            native_qualified_inventory_report_bytes(&second, b"p"),
+        );
+    }
 
     #[test]
     fn export_clear_control_uses_exact_cstring_input_and_has_no_jim_recipe() {
@@ -5644,6 +5744,26 @@ fn jim_qualifiers_shared_empty_is_distinct_from_a_paired_root_counted_empty() {
         assert_ne!(
             NativeNameProtocol::C(version).namespace_text_result(b"plain", false),
             NativeNamespaceTextResult::SharedEmpty
+        );
+    }
+    #[test]
+    fn namespace_import_force_uses_only_exact_c_extent_and_declines_jim_control() {
+        for version in tcl_dialect::TclVersion::ALL {
+            let protocol = NativeNameProtocol::C(version);
+            for (original, expected) in [
+                (b"-force".as_slice(), true),
+                (b"-force\0ignored".as_slice(), true),
+                (b"-force\xc0\x80tail".as_slice(), false),
+                (b"-for".as_slice(), false),
+                (b"--".as_slice(), false),
+                (b"::source::member".as_slice(), false),
+            ] {
+                assert_eq!(protocol.namespace_import_forces(original), Ok(expected));
+            }
+        }
+        assert_eq!(
+            NativeNameProtocol::Jim084.namespace_import_forces(b"-force"),
+            Err(NameProjectionUnavailable::PurposeNotModelled)
         );
     }
 }

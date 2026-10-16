@@ -5963,7 +5963,7 @@ impl Interp {
             ));
         };
         self.retire_gate_hidden_object_in_slot(namespace, &simple);
-        if self.namespaces().command_in(namespace, &simple).is_some() {
+        if self.has_visible_command_in_slot(namespace, &simple) {
             let Some(protocol) = self.name_policy_protocol() else {
                 return Err(self.report_cmd_error(
                     tcl_syntax::value::ValueError::CommandProtocolUnavailable(

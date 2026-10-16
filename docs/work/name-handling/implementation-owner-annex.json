@@ -1,0 +1,383 @@
+{
+  "basis": "Bounded source/role reconciliation against baseline554 and reviewed current implementation/patch requirements. Baseline counts remain separately immutable.",
+  "baseline": {
+    "checkpoint": "554085e162823ea8bd126898d0c27b7b2a9f8628",
+    "semantic_code_changes": 1799,
+    "validation_code_repairs": 305,
+    "authored_documentation": 54,
+    "all_required_changes": 2158,
+    "existing_anchor_units": [
+      "runtime:native.original-procedure-query:270",
+      "runtime:native.original-variable-cell-publication:276",
+      "vm-unit-0133",
+      "db.unit.db.workspace-class-display-cards"
+    ]
+  },
+  "additional_unverified_obligations": [
+    {
+      "id": "runtime:native.original-procedure-query:physical-body-api-capsule",
+      "kind": "shared_owner_repair",
+      "site_anchors": [
+        {
+          "path": "rust/tcl-runtime-api/src/lib.rs",
+          "symbol": "OriginalProcedureBodyValue"
+        },
+        {
+          "path": "rust/tcl-runtime-api/src/lib.rs",
+          "symbol": "ProcBodyValueQuery"
+        }
+      ],
+      "rationale": "Engine-neutral capsule/result API is distinct from baseline :270 byte-query caller; it transports a borrowed original header and keeps allocation/currency distinct from native declaration authority.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false
+      }
+    },
+    {
+      "id": "runtime:native.original-procedure-query:physical-body-runtime-producer",
+      "kind": "shared_owner_repair",
+      "site_anchors": [
+        {
+          "path": "runtime/rust/src/interp/native_name_queries.rs",
+          "symbol": "original_proc_body_value_query"
+        }
+      ],
+      "rationale": "Actual Jim original physical-body producer/capsule issuer. This is the Runtime native name-query owner, not cmd_info.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false
+      }
+    },
+    {
+      "id": "runtime:native.original-procedure-query:physical-body-core-result",
+      "kind": "shared_owner_extension",
+      "site_anchors": [
+        {
+          "path": "rust/tcl-cmd-core/src/info.rs",
+          "symbol": "body_result; BodyResult::Original"
+        }
+      ],
+      "rationale": "Core result transport retains the physical header owner through publication, distinct from the byte body facade.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false
+      }
+    },
+    {
+      "id": "runtime:native.original-procedure-query:physical-body-runtime-caller",
+      "kind": "caller_migration",
+      "site_anchors": [
+        {
+          "path": "runtime/rust/src/cmd_info.rs",
+          "symbol": "info_body calling tcl_cmd_core::info::body_result"
+        }
+      ],
+      "rationale": "Actual Runtime cmd_info caller adopts body_result and publishes the checked original value. Keep separate from the producer API and generic Core adapter.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false
+      }
+    },
+    {
+      "id": "vm.native.actual-invocation-argv-owner",
+      "kind": "shared_owner_repair",
+      "boundary": "New shared current actual-argv owner for the native reentry path. Existing vm-unit-0133 ns_eval/ns_inscope caller remains the baseline caller obligation; do not count it again here.",
+      "site_anchors": [
+        {
+          "path": "rust/tcl-vm/src/exec.rs",
+          "symbol": "invoke_resolved_command_inner"
+        }
+      ],
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false
+      }
+    },
+    {
+      "id": "runtime:native.original-variable-cell-publication:canonical-object-producer",
+      "kind": "shared_owner_repair",
+      "boundary": "Distinct physical canonical namespace-object header producer required before deriving the local tail. Baseline :276 is the variable caller migration, not this shared producer.",
+      "site_anchors": [
+        {
+          "path": "runtime/rust/src/cmd_var.rs",
+          "symbol": "variable_entered actual Jim canonical namespace/local pipeline"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_jim_namespace.rs",
+          "symbol": "jim_canonical_namespace_object_using"
+        }
+      ],
+      "implementation": {
+        "status": "not_integrated",
+        "verified_complete": false
+      }
+    },
+    {
+      "id": "runtime:native.original-variable-cell-publication:namespace-tail-producer",
+      "kind": "shared_owner_repair",
+      "boundary": "Shared original physical NamespaceTail/local name-header producer and selected currentness contract. Do not multiply by methods/raw helpers; source manifest explicitly identifies one shared producer facet.",
+      "site_anchors": [
+        {
+          "path": "runtime/rust/src/interp/native_jim_namespace.rs",
+          "symbol": "original Jim NamespaceTail object producer (pending)"
+        }
+      ],
+      "implementation": {
+        "status": "not_integrated",
+        "verified_complete": false
+      }
+    },
+    {
+      "id": "compiler.native.eval-stk-registry-purpose",
+      "kind": "metadata_or_target_schema",
+      "boundary": "One new purpose description for the actual EVAL_STK object/source operation. Count the selected purpose once, including its Catch-protected-range and For-start usage; not one purpose per callsite.",
+      "site_anchors": [
+        {
+          "path": "rust/tcl-registry/src/native_eval_object.rs",
+          "symbol": "EvalObjectPurpose::CompiledStack; NativeEvalObjectProtocol"
+        }
+      ],
+      "rationale": "One new purpose declaration for actual EVAL_STK object/source operation, including Catch protected-range and For-start uses; purpose is counted once, not per consumer.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false
+      }
+    },
+    {
+      "id": "compiler.native.eval-stk-runtime-adapter",
+      "kind": "shared_owner_extension",
+      "boundary": "Transport actual original EVAL_STK operand through the existing Runtime path under the new Registry purpose.",
+      "site_anchors": [
+        {
+          "path": "runtime/rust/src/interp.rs",
+          "symbol": "eval_compiled_stack_control_body"
+        }
+      ],
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false
+      }
+    },
+    {
+      "id": "compiler.native.eval-stk-generic-control-body-caller",
+      "kind": "caller_migration",
+      "boundary": "Shared dynamic control-body caller enters actual C compiled-stack purpose.",
+      "site_anchors": [
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_control.rs",
+          "symbol": "execute_control_body original body call around line 1047"
+        }
+      ],
+      "rationale": "One actual NativeControlBody caller on the generic control-body path; source operand acquisition before evaluation is a separate semantic purpose.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false
+      }
+    },
+    {
+      "id": "compiler.native.eval-stk-catch-body-caller",
+      "kind": "caller_migration",
+      "boundary": "Separate Catch dynamic protected-body caller enters actual C compiled-stack purpose.",
+      "site_anchors": [
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_control.rs",
+          "symbol": "Catch dynamic body call around line 1298"
+        }
+      ],
+      "rationale": "Second distinct NativeControlBody caller, reached for Catch protected-body handling. Count actual call site separately from the generic control body; do not infer a For-start caller from test names.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false
+      }
+    },
+    {
+      "id": "db.unit.db.workspace-class-display-cards:original-collection-source-owner",
+      "kind": "shared_owner_extension",
+      "boundary": "New genuine typed collection insertion/extraction/source owner; existing DB project-token caller is already baseline. One shared source-owner facet, not one per collection form.",
+      "site_anchors": [
+        {
+          "path": "rust/tcl-compiler/src/object_types/original_collection_sources.rs",
+          "symbol": "original collection source owner"
+        },
+        {
+          "path": "rust/tcl-compiler/src/object_types.rs",
+          "symbol": "object_types module/export"
+        }
+      ],
+      "implementation": {
+        "status": "not_integrated",
+        "verified_complete": false
+      }
+    },
+    {
+      "id": "db.unit.db.workspace-class-display-cards:original-instance-visibility-owner",
+      "kind": "shared_owner_extension",
+      "boundary": "New instance-side inherited visibility and typed MRO owner; distinct source owner from collection effects but within the existing conditional token purpose. Existing DB caller remains baseline.",
+      "site_anchors": [
+        {
+          "path": "rust/tcl-compiler/src/analyser/class_hierarchy/original_metadata.rs",
+          "symbol": "OriginalInstanceClassMetadata; original_instance_method_display"
+        }
+      ],
+      "implementation": {
+        "status": "not_integrated",
+        "verified_complete": false
+      }
+    },
+    {
+      "id": "runtime:native.original-list-and-array-currency:legacy-length-descriptor-owner",
+      "kind": "shared_owner_repair",
+      "site_anchors": [
+        {
+          "path": "runtime/rust/src/obj.rs",
+          "symbol": "register_legacy_extension_type"
+        },
+        {
+          "path": "runtime/rust/src/obj.rs",
+          "symbol": "stock_list_input_class"
+        },
+        {
+          "path": "rust/tcl-registry/src/native_stock_list.rs",
+          "symbol": "NativeStockListInputClass::LegacyExtension; NativeObjectLengthAction"
+        }
+      ],
+      "rationale": "Distinct descriptor issuer/classification and effectful Length policy owner beyond runtime:native.original-list-and-array-currency:560 nested String conversion. Count once across Obj registration and Registry policy; do not multiply already mapped Index/list_len callers.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false
+      }
+    },
+    {
+      "id": "compiler.source.original-project-source-load-owner",
+      "kind": "shared_owner_extension",
+      "site_anchors": [
+        {
+          "path": "rust/tcl-compiler/src/registry_invocation/source_structure/source_load.rs",
+          "symbol": "OriginalProjectSourceLoad"
+        },
+        {
+          "path": "rust/tcl-compiler/src/registry_invocation/source_structure/source_load.rs",
+          "symbol": "capture_original_project_source_load_at"
+        }
+      ],
+      "rationale": "Genuine typed immutable project source-load owner beyond existing compiler.source.selected-loader-path-operand:11183 and db.unit.db.source-dispatch-component consumers. Static path association only; no file existence/cwd/child visibility/loading/completion authority.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false
+      }
+    },
+    {
+      "id": "vm.namespace.parent-current-holder-projection",
+      "kind": "caller_migration",
+      "site_anchors": [
+        {
+          "path": "rust/tcl-vm/src/cmd_namespace.rs",
+          "symbol": "cmd_namespace_in no-operand Jim parent branch"
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_namespace.rs",
+          "symbol": "parent_without_operand_uses_the_entered_namespace_incarnation"
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_namespace_names/jim_parent.rs",
+          "symbol": "original_jim_namespace_parent_object"
+        }
+      ],
+      "rationale": "Distinct no-argument Parent current-holder projection caller, beyond vm-unit-0808-a root getter error transport and vm-unit-0120 namespace worker/profile lifecycle. Lexical parent selection remains the existing NativeNameProtocol behavior.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false
+      }
+    },
+    {
+      "id": "runtime:report.native-namespace-parts:serializer-owner",
+      "kind": "shared_owner_repair",
+      "site_anchors": [
+        {
+          "path": "rust/tcl-syntax/src/naming/native.rs",
+          "symbol": "native_qualified_inventory_report_bytes"
+        },
+        {
+          "path": "rust/tcl-cmd-core/src/info.rs",
+          "symbol": "qualified_listing_bytes"
+        },
+        {
+          "path": "rust/tcl-cmd-core/src/info.rs",
+          "symbol": "qualified_variable_listing_bytes"
+        }
+      ],
+      "rationale": "Pure serializer/Core inventory adapter is a distinct owner from namespace report-parts transport and Runtime producer; count one shared serializer facet, not another 243/244 caller. Source currently contains the serializer and both Core call paths.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false
+      }
+    },
+    {
+      "id": "vm:report.native-namespace-parts:provider",
+      "kind": "caller_migration",
+      "site_anchors": [
+        {
+          "path": "rust/tcl-vm/src/interp/native_namespace_names.rs",
+          "symbol": "original namespace report-parts provider"
+        },
+        {
+          "path": "rust/tcl-vm/src/interp.rs",
+          "symbol": "Namespaces::namespace_report_parts_checked"
+        }
+      ],
+      "rationale": "Distinct actual VM provider adopts shared immutable report parts with genuine current namespace storage/holder. No identity reconstructed from reports.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false
+      }
+    },
+    {
+      "id": "runtime:native.original-procedure-query:physical-body-vm-caller",
+      "kind": "caller_migration",
+      "site_anchors": [
+        {
+          "path": "rust/tcl-vm/src/cmd_info.rs",
+          "symbol": "info body branch calling tcl_cmd_core::info::body"
+        }
+      ],
+      "rationale": "The current VM body caller remains byte-compatible via info::body. The separate physical-body patch manifest explicitly leaves this caller outside the Runtime actual-header adapter; count this distinct caller if physical Jim body-result parity is in scope.",
+      "implementation": {
+        "status": "not_integrated",
+        "verified_complete": false
+      }
+    }
+  ],
+  "unverified_or_open": [
+    "All additional obligations remain unverified until Root integrates and validates the owning patches; do not increase verified-complete counts from these proposals.",
+    "Physical Jim body result patch manifest explicitly leaves VM actual physical body adapter separate/open; it is not included as completed here.",
+    "VM actual argv patch owner does not establish that every caller has adopted it; vm-unit-0133 remains the identified baseline caller.",
+    "Jim variable physical Tail/canonical producer additions do not establish completion of other catalogue callers (including frame split-array or dict variable paths). Count no raw method/helper multiplicity.",
+    "DB patch retains an unknown foreign-constructor getter-mutation barrier and conservative foreign ancestor withdrawal; these are open boundaries, not additional owners inferred by this bounded count."
+  ],
+  "status_note": "Requirements are counted regardless of implementation presence. No additional requirement or baseline unit is verified complete.",
+  "status": "accepted_additional_obligations_unverified",
+  "utc": "2026-10-16T09:58:38.956554+00:00",
+  "accepted_delta": {
+    "semantic_code_changes": 19,
+    "validation_code_repairs": 0,
+    "authored_documentation": 0,
+    "all_required_changes": 19,
+    "by_kind": {
+      "shared_owner_repair": 7,
+      "shared_owner_extension": 5,
+      "caller_migration": 6,
+      "metadata_or_target_schema": 1
+    }
+  },
+  "effective_counts": {
+    "semantic_code_changes": 1818,
+    "validation_code_repairs": 305,
+    "authored_documentation": 54,
+    "all_required_changes": 2177
+  },
+  "implementation_progress": {
+    "implemented_pending_validation": 14,
+    "not_integrated": 5,
+    "verified_complete": 0
+  }
+}

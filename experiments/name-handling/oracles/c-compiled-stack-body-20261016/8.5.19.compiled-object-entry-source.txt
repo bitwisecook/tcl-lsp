@@ -1,0 +1,230 @@
+1370: TclCompEvalObj(
+1371:     Tcl_Interp *interp,
+1372:     Tcl_Obj *objPtr,
+1373:     const CmdFrame *invoker,
+1374:     int word)
+1375: {
+1376:     register Interp *iPtr = (Interp *) interp;
+1377:     register ByteCode *codePtr;	/* Tcl Internal type of bytecode. */
+1378:     int result;
+1379:     Namespace *namespacePtr;
+1380: 
+1381:     /*
+1382:      * Check that the interpreter is ready to execute scripts. Note that we
+1383:      * manage the interp's runlevel here: it is a small white lie (maybe), but
+1384:      * saves a ++/-- pair at each invocation. Amazingly enough, the impact on
+1385:      * performance is noticeable.
+1386:      */
+1387: 
+1388:     iPtr->numLevels++;
+1389:     if (TclInterpReady(interp) == TCL_ERROR) {
+1390: 	result = TCL_ERROR;
+1391: 	goto done;
+1392:     }
+1393: 
+1394:     namespacePtr = iPtr->varFramePtr->nsPtr;
+1395: 
+1396:     /*
+1397:      * If the object is not already of tclByteCodeType, compile it (and reset
+1398:      * the compilation flags in the interpreter; this should be done after any
+1399:      * compilation). Otherwise, check that it is "fresh" enough.
+1400:      */
+1401: 
+1402:     if (objPtr->typePtr == &tclByteCodeType) {
+1403: 	/*
+1404: 	 * Make sure the Bytecode hasn't been invalidated by, e.g., someone
+1405: 	 * redefining a command with a compile procedure (this might make the
+1406: 	 * compiled code wrong). The object needs to be recompiled if it was
+1407: 	 * compiled in/for a different interpreter, or for a different
+1408: 	 * namespace, or for the same namespace but with different name
+1409: 	 * resolution rules. Precompiled objects, however, are immutable and
+1410: 	 * therefore they are not recompiled, even if the epoch has changed.
+1411: 	 *
+1412: 	 * To be pedantically correct, we should also check that the
+1413: 	 * originating procPtr is the same as the current context procPtr
+1414: 	 * (assuming one exists at all - none for global level). This code is
+1415: 	 * #def'ed out because [info body] was changed to never return a
+1416: 	 * bytecode type object, which should obviate us from the extra checks
+1417: 	 * here.
+1418: 	 */
+1419: 
+1420: 	codePtr = (ByteCode *) objPtr->internalRep.twoPtrValue.ptr1;
+1421: 	if (((Interp *) *codePtr->interpHandle != iPtr)
+1422: 		|| (codePtr->compileEpoch != iPtr->compileEpoch)
+1423: 		|| (codePtr->nsPtr != namespacePtr)
+1424: 		|| (codePtr->nsEpoch != namespacePtr->resolverEpoch)) {
+1425: 	    if (codePtr->flags & TCL_BYTECODE_PRECOMPILED) {
+1426: 		if ((Interp *) *codePtr->interpHandle != iPtr) {
+1427: 		    Tcl_Panic("Tcl_EvalObj: compiled script jumped interps");
+1428: 		}
+1429: 		codePtr->compileEpoch = iPtr->compileEpoch;
+1430: 	    } else {
+1431: 		/*
+1432: 		 * This byteCode is invalid: free it and recompile.
+1433: 		 */
+1434: 
+1435: 		objPtr->typePtr->freeIntRepProc(objPtr);
+1436: 		goto recompileObj;
+1437: 	    }
+1438: 	}
+1439: 
+1440: 	/*
+1441: 	 * #280.
+1442: 	 * Literal sharing fix. This part of the fix is not required by 8.4
+1443: 	 * because it eval-directs any literals, so just saving the argument
+1444: 	 * locations per command in bytecode is enough, embedded 'eval'
+1445: 	 * commands, etc. get the correct information.
+1446: 	 *
+1447: 	 * It had be backported for 8.5 because we can force the separate
+1448: 	 * compiling of a literal (in a proc body) by putting it into a control
+1449: 	 * command with dynamic pieces, and then such literal may be shared
+1450: 	 * and require their line-information to be reset, as for 8.6, as
+1451: 	 * described below.
+1452: 	 *
+1453: 	 * In 8.6 all the embedded script are compiled, and the resulting
+1454: 	 * bytecode stored in the literal. Now the shared literal has bytecode
+1455: 	 * with location data for _one_ particular location this literal is
+1456: 	 * found at. If we get executed from a different location the bytecode
+1457: 	 * has to be recompiled to get the correct locations. Not doing this
+1458: 	 * will execute the saved bytecode with data for a different location,
+1459: 	 * causing 'info frame' to point to the wrong place in the sources.
+1460: 	 *
+1461: 	 * Future optimizations ...
+1462: 	 * (1) Save the location data (ExtCmdLoc) keyed by start line. In that
+1463: 	 *     case we recompile once per location of the literal, but not
+1464: 	 *     continously, because the moment we have all locations we do not
+1465: 	 *     need to recompile any longer.
+1466: 	 *
+1467: 	 * (2) Alternative: Do not recompile, tell the execution engine the
+1468: 	 *     offset between saved starting line and actual one. Then modify
+1469: 	 *     the users to adjust the locations they have by this offset.
+1470: 	 *
+1471: 	 * (3) Alternative 2: Do not fully recompile, adjust just the location
+1472: 	 *     information.
+1473: 	 */
+1474: 
+1475: 	if (invoker) {
+1476: 	    Tcl_HashEntry *hePtr =
+1477: 		    Tcl_FindHashEntry(iPtr->lineBCPtr, (char *) codePtr);
+1478: 
+1479: 	    if (hePtr) {
+1480: 		ExtCmdLoc *eclPtr = Tcl_GetHashValue(hePtr);
+1481: 		int redo = 0;
+1482: 		CmdFrame *ctxPtr = TclStackAlloc(interp,sizeof(CmdFrame));
+1483: 
+1484: 		*ctxPtr = *invoker;
+1485: 
+1486: 		if (invoker->type == TCL_LOCATION_BC) {
+1487: 		    /*
+1488: 		     * Note: Type BC => ctx.data.eval.path    is not used.
+1489: 		     *		    ctx.data.tebc.codePtr used instead
+1490: 		     */
+1491: 
+1492: 		    TclGetSrcInfoForPc(ctxPtr);
+1493: 		    if (ctxPtr->type == TCL_LOCATION_SOURCE) {
+1494: 			/*
+1495: 			 * The reference made by 'TclGetSrcInfoForPc' is
+1496: 			 * dead.
+1497: 			 */
+1498: 
+1499: 			Tcl_DecrRefCount(ctxPtr->data.eval.path);
+1500: 			ctxPtr->data.eval.path = NULL;
+1501: 		    }
+1502: 		}
+1503: 
+1504: 		if (word < ctxPtr->nline) {
+1505: 		    /*
+1506: 		     * Note: We do not care if the line[word] is -1. This
+1507: 		     * is a difference and requires a recompile (location
+1508: 		     * changed from absolute to relative, literal is used
+1509: 		     * fixed and through variable)
+1510: 		     *
+1511: 		     * Example:
+1512: 		     * test info-32.0 using literal of info-24.8
+1513: 		     *     (dict with ... vs           set body ...).
+1514: 		     */
+1515: 
+1516: 		    redo = ((eclPtr->type == TCL_LOCATION_SOURCE)
+1517: 			    && (eclPtr->start != ctxPtr->line[word]))
+1518: 			|| ((eclPtr->type == TCL_LOCATION_BC)
+1519: 				&& (ctxPtr->type == TCL_LOCATION_SOURCE));
+1520: 		}
+1521: 
+1522: 		TclStackFree(interp, ctxPtr);
+1523: 
+1524: 		if (redo) {
+1525: 		    goto recompileObj;
+1526: 		}
+1527: 	    }
+1528: 	}
+1529: 
+1530: 	/*
+1531: 	 * Increment the code's ref count while it is being executed. If
+1532: 	 * afterwards no references to it remain, free the code.
+1533: 	 */
+1534: 
+1535:     runCompiledObj:
+1536: 	codePtr->refCount++;
+1537: 	result = TclExecuteByteCode(interp, codePtr);
+1538: 	codePtr->refCount--;
+1539: 	if (codePtr->refCount <= 0) {
+1540: 	    TclCleanupByteCode(codePtr);
+1541: 	}
+1542: 	goto done;
+1543:     }
+1544: 
+1545:     recompileObj:
+1546:     iPtr->errorLine = 1;
+1547: 
+1548:     /*
+1549:      * TIP #280. Remember the invoker for a moment in the interpreter
+1550:      * structures so that the byte code compiler can pick it up when
+1551:      * initializing the compilation environment, i.e. the extended location
+1552:      * information.
+1553:      */
+1554: 
+1555:     iPtr->invokeCmdFramePtr = invoker;
+1556:     iPtr->invokeWord = word;
+1557:     tclByteCodeType.setFromAnyProc(interp, objPtr);
+1558:     iPtr->invokeCmdFramePtr = NULL;
+1559:     codePtr = (ByteCode *) objPtr->internalRep.twoPtrValue.ptr1;
+1560:     goto runCompiledObj;
+1561: 
+1562:     done:
+1563:     iPtr->numLevels--;
+1564:     return result;
+1565: }
+1566: 
+1567: /*
+1568:  *----------------------------------------------------------------------
+1569:  *
+1570:  * TclIncrObj --
+1571:  *
+1572:  *	Increment an integeral value in a Tcl_Obj by an integeral value held
+1573:  *	in another Tcl_Obj. Caller is responsible for making sure we can
+1574:  *	update the first object.
+1575:  *
+1576:  * Results:
+1577:  *	TCL_ERROR if either object is non-integer, and TCL_OK otherwise. On
+1578:  *	error, an error message is left in the interpreter (if it is not NULL,
+1579:  *	of course).
+1580:  *
+1581:  * Side effects:
+1582:  *	valuePtr gets the new incrmented value.
+1583:  *
+1584:  *----------------------------------------------------------------------
+1585:  */
+1586: 
+1587: int
+1588: TclIncrObj(
+1589:     Tcl_Interp *interp,
+1590:     Tcl_Obj *valuePtr,
+1591:     Tcl_Obj *incrPtr)
+1592: {
+1593:     ClientData ptr1, ptr2;
+1594:     int type1, type2;
+1595:     mp_int value, incr;
+1596: 
+1597:     if (Tcl_IsShared(valuePtr)) {
+1598: 	Tcl_Panic("%s called with shared object", "TclIncrObj");
+1599:     }

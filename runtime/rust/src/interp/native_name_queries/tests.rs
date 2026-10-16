@@ -461,7 +461,7 @@ mod jim_procedure_namespace_tests {
             assert!(obj::with_jim_command_cache(name.as_ptr(), |_| ()).is_some());
             assert_eq!(obj::has_string_rep(name.as_ptr()), cold);
         }
-        // This adapter still reports bytes; the direct native result-header boundary is separate.
+        // Explicit byte compatibility remains a report; Runtime dispatch uses body_result.
         let result = Owned::fresh(tcl_cmd_core::info::body(&mut actual, &name.as_ptr()).unwrap());
         assert_eq!(obj::bytes_of(result.as_ptr()), b"return BODY");
         assert!(!obj::has_string_rep(name.as_ptr()));
@@ -582,6 +582,278 @@ mod jim_procedure_namespace_tests {
         assert!(actual.native_execution_refusal().is_none());
     }
 
+    thread_local! {
+        static PUBLISHED_BODY: Cell<*mut TclObj> = const { Cell::new(std::ptr::null_mut()) };
+        static RESULT_FINALIZATIONS: Cell<usize> = const { Cell::new(0) };
+        static RESULT_MODE: Cell<u8> = const { Cell::new(0) };
+        static BODY_COUNTS: RefCell<Vec<i64>> = const { RefCell::new(Vec::new()) };
+    }
+    extern "C" fn retire_body_query_result(original: *mut TclObj) {
+        let mut actual = ACTUAL
+            .with(|owner| owner.borrow().as_ref().and_then(WeakInterp::upgrade))
+            .unwrap();
+        let body = PUBLISHED_BODY.with(Cell::get);
+        RESULT_FINALIZATIONS.with(|count| count.set(count.get() + 1));
+        assert_eq!(actual.result_obj(), original);
+        assert!(!obj::allocation_is_live(original));
+        // The real result reference precedes old-result retirement, Jim_SetResult.
+        BODY_COUNTS.with(|counts| {
+            counts
+                .borrow_mut()
+                .push(unsafe { (*body).ref_count as i64 })
+        });
+        assert_eq!(
+            actual.rename_command(b"::Holder::p", b""),
+            crate::namespace::RenameOutcome::Deleted
+        );
+        BODY_COUNTS.with(|counts| {
+            counts
+                .borrow_mut()
+                .push(unsafe { (*body).ref_count as i64 })
+        });
+        match RESULT_MODE.with(Cell::get) {
+            1 => {
+                actual.refuse_host_command("original body publication first Host cause");
+                FIRST.with(|first| *first.borrow_mut() = actual.native_execution_refusal());
+            }
+            2 => {
+                // A real Host ingress change invalidates operation context even
+                // when restored to the same Rc before the callback returns.
+                actual.set_host(actual.host());
+            }
+            _ => {}
+        }
+    }
+    static OLD_RESULT: obj::TclObjType = obj::TclObjType {
+        name: c"originalInfoBodyOldResult".as_ptr(),
+        free_int_rep_proc: Some(retire_body_query_result),
+        dup_int_rep_proc: None,
+        update_string_proc: None,
+        set_from_any_proc: None,
+    };
+    fn info_body_call(actual: &mut Interp, name: *mut TclObj) -> Code {
+        let head = text(b"info");
+        let selector = text(b"body");
+        actual.dispatch(&[head.as_ptr(), selector.as_ptr(), name])
+    }
+
+    fn info_body_primitive(actual: &mut Interp, name: *mut TclObj) -> Code {
+        let head = text(b"info");
+        let selector = text(b"body");
+        crate::native_source::bind_context(
+            head.as_ptr(),
+            &actual.native_jim_object_context().unwrap(),
+        )
+        .unwrap();
+        let Some((Command::Builtin(worker), Some(_generation))) =
+            actual.resolve_original_command(head.as_ptr()).unwrap()
+        else {
+            panic!("actual registered Info native worker")
+        };
+        // This is the measured primitive window. JimInvokeCommand clears the
+        // prior result before native entry during ordinary full evaluation.
+        worker(actual, &[head.as_ptr(), selector.as_ptr(), name])
+    }
+
+    #[test]
+    fn jim_original_body_value_publishes_same_lazy_header_without_body_or_warm_name_getter() {
+        let mut actual = native("jimtcl");
+        let body = lazy(b'B');
+        let declaration = define(&mut actual, &body);
+        let name = text(b"::Holder::p");
+        crate::native_source::bind_context(
+            name.as_ptr(),
+            &actual.native_jim_object_context().unwrap(),
+        )
+        .unwrap();
+        let _cleanup = arm(&actual, 0, declaration.namespace());
+        let body_refs = unsafe { (*body.as_ptr()).ref_count };
+        let proc_refs = declaration.native_procedure_role_ledger().references();
+        for cold in [true, false] {
+            if !cold {
+                actual.set_result_bytes(b"PRIOR");
+                obj::invalidate_string(name.as_ptr());
+            }
+            assert_eq!(info_body_call(&mut actual, name.as_ptr()), Code::Ok);
+            assert_eq!(actual.result_obj(), body.as_ptr());
+            assert_eq!(obj::obj_type_ptr(body.as_ptr()), &ORIGINAL as *const _);
+            assert!(!obj::has_string_rep(body.as_ptr()));
+            assert!(READS.with(|reads| reads.borrow().is_empty()));
+            assert_eq!(unsafe { (*body.as_ptr()).ref_count }, body_refs + 1);
+            assert_eq!(
+                declaration.native_procedure_role_ledger().references(),
+                proc_refs
+            );
+            assert_eq!(obj::has_string_rep(name.as_ptr()), cold);
+            assert!(actual.native_execution_refusal().is_none());
+            assert_eq!(actual.entered_native_operation_count(), 0);
+        }
+    }
+
+    #[test]
+    fn jim_original_body_value_capsule_keeps_memory_but_no_native_declaration_or_body_role() {
+        let mut actual = native("jimtcl");
+        let body = lazy(b'B');
+        let declaration = define(&mut actual, &body);
+        let namespace = declaration.namespace();
+        let weak = Rc::downgrade(&declaration);
+        let body_memory = NativeObjectLifetime::retain(body.as_ptr());
+        let original = body.as_ptr();
+        drop(declaration);
+        drop(body);
+        let name = text(b"::Holder::p");
+        let _cleanup = arm(&actual, 0, namespace);
+        let declaration_transports = weak.strong_count();
+        let tcl_cmd_core::info::BodyResult::Original(owner) =
+            tcl_cmd_core::info::body_result(&mut actual, &name.as_ptr()).unwrap()
+        else {
+            panic!("genuine Jim body must retain its original header owner")
+        };
+        assert_eq!(weak.strong_count(), declaration_transports);
+        assert_eq!(owner.checked_value().unwrap(), original);
+        assert_eq!(unsafe { (*original).ref_count }, 1);
+        assert_eq!(
+            actual.rename_command(b"::Holder::p", b""),
+            crate::namespace::RenameOutcome::Deleted
+        );
+        if let Some(retired) = weak.upgrade() {
+            assert!(retired.check_native_liveness().is_err());
+            assert_eq!(retired.native_procedure_role_ledger().references(), 0);
+        }
+        assert!(body_memory.checked_ptr().is_err());
+        let error = owner.checked_value().unwrap_err();
+        assert_eq!(
+            error.native_execution_refusal(),
+            actual.native_execution_refusal().as_ref()
+        );
+        assert!(!obj::allocation_is_live(original));
+        assert!(READS.with(|reads| reads.borrow().is_empty()));
+        drop(owner);
+        assert_eq!(actual.entered_native_operation_count(), 0);
+    }
+
+    #[test]
+    fn jim_original_body_result_reference_precedes_old_result_delete_and_legal_retirement() {
+        for mode in [0, 1, 2] {
+            let mut actual = native("jimtcl");
+            let body = lazy(b'B');
+            let declaration = define(&mut actual, &body);
+            let namespace = declaration.namespace();
+            let weak = Rc::downgrade(&declaration);
+            let original = body.as_ptr();
+            let memory = NativeObjectLifetime::retain(original);
+            drop(declaration);
+            drop(body);
+            let name = text(b"::Holder::p");
+            let _cleanup = arm(&actual, 0, namespace);
+            RESULT_MODE.with(|value| value.set(mode));
+            RESULT_FINALIZATIONS.with(|value| value.set(0));
+            BODY_COUNTS.with(|counts| counts.borrow_mut().clear());
+            PUBLISHED_BODY.with(|value| value.set(original));
+            let prior = Owned::fresh(obj::alloc_typed(&OLD_RESULT, 0));
+            actual.set_result(prior.as_ptr());
+            drop(prior);
+            let code = info_body_primitive(&mut actual, name.as_ptr());
+            assert_eq!(code, if mode == 0 { Code::Ok } else { Code::Error });
+            assert_eq!(RESULT_FINALIZATIONS.with(Cell::get), 1);
+            assert_eq!(BODY_COUNTS.with(|counts| counts.borrow().clone()), [2, 1]);
+            if let Some(retired) = weak.upgrade() {
+                assert!(retired.check_native_liveness().is_err());
+                assert_eq!(retired.native_procedure_role_ledger().references(), 0);
+            }
+            assert_eq!(memory.checked_ptr().unwrap(), original);
+            assert_eq!(actual.result_obj(), original);
+            assert_eq!(unsafe { (*original).ref_count }, 1);
+            assert!(!obj::has_string_rep(original));
+            assert!(READS.with(|reads| reads.borrow().is_empty()));
+            if mode == 0 {
+                assert!(actual.native_execution_refusal().is_none());
+            } else {
+                assert!(actual.native_execution_refusal().is_some());
+                if mode == 1 {
+                    assert_eq!(
+                        FIRST.with(|first| first.borrow().clone()),
+                        actual.native_execution_refusal()
+                    );
+                }
+            }
+            assert_eq!(actual.entered_native_operation_count(), 0);
+        }
+    }
+
+    #[test]
+    fn jim_original_body_value_rechecks_caller_and_selected_declaration_before_publication() {
+        for mode in [1, 2, 3] {
+            let mut actual = native("jimtcl");
+            let body = lazy(b'B');
+            let declaration = define(&mut actual, &body);
+            let name = text(b"::Holder::p");
+            let _cleanup = arm(&actual, 0, declaration.namespace());
+            let tcl_cmd_core::info::BodyResult::Original(owner) =
+                tcl_cmd_core::info::body_result(&mut actual, &name.as_ptr()).unwrap()
+            else {
+                panic!("genuine Jim body must retain its original header owner")
+            };
+            match mode {
+                1 => actual.set_current_ns(declaration.namespace()),
+                2 => {
+                    let original = actual.runtime_context();
+                    let mut changed = original.clone();
+                    changed
+                        .packages
+                        .push(("original-body-context".into(), "1.0".into()));
+                    actual.pin_context(&changed).unwrap();
+                    actual.pin_context(&original).unwrap();
+                }
+                _ => {
+                    actual.rename_command(b"::Holder::p", b"");
+                    actual.register_builtin(b"::Holder::p", builtin);
+                }
+            }
+            let error = owner.checked_value().unwrap_err();
+            assert_eq!(
+                error.native_execution_refusal(),
+                actual.native_execution_refusal().as_ref()
+            );
+            assert!(actual.native_execution_refusal().is_some());
+            assert!(!obj::has_string_rep(body.as_ptr()));
+            assert!(READS.with(|reads| reads.borrow().is_empty()));
+            drop(owner);
+            assert_eq!(actual.entered_native_operation_count(), 0);
+        }
+    }
+
+    #[test]
+    fn jim_original_body_value_name_callbacks_refuse_before_body_result_or_cache() {
+        for mode in [1, 2, 5, 6] {
+            let mut actual = native("jimtcl");
+            let body = lazy(b'B');
+            let declaration = define(&mut actual, &body);
+            let name = lazy(b'N');
+            crate::native_source::bind_context(
+                name.as_ptr(),
+                &actual.native_jim_object_context().unwrap(),
+            )
+            .unwrap();
+            let _cleanup = arm(&actual, mode, declaration.namespace());
+            assert_eq!(info_body_call(&mut actual, name.as_ptr()), Code::Error);
+            assert_eq!(READS.with(|reads| reads.borrow().clone()), b"N");
+            assert!(!obj::has_string_rep(body.as_ptr()));
+            assert!(obj::with_jim_command_cache(name.as_ptr(), |_| ()).is_none());
+            assert!(actual.native_execution_refusal().is_some());
+            if mode == 1 {
+                assert_eq!(
+                    FIRST.with(|first| first.borrow().clone()),
+                    actual.native_execution_refusal()
+                );
+            }
+            if mode == 6 {
+                actual.frames.borrow_mut().pop();
+            }
+            assert_eq!(actual.entered_native_operation_count(), 0);
+        }
+    }
+
     #[test]
     fn original_body_query_preserves_finite_c_import_generation_ownership() {
         for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -589,6 +861,9 @@ mod jim_procedure_namespace_tests {
             assert_eq!(actual.eval_str(b"namespace eval Source {namespace export *; proc p {} {return BODY}}; namespace eval Middle {namespace export *; namespace import ::Source::p}; namespace eval Destination {namespace import ::Middle::p}"), Code::Ok);
             READS.with(|reads| reads.borrow_mut().clear());
             let name = Owned::fresh(obj::alloc_typed(&C_IMPORT_NAME, 0));
+            assert!(Procs::proc_body_original_value(&mut actual, &name.as_ptr())
+                .unwrap()
+                .is_none());
             assert!(Procs::proc_body_original_bytes(&mut actual, &name.as_ptr())
                 .unwrap()
                 .is_none());

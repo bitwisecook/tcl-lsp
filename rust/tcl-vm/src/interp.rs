@@ -802,6 +802,43 @@ struct CommandTokenIdentity {
     generation: u64,
 }
 
+/// The actual global command selected for C8.4's direct import preload call.
+/// Only the namespace import owner can create this entered callable snapshot.
+pub(crate) struct OriginalCImportPreload {
+    token: CommandTokenIdentity,
+    command: Command,
+}
+
+impl OriginalCImportPreload {
+    pub(crate) fn command(&self) -> Command {
+        self.command.clone()
+    }
+
+    pub(crate) fn key(&self) -> CommandSidecarKey {
+        self.token.key.clone()
+    }
+
+    pub(crate) fn install_invoked_head(
+        &self,
+        vm: &mut Vm,
+        head: &Value,
+    ) -> Result<(), tcl_cmd_core::CmdError> {
+        if vm.command_token_identity(&self.token.key).as_ref() != Some(&self.token) {
+            return Err(vm.retain_name_query_refusal("original C import preload command token"));
+        }
+        head.check_native_header()?;
+        vm.native_invocation.name = head
+            .existing_string_representation()
+            .map(|text| text.to_string());
+        vm.native_invocation.original_name = Some(head.native_lifetime_lease().into_value());
+        vm.native_invocation.builtin_identity = match &self.token.key {
+            CommandSidecarKey::Visible(key) => vm.stock_native_identity(key),
+            CommandSidecarKey::Hidden(_) => None,
+        };
+        Ok(())
+    }
+}
+
 type VmCommandGuards = tcl_runtime_api::guard::OwnedGuardManager<CommandTokenIdentity>;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -825,6 +862,7 @@ pub(crate) enum NamespaceImportError {
         command: NameBytes,
     },
     Host(String),
+    Original(tcl_cmd_core::CmdError),
 }
 
 impl NamespaceImportError {
@@ -845,6 +883,7 @@ impl NamespaceImportError {
                 (bytes, "TCL IMPORT LOOP")
             }
             Self::Host(reason) => return vm.refuse_host_command(reason),
+            Self::Original(error) => return crate::command::completion_from_cmd_error(vm, error),
         };
         crate::command::completion_from_cmd_error(
             vm,
@@ -12852,105 +12891,291 @@ impl Vm {
         }
     }
 
+    /// Enter the original optional C import preload stage before validation.
+    pub(crate) fn original_c_import_preload(
+        &mut self,
+        pattern: &[u8],
+        original: &native_name_consumers::OriginalNameConsumerScope,
+    ) -> Result<Option<Completion<Value>>, tcl_cmd_core::CmdError> {
+        use tcl_registry::native_namespace_name::NativeNamespaceImportPreloadRoute;
+        use tcl_syntax::value::ValueError;
+
+        original.check(self)?;
+        let protocol = self
+            .actual_native_invocation_dialect()
+            .native_namespace_name_protocol()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "original C import preload issuer",
+            ))?;
+        let policy = self
+            .name_policy_protocol()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "original C import preload naming issuer",
+            ))?;
+        let helper =
+            tcl_registry::state_transition::NamespaceTransition::import_preload_command(policy)
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "original C import preload head",
+                ))?;
+        // Tcl_FindCommand(..., TCL_GLOBAL_ONLY) observes this exact global slot.
+        // It does not enter unknown or a namespace path while testing absence.
+        let slot = CommandSlot::new(ROOT_NS, NameBytes::from(helper));
+        let key = self
+            .command_at_exact_slot_checked(&slot, true)
+            .map_err(|_| self.retain_name_query_refusal("original global import preload lookup"))?;
+        let Some(key) = key else {
+            return Ok(None);
+        };
+        let head = Value::new_native_string_bytes(helper.as_bytes());
+        let operand = Value::new_native_string_bytes(pattern);
+        original.current_for_value(self, &head)?;
+        original.current_for_value(self, &operand)?;
+        let mut completion = match protocol.import_preload_route() {
+            NativeNamespaceImportPreloadRoute::GlobalDirect => {
+                let command = self.visible_command_at_key(&key).ok_or_else(|| {
+                    self.retain_name_query_refusal("original global import preload callable")
+                })?;
+                let token = self
+                    .command_token_identity(&CommandSidecarKey::visible(&key))
+                    .ok_or_else(|| {
+                        self.retain_name_query_refusal("original global import preload generation")
+                    })?;
+                self.invoke_original_c_import_preload_direct(
+                    OriginalCImportPreload { token, command },
+                    &head,
+                    &operand,
+                    original,
+                )
+            }
+            NativeNamespaceImportPreloadRoute::CurrentEvaluation => self.invoke_command_value_at(
+                self.current_ns_id(),
+                &head,
+                std::slice::from_ref(&operand),
+                &[],
+                tcl_registry::command_lookup::CommandLookupOrigin::Ordinary,
+            ),
+        };
+        let returned = (|| {
+            original.current_for_value(self, &head)?;
+            original.current_for_value(self, &operand)?;
+            original.check(self)
+        })();
+        // Native Tcl decrements objv[0], then objv[1], before inspecting the
+        // helper status or resetting its result. A callback can have changed
+        // either primary, so both cleanup stages run even after first refusal.
+        drop(head);
+        let head_cleanup = original.check(self);
+        drop(operand);
+        let operand_cleanup = original.check(self);
+        returned?;
+        head_cleanup?;
+        operand_cleanup?;
+        if completion.code != Code::Ok {
+            completion.code = Code::Error;
+            return Ok(Some(completion));
+        }
+        drop(completion);
+        self.reset_native_jim_result()?;
+        original.check(self)?;
+        Ok(None)
+    }
+
     /// `namespace import` for `pattern` (e.g. `::tcltest::*`): alias every
     /// exported command of the source namespace matching the glob into the
     /// current namespace under its tail name. Returns the imported tail names.
+    #[cfg(test)]
     pub(crate) fn import_commands(
         &mut self,
         pattern: impl AsRef<[u8]>,
         allow_overwrite: bool,
     ) -> Result<Vec<NameBytes>, NamespaceImportError> {
+        let original = native_name_consumers::OriginalNameConsumerScope::enter(self)
+            .map_err(NamespaceImportError::Original)?;
         let parts = self
             .namespace_pattern_parts(
                 pattern.as_ref(),
                 tcl_syntax::naming::NativeNamePurpose::NamespaceImportPattern,
             )
             .map_err(|error| NamespaceImportError::Host(error.to_string()))?;
-        let pattern = parts.selected.as_bytes();
-        let glob = parts.tail.as_bytes();
-        let src_ns_id = self.namespace_pattern_source(&parts).unwrap_or(ROOT_NS);
-        let exports = self
-            .retained_record_of(src_ns_id)
-            .and_then(|record| record.exports.get(&src_ns_id).cloned())
-            .or_else(|| self.ns_exports.get(&src_ns_id).cloned())
-            .unwrap_or_default();
-        // Candidate commands: those in the source namespace whose tail matches
-        // the import glob and an export pattern.
-        let to_import = self.import_candidates(src_ns_id, glob, &exports)?;
-        let mut imported = Vec::new();
-        for (tail, cmd, builtin_identity, source_token) in to_import {
-            let alias_display = NameBytes::from(self.command_slot_display_bytes(&CommandSlot {
-                namespace: self.current_ns_id(),
-                simple: tail.clone(),
-            }));
-            let destination = CommandSlot {
-                namespace: self
-                    .resolution_stacks
-                    .ns_id_stack
-                    .last()
-                    .and_then(NamespaceExecutionContext::resolved_token)
-                    .expect("operation requires a materialized current namespace"),
-                simple: tail.clone(),
-            };
-            let existing_key = self.command_storage_key_at_slot(&destination);
-            let overwritten = existing_key.as_ref().and_then(|key| {
-                self.command_token_identity(&CommandSidecarKey::visible(key.as_str()))
-            });
-            if let Some(overwritten) = overwritten.as_ref()
-                && !allow_overwrite
-            {
-                let same_source = existing_key.as_ref().is_some_and(|key| {
-                    self.visible_import_binding(key).is_some_and(|binding| {
-                        binding.generation == overwritten.generation
-                            && binding.origin == source_token
-                    })
-                });
-                if same_source {
-                    continue;
+        let source = self
+            .namespace_pattern_source(&parts)
+            .ok_or_else(|| NamespaceImportError::Host("original test import source".into()))?;
+        let selected = tcl_cmd_core::namespace::ImportPattern {
+            source,
+            tail: parts.tail.as_bytes().to_vec(),
+        };
+        let reached = self.import_commands_selected(
+            parts.selected.as_bytes(),
+            selected,
+            allow_overwrite,
+            &original,
+        );
+        original
+            .finish(self)
+            .map_err(NamespaceImportError::Original)?;
+        reached
+    }
+
+    /// Publish the commands of the one source already selected by the shared
+    /// checked import gate. Neither report bytes nor a second lookup selects it.
+    pub(crate) fn import_commands_selected(
+        &mut self,
+        pattern: &[u8],
+        selected: tcl_cmd_core::namespace::ImportPattern,
+        allow_overwrite: bool,
+        original: &native_name_consumers::OriginalNameConsumerScope,
+    ) -> Result<Vec<NameBytes>, NamespaceImportError> {
+        original
+            .check(self)
+            .map_err(NamespaceImportError::Original)?;
+        let source_scope = native_name_consumers::OriginalNameConsumerScope::enter_for_namespace(
+            self,
+            Some(selected.source),
+        )
+        .map_err(NamespaceImportError::Original)?;
+        let reached = (|| {
+            let glob = selected.tail.as_slice();
+            let src_ns_id = selected.source;
+            let exports = self
+                .retained_record_of(src_ns_id)
+                .and_then(|record| record.exports.get(&src_ns_id).cloned())
+                .or_else(|| self.ns_exports.get(&src_ns_id).cloned())
+                .unwrap_or_default();
+            // Candidate commands: those in the source namespace whose tail matches
+            // the import glob and an export pattern.
+            let to_import = self.import_candidates(src_ns_id, glob, &exports)?;
+            let mut imported = Vec::new();
+            for candidate in to_import {
+                if let Some(tail) = self.import_selected_command(
+                    candidate,
+                    pattern,
+                    allow_overwrite,
+                    original,
+                    &source_scope,
+                )? {
+                    imported.push(tail);
                 }
-                return Err(NamespaceImportError::Overwrite { command: tail });
             }
-            // C follows an imported source token's real-command chain before
-            // replacing an existing destination binding. If that chain
-            // reaches the token about to be overwritten, the new edge would
-            // form an ImportRef cycle (Tcl_Import, tclNamesp.c). Reject it at
-            // the graph-owner seam so origin lookup, replacement propagation,
-            // and depth-first retirement all retain their acyclic invariant.
-            if let Some(overwritten) = overwritten
-                && self.import_source_chain_contains(&source_token, &overwritten)
-            {
-                return Err(NamespaceImportError::Loop {
-                    pattern: NameBytes::from(pattern),
-                    command: alias_display,
-                });
+            Ok(imported)
+        })();
+        source_scope
+            .finish(self)
+            .map_err(NamespaceImportError::Original)?;
+        original
+            .check(self)
+            .map_err(NamespaceImportError::Original)?;
+        reached
+    }
+
+    fn import_selected_command(
+        &mut self,
+        candidate: ImportedSourceCommand,
+        pattern: &[u8],
+        allow_overwrite: bool,
+        original: &native_name_consumers::OriginalNameConsumerScope,
+        source_scope: &native_name_consumers::OriginalNameConsumerScope,
+    ) -> Result<Option<NameBytes>, NamespaceImportError> {
+        let (tail, cmd, builtin_identity, source_token) = candidate;
+        original
+            .check(self)
+            .map_err(NamespaceImportError::Original)?;
+        source_scope
+            .check(self)
+            .map_err(NamespaceImportError::Original)?;
+        let source_current =
+            self.command_token_identity(&source_token.key).as_ref() == Some(&source_token);
+        source_scope
+            .require(
+                self,
+                source_current,
+                "original C import source command token",
+            )
+            .map_err(NamespaceImportError::Original)?;
+        let alias_display = NameBytes::from(self.command_slot_display_bytes(&CommandSlot {
+            namespace: self.current_ns_id(),
+            simple: tail.clone(),
+        }));
+        let destination = CommandSlot {
+            namespace: self
+                .resolution_stacks
+                .ns_id_stack
+                .last()
+                .and_then(NamespaceExecutionContext::resolved_token)
+                .expect("operation requires a materialized current namespace"),
+            simple: tail.clone(),
+        };
+        let existing_key = self.command_storage_key_at_slot(&destination);
+        let overwritten = existing_key
+            .as_ref()
+            .and_then(|key| self.command_token_identity(&CommandSidecarKey::visible(key.as_str())));
+        if let Some(overwritten) = overwritten.as_ref()
+            && !allow_overwrite
+        {
+            let same_source = existing_key.as_ref().is_some_and(|key| {
+                self.visible_import_binding(key).is_some_and(|binding| {
+                    binding.generation == overwritten.generation && binding.origin == source_token
+                })
+            });
+            if same_source {
+                return Ok(None);
             }
-            let destination_is_retained = self
-                .name_world
-                .borrow()
-                .dead_namespaces
-                .contains(&destination.namespace);
-            let alias = self.register_command_in_slot(destination, cmd);
-            if destination_is_retained {
-                // Tcl accepts `namespace import` while the current namespace
-                // token is retained, but the dying namespace cannot acquire a
-                // new ImportRef. Drop the unstamped dispatcher clone without
-                // retiring the source implementation it shares.
-                self.materialise_retained_binding(&alias);
-                self.take_command_unchecked_key(&alias);
-                imported.push(tail);
-                continue;
-            }
-            // `register_command` cleared any stale provenance; now stamp this key
-            // as an import so `namespace forget` can target it.
-            let binding = self
-                .fresh_import_binding(&CommandSidecarKey::visible(alias.as_str()), source_token);
-            self.set_visible_import_binding(&alias, binding);
-            if let Some(identity) = builtin_identity {
-                self.set_visible_builtin_identity(&alias, identity);
-            }
-            imported.push(tail);
+            return Err(NamespaceImportError::Overwrite { command: tail });
         }
-        Ok(imported)
+        // C follows an imported source token's real-command chain before
+        // replacing an existing destination binding. If that chain
+        // reaches the token about to be overwritten, the new edge would
+        // form an ImportRef cycle (Tcl_Import, tclNamesp.c). Reject it at
+        // the graph-owner seam so origin lookup, replacement propagation,
+        // and depth-first retirement all retain their acyclic invariant.
+        if let Some(overwritten) = overwritten
+            && self.import_source_chain_contains(&source_token, &overwritten)
+        {
+            return Err(NamespaceImportError::Loop {
+                pattern: NameBytes::from(pattern),
+                command: alias_display,
+            });
+        }
+        let destination_is_retained = self
+            .name_world
+            .borrow()
+            .dead_namespaces
+            .contains(&destination.namespace);
+        let alias = self.register_command_in_slot(destination, cmd);
+        // Replacement deletion callbacks run inside the existing command
+        // publisher. Preserve first refusal before stamping any ImportRef.
+        original
+            .check(self)
+            .map_err(NamespaceImportError::Original)?;
+        source_scope
+            .check(self)
+            .map_err(NamespaceImportError::Original)?;
+        let source_current =
+            self.command_token_identity(&source_token.key).as_ref() == Some(&source_token);
+        source_scope
+            .require(
+                self,
+                source_current,
+                "original C import source after publication",
+            )
+            .map_err(NamespaceImportError::Original)?;
+        if destination_is_retained {
+            // Tcl accepts `namespace import` while the current namespace
+            // token is retained, but the dying namespace cannot acquire a
+            // new ImportRef. Drop the unstamped dispatcher clone without
+            // retiring the source implementation it shares.
+            self.materialise_retained_binding(&alias);
+            self.take_command_unchecked_key(&alias);
+            return Ok(Some(tail));
+        }
+        // `register_command` cleared any stale provenance; now stamp this key
+        // as an import so `namespace forget` can target it.
+        let binding =
+            self.fresh_import_binding(&CommandSidecarKey::visible(alias.as_str()), source_token);
+        self.set_visible_import_binding(&alias, binding);
+        if let Some(identity) = builtin_identity {
+            self.set_visible_builtin_identity(&alias, identity);
+        }
+        Ok(Some(tail))
     }
 
     /// The pinned Jim helper queries the root alias table, owns the same
@@ -27588,6 +27813,13 @@ impl Namespaces for Vm {
         }
     }
 
+    fn namespace_report_parts_checked(
+        &mut self,
+        namespace: NsId,
+    ) -> Result<tcl_runtime_api::NativeNamespaceReportParts, Self::OriginalNameError> {
+        self.original_namespace_report_parts(namespace)
+    }
+
     fn name_bytes(&self, ns: NsId) -> Vec<u8> {
         let mut report = b"::".to_vec();
         report.extend_from_slice(self.ns_name_bytes(ns).as_bytes());
@@ -33345,5 +33577,101 @@ set ::observations
         assert_eq!(vm.execution_refusal, Some(first));
         assert_eq!(vm.current_level(), 1);
         assert_eq!(vm.current_ns_id(), caller);
+    }
+}
+
+#[cfg(test)]
+mod original_c_import_preload_cleanup_tests {
+    use super::*;
+    use std::{cell::RefCell, rc::Rc};
+
+    struct ReturnGeneratedObject {
+        selected: usize,
+        fail: bool,
+        observed: Rc<RefCell<Vec<crate::NativeObjectLifetimeLease>>>,
+    }
+    impl crate::command::NativeCommand for ReturnGeneratedObject {
+        fn invoke(&self, vm: &mut Vm, _arguments: &[Value]) -> Completion<Value> {
+            let words = vm
+                .native_invocation
+                .arguments
+                .as_ref()
+                .unwrap()
+                .elements()
+                .unwrap();
+            *self.observed.borrow_mut() = words.iter().map(Value::native_lifetime_lease).collect();
+            let mut result = ok(words[self.selected].native_lifetime_lease().into_value());
+            if self.fail {
+                result.code = Code::Error;
+            }
+            result
+        }
+    }
+
+    #[test]
+    fn import_preload_retires_generated_arguments_before_resetting_the_unshared_result() {
+        for release in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            for selected in [0, 1] {
+                for fail in [false, true] {
+                    let mut vm = crate::native_fixture::core(
+                        crate::environment::profile_for_dialect(release),
+                    );
+                    let observed = Rc::new(RefCell::new(Vec::new()));
+                    vm.register_native_command(
+                        "auto_import",
+                        Rc::new(ReturnGeneratedObject {
+                            selected,
+                            fail,
+                            observed: Rc::clone(&observed),
+                        }),
+                    );
+                    let scope =
+                        native_name_consumers::OriginalNameConsumerScope::enter(&mut vm).unwrap();
+                    let returned = vm
+                        .original_c_import_preload(b"::missing::member", &scope)
+                        .unwrap();
+                    let observed = observed.borrow();
+                    assert_eq!(observed.len(), 2);
+                    assert!(observed[selected].value().native_object_is_live());
+                    assert!(!observed[1 - selected].value().native_object_is_live());
+                    assert_eq!(
+                        observed[selected].value().native_object_reference_count(),
+                        1
+                    );
+                    assert!(
+                        vm.with_native_interp_result(
+                            |actual| actual.is_same_object(observed[selected].value())
+                        )
+                        .unwrap()
+                    );
+                    let expected = if fail {
+                        if selected == 0 {
+                            b"auto_import".as_slice()
+                        } else {
+                            b"::missing::member".as_slice()
+                        }
+                    } else {
+                        b"".as_slice()
+                    };
+                    assert_eq!(
+                        observed[selected]
+                            .value()
+                            .resident_string_bytes()
+                            .unwrap()
+                            .as_ref(),
+                        expected
+                    );
+                    if fail {
+                        let returned = returned.unwrap();
+                        assert_eq!(returned.code, Code::Error);
+                        assert!(returned.result.is_same_object(observed[selected].value()));
+                    } else {
+                        assert!(returned.is_none());
+                        assert_eq!(observed[selected].value().native_object_type_name(), "none");
+                    }
+                    scope.finish(&mut vm).unwrap();
+                }
+            }
+        }
     }
 }

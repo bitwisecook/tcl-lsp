@@ -1,0 +1,13 @@
+3011:     case INST_EVAL_STK:
+3012:     instEvalStk:
+3013: 	bcFramePtr->data.tebc.pc = (char *) pc;
+3014: 	iPtr->cmdFramePtr = bcFramePtr;
+3015: 
+3016: 	cleanup = 1;
+3017: 	pc += 1;
+3018: 	/* yield next instruction */
+3019: 	TEBC_YIELD();
+3020: 	/* add TEBCResume for object at top of stack */
+3021: 	return TclNRExecuteByteCode(interp,
+3022: 		    TclCompileObj(interp, OBJ_AT_TOS, NULL, 0));
+3023: 

@@ -19,6 +19,9 @@ pub enum EvalObjectPurpose {
     NamespaceConcat,
     /// An ordinary control-command body evaluated as an object.
     ControlBody,
+    /// A dynamic body selected by an authenticated C `EVAL_STK` instruction.
+    /// Its original header always enters the compiler, including canonical Lists.
+    CompiledStack,
     /// A retained timer or idle script evaluated in the actual global frame.
     AfterCallback,
     /// A copied C trace prefix evaluated through the counted direct source entry.
@@ -56,6 +59,8 @@ pub enum LogicalEvalObjectProvider {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NativeEvalObjectProtocol {
     version: Option<TclVersion>,
+    // Logical C84 simulation supplies generic dispatch only, not a C opcode.
+    native_c: bool,
 }
 
 impl NativeEvalObjectProtocol {
@@ -81,6 +86,9 @@ impl NativeEvalObjectProtocol {
     /// evaluation and counted C trace callbacks. This does not admit an artifact.
     #[must_use]
     pub const fn compiles_source(self, purpose: EvalObjectPurpose) -> bool {
+        if matches!(purpose, EvalObjectPurpose::CompiledStack) {
+            return self.native_c;
+        }
         if matches!(purpose, EvalObjectPurpose::TraceCallback) {
             return false;
         }
@@ -106,6 +114,9 @@ impl NativeEvalObjectProtocol {
         purpose: EvalObjectPurpose,
         strings: tcl_syntax::native_string::NativeStringProtocol,
     ) -> bool {
+        if matches!(purpose, EvalObjectPurpose::CompiledStack) {
+            return false;
+        }
         match (self.version, strings) {
             (
                 Some(version),
@@ -151,7 +162,10 @@ impl NativeEvalObjectProtocol {
         purpose: EvalObjectPurpose,
         object: &NativeObjectSnapshot,
     ) -> bool {
-        if matches!(purpose, EvalObjectPurpose::TraceCallback) {
+        if matches!(
+            purpose,
+            EvalObjectPurpose::TraceCallback | EvalObjectPurpose::CompiledStack
+        ) {
             return false;
         }
         let NativeObjectCacheSnapshot::List { canonical, .. } = object.cache else {
@@ -196,6 +210,7 @@ impl InvocationDialect {
                 self.authored_f5_tcl84_core()?;
                 Some(NativeEvalObjectProtocol {
                     version: Some(TclVersion::V8_4),
+                    native_c: false,
                 })
             }
             None => self.native_eval_object_protocol(),
@@ -208,6 +223,7 @@ impl InvocationDialect {
         self.native_scalar_getter_protocol()
             .map(|protocol| NativeEvalObjectProtocol {
                 version: protocol.tcl_version(),
+                native_c: protocol.tcl_version().is_some(),
             })
     }
 }
@@ -444,5 +460,65 @@ mod after_source_tests {
                 tcl_syntax::native_string::NativeStringProtocol::Jim084
             ));
         }
+    }
+}
+
+#[cfg(test)]
+mod compiled_stack_tests {
+    use super::*;
+
+    #[test]
+    fn compiled_stack_requires_actual_c_and_never_dispatches_original_lists() {
+        let purpose = EvalObjectPurpose::CompiledStack;
+        for version in TclVersion::ALL {
+            let protocol = InvocationDialect::for_version(version)
+                .native_eval_object_protocol()
+                .unwrap();
+            assert!(protocol.compiles_source(purpose), "{version:?}");
+            assert!(!protocol.permits_direct_source_operands(
+                purpose,
+                tcl_syntax::native_string::NativeStringProtocol::C(version),
+            ));
+            for resident in [None, Some(std::rc::Rc::from(&b"set written VALUE"[..]))] {
+                for canonical in [false, true] {
+                    let object = NativeObjectSnapshot {
+                        resident: resident.clone(),
+                        storage: None,
+                        cache: NativeObjectCacheSnapshot::List {
+                            length: 3,
+                            canonical,
+                        },
+                    };
+                    assert!(!protocol.dispatches_list(purpose, &object), "{version:?}");
+                }
+            }
+        }
+        let jim = InvocationDialect::of_profile(
+            crate::model::ingress::resolve_environment("jim").unit_profile(),
+        )
+        .native_eval_object_protocol()
+        .unwrap();
+        let logical = InvocationDialect::of_profile(tcl_dialect::DialectProfile::irules())
+            .eval_object_protocol(Some(LogicalEvalObjectProvider::Tcl84CoreSimulation))
+            .unwrap();
+        let object = NativeObjectSnapshot {
+            resident: None,
+            storage: None,
+            cache: NativeObjectCacheSnapshot::List {
+                length: 3,
+                canonical: true,
+            },
+        };
+        for protocol in [jim, logical] {
+            assert!(!protocol.compiles_source(purpose));
+            assert!(!protocol.dispatches_list(purpose, &object));
+            assert!(!protocol.permits_direct_source_operands(
+                purpose,
+                tcl_syntax::native_string::NativeStringProtocol::C(TclVersion::V8_4),
+            ));
+        }
+        // Generic control-body and authored C84 simulation keep their own recipes.
+        assert!(jim.dispatches_list(EvalObjectPurpose::ControlBody, &object));
+        assert!(logical.compiles_source(EvalObjectPurpose::ControlBody));
     }
 }

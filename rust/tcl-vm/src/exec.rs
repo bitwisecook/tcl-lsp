@@ -75,6 +75,14 @@ use crate::expr;
 use crate::interp::{CmdTraceEntry, CommandSidecarHandle, CommandSidecarKey, Vm, err, ok};
 use crate::value::Value;
 
+/// Private dispatch entry metadata; only the sealed C import preload owner
+/// supplies the direct route that bypasses ordinary evaluator reset/trace stages.
+struct ResolvedCommandEntry<'a> {
+    sidecar: Option<CommandSidecarKey>,
+    handle: Option<&'a CommandSidecarHandle>,
+    direct_import: Option<crate::interp::OriginalCImportPreload>,
+}
+
 /// Active `foreach` iteration state (C Tcl `ForeachInfo` + the loop counters).
 struct ForeachState {
     /// Actual compiler auxiliary; absence denotes an independently lowered loop.
@@ -9846,6 +9854,77 @@ impl Vm {
         sidecar_handle: Option<&CommandSidecarHandle>,
         usage: &[crate::command::NativeArgumentUsageRewrite],
     ) -> Completion<Value> {
+        self.invoke_resolved_command_with_entry(
+            original,
+            command,
+            argv,
+            ResolvedCommandEntry {
+                sidecar,
+                handle: sidecar_handle,
+                direct_import: None,
+            },
+            usage,
+        )
+    }
+
+    /// C8.4 calls the already selected global objProc without ordinary lookup,
+    /// evaluator reset, execution traces, or an invented invoking command word.
+    pub(crate) fn invoke_original_c_import_preload_direct(
+        &mut self,
+        selected: crate::interp::OriginalCImportPreload,
+        head: &Value,
+        operand: &Value,
+        original: &crate::interp::native_name_consumers::OriginalNameConsumerScope,
+    ) -> Completion<Value> {
+        let reached = (|| {
+            original.current_for_value(self, head)?;
+            original.current_for_value(self, operand)?;
+            let command = selected.command();
+            let sidecar = selected.key();
+            let completion = self.invoke_resolved_command_with_entry(
+                head,
+                command,
+                std::slice::from_ref(operand),
+                ResolvedCommandEntry {
+                    sidecar: Some(sidecar),
+                    handle: None,
+                    direct_import: Some(selected),
+                },
+                &[],
+            );
+            original.current_for_value(self, head)?;
+            original.current_for_value(self, operand)?;
+            original.check(self)?;
+            Ok(completion)
+        })();
+        reached.unwrap_or_else(|error| crate::command::completion_from_cmd_error(self, error))
+    }
+
+    fn invoke_resolved_command_with_entry(
+        &mut self,
+        original: &Value,
+        command: Command,
+        argv: &[Value],
+        entry: ResolvedCommandEntry<'_>,
+        usage: &[crate::command::NativeArgumentUsageRewrite],
+    ) -> Completion<Value> {
+        let ResolvedCommandEntry {
+            sidecar,
+            handle: sidecar_handle,
+            direct_import,
+        } = entry;
+        // The native reentry path borrows the actual complete vector just as
+        // bytecode dispatch_builtin_words does. These views add no native +1.
+        let mut words = Vec::with_capacity(argv.len() + 1);
+        words.push(original.native_lifetime_lease().into_value());
+        words.extend(
+            argv.iter()
+                .map(|word| word.native_lifetime_lease().into_value()),
+        );
+        let previous_arguments = self
+            .native_invocation
+            .arguments
+            .replace(crate::NativeListItems::invocation_view(Rc::new(words)));
         let selected_key = sidecar
             .as_ref()
             .and_then(|key| match key {
@@ -9857,11 +9936,22 @@ impl Vm {
         self.enter_native_jim_vector_command(original, &command);
         let saved_handler = self.take_native_handler_metadata();
         let usage_scope = self.enter_native_usage_scope(usage);
-        self.set_invoked_name_value(original, selected_key);
-        if let Err(error) = self.reset_native_jim_result() {
+        let entered = if let Some(selected) = direct_import.as_ref() {
+            selected.install_invoked_head(self, original)
+        } else {
+            self.set_invoked_name_value(original, selected_key);
+            self.reset_native_jim_result()
+                .map_err(tcl_cmd_core::CmdError::from)
+        };
+        if let Err(error) = entered {
             self.leave_native_usage_scope(usage_scope);
             self.restore_native_handler_metadata(saved_handler);
-            return crate::command::completion_from_tcl_error(self, error.into());
+            drop(direct_import);
+            drop(_jim_lease);
+            let retired =
+                std::mem::replace(&mut self.native_invocation.arguments, previous_arguments);
+            drop(retired);
+            return crate::command::completion_from_cmd_error(self, error);
         }
         let result = (|| {
             match command {
@@ -9965,8 +10055,16 @@ impl Vm {
         })();
         self.leave_native_usage_scope(usage_scope);
         self.restore_native_handler_metadata(saved_handler);
-        self.publish_native_interp_completion(result)
-            .unwrap_or_else(|error| crate::command::completion_from_tcl_error(self, error.into()))
+        let completion = self
+            .publish_native_interp_completion(result)
+            .unwrap_or_else(|error| crate::command::completion_from_tcl_error(self, error.into()));
+        drop(direct_import);
+        // Native result ownership is settled before the invoked node retires;
+        // its cleanup still observes this actual argv until it has finished.
+        drop(_jim_lease);
+        let retired = std::mem::replace(&mut self.native_invocation.arguments, previous_arguments);
+        drop(retired);
+        completion
     }
 
     /// Run a `TclOO` method body: enter the proc activation, link the object's

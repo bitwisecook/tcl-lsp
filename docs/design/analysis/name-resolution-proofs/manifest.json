@@ -3217,6 +3217,12 @@
           "selector": "native_compilation_conformance::child_alias_publication_matches_original_supported_provider_apis",
           "assertion": "Full original source and retained provider stdout bind VM public conformance after version metadata; actual assertions require separate validation receipts and do not establish private interpreter storage or API equivalence.",
           "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/cmd_alias.rs",
+          "selector": "cmd_alias::tests::jim_child_alias_result_is_born_in_the_actual_parent_allocator",
+          "assertion": "The actual Jim child alias API returns an empty result owned by the genuine parent allocator and object context; the distinct actual child allocator/context refuses that result. Parent and child retain no Host refusal. This software ownership control is separate from the captured public provider rows and supplies no private native allocation observation.",
+          "status": "linked"
         }
       ],
       "replay": {
@@ -773229,7 +773235,7 @@
       "document": "docs/design/analysis/name-resolution-proofs/hosted-source-taint-descriptor.md",
       "problem_statement": "A genuine authored hosted event can lose possible-taint diagnostics when Native handler guards correctly decline runtime authority. Reading a catalogue spelling directly would instead infer builtin sink semantics from a known custom, deleted or moved command, or use a different context than the source producer.",
       "question": "Can authored hosted source taint diagnostics use current conditional Registry metadata while retaining known cell barriers, full source/context ownership and the separation from Native effects and completion?",
-      "conclusion": "The actual invocation SourceOrigin retains its complete original image/channel after token stamping, with full configuration and independently supplied ContextRegistry on command tokens. Positioned lowering body buffers cannot replace that whole-source owner. Source-restoration and nested-word transport preserve that owner. The analyser diagnostic build supplies its actual availability generation; a foreign command store declines rather than replacing it from a profile label. The descriptor revalidates original unchanged words and invokes the common guarded hosted metadata issuer. Known custom or missing cells block nominal schema selection, while unknown alternatives retain explicit authored-coordinate and applicability obligations. Getter metadata can produce only possible taint, and sink metadata can produce conditional warnings with the original source spans. Neither path supplies sanitiser certainty, storage effects, execution reachability, Native command selection, Normal completion, compiler admission or edit equivalence. Equality compares complete structural context and source/configuration independently of presentation. At an exact original sole-variable sink operand, private HostedSourceRead retains the guarded hosted metadata and actual positioned SsaSourceView. Only its independent read_reference receipt can select a cell and contents version; missing cell, version or taint keeps an unknown MAY value rather than consulting an SSA display-name clean default. Whole original word correspondence is mandatory. Native sink paths retain their separate physical read rules. Actual selected hosted setter source warnings use their independent genuine F5 source issuer and full Module ownership. Missing supplied input withholds the conditional warning.",
+      "conclusion": "The actual invocation SourceOrigin retains its complete original image/channel after token stamping, with full configuration and independently supplied ContextRegistry on command tokens. Positioned lowering body buffers cannot replace that whole-source owner. Source-restoration and nested-word transport preserve that owner. The analyser diagnostic build supplies its actual availability generation; a foreign command store declines rather than replacing it from a profile label. The descriptor revalidates original unchanged words and invokes the common guarded hosted metadata issuer. Known custom or missing cells block nominal schema selection, while unknown alternatives retain explicit authored-coordinate and applicability obligations. Getter metadata can produce only possible taint, and sink metadata can produce conditional warnings with the original source spans. Neither path supplies sanitiser certainty, storage effects, execution reachability, Native command selection, Normal completion, compiler admission or edit equivalence. Equality compares complete structural context and source/configuration independently of presentation. At an exact original sole-variable sink operand, private SourceWarningRead retains the guarded hosted metadata and actual positioned SsaSourceView. Only its independent read_reference receipt can select a cell and contents version; missing cell, version or taint keeps an unknown MAY value rather than consulting an SSA display-name clean default. Whole original word correspondence is mandatory. Native sink paths retain their separate physical read rules. Actual selected hosted setter source warnings use their independent genuine F5 source issuer and full Module ownership. Missing supplied input withholds the conditional warning.",
       "scope": "Current Rust conditional hosted-source taint descriptor, lowering/IR transport, analyser diagnostic ingress and taint warning consumption. Fixed assertions require genuine stamped tokens, unchanged complete image/configuration/Registry, keyed context discrimination and an actual produced IRULE3001 warning with its typed source subject. Shared metadata controls independently distinguish known custom, missing and unknown cells. All seven native providers are not-tested for this Rust source-analysis contract; no executed Rust receipt is attached. Literal, braced non-read and incomplete compound operands cannot supply this sole-read facet. Known source shadows/deletions remain blocked through shared hosted metadata. No SSA symbol, variable presence, store, contents guarantee, effect or Normal receipt is created. The added HTTP::path software control grants no external BIG-IP result, loader/event execution, Native handler, sanitisation or storage certainty. Its current source binding attaches no assertion outcome.",
       "providers": [
         {
@@ -773370,7 +773376,7 @@
         },
         {
           "path": "rust/tcl-compiler/src/taint.rs",
-          "symbol": "HostedSourceRead",
+          "symbol": "SourceWarningRead",
           "purpose": "Retain a current guarded hosted source read and query only its independent exact positioned SSA read receipt; unavailable contents remain MAY unknown, never name-selected clean."
         },
         {
@@ -774009,7 +774015,7 @@
       "document": "docs/design/analysis/name-resolution-proofs/original-diagnostic-source-actions.md",
       "problem_statement": "Diagnostic prose is presentation. Extracting a variable, sink or helper occupancy from its text can edit a different source read, treat a comment as a declaration, overwrite an occupied helper or reuse a warning after its source/configuration/Registry changes.",
       "question": "Which original producer subject, current source geometry and selected metadata must agree before a diagnostic-driven taint or collection-bootstrap source action is offered?",
-      "conclusion": "Compiler warnings retain optional complete SourceImage, full LexerConfig and immutable RegistrySnapshot together with original taint variable/sink fields. A bounded process-local handle reselects the actual warning; message text cannot construct the subject. Core independently checks code, exact diagnostic range, whole image/channel/configuration and both current Registry readers before selecting the original sink and source read. Shared source command metadata retains actual whole words, complete written origins, arity and catalogue barriers. A source hardening action validates its separately issued typed sink/read; complete roles for unrelated operands are not this action purpose. Generated helper names are checked against retained declarations, including braced names, while comments carry no occupancy. Collection bootstrap uses actual selected handler/payload metadata and an authentic top-level parsed handler boundary. The selected subst option hardening uses current written head and declared option geometry; other Native rewrites decline absent independent evaluation/insertion permission. Authored vendor and explicit Logical source hardening retain their separate source-advice purpose. No current runtime cell, Normal, handler effect, transformed-program equivalence or native allocation is issued. Shared vendor source selection authenticates the complete original NativeWord vector and site; preceding-comment and other reporting trivia cannot become word identity. Removing a genuine word still withdraws the source candidate. source_action_spec requires actual input, matching command-store semantic key and availability_context.resolve_spec for event/bootstrap/taint/helper metadata. Reporting dialect/catalogue profile cannot donate availability. SourceIrulesEventBody retains the genuine complete event operand from selected rule declaration/Registry event position; IRULE1005 anchors that operand rather than the first body statement. Missing image/configuration/Registry/event geometry refuses, without Native event activation or TMM lifecycle. Current Logical source command/helper projection requires positive actual input and resolves metadata through its retained availability. Required-profile metadata uses source_action_spec under that same actual context; no copied advice flag or catalogue profile repairs missing ingress. Positive retained Logical current_commands traversal uses the actual analysis source/body owner and actual ContextRegistry availability. Under the same custom catalogue, C8.4 availability withholds the gated nested body while C9 admits its genuine complete source commands; selected ReferenceOnly scripts stay outside this traversal. Missing input and changed full source decline. These are source-command extents, without sink fabrication, reached effects, Native Normal completion or edit admission.",
+      "conclusion": "Compiler warnings retain optional complete SourceImage, full LexerConfig and immutable RegistrySnapshot together with original taint variable/sink fields. A bounded process-local handle reselects the actual warning; message text cannot construct the subject. Core independently checks code, exact diagnostic range, whole image/channel/configuration and both current Registry readers before selecting the original sink and source read. Shared source command metadata retains actual whole words, complete written origins, arity and catalogue barriers. A source hardening action validates its separately issued typed sink/read; complete roles for unrelated operands are not this action purpose. Conditional Logical helper publication data comes from the retained source-advice timeline and actual generated template/call images. Immediate, nested and represented deferred occupants and unknown effects are barriers; unavailable phases and read-observer uncertainty withdraw the proposal. Report maps and comments issue no absence. Hosted and unsupported generation purposes remain unavailable pending their own authentic owners. Collection bootstrap uses actual selected handler/payload metadata and an authentic top-level parsed handler boundary. The selected subst option hardening uses current written head and declared option geometry; other Native rewrites decline absent independent evaluation/insertion permission. Authored vendor and explicit Logical source hardening retain their separate source-advice purpose. No current runtime cell, Normal, handler effect, transformed-program equivalence or native allocation is issued. Shared vendor source selection authenticates the complete original NativeWord vector and site; preceding-comment and other reporting trivia cannot become word identity. Removing a genuine word still withdraws the source candidate. source_action_spec requires actual input, matching command-store semantic key and availability_context.resolve_spec for its event/bootstrap/taint metadata. Helper template constructors retain their separately selected original source schemas. Reporting dialect/catalogue profile cannot donate availability. SourceIrulesEventBody retains the genuine complete event operand from selected rule declaration/Registry event position; IRULE1005 anchors that operand rather than the first body statement. Missing image/configuration/Registry/event geometry refuses, without Native event activation or TMM lifecycle. Current Logical source command/helper projection requires positive actual input and resolves metadata through its retained availability. Required-profile metadata uses source_action_spec under that same actual context; no copied advice flag or catalogue profile repairs missing ingress. Positive retained Logical current_commands traversal uses the actual analysis source/body owner and actual ContextRegistry availability. Under the same custom catalogue, C8.4 availability withholds the gated nested body while C9 admits its genuine complete source commands; selected ReferenceOnly scripts stay outside this traversal. Missing input and changed full source decline. These are source-command extents, without sink fabrication, reached effects, Native Normal completion or edit admission.",
       "scope": "Current Compiler warning transport, Core context source actions and Server diagnostic publication/request lifting. Fixed controls use actual source-produced warnings, altered presentation, missing/forged handles, moved ranges, stale full source, changed configuration/Registry, comment versus braced helper declarations, nested-handler boundaries and unsupported Native wrapper authority. Authored F5 context controls are Rust model assertions, not appliance observations. No passing Rust receipt is attached. Explicit lexical helper authoring checks the emitted root procedure/class publication rather than unrelated reporting tails; it supplies no Native cell, availability or edit-equivalence receipt.",
       "providers": [
         {
@@ -783306,7 +783312,7 @@
       "problem_statement": "Generated snippet choices can turn reporting variable keys into source references or rebuild event placement from a profile label instead of retaining the actual source configuration and selected Registry context.",
       "question": "Do snippet variable choices and event templates consume current original reference spellings and authentic event source cards independently of reporting maps?",
       "conclusion": "Variable snippet choices use the same original visibility and source-reference decoder owner as ordinary variable completion. Current complete image/configuration is required, unsupported reference spellings are omitted and Native or hosted unavailability cannot reopen the lexical reporting-map branch. Event context retains actual Analysis, current SourceStructure script placement and original hosted event declaration cards. Guarded shared source-schema metadata validates the complete actual ContextRegistry and authentic effective roles; only a current document-root script offers an event template. Event display names describe independently retained source declarations rather than selecting a reached event. Snippet formatting escapes complete reference choices without reconstructing a name from a label. The marked event source definition retains current source cards and placement, with separate explicit profile compatibility. Changed whole source cannot reuse previous cards.",
-      "scope": "Readonly source candidates and explicit snippet authoring placement. Unicode braced references, opaque unsupported units, erased reporting maps, nested event source placement and changed whole source/configuration are fixed Rust coverage. This supplies no live variable read, cell binding, selected runtime event, TMM worker, appliance availability, execution or edit-equivalence grant. Explicit lexical source advice retains its independently selected compatibility branch. Source event/snippet context does not establish handler reachability, event invocation, a BIG-IP execution result, compilation, frame authority or an assertion outcome.",
+      "scope": "Readonly source candidates and explicit snippet authoring placement. Unicode braced references, opaque unsupported units, erased reporting maps, nested event source placement and changed whole source/configuration are fixed Rust coverage. This supplies no live variable read, cell binding, selected runtime event, TMM worker, appliance availability, execution or edit-equivalence grant. Explicit Logical source advice uses the current cursor\u2019s checked variable scopes and root qualification, then the shared scalar source-reference constructor under the complete retained grammar. Incomplete or differently named proposals decline; name-table candidates supply no Native cell, read or edit authority.",
       "providers": [
         {
           "id": "tcl8.4",
@@ -808402,7 +808408,7 @@
       "document": "docs/design/analysis/name-resolution-proofs/database-original-callback-future-lookup.md",
       "problem_statement": "A retained original callback name identifies the actual source producer but does not select the namespace, frame or command table where a later callback runs. Using reporting candidates or the printed tail when its future lookup is missing can report an arity error for a different command. The diagnostic consumer must withdraw until that independent lookup exists.",
       "question": "Does the database callback arity consumer refuse reporting-name candidates when an original input has no independently selected future lookup?",
-      "conclusion": "callback_command_keys returns no legacy candidate keys for a retained original input or callback prefix. The source callback consumer uses the immutable prefix lookup to demand exact current original declaration headers and typed source-signature incompatibility. Missing independent lookup supplies no diagnostic and cannot be replaced by a printed name, reporting reference or mutable candidate list. Legacy exact/range arithmetic remains in its independently selected compatibility purpose. This establishes source-consumer refusal, not callback execution, registration, future frame selection or a native descriptor. The authentic retained source callback receiver additionally joins canonical local headers or independently authored held external target slots. UnknownSourceTarget alone permits genuine external prefix lookup; known source barriers, unavailable frame/interpreter and ambiguous horizons remain terminal. Separate alias-capture/baked/suffix counts survive mutable reporting changes. No external header supplies registration or future callable occupancy.",
+      "conclusion": "SignatureCommandInvocation::logical_callback_candidate_keys returns no compatibility candidate keys for a retained original input or callback prefix. The source callback consumer uses the immutable prefix lookup to demand exact current original declaration headers and typed source-signature incompatibility. Missing independent lookup supplies no diagnostic and cannot be replaced by a printed name, reporting reference or mutable candidate list. Legacy exact/range arithmetic remains in its independently selected compatibility purpose. This establishes source-consumer refusal, not callback execution, registration, future frame selection or a native descriptor. The authentic retained source callback receiver additionally joins canonical local headers or independently authored held external target slots. UnknownSourceTarget alone permits genuine external prefix lookup; known source barriers, unavailable frame/interpreter and ambiguous horizons remain terminal. Separate alias-capture/baked/suffix counts survive mutable reporting changes. No external header supplies registration or future callable occupancy.",
       "scope": "Current database implementation contract. The regression obtains an authentic original cb invocation from analysis, removes its lookup and reporting reference, supplies an appended arity of two and a conflicting display-key arity map, then asserts empty candidate keys and no legacy project callback diagnostic. The positive original-lookup path and shared exact/range calculation are inspected owners, not asserted by this refusal regression. No Rust execution outcome or C Tcl, Jim or BIG-IP result is claimed.",
       "providers": [
         {
@@ -808522,7 +808528,7 @@
       "document": "docs/design/analysis/name-resolution-proofs/database-original-formal-count-header.md",
       "problem_statement": "Body-free declaration and project headers can reconstruct argument counts from mutable reporting parameter labels and silently replace the selected C/Jim formal grammar. Copying a full body/source receipt into a header would also couple body-only edits to declaration metadata and widen the meaning of the header.",
       "question": "How do declaration headers and database arity projections preserve independently selected original formal count/origin/grammar while remaining body-free metadata?",
-      "conclusion": "SourceDeclarationSignature and ItemSig retain SourceFormalCountProjection: count, origin and selected ParameterGrammar only. Genuine original ordered formal storage remains separate from explicit authored metadata; computed, malformed or unowned signatures retain Unknown/open count. ItemTree::from_analysis uses the immutable original declaration projection independently of reporting parameter labels and maps. FlatMethod retains its independently selected computed/count metadata. Database proc_arity, project_command_arities and project_original_command_arities consume this same header projection. Body-only changes preserve declaration/header equality and database arity output. The Eq projection cannot recreate a whole-source, formal-value or callee-entry receipt and supplies no native handler, successful binding/call, physical header/frame or Normal completion. SourceDeclarationSignature::from_original_procedure is the public body-free issuer from independently retained canonical original procedure metadata. It preserves publication geometry, declaration coordinates, formal origin/count and parameter grammar without source-body bytes or installed identity.",
+      "conclusion": "SourceDeclarationSignature and ItemSig retain SourceFormalCountProjection: count, origin and selected ParameterGrammar only. Genuine original ordered formal storage remains separate from explicit authored metadata; computed, malformed or unowned signatures retain Unknown/open count. ItemTree::from_analysis uses the immutable original declaration projection independently of reporting parameter labels and maps. FlatMethod retains its independently selected computed/count metadata. Database proc_arity, project_logical_source_arities and project_original_command_arities consume this same header projection. Body-only changes preserve declaration/header equality and database arity output. The Eq projection cannot recreate a whole-source, formal-value or callee-entry receipt and supplies no native handler, successful binding/call, physical header/frame or Normal completion. SourceDeclarationSignature::from_original_procedure is the public body-free issuer from independently retained canonical original procedure metadata. It preserves publication geometry, declaration coordinates, formal origin/count and parameter grammar without source-body bytes or installed identity.",
       "scope": "Three marked Rust controls compare required-after-default grammar across five C source profiles and Jim: C minimum3 versus Jim minimum2, with the same maximum3 and independently retained grammar/origin. Changing only the procedure body preserves item signatures/file declarations and both database arity projections. Clearing reporting parameter labels/all_procs does not replace the immutable original count header; Unknown remains open with no selected grammar. These are source/header/cache-equality controls, separate from finite native Formal185 argc0..5 observations and from successful original argument binding.",
       "providers": [
         {
@@ -808631,8 +808637,8 @@
         },
         {
           "path": "rust/tcl-lsp-db/src/lib.rs",
-          "symbol": "project_command_arities",
-          "purpose": "Project compatibility/report arity metadata from the same selected body-free header."
+          "symbol": "project_logical_source_arities",
+          "purpose": "Project explicitly selected Logical source arity metadata from the shared body-free count header, preserving non-procedure and missing-coordinate barriers."
         },
         {
           "path": "rust/tcl-lsp-db/src/lib.rs",
@@ -809014,8 +809020,8 @@
         },
         {
           "path": "rust/tcl-lsp-db/src/lib.rs",
-          "selector": "tests::callback_arity_unavailable_package_descriptors_do_not_select_local_headers",
-          "assertion": "Absent retained package availability/directives withdraws callback arity advice across Tk/calculus/SMTP/halfpipe/mime/graph/tree source examples, including package require text; genuine local headers alone cannot donate availability.",
+          "selector": "tests::callback_arity_foreign_library_source_contexts_do_not_select_local_headers",
+          "assertion": "A foreign retained source input withdraws callback arity advice across Tk/calculus/SMTP/halfpipe/mime/graph/tree source examples despite available library descriptors and genuine local headers. Exact source-producer correspondence remains required; authentic original-input positives retain source arity diagnostics, while missing or foreign input refuses.",
           "status": "linked"
         },
         {
@@ -824001,13 +824007,13 @@
           "purpose": "Collect the same shared extents directly as original byte slices; retain the separately selected trailing-separator purpose at consumers."
         },
         {
-          "path": "rust/tcl-lsp-core/src/namespace_rename.rs",
-          "symbol": "WrittenNamePurpose",
+          "path": "rust/tcl-syntax/src/naming/authored_namespace_component.rs",
+          "symbol": "AuthoredNamespaceOccurrencePurpose",
           "purpose": "Retain independently issued Logical Namespace, Entity or Variable grammar purpose; a display label cannot supply this role."
         },
         {
-          "path": "rust/tcl-lsp-core/src/namespace_rename.rs",
-          "symbol": "written_cell_occurrence",
+          "path": "rust/tcl-syntax/src/naming/authored_namespace_component.rs",
+          "symbol": "authored_namespace_component_extent",
           "purpose": "Check the selected resolved suffix against the complete original written geometry and selected variable header grammar. Return exact Written, independently established Inherited, or terminal failed correspondence."
         },
         {
@@ -1025207,9 +1025213,9 @@
           "purpose": "Meet original pre-operand rows using the shared whole-word ASCII metadata and authored NamedSlots projection, retaining shadows, uncertainty and absence."
         },
         {
-          "path": "rust/tcl-lsp-core/src/minify.rs",
-          "symbol": "MinifyEnv::source_head",
-          "purpose": "Borrow the same Logical source-header advice only after complete-head selection; do not fill runtime lookup."
+          "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+          "symbol": "OriginalRegistryWords::with_source_schema",
+          "purpose": "Borrow the exact original argv source schema only under its retained Registry and availability context; advice does not fill runtime lookup."
         },
         {
           "path": "rust/tcl-compiler/src/realm.rs",
@@ -1025901,9 +1025907,9 @@
           "purpose": "Meet original pre-operand rows using the shared whole-word ASCII metadata and authored NamedSlots projection, retaining shadows, uncertainty and absence."
         },
         {
-          "path": "rust/tcl-lsp-core/src/minify.rs",
-          "symbol": "MinifyEnv::source_head",
-          "purpose": "Borrow the same Logical source-header advice only after complete-head selection; do not fill runtime lookup."
+          "path": "rust/tcl-lsp-core/src/minify/lexical_metadata.rs",
+          "symbol": "with_command_schema",
+          "purpose": "Consume complete original Logical command words through the guarded source-schema owner; this adapter does not fill runtime lookup."
         }
       ],
       "tests": [
@@ -1075092,9 +1075098,9 @@
           "purpose": "Retain the supplied whole source grammar and explicit authored advisory convention; original analysis-backed source advice is independent."
         },
         {
-          "path": "rust/tcl-lsp-core/src/package_resolver/reachability.rs",
-          "symbol": "is_package_ifneeded",
-          "purpose": "Canonicalise the complete written head through the shared Syntax owner, then project one optional root before the existing Registry registration/body-role query."
+          "path": "rust/tcl-lsp-core/src/package_resolver/registration.rs",
+          "symbol": "select_in_plan",
+          "purpose": "Validate the exact complete original command vector and supplied grammar, then project its canonical written head before the selected Registry package registration/body-role query."
         },
         {
           "path": "rust/tcl-lsp-core/src/package_resolver/reachability.rs",
@@ -1104177,9 +1104183,9 @@
           "purpose": "Apply the shared selected scalar classifier within the bounded Core equality shape and keep original reference spelling for proposals."
         },
         {
-          "path": "rust/tcl-lsp-core/src/refactor/if_to_switch.rs",
-          "symbol": "split_var_op_value",
-          "purpose": "Retain the selected scalar fragment and original reference syntax within an independently guarded IF equality proposal."
+          "path": "rust/tcl-lsp-core/src/refactor/equality_source.rs",
+          "symbol": "scalar_string_equality",
+          "purpose": "Retain the selected scalar fragment and original reference syntax through the shared configured expression equality classifier; read and edit authority remain independent."
         },
         {
           "path": "rust/tcl-mcp/src/datagroup.rs",
@@ -1256945,7 +1256951,7 @@
         },
         {
           "path": "runtime/rust/src/frame.rs",
-          "symbol": "CellContents::materialise_selected_array",
+          "symbol": "CellContents::publish_selected_array",
           "purpose": "Materialise only an independently owned selected original undefined-root marker or existing array, preserving genuine scalar/retirement refusal."
         },
         {

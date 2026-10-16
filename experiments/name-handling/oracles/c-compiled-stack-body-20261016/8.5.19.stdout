@@ -1,0 +1,63 @@
+RESULT catch_site 0 VALUE
+RESULT for_site 0 VALUE
+ByteCode 0x0x561514a214c0, refCt 1, epoch 3, interp 0x0x5615149f8d90 (epoch 3)
+  Source "catch $body result; set result"
+  Cmds 2, src 30, inst 43, litObjs 1, aux 0, stkDepth 3, code/src 0.00
+  Proc 0x0x561514a18950, refCt 1, args 1, compiled locals 2
+      slot 0, scalar, arg, "body"
+      slot 1, scalar, "result"
+  Exception ranges 1, depth 1:
+      0: level 0, catch, pc 7-14, catch 13
+  Commands 2:
+      1: pc 0-30, src 0-17   	   2: pc 31-41, src 20-29
+  Command 1: "catch $body result"
+    (0) loadScalar1 %v0 	# var "body"
+    (2) beginCatch4 0 
+    (7) dup 
+    (8) evalStk 
+    (9) push1 0 	# "0"
+    (11) jump1 +4 	# pc 15
+    (13) pushResult 
+    (14) pushReturnCode 
+    (15) endCatch 
+    (16) reverse 2 
+    (21) storeScalar1 %v1 	# var "result"
+    (23) pop 
+    (24) reverse 2 
+    (29) pop 
+    (30) pop 
+  Command 2: "set result"
+    (31) startCommand +11 1 	# next cmd at pc 42
+    (40) loadScalar1 %v1 	# var "result"
+    (42) done 
+
+ByteCode 0x0x561514a21f20, refCt 1, epoch 3, interp 0x0x5615149f8d90 (epoch 3)
+  Source "for $body 0 {} {}; set written"
+  Cmds 2, src 30, inst 32, litObjs 4, aux 0, stkDepth 1, code/src 0.00
+  Proc 0x0x561514a20d30, refCt 1, args 1, compiled locals 2
+      slot 0, scalar, arg, "body"
+      slot 1, scalar, "written"
+  Exception ranges 2, depth 1:
+      0: level 0, loop, pc 6-7, continue 9, break 17
+      1: level 0, loop, pc 9-10, continue -1, break 17
+  Commands 2:
+      1: pc 0-19, src 0-16   	   2: pc 20-30, src 19-29
+  Command 1: "for $body 0 {} {}"
+    (0) loadScalar1 %v0 	# var "body"
+    (2) evalStk 
+    (3) pop 
+    (4) jump1 +8 	# pc 12
+    (6) push1 0 	# ""
+    (8) pop 
+    (9) push1 1 	# ""
+    (11) pop 
+    (12) push1 2 	# "0"
+    (14) tryCvtToNumeric 
+    (15) jumpTrue1 -9 	# pc 6
+    (17) push1 3 	# ""
+    (19) pop 
+  Command 2: "set written"
+    (20) startCommand +11 1 	# next cmd at pc 31
+    (29) loadScalar1 %v1 	# var "written"
+    (31) done 
+

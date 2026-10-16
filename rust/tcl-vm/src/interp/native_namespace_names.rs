@@ -67,6 +67,69 @@ impl Vm {
         self.definition_namespace_token_at_path(&path, true)
     }
 
+    /// Snapshot the selected physical namespace reporting owner without parsing
+    /// display bytes back into a namespace or granting a callable identity.
+    pub(crate) fn original_namespace_report_parts(
+        &mut self,
+        namespace: NsId,
+    ) -> Result<tcl_runtime_api::NativeNamespaceReportParts, CmdError> {
+        use super::native_name_consumers::OriginalNameConsumerScope;
+        use tcl_runtime_api::NativeNamespaceReportParts;
+
+        let scope = OriginalNameConsumerScope::enter_for_namespace(self, Some(namespace))?;
+        let reached = (|| {
+            let policy =
+                self.name_policy_protocol()
+                    .ok_or(ValueError::CommandProtocolUnavailable(
+                        "namespace report naming issuer",
+                    ))?;
+            if !policy.recipe().is_jim084() {
+                let path = self
+                    .name_world
+                    .borrow()
+                    .ns_arena
+                    .get(namespace.0 as usize)
+                    .cloned()
+                    .ok_or(ValueError::CommandProtocolUnavailable(
+                        "original constructed namespace report path",
+                    ))?;
+                scope.check(self)?;
+                return Ok(NativeNamespaceReportParts::CConstructed(path));
+            }
+            let original =
+                self.with_jim_namespace_at(namespace, |holder| Ok(holder.native_lifetime_lease()))?;
+            let context = self.native_jim_object_context()?;
+            let check = |vm: &mut Vm| -> Result<(), CmdError> {
+                scope.current_for_value(vm, original.value())?;
+                let current_context = vm.native_jim_object_context()?;
+                scope.require(
+                    vm,
+                    std::rc::Rc::ptr_eq(&context, &current_context),
+                    "original namespace report Jim context",
+                )?;
+                let same_holder = vm.with_jim_namespace_at(namespace, |holder| {
+                    Ok(holder.is_same_object(original.value()))
+                })?;
+                scope.require(vm, same_holder, "original namespace report Jim holder")
+            };
+            check(self)?;
+            // This existing getter owns allocator/context binding and String
+            // callback stages; the report path has no private converter.
+            let bytes = self.native_name_operand_bytes_checked_using(original.value(), &check);
+            check(self)?;
+            let bytes = bytes?;
+            let bound_context = original.value().native_jim_context()?;
+            scope.require(
+                self,
+                std::rc::Rc::ptr_eq(&context, &bound_context),
+                "original namespace report object context",
+            )?;
+            Ok(NativeNamespaceReportParts::JimFlat(bytes))
+        })();
+        scope.finish(self)?;
+        reached
+    }
+
     pub(crate) fn original_jim_canonical_namespace_object(
         &mut self,
         namespace: &Value,
@@ -699,6 +762,216 @@ mod tests {
         let path = ByteNamespacePath::from_segments(segments.iter().copied());
         vm.declare_namespace_path_with_origin(path.clone(), true);
         vm.definition_namespace_token_at_path(&path, true)
+    }
+
+    #[test]
+    fn selected_c_report_parts_keep_actual_constructed_geometry_and_retirement() {
+        use tcl_runtime_api::NativeNamespaceReportParts;
+        for release in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let mut vm = binding_vm(release);
+            let root = Namespaces::namespace_report_parts_checked(&mut vm, ROOT_NS).unwrap();
+            assert_eq!(
+                root,
+                NativeNamespaceReportParts::CConstructed(ByteNamespacePath::root())
+            );
+            // Explicit storage geometry is not a claim that native C input can
+            // create a literal separator or NUL inside a component.
+            let left_path = ByteNamespacePath::from_segments([b"a::b".as_slice(), b"leaf\0\xff"]);
+            let right_path =
+                ByteNamespacePath::from_segments([b"a".as_slice(), b"b", b"leaf\0\xff"]);
+            let left = vm.install_constructed_namespace_test_fixture(left_path.clone());
+            let right = vm.install_constructed_namespace_test_fixture(right_path.clone());
+            assert_ne!(left, right);
+            assert_eq!(
+                Namespaces::name_bytes(&vm, left),
+                Namespaces::name_bytes(&vm, right)
+            );
+            let snapshot = Namespaces::namespace_report_parts_checked(&mut vm, left).unwrap();
+            assert_eq!(
+                snapshot,
+                NativeNamespaceReportParts::CConstructed(left_path)
+            );
+            assert_eq!(
+                Namespaces::namespace_report_parts_checked(&mut vm, right).unwrap(),
+                NativeNamespaceReportParts::CConstructed(right_path)
+            );
+            vm.delete_namespace_token(left, false);
+            assert!(Namespaces::namespace_report_parts_checked(&mut vm, left).is_err());
+            assert!(matches!(
+                snapshot,
+                NativeNamespaceReportParts::CConstructed(_)
+            ));
+        }
+    }
+
+    #[test]
+    fn selected_c_report_parts_keep_the_retained_dying_activation_then_refuse_retired_birth() {
+        use tcl_runtime_api::NativeNamespaceReportParts;
+        let mut vm = binding_vm("tcl8.6");
+        let namespace = vm.activate_namespace_operand(b"::held::child").unwrap();
+        let expected =
+            NativeNamespaceReportParts::CConstructed(ByteNamespacePath::from_segments([
+                b"held".as_slice(),
+                b"child",
+            ]));
+        vm.push_ns_eval_token_frame(namespace, Vec::new());
+        assert!(vm.delete_namespace_operand(b"::held::child").unwrap());
+        assert_eq!(
+            Namespaces::namespace_report_parts_checked(&mut vm, namespace).unwrap(),
+            expected
+        );
+        vm.pop_ns();
+        vm.pop_call_frame();
+        assert!(Namespaces::namespace_report_parts_checked(&mut vm, namespace).is_err());
+    }
+
+    #[test]
+    fn selected_jim_report_parts_reach_the_original_target_holder_and_borrow_its_header() {
+        use tcl_runtime_api::NativeNamespaceReportParts;
+        let mut vm = binding_vm("jimtcl");
+        let context = vm.native_jim_object_context().unwrap();
+        let root = Namespaces::namespace_report_parts_checked(&mut vm, ROOT_NS).unwrap();
+        assert_eq!(
+            root,
+            NativeNamespaceReportParts::JimFlat(std::rc::Rc::from(b"".as_slice()))
+        );
+        let target = vm.intern_jim_namespace_object(b"target::leaf\0\xff");
+        vm.push_ns_eval_token_frame(target, Vec::new());
+        let original = Value::new_native_string_bytes(b"target::leaf\0\xff".as_slice());
+        original.bind_native_jim_context(&context).unwrap();
+        *vm.frames.last().unwrap().jim_namespace.borrow_mut() =
+            Some((Some(target), original.clone()));
+        let other = vm.intern_jim_namespace_object(b"other");
+        vm.push_ns_eval_token_frame(other, Vec::new());
+        let references = original.native_object_reference_count();
+        let snapshot = Namespaces::namespace_report_parts_checked(&mut vm, target).unwrap();
+        assert_eq!(
+            snapshot,
+            NativeNamespaceReportParts::JimFlat(std::rc::Rc::from(
+                b"target::leaf\0\xff".as_slice()
+            ))
+        );
+        assert_eq!(vm.current_ns_id(), other);
+        assert_eq!(original.native_object_reference_count(), references);
+        vm.pop_ns();
+        vm.pop_call_frame();
+        vm.pop_ns();
+        vm.pop_call_frame();
+        // Flat metadata remains, but an absent original frame is no producer.
+        assert!(vm.native_namespace_token_has_owner(target));
+        assert!(Namespaces::namespace_report_parts_checked(&mut vm, target).is_err());
+        assert_eq!(
+            snapshot,
+            NativeNamespaceReportParts::JimFlat(std::rc::Rc::from(
+                b"target::leaf\0\xff".as_slice()
+            ))
+        );
+    }
+
+    #[test]
+    fn selected_jim_report_parts_get_the_original_stringless_holder() {
+        use tcl_runtime_api::NativeNamespaceReportParts;
+        let mut vm = binding_vm("jimtcl");
+        let target = vm.intern_jim_namespace_object(b"42");
+        vm.push_ns_eval_token_frame(target, Vec::new());
+        let original = Value::from_native_scalar_cache(
+            tcl_syntax::scalar_getter::NativeScalarCache::Number(tcl_syntax::number::Number::Int(
+                42,
+            )),
+            None,
+            vm.actual_native_invocation_dialect(),
+        )
+        .unwrap();
+        original
+            .bind_native_jim_context(&vm.native_jim_object_context().unwrap())
+            .unwrap();
+        *vm.frames.last().unwrap().jim_namespace.borrow_mut() =
+            Some((Some(target), original.clone()));
+        assert!(original.resident_string_bytes().is_none());
+        let references = original.native_object_reference_count();
+        assert_eq!(
+            Namespaces::namespace_report_parts_checked(&mut vm, target).unwrap(),
+            NativeNamespaceReportParts::JimFlat(std::rc::Rc::from(b"42".as_slice()))
+        );
+        assert_eq!(original.resident_string_bytes().unwrap().as_ref(), b"42");
+        assert_eq!(original.native_object_reference_count(), references);
+        vm.pop_ns();
+        vm.pop_call_frame();
+    }
+
+    #[test]
+    fn selected_report_parts_refuse_withdrawn_world_and_foreign_jim_object_context() {
+        for release in ["tcl8.6", "jimtcl"] {
+            let mut vm = binding_vm(release);
+            vm.name_world.borrow_mut().retire();
+            assert!(Namespaces::namespace_report_parts_checked(&mut vm, ROOT_NS).is_err());
+        }
+        let mut vm = binding_vm("jimtcl");
+        let foreign = binding_vm("jimtcl");
+        let target = vm.intern_jim_namespace_object(b"held");
+        vm.push_ns_eval_token_frame(target, Vec::new());
+        let original = Value::new_native_string_bytes(b"held".as_slice());
+        original
+            .bind_native_jim_context(&foreign.native_jim_object_context().unwrap())
+            .unwrap();
+        *vm.frames.last().unwrap().jim_namespace.borrow_mut() = Some((Some(target), original));
+        assert!(Namespaces::namespace_report_parts_checked(&mut vm, target).is_err());
+    }
+
+    #[test]
+    fn selected_report_parts_preserve_the_first_execution_refusal_without_a_getter() {
+        let mut vm = binding_vm("jimtcl");
+        let original = vm
+            .with_jim_current_namespace(|holder| Ok(holder.native_lifetime_lease()))
+            .unwrap();
+        let before = original.value().native_object_snapshot();
+        vm.refuse_host_command("original namespace report first cause".into());
+        let first = vm.execution_refusal.clone().unwrap();
+        let error = Namespaces::namespace_report_parts_checked(&mut vm, ROOT_NS).unwrap_err();
+        assert_eq!(error.native_execution_refusal(), Some(&first));
+        assert_eq!(original.value().native_object_snapshot(), before);
+    }
+
+    #[test]
+    fn qualified_inventory_keeps_existing_positive_command_and_variable_results() {
+        for release in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let mut vm = crate::native_fixture::interpreter(
+                crate::environment::profile_for_dialect(release),
+            );
+            assert_eq!(
+                vm.eval_source("namespace eval selected {proc marker {} {}; variable item 1}")
+                    .unwrap()
+                    .code,
+                tcl_runtime_api::Code::Ok
+            );
+            let commands = vm.invoke_host_original_object_vector(
+                &Value::string("info"),
+                &[Value::string("commands"), Value::string("::selected::*")],
+            );
+            assert_eq!(commands.code, tcl_runtime_api::Code::Ok, "{release}");
+            assert!(
+                commands
+                    .result
+                    .as_list()
+                    .unwrap()
+                    .iter()
+                    .any(|name| name.string_bytes().as_ref() == b"::selected::marker")
+            );
+            let variables = vm.invoke_host_original_object_vector(
+                &Value::string("info"),
+                &[Value::string("vars"), Value::string("::selected::*")],
+            );
+            assert_eq!(variables.code, tcl_runtime_api::Code::Ok, "{release}");
+            assert!(
+                variables
+                    .result
+                    .as_list()
+                    .unwrap()
+                    .iter()
+                    .any(|name| name.string_bytes().as_ref() == b"::selected::item")
+            );
+            assert!(vm.execution_refusal.is_none());
+        }
     }
 
     fn binding_vm(release: &str) -> Vm {
