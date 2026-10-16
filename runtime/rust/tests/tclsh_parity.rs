@@ -25,7 +25,9 @@
 //! reported by its result after the output, as `tclsh` writes it to
 //! stderr), and the output is compared with what tclsh 8.4.20, 8.5.19,
 //! 8.6.18, 9.0.4 and 9.1.0 print for it (`<name>.expect`, which tclvm's
-//! test compares with each `tclsh` live).
+//! test compares with each `tclsh` live). The scripts need `expr` and the
+//! control commands, so the suite needs the numeric tower.
+#![cfg(have_tommath)]
 
 use std::cell::RefCell;
 use std::path::PathBuf;
