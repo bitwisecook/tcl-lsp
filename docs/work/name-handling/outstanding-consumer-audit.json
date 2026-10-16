@@ -13170,6 +13170,6 @@
     "nested_archive_sha256": "8813dc50abbc84c6c55a0ca2563df708c80ce8d8f8fcb7c60ad2bb092122d4fa",
     "nested_verified_members": 14465
   },
-  "current_audit_status": "RESUMED; latest repository audit 8166 provisional records/1530 verified members. Root193 work units is a bounded proposal, not repository total. Actual review and canonical cross-owner reconciliation continue.",
-  "current_primary_packet": "repository-audit-progress-20261016T012342Z.tar.gz"
+  "current_audit_status": "RESUMED; latest repository audit 8374 provisional records/1617 verified members. Root193 work units is a bounded proposal, not repository total. Actual review and canonical cross-owner reconciliation continue.",
+  "current_primary_packet": "repository-audit-progress-20261016T014202Z.tar.gz"
 }
