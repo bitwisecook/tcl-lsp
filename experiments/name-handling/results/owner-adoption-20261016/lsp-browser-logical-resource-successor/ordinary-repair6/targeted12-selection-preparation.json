@@ -1,0 +1,15 @@
+{
+  "status": "PREPARED_TARGETED12_ONLY_NO_EXECUTION",
+  "manifest": "/workspace/naming-validation/lsp-browser-logical-resource-successor-repair6/targeted12-selection.json",
+  "sha256": "98bc4f0a187d79faccb3c9918f324554284fab4af3d873fda0c38e4556d786ab",
+  "expected_group_counts": {
+    "tcl_compiler": 4,
+    "tcl_lsp_core": 7,
+    "tcl_lsp_server": 1
+  },
+  "actual_build_dir": "/workspace/naming-validation/lsp-browser-logical-resource-successor-repair6",
+  "all39001_actual_current_inputs_checked": true,
+  "all_five_actual_frozen_ELFs_checked": true,
+  "full584_untouched_sha256": "833008f2e3a53e29a408019cb46c75b02b299ea5508b4716932bc4122102ef03",
+  "execution": "No listing/test/build/main invocation"
+}

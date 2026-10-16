@@ -1,0 +1,15 @@
+{
+  "utc": "2026-10-16T21:20:11.928211+00:00",
+  "argv": [
+    "git",
+    "ls-remote",
+    "https://github.com/msteveb/jimtcl.git",
+    "HEAD"
+  ],
+  "exit_code": 0,
+  "stdout": "5bac7c99ad65864c87da513e22e2f01703fa4e03\tHEAD\n",
+  "latest_upstream_head": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+  "binary": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+  "binary_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+  "scope": "Actual latest upstream recheck plus compiled original provider binary hash; no new semantics/oracle execution acceptance"
+}

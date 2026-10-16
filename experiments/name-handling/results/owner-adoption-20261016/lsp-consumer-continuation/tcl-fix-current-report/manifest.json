@@ -1,0 +1,48 @@
+{
+  "version": "lsp-tcl-fix-current-report-v1",
+  "scope": "Active-document Tcl participant /fix only; no generated files or tests changed.",
+  "baseline_units_touched": [
+    {
+      "id": "lsp-editor-ai-iterate-currency",
+      "scope": "Partial caller adoption: active-document /fix source/version/session remains bound across the initial report and loop entry. Other AI iteration callers and report-await stages remain outside this patch."
+    },
+    {
+      "id": "lsp-editor-ai-clean-claim",
+      "scope": "Active-document /fix clean decision now requires a completed exact-source proposal report and current document/session/context; unavailable and stale remain non-clean. Other clean-claim callers remain outside this patch."
+    }
+  ],
+  "source": {
+    "path": "editors/vscode/src/chat/tclParticipant.ts",
+    "before_sha256": "8645a76bb6d51ab5e0ee8b91a43df2741960acb82df272b34a3a45ff0fc600c1",
+    "after_sha256": "d2ce3e30a0b57fbe806723ba81d48004b1df20d36d6c99ff5fe6341da5af7882"
+  },
+  "contract": {
+    "path": "docs/design/contracts/name-handling.md",
+    "before_sha256": "7846781aa1ba414989b2956eab0170fa8f620281ba54aa111145e17fb2ed64e3",
+    "after_sha256": "db1d8da8dc543c55a0d5cf2f20d4b0b11a6d8abc9ddc1f29762d93668c3f6683"
+  },
+  "patches": {
+    "source": {"path": "source.patch", "sha256": "254af5fa963b3cc306957e7cebd7455bf30e439f95137dbde2e9a22733508ef1"},
+    "contract": {"path": "contract.patch", "sha256": "17ab920bc51acd02d4db3db7be7ef05da8802b9b2db39f4160a24d5c621b18e0"},
+    "combined": {"path": "combined.patch", "sha256": "b5fc2567f475325ddbea7bf52f34f0291f02480aaafb1b6a0667c0aed18ea92e"}
+  },
+  "owner_apis": [
+    "waitForProposalDiagnostics",
+    "proposalDiagnosticsReportMatches",
+    "isAnalysisContextCurrent",
+    "isDocumentSourceSnapshotCurrent",
+    "runAgenticLoop initialProposalReport"
+  ],
+  "semantic_limits": [
+    "The report is historical analysis evidence and carries no edit authority.",
+    "Existing document application continues to use documentWriteReceipt and the checked applyFix path.",
+    "The already-selected resource dialect from the producer-completed report supplies the iteration prompt; the caller does not force getActiveDialect as an override.",
+    "This is an active-document caller improvement, not closure of attachment, create, validate, optimise, or all AI clean-report purposes."
+  ],
+  "validation": {
+    "source_review": "pending",
+    "typecheck": "not run (parent instruction)",
+    "tests": "not run (parent instruction)",
+    "format": "not run (parent instruction)"
+  }
+}

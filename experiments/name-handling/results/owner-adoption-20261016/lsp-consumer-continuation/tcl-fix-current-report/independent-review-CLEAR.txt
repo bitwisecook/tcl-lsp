@@ -1,0 +1,13 @@
+Independent source review: CLEAR
+
+Reviewed immutable input:
+- combined.patch SHA-256 b5fc2567f475325ddbea7bf52f34f0291f02480aaafb1b6a0667c0aed18ea92e
+- manifest.json SHA-256 a6a600f5b43032fb66dfa96e4fc234a036cf8d1e9c98250289f39f06c1c23b19
+
+Both current beforeimages matched the manifest exactly. The source and contract patches applied cleanly to a fresh TMP copy, and resulting source hashes match the manifest:
+- tclParticipant.ts before 8645a76bb6d51ab5e0ee8b91a43df2741960acb82df272b34a3a45ff0fc600c1; after d2ce3e30a0b57fbe806723ba81d48004b1df20d36d6c99ff5fe6341da5af7882
+- name-handling.md before 7846781aa1ba414989b2956eab0170fa8f620281ba54aa111145e17fb2ed64e3; after db1d8da8dc543c55a0d5cf2f20d4b0b11a6d8abc9ddc1f29762d93668c3f6683
+
+`handleFix` snapshots the actual document, requests a proposal report for exactly that source, and refuses a clean result when the report is unavailable, document bytes/version/language/URI changed, captured analysis context is stale, report source/proposal differs, or the report transport session is no longer current. The clean path uses the completed report’s diagnostics and reports its source version and selected dialect. The actionable path passes the exact report to `runAgenticLoop` without a dialect override. Existing `agenticLoop.ts` validates the same report again, uses its diagnostics for iteration zero, and derives the prompt dialect from that report; it rejects reuse with an override. This leaves resource interpretation tied to the report producer and avoids a global/active dialect hint.
+
+The report remains historical analysis evidence. The existing checked document-write receipt and apply-fix path are unchanged. Scope is only active-document `/fix`; other AI callers remain open as stated in the manifest. No model request, test, typecheck, formatter, build, or external execution was run for this review.

@@ -1,0 +1,26 @@
+{
+  "retained": 583,
+  "new_deduplicated": 1,
+  "total": 584,
+  "by_target": {
+    "tcl_compiler": 70,
+    "tcl_registry": 9,
+    "tcl_lsp_core": 408,
+    "tcl_lsp_db": 6,
+    "tcl_lsp_server": 91
+  },
+  "requested_categories": {
+    "conditional-case-old-direct-native-refusal": 1,
+    "conditional-case-original232-retained": 1
+  },
+  "new_categories": {
+    "conditional-case-old-direct-native-refusal": 1
+  },
+  "source_files_and_module_routes": 96,
+  "freeze_status": "BOUND_ACTUAL_ROOT_SUCCESSFUL_ORDINARY_FIVE_LIBRARY_BUILD",
+  "all583_ordered_rows_and_inherited_guards_environment_budgets_preserved": true,
+  "no_executable_run": true,
+  "selection_path": "/workspace/naming-validation/lsp-browser-logical-resource-successor-repair6/selection.json",
+  "selection_sha256": "833008f2e3a53e29a408019cb46c75b02b299ea5508b4716932bc4122102ef03",
+  "generator_sha256": "0274478550856ea5726488c6db9e4313d89ee7593e126f2f61ce8cb31f5269b8"
+}

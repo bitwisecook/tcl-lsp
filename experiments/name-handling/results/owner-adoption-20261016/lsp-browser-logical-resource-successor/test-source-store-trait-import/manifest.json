@@ -1,0 +1,10 @@
+{
+  "purpose": "Import actual existing SourceStore trait in existing test module to call real MemoryStore census method. No assertion/selector/fixture/budget/production line changed.",
+  "files": {
+    "rust/tcl-lsp-core/src/workspace_index.rs": {
+      "before_sha256": "34dc9d5f5abf957a0cf46096d15be28134ade5b7dc4d1d22d10b4e72d68bc4de",
+      "after_sha256": "ab7f0a6ed8e51f18e682dbd62df940585038ef5fb6956532a708f3570829b8e2"
+    }
+  },
+  "patch_sha256": "a2023f872f7b4aff83ce656ffc807dcf35b71744d0bc4f3d6aa9321c31cb882f"
+}

@@ -1,0 +1,15 @@
+{
+  "scope": "Actual targeted12 ONLY, not full584 acceptance",
+  "passes": 9,
+  "failures": 3,
+  "timeouts": 0,
+  "errors": 0,
+  "source_and_five_elf_postflight_match": true,
+  "full584": "Running in external evidence directory, not yet accepted",
+  "result_sha256": "4dcf5163939d6ce9364cc47ec839aa4286875e5b5bd59ebe140304f956a6b51f",
+  "failed_selectors": [
+    "analyser::utils::tests::script_comment_facts_reaches_nested_command_substitution_case_arms",
+    "type_hierarchy::logical_source_selection_tests::logical_hierarchy_joins_actual_source_operands_and_coordinates_not_report_names",
+    "implementation::logical_source_selection_tests::logical_implementation_uses_real_member_operand_and_rejects_equal_spelled_data"
+  ]
+}

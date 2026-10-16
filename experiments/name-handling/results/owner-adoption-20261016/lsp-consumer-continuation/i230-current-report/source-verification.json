@@ -1,0 +1,31 @@
+{
+  "editors/vscode/src/test/issue969.test.ts": {
+    "all_original_assertions_byte_equal": 3,
+    "selectors_exact": [
+      "\"Issue #969 I230 false positive\"",
+      "\"namespaced recursive proc's parity check draws no I230\"",
+      "\"call site hidden inside a catch body draws no I230\"",
+      "\"TP control: two callers passing a uniform literal still fire I230\""
+    ],
+    "numeric_literals_exact": []
+  },
+  "editors/vscode/src/test/issue976.test.ts": {
+    "all_original_assertions_byte_equal": 3,
+    "selectors_exact": [
+      "\"Issue #976 dynamic-dispatch call-site seeding\"",
+      "\"dispatch passing a differing literal draws no I230\"",
+      "\"dispatch whose target cannot be enumerated draws no I230\"",
+      "\"TP control: dispatch agreeing on the literal still fires I230\""
+    ],
+    "numeric_literals_exact": []
+  },
+  "editors/vscode/src/test/issue977.test.ts": {
+    "all_original_assertions_byte_equal": 2,
+    "selectors_exact": [
+      "\"Issue #977 cross-file interprocedural seeding\"",
+      "\"a caller in a sourcing file with a differing literal clears I230\"",
+      "\"TP control: every project caller agreeing on the literal still fires I230\""
+    ],
+    "numeric_literals_exact": []
+  }
+}

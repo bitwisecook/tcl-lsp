@@ -1,0 +1,22 @@
+{
+  "utc": "2026-10-16T21:08:06.655169+00:00",
+  "purpose": "Remove only two precisely identified unaccepted Compiler intermediates created by failed line-tables-only profile builds; no frozen ELF, source, accepted evidence or broad cache deletion. Current owned build explicitly uses debug0, no live rustc reference to these metadata files.",
+  "failed_profile": "line-tables-only",
+  "metadata": "12ede6b145298b39",
+  "files": [
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_compiler-12ede6b145298b39.rmeta",
+      "bytes": 45172629,
+      "sha256": "cb2e55a006ace89afa179262933fe3867b7a605f05e54871b69b5aa665f8fd5f"
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_compiler-12ede6b145298b39.rlib",
+      "bytes": 487988738,
+      "sha256": "49c0da65c88ed33628cb21239ad93823ee6b9092639b2c245c88b014b3b01b20"
+    }
+  ],
+  "retained_failed_receipts": [
+    "/workspace/naming-validation/lsp-browser-logical-resource-successor/source-binding.json",
+    "/workspace/naming-validation/lsp-browser-logical-resource-successor-repair1/source-binding.json"
+  ]
+}

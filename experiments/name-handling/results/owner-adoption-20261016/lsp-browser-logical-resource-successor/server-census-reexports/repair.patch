@@ -1,0 +1,13 @@
+--- a/rust/tcl-lsp-server/src/vfs.rs
++++ b/rust/tcl-lsp-server/src/vfs.rs
+@@ -30,7 +30,9 @@
+ 
+ pub use tcl_lsp_core::vfs::{
+     DirEntry, MemoryStore, Metadata, NativeStore, SourcePathOrigin, SourceStore, SourceUriPath,
+-    SourceUriPathKind, SourceUriPathUnavailable,
++    SourceUriPathKind, SourceUriPathUnavailable, WorkspaceSourceInventoryCompleteness,
++    WorkspaceSourceInventoryObservation, WorkspaceSourceInventoryProvider,
++    WorkspaceSourceInventoryReceipt,
+ };
+ 
+ /// The store path a host puts its own `.tclspec` packs under, re-exported here

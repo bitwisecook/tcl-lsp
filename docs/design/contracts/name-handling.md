@@ -50,6 +50,18 @@ unavailable. No direct report or policy outcome can satisfy push completion.
 Configured report completion grants no runtime execution, normal completion,
 edit equivalence or absence of unknown effects.
 
+## Editor AI fix reports
+
+The active-document `/fix` path retains the original URI, version, and complete
+source while it requests a proposal report for that same source. A clean result
+uses only a completed report whose document, source, and session still match;
+unavailable or stale analysis remains an unavailable result. When fixes are
+needed, the initial report supplies both the diagnostics and the resource
+dialect-specific prompt used by the iteration. The report is historical analysis
+evidence; the independent checked document-write receipt remains the sole
+application authority. This path does not infer resource semantics from the
+active/global dialect hint.
+
 ## Logical variable source scopes
 
 `AnalysisResult::logical_variable_scope_advice` is the shared Compiler entry

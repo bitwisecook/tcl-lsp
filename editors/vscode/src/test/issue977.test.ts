@@ -27,7 +27,7 @@
 
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { getDocUri, activate, waitForDiagnostics } from "./helper";
+import { getDocUri, activate, waitForDiagnostics, waitForCurrentDiagnostics } from "./helper";
 
 function codeOf(d: vscode.Diagnostic): string {
   return typeof d.code === "object" && d.code !== null ? String(d.code.value) : String(d.code);
@@ -37,11 +37,17 @@ suite("Issue #977 cross-file interprocedural seeding", () => {
   test("a caller in a sourcing file with a differing literal clears I230", async () => {
     // Open the caller first so it is already in the project when the library
     // is analysed — the ordering a workspace scan produces.
-    await activate(getDocUri("issue977Main.tcl"));
+    const callerUri = getDocUri("issue977Main.tcl");
+    const caller = await activate(callerUri);
+    await waitForCurrentDiagnostics(callerUri, {
+      expectedSource: caller.getText(),
+    });
     const libUri = getDocUri("issue977Lib.tcl");
-    await activate(libUri);
+    const document = await activate(libUri);
 
-    const diags = vscode.languages.getDiagnostics(libUri);
+    const diags = await waitForCurrentDiagnostics(libUri, {
+      expectedSource: document.getText(),
+    });
     assert.ok(
       !diags.some((d) => codeOf(d) === "I230"),
       `issue977Main.tcl calls helper with "dev"; the library must not fold on "prod": ${JSON.stringify(

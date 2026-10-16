@@ -282,3 +282,29 @@ cancelled acquisition retains responsibility for an acknowledged predecessor.
 Only a successful current restore can return the context used to publish a later
 source action. These client receipts do not establish the server's independent
 source/result applicability or optimiser transformation authority.
+
+
+### Negative editor diagnostic evidence
+
+The issue969, issue976 and issue977 I230-negative callers wait through the active
+extension's existing `waitForCurrentDiagnostics` export before evaluating their
+unchanged absence assertions. They retain the actual document returned by
+activation and supply its whole source as the independent expected source. The
+cross-file issue977 caller also completes its original caller document through
+the same owner before opening the library, retaining the original ordering. The
+production owner captures actual open-document identity/version/session and
+requires an exact complete server response under its existing resource/input,
+provider, report and publication checks. No current URI collection sample,
+expected count, successive equal diagnostic codes or delivered notification
+alone proves diagnostic absence. Complete empty findings remain distinct from
+suppressed, unavailable, malformed, stale or provider-error results, which fail
+the test rather than becoming an empty array.
+
+This migration changes only five recorded negative test callers. Existing
+positive controls, fixtures, assertions, selectors, partitions and all original
+numeric budgets remain unchanged; it uses the existing current-owner default
+wait budget and unchanged enclosing test deadline. The shared test export and
+production waiter are reused, not replaced or recounted as new owners. It
+establishes evidence for this exact source/configuration report, not future
+source quiescence, program execution, name absence or edit authority. Actual
+extension-host validation remains required.

@@ -1,0 +1,10 @@
+{
+  "purpose": "Expose actual existing Core source-census types through existing Server VFS reexport facade used by Server and browser WASM; no wrapper/parallel owner/changed guard",
+  "files": {
+    "rust/tcl-lsp-server/src/vfs.rs": {
+      "before_sha256": "306c644d558f011dca2c77b8cf02042ae67eefd56c7f3b7b2a31017dbc2ef174",
+      "after_sha256": "39246de960784aad2a15d593b1a6a803fe0cc531e6c94b92e4b1f4836f0d69aa"
+    }
+  },
+  "patch_sha256": "6913e4ea58e7d22ad0cf3107381b76fd41a49540abd271af0ae94bf433188240"
+}

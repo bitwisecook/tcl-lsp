@@ -1,0 +1,20 @@
+{
+  "environment": {
+    "set": {
+      "TCL_LSP_REQUIRE_TCLSH": "9.0,8.6"
+    },
+    "unset": []
+  },
+  "runtime_guards": {
+    "exact_listing_before_execution": true,
+    "expected_singleton_tests_per_selector": 1,
+    "missing_or_multiple_match_is_failure": true,
+    "never_skip_missing_selector": true,
+    "list_timeout_seconds": 30,
+    "test_timeout_seconds": 180,
+    "preserve_exit_status_stdout_stderr_timeout": true,
+    "bind_actual_frozen_elf_before_and_after": true
+  },
+  "test_timeout_seconds": 180,
+  "listing_timeout_seconds": 30
+}

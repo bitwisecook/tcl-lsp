@@ -1,0 +1,44 @@
+{
+  "patch": "i230-current-report.02c2287f3f9239059563e94d8bc34f235644d5bfb65bc758c6a312c95df12a4b.patch",
+  "patch_sha256": "02c2287f3f9239059563e94d8bc34f235644d5bfb65bc758c6a312c95df12a4b",
+  "status": "immutable TMP source-only; independent review pending; no execution acceptance",
+  "baseline_unit_ids": [
+    "lsp.validation.03.01.fn0",
+    "lsp.validation.03.01.fn1",
+    "lsp.validation.03.02.fn0",
+    "lsp.validation.03.02.fn1",
+    "lsp.validation.03.03.fn0"
+  ],
+  "files": [
+    {
+      "path": "docs/design/contracts/lsp-diagnostics-publication.md",
+      "before_sha256": "3f36576c54735c6a33271779bb8549babe09812b76081d544f7379945f84dbf1",
+      "after_sha256": "e7e82683696d21c5ee08766685cf84e84fb6c2181fe9f68214ba821563001c6f"
+    },
+    {
+      "path": "editors/vscode/src/test/issue969.test.ts",
+      "before_sha256": "6252583c7b806028e8a4adc960ce6e8ec92d3d84dfd6afb2f65daea42696996d",
+      "after_sha256": "d58aa239b0c3bc06d3654ed77063a9f04a8b11e61b519357a022b77efb704cc4"
+    },
+    {
+      "path": "editors/vscode/src/test/issue976.test.ts",
+      "before_sha256": "cd653897b25bd1e53040972eab20458184696bf746beb55b751a9b58503310c8",
+      "after_sha256": "9b5bd27d8ce610202b6e62f1ba9df60a6ef9f037417aa4572edd897efdb1c98a"
+    },
+    {
+      "path": "editors/vscode/src/test/issue977.test.ts",
+      "before_sha256": "33d30281b1ae80699c9689bda45c262d7b63db9f42891ba27553cb5c0680a3ae",
+      "after_sha256": "22ab1dcda4cc537f7f20cf7650fcd3af3936019d6425ac93589cd165692951c9"
+    }
+  ],
+  "shared_owners_unchanged": [
+    "helper.waitForCurrentDiagnostics",
+    "active extension exported waitForCurrentDiagnostics",
+    "chat/diagnosticAccess.waitForDiagnostics",
+    "current_diagnostics complete source/config/provider/report owner"
+  ],
+  "scope": "Five existing actual negative I230 callers; no helper/owner/test added or recounted; positive callers unchanged",
+  "preservation": "Every original assertion/selector/test partition/numeric budget token preserved; actual cross-file caller activation ordering preserved with current report precondition",
+  "validation": "Static TS AST/byte/hash/fresh fuzz0 only; no Cargo/build/test/typecheck/host/main/Git",
+  "open_other_units": "03.00 shared legacy helpers and all other03 callers unchanged;13.00.fn0 inspected but not adopted because old pull_diagnostics missing items defaults empty and strict20s response binding needs separate repair"
+}

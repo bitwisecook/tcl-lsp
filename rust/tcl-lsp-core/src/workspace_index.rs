@@ -13789,6 +13789,7 @@ p\uD801";
 #[cfg(test)]
 mod original_settlement_transport_tests {
     use super::*;
+    use crate::vfs::SourceStore;
     use tcl_compiler::analyser::Analyser;
     use tcl_compiler::signature_scan::scope::SignatureSourceCommand;
 

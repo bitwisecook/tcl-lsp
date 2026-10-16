@@ -1,0 +1,10 @@
+--- a/rust/tcl-lsp-core/src/workspace_index.rs
++++ b/rust/tcl-lsp-core/src/workspace_index.rs
+@@ -13789,6 +13789,7 @@
+ #[cfg(test)]
+ mod original_settlement_transport_tests {
+     use super::*;
++    use crate::vfs::SourceStore;
+     use tcl_compiler::analyser::Analyser;
+     use tcl_compiler::signature_scan::scope::SignatureSourceCommand;
+ 

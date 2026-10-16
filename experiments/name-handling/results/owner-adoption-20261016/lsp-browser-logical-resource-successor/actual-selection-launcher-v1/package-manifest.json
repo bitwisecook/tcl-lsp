@@ -1,0 +1,54 @@
+{
+  "status": "PREPARED_UNEXECUTED_NO_FUTURE_BINDINGS",
+  "scope": "Root-only actualPASS584 subset generator and explicit tiny12/full584 canonical launcher",
+  "required_build_directory": "Explicit --build-dir mandatory; no directory/artifact fallback",
+  "actual_binding": "None until Root successful current source freeze",
+  "files": {
+    "ROOT-USAGE.md": {
+      "sha256": "1c5fbd294e5672a43545b1ba9ca17b1560551ccac7e81d2b867eb444b6d3de84",
+      "bytes": 3315
+    },
+    "generate_subset.py": {
+      "sha256": "8e397d402283424f697d40b589ad2d44ab2f52a8bf3b2b5a23c2dc4789c9cedc",
+      "bytes": 2439
+    },
+    "guards.py": {
+      "sha256": "a0fb4edd227fc3f681080bbf13f3714d3246ed894d2d46a93b20d11ff5c0fc76",
+      "bytes": 5701
+    },
+    "inherited-guards.json": {
+      "sha256": "8d5dc5d1be2bd9adf4ba0ee8a900254adbe6df92e78fc2f36519673a1235176d",
+      "bytes": 551
+    },
+    "launch.py": {
+      "sha256": "eabd775bf04b73cab4d31948bdfc338c8faf296727360eaed6df53d96f856c81",
+      "bytes": 3628
+    },
+    "provider-corrected-setup.json": {
+      "sha256": "cf57d1f2af60b425a4f7c1cb644af1682118ff8173186d43a8f554068a483396",
+      "bytes": 798
+    },
+    "requests.json": {
+      "sha256": "d04327f81dbee5124ec26f4347766c6ce2b208690127e1f6ecbbc080a5131997",
+      "bytes": 1316
+    },
+    "retained584-order.json.gz": {
+      "sha256": "1db51f4e240f1b196895114f4335acf58f970520715d835bdbcbd6cc636f992d",
+      "bytes": 17949
+    }
+  },
+  "twelve_original_rows": [
+    222,
+    223,
+    224,
+    232,
+    242,
+    270
+  ],
+  "test_timeout_seconds": 180,
+  "listing_timeout_seconds": 30,
+  "expected_singleton": 1,
+  "full39001_and_all5_actual_ELF_before_after": true,
+  "original_providerenv_and_actual_PATH_plus_TEST_DEBUG0": true,
+  "no_execution_or_main_mutation": true
+}

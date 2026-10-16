@@ -1,0 +1,19 @@
+{
+  "utc": "2026-10-16T21:31:13.275534+00:00",
+  "source_parent": "563983f1114ddeea155bc7146cf2be9acb75e30a",
+  "actual_remote_work": "563983f1114ddeea155bc7146cf2be9acb75e30a",
+  "actual_remote_rust": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+  "incoming_rust": "Unmerged and unadmitted",
+  "lsp_integrated": 148,
+  "lsp_required": 325,
+  "effective_integrated": 334,
+  "effective_required": 2214,
+  "verified_complete": 0,
+  "editor_checks": "PASS TypeScript/scoped formatting/worker syntax/Node and browser bundles;406inputs0drift; actualhost unrun",
+  "native_build": "repair6 PASS350.661s0warnings39001inputs0drift",
+  "targeted12": "9PASS3FAIL0TIMEOUT; actual all39001inputs+all5ELFs postflight matches",
+  "cumulative584": "RUNNING with source and artifacts frozen through final checks",
+  "owner_gate": "Current pre-Registry966361 gate running in /workspace/naming-validation/lsp-current-owners-gates-563",
+  "external_guide": "143/329; automatic approval review blocked148/334 update; explicit user approval pending",
+  "scope": "LSP and necessary shared owners; Runtime/VM/BIG-IP migrations deferred; uncovered BIG-IP Tcl8.4 working assumption is not measured evidence"
+}

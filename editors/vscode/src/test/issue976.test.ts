@@ -25,7 +25,7 @@
 
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { getDocUri, activate, waitForDiagnostics } from "./helper";
+import { getDocUri, activate, waitForDiagnostics, waitForCurrentDiagnostics } from "./helper";
 
 function codeOf(d: vscode.Diagnostic): string {
   return typeof d.code === "object" && d.code !== null ? String(d.code.value) : String(d.code);
@@ -34,9 +34,11 @@ function codeOf(d: vscode.Diagnostic): string {
 suite("Issue #976 dynamic-dispatch call-site seeding", () => {
   test("dispatch passing a differing literal draws no I230", async () => {
     const docUri = getDocUri("issue976DynamicDispatch.tcl");
-    await activate(docUri);
+    const document = await activate(docUri);
 
-    const diags = vscode.languages.getDiagnostics(docUri);
+    const diags = await waitForCurrentDiagnostics(docUri, {
+      expectedSource: document.getText(),
+    });
     assert.ok(
       !diags.some((d) => codeOf(d) === "I230"),
       `'$cmd dev' also reaches helper, with a differing literal: ${JSON.stringify(diags.map((d) => codeOf(d)))}`,
@@ -45,9 +47,11 @@ suite("Issue #976 dynamic-dispatch call-site seeding", () => {
 
   test("dispatch whose target cannot be enumerated draws no I230", async () => {
     const docUri = getDocUri("issue976UnenumerableDispatch.tcl");
-    await activate(docUri);
+    const document = await activate(docUri);
 
-    const diags = vscode.languages.getDiagnostics(docUri);
+    const diags = await waitForCurrentDiagnostics(docUri, {
+      expectedSource: document.getText(),
+    });
     assert.ok(
       !diags.some((d) => codeOf(d) === "I230"),
       `an unenumerable dispatch may reach helper: ${JSON.stringify(diags.map((d) => codeOf(d)))}`,

@@ -1,0 +1,17 @@
+{
+  "utc": "2026-10-16T19:35:29.088277+00:00",
+  "provider_environment_matches_previous310_exactly": true,
+  "environment": {
+    "TCL_LSP_JIMSH": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "TCL_LSP_TCL_BIN_DIR": "/workspace/.toolchains/tcl/bin",
+    "TCL_LSP_REQUIRE_ALL_TCL_ORACLES": "1",
+    "TCL_LSP_REQUIRE_JIM_ORACLE": "1",
+    "TCL_LSP_REQUIRE_TCLSH": "9.0,8.6"
+  },
+  "tclsh9.0": "/workspace/.toolchains/tcl/bin/tclsh9.0",
+  "tclsh8.6": "/workspace/.toolchains/tcl/bin/tclsh8.6",
+  "same_original_selection_sha256": "2c214b636d5542b1654fe0036833ef32b0ea30856c03ca9344cc3a16382e939d",
+  "same_frozen_artifacts": true,
+  "all_original_budgets_assertions_selectors_unchanged": true,
+  "initial_capture": "results/ retained SETUP_REJECTED_MISSING_PROVIDER_ENV; no ordinary acceptance"
+}

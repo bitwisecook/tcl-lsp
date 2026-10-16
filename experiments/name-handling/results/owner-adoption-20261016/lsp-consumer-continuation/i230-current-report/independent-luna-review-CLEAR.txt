@@ -1,0 +1,13 @@
+Independent source review: CLEAR
+
+Reviewed immutable patch:
+- `/tmp/lsp-validation-i230-current-report-v1/i230-current-report.02c2287f3f9239059563e94d8bc34f235644d5bfb65bc758c6a312c95df12a4b.patch`
+- SHA-256 `02c2287f3f9239059563e94d8bc34f235644d5bfb65bc758c6a312c95df12a4b`
+
+All four current beforeimages matched the manifest. Fresh TMP `patch --dry-run` succeeded for all four paths.
+
+The five changed negative callers are exactly issue969.fn0/fn1, issue976.fn0/fn1, and issue977.fn0. Each retains the actual `TextDocument` returned from `activate`; the call passes that document's unchanged full source to the existing test helper `waitForCurrentDiagnostics`. The helper requires the activated `bitwisecook.tcl-lsp` extension's exported waiter. `extension.ts` exports `chat/diagnosticAccess.waitForDiagnostics` under that name. The production waiter requests the current diagnostics ledger, verifies the open document's URI/version/source before and after the request, requires the current transport session and a `status: complete` response with exact URI/version/source/revision/input epoch/result ID and valid diagnostic data, converts the result within the existing deadline, then rechecks the transport and document. Pending/stale is retried; disabled/excluded, missing client/document, malformed response, provider failure, timeout and other terminal unavailable states throw. An empty array can return only from a completed exact-current response; neither a publish event nor a `minCount` threshold stands in for completion. These callers do not supply `minCount` or a delivery-ack predicate.
+
+Issue977 preserves caller-before-library activation and waits for the same actual caller document's completed report before opening the library. The five original negative assertions remain unchanged. Existing TP controls in all three files remain untouched and continue using their prior helper/predicate. The patch adds no tests, selectors, fixtures, partitions or numeric waits, and does not change the production owner/helper. Contract wording limits the claim to these five callers and exact report source/configuration; no project-wide quiescence or execution claim is made.
+
+No test, extension-host run, build or other execution was performed for this review.

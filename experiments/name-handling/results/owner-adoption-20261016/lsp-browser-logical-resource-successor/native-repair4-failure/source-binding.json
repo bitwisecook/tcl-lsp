@@ -1,0 +1,26 @@
+{
+  "source_head": "1b45c540eb51d24e1fd89c4a4bf61f43bf77986c",
+  "rust_diff_sha256": "153c09401a80ee09048c75d8f69cea1c81e86517d6148b608d884360cd23d2a9",
+  "ordinary": true,
+  "instrumentation": false,
+  "single_job": true,
+  "test_debug": 0,
+  "packages": [
+    "tcl-compiler",
+    "tcl-lsp-core",
+    "tcl-lsp-db",
+    "tcl-registry",
+    "tcl-lsp-server"
+  ],
+  "status": "FAIL",
+  "input_before_count": 39001,
+  "utc": "2026-10-16T21:03:27.843416+00:00",
+  "command": "CARGO_PROFILE_TEST_DEBUG=0 cargo test --offline --locked -p tcl-compiler -p tcl-lsp-core -p tcl-lsp-db -p tcl-registry -p tcl-lsp-server --lib --no-run",
+  "scope": "Explicit hover/semantic refusal adapters and retained directNative test fail-closed new variant arm; no stronger selection/body authority. Explicit TEST_DEBUG=0 verified. Two explicit borrowed ClassDef vector type annotations retain all predicates and lifetimes. Genuine conditionalNative source case/comment adviceV3 includes original232 retained and no selected/native/body authority. Current independently source-cleared BrowserV10 census + BrowserpackNameV3 shared actualRustowner + LogicalhierarchyV3 + actualresourceNodefixV4/contract + authoredJimdoclinkpurpose + SourceOrderpointfrontier + memberoriginalheadapplicability223. All original tests/assertions/180/30 budgets and Native/edit/Normal/currentness guards retained. Runtime/VM/BIGIP dedicated migration deferred.",
+  "exit_code": 101,
+  "build_seconds": 70.178,
+  "input_after_count": 39001,
+  "input_drift_count": 0,
+  "input_drift": [],
+  "completed_utc": "2026-10-16T21:04:38.022162+00:00"
+}

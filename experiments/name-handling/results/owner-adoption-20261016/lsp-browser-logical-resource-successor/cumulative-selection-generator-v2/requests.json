@@ -1,0 +1,42 @@
+{
+  "requests": [
+    {
+      "target": "tcl_lsp_core",
+      "selector": "original_invocation::source_words_tests::original_source_words_share_roles_and_original_geometry",
+      "category": "conditional-case-old-direct-native-refusal",
+      "purpose": "Existing direct Native original argv/schema control now explicitly rejects the conditional case-only source variant; all old inputs/assertions unchanged."
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::utils::tests::script_comment_facts_reaches_nested_command_substitution_case_arms",
+      "category": "conditional-case-original232-retained",
+      "purpose": "Existing actual nested case/comment walker regression; exact selector and original fixture/assertions remain retained. Conditional-comment V3 itself adds no new Rust test functions."
+    }
+  ],
+  "bindings": [
+    {
+      "path": "/tmp/luna-comment-native-conditional-v3/manifest.json",
+      "sha256": "8b6bc0be32104f566792217bfa572393c7f8c6964b52b61aecf320419247306f"
+    },
+    {
+      "path": "/tmp/luna-comment-native-conditional-v3/conditional-native-case-source-v3.patch",
+      "sha256": "3a15e013acb18bcbdb7590fef5bb4b3bb78e9b4a4b7b58246ec6433f2a7c8cfd"
+    },
+    {
+      "path": "/tmp/lsp-conditional-case-consumer-refusal-v1/manifest.json",
+      "sha256": "66a73c530a6607963875f625b87d7b9dbc0d9b4ebb84e8c573d855ae3405e10c"
+    },
+    {
+      "path": "/tmp/lsp-conditional-case-consumer-refusal-v1/repair.patch",
+      "sha256": "9462d1f7f3e067cb775e692acf5910eaf63c9d48cd89439c502fba47b72dd660"
+    }
+  ],
+  "changed_test_evidence": [
+    {
+      "path": "rust/tcl-lsp-core/src/original_invocation.rs",
+      "selector": "original_invocation::source_words_tests::original_source_words_share_roles_and_original_geometry",
+      "change": "Only explicit new unsupported-enum panic arm; all previous assertions/source inputs unchanged."
+    }
+  ],
+  "non_native_scope": "Exact conditional-comment V3 production patch adds zero Rust test functions; no invented V3 new tests. Original232 retained, one existing directNative test adds explicit refusal and is newly selected. Existing Browser/Node host TS/WASM work remains outside these five native targets."
+}

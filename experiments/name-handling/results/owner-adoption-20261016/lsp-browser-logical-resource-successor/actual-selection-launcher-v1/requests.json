@@ -1,0 +1,37 @@
+{
+  "original_ordinals": [
+    222,
+    223,
+    224,
+    232,
+    242,
+    270
+  ],
+  "extra_selectors": [
+    [
+      "tcl_compiler",
+      "analyser::class_hierarchy::original_metadata::source_method_reference::original_head_applicability_tests::readonly_self_reference_requires_the_selected_descriptor_for_original_head"
+    ],
+    [
+      "tcl_lsp_core",
+      "source_graph::original_package_alternative_owner_tests::package_alternatives_cannot_replace_unowned_dynamic_deferred_or_missing_input_points"
+    ],
+    [
+      "tcl_lsp_core",
+      "document_links::authored_source_link_purpose_tests::authored_jim_path_advice_keeps_scope_without_becoming_public_native_value"
+    ],
+    [
+      "tcl_lsp_core",
+      "original_invocation::source_words_tests::original_source_words_share_roles_and_original_geometry"
+    ],
+    [
+      "tcl_lsp_core",
+      "type_hierarchy::logical_source_selection_tests::logical_hierarchy_joins_actual_source_operands_and_coordinates_not_report_names"
+    ],
+    [
+      "tcl_lsp_core",
+      "implementation::logical_source_selection_tests::logical_implementation_uses_real_member_operand_and_rejects_equal_spelled_data"
+    ]
+  ],
+  "scope": "Twelve only: original6+actual latest memberhead/deferred-order/doclinkpurpose/directNative-refusal/Logical2; no full584 acceptance"
+}

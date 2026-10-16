@@ -25,12 +25,18 @@ import {
   extractCodeBlock,
   resolveIruleCode,
   snapshotDocumentSource,
+  isDocumentSourceSnapshotCurrent,
 } from "./codeUtils";
 import { sendContextualRequest } from "./contextPack";
 import {
   categoriseDiagnostics,
   renderDiagnosticSection,
   waitForDiagnostics,
+  waitForProposalDiagnostics,
+  proposalDiagnosticsReportMatches,
+  isAnalysisContextCurrent,
+  CurrentDiagnosticsUnavailableError,
+  ProposalDiagnosticsReport,
 } from "./diagnosticAccess";
 import { CommandContext } from "./types";
 import { buildPrompt } from "./promptLoader";
@@ -232,20 +238,56 @@ async function handleFix(ctx: CommandContext): Promise<vscode.ChatResult> {
 
   const sourceSnapshot = snapshotDocumentSource(editor.document);
   const code = sourceSnapshot.fullSource;
-  const diagnostics = await waitForDiagnostics(editor.document.uri, {
-    timeout: 5000,
-    expectedSource: code,
-  });
-  const actionable = diagnostics.filter((d) => d.severity <= vscode.DiagnosticSeverity.Warning);
+  let initialProposalReport: ProposalDiagnosticsReport;
+  try {
+    initialProposalReport = await waitForProposalDiagnostics(editor.document.uri, code, {
+      timeout: 5000,
+      expectedSource: code,
+    });
+  } catch (error) {
+    if (!(error instanceof CurrentDiagnosticsUnavailableError)) throw error;
+    ctx.response.markdown(
+      `Current Tcl analysis is unavailable (${error.reason}); no clean result is available. Retry when analysis is ready.`,
+    );
+    return {
+      metadata: { command: "fix", clean: false, unavailable: error.reason, iterations: 0 },
+    };
+  }
+
+  const reportMatchesSource = () =>
+    isDocumentSourceSnapshotCurrent(sourceSnapshot) &&
+    isAnalysisContextCurrent(sourceSnapshot.analysisContext) &&
+    proposalDiagnosticsReportMatches(initialProposalReport, {
+      document: editor.document,
+      uri: sourceSnapshot.uri,
+      version: sourceSnapshot.version,
+      source: sourceSnapshot.fullSource,
+      proposal: code,
+    });
+  if (!reportMatchesSource()) {
+    ctx.response.markdown(
+      "The document or its analysis context changed while diagnostics were running. Run `/fix` again.",
+    );
+    return {
+      metadata: { command: "fix", clean: false, unavailable: "stale", iterations: 0 },
+    };
+  }
+
+  const actionable = initialProposalReport.diagnostics.filter(
+    (d) => d.severity <= vscode.DiagnosticSeverity.Warning,
+  );
 
   if (actionable.length === 0) {
-    ctx.response.markdown("No errors or warnings found.");
+    const { version, dialectId } = initialProposalReport.response;
+    ctx.response.markdown(
+      `No errors or warnings found for source version ${version} analysed as \`${dialectId}\`.`,
+    );
     return { metadata: { command: "fix", clean: true, iterations: 0 } };
   }
 
   const result = await runAgenticLoop(ctx, code, editor.document, {
-    targetDialect: getActiveDialect(),
     sourceSnapshot,
+    initialProposalReport,
   });
 
   ctx.response.markdown(`## Fixed Tcl\n\n\`\`\`tcl\n${result.finalCode}\n\`\`\`\n`);

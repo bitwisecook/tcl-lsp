@@ -1,0 +1,21 @@
+{
+  "all583_ordered_rows_byte_structure_equal": true,
+  "all_inherited_metadata_except_summary_verbatim": true,
+  "all_original460_ordered_rows_equal": true,
+  "old_guard_env_budget_equal": true,
+  "native_targets_only": true,
+  "actual_comment_v3_new_rust_test_count": 0,
+  "only_additional_unique_selector": [
+    {
+      "target": "tcl_lsp_core",
+      "selector": "original_invocation::source_words_tests::original_source_words_share_roles_and_original_geometry",
+      "purpose": "Existing direct Native original argv/schema control now explicitly rejects the conditional case-only source variant; all old inputs/assertions unchanged."
+    }
+  ],
+  "no_current_elf_bound": true,
+  "python_ast_parse": [
+    "generate_selection.py",
+    "source_tools.py",
+    "replay-selection.py"
+  ]
+}
