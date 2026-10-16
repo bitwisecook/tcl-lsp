@@ -11585,7 +11585,7 @@ mod logical_source_alias_projection_tests {
                         .iter()
                         .any(|fact| matches!(fact.transition, crate::StateTransition::Widen(_)))
                 );
-                let mut replaced = *schema;
+                let mut replaced = schema;
                 replaced.semantics.state_transitions.form =
                     Some(crate::StateTransitionDescriptor {
                         composition: crate::StateTransitionComposition::Replace,
@@ -11596,7 +11596,7 @@ mod logical_source_alias_projection_tests {
                         .conditional_no_level_source_alias_layout()
                         .is_none()
                 );
-                let mut extended = *schema;
+                let mut extended = schema;
                 extended.semantics.state_transitions.form =
                     Some(crate::StateTransitionDescriptor {
                         composition: crate::StateTransitionComposition::Extend,
@@ -11607,7 +11607,7 @@ mod logical_source_alias_projection_tests {
                         .conditional_no_level_source_alias_layout()
                         .is_some()
                 );
-                let mut custom = *schema;
+                let mut custom = schema;
                 let mut descriptor = custom.semantics.state_transitions.command.unwrap();
                 descriptor.logical_source_resolver = Some(
                     crate::state_transition::LogicalSourceStateTransitionResolver::FrameAliases(

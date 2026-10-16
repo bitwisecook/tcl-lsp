@@ -1,0 +1,37 @@
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp/rust/tcl-registry)
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-vm v0.1.0 (/workspace/tcl-lsp/rust/tcl-vm)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-spectcl)
+   Compiling tcl-version v0.1.0 (/workspace/tcl-lsp/rust/tcl-version)
+   Compiling tcl-bigip-query v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip-query)
+   Compiling tcl-lsp-db v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-db)
+   Compiling tcl-explorer v0.1.0 (/workspace/tcl-lsp/rust/tcl-explorer)
+   Compiling f5-xc v0.1.0 (/workspace/tcl-lsp/rust/f5-xc)
+   Compiling tcl-diagram v0.1.0 (/workspace/tcl-lsp/rust/tcl-diagram)
+   Compiling tcl-lsp-server v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-server)
+error[E0614]: type `resolved_invocation::ResolvedInvocation<'_, '_>` cannot be dereferenced
+     --> rust/tcl-registry/src/resolved_invocation.rs:11588:36
+      |
+11588 |                 let mut replaced = *schema;
+      |                                    ^^^^^^^ can't be dereferenced
+
+error[E0614]: type `resolved_invocation::ResolvedInvocation<'_, '_>` cannot be dereferenced
+     --> rust/tcl-registry/src/resolved_invocation.rs:11599:36
+      |
+11599 |                 let mut extended = *schema;
+      |                                    ^^^^^^^ can't be dereferenced
+
+error[E0614]: type `resolved_invocation::ResolvedInvocation<'_, '_>` cannot be dereferenced
+     --> rust/tcl-registry/src/resolved_invocation.rs:11610:34
+      |
+11610 |                 let mut custom = *schema;
+      |                                  ^^^^^^^ can't be dereferenced
+
+For more information about this error, try `rustc --explain E0614`.
+error: could not compile `tcl-registry` (lib test) due to 3 previous errors

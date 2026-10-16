@@ -382,7 +382,7 @@ mod tests {
                 .is_none()
         );
         let mut changed = module.clone();
-        changed.source = tcl_lexer::SourceImage::document(source.replace("untouched", "different"));
+        changed.source = tcl_lexer::SourceImage::document(&source.replace("untouched", "different"));
         assert!(!card.matches_procedure(&changed, &changed.body_units[&id]));
         let foreign = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
         assert!(

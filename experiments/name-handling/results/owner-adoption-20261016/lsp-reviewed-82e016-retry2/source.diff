@@ -1,0 +1,44 @@
+diff --git a/rust/tcl-compiler/src/registry_invocation/authored_source_bodies.rs b/rust/tcl-compiler/src/registry_invocation/authored_source_bodies.rs
+index b10c22ad3..9007997df 100644
+--- a/rust/tcl-compiler/src/registry_invocation/authored_source_bodies.rs
++++ b/rust/tcl-compiler/src/registry_invocation/authored_source_bodies.rs
+@@ -382,7 +382,7 @@ mod tests {
+                 .is_none()
+         );
+         let mut changed = module.clone();
+-        changed.source = tcl_lexer::SourceImage::document(source.replace("untouched", "different"));
++        changed.source = tcl_lexer::SourceImage::document(&source.replace("untouched", "different"));
+         assert!(!card.matches_procedure(&changed, &changed.body_units[&id]));
+         let foreign = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
+         assert!(
+diff --git a/rust/tcl-registry/src/resolved_invocation.rs b/rust/tcl-registry/src/resolved_invocation.rs
+index ecbccfcbd..6306fdc43 100644
+--- a/rust/tcl-registry/src/resolved_invocation.rs
++++ b/rust/tcl-registry/src/resolved_invocation.rs
+@@ -11585,7 +11585,7 @@ mod logical_source_alias_projection_tests {
+                         .iter()
+                         .any(|fact| matches!(fact.transition, crate::StateTransition::Widen(_)))
+                 );
+-                let mut replaced = *schema;
++                let mut replaced = schema;
+                 replaced.semantics.state_transitions.form =
+                     Some(crate::StateTransitionDescriptor {
+                         composition: crate::StateTransitionComposition::Replace,
+@@ -11596,7 +11596,7 @@ mod logical_source_alias_projection_tests {
+                         .conditional_no_level_source_alias_layout()
+                         .is_none()
+                 );
+-                let mut extended = *schema;
++                let mut extended = schema;
+                 extended.semantics.state_transitions.form =
+                     Some(crate::StateTransitionDescriptor {
+                         composition: crate::StateTransitionComposition::Extend,
+@@ -11607,7 +11607,7 @@ mod logical_source_alias_projection_tests {
+                         .conditional_no_level_source_alias_layout()
+                         .is_some()
+                 );
+-                let mut custom = *schema;
++                let mut custom = schema;
+                 let mut descriptor = custom.semantics.state_transitions.command.unwrap();
+                 descriptor.logical_source_resolver = Some(
+                     crate::state_transition::LogicalSourceStateTransitionResolver::FrameAliases(

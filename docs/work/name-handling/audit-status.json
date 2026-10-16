@@ -1374,6 +1374,25 @@
       "input_drift": [],
       "capture": "experiments/name-handling/results/owner-adoption-20261016/lsp-owner-resolution-2d95",
       "diagnosis": "241 conditional required module crate errors appear caused by built-in recursion_limit attribute being refused by module resolver. Bounded repair in preparation; all other actual manifest errors remain open."
+    },
+    "lsp_reviewed_82e_build": {
+      "first_status": "FAIL",
+      "first_errors": [
+        "E0614 new Registry fixture value dereference at11588",
+        "E0614 at11599",
+        "E0614 at11610"
+      ],
+      "first_input_drift": 0,
+      "capture": "/workspace/naming-validation/lsp-reviewed-82e016",
+      "retry_status": "FAIL_E0308_SOURCEIMAGE_FIXTURE_BORROW",
+      "retry_capture": "/workspace/naming-validation/lsp-reviewed-82e016-retry",
+      "repair": "Only three fixture copies remove dereference from actual Copy ResolvedInvocation value. All production and original assertion text unchanged.",
+      "scope": "No executed current controls before fresh complete build.",
+      "retry3_status": "FAIL_E0308_E0599_REGISTRY_FIXTURE_OWNERSHIP",
+      "rejected_argument_attempt": "retry2 cargo test rejects --keep-going; no compilation or test execution",
+      "current_status": "retry4_running",
+      "current_capture": "/workspace/naming-validation/lsp-reviewed-82e016-retry4",
+      "current_repair": "Three Copy origin fixes, SourceImage borrowed String and real shared Arc<CommandRegistry> in new directive fixtures. All original assertions retained."
     }
   }
 }

@@ -1,0 +1,26 @@
+{
+  "source_head": "82e016bb9eb166a27397e02fda9e2aae3e3a92e8",
+  "rust_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "ordinary": true,
+  "instrumentation": false,
+  "single_job": true,
+  "test_debug": 0,
+  "packages": [
+    "tcl-compiler",
+    "tcl-lsp-core",
+    "tcl-lsp-db",
+    "tcl-registry",
+    "tcl-lsp-server"
+  ],
+  "status": "FAIL",
+  "input_before_count": 38995,
+  "utc": "2026-10-16T16:38:24.562649+00:00",
+  "command": "CARGO_PROFILE_TEST_DEBUG=0 cargo test --offline -p tcl-compiler -p tcl-lsp-core -p tcl-lsp-db -p tcl-registry -p tcl-lsp-server --lib --no-run",
+  "scope": "Complete standalone directive input, conditional no-level aliases, authentic Authored SourceMay geometry with scalar/SSA refusal, actual Jim head/argument origins and preserved LSP validation controls. No Runtime/VM/BIGIP migration.",
+  "exit_code": 101,
+  "build_seconds": 283.354,
+  "input_after_count": 38995,
+  "input_drift_count": 0,
+  "input_drift": [],
+  "completed_utc": "2026-10-16T16:43:07.917439+00:00"
+}

@@ -502,12 +502,12 @@ mod tests {
     use super::*;
 
     fn test_optimiser_input(
-        registry: &CommandRegistry,
+        registry: &Arc<CommandRegistry>,
         profile: &'static DialectProfile,
     ) -> tcl_compiler::analyser::ResolvedAnalysisInput {
         let context = tcl_registry::model::resolve_environment(profile.name)
             .default_context_registry()
-            .with_command_store(Arc::new(registry.clone()));
+            .with_command_store(Arc::clone(registry));
         tcl_compiler::analyser::ResolvedAnalysisInput::new(
             profile,
             profile,
@@ -1148,7 +1148,7 @@ mod tests {
 
     #[test]
     fn optimise_under_policy_skips_a_rewrite_a_directive_silences() {
-        let registry = CommandRegistry::build_default();
+        let registry = Arc::new(CommandRegistry::build_default());
         let input = test_optimiser_input(&registry, tcl9());
         let mut policy = PolicyBuilder::new().build();
         policy.optimiser = OptimiserPolicy::all_on();
@@ -1177,7 +1177,7 @@ mod tests {
 
     #[test]
     fn standalone_optimiser_refuses_missing_or_foreign_analysis_context() {
-        let registry = CommandRegistry::build_default();
+        let registry = Arc::new(CommandRegistry::build_default());
         let input = test_optimiser_input(&registry, tcl9());
         let source = "set x [expr {1 + 2}]\n";
         let mut policy = PolicyBuilder::new().build();
@@ -1203,11 +1203,11 @@ mod tests {
 
     #[test]
     fn standalone_optimiser_keeps_the_supplied_leading_bom_policy_for_directives() {
-        let registry = CommandRegistry::build_default();
+        let registry = Arc::new(CommandRegistry::build_default());
         let profile = tcl9();
         let context = tcl_registry::model::resolve_environment(profile.name)
             .default_context_registry()
-            .with_command_store(Arc::new(registry.clone()));
+            .with_command_store(Arc::clone(&registry));
         let source = "\u{feff}# noqa: O101\nset x [expr {1 + 2}]\n";
         let mut policy = PolicyBuilder::new().build();
         policy.optimiser = OptimiserPolicy::all_on();
@@ -1215,7 +1215,7 @@ mod tests {
         let skipped_bom = tcl_compiler::analyser::ResolvedAnalysisInput::new(
             profile,
             profile,
-            Arc::new(context.with_command_store(Arc::new(registry.clone()))),
+            Arc::new(context.with_command_store(Arc::clone(&registry))),
             LexerConfig {
                 leading_bom: tcl_lexer::LeadingBom::Skip,
                 ..LexerConfig::for_profile(Some(profile))
@@ -1224,7 +1224,7 @@ mod tests {
         let content_bom = tcl_compiler::analyser::ResolvedAnalysisInput::new(
             profile,
             profile,
-            Arc::new(context.with_command_store(Arc::new(registry.clone()))),
+            Arc::new(context.with_command_store(Arc::clone(&registry))),
             LexerConfig {
                 leading_bom: tcl_lexer::LeadingBom::Content,
                 ..LexerConfig::for_profile(Some(profile))
@@ -1242,7 +1242,7 @@ mod tests {
     /// attributes it, not only the next line.
     #[test]
     fn a_noqa_reaches_every_line_of_the_command_it_precedes() {
-        let registry = CommandRegistry::build_default();
+        let registry = Arc::new(CommandRegistry::build_default());
         let input = test_optimiser_input(&registry, tcl9());
         let mut policy = PolicyBuilder::new().build();
         policy.optimiser = OptimiserPolicy::all_on();
@@ -1259,7 +1259,7 @@ mod tests {
     /// the use site still reads (#2149).
     #[test]
     fn optimise_under_policy_never_applies_half_a_group() {
-        let registry = CommandRegistry::build_default();
+        let registry = Arc::new(CommandRegistry::build_default());
         let input = test_optimiser_input(&registry, crate::profile_for_dialect("tcl8.6"));
         let mut policy = PolicyBuilder::new().build();
         policy.optimiser = OptimiserPolicy::all_on();

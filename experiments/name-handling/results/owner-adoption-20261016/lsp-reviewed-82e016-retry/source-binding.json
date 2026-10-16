@@ -1,0 +1,26 @@
+{
+  "source_head": "82e016bb9eb166a27397e02fda9e2aae3e3a92e8",
+  "rust_diff_sha256": "d036407438e308e6533cc4c91ec25a8a6267be05fb5ebcf0df335dbc28a84ef3",
+  "ordinary": true,
+  "instrumentation": false,
+  "single_job": true,
+  "test_debug": 0,
+  "packages": [
+    "tcl-compiler",
+    "tcl-lsp-core",
+    "tcl-lsp-db",
+    "tcl-registry",
+    "tcl-lsp-server"
+  ],
+  "status": "FAIL",
+  "input_before_count": 38995,
+  "utc": "2026-10-16T16:44:40.105204+00:00",
+  "command": "CARGO_PROFILE_TEST_DEBUG=0 cargo test --offline -p tcl-compiler -p tcl-lsp-core -p tcl-lsp-db -p tcl-registry -p tcl-lsp-server --lib --no-run",
+  "scope": "Three new Registry fixture Copy fixes, original assertions unchanged. Complete standalone directive input, conditional no-level aliases, authentic Authored SourceMay geometry with scalar/SSA refusal, actual Jim head/argument origins and preserved LSP validation controls. No Runtime/VM/BIGIP migration.",
+  "exit_code": 101,
+  "build_seconds": 370.477,
+  "input_after_count": 38995,
+  "input_drift_count": 0,
+  "input_drift": [],
+  "completed_utc": "2026-10-16T16:50:50.582103+00:00"
+}

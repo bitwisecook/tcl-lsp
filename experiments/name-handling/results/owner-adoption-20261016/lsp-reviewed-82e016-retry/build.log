@@ -1,0 +1,37 @@
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp/rust/tcl-registry)
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-vm v0.1.0 (/workspace/tcl-lsp/rust/tcl-vm)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-spectcl)
+   Compiling tcl-version v0.1.0 (/workspace/tcl-lsp/rust/tcl-version)
+   Compiling tcl-bigip-query v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip-query)
+   Compiling tcl-lsp-db v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-db)
+   Compiling tcl-explorer v0.1.0 (/workspace/tcl-lsp/rust/tcl-explorer)
+   Compiling f5-xc v0.1.0 (/workspace/tcl-lsp/rust/f5-xc)
+   Compiling tcl-diagram v0.1.0 (/workspace/tcl-lsp/rust/tcl-diagram)
+   Compiling tcl-lsp-server v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-server)
+error[E0308]: mismatched types
+   --> rust/tcl-compiler/src/registry_invocation/authored_source_bodies.rs:385:59
+    |
+385 |         changed.source = tcl_lexer::SourceImage::document(source.replace("untouched", "different"));
+    |                          -------------------------------- ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `&str`, found `String`
+    |                          |
+    |                          arguments to this function are incorrect
+    |
+note: associated function defined here
+   --> rust/tcl-lexer/src/source_map.rs:253:12
+    |
+253 |     pub fn document(text: &str) -> Self {
+    |            ^^^^^^^^
+help: consider borrowing here
+    |
+385 |         changed.source = tcl_lexer::SourceImage::document(&source.replace("untouched", "different"));
+    |                                                           +
+
+For more information about this error, try `rustc --explain E0308`.
+error: could not compile `tcl-compiler` (lib test) due to 1 previous error
