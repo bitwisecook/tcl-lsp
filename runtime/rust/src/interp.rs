@@ -6651,6 +6651,8 @@ impl Interp {
     /// Start the error trace at the result message, where none is started, so
     /// the command holding the failure logs `invoked from within` rather than
     /// `while executing` — C's trace for an error a compile-time fold raised.
+    /// Only `expr`, which needs the numeric tower, raises one.
+    #[cfg(have_tommath)]
     pub(crate) fn start_error_info_at_message(&mut self) {
         let message = self.result_bytes();
         let mut exc = self.exc.borrow_mut();
