@@ -470,6 +470,14 @@ pub fn format_double_as(f: f64, spelling: DoubleSpelling) -> String {
     }
 }
 
+/// `f`'s string rep under the release this thread runs ([`runtime_syntax`]):
+/// what an engine's double object prints, `%.12g` under Tcl 8.4 and the
+/// shortest round-trip from 8.5 ([`NumberSyntax::double_spelling`]).
+#[must_use]
+pub fn format_runtime_double(f: f64) -> String {
+    format_double_as(f, runtime_syntax().double_spelling())
+}
+
 /// The source text a computed double may be written as for a target that
 /// spells numbers as `spelling` does: the target's own string rep of `f`,
 /// when that text reads back under the target's grammar as exactly `f`.

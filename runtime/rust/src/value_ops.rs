@@ -189,6 +189,11 @@ impl ValueOps for Interp {
     }
 
     fn as_double(&mut self, v: &*mut TclObj) -> Result<f64, ValueError> {
+        // A held double is its own value (`Tcl_GetDoubleFromObj`), not its
+        // spelling, which 8.4 rounds to twelve digits.
+        if obj::obj_type_ptr(*v) == &obj::TCL_DOUBLE_TYPE && !obj::double_of(*v).is_nan() {
+            return Ok(obj::double_of(*v));
+        }
         let bytes = obj_bytes(*v);
         let s = String::from_utf8_lossy(&bytes);
         match number::parse_whole(s.trim()) {
