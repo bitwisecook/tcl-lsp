@@ -3618,8 +3618,10 @@ impl Interp {
         self.next_evaluation.set(Some(evaluation));
         let code = self.eval_framed_unpublished(script, frame);
         self.script_stack.borrow_mut().pop();
+        // An error a `return` settles to names no file, as C's `else if`.
+        let raised = code == Code::Error;
         let code = self.settle_return(code);
-        if code == Code::Error {
+        if raised {
             self.append_frame_line(&tcl_cmd_core::error::file_frame_text(
                 name,
                 self.runtime_version(),
