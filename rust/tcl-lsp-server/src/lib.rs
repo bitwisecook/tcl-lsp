@@ -13792,28 +13792,28 @@ impl Backend {
         &self,
         item: core_call_hierarchy::CallHierarchyItem,
     ) -> DocumentSourceResult<Option<CallHierarchyItem>> {
-        let identity = (match item.identity.as_ref() {
+        let identity = match item.identity.as_ref() {
             Some(__source_value) => __source_value,
             None => return Ok(None),
-        });
-        let uri = (match identity.uri().parse::<Uri>().ok() {
+        };
+        let uri = match identity.uri().parse::<Uri>().ok() {
             Some(__source_value) => __source_value,
             None => return Ok(None),
-        });
-        let doc = (match self.read_document(&uri).await? {
+        };
+        let doc = match self.read_document(&uri).await? {
             Some(__source_value) => __source_value,
             None => return Ok(None),
-        });
+        };
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect)
             .await?;
-        let data = (match self
+        let data = match self
             .retain_original_declaration_data(&uri, &doc.text, &analysis, Some(identity))
             .await
         {
             Some(__source_value) => __source_value,
             None => return Ok(None),
-        });
+        };
         let kind = match identity.role() {
             tcl_lsp_core::original_declaration::OriginalDeclarationRole::Class => SymbolKind::CLASS,
             tcl_lsp_core::original_declaration::OriginalDeclarationRole::Method(_) => {
@@ -13926,10 +13926,10 @@ impl Backend {
     ) -> DocumentSourceResult<Option<tcl_lsp_core::original_declaration::OriginalDeclarationIdentity>>
     {
         let inputs_epoch = self.diag_inputs_epoch();
-        let config = (match analysis.body_lexer_config {
+        let config = match analysis.body_lexer_config {
             Some(__source_value) => __source_value,
             None => return Ok(None),
-        });
+        };
         if !analysis
             .matches_original_source_image(&tcl_lexer::SourceImage::document(source), config)
         {
@@ -13949,10 +13949,10 @@ impl Backend {
             return Ok(None);
         }
         let documents = self.original_declaration_documents(uri).await?;
-        let selected = (match documents.iter().find(|(owner, _, _)| owner == uri.as_str()) {
+        let selected = match documents.iter().find(|(owner, _, _)| owner == uri.as_str()) {
             Some(__source_value) => __source_value,
             None => return Ok(None),
-        });
+        };
         if selected.1.as_ref() != source || selected.2.body_lexer_config != Some(config) {
             return Ok(None);
         }
@@ -13975,7 +13975,7 @@ impl Backend {
             Some(&workspace),
         )
         .into_iter();
-        let identity = (match (match selected.next() {
+        let identity = match (match selected.next() {
             Some(__source_value) => __source_value,
             None => return Ok(None),
         })
@@ -13983,7 +13983,7 @@ impl Backend {
         {
             Some(__source_value) => __source_value,
             None => return Ok(None),
-        });
+        };
         Ok(
             (selected.next().is_none() && self.diag_inputs_epoch() == inputs_epoch)
                 .then_some(identity),
@@ -15184,10 +15184,10 @@ impl Backend {
             .with_analysis(&analysis)
             .with_open_documents(&open)
             .with_plugins(&plugins);
-        let call = (match core_ilx::method_call_at(document, ctx, pos.line, pos.character) {
+        let call = match core_ilx::method_call_at(document, ctx, pos.line, pos.character) {
             Some(__source_value) => __source_value,
             None => return Ok(None),
-        });
+        };
         let target = core_ilx::definition(document, ctx, &call);
         Ok(Some((call, target)))
     }
@@ -15264,16 +15264,16 @@ impl Backend {
             plugins: &plugins,
         };
         let found = if js_end {
-            let registration = (match core_ilx::registration_at(document, pos.line, pos.character) {
+            let registration = match core_ilx::registration_at(document, pos.line, pos.character) {
                 Some(__source_value) => __source_value,
                 None => return Ok(None),
-            });
+            };
             core_ilx::references_from_registration(document, ctx, &registration)
         } else {
-            let call = (match core_ilx::method_call_at(document, ctx, pos.line, pos.character) {
+            let call = match core_ilx::method_call_at(document, ctx, pos.line, pos.character) {
                 Some(__source_value) => __source_value,
                 None => return Ok(None),
-            });
+            };
             core_ilx::references(document, ctx, &call)
         };
         Ok(Some(
@@ -15377,10 +15377,10 @@ impl Backend {
             None => return Ok(None),
         })
         .into_owned();
-        let (_, target) = (match self.ilx_method_at(uri, doc, &path, pos).await? {
+        let (_, target) = match self.ilx_method_at(uri, doc, &path, pos).await? {
             Some(__source_value) => __source_value,
             None => return Ok(None),
-        });
+        };
         Ok(Some(match target {
             core_ilx::IlxTarget::Resolved(location) => {
                 Self::ilx_location(&location).into_iter().collect()
@@ -15902,10 +15902,10 @@ impl Backend {
         symbol: &core_namespace_symbol::OriginalNamespaceSymbol,
     ) -> DocumentSourceResult<Option<CoreHover>> {
         let context =
-            (match core_workspace_index::WorkspaceDiagnosticSourceContext::for_analysis(analysis) {
+            match core_workspace_index::WorkspaceDiagnosticSourceContext::for_analysis(analysis) {
                 Some(__source_value) => __source_value,
                 None => return Ok(None),
-            });
+            };
         let capture = |owner: &str,
                        context: &core_workspace_index::WorkspaceDiagnosticSourceContext,
                        row: &tcl_compiler::analyser::types::NamespaceRef| {
@@ -15953,16 +15953,16 @@ impl Backend {
             documents.insert(target.uri().to_owned());
         }
         facts.documents = documents.len();
-        let label = (match symbol.source_word(
+        let label = match symbol.source_word(
             tcl_lexer::SourceChannel::Document,
-            (match analysis.body_lexer_config {
+            match analysis.body_lexer_config {
                 Some(__source_value) => __source_value,
                 None => return Ok(None),
-            }),
+            },
         ) {
             Some(__source_value) => __source_value,
             None => return Ok(None),
-        });
+        };
         Ok(
             core_namespace_symbol::namespace_hover_markdown(&label, facts).map(|value| CoreHover {
                 value,
@@ -16698,14 +16698,14 @@ impl Backend {
         &self,
         identity: &tcl_lsp_core::original_declaration::OriginalDeclarationIdentity,
     ) -> DocumentSourceResult<Option<CoreHover>> {
-        let owner = (match identity.uri().parse::<Uri>().ok() {
+        let owner = match identity.uri().parse::<Uri>().ok() {
             Some(__source_value) => __source_value,
             None => return Ok(None),
-        });
-        let document = (match self.read_document(&owner).await? {
+        };
+        let document = match self.read_document(&owner).await? {
             Some(__source_value) => __source_value,
             None => return Ok(None),
-        });
+        };
         let current = self
             .analysis_for(&owner, document.text.clone(), document.dialect)
             .await?;
@@ -16746,13 +16746,13 @@ impl Backend {
         analysis: &AnalysisResult,
     ) -> DocumentSourceResult<Option<CoreHover>> {
         if !analysis.allows_retained_logical_declaration_advice() {
-            let identity = (match self
+            let identity = match self
                 .original_declaration_identity_at(uri, source, analysis, pos)
                 .await?
             {
                 Some(__source_value) => __source_value,
                 None => return Ok(None),
-            });
+            };
             return Ok(self.hover_for_original_declaration(&identity).await?);
         }
         // Cross-document tier: a proc / class defined in a sibling document
@@ -16771,7 +16771,7 @@ impl Backend {
         // defines it.  `ensure_autoload_indexed`
         // merges that file into the workspace index, so the render below reads
         // it exactly like any other indexed document.
-        let (word, namespace) = (match core_definition::command_head_and_namespace_at(
+        let (word, namespace) = match core_definition::command_head_and_namespace_at(
             source,
             analysis,
             pos.line,
@@ -16779,14 +16779,14 @@ impl Backend {
         ) {
             Some(__source_value) => __source_value,
             None => return Ok(None),
-        });
-        let qualified = (match self
+        };
+        let qualified = match self
             .ensure_library_indexed(uri, analysis, &word, &namespace)
             .await?
         {
             Some(__source_value) => __source_value,
             None => return Ok(None),
-        });
+        };
         Ok(self.hover_for_indexed_symbol(&qualified).await?)
     }
 
@@ -16849,7 +16849,7 @@ impl Backend {
                 ),
             }));
         }
-        let cell = (match Self::qualified_variable_cell(
+        let cell = match Self::qualified_variable_cell(
             source,
             tcl_lsp_core::profile_for_dialect(&analysis.dialect),
             analysis,
@@ -16857,7 +16857,7 @@ impl Backend {
         ) {
             Some(__source_value) => __source_value,
             None => return Ok(None),
-        });
+        };
         let rehoming_guard = self.rehomed_index_guard().await?;
         let target_uris: Vec<String> = {
             let index = self.workspace_index.read().await;
@@ -18366,13 +18366,13 @@ impl Backend {
         {
             return Ok(None);
         }
-        let (seed_class, method, is_classmethod) = (match self
+        let (seed_class, method, is_classmethod) = match self
             .resolve_method_rename_target(uri, doc, analysis, pos)
             .await?
         {
             Some(__source_value) => __source_value,
             None => return Ok(None),
-        });
+        };
         let changes = self
             .cross_file_method_rename(uri, doc, &seed_class, &method, new_name, is_classmethod)
             .await?;
@@ -18784,13 +18784,13 @@ impl Backend {
         pos: Position,
         new_name: &str,
     ) -> DocumentSourceResult<Option<core_rename_safety::RenameRefusal>> {
-        let (seed_class, method, is_classmethod) = (match self
+        let (seed_class, method, is_classmethod) = match self
             .resolve_method_rename_target(uri, doc, analysis, pos)
             .await?
         {
             Some(__source_value) => __source_value,
             None => return Ok(None),
-        });
+        };
         let plan = self
             .consumer_scan_plan(
                 tcl_lsp_core::profile_for_dialect(&doc.dialect),
@@ -19331,7 +19331,7 @@ impl Backend {
         analysis: &AnalysisResult,
         pos: Position,
     ) -> DocumentSourceResult<Option<CoreHover>> {
-        let (class_q, method, is_classmethod, access) = (match self
+        let (class_q, method, is_classmethod, access) = match self
             .resolve_method_target(
                 uri,
                 &doc.text,
@@ -19343,7 +19343,7 @@ impl Backend {
         {
             Some(__source_value) => __source_value,
             None => return Ok(None),
-        });
+        };
         let chain: Vec<(String, String)> = {
             let index = self.workspace_index.read().await;
             if is_classmethod {
@@ -23570,6 +23570,10 @@ impl Backend {
                     .map_or("tcl", tcl_dialect::model::EditorLanguageIdentityId::as_str);
                 out.push(serde_json::json!({
                     "extension": row.extension,
+                    "association_glob": format!(
+                        "*.{}",
+                        tcl_registry::dialects::fold_case_in_glob(&row.extension)
+                    ),
                     "dialect": row.dialect,
                     "language_id": language_id,
                     "display_name": row.display_name,
@@ -25944,9 +25948,7 @@ impl Backend {
                 sources,
             });
         }
-        Ok(unreachable!(
-            "the bounded source-snapshot loop always returns"
-        ))
+        unreachable!("the bounded source-snapshot loop always returns")
     }
 
     async fn scan_workspace_folders(&self) -> DocumentSourceResult<()> {
@@ -35848,11 +35850,16 @@ mod tests {
         fn new(tag: &str) -> Self {
             use std::sync::atomic::{AtomicUsize, Ordering};
             static C: AtomicUsize = AtomicUsize::new(0);
-            let n = C.fetch_add(1, Ordering::Relaxed);
-            let mut p = std::env::temp_dir();
-            p.push(format!("tcl-lsp-w120-{tag}-{}-{n}", std::process::id()));
-            std::fs::create_dir_all(&p).unwrap();
-            Self(p)
+            loop {
+                let n = C.fetch_add(1, Ordering::Relaxed);
+                let p = std::env::temp_dir()
+                    .join(format!("tcl-lsp-w120-{tag}-{}-{n}", std::process::id()));
+                match std::fs::create_dir(&p) {
+                    Ok(()) => return Self(p),
+                    Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                    Err(error) => panic!("creating owned test directory {}: {error}", p.display()),
+                }
+            }
         }
         fn write(&self, rel: &str, content: &str) {
             let path = self.0.join(rel);
@@ -41645,11 +41652,16 @@ info exists ::N::v\uD800";
         assert!(
             callback_pull_report(&backend, &caller, source)
                 .await
+                .unwrap()
                 .is_empty()
         );
         set_callback_project_advice(&backend, true).await;
         assert_eq!(
-            diag_codes(&callback_pull_report(&backend, &caller, source).await),
+            diag_codes(
+                &callback_pull_report(&backend, &caller, source)
+                    .await
+                    .unwrap()
+            ),
             ["E003"]
         );
         let old_analysis = backend
@@ -41660,7 +41672,11 @@ info exists ::N::v\uD800";
             .await
             .unwrap();
         assert_eq!(
-            diag_codes(&callback_pull_report(&backend, &caller, source).await),
+            diag_codes(
+                &callback_pull_report(&backend, &caller, source)
+                    .await
+                    .unwrap()
+            ),
             ["E002"]
         );
         let current_source = "lsort -command {::external EXTRA MORE} {2 1}";
@@ -41670,6 +41686,7 @@ info exists ::N::v\uD800";
         assert!(
             callback_pull_report(&backend, &caller, current_source)
                 .await
+                .unwrap()
                 .is_empty()
         );
         let stale = backend
@@ -41719,6 +41736,7 @@ info exists ::N::v\uD800";
         assert!(
             callback_pull_report(&backend, &caller, source)
                 .await
+                .unwrap()
                 .is_empty()
         );
         let analysis = backend
@@ -41805,7 +41823,11 @@ info exists ::N::v\uD800";
             "readonly source callback subjects cannot license a naming edit"
         );
         assert_eq!(
-            diag_codes(&callback_pull_report(&backend, &caller, source).await),
+            diag_codes(
+                &callback_pull_report(&backend, &caller, source)
+                    .await
+                    .unwrap()
+            ),
             ["E002"]
         );
     }
@@ -50782,11 +50804,16 @@ proc p {} {
     fn unique_scratch_dir(tag: &str) -> PathBuf {
         use std::sync::atomic::{AtomicU64, Ordering};
         static COUNTER: AtomicU64 = AtomicU64::new(0);
-        let n = COUNTER.fetch_add(1, Ordering::Relaxed);
-        let dir =
-            std::env::temp_dir().join(format!("tcl-lsp-scan-{tag}-{}-{n}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
-        dir
+        loop {
+            let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+            let dir =
+                std::env::temp_dir().join(format!("tcl-lsp-scan-{tag}-{}-{n}", std::process::id()));
+            match std::fs::create_dir(&dir) {
+                Ok(()) => return dir,
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(error) => panic!("creating owned scratch directory {}: {error}", dir.display()),
+            }
+        }
     }
 
     #[test]
@@ -53574,8 +53601,14 @@ proc p {} {
             uri.clone(),
             DocumentState::new(src.to_owned(), "tcl8.6".to_owned()),
         );
-        let mut a = Analyser::new();
-        let analysis = a.analyse(src, "tcl8.6").clone();
+        backend
+            .db_set_source(uri, src, "tcl8.6".to_owned())
+            .await
+            .expect("the fixture retains its actual checked SourceFile owner");
+        let analysis = backend
+            .analysis_for(uri, Arc::from(src), "tcl8.6".to_owned())
+            .await
+            .expect("the fixture analyses its actual current source and full input");
         backend
             .workspace_index
             .write()
@@ -55319,7 +55352,8 @@ proc p {} {
                 ),
             )
             .await
-            .expect("the live publisher must not wait for the disk-only seed store"),
+            .expect("the live publisher must not wait for the disk-only seed store")
+            .unwrap(),
             "the unrelated current live source must publish",
         );
         assert!(
@@ -57375,7 +57409,7 @@ proc p {} {
         drop(database);
 
         assert!(matches!(
-            snapshot.await.expect("snapshot task panicked"),
+            snapshot.await.expect("snapshot task panicked").unwrap(),
             RehomingDocumentSnapshot::Pending
         ));
     }
@@ -57406,15 +57440,17 @@ proc p {} {
             .insert(uri.clone(), 42);
         let analysis = Arc::new(Analyser::new().analyse(text, "tcl8.6").clone());
         let analyser_inputs_epoch = backend.diag_inputs_epoch();
+        let path_admission = backend.document_path_admission(&uri).await.unwrap();
 
         assert!(
             backend
                 .commit_open_document_with_seed(&uri, text, "tcl8.6", 2, async move {
-                    FreshAnalysisSeed {
+                    Ok(FreshAnalysisSeed {
+                        path_admission,
                         analysis,
                         analyser_inputs_epoch,
                         class_factory_generation: 0,
-                    }
+                    })
                 })
                 .await
                 .unwrap()

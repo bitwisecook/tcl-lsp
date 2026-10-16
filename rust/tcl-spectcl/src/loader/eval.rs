@@ -557,17 +557,18 @@ impl VerbatimIndex {
             source: Rc::from(source),
             ..Self::default()
         };
-        let top = pack_statements(source);
-        let Some(speclib) = top.into_iter().find(|stmt| stmt.word_text(0) == "speclib") else {
-            return index;
-        };
-        let Some(body) = speclib.arg(3).filter(|word| word.braced) else {
+        let config =
+            super::pack_source_lexer_config(tcl_lexer::SourceSegmentationPurpose::WholeInput);
+        let Some(body) =
+            tcl_compiler::parsing::spectcl_source::first_pack_source_body(source, config)
+                .filter(|body| body.is_braced())
+        else {
             return index;
         };
         index.speclib = Some(VerbatimBody {
-            stmt_line: speclib.line,
-            text: body.text.clone(),
-            body_line: body.line,
+            stmt_line: body.statement_line(),
+            text: body.text().to_owned(),
+            body_line: body.body_line(),
         });
         index
     }
@@ -782,7 +783,7 @@ impl State {
 /// braced-ness, so it is reconstructed from the one property that matters
 /// to every consumer — a name is one whitespace-free word, a block is not.
 fn blockish(text: &str) -> bool {
-    text.is_empty() || text.contains(char::is_whitespace)
+    tcl_compiler::parsing::spectcl_source::pack_value_is_block(text)
 }
 
 /// Rebuild a [`Stmt`] — the shape a segmented source statement has — from
@@ -1470,8 +1471,7 @@ pub(crate) fn static_stmt(stmt: &Stmt) -> bool {
 /// row that substitutes.
 fn substitution_free(stmt: &Stmt) -> bool {
     stmt.words.iter().all(|word| {
-        word.braced
-            || !(word.text.contains('$') || word.text.contains('[') || word.text.contains('\\'))
+        tcl_compiler::parsing::spectcl_source::pack_source_word_is_literal(&word.text, word.braced)
     })
 }
 

@@ -24,3 +24,6 @@
 //! `docs/design/compiler/syntax-tree.md`.
 
 pub mod syntax;
+
+/// Pure configured SpecTcl source syntax shared by its loader and navigation.
+pub mod spectcl_source;

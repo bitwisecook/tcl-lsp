@@ -1,0 +1,32 @@
+{
+  "patch": "standalone-optimisation-input-v1.patch",
+  "sha256": "9476ee3cbacff8e8662c87716f6dd88d4773c1699cb8527db50a6cd2cd07e00a",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/compilation_unit.rs",
+      "base_sha256": "6dff155e5f90ed6fdc11cad4a8549f6fd44dbb1739a8a8fa5af9dfbc3250ab82",
+      "edit_sha256": "41028158a72d8b5d4a94605bac74cfc4b2df9454498ac700e0fe04e6a02aeb62"
+    },
+    {
+      "path": "rust/tcl-compiler/src/lowering/mod.rs",
+      "base_sha256": "cdfe2e168b3c9530ac2bc01607f1fb036588598aef8c6ea2bc8fda720a8b893d",
+      "edit_sha256": "3938ef9e07f2f98ffd84d853bd2f7d50446c3bb719c26142d6b96b7d15ffebfc"
+    },
+    {
+      "path": "rust/tcl-compiler/src/optimiser/manager.rs",
+      "base_sha256": "28c8c1b83da252db6117f4f3fbb833cfa0fde22ff1645cae2decd26814c26760",
+      "edit_sha256": "9952f3760594a90b5eca40251f84aec8043c27701bf37e3a4aaf70b75a42a04a"
+    },
+    {
+      "path": "rust/tcl-compiler/src/optimiser/mod.rs",
+      "base_sha256": "83faed96f49ebc8e385578f2f27d850d68ab389300fabfebb5aaacd2d77f7932",
+      "edit_sha256": "8d1e279a4b290017333f06eb512f57092f715088b803b6fe4f15fb144fe18f92"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/diagnostic_report.rs",
+      "base_sha256": "77215f9c4a2e33192a81c76a992fa27f68be4a4eda24fe8b0d240694f38b2811",
+      "edit_sha256": "505e8c5329a431b245f5c571f57108a2653df57dd5184e3d04a14d89f6bb839c"
+    }
+  ],
+  "validation": "TMP source only. No Cargo, test execution, main writes or Git."
+}

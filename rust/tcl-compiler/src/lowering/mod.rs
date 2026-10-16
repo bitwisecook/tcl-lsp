@@ -1002,6 +1002,31 @@ enum SourceEntryOrigin {
     Driver,
 }
 
+/// Complete source metadata retained independently of an explicitly selected
+/// Standalone authoring driver. It supplies no runtime or Native entry.
+#[derive(Clone, Copy)]
+pub(crate) struct StandaloneSourceInput<'a> {
+    registry: &'a CommandRegistry,
+    input: &'a crate::analyser::ResolvedAnalysisInput,
+}
+
+impl<'a> StandaloneSourceInput<'a> {
+    pub(crate) fn retain(
+        registry: &'a CommandRegistry,
+        input: &'a crate::analyser::ResolvedAnalysisInput,
+        config: tcl_lexer::LexerConfig,
+        profile: Option<&tcl_dialect::DialectProfile>,
+    ) -> Option<Self> {
+        if config != input.lexer_config() {
+            return None;
+        }
+        crate::registry_invocation::InvocationMetadataContext::for_source_input(
+            registry, input, config, profile,
+        )?;
+        Some(Self { registry, input })
+    }
+}
+
 use tcl_lexer::SourceSegmentationPurpose;
 
 /// The lowering engine — accumulates procedures and IR statements.
@@ -1443,6 +1468,31 @@ impl<'r> Lowerer<'r> {
         lowerer
     }
 
+    /// Explicit Standalone driver with complete, independently retained metadata.
+    /// Supplied-document ingress never calls this constructor or obtains its model.
+    pub(crate) fn for_standalone_source_with_input(owner: StandaloneSourceInput<'r>) -> Self {
+        let input = owner.input.clone();
+        let mut lowerer = Self::for_standalone_source(
+            owner.registry,
+            input.lexer_config(),
+            Some(input.unit_profile()),
+        );
+        lowerer.dialect_context = Some(input.context_registry());
+        lowerer.retain_standalone_source_metadata(input);
+        lowerer
+    }
+
+    fn retain_standalone_source_metadata(&mut self, input: crate::analyser::ResolvedAnalysisInput) {
+        if input.has_logical_source_name_context() || input.has_hosted_source_name_context() {
+            self.retain_resolved_analysis_input(input);
+        } else {
+            // The explicit driver already selected authoring independently. Metadata
+            // retains its exact store/configuration without replacing that purpose.
+            self.metadata_input = Some(input);
+            self.metadata_origin = LoweringMetadataOrigin::Supplied;
+        }
+    }
+
     /// Use the caller's complete availability context for conditional source
     /// metadata. A foreign command generation declines instead of resolving
     /// a replacement from the profile label.
@@ -1652,14 +1702,7 @@ impl<'r> Lowerer<'r> {
         {
             let input =
                 crate::analyser::ResolvedAnalysisInput::new(profile, profile, context, self.config);
-            if input.has_logical_source_name_context() || input.has_hosted_source_name_context() {
-                self.retain_resolved_analysis_input(input);
-            } else {
-                // This driver already selected its authored simulation independently.
-                // Complete source ownership does not replace its entry contract.
-                self.metadata_input = Some(input);
-                self.metadata_origin = LoweringMetadataOrigin::Supplied;
-            }
+            self.retain_standalone_source_metadata(input);
         }
         self.module.top_level_namespace_context = None;
         self.module_source_bindings = None;

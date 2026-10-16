@@ -1,0 +1,98 @@
+{
+  "version": "V6 immutable successor: V5 browser startup pull guard corrected for session assignment order",
+  "candidate_patch": "candidate.patch",
+  "candidate_patch_sha256": "498df44c088d7bd5fb2e9e2affd59de0e3aa3c7d79a9a3203e26442335933197",
+  "V4_dependency": {
+    "patch_sha256": "90d9e095420bfa7503e6b684d35fb945a947471f7de532370d44fbc649158610",
+    "source_after_sha256": {
+      "rust/tcl-lsp-server/src/lib.rs": "f8b83e4a622c2ca5c4d927b31d241befa3dfbe43b49082eae1914433e70f3ff8",
+      "editors/vscode/src/packAssociations.ts": "4143e055320a1afb0064e6313c39cb65d37eae694ba565dd44163841db3278a3",
+      "editors/vscode/src/extension.ts": "00ea3b3e418194abc9166b896e57beb99fffde877e58fa6cb520330e3754a2aa",
+      "editors/vscode/src/extensionBrowser.ts": "daa3b968f3a7c718f651393a31fbffb30d99f81c5f609fbbbd0d38a0ae9b65d6",
+      "editors/vscode/src/test/packFileAssociations.test.ts": "9fa0a8ebeaed07345b548cb693bb798b83ddb213a2be2b6834ce3d44b1cafb03"
+    }
+  },
+  "V8_dependency": {
+    "patch_sha256": "396ae75f7f14896de07a8435eb4f3a81229c77b7e4212a17766f287747b63fcf",
+    "diagnostics_wire_schema_sha256": "bda45ff223320f62b17c2df67c5cfb7326c74939d574d538176f85d69adde3ed",
+    "source_images_verified": true
+  },
+  "source_before_sha256": {
+    "rust/tcl-lsp-server/src/lib.rs": "c17d5ef5b2953011800cbfb2f3b353976174dd9844ed5e4410a5c14d3b86a849",
+    "editors/vscode/src/packAssociations.ts": "54ed1e9bf7a86f6c6fe476d513804c8015c2785876c20f9f86643a061ceb007f",
+    "editors/vscode/src/extension.ts": "62b2befde143167838e19e61dc4e6c30020ae094341ccc48124647b3140a2e2e",
+    "editors/vscode/src/extensionBrowser.ts": "cf0c644d2c91d6f13e5871d1dbbd46028b8e5ddeb34592f2e170c8fe65ac32a8",
+    "editors/vscode/src/test/packFileAssociations.test.ts": "c6201254125cfb47c046565c8021cc381b937af2cd5c25f6087ba2dcedabf45f",
+    "editors/vscode/test-partitions.json": "6167e964d9cf618e35fb43ab828b67eaee368bb2259b32726d883ad042836a4c"
+  },
+  "source_after_sha256": {
+    "rust/tcl-lsp-server/src/lib.rs": "f8b83e4a622c2ca5c4d927b31d241befa3dfbe43b49082eae1914433e70f3ff8",
+    "editors/vscode/src/packAssociations.ts": "4143e055320a1afb0064e6313c39cb65d37eae694ba565dd44163841db3278a3",
+    "editors/vscode/src/extension.ts": "00ea3b3e418194abc9166b896e57beb99fffde877e58fa6cb520330e3754a2aa",
+    "editors/vscode/src/extensionBrowser.ts": "746943f341b7eb96181c38742bead2b20000cf651495176460e9bfadb388c64b",
+    "editors/vscode/src/test/packFileAssociations.test.ts": "9fa0a8ebeaed07345b548cb693bb798b83ddb213a2be2b6834ce3d44b1cafb03",
+    "editors/vscode/test-partitions.json": "592f2b127a139a3bd30941bc8d5b255aa3e3639529c6adcfd051279e6c97deb9"
+  },
+  "baseline_units": [
+    "lsp-editor-pack-association-owner"
+  ],
+  "classification": "partial owner integration; remaining config CAS and path component work are not claimed closed",
+  "V5_delta": [
+    "Browser onDidChangeState invalidates pending pack sync generation, including same-Session state transitions.",
+    "Browser notifications require the captured current session and a Running client. Startup pull requires Running before send and rechecks Running/session/generation after await.",
+    "The two V4 test selectors are reflected in single_root expected identities and passed (+2); partition assignment is unchanged."
+  ],
+  "behavior_inherited_from_V4": [
+    "Exact `*.` plus shared fold_case_in_glob output is preserved.",
+    "Incomplete/missing required association rows fail before configuration or ownership mutation; absent report arrays are unavailable, and complete empty remains a valid snapshot.",
+    "Per-context serialization, stale ticket checks around awaited config/ownership updates, and Node lifecycle checks remain."
+  ],
+  "limits": [
+    "VS Code settings API has no atomic compare-and-swap against a simultaneous external user change.",
+    "retargetOpenDocuments path splitting remains unchanged.",
+    "No VS Code runtime tests/build/bundle or Cargo run."
+  ],
+  "validation": {
+    "overlay": "/tmp/lsp-pack-association-owner-v6/tscheck",
+    "node": "v24.19.0",
+    "typescript": "6.0.3",
+    "prettier": "3.9.7",
+    "commands": [
+      {
+        "argv": [
+          "./node_modules/.bin/tsc",
+          "-p",
+          "./",
+          "--noEmit"
+        ],
+        "cwd": "/tmp/lsp-pack-association-owner-v6/tscheck",
+        "exit_code": 0,
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "argv": [
+          "./node_modules/.bin/prettier",
+          "--check",
+          "src/packAssociations.ts",
+          "src/extension.ts",
+          "src/extensionBrowser.ts",
+          "src/test/packFileAssociations.test.ts"
+        ],
+        "cwd": "/tmp/lsp-pack-association-owner-v6/tscheck",
+        "exit_code": 0,
+        "stdout_sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ],
+    "node_modules_symlink_realpath": "/workspace/tcl-lsp/editors/vscode/node_modules"
+  },
+  "review_status": "pending independent source review of V6 correction",
+  "V5_dependency": {
+    "patch_sha256": "03d38d0b853905a02a334f182dcb567b96143420267a86e33b930be52414d518",
+    "manifest_sha256": "ab57b791a8207eab826dc65ee2abff9d50d02169b49e2c5e1b0addac3eb9f484"
+  },
+  "V6_delta": [
+    "Keep the browser startup-pull Running check but do not compare the global session pointer before send: startSession registers the pull before its caller assigns the returned Session. Retain captured client, generation check, and session/Running checks after the response."
+  ]
+}

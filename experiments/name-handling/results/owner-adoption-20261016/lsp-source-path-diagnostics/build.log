@@ -1,0 +1,903 @@
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-spectcl)
+   Compiling tcl-version v0.1.0 (/workspace/tcl-lsp/rust/tcl-version)
+   Compiling tcl-lsp-db v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-db)
+   Compiling tcl-explorer v0.1.0 (/workspace/tcl-lsp/rust/tcl-explorer)
+   Compiling f5-xc v0.1.0 (/workspace/tcl-lsp/rust/f5-xc)
+   Compiling tcl-lsp-server v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-server)
+error[E0432]: unresolved import `serde`
+ --> rust/tcl-lsp-server/src/current_diagnostics.rs:5:5
+  |
+5 | use serde::{Deserialize, Serialize};
+  |     ^^^^^ use of unresolved module or unlinked crate `serde`
+  |
+  = help: if you wanted to use a crate named `serde`, use `cargo add serde` to add it to your `Cargo.toml`
+
+error: cannot find attribute `serde` in this scope
+  --> rust/tcl-lsp-server/src/current_diagnostics.rs:22:3
+   |
+22 | #[serde(rename_all = "camelCase")]
+   |   ^^^^^
+   |
+help: `serde` is an attribute that can be used by the derive macros `Deserialize` and `Serialize`, you might be missing a `derive` attribute
+   |
+23 + #[derive(Deserialize, Serialize)]
+24 | pub(super) enum DiagnosticUnavailable {
+   |
+
+error: cannot find attribute `serde` in this scope
+  --> rust/tcl-lsp-server/src/current_diagnostics.rs:34:3
+   |
+34 | #[serde(rename_all = "camelCase")]
+   |   ^^^^^
+   |
+help: `serde` is an attribute that can be used by the derive macros `Deserialize` and `Serialize`, you might be missing a `derive` attribute
+   |
+35 + #[derive(Deserialize, Serialize)]
+36 | pub(super) enum DiagnosticSuppression {
+   |
+
+error: cannot find attribute `serde` in this scope
+  --> rust/tcl-lsp-server/src/current_diagnostics.rs:57:3
+   |
+57 | #[serde(deny_unknown_fields)]
+   |   ^^^^^
+   |
+help: `serde` is an attribute that can be used by the derive macros `Deserialize` and `Serialize`, you might be missing a `derive` attribute
+   |
+58 + #[derive(Deserialize, Serialize)]
+59 | struct DiagnosticSourceExpectation {
+   |
+
+error: cannot find attribute `serde` in this scope
+   --> rust/tcl-lsp-server/src/current_diagnostics.rs:149:7
+    |
+149 |     #[serde(rename = "inputsEpoch")]
+    |       ^^^^^
+    |
+    = note: `serde` is an attribute that can be used by the derive macros `Deserialize` and `Serialize`, you might be missing a `derive` attribute
+
+error: cannot find attribute `serde` in this scope
+   --> rust/tcl-lsp-server/src/current_diagnostics.rs:151:7
+    |
+151 |     #[serde(rename = "resultId")]
+    |       ^^^^^
+    |
+    = note: `serde` is an attribute that can be used by the derive macros `Deserialize` and `Serialize`, you might be missing a `derive` attribute
+
+error: cannot find attribute `serde` in this scope
+   --> rust/tcl-lsp-server/src/current_diagnostics.rs:157:3
+    |
+157 | #[serde(tag = "status", rename_all = "camelCase")]
+    |   ^^^^^
+    |
+help: `serde` is an attribute that can be used by the derive macros `Deserialize` and `Serialize`, you might be missing a `derive` attribute
+    |
+158 + #[derive(Deserialize, Serialize)]
+159 | enum CurrentDiagnostics {
+    |
+
+error: cannot find attribute `serde` in this scope
+   --> rust/tcl-lsp-server/src/current_diagnostics.rs:160:11
+    |
+160 |         #[serde(flatten)]
+    |           ^^^^^
+    |
+help: `serde` is an attribute that can be used by the derive macros `Deserialize` and `Serialize`, you might be missing a `derive` attribute
+    |
+158 + #[derive(Deserialize, Serialize)]
+159 | enum CurrentDiagnostics {
+    |
+
+error: cannot find attribute `serde` in this scope
+   --> rust/tcl-lsp-server/src/current_diagnostics.rs:165:11
+    |
+165 |         #[serde(flatten)]
+    |           ^^^^^
+    |
+help: `serde` is an attribute that can be used by the derive macros `Deserialize` and `Serialize`, you might be missing a `derive` attribute
+    |
+158 + #[derive(Deserialize, Serialize)]
+159 | enum CurrentDiagnostics {
+    |
+
+error[E0422]: cannot find struct, variant or union type `TextDocumentItem` in this scope
+   --> rust/tcl-lsp-server/src/original_document_path_admission_tests.rs:15:24
+    |
+ 15 |         text_document: TextDocumentItem {
+    |                        ^^^^^^^^^^^^^^^^
+    |
+   ::: /workspace/.toolchains/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ls-types-0.0.6/src/lib.rs:510:1
+    |
+510 | pub struct TextDocumentEdit {
+    | --------------------------- similarly named struct `TextDocumentEdit` defined here
+    |
+help: a struct with a similar name exists
+    |
+ 15 -         text_document: TextDocumentItem {
+ 15 +         text_document: TextDocumentEdit {
+    |
+
+error[E0422]: cannot find struct, variant or union type `VersionedTextDocumentIdentifier` in this scope
+   --> rust/tcl-lsp-server/src/original_document_path_admission_tests.rs:26:24
+    |
+ 26 |         text_document: VersionedTextDocumentIdentifier {
+    |                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+   ::: /workspace/.toolchains/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ls-types-0.0.6/src/lib.rs:818:1
+    |
+818 | pub struct OptionalVersionedTextDocumentIdentifier {
+    | -------------------------------------------------- similarly named struct `OptionalVersionedTextDocumentIdentifier` defined here
+    |
+help: a struct with a similar name exists
+    |
+ 26 |         text_document: OptionalVersionedTextDocumentIdentifier {
+    |                        ++++++++
+
+error[E0422]: cannot find struct, variant or union type `TextDocumentContentChangeEvent` in this scope
+  --> rust/tcl-lsp-server/src/original_document_path_admission_tests.rs:30:31
+   |
+30 |         content_changes: vec![TextDocumentContentChangeEvent {
+   |                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0422]: cannot find struct, variant or union type `TextDocumentIdentifier` in this scope
+   --> rust/tcl-lsp-server/src/original_document_path_admission_tests.rs:165:28
+    |
+165 |             text_document: TextDocumentIdentifier {
+    |                            ^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+warning: unnecessary parentheses around assigned value
+     --> rust/tcl-lsp-server/src/lib.rs:13795:24
+      |
+13795 |         let identity = (match item.identity.as_ref() {
+      |                        ^
+...
+13798 |         });
+      |          ^
+      |
+      = note: `#[warn(unused_parens)]` (part of `#[warn(unused)]`) on by default
+help: remove these parentheses
+      |
+13795 ~         let identity = match item.identity.as_ref() {
+13796 |             Some(__source_value) => __source_value,
+13797 |             None => return Ok(None),
+13798 ~         };
+      |
+
+warning: unnecessary parentheses around assigned value
+     --> rust/tcl-lsp-server/src/lib.rs:13799:19
+      |
+13799 |         let uri = (match identity.uri().parse::<Uri>().ok() {
+      |                   ^
+...
+13802 |         });
+      |          ^
+      |
+help: remove these parentheses
+      |
+13799 ~         let uri = match identity.uri().parse::<Uri>().ok() {
+13800 |             Some(__source_value) => __source_value,
+13801 |             None => return Ok(None),
+13802 ~         };
+      |
+
+warning: unnecessary parentheses around assigned value
+     --> rust/tcl-lsp-server/src/lib.rs:13803:19
+      |
+13803 |         let doc = (match self.read_document(&uri).await? {
+      |                   ^
+...
+13806 |         });
+      |          ^
+      |
+help: remove these parentheses
+      |
+13803 ~         let doc = match self.read_document(&uri).await? {
+13804 |             Some(__source_value) => __source_value,
+13805 |             None => return Ok(None),
+13806 ~         };
+      |
+
+warning: unnecessary parentheses around assigned value
+     --> rust/tcl-lsp-server/src/lib.rs:13810:20
+      |
+13810 |         let data = (match self
+      |                    ^
+...
+13816 |         });
+      |          ^
+      |
+help: remove these parentheses
+      |
+13810 ~         let data = match self
+13811 |             .retain_original_declaration_data(&uri, &doc.text, &analysis, Some(identity))
+  ...
+13815 |             None => return Ok(None),
+13816 ~         };
+      |
+
+warning: unnecessary parentheses around assigned value
+     --> rust/tcl-lsp-server/src/lib.rs:13929:22
+      |
+13929 |         let config = (match analysis.body_lexer_config {
+      |                      ^
+...
+13932 |         });
+      |          ^
+      |
+help: remove these parentheses
+      |
+13929 ~         let config = match analysis.body_lexer_config {
+13930 |             Some(__source_value) => __source_value,
+13931 |             None => return Ok(None),
+13932 ~         };
+      |
+
+warning: unnecessary parentheses around assigned value
+     --> rust/tcl-lsp-server/src/lib.rs:13952:24
+      |
+13952 |         let selected = (match documents.iter().find(|(owner, _, _)| owner == uri.as_str()) {
+      |                        ^
+...
+13955 |         });
+      |          ^
+      |
+help: remove these parentheses
+      |
+13952 ~         let selected = match documents.iter().find(|(owner, _, _)| owner == uri.as_str()) {
+13953 |             Some(__source_value) => __source_value,
+13954 |             None => return Ok(None),
+13955 ~         };
+      |
+
+warning: unnecessary parentheses around assigned value
+     --> rust/tcl-lsp-server/src/lib.rs:13978:24
+      |
+13978 |         let identity = (match (match selected.next() {
+      |                        ^
+...
+13986 |         });
+      |          ^
+      |
+help: remove these parentheses
+      |
+13978 ~         let identity = match (match selected.next() {
+13979 |             Some(__source_value) => __source_value,
+  ...
+13985 |             None => return Ok(None),
+13986 ~         };
+      |
+
+warning: unnecessary parentheses around assigned value
+     --> rust/tcl-lsp-server/src/lib.rs:15187:20
+      |
+15187 |         let call = (match core_ilx::method_call_at(document, ctx, pos.line, pos.character) {
+      |                    ^
+...
+15190 |         });
+      |          ^
+      |
+help: remove these parentheses
+      |
+15187 ~         let call = match core_ilx::method_call_at(document, ctx, pos.line, pos.character) {
+15188 |             Some(__source_value) => __source_value,
+15189 |             None => return Ok(None),
+15190 ~         };
+      |
+
+warning: unnecessary parentheses around assigned value
+     --> rust/tcl-lsp-server/src/lib.rs:15267:32
+      |
+15267 |             let registration = (match core_ilx::registration_at(document, pos.line, pos.character) {
+      |                                ^
+...
+15270 |             });
+      |              ^
+      |
+help: remove these parentheses
+      |
+15267 ~             let registration = match core_ilx::registration_at(document, pos.line, pos.character) {
+15268 |                 Some(__source_value) => __source_value,
+15269 |                 None => return Ok(None),
+15270 ~             };
+      |
+
+warning: unnecessary parentheses around assigned value
+     --> rust/tcl-lsp-server/src/lib.rs:15273:24
+      |
+15273 |             let call = (match core_ilx::method_call_at(document, ctx, pos.line, pos.character) {
+      |                        ^
+...
+15276 |             });
+      |              ^
+      |
+help: remove these parentheses
+      |
+15273 ~             let call = match core_ilx::method_call_at(document, ctx, pos.line, pos.character) {
+15274 |                 Some(__source_value) => __source_value,
+15275 |                 None => return Ok(None),
+15276 ~             };
+      |
+
+warning: unnecessary parentheses around assigned value
+     --> rust/tcl-lsp-server/src/lib.rs:15380:27
+      |
+15380 |         let (_, target) = (match self.ilx_method_at(uri, doc, &path, pos).await? {
+      |                           ^
+...
+15383 |         });
+      |          ^
+      |
+help: remove these parentheses
+      |
+15380 ~         let (_, target) = match self.ilx_method_at(uri, doc, &path, pos).await? {
+15381 |             Some(__source_value) => __source_value,
+15382 |             None => return Ok(None),
+15383 ~         };
+      |
+
+warning: unnecessary parentheses around assigned value
+     --> rust/tcl-lsp-server/src/lib.rs:15905:13
+      |
+15905 |             (match core_workspace_index::WorkspaceDiagnosticSourceContext::for_analysis(analysis) {
+      |             ^
+...
+15908 |             });
+      |              ^
+      |
+help: remove these parentheses
+      |
+15905 ~             match core_workspace_index::WorkspaceDiagnosticSourceContext::for_analysis(analysis) {
+15906 |                 Some(__source_value) => __source_value,
+15907 |                 None => return Ok(None),
+15908 ~             };
+      |
+
+warning: unnecessary parentheses around assigned value
+     --> rust/tcl-lsp-server/src/lib.rs:15956:21
+      |
+15956 |         let label = (match symbol.source_word(
+      |                     ^
+...
+15965 |         });
+      |          ^
+      |
+help: remove these parentheses
+      |
+15956 ~         let label = match symbol.source_word(
+15957 |             tcl_lexer::SourceChannel::Document,
+  ...
+15964 |             None => return Ok(None),
+15965 ~         };
+      |
+
+warning: unnecessary parentheses around method argument
+     --> rust/tcl-lsp-server/src/lib.rs:15958:13
+      |
+15958 |             (match analysis.body_lexer_config {
+      |             ^
+...
+15961 |             }),
+      |              ^
+      |
+help: remove these parentheses
+      |
+15958 ~             match analysis.body_lexer_config {
+15959 |                 Some(__source_value) => __source_value,
+15960 |                 None => return Ok(None),
+15961 ~             },
+      |
+
+warning: unnecessary parentheses around assigned value
+     --> rust/tcl-lsp-server/src/lib.rs:16701:21
+      |
+16701 |         let owner = (match identity.uri().parse::<Uri>().ok() {
+      |                     ^
+...
+16704 |         });
+      |          ^
+      |
+help: remove these parentheses
+      |
+16701 ~         let owner = match identity.uri().parse::<Uri>().ok() {
+16702 |             Some(__source_value) => __source_value,
+16703 |             None => return Ok(None),
+16704 ~         };
+      |
+
+warning: unnecessary parentheses around assigned value
+     --> rust/tcl-lsp-server/src/lib.rs:16705:24
+      |
+16705 |         let document = (match self.read_document(&owner).await? {
+      |                        ^
+...
+16708 |         });
+      |          ^
+      |
+help: remove these parentheses
+      |
+16705 ~         let document = match self.read_document(&owner).await? {
+16706 |             Some(__source_value) => __source_value,
+16707 |             None => return Ok(None),
+16708 ~         };
+      |
+
+warning: unnecessary parentheses around assigned value
+     --> rust/tcl-lsp-server/src/lib.rs:16749:28
+      |
+16749 |             let identity = (match self
+      |                            ^
+...
+16755 |             });
+      |              ^
+      |
+help: remove these parentheses
+      |
+16749 ~             let identity = match self
+16750 |                 .original_declaration_identity_at(uri, source, analysis, pos)
+  ...
+16754 |                 None => return Ok(None),
+16755 ~             };
+      |
+
+warning: unnecessary parentheses around assigned value
+     --> rust/tcl-lsp-server/src/lib.rs:16774:33
+      |
+16774 |         let (word, namespace) = (match core_definition::command_head_and_namespace_at(
+      |                                 ^
+...
+16782 |         });
+      |          ^
+      |
+help: remove these parentheses
+      |
+16774 ~         let (word, namespace) = match core_definition::command_head_and_namespace_at(
+16775 |             source,
+  ...
+16781 |             None => return Ok(None),
+16782 ~         };
+      |
+
+warning: unnecessary parentheses around assigned value
+     --> rust/tcl-lsp-server/src/lib.rs:16783:25
+      |
+16783 |         let qualified = (match self
+      |                         ^
+...
+16789 |         });
+      |          ^
+      |
+help: remove these parentheses
+      |
+16783 ~         let qualified = match self
+16784 |             .ensure_library_indexed(uri, analysis, &word, &namespace)
+  ...
+16788 |             None => return Ok(None),
+16789 ~         };
+      |
+
+warning: unnecessary parentheses around assigned value
+     --> rust/tcl-lsp-server/src/lib.rs:16852:20
+      |
+16852 |         let cell = (match Self::qualified_variable_cell(
+      |                    ^
+...
+16860 |         });
+      |          ^
+      |
+help: remove these parentheses
+      |
+16852 ~         let cell = match Self::qualified_variable_cell(
+16853 |             source,
+  ...
+16859 |             None => return Ok(None),
+16860 ~         };
+      |
+
+warning: unnecessary parentheses around assigned value
+     --> rust/tcl-lsp-server/src/lib.rs:18369:52
+      |
+18369 |         let (seed_class, method, is_classmethod) = (match self
+      |                                                    ^
+...
+18375 |         });
+      |          ^
+      |
+help: remove these parentheses
+      |
+18369 ~         let (seed_class, method, is_classmethod) = match self
+18370 |             .resolve_method_rename_target(uri, doc, analysis, pos)
+  ...
+18374 |             None => return Ok(None),
+18375 ~         };
+      |
+
+warning: unnecessary parentheses around assigned value
+     --> rust/tcl-lsp-server/src/lib.rs:18787:52
+      |
+18787 |         let (seed_class, method, is_classmethod) = (match self
+      |                                                    ^
+...
+18793 |         });
+      |          ^
+      |
+help: remove these parentheses
+      |
+18787 ~         let (seed_class, method, is_classmethod) = match self
+18788 |             .resolve_method_rename_target(uri, doc, analysis, pos)
+  ...
+18792 |             None => return Ok(None),
+18793 ~         };
+      |
+
+warning: unnecessary parentheses around assigned value
+     --> rust/tcl-lsp-server/src/lib.rs:19334:57
+      |
+19334 |         let (class_q, method, is_classmethod, access) = (match self
+      |                                                         ^
+...
+19346 |         });
+      |          ^
+      |
+help: remove these parentheses
+      |
+19334 ~         let (class_q, method, is_classmethod, access) = match self
+19335 |             .resolve_method_target(
+  ...
+19345 |             None => return Ok(None),
+19346 ~         };
+      |
+
+warning: unreachable call
+     --> rust/tcl-lsp-server/src/lib.rs:25947:9
+      |
+25947 |           Ok(unreachable!(
+      |  _________^^_-
+      | |         |
+      | |         unreachable call
+25948 | |             "the bounded source-snapshot loop always returns"
+25949 | |         ))
+      | |_________- any code following this expression is unreachable
+      |
+      = note: `#[warn(unreachable_code)]` (part of `#[warn(unused)]`) on by default
+
+error[E0277]: the trait bound `current_diagnostics::DiagnosticSourceExpectation: serde::de::DeserializeOwned` is not satisfied
+    --> rust/tcl-lsp-server/src/current_diagnostics.rs:331:53
+     |
+ 331 |         let expected: DiagnosticSourceExpectation = serde_json::from_value(argument.clone())
+     |                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+     |
+help: the trait `for<'de> serde_core::de::Deserialize<'de>` is not implemented for `current_diagnostics::DiagnosticSourceExpectation`
+    --> rust/tcl-lsp-server/src/current_diagnostics.rs:58:1
+     |
+  58 | struct DiagnosticSourceExpectation {
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     = help: the following other types implement trait `serde_core::de::Deserialize<'de>`:
+               &'a [u8]
+               &'a std::path::Path
+               &'a str
+               ()
+               (T,)
+               (T0, T1)
+               (T0, T1, T2)
+               (T0, T1, T2, T3)
+             and 653 others
+     = note: required for `current_diagnostics::DiagnosticSourceExpectation` to implement `serde_core::de::DeserializeOwned`
+note: required by a bound in `from_value`
+    --> /workspace/.toolchains/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_json-1.0.151/src/value/mod.rs:1039:8
+     |
+1037 | pub fn from_value<T>(value: Value) -> Result<T, Error>
+     |        ---------- required by a bound in this function
+1038 | where
+1039 |     T: DeserializeOwned,
+     |        ^^^^^^^^^^^^^^^^ required by this bound in `from_value`
+
+error[E0277]: the trait bound `current_diagnostics::CurrentDiagnostics: serde::Serialize` is not satisfied
+   --> rust/tcl-lsp-server/src/current_diagnostics.rs:334:30
+    |
+334 |         serde_json::to_value(answer)
+    |         -------------------- ^^^^^^ unsatisfied trait bound
+    |         |
+    |         required by a bound introduced by this call
+    |
+help: the trait `serde_core::ser::Serialize` is not implemented for `current_diagnostics::CurrentDiagnostics`
+   --> rust/tcl-lsp-server/src/current_diagnostics.rs:158:1
+    |
+158 | enum CurrentDiagnostics {
+    | ^^^^^^^^^^^^^^^^^^^^^^^
+    = note: for local types consider adding `#[derive(serde::Serialize)]` to your `current_diagnostics::CurrentDiagnostics` type
+    = note: for types from other crates check whether the crate offers a `serde` feature flag
+    = help: the following other types implement trait `serde_core::ser::Serialize`:
+              &'a T
+              &'a mut T
+              ()
+              (T,)
+              (T0, T1)
+              (T0, T1, T2)
+              (T0, T1, T2, T3)
+              (T0, T1, T2, T3, T4)
+            and 639 others
+note: required by a bound in `to_value`
+   --> /workspace/.toolchains/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_json-1.0.151/src/value/mod.rs:997:8
+    |
+995 | pub fn to_value<T>(value: T) -> Result<Value, Error>
+    |        -------- required by a bound in this function
+996 | where
+997 |     T: Serialize,
+    |        ^^^^^^^^^ required by this bound in `to_value`
+
+error[E0063]: missing field `path_admission` in initializer of `FreshAnalysisSeed`
+   --> rust/tcl-lsp-server/src/original_document_metadata_tests.rs:710:20
+    |
+710 |         let seed = FreshAnalysisSeed {
+    |                    ^^^^^^^^^^^^^^^^^ missing `path_admission`
+
+error[E0061]: this function takes 8 arguments but 5 arguments were supplied
+     --> rust/tcl-lsp-server/src/original_document_metadata_tests.rs:1165:5
+      |
+ 1165 |     Backend::set_live_db_source_locked(locks, &second_uri, "proc second {} {}", "tcl", true);
+      |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^------------------------------------------------------
+      |                                       |       |
+      |                                       |       expected `&DocumentPathAdmission`, found `&Uri`
+      |                                       three arguments of type `&dyn tcl_lsp_core::vfs::SourceStore`, `&mut dyn FnMut()`, and `&std::sync::Mutex<std::collections::HashMap<tower_lsp_server::ls_types::Uri, PublishedSourcePath>>` are missing
+      |
+      = note: expected reference `&DocumentPathAdmission`
+                 found reference `&tower_lsp_server::ls_types::Uri`
+note: associated function defined here
+     --> rust/tcl-lsp-server/src/lib.rs:12062:8
+      |
+12062 |     fn set_live_db_source_locked(
+      |        ^^^^^^^^^^^^^^^^^^^^^^^^^
+12063 |         locks: LiveSourceLocks<'_>,
+12064 |         admission: &DocumentPathAdmission,
+      |         ---------------------------------
+...
+12068 |         store: &dyn vfs::SourceStore,
+      |         ----------------------------
+12069 |         publish_derived: &mut dyn FnMut(),
+      |         ---------------------------------
+12070 |         published_paths: &PublishedSourcePaths,
+      |         --------------------------------------
+help: provide the arguments
+      |
+ 1165 -     Backend::set_live_db_source_locked(locks, &second_uri, "proc second {} {}", "tcl", true);
+ 1165 +     Backend::set_live_db_source_locked(locks, /* &DocumentPathAdmission */, "proc second {} {}", "tcl", true, /* &dyn SourceStore */, /* &mut dyn FnMut() */, /* &Mutex<HashMap<Uri, PublishedSourcePath>> */);
+      |
+
+error[E0277]: `tcl_lsp_db::SourceFile` doesn't implement `Debug`
+   --> rust/tcl-lsp-server/src/original_document_path_admission_tests.rs:607:5
+    |
+607 |     assert_eq!(backend.db_files.lock().await.get(&target), Some(&file));
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `Debug` is not implemented for `tcl_lsp_db::SourceFile`
+    |
+help: the trait `Debug` is conditionally implemented for `std::option::Option<T>`
+   --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/option.rs:592:15
+   ::: /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/option.rs:598:16
+    |
+    = note: unsatisfied requirement introduced here: `&tcl_lsp_db::SourceFile: Debug`
+
+error[E0277]: `tcl_lsp_db::SourceFile` doesn't implement `Debug`
+   --> rust/tcl-lsp-server/src/original_document_path_admission_tests.rs:678:5
+    |
+678 |     assert_eq!(backend.db_files.lock().await.get(&target), Some(&file));
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `Debug` is not implemented for `tcl_lsp_db::SourceFile`
+    |
+help: the trait `Debug` is conditionally implemented for `std::option::Option<T>`
+   --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/option.rs:592:15
+   ::: /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/option.rs:598:16
+    |
+    = note: unsatisfied requirement introduced here: `&tcl_lsp_db::SourceFile: Debug`
+
+error[E0599]: no method named `is_empty` found for enum `std::result::Result<T, E>` in the current scope
+     --> rust/tcl-lsp-server/src/lib.rs:41648:18
+      |
+41646 | /             callback_pull_report(&backend, &caller, source)
+41647 | |                 .await
+41648 | |                 .is_empty()
+      | |                 -^^^^^^^^ method not found in `std::result::Result<Vec<tower_lsp_server::ls_types::Diagnostic>, DocumentSourceUnavailable>`
+      | |_________________|
+      |
+      |
+note: the method `is_empty` exists on the type `Vec<tower_lsp_server::ls_types::Diagnostic>`
+     --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/alloc/src/vec/mod.rs:3125:4
+help: consider using `Result::expect` to unwrap the `Vec<tower_lsp_server::ls_types::Diagnostic>` value, panicking if the value is a `Result::Err`
+      |
+41647 |                 .await.expect("REASON")
+      |                       +++++++++++++++++
+
+error[E0308]: mismatched types
+     --> rust/tcl-lsp-server/src/lib.rs:41652:24
+      |
+41652 |             diag_codes(&callback_pull_report(&backend, &caller, source).await),
+      |             ---------- ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `&[Diagnostic]`, found `&Result<Vec<Diagnostic>, _>`
+      |             |
+      |             arguments to this function are incorrect
+      |
+      = note: expected reference `&[tower_lsp_server::ls_types::Diagnostic]`
+                 found reference `&std::result::Result<Vec<tower_lsp_server::ls_types::Diagnostic>, DocumentSourceUnavailable>`
+note: function defined here
+     --> rust/tcl-lsp-server/src/lib.rs:41054:8
+      |
+41054 |     fn diag_codes(diags: &[tower_lsp_server::ls_types::Diagnostic]) -> Vec<String> {
+      |        ^^^^^^^^^^ ------------------------------------------------
+
+error[E0308]: mismatched types
+     --> rust/tcl-lsp-server/src/lib.rs:41663:24
+      |
+41663 |             diag_codes(&callback_pull_report(&backend, &caller, source).await),
+      |             ---------- ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `&[Diagnostic]`, found `&Result<Vec<Diagnostic>, _>`
+      |             |
+      |             arguments to this function are incorrect
+      |
+      = note: expected reference `&[tower_lsp_server::ls_types::Diagnostic]`
+                 found reference `&std::result::Result<Vec<tower_lsp_server::ls_types::Diagnostic>, DocumentSourceUnavailable>`
+note: function defined here
+     --> rust/tcl-lsp-server/src/lib.rs:41054:8
+      |
+41054 |     fn diag_codes(diags: &[tower_lsp_server::ls_types::Diagnostic]) -> Vec<String> {
+      |        ^^^^^^^^^^ ------------------------------------------------
+
+error[E0599]: no method named `is_empty` found for enum `std::result::Result<T, E>` in the current scope
+     --> rust/tcl-lsp-server/src/lib.rs:41673:18
+      |
+41671 | /             callback_pull_report(&backend, &caller, current_source)
+41672 | |                 .await
+41673 | |                 .is_empty()
+      | |                 -^^^^^^^^ method not found in `std::result::Result<Vec<tower_lsp_server::ls_types::Diagnostic>, DocumentSourceUnavailable>`
+      | |_________________|
+      |
+      |
+note: the method `is_empty` exists on the type `Vec<tower_lsp_server::ls_types::Diagnostic>`
+     --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/alloc/src/vec/mod.rs:3125:4
+help: consider using `Result::expect` to unwrap the `Vec<tower_lsp_server::ls_types::Diagnostic>` value, panicking if the value is a `Result::Err`
+      |
+41672 |                 .await.expect("REASON")
+      |                       +++++++++++++++++
+
+error[E0599]: no method named `is_empty` found for enum `std::result::Result<T, E>` in the current scope
+     --> rust/tcl-lsp-server/src/lib.rs:41722:18
+      |
+41720 | /             callback_pull_report(&backend, &caller, source)
+41721 | |                 .await
+41722 | |                 .is_empty()
+      | |                 -^^^^^^^^ method not found in `std::result::Result<Vec<tower_lsp_server::ls_types::Diagnostic>, DocumentSourceUnavailable>`
+      | |_________________|
+      |
+      |
+note: the method `is_empty` exists on the type `Vec<tower_lsp_server::ls_types::Diagnostic>`
+     --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/alloc/src/vec/mod.rs:3125:4
+help: consider using `Result::expect` to unwrap the `Vec<tower_lsp_server::ls_types::Diagnostic>` value, panicking if the value is a `Result::Err`
+      |
+41721 |                 .await.expect("REASON")
+      |                       +++++++++++++++++
+
+error[E0308]: mismatched types
+     --> rust/tcl-lsp-server/src/lib.rs:41808:24
+      |
+41808 |             diag_codes(&callback_pull_report(&backend, &caller, source).await),
+      |             ---------- ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `&[Diagnostic]`, found `&Result<Vec<Diagnostic>, _>`
+      |             |
+      |             arguments to this function are incorrect
+      |
+      = note: expected reference `&[tower_lsp_server::ls_types::Diagnostic]`
+                 found reference `&std::result::Result<Vec<tower_lsp_server::ls_types::Diagnostic>, DocumentSourceUnavailable>`
+note: function defined here
+     --> rust/tcl-lsp-server/src/lib.rs:41054:8
+      |
+41054 |     fn diag_codes(diags: &[tower_lsp_server::ls_types::Diagnostic]) -> Vec<String> {
+      |        ^^^^^^^^^^ ------------------------------------------------
+
+error[E0600]: cannot apply unary operator `!` to type `std::result::Result<bool, DocumentSourceUnavailable>`
+     --> rust/tcl-lsp-server/src/lib.rs:55309:9
+      |
+55309 | /         assert!(
+55310 | |             crate::rt::timeout(
+55311 | |                 std::time::Duration::from_millis(500),
+55312 | |                 backend.commit_live_source(
+...     |
+55323 | |             "the unrelated current live source must publish",
+55324 | |         );
+      | |_________^ cannot apply unary operator `!`
+      |
+note: `std::result::Result<bool, DocumentSourceUnavailable>` does not implement `std::ops::Not`
+     --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/result.rs:558:0
+      |
+      = note: `std::result::Result<bool, DocumentSourceUnavailable>` is defined in another crate
+
+error[E0308]: mismatched types
+     --> rust/tcl-lsp-server/src/lib.rs:57379:13
+      |
+57378 |             snapshot.await.expect("snapshot task panicked"),
+      |             ----------------------------------------------- this expression has type `std::result::Result<RehomingDocumentSnapshot, DocumentSourceUnavailable>`
+57379 |             RehomingDocumentSnapshot::Pending
+      |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `Result<RehomingDocumentSnapshot, _>`, found `RehomingDocumentSnapshot`
+      |
+      = note: expected enum `std::result::Result<RehomingDocumentSnapshot, DocumentSourceUnavailable>`
+                 found enum `RehomingDocumentSnapshot`
+help: try wrapping the pattern in `Ok`
+      |
+57379 |             Ok(RehomingDocumentSnapshot::Pending)
+      |             +++                                 +
+
+error[E0063]: missing field `path_admission` in initializer of `FreshAnalysisSeed`
+     --> rust/tcl-lsp-server/src/lib.rs:57413:21
+      |
+57413 |                     FreshAnalysisSeed {
+      |                     ^^^^^^^^^^^^^^^^^ missing `path_admission`
+
+error[E0271]: expected `{async block@lib.rs:57412:74}` to be a future that resolves to `Result<FreshAnalysisSeed, DocumentSourceUnavailable>`, but it resolves to `FreshAnalysisSeed`
+     --> rust/tcl-lsp-server/src/lib.rs:57412:74
+      |
+57412 |                   .commit_open_document_with_seed(&uri, text, "tcl8.6", 2, async move {
+      |  __________________------------------------------__________________________^
+      | |                  |
+      | |                  required by a bound introduced by this call
+57413 | |                     FreshAnalysisSeed {
+57414 | |                         analysis,
+57415 | |                         analyser_inputs_epoch,
+...     |
+57418 | |                 })
+      | |_________________^ expected `Result<FreshAnalysisSeed, _>`, found `FreshAnalysisSeed`
+      |
+      = note: expected enum `std::result::Result<FreshAnalysisSeed, DocumentSourceUnavailable>`
+               found struct `FreshAnalysisSeed`
+note: required by a bound in `Backend::commit_open_document_with_seed`
+     --> rust/tcl-lsp-server/src/lib.rs:11454:19
+      |
+11445 |     async fn commit_open_document_with_seed<F>(
+      |              ------------------------------ required by a bound in this associated function
+...
+11454 |         F: Future<Output = DocumentSourceResult<FreshAnalysisSeed>>,
+      |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `Backend::commit_open_document_with_seed`
+
+error[E0271]: expected `{async block@lib.rs:57412:74}` to be a future that resolves to `Result<FreshAnalysisSeed, DocumentSourceUnavailable>`, but it resolves to `FreshAnalysisSeed`
+     --> rust/tcl-lsp-server/src/lib.rs:57411:13
+      |
+57411 | /             backend
+57412 | |                 .commit_open_document_with_seed(&uri, text, "tcl8.6", 2, async move {
+57413 | |                     FreshAnalysisSeed {
+57414 | |                         analysis,
+...     |
+57418 | |                 })
+      | |__________________^ expected `Result<FreshAnalysisSeed, _>`, found `FreshAnalysisSeed`
+      |
+      = note: expected enum `std::result::Result<FreshAnalysisSeed, DocumentSourceUnavailable>`
+               found struct `FreshAnalysisSeed`
+note: required by a bound in `Backend::commit_open_document_with_seed`
+     --> rust/tcl-lsp-server/src/lib.rs:11454:19
+      |
+11445 |     async fn commit_open_document_with_seed<F>(
+      |              ------------------------------ required by a bound in this associated function
+...
+11454 |         F: Future<Output = DocumentSourceResult<FreshAnalysisSeed>>,
+      |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `Backend::commit_open_document_with_seed`
+
+error[E0271]: expected `{async block@lib.rs:57412:74}` to be a future that resolves to `Result<FreshAnalysisSeed, DocumentSourceUnavailable>`, but it resolves to `FreshAnalysisSeed`
+     --> rust/tcl-lsp-server/src/lib.rs:57419:18
+      |
+57419 |                 .await
+      |                  ^^^^^ expected `Result<FreshAnalysisSeed, _>`, found `FreshAnalysisSeed`
+      |
+      = note: expected enum `std::result::Result<FreshAnalysisSeed, DocumentSourceUnavailable>`
+               found struct `FreshAnalysisSeed`
+note: required by a bound in `Backend::commit_open_document_with_seed`
+     --> rust/tcl-lsp-server/src/lib.rs:11454:19
+      |
+11445 |     async fn commit_open_document_with_seed<F>(
+      |              ------------------------------ required by a bound in this associated function
+...
+11454 |         F: Future<Output = DocumentSourceResult<FreshAnalysisSeed>>,
+      |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `Backend::commit_open_document_with_seed`
+
+warning: unused import: `vfs::SourceStore`
+ --> rust/tcl-lsp-server/src/original_document_path_admission_tests.rs:3:5
+  |
+3 | use vfs::SourceStore as _;
+  |     ^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+Some errors have detailed explanations: E0061, E0063, E0271, E0277, E0308, E0422, E0432, E0599, E0600.
+For more information about an error, try `rustc --explain E0061`.
+warning: `tcl-lsp-server` (lib test) generated 25 warnings
+error: could not compile `tcl-lsp-server` (lib test) due to 33 previous errors; 25 warnings emitted

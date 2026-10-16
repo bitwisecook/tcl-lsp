@@ -68,7 +68,12 @@ import { DiffDiagnosticsSuppressor } from "./diffAnalysis";
 import { setCurrentDiagnosticsTransportProvider } from "./chat/diagnosticAccess";
 import { buildIruleEventSkeleton, COMMON_IRULE_EVENTS } from "./iruleSkeleton";
 import { LANGUAGE_ID_DIALECTS, isTclLanguage } from "./languageIds";
-import { PackFileExtension, syncPackFileAssociations } from "./packAssociations";
+import {
+  PackFileExtension,
+  beginPackFileAssociationSync,
+  isPackFileAssociationSyncCurrent,
+  syncPackFileAssociations,
+} from "./packAssociations";
 import { escapeTclText, transformSelection, unescapeTclText } from "./selectionTransforms";
 import { convertShowReferencesArgs, JsonLocation, JsonPosition } from "./showReferences";
 import { ensureStickyScrollDefaultModel } from "./stickyScrollHealth";
@@ -306,6 +311,9 @@ async function startSession(context: ExtensionContext): Promise<Session | undefi
   disposables.push(
     client.onDidChangeState(() => {
       diagnosticsGeneration.value += 1;
+      // A browser LanguageClient may transition state while retaining the same
+      // Session object. Invalidate any pack pull issued by the prior state.
+      beginPackFileAssociationSync(context);
     }),
   );
   disposables.push(registerWorkspaceTrustGrant(client));
@@ -386,6 +394,9 @@ async function startWithTimeout(client: LanguageClient, workerUri: vscode.Uri): 
 async function stopSession(): Promise<void> {
   const current = session;
   session = undefined;
+  if (extensionContext) {
+    beginPackFileAssociationSync(extensionContext);
+  }
   if (!current) {
     return;
   }
@@ -1347,23 +1358,57 @@ function registerPackAssociationSync(
     current.client.onNotification(
       "tcl-lsp/specPacksReloaded",
       (params: { pack_file_extensions?: PackFileExtension[] }) => {
-        void syncPackFileAssociations(context, params?.pack_file_extensions ?? [], (message) =>
-          ch.appendLine(message),
+        if (session !== current || !current.client.isRunning()) {
+          return;
+        }
+        const generation = beginPackFileAssociationSync(context);
+        const advertised = params?.pack_file_extensions;
+        if (!Array.isArray(advertised)) {
+          ch.appendLine("[packs] incomplete reload notification; leaving associations unchanged");
+          return;
+        }
+        void syncPackFileAssociations(
+          context,
+          advertised,
+          (message) => ch.appendLine(message),
+          generation,
         );
       },
     ),
   );
+  const generation = beginPackFileAssociationSync(context);
+  const requestClient = current.client;
+  if (!requestClient.isRunning()) {
+    return;
+  }
   void (async () => {
     try {
-      const result = await executeServerCommand<{
+      const result = (await requestClient.sendRequest("workspace/executeCommand", {
+        command: "tcl-lsp.getEffectiveConfig",
+        arguments: [""],
+      })) as {
         pack_file_extensions?: PackFileExtension[];
         spec_packs_loaded?: unknown[];
-      }>("tcl-lsp.getEffectiveConfig", [""]);
+      } | null;
+      if (
+        !isPackFileAssociationSyncCurrent(context, generation) ||
+        session !== current ||
+        !requestClient.isRunning()
+      ) {
+        return;
+      }
       if (!result?.spec_packs_loaded?.length) {
         return;
       }
-      await syncPackFileAssociations(context, result.pack_file_extensions ?? [], (message) =>
-        ch.appendLine(message),
+      if (!Array.isArray(result.pack_file_extensions)) {
+        ch.appendLine("[packs] incomplete startup response; leaving associations unchanged");
+        return;
+      }
+      await syncPackFileAssociations(
+        context,
+        result.pack_file_extensions,
+        (message) => ch.appendLine(message),
+        generation,
       );
     } catch (err) {
       ch.appendLine(`[packs] file-association sync skipped: ${String(err)}`);

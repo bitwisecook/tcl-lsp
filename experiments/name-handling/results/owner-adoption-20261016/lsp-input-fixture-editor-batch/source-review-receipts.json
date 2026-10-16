@@ -1,0 +1,99 @@
+{
+  "utc": "2026-10-16T17:32:36.836151+00:00",
+  "items": [
+    {
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-input-fixture-editor-batch/compiler-standalone-optimisation-input-v1-manifest.json",
+      "sha256": "ba3217f7924f690f1071a3d873d7daa1d86ce653104f5478d3b0fd1ed555e784",
+      "origin": "/tmp/compiler-standalone-optimisation-input-v1/manifest.json"
+    },
+    {
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-input-fixture-editor-batch/compiler-standalone-optimisation-input-v1-independent-variable-order-review.txt",
+      "sha256": "6ecac5049d87629cc58326accf1a00810a50f3f876b89b3a6eda623261951b2f",
+      "origin": "/tmp/compiler-standalone-optimisation-input-v1/independent-variable-order-review.txt"
+    },
+    {
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-input-fixture-editor-batch/compiler-spectcl-include-source-v2-manifest.json",
+      "sha256": "a897f8fcb07df7d241f028809e0c6b0d361d507cd6ed164f9c18a062cd8dd7f7",
+      "origin": "/tmp/compiler-spectcl-include-source-v2/manifest.json"
+    },
+    {
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-input-fixture-editor-batch/luna-spectcl-v2-independent-review.txt",
+      "sha256": "fc0f365243a3e314849832e476812f0e75feaddf4ef94bcdf76ace0e5c070f83",
+      "origin": "/tmp/luna-spectcl-v2-independent/review.txt"
+    },
+    {
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-input-fixture-editor-batch/compiler-spectcl-include-source-contract-v3-apply-and-scope-check.txt",
+      "sha256": "98db20b188afb756a2ae89aae133f686ac621a9765780b38decb4419d1a2cb04",
+      "origin": "/tmp/compiler-spectcl-include-source-contract-v3/apply-and-scope-check.txt"
+    },
+    {
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-input-fixture-editor-batch/lsp-source-path-compile-fixtures-v1-manifest.json",
+      "sha256": "556c75ad6cb9a452667a272e7280dea21167301486f0be2e4ad5c6804f9ab0d4",
+      "origin": "/tmp/lsp-source-path-compile-fixtures-v1/manifest.json"
+    },
+    {
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-input-fixture-editor-batch/lsp-source-path-compile-fixtures-v1-SOURCE-BASIS.txt",
+      "sha256": "a27f210da24ddfd7e79f6991aa777ee968ba9cd531554e960eee1282b43a1a80",
+      "origin": "/tmp/lsp-source-path-compile-fixtures-v1/SOURCE-BASIS.txt"
+    },
+    {
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-input-fixture-editor-batch/lsp-oracle-adoption-v2-manifest.json",
+      "sha256": "43a7f95ec0b3af87e40831b70c8af4686b27a4af01c1998280bc37c32e3d78e4",
+      "origin": "/tmp/lsp-oracle-adoption-v2/manifest.json"
+    },
+    {
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-input-fixture-editor-batch/lsp-oracle-adoption-v2-independent-review-CLEAR.txt",
+      "sha256": "14babad67b03b7dd46494e10d2f0129fe7802c9fbefbec7775e84eaf87096ef4",
+      "origin": "/tmp/lsp-oracle-adoption-v2/independent-review-CLEAR.txt"
+    },
+    {
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-input-fixture-editor-batch/lsp-owned-temp-fixtures-v1-manifest.json",
+      "sha256": "bca600b31d579d5077aa8f4790e024495f8c2ab3b08b38ea9a52c91bc049b86b",
+      "origin": "/tmp/lsp-owned-temp-fixtures-v1/manifest.json"
+    },
+    {
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-input-fixture-editor-batch/lsp-zed-variable-catalogue-v3-manifest.json",
+      "sha256": "8c16400a3670b7fe644f3038216f1da111c70378b49e4f8dc97d597800c49d0f",
+      "origin": "/tmp/lsp-zed-variable-catalogue-v3/manifest.json"
+    },
+    {
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-input-fixture-editor-batch/lsp-zed-variable-catalogue-v3-independent-review-CLEAR.txt",
+      "sha256": "f125795e12c662911f696fb5a52544c9ba7cadc9c7d52dd69cfd0443a99fc688",
+      "origin": "/tmp/lsp-zed-variable-catalogue-v3/independent-review-CLEAR.txt"
+    },
+    {
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-input-fixture-editor-batch/lsp-tcloo-input-v4-manifest.json",
+      "sha256": "98c44021c08dd14154f8f29a9b859b3a767d32712f5d2ed98da70b2f750d7bfb",
+      "origin": "/tmp/lsp-tcloo-input-v4/manifest.json"
+    },
+    {
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-input-fixture-editor-batch/lsp-tcloo-input-v4-independent-review-CLEAR.txt",
+      "sha256": "49ef6032db722acb372e437fb1f022efccedce79d52b92f3991aeb7a9ba71e2a",
+      "origin": "/tmp/lsp-tcloo-input-v4/independent-review-CLEAR.txt"
+    },
+    {
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-input-fixture-editor-batch/lsp-pack-association-owner-v6-manifest.json",
+      "sha256": "635f3632af3dcdb78d73021e8a5895cf979367d30db5bea076b63d697c4eeb2b",
+      "origin": "/tmp/lsp-pack-association-owner-v6/manifest.json"
+    },
+    {
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-input-fixture-editor-batch/lsp-pack-association-owner-v6-independent-review-CLEAR.txt",
+      "sha256": "a9977dc06ae7f32a43a65f2ea0e6c2f9f358abbef5593344c22c791ff56cdbf4",
+      "origin": "/tmp/lsp-pack-association-owner-v6/independent-review-CLEAR.txt"
+    },
+    {
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-input-fixture-editor-batch/luna-register-ingress-review-independent-review.txt",
+      "sha256": "9dc51d6f97692db8804490096759b61f1900cd0f66d9d8b4f0c702a7387ffcaa",
+      "origin": "/tmp/luna-register-ingress-review/independent-review.txt"
+    },
+    {
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-input-fixture-editor-batch/compiler-standalone-integration-receipt-v1-integration-receipt.json",
+      "sha256": "0dffc3cf9f8570bc533d4e1a464690a7d9b09d67b336f6aec7ec2ce2ee3e6df4",
+      "origin": "/tmp/compiler-standalone-integration-receipt-v1/integration-receipt.json"
+    }
+  ],
+  "baseline_delta": 11,
+  "LSP_delta": 10,
+  "annex_delta": 3,
+  "execution": "Current main TypeScript noEmit and scoped Prettier PASS, ordinary five-library build active; no current Rust controls/host/gate acceptance."
+}

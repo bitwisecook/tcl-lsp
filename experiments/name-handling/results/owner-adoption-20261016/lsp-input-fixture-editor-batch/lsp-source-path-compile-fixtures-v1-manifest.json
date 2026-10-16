@@ -1,0 +1,40 @@
+{
+  "patch_sha256": "1a62b5fdb9ba1ceae7d9a88d1bbe1775d177ed689192689961deaaf8e41af98f",
+  "files": [
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "before_sha256": "6f185872f09871665a8aa13e261372fccad289989ef05552289aeee6e1526c40",
+      "after_sha256": "e65ed0728e890256d7fa9efc6ea36b5d79f6b004bdf2e8431486fe53bae9656b"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+      "before_sha256": "30b507480e38ed156b3e7ba6c805e1ab23f5dbc08447614b95105f2e6555221a",
+      "after_sha256": "9cd0c8f4ca20d0e893feb3832efa6e816843ddda7ac8c3d5b37d6fc382f4f56c"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/original_document_path_admission_tests.rs",
+      "before_sha256": "2fcc4dd8523ee1b83bd80f8999901ff7014fffcc12add62a96385ec38f1519db",
+      "after_sha256": "f28c671e862bcc1e8d1506b9aef11b98fb358c0f20dcc49eb0678312569723ca"
+    }
+  ],
+  "static_checks": [
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "all_function_names_order_unchanged": true,
+      "all_original_literal_tokens_in_order_unchanged": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+      "all_function_names_order_unchanged": true,
+      "all_original_literal_tokens_in_order_unchanged": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/original_document_path_admission_tests.rs",
+      "all_function_names_order_unchanged": true,
+      "all_original_literal_tokens_in_order_unchanged": true
+    }
+  ],
+  "build_log": "/workspace/naming-validation/lsp-source-path-diagnostics/build.log",
+  "cargo_or_tests_run": false,
+  "production_scope": "23parentheses wrappers and unreachable wrapper only; no authority/guard change"
+}

@@ -44,7 +44,8 @@ use tcl_compiler::analyser::{Analyser, AnalysisResult, bidi_control_diagnostics}
 use tcl_compiler::compilation_unit::{CompilationUnit, UnitBuildOptions};
 use tcl_compiler::compiler_checks::run_all_checks;
 use tcl_compiler::optimiser::{
-    Optimisation, optimise_source_multipass_admitting_with_analysis_input, optimise_unit,
+    Optimisation, optimise_source_multipass_admitting_standalone_with_analysis_input,
+    optimise_source_multipass_admitting_with_analysis_input, optimise_unit,
 };
 use tcl_compiler::unit_scope::CallSiteEvidence;
 use tcl_core_types::{DiagCode, Severity};
@@ -389,7 +390,7 @@ pub struct OptimisedSource {
 ///
 /// This explicit standalone facade serves `tcl opt` and the MCP `optimize`
 /// tool. Current document callers use [`optimise_under_policy_from_analysis`].
-/// The loop is the optimiser's ([`optimise_source_multipass_admitting_with_analysis_input`]), which re-runs the
+/// The loop is the optimiser's ([`optimise_source_multipass_admitting_standalone_with_analysis_input`]), which re-runs the
 /// optimiser over each pass's text; this function is what it admits on a
 /// pass, so the multipass loop has one owner.
 #[must_use]
@@ -415,7 +416,7 @@ pub fn optimise_under_policy(
             iterations: 0,
         };
     };
-    let (text, applied, iterations) = optimise_source_multipass_admitting_with_analysis_input(
+    let (text, applied, iterations) = optimise_source_multipass_admitting_standalone_with_analysis_input(
         source,
         registry,
         Some(input),

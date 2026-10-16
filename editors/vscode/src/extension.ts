@@ -45,7 +45,7 @@ import {
   window,
   workspace,
 } from "vscode";
-import { LanguageClient, ServerOptions } from "vscode-languageclient/node";
+import { LanguageClient, ServerOptions, State } from "vscode-languageclient/node";
 import {
   buildClientOptions,
   DEFAULT_DIALECT,
@@ -103,7 +103,12 @@ import {
 } from "./dialectChoices";
 import { pickDialect } from "./dialectPicker";
 import { registerIlxReferenceProvider } from "./ilxReferences";
-import { PackFileExtension, syncPackFileAssociations } from "./packAssociations";
+import {
+  PackFileExtension,
+  beginPackFileAssociationSync,
+  isPackFileAssociationSyncCurrent,
+  syncPackFileAssociations,
+} from "./packAssociations";
 
 const execFileAsync = promisify(execFile);
 
@@ -568,12 +573,28 @@ export async function deactivate(): Promise<void> {
  */
 function registerPackAssociationSync(context: ExtensionContext, ch: vscode.OutputChannel): void {
   if (client) {
+    const registeredClient = client;
     context.subscriptions.push(
-      client.onNotification(
+      registeredClient.onDidChangeState(() => {
+        beginPackFileAssociationSync(context);
+      }),
+      registeredClient.onNotification(
         "tcl-lsp/specPacksReloaded",
         (params: { pack_file_extensions?: PackFileExtension[] }) => {
-          void syncPackFileAssociations(context, params?.pack_file_extensions ?? [], (message) =>
-            ch.appendLine(message),
+          if (client !== registeredClient || registeredClient.state !== State.Running) {
+            return;
+          }
+          const generation = beginPackFileAssociationSync(context);
+          const advertised = params?.pack_file_extensions;
+          if (!Array.isArray(advertised)) {
+            ch.appendLine("[packs] incomplete reload notification; leaving associations unchanged");
+            return;
+          }
+          void syncPackFileAssociations(
+            context,
+            advertised,
+            (message) => ch.appendLine(message),
+            generation,
           );
         },
       ),
@@ -598,22 +619,38 @@ async function syncPackAssociationsNow(
   if (!client) {
     return;
   }
+  const requestClient = client;
+  const generation = beginPackFileAssociationSync(context);
   try {
     // The pack set is process-global on the server — one reload covers the
     // bundled tier and every workspace folder — so this asks with no URI
     // rather than implying a per-folder answer.
-    const result = (await client.sendRequest("workspace/executeCommand", {
+    const result = (await requestClient.sendRequest("workspace/executeCommand", {
       command: "tcl-lsp.getEffectiveConfig",
       arguments: [""],
     })) as {
       pack_file_extensions?: PackFileExtension[];
       spec_packs_loaded?: unknown[];
     } | null;
+    if (
+      !isPackFileAssociationSyncCurrent(context, generation) ||
+      client !== requestClient ||
+      requestClient.state !== State.Running
+    ) {
+      return;
+    }
     if (!result?.spec_packs_loaded?.length) {
       return;
     }
-    await syncPackFileAssociations(context, result.pack_file_extensions ?? [], (message) =>
-      ch.appendLine(message),
+    if (!Array.isArray(result.pack_file_extensions)) {
+      ch.appendLine("[packs] incomplete startup response; leaving associations unchanged");
+      return;
+    }
+    await syncPackFileAssociations(
+      context,
+      result.pack_file_extensions,
+      (message) => ch.appendLine(message),
+      generation,
     );
   } catch (err) {
     // A server still starting (or already stopped) has nothing to say about

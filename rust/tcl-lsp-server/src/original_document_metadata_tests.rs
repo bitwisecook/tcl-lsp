@@ -708,6 +708,7 @@ async fn workspace_index_seed_refuses_stale_and_withdrawn_source_owners() {
         });
     for analysis in [missing, stale, foreign, unavailable_with_receipts] {
         let seed = FreshAnalysisSeed {
+            path_admission: Arc::clone(&current.path_admission),
             analysis: Arc::new(analysis),
             analyser_inputs_epoch: current.analyser_inputs_epoch,
             class_factory_generation: current.class_factory_generation,
@@ -1161,8 +1162,19 @@ async fn project_token_config_publication_drops_partial_locks_and_preserves_snap
     drop(snapshot);
     drop(folder_guard);
     let second_uri = Uri::from_str("file:///project-publication354/second.tcl").unwrap();
+    let admission = backend.document_path_admission(&second_uri).await.unwrap();
     let locks = backend.try_live_source_locks().ok().unwrap();
-    Backend::set_live_db_source_locked(locks, &second_uri, "proc second {} {}", "tcl", true);
+    Backend::set_live_db_source_locked(
+        locks,
+        &admission,
+        "proc second {} {}",
+        "tcl",
+        true,
+        backend.store.as_ref(),
+        &mut || {},
+        backend.source_path_admissions.as_ref(),
+    )
+    .unwrap();
     let second = *backend.db_files.lock().await.get(&second_uri).unwrap();
     let snapshot = backend
         .db

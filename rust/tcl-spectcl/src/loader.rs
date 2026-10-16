@@ -88,11 +88,14 @@ use std::collections::{BTreeMap, HashSet};
 use std::fmt;
 use std::sync::{LazyLock, Mutex};
 
-use tcl_compiler::parsing::syntax::build::build_document;
-use tcl_compiler::parsing::syntax::segment::segments_from_document;
+pub use tcl_compiler::parsing::spectcl_source::pack_source_lexer_config;
+use tcl_compiler::parsing::spectcl_source::{
+    IncludeNameUnavailable, declared_pack_major as declared_major, include_file_name,
+    include_file_path, pack_source_statements, unsupported_pack_major,
+};
 use tcl_core_types::DiagCode;
 use tcl_dialect::TclVersion;
-use tcl_lexer::{LeadingBom, LexerConfig, SourceMap, TokenType};
+use tcl_lexer::{LeadingBom, LexerConfig, TokenType};
 use tcl_registry::ScriptLookupScope;
 use tcl_registry::abbrev::PrefixMatching;
 use tcl_registry::arg_role::{AppendedArity, ArgRole};
@@ -517,14 +520,6 @@ pub(crate) enum FileBom {
 }
 
 impl FileBom {
-    /// The lexer's own spelling of the same question.
-    fn leading(self) -> LeadingBom {
-        match self {
-            FileBom::Skip => LeadingBom::Skip,
-            FileBom::Content => LeadingBom::Content,
-        }
-    }
-
     /// A discriminator for the memo key. Two segmentations of the same bytes
     /// under different dispositions are different answers, so they cannot
     /// share a cache slot.
@@ -534,20 +529,6 @@ impl FileBom {
             FileBom::Content => 0,
         }
     }
-}
-
-/// The fixed SpecTcl pack-source grammar for an explicitly selected region.
-/// Whole pack files share the loader's file-prologue treatment; extracted
-/// blocks retain a leading mark as content, including at local byte zero.
-/// This readonly parser configuration supplies no target Tcl dialect,
-/// command registration, execution entry or native capability.
-#[must_use]
-pub fn pack_source_lexer_config(purpose: tcl_lexer::SourceSegmentationPurpose) -> LexerConfig {
-    purpose.config(LexerConfig {
-        leading_bom: FileBom::Skip.leading(),
-        // dialect-drift-ok: fixed SpecTcl DSL grammar, independently of its target.
-        ..LexerConfig::default()
-    })
 }
 
 /// Segment `source` into statements, numbering lines from `base_line`.
@@ -578,8 +559,7 @@ pub(crate) fn statements(source: &str, base_line: u32, bom: FileBom) -> Vec<Stmt
 
 /// The uncached segmentation — [`statements`] minus the memo.
 fn segment(source: &str, base_line: u32, bom: FileBom) -> Vec<Stmt> {
-    let source_map = SourceMap::new(source);
-    let (document, _warnings) = build_document(
+    let parsed = pack_source_statements(
         source,
         pack_source_lexer_config(match bom {
             FileBom::Skip => tcl_lexer::SourceSegmentationPurpose::WholeInput,
@@ -600,7 +580,7 @@ fn segment(source: &str, base_line: u32, bom: FileBom) -> Vec<Stmt> {
         base_line + u32::try_from(index).unwrap_or(u32::MAX)
     };
 
-    segments_from_document(document, &source_map)
+    parsed
         .into_iter()
         .map(|segment| {
             let words: Vec<Word> = segment
@@ -655,12 +635,10 @@ pub(crate) fn pack_statements(source: &str) -> Vec<Stmt> {
 /// wrong span.
 #[must_use]
 pub fn speclib_version_span(source: &str) -> Option<(std::ops::Range<usize>, String)> {
-    let source_map = SourceMap::new(source);
-    let (document, _warnings) = build_document(
+    for segment in pack_source_statements(
         source,
         pack_source_lexer_config(tcl_lexer::SourceSegmentationPurpose::WholeInput),
-    );
-    for segment in segments_from_document(document, &source_map) {
+    ) {
         if segment.texts.first().map(String::as_str) != Some("speclib") {
             continue;
         }
@@ -1514,7 +1492,7 @@ pub const NEWEST_VOCABULARY_VERSION: &str = "2.2";
 /// ever additive — but a major says the meaning of words this loader thinks it
 /// knows has changed, and reading them anyway is exactly the "stronger,
 /// safer-looking result" the contract forbids.
-const NEWEST_SUPPORTED_MAJOR: u32 = 2;
+const NEWEST_SUPPORTED_MAJOR: u32 = tcl_compiler::parsing::spectcl_source::NEWEST_SUPPORTED_MAJOR;
 
 /// A scoping flag for `ambient_package`, recognised
 /// only so it can be **refused**.
@@ -1927,12 +1905,12 @@ impl IncludeContext {
     /// directory even by a hostile name.
     #[must_use]
     pub fn for_file(path: &std::path::Path) -> Self {
-        let dir = path.parent().map(std::path::Path::to_path_buf);
+        let including_file = path.to_path_buf();
         Self::new(move |name| {
-            let Some(dir) = &dir else {
+            let Some(path) = include_file_path(&including_file, name) else {
                 return Err("the including pack has no parent directory".to_owned());
             };
-            std::fs::read_to_string(dir.join(name)).map_err(|e| e.to_string())
+            std::fs::read_to_string(path).map_err(|e| e.to_string())
         })
     }
 
@@ -1956,22 +1934,14 @@ pub(crate) fn uses_include(source: &str) -> bool {
     if !source.contains("include") {
         return false;
     }
-    let top = pack_statements(source);
-    let Some(speclib) = top.iter().find(|s| s.word_text(0) == "speclib") else {
+    let config = pack_source_lexer_config(tcl_lexer::SourceSegmentationPurpose::WholeInput);
+    let Some(body) = tcl_compiler::parsing::spectcl_source::first_pack_source_body(source, config)
+    else {
         return false;
     };
-    let Some(body) = speclib.arg(3) else {
-        return false;
-    };
-    block(body).iter().any(|stmt| {
-        if stmt.word_text(0) != "include" {
-            return false;
-        }
-        // The surface form (`include from … into …`, Q6) resolves no
-        // file, so it neither needs nor deserves the uncached
-        // file-system route the file form takes.
-        stmt.word_text(1) != "from"
-    })
+    body.statements()
+        .iter()
+        .any(tcl_compiler::parsing::spectcl_source::is_pack_file_include_row)
 }
 
 /// Why one `include NAME` word is unusable, or `Ok` with the name.
@@ -1987,29 +1957,21 @@ pub(crate) fn include_name(words: &[&str], line: u32) -> Result<String, Notice> 
         message,
         class: VocabularyClass::Semantic,
     };
-    if words.len() != 1 || words[0].is_empty() {
-        return Err(reject(
+    match include_file_name(words) {
+        Ok(name) => Ok(name.to_owned()),
+        Err(IncludeNameUnavailable::PathStructure) => {
+            let name = words[0];
+            Err(reject(format!(
+                "`include {name}` is not a plain file name (no path separators, no `..`); \
+                 the row is dropped and its declarations are not loaded"
+            )))
+        }
+        Err(IncludeNameUnavailable::Arity) => Err(reject(
             "`include` takes exactly one file name; the row is dropped and its \
              declarations are not loaded"
                 .to_owned(),
-        ));
+        )),
     }
-    let name = words[0];
-    if name.contains(['/', '\\']) || name.contains("..") {
-        return Err(reject(format!(
-            "`include {name}` is not a plain file name (no path separators, no `..`); \
-             the row is dropped and its declarations are not loaded"
-        )));
-    }
-    Ok(name.to_owned())
-}
-
-/// The major component of a `speclib` version word, when it has one.
-fn declared_major(declared: &str) -> Option<u32> {
-    declared
-        .split('.')
-        .next()
-        .and_then(|major| major.parse().ok())
 }
 
 /// Warn when `speclib`'s version word is not a vocabulary this build knows,
@@ -2024,7 +1986,7 @@ fn check_vocabulary_version(declared: &str, line: u32, log: &mut Log) -> bool {
     if declared.is_empty() || KNOWN_VOCABULARY_VERSIONS.contains(&declared) {
         return false;
     }
-    if declared_major(declared).is_some_and(|major| major > NEWEST_SUPPORTED_MAJOR) {
+    if unsupported_pack_major(declared) {
         log.say(
             line,
             format!(
@@ -12796,6 +12758,34 @@ mod tests {
             assert!(pack.command("demo").is_none(), "{bad}");
             assert!(pack.command("neighbour").is_some());
         }
+    }
+
+    #[test]
+    fn original_pack_include_navigation_and_loader_share_name_and_body_rules() {
+        use std::cell::RefCell;
+        use std::rc::Rc;
+        let source = "\u{feff}speclib p 2.0 {include {shared α}; include ~; include ../outside; command c {include nested}}";
+        let config = pack_source_lexer_config(tcl_lexer::SourceSegmentationPurpose::WholeInput);
+        let rows = tcl_compiler::parsing::spectcl_source::pack_source_includes(source, config);
+        let calls = Rc::new(RefCell::new(Vec::new()));
+        let reached = Rc::clone(&calls);
+        let context = Rc::new(IncludeContext::new(move |name| {
+            reached.borrow_mut().push(name.to_owned());
+            Ok(String::new())
+        }));
+        let _pack = evaluate_pack_in(source, &EvalOptions::default(), Some(context));
+        assert_eq!(
+            *calls.borrow(),
+            rows.iter()
+                .map(|row| row.name().to_owned())
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(*calls.borrow(), ["shared α", "~"]);
+        assert!(uses_include(source));
+        assert!(!uses_include(
+            "speclib p 2.0 {include from tcl into jim {a}}"
+        ));
+        assert!(!uses_include("speclib p 2.0 {command c {include nested}}"));
     }
 
     #[test]

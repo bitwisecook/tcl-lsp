@@ -1,0 +1,53 @@
+{
+  "utc": "2026-10-16T17:33:26.439930+00:00",
+  "source_head": "a372766c36e0585b16c7dd4501f0741585b894c9",
+  "actual_node": "v24.19.0",
+  "actual_dependency_versions": {
+    "typescript": "6.0.3",
+    "prettier": "3.9.7",
+    "vscode-languageclient": "10.1.1"
+  },
+  "files": [
+    {
+      "path": "editors/vscode/src/extension.ts",
+      "sha256": "00ea3b3e418194abc9166b896e57beb99fffde877e58fa6cb520330e3754a2aa"
+    },
+    {
+      "path": "editors/vscode/src/extensionBrowser.ts",
+      "sha256": "746943f341b7eb96181c38742bead2b20000cf651495176460e9bfadb388c64b"
+    },
+    {
+      "path": "editors/vscode/src/packAssociations.ts",
+      "sha256": "4143e055320a1afb0064e6313c39cb65d37eae694ba565dd44163841db3278a3"
+    },
+    {
+      "path": "editors/vscode/src/test/packFileAssociations.test.ts",
+      "sha256": "9fa0a8ebeaed07345b548cb693bb798b83ddb213a2be2b6834ce3d44b1cafb03"
+    },
+    {
+      "path": "editors/vscode/test-partitions.json",
+      "sha256": "592f2b127a139a3bd30941bc8d5b255aa3e3639529c6adcfd051279e6c97deb9"
+    }
+  ],
+  "checks": [
+    {
+      "name": "naming-editor-v8-main-tsc",
+      "exit_code": 0,
+      "stdout": "naming-editor-v8-main-tsc.stdout",
+      "stderr": "naming-editor-v8-main-tsc.stderr"
+    },
+    {
+      "name": "naming-editor-pack-v6-main-tsc",
+      "exit_code": 0,
+      "stdout": "naming-editor-pack-v6-main-tsc.stdout",
+      "stderr": "naming-editor-pack-v6-main-tsc.stderr"
+    },
+    {
+      "name": "naming-editor-v8-pack6-main-prettier",
+      "exit_code": 0,
+      "stdout": "naming-editor-v8-pack6-main-prettier.stdout",
+      "stderr": "naming-editor-v8-pack6-main-prettier.stderr"
+    }
+  ],
+  "limitations": "noEmit/scoped format only, no editor host execution or dependency-version admission; installed languageclient10.1.1 retained versus declared^10.1.2."
+}

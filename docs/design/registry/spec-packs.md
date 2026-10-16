@@ -1073,3 +1073,49 @@ has no spelling, and a method-scoped taint sink is a registry change
 rather than a DSL one — the register is in
 [`spec-dsl-examples/README.md`](../spec-dsl-examples/README.md), "Known
 limits carried forward".
+
+### Shared readonly pack-include source geometry
+
+`compiler::parsing::spectcl_source` is the single pure source-syntax facet
+used by the SpecTcl loader and Core document links. Its placement below both
+consumers avoids the existing SpecTcl-to-Core VFS dependency cycle; Compiler
+does not acquire a loader or install SpecTcl command behavior. The facet reuses
+the canonical configured CST parser. `pack_source_lexer_config` remains
+re-exported from the loader with the same fixed SpecTcl whole-file/nested
+purpose. Supplied navigation configuration is retained whole rather than
+replaced by a target Tcl profile.
+
+`PackSourceInclude` retains the exact original document, full configuration,
+first pack header, original complete include row and original name extent.
+`include_file_name` and `include_file_path` are also used before the loader's
+actual file read: one nonempty literal file name, no separators or `..`, and
+the including file's parent directory only. The separate actual include-row
+classification excludes the surface-roster form before name admission; a
+standalone name predicate does not reinterpret a literal name `from` as a row. No tilde
+expansion, workspace fallback, canonicalisation or existence test occurs. Core
+only converts that actual host Path through its existing file-URI owner and
+projects the retained original name extent into UTF-16 positions.
+
+This is conditional source navigation, not evidence that the include executes.
+The link projection accepts only complete unexpanded static rows in the first
+pack's immediate original body, with exact raw-body-to-captured-text agreement.
+Dynamic or cooked body/word geometry, malformed source, unsupported vocabulary
+major, nested registration bodies and surface includes yield no target. Missing
+rows are not an include-absence proof or a complete evaluated inventory. The
+general body carrier retains the loader's captured text even when no original
+coordinate mapping exists, so the loader's cache include trigger and verbatim
+index do not borrow navigation's narrower acceptance conditions. Actual
+evaluation, registration, resolver effects, include cycles/depth and budgets
+remain in the loader; Native and writable-reference permissions are unchanged.
+
+The owner-resolution manifest/gate covers this domain facet. Fixed regressions
+exercise original wrapped Unicode/name spans, full configuration and whole-file
+versus nested BOM, dynamic/malformed/expanded/nested rows, first-pack selection,
+path/roster refusals, and agreement with the actual loader resolver. The required
+caller migration is `lsp-document-links-pack-include`; the shared extraction is
+one owner facet, not a separate count for each helper or unchanged loader use.
+
+The shared numeric `declared_pack_major` query preserves the loader's separate
+`Option<u32>` forward-vocabulary question. `unsupported_pack_major` uses that
+same numeric parser only for the fail-closed supported-major comparison; a
+boolean unsupported-major answer never replaces numeric-major availability.

@@ -4512,6 +4512,7 @@ dependencies = [
  "tcl-registry",
  "tcl-sslictcl",
  "tcl-syntax",
+ "tcl-test-support",
  "tower-lsp-server",
 ]
 
@@ -4543,6 +4544,7 @@ dependencies = [
  "gloo-timers",
  "js-sys",
  "salsa",
+ "serde",
  "serde_json",
  "sha2 0.11.0",
  "tcl-bigip",

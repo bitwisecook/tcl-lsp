@@ -361,8 +361,7 @@ fn connection_scoped_names(
     let arrays: Vec<String> = names
         .iter()
         .filter_map(|name| {
-            tcl_syntax::naming::split_element_ref(name)
-                .map(|(base, _)| base.to_owned())
+            tcl_syntax::naming::split_element_ref(name).map(|(base, _)| base.to_owned())
         })
         .collect();
     names.extend(arrays);
@@ -2625,6 +2624,7 @@ fn lower_and_build_cfg(
     source_entry: Option<&crate::command_binding::SourceAnalysisEntry>,
     context: Option<std::sync::Arc<tcl_registry::model::ContextRegistry>>,
     input: Option<&crate::analyser::ResolvedAnalysisInput>,
+    standalone: Option<crate::lowering::StandaloneSourceInput<'_>>,
 ) -> (
     IrModule,
     CfgModule,
@@ -2639,7 +2639,9 @@ fn lower_and_build_cfg(
     let mut lower_trace = SourcePipelineTrace::new("lower-cfg", source.len());
     #[cfg(any(test, debug_assertions))]
     lower_trace.phase("initial");
-    let mut lowerer = if source_entry.is_none() && context.is_none() && input.is_none() {
+    let mut lowerer = if let Some(owner) = standalone {
+        crate::lowering::Lowerer::for_standalone_source_with_input(owner)
+    } else if source_entry.is_none() && context.is_none() && input.is_none() {
         // The default build API selects authoring. Explicit supplied or driver
         // ingress keeps its own purpose even when source metadata is missing.
         crate::lowering::Lowerer::for_standalone_source(registry, options.config, options.dialect)
@@ -2660,13 +2662,12 @@ fn lower_and_build_cfg(
             )
         });
     let input = input.or(context_input.as_ref());
-    if let Some(input) = input {
+    if let Some(input) = input.filter(|_| standalone.is_none()) {
         lowerer = lowerer.with_resolved_analysis_input(input.clone());
     } else if let Some(context) = context {
         lowerer = lowerer.with_context_registry(context);
     }
-    let supplied_entry = source_entry
-        .is_none()
+    let supplied_entry = (source_entry.is_none() && standalone.is_none())
         .then(|| {
             input.map(|input| {
                 crate::command_binding::SourceAnalysisEntry::for_supplied_source(
@@ -3504,6 +3505,7 @@ impl CompilationUnit {
             None,
             input,
             Some(source_body_cache),
+            None,
         )
     }
 
@@ -3553,6 +3555,36 @@ impl CompilationUnit {
         Self::build_with_retained_entry(source, options, None, None, entry, None, Some(input))
     }
 
+    /// Build an explicitly Standalone authoring request with its complete source
+    /// metadata. Availability does not choose this purpose: the caller selects it
+    /// independently. Missing/foreign store, profile or full grammar refuses.
+    /// Supplied-document and driver-entry builders retain their existing purposes;
+    /// this constructor supplies no runtime entry or Native activation.
+    #[must_use]
+    pub fn build_standalone_with_analysis_input(
+        source: &str,
+        options: UnitBuildOptions<'_>,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> Option<Self> {
+        let owner = crate::lowering::StandaloneSourceInput::retain(
+            options.registry,
+            input,
+            options.config,
+            options.dialect,
+        )?;
+        Some(Self::build_with_retained_entry_and_source_syntax(
+            source,
+            options,
+            None,
+            None,
+            None,
+            None,
+            Some(input),
+            None,
+            Some(owner),
+        ))
+    }
+
     fn build_with_entry(
         source: &str,
         options: UnitBuildOptions<'_>,
@@ -3574,7 +3606,7 @@ impl CompilationUnit {
         input: Option<&crate::analyser::ResolvedAnalysisInput>,
     ) -> Self {
         Self::build_with_retained_entry_and_source_syntax(
-            source, options, cache, body_cache, entry, context, input, None,
+            source, options, cache, body_cache, entry, context, input, None, None,
         )
     }
 
@@ -3587,6 +3619,7 @@ impl CompilationUnit {
         context: Option<std::sync::Arc<tcl_registry::model::ContextRegistry>>,
         input: Option<&crate::analyser::ResolvedAnalysisInput>,
         source_body_cache: Option<&crate::lowering::SourceBodySyntaxCache<'_>>,
+        standalone: Option<crate::lowering::StandaloneSourceInput<'_>>,
     ) -> Self {
         let UnitBuildOptions {
             registry, dialect, ..
@@ -3604,6 +3637,7 @@ impl CompilationUnit {
                 entry,
                 context,
                 input,
+                standalone,
             );
         #[cfg(any(test, debug_assertions))]
         {
@@ -5139,6 +5173,111 @@ mod tests {
     use super::*;
 
     #[test]
+    fn standalone_source_input_keeps_authoring_purpose_and_exact_metadata_currency() {
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let mut store = CommandRegistry::build_default();
+        store.insert(tcl_registry::CommandSpec {
+            name: "standaloneRetainedStoreMarker",
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        let store = Arc::new(store);
+        let context = tcl_registry::model::ingress::resolve_environment("tcl9.0")
+            .default_context_registry()
+            .with_command_store(Arc::clone(&store));
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::new(context),
+            tcl_lexer::LexerConfig {
+                leading_bom: tcl_lexer::LeadingBom::Content,
+                ..tcl_lexer::LexerConfig::for_file_grammar(profile.grammar)
+            },
+        );
+        let source = "set value [expr {1 + 2}]";
+        let options = UnitBuildOptions {
+            registry: &store,
+            defer_top_level: false,
+            config: input.lexer_config(),
+            dialect: Some(profile),
+            external_call_sites: None,
+            declared_commands: None,
+        };
+        let standalone =
+            CompilationUnit::build_standalone_with_analysis_input(source, options, &input)
+                .expect("explicit Standalone source request with actual complete input");
+        assert_eq!(
+            standalone.ir_module.source_metadata_input.as_ref(),
+            Some(&input)
+        );
+        assert_eq!(
+            standalone.ir_module.registry_snapshot.as_ref(),
+            Some(&store.snapshot())
+        );
+        assert_eq!(standalone.ir_module.lexer_config, input.lexer_config());
+        assert!(standalone.ir_module.source_entry.native_entry.is_none());
+        assert!(!standalone.ir_module.source_entry.unknown_entry);
+        assert!(
+            standalone
+                .ir_module
+                .source_entry
+                .invocation_dialect
+                .is_some()
+        );
+        assert!(
+            standalone
+                .ir_module
+                .source_entry
+                .logical_source_input
+                .is_none()
+        );
+        // The same metadata does not promote an ordinary supplied-document request.
+        let supplied = CompilationUnit::build_with_analysis_input(source, options, None, &input);
+        assert_eq!(
+            supplied.ir_module.source_metadata_input.as_ref(),
+            Some(&input)
+        );
+        assert!(supplied.ir_module.source_entry.native_entry.is_none());
+        assert!(supplied.ir_module.source_entry.unknown_entry);
+        assert!(supplied.ir_module.source_entry.invocation_dialect.is_none());
+        let mut changed_config = options.config;
+        changed_config.leading_bom = tcl_lexer::LeadingBom::Skip;
+        assert!(
+            CompilationUnit::build_standalone_with_analysis_input(
+                source,
+                UnitBuildOptions {
+                    config: changed_config,
+                    ..options
+                },
+                &input
+            )
+            .is_none()
+        );
+        assert!(
+            CompilationUnit::build_standalone_with_analysis_input(
+                source,
+                UnitBuildOptions {
+                    dialect: tcl_dialect::DialectProfile::find("tcl8.6"),
+                    ..options
+                },
+                &input
+            )
+            .is_none()
+        );
+        let foreign_store = CommandRegistry::build_default();
+        assert!(
+            CompilationUnit::build_standalone_with_analysis_input(
+                source,
+                UnitBuildOptions {
+                    registry: &foreign_store,
+                    ..options
+                },
+                &input
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
     fn function_consumers_keep_the_actual_generation_and_grammar() {
         // naming.compiler.original-analysis-metadata-context
         // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
@@ -5371,7 +5510,7 @@ mod tests {
             declared_commands: None,
         };
         let (module, cfg, _, prepared) =
-            lower_and_build_cfg(source, options, None, None, None, None, None);
+            lower_and_build_cfg(source, options, None, None, None, None, None, None);
         assert!(crate::realm::document_realm_bindings_for_module(&module, registry).is_some());
         let (actual, _, _) = resolve_unit_scope(&module, &cfg, Some(&prepared), options);
         assert_eq!(

@@ -1,6 +1,9 @@
 use super::tests::test_backend;
 use super::*;
-use vfs::SourceStore as _;
+use tower_lsp_server::ls_types::{
+    TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentItem,
+    VersionedTextDocumentIdentifier,
+};
 
 fn uri(raw: &str) -> Uri {
     Uri::from_str(raw).unwrap()
@@ -604,7 +607,7 @@ async fn admitted_provider_read_failure_is_unavailable_and_cannot_retire_rows() 
             .await
             .is_err()
     );
-    assert_eq!(backend.db_files.lock().await.get(&target), Some(&file));
+    assert!(backend.db_files.lock().await.get(&target) == Some(&file));
     assert_eq!(
         file.text(&*backend.db.lock().await),
         "proc retained_path_row {} {}"
@@ -675,7 +678,7 @@ async fn missing_scan_receipt_cannot_retire_a_remapped_uri() {
             .await
             .is_err()
     );
-    assert_eq!(backend.db_files.lock().await.get(&target), Some(&file));
+    assert!(backend.db_files.lock().await.get(&target) == Some(&file));
     assert!(
         backend
             .workspace_index

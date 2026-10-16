@@ -1,0 +1,26 @@
+{
+  "source_head": "a372766c36e0585b16c7dd4501f0741585b894c9",
+  "rust_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "ordinary": true,
+  "instrumentation": false,
+  "single_job": true,
+  "test_debug": 0,
+  "packages": [
+    "tcl-compiler",
+    "tcl-lsp-core",
+    "tcl-lsp-db",
+    "tcl-registry",
+    "tcl-lsp-server"
+  ],
+  "status": "FAIL",
+  "input_before_count": 38997,
+  "utc": "2026-10-16T17:20:07.616594+00:00",
+  "command": "CARGO_PROFILE_TEST_DEBUG=0 cargo test --offline -p tcl-compiler -p tcl-lsp-core -p tcl-lsp-db -p tcl-registry -p tcl-lsp-server --lib --no-run",
+  "scope": "Reviewed SourcePath0f+d8, actual completionV7, editor consumerV8 and bounded owner gate47. Source identity, original provider receipts, actual report ID/delivery, full configured input/Registry and None availability retained; paused Runtime/VM/BIGIP migrations unchanged. SourcePath new native/browser/WASI controls require distinct actual target validation.",
+  "exit_code": 101,
+  "build_seconds": 63.313,
+  "input_after_count": 38997,
+  "input_drift_count": 0,
+  "input_drift": [],
+  "completed_utc": "2026-10-16T17:21:10.930483+00:00"
+}

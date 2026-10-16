@@ -1,0 +1,96 @@
+{
+  "status": "INTEGRATION_SOURCE_RECEIPT_ONLY_NO_VERIFIED_COMPLETION",
+  "root_reported_integration": "9476 + 5077 now MAIN",
+  "source_receipts": [
+    {
+      "manifest": "/tmp/compiler-standalone-optimisation-input-v1/manifest.json",
+      "patch_sha256": "9476ee3cbacff8e8662c87716f6dd88d4773c1699cb8527db50a6cd2cd07e00a",
+      "files": [
+        {
+          "path": "rust/tcl-compiler/src/compilation_unit.rs",
+          "released_edit_sha256": "41028158a72d8b5d4a94605bac74cfc4b2df9454498ac700e0fe04e6a02aeb62",
+          "current_sha256": "41028158a72d8b5d4a94605bac74cfc4b2df9454498ac700e0fe04e6a02aeb62",
+          "exact_edit_matches": true
+        },
+        {
+          "path": "rust/tcl-compiler/src/lowering/mod.rs",
+          "released_edit_sha256": "3938ef9e07f2f98ffd84d853bd2f7d50446c3bb719c26142d6b96b7d15ffebfc",
+          "current_sha256": "3938ef9e07f2f98ffd84d853bd2f7d50446c3bb719c26142d6b96b7d15ffebfc",
+          "exact_edit_matches": true
+        },
+        {
+          "path": "rust/tcl-compiler/src/optimiser/manager.rs",
+          "released_edit_sha256": "9952f3760594a90b5eca40251f84aec8043c27701bf37e3a4aaf70b75a42a04a",
+          "current_sha256": "9952f3760594a90b5eca40251f84aec8043c27701bf37e3a4aaf70b75a42a04a",
+          "exact_edit_matches": true
+        },
+        {
+          "path": "rust/tcl-compiler/src/optimiser/mod.rs",
+          "released_edit_sha256": "8d1e279a4b290017333f06eb512f57092f715088b803b6fe4f15fb144fe18f92",
+          "current_sha256": "8d1e279a4b290017333f06eb512f57092f715088b803b6fe4f15fb144fe18f92",
+          "exact_edit_matches": true
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/diagnostic_report.rs",
+          "released_edit_sha256": "505e8c5329a431b245f5c571f57108a2653df57dd5184e3d04a14d89f6bb839c",
+          "current_sha256": "505e8c5329a431b245f5c571f57108a2653df57dd5184e3d04a14d89f6bb839c",
+          "exact_edit_matches": true
+        }
+      ],
+      "independent_review": "/tmp/compiler-standalone-optimisation-input-v1/independent-variable-order-review.txt"
+    },
+    {
+      "manifest": "/tmp/compiler-standalone-optimisation-input-contract-v1/manifest.json",
+      "patch_sha256": "5077f51c6b5292cf934bc4f232fdab2c6a39b952bdabeef0fcaf8d5a55e41bd4",
+      "files": [
+        {
+          "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+          "released_edit_sha256": "39532e38599be6a472b9b185be24ef227158998da22fcea5e7ba3d23ff9fef6b",
+          "current_sha256": "9296b25027d56e16468a91922d718c914054300372a5adceb4dc875250f4fc01",
+          "exact_edit_matches": false
+        }
+      ],
+      "independent_review": "/tmp/compiler-standalone-optimisation-input-contract-v1/independent-variable-order-review.txt",
+      "subsequent_integrations": {
+        "additional_shared_owner_row": "SpecTcl original pack/include source syntax from de717 (Root applied)",
+        "all_standalone_contract_bytes_retained_after_removing_that_added_row": true
+      }
+    }
+  ],
+  "baseline_caller": "lsp-diagnostic-report-standalone-directive-input",
+  "current_accepted_annex_rows": 41,
+  "current_annex_has_proposed_id": false,
+  "proposal_requires_root_count_reconciliation": true,
+  "proposed_once_only_owner_row": {
+    "id": "compiler.source.explicit-standalone-complete-input-owner",
+    "kind": "shared_owner_extension",
+    "baseline_unit_ids": [
+      "lsp-diagnostic-report-standalone-directive-input"
+    ],
+    "site_anchors": [
+      {
+        "path": "rust/tcl-compiler/src/lowering/mod.rs",
+        "symbol": "StandaloneSourceInput; Lowerer::for_standalone_source_with_input; retain_standalone_source_metadata"
+      },
+      {
+        "path": "rust/tcl-compiler/src/compilation_unit.rs",
+        "symbol": "CompilationUnit::build_standalone_with_analysis_input"
+      },
+      {
+        "path": "rust/tcl-compiler/src/optimiser/manager.rs",
+        "symbol": "optimise_source_multipass_admitting_standalone_with_analysis_input"
+      }
+    ],
+    "rationale": "Demonstrated missing transport of independently selected existing Standalone source authoring purpose alongside the complete actual input/Registry/store/overlay/full config. Generic supplied Native-profile rebuild correctly retains unknown entry and cannot supply this purpose; metadata cannot reopen it. A sealed explicit request reuses the existing authoring constructor and existing metadata attachment with no NativeCompilationEntry/activation. Count once for the shared purpose/owner extension; the ff35 Core baseline caller is already integrated and is not counted again; unchanged CLI/MCP/current-document callers/helpers/tests add zero.",
+    "implementation": {
+      "status": "implemented_pending_validation",
+      "verified_complete": false
+    },
+    "implementation_scope": "Root reports source9476ee3c plus contract5077f51c integrated; independent source CLEAR. Fresh five ordinary library build active at 17:28 UTC; no resulting test/efficacy/verified completion claim."
+  },
+  "distinct_from_existing_annexes": [
+    "compiler.source.original-body-parameter-trait-source-owner (actual Body/Jim readonly SourceMay)",
+    "compiler.source.authored-unentered-declaration-geometry (unentered original declaration/source debt)"
+  ],
+  "validation": "Source integration + independent review only. No Cargo/main writes/Git/test execution by author."
+}

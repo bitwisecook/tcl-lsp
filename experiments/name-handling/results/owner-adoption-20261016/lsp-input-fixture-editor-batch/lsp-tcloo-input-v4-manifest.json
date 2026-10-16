@@ -1,0 +1,30 @@
+{
+  "version": "TclOO examples V4 immutable successor with retained line-coordinate index restored",
+  "candidate_patch": "candidate.patch",
+  "candidate_patch_sha256": "d32bdfe648510868688355c1800cb82d20f4de6517467f2881eaba236004df29",
+  "V3_dependency": {
+    "patch_sha256": "5ff846bc19c939e874a1028f9eb9bffd3c507a273e9fcb20546f3a037ec33994",
+    "review_receipt_sha256": "8e1d81f95bde98f40b62c2e02b9566f86433a4fda64a26acd6fddfe491f26fed"
+  },
+  "baseline_units": [
+    "lsp-example-tcloo_diag-input-and-token-verdict",
+    "lsp-example-tcloo_dispatch-input-and-token-verdict"
+  ],
+  "source_before_sha256": {
+    "rust/tcl-lsp-core/examples/tcloo_diag.rs": "84efb01133854502f9a3390f319e48e53f8cf04dd7b6963077cebffbd9548a07",
+    "rust/tcl-lsp-core/examples/tcloo_dispatch.rs": "d070b9e74c683ccbd004b75d9dc730e2326d2368e4bc5e7f06ad552ee2064d2c"
+  },
+  "source_after_sha256": {
+    "rust/tcl-lsp-core/examples/tcloo_diag.rs": "94d4f196dcd4e5883654fc945444d189b59d93ddfd0058bf6c5d55eb35b54a2e",
+    "rust/tcl-lsp-core/examples/tcloo_dispatch.rs": "f156dee73eaa05344bf69de928d1ee863cebf27e2827eb7588a2258c6b70bc0b"
+  },
+  "delta": [
+    "Restores `let line_starts = line_starts(&src);` in tcloo_diag before its retained byte-to-UTF16 coordinate conversion. V3 removed the prior token-kind map but still needs this helper result for the existing method-site coordinates."
+  ],
+  "scope": {
+    "changed_file": "rust/tcl-lsp-core/examples/tcloo_diag.rs",
+    "other_file_byte_identical_to_v3": true,
+    "assertions_selectors_budgets_changed": false
+  },
+  "validation": "Source-only repair; no Cargo/build/tests run per root instruction. Compiler issue identified by direct use-before-binding inspection."
+}

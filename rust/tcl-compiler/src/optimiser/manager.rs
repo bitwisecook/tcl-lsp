@@ -1008,6 +1008,57 @@ pub fn optimise_source_multipass_admitting_with_analysis_input<F>(
 where
     F: FnMut(&str, Vec<Optimisation>) -> Vec<Optimisation>,
 {
+    optimise_source_multipass_with_input(
+        source,
+        registry,
+        input,
+        max_iterations,
+        OptimisationSourcePurpose::Supplied,
+        admit,
+    )
+}
+
+/// Multipass optimisation for an explicitly Standalone authoring request, with
+/// the actual complete source metadata/configuration retained on every new image.
+/// The supplied-document facade remains separate and cannot reopen this purpose.
+#[must_use]
+pub fn optimise_source_multipass_admitting_standalone_with_analysis_input<F>(
+    source: &str,
+    registry: &CommandRegistry,
+    input: Option<&crate::analyser::ResolvedAnalysisInput>,
+    max_iterations: usize,
+    admit: F,
+) -> (String, Vec<Optimisation>, usize)
+where
+    F: FnMut(&str, Vec<Optimisation>) -> Vec<Optimisation>,
+{
+    optimise_source_multipass_with_input(
+        source,
+        registry,
+        input,
+        max_iterations,
+        OptimisationSourcePurpose::Standalone,
+        admit,
+    )
+}
+
+#[derive(Clone, Copy)]
+enum OptimisationSourcePurpose {
+    Supplied,
+    Standalone,
+}
+
+fn optimise_source_multipass_with_input<F>(
+    source: &str,
+    registry: &CommandRegistry,
+    input: Option<&crate::analyser::ResolvedAnalysisInput>,
+    max_iterations: usize,
+    purpose: OptimisationSourcePurpose,
+    admit: F,
+) -> (String, Vec<Optimisation>, usize)
+where
+    F: FnMut(&str, Vec<Optimisation>) -> Vec<Optimisation>,
+{
     let Some(input) = input.filter(|input| {
         crate::registry_invocation::InvocationMetadataContext::for_source_input(
             registry,
@@ -1023,30 +1074,43 @@ where
         source,
         max_iterations,
         |current| {
-            let entry = crate::command_binding::SourceAnalysisEntry::for_supplied_source(
-                registry,
-                input,
-                input.lexer_config(),
-                Some(input.unit_profile()),
-            );
             let declared = crate::analyser::utils::document_declared_surface(
                 current,
                 None,
                 input.analyser_profile().name,
             );
-            let unit = CompilationUnit::build_with_analysis_input(
-                current,
-                crate::compilation_unit::UnitBuildOptions {
-                    registry,
-                    defer_top_level: false,
-                    config: input.lexer_config(),
-                    dialect: Some(input.unit_profile()),
-                    external_call_sites: None,
-                    declared_commands: Some(&declared),
-                },
-                Some(&entry),
-                input,
-            )
+            let options = crate::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config: input.lexer_config(),
+                dialect: Some(input.unit_profile()),
+                external_call_sites: None,
+                declared_commands: Some(&declared),
+            };
+            let unit = match purpose {
+                OptimisationSourcePurpose::Standalone => {
+                    let Some(unit) = CompilationUnit::build_standalone_with_analysis_input(
+                        current, options, input,
+                    ) else {
+                        return Vec::new();
+                    };
+                    unit
+                }
+                OptimisationSourcePurpose::Supplied => {
+                    let entry = crate::command_binding::SourceAnalysisEntry::for_supplied_source(
+                        registry,
+                        input,
+                        input.lexer_config(),
+                        Some(input.unit_profile()),
+                    );
+                    CompilationUnit::build_with_analysis_input(
+                        current,
+                        options,
+                        Some(&entry),
+                        input,
+                    )
+                }
+            }
             .with_interprocedural(registry, Some(input.unit_profile()));
             optimise_unit(&unit, registry, Some(input.unit_profile()))
         },

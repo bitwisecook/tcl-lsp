@@ -242,6 +242,15 @@ fn classify(
     b
 }
 
+/// Derive the generated lexical special-variable bucket from the shared
+/// Registry catalogue, restricted to the language's provider union.
+fn variable_spellings(reg: &CommandRegistry, providers: &[SpecProvider]) -> BTreeSet<String> {
+    reg.special_vars()
+        .filter(|spec| surface_provided_by(spec.surface, providers))
+        .map(|spec| spec.name.to_owned())
+        .collect()
+}
+
 /// Derive the generated `@operator` bucket from shared expression operators,
 /// restricted to the supplied providers.
 fn operator_spellings(providers: &'static [SpecProvider]) -> BTreeSet<String> {
@@ -288,6 +297,7 @@ fn render(
     providers: &'static [SpecProvider],
 ) -> String {
     let b = classify(reg, context, providers);
+    let variables = variable_spellings(reg, providers);
     let (literal_ops, word_ops): (BTreeSet<String>, BTreeSet<String>) =
         operator_spellings(providers)
             .into_iter()
@@ -324,13 +334,10 @@ fn render(
 (argument
   name: (_) @variable.parameter)
 
-; Tcl built-in variables
+; Tcl built-in variables from the shared special-variable catalogue
 ((simple_word) @variable.builtin
   (#any-of? @variable.builtin
-    "argc" "argv" "argv0" "auto_path" "env" "errorCode" "errorInfo"
-    "tcl_interactive" "tcl_library" "tcl_nonwordchars" "tcl_patchLevel"
-    "tcl_pkgPath" "tcl_platform" "tcl_precision" "tcl_rcFileName"
-    "tcl_traceCompile" "tcl_traceExec" "tcl_wordchars" "tcl_version"))
+{variables}))
 
 ; Procedure definitions
 "proc" @keyword.function
@@ -393,6 +400,7 @@ fn render(
 "#,
         control = render_any_of(&b.control),
         keyword = render_any_of(&b.keyword),
+        variables = render_any_of(&variables),
         builtin = render_any_of(&b.builtin),
         literal_ops = render_any_of(&literal_ops),
         word_ops = render_any_of(&word_ops),
@@ -502,6 +510,18 @@ mod tests {
         for w in GRAMMAR_NODE_WORDS {
             assert!(!b.control.contains(*w) && !b.keyword.contains(*w) && !b.builtin.contains(*w));
         }
+    }
+
+    #[test]
+    fn special_variable_highlights_follow_shared_dialect_catalogue() {
+        let tcl_providers = [SpecProvider::Core(Family::Tcl), SpecProvider::Package("Tk")];
+        let tcl = variable_spellings(
+            registry_for(crate::environment::profile_for_dialect("tcl")),
+            &tcl_providers,
+        );
+        assert!(tcl.contains("auto_index"));
+        assert!(tcl.contains("tcl_libPath"));
+        assert!(!tcl.contains("static"));
     }
 
     #[test]

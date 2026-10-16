@@ -401,12 +401,12 @@
   "incoming_rust": "Incoming `origin/rust` is now `ca698d87c824da24053c7abe279bb505a0acd9cb` (#2477 compiled/direct evaluation, literal-index and error-reporting changes), unmerged and unadmitted. The audit counts are for work at the recorded baseline plus explicit work-source annexes. Recheck and reconcile incoming source before integration; no acceptance is donated from the incoming branch.",
   "implementation_progress": {
     "resumed_from": "554085e162823ea8bd126898d0c27b7b2a9f8628",
-    "utc": "2026-10-16T17:16:36.460823+00:00",
+    "utc": "2026-10-16T17:32:36.618361+00:00",
     "audit_baseline_counts_unchanged": true,
     "total_required_units": 2158,
-    "implemented_pending_validation": 233,
+    "implemented_pending_validation": 244,
     "verified_complete": 0,
-    "not_started": 1925,
+    "not_started": 1914,
     "remaining_unverified_or_unimplemented": 2158,
     "additional_work_not_counted_as_catalogue_completion": [
       "Native variable-expression read/cell/trace/child-body observer producer remains open; pure expression gap receipt grants no such authority.",
@@ -566,7 +566,7 @@
     "withheld_drafts": [
       "Minifier command/argument alias construction: missing genuine source action/insertion owner; original unknown-command controls remain unchanged."
     ],
-    "owner_facet_reconciliation": "41 annex requirements:40 integrated pending validation,1blocked. SourceStore provider facet+browser adopter+actual completed-diagnostics issuer+checked DB availability each counted once; no helper/platform/unchanged legacy-cache count.",
+    "owner_facet_reconciliation": "44 annex requirements:43 integrated pending validation,1 blocked. Two new genuine shared owner facets and one distinct shared fixture validation ingress. Zed shared generator and two target projections retain exact baseline purposes; incidental BIGIP outputs add zero.",
     "runtime_build": {
       "status": "PASS",
       "seconds": 57.46,
@@ -659,13 +659,13 @@
     },
     "additional_owner_annex": {
       "path": "docs/work/name-handling/implementation-owner-annex.json",
-      "required": 41,
-      "implemented_pending_validation": 40,
+      "required": 44,
+      "implemented_pending_validation": 43,
       "not_integrated": 1,
       "verified_complete": 0
     },
-    "effective_required_units": 2199,
-    "effective_implemented_pending_validation": 273,
+    "effective_required_units": 2202,
+    "effective_implemented_pending_validation": 287,
     "effective_verified_complete": 0,
     "incoming_remote": {
       "head": "fcb7927f02b5395753247b322fdd7be87ae5c731",
@@ -834,8 +834,8 @@
       "scope": "Selected controls only. Completed99tests are65PASS34FAIL. Preview failure retained separately; no whole-group or gate acceptance.",
       "capture": "experiments/name-handling/results/owner-adoption-20261016/cli-mcp-server-889"
     },
-    "fully_implemented_pending_validation": 229,
-    "partially_implemented_pending_validation": 4,
+    "fully_implemented_pending_validation": 238,
+    "partially_implemented_pending_validation": 6,
     "runtime_report_adoptions": {
       "baseline_units": [
         "runtime:report.selected-command-variable-qualification:132",
@@ -1000,14 +1000,14 @@
         "validation": 122,
         "documentation": 2
       },
-      "lsp_integrated_pending_validation": 105,
+      "lsp_integrated_pending_validation": 115,
       "lsp_by_kind_integrated": {
-        "semantic": 24,
-        "validation": 79,
+        "semantic": 30,
+        "validation": 83,
         "documentation": 2
       },
       "lsp_verified_complete": 0,
-      "lsp_without_integrated_implementation": 220,
+      "lsp_without_integrated_implementation": 210,
       "shared_dependencies": "Counted under their original Compiler/DB/Registry units or reconciled annex; not counted again as LSP consumers.",
       "deferred": "Runtime174 remaining54,VM133,RuntimeJim execution and BIG-IP source inventory/provider work; retain all existing artifacts.",
       "new_source_alias_caller_annex": "compiler.consumer.logical-source-alias-declaration-observations"
@@ -1441,6 +1441,45 @@
         "FAIL": 8
       },
       "limits": "Bounded frozen controls only. SourcePath/diagnostic completion/V8 successor is outside these compiled artifacts. Optimiser positive failures expose missing Standalone purpose transport, now an explicit partial integration. No full current source/repository/issue/Native acceptance."
+    },
+    "lsp_input_fixture_batch": {
+      "baseline_full": [
+        "audit:zed-variable-offline-metadata",
+        "lsp-document-links-pack-include",
+        "lsp-example-tcloo_diag-input-and-token-verdict",
+        "lsp-zed-expect-variable-catalogue",
+        "lsp-zed-tcl-variable-catalogue",
+        "lsp.validation.15.00.fn0",
+        "lsp.validation.15.00.fn1",
+        "lsp.validation.25.00.0.fn0",
+        "lsp.validation.25.00.1.fn0"
+      ],
+      "baseline_partial": {
+        "lsp-example-tcloo_dispatch-input-and-token-verdict": "Actual full input/configuration/Registry adopted; local typed candidates distinguished from source-query presence and presentation. Project merged token metric is explicitly presentation-only; genuine project target selection remains open.",
+        "lsp-editor-pack-association-owner": "Shared actual Rust-rendered association glob, whole-batch completeness, per-context queue and current actual client/session/generation guards adopted. External user-setting CAS and retarget path-component policy remain open."
+      },
+      "new_annex": [
+        "compiler.source.explicit-standalone-complete-input-owner",
+        "compiler.source.spectcl-original-pack-include-source-owner",
+        "lsp.validation.shared-register-db-source-ingress"
+      ],
+      "baseline_delta": 11,
+      "LSP_baseline_delta": 10,
+      "annex_delta": 3,
+      "status": "integrated_pending_validation",
+      "execution": "Current frozen five-library build started17:28UTC; actual main TypeScript noEmit and scoped Prettier PASS; Rust controls, generated projection and actual editor hosts remain pending.",
+      "limits": "Standalone existing caller remains partial until original positive replay; two BIGIP generated query outputs are incidental compatibility only, no dedicated migration or acceptance."
+    },
+    "source_path_diagnostics_build": {
+      "status": "FAIL",
+      "source_head": "a372766c36e0585b16c7dd4501f0741585b894c9",
+      "errors": 33,
+      "warnings": 25,
+      "input_count": 38997,
+      "input_drift": 0,
+      "seconds": 63.313,
+      "capture": "experiments/name-handling/results/owner-adoption-20261016/lsp-source-path-diagnostics",
+      "repair": "Missing declared serde dependency and old fixture APIs; bounded genuine receipt adapters and warnings repaired. Cargo-owned lockfile adds only existing serde and tcl-test-support edges."
     }
   }
 }

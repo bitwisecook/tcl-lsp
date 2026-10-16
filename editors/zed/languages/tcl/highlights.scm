@@ -29,13 +29,14 @@
 (argument
   name: (_) @variable.parameter)
 
-; Tcl built-in variables
+; Tcl built-in variables from the shared special-variable catalogue
 ((simple_word) @variable.builtin
   (#any-of? @variable.builtin
-    "argc" "argv" "argv0" "auto_path" "env" "errorCode" "errorInfo"
-    "tcl_interactive" "tcl_library" "tcl_nonwordchars" "tcl_patchLevel"
-    "tcl_pkgPath" "tcl_platform" "tcl_precision" "tcl_rcFileName"
-    "tcl_traceCompile" "tcl_traceExec" "tcl_wordchars" "tcl_version"))
+    "argc" "argv" "argv0" "auto_execs" "auto_index" "auto_noexec"
+    "auto_noload" "auto_path" "env" "errorCode" "errorInfo" "tcl_interactive"
+    "tcl_libPath" "tcl_library" "tcl_nonwordchars" "tcl_patchLevel" "tcl_pkgPath" "tcl_platform"
+    "tcl_precision" "tcl_prompt1" "tcl_prompt2" "tcl_rcFileName" "tcl_traceCompile" "tcl_traceExec"
+    "tcl_version" "tcl_wordchars"))
 
 ; Procedure definitions
 "proc" @keyword.function

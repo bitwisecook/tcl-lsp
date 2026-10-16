@@ -1,0 +1,41 @@
+{
+  "baseline_units": [
+    "lsp-zed-tcl-variable-catalogue",
+    "lsp-zed-expect-variable-catalogue"
+  ],
+  "dependency_note": "The single shared generator renders all target languages; iApps and iRules query outputs are incidental generated dependencies, not additional claimed baseline units. iApps is BIG-IP-related. iRules values are filtered by its actual Core(F5Irules) provider union: errorCode, errorInfo, static, tcl_patchLevel, tcl_platform, tcl_version. No claim that those outputs are outside BIG-IP scope.",
+  "scope": "Zed Tcl and Expect lexical special-variable lists project CommandRegistry::special_vars through surface_provided_by for each language provider union. New test covers Tcl-only entries and excludes iRules-only static. Existing assertions/selectors preserved. No tests/builds run.",
+  "files": [
+    {
+      "path": "rust/xtask/src/gen_zed_queries.rs",
+      "before_sha256": "51de8631aa4a68045e7232179c7a1b1da75875346258dc038203da2a42100121",
+      "after_sha256": "0c655a2b0000c30595f708c4f3402114bdeac135667c25cc52a5dd00aa1b2522",
+      "changed": true
+    },
+    {
+      "path": "editors/zed/languages/tcl/highlights.scm",
+      "before_sha256": "31282100bfd888b7e52cb091d6384f52555875900c4cd24d62ea35fdc5a2e1c2",
+      "after_sha256": "0141958994ddee55b55877c34fd032a7bd167654ac8511e6a6a03510e77b2605",
+      "changed": true
+    },
+    {
+      "path": "editors/zed/languages/expect/highlights.scm",
+      "before_sha256": "f667b52f6e66b3e09e79be7d3b7f416d8ae8d12247168486503044bc1d58004e",
+      "after_sha256": "eacfebf7ac7cc950aac2dd6c3759e174738566a8bc2e36acdf98b57512e1e547",
+      "changed": true
+    },
+    {
+      "path": "editors/zed/languages/iapps/highlights.scm",
+      "before_sha256": "ee340ef065014ec3ffb573c4c1acccb189a0243c6a3a13bb6beb0884e00ff0b5",
+      "after_sha256": "df7d706e005b77c2d2efd85d82d47f6d2009650eb82fe18d788c899cb2932345",
+      "changed": true
+    },
+    {
+      "path": "editors/zed/languages/irules/highlights.scm",
+      "before_sha256": "799b926ca8e6ea3c5420deee34f9ce3e45faf08ac155a67b7c5eb96d43c1e3ba",
+      "after_sha256": "3282a45d478e25650dcb2b5f7925bb18320eb3951eee16b5df0ee96cce7d7c72",
+      "changed": true
+    }
+  ],
+  "patch_sha256": "e8f8812d65735f3eb8bc388ae2ad617d9a5af7135213a5034c3ad3c7f253575c"
+}

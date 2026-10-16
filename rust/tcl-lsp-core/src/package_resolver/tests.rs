@@ -22,11 +22,10 @@
 //! The differential tests generate genuine `pkgIndex.tcl` / `tclIndex` files
 //! with C Tcl's own `pkg_mkIndex` / `auto_mkindex`, and query C Tcl's own
 //! `auto_qualify`, then assert we produce the same result. They
-//! skip cleanly when no `tclsh` is on `PATH` (so CI without Tcl still passes),
-//! while the pure unit tests always run.
+//! skip cleanly when neither pinned C Tcl reference release is available (so CI
+//! without Tcl still passes), while the pure unit tests always run.
 
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use super::*;
@@ -67,30 +66,25 @@ fn write(path: &Path, content: &str) {
     std::fs::write(path, content).expect("write file");
 }
 
-/// The first usable `tclsh` on `PATH`, or `None` (tests then skip).
-fn find_tclsh() -> Option<&'static str> {
-    ["tclsh9.0", "tclsh8.6", "tclsh"]
-        .into_iter()
-        .find(|&sh| run_tclsh(sh, "puts ok").as_deref().map(str::trim) == Some("ok"))
-        .map(|v| v as _)
+/// Select the preferred validated C Tcl reference interpreter, or skip the
+/// optional differential when neither pinned release is installed.
+fn find_tclsh() -> Option<tcl_test_support::Tclsh> {
+    // Ask the owner about both preferred lanes before choosing: a configured
+    // required lane must fail as missing rather than being skipped because
+    // the other preferred interpreter happened to be available.
+    let tcl_9_0 = tcl_test_support::witness_tclsh(tcl_dialect::TclVersion::V9_0);
+    let tcl_8_6 = tcl_test_support::witness_tclsh(tcl_dialect::TclVersion::V8_6);
+    tcl_9_0.or(tcl_8_6)
 }
 
-/// Run `script` through `tclsh` (fed on stdin), returning trimmed stdout.
-fn run_tclsh(sh: &str, script: &str) -> Option<String> {
-    use std::io::Write as _;
-    let mut child = Command::new(sh)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .ok()?;
-    child.stdin.take()?.write_all(script.as_bytes()).ok()?;
-    let out = child.wait_with_output().ok()?;
-    if out.status.success() {
-        Some(String::from_utf8_lossy(&out.stdout).into_owned())
-    } else {
-        None
-    }
+/// Run `script` through the shared validated-interpreter owner, retaining its
+/// exit status and byte channels until the strict text assertion boundary.
+fn run_tclsh(sh: &tcl_test_support::Tclsh, script: &str) -> Option<String> {
+    let outcome = tcl_test_support::run_script(&sh.path, script.as_bytes())
+        .unwrap_or_else(|error| panic!("running Tcl oracle: {error}"));
+    Some(outcome.strict_text().unwrap_or_else(|error| {
+        panic!("Tcl oracle failed ({error}); full process outcome: {outcome:?}")
+    }))
 }
 
 fn always_exists(_: &Path) -> bool {
@@ -126,7 +120,7 @@ fn auto_qualify_matches_c_tcl_documented_cases() {
 #[test]
 fn auto_qualify_differential_against_tclsh() {
     let Some(sh) = find_tclsh() else {
-        eprintln!("skipping auto_qualify differential: no tclsh on PATH");
+        eprintln!("skipping auto_qualify differential: no pinned Tcl reference interpreter");
         return;
     };
     let cases = [
@@ -144,7 +138,7 @@ fn auto_qualify_differential_against_tclsh() {
     ];
     for (cmd, ns) in cases {
         let script = format!("puts [auto_qualify {{{cmd}}} {{{ns}}}]");
-        let Some(reference) = run_tclsh(sh, &script) else {
+        let Some(reference) = run_tclsh(&sh, &script) else {
             panic!("tclsh failed for auto_qualify {cmd} {ns}");
         };
         let ours = auto_qualify(cmd, ns).join(" ");
@@ -265,7 +259,7 @@ fn parse_pkg_index_rejects_bad_version_and_falls_back_to_dir_listing() {
 #[test]
 fn parse_pkg_index_differential_against_pkg_mkindex() {
     let Some(sh) = find_tclsh() else {
-        eprintln!("skipping pkg_mkIndex differential: no tclsh on PATH");
+        eprintln!("skipping pkg_mkIndex differential: no pinned Tcl reference interpreter");
         return;
     };
     let td = TempDir::new("pkgmk");
@@ -276,7 +270,7 @@ fn parse_pkg_index_differential_against_pkg_mkindex() {
     );
     // Generate a real pkgIndex.tcl with C Tcl's own pkg_mkIndex.
     let script = format!("pkg_mkIndex {{{}}} *.tcl", pkg_dir.display());
-    assert!(run_tclsh(sh, &script).is_some(), "pkg_mkIndex failed");
+    assert!(run_tclsh(&sh, &script).is_some(), "pkg_mkIndex failed");
     let index_path = pkg_dir.join("pkgIndex.tcl");
     let content = std::fs::read_to_string(&index_path).expect("read generated pkgIndex.tcl");
 
@@ -323,7 +317,7 @@ fn parse_tcl_index_v2_and_old_formats() {
 #[test]
 fn parse_tcl_index_differential_against_auto_mkindex() {
     let Some(sh) = find_tclsh() else {
-        eprintln!("skipping auto_mkindex differential: no tclsh on PATH");
+        eprintln!("skipping auto_mkindex differential: no pinned Tcl reference interpreter");
         return;
     };
     let td = TempDir::new("automk");
@@ -333,7 +327,7 @@ fn parse_tcl_index_differential_against_auto_mkindex() {
         "proc ::myns::helper {} {}\nproc globalcmd {} {}\n",
     );
     let script = format!("auto_mkindex {{{}}} *.tcl", dir.display());
-    assert!(run_tclsh(sh, &script).is_some(), "auto_mkindex failed");
+    assert!(run_tclsh(&sh, &script).is_some(), "auto_mkindex failed");
     let content = std::fs::read_to_string(dir.join("tclIndex")).expect("read tclIndex");
 
     let entries = parse_tcl_index(&content, dir, &|p| p.is_file());

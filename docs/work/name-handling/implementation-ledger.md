@@ -1,19 +1,12 @@
 # Remaining naming implementation obligations
 
-Active priority is **all LSP consumers and their required shared Compiler/DB/Registry owners**. Runtime/VM and BIG-IP work are deferred at their recorded checkpoints. For uncovered BIG-IP behaviour, Tcl8.4 is a working assumption; measured evidence keeps its original scope and provenance. The LSP baseline contains **325 obligations** (201 semantic,122 validation,2 documentation): **105 have integrated changes** (24 semantic,79 validation,2 documentation),220 have none and zero are verified complete. Shared dependencies keep their original counts and are not recounted here.
+Active work is all LSP consumers and their required shared Compiler/DB/Registry owners. Runtime/VM and BIG-IP migration work remains deferred. Uncovered BIG-IP behaviour uses the Tcl 8.4 working assumption separately from measured evidence.
 
-Implementation has resumed from `554085e`. **233 baseline units** have reviewed
-implementation pending validation: 179 code units and all 54 authored-documentation
-units. Four callers remain explicitly partial: DB class cards, standalone optimiser purpose, editor validation override lifetime and Tcl AI action currency.
-**Zero units are verified complete**. Baseline counts remain **2,158**;
-1,925 baseline units have no integrated implementation. The bounded
-[owner/caller annex](implementation-owner-annex.json) adds **41 demonstrated
-requirements**, 40 integrated pending validation and one blocked before integration.
-Effective scope is **2,199 obligations**, with **273 integrated pending validation**
-and **1,926 not integrated**. These counts establish neither semantic acceptance
-nor completed gates.
+The LSP baseline has **325 obligations**:201 semantic,122 validation and2 documentation. **115 have integrated changes pending validation**:30 semantic,83 validation and2 documentation;210 have no integration. None are verified complete. Shared dependencies retain their own purpose/count rather than duplicate LSP credit.
 
-Current selected builds, failures and pending gates are recorded in [current-state.md](current-state.md). Development checkpoint `c20c6ed04` is pushed; reviewed LSP successors remain pending validation. Runtime/VM and BIG-IP implementation and dedicated execution are paused.
+Across the immutable2,158 baseline obligations, **244 are integrated pending validation**:190 code and54 documentation, including six partial callers;1,914 have none. The [annex](implementation-owner-annex.json) adds44 distinct obligations:43 integrated and one blocked. Effective scope is **2,202 required /287 integrated /1,915 not integrated /zero verified complete**. Partial callers are DB class cards, standalone optimiser purpose pending original-positive execution, validation override lifetime, Tcl AI action currency, project dispatch-example target selection and pack-association external configuration/path policy.
+
+Reviewed development checkpoint a372766c3 is pushed on `work`; its current input/fixture/editor successor is compiling. Required owner/proof/generated and repository gates remain red or unexecuted. No PR, issue closure or merge is authorised by source review. See [current state](current-state.md), [exact catalogue](repository-consumer-audit-final.json) and [implementation ledger](implementation-ledger.md).
 
 The source/role audit is complete for **110,709 tracked baseline paths**, with explicit current-source annexes and zero unexamined paths. The reconciled catalogue contains **1,321 caller migrations**, **377 shared-owner repairs/extensions** and **101 metadata/target-schema changes**: **1,799 semantic code changes**. There are separately **305 validation-code repairs** and **54 authored-documentation corrections**, making **2,158 confirmed required changes**. These remain to be implemented. Examined requirements and original/provider provenance questions remain separate.
 

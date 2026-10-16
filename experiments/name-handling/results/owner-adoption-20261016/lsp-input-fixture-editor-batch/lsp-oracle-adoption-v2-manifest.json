@@ -1,0 +1,36 @@
+{
+  "change": "Adopt the repository's witness-required Tcl interpreter policy and byte-channel-preserving script runner in package-resolver differential tests.",
+  "patch": "patch.apply.diff",
+  "patch_sha256": "3129148691a20e857f0098b89fc24e54479f0a4e359ff3fb6dfecdb74ad3a351",
+  "files": [
+    {
+      "path": "rust/tcl-lsp-core/src/package_resolver/tests.rs",
+      "before_sha256": "17f54b7952caa2310b14ab95795d1471dae4ec98d8fb1963475385cd4795b74d",
+      "after_sha256": "951d2cc99bc5ec6d95474a046be1ef2678dfcd93fe3108f275bcc91a28a65c3e"
+    },
+    {
+      "path": "rust/tcl-lsp-core/Cargo.toml",
+      "before_sha256": "590aa239528d33bb36c73d693ee64e1bc30409ec97865e81e3488cc85578d28a",
+      "after_sha256": "1e473efd7da54f270169d8f1f2eb7c5f27cd320eb33deacee8ba01c4fc30cdb1"
+    }
+  ],
+  "baseline_units": ["lsp.validation.15.00.fn0", "lsp.validation.15.00.fn1"],
+  "source_owner": "rust/tcl-test-support/src/lib.rs: witness_tclsh, run_script, ScriptOutcome::strict_text",
+  "selectors": [
+    "package_resolver::tests::auto_qualify_differential_against_tclsh",
+    "package_resolver::tests::parse_pkg_index_differential_against_pkg_mkindex",
+    "package_resolver::tests::parse_tcl_index_differential_against_auto_mkindex"
+  ],
+  "behavior_preserved": [
+    "The pure resolver tests are unchanged.",
+    "The original preferred release order remains Tcl 9.0 then Tcl 8.6.",
+    "Both preferred lanes are checked through witness_tclsh before selection, so a configured required missing lane cannot be hidden by the other lane being present.",
+    "All existing test function names, expected results, inputs, and numeric assertions are unchanged.",
+    "Original process exit status, stdout bytes, and stderr bytes remain available in failure diagnostics; text decoding is strict and rejects non-UTF-8 or stderr-bearing oracle outcomes."
+  ],
+  "validation": {
+    "patch_dry_run": "passed against current checkout",
+    "Cargo/tests": "not run by subagent; parent owns builds",
+    "Cargo.lock": "requires Cargo-owned lockfile refresh because tcl-test-support becomes a dev-dependency; no lockfile was hand-edited."
+  }
+}

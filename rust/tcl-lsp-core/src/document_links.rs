@@ -626,10 +626,9 @@ fn lexical_navigation_link(
 ///
 /// A pack's `include` row is the one statement in the `SpecTcl` vocabulary
 /// that names another file, and the link has to land where the *loader* reads
-/// — anywhere else it navigates to a file the pack never included. So this
-/// spells out `IncludeContext::for_file`'s rule and only that rule: the name is
-/// joined to the including document's own directory, with no tilde expansion
-/// and no `workspace_root` fallback. The general `source <path>` resolver does
+/// if that row is evaluated. The shared SpecTcl source facet retains the actual
+/// row/name extent and applies the same sibling-path rule as the loader's
+/// `IncludeContext::for_file`, without IO, evaluation or an availability claim. The general `source <path>` resolver does
 /// both, and `include ~` under it linked to the user's home directory while the
 /// loader read a sibling literally named `~`.
 ///
@@ -661,63 +660,30 @@ fn pack_include_links(
     {
         return Vec::new();
     }
-    // The loader's anchor is `path.parent()` of the including pack; a document
-    // with no path of its own has no such directory and so no include to link.
-    let Some(dir) = script_path
-        .map(std::path::Path::new)
-        .and_then(std::path::Path::parent)
-    else {
+    let Some(path) = script_path.map(std::path::Path::new) else {
         return Vec::new();
     };
     let mut links = Vec::new();
-    for pack in segment_commands_with_offset_and_config(source, 0, config) {
-        // `speclib NAME VERSION { … }` — the pack body is the fourth word, and
-        // the document grammar admits no other statement at the root.
-        // value-transfer-ok: irreducible — the pack grammar's own statements
-        if pack.texts.first().is_none_or(|head| head != "speclib") {
-            continue;
-        }
-        let Some(body) = pack.argv.get(3) else {
+    for include in tcl_compiler::parsing::spectcl_source::pack_source_includes(source, config) {
+        let Some(path) = include.sibling_path(path) else {
             continue;
         };
-        let body_start = body.span.start() + u32::from(body.content_offset);
-        let Some(body_text) = source
-            .get(body_start as usize..)
-            .and_then(|rest| rest.get(..body.span.end().saturating_sub(body_start) as usize))
+        let Some(target) =
+            crate::file_uri::from_path(&path, crate::file_uri::FileUriEscaping::PathCharacters)
         else {
             continue;
         };
-        for row in segment_commands_with_offset_and_config(body_text, body_start, config.nested()) {
-            // value-transfer-ok: irreducible — the pack grammar's own statements
-            if row.texts.first().is_none_or(|head| head != "include") || row.texts.len() != 2 {
-                continue;
-            }
-            let name = &row.texts[1];
-            if name.is_empty() || name.contains(['/', '\\']) || name.contains("..") {
-                continue;
-            }
-            let Some(target) = crate::file_uri::from_path(
-                &dir.join(name),
-                crate::file_uri::FileUriEscaping::PathCharacters,
-            ) else {
-                continue;
-            };
-            let Some(tok) = row.argv.get(1) else { continue };
-            let Some((anchor_start, anchor_end)) = link_anchor_with_config(source, config, tok)
-            else {
-                continue;
-            };
-            let start = line_index.position_at_utf16(anchor_start, source);
-            let end = line_index.position_at_utf16(anchor_end, source);
-            links.push(DocumentLink {
-                start_line: start.line,
-                start_character: start.character.get(),
-                end_line: end.line,
-                end_character: end.character.get(),
-                target,
-                tooltip: Some(name.clone()),
-            });
-        }
+        let anchor = include.name_span();
+        let start = line_index.position_at_utf16(anchor.start as u32, source);
+        let end = line_index.position_at_utf16(anchor.end as u32, source);
+        links.push(DocumentLink {
+            start_line: start.line,
+            start_character: start.character.get(),
+            end_line: end.line,
+            end_character: end.character.get(),
+            target,
+            tooltip: Some(include.name().to_owned()),
+        });
     }
     links
 }
@@ -869,6 +835,44 @@ mod tests {
                 script_path: Some("/home/user/project/.tcl-lsp/mylib.tclspec"),
             },
         )
+    }
+
+    #[test]
+    fn pack_include_navigation_uses_original_wrapped_unicode_names_and_first_pack() {
+        let src = "speclib p 2.0 {include {shared α.tclspec}}; speclib q 2.0 {include ignored}";
+        let links = pack_links(src, crate::profile_for_dialect("spectcl"));
+        assert_eq!(links.len(), 1, "{links:?}");
+        assert_eq!(
+            links[0].target,
+            "file:///home/user/project/.tcl-lsp/shared%20%CE%B1.tclspec"
+        );
+        let start = src.find("shared").unwrap() as u32;
+        let end = start + "shared α.tclspec".len() as u32;
+        let index = LineIndex::new(src);
+        assert_eq!(
+            links[0].start_character,
+            index.position_at_utf16(start, src).character.get()
+        );
+        assert_eq!(
+            links[0].end_character,
+            index.position_at_utf16(end, src).character.get()
+        );
+    }
+
+    #[test]
+    fn pack_include_navigation_withholds_dynamic_and_nested_file_rows() {
+        for row in [
+            "include $file",
+            "include [set file]",
+            "command c {include hidden}",
+            "include from",
+        ] {
+            let src = format!("speclib p 2.0 {{{row}}}");
+            assert!(
+                pack_links(&src, crate::profile_for_dialect("spectcl")).is_empty(),
+                "{row}"
+            );
+        }
     }
 
     /// A pack's `include NAME` row links to the sibling file the loader would

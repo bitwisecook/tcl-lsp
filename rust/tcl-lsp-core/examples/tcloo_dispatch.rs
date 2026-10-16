@@ -24,12 +24,12 @@
 
 use std::collections::HashMap;
 use std::path::Path;
+use std::sync::Arc;
 
-use tcl_compiler::analyser::{Analyser, ClassDef, build_class_hierarchy};
-use tcl_compiler::compilation_unit::CompilationUnit;
+use tcl_compiler::analyser::{Analyser, ClassDef, ResolvedAnalysisInput, build_class_hierarchy};
+use tcl_compiler::compilation_unit::{CompilationUnit, UnitBuildOptions};
 use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
 use tcl_lexer::{LexerConfig, TokenType};
-use tcl_registry::CommandRegistry;
 
 #[derive(Default, Clone, Copy)]
 struct Counts {
@@ -56,18 +56,28 @@ fn main() {
         eprintln!("usage: tcloo_dispatch <dir|file>...");
         std::process::exit(2);
     }
-    let registry = CommandRegistry::build_default();
-    let func_idx = tcl_lsp_core::semantic_tokens::legend_token_types()
+    let dialect = "tcl9.0";
+    let environment = tcl_registry::model::ingress::resolve_environment(dialect);
+    let context = environment.default_context_registry();
+    let registry = context.commands().registry();
+    let config = LexerConfig::for_file_grammar(environment.grammar());
+    let input = ResolvedAnalysisInput::new(
+        environment.analyser_profile(),
+        environment.unit_profile(),
+        Arc::clone(&context),
+        config,
+    );
+    let method_token_idx = tcl_lsp_core::semantic_tokens::legend_token_types()
         .iter()
-        .position(|t| *t == "function")
-        .expect("function token type in legend") as u32;
+        .position(|token| *token == "method")
+        .expect("method token type in legend") as u32;
 
     // Per receiver-form and overall tallies.
     let mut by_form: HashMap<&'static str, Counts> = HashMap::new();
     let mut total = Counts::default();
+    let mut query_without_candidate = 0usize;
     let mut files = 0usize;
 
-    let dialect = "tcl9.0";
     let mut args = dirs;
     // `--project` builds a workspace-merged class hierarchy across all files
     // (the shipping server's cross-file mode); default is single-file local.
@@ -85,7 +95,10 @@ fn main() {
         let mut merged: HashMap<String, ClassDef> = HashMap::new();
         for path in &paths {
             if let Ok(src) = std::fs::read_to_string(path) {
-                for (name, class) in Analyser::new().analyse(&src, dialect).all_classes {
+                let analysis = Analyser::new()
+                    .with_resolved_input(input.clone())
+                    .analyse(&src, environment.id());
+                for (name, class) in analysis.all_classes {
                     merged.entry(name).or_insert(class);
                 }
             }
@@ -102,40 +115,84 @@ fn main() {
             continue;
         }
         files += 1;
-        let cu = CompilationUnit::build_for(&src, &registry, false);
-        let analysis = Analyser::new().analyse(&src, dialect);
-        let st = match &project_hierarchy {
-            Some(h) => tcl_lsp_core::semantic_tokens::full_with_cu_and_classes(
+        let cu = CompilationUnit::build_with_analysis_input(
+            &src,
+            UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config,
+                dialect: Some(input.unit_profile()),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        );
+        let analysis = Analyser::new()
+            .with_resolved_input(input.clone())
+            .analyse(&src, environment.id());
+        let source_query_spans: std::collections::HashSet<u32> =
+            tcl_lsp_core::method_symbol::source_queries(&analysis)
+                .into_iter()
+                .filter(|query| !query.is_declaration())
+                .map(|query| query.span().start())
+                .collect();
+        let project_token_kinds = project_hierarchy.as_ref().map(|hierarchy| {
+            let semantic_tokens = tcl_lsp_core::semantic_tokens::full_with_cu_and_facts(
                 &src,
-                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
-                &registry,
+                input.analyser_profile(),
+                registry,
                 Some(&cu),
-                Some(h),
-            ),
-            None => tcl_lsp_core::semantic_tokens::full_with_cu_and_analysis(
-                &src,
-                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
-                &registry,
-                Some(&cu),
-                Some(&analysis),
-            ),
-        };
-        let kinds = decode_kinds(&st.data);
-        let line_starts = line_starts(&src);
+                tcl_lsp_core::semantic_tokens::WorkspaceTokenFacts {
+                    classes: Some(hierarchy),
+                    analysis: Some(&analysis),
+                    ..Default::default()
+                },
+            );
+            decode_kinds(&semantic_tokens.data)
+        });
+        let source_line_starts = line_starts(&src);
+        let line_starts = project_mode.then_some(source_line_starts.as_slice());
+
         let mut sites = Vec::new();
-        collect_sites(&src, 0, dialect, &mut sites, 0);
+        collect_sites(&src, 0, config, &mut sites, 0);
         for (form, method_start) in sites {
-            let (line, col) = byte_to_line_col(&line_starts, &src, method_start);
-            let resolved = kinds.get(&(line, col)) == Some(&func_idx);
+            let resolved = if project_mode {
+                let starts = line_starts.as_deref().expect("project mode has source lines");
+                let kinds = project_token_kinds
+                    .as_ref()
+                    .expect("project mode has a merged class hierarchy");
+                let (line, column) = byte_to_line_col(starts, &src, method_start);
+                kinds.get(&(line, column)) == Some(&method_token_idx)
+            } else {
+                let (line, character) =
+                    byte_to_line_col(&source_line_starts, &src, method_start);
+                let selected = matches!(
+                    tcl_lsp_core::method_symbol::local_candidate(&src, &analysis, line, character),
+                    std::ops::ControlFlow::Break(Some(_)),
+                );
+                if source_query_spans.contains(&method_start) && !selected {
+                    query_without_candidate += 1;
+                }
+                selected
+            };
             by_form.entry(form).or_default().add(resolved);
             total.add(resolved);
         }
     }
 
-    println!("# TclOO dispatch resolution rate");
-    println!("files with OO: {files}   dispatch sites: {}", total.total);
-    println!();
-    println!("| receiver form | resolved | sites | rate |");
+    println!("# TclOO dispatch selection and presentation report");
+    if project_mode {
+        println!("project mode reports semantic-token presentation for cross-file candidates; this is not a typed source-target verdict");
+        println!("files with OO: {files}   dispatch sites: {}", total.total);
+        println!();
+        println!("| receiver form | method token | sites | rate |");
+    } else {
+        println!("single-file mode counts actual typed source-method queries");
+        println!("files with OO: {files}   dispatch sites: {}", total.total);
+        println!();
+        println!("| receiver form | selected target | sites | rate |");
+    }
     println!("|---|--:|--:|--:|");
     let mut forms: Vec<_> = by_form.iter().collect();
     forms.sort_by_key(|(_, c)| std::cmp::Reverse(c.total));
@@ -153,6 +210,9 @@ fn main() {
         total.total,
         total.rate() * 100.0
     );
+    if !project_mode {
+        println!("non-declaration source queries without a selected candidate at a dispatch site: {query_without_candidate}");
+    }
 }
 
 /// Recursively segment `text` and record each object-dispatch site as
@@ -161,7 +221,7 @@ fn main() {
 fn collect_sites(
     source: &str,
     base: u32,
-    dialect: &str,
+    config: LexerConfig,
     out: &mut Vec<(&'static str, u32)>,
     depth: u32,
 ) {
@@ -170,8 +230,7 @@ fn collect_sites(
     }
     // Segment with local spans (offset 0); `base` is the absolute byte offset of
     // `source`, added only when recording an absolute position.
-    for seg in segment_commands_with_offset_and_config(source, 0, LexerConfig::for_dialect(dialect))
-    {
+    for seg in segment_commands_with_offset_and_config(source, 0, config) {
         if let (Some(head), Some(method_tok)) = (seg.argv.first(), seg.argv.get(1))
             && let Some(form) = receiver_form(head, &seg)
         {
@@ -197,7 +256,7 @@ fn collect_sites(
                 collect_sites(
                     inner,
                     base + u32::try_from(s).unwrap_or(0),
-                    dialect,
+                    config,
                     out,
                     depth + 1,
                 );

@@ -1,0 +1,32 @@
+{
+  "patch": "spectcl-include-source-v2.patch",
+  "sha256": "83af0e81084003b0d50aa871a74639695a6a2c6c06ae132c3037e59217d0d1f8",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/parsing/mod.rs",
+      "base_sha256": "990c6adcedb88d07a65a705608f6b1f31e66d64075bfe86378f6ed9016847031",
+      "edit_sha256": "c56e9437c5c4939ff144845e1c4f219dfb483de903eafc1c632e6ba16b31b70a"
+    },
+    {
+      "path": "rust/tcl-compiler/src/parsing/spectcl_source.rs",
+      "base_sha256": null,
+      "edit_sha256": "660115d4fd5f70ad363c6aabc016b343c2bc2923a53f6d3fe7a6ab6581fe1ad4"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/document_links.rs",
+      "base_sha256": "68ee0d19069842845049e62669ae6b4bfd22963e2a14ea0d51cfe77c26a41351",
+      "edit_sha256": "6288f729d015a8c60a0ed8c450fd9e10bd89e6bca76da67b508d558fb6f3c40e"
+    },
+    {
+      "path": "rust/tcl-spectcl/src/loader/eval.rs",
+      "base_sha256": "2f87a213d4cc063aaa5246914fe867ef74b072feadfdf39c64f3867ec282a750",
+      "edit_sha256": "da776c6ccd701ef9d9d32a751d7dd6c5edd41e09ddd011d89ab7cdfd4677d29c"
+    },
+    {
+      "path": "rust/tcl-spectcl/src/loader.rs",
+      "base_sha256": "9a022cb369527355fa494f9d6c7f17878fa327955edc32a48b6ceb026ffdd55e",
+      "edit_sha256": "a5049b2ccbf232a8c65b3a82319b87bc7583a9bbb58504fe4f0a75c8b4fb6e92"
+    }
+  ],
+  "validation": "TMP formatting, live-base SHA check, dry-run and separate TMP apply/hash only. No Cargo, tests, main writes, or Git."
+}

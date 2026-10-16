@@ -56,6 +56,8 @@ serde_json = "1"
 fluent-uri = { version = "0.4.1", features = ["net"] }
 
 [dev-dependencies]
+# Pinned C Tcl provider validation and byte-preserving oracle invocation for differential tests.
+tcl-test-support = { path = "../tcl-test-support" }
 # The runtime ARE engine, used as an oracle in the semantic-token regex tests:
 # every pattern the tokenizer sub-tokenises is confirmed to be valid ARE by the
 # same engine Tcl uses at runtime, tying the two to one source of truth.

@@ -1,0 +1,4 @@
+patching file docs/design/contracts/shared-utility-contracts-rust.md
+patching file docs/design/registry/spec-packs.md
+
+All edit SHA256s match. Added/deleted doc lines equal V2 exactly. No scope or source-bundle changes. No Cargo/main/Git/tests.

@@ -1,0 +1,87 @@
+{
+  "change": "Create temporary fixture directories with std::fs::create_dir as the exclusive ownership receipt; retry only path collisions and fail on other filesystem errors, so existing cleanup owns only a directory this process actually created.",
+  "patch": "patch.apply.diff",
+  "patch_sha256": "ac8fd840d62f7b2d3cce2185ca1ea775318f2618e5890c331ed4728809d2115d",
+  "file": {
+    "path": "rust/tcl-lsp-server/src/lib.rs",
+    "before_sha256": "c17d5ef5b2953011800cbfb2f3b353976174dd9844ed5e4410a5c14d3b86a849",
+    "after_sha256": "b8bbd0c6a5b50e03ceb718a9a0c56161c9f63ed71d82d92f61632cb77609efdb"
+  },
+  "baseline_units": [
+    "lsp.validation.25.00.0.fn0",
+    "lsp.validation.25.00.1.fn0"
+  ],
+  "sites": [
+    {
+      "symbol": "tests::TmpWs::new",
+      "callers": [
+        "a_relative_auto_path_entry_anchors_on_the_document_not_the_server_cwd",
+        "a_triple_nested_dirname_auto_path_feeds_the_package_database",
+        "a_versioned_require_indexes_the_release_it_asks_for",
+        "autoload_library_command_suppresses_w123_issue_832",
+        "build_package_resolver_picks_up_a_discovered_installation_package",
+        "canonical_file_uri_declines_opaque_actual_path_without_replacement_alias",
+        "canonical_file_uri_preserves_absolute_and_relative_existence_policy",
+        "config_file_settings_apply_through_global_config",
+        "definition_lands_in_the_package_release_tcl_would_load",
+        "definition_resolves_through_a_document_auto_path_package",
+        "document_auto_path_mutation_feeds_the_package_database",
+        "effective_auto_path_layers_editor_project_and_discovery",
+        "explicit_entry_point_config_suppresses_w120_project_wide",
+        "pkgindex_package_source_command_suppresses_w123",
+        "pull_path_applies_w120_package_refinement",
+        "refine_w120_kept_when_resolvable_require_does_not_provide_tk",
+        "refine_w120_suppressed_when_wrapper_transitively_requires_tk",
+        "requiring_a_load_only_package_keeps_other_w120s",
+        "scan_workspace_folders_builds_resolver_with_no_roots",
+        "set_auto_path_puts_every_list_element_on_the_search_path",
+        "source_graph_inheritance_suppresses_w120_in_sourced_module"
+      ]
+    },
+    {
+      "symbol": "tests::unique_scratch_dir",
+      "callers": [
+        "a_cross_file_metaclass_resolves_after_the_workspace_scan",
+        "a_dynamic_metaclass_head_abstains_even_with_the_scan_index",
+        "a_three_level_factory_scan_withdraws_descendants_when_the_source_root_disappears",
+        "a_workspace_with_no_metaclass_never_sets_the_factory_oracle",
+        "closed_file_republish_does_not_memoise_the_deep_compiler_tier",
+        "collect_tcl_files_picks_up_tcltest_files",
+        "collect_tcl_files_respects_cap",
+        "collect_tcl_files_walks_recursively_and_skips_vendor",
+        "cross_file_drops_disk_backed_file_when_gone",
+        "cross_file_resolves_against_disk_backed_file",
+        "did_close_badge_reflects_on_disk_not_discarded_buffer",
+        "did_close_clears_badge_when_file_deleted_before_close",
+        "did_close_hands_its_edit_turn_on_before_the_reindex_tail",
+        "did_close_publishes_empty_badge_for_clean_on_disk_file",
+        "did_close_retains_diagnostics_for_on_disk_file_with_problems",
+        "disk_reindex_waiting_for_a_salsa_snapshot_never_holds_documents_1800",
+        "disk_reindex_waiting_for_the_index_never_holds_documents_1800",
+        "disk_reindex_yields_to_a_racing_live_buffer_1800",
+        "dropping_one_factory_reindexes_its_consumers_while_retaining_others",
+        "publish_closed_is_noop_for_open_document",
+        "reindex_from_disk_does_not_clobber_open_document",
+        "reindex_from_disk_refreshes_index_rather_than_dropping",
+        "reindex_stores_source_directed_dialect",
+        "removing_the_last_factory_reindexes_unopened_consumers_with_an_empty_oracle",
+        "reschedule_closed_file_diagnostics_clears_badge_when_master_off",
+        "scan_workspace_folders_does_not_build_deep_tier_for_unopened_files",
+        "scan_workspace_folders_indexes_unopened_files",
+        "scan_workspace_folders_skips_open_documents",
+        "seed_autoload_library",
+        "watched_change_refreshes_closed_file_badge",
+        "watched_delete_clears_closed_file_badge",
+        "watched_delete_then_create_reuses_source_input",
+        "watched_files_batch_applies_created_changed_and_deleted_together",
+        "workspace_folder_add_reschedules_non_xc_document_too",
+        "workspace_symbol_finds_a_symbol_in_an_unopened_indexed_file"
+      ]
+    }
+  ],
+  "preserved": "No test selectors, assertions, fixtures, cleanup calls, or time budgets were changed.",
+  "validation": {
+    "patch_dry_run": "passed against current checkout",
+    "Cargo/tests": "not run by subagent; parent owns builds"
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "count": 38997,
+  "sha256": "2c9b17cf1a01d7d5a83b04fdc667ce1f99525a6fdf9ec741931d7199f1b19160",
+  "inputs": "Reconstruct tracked Rust/runtime/scripts/specs/Cargo/config inputs from exact source commit a372766c36e0585b16c7dd4501f0741585b894c9 using retained harness; all matched after compilation. Full execution-local index retained outside Git.",
+  "limitations": "Failed build only; no controls executed."
+}

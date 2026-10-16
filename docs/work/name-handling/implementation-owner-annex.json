@@ -912,6 +912,69 @@
         "verified_complete": false
       },
       "implementation_scope": "Independently source-cleared0f/d8 SourceStore and895d V7 completion, actual V8 consumer; ordinary/platform/owner/gate execution pending. Unsupported dyn/cross-crate AST route ceiling explicitly documented."
+    },
+    {
+      "id": "compiler.source.explicit-standalone-complete-input-owner",
+      "kind": "shared_owner_extension",
+      "baseline_unit_ids": [
+        "lsp-diagnostic-report-standalone-directive-input"
+      ],
+      "site_anchors": [
+        {
+          "path": "rust/tcl-compiler/src/lowering/mod.rs",
+          "symbol": "StandaloneSourceInput; Lowerer::for_standalone_source_with_input; retain_standalone_source_metadata"
+        },
+        {
+          "path": "rust/tcl-compiler/src/compilation_unit.rs",
+          "symbol": "CompilationUnit::build_standalone_with_analysis_input"
+        },
+        {
+          "path": "rust/tcl-compiler/src/optimiser/manager.rs",
+          "symbol": "optimise_source_multipass_admitting_standalone_with_analysis_input"
+        }
+      ],
+      "rationale": "Demonstrated missing transport of independently selected existing Standalone source authoring purpose alongside the complete actual input/Registry/store/overlay/full config. Generic supplied Native-profile rebuild correctly retains unknown entry and cannot supply this purpose; metadata cannot reopen it. A sealed explicit request reuses the existing authoring constructor and existing metadata attachment with no NativeCompilationEntry/activation. Count once for the shared purpose/owner extension; the ff35 Core baseline caller is already integrated and is not counted again; unchanged CLI/MCP/current-document callers/helpers/tests add zero.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false
+      },
+      "implementation_scope": "Root reports source9476ee3c plus contract5077f51c integrated; independent source CLEAR. Fresh five ordinary library build active at 17:28 UTC; no resulting test/efficacy/verified completion claim."
+    },
+    {
+      "id": "compiler.source.spectcl-original-pack-include-source-owner",
+      "kind": "shared_owner_extension",
+      "baseline_unit_ids": [
+        "lsp-document-links-pack-include"
+      ],
+      "site_anchors": [
+        {
+          "path": "rust/tcl-compiler/src/parsing/spectcl_source.rs",
+          "symbol": "PackSourceBody; PackSourceInclude; pack_source_includes; include_file_name; include_file_path"
+        }
+      ],
+      "rationale": "One extracted pure SpecTcl configured CST/source/name/sibling-path owner below actual loader and Core, avoiding the existing SpecTcl-to-Core VFS cycle. Existing Core navigation caller counted in baseline; loader reuses the same existing domain policy. Not an extra count per exported helper, changed loader caller or test. Original rows/full configuration/span/cooked-versus-raw distinction and unsupported-major boundary retained; no IO, evaluated inventory, Native execution or edit authority.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false
+      },
+      "implementation_scope": "Source83af and equivalent rebased contractde717 independently CLEAR; actual ordinary/platform/loader controls pending."
+    },
+    {
+      "id": "lsp.validation.shared-register-db-source-ingress",
+      "kind": "validation_code_repair",
+      "baseline_unit_ids": [],
+      "site_anchors": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "symbol": "tests::register"
+        }
+      ],
+      "rationale": "One demonstrated missing shared fixture ingress absent all baseline anchors: actual db_set_source then same URI/source/dialect analysis_for before workspace publication replaces detached standalone analysis. Individual tests/assertions/source fixtures/selectors/budgets unchanged; no test-count multiplication or Runtime currency/completion acceptance.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false
+      },
+      "implementation_scope": "Exact ceeef source patch independently CLEAR by Luna and Sol; fresh actual library execution pending."
     }
   ],
   "unverified_or_open": [
@@ -923,27 +986,28 @@
   ],
   "status_note": "Requirements are counted regardless of implementation presence. No additional requirement or baseline unit is verified complete.",
   "status": "accepted_additional_obligations_unverified",
-  "utc": "2026-10-16T17:16:36.460823+00:00",
+  "utc": "2026-10-16T17:32:36.618361+00:00",
   "accepted_delta": {
-    "semantic_code_changes": 41,
-    "validation_code_repairs": 0,
+    "semantic_code_changes": 43,
+    "validation_code_repairs": 1,
     "authored_documentation": 0,
-    "all_required_changes": 41,
+    "all_required_changes": 44,
     "by_kind": {
       "shared_owner_repair": 9,
-      "shared_owner_extension": 21,
+      "shared_owner_extension": 23,
       "caller_migration": 10,
-      "metadata_or_target_schema": 1
+      "metadata_or_target_schema": 1,
+      "validation_code_repair": 1
     }
   },
   "effective_counts": {
-    "semantic_code_changes": 1840,
-    "validation_code_repairs": 305,
+    "semantic_code_changes": 1842,
+    "validation_code_repairs": 306,
     "authored_documentation": 54,
-    "all_required_changes": 2199
+    "all_required_changes": 2202
   },
   "implementation_progress": {
-    "implemented_pending_validation": 40,
+    "implemented_pending_validation": 43,
     "not_integrated": 1,
     "verified_complete": 0
   }
