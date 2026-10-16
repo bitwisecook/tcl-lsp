@@ -261,6 +261,35 @@ pub enum OriginalRegistrySource {
     Vendor(std::sync::Arc<crate::registry_invocation::OriginalConditionalVendorRegistryMetadata>),
 }
 
+/// Readonly continuity from invocation entry to one genuine Logical Written
+/// operand. Every earlier Written head/argument is an original static whole
+/// word; captured alias prefix values remain data from their separate issuer.
+/// This closes only current operand syntax, not prior source/observer debts,
+/// runtime values, a reached invocation or successful execution.
+#[derive(Debug)]
+pub struct OriginalLogicalStaticOperandPrefix<'a> {
+    invocation: &'a OriginalRegistryWords,
+    argument: usize,
+    written: &'a [tcl_lexer::NativeWord],
+}
+impl OriginalLogicalStaticOperandPrefix<'_> {
+    /// Complete effective invocation, retaining both source and alias issuers.
+    #[must_use]
+    pub const fn original_invocation(&self) -> &OriginalRegistryWords {
+        self.invocation
+    }
+    /// Selected effective post-head argument ordinal, without recapturing it.
+    #[must_use]
+    pub const fn argument(&self) -> usize {
+        self.argument
+    }
+    /// Genuine earlier Written words in their original evaluation order.
+    #[must_use]
+    pub const fn original_written_prefix(&self) -> &[tcl_lexer::NativeWord] {
+        self.written
+    }
+}
+
 /// Sealed effective source argv and authored Registry roles. This supplies
 /// source structure only: no runtime dispatch, entered frame, cell, compiler,
 /// Normal, reflection equivalence or edit permission follows from this view.
@@ -336,6 +365,56 @@ impl OriginalRegistryWords {
         };
         (word.image() == &self.image && word.config() == self.config && !word.group().expand)
             .then_some(word)
+    }
+
+    /// Retain a static earlier-Written prefix before lending invocation-entry
+    /// source constants to this operand. The exact Logical input/context,
+    /// image/configuration, selected schema and full original vector remain
+    /// mandatory. Dynamic/expanded prior operands decline, including reads
+    /// which could invoke unclosed observers. No executed quietness is issued.
+    #[must_use]
+    pub fn original_logical_static_operand_prefix_before(
+        &self,
+        context: &tcl_registry::model::ContextRegistry,
+        argument: usize,
+    ) -> Option<OriginalLogicalStaticOperandPrefix<'_>> {
+        // naming.navigation.retained-path-source-inventory
+        // docs/design/analysis/name-resolution-proofs/retained-path-source-inventory.md
+        let OriginalRegistrySource::SourceTransitions(advice) = &self.source else {
+            return None;
+        };
+        let input = advice.logical_source_input()?;
+        if input.lexer_config() != self.config
+            || !std::ptr::eq(input.borrowed_context_registry(), context)
+            || !advice.matches_source(&self.image, self.config)
+            || !advice.matches_context(context)
+        {
+            return None;
+        }
+        self.with_source_schema(context, |_| ())?;
+        let crate::registry_invocation::InvocationWordOrigin::Written(written) =
+            *self.origins.get(argument.checked_add(1)?)?
+        else {
+            return None;
+        };
+        let original = advice.original_words();
+        if written == 0 || self.original_argument_word(argument)? != original.get(written)? {
+            return None;
+        }
+        let prefix = original.get(..written)?;
+        for word in prefix {
+            if word.image() != &self.image
+                || word.config() != self.config
+                || tcl_syntax::word_rules::original_static_word_source_bytes(word).is_none()
+            {
+                return None;
+            }
+        }
+        Some(OriginalLogicalStaticOperandPrefix {
+            invocation: self,
+            argument,
+            written: prefix,
+        })
     }
 
     /// Genuine readonly original value input at an effective operand ordinal.
@@ -583,6 +662,21 @@ impl OriginalRegistryWords {
         context: &tcl_registry::model::ContextRegistry,
     ) -> Option<Vec<super::source_scoped_body::OriginalSourceScriptBody>> {
         super::source_scoped_body::source_script_bodies_for_mutation_coverage(self, context)
+    }
+
+    /// Complete original syntax-body coverage, including reference-only
+    /// declarations. Missing/cooked/dynamic/unrepresented bodies remain None.
+    /// This covers source syntax only; no entered body or runtime absence follows.
+    #[must_use]
+    pub fn source_script_bodies_for_syntax_coverage(
+        &self,
+        context: &tcl_registry::model::ContextRegistry,
+    ) -> Option<Vec<super::source_scoped_body::OriginalSourceScriptBody>> {
+        super::source_scoped_body::source_script_bodies_for_coverage(
+            self,
+            context,
+            super::OriginalSourceScriptPurpose::Syntax,
+        )
     }
 
     /// Original expression command regions at the retained AST's actual
@@ -1781,7 +1875,41 @@ impl OriginalSourcePackageReference {
         )
     }
 }
+/// Actual selected package reference or explicit source-coverage uncertainty.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum OriginalSourcePackageReferenceSelection {
+    /// Genuine original name under the selected require/provide operation.
+    Reference(OriginalSourcePackageReference),
+    /// Complete selected operation contributes no package reference.
+    NotReference,
+    /// Missing schema, dynamic name or unsupported original operand.
+    Unavailable,
+}
+
 impl OriginalRegistryWords {
+    /// Retain the distinction between missing source representation and an
+    /// actual selected non-package operation. No package-table absence follows.
+    #[must_use]
+    pub fn package_reference_selection(
+        &self,
+        context: &tcl_registry::model::ContextRegistry,
+    ) -> OriginalSourcePackageReferenceSelection {
+        use tcl_registry::source_navigation::SourcePackageReferenceSelection as Selection;
+        let Some(selection) = self.with_source_schema(context, |schema| {
+            schema.authored_source_package_reference_selection()
+        }) else {
+            return OriginalSourcePackageReferenceSelection::Unavailable;
+        };
+        match selection {
+            Selection::NotReference => OriginalSourcePackageReferenceSelection::NotReference,
+            Selection::Unavailable => OriginalSourcePackageReferenceSelection::Unavailable,
+            Selection::Reference(_) => self.package_reference(context).map_or(
+                OriginalSourcePackageReferenceSelection::Unavailable,
+                OriginalSourcePackageReferenceSelection::Reference,
+            ),
+        }
+    }
+
     /// Project a package source reference using the same complete actual
     /// availability context, selected grammar and original effective operand.
     #[must_use]
@@ -5437,6 +5565,79 @@ mod member_source_catalogue_tests {
                 input.lexer_config(),
             ));
             assert!(source_registry_words_at(PRIVATE, &foreign, offset).is_none());
+        }
+    }
+}
+
+#[cfg(test)]
+mod original_logical_operand_prefix_tests {
+    use super::*;
+
+    #[test]
+    fn logical_operand_prefix_retains_only_static_earlier_written_words() {
+        // naming.navigation.retained-path-source-inventory
+        // docs/design/analysis/name-resolution-proofs/retained-path-source-inventory.md
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        for (source, argument, expected_prefix) in [
+            ("set dir /ROOT; source [file join $dir leaf.tcl]", 0, 1),
+            (
+                "set dir /ROOT; source -encoding utf-8 [file join $dir leaf.tcl]",
+                2,
+                3,
+            ),
+            (
+                "set dir /ROOT; interp alias {} picksource {} source -encoding utf-8; picksource [file join $dir leaf.tcl]",
+                2,
+                1,
+            ),
+        ] {
+            let analysis = crate::analyser::Analyser::new().analyse(source, profile.name);
+            let context = analysis
+                .resolved_input
+                .as_ref()
+                .unwrap()
+                .borrowed_context_registry();
+            let config = analysis.body_lexer_config.unwrap();
+            let commands =
+                crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+            let words = source_registry_words(source, &analysis, commands.last().unwrap()).unwrap();
+            let receipt = words
+                .original_logical_static_operand_prefix_before(context, argument)
+                .unwrap();
+            assert_eq!(receipt.original_invocation(), &words);
+            assert_eq!(receipt.argument(), argument);
+            assert_eq!(receipt.original_written_prefix().len(), expected_prefix);
+            let foreign = tcl_registry::model::ingress::resolve_environment("tcl8.6")
+                .default_context_registry();
+            assert!(
+                words
+                    .original_logical_static_operand_prefix_before(&foreign, argument)
+                    .is_none()
+            );
+        }
+        for source in [
+            "set dir /ROOT; source -encoding [set dir /OTHER; list utf-8] [file join $dir leaf.tcl]",
+            "set dir /ROOT; source -encoding [opaque] [file join $dir leaf.tcl]",
+            "set dir /ROOT; source -encoding $encoding [file join $dir leaf.tcl]",
+        ] {
+            let analysis = crate::analyser::Analyser::new().analyse(source, profile.name);
+            let context = analysis
+                .resolved_input
+                .as_ref()
+                .unwrap()
+                .borrowed_context_registry();
+            let config = analysis.body_lexer_config.unwrap();
+            let commands =
+                crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+            let words = source_registry_words(source, &analysis, commands.last().unwrap()).expect(
+                "actual conditional source schema remains independent of operand continuity",
+            );
+            assert!(
+                words
+                    .original_logical_static_operand_prefix_before(context, 2)
+                    .is_none(),
+                "{source}"
+            );
         }
     }
 }

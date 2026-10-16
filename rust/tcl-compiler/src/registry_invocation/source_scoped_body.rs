@@ -1565,6 +1565,20 @@ pub(super) fn source_script_bodies_for_mutation_coverage(
     words: &super::source_structure::OriginalRegistryWords,
     context: &ContextRegistry,
 ) -> Option<Vec<OriginalSourceScriptBody>> {
+    source_script_bodies_for_coverage(
+        words,
+        context,
+        OriginalSourceScriptPurpose::PotentialEvaluation,
+    )
+}
+
+/// Shared complete body geometry for independently selected syntax/evaluation
+/// purposes. Unrepresented lambda containers and malformed bodies stay unknown.
+pub(super) fn source_script_bodies_for_coverage(
+    words: &super::source_structure::OriginalRegistryWords,
+    context: &ContextRegistry,
+    purpose: OriginalSourceScriptPurpose,
+) -> Option<Vec<OriginalSourceScriptBody>> {
     let roles = words.roles()?;
     let timing_at = |argument| {
         words
@@ -1577,7 +1591,8 @@ pub(super) fn source_script_bodies_for_mutation_coverage(
     // Missing representation cannot certify complete evaluated coverage.
     for &(argument, role) in roles {
         if role == ArgRole::LambdaLiteral
-            && timing_at(argument)? != tcl_registry::ScriptTiming::ReferenceOnly
+            && (purpose == OriginalSourceScriptPurpose::Syntax
+                || timing_at(argument)? != tcl_registry::ScriptTiming::ReferenceOnly)
         {
             return None;
         }
@@ -1587,7 +1602,8 @@ pub(super) fn source_script_bodies_for_mutation_coverage(
     let mut expected = Vec::new();
     if let Some((case, layout)) = case
         && let Some(argument) = layout.clause_list_index
-        && timing_at(argument)? != tcl_registry::ScriptTiming::ReferenceOnly
+        && (purpose == OriginalSourceScriptPurpose::Syntax
+            || timing_at(argument)? != tcl_registry::ScriptTiming::ReferenceOnly)
     {
         let operand = words.operands().get(argument)?.as_ref()?;
         let body = source_operand_body(operand)?;
@@ -1628,18 +1644,15 @@ pub(super) fn source_script_bodies_for_mutation_coverage(
     for &(argument, role) in roles {
         if role == ArgRole::Body
             && Some(argument) != list_argument
-            && timing_at(argument)? != tcl_registry::ScriptTiming::ReferenceOnly
+            && (purpose == OriginalSourceScriptPurpose::Syntax
+                || timing_at(argument)? != tcl_registry::ScriptTiming::ReferenceOnly)
         {
             expected.push(source_operand_body(words.operands().get(argument)?.as_ref()?)?.content);
         }
     }
     expected.sort_by_key(|span| (span.start(), span.end()));
     expected.dedup();
-    let bodies = source_script_bodies_for(
-        words,
-        context,
-        OriginalSourceScriptPurpose::PotentialEvaluation,
-    );
+    let bodies = source_script_bodies_for(words, context, purpose);
     (bodies
         .iter()
         .map(OriginalSourceScriptBody::content_span)

@@ -1,0 +1,8 @@
+{
+  "path": "raw-results.tar.zst",
+  "sha256": "76aafb1ea49528670ade45189c33f608ffd34c848f07c5e85c919612a104904e",
+  "bytes": 345265,
+  "result_sha256": "55392dbe5fd7e77768bfc1f6eef6897b0ba5a15b53d002df1fa54450142bb68b",
+  "full_group_complete": true,
+  "all_original_selectors_assertions_and_budgets_retained": true
+}

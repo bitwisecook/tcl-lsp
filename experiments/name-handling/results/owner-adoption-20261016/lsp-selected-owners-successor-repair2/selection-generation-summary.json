@@ -1,0 +1,52 @@
+{
+  "retained": 310,
+  "new_deduplicated": 28,
+  "total": 338,
+  "by_target": {
+    "tcl_compiler": 64,
+    "tcl_registry": 8,
+    "tcl_lsp_core": 180,
+    "tcl_lsp_db": 6,
+    "tcl_lsp_server": 80
+  },
+  "requested_categories": {
+    "new-member-correspondence": 1,
+    "new-c-class-supplement": 1,
+    "new-registry-v3": 3,
+    "new-context-v2": 4,
+    "new-range-v2": 2,
+    "new-package-registration": 2,
+    "preserved-package-manifest": 2,
+    "new-forward-path": 2,
+    "preserved-comment-v2": 1,
+    "preserved-package-registration-scope": 12,
+    "preserved-uri-scope": 41
+  },
+  "actual_new_categories": {
+    "new-member-correspondence": 1,
+    "new-c-class-supplement": 1,
+    "new-registry-v3": 3,
+    "new-context-v2": 4,
+    "new-range-v2": 2,
+    "new-package-registration": 2,
+    "preserved-package-manifest": 1,
+    "new-forward-path": 2,
+    "preserved-package-registration-scope": 11,
+    "preserved-uri-scope": 1
+  },
+  "current_source_files_and_module_routes": 76,
+  "all310_prior_entries_and_guard_timeout_environment_metadata_unchanged": true,
+  "freeze_status": "BOUND_ACTUAL_ROOT_FIVE_LIBRARY_BUILD",
+  "comment_v2_new_tests": 0,
+  "comment_original232_retained": true,
+  "old_control_source": "Actual prior frozen listings, each exact singleton; no test listing executed by this generator.",
+  "scope": "Only five retained library targets; no Runtime/VM/F5 dedicated targets or controls newly selected.",
+  "execution": "Python selection/source checks only; no test/listing/Cargo/Git/native execution or main-source writes.",
+  "selection_path": "/workspace/naming-validation/lsp-selected-owners-successor-repair2/selection.json",
+  "selection_sha256": "2c214b636d5542b1654fe0036833ef32b0ea30856c03ca9344cc3a16382e939d",
+  "generator_sha256": "b3ff1016e96ebff06282e13c0dc7e98d42b1d80f3b7915e62242dbbf4a3a3bcc",
+  "source_index_generator": {
+    "path": "/tmp/lsp-folding-completion-links-selection/generate_selection.py",
+    "sha256": "cbc79387986651329ba3251489b76877d428d058d0fff8d55f3a8715ecaa87a1"
+  }
+}

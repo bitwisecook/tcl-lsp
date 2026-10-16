@@ -1,0 +1,26 @@
+{
+  "source_head": "a33e2257dd3a6cd44120ecfe77b1ed8e042ce916",
+  "rust_diff_sha256": "cf6db4be5537b39d9022809586b9cebc921333eb021bef1fb6fc28ff48ff5570",
+  "ordinary": true,
+  "instrumentation": false,
+  "single_job": true,
+  "test_debug": 0,
+  "packages": [
+    "tcl-compiler",
+    "tcl-lsp-core",
+    "tcl-lsp-db",
+    "tcl-registry",
+    "tcl-lsp-server"
+  ],
+  "status": "PASS_FIVE_LIBRARY_BUILD",
+  "input_before_count": 39000,
+  "utc": "2026-10-16T19:18:12.867432+00:00",
+  "command": "CARGO_PROFILE_TEST_DEBUG=0 cargo test --offline --locked -p tcl-compiler -p tcl-lsp-core -p tcl-lsp-db -p tcl-registry -p tcl-lsp-server --lib --no-run",
+  "scope": "Reviewed LSP-only selected owner successor: readonly member catalogue reborrow and genuine dual body correspondence; full inherited Registry provider/context/floor through Compiler structured invocation and widget diagnostics; original conditional case comment syntax; retained pack notice byte-to-UTF16 presentation; forward actual Path/productURI carrier; selected package registration transport; supplemental original C-class control. All previous310controls retain selectors/assertions/budgets. Runtime/VM/BIG-IP dedicated work paused. No source or display authority grants Native execution, physical identity, Normal or edits.",
+  "exit_code": 0,
+  "build_seconds": 174.327,
+  "input_after_count": 39000,
+  "input_drift_count": 0,
+  "input_drift": [],
+  "completed_utc": "2026-10-16T19:21:07.194577+00:00"
+}

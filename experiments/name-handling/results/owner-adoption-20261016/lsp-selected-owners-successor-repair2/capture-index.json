@@ -1,0 +1,49 @@
+{
+  "utc": "2026-10-16T19:27:29.253761+00:00",
+  "ordinary_build": "PASS174.327seconds0warnings39000inputs0drift",
+  "replay": "338inprogress;all310retained;nofulloutcomeclaim",
+  "files": [
+    {
+      "name": "build.log",
+      "sha256": "c22ad600499ba95526344c13a64d374a58df19d55f1ab390195cfd672e6d1d34",
+      "bytes": 840
+    },
+    {
+      "name": "source-binding.json",
+      "sha256": "61d65788c2a60b56cb31d1e6caed31346b24f90334d936c217cc54b8b7f0c95f",
+      "bytes": 1470
+    },
+    {
+      "name": "artifacts.json",
+      "sha256": "00b472f5610bba3a70215e2966bdaef86e5402578a57dcaf74bf0b4e1dac1564",
+      "bytes": 1292
+    },
+    {
+      "name": "jim-upstream-recheck.json",
+      "sha256": "a61b277c644cb18b339c050c614abae296dd3df9912ada4c8d176375cda35873",
+      "bytes": 560
+    },
+    {
+      "name": "selection-generation-summary.json",
+      "sha256": "524e6eccd6cd9922c2735b0413227f98a5598ac304dac02b248f3cd683a20600",
+      "bytes": 2037
+    },
+    {
+      "name": "replay-invocation.json",
+      "sha256": "ef04a385e1fff5d05100588436e84c879e6e7d8c514c5d267cab4955cba6d1aa",
+      "bytes": 741
+    },
+    {
+      "name": "source.diff.zst",
+      "payload_sha256": "cf6db4be5537b39d9022809586b9cebc921333eb021bef1fb6fc28ff48ff5570",
+      "sha256": "4580d86e403e3f856291c1d93dca9cedc28c6dd44ba6437c53a6f2f7abea1560",
+      "bytes": 396
+    },
+    {
+      "name": "selection.json.zst",
+      "payload_sha256": "2c214b636d5542b1654fe0036833ef32b0ea30856c03ca9344cc3a16382e939d",
+      "sha256": "1dbe04eaf40efc15265f752e0a54b6700858dfdd6b6070e73efbb8be9d1175a0",
+      "bytes": 43245
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "utc": "2026-10-16T19:22:24.131298+00:00",
+  "source_head": "a33e2257dd3a6cd44120ecfe77b1ed8e042ce916",
+  "command": [
+    "cargo",
+    "xtask",
+    "owner-resolution"
+  ],
+  "status": "FAIL",
+  "scope": "Actual shared-owner gate on LSP selected-owner source successor plus exact new-test Registry constructor repair. Necessary shared dependencies only; Runtime warnings may remain deferred. No blanket rule/checker relaxation.",
+  "exit_code": 1,
+  "seconds": 288.809,
+  "input_count": 29361,
+  "input_drift": [],
+  "owner_error_count": 310,
+  "completed_utc": "2026-10-16T19:27:13.014296+00:00"
+}

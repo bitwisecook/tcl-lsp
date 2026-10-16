@@ -1,0 +1,29 @@
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp/rust/tcl-registry)
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-vm v0.1.0 (/workspace/tcl-lsp/rust/tcl-vm)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+warning: unused import: `ProcDef`
+   --> rust/tcl-lsp-core/src/minify.rs:140:46
+    |
+140 | use tcl_compiler::analyser::{AnalysisResult, ProcDef, Scope, ScopeKind};
+    |                                              ^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+error[E0624]: method `has_logical_source_name_context` is private
+  --> rust/tcl-lsp-core/src/minify/lexical_metadata.rs:86:19
+   |
+86 |         || !input.has_logical_source_name_context()
+   |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ private method
+   |
+  ::: rust/tcl-compiler/src/analyser/input.rs:86:5
+   |
+86 |     pub(crate) fn has_logical_source_name_context(&self) -> bool {
+   |     ------------------------------------------------------------ private method defined here
+
+For more information about this error, try `rustc --explain E0624`.
+warning: `tcl-lsp-core` (lib) generated 1 warning
+error: could not compile `tcl-lsp-core` (lib) due to 1 previous error; 1 warning emitted

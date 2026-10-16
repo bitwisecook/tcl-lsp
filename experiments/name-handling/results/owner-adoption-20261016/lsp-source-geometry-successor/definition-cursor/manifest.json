@@ -1,0 +1,77 @@
+{
+  "patch_sha256": "46d8a3db0a6e4969ec3298b6d34ffa71e758fffe0715a6c194355ffacf19627a",
+  "baseline_unit": "lsp-definition-source-position-and-range-advice",
+  "existing_shared_owner": "Current editor source inventory / naming.core.original-dispatch-region-context plus original editor body structure",
+  "new_requirement_count_proposal": 0,
+  "files": [
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/core-original-dispatch-region-context.md",
+      "before_sha256": "1c8270e1600b13abd7ce99bd016a8ce43ee6c840544246d422c5351416bc3950",
+      "after_sha256": "1a35f0280c7d54ca5e01e80f1e367a2ba2bb1d7ab7506df0b3c7556c4b01c97f"
+    },
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "before_sha256": "e62a6e9cfe6e10c752965a7506125bf452a3e8703c5e6cbad021b91da3f1fcfa",
+      "after_sha256": "224c273d69b04f78362b2c398ded32ce28e3fdda01e71817454c4bdb677f6c5f"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/declaration.rs",
+      "before_sha256": "5bca95a7dba4d188320a5f52b57bc51bd95ad3e27d5be21742794e5d2a89be56",
+      "after_sha256": "654e35520f27785db84fd14caac0701cbf648e29dde6cfb4f7230c8457d645db"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/definition.rs",
+      "before_sha256": "34e14818a30f7dc5f6530b93fd1d1989ba2bafe2512405779727aaa3f68d05f6",
+      "after_sha256": "6d74d0039c3515e717f9d9e7ebdc35c1968797cb579a940babd90635216e296f"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/original_context.rs",
+      "before_sha256": "c833131a52a926e92f8d09de8c6854cc407200405c4b67b4ccea1c53cc7144c4",
+      "after_sha256": "12ba0300954f6e20000e886ea3c1923317cd083a90ac77473202d3d3000dae43"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/source_structure.rs",
+      "before_sha256": "07ed51e34756608eca6068a41db85260add5ba9ab3351796e88ca488a959aab3",
+      "after_sha256": "9ace39e00af76078faa71e5fcb049a3371ca8093a6096d4622898833f6febcff"
+    }
+  ],
+  "original_test_suffixes": [
+    {
+      "path": "rust/tcl-lsp-core/src/declaration.rs",
+      "original_test_suffix_sha256": "262d1df9bad99b17534cca556c13b8c197e1c304f9e1f058a1892cf56402c16d",
+      "bytes": 32591,
+      "retained_byte_identical": true
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/definition.rs",
+      "original_test_suffix_sha256": "26c1755a98431edce2a4d64a50ffd19023d5fbd253893d831c91db454a4156bb",
+      "bytes": 241775,
+      "retained_byte_identical": true
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/original_context.rs",
+      "original_test_suffix_sha256": "623072e3cd54bcb2c65195c79677f703c264e802b6496d81c0425779f14961e8",
+      "bytes": 5679,
+      "retained_byte_identical": true
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/source_structure.rs",
+      "original_test_suffix_sha256": "0b89510a69e0989c5fb958186896541cfe83556f809593e12388b75019de291e",
+      "bytes": 28818,
+      "retained_byte_identical": true
+    }
+  ],
+  "new_unexecuted_tests": [
+    "definition::exact_source_position_advice_tests::exact_current_cursor_keeps_unicode_endline_and_declines_clamped_coordinates",
+    "definition::exact_source_position_advice_tests::exact_source_cursor_withdraws_stale_input_and_full_grammar_changes",
+    "definition::exact_source_position_advice_tests::source_scope_visibility_requires_original_body_correspondence_before_document_walk",
+    "definition::exact_source_position_advice_tests::exact_current_cursor_preserves_crlf_multibyte_and_empty_final_line",
+    "definition::exact_source_position_advice_tests::declaration_caller_uses_exact_source_cursor_before_any_fallback"
+  ],
+  "limitations": [
+    "No execution/build/test/gate evidence; Root owns ordinary replay.",
+    "Missing/synthetic bodyless scope geometry and unsupported caller-context correspondence remain unavailable; source syntax never proves physical frame or closure.",
+    "Other independently budgeted callers of clamped byte_offset_at are unchanged."
+  ],
+  "shared_file_coordination": "SolProject package presence census touches SourceStructure struct/initializer and new separate branch/helper; refusal field and existing body enqueue additions require Root hunk union, no default walker algorithm changes."
+}

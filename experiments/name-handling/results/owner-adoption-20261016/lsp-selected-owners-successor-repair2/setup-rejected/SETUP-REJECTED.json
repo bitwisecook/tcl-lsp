@@ -1,0 +1,5 @@
+{
+  "reason": "Root launcher omitted repository provider env/PATH; mandatoryTcl9.0setupfails, missingrequiredC/Jim env; all338capture retained without ordinaryacceptance",
+  "raw_results_sha256": "fefb5ce3bb1ee6436ba859a3315e0382cd38184691fafc10cdb072102805957e",
+  "followup": "results-provider-corrected"
+}

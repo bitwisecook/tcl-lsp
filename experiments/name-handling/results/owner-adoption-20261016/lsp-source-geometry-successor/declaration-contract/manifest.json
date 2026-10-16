@@ -1,0 +1,16 @@
+{
+  "patch": "/tmp/luna-declaration-outline-v4/contracts.patch",
+  "patch_sha256": "2efc1bbcde26c94b63d58786191084284a4a4adfe4555295be6cb27b6cb0f6f2",
+  "files": [
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "before_sha256": "e62a6e9cfe6e10c752965a7506125bf452a3e8703c5e6cbad021b91da3f1fcfa",
+      "after_sha256": "9cdb642b91424d7671b7cc60a8accbb98b7a58940433a6e471797cc3ed225d1c"
+    },
+    {
+      "path": "docs/design/f5/sslictcl-vocabulary.md",
+      "before_sha256": "5d43d51637d07f2a4ff65ce88e276bd268419b1a5e7308cf6b3664ea30f135b2",
+      "after_sha256": "43d10257e3c7eeb63af724beaf87bc55b0edc80db04f13f7693c60021d6bce6f"
+    }
+  ]
+}

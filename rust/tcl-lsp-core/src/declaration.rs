@@ -29,9 +29,9 @@
 //! Declared names and body positions come from the shared original
 //! declaration-layout owner, with retained dialect, alias prefix and source
 //! origins. This navigation projection supplies no executed alias facts.
-//! Visibility is the set of
-//! enclosing scope body spans (`definition::scope_body_spans_at`); an
-//! empty set means the whole file is visible (cursor at global scope).
+//! Visibility comes from the current Logical source scope joined to genuine
+//! original body geometry. Unavailable scope/body correspondence withholds the
+//! scan; explicit document visibility remains distinct from an empty body list.
 
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_lexer::{LexerConfig, LineIndex, Span};
@@ -49,7 +49,10 @@ use tcl_registry::CommandRegistry;
 /// `document_symbols`' `MAX_SCOPE_WALK_DEPTH` plays.
 const MAX_BODY_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(256);
 
-use crate::definition::{LspRange, byte_offset_at, definition, scope_body_spans_at, span_to_range};
+use crate::definition::{
+    LspRange, SourceScopeBodySpans, definition, scope_body_spans_at, span_to_range,
+};
+use crate::original_context::CurrentSourcePosition;
 
 /// Compute "go-to-declaration" locations for the symbol at the cursor.
 #[must_use]
@@ -61,6 +64,9 @@ pub fn declaration(
     analysis: &AnalysisResult,
     registry: &CommandRegistry,
 ) -> Vec<LspRange> {
+    let Some(position) = CurrentSourcePosition::capture(source, analysis, line, character) else {
+        return Vec::new();
+    };
     // A readonly alias template owns the written declaration even when the
     // independent physical-cell occurrence cannot acquire an executed link.
     if let Some(span) =
@@ -87,7 +93,7 @@ pub fn declaration(
     // Only a `$var` reference has a distinct declaration site; every
     // other symbol resolves through plain go-to-definition.
     let line_index = LineIndex::new(source);
-    let cursor = byte_offset_at(&line_index, source, line, character);
+    let cursor = position.offset();
     let Some(var_name) =
         crate::definition::substituting_var_at_position(source, analysis, line, character, cursor)
     else {
@@ -107,14 +113,12 @@ pub fn declaration(
     };
     related.push(variable.definition_span);
 
-    let visible = scope_body_spans_at(&analysis.global_scope, cursor);
-
-    // Regions to scan: each visible scope body, or the whole file when
-    // the cursor sits at global scope (no enclosing body span).
-    let regions: Vec<Span> = if visible.is_empty() {
-        vec![Span::new(0, u32::try_from(source.len()).unwrap_or(0))]
-    } else {
-        visible.clone()
+    let Some(visibility) = scope_body_spans_at(&position) else {
+        return Vec::new();
+    };
+    let (visible, regions) = match visibility {
+        SourceScopeBodySpans::Document(document) => (Vec::new(), vec![document]),
+        SourceScopeBodySpans::Bodies(bodies) => (bodies.clone(), bodies),
     };
 
     // The document's proven command-identity facts, so a scoping statement is

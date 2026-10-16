@@ -1,0 +1,99 @@
+{
+  "patch_sha256": "0cefb7a0ed93ede475189cdc7554aa9da86c40610e05498b9f52cc34b3794aa8",
+  "files": [
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/core-original-package-source-action-context.md",
+      "before_sha256": "2076433baebc65d867bfbb6623812d858bafb0619fbe3b340c49315b756f1bbb",
+      "after_sha256": "70ddb9a692b14ab7e4168a94233bd2ccd24847df97d9531309bdf9e7bcc5f60f"
+    },
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "before_sha256": "3953d9e685122fd37895a4dd4188c446a6d95892810ae8539c554c5aa08d36d0",
+      "after_sha256": "06ec6da62a5dab52e2f1ee166e20f2f1d28add6c76d3b3301828fa2ce46bec45"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs",
+      "before_sha256": "5a72e40730898be8d5e17dc6ee7131df84d43e07de6900cddae75e30360da3fc",
+      "after_sha256": "17a12c241311f8ff4b4b70f0cabb31506f68292a36b9d3e2ab20395c2fef1baf"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "before_sha256": "186623ba46879a3e473fb5a5487bc2bcd1904f264ad6e6e389ce6780374e0919",
+      "after_sha256": "459d5e279e838e30b6d1038724510922484e8e036231cdd478d76993a6a2f0fd"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/code_actions.rs",
+      "before_sha256": "8ad8929f179e87505c7cd80b8b24686e006f53b10c617f1d47233b0dfcacfef4",
+      "after_sha256": "3af50e86bf3c8763afebc7ac302b0d405a33b8a340a28ef5a5882407cfd81568"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/lib.rs",
+      "before_sha256": "90489adc3f2f8a966a961e81e85544f1ad2968a035f1f22aa87377616b531015",
+      "after_sha256": "e0fe795193a626b5bf47f21a8e8bb2230cc59827a59987432e7350c8c48bfc5b"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/source_structure.rs",
+      "before_sha256": "9ace39e00af76078faa71e5fcb049a3371ca8093a6096d4622898833f6febcff",
+      "after_sha256": "b4c578f2471bb7ef788ccb70fa0630f8b4d3230a6bde79e136f918db3f86d60c"
+    },
+    {
+      "path": "rust/tcl-registry/src/source_navigation.rs",
+      "before_sha256": "2e0a45c5d1ebec215d62245fac2c9882a9400a1b60664273a0fc768b6eabc854",
+      "after_sha256": "855c00225845cbea22f0b21221a1f1d19fecedb54980455953b7bb815ab332f8"
+    }
+  ],
+  "old_test_suffixes": [
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs",
+      "sha256": "d6a59e57cb5a7934ad6a603c2fb16a5e3ca97048779c6f2b026268849ad7b7b3",
+      "bytes": 42699
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "sha256": "7c3cb012d2ff573a80c5487679cb9ccecc1bbe0deae43c6a350098994aa1c6db",
+      "bytes": 94338
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/code_actions.rs",
+      "sha256": "2110e12cd09855a103227d08720e8660c9e60a83808cf76d358d276fa77ae0a7",
+      "bytes": 91833
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/lib.rs",
+      "sha256": "3ef11d16f56ce873dc4293b78025342606d668cad39e3ed1150507e4fe52bbfe",
+      "bytes": 2129
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/source_structure.rs",
+      "sha256": "0b89510a69e0989c5fb958186896541cfe83556f809593e12388b75019de291e",
+      "bytes": 28818
+    },
+    {
+      "path": "rust/tcl-registry/src/source_navigation.rs",
+      "sha256": "61084bb0bf15d54735e12b9be058c123ec2d0425350576e9e981ae829aea421c",
+      "bytes": 10494
+    }
+  ],
+  "execution": "none",
+  "source_checks": [
+    "all beforeimages match current frozen source",
+    "fresh patch --fuzz=0 applies and all exact afterimages match",
+    "all existing test module suffix bytes retained",
+    "no added clippy allow",
+    "Rustfmt parser+formatting only on copied Rust files"
+  ],
+  "new_test_selectors": [
+    "code_actions::package_presence_census_tests::package_census_uses_original_inventory_and_actual_overlay_operation",
+    "code_actions::package_presence_census_tests::package_action_census_cannot_lose_a_genuine_reference_with_report_rows",
+    "code_actions::package_presence_census_tests::package_census_retains_positive_named_sources_and_incomplete_regions",
+    "code_actions::package_presence_census_tests::package_census_preserves_genuine_absent_head_advice_and_current_input",
+    "code_actions::package_presence_census_tests::selected_syntax_coverage_keeps_package_and_call_closure_distinct"
+  ],
+  "count_reconciliation": {
+    "existing_baseline": "lsp-code-actions-package-presence-census",
+    "purpose_migrations": 1,
+    "new_annexes": 0,
+    "new_test_selectors": 5,
+    "acceptance_advance": 0
+  }
+}

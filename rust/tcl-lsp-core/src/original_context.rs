@@ -54,6 +54,52 @@ impl<'a> CurrentSourceContext<'a> {
     }
 }
 
+/// Exact readonly selection position in one retained current Document source.
+/// A clamped line/column or surrogate interior cannot select another occurrence.
+/// This supplies no declaration, lookup, frame, source absence or edit authority.
+pub(crate) struct CurrentSourcePosition<'a> {
+    current: CurrentSourceContext<'a>,
+    source: &'a str,
+    analysis: &'a AnalysisResult,
+    offset: u32,
+}
+
+impl<'a> CurrentSourcePosition<'a> {
+    pub(crate) fn capture(
+        source: &'a str,
+        analysis: &'a AnalysisResult,
+        line: u32,
+        character: u32,
+    ) -> Option<Self> {
+        let current = CurrentSourceContext::capture(source, analysis)?;
+        let index = tcl_lexer::LineIndex::new_lsp(source);
+        let offset = index.offset_at_utf16(line, tcl_lexer::Utf16Col::new(character), source);
+        let position = index.position_at_utf16(offset, source);
+        if position.line != line || position.character.get() != character {
+            return None;
+        }
+        Some(Self {
+            current,
+            source,
+            analysis,
+            offset,
+        })
+    }
+
+    pub(crate) const fn offset(&self) -> u32 {
+        self.offset
+    }
+    pub(crate) const fn source(&self) -> &'a str {
+        self.source
+    }
+    pub(crate) const fn analysis(&self) -> &'a AnalysisResult {
+        self.analysis
+    }
+    pub(crate) const fn context(&self) -> &CurrentSourceContext<'a> {
+        &self.current
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

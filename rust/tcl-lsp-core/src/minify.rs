@@ -137,7 +137,7 @@ pub use original::{MinifyOptions, MinifyRefusal, MinifyTier, minify_with_analysi
 
 use rustc_hash::FxHashSet;
 
-use tcl_compiler::analyser::{AnalysisResult, ProcDef, Scope, ScopeKind};
+use tcl_compiler::analyser::{AnalysisResult, Scope, ScopeKind};
 use tcl_compiler::analyses::{ConstValue, LatticeValue};
 use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
 use tcl_compiler::expr_ast::render_expr;
@@ -1193,119 +1193,22 @@ fn next_unused_name(
     None
 }
 
-/// Rename parameter *names* within the proc's parameter-list region.
-///
-/// Only each parameter's name is renamed — the first word of a
-/// `{name default}` pair, or a bare `name`. A raw word-boundary byte scan over
-/// the whole region also rewrote occurrences inside *other* parameters' default
-/// values (`proc f {{x 1} {y x}}` renamed `y`'s default `x` too), changing the
-/// default the proc receives.
+/// Apply only the original formal-name fields already checked for this header.
+/// Defaults, list wrappers and unchanged rest parameters remain outside edits.
 fn rename_params_in_list(
-    source: &str,
-    proc_def: &ProcDef,
+    formals: &[tcl_compiler::signature_scan::formal_parameters::OriginalSourceFormalName],
     var_map: &BTreeMap<String, String>,
     edits: &mut Vec<Edit>,
 ) {
-    let region_start = proc_def.name_span.end() as usize;
-    let region_end = proc_def.body_span.start() as usize;
-    if region_start > region_end || region_end > source.len() {
-        return;
-    }
-    let Some(region) = source.get(region_start..region_end) else {
-        return;
-    };
-    let bytes = region.as_bytes();
-    let is_ws = |b: u8| matches!(b, b' ' | b'\t' | b'\n' | b'\r');
-    let is_sep = |b: u8| is_ws(b) || matches!(b, b'{' | b'}');
-
-    // A bare (unbraced) param list is a single word (`proc f args …`).
-    let Some(open) = bytes.iter().position(|&b| b == b'{') else {
-        let trimmed_start = bytes.iter().position(|&b| !is_ws(b));
-        if let Some(s) = trimmed_start {
-            let mut e = s;
-            while e < bytes.len() && !is_sep(bytes[e]) {
-                e += 1;
-            }
-            maybe_rename(source, region_start, s, e - s, var_map, edits);
+    for formal in formals {
+        let (Ok(name), Some(span)) = (std::str::from_utf8(formal.name()), formal.source_span())
+        else {
+            continue;
+        };
+        if let Some(short) = var_map.get(name) {
+            let range = span.as_range();
+            edits.push((range.start, range.len(), short.clone()));
         }
-        return;
-    };
-
-    // Braced list: walk top-level elements between the outer `{ … }`.
-    let mut i = open + 1;
-    while i < bytes.len() {
-        while i < bytes.len() && is_ws(bytes[i]) {
-            i += 1;
-        }
-        if i >= bytes.len() || bytes[i] == b'}' {
-            break;
-        }
-        if bytes[i] == b'{' {
-            // `{name default…}` — the name is the first inner word.
-            let mut j = i + 1;
-            while j < bytes.len() && is_ws(bytes[j]) {
-                j += 1;
-            }
-            let name_start = j;
-            while j < bytes.len() && !is_sep(bytes[j]) {
-                j += 1;
-            }
-            maybe_rename(
-                source,
-                region_start,
-                name_start,
-                j - name_start,
-                var_map,
-                edits,
-            );
-            // Skip to the end of this balanced braced element.
-            let mut depth = 1u32;
-            let mut k = i + 1;
-            while k < bytes.len() && depth > 0 {
-                match bytes[k] {
-                    b'{' => depth += 1,
-                    b'}' => depth -= 1,
-                    _ => {}
-                }
-                k += 1;
-            }
-            i = k;
-        } else {
-            // Bare-word param (no default).
-            let name_start = i;
-            while i < bytes.len() && !is_sep(bytes[i]) {
-                i += 1;
-            }
-            maybe_rename(
-                source,
-                region_start,
-                name_start,
-                i - name_start,
-                var_map,
-                edits,
-            );
-        }
-    }
-}
-
-/// Emit a rename edit for the param name at `region_start + rel_off` (length
-/// `len`) when it is in `var_map`.
-fn maybe_rename(
-    source: &str,
-    region_start: usize,
-    rel_off: usize,
-    len: usize,
-    var_map: &BTreeMap<String, String>,
-    edits: &mut Vec<Edit>,
-) {
-    if len == 0 {
-        return;
-    }
-    let abs = region_start + rel_off;
-    if let Some(name) = source.get(abs..abs + len)
-        && let Some(short) = var_map.get(name)
-    {
-        edits.push((abs, len, short.clone()));
     }
 }
 
@@ -1667,6 +1570,11 @@ fn process_scope(ctx: ScopeCtx<'_>, scope: &Scope, scope_label: &str, out: &mut 
         let param_names: FxHashSet<&str> = proc_def
             .map(|pd| pd.params.iter().map(|p| p.name.as_str()).collect())
             .unwrap_or_default();
+        // Obtain all formal geometry before adding any parameter-body edits.
+        // An unavailable header or cooked name cannot leave a partial rename.
+        let formal_sources = proc_def.and_then(|procedure| {
+            lexical_metadata::parameter_name_sources(source, analysis, procedure)
+        });
 
         let mut var_gen = NameGenerator::new();
         let existing: FxHashSet<String> = scope.variables.keys().cloned().collect();
@@ -1703,6 +1611,16 @@ fn process_scope(ctx: ScopeCtx<'_>, scope: &Scope, scope_label: &str, out: &mut 
                 continue;
             }
             let is_param = param_names.contains(var_name.as_str());
+            if is_param
+                && (var_name == "args"
+                    || formal_sources.as_ref().is_none_or(|formals| {
+                        !formals
+                            .iter()
+                            .any(|formal| formal.name() == var_name.as_bytes())
+                    }))
+            {
+                continue;
+            }
 
             if !is_param && slice(source, var_def.definition_span) != *var_name {
                 continue;
@@ -1731,10 +1649,10 @@ fn process_scope(ctx: ScopeCtx<'_>, scope: &Scope, scope_label: &str, out: &mut 
             var_map.insert(var_name.clone(), short);
         }
 
-        if let Some(pd) = proc_def
+        if let Some(formals) = formal_sources.as_deref()
             && !var_map.is_empty()
         {
-            rename_params_in_list(source, pd, &var_map, out.edits);
+            rename_params_in_list(formals, &var_map, out.edits);
         }
         if !var_map.is_empty() {
             out.symbol_map
@@ -5654,5 +5572,127 @@ mod symbol_report_tests {
         );
         assert!(!symbols.reverse().contains_key("a:b:c"));
         assert_eq!(SymbolMap::parse(&symbols.format()), symbols);
+    }
+}
+
+#[cfg(test)]
+mod original_formal_name_geometry_tests {
+    use super::*;
+
+    fn logical_input() -> tcl_compiler::analyser::ResolvedAnalysisInput {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::context_for_profile(profile),
+            LexerConfig::for_profile(Some(profile)),
+        )
+    }
+
+    #[test]
+    fn compact_original_formal_fields_preserve_wrappers_and_unicode_defaults() {
+        let input = logical_input();
+        let source = r#"proc p {{{longName} {default α}} {"otherName" longName} args} {return [list $longName $otherName $args]}"#;
+        let analysis = original::analysis_with_input(source, &input);
+        let procedure = analysis.all_procs.values().next().unwrap();
+        let fields = lexical_metadata::parameter_name_sources(source, &analysis, procedure)
+            .expect("actual Logical header, ordered formal fields and body card");
+        assert_eq!(
+            fields.iter().map(|field| field.name()).collect::<Vec<_>>(),
+            [
+                b"longName".as_slice(),
+                b"otherName".as_slice(),
+                b"args".as_slice()
+            ]
+        );
+        let mut edits = Vec::new();
+        rename_params_in_list(
+            &fields,
+            &BTreeMap::from([
+                ("longName".to_owned(), "a".to_owned()),
+                ("otherName".to_owned(), "b".to_owned()),
+            ]),
+            &mut edits,
+        );
+        assert_eq!(
+            apply_edits(source, edits),
+            r#"proc p {{{a} {default α}} {"b" longName} args} {return [list $longName $otherName $args]}"#
+        );
+    }
+
+    #[test]
+    fn compact_original_formal_fields_reach_the_existing_editing_pass() {
+        let input = logical_input();
+        let source = "proc p {{longName default} {otherName longName} args} {return VALUE}";
+        let (output, mapping) = compact_names(source, &input, false);
+        assert_eq!(
+            output,
+            "proc p {{a default} {b longName} args} {return VALUE}"
+        );
+        assert_eq!(mapping.variables["::p"]["longName"], "a");
+        assert_eq!(mapping.variables["::p"]["otherName"], "b");
+        assert!(!mapping.variables["::p"].contains_key("args"));
+    }
+
+    #[test]
+    fn compact_original_formal_fields_refuse_cooked_dynamic_and_foreign_geometry() {
+        let input = logical_input();
+        for source in [
+            r#"proc p "first\x20second" {return $first}"#,
+            "proc p $parameters {return VALUE}",
+        ] {
+            let analysis = original::analysis_with_input(source, &input);
+            for procedure in analysis.all_procs.values() {
+                assert!(
+                    lexical_metadata::parameter_name_sources(source, &analysis, procedure)
+                        .is_none(),
+                    "{source}"
+                );
+            }
+            let (output, _) = compact_names(source, &input, false);
+            assert_eq!(output, source);
+        }
+        let source = "proc p {longName} {return $longName}";
+        let mut analysis = original::analysis_with_input(source, &input);
+        let actual = analysis.all_procs.values().next().unwrap();
+        assert!(lexical_metadata::parameter_name_sources(source, &analysis, actual).is_some());
+        let procedure = actual.clone();
+        let mut wrong_procedure = procedure.clone();
+        wrong_procedure.params[0].name = "otherName".to_owned();
+        assert!(
+            lexical_metadata::parameter_name_sources(source, &analysis, &wrong_procedure).is_none()
+        );
+        assert!(
+            lexical_metadata::parameter_name_sources(
+                "proc p {otherName} {return $longName}",
+                &analysis,
+                analysis.all_procs.values().next().unwrap()
+            )
+            .is_none()
+        );
+        analysis.body_lexer_config = Some(LexerConfig {
+            leading_bom: match input.lexer_config().leading_bom {
+                tcl_lexer::LeadingBom::Content => tcl_lexer::LeadingBom::Skip,
+                tcl_lexer::LeadingBom::Skip => tcl_lexer::LeadingBom::Content,
+            },
+            ..input.lexer_config()
+        });
+        assert!(
+            lexical_metadata::parameter_name_sources(
+                source,
+                &analysis,
+                analysis.all_procs.values().next().unwrap()
+            )
+            .is_none()
+        );
+        let native = tcl_registry::model::ingress::resolve_environment("tcl8.6");
+        let native_analysis =
+            tcl_compiler::analyser::Analyser::new().analyse(source, native.analyser_profile().name);
+        for procedure in native_analysis.all_procs.values() {
+            assert!(
+                lexical_metadata::parameter_name_sources(source, &native_analysis, procedure)
+                    .is_none()
+            );
+        }
     }
 }

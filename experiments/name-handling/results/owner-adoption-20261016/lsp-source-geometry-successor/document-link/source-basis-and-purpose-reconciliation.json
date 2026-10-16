@@ -1,0 +1,125 @@
+{
+  "scope": "Source basis and once-only purpose reconciliation proposal; Root alone writes catalogue/counts. No tests/list execution.",
+  "patch_sha256": "0c3803ce466bd0836fae29d7b9ef674df431bd3c5a2bebe2ab79d2c719ac71de",
+  "catalogue": {
+    "path": "/workspace/tcl-lsp/docs/work/name-handling/repository-consumer-audit-final.json",
+    "sha256": "0d325819733a273cbcd396f219e25ab4519abb5d13c125a66925fa0f19ef6389",
+    "existing_json_pointer": "/existing_validation_obligations/lsp/21",
+    "existing_exact_validation_unit": {
+      "id": "lsp-source-document-link-selection",
+      "original_rows": [
+        "lsp-source-document-link-selection"
+      ],
+      "state": "validation_pending",
+      "implementation_state": "already_integrated_bounded_purpose",
+      "sites": [
+        {
+          "path": "rust/tcl-lsp-core/src/document_links.rs",
+          "line": 195,
+          "symbol": "document_links_from_analysis / OriginalLinkSelection",
+          "source_sha256": "68ee0d19069842845049e62669ae6b4bfd22963e2a14ea0d51cfe77c26a41351",
+          "source_line": "pub fn document_links_from_analysis(",
+          "purpose": "Readonly source/package navigation under actual current source/configuration and independent Native/Hosted/Logical purposes."
+        }
+      ],
+      "existing_tests": [
+        [
+          "document_links::tests"
+        ]
+      ],
+      "required_validation": [
+        "No command-label fallback in actual link selection. Conditional Logical path candidate grants no loading/Native/absence/edit. Shared URI constructor integrated, but host path base policy and pack include admission remain separate remaining consumers below."
+      ],
+      "source_evidence": [
+        [
+          "Complete production817lines read; URI4 source peer only, no current Rust acceptance."
+        ]
+      ],
+      "not_counted_as_remaining_code_migration": true
+    }
+  },
+  "actual_missing_transport": {
+    "purpose": "Distinguish invocation-entry source constants from later selected original Written operand allocation after earlier operands.",
+    "canonical_owner": "OriginalRegistryWords retains genuine SourceTransitions fullinput/context/config/schema/originalargv; Syntax already owns authentic static-word classification and original argv already owns written order.",
+    "bounded_extension": "Borrow complete original Logical invocation plus its exact earlier Written static prefix; no new parsing/naming/command/effect recipe, no Native/Normal/value/quietness upcast.",
+    "review_origin": "V1 independent SolCompiler HOLD shows earlier effectful encoding operand can run before the filename. All original SourceMay debts remain retained.",
+    "api_addition": "OriginalLogicalStaticOperandPrefix / original_logical_static_operand_prefix_before",
+    "count_reconciliation": "Existing baseline source-document-link validation purpose only. No new per-test, per-owner-call or failure-case work units. Root reconciles this narrow purpose-specific transport extension once if cataloguing an owner facet is required; this packet does not claim a count reduction or create a new work annex."
+  },
+  "unchanged_independent_purposes": [
+    "lsp-document-links-pack-include",
+    "lsp-document-link-host-path-policy"
+  ],
+  "source_evidence": [
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "basis": "packet afterimage",
+      "sha256": "186623ba46879a3e473fb5a5487bc2bcd1904f264ad6e6e389ce6780374e0919",
+      "line": 270,
+      "needle": "pub struct OriginalLogicalStaticOperandPrefix"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "basis": "packet afterimage",
+      "sha256": "186623ba46879a3e473fb5a5487bc2bcd1904f264ad6e6e389ce6780374e0919",
+      "line": 376,
+      "needle": "    pub fn original_logical_static_operand_prefix_before("
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "basis": "packet afterimage",
+      "sha256": "186623ba46879a3e473fb5a5487bc2bcd1904f264ad6e6e389ce6780374e0919",
+      "line": 345,
+      "needle": "    pub fn original_argument_word("
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "basis": "packet afterimage",
+      "sha256": "186623ba46879a3e473fb5a5487bc2bcd1904f264ad6e6e389ce6780374e0919",
+      "line": 67,
+      "needle": "pub fn original_single_source_command_substitution("
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/document_links.rs",
+      "basis": "packet afterimage",
+      "sha256": "f026eb12fd125c6c6cd088ff3b4519722b5eb62ea3b2de0c1c201b334c19f8ab",
+      "line": 594,
+      "needle": "                let _continuity = words.original_logical_static_operand_prefix_before("
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/document_links.rs",
+      "basis": "packet afterimage",
+      "sha256": "f026eb12fd125c6c6cd088ff3b4519722b5eb62ea3b2de0c1c201b334c19f8ab",
+      "line": 605,
+      "needle": "                let prefix = inputs.assignments.before("
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/document_links.rs",
+      "basis": "packet afterimage",
+      "sha256": "f026eb12fd125c6c6cd088ff3b4519722b5eb62ea3b2de0c1c201b334c19f8ab",
+      "line": 647,
+      "needle": "fn original_logical_link_anchor("
+    },
+    {
+      "path": "rust/tcl-compiler/src/auto_path_eval/path_constants.rs",
+      "basis": "unchanged current shared dependency",
+      "sha256": "1d4303b55f6b7fc63432ea4c3465fdddcfc5b9568b076387f0aa4f1110111825",
+      "line": 192,
+      "needle": "    pub fn before(&self, at: u32)"
+    },
+    {
+      "path": "rust/tcl-syntax/src/word_rules.rs",
+      "basis": "unchanged current shared dependency",
+      "sha256": "b0cd4a970e551a60a369f1e078071d180efcd8c566b06ba212b58e257d2b35be",
+      "line": 395,
+      "needle": "pub fn original_static_word_source_bytes("
+    }
+  ],
+  "execution": "None. Source-defined controls only; ordinary successor must assess existing positives, refusals and new adversary.",
+  "remaining_limits": [
+    "Original271 occupied load destination unchanged.",
+    "Original287 unsupported -- source form unchanged.",
+    "Original283 earlier external-source effects remain debts; old two-target assertion unchanged.",
+    "Exact first runtime refusal for computed old links remains untraced."
+  ]
+}

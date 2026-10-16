@@ -259,6 +259,21 @@ pub fn declaration_symbols(
     lift_declarations(source, &line_index, &declarations)
 }
 
+/// Build declaration-document symbols from the server's current configured
+/// analysis, retaining its selected workspace registry and full lexer config.
+#[must_use]
+pub fn declaration_symbols_from_analysis(
+    source: &str,
+    analysis: &AnalysisResult,
+) -> Vec<DocumentSymbol> {
+    let declarations = crate::declaration_outline::declarations_from_analysis(source, analysis);
+    if declarations.is_empty() {
+        return Vec::new();
+    }
+    let line_index = LineIndex::new(source);
+    lift_declarations(source, &line_index, &declarations)
+}
+
 fn lift_declarations(
     source: &str,
     line_index: &LineIndex,

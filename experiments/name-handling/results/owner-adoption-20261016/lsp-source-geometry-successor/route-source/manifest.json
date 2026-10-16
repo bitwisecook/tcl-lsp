@@ -1,0 +1,35 @@
+{
+  "source_patch_sha256": "d49c970713df43170484aeef4e6a9f8f2ce877c34e3cf80a2050d22bbc4caf60",
+  "contract_patch_sha256": "c4f867a65d355a18c5d2723061426b74da10c8a16b5b9c8a12018d971fe8d1f1",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/analyser/class_hierarchy/original_metadata/source_method_reference.rs",
+      "before_sha256": "ef66ab9a05eaf212b322544ac6ef16020dc9a62f00bedd0128b1d59c7c8ce2a9",
+      "after_sha256": "2ece1395afe6922b75ea9f9a04f586a8d8643087605ebcf08480e3ac0e7d14e4"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/package_resolver.rs",
+      "before_sha256": "54dee8a958feafc11d06d17b60d535bf05c5a63380f43d70e13773d349be958b",
+      "after_sha256": "1f29312e3364c8bdfc59c7965b7c4a135b14e02f718cd54c033c97801b09b1a6"
+    },
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "before_sha256": "2c2082ba26b1d525962e50415120edab0180357b8040bd99a5ef1e5fc314d1d2",
+      "after_sha256": "29bb7a0b39bf9d4e14d104153b5d136fb6bda79922efbde459e154897f6dfc82"
+    }
+  ],
+  "actual_gate_count_before": 310,
+  "predecessor_count": 309,
+  "delta": {
+    "added": 9,
+    "removed": 8
+  },
+  "open": "Registry source module route exceeds2048 bound; no gate waiver",
+  "checks": [
+    "isolated rustfmt",
+    "all3fuzz0forward/inverse exact",
+    "allcurrentbeforeexact"
+  ],
+  "execution": "none",
+  "count_advance": 0
+}

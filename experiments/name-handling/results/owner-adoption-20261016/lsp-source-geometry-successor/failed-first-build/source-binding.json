@@ -1,0 +1,26 @@
+{
+  "source_head": "a33e2257dd3a6cd44120ecfe77b1ed8e042ce916",
+  "rust_diff_sha256": "858a0b6ba00100c17afa72c30138a41e9227f789ab535cfebb84bfed4401a348",
+  "ordinary": true,
+  "instrumentation": false,
+  "single_job": true,
+  "test_debug": 0,
+  "packages": [
+    "tcl-compiler",
+    "tcl-lsp-core",
+    "tcl-lsp-db",
+    "tcl-registry",
+    "tcl-lsp-server"
+  ],
+  "status": "FAIL",
+  "input_before_count": 39000,
+  "utc": "2026-10-16T19:39:40.468271+00:00",
+  "command": "CARGO_PROFILE_TEST_DEBUG=0 cargo test --offline --locked -p tcl-compiler -p tcl-lsp-core -p tcl-lsp-db -p tcl-registry -p tcl-lsp-server --lib --no-run",
+  "scope": "Reviewed LSP source geometry successor: exact full-context UTF16 cursor and body/scope visibility; current-analysis original declaration outline with actual nonzero overlay Registry; genuine original formal-name minifier geometry under independent edit barriers; selected source package positive/incomplete census and shared typed syntax coverage; genuine earlier-Written operand continuity and static original anchor for Logical document links. Two exact UFCS call spellings and accurate private/public/internal contract routes preserve all guards; Registry2048-source traversal gate stays open. All original338controls and additional scoped controls retained for future replay. Runtime/VM/BIG-IP dedicated work paused; no execution/Normal/absence/edit authority from source geometry.",
+  "exit_code": 101,
+  "build_seconds": 157.742,
+  "input_after_count": 39000,
+  "input_drift_count": 0,
+  "input_drift": [],
+  "completed_utc": "2026-10-16T19:42:18.210375+00:00"
+}

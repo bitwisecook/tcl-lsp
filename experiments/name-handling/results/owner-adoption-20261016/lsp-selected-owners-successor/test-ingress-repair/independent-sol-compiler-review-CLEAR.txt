@@ -1,0 +1,7 @@
+SOURCE CLEAR — exact new-test ingress compile repair
+
+Patch SHA256 76e6a6d299fe18100d0529a28438b9722a183641fb7a96e25adc18fbec7c0f52.
+
+Only the new foreign-provider fixture changes from nonexistent CommandRegistry::clone to the existing CommandRegistry::build_default constructor. The same original source owner still supplies the positive receipt; the separate mutable registry receives the same unique marker command and the explicit semantic-key-distinct assertion remains. All stale source/config/different-site/foreign-store refusal assertions, old tests, selectors and budgets remain byte-identical. No production, visibility or guard changes. Existing formal-source tests in logical_definition use the same separate build_default + marker pattern.
+
+Exact patch hash/current after hash verified. Independent reverse --fuzz=0 restored the complete original before hash. No Cargo/build/tests/execution/main/Git. Source CLEAR, no ordinary acceptance claim.

@@ -386,13 +386,15 @@ pub fn parse_pkg_index(
                 conditions,
                 ..
             } = selected.reached;
-            let Some((name, version, body)) = registration::Registration::advertisement(
-                &registration,
-                text,
-                words,
-                registry,
-                tcl_lexer::LexerConfig::default(),
-            ) else {
+            let Some((name, version, body)) =
+                crate::package_resolver::registration::Registration::advertisement(
+                    &registration,
+                    text,
+                    words,
+                    registry,
+                    tcl_lexer::LexerConfig::default(),
+                )
+            else {
                 return;
             };
             if !is_version_word(version) {

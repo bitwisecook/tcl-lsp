@@ -1,0 +1,27 @@
+{
+  "baseline_unit": "lsp-declaration-outline-configured-source",
+  "patch": "/tmp/luna-declaration-outline-v1/declaration.patch",
+  "patch_sha256": "09b3d95e248536856acf4f1959712ff081c603d7ecb91f10a580d782f404d0fa",
+  "files": [
+    {
+      "path": "rust/tcl-lsp-core/src/declaration_outline.rs",
+      "before_sha256": "d30a4188c07a7fbf6e0ce183c15a7386b00f756c5e75f98ea62733233bff8c2e",
+      "after_sha256": "a42825bceabfc273f1a06dc350f4431b5f649e907b19146424188980cda495c3"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/document_symbols.rs",
+      "before_sha256": "b4a8eccf28bc0240d48ebcf18e78e4f9345062bb48a5bbf3d0311f84afffd107",
+      "after_sha256": "590660dcb0b2a56fc8ea17ab34b6f97955fe15157c9efef0f011371a9bd4dd61"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "before_sha256": "1a6788ac07b5b79a1ed927c12447a9ded61d63ea5915caecbbf3aca25b9ec884",
+      "after_sha256": "916a8647ded045d7ff14c952fc6ba37807a43b9f1b7dd7522d5e56f858589685"
+    }
+  ],
+  "validation": {
+    "rustfmt": "passed on isolated TMP source copies",
+    "cargo": "not run; parent owns builds",
+    "workspace_overlay_control": "test resolves a nonzero overlay registry, binds exact semantic key to CurrentSourceContext, and outlines through that context"
+  }
+}

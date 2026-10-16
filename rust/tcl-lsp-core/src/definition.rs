@@ -64,6 +64,7 @@ use tcl_registry::definer::DeclaredMemberVisibility;
 
 use crate::hover::find_word_span_at_position;
 use crate::namespace_import::{ExportVerdict, NamespaceExportOracle};
+use crate::original_context::CurrentSourcePosition;
 use crate::source_graph::{RunOrder, RunPoint};
 
 /// Whole-program export knowledge, paired with the URI of the document being
@@ -213,16 +214,16 @@ pub fn definition_with(
     analysis: &AnalysisResult,
     program: Option<ProgramExports<'_>>,
 ) -> Vec<LspRange> {
-    if crate::original_context::CurrentSourceContext::capture(source, analysis).is_none() {
+    let Some(position) = CurrentSourcePosition::capture(source, analysis, line, character) else {
         return Vec::new();
-    }
+    };
     let view = CallResolution {
         registry: None,
         program,
     };
     let line_index = LineIndex::new(source);
 
-    let decl_byte_offset = byte_offset_at(&line_index, source, line, character);
+    let decl_byte_offset = position.offset();
     if let std::ops::ControlFlow::Break(selected) =
         crate::vendor_declaration::select_at_offset(source, analysis, decl_byte_offset)
     {
@@ -342,7 +343,7 @@ pub fn definition_with(
     // later same-named `proc` displaced still resolves to itself instead of
     // silently jumping to its own successor — `all_procs` only ever keeps the
     // winner's span.
-    let cursor_offset = byte_offset_at(&line_index, source, line, character);
+    let cursor_offset = decl_byte_offset;
     if let Some(span) = procedure_name_at_cursor(analysis, cursor_offset) {
         return vec![span_to_range(source, &line_index, span)];
     }
@@ -756,7 +757,7 @@ fn instance_method_definition(
     line: u32,
     character: u32,
 ) -> Option<Vec<LspRange>> {
-    let cursor = byte_offset_at(line_index, source, line, character);
+    let cursor = CurrentSourcePosition::capture(source, analysis, line, character)?.offset();
     if let Some(selected) = crate::receiver_identity::method_at_cursor(analysis, source, cursor) {
         return Some(vec![span_to_range(
             source,
@@ -828,8 +829,7 @@ pub(crate) fn object_member_state_at<'a>(
     character: u32,
 ) -> Option<&'a tcl_compiler::analyser::ObjectMemberState> {
     let states = analysis.object_member_state.get(receiver)?;
-    let line_index = LineIndex::new(source);
-    let call_offset = byte_offset_at(&line_index, source, line, character);
+    let call_offset = CurrentSourcePosition::capture(source, analysis, line, character)?.offset();
     let call_scope = variable_scope_extent(analysis, receiver, call_offset);
     let matched: Vec<&tcl_compiler::analyser::ObjectMemberState> = states
         .iter()
@@ -856,7 +856,10 @@ pub fn object_dispatch_mask(
     else {
         return ExternalObjectDispatchMask::Unavailable;
     };
-    let cursor = byte_offset_at(&LineIndex::new(source), source, line, character);
+    let Some(position) = CurrentSourcePosition::capture(source, analysis, line, character) else {
+        return ExternalObjectDispatchMask::Unavailable;
+    };
+    let cursor = position.offset();
     let mut mask = ExternalObjectDispatchMask::Clear;
     crate::executable_regions::visit_analysis_executable_commands(
         source,
@@ -1252,11 +1255,11 @@ pub(crate) enum MethodBucket {
 fn next_dispatch_target(
     analysis: &AnalysisResult,
     source: &str,
-    line_index: &LineIndex,
+    _line_index: &LineIndex,
     line: u32,
     character: u32,
 ) -> Option<tcl_lexer::Span> {
-    let cursor = byte_offset_at(line_index, source, line, character);
+    let cursor = CurrentSourcePosition::capture(source, analysis, line, character)?.offset();
     let (class_q, method, body) = enclosing_method(analysis, cursor)?;
     let (_, target) =
         crate::references::scan_next_dispatch_sites_with_target(source, analysis, body)
@@ -1345,8 +1348,7 @@ pub(crate) fn original_instance_method_at_cursor(
     line: u32,
     character: u32,
 ) -> Option<(String, String, bool)> {
-    let index = LineIndex::new(source);
-    let cursor = byte_offset_at(&index, source, line, character);
+    let cursor = CurrentSourcePosition::capture(source, analysis, line, character)?.offset();
     crate::source_structure::original_method_site_at(source, analysis, cursor)
 }
 
@@ -1815,8 +1817,10 @@ pub(crate) fn resolved_indirect_head_proc(
 /// Compute the byte offset of a 0-based LSP `(line, character)`
 /// pair in `source`. `character` is a UTF-16 code-unit offset.
 ///
-/// Takes a pre-built `line_index` so callers that perform several
-/// position conversions per request share a single index.
+/// Clamped geometry for compatibility/presentation callers. Exact source
+/// selection uses CurrentSourcePosition instead. A returned offset alone
+/// supplies no current-source, declaration or edit authority.
+/// Takes a pre-built index so repeated presentation conversions can share it.
 pub(crate) fn byte_offset_at(
     line_index: &LineIndex,
     source: &str,
@@ -1892,8 +1896,7 @@ pub fn qualified_variable_cell_at(
     {
         return None;
     }
-    let line_index = LineIndex::new(source);
-    let cursor_off = byte_offset_at(&line_index, source, line, character);
+    let cursor_off = CurrentSourcePosition::capture(source, analysis, line, character)?.offset();
     let scope = analysis.logical_variable_scope_advice(
         &tcl_lexer::SourceImage::document(source),
         analysis.body_lexer_config?,
@@ -1960,7 +1963,8 @@ fn logical_variable_write_coordinate(
 }
 
 /// Whether a retained original namespace-variable producer or conflict covers
-/// this cursor. This only withdraws legacy fallback; it issues no symbol.
+/// this cursor, or whether exact current cursor ownership is unavailable.
+/// This only withdraws legacy fallback; it issues no symbol.
 #[must_use]
 pub fn original_variable_cursor_retained(
     source: &str,
@@ -1968,8 +1972,10 @@ pub fn original_variable_cursor_retained(
     line: u32,
     character: u32,
 ) -> bool {
-    let index = LineIndex::new(source);
-    let offset = byte_offset_at(&index, source, line, character);
+    let Some(position) = CurrentSourcePosition::capture(source, analysis, line, character) else {
+        return true;
+    };
+    let offset = position.offset();
     let contains = |span: tcl_lexer::Span| span.start() <= offset && offset < span.end();
     analysis
         .original_variable_symbols
@@ -1996,8 +2002,7 @@ pub fn original_variable_occurrence_at<'a>(
     line: u32,
     character: u32,
 ) -> Option<&'a tcl_compiler::signature_scan::variable_symbol::SignatureSourceVariableOccurrence> {
-    let line_index = LineIndex::new(source);
-    let offset = byte_offset_at(&line_index, source, line, character);
+    let offset = CurrentSourcePosition::capture(source, analysis, line, character)?.offset();
     analysis.original_variable_symbol_in_source(
         &tcl_lexer::SourceImage::document(source),
         analysis.body_lexer_config?,
@@ -2378,7 +2383,7 @@ pub fn original_autoload_request_at(
     {
         return None;
     }
-    let offset = byte_offset_at(&LineIndex::new(source), source, line, character);
+    let offset = CurrentSourcePosition::capture(source, analysis, line, character)?.offset();
     let mut sites = analysis.command_invocations.iter().filter(|site| {
         site.lookup == tcl_compiler::signature_scan::types::SignatureCommandLookup::InvocationHead
             && site.range.start() <= offset
@@ -2432,8 +2437,7 @@ pub fn command_head_and_namespace_at(
         return None;
     }
     let (word, _start, _end) = crate::hover::find_word_span_at_position(source, line, character)?;
-    let line_index = LineIndex::new(source);
-    let offset = byte_offset_at(&line_index, source, line, character);
+    let offset = CurrentSourcePosition::capture(source, analysis, line, character)?.offset();
     let namespace = namespace_context_at(
         &analysis.global_scope,
         offset,
@@ -2748,8 +2752,7 @@ pub fn itcl_class_proc_target_at(
 ) -> Option<(String, String)> {
     crate::original_context::CurrentSourceContext::capture(source, analysis)?;
     let (word, _start, _end) = crate::hover::find_word_span_at_position(source, line, character)?;
-    let line_index = LineIndex::new(source);
-    let cursor = byte_offset_at(&line_index, source, line, character);
+    let cursor = CurrentSourcePosition::capture(source, analysis, line, character)?.offset();
     let namespace = namespace_context_at(
         &analysis.global_scope,
         cursor,
@@ -4160,46 +4163,99 @@ pub(crate) fn cross_namespace_qualified_vars(
     out
 }
 
-/// Return the chain of scopes from `root` down to the
-/// innermost child whose `body_span` contains `byte_offset`.
-/// The chain is ordered outermost (`root`) to innermost.
-fn scope_chain_at(
-    root: &tcl_compiler::analyser::Scope,
-    byte_offset: u32,
-) -> Vec<&tcl_compiler::analyser::Scope> {
-    let mut chain = vec![root];
-    let mut cursor = root;
-    loop {
-        let next = cursor.children.iter().find(|c| {
-            // `Span` is half-open `[start, end)` — the byte at
-            // `s.end()` lives outside the scope.
-            c.body_span
-                .is_some_and(|s| s.start() <= byte_offset && byte_offset < s.end())
-        });
-        match next {
-            Some(child) => {
-                chain.push(child);
-                cursor = child;
-            }
-            None => break,
-        }
-    }
-    chain
+/// Current readonly scan geometry. Document visibility is explicit, rather
+/// than inferred from an empty or unavailable collection of body spans.
+pub(crate) enum SourceScopeBodySpans {
+    Document(tcl_lexer::Span),
+    Bodies(Vec<tcl_lexer::Span>),
 }
 
-/// Return the `body_span`s of the scope chain containing
-/// `byte_offset`, innermost first.  The global scope has no
-/// `body_span`, so an empty result means "the whole file is
-/// visible" — an empty list signals a file-wide walk.
+/// Join the actual Logical scope owner to genuine original script interiors.
+/// Missing/foreign body geometry withdraws the scan, never widens it to a file.
 pub(crate) fn scope_body_spans_at(
-    root: &tcl_compiler::analyser::Scope,
-    byte_offset: u32,
-) -> Vec<tcl_lexer::Span> {
-    scope_chain_at(root, byte_offset)
-        .into_iter()
-        .rev()
-        .filter_map(|s| s.body_span)
-        .collect()
+    position: &CurrentSourcePosition<'_>,
+) -> Option<SourceScopeBodySpans> {
+    use tcl_compiler::analyser::ScopeKind;
+    let source = position.source();
+    let analysis = position.analysis();
+    let offset = position.offset();
+    let image = tcl_lexer::SourceImage::document(source);
+    let advice =
+        analysis.logical_variable_scope_advice(&image, position.context().config(), offset)?;
+    let root = advice.root();
+    if !std::ptr::eq(root, &analysis.global_scope)
+        || root.kind != ScopeKind::Global
+        || root.body_span.is_some()
+    {
+        return None;
+    }
+    let structure = crate::source_structure::SourceStructure::capture(
+        source,
+        Some(analysis),
+        position.context().config(),
+    )?;
+    let mut pending = root
+        .children
+        .iter()
+        .map(|scope| (scope, 1))
+        .collect::<Vec<_>>();
+    while let Some((scope, depth)) = pending.pop() {
+        if crate::MAX_SCOPE_WALK_DEPTH.exceeded(depth) {
+            return None;
+        }
+        let body = scope.body_span?;
+        source.get(body.as_range())?;
+        if !structure
+            .scripts
+            .iter()
+            .any(|(span, nesting)| *nesting > 0 && *span == body)
+        {
+            return None;
+        }
+        pending.extend(scope.children.iter().map(|child| (child, depth + 1)));
+    }
+    let mut selected = root;
+    let mut spans = Vec::new();
+    loop {
+        let mut children = selected
+            .children
+            .iter()
+            .filter_map(|child| {
+                let body = child.body_span?;
+                (body.start() <= offset && offset < body.end()).then_some((child, body))
+            })
+            .collect::<Vec<_>>();
+        children.sort_by_key(|(_, body)| body.len());
+        let Some((child, body)) = children.first().copied() else {
+            break;
+        };
+        if children
+            .get(1)
+            .is_some_and(|(_, other)| other.len() == body.len())
+        {
+            return None;
+        }
+        spans.push(body);
+        selected = child;
+    }
+    if let Some(body) = structure
+        .caller_context_unavailable_bodies
+        .iter()
+        .filter(|body| body.start() <= offset && offset < body.end())
+        .min_by_key(|body| body.len())
+        && !spans.contains(body)
+    {
+        return None;
+    }
+    if spans.is_empty() {
+        Some(SourceScopeBodySpans::Document(tcl_lexer::Span::new(
+            0,
+            u32::try_from(source.len()).ok()?,
+        )))
+    } else {
+        spans.reverse();
+        Some(SourceScopeBodySpans::Bodies(spans))
+    }
 }
 
 /// Convert a byte extent to editor UTF-16 geometry in its owning source.
@@ -9330,6 +9386,134 @@ mod logical_class_navigation_tests {
                 stub.name_span.start(),
             ),
             Some(stub.name_span)
+        );
+    }
+}
+
+#[cfg(test)]
+mod exact_source_position_advice_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn exact_current_cursor_keeps_unicode_endline_and_declines_clamped_coordinates() {
+        let source = "proc café {} {}; café\nset emoji 😀";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let valid = CurrentSourcePosition::capture(source, &analysis, 0, 18).unwrap();
+        assert_eq!(
+            &source[usize::try_from(valid.offset()).unwrap()..],
+            "afé\nset emoji 😀"
+        );
+        let index = LineIndex::new_lsp(source);
+        let end =
+            index.position_at_utf16(u32::try_from(source.find('\n').unwrap()).unwrap(), source);
+        assert!(
+            CurrentSourcePosition::capture(source, &analysis, end.line, end.character.get())
+                .is_some()
+        );
+        assert!(
+            CurrentSourcePosition::capture(source, &analysis, 1, 11).is_none(),
+            "surrogate interior"
+        );
+        assert!(
+            CurrentSourcePosition::capture(source, &analysis, 0, end.character.get() + 1).is_none()
+        );
+        assert!(CurrentSourcePosition::capture(source, &analysis, 20, 0).is_none());
+        assert!(definition(source, 1, 11, &analysis).is_empty());
+        assert!(definition(source, 0, u32::MAX, &analysis).is_empty());
+        assert!(definition(source, u32::MAX, 0, &analysis).is_empty());
+        assert!(!definition(source, 0, 18, &analysis).is_empty());
+    }
+
+    #[test]
+    fn exact_source_cursor_withdraws_stale_input_and_full_grammar_changes() {
+        let source = "proc p {} {}; p";
+        let mut analysis = Analyser::new().analyse(source, "tcl");
+        assert!(CurrentSourcePosition::capture(source, &analysis, 0, 14).is_some());
+        assert!(CurrentSourcePosition::capture("proc q {} {}; q", &analysis, 0, 14).is_none());
+        let config = analysis.body_lexer_config.unwrap();
+        analysis.body_lexer_config.as_mut().unwrap().strict_quoting = !config.strict_quoting;
+        assert!(CurrentSourcePosition::capture(source, &analysis, 0, 14).is_none());
+        assert!(definition(source, 0, 14, &analysis).is_empty());
+        analysis.body_lexer_config = Some(config);
+        analysis.resolved_input = None;
+        assert!(CurrentSourcePosition::capture(source, &analysis, 0, 14).is_none());
+    }
+
+    #[test]
+    fn source_scope_visibility_requires_original_body_correspondence_before_document_walk() {
+        let source = "set top 1; proc p {} {global top; return $top}; p";
+        let mut analysis = Analyser::new().analyse(source, "tcl");
+        let body_cursor = u32::try_from(source.find("return").unwrap()).unwrap();
+        let root = CurrentSourcePosition::capture(source, &analysis, 0, 0).unwrap();
+        assert!(
+            matches!(scope_body_spans_at(&root), Some(SourceScopeBodySpans::Document(span)) if span == tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()))
+        );
+        let body = CurrentSourcePosition::capture(source, &analysis, 0, body_cursor).unwrap();
+        assert!(
+            matches!(scope_body_spans_at(&body), Some(SourceScopeBodySpans::Bodies(spans)) if spans == vec![analysis.global_scope.children[0].body_span.unwrap()])
+        );
+        let original = analysis.global_scope.children[0].body_span;
+        let child = analysis.global_scope.children.remove(0);
+        let removed = CurrentSourcePosition::capture(source, &analysis, 0, body_cursor).unwrap();
+        assert!(
+            scope_body_spans_at(&removed).is_none(),
+            "absent scope cannot borrow the enclosing document"
+        );
+        analysis.global_scope.children.insert(0, child);
+        analysis.global_scope.children[0].body_span = None;
+        let missing = CurrentSourcePosition::capture(source, &analysis, 0, body_cursor).unwrap();
+        assert!(
+            scope_body_spans_at(&missing).is_none(),
+            "missing body cannot mean whole file"
+        );
+        analysis.global_scope.children[0].body_span =
+            Some(tcl_lexer::Span::new(body_cursor, body_cursor + 3));
+        let foreign = CurrentSourcePosition::capture(source, &analysis, 0, body_cursor).unwrap();
+        assert!(
+            scope_body_spans_at(&foreign).is_none(),
+            "an arbitrary valid substring is no original body owner"
+        );
+        analysis.global_scope.children[0].body_span = original;
+        let restored = CurrentSourcePosition::capture(source, &analysis, 0, body_cursor).unwrap();
+        assert!(matches!(
+            scope_body_spans_at(&restored),
+            Some(SourceScopeBodySpans::Bodies(_))
+        ));
+    }
+    #[test]
+    fn exact_current_cursor_preserves_crlf_multibyte_and_empty_final_line() {
+        let source = "p😀é\r\n";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        for (line, column, byte) in [(0, 0, 0), (0, 1, 1), (0, 3, 5), (0, 4, 7), (1, 0, 9)] {
+            assert_eq!(
+                CurrentSourcePosition::capture(source, &analysis, line, column)
+                    .unwrap()
+                    .offset(),
+                byte
+            );
+        }
+        for (line, column) in [(0, 2), (0, 5), (1, 1), (2, 0)] {
+            assert!(CurrentSourcePosition::capture(source, &analysis, line, column).is_none());
+        }
+    }
+
+    #[test]
+    fn declaration_caller_uses_exact_source_cursor_before_any_fallback() {
+        let source = "proc p {} {}; p";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let profile = analysis.resolved_profile().unwrap();
+        let registry = analysis.resolved_registry().unwrap();
+        assert!(
+            !crate::declaration::declaration(source, 0, 14, profile, &analysis, registry)
+                .is_empty()
+        );
+        assert!(
+            crate::declaration::declaration(source, 0, 100, profile, &analysis, registry)
+                .is_empty()
+        );
+        assert!(
+            crate::declaration::declaration(source, 2, 0, profile, &analysis, registry).is_empty()
         );
     }
 }

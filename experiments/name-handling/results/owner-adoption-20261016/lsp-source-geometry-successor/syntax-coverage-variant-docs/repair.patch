@@ -1,0 +1,12 @@
+--- a/rust/tcl-lsp-core/src/source_structure.rs
++++ b/rust/tcl-lsp-core/src/source_structure.rs
+@@ -61,7 +61,9 @@
+ /// Complete supplies no dispatch/call-graph closure, execution or Normal result.
+ #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+ pub enum SourceSyntaxCoverageApplicability {
++    /// All independently selected script syntax is represented.
+     Complete,
++    /// Some selected script syntax is unavailable or unrepresented.
+     Incomplete,
+ }
+ 

@@ -1253,7 +1253,7 @@ fn retained_registration_transport_keeps_full_script_words_store_and_config() {
     let config = tcl_lexer::LexerConfig::default();
     let registry = crate::registry_for_dialect("tcl");
     let commands = walk_command_words_with_config(source, config);
-    let mut foreign_registry = (*registry).clone();
+    let mut foreign_registry = tcl_registry::CommandRegistry::build_default();
     foreign_registry.insert(tcl_registry::CommandSpec {
         name: "registration_transport_marker",
         arity: tcl_registry::Arity::exact(0),

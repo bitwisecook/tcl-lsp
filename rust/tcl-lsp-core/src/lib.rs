@@ -105,7 +105,10 @@ pub mod snippets;
 pub mod source_decode;
 pub mod source_graph;
 mod source_structure;
-pub use source_structure::{SourceSyntaxRegion, SourceSyntaxStructure};
+pub use source_structure::{
+    SourceSyntaxCoverage, SourceSyntaxCoverageApplicability, SourceSyntaxRegion,
+    SourceSyntaxStructure,
+};
 pub mod source_style;
 pub mod sslictcl_diagnostics;
 pub mod tcl_install;

@@ -28404,29 +28404,11 @@ impl LanguageServer for Backend {
                     message: format!("document_symbol worker panicked: {err}").into(),
                     data: None,
                 })?
-        } else if tcl_lsp_core::declaration_outline::is_declaration_document(
-            tcl_lsp_core::profile_for_dialect(&doc.dialect),
-        ) {
-            // A declaration document (`.sslictcl`) has no procs, classes or
-            // namespaces for the scope walk to find: its *blocks* are its
-            // structure, so the outline is the block tree. Same shape as the
-            // BIG-IP branch above, and for the same reason.
-            let text = doc.text.clone();
-            let profile = tcl_lsp_core::profile_for_dialect(&doc.dialect);
-            crate::rt::spawn_blocking(move || core_symbols::declaration_symbols(&text, profile))
-                .await
-                .map_err(|err| jsonrpc::Error {
-                    code: jsonrpc::ErrorCode::InternalError,
-                    message: format!("document_symbol worker panicked: {err}").into(),
-                    data: None,
-                })?
-        } else if let Some(symbols) = self.db_document_symbols(&params.text_document.uri).await {
-            // Served from the salsa query graph (memoised; reuses the tracked
-            // file_analysis instead of re-running the full analyser).
-            symbols
         } else {
-            // Cold / cancelled fallback: compute directly so the request never
-            // returns empty due to a concurrent edit (behaviour preserved).
+            // Resolve the declaration-vs-script route from the same current
+            // document analysis that owns its workspace registry and lexer
+            // configuration. A profile label alone can miss an installed
+            // declaration grammar overlay.
             let analysis = self
                 .analysis_for(
                     &params.text_document.uri,
@@ -28435,15 +28417,35 @@ impl LanguageServer for Backend {
                 )
                 .await?;
             let text = doc.text.clone();
-            crate::rt::spawn_blocking(move || {
-                core_symbols::document_symbols_from_analysis(&text, &analysis)
-            })
-            .await
-            .map_err(|err| jsonrpc::Error {
-                code: jsonrpc::ErrorCode::InternalError,
-                message: format!("document_symbol worker panicked: {err}").into(),
-                data: None,
-            })?
+            if tcl_lsp_core::declaration_outline::is_declaration_document_from_analysis(
+                &text, &analysis,
+            ) {
+                crate::rt::spawn_blocking(move || {
+                    core_symbols::declaration_symbols_from_analysis(&text, &analysis)
+                })
+                .await
+                .map_err(|err| jsonrpc::Error {
+                    code: jsonrpc::ErrorCode::InternalError,
+                    message: format!("document_symbol worker panicked: {err}").into(),
+                    data: None,
+                })?
+            } else if let Some(symbols) = self.db_document_symbols(&params.text_document.uri).await
+            {
+                // Served from the salsa query graph (memoised; reuses the
+                // tracked file_analysis instead of re-running projection).
+                symbols
+            } else {
+                // The direct analysis is current and complete for this request.
+                crate::rt::spawn_blocking(move || {
+                    core_symbols::document_symbols_from_analysis(&text, &analysis)
+                })
+                .await
+                .map_err(|err| jsonrpc::Error {
+                    code: jsonrpc::ErrorCode::InternalError,
+                    message: format!("document_symbol worker panicked: {err}").into(),
+                    data: None,
+                })?
+            }
         };
         let lifted: Vec<DocumentSymbol> = symbols.into_iter().map(lift_document_symbol).collect();
         Ok(Some(DocumentSymbolResponse::Nested(lifted)))

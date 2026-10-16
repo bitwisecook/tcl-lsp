@@ -1,0 +1,217 @@
+{
+  "utc": "2026-10-16T19:40:16.939724+00:00",
+  "ordinary_execution": "pending; fresh5library buildrunning",
+  "counts": "Four new existing LSP baseline purposes; existing doclink repair and route corrections count0; no new annex; sourceCLEAR is not validation acceptance",
+  "files": [
+    {
+      "source": "/tmp/sol-lsp-logical-document-link-prefix-v2/repair.patch",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-source-geometry-successor/document-link/repair.patch.zst",
+      "sha256": "af24ea0d57a213413b8d4bbefb4f208270fa9db84d825d5b268548dae64b486e",
+      "bytes": 11519,
+      "payload_sha256": "0c3803ce466bd0836fae29d7b9ef674df431bd3c5a2bebe2ab79d2c719ac71de"
+    },
+    {
+      "source": "/tmp/sol-lsp-logical-document-link-prefix-v2/manifest.json",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-source-geometry-successor/document-link/manifest.json",
+      "sha256": "2b341a6ae06860c323d65c4e3b03b7290d7d1551a74fe37994f7976eecc6ca2f",
+      "bytes": 3298,
+      "payload_sha256": "2b341a6ae06860c323d65c4e3b03b7290d7d1551a74fe37994f7976eecc6ca2f"
+    },
+    {
+      "source": "/tmp/sol-lsp-logical-document-link-prefix-v2/independent-sol-compiler-review-CLEAR.txt",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-source-geometry-successor/document-link/independent-sol-compiler-review-CLEAR.txt",
+      "sha256": "c971fff0755d18289f70dc9c762a8d7a46c42ee4353239108b7276745d519310",
+      "bytes": 1621,
+      "payload_sha256": "c971fff0755d18289f70dc9c762a8d7a46c42ee4353239108b7276745d519310"
+    },
+    {
+      "source": "/tmp/sol-lsp-logical-document-link-prefix-v2/source-verification.json",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-source-geometry-successor/document-link/source-verification.json",
+      "sha256": "c6537f1fb67e871098b84890e02833b82207ccf8a9a4b0e3c87d7dd47abdf481",
+      "bytes": 485,
+      "payload_sha256": "c6537f1fb67e871098b84890e02833b82207ccf8a9a4b0e3c87d7dd47abdf481"
+    },
+    {
+      "source": "/tmp/sol-lsp-logical-document-link-prefix-v2/source-basis-and-purpose-reconciliation.json",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-source-geometry-successor/document-link/source-basis-and-purpose-reconciliation.json",
+      "sha256": "93e2372107f1f2d7ba5171a29ff55448c78510142142309b63022e5de2340a4d",
+      "bytes": 6345,
+      "payload_sha256": "93e2372107f1f2d7ba5171a29ff55448c78510142142309b63022e5de2340a4d"
+    },
+    {
+      "source": "/tmp/lsp-definition-source-position-v2/repair.patch",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-source-geometry-successor/definition-cursor/repair.patch.zst",
+      "sha256": "4f8b2cd87acfaca276e133c8c2ec1466561d29e824a5780f302e516c133c257c",
+      "bytes": 11395,
+      "payload_sha256": "46d8a3db0a6e4969ec3298b6d34ffa71e758fffe0715a6c194355ffacf19627a"
+    },
+    {
+      "source": "/tmp/lsp-definition-source-position-v2/manifest.json",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-source-geometry-successor/definition-cursor/manifest.json",
+      "sha256": "6e36d31f948a494143f9febac934ed7e5302a7df2fbb04b3ffba9e1901e6cda8",
+      "bytes": 4157,
+      "payload_sha256": "6e36d31f948a494143f9febac934ed7e5302a7df2fbb04b3ffba9e1901e6cda8"
+    },
+    {
+      "source": "/tmp/lsp-definition-source-position-v2/SOURCE-BASIS.md",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-source-geometry-successor/definition-cursor/SOURCE-BASIS.md",
+      "sha256": "71fd97ba4e78f1967df381c797d37b5313dcd06ba2854045f7e0f97e42850237",
+      "bytes": 4575,
+      "payload_sha256": "71fd97ba4e78f1967df381c797d37b5313dcd06ba2854045f7e0f97e42850237"
+    },
+    {
+      "source": "/tmp/lsp-definition-source-position-v2/independent-variable-order-review-CLEAR.txt",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-source-geometry-successor/definition-cursor/independent-variable-order-review-CLEAR.txt",
+      "sha256": "313bafebc4f3a682f71370fce8a93f85aab4a5872d8f6ff26a15b56a4ae98c0c",
+      "bytes": 1859,
+      "payload_sha256": "313bafebc4f3a682f71370fce8a93f85aab4a5872d8f6ff26a15b56a4ae98c0c"
+    },
+    {
+      "source": "/tmp/luna-declaration-outline-v1/declaration.patch",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-source-geometry-successor/declaration-outline/declaration.patch.zst",
+      "sha256": "0859f8025bd9188da783909aec768be1490a152f34ea92b29906467634f34601",
+      "bytes": 4157,
+      "payload_sha256": "09b3d95e248536856acf4f1959712ff081c603d7ecb91f10a580d782f404d0fa"
+    },
+    {
+      "source": "/tmp/luna-declaration-outline-v1/manifest.json",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-source-geometry-successor/declaration-outline/manifest.json",
+      "sha256": "bf949b8386531cbb2970c4ed6b0a1f80efbe7872c94a12f0642de380f2746048",
+      "bytes": 1266,
+      "payload_sha256": "bf949b8386531cbb2970c4ed6b0a1f80efbe7872c94a12f0642de380f2746048"
+    },
+    {
+      "source": "/tmp/luna-declaration-outline-v1/independent-sol-compiler-review-V3-CLEAR.txt",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-source-geometry-successor/declaration-outline/independent-sol-compiler-review-V3-CLEAR.txt",
+      "sha256": "ee702bb56fd9fa8174b760461339e531e92887a3cde53d8334bf7160f8386d32",
+      "bytes": 1679,
+      "payload_sha256": "ee702bb56fd9fa8174b760461339e531e92887a3cde53d8334bf7160f8386d32"
+    },
+    {
+      "source": "/tmp/luna-declaration-outline-v4/contracts.patch",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-source-geometry-successor/declaration-contract/contracts.patch.zst",
+      "sha256": "d169ca1dea9a4ad395be234b7ca7cd3dba7315ad9c25118067e0b3878d640a76",
+      "bytes": 2503,
+      "payload_sha256": "2efc1bbcde26c94b63d58786191084284a4a4adfe4555295be6cb27b6cb0f6f2"
+    },
+    {
+      "source": "/tmp/luna-declaration-outline-v4/manifest.json",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-source-geometry-successor/declaration-contract/manifest.json",
+      "sha256": "2315a98256e1d9f48de3c08fbb5f5bc09f65dfe0ae3451366e9064cb522501fc",
+      "bytes": 682,
+      "payload_sha256": "2315a98256e1d9f48de3c08fbb5f5bc09f65dfe0ae3451366e9064cb522501fc"
+    },
+    {
+      "source": "/tmp/lsp-minifier-original-formal-geometry-v1/source.patch",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-source-geometry-successor/minifier-formal/source.patch.zst",
+      "sha256": "a3f95d3a299cf95963f5a55d5c18fce11bf8457968690f61ce1b949e8f2c3b17",
+      "bytes": 4522,
+      "payload_sha256": "dfa54b75446320e9bea9a6d62ae9c2ddf77c86777d5da2a835bc1ee35d58c058"
+    },
+    {
+      "source": "/tmp/lsp-minifier-original-formal-geometry-v1/contract.patch",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-source-geometry-successor/minifier-formal/contract.patch.zst",
+      "sha256": "cdde71662692b9c1aa7515dd6d4e9b3e363474ac21db88a0d22d19c19f3a43c8",
+      "bytes": 7118,
+      "payload_sha256": "7b3536639d1050ec9c7af70f76f2c5f8ff5759a1f632da1fa4209802ad7a2656"
+    },
+    {
+      "source": "/tmp/lsp-minifier-original-formal-geometry-v1/manifest.json",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-source-geometry-successor/minifier-formal/manifest.json",
+      "sha256": "b6fb9848999211cd2191c1a669ab88ef33078e444a60ebf6e88a88214ffd51f9",
+      "bytes": 2338,
+      "payload_sha256": "b6fb9848999211cd2191c1a669ab88ef33078e444a60ebf6e88a88214ffd51f9"
+    },
+    {
+      "source": "/tmp/lsp-minifier-original-formal-geometry-v1/independent-variable-order-review-CLEAR.txt",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-source-geometry-successor/minifier-formal/independent-variable-order-review-CLEAR.txt",
+      "sha256": "0afed57e45113960ca3de0eeb8c94883fa8562cbe3f5ab130506c5fde95b9de9",
+      "bytes": 2159,
+      "payload_sha256": "0afed57e45113960ca3de0eeb8c94883fa8562cbe3f5ab130506c5fde95b9de9"
+    },
+    {
+      "source": "/tmp/lsp-package-presence-census-v1/candidate.patch",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-source-geometry-successor/package-census/candidate.patch.zst",
+      "sha256": "42a451ec543d4ba43cf66ddfa67fa39dffa01530d38dc4fa4e490588d6dc3d22",
+      "bytes": 11788,
+      "payload_sha256": "0cefb7a0ed93ede475189cdc7554aa9da86c40610e05498b9f52cc34b3794aa8"
+    },
+    {
+      "source": "/tmp/lsp-package-presence-census-v1/manifest.json",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-source-geometry-successor/package-census/manifest.json",
+      "sha256": "7450f1b47d7ae185a8646c0df19b79ec0bc2a8477b83065cfc0d0f6efc0dbf97",
+      "bytes": 4479,
+      "payload_sha256": "7450f1b47d7ae185a8646c0df19b79ec0bc2a8477b83065cfc0d0f6efc0dbf97"
+    },
+    {
+      "source": "/tmp/lsp-package-presence-census-v1/CONTRACT.md",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-source-geometry-successor/package-census/CONTRACT.md",
+      "sha256": "3efefb1e83a68bae2889f29478e832e5c495dbf875e59753b919375dbbc8b9ab",
+      "bytes": 3368,
+      "payload_sha256": "3efefb1e83a68bae2889f29478e832e5c495dbf875e59753b919375dbbc8b9ab"
+    },
+    {
+      "source": "/tmp/lsp-package-presence-census-v1/SOURCE-BASIS.md",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-source-geometry-successor/package-census/SOURCE-BASIS.md",
+      "sha256": "1b7dc49ef5299f4f0df34e2258aaffe720d7b321298851d793539836df933560",
+      "bytes": 1579,
+      "payload_sha256": "1b7dc49ef5299f4f0df34e2258aaffe720d7b321298851d793539836df933560"
+    },
+    {
+      "source": "/tmp/lsp-package-presence-census-v1/independent-sol-compiler-review-CLEAR.txt",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-source-geometry-successor/package-census/independent-sol-compiler-review-CLEAR.txt",
+      "sha256": "91455c1a567788ef298ee5d4ed1b87a17ca117e5b51d64d33224997a311f33f0",
+      "bytes": 2275,
+      "payload_sha256": "91455c1a567788ef298ee5d4ed1b87a17ca117e5b51d64d33224997a311f33f0"
+    },
+    {
+      "source": "/tmp/lsp-selected-owner-route-reconciliation-v1/source.patch",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-source-geometry-successor/route-source/source.patch.zst",
+      "sha256": "7d971790f0b5ea2f43aacca14d520ec176912331e7313408c94d6fbb114ae599",
+      "bytes": 545,
+      "payload_sha256": "d49c970713df43170484aeef4e6a9f8f2ce877c34e3cf80a2050d22bbc4caf60"
+    },
+    {
+      "source": "/tmp/lsp-selected-owner-route-reconciliation-v1/manifest.json",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-source-geometry-successor/route-source/manifest.json",
+      "sha256": "520251ebaad0524f5190aeaab5b611dc9bab98321ca4ceb903fefa27c9c0c234",
+      "bytes": 1371,
+      "payload_sha256": "520251ebaad0524f5190aeaab5b611dc9bab98321ca4ceb903fefa27c9c0c234"
+    },
+    {
+      "source": "/tmp/lsp-selected-owner-route-reconciliation-v1/SOURCE-BASIS.md",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-source-geometry-successor/route-source/SOURCE-BASIS.md",
+      "sha256": "e38cd425d8697d9908a6d267d89722ce62f6b66666aa126806b51e21d52e83a9",
+      "bytes": 2657,
+      "payload_sha256": "e38cd425d8697d9908a6d267d89722ce62f6b66666aa126806b51e21d52e83a9"
+    },
+    {
+      "source": "/tmp/lsp-selected-owner-route-reconciliation-v1/error-delta.json",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-source-geometry-successor/route-source/error-delta.json",
+      "sha256": "7f19a8448389538551399ee8ae8a3e79a1db91af906f503179c7e12e2835514d",
+      "bytes": 2884,
+      "payload_sha256": "7f19a8448389538551399ee8ae8a3e79a1db91af906f503179c7e12e2835514d"
+    },
+    {
+      "source": "/tmp/lsp-selected-owner-route-reconciliation-v3/contract.patch",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-source-geometry-successor/route-contract/contract.patch.zst",
+      "sha256": "07869d119335ebad76c5ec2cd59285cd4a6a265a3123b1c05cad8e18d80a90f8",
+      "bytes": 9785,
+      "payload_sha256": "7d45d756862e3d6b8f88b898a514becfd56cc77a37eda0e3abd742c07bd33989"
+    },
+    {
+      "source": "/tmp/lsp-selected-owner-route-reconciliation-v3/manifest.json",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-source-geometry-successor/route-contract/manifest.json",
+      "sha256": "d7c3d5fdfd4d381b51e6da87f01f0b32984a9dece49b3b8627ccad787ccc0e01",
+      "bytes": 1421,
+      "payload_sha256": "d7c3d5fdfd4d381b51e6da87f01f0b32984a9dece49b3b8627ccad787ccc0e01"
+    },
+    {
+      "source": "/tmp/lsp-selected-owner-route-reconciliation-v3/independent-root-review-CLEAR.json",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-source-geometry-successor/route-contract/independent-root-review-CLEAR.json",
+      "sha256": "899717cb84653cc4d3f8e8fde5322637c007c36bd835edf9642302b9fa9d4ff3",
+      "bytes": 1118,
+      "payload_sha256": "899717cb84653cc4d3f8e8fde5322637c007c36bd835edf9642302b9fa9d4ff3"
+    }
+  ]
+}

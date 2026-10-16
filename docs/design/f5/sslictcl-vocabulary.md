@@ -283,7 +283,7 @@ so aliases and all four routes agree.
 | Hover / signature help | The pack's `HoverSnippet` for each statement word, whose `source` line cites this document. |
 | Semantic tokens | The shared `oo_body` walk: every declaration word paints as a keyword at any depth, and a `predicate` body — whose statement carries no grammar — drops out of declaration context. |
 | Folding | The shared body-fold walk over the same grammars: every block folds, nested blocks included. |
-| Document symbols | `tcl_lsp_core::document_symbols::declaration_symbols`, over the block tree. A declaration document has no procs, classes or namespaces for the analyser's scope walk to find; its blocks *are* its structure, so `endpoint /Common/www` and `policy corporate` are the outline, with `hsts`, `check modern` and `grade` beneath them. |
+| Document symbols | The server selects `tcl_lsp_core::document_symbols::declaration_symbols_from_analysis` from the current analysis registry, then walks original source words under the selected document/member grammars. A declaration document has no procs, classes or namespaces for the analyser's scope walk to find; its blocks *are* its structure, so `endpoint /Common/www` and `policy corporate` are the outline, with `hsts`, `check modern` and `grade` beneath them. The standalone `declarations(source, profile)` API remains profile-based. |
 | Diagnostics | Every `DslDiagnostic` `load_with_diagnostics` reports, published as an ordinary document diagnostic. |
 
 **Which codes appear.** The loader's own, unchanged: `SSLIC1001`–`SSLIC1012`

@@ -1,0 +1,8 @@
+SOURCE REVIEW CLEAR
+Exact patch SHA256 0c3803ce466bd0836fae29d7b9ef674df431bd3c5a2bebe2ab79d2c719ac71de.
+
+The V1 HOLD is addressed by the shared OriginalLogicalStaticOperandPrefix receipt. It requires the actual SourceTransitions Logical input, exact ContextRegistry identity/currency, full source/configuration, selected schema, genuine effective Written target, and its exact original vector position. Every preceding original Written word, including the head, must pass the existing static whole-Document-word owner. Command substitutions, variable reads/observer opportunities and expansion therefore cannot borrow invocation-entry constants. Alias BindingPrefix values stay with their captured producer and have no current Written anchor.
+
+Core requests this receipt before taking PathConstantAssignments::before(current command); all earlier command observations/debts remain. This supplies readonly source path continuity only, not actual Native operand evaluation, lookup, observer closure or Normal completion. The original Native branch and existing Core test module are unchanged; added controls retain actual conditional schema availability separately from the new refusal. Shared single-child/static-tail geometry avoids token-end reconstruction and preserves the current full source/configuration.
+
+All five manifest before/after hashes independently verified. Fuzz-0 forward application and complete inverse are exact; current five beforeimages match. Verification: /tmp/sol-compiler-document-link-prefix-v2-review/verification.json. No Cargo, builds, tests, native probes, main edits or execution claims.

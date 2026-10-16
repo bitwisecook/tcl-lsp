@@ -255,7 +255,11 @@ fn checked_member_source_schema(
         return None;
     }
     let checked =
-        realm.original_member_reference_source_catalogue_advice(input, advice.original_words())?;
+        crate::realm::CommandBindingRealm::original_member_reference_source_catalogue_advice(
+            realm,
+            input,
+            advice.original_words(),
+        )?;
     if &checked != advice {
         return None;
     }

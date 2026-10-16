@@ -1,0 +1,14 @@
+{
+  "utc": "2026-10-16T19:14:45.971170+00:00",
+  "archive": "/workspace/naming-validation/archives/lsp-startup166-stage-diagnostic-frozen.tar.zst",
+  "sha256": "4d3c1354ed85c6b3dd3a2c2ce346c3eeaf1d37226cf6f9213fd6d9390761ebd1",
+  "bytes": 55014512,
+  "members": {
+    "tcl_lsp_server": {
+      "path": "/workspace/naming-validation/lsp-startup166-stage-diagnostic/frozen-binaries/tcl_lsp_server-6a7a8a8389cf0bde",
+      "sha256": "01a1642e9a5bffdd20ab3835c495fc7068a53f32e05e12dc092b5dc04867096d",
+      "bytes": 332166808
+    }
+  },
+  "restoration": "Restore to original frozen-binaries paths and verify original SHA256 before execution. Lossless storage compaction only, no new acceptance."
+}

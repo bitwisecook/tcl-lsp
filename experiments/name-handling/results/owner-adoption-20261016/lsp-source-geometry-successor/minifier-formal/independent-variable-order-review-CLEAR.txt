@@ -1,0 +1,10 @@
+CLEAR source-only exact sourcedfa54b75446320e9bea9a6d62ae9c2ddf77c86777d5da2a835bc1ee35d58c058 and contract7b3536639d1050ec9c7af70f76f2c5f8ff5759a1f632da1fa4209802ad7a2656.
+Verified all5 manifest before/after hashes and entire original minifier test module retained byte-identical. No Cargo/main/Git/build/tests/execution.
+
+Adapter uses existing original formal-name source owner, actual current full image/input/config/Realm/Registry key, positively Logical purpose and unique genuine declaration metadata. Actual Logical body/header correspondence required independently from report body span. Ordered names must match every original formal, be unique, have nonempty tight spans in header order before actual body and exact raw bytes equal original decoded name; cooked/dynamic/unmapped/foreign geometry refuses. No Native or generic formal API changed.
+
+process_scope obtains complete formal sources before selecting any parameter-body edits. If unavailable parameter is not renamed anywhere. args stays unchanged; other locals retain original selection path. Existing scope transform barrier, link_target/RMW exclusion, reference coverage, name generation/collision preservation and symbol map remain independent, unchanged. Readonly formal geometry cannot itself issue transformation authority. Parameter writer edits only checked name spans, leaving nested braces/quotes/default text and rest convention untouched. Valid duplicate edits/conflict semantics remain existing minifier owner.
+
+Controls discriminate wrappers and Unicode/default text from actual name fields, exercise real compact_names pass, and refuse cooked/dynamic/wrong metadata/stale source/full config/Native geometry. Old assertions/fixtures unchanged. Existing contract and actual private static adapter→process_scope route match source visibility/module; no checker/allow/visibility weakening, no new owner/purpose beyond existing lsp-minifier-param-name-scan proposed. Root owns count/integration.
+
+No further concrete source blocker found. Ordinary minifier/Native/refusal controls, new tests, owner gate and performance remain Root's validation obligations; no efficacy claim.

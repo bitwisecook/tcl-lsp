@@ -39,6 +39,18 @@ pub struct SourcePackageReference {
     pub argument: usize,
 }
 
+/// Classification of the actual selected source package operation.
+/// Missing selector/operand/cardinality is unavailable, not a non-reference.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SourcePackageReferenceSelection {
+    /// Selected require or version-supplying provide naming operand.
+    Reference(SourcePackageReference),
+    /// Complete selected non-reference operation, including provide-name query.
+    NotReference,
+    /// Source selector, options or cardinality cannot establish the operation.
+    Unavailable,
+}
+
 impl crate::resolved_invocation::ResolvedInvocation<'_, '_> {
     /// Original namespace-name and sole trailing body operands from the
     /// selected source vocabulary. This describes same-invocation source
@@ -176,6 +188,41 @@ impl crate::resolved_invocation::ResolvedInvocation<'_, '_> {
                 })
             }
             _ => None,
+        }
+    }
+
+    /// Preserve unavailable source operation selection for inventory consumers.
+    /// This classifies selected metadata only, without runtime package absence.
+    #[must_use]
+    pub fn authored_source_package_reference_selection(&self) -> SourcePackageReferenceSelection {
+        use crate::hooks::AnalyserHookId;
+        use crate::resolved_invocation::SubcommandResolution;
+        if !matches!(
+            self.subcommand,
+            SubcommandResolution::NotApplicable
+                | SubcommandResolution::Exact(_)
+                | SubcommandResolution::UniquePrefix(_)
+        ) {
+            return SourcePackageReferenceSelection::Unavailable;
+        }
+        if let Some(reference) = self.authored_source_package_reference() {
+            return SourcePackageReferenceSelection::Reference(reference);
+        }
+        match self.semantics.analyser_hook {
+            Some(AnalyserHookId::PackageRequire) => SourcePackageReferenceSelection::Unavailable,
+            Some(AnalyserHookId::PackageProvide) => {
+                let query = self.words.arguments().exact_argv_len()
+                    == self.semantics.argument_offset.checked_add(1)
+                    && self
+                        .argument_count_for_arity()
+                        .is_some_and(|count| self.semantics.arity.accepts(count));
+                if query {
+                    SourcePackageReferenceSelection::NotReference
+                } else {
+                    SourcePackageReferenceSelection::Unavailable
+                }
+            }
+            _ => SourcePackageReferenceSelection::NotReference,
         }
     }
 

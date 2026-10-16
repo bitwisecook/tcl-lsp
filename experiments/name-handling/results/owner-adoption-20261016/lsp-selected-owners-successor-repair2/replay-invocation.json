@@ -1,0 +1,22 @@
+{
+  "argv": [
+    "python3",
+    "/workspace/tcl-lsp/experiments/name-handling/validation/retained-selections/replay-selection.py",
+    "--manifest",
+    "/workspace/naming-validation/lsp-selected-owners-successor-repair2/selection.json",
+    "--manifest-sha256",
+    "2c214b636d5542b1654fe0036833ef32b0ea30856c03ca9344cc3a16382e939d",
+    "--artifacts",
+    "/workspace/naming-validation/lsp-selected-owners-successor-repair2/artifacts.json",
+    "--root",
+    "/workspace/tcl-lsp",
+    "--out",
+    "/workspace/naming-validation/lsp-selected-owners-successor-repair2/results"
+  ],
+  "ordinary": true,
+  "instrumentation": false,
+  "all_original310_retained": true,
+  "controls": 338,
+  "single_test_guard": true,
+  "budget_seconds": 180
+}

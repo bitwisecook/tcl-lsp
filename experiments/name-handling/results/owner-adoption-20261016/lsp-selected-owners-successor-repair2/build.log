@@ -1,0 +1,11 @@
+   Compiling tcl-version v0.1.0 (/workspace/tcl-lsp/rust/tcl-version)
+   Compiling tcl-lsp-server v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-server)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp/rust/tcl-registry)
+   Compiling tcl-lsp-db v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-db)
+    Finished `test` profile [unoptimized] target(s) in 2m 52s
+  Executable unittests src/lib.rs (target/debug/deps/tcl_compiler-8207aa965502e4cf)
+  Executable unittests src/lib.rs (target/debug/deps/tcl_lsp_core-c99aeb680176971a)
+  Executable unittests src/lib.rs (target/debug/deps/tcl_lsp_db-c55af6efd9493cee)
+  Executable unittests src/lib.rs (target/debug/deps/tcl_lsp_server-f29bc34dc668f467)
+  Executable unittests src/lib.rs (target/debug/deps/tcl_registry-cd1f97b64f8e3752)

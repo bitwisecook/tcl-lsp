@@ -1,0 +1,10 @@
+CLEAR source-only exact46d8a3db0a6e4969ec3298b6d34ffa71e758fffe0715a6c194355ffacf19627a; manifest6e36d31f948a494143f9febac934ed7e5302a7df2fbb04b3ffba9e1901e6cda8.
+All6 source before/after hashes verified. Compared all V2 afterimages against V1: only difference is the intended newly authored declaration positive coordinate13(space)→14(actual p token). Production/all old tests/docs byte-identical to reviewed V1. Known V1 fixture HOLD resolved, not an old assertion weakening.
+
+Inherits independent V1 production source review: actual sealed CurrentSourcePosition retains CurrentSourceContext/current source/input/config/Registry and exact UTF16 roundtrip. No clamped offset selects another source occurrence. Definition positioned adapters/declaration ingress consume receipt before fallbacks; existing compatibility/display helpers unchanged.
+
+Explicit Document/Bodies/unavailable scan geometry requires actual Logical scope owner joined to genuine original script interiors; missing/foreign/bodyless/ambiguous/overbudget scope correspondence refuses. SourceStructure negative caller-body extents retain original selected grammar/context and are refusal-only, not frame/Native/Normal/absence authority. Missing lambda wrapper remains unavailable, not document visibility. All stronger variable/member/alias selection remains independent.
+
+Canonical owner supplement/actual supported static capture routes match current visibility and consumers; no checker/visibility/allow/evidence hash weakening. Same existing caller/owner scope, Root owns final count/integration.
+
+No further concrete source blocker found. Material extra SourceStructure capture per declaration scan remains an unmeasured cost; preserve all performance budgets and run appropriate ordinary controls. No Cargo/main/Git/build/test/gate/platform execution or efficacy claim by reviewer.

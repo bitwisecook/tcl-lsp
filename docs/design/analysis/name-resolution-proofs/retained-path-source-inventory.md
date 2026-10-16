@@ -132,3 +132,23 @@ A named test is a coverage binding, not a claim that it executed.
 ## Replay
 
 Named Rust coverage is linked, not an executed-result claim. Exact source/executable receipts retain actual outcomes separately. Native evidence and runtime/effect/frame/edit obligations remain independent.
+
+## Logical document-link prefix and anchor adoption
+
+The Core lexical link consumer folds `PathConstantAssignments::before` at the actual selected source invocation before evaluating its path operand. The retained full input, source image, configuration, immutable Realm owner, imports and source scopes remain unchanged. `OriginalRegistryWords::original_logical_static_operand_prefix_before` first retains the complete genuine Logical source/schema/input/config and the actual earlier Written head/arguments. Every such original whole word must be statically classified by Syntax; substitutions, dynamic reads with unclosed observers, expansion and missing/foreign source decline this continuity facet. Captured alias arguments are earlier producer data and remain retained in the complete invocation, without becoming evaluated current Written operands. Only then may current and later assignment/effect observations be excluded; earlier unknown barriers remain terminal and all original applicability/lookup/observer debts remain retained. This receipt closes source operand syntax only and supplies no executed quietness, actual stored value or Normal result. A source call following another external source still cannot infer unchanged path variables from missing loaded-file effects. This adoption does not close that independent coverage debt or the current Native-value obligation.
+
+A Logical link anchor consumes the existing `original_single_source_command_substitution` whole-child owner and `original_static_word_source_bytes` classification. Original braced/quoted literals keep dollar/bracket bytes as data. Dynamic or expanded tails, compound words, multiple commands, missing/foreign source and mismatched complete lexer configuration decline; geometry selects no command or value. Native `OriginalLinkSelection` and its old anchor path remain unchanged.
+
+Additional source-defined controls (no execution claimed):
+
+- `document_links::original_logical_link_prefix_tests::logical_path_links_use_the_original_prefix_before_invocation_effects`: authentic prior constant, later reassignment exclusion, earlier opaque/shadow barriers, stale source and Native-domain refusal.
+- `document_links::original_logical_link_prefix_tests::logical_path_link_anchors_use_authentic_static_tail_words`: actual alias-bound path plus literal dollar/Unicode anchor, and dynamic, multi-command, compound and stale geometry refusal.
+
+All pre-existing test bodies and assertions remain unchanged. The original occupied-destination move, unsupported `source --` form and later external-source effect cases retain their original visible outcomes pending separate contract reconciliation and ordinary successor execution.
+
+The immutable V1 prefix proposal was held because it did not distinguish invocation entry from the later filename allocation. The V2 source proposal adds this narrowly scoped existing-original-argv owner facet; its fixed adversary is `set dir /ROOT; source -encoding [set dir /OTHER; list utf-8] [file join $dir leaf.tcl]`. A dynamic encoding value or prior scalar read likewise cannot lend command-start constants. Separate controls preserve ordinary computed filename and actual captured-prefix positives:
+
+- `registry_invocation::source_structure::original_logical_operand_prefix_tests::logical_operand_prefix_retains_only_static_earlier_written_words` retains exact effective target and earlier original Words under same Logical input/context; source schema availability remains separate from the rejected dynamic-prefix facet.
+- `document_links::original_logical_link_operand_order_tests::logical_path_prefix_constants_require_static_earlier_written_operands` preserves ordinary/alias computed candidates while refusing the effectful encoding, unknown callback and scalar-read prefixes.
+
+These are additional unexecuted source controls. No previous assertion, native path, prior barrier or applicability debt was weakened; V1 HOLD remains archived. Root reconciles the exact earlier-operand facet once against the existing source-document-link purpose, never once per control.

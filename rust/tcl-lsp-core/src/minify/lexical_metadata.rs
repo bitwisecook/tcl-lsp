@@ -69,6 +69,65 @@ pub(super) fn with_editable_command_schema<T>(
     with_command_schema(env, command, project)
 }
 
+/// Tight original name fields from the actual Logical procedure header/body.
+/// The caller's rename barriers, reference coverage and collision checks retain
+/// the transformation purpose; these readonly rows grant geometry only.
+pub(super) fn parameter_name_sources(
+    source: &str,
+    analysis: &tcl_compiler::analyser::AnalysisResult,
+    procedure: &tcl_compiler::analyser::ProcDef,
+) -> Option<Vec<tcl_compiler::signature_scan::formal_parameters::OriginalSourceFormalName>> {
+    let input = analysis.resolved_input.as_ref()?;
+    let config = analysis.body_lexer_config?;
+    let image = SourceImage::document(source);
+    let registry = analysis.resolved_registry()?;
+    let realm = analysis.retained_command_realm()?;
+    if !analysis.allows_lexical_declaration_advice()
+        || config != input.lexer_config()
+        || config != tcl_lexer::LexerConfig::for_profile(Some(input.analyser_profile()))
+        || !analysis.matches_original_source_image(&image, config)
+        || !realm.matches_resolved_analysis_input(input)
+        || registry.snapshot().semantic_key()
+            != input
+                .borrowed_context_registry()
+                .commands()
+                .snapshot()
+                .semantic_key()
+        || procedure.params_computed
+    {
+        return None;
+    }
+    // A reporting body span cannot replace the retained declaration/body card.
+    analysis
+        .logical_source_procedure_declaration(procedure)?
+        .original_body_word(&image, input)?;
+    let mut declarations = analysis
+        .original_procedure_declarations()
+        .filter(|declaration| declaration.metadata() == procedure);
+    let declaration = declarations.next()?;
+    declarations.next().is_none().then_some(())?;
+    let names = analysis.original_procedure_formal_name_sources(declaration, registry)?;
+    if names.len() != procedure.params.len() {
+        return None;
+    }
+    let mut seen = rustc_hash::FxHashSet::default();
+    let mut previous_end = procedure.name_span.end();
+    for (name, parameter) in names.iter().zip(&procedure.params) {
+        let span = name.source_span()?;
+        if name.name() != parameter.name.as_bytes()
+            || !seen.insert(name.name())
+            || span.is_empty()
+            || span.start() < previous_end
+            || span.end() > procedure.body_span.start()
+            || image.bytes().get(span.as_range()) != Some(name.name())
+        {
+            return None;
+        }
+        previous_end = span.end();
+    }
+    Some(names)
+}
+
 pub(super) fn ascii_value(word: &NativeWord) -> Option<String> {
     String::from_utf8(tcl_syntax::word_rules::original_static_word_ascii_presentation(word)?).ok()
 }

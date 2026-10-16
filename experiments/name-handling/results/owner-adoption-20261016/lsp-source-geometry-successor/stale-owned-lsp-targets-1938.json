@@ -1,0 +1,19 @@
+{
+  "utc": "2026-10-16T19:37:59.948037+00:00",
+  "scope": "Two explicitly selected stale owned LSP test ELF outputs, excluding all five active frozen/current targets. Lossless storage compaction only; no source/toolchain/editor cache changes and no acceptance. Restore exact name/hash before any historical execution.",
+  "archive": "/workspace/naming-validation/archives/stale-owned-lsp-targets-1938.tar.zst",
+  "sha256": "29c2bcc4461a8f25abe10b9b3c39df178801506cfd089ba74814695141cb94a1",
+  "bytes": 120996866,
+  "members": {
+    "tcl_lsp_db-9e321be92e8dc096": {
+      "path": "/workspace/tcl-lsp/target/debug/deps/tcl_lsp_db-9e321be92e8dc096",
+      "sha256": "9c561c163adee3ce6bc1d247b6cdb0967291003fb111f11802c9bc38d1a189cb",
+      "bytes": 393069944
+    },
+    "tcl_lsp_server-d6846379ce3f724d": {
+      "path": "/workspace/tcl-lsp/target/debug/deps/tcl_lsp_server-d6846379ce3f724d",
+      "sha256": "38dc8c284ba828a368ee85f5279d03e5c9bde1c17c76a576bab144dc3772606b",
+      "bytes": 309653888
+    }
+  }
+}

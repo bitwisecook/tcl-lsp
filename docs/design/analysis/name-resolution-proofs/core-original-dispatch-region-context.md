@@ -148,3 +148,57 @@ A named test is a coverage binding, not a claim that it executed.
 ## Replay
 
 Named Rust coverage is linked, not an executed-result claim. Exact source/executable receipts retain actual outcomes separately. Native evidence and runtime/effect/frame/edit obligations remain independent.
+
+
+## Exact readonly definition position and scan geometry supplement
+
+The existing Current editor source inventory owner additionally issues
+CurrentSourcePosition from the actual complete current Document source and
+retained analysis/input/configuration/Registry context. Its own LSP LineIndex
+must roundtrip the requested UTF16 line/column exactly. Surrogate interiors,
+nonexistent lines and columns beyond the actual line content withdraw selection;
+valid multibyte characters, line ends and the empty final line remain positions.
+The sealed receipt retains that actual source, analysis and current context.
+
+Actual definition_with and all positioned selection entry conversions in
+Core definition.rs consume this receipt, as does declaration before any alias,
+variable or definition fallback. The compatibility byte_offset_at converter
+remains clamping geometry for its existing callers, and span_to_range remains
+byte-identical presentation geometry. Neither function supplies source currency,
+identity, scope, frame, Normal or edit authority. Other independently budgeted
+position consumers are not silently migrated by this supplement.
+
+The Logical declaration scan uses explicit Document versus enclosing Bodies
+geometry, with unavailable distinct from both. Current Logical source-scope
+eligibility and genuine readonly SourceStructure script interiors must agree.
+Every retained nonroot scope needs an original matching script interior; missing,
+foreign, ambiguous or over-budget geometry refuses. SourceStructure separately
+retains refusal-only extents where actual selected ScriptBody cannot affirm
+immediate caller source context, including independently declared/member/lambda
+bodies. Such an innermost body needs its independent matching Logical Scope;
+removing a scope cannot donate enclosing document visibility. This negative
+context metadata does not assert that a body creates a frame. Same-caller
+control-body syntax keeps its genuine existing source-context proof. Lexical
+command substitution geometry remains independent.
+
+Synthetic bodyless scope wrappers or unavailable body correspondence cannot
+issue a wider scan here. Script interiors do not prove lexical frame closure,
+physical cells, complete command/variable inventory, reached body execution,
+lookup/observer quietness or editing authority. Existing declaration/alias and
+unknown-effect obligations remain independent and unchanged. This extends the
+existing owner and existing caller purpose
+lsp-definition-source-position-and-range-advice; no per-helper, test or new
+annex requirement is proposed.
+
+New unexecuted fixed-input coverage bindings in
+`definition::exact_source_position_advice_tests`:
+
+- `exact_current_cursor_keeps_unicode_endline_and_declines_clamped_coordinates`
+- `exact_source_cursor_withdraws_stale_input_and_full_grammar_changes`
+- `source_scope_visibility_requires_original_body_correspondence_before_document_walk`
+- `exact_current_cursor_preserves_crlf_multibyte_and_empty_final_line`
+- `declaration_caller_uses_exact_source_cursor_before_any_fallback`
+
+All pre-existing test modules/assertions remain byte-identical. Static source,
+hash, formatting and zero-fuzz TMP apply checks are not executed provider or
+ordinary validation evidence; Root owns builds, replay, gates and counts.

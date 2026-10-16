@@ -401,12 +401,12 @@
   "incoming_rust": "Incoming `origin/rust` is now `ca698d87c824da24053c7abe279bb505a0acd9cb` (#2477 compiled/direct evaluation, literal-index and error-reporting changes), unmerged and unadmitted. The audit counts are for work at the recorded baseline plus explicit work-source annexes. Recheck and reconcile incoming source before integration; no acceptance is donated from the incoming branch.",
   "implementation_progress": {
     "resumed_from": "554085e162823ea8bd126898d0c27b7b2a9f8628",
-    "utc": "2026-10-16T19:09:56.511219+00:00",
+    "utc": "2026-10-16T19:49:39.699663+00:00",
     "audit_baseline_counts_unchanged": true,
     "total_required_units": 2158,
-    "implemented_pending_validation": 262,
+    "implemented_pending_validation": 266,
     "verified_complete": 0,
-    "not_started": 1896,
+    "not_started": 1892,
     "remaining_unverified_or_unimplemented": 2158,
     "additional_work_not_counted_as_catalogue_completion": [
       "Native variable-expression read/cell/trace/child-body observer producer remains open; pure expression gap receipt grants no such authority.",
@@ -665,7 +665,7 @@
       "verified_complete": 0
     },
     "effective_required_units": 2211,
-    "effective_implemented_pending_validation": 314,
+    "effective_implemented_pending_validation": 318,
     "effective_verified_complete": 0,
     "incoming_remote": {
       "checked_utc": "2026-10-16T18:51:00Z",
@@ -835,7 +835,7 @@
       "scope": "Selected controls only. Completed99tests are65PASS34FAIL. Preview failure retained separately; no whole-group or gate acceptance.",
       "capture": "experiments/name-handling/results/owner-adoption-20261016/cli-mcp-server-889"
     },
-    "fully_implemented_pending_validation": 252,
+    "fully_implemented_pending_validation": 256,
     "partially_implemented_pending_validation": 10,
     "runtime_report_adoptions": {
       "baseline_units": [
@@ -1001,14 +1001,14 @@
         "validation": 122,
         "documentation": 2
       },
-      "lsp_integrated_pending_validation": 131,
+      "lsp_integrated_pending_validation": 135,
       "lsp_by_kind_integrated": {
-        "semantic": 44,
+        "semantic": 48,
         "validation": 85,
         "documentation": 2
       },
       "lsp_verified_complete": 0,
-      "lsp_without_integrated_implementation": 194,
+      "lsp_without_integrated_implementation": 190,
       "shared_dependencies": "Counted under their original Compiler/DB/Registry units or reconciled annex; not counted again as LSP consumers.",
       "deferred": "Runtime174 remaining54,VM133,RuntimeJim execution and BIG-IP source inventory/provider work; retain all existing artifacts.",
       "new_source_alias_caller_annex": "compiler.consumer.logical-source-alias-declaration-observations"
@@ -1648,14 +1648,68 @@
       "conditional_comment": "e6c39377 actual retained CaseBodyOperands allcandidate syntax, unknown state retained; original strong inventory and232 unchanged"
     },
     "last_30_minute_report": {
-      "utc": "2026-10-16T19:06:00Z",
-      "lsp_integrated": 129,
+      "utc": "2026-10-16T19:36:00Z",
+      "lsp_integrated": 135,
       "lsp_required": 325,
-      "effective_integrated": 311,
+      "lsp_semantic": 48,
+      "lsp_validation": 85,
+      "lsp_documentation": 2,
+      "lsp_without_integration": 190,
+      "effective_integrated": 318,
       "effective_required": 2211,
       "verified": 0,
-      "latest_ordinary": "310=262PASS47FAIL1TIMEOUT;253retained0newregressions;new57=49PASS8FAIL",
-      "next_report_utc": "2026-10-16T19:36:00Z"
+      "next_report_utc": "2026-10-16T20:06:00Z",
+      "validation": "Ordinary5librarybuildPASS174.327s0warnings39000inputs0drift. First338setuprejectedmissingproviderenv, completecorrected338rerunrunningwithunchangedselection/artifacts/budgets andverifiedold310providerenvironment. Lastowner310errors. SourcegeometrysourceCLEAR5librarysuccessorbuildrunning."
+    },
+    "source_geometry_successor": {
+      "baseline_new": [
+        "lsp-definition-source-position-and-range-advice",
+        "lsp-declaration-outline-configured-source",
+        "lsp-minifier-param-name-scan"
+      ],
+      "new_annex": 0,
+      "doclink_repair": "0c3803ce actual earlier-Written original prefix staticness restricts existing retained-path-source eligibility; existing source-document-link-selection obligation, count0",
+      "proof": "Exact independent source CLEAR; freshordinarycompilepending",
+      "first338_replay": "Setup rejected: Root launcher omitted repositoryprovider env/PATH; mandatory Tcl9.0 differential setupfails. Preservecapture, no ordinarycomparison acceptance. Full identical338 rerun with originalprovider env required.",
+      "ordinary_build": "PASS174.327s0warnings39000inputs0drift; actual5ELFs freeofstartupinstrumentation",
+      "owner_gate": "Actual310errors/288.809s29361inputs0drift. Previous309; added9/removed8 exactdelta underreview. No rules/bounds/visibility relaxed.",
+      "package_census": "0cefb7a0 exact-source positive/incomplete packagecensus+sharedsyntaxcoverage with distinct typed limits; existingbaseline ownerpurpose,0newannex",
+      "execution": "First ordinary build FAIL private call157.742s; repair1 FAIL missing variant docs9.925s;39000inputs0drift each. Public gate duplicate removal and variant docs repair applied. Ordinary repair2 five-library build running, no successor tests yet."
+    },
+    "selected_owner_actual338": {
+      "status": "COMPLETE_SCOPED_ORDINARY_CAPTURE",
+      "build_seconds": 174.327,
+      "build_warnings": 0,
+      "input_count": 39000,
+      "input_drift": 0,
+      "PASS": 288,
+      "FAIL": 48,
+      "TIMEOUT": 2,
+      "retained": 310,
+      "gains": [
+        {
+          "target": "tcl_lsp_server",
+          "selector": "current_diagnostics::tests::cancelled_and_failed_passes_cannot_reuse_a_prior_complete_report",
+          "before": "FAIL",
+          "after": "PASS"
+        },
+        {
+          "target": "tcl_lsp_server",
+          "selector": "current_diagnostics::tests::actual_failed_lift_worker_cannot_issue_completed_empty_diagnostics",
+          "before": "FAIL",
+          "after": "PASS"
+        }
+      ],
+      "prior_PASS_regressions": 0,
+      "dropped": 0,
+      "added": {
+        "PASS": 24,
+        "FAIL": 3,
+        "TIMEOUT": 1
+      },
+      "setup_rejected_capture": "First338 wholly excluded because Root omitted original provider environment/PATH; corrected run verifies exact original310 environment/PATH.",
+      "capture": "experiments/name-handling/results/owner-adoption-20261016/lsp-selected-owners-successor-repair2/corrected-provider-replay",
+      "limits": "Bounded selected controls only; no green repository gates or issue acceptance."
     }
   }
 }

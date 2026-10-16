@@ -41,8 +41,135 @@ pub(crate) struct SourceStructure {
     pub(crate) commands: Vec<SegmentedCommand>,
     pub(crate) bodies: Vec<Span>,
     pub(crate) scripts: Vec<(Span, u32)>,
+    // Refusal-only source contexts: none establishes an entered or new frame.
+    pub(crate) caller_context_unavailable_bodies: Vec<Span>,
     definition_members:
         Vec<tcl_compiler::registry_invocation::OriginalSourceDefinitionMemberRegion>,
+    package_census: Option<PackageCensusState>,
+}
+
+#[derive(Default)]
+struct PackageCensusState {
+    references:
+        Vec<tcl_compiler::registry_invocation::source_structure::OriginalSourcePackageReference>,
+    unavailable: Vec<Span>,
+    syntax_unavailable: Vec<Span>,
+    package_unavailable: Vec<Span>,
+}
+
+/// Completeness of independently selected original script syntax only.
+/// Complete supplies no dispatch/call-graph closure, execution or Normal result.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SourceSyntaxCoverageApplicability {
+    /// All independently selected script syntax is represented.
+    Complete,
+    /// Some selected script syntax is unavailable or unrepresented.
+    Incomplete,
+}
+
+/// Checked original syntax inventory tied to one retained whole input.
+/// This is separate from the ordinary readonly partial source inventory.
+pub struct SourceSyntaxCoverage {
+    image: SourceImage,
+    input: ResolvedAnalysisInput,
+    structure: SourceStructure,
+}
+
+impl SourceSyntaxCoverage {
+    /// Inspect genuine selected body roles, including deferred definition
+    /// syntax, and preserve all unavailable/malformed/unrepresented regions.
+    pub fn capture(source: &str, analysis: &AnalysisResult) -> Option<Self> {
+        let config = analysis.body_lexer_config?;
+        let input = analysis.resolved_input.as_ref()?;
+        let realm = analysis.retained_command_realm()?;
+        if config != input.lexer_config() || !realm.matches_resolved_analysis_input(input) {
+            return None;
+        }
+        let structure = SourceStructure::capture_with_purpose(
+            source,
+            Some(analysis),
+            config,
+            CapturePurpose::CheckedSyntax,
+        )?;
+        Some(Self {
+            image: SourceImage::document(source),
+            input: input.clone(),
+            structure,
+        })
+    }
+
+    fn matches(&self, source: &str, analysis: &AnalysisResult) -> bool {
+        self.image == SourceImage::document(source)
+            && analysis.resolved_input.as_ref() == Some(&self.input)
+            && analysis.matches_original_source_image(&self.image, self.input.lexer_config())
+    }
+
+    /// Captured commands remain useful even when selected syntax is incomplete.
+    /// Callers retain independent actual call/declaration applicability checks.
+    pub fn commands<'a>(
+        &'a self,
+        source: &str,
+        analysis: &AnalysisResult,
+    ) -> Option<&'a [SegmentedCommand]> {
+        self.matches(source, analysis)
+            .then_some(self.structure.commands.as_slice())
+    }
+
+    /// Complete means every represented selected script syntax body was
+    /// inspected; missing schemas, including absent heads, stay incomplete.
+    pub fn applicability(
+        &self,
+        source: &str,
+        analysis: &AnalysisResult,
+    ) -> Option<SourceSyntaxCoverageApplicability> {
+        if !self.matches(source, analysis) {
+            return None;
+        }
+        let state = self.structure.package_census.as_ref()?;
+        Some(
+            if state.unavailable.is_empty() && state.syntax_unavailable.is_empty() {
+                SourceSyntaxCoverageApplicability::Complete
+            } else {
+                SourceSyntaxCoverageApplicability::Incomplete
+            },
+        )
+    }
+}
+
+/// Source-only selected package syntax with explicit incomplete coverage.
+/// A complete negative says nothing about installed/runtime package state.
+pub(crate) struct SourcePackagePresenceCensus {
+    coverage: SourceSyntaxCoverage,
+}
+
+impl SourcePackagePresenceCensus {
+    pub(crate) fn capture(source: &str, analysis: &AnalysisResult) -> Option<Self> {
+        Some(Self {
+            coverage: SourceSyntaxCoverage::capture(source, analysis)?,
+        })
+    }
+
+    /// Positive genuine selected references survive incomplete other regions.
+    /// Incomplete/no-representation is None, never a complete source negative.
+    pub(crate) fn already_names(
+        &self,
+        source: &str,
+        analysis: &AnalysisResult,
+        package: &str,
+    ) -> Option<bool> {
+        if !self.coverage.matches(source, analysis) {
+            return None;
+        }
+        let state = self.coverage.structure.package_census.as_ref()?;
+        if state
+            .references
+            .iter()
+            .any(|reference| reference.matches_ascii(package))
+        {
+            return Some(true);
+        }
+        (state.unavailable.is_empty() && state.package_unavailable.is_empty()).then_some(false)
+    }
 }
 
 /// Readonly original script geometry from one complete retained analysis.
@@ -509,6 +636,7 @@ pub(crate) fn template_variable_reference_at(
 enum CapturePurpose {
     Readonly,
     SyntaxCompaction,
+    CheckedSyntax,
 }
 
 type PendingSourceRegion = (
@@ -581,7 +709,10 @@ impl SourceStructure {
             commands: Vec::new(),
             bodies: Vec::new(),
             scripts: Vec::new(),
+            caller_context_unavailable_bodies: Vec::new(),
             definition_members: Vec::new(),
+            package_census: (purpose == CapturePurpose::CheckedSyntax)
+                .then(PackageCensusState::default),
         };
         let mut queue: VecDeque<PendingSourceRegion> =
             VecDeque::from([(Span::new(0, end), 0, None)]);
@@ -590,6 +721,9 @@ impl SourceStructure {
         {
             for body in declared_bodies(source, analysis, &image, config)? {
                 structure.bodies.push(body.extent);
+                structure
+                    .caller_context_unavailable_bodies
+                    .push(body.content);
                 queue.push_back((body.content, 1, None));
             }
             if let Some(realm) = analysis.retained_command_realm()
@@ -598,6 +732,7 @@ impl SourceStructure {
                     realm.original_incomplete_body_region_at(&image, config, end, registry)
             {
                 structure.bodies.push(content);
+                structure.caller_context_unavailable_bodies.push(content);
                 queue.push_back((content, 1, None));
             }
         }
@@ -613,7 +748,13 @@ impl SourceStructure {
             let parent_span = definition_parent
                 .as_ref()
                 .map(|parent| (parent.content_span().start(), parent.content_span().end()));
-            if depth > 256 || !visited.insert((region.start(), region.end(), parent_span)) {
+            if depth > 256 {
+                if let Some(census) = &mut structure.package_census {
+                    census.unavailable.push(region);
+                }
+                continue;
+            }
+            if !visited.insert((region.start(), region.end(), parent_span)) {
                 continue;
             }
             structure.capture_region(
@@ -660,10 +801,22 @@ impl SourceStructure {
         self.scripts.push((region, depth));
         let commands =
             segment_commands_with_offset_and_config(script, region.start(), config.at_depth(depth));
-        if let Ok(plan) = tcl_lexer::native_script_words_in(capture.image.clone(), region, config) {
+        let original_plan =
+            tcl_lexer::native_script_words_in(capture.image.clone(), region, config);
+        if let Some(census) = &mut self.package_census {
+            if !matches!(&original_plan, Ok(plan) if plan.fatal_tail.is_none()) {
+                census.unavailable.push(region);
+            }
+        }
+        if let Ok(plan) = original_plan {
             for command in &plan.commands {
                 for word in &command.words {
                     for part in word.executable_parts().all_parts() {
+                        if matches!(part.part, ExecutablePart::ParseError(_)) {
+                            if let Some(census) = &mut self.package_census {
+                                census.unavailable.push(word.span());
+                            }
+                        }
                         if let ExecutablePart::Command { body } = part.part {
                             queue.push_back((body, depth + 1, definition_parent.cloned()));
                         }
@@ -727,6 +880,8 @@ impl SourceStructure {
         {
             for body in bodies {
                 self.bodies.push(body.extent_span());
+                self.caller_context_unavailable_bodies
+                    .push(body.content_span());
                 queue.push_back((
                     body.content_span(),
                     depth + 1,
@@ -745,6 +900,8 @@ impl SourceStructure {
                 tcl_compiler::registry_invocation::OriginalSourceScriptPurpose::Syntax,
             ) {
                 self.bodies.push(body.extent_span());
+                self.caller_context_unavailable_bodies
+                    .push(body.content_span());
                 queue.push_back((body.content_span(), depth + 1, None));
             }
             return true;
@@ -769,6 +926,10 @@ impl SourceStructure {
         let Some(config) = analysis.body_lexer_config else {
             return;
         };
+        if purpose == CapturePurpose::CheckedSyntax {
+            self.census_command_bodies(source, command, script, queue);
+            return;
+        }
         if self.readonly_command_bodies(source, command, script, queue) {
             return;
         }
@@ -792,6 +953,10 @@ impl SourceStructure {
         for body in words.source_script_bodies(&context) {
             self.bodies.push(body.container_extent_span());
             self.bodies.push(body.extent_span());
+            if !body.inherits_immediate_caller_source_context(&context) {
+                self.caller_context_unavailable_bodies
+                    .push(body.content_span());
+            }
             let parent = (purpose == CapturePurpose::Readonly)
                 .then(|| body.definition_parent_for(&context, definition_parent))
                 .flatten();
@@ -830,6 +995,7 @@ impl SourceStructure {
                         tcl_compiler::lambda_literal::split_original_lambda_literal(word)
                             .and_then(|elements| elements.braced_body())
                 {
+                    self.caller_context_unavailable_bodies.push(body);
                     queue.push_back((body, depth + 1, None));
                 }
             } else if role.folds_as_block()
@@ -841,6 +1007,130 @@ impl SourceStructure {
             }
         }
     }
+    fn census_command_bodies(
+        &mut self,
+        source: &str,
+        command: &SegmentedCommand,
+        script: &SourceScriptContext<'_>,
+        queue: &mut VecDeque<PendingSourceRegion>,
+    ) {
+        use tcl_compiler::registry_invocation::source_structure::{
+            OriginalSourcePackageReferenceSelection as Selection, source_registry_words,
+        };
+        let analysis = script.analysis;
+        let Some(input) = analysis.resolved_input.as_ref() else {
+            return;
+        };
+        let context = input.context_registry();
+        let Some(words) = source_registry_words(source, analysis, command) else {
+            if original_positioned_absent_head(source, analysis, command) {
+                // A genuine positioned nonpackage leaf is sufficient only for
+                // this source package census, never generic syntax closure.
+                self.package_census
+                    .as_mut()
+                    .unwrap()
+                    .syntax_unavailable
+                    .push(command.span);
+            } else {
+                self.package_census
+                    .as_mut()
+                    .unwrap()
+                    .unavailable
+                    .push(command.span);
+            }
+            return;
+        };
+        match words.package_reference_selection(&context) {
+            Selection::Reference(reference) => self
+                .package_census
+                .as_mut()
+                .unwrap()
+                .references
+                .push(reference),
+            Selection::Unavailable => self
+                .package_census
+                .as_mut()
+                .unwrap()
+                .package_unavailable
+                .push(command.span),
+            Selection::NotReference => {}
+        }
+        match words.source_script_bodies_for_syntax_coverage(&context) {
+            Some(bodies) => {
+                for body in bodies {
+                    queue.push_back((
+                        body.content_span(),
+                        script.depth + 1,
+                        body.definition_parent_for(&context, script.definition_parent),
+                    ));
+                }
+            }
+            None => self
+                .package_census
+                .as_mut()
+                .unwrap()
+                .unavailable
+                .push(command.span),
+        }
+        if words
+            .roles()
+            .is_some_and(|roles| roles.iter().any(|(_, role)| *role == ArgRole::Expr))
+        {
+            match words.source_expression_script_bodies(input) {
+                Some(bodies) => {
+                    for body in bodies {
+                        queue.push_back((
+                            body.content_span(),
+                            script.depth + 1,
+                            script.definition_parent.cloned(),
+                        ));
+                    }
+                }
+                None => self
+                    .package_census
+                    .as_mut()
+                    .unwrap()
+                    .unavailable
+                    .push(command.span),
+            }
+        }
+    }
+}
+
+/// A genuine positioned source absence can exclude this exact static head
+/// from selected Registry package syntax. This grants no unknown-handler,
+/// runtime package, command execution or Native absence proof.
+fn original_positioned_absent_head(
+    source: &str,
+    analysis: &AnalysisResult,
+    command: &SegmentedCommand,
+) -> bool {
+    let Some(head) = command.argv.first() else {
+        return false;
+    };
+    let Some(config) = analysis.body_lexer_config else {
+        return false;
+    };
+    let Some(input) = analysis.resolved_input.as_ref() else {
+        return false;
+    };
+    let Some(realm) = analysis.retained_command_realm() else {
+        return false;
+    };
+    if !realm.matches_resolved_analysis_input(input) {
+        return false;
+    }
+    let image = SourceImage::document(source);
+    let Some((original, owner)) =
+        realm.original_written_word_at_span_in_source(&image, head.span, config)
+    else {
+        return false;
+    };
+    owner == head.span.start()
+        && !original.group().expand
+        && tcl_syntax::word_rules::original_static_word_unicode_value(&original).is_some()
+        && realm.diagnostic_slot_presence_at(owner)
+            == tcl_compiler::command_binding::SourceCommandSlotPresence::Absent
 }
 
 fn operand_body(

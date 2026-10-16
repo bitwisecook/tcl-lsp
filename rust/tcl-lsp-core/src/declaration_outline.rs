@@ -46,7 +46,9 @@
 //! [`ArgRole::Name`]: tcl_registry::arg_role::ArgRole::Name
 //! [`ArgRole::Body`]: tcl_registry::arg_role::ArgRole::Body
 
-use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
+use tcl_compiler::analyser::AnalysisResult;
+use tcl_compiler::registry_invocation::source_structure::source_registry_words;
+use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
 use tcl_dialect::DialectProfile;
 use tcl_lexer::{LexerConfig, Span, TokenType};
 use tcl_registry::CommandRegistry;
@@ -122,6 +124,164 @@ pub fn declarations(source: &str, dialect: &'static DialectProfile) -> Vec<Block
     // (`docs/design/registry/dialect-profile-model.md` §2.5).
     let config = LexerConfig::from_grammar(dialect.grammar);
     collect(source, source, 0, 0, registry, &config)
+}
+
+/// Whether this exact current analysis selected a declaration-document grammar.
+#[must_use]
+pub fn is_declaration_document_from_analysis(source: &str, analysis: &AnalysisResult) -> bool {
+    crate::original_context::CurrentSourceContext::capture(source, analysis)
+        .is_some_and(|current| current.registry().document_grammar().is_some())
+}
+
+/// Build declaration blocks from the exact configured analysis supplied by the
+/// server. This path retains the current document source, registry, workspace
+/// overlay, unit profile and complete lexer configuration. The legacy
+/// `declarations` entry above remains the explicit standalone profile API.
+#[must_use]
+pub fn declarations_from_analysis(
+    source: &str,
+    analysis: &AnalysisResult,
+) -> Vec<BlockDeclaration> {
+    if source.is_empty() {
+        return Vec::new();
+    }
+    let Some(current) = crate::original_context::CurrentSourceContext::capture(source, analysis)
+    else {
+        return Vec::new();
+    };
+    let Some(grammar) = current.registry().document_grammar() else {
+        return Vec::new();
+    };
+    let Ok(end) = u32::try_from(source.len()) else {
+        return Vec::new();
+    };
+    collect_configured(
+        source,
+        analysis,
+        current.context().as_ref(),
+        grammar,
+        Span::new(0, end),
+        0,
+        current.config(),
+    )
+}
+
+fn collect_configured(
+    source: &str,
+    analysis: &AnalysisResult,
+    context: &tcl_registry::model::ContextRegistry,
+    parent: &'static tcl_registry::definer::DefinitionBodyGrammar,
+    region: Span,
+    depth: u32,
+    config: LexerConfig,
+) -> Vec<BlockDeclaration> {
+    if depth >= MAX_BLOCK_DEPTH || region.start() > region.end() {
+        return Vec::new();
+    }
+    let Some(text) = source.get(region.as_range()) else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    for command in
+        segment_commands_with_offset_and_config(text, region.start(), config.at_depth(depth))
+    {
+        if let Some(node) =
+            configured_command(source, analysis, context, parent, &command, depth, config)
+        {
+            out.push(node);
+        }
+    }
+    out
+}
+
+fn configured_command(
+    source: &str,
+    analysis: &AnalysisResult,
+    context: &tcl_registry::model::ContextRegistry,
+    parent: &'static tcl_registry::definer::DefinitionBodyGrammar,
+    command: &SegmentedCommand,
+    depth: u32,
+    config: LexerConfig,
+) -> Option<BlockDeclaration> {
+    let words = source_registry_words(source, analysis, command)?;
+    let head = words.head_source()?.word()?;
+    let head_value = tcl_syntax::word_rules::original_static_word_unicode_value(head)?;
+    let keyword = std::str::from_utf8(&head_value).ok()?;
+    let child_grammar = context
+        .commands()
+        .authored_document_member_grammar(parent, keyword)?;
+    let roles = words.roles()?;
+    let body_index = roles
+        .iter()
+        .find_map(|(index, role)| (*role == ArgRole::Body).then_some(*index))?;
+    let name_index = roles
+        .iter()
+        .find_map(|(index, role)| (*role == ArgRole::Name).then_some(*index));
+    let body_word = words.original_argument_word(body_index)?;
+    let source_body = words
+        .source_script_bodies(context)
+        .into_iter()
+        .find(|body| body.original_container() == body_word)?;
+    let member_region =
+        source_body.definition_member_region(context, source_body.content_span())?;
+    let original_members = member_region.complete_original_commands()?;
+    // Every segmented nested command must correspond to a complete retained
+    // original vector before it can contribute to this readonly outline.
+    let body_region = source_body.content_span();
+    let selected_body_grammar = words.with_source_schema(context, |schema| {
+        schema.authored_source_definition_body_grammar()
+    })??;
+    if !std::ptr::eq(selected_body_grammar, child_grammar) {
+        return None;
+    }
+    let children = collect_configured(
+        source,
+        analysis,
+        context,
+        child_grammar,
+        body_region,
+        depth + 1,
+        config,
+    );
+    let parsed = segment_commands_with_offset_and_config(
+        source.get(body_region.as_range())?,
+        body_region.start(),
+        config.at_depth(depth + 1),
+    );
+    if parsed.len() != original_members.len()
+        || parsed.iter().zip(&original_members).any(|(cmd, members)| {
+            cmd.word_fragments.len() != members.len()
+                || cmd.word_fragments.iter().zip(members).enumerate().any(
+                    |(index, (fragments, word))| {
+                        fragments
+                            .iter()
+                            .map(|fragment| fragment.token)
+                            .ne(word.tokens().iter().copied())
+                            || cmd
+                                .expand_word
+                                .as_ref()
+                                .and_then(|flags| flags.get(index))
+                                .copied()
+                                .unwrap_or(false)
+                                != word.group().expand
+                    },
+                )
+        })
+    {
+        return None;
+    }
+    let name = name_index
+        .and_then(|index| words.original_argument_word(index))
+        .and_then(|word| tcl_syntax::word_rules::original_static_word_unicode_value(word))
+        .and_then(|bytes| String::from_utf8(bytes).ok())
+        .filter(|value| !value.is_empty());
+    Some(BlockDeclaration {
+        keyword: keyword.to_owned(),
+        name,
+        range: command.span,
+        selection: head.span(),
+        children,
+    })
 }
 
 /// The body-word slice of a `{ … }` argument token, in original-source
@@ -306,5 +466,60 @@ mod tests {
     fn a_script_document_has_no_block_outline() {
         let script = "oo::class create Greeter {\n    method hi {} { return 1 }\n}\n";
         assert!(declarations(script, profile_for_dialect("tcl9.0")).is_empty());
+    }
+
+    fn configured_analysis(source: &str, config: LexerConfig) -> AnalysisResult {
+        let profile = sslictcl();
+        let registry = crate::registry_for_dialect_profile(profile);
+        crate::source_structure::analyse_document(source, profile, registry, config)
+    }
+
+    #[test]
+    fn server_outline_uses_the_current_full_configured_analysis() {
+        let profile = sslictcl();
+        let registry = crate::registry_for_dialect_profile(profile);
+        let mut config = LexerConfig::from_grammar(profile.grammar);
+        config.strict_quoting = !config.strict_quoting;
+        let analysis = crate::source_structure::analyse_document(DOC, profile, registry, config);
+        let outline = declarations_from_analysis(DOC, &analysis);
+        assert_eq!(outline, declarations(DOC, profile));
+        assert_eq!(outline[0].children[0].label(), "hsts");
+
+        let stale = DOC.replace("www.example.test", "stale.example.test");
+        assert!(declarations_from_analysis(&stale, &analysis).is_empty());
+    }
+
+    #[test]
+    fn server_outline_uses_the_selected_workspace_overlay_registry() {
+        let profile = sslictcl();
+        let registry =
+            tcl_registry::registry_for_profile_with_overlay(profile, 0xD0C1_AA71, |_| {});
+        let config = LexerConfig::from_grammar(profile.grammar);
+        let analysis =
+            crate::source_structure::analyse_document(DOC, profile, registry.as_ref(), config);
+        let current = crate::original_context::CurrentSourceContext::capture(DOC, &analysis)
+            .expect("overlay-backed analysis remains current");
+        assert_eq!(current.registry().semantic_key(), registry.semantic_key());
+        let outline = declarations_from_analysis(DOC, &analysis);
+        assert_eq!(
+            outline
+                .iter()
+                .map(BlockDeclaration::label)
+                .collect::<Vec<_>>(),
+            vec!["endpoint /Common/www", "policy corporate"]
+        );
+    }
+
+    #[test]
+    fn server_outline_keeps_unicode_names_and_declines_incomplete_bodies() {
+        let source = DOC.replace("/Common/www", "/Common/日本語");
+        let analysis = configured_analysis(&source, LexerConfig::from_grammar(sslictcl().grammar));
+        let outline = declarations_from_analysis(&source, &analysis);
+        assert_eq!(outline[0].label(), "endpoint /Common/日本語");
+
+        let malformed = "sslictcl 1\nendpoint /Common/broken {\n  hsts {\n";
+        let malformed_analysis =
+            configured_analysis(malformed, LexerConfig::from_grammar(sslictcl().grammar));
+        assert!(declarations_from_analysis(malformed, &malformed_analysis).is_empty());
     }
 }

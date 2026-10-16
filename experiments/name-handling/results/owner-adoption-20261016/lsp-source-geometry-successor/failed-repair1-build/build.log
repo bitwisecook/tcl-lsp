@@ -1,0 +1,20 @@
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+error: missing documentation for a variant
+  --> rust/tcl-lsp-core/src/source_structure.rs:64:5
+   |
+64 |     Complete,
+   |     ^^^^^^^^
+   |
+note: the lint level is defined here
+  --> rust/tcl-lsp-core/src/lib.rs:29:9
+   |
+29 | #![deny(missing_docs)]
+   |         ^^^^^^^^^^^^
+
+error: missing documentation for a variant
+  --> rust/tcl-lsp-core/src/source_structure.rs:65:5
+   |
+65 |     Incomplete,
+   |     ^^^^^^^^^^
+
+error: could not compile `tcl-lsp-core` (lib) due to 2 previous errors

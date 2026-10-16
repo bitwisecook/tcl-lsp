@@ -1,0 +1,8 @@
+{
+  "path": "rust/tcl-lsp-core/src/package_resolver/tests.rs",
+  "before_sha256": "7a94c94f295053241984d74bdc4e005582df4e0d570cde3734fcbba71b9be96a",
+  "after_sha256": "502a74551ee25b6b04f48213dffa8684344634491619d51dc8c2600dcdfa759e",
+  "patch_sha256": "76e6a6d299fe18100d0529a28438b9722a183641fb7a96e25adc18fbec7c0f52",
+  "scope": "Only new retained_registration_transport test fixture uses actual separate mutable Registry provider + existingmarker; production and all assertions/selectors/budgets untouched",
+  "execution": "none"
+}

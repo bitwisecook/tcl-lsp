@@ -1,0 +1,48 @@
+{
+  "scope": "TMP-only genuine Logical earlier-Written operand continuity plus Core prefix/static anchor adopter. No main/Cargo/Git/tests/list/oracle execution.",
+  "supersedes_hold_patch_sha256": "e692d3809732ed76875e0601a62dce3043dda9921ba2362210a270c1e8368402",
+  "superseded_hold_receipt": "/tmp/sol-lsp-logical-document-link-prefix-v1/independent-sol-compiler-review-HOLD.txt",
+  "patch_sha256": "0c3803ce466bd0836fae29d7b9ef674df431bd3c5a2bebe2ab79d2c719ac71de",
+  "files": [
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/retained-path-source-inventory.md",
+      "before_sha256": "60bfa885a364db24f825edca16d73ab566cae09f37b2062ec282694fce1c45f8",
+      "after_sha256": "f5588cb8ad382e1a1ac81b0fbf0195644f60812cb4552bf5374ed604c0958b0d"
+    },
+    {
+      "path": "docs/design/contracts/naming-consumer-matrix.md",
+      "before_sha256": "3bfcae99e92cd305a0e3de0cadba7df0fe501979ab875cc12a22ce5b4a89f217",
+      "after_sha256": "cf42443b8641bbe08dbae2d4582e13a3baf19bd4675ba4ab055dfb860265883d"
+    },
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "before_sha256": "e62a6e9cfe6e10c752965a7506125bf452a3e8703c5e6cbad021b91da3f1fcfa",
+      "after_sha256": "4f48e63b35eb6f23e46611158ffb60b1b9e16271c79dc6edce9017e67be538b6"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "before_sha256": "8576b9ffc6425e8cccd9ee7d8c2281759f1ca157979f569298fb501c8e8b2e35",
+      "after_sha256": "186623ba46879a3e473fb5a5487bc2bcd1904f264ad6e6e389ce6780374e0919"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/document_links.rs",
+      "before_sha256": "306c6a209128b7c4f9d06245a0ed270c0f17e449c6dc66659df1423e6cb138a4",
+      "after_sha256": "f026eb12fd125c6c6cd088ff3b4519722b5eb62ea3b2de0c1c201b334c19f8ab"
+    }
+  ],
+  "existing_baseline_validation_unit": "lsp-source-document-link-selection",
+  "existing_owner_contract": "naming.navigation.retained-path-source-inventory",
+  "new_shared_owner_facet": "OriginalRegistryWords::original_logical_static_operand_prefix_before retains actual full Logical invocation and exact static earlier Written words before entry constants may reach selected operand; Root reconciles once.",
+  "no_new_caller_migration_or_test_based_units": true,
+  "new_controls": [
+    "registry_invocation::source_structure::original_logical_operand_prefix_tests::logical_operand_prefix_retains_only_static_earlier_written_words",
+    "document_links::original_logical_link_prefix_tests::logical_path_links_use_the_original_prefix_before_invocation_effects",
+    "document_links::original_logical_link_prefix_tests::logical_path_link_anchors_use_authentic_static_tail_words",
+    "document_links::original_logical_link_operand_order_tests::logical_path_prefix_constants_require_static_earlier_written_operands"
+  ],
+  "old_core_test_suffix_sha256": "34f71449eeeb121d36a841bc36b35cf3a4a134e04c090bf7a5d7b241294769c3",
+  "strong_native_original_link_selection_sha256": "a036a489546f69aed9129324bc11ed0d9e520a2626c1b35d1b8d491135a94641",
+  "old_native_anchor_sha256": "080f735497a20ba5800f0e7f4dbcf9b7469cf560a2b8616391f395a9bddf29f9",
+  "all_old_compiler_source_except_two_additions_byte_equal": true,
+  "review": "Requested; no build/efficacy/old-positive acceptance claim."
+}

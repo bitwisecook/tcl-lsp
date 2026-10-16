@@ -1,0 +1,9 @@
+SOURCE REVIEW CLEAR exact V3 09b3d95e248536856acf4f1959712ff081c603d7ecb91f10a580d782f404d0fa.
+
+V2/e44ad Server module-path compile blocker is corrected to the actual public Core declaration_outline module; core_symbols remains the document_symbols alias only. All other used public types/APIs inspected at current source.
+
+Configured source route retains CurrentSourceContext whole Document image/full configuration/actual input+analysis Realm and actual Registry. Root document grammar and each admitted nested parent member come from that store; selected source body grammar must pointer-match that actual parent-admitted grammar. Genuine original script-body/member-region complete vectors are compared against every parsed nested command token, fragment count and expansion bit. Tight original head/name words supply labels/selection only. Unsupported, incomplete, dynamic or mismatched sources refuse; this grants no Native execution, frame, edit, lifecycle or absence authority.
+
+Server chooses declaration-vs-script from the exact returned analysis rather than a profile label, retaining overlay identity. Added nonzero selected-registry control, full-config Unicode/current-source and malformed body controls are unexecuted. Explicit standalone declarations and old tests/assertions are unchanged. Actual current context and body/schema owners remain reused, with no copied member grammar.
+
+All3 exact base/edit hashes, current beforeimages and fuzz0 forward/inverse verified: /tmp/sol-compiler-outline-v3-review/verification.json. No Cargo/build/tests/main edits or execution/efficacy claim. Canonical contract supplement and Root gates remain integration obligations.

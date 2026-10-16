@@ -1,0 +1,25 @@
+{
+  "old_count": 309,
+  "current_count": 310,
+  "added": [
+    "owner `Original class member source association` entry point `Backend::readonly_original_declaration_reference_report` has no public declaration in its source paths",
+    "owner `Original class member source association` entry point `Backend::readonly_original_method_reference_locations_at` has no public declaration in its source paths",
+    "owner `Original class member source association` entry point `CommandBindingRealm::original_member_reference_source_catalogue_advice` has no public declaration in its source paths",
+    "owner `Source-store document path admission and publication` entry point `DocumentPathAdmission::from_selected_path` has no public declaration in its source paths",
+    "source owner `Contextual catalogue case advice` `OoFrame::admits_requirements`: declaration, visibility or actual consumer route does not resolve",
+    "source owner `Original autoload index filename data` `Registration::advertisement`: declaration, visibility or actual consumer route does not resolve",
+    "source owner `Original class member source association` `CommandBindingRealm::original_member_reference_source_catalogue_advice`: declaration, visibility or actual consumer route does not resolve",
+    "source owner `Registry inherited source method providers` `ResolvedInvocation::new_instance_with_method_provider`: source module route exceeds bound",
+    "source owner `Source-store document path admission and publication` `DocumentPathAdmission::from_selected_path`: declaration, visibility or actual consumer route does not resolve"
+  ],
+  "removed": [
+    "owner `Conditional source operation continuation` entry point `current_conditional_source_advice` has no public declaration in its source paths",
+    "owner `Conditional source operation continuation` entry point `original_source_operation_continuation` has no public declaration in its source paths",
+    "owner `Original Logical class source facets` entry point `original_source_class_declaration_for_advice` has no public declaration in its source paths",
+    "owner `Original Logical class source facets` entry point `source_class_for_advice` has no public declaration in its source paths",
+    "owner `Original command completion word geometry` entry point `original_word_cursor_prefix` has no public declaration in its source paths",
+    "owner `Original variable rename source authority` entry point `Backend::cross_document_original_variable_rename` has no public declaration in its source paths",
+    "owner `checked tracked document source input` entry point `Backend::analyse_with_workspace_classes_from_analysis` has no public declaration in its source paths",
+    "owner `supplied document compiler findings and unindexed tokens` entry point `Backend::compiler_diagnostics_for` has no public declaration in its source paths"
+  ]
+}

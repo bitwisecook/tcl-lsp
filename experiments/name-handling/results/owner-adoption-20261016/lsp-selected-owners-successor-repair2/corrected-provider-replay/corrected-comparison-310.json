@@ -1,0 +1,37 @@
+{
+  "scope": "Full338 corrected-original-provider replay, ordinary frozen repair2 artifacts. First setup-rejected capture excluded.",
+  "result_sha256": "55392dbe5fd7e77768bfc1f6eef6897b0ba5a15b53d002df1fa54450142bb68b",
+  "previous_result_path": "/workspace/naming-validation/lsp-folding-completion-links-successor/results/result.json",
+  "previous_result_sha256": "be90d2cb793cc1ed17f5cd6ef91309db1136da62a1a17f0e064c050ca77fb37a",
+  "complete": true,
+  "errors": [],
+  "artifact_drift": {},
+  "total": 338,
+  "counts": {
+    "PASS": 288,
+    "FAIL": 48,
+    "TIMEOUT": 2
+  },
+  "retained": 310,
+  "dropped": [],
+  "gains": [
+    {
+      "target": "tcl_lsp_server",
+      "selector": "current_diagnostics::tests::cancelled_and_failed_passes_cannot_reuse_a_prior_complete_report",
+      "before": "FAIL",
+      "after": "PASS"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "current_diagnostics::tests::actual_failed_lift_worker_cannot_issue_completed_empty_diagnostics",
+      "before": "FAIL",
+      "after": "PASS"
+    }
+  ],
+  "regressions": [],
+  "added_counts": {
+    "FAIL": 3,
+    "PASS": 24,
+    "TIMEOUT": 1
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "scope": "V3 contract only replaces V1/V2 contract; no source edits",
+  "contract_patch_sha256": "7d45d756862e3d6b8f88b898a514becfd56cc77a37eda0e3abd742c07bd33989",
+  "delta_from_v2_sha256": "00fd38f4fc410fc1562f844eb25eb0ec4dcd85391eec0d963a90daebd40c4ad7",
+  "source_patch": "/tmp/lsp-selected-owner-route-reconciliation-v1/source.patch",
+  "source_patch_sha256": "d49c970713df43170484aeef4e6a9f8f2ce877c34e3cf80a2050d22bbc4caf60",
+  "files": [
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "before_sha256": "2c2082ba26b1d525962e50415120edab0180357b8040bd99a5ef1e5fc314d1d2",
+      "after_sha256": "ee9743842e83e2b6061f954ce7a36ed1a434a81522c3a8b9c66a91dc8e50e3a8"
+    }
+  ],
+  "four_additional_private_tokens_removed": [
+    "CommandBindingRealm::original_member_reference_source_catalogue_advice",
+    "Backend::readonly_original_declaration_reference_report",
+    "Backend::readonly_original_method_reference_locations_at",
+    "DocumentPathAdmission::from_selected_path"
+  ],
+  "all_six_private_internal_routes_retained": true,
+  "public_SourceSyntaxCoverage_entries_retained": true,
+  "registry2048_row_limit_and_open_narrative_unchanged": true,
+  "gate_last_measured_failures": 310,
+  "gate_rerun": "not run",
+  "checks": [
+    "allhashes",
+    "fuzz0forward/inverseexact",
+    "V2deltaexactfourpublictokensonly",
+    "source_d49c_unchanged"
+  ],
+  "execution": "none"
+}

@@ -1,0 +1,11 @@
+{
+  "scope": "Pure source verification, no Rust execution.",
+  "patch_sha256": "0c3803ce466bd0836fae29d7b9ef674df431bd3c5a2bebe2ab79d2c719ac71de",
+  "current_before_hashes_match": true,
+  "fresh_fuzz0_apply_exit": 0,
+  "all_after_hashes_match_manifest": true,
+  "rustfmt_check_exit": 0,
+  "all_original_core_tests_byte_equal": true,
+  "all_original_compiler_code_and_tests_byte_equal_after_removing_new_type_method_test": true,
+  "strong_native_path_and_old_anchor_byte_equal": true
+}

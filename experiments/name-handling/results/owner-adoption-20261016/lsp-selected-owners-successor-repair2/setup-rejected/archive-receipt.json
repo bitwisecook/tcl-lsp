@@ -1,0 +1,9 @@
+{
+  "source": "/workspace/naming-validation/lsp-selected-owners-successor-repair2/results",
+  "archive_sha256": "0ae25967d2b1a0534f1a88ace2394a9d9c80f9a23338a2fc5a2ceaea9f4c1420",
+  "bytes": 340060,
+  "verified_members": 344,
+  "status": "SETUP_REJECTED_NO_ORDINARY_ACCEPTANCE",
+  "raw_outcomes": "338capture285rawPASS52rawFAIL1TIMEOUT; not an ordinary result",
+  "reason": "Root omitted original provider env/PATH; entireidentical338rerununderverifiedprior310envinprogress"
+}

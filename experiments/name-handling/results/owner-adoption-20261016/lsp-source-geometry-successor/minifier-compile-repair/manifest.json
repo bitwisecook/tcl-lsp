@@ -1,0 +1,25 @@
+{
+  "patch_sha256": "f55ed4b464c10864c8a804934422b0c8ea1dd47902ef41dc098add3ac6cea445",
+  "files": [
+    {
+      "path": "rust/tcl-lsp-core/src/minify/lexical_metadata.rs",
+      "before_sha256": "4fcedf2c8a6def5cf536a81bb40911e862397c756e8b4949b4aa8efb9a307b21",
+      "after_sha256": "444bc2b7cb00305c8fd077adcbf9dec5a932b704cae661c0cde38ae9d7a8419a"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/minify.rs",
+      "before_sha256": "5604bda16345ff27472cd10b135fcfa467f8606ed7c9a85775f940605d475447",
+      "after_sha256": "aa06eac57756f36d4345d0ced8f5d29ac032a61642629e3d3326f7d3e20bbf52"
+    }
+  ],
+  "test_suffix_byte_identical": true,
+  "visibility_changes": false,
+  "guard_basis": "public allows_lexical_declaration_advice already requires identical retained Logical input predicate",
+  "checks": [
+    "isolated rustfmt",
+    "currentbeforeexact",
+    "allhashes",
+    "fuzz0forward/inverseexact"
+  ],
+  "execution": "none"
+}

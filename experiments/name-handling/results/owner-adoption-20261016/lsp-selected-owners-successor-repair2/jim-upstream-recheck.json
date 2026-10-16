@@ -1,0 +1,9 @@
+{
+  "utc": "2026-10-16T19:20:16.449414+00:00",
+  "upstream_url": "https://github.com/msteveb/jimtcl.git",
+  "upstream_head": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+  "local_head": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+  "binary": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+  "binary_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+  "scope": "Actual upstream ls-remote HEAD rechecked19:20UTC immediately before ordinary replay; existing compile/original provider-pairing provenance remains independently retained."
+}

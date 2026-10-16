@@ -1,0 +1,48 @@
+{
+  "scope": "TMP only; no executable/Cargo/main/Git operations",
+  "baseline_unit": "lsp-minifier-param-name-scan",
+  "existing_owner": "Original formal name source geometry",
+  "proposed_new_owner_facets": 0,
+  "source_patch_sha256": "dfa54b75446320e9bea9a6d62ae9c2ddf77c86777d5da2a835bc1ee35d58c058",
+  "contract_patch_sha256": "7b3536639d1050ec9c7af70f76f2c5f8ff5759a1f632da1fa4209802ad7a2656",
+  "files": [
+    {
+      "path": "rust/tcl-lsp-core/src/minify.rs",
+      "before_sha256": "059dbfdd0aa9121f0cfb807d8989dec93d9dcc02a41ee46674e5416e1d93174b",
+      "after_sha256": "5604bda16345ff27472cd10b135fcfa467f8606ed7c9a85775f940605d475447"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/minify/lexical_metadata.rs",
+      "before_sha256": "5bafe91ffcc5c763cf832c178828c05a9cfbe9b0ceb1b76a42c27977f16666ec",
+      "after_sha256": "4fcedf2c8a6def5cf536a81bb40911e862397c756e8b4949b4aa8efb9a307b21"
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/minifier-complete-logical-metadata.md",
+      "before_sha256": "06a44db7ac37a76a0ab8ec5bc05ab9bc06e05f60ed7d57acc7f9421f4d3fe7b8",
+      "after_sha256": "749ded92bb8390c6a74d9f1f577782be5243a17381501f91f527c89aee717d90"
+    },
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "before_sha256": "3953d9e685122fd37895a4dd4188c446a6d95892810ae8539c554c5aa08d36d0",
+      "after_sha256": "9d388dee90d810d22d0c1818447771fe7d3efdbe8f69ca3dae4e234fccda316d"
+    },
+    {
+      "path": "docs/design/contracts/naming-consumer-matrix.md",
+      "before_sha256": "cf42443b8641bbe08dbae2d4582e13a3baf19bd4675ba4ab055dfb860265883d",
+      "after_sha256": "d9f04bafcb65efdc6493db16fb700337979cfd070c1cb7269d1d7345659c7051"
+    }
+  ],
+  "old_tests_byte_identical": true,
+  "checks": [
+    "isolated rustfmt",
+    "fuzz0 forward exact all five files",
+    "full inverse exact all five files",
+    "current beforeimages exact"
+  ],
+  "execution": "not run",
+  "selectors": [
+    "minify::original_formal_name_geometry_tests::compact_original_formal_fields_preserve_wrappers_and_unicode_defaults",
+    "minify::original_formal_name_geometry_tests::compact_original_formal_fields_reach_the_existing_editing_pass",
+    "minify::original_formal_name_geometry_tests::compact_original_formal_fields_refuse_cooked_dynamic_and_foreign_geometry"
+  ]
+}
