@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::execution_name_policy::tests::authored_names_require_compatible_existing_storage_without_native_authority ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2299 filtered out; finished in 3.26s
+

@@ -880,7 +880,7 @@ fn prettier_key(key: &str) -> String {
     if identifier {
         key.to_owned()
     } else {
-        format!("\"{key}\"")
+        crate::gen_editor_settings::ts_string(key)
     }
 }
 
@@ -938,11 +938,13 @@ fn render_extension_language_ids(original: &str, langs: &[Language]) -> Result<S
     let mut ext_rows = String::new();
     let mut name_rows = String::new();
     for lang in langs {
+        let id = crate::gen_editor_settings::ts_string(&lang.id);
         for ext in &lang.extensions {
-            let _ = writeln!(ext_rows, "  \".{ext}\": \"{}\",", lang.id);
+            let extension = crate::gen_editor_settings::ts_string(&format!(".{ext}"));
+            let _ = writeln!(ext_rows, "  {extension}: {id},");
         }
         for name in &lang.filenames {
-            let _ = writeln!(name_rows, "  {}: \"{}\",", prettier_key(name), lang.id);
+            let _ = writeln!(name_rows, "  {}: {id},", prettier_key(name));
         }
     }
     let text = replace_marked_block(

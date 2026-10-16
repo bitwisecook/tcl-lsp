@@ -305,12 +305,13 @@ fn walk_corpus(
             .with_context(|| format!("reading corpus directory {}", directory.display()))?
             .path();
         if path.is_dir() {
-            let keep = path
+            let name = path
                 .file_name()
-                .and_then(|name| name.to_str())
-                .is_some_and(|name| {
-                    !name.starts_with('.') && !SKIP_DIRECTORY_NAMES.contains(&name)
-                });
+                .context("corpus directory entry has no basename")?;
+            let name = name.to_str().with_context(|| {
+                format!("corpus directory basename is not representable as Unicode: {path:?}")
+            })?;
+            let keep = !name.starts_with('.') && !SKIP_DIRECTORY_NAMES.contains(&name);
             if keep {
                 walk_corpus(&path, native, embedded)?;
             }
@@ -690,6 +691,24 @@ pub fn run(codes: &[String], corpus: &[PathBuf], examples: usize) -> Result<Exit
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn corpus_walk_refuses_an_opaque_directory_basename() {
+        use std::ffi::OsString;
+        use std::os::unix::ffi::OsStringExt as _;
+
+        let root = std::env::temp_dir().join(format!("xtask-fp-opaque-dir-{}", std::process::id()));
+        std::fs::create_dir(&root).expect("create corpus fixture");
+        let child = root.join(OsString::from_vec(b"dir-\xff".to_vec()));
+        std::fs::create_dir(&child).expect("create opaque directory entry");
+        let result = walk_corpus(&root, &mut BTreeSet::new(), &mut BTreeSet::new());
+        assert!(
+            result.is_err(),
+            "an opaque directory cannot be silently skipped"
+        );
+        std::fs::remove_dir_all(&root).expect("remove corpus fixture");
+    }
 
     #[test]
     fn irules_event_signal_accepts_clauses_but_rejects_prose_and_lowercase() {

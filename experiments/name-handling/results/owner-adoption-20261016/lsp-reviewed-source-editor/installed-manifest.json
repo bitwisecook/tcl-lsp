@@ -1,0 +1,12 @@
+{
+  "count_advance": 0,
+  "purpose": "existing readonly Authored/Installed coverage currency hardening only",
+  "base_sha256": {
+    "rust/tcl-compiler/src/body_analysis_capsule/readonly_authored_coverage.rs": "26b86b9b3eb016f65b7078259d90ccdc15cb233fbc8248a8960f07d513ae32ed"
+  },
+  "edit_sha256": {
+    "rust/tcl-compiler/src/body_analysis_capsule/readonly_authored_coverage.rs": "45887089bf8585ec115fe51ea5f2bf31367339a6e9f1014e2c4e717af074c844"
+  },
+  "patch_sha256": "453c509815d391f90367bd737d7e4dbce9679a5f8ab56091ec1977f0e54c4923",
+  "validation": "isolated rustfmt + dry-run only; no Cargo/current execution"
+}

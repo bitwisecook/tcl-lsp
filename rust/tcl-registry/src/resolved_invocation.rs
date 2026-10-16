@@ -2558,6 +2558,130 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
         (effects, transitions)
     }
 
+    /// A conditional linear source continuation from an explicitly registered
+    /// operation contract. No handler, observer, Normal or committed result is
+    /// supplied. Full raw effects and result applicability remain on the card.
+    #[must_use]
+    pub fn authored_source_operation_continuation(
+        &self,
+        source_dialect: crate::InvocationDialect,
+    ) -> Option<crate::source_operation::AuthoredSourceOperationContinuation> {
+        use crate::world_effect::{
+            EffectAccessMode, SourceWorldEffectResolver, WorldEffectComposition,
+        };
+        let selectors = self.authored_source_option_selector_path()?;
+        let arguments = self.words.arguments().with_dialect(source_dialect);
+        let count = arguments.exact_argv_len()?;
+        let head = self.words.head_literal()?;
+        if head.contains('\0') {
+            return None;
+        }
+        let mut words = vec![head.to_owned()];
+        for at in 0..count {
+            let value = arguments.literal_at(at)?;
+            if value.contains('\0') {
+                return None;
+            }
+            words.push(value.to_owned());
+        }
+        if self
+            .words
+            .arguments()
+            .dialect()
+            .is_some_and(|actual| actual != source_dialect)
+            || self.semantics.frame_effect.is_some()
+            || self.semantics.body_kind != crate::BodyKind::Plain
+            || self.semantics.body_interpreter != crate::BodyInterpreter::Current
+            || !self
+                .semantics
+                .arity
+                .accepts(self.argument_count_for_arity()?)
+        {
+            return None;
+        }
+        let facts = self.facts();
+        if !matches!(
+            crate::script_body_flow::script_body_flow_for_invocation(&facts, arguments),
+            crate::script_body_flow::ScriptBodyFlow::None
+                | crate::script_body_flow::ScriptBodyFlow::Deferred
+        ) {
+            return None;
+        }
+        let mut descriptors = Vec::new();
+        for descriptor in [
+            self.semantics.world_effects.command,
+            self.semantics.world_effects.subcommand,
+            self.semantics.world_effects.form,
+        ]
+        .into_iter()
+        .flatten()
+        {
+            if descriptor.composition == WorldEffectComposition::Replace {
+                descriptors.clear();
+            }
+            descriptors.push(descriptor);
+        }
+        let [descriptor] = descriptors.as_slice() else {
+            return None;
+        };
+        let SourceWorldEffectResolver::ResultTransitions { effects, coverage } =
+            descriptor.source_resolver?
+        else {
+            return None;
+        };
+        let selected = coverage(arguments)?;
+        let (raw, transitions) = self.authored_source_effects_and_state_transitions(source_dialect);
+        if transitions != selected.transitions
+            || transitions.facts().is_empty()
+            || self.semantics.side_effects != selected.legacy_effects
+            || transitions.facts().iter().any(|fact| {
+                fact.commit != crate::StateTransitionCommit::OnOkOnly
+                    || matches!(fact.transition, crate::StateTransition::Widen(_))
+            })
+            || transitions.command_resolution_impact() != crate::CommandResolutionImpact::None
+        {
+            return None;
+        }
+        // Only this audited resolver's declared writes are covered. Additional
+        // static descriptor accesses remain residual even in the same domain.
+        let mut residual = crate::world_effect::WorldEffectDescriptor {
+            static_footprint: crate::world_effect::StaticEffectFootprint::EMPTY,
+            resolver: Some(effects),
+            ..*descriptor
+        }
+        .resolve_with_transition_coverage(arguments, &selected.coverage);
+        residual.extend(
+            crate::world_effect::WorldEffectDescriptor {
+                resolver: None,
+                ..*descriptor
+            }
+            .resolve(arguments),
+        );
+        residual.extend(self.legacy_effect_footprint(false, &selected.coverage));
+        if residual.requires_world_barrier()
+            || residual
+                .accesses()
+                .iter()
+                .any(|access| access.mode != EffectAccessMode::Read)
+        {
+            return None;
+        }
+        Some(
+            crate::source_operation::AuthoredSourceOperationContinuation {
+                descriptor: self.descriptor_key().label().to_owned(),
+                selectors,
+                form: self.form.map(|form| form.name),
+                dispatch_dependencies: facts.dispatch_dependencies,
+                words,
+                dialect: source_dialect,
+                effects: raw,
+                residual,
+                result_transitions: transitions,
+                coverage: selected.coverage,
+            },
+        )
+    }
+
     /// Readonly aliases from the same Logical state-fact projection. Unknown
     /// source layouts abstain; successful linking remains an independent query.
     #[must_use]

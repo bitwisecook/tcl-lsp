@@ -197,14 +197,11 @@ pub fn run(_check: bool) -> ExitCode {
     let mut report = String::new();
     let mut hits = 0usize;
     for path in files {
-        let rel = path
-            .strip_prefix(&root)
-            .unwrap_or(&path)
-            .to_string_lossy()
-            .replace('\\', "/");
-        if is_exempt_path(&rel) {
+        let relative = path.strip_prefix(&root).unwrap_or(&path);
+        if is_exempt_path(relative) {
             continue;
         }
+        let rel = relative.to_string_lossy().replace('\\', "/");
         let Ok(text) = std::fs::read_to_string(&path) else {
             continue;
         };
@@ -266,12 +263,14 @@ fn cross_check_problems(root: &Path) -> Vec<String> {
     problems
 }
 
-fn is_exempt_path(rel: &str) -> bool {
-    SANCTIONED_FILES.contains(&rel)
-        || rel.contains("/tests/")
-        || rel.ends_with("/tests.rs")
-        || rel.contains("/examples/")
-        || rel.contains("/benches/")
+fn is_exempt_path(rel: impl AsRef<Path>) -> bool {
+    let rel = rel.as_ref();
+    SANCTIONED_FILES.iter().any(|file| rel == Path::new(file))
+        || rel.components().any(|component| {
+            let name = component.as_os_str();
+            name == "tests" || name == "examples" || name == "benches"
+        })
+        || rel.file_name().is_some_and(|name| name == "tests.rs")
 }
 
 /// Every offending `(line_number, trimmed_line, why)` in `text`.
@@ -705,6 +704,10 @@ mod tests {
         assert!(is_exempt_path("rust/tcl-lexer/tests/lexer_depth.rs"));
         assert!(!is_exempt_path("rust/tcl-lsp-core/src/expr_context.rs"));
         assert!(!is_exempt_path("rust/tcl-compiler/src/lowering/mod.rs"));
+        #[cfg(unix)]
+        assert!(!is_exempt_path(
+            "rust/tcl-compiler\\src\\native_lowering\\tests.rs"
+        ));
     }
 
     #[test]

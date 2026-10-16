@@ -17,6 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import * as assert from "assert";
+import * as path from "path";
 import { ConfigurationTarget } from "vscode";
 import type { TextDocument } from "vscode";
 import {
@@ -34,6 +35,7 @@ import {
   EXTENSION_LANGUAGE_IDS,
   FILENAME_LANGUAGE_IDS,
   isTclLanguage,
+  tclLanguageIdForBasename,
   tclLanguageIdForPath,
 } from "../languageIds";
 
@@ -164,6 +166,20 @@ suite("Language-id projection", () => {
     assert.strictEqual(tclLanguageIdForPath("/w/foo.irules"), "tcl-irule");
     assert.strictEqual(tclLanguageIdForPath("foo.tcl"), "tcl");
     assert.strictEqual(tclLanguageIdForPath("Makefile"), undefined);
+  });
+
+  test("basename projection preserves provider-specific path separators", () => {
+    // Native path.basename uses the host's actual path dialect. In particular,
+    // a POSIX backslash remains basename data and cannot select bigip.conf.
+    const posixBasename = path.posix.basename("/config/report\\bigip.conf");
+    assert.strictEqual(posixBasename, "report\\bigip.conf");
+    assert.strictEqual(tclLanguageIdForBasename(posixBasename), undefined);
+
+    // The Windows path owner treats backslash as a separator, and basename
+    // registrations remain case-insensitive.
+    const windowsBasename = path.win32.basename("C:\\config\\BIGIP_BASE.CONF");
+    assert.strictEqual(windowsBasename, "BIGIP_BASE.CONF");
+    assert.strictEqual(tclLanguageIdForBasename(windowsBasename), "tcl-bigip");
   });
 
   test("a filename that names an Object.prototype member resolves to nothing", () => {

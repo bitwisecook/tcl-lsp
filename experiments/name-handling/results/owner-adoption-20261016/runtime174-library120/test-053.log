@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::namespace_address::tests::hidden_global_address_keeps_a_dying_token_through_its_original_callback ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2299 filtered out; finished in 5.95s
+

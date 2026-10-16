@@ -1,0 +1,6 @@
+
+running 1 test
+test cmd_jim_exists::tests::original_jim_exists_retains_hot_command_and_variable_objects_and_refuses_unknown_channel_flags ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2299 filtered out; finished in 0.51s
+

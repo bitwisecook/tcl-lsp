@@ -533,6 +533,7 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub mod script_lookup_scope;
 pub mod simulator_mock_name;
+pub mod source_operation;
 pub use script_lookup_scope::ScriptLookupScope;
 
 mod selected_script_timing;

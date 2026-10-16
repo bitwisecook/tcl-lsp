@@ -333,6 +333,17 @@ pub(super) struct OriginalDeclarationSourceOperandLayout {
     snapshot: Arc<super::SourceLookupSnapshot>,
     native_header_value: Arc<[u8]>,
     parents: Arc<[DeclarationLayoutObservation]>,
+    pub(super) source_operations: Arc<[OriginalDeclarationSourceOperation]>,
+}
+
+/// Earlier conditional source operations retain their exact source vectors and
+/// every residual effect/applicability premise. This is not an updated world.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct OriginalDeclarationSourceOperation {
+    site: CommandAllocationSite,
+    config: tcl_lexer::LexerConfig,
+    words: Arc<[crate::ir::WordExpr]>,
+    pub(super) operation: tcl_registry::source_operation::AuthoredSourceOperationContinuation,
 }
 
 impl OriginalDeclarationSourceOperandLayout {
@@ -342,6 +353,16 @@ impl OriginalDeclarationSourceOperandLayout {
     }
 
     pub(super) fn metadata_advice(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+    ) -> Option<super::OriginalCompilationLookupAdvice> {
+        if !self.source_operations.is_empty() {
+            return None;
+        }
+        self.conditional_source_advice(tokens)
+    }
+
+    pub(super) fn conditional_source_advice(
         &self,
         tokens: &crate::ir::CommandTokens,
     ) -> Option<super::OriginalCompilationLookupAdvice> {
@@ -426,7 +447,12 @@ impl OriginalDeclarationSourceOperandLayout {
         else {
             return false;
         };
-        original_declaration_layouts(&self.parents).is_some()
+        self.source_operations.iter().all(|operation| {
+            Arc::ptr_eq(&operation.site.source, &self.site.source)
+                && operation.site.offset < self.site.offset
+                && operation.config == self.config
+                && !operation.words.is_empty()
+        }) && original_declaration_layouts(&self.parents).is_some()
             && self.parents.iter().all(|parent| {
                 parent.config == self.config
                     && parent.snapshot.state.current_source_origin.as_ref()
@@ -767,6 +793,7 @@ fn original_source_operand_layout_for_declaration(
             row.config.nested(),
         )?;
         let mut retained = Vec::new();
+        let mut source_operations = Vec::new();
         for segment in segments {
             if segment.is_partial {
                 return None;
@@ -798,17 +825,26 @@ fn original_source_operand_layout_for_declaration(
                 snapshot: Arc::clone(&snapshot),
                 native_header_value: Arc::clone(&native_header_value),
                 parents: Arc::clone(parents),
+                source_operations: Arc::from(source_operations.as_slice()),
             });
-            if !retains_successor_layout(
-                &child,
-                &command,
-                &snapshot,
-                &header.namespace,
-                row.config,
-                registry,
-            ) {
-                break;
+            if source_operations.is_empty()
+                && retains_successor_layout(
+                    &child,
+                    &command,
+                    &snapshot,
+                    &header.namespace,
+                    row.config,
+                    registry,
+                )
+            {
+                continue;
             }
+            let Some(operation) =
+                original_source_operation_continuation(retained.last()?, &command, registry)
+            else {
+                break;
+            };
+            source_operations.push(operation);
         }
         if selected
             .as_ref()
@@ -819,6 +855,63 @@ fn original_source_operand_layout_for_declaration(
         selected = Some(retained);
     }
     selected
+}
+
+fn original_source_operation_continuation(
+    layout: &OriginalDeclarationSourceOperandLayout,
+    tokens: &crate::ir::CommandTokens,
+    registry: &tcl_registry::CommandRegistry,
+) -> Option<OriginalDeclarationSourceOperation> {
+    let advice = layout.conditional_source_advice(tokens)?;
+    let metadata = layout.source_metadata_context(registry, tokens).ok()?;
+    let dialect = layout.dialect;
+    let config = layout.config;
+    let mut agreed = None;
+    for target in advice.targets() {
+        if !target.registry_backed || !target.prepended.is_empty() {
+            return None;
+        }
+        let effective = effective_words_for_target(tokens, target)?;
+        let values = effective
+            .words
+            .iter()
+            .map(|word| {
+                effective_invocation_word(
+                    word,
+                    config.escapes,
+                    tcl_syntax::word_rules::WordValueRules::from_config(&config),
+                )
+            })
+            .collect::<Vec<_>>();
+        let words = values
+            .iter()
+            .map(EffectiveInvocationWord::as_registry_word)
+            .collect::<Vec<_>>();
+        let invocation = tcl_registry::InvocationWords::structured(*words.first()?, &words[1..])
+            .with_dialect(dialect);
+        let selected =
+            tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(
+                registry,
+                metadata.map(crate::registry_invocation::InvocationMetadataContext::context),
+                invocation,
+                advice.realm(),
+            )
+            .resolved()?
+            .authored_source_operation_continuation(dialect)?;
+        if agreed
+            .as_ref()
+            .is_some_and(|previous| previous != &selected)
+        {
+            return None;
+        }
+        agreed = Some(selected);
+    }
+    Some(OriginalDeclarationSourceOperation {
+        site: layout.site.clone(),
+        config,
+        words: Arc::from(tokens.words()),
+        operation: agreed?,
+    })
 }
 
 /// One lexical body under its complete immutable parent lookup worlds.

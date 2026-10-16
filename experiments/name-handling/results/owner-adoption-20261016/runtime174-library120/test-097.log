@@ -1,0 +1,6 @@
+
+running 1 test
+test cmd_info::native_jim::inventory_stage_tests::original_jim_inventory_stops_after_actual_pattern_getter_withdraws_current_namespace ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2299 filtered out; finished in 0.57s
+

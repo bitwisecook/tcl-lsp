@@ -275,7 +275,9 @@ const RETURN_WORLD_EFFECTS: crate::WorldEffectDescriptor = crate::WorldEffectDes
         callback: crate::world_effect::CallbackEffect::NONE,
     },
     resolver: Some(return_state_effects),
-    source_resolver: Some(return_source_state_effects),
+    source_resolver: Some(crate::world_effect::SourceWorldEffectResolver::Effects(
+        return_source_state_effects,
+    )),
     dynamic_fallback: crate::world_effect::WorldEffectDynamicFallback::Declared(
         crate::world_effect::StaticEffectFootprint::EMPTY,
     ),

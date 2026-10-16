@@ -1,14 +1,16 @@
 # Centralised name handling on work
 
-Implementation has resumed from `554085e`. **143 baseline units** have reviewed
-implementation pending validation: 89 code units and all 54 authored-documentation
-units. These include two explicitly partial callers (DB class cards and Runtime132).
+Active priority is **all LSP consumers and their required shared Compiler/DB/Registry owners**. Runtime/VM and BIG-IP work are deferred at their recorded checkpoints. For uncovered BIG-IP behaviour, Tcl8.4 is a working assumption; measured evidence keeps its original scope and provenance. The LSP baseline contains **325 obligations** (201 semantic,122 validation,2 documentation): **30 have integrated changes** (12 semantic,16 validation,2 documentation),295 have none and zero are verified complete. Shared dependencies keep their original counts and are not recounted here.
+
+Implementation has resumed from `554085e`. **158 baseline units** have reviewed
+implementation pending validation: 104 code units and all 54 authored-documentation
+units. These include one explicitly partial caller (DB class cards).
 **Zero units are verified complete**. Baseline counts remain **2,158**;
-2,015 baseline units have no integrated implementation. The bounded
+2,000 baseline units have no integrated implementation. The bounded
 [owner/caller annex](implementation-owner-annex.json) adds **33 demonstrated
-requirements**, 31 integrated pending validation and two blocked before integration.
-Effective scope is **2,191 obligations**, with **174 integrated pending validation**
-and **2,017 not integrated**. These counts establish neither semantic acceptance
+requirements**, 32 integrated pending validation and one blocked before integration.
+Effective scope is **2,191 obligations**, with **190 integrated pending validation**
+and **2,001 not integrated**. These counts establish neither semantic acceptance
 nor completed gates.
 
 Development checkpoint `b96b7b49e` is pushed to `work`. The

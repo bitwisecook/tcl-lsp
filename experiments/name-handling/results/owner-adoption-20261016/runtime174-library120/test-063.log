@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::namespace_address::tests::original_trailing_creation_keeps_the_dying_parent_token_and_cstring_extent ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2299 filtered out; finished in 7.97s
+

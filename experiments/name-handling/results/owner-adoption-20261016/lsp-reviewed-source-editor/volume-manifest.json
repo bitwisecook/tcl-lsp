@@ -1,0 +1,29 @@
+{
+  "sha256": "87a5515c986eff23c48e0c830c24c8601eed089ef9b54b4ad5f641fd193bb957",
+  "supersedes": "d2e1c8841b8e08f5ed1a4d6f6d715edeb2d0553c0ea80a013a7bc32bad74b56c",
+  "status": "partial adoption with explicit unsupported Windows verbatim subtype refusal; review/execution pending",
+  "baseline_unit": "lsp-server-path-uri-repair-policy",
+  "new_completed_units": 0,
+  "new_owner_requirements": 0,
+  "remaining": "Product POSIX // authority spelling retained; authority-safe checked document inverse missing. Full Windows native namespace coverage is not claimed.",
+  "existing_assertions": "All original tests/assertions/inputs/selectors retained unchanged; only new Core refusal and actual-Windows legacy roundtrip controls added.",
+  "source_bindings": {
+    "rust/tcl-lsp-server/src/lib.rs": {
+      "before": "e3351ad20b3f81a67323fa634e085982e362f8f783db72c16d0d5509adb50999",
+      "after": "10ea12a7da923a579e54801290b36dfc8e313daf3194ff5cd91e4868cb31013c"
+    },
+    "rust/tcl-lsp-server/src/uri_norm.rs": {
+      "before": "c1330459cdee6c4154a11fab7b6bafcec25a1260714a3f447d4fd6ae9aba808b",
+      "after": "2977fc8ea57b78b784296af79dd80afee74049ee5085c054be34cc981ebe27e5"
+    },
+    "rust/tcl-lsp-core/src/file_uri.rs": {
+      "before": "fba670c6627f965f3a375ddd5baa49c62e37513abe20d8b9a2916df8d679b4ae",
+      "after": "60016b8d5ce957f46cb0bcd2a525b1ea9ad4f618e322f3d57664246b346f7643"
+    }
+  },
+  "validation": "Isolated rustfmt PASS; patch dry-run PASS; no Cargo/build/main/Git or tests run.",
+  "new_selectors": [
+    "file_uri::tests::unsupported_windows_verbatim_subtypes_do_not_lose_their_native_root",
+    "tests::canonical_file_uri_declines_a_verbatim_volume_instead_of_redirecting_it (Windows only)"
+  ]
+}

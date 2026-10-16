@@ -506,16 +506,13 @@ pub fn run(_check: bool) -> ExitCode {
     let mut owned_report = String::new();
     let mut owned_hits = 0usize;
     for path in files {
-        let rel = path
-            .strip_prefix(&root)
-            .unwrap_or(&path)
-            .to_string_lossy()
-            .replace('\\', "/");
+        let relative = path.strip_prefix(&root).unwrap_or(&path);
         // The gate's own docs and fixtures spell the patterns out.
-        if rel == "rust/xtask/src/retired_api_gate.rs" {
+        if relative == Path::new("rust/xtask/src/retired_api_gate.rs") {
             continue;
         }
-        let inside_registry = rel.starts_with("rust/tcl-registry/src/");
+        let inside_registry = relative.starts_with(Path::new("rust/tcl-registry/src"));
+        let rel = relative.to_string_lossy().replace('\\', "/");
         let Ok(text) = std::fs::read_to_string(&path) else {
             continue;
         };
@@ -526,7 +523,7 @@ pub fn run(_check: bool) -> ExitCode {
             hits += 1;
             let _ = writeln!(report, "  {rel}:{line_no}: `{needle}`");
         }
-        for (line_no, needle) in scan_owned(&text, &rel) {
+        for (line_no, needle) in scan_owned(&text, relative) {
             if is_waived(&text, line_no, OWNED_WAIVER) {
                 continue;
             }
@@ -626,14 +623,19 @@ fn is_waived(text: &str, line_no: usize, marker: &str) -> bool {
 /// written in a file that does not own it (ruling R10). Comment lines are
 /// exempt for the same reason the retired family exempts them: the ledger
 /// and the module docs name the owned answers as prose.
-fn scan_owned(text: &str, rel: &str) -> Vec<(usize, &'static str)> {
+fn scan_owned(text: &str, rel: impl AsRef<Path>) -> Vec<(usize, &'static str)> {
+    let rel = rel.as_ref();
     let mut out = Vec::new();
     for (idx, line) in text.lines().enumerate() {
         if line.trim_start().starts_with("//") {
             continue;
         }
         for pattern in OWNED {
-            if pattern.owners.iter().any(|owner| rel.starts_with(owner)) {
+            if pattern
+                .owners
+                .iter()
+                .any(|owner| rel.starts_with(Path::new(owner)))
+            {
                 continue;
             }
             if find_needle(line, pattern.needle) {
@@ -843,21 +845,34 @@ mod tests {
         assert!(
             scan_owned(
                 line,
-                "rust/tcl-compiler/src/analyser/diagnostics/unresolved.rs"
+                Path::new("rust/tcl-compiler/src/analyser/diagnostics/unresolved.rs")
             )
             .is_empty()
         );
         assert_eq!(
-            scan_owned(line, "rust/tcl-lsp-core/src/completion.rs").len(),
+            scan_owned(line, Path::new("rust/tcl-lsp-core/src/completion.rs")).len(),
             1
+        );
+        #[cfg(unix)]
+        assert_eq!(
+            scan_owned(
+                line,
+                Path::new(r"rust/tcl-compiler\src\analyser\diagnostics")
+            )
+            .len(),
+            1,
+            "POSIX backslashes remain filename data, not owner path separators"
         );
 
         // One answer may have several owners — the constant folder asks the
         // registry's availability question legitimately.
         let fold = "if registry.has_command_in_this_dialect(head) { }\n";
-        assert!(scan_owned(fold, "rust/tcl-compiler/src/codegen/values.rs").is_empty());
-        assert!(scan_owned(fold, "rust/tcl-registry/src/registry.rs").is_empty());
-        assert_eq!(scan_owned(fold, "rust/tcl-vm/src/interp.rs").len(), 1);
+        assert!(scan_owned(fold, Path::new("rust/tcl-compiler/src/codegen/values.rs")).is_empty());
+        assert!(scan_owned(fold, Path::new("rust/tcl-registry/src/registry.rs")).is_empty());
+        assert_eq!(
+            scan_owned(fold, Path::new("rust/tcl-vm/src/interp.rs")).len(),
+            1
+        );
     }
 
     #[test]
@@ -866,7 +881,7 @@ mod tests {
         assert!(
             scan_owned(
                 field,
-                "rust/tcl-compiler/src/command_binding/source_analysis_entry.rs"
+                Path::new("rust/tcl-compiler/src/command_binding/source_analysis_entry.rs")
             )
             .is_empty()
         );
@@ -889,10 +904,10 @@ mod tests {
     #[test]
     fn owned_answer_citations_are_exempt() {
         let prose = "/// Answered by `builtin_command_names`, the one oracle.\n";
-        assert!(scan_owned(prose, "rust/tcl-lsp-core/src/completion.rs").is_empty());
+        assert!(scan_owned(prose, Path::new("rust/tcl-lsp-core/src/completion.rs")).is_empty());
         let code = "let names = self.builtin_command_names();\n";
         assert_eq!(
-            scan_owned(code, "rust/tcl-lsp-core/src/completion.rs").len(),
+            scan_owned(code, Path::new("rust/tcl-lsp-core/src/completion.rs")).len(),
             1
         );
     }
@@ -903,14 +918,14 @@ mod tests {
     fn the_two_waivers_do_not_substitute_for_each_other() {
         let owned =
             "// one-oracle-ok: ledger §3 row, reviewed\nlet n = self.builtin_command_names();\n";
-        let hits = scan_owned(owned, "rust/tcl-lsp-core/src/completion.rs");
+        let hits = scan_owned(owned, Path::new("rust/tcl-lsp-core/src/completion.rs"));
         assert_eq!(hits.len(), 1);
         assert!(is_waived(owned, hits[0].0, OWNED_WAIVER));
         assert!(!is_waived(owned, hits[0].0, RETIRED_WAIVER));
 
         let wrong =
             "// retired-api-ok: not the right hatch\nlet n = self.builtin_command_names();\n";
-        let hits = scan_owned(wrong, "rust/tcl-lsp-core/src/completion.rs");
+        let hits = scan_owned(wrong, Path::new("rust/tcl-lsp-core/src/completion.rs"));
         assert_eq!(hits.len(), 1);
         assert!(!is_waived(wrong, hits[0].0, OWNED_WAIVER));
     }

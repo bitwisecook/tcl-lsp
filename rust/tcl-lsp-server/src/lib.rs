@@ -32745,12 +32745,13 @@ fn whole_line_range(
 /// actual path must be losslessly representable as Unicode: opaque native units
 /// return `None`, while a literal Unicode replacement character remains data.
 ///
-/// URI construction uses `ls_types`' own `from_file_path`, then
-/// [`uri_norm::repair_file_uri_from_path`] gives a leading `//` the authority
-/// shape `VS Code`'s `URI.file` uses on every host and removes Windows-only
-/// extended-length markers. Finally, [`uri_norm::canonical_uri_string`] pins
-/// Windows drive-letter and percent-escape case to the spelling `vscode-uri`
-/// uses on every platform.
+/// URI construction uses the shared actual host-path owner through
+/// [`uri_norm::rooted_file_uri`]. The separate product compatibility step
+/// [`uri_norm::repair_file_uri_from_path`] gives a leading POSIX `//` the
+/// authority shape `VS Code`'s `URI.file` uses. Finally,
+/// [`uri_norm::canonical_uri_string`] pins Windows drive-letter and
+/// percent-escape case. This product spelling does not itself establish an
+/// authority-preserving URI-to-native-path conversion.
 #[must_use]
 pub fn canonical_file_uri<P: AsRef<Path>>(path: P) -> Option<Uri> {
     let path = path.as_ref();
@@ -32763,17 +32764,7 @@ pub fn canonical_file_uri<P: AsRef<Path>>(path: P) -> Option<Uri> {
         std::borrow::Cow::Owned(std::fs::canonicalize(path).ok()?)
     };
     selected.to_str()?;
-    let path = selected.as_ref();
-    let raw = match Uri::from_file_path(path) {
-        Some(raw) => raw,
-        // wasm32-unknown-unknown only; `cfg!` rather than `#[cfg]` so the
-        // branch is type-checked on every host, and `rooted_file_uri` is unit
-        // -tested natively.
-        None if cfg!(all(target_family = "wasm", target_os = "unknown")) => {
-            uri_norm::rooted_file_uri(path)?
-        }
-        None => return None,
-    };
+    let raw = uri_norm::rooted_file_uri(selected.as_ref())?;
     // `cfg!` keeps both branches type-checked on every host; unlike `#[cfg]`,
     // a macOS/Linux gate therefore catches Windows repair-path regressions.
     let raw = match uri_norm::repair_file_uri_from_path(raw.as_str(), cfg!(windows)) {
@@ -35876,6 +35867,24 @@ info exists ::N::v\uD800";
         assert!(canonical_file_uri(&relative).is_none());
         std::fs::write(&absent, "original fixture").unwrap();
         assert_eq!(canonical_file_uri(&relative), canonical_file_uri(&absent));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn canonical_file_uri_declines_a_verbatim_volume_instead_of_redirecting_it() {
+        let original =
+            Path::new(r"\\?\Volume{01234567-89ab-cdef-0123-456789abcdef}\project\file.tcl");
+        assert!(original.is_absolute());
+        let legacy = Uri::from_file_path(original).unwrap();
+        let repaired = uri_norm::repair_file_uri_from_path(legacy.as_str(), true).unwrap();
+        let legacy_uri = Uri::from_str(&repaired).unwrap();
+        let redirected = legacy_uri.to_file_path().unwrap();
+        assert!(
+            !redirected.is_absolute(),
+            "{repaired} produced {redirected:?}"
+        );
+        assert_ne!(redirected.as_ref(), original);
+        assert!(canonical_file_uri(original).is_none());
     }
 
     #[cfg(unix)]

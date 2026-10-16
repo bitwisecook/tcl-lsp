@@ -1,0 +1,12 @@
+CLEAR — independent source review, root executable validation pending
+Exact patch SHA-256: 416c3638a30030406b31ae2fb202687b6689402e137556db05cb13e241fc45da
+
+V2 closes the V1 completeness defect. Both temporary-walk boundaries now write the typed SelectedScopeUnavailable cause directly into the actual enclosing surviving tape when a selected procedure/lambda/namespace walk fails. The parent cause covers discarded failed local tapes, including early prepare failure, body parse error and propagated depth/command-budget failures. Nested scope failure is caught in children and marked in the parent tape; successful outer extension unions the refusal set. checked_logical_procedure_body_cards refuses a nonempty refusal set or any map None. It cannot turn partial positive cards from failed temporary walks into a complete result. The original positive-only iterator remains independent and unchanged.
+
+The five-file change retains actual source allocation Arc joins, unique original header/card matching, superseded declarations, full source/config/input/context/current realm checks and complete-prefix catalogue preparation. Literal global source-name matching uses the actual retained coordinate and central written_command_parts; it does not invert display qualified_name strings. No runtime occupancy/absence/handler/observer/Normal/edit authority is supplied. Native and hosted implementations and original tests/assertions remain untouched.
+
+New fixed controls cover original duplicate/superseded headers and namespace coordinates, report-map/report-label independence, changed source/config/missing input, early dynamic-formals refusal, failed headers nested under namespace and procedure, and malformed procedure-body parse refusal. The latter cases directly exercise both temporary-tape boundaries; depth/budget terminality was source-reviewed, not executed here.
+
+Integrity checks PASS: exact patch digest, all five base and edit hashes, all five live current before hashes, actual application of the immutable patch to an independent TMP copy, and all five resulting after hashes. No Cargo/compiler/tests/main/Git/network operation was run. Root must run authored controls and existing Native/hosted regressions.
+
+Count recommendation: two existing caller adoptions, lsp-procedure-declaration-catalogue and lsp-procedure-literal-tool-query. Checked completeness remains within existing compiler.owner.source.logical-procedure-declaration-catalogue:204; no additional semantic requirement count (+0).

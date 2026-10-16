@@ -4078,7 +4078,8 @@ fn emit_default_arg_token(
     } else if let Some(kind) = classify_arg_token(tok, full_source, ctx.numbers) {
         // String / bareword args with backslash escapes split
         // into literal `String` runs + `Escape` sub-tokens.
-        if kind == TokenKind::String && push_escape_subtokens(line_index, full_source, tok, entries)
+        if kind == TokenKind::String
+            && push_escape_subtokens(line_index, full_source, tok, ctx.config, entries)
         {
             // emitted as sub-tokens
         } else {
@@ -4925,6 +4926,7 @@ fn push_escape_subtokens(
     line_index: &LineIndex,
     source: &str,
     tok: Token,
+    config: tcl_lexer::LexerConfig,
     entries: &mut Vec<Entry>,
 ) -> bool {
     let Some((cstart, text)) = subspec_content(source, tok) else {
@@ -4936,7 +4938,7 @@ fn push_escape_subtokens(
     // The split is `tcl-lexer`'s, beside the evaluator that defines the escape
     // widths — every highlighter that colours a Tcl string needs the same rule,
     // and three private copies of it had already drifted apart.
-    let segments = tcl_lexer::split_backslash_escapes(text);
+    let segments = tcl_lexer::split_backslash_escapes_in(text, config.escapes);
     if !segments.iter().any(|s| s.is_escape) {
         return false;
     }
@@ -8675,6 +8677,27 @@ mod tests {
     }
 
     #[test]
+    fn escape_subtoken_width_follows_the_selected_release_grammar() {
+        let source = "puts \"\\x4142\"\n";
+        let tcl84 = tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile();
+        let tcl90 = tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
+        let escape_width = |profile| {
+            full(source, profile, &reg())
+                .data
+                .chunks(5)
+                .find(|token| token[3] == TokenKind::Escape as u32)
+                .map(|token| token[2])
+                .expect("the string contains an escape sub-token")
+        };
+
+        // Tcl 8.4 consumes every hex digit; Tcl 9.0 consumes exactly two.
+        // The source slice and token geometry therefore depend on the
+        // original document's selected escape configuration.
+        assert_eq!(escape_width(tcl84), 6);
+        assert_eq!(escape_width(tcl90), 4);
+    }
+
+    #[test]
     fn escape_before_multibyte_char_does_not_panic() {
         // Slicing a fixed 2 bytes at the backslash of a `\<non-ASCII>` escape
         // inside a string lands inside the multi-byte char and panics the whole
@@ -9610,6 +9633,11 @@ mod tests {
         assert!(
             checked_bigip,
             "found no `tcl-bigip` semanticTokenScopes block to check the BIG-IP types against"
+        );
+        assert!(
+            failures.is_empty(),
+            "semantic-token legend not fully handled:\n  {}",
+            failures.join("\n  "),
         );
     }
 

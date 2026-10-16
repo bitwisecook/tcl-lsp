@@ -1,0 +1,68 @@
+{
+  "candidate_boundary": "six existing audited tooling/validation units; no new semantic owner and no frozen baseline count increase",
+  "baseline_units": [
+    "audit:ai-typescript-metadata-literal",
+    "audit:editor-typescript-extension-source",
+    "audit:registry-axes-reviewed-waiver-reason",
+    "audit:fp-corpus-directory-path",
+    "audit:segmentation-native-path-policy",
+    "audit:retired-path-owner-classification"
+  ],
+  "count_basis": "The existing 2158 baseline is unchanged. Two TypeScript callers reuse existing gen_editor_settings::ts_string; four remaining changes consume existing Rust Path/schema/parser owners. The shared TS helper visibility is not an extra consumer unit.",
+  "excluded_candidate": "audit:editor-zed-toml-extension-source not included: rust/xtask/Cargo.toml has no direct TOML serializer dependency, and no existing TOML value owner in this crate was found; no dependency added.",
+  "patch_sha256": "9be8daf5e08b9420c3486aab121cfc4a3bb68128c987820d7b59c68b152377df",
+  "owner_adoptions": {
+    "audit:ai-typescript-metadata-literal": "Existing gen_editor_settings::ts_string backed by serde_json::to_string; removes the duplicate quote/backslash formatter in gen_ai.",
+    "audit:editor-typescript-extension-source": "The same TypeScript literal owner protects extension and filename keys/values; Prettier as-needed key form remains a separate formatting policy.",
+    "audit:registry-axes-reviewed-waiver-reason": "Existing parse_waiver validates axis and expiry; empty trimmed reason now rejects.",
+    "audit:fp-corpus-directory-path": "Existing Path traversal returns Result; opaque directory basename now yields explicit unavailable error instead of silently omitting subtree.",
+    "audit:segmentation-native-path-policy": "Actual Path components and exact sanctioned-file paths determine exemption; slash-normalized display string remains report-only.",
+    "audit:retired-path-owner-classification": "Actual Path prefix/component ownership determines exemptions; relative lossy string remains report-only."
+  },
+  "adversarial_control": "New Unix fp_sweep test creates an opaque directory basename; old walk silently skipped it, new walk returns an error rather than claiming complete inventory. Existing generated/source assertions and selectors remain, with one added serializer control and one POSIX backslash policy assertion.",
+  "validation_targets": [
+    "cargo test -p xtask gen_ai::tests::typescript_literal_owner_escapes_control_characters",
+    "cargo test -p xtask editor_extensions::tests::every_generated_surface_has_a_render_target",
+    "cargo test -p xtask registry_axes::tests::a_waiver_without_an_expiry_fails",
+    "cargo test -p xtask fp_sweep::tests::corpus_walk_refuses_an_opaque_directory_basename",
+    "cargo test -p xtask segmentation_drift::tests::owner_and_test_paths_are_exempt",
+    "cargo test -p xtask retired_api_gate::tests::owned_answers_are_free_in_their_owner"
+  ],
+  "files": [
+    {
+      "path": "rust/xtask/src/gen_editor_settings.rs",
+      "old_sha256": "47e589ba210f487ac5ca6f1f0216308d1eed6f9797e0b6d01c5f6b65ee4c58f7",
+      "new_sha256": "4cee6563a0186439b1d4fca211071db9601bb638894ef9caabe21347b2531a96"
+    },
+    {
+      "path": "rust/xtask/src/gen_ai.rs",
+      "old_sha256": "510b6f96c30ce052fd57bc22c71e83deb25671db152622001ad329146b3e14f1",
+      "new_sha256": "9a52812f8f3654a024900e0eb2dc80851934ae439fb095f34320b3283f5088f3"
+    },
+    {
+      "path": "rust/xtask/src/editor_extensions.rs",
+      "old_sha256": "ecbda7e10521a0360b0349402b27860031a4f108140db8b932f79e3c089827a8",
+      "new_sha256": "286853567fcaa4c6e7b57afba9f30da7bc7f540820ca15b711cd21c76ac545d9"
+    },
+    {
+      "path": "rust/xtask/src/registry_axes.rs",
+      "old_sha256": "1cacd5165161c04785317cb4ce37bf609361f38329febb59ab6f1370346f96ab",
+      "new_sha256": "4656a60ed3d8358b20118e0b1a7fb84840a5778a70464506f434987e15b3ba5c"
+    },
+    {
+      "path": "rust/xtask/src/fp_sweep.rs",
+      "old_sha256": "4c61786f5f4ba831f3f7c398133a7b4be17a05f8d5aec484b1ba59b6773de259",
+      "new_sha256": "5a5fbcd438802df854e4a959e7f1ed315a8660e9074a79eb88e72f984582583a"
+    },
+    {
+      "path": "rust/xtask/src/segmentation_drift.rs",
+      "old_sha256": "20620a879c70ae1f0597eaf7fffaf02654d993a2e6ae124929193b22abac9128",
+      "new_sha256": "fa0e4019e7033b3c309330c20962641c5fb8626c7faca57a7af6cda0be5b1b13"
+    },
+    {
+      "path": "rust/xtask/src/retired_api_gate.rs",
+      "old_sha256": "3b68db33ec519284994abd3df344e03027c5df0164dc43b365ae3697c2dc2a6e",
+      "new_sha256": "34979603a3436a345e343455d2cc0408438f734d7fde1f4947d8b82b9519fdef"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "current_head": "b96b7b49eef942c71e87d6a61e7e6030813c69d4",
+  "original_ordinary_capture": "experiments/name-handling/results/owner-adoption-20261016/runtime-report-adoptions/source-binding.json",
+  "binary_sha256": "40981d2eceaa833ed281c7594b5c863706111f152e4979c07f0b0bcc02651c91",
+  "source_equivalence": "Current standalone Runtime and listed shared dependency trees have no changes versus b96 committed exact ordinary Runtime source; initial capture cd0+diff2495 is committed there. Current Compiler/iRules/CLI/server/VM changes are not standalone Runtime source.",
+  "input_manifest_sha256": "da8093318f45a4932b70b898fab42bd2309db66f308bc1546ae44c3aeef1609c",
+  "complete_Runtime174": false,
+  "scope": "Exact120 Runtime-lib subgroup only; integration51 and Registry3 not yet executed."
+}

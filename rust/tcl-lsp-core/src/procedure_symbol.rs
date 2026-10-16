@@ -21,7 +21,11 @@ pub fn declarations<'a>(source: &str, analysis: &'a AnalysisResult) -> Option<Ve
         return None;
     }
     let mut declarations = if analysis.allows_lexical_declaration_advice() {
-        analysis.all_procs.values().collect::<Vec<_>>()
+        analysis
+            .checked_logical_source_procedure_declarations(&image, config)?
+            .into_iter()
+            .map(|declaration| declaration.metadata())
+            .collect::<Vec<_>>()
     } else {
         let mut declarations = Vec::new();
         for row in analysis.original_procedure_declarations() {
@@ -62,17 +66,19 @@ pub fn for_literal_name<'a>(
     analysis: &'a AnalysisResult,
     name: &str,
 ) -> Option<Vec<&'a ProcDef>> {
-    let current = declarations(source, analysis)?;
+    declarations(source, analysis)?;
     if analysis.allows_lexical_declaration_advice() {
-        let wanted = crate::normalise_qualified_command_name(name);
-        return Some(
-            current
-                .into_iter()
-                .filter(|proc| {
-                    crate::normalise_qualified_command_name(&proc.qualified_name) == wanted
-                })
-                .collect(),
-        );
+        let config = analysis.body_lexer_config?;
+        let image = SourceImage::document(source);
+        let declarations =
+            analysis.checked_logical_source_procedure_declarations(&image, config)?;
+        let mut matching = Vec::new();
+        for declaration in declarations {
+            if declaration.matches_literal_global_source_name(name)? {
+                matching.push(declaration.metadata());
+            }
+        }
+        return Some(matching);
     }
     if analysis.has_original_vendor_source_names() {
         // Hosted source headers have no global command publication protocol.
@@ -102,6 +108,59 @@ pub fn for_literal_name<'a>(
 mod tests {
     use super::*;
     use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn logical_procedure_catalogue_keeps_every_original_header_and_source_coordinate() {
+        let source = "namespace eval a {proc p {first} {}}; proc p {} {}; proc p {second} {}";
+        let mut analysis = Analyser::new().analyse(source, "tcl");
+        assert_eq!(declarations(source, &analysis).unwrap().len(), 3);
+        assert_eq!(for_literal_name(source, &analysis, "p").unwrap().len(), 2);
+        assert_eq!(
+            for_literal_name(source, &analysis, "::a::p").unwrap().len(),
+            1
+        );
+        assert!(
+            for_literal_name(source, &analysis, "b::p")
+                .unwrap()
+                .is_empty()
+        );
+        analysis.all_procs.clear();
+        analysis.superseded_procs.clear();
+        analysis.dialect = "reporting label".into();
+        assert_eq!(declarations(source, &analysis).unwrap().len(), 3);
+        assert_eq!(for_literal_name(source, &analysis, "::p").unwrap().len(), 2);
+        assert_eq!(
+            for_literal_name(source, &analysis, "a::p").unwrap().len(),
+            1
+        );
+        assert!(declarations(&source.replace("eval a", "eval b"), &analysis).is_none());
+        let config = analysis.body_lexer_config.unwrap();
+        analysis.body_lexer_config.as_mut().unwrap().strict_quoting = !config.strict_quoting;
+        assert!(declarations(source, &analysis).is_none());
+        analysis.body_lexer_config = Some(config);
+        analysis.resolved_input = None;
+        assert!(for_literal_name(source, &analysis, "p").is_none());
+    }
+
+    #[test]
+    fn logical_procedure_catalogue_refuses_unavailable_original_header() {
+        let source = "proc stable {} {}; proc uncertain $formals {}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        assert!(declarations(source, &analysis).is_none());
+        assert!(for_literal_name(source, &analysis, "stable").is_none());
+        for source in [
+            "proc stable {} {}; namespace eval n {proc uncertain $formals {}}",
+            "proc stable {} {}; proc outer {} {proc uncertain $formals {}}",
+            "proc stable {} {}; proc malformed {} {set unfinished [}",
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl");
+            assert!(declarations(source, &analysis).is_none(), "{source}");
+            assert!(
+                for_literal_name(source, &analysis, "stable").is_none(),
+                "{source}"
+            );
+        }
+    }
 
     #[test]
     fn original_procedure_tool_queries_keep_declarations_and_refuse_scope_guesses() {

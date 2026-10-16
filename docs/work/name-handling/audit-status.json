@@ -401,12 +401,12 @@
   "incoming_rust": "Incoming `origin/rust` is now `ca698d87c824da24053c7abe279bb505a0acd9cb` (#2477 compiled/direct evaluation, literal-index and error-reporting changes), unmerged and unadmitted. The audit counts are for work at the recorded baseline plus explicit work-source annexes. Recheck and reconcile incoming source before integration; no acceptance is donated from the incoming branch.",
   "implementation_progress": {
     "resumed_from": "554085e162823ea8bd126898d0c27b7b2a9f8628",
-    "utc": "2026-10-16T13:57:25.611755+00:00",
+    "utc": "2026-10-16T14:30:56.118814+00:00",
     "audit_baseline_counts_unchanged": true,
     "total_required_units": 2158,
-    "implemented_pending_validation": 143,
+    "implemented_pending_validation": 158,
     "verified_complete": 0,
-    "not_started": 2015,
+    "not_started": 2000,
     "remaining_unverified_or_unimplemented": 2158,
     "additional_work_not_counted_as_catalogue_completion": [
       "Native variable-expression read/cell/trace/child-body observer producer remains open; pure expression gap receipt grants no such authority.",
@@ -566,7 +566,7 @@
     "withheld_drafts": [
       "Minifier command/argument alias construction: missing genuine source action/insertion owner; original unknown-command controls remain unchanged."
     ],
-    "owner_facet_reconciliation": "33 additional unverified requirements:31 integrated pending validation,2 not integrated. New explain Source-event caller counted once; Registry events baseline remains unchanged/open.",
+    "owner_facet_reconciliation": "33 unverified annex requirements:32 integrated pendingvalidation,1sourceblocked. Generic RegistrySource continuation owner now integrated; no additional count.",
     "runtime_build": {
       "status": "PASS",
       "seconds": 57.46,
@@ -660,12 +660,12 @@
     "additional_owner_annex": {
       "path": "docs/work/name-handling/implementation-owner-annex.json",
       "required": 33,
-      "implemented_pending_validation": 31,
-      "not_integrated": 2,
+      "implemented_pending_validation": 32,
+      "not_integrated": 1,
       "verified_complete": 0
     },
     "effective_required_units": 2191,
-    "effective_implemented_pending_validation": 174,
+    "effective_implemented_pending_validation": 190,
     "effective_verified_complete": 0,
     "incoming_remote": {
       "rust": "c60f938ddd2a8d92a3bc251c57fa3609d77593c3",
@@ -773,7 +773,7 @@
       "status": "integrated pending target Rust checks/tests",
       "scope": "hover, completion, rename, inline and refactor consume actual retained ContextRegistry; existing source/edit guards independent."
     },
-    "remaining_ordinary_regressions": "VM namespace-declaration panic resolved, but same19/5info47/10namespace counts now fail at fresh tcl_platform host bootstrap interp.rs4260. Host-owned raw bootstrap repair under review; no fake Native fallback.",
+    "remaining_ordinary_regressions": "New SourceStamp reborrow regresses previously passing forwarding+authored call source control; scalar positives still fail. SourceWhen genuine Source body producer missing. Host bootstrap info now20P4F; constructor cause still reaches new2 controls. Exact frozen2fb logs retained; repairs under diagnosis.",
     "latest_successor_check_current": {
       "status": "PASS",
       "log": "/tmp/naming-formal-observations-native-path-check.log",
@@ -839,18 +839,18 @@
       "scope": "Selected controls only. Completed99tests are65PASS34FAIL. Preview failure retained separately; no whole-group or gate acceptance.",
       "capture": "experiments/name-handling/results/owner-adoption-20261016/cli-mcp-server-889"
     },
-    "fully_implemented_pending_validation": 141,
-    "partially_implemented_pending_validation": 2,
+    "fully_implemented_pending_validation": 157,
+    "partially_implemented_pending_validation": 1,
     "runtime_report_adoptions": {
       "baseline_units": [
         "runtime:report.selected-command-variable-qualification:132",
         "runtime:report.selected-command-variable-qualification:133",
         "runtime:report.selected-command-variable-qualification:134"
       ],
-      "full_callers": 2,
-      "partial_callers": 1,
+      "full_callers": 3,
+      "partial_callers": 0,
       "new_owner_requirements": 0,
-      "status": "integrated_selected_original_controls_PASS_111_full_gates_pending"
+      "status": "C_branches111PASS_Jim_branch_source_cleared_current_engine_build_running"
     },
     "hosts_forwarding_class_build": {
       "status": "PASS_after_recorded_three_type_errors",
@@ -939,22 +939,33 @@
       "status": "integrated_pending_validation"
     },
     "reviewed_host_source_uri_build": {
-      "status": "running",
+      "status": "PASS_build_selected_execution_failed",
       "log": "/tmp/naming-reviewed-host-source-uri-build.log",
       "source_binding": "/workspace/naming-validation/reviewed-host-source-uri/source-binding.json",
-      "first_build": "Compiler E0616 private declaration field; fixed via existing declaration_site() accessor. Failed log retained; no guard change."
+      "first_build": "Compiler E0616 private declaration field; fixed via existing declaration_site() accessor. Failed log retained; no guard change.",
+      "seconds": 628,
+      "warnings": 0,
+      "capture": "/workspace/naming-validation/reviewed-host-source-uri",
+      "selected_controls": "running_frozen_2fb",
+      "PASS": 161,
+      "FAIL": 56,
+      "groups": 22,
+      "zero_test_runs": 0,
+      "limits": "Frozen exact2fb;2known sourceforwarding/call priorPASS regressions, scalar/when/hostnewpositivesfail. URI4PASS; VMinfo/namespace2gains. RuntimeVM/Bigip further work paused by user."
     },
     "runtime174_replay": {
-      "status": "running_exact_library120_subgroup_only",
+      "status": "exact_library120_PASS_remaining54_pending",
       "full_selection": 174,
       "groups": {
         "tcl_runtime": 120,
         "native_namespace_command_query": 51,
         "tcl_registry": 3
       },
-      "capture": "/workspace/naming-validation/runtime174-current",
+      "capture": "experiments/name-handling/results/owner-adoption-20261016/runtime174-library120",
       "selection_sha256": "0c757949d6ae2d2790f3fc6f50c94eb5c55fa3b17d7dae094b8a78054ce5d5cf",
-      "full_acceptance": false
+      "full_acceptance": false,
+      "PASS": 120,
+      "FAIL": 0
     },
     "provider_recheck_current": {
       "status": "PASS_SETUP_ONLY",
@@ -962,6 +973,82 @@
       "jim_upstream_head": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
       "capture": "/workspace/naming-validation/runtime174-current/provider-pairing",
       "scope": "Actual original source inventories, installedbinary/loadedlibraries/init/tcltest pairing. No whole Runtime semantic or issue acceptance."
+    },
+    "xtask_six": {
+      "baseline_units": [
+        "audit:ai-typescript-metadata-literal",
+        "audit:editor-typescript-extension-source",
+        "audit:fp-corpus-directory-path",
+        "audit:registry-axes-reviewed-waiver-reason",
+        "audit:retired-path-owner-classification",
+        "audit:segmentation-native-path-policy"
+      ],
+      "baseline_delta": 6,
+      "new_owner_delta": 0,
+      "status": "integrated_pending_validation"
+    },
+    "runtime174_engine_successor": {
+      "status": "building",
+      "log": "/tmp/naming-runtime174-engine-jim-report-build.log",
+      "source_binding": "/workspace/naming-validation/runtime174-engine-jim-report/source-binding.json",
+      "features": [
+        "engine"
+      ],
+      "scope": "Actual original library+namespace-query integration build after Jim source report completion. Separate prior120PASS capture retained."
+    },
+    "active_priority": {
+      "user_instruction": "Focus entirely on all consumers touching LSP and necessary shared Compiler/DB/Registry owners. Runtime/VM and BIG-IP work deferred.",
+      "bigip_assumption": "Use Tcl8.4 as working assumption only where existing evidence provides no coverage; preserve measured evidence and provenance independently. No current BIG-IP migration activity.",
+      "lsp_baseline_required": 325,
+      "lsp_by_kind_required": {
+        "semantic": 201,
+        "validation": 122,
+        "documentation": 2
+      },
+      "lsp_integrated_pending_validation": 30,
+      "lsp_by_kind_integrated": {
+        "semantic": 12,
+        "validation": 16,
+        "documentation": 2
+      },
+      "lsp_verified_complete": 0,
+      "lsp_without_integrated_implementation": 295,
+      "shared_dependencies": "Counted under their original Compiler/DB/Registry units or reconciled annex; not counted again as LSP consumers.",
+      "deferred": "Runtime174 remaining54,VM133,RuntimeJim execution and BIG-IP source inventory/provider work; retain all existing artifacts."
+    },
+    "lsp_next_seven": {
+      "baseline_units": [
+        "lsp-editor-language-path-classification",
+        "lsp-semantic-escape-configuration-transport",
+        "lsp.validation.06.00.fn0",
+        "lsp.validation.10.00.fn0",
+        "lsp.validation.10.00.fn1",
+        "lsp.validation.11.00.fn0",
+        "lsp.validation.24.00.fn0"
+      ],
+      "baseline_delta": 7,
+      "new_owner_delta": 0,
+      "typescript_no_emit": "PASS",
+      "scoped_prettier": "PASS",
+      "rust_execution": "pending",
+      "gui_web_execution": "unexecuted"
+    },
+    "lsp_source_build": {
+      "status": "first_build_failed_repaired_retry_pending",
+      "first_log": "/tmp/naming-lsp-source-parent-continuation-build.log",
+      "repair": "Use actual existing crate::side_effects::SideEffect import instead of nonexistent root reexport. No semantics/guard change.",
+      "profile_test_debug": 0,
+      "single_job": true
+    },
+    "lsp_procedure_two": {
+      "baseline_units": [
+        "lsp-procedure-declaration-catalogue",
+        "lsp-procedure-literal-tool-query"
+      ],
+      "baseline_delta": 2,
+      "new_owner_delta": 0,
+      "existing_owner": "compiler.owner.source.logical-procedure-declaration-catalogue:204",
+      "status": "integrated_pending_validation"
     }
   }
 }

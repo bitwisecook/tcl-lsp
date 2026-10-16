@@ -1765,6 +1765,27 @@ impl NativeNameProtocol {
         ))
     }
 
+    /// Rooted variable-name report from the same selected Jim canonical input.
+    /// The counted canonical bytes remain data; this grants no cell, lookup,
+    /// original result header, namespace holder or successful operation.
+    ///
+    /// # Errors
+    /// Refuses another engine, protocol or naming purpose.
+    pub fn jim_namespace_canonical_report_bytes(
+        self,
+        canonical: &NativeNameProjection<'_>,
+    ) -> Result<Vec<u8>, NameProjectionUnavailable> {
+        if !self.is_jim084()
+            || canonical.protocol() != self
+            || canonical.purpose() != NativeNamePurpose::JimNamespaceCanonical
+        {
+            return Err(NameProjectionUnavailable::PurposeNotModelled);
+        }
+        let mut report = b"::".to_vec();
+        report.extend_from_slice(canonical.selected());
+        Ok(report)
+    }
+
     /// Jim `namespace which -command` tries fresh rooted canonical and original
     /// operands in that order, reporting the successful candidate's bytes.
     ///
@@ -4530,6 +4551,67 @@ fn jim_helper_canonicalisation_keeps_relative_object_extent() {
             .jim_namespace_canonical_input(context, b"p")
             .is_err()
     );
+}
+
+#[test]
+fn jim_canonical_variable_reports_retain_selected_extent_and_purpose() {
+    let jim = NativeNameProtocol::Jim084;
+    let path = ByteNamespacePath::root();
+    for (namespace, original, expected) in [
+        (
+            b"n\0z".as_slice(),
+            b"p\0q".as_slice(),
+            b"::n\0z::p\0q".as_slice(),
+        ),
+        (b"n".as_slice(), b"p::q".as_slice(), b"::n::p::q".as_slice()),
+        (b"n".as_slice(), b":p".as_slice(), b"::n:::p".as_slice()),
+        (b"n".as_slice(), b"".as_slice(), b"::n::".as_slice()),
+        (b"".as_slice(), b"p\0q".as_slice(), b"::p\0q".as_slice()),
+        (b"n\0z".as_slice(), b":::p\0q".as_slice(), b"::p".as_slice()),
+        (b"n".as_slice(), b"::::".as_slice(), b"::".as_slice()),
+        (
+            b"n".as_slice(),
+            b"::p\xff".as_slice(),
+            b"::p\xff".as_slice(),
+        ),
+        (
+            b"n\xff".as_slice(),
+            b"a(k\0z)".as_slice(),
+            b"::n\xff::a(k\0z)".as_slice(),
+        ),
+    ] {
+        let selected = jim
+            .jim_namespace_canonical_input(
+                NativeNameContext::with_jim_namespace(&path, namespace),
+                original,
+            )
+            .unwrap();
+        assert_eq!(
+            jim.jim_namespace_canonical_report_bytes(&selected).unwrap(),
+            expected
+        );
+    }
+    let absolute = jim
+        .jim_namespace_absolute_canonical_input(b"::p\0q")
+        .unwrap()
+        .unwrap();
+    assert!(absolute.context().is_none());
+    assert_eq!(
+        jim.jim_namespace_canonical_report_bytes(&absolute).unwrap(),
+        b"::p"
+    );
+    let wrong_purpose = jim.package_key(b"p");
+    assert_eq!(wrong_purpose.selected(), absolute.selected());
+    assert!(
+        jim.jim_namespace_canonical_report_bytes(&wrong_purpose)
+            .is_err()
+    );
+    for version in TclVersion::ALL {
+        let c = NativeNameProtocol::C(version);
+        let c_input = c.namespace_variable_query_input(b"::p");
+        assert!(jim.jim_namespace_canonical_report_bytes(&c_input).is_err());
+        assert!(c.jim_namespace_canonical_report_bytes(&absolute).is_err());
+    }
 }
 
 #[test]

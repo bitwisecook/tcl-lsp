@@ -1,0 +1,27 @@
+{
+  "patch_sha256": "d14e8b96f4cdb3df7a9abfc9b579929bbb2e5aaeebb41b630f6248b4dd80f992",
+  "scope": "existing Runtime132 remaining Jim canonical variable report branch only",
+  "baseline_caller": "runtime:report.selected-command-variable-qualification:132",
+  "baseline_owner": "compiler.owner.report.namespace-variable-name",
+  "count_delta": 0,
+  "files": [
+    {
+      "path": "rust/tcl-syntax/src/naming/native.rs",
+      "base_sha256": "84309d36f43fa9e6a07ae07d3a9abc48b9c0f5cd2633f4abce70447995f05425",
+      "edit_sha256": "34920f1b21ff47aa38ce3d16a69c216636d79f4e34474c37584d0642798fbfd4"
+    },
+    {
+      "path": "runtime/rust/src/state_traits.rs",
+      "base_sha256": "3e82fe95267434e255e0b255ce3366429eb5b0b22ab6be7773a39254491b4c76",
+      "edit_sha256": "e5148ef882a890f3a1786d352913c8b8394bb1b46e3ef8ed5bf616f1d85efe35"
+    }
+  ],
+  "validation": "New code isolated rustfmt; unrelated pre-existing state_traits formatting excluded. Final patch dry-run clean. No Cargo/tests/main/Git.",
+  "selectors": [
+    "naming::native::jim_canonical_variable_reports_retain_selected_extent_and_purpose",
+    "naming::native::jim_helper_canonicalisation_keeps_relative_object_extent",
+    "interp::native_jim_namespace::tests::canonical_construction_and_query_use_actual_jim_holder_without_c_tree",
+    "cmd_namespace::tests::original_jim_which_helper_preserves_public_and_direct_cold_and_hot_getter_order"
+  ],
+  "acceptance": "Source review and execution pending; Runtime132 is not verified complete"
+}

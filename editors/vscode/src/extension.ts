@@ -91,7 +91,7 @@ import {
   LANGUAGE_ID_DIALECTS,
   TCL_LANGUAGE_IDS,
   isTclLanguage,
-  tclLanguageIdForPath,
+  tclLanguageIdForBasename,
 } from "./languageIds";
 import {
   DialectChoice,
@@ -739,7 +739,9 @@ const DIALECT_REFRESH_DELAY_MS = 150;
  */
 function fallbackDialectForDocument(document: TextDocument): DialectChoice {
   const languageId = LANGUAGE_ID_DIALECTS[document.languageId];
-  const pathLanguage = languageId ? undefined : tclLanguageIdForPath(document.fileName);
+  const pathLanguage = languageId
+    ? undefined
+    : tclLanguageIdForBasename(path.basename(document.fileName));
   const implied = languageId ?? (pathLanguage ? LANGUAGE_ID_DIALECTS[pathLanguage] : undefined);
   const configured = workspace.getConfiguration("tclLsp").get<string>("dialect", "");
   return describeDialect(implied ?? (configured || DEFAULT_DIALECT), dialectChoices);

@@ -1,0 +1,45 @@
+{
+  "patch": "/tmp/lsp-validation-boundaries-v1.patch",
+  "patch_sha256": "43a3f596bceb400b6087a47bac0a898ec7e4e9faeeafb8219c1d70ced8e1b6c1",
+  "changes": [
+    {
+      "path": "editors/vscode/src/test/web/index.ts",
+      "baseline_ids": "lsp.validation.06.00.fn0",
+      "old_sha256": "b1230acea7d3d10ead043524bda1ed54ef019733a8561d21d65db8b1c34af448",
+      "new_sha256": "571806249526d9eb0d471f6004a32d89e9164a7cff7fd6ea4e15235850975944"
+    },
+    {
+      "path": "editors/vscode/src/test/signal.ts",
+      "baseline_ids": "lsp.validation.11.00.fn0",
+      "old_sha256": "8038c7fab2dca4c5e20a47df810a3bdc9f7bed2fcff0cbec7d7ecd67c8b5e9c2",
+      "new_sha256": "1e5aa301734ac9ce3e67242b2426f9ffe14c02e219cf7240d4f43d3666a1bb7a"
+    },
+    {
+      "path": "editors/vscode/src/test/waitDiscipline.test.ts",
+      "baseline_ids": null,
+      "old_sha256": "acd1cf30c8263ac4b50e84f572408544f26efba7e6318f59a8e2398cd2d0ed84",
+      "new_sha256": "2c20eb0d31c374b52a04176d672078ed0b300ed45ecc19d16d96e0c8d3c7aca4"
+    },
+    {
+      "path": "editors/vscode/src/test/dialectDetection.test.ts",
+      "baseline_ids": "lsp.validation.10.00.fn0+lsp.validation.10.00.fn1",
+      "old_sha256": "1afcbe32e844c44d3775dd4bb3a1443fffe4419579441edecc6e13f531ccf187",
+      "new_sha256": "904c60eddd5f3a82aa4c799b79ddde4f23efc87388cd36c8e25e1ba1da9f9b0e"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/semantic_tokens.rs",
+      "baseline_ids": "lsp.validation.24.00.fn0",
+      "old_sha256": "81e8ee1afa3697056f2260492bfe21eabf6c6d2ea6688cd8c0c6feaa710f9de8",
+      "new_sha256": "11058c1546ba379977857d143e27812a9b60f9a4525508c20fbaac22ee9cb6c2"
+    }
+  ],
+  "total_baseline_units": 5,
+  "additional_test_file_no_count": "editors/vscode/src/test/waitDiscipline.test.ts",
+  "targets": [
+    "VSCode wait discipline suite: async-never-settles probe control",
+    "VSCode semantic token scope alignment test vscode_semantic_token_scopes_cover_the_server_legend",
+    "VSCode dialect detection test uses # tcl-dialect: comment directive for Tcl version",
+    "VSCode test:web existing activation, semantic-token, diagnostics, and restart probes"
+  ],
+  "validation": "No tests, typecheck, build, or Cargo run; source review only."
+}

@@ -105,6 +105,15 @@ source image/configuration, Registry/context and any actually selected target.
 Source-only catalogue rows cannot establish reached runtime applicability or
 current stores. Consumers must keep their independent execution/frame proofs.
 
+`AnalysisResult::checked_logical_source_procedure_declarations` joins every
+retained original Logical header with its exact analysis card under complete
+source coverage. Failed selected header, body, depth or budget preparation stays
+unavailable in the surviving tape; a partial walk cannot supply an empty or
+complete catalogue. Superseded source allocations remain separate. Literal-name
+tool queries compare the shared source coordinate under the retained full
+configuration, not a normalised report label. These rows grant no Native lookup,
+command identity, reached handler, absence or edit authority.
+
 `OriginalProjectSourceLoad` retains the selected current-interpreter SourceLoad
 schema, original whole argv, complete input and pathname ordinal. Its literal
 path query decodes that original word; reporting paths and folded values cannot
@@ -1037,6 +1046,21 @@ retained complete input/Registry/configuration. It does not require a reached
 invocation site. The ordinary Native declaration facade keeps its independent
 invocation-owner requirement; a refused carrier cannot retry that facade or
 manufacture a dispatch point.
+
+`authored_source_operation_continuation` requires an explicitly registered
+Registry source operation contract and complete static effective argv under the
+retained source dialect. It retains the original selected path/form, dispatch
+dependencies and full raw footprint beside result-qualified transition coverage
+and residual reads. Original handler selection, observer applicability and result
+completion remain explicit obligations. Additional static or legacy writes,
+unknown source grammar and synchronous bodies or callbacks remain unavailable.
+Mapped declaration rows retain these cards and original vectors in source order;
+no executed state is updated and no later whole-unit state donates an earlier
+premise. Their separate conditional metadata reader preserves the full original
+parent/body/input/configuration and refuses the ordinary unchanged-world reader
+after such a prefix. Native successor, physical read/cell/frame, Normal, absence
+and edit permissions remain independent. Variable-trace lexical exclusions still
+scan the complete configured body and reject the actual traced source root.
 
 `ScopeAliasesAndTraceRegistrations` is a lexical exclusion purpose over the
 actual selected Registry transitions. Variable trace registration subjects keep

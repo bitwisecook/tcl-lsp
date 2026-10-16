@@ -92,6 +92,21 @@ impl LogicalSourceProcedureDeclaration {
         ))
     }
 
+    /// A readonly global-scope Unicode API name, not Tcl script or a live call.
+    /// Both coordinates use the shared source name parser; reporting labels do
+    /// not supply the original declaration allocation or namespace.
+    #[must_use]
+    pub fn matches_literal_global_source_name(&self, name: &str) -> Option<bool> {
+        (!name.as_bytes().contains(&0)).then_some(())?;
+        let coordinate = self.source_candidate_coordinate()?;
+        let parts = tcl_syntax::naming::written_command_parts(name.as_bytes());
+        let requested = tcl_core_types::ByteCommandSlot::new(
+            tcl_core_types::ByteNamespacePath::from_segments(parts.qualifiers),
+            tcl_core_types::NameBytes::from(parts.simple),
+        );
+        Some(coordinate == requested)
+    }
+
     /// Descriptive argument bounds agreed by both current formal grammars over
     /// this original Logical header. Both parsers must retain its exact formals;
     /// NUL or disagreement remains unknown. This selects no engine grammar,
@@ -230,6 +245,36 @@ impl AnalysisResult {
                 self.logical_source_procedure_declaration_for_body(&declaration.body)
                     .is_some_and(|selected| std::ptr::eq(selected, *declaration))
             })
+    }
+
+    /// Every retained selected Logical source declaration, including superseded
+    /// allocations. Missing/conflicting original headers withdraw the complete
+    /// result; this provides no occupancy, execution, absence or edit authority.
+    #[must_use]
+    pub fn checked_logical_source_procedure_declarations(
+        &self,
+        image: &SourceImage,
+        config: LexerConfig,
+    ) -> Option<Vec<&LogicalSourceProcedureDeclaration>> {
+        let input = self.resolved_input.as_ref()?;
+        if config != input.lexer_config()
+            || !self.allows_retained_logical_declaration_advice()
+            || !self.matches_original_source_image(image, config)
+        {
+            return None;
+        }
+        let cards = self
+            .retained_command_realm()?
+            .checked_original_logical_procedure_body_cards(input)?;
+        cards
+            .iter()
+            .map(|body| {
+                let declaration = self.logical_source_procedure_declaration_for_body(body)?;
+                declaration
+                    .matches_source(image, input)
+                    .then_some(declaration)
+            })
+            .collect()
     }
 
     /// Current actual procedure metadata must agree with the genuine header card.

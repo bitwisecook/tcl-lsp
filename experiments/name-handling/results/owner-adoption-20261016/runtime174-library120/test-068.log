@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::native_jim_lookup::tests::original_jim_namespace_receipt_does_not_keep_a_withdrawn_native_owner_alive ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2299 filtered out; finished in 3.67s
+

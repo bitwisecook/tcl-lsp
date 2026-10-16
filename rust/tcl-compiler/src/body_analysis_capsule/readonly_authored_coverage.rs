@@ -22,7 +22,8 @@ impl ReadonlyAuthoredCoverage {
         let inventory = retained
             .positioned_for_module(module, registry)?
             .installed_procedure_body_units();
-        if module.original_authored_declaration_body_units.is_empty()
+        if unit.source.as_bytes() != module.source.bytes()
+            || module.original_authored_declaration_body_units.is_empty()
             || unit.body_units.len() != module.body_units.len()
             || module
                 .original_authored_declaration_body_units
@@ -36,6 +37,8 @@ impl ReadonlyAuthoredCoverage {
         for (&id, function) in &unit.body_units {
             let procedure = module.body_units.get(&id)?;
             if !module.procedure_ids.owns(id)
+                || !std::ptr::eq(unit.function_for_body(Some(id))?, function)
+                || function.source_metadata_input() != module.source_metadata_input.as_ref()
                 || function.body_id != Some(id)
                 || module
                     .original_native_declaration_body_units
@@ -60,7 +63,10 @@ impl ReadonlyAuthoredCoverage {
                 }
                 continue;
             }
-            if unit.installed_procedure_cfg_for_body(id) != Some(&function.cfg)
+            // Installed units retain their original full construction config;
+            // only declaration units enter the separate rebased memo path.
+            if function.source_lexer_config() != module.lexer_config
+                || unit.installed_procedure_cfg_for_body(id) != Some(&function.cfg)
                 || !retained.matches_installed_procedure_summary(id, procedure)
             {
                 return None;
@@ -184,6 +190,94 @@ mod tests {
         assert!(module.source_entry.native_entry.is_none());
         assert_eq!(module.installed_procedure_body_units.len(), 2);
         assert_eq!(module.original_authored_declaration_body_units.len(), 2);
+    }
+
+    #[test]
+    fn readonly_authored_coverage_keeps_installed_function_input_and_unique_store() {
+        let (context, unit) = fixture();
+        let registry = context.commands();
+        let coverage = ReadonlyAuthoredCoverage::capture(&unit, registry).unwrap();
+        let (&installed, _) = unit
+            .ir_module
+            .installed_procedure_body_units
+            .iter()
+            .next()
+            .unwrap();
+        let declaration = coverage.source_for(installed).unwrap();
+        for id in [installed, declaration] {
+            let function = unit.function_for_body(Some(id)).unwrap();
+            assert!(std::ptr::eq(function, &unit.body_units[&id]));
+            assert_eq!(function.source_metadata_input(), None);
+            if id == installed {
+                assert_eq!(function.source_lexer_config(), unit.ir_module.lexer_config);
+                assert_eq!(
+                    unit.installed_procedure_cfg_for_body(id),
+                    Some(&function.cfg)
+                );
+                assert!(unit.original_procedure_cfg_for_body(id).is_none());
+                assert!(unit.original_procedure_for_body(id).is_none());
+            } else {
+                assert_eq!(
+                    unit.original_procedure_cfg_for_body(id),
+                    Some(&function.cfg)
+                );
+                assert!(unit.installed_procedure_cfg_for_body(id).is_none());
+            }
+            let mut duplicated = unit.clone();
+            duplicated
+                .ir_module
+                .procedures
+                .insert(id, duplicated.ir_module.body_units[&id].clone());
+            assert!(
+                duplicated
+                    .ir_module
+                    .retained_source_bindings
+                    .as_ref()
+                    .unwrap()
+                    .positioned_for_module(&duplicated.ir_module, registry)
+                    .is_some()
+            );
+            assert!(duplicated.function_for_body(Some(id)).is_none());
+            assert!(ReadonlyAuthoredCoverage::capture(&duplicated, registry).is_none());
+        }
+        let original_cfg = &unit.body_units[&installed].cfg;
+        for axis in 0..3 {
+            let mut wrong = unit.clone();
+            let function = wrong.body_units.get_mut(&installed).unwrap();
+            match axis {
+                0 => function.source_config.strict_quoting = !function.source_config.strict_quoting,
+                1 => function.source_config.base_line += 1,
+                _ => {
+                    function.source_config.leading_bom = match function.source_config.leading_bom {
+                        tcl_lexer::LeadingBom::Content => tcl_lexer::LeadingBom::Skip,
+                        tcl_lexer::LeadingBom::Skip => tcl_lexer::LeadingBom::Content,
+                    };
+                }
+            }
+            assert_ne!(function.source_lexer_config(), unit.ir_module.lexer_config);
+            assert_eq!(&function.cfg, original_cfg);
+            assert!(ReadonlyAuthoredCoverage::capture(&wrong, registry).is_none());
+        }
+        let mut wrong = unit.clone();
+        let profile = context.commands().profile().unwrap();
+        wrong
+            .body_units
+            .get_mut(&installed)
+            .unwrap()
+            .source_metadata_input = Some(crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            unit.ir_module.lexer_config,
+        ));
+        assert_eq!(&wrong.body_units[&installed].cfg, original_cfg);
+        assert!(ReadonlyAuthoredCoverage::capture(&wrong, registry).is_none());
+        let mut wrong = unit.clone();
+        wrong.source.push(' ');
+        assert!(ReadonlyAuthoredCoverage::capture(&wrong, registry).is_none());
+        assert!(ReadonlyAuthoredCoverage::capture(&unit, registry).is_some());
+        assert_eq!(unit.ir_module.body_units.len(), 4);
+        assert_eq!(unit.body_units.len(), 4);
     }
 
     #[test]

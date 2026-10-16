@@ -157,6 +157,15 @@ export const FILENAME_LANGUAGE_IDS: Record<string, string> = {
  */
 export function tclLanguageIdForPath(path: string): string | undefined {
   const basename = path.split(/[/\\]/).pop() ?? path;
+  return tclLanguageIdForBasename(basename);
+}
+
+/**
+ * Project an actual basename through the generated filename and extension
+ * registrations. Path parsing belongs to the caller's real URI or host-path
+ * provider; a backslash in a POSIX basename is filename data.
+ */
+export function tclLanguageIdForBasename(basename: string): string | undefined {
   const lower = basename.toLowerCase();
   const byName = lookup(FILENAME_LANGUAGE_IDS, lower);
   if (byName) {

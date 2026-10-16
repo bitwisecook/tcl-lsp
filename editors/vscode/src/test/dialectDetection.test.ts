@@ -18,7 +18,13 @@
 
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { activate, getDocUri, getServerLog, sleep } from "./helper";
+import {
+  activate,
+  getDocUri,
+  getServerLog,
+  waitForEffectiveConfig,
+  waitForProviderResult,
+} from "./helper";
 
 async function completionLabels(uri: vscode.Uri, position: vscode.Position): Promise<string[]> {
   const result = (await vscode.commands.executeCommand(
@@ -44,16 +50,12 @@ async function waitForCompletions(
   predicate: (labels: string[]) => boolean,
   timeout = 30_000,
 ): Promise<string[]> {
-  const start = Date.now();
-  while (Date.now() - start < timeout) {
-    const labels = await completionLabels(uri, position);
-    if (predicate(labels)) {
-      return labels;
-    }
-    await sleep(250);
-  }
-  // Return last result so the assertion can produce a useful message.
-  return completionLabels(uri, position);
+  return waitForProviderResult(uri, () => completionLabels(uri, position), predicate, {
+    timeout,
+    label: `completion catalogue for ${uri.toString()}`,
+    backstopInterval: 250,
+    describe: (labels) => JSON.stringify(labels),
+  });
 }
 
 suite("Dialect Detection", () => {
@@ -145,8 +147,11 @@ suite("Dialect Detection", () => {
     const uri = getDocUri("dialect-directive84.tcl");
     await activate(uri);
 
-    // Dialect detection sends a config notification asynchronously;
-    // poll until the server reflects the tcl8.4 dialect (no "try").
+    // The negative completion assertion is meaningful only after the server
+    // has resolved this document under the directive's effective dialect.
+    await waitForEffectiveConfig(uri, (cfg) => cfg.dialect === "tcl8.4", {
+      label: "tcl-dialect tcl8.4 directive",
+    });
     const labels = await waitForCompletions(
       uri,
       new vscode.Position(1, 2),

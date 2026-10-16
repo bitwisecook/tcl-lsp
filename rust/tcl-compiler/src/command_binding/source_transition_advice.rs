@@ -684,6 +684,13 @@ struct OriginalLogicalSummaryScope {
     scope: Arc<super::OriginalDeclaredLogicalBodyContext>,
 }
 
+/// A selected source scope was attempted but its complete header/body walk
+/// could not be retained. Positive cards from other scopes do not close it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum LogicalProcedureCatalogueRefusal {
+    SelectedScopeUnavailable(u32),
+}
+
 #[derive(Debug, Default)]
 pub(crate) struct OriginalSourceTransitionAdviceTape {
     advice: BTreeMap<u32, OriginalSourceCommandTransitionAdvice>,
@@ -714,6 +721,7 @@ pub(crate) struct OriginalSourceTransitionAdviceTape {
     native_procedure_may_commands:
         BTreeMap<u32, Option<native_declared_body::OriginalNativeSourceMayCommand>>,
     logical_procedure_bodies: BTreeMap<u32, Option<Arc<OriginalLogicalProcedureBody>>>,
+    logical_procedure_catalogue_refusals: BTreeSet<LogicalProcedureCatalogueRefusal>,
     logical_variable_scopes:
         BTreeMap<(u32, u32), Option<Arc<super::OriginalDeclaredLogicalBodyContext>>>,
     logical_summary_scopes: BTreeMap<u32, Option<OriginalLogicalSummaryScope>>,
@@ -762,6 +770,15 @@ impl OriginalSourceTransitionAdviceTape {
             .flatten()
             .cloned()
             .collect()
+    }
+
+    pub(crate) fn checked_logical_procedure_body_cards(
+        &self,
+    ) -> Option<Vec<Arc<OriginalLogicalProcedureBody>>> {
+        if !self.logical_procedure_catalogue_refusals.is_empty() {
+            return None;
+        }
+        self.logical_procedure_bodies.values().cloned().collect()
     }
 
     /// Genuine original receiver-body vectors, without receiver lookup or entry.
@@ -1054,6 +1071,8 @@ impl OriginalSourceTransitionAdviceTape {
     }
 
     fn extend_inventory(&mut self, other: Self) {
+        self.logical_procedure_catalogue_refusals
+            .extend(other.logical_procedure_catalogue_refusals);
         for (offset, receipt) in other.native_procedure_may_commands {
             source_class::merge_receipt(&mut self.native_procedure_may_commands, offset, receipt);
         }

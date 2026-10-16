@@ -1,0 +1,58 @@
+{
+  "owner": "registry.source.conditional-operation-continuation-effect-coverage-owner",
+  "additional_owner_count": 0,
+  "files": {
+    "docs/design/contracts/name-handling.md": {
+      "before_sha256": "9e97c8d25f2e4d774c1446f8f9a016ab63a3d9679b6dff191c3233cb78fdfad6",
+      "after_sha256": "ad053bdfcf099dd8e7a83bb664b068b693634ab6bdd93f10d39d76bc73d0aa02",
+      "live_matches_before": true
+    },
+    "docs/design/contracts/shared-utility-contracts-rust.md": {
+      "before_sha256": "f5ade9cf3bcc3d41287df9f998d6803ae746da74415e6bf0696ff5f8efbf5d92",
+      "after_sha256": "b667c4551b55df009ff7f9b737b685816e485a6d356d58b81480c15861841d07",
+      "live_matches_before": true
+    },
+    "rust/tcl-compiler/src/command_binding/declaration_layout.rs": {
+      "before_sha256": "c4d03cb79237428193988fab59878ab9e40e7570d6e4d3e2e7de106b07476ab8",
+      "after_sha256": "d5ec52075a11b825ff2d99fba7e2cf15ab056be36461e5785814886067a70220",
+      "live_matches_before": true
+    },
+    "rust/tcl-compiler/src/command_binding/declaration_preview.rs": {
+      "before_sha256": "d7ae5f6ffa30e79471d46d06cb89f5cd4ddce87dcbcdc757ba3130a4fb1ed01b",
+      "after_sha256": "ec78c5d5329d062f0921cea302c847d2a46f532fd871951790623781bffaeaeb",
+      "live_matches_before": true
+    },
+    "rust/tcl-registry/src/commands/tcl/return_.rs": {
+      "before_sha256": "d0b82c1d4d4af70f9a4e06f926f6c7da6038e40e8f03482cbecaba46221c0440",
+      "after_sha256": "f14b4baf2ba99610a571789df92c2754797ef5e75bcd4c3d64b7abe6fd19d531",
+      "live_matches_before": true
+    },
+    "rust/tcl-registry/src/commands/tcl/trace.rs": {
+      "before_sha256": "303221a51b882365f25c59d4100b0cd662daebb8097107a2cb24f5ff0f66e8ae",
+      "after_sha256": "7add502cb93b14ff19e08ffba829ead83e54a2901ed2c086777ffca35ac3cc42",
+      "live_matches_before": true
+    },
+    "rust/tcl-registry/src/lib.rs": {
+      "before_sha256": "fba551790a0b9cd35a8ccaa3fba678073cccb0c07a0f857f91e1cfaf97b560dd",
+      "after_sha256": "5bf670cf3649cd2350b169ef6e201ad4ee4805906c894fbd2c283479016497ae",
+      "live_matches_before": true
+    },
+    "rust/tcl-registry/src/resolved_invocation.rs": {
+      "before_sha256": "484c8b72fdfc61c92c5c8789ba6a28b0d68504db3b4f3f4f95375fe2ec734ea7",
+      "after_sha256": "35c4e06f432b11e197e48ed41cb8491bc2223be26bb1cd1cc7001deb2af37018",
+      "live_matches_before": true
+    },
+    "rust/tcl-registry/src/source_operation.rs": {
+      "before_sha256": null,
+      "after_sha256": "b982e9e4eedc80290687a9501706c75a61a875a5c496d230abb1a8d3518af820",
+      "live_matches_before": true
+    },
+    "rust/tcl-registry/src/world_effect.rs": {
+      "before_sha256": "35c4c11947c2c64424eb29463387d7d2f0d9dae366cd9d657dcf448161e5678d",
+      "after_sha256": "20c6069fadb8c2982d41f6604cf8ae2314caa1131766c61a933630f44ee7e928",
+      "live_matches_before": true
+    }
+  },
+  "validation": "Source-only TMP draft; no rustfmt/Cargo/compiler/tests/main/Git/network/instrumentation. Root must independently review and validate.",
+  "patch_sha256": "bf255cbe2d891cd43eab98db8553fc63e01b488a5afb10de9f69a1562c00e9da"
+}

@@ -1,0 +1,38 @@
+PARTIAL LSP PATH OWNER ADOPTION V2
+
+The original selected Path absolute/canonicalization/Unicode policy is retained.
+Existing rooted_file_uri invokes shared Core from_path(Unreserved) for all hosts,
+then the original VS Code product compatibility repair and final URI case rule.
+Original POSIX // and Windows repair controls and all existing assertions remain.
+This is not authority inverse closure and does not close the baseline unit.
+
+Existing Core owner now explicitly refuses non-drive/non-UNC Windows verbatim
+namespace subtypes. Prior Core behavior already declined ordinary VolumeGUID
+after silently stripping //?/ and finding no root; new explicit branch prevents
+unknown verbatim subtypes from being redirected as ordinary rooted paths too.
+
+Why preserving old production Some is incorrect for the VolumeGUID fixture:
+Actual original Windows path: \\?\Volume{01234567-89ab-cdef-0123-456789abcdef}\project\file.tcl
+Installed ls-types0.0.6 uri.rs212-246: for an absolute path, prefixes file:///
+and encodes its backslash-to-slash spelling without filesystem canonicalization.
+Raw URI: file://///%3F/Volume%7B01234567-89ab-cdef-0123-456789abcdef%7D/project/file.tcl
+Original server Windows repair strips the %3F/ marker, yielding:
+file:///Volume%7B01234567-89ab-cdef-0123-456789abcdef%7D/project/file.tcl
+Installed provider uri.rs174-204 Windows inverse removes the first decoded /
+and returns Volume{...}/project/file.tcl, which is relative and not the original
+verbatim-volume root. Thus prior Some is an unfaithful redirect, not evidence
+for actual Windows volume-path acceptance.
+
+The new cfg(windows) production control uses actual Path::is_absolute, installed
+Uri::from_file_path, existing product repair, and actual provider inverse to
+assert this precise failure before asserting new honest refusal. Not run here;
+no measured Windows provider acceptance is claimed. The Core pure Windows recipe
+control runs on any host without claiming Windows Native ingress, covering
+VolumeGUID/GLOBALROOT/drive-relative unsupported subtypes under both escape modes.
+All original Windows drive/UNC/verbatim-drive tests stay unchanged.
+
+Count0 new owner requirements and 0 completed catalogue units. No full Windows
+namespace or POSIX // inverse coverage claimed. Exact Node VSCode3.2.0 evidence
+remains ../vscode-file-path-probe.cjs and stdout.jsonl (manifest hashes retained).
+
+Validation: isolated rustfmt PASS; patch --dry-run PASS. No main/Git/Cargo/build.

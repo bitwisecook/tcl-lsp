@@ -1,0 +1,6 @@
+
+running 1 test
+test cmd_proc::native_apply_original_tests::original_lambda_missing_namespaces_match_native_result_and_error_code ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2299 filtered out; finished in 14.94s
+

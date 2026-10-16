@@ -32,8 +32,10 @@ pub enum FileUriEscaping {
 
 /// Render a rooted host path, without canonicalising or reading the filesystem.
 /// Invalid Unicode, NUL and relative paths decline. Windows path separators and
-/// extended-length prefixes are interpreted only on a Windows host; a POSIX
-/// backslash remains filename data. This API does not parse incoming URIs.
+/// extended-length drive/UNC prefixes are interpreted only on a Windows host;
+/// other verbatim namespace subtypes decline rather than publishing a URI that
+/// loses their native root. A POSIX backslash remains filename data. This API
+/// does not parse incoming URIs.
 #[must_use]
 pub fn from_path(path: &Path, escaping: FileUriEscaping) -> Option<String> {
     path.has_root().then_some(())?;
@@ -58,8 +60,14 @@ fn from_rooted_spelling(path: &str, windows: bool, escaping: FileUriEscaping) ->
         {
             extended_unc = format!("//{rest}");
             extended_unc.as_str()
-        } else {
+        } else if matches!(extended.as_bytes(), [drive, b':', b'/', ..] if drive.is_ascii_alphabetic())
+        {
             extended
+        } else {
+            // A verbatim Volume GUID or other non-drive/non-UNC namespace
+            // cannot lose `//?/`: that would turn its actual native root into
+            // an ordinary, potentially relative path on URI conversion.
+            return None;
         }
     } else {
         path
@@ -156,6 +164,19 @@ mod tests {
             );
         }
         assert!(standalone_windows_path(r"C:relative.tcl", FileUriEscaping::Unreserved).is_none());
+    }
+
+    #[test]
+    fn unsupported_windows_verbatim_subtypes_do_not_lose_their_native_root() {
+        for path in [
+            r"\\?\Volume{01234567-89ab-cdef-0123-456789abcdef}\project\file.tcl",
+            r"\\?\GLOBALROOT\Device\HarddiskVolume1\file.tcl",
+            r"\\?\C:relative.tcl",
+        ] {
+            for escaping in [FileUriEscaping::PathCharacters, FileUriEscaping::Unreserved] {
+                assert!(standalone_windows_path(path, escaping).is_none(), "{path}");
+            }
+        }
     }
 
     #[cfg(not(windows))]

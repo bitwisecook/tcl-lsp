@@ -1,0 +1,39 @@
+{
+  "patch_sha256": "416c3638a30030406b31ae2fb202687b6689402e137556db05cb13e241fc45da",
+  "units": [
+    "lsp-procedure-declaration-catalogue",
+    "lsp-procedure-literal-tool-query"
+  ],
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/analyser/types/logical_procedures.rs",
+      "before_sha256": "15544125bfcaec601cefa9789a0683e969ff9b7b3e4fb21d4f809e280700f015",
+      "after_sha256": "74be1232a8b6ce1bf8ba72a2123e2ca0f3affc0f7da725be0e095b0d928ca15a",
+      "live_matches_before": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs",
+      "before_sha256": "2e5140e6842a5007f550c834ce4e0547558afdbc496114aeedf3e4323643df12",
+      "after_sha256": "a350059b39a77f94e4c246d355212b6104976ba59fc2d56632d4f1ed204455a5",
+      "live_matches_before": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "before_sha256": "3d97a6d5cb64a513072cbdddbf6b8fd501e043ba3453648c9ad791a3d11bce74",
+      "after_sha256": "70e1028ff26df2f2c89dc25f9be539bc807fd046c29e3b678f314c8aeb926d74",
+      "live_matches_before": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/realm/source_transition_advice.rs",
+      "before_sha256": "be664303ca3d2aa8901a032ca0d7f45031a889715bf8e075dc13b74b8b7b826c",
+      "after_sha256": "9a89ee3f6fbc3cb96714441ad0d67e49bffb305af53e0037c75170dd84246136",
+      "live_matches_before": true
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/procedure_symbol.rs",
+      "before_sha256": "35ae1f686156c0967e97d7943d30c797cca22f5fec3b5fcbc4b39b6e753b2e51",
+      "after_sha256": "de773f000ec82753906453d4f5a49dabf4159f66d95ecd6128fceff89bbd7828",
+      "live_matches_before": true
+    }
+  ]
+}

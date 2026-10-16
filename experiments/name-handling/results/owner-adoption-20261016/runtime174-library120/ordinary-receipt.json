@@ -1,0 +1,16 @@
+{
+  "utc": "2026-10-16T14:06:50.859622+00:00",
+  "status": "PASS_BOUNDED_ORDINARY_LIBRARY120",
+  "PASS": 120,
+  "FAIL": 0,
+  "exact_selection": "Runtime174.tcl_runtime subgroup only;51namespacequeryintegration+3Registry remain pending",
+  "full_Runtime174_acceptance": false,
+  "source_inputs": 29558,
+  "source_input_drift": [],
+  "source_input_manifest_sha256": "da8093318f45a4932b70b898fab42bd2309db66f308bc1546ae44c3aeef1609c",
+  "provider_pairing": "experiments/name-handling/oracles/provider-pairing-20261016T1400/capture.json",
+  "source_equivalence": "Actual ordinary cd0+2495 Runtime artifact matches Runtime/shared dependency sources committed in b96; those recorded source inputs remained unchanged through 2fb and full120 replay. Compiler/VM/CLI/iRules/server pending changes are outside this standalone Runtime source dependency set.",
+  "runner": "Exact V2 adapter /tmp/naming-retained-selection-recovery-v2/replay-selection.py; selection vector SHA0c757949d6ae2d2790f3fc6f50c94eb5c55fa3b17d7dae094b8a78054ce5d5cf. Each singleton kept exact run-count and180s original budget.",
+  "runner_sha256": "acf2a9a3af8f05edf7ea00c0b8c2827b8b9921825df98a56b49774680259fb9a",
+  "gate_acceptance": false
+}

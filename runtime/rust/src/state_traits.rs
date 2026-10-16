@@ -1424,9 +1424,12 @@ impl Namespaces for Interp {
                 .map_err(|_| {
                     ValueError::CommandProtocolUnavailable("Jim namespace variable query name")
                 })?;
-            let mut rooted = b"::".to_vec();
-            rooted.extend_from_slice(selected.selected());
-            return Ok(Some(rooted));
+            return protocol
+                .jim_namespace_canonical_report_bytes(&selected)
+                .map(Some)
+                .map_err(|_| {
+                    ValueError::CommandProtocolUnavailable("Jim namespace variable query report")
+                });
         }
         self.require_variable_name_protocol().map_err(|_| {
             ValueError::CommandProtocolUnavailable("namespace variable query issuer")

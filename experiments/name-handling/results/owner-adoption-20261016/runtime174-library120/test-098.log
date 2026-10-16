@@ -1,0 +1,6 @@
+
+running 1 test
+test cmd_info::native_jim::inventory_stage_tests::original_jim_inventory_default_helper_matches_original_namespace_aware_pattern_stages ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2299 filtered out; finished in 0.79s
+

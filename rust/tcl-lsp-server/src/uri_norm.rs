@@ -51,14 +51,15 @@
 //! client's bug to fix (VS Code is not; `uriConverters` exists for those that
 //! are).
 //!
-//! Server-constructed file paths have one additional boundary repair:
-//! [`repair_file_uri_from_path`] makes `ls_types::Uri::from_file_path` agree
-//! with VS Code's `URI.file`. A leading `//` becomes a URI authority on every
-//! host; on Windows only, the extended-length `//?/` marker is removed first.
-//! The repair is deliberately called only by the path-to-URI constructor, not
+//! Server-constructed file paths use the shared actual host-path owner via
+//! [`rooted_file_uri`], followed by the separate product compatibility step
+//! [`repair_file_uri_from_path`]. A leading POSIX `//` becomes the authority
+//! spelling used by VS Code's `URI.file`. The shared path owner already handles
+//! Windows extended-length paths; the repair also accepts the legacy encoded
+//! Windows provider shapes. This product spelling supplies no inverse path
+//! conversion. The repair is called only by the path-to-URI constructor, not
 //! by this module's generic incoming-URI normaliser: a first path segment named
-//! `?` and a path beginning `//` must retain their meaning when already
-//! expressed as URIs, including on POSIX and macOS.
+//! `?` and a path beginning `//` retain their existing URI structure.
 //!
 //! # Tolerant parse
 //!
@@ -144,8 +145,8 @@ pub fn canonical_uri_string(raw: &str) -> Cow<'_, str> {
     Cow::Owned(String::from_utf8(out).unwrap_or_else(|_| raw.to_owned()))
 }
 
-/// Repair the file-URI shape `ls_types::Uri::from_file_path` produces for a
-/// filesystem path beginning with `//`.
+/// Apply the product's VS Code authority spelling to a constructed file URI.
+/// Also accepts legacy `ls_types::Uri::from_file_path` Windows shapes.
 ///
 /// VS Code's `URI.file` represents a leading `//host/` as the authority on
 /// every host, preserving POSIX/macOS double-slash paths as `file://host/…`
@@ -155,8 +156,10 @@ pub fn canonical_uri_string(raw: &str) -> Cow<'_, str> {
 /// forms. `windows` is explicit rather than hidden behind `#[cfg]` so every
 /// branch is type-checked and unit-tested on every CI host.
 ///
-/// This function must only receive the output of `Uri::from_file_path`; it is
-/// not a generic URI canonicalisation. Returns `None` for an ordinary path.
+/// This function only receives a URI constructed from an actual path, using
+/// the shared host-path owner or the legacy provider. It is not a generic
+/// incoming-URI canonicalisation or an authority-preserving path inverse.
+/// Returns `None` when no compatibility repair is needed.
 pub(crate) fn repair_file_uri_from_path(raw: &str, windows: bool) -> Option<String> {
     // `from_file_path` prepends `file://` on Unix and `file:///` on Windows.
     // Removing exactly that platform prefix recovers its encoded path without
@@ -260,9 +263,10 @@ pub fn repair_uri_string(raw: &str) -> Option<String> {
     out.parse::<Uri>().ok().map(|_| out)
 }
 
-/// Render the actual host path through the shared file-path URI owner.
-/// The browser host uses this when `Uri::from_file_path` cannot access a
-/// filesystem. Incoming URI repair remains a separate protocol boundary.
+/// Render the actual rooted host path through the shared file-path URI owner.
+/// Native and browser constructors use the same unreserved escaping policy.
+/// This neither canonicalises a relative path nor applies the product's
+/// VS Code authority compatibility step. Incoming URI repair remains separate.
 #[must_use]
 pub fn rooted_file_uri(path: &std::path::Path) -> Option<Uri> {
     tcl_lsp_core::file_uri::from_path(path, tcl_lsp_core::file_uri::FileUriEscaping::Unreserved)?

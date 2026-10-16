@@ -1017,6 +1017,10 @@ fn parse_waiver(after_marker: &str) -> Result<Waiver, String> {
             "on axis `{axis}` has no expiry: end it with `; until <change | never>`"
         ));
     };
+    let reason = reason.trim();
+    if reason.is_empty() {
+        return Err(format!("on axis `{axis}` has no reason"));
+    }
     let until = until.trim();
     if until == "never" && axis != "irreducible" {
         return Err(format!(
@@ -1025,7 +1029,7 @@ fn parse_waiver(after_marker: &str) -> Result<Waiver, String> {
     }
     Ok(Waiver {
         axis: axis.to_owned(),
-        reason: reason.trim().to_owned(),
+        reason: reason.to_owned(),
         until: until.to_owned(),
     })
 }
@@ -1298,6 +1302,11 @@ mod tests {
             parse_waiver("colour — x; until the option table")
                 .unwrap_err()
                 .contains("unknown axis")
+        );
+        assert!(
+            parse_waiver("options — ; until the option table")
+                .unwrap_err()
+                .contains("no reason")
         );
         assert!(
             parse_waiver("options — x; until never")

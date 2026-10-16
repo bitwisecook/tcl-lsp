@@ -1739,6 +1739,21 @@ impl DeclarationSourceOperandLayoutAdvice {
         &self,
         tokens: &crate::ir::CommandTokens,
     ) -> Option<OriginalCompilationLookupAdvice> {
+        self.current_source_advice(tokens, false)
+    }
+
+    fn current_conditional_source_advice(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+    ) -> Option<OriginalCompilationLookupAdvice> {
+        self.current_source_advice(tokens, true)
+    }
+
+    fn current_source_advice(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        conditional_source: bool,
+    ) -> Option<OriginalCompilationLookupAdvice> {
         let binding = tokens.source_binding.as_ref()?;
         match &self.kind {
             DeclarationSourceOperandLayoutKind::Original(original) => {
@@ -1778,7 +1793,11 @@ impl DeclarationSourceOperandLayoutAdvice {
                 {
                     return None;
                 }
-                layout.metadata_advice(tokens)
+                if conditional_source {
+                    layout.conditional_source_advice(tokens)
+                } else {
+                    layout.metadata_advice(tokens)
+                }
             }
         }
     }
@@ -1788,7 +1807,7 @@ impl DeclarationSourceOperandLayoutAdvice {
         registry: &tcl_registry::CommandRegistry,
         tokens: &crate::ir::CommandTokens,
     ) -> Option<Option<crate::registry_invocation::InvocationMetadataContext<'_>>> {
-        self.current_advice(tokens)?;
+        self.current_conditional_source_advice(tokens)?;
         match &self.kind {
             DeclarationSourceOperandLayoutKind::Original(advice) => advice
                 .original_declaration_metadata_context(registry, tokens)
@@ -1811,7 +1830,7 @@ impl DeclarationSourceOperandLayoutAdvice {
             &[crate::registry_invocation::EffectiveInvocationWord],
         ) -> Option<T>,
     ) -> Option<T> {
-        let advice = self.current_advice(tokens)?;
+        let advice = self.current_conditional_source_advice(tokens)?;
         let metadata = self.current_metadata_context(registry, tokens)?;
         let mut selected = None;
         for target in advice.targets() {
@@ -1869,6 +1888,7 @@ pub(crate) struct DeclarationSourceVariableOperandAdvice {
     site: CommandAllocationSite,
     word: crate::ir::WordExpr,
     name: String,
+    source_operations: Arc<[super::declaration_preview::OriginalDeclarationSourceOperation]>,
 }
 
 impl DeclarationSourceVariableOperandAdvice {
@@ -1889,7 +1909,10 @@ impl DeclarationSourceVariableOperandAdvice {
             .source_binding
             .as_ref()?
             .declaration_source_variable_operand_advice(registry, tokens, &self.word)?;
-        (current.site == self.site && current.name == self.name).then_some(())?;
+        (current.site == self.site
+            && current.name == self.name
+            && current.source_operations == self.source_operations)
+            .then_some(())?;
         symbolic_version(ssa, block, index, &self.name)
     }
 }
@@ -1948,6 +1971,7 @@ impl super::SourceInvocationBinding {
                 site: original.invocation,
                 word: original.word,
                 name: original.name,
+                source_operations: Arc::from([]),
             });
         }
         if word.source().provenance != crate::ir::Provenance::Source
@@ -1985,6 +2009,7 @@ impl super::SourceInvocationBinding {
             site: layout.site.clone(),
             word: word.clone(),
             name,
+            source_operations: Arc::clone(&layout.source_operations),
         })
     }
 }
@@ -2733,14 +2758,22 @@ impl SourceCommandBindings {
         )?;
         let body_bytes = origin.source_image().bytes().get(span.as_range())?;
         for row in rows {
-            let OriginalDiagnosticFrameEntry::DeclaredProcedure(body) = row.entry.as_ref() else {
-                return None;
+            let (parent, source, namespace) = match row.entry.as_ref() {
+                OriginalDiagnosticFrameEntry::Body(body) => (
+                    &body.allocation().site,
+                    body.source(),
+                    body.namespace_context()?,
+                ),
+                OriginalDiagnosticFrameEntry::DeclaredProcedure(body) => {
+                    (body.declaration_site(), &body.source, &body.namespace)
+                }
+                _ => return None,
             };
-            if body.declaration_site() != scope.original_parent_site()?
-                || body.source.origin != site.source
-                || body.source.base() != span.start()
-                || body.source.text.bytes() != body_bytes
-                || &body.namespace != scope.namespace()
+            if parent != scope.original_parent_site()?
+                || source.origin != site.source
+                || source.base() != span.start()
+                || source.text.bytes() != body_bytes
+                || namespace != scope.namespace()
                 || row.words.as_ref() != tokens.words()
                 || row.config != scope.config()
                 || !row.entry.owns_source(&site.source, site.offset)
@@ -4438,6 +4471,57 @@ mod tests {
     }
 
     #[test]
+    fn mapped_source_continuation_keeps_original_prefix_and_observer_debt() {
+        let name = concat!("local", "\\", "\n", "name");
+        let body = format!("trace add variable other write callback; incr {{{name}}}");
+        let source = format!("proc source_prefix {{}} {{{body}}}");
+        let command = format!("incr {{{name}}}");
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let config = tcl_lexer::LexerConfig::from_grammar(registry.profile().unwrap().grammar);
+        let (_owner, tokens) = original_tokens_in_image_with_config(
+            "tcl8.6",
+            &tcl_lexer::SourceImage::document(&source),
+            &command,
+            source.rfind(&command).unwrap(),
+            config,
+        );
+        let binding = tokens.source_binding.as_ref().unwrap();
+        let advice = binding
+            .declaration_source_operand_layout_advice(registry, &tokens)
+            .expect("actual conditional source continuation");
+        assert!(
+            advice.current_advice(&tokens).is_none(),
+            "no unchanged Native lookup world follows a result registration"
+        );
+        assert!(advice.current_conditional_source_advice(&tokens).is_some());
+        let DeclarationSourceOperandLayoutKind::Configured { layout, .. } = &advice.kind else {
+            panic!("mapped readonly source purpose");
+        };
+        assert_eq!(layout.source_operations.len(), 1);
+        let operation = &layout.source_operations[0].operation;
+        assert!(operation.obligations().contains(
+            &tcl_registry::source_operation::SourceOperationObligation::ObserverApplicability
+        ));
+        assert!(
+            operation
+                .effects()
+                .accesses()
+                .iter()
+                .any(|access| access.mode != tcl_registry::EffectAccessMode::Read)
+        );
+        let operand = binding
+            .declaration_source_variable_operand_advice(registry, &tokens, &tokens.words()[1])
+            .unwrap();
+        assert_eq!(operand.name(), "local name");
+        assert_eq!(operand.source_operations, layout.source_operations);
+        assert!(
+            binding
+                .declaration_variable_operand_advice(registry, &tokens, &tokens.words()[1])
+                .is_none()
+        );
+    }
+
+    #[test]
     fn original_destruction_operand_keys_follow_the_retained_alias_point() {
         // Implementation contract: naming.variable.original-destruction-operand-keys
         // docs/design/analysis/name-resolution-proofs/original-destruction-operand-keys.md
@@ -5118,5 +5202,102 @@ mod original_logical_declaration_receipt_tests {
                 .is_none()
         );
         assert!(binding.proved_execution_target().is_none());
+    }
+}
+
+#[cfg(test)]
+mod authored_source_parent_tests {
+    use super::*;
+
+    #[test]
+    fn authored_source_parent_reborrow_keeps_allocated_and_uninstalled_body_owners() {
+        let environment = tcl_registry::model::ingress::resolve_environment("tcl8.6");
+        let context = environment.default_context_registry();
+        let registry = context.commands();
+        let profile = environment.unit_profile();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        for (prefix, allocated) in [("", true), ("rename $old decl\n", false)] {
+            let source = format!("{prefix}proc kept {{x}} {{list retained}}");
+            let unit = crate::compilation_unit::CompilationUnit::build_for_with_config(
+                &source, registry, false, config,
+            );
+            let module = &unit.ir_module;
+            let (&id, _) = module
+                .original_authored_declaration_body_units
+                .iter()
+                .find(|(_, card)| card.name() == "kept")
+                .unwrap();
+            let procedure = &module.body_units[&id];
+            let tokens = procedure
+                .body
+                .retained_source_tokens_for_statement(&procedure.body.statements[0])
+                .unwrap();
+            let scope = tokens
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .original_authored_source_body_scope_for_name_roles(tokens, registry)
+                .unwrap();
+            let bindings = module
+                .retained_source_bindings
+                .as_ref()
+                .unwrap()
+                .positioned_for_module(module, registry)
+                .unwrap();
+            let site = CommandAllocationSite {
+                source: Arc::clone(bindings.source_origin().unwrap()),
+                offset: tokens.words()[0].source().span.start(),
+            };
+            let observations = bindings.declaration_layouts.get(&site).unwrap();
+            for row in original_declaration_layouts(observations).unwrap() {
+                match row.entry.as_ref() {
+                    OriginalDiagnosticFrameEntry::Body(body) => {
+                        assert!(allocated, "{prefix:?}");
+                        assert_eq!(
+                            &body.allocation().site,
+                            scope.original_parent_site().unwrap()
+                        );
+                    }
+                    OriginalDiagnosticFrameEntry::DeclaredProcedure(body) => {
+                        assert!(!allocated, "{prefix:?}");
+                        assert_eq!(
+                            body.declaration_site(),
+                            scope.original_parent_site().unwrap()
+                        );
+                    }
+                    _ => panic!("actual procedure source owner"),
+                }
+            }
+            let selected = bindings
+                .original_authored_declaration_source_tokens(tokens, scope, registry)
+                .expect("genuine original parent/source row");
+            let binding = selected.source_binding.as_ref().unwrap();
+            assert!(
+                binding
+                    .original_authored_declaration_scalar_layout(&selected, registry)
+                    .is_some()
+            );
+            assert!(binding.execution_is_unknown());
+            assert!(binding.proved_execution_target().is_none());
+            assert!(
+                crate::registry_invocation::normal_representation_invocation_with_metadata_context(
+                    registry, None, &selected,
+                )
+                .is_none()
+            );
+            assert!(
+                crate::registry_invocation::admitted_native_compiler_invocation(
+                    registry, None, &selected,
+                )
+                .is_none()
+            );
+            let mut withdrawn = bindings.clone();
+            withdrawn.declaration_layouts.remove(&site);
+            assert!(
+                withdrawn
+                    .original_authored_declaration_source_tokens(tokens, scope, registry,)
+                    .is_none()
+            );
+        }
     }
 }

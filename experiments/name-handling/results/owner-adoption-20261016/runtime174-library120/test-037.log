@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::native_command_names::repinned_registration_key_tests::jim_repin_publishes_only_actual_unchanged_byte_registration_keys ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2299 filtered out; finished in 3.91s
+

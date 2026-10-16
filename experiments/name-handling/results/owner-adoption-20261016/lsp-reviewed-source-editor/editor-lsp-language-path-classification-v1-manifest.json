@@ -1,0 +1,28 @@
+{
+  "patch": "/tmp/lsp-language-path-classification-v1.patch",
+  "patch_sha256": "f7140bd5a1fb4db74602164fbc1eef3f6a8c64aa3cbeaf2bf0d7c9403663c9b5",
+  "baseline_units": [
+    {
+      "id": "lsp-editor-language-path-classification",
+      "path": "editors/vscode/src/languageIds.ts",
+      "baseline_sha256": "e186c94687db1c79ccf63a5329d7ef4f0f1317ba94f2a688e5cd2233e5ad22ea"
+    }
+  ],
+  "change_count": 1,
+  "owner": "Existing platform-aware Node path.basename at the actual desktop host-path boundary; generated EnvironmentRegistry projections and own-property lookup remain classification authority.",
+  "supporting_files": [
+    {
+      "path": "editors/vscode/src/extension.ts",
+      "old_sha256": "9ece7d7d0fb532c0522870794497b274cae710a3406d043cd4feaa5f7ae71223",
+      "new_sha256": "4df81b7214ebffc896fe04bad1da420be19e568944ff376b52ecbbce1ea54b17"
+    },
+    {
+      "path": "editors/vscode/src/test/highlightingHealth.test.ts",
+      "old_sha256": "04c5950cd4e27b3f193f614bd8be3c541f14cc2f2455e51152de5dcb1594f3eb",
+      "new_sha256": "ee9535dceb845121213d6c891ed81f4edafa9b84cca7de8dc25365911ef57d71"
+    }
+  ],
+  "generated_owner_files_changed": false,
+  "tests_added": "Existing highlightingHealth.test.ts suite receives one adversarial test; no new selector/baseline count. Checks path.posix basename with literal backslash data and path.win32 basename with backslash separators/case-folded table lookup.",
+  "validation": "Source review only; no tests, typecheck, build, Cargo, or generated-file commands run."
+}

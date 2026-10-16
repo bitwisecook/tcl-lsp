@@ -97,6 +97,39 @@ suite("Wait discipline (issue #1274)", () => {
     assert.ok(elapsed < 5_000, `signal-driven wait took ${elapsed}ms; a poll would take 10000ms`);
   });
 
+  test("awaitSignal rejects at its bound when an async probe never settles", async () => {
+    const base = 500;
+    const started = Date.now();
+    let error: Error | undefined;
+    try {
+      await awaitSignal<number>({
+        label: "an async provider probe that never settles",
+        subscribe: () => ({ dispose: () => {} }),
+        probe: () => new Promise<number>(() => {}),
+        predicate: () => false,
+        timeout: base,
+        backstopInterval: 20,
+      });
+      assert.fail("awaitSignal resolved while its async probe was still pending");
+    } catch (err) {
+      error = err as Error;
+    }
+    const elapsed = Date.now() - started;
+    assert.ok(error, "expected a rejection");
+    assert.ok(
+      error.message.includes("VSCODE-WAIT-TIMEOUT"),
+      `failure must carry the greppable marker: ${error.message}`,
+    );
+    assert.ok(
+      error.message.includes("an async provider probe that never settles"),
+      `failure must name what was awaited: ${error.message}`,
+    );
+    assert.ok(
+      elapsed < boundCeiling(base),
+      `stall must fail at its bound; took ${elapsed}ms for a ${base}ms base`,
+    );
+  });
+
   test("awaitSignal rejects at its bound when the predicate can never hold", async () => {
     const base = 1_000;
     const started = Date.now();

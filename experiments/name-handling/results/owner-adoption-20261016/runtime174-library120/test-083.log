@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::native_jim_invocation_tests::original_jim_vector_and_pure_list_select_before_reset_while_source_resets_before_lookup ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2299 filtered out; finished in 0.72s
+

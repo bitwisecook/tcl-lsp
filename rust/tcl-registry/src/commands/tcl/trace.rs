@@ -422,11 +422,22 @@ const LEGACY_TRACE_INFO_DYNAMIC_EFFECT_ACCESSES: &[StaticEffectAccess] =
         StaticSubjectScope::Wildcard,
     )];
 
+const TRACE_REGISTRATION_SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
+    target: SideEffectTarget::InterpState,
+    writes: true,
+    ..SideEffect::DEFAULT
+}];
+
 const TRACE_ADD_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
     composition: WorldEffectComposition::Extend,
     static_footprint: StaticEffectFootprint::EMPTY,
     resolver: Some(trace_add_world_effects),
-    source_resolver: None,
+    source_resolver: Some(
+        crate::world_effect::SourceWorldEffectResolver::ResultTransitions {
+            effects: trace_add_world_effects,
+            coverage: trace_add_source_result_coverage,
+        },
+    ),
     dynamic_fallback: WorldEffectDynamicFallback::Declared(StaticEffectFootprint {
         accesses: TRACE_ADD_DYNAMIC_EFFECT_ACCESSES,
         callback: CallbackEffect::NONE,
@@ -565,6 +576,48 @@ fn trace_add_state_transitions(arguments: InvocationArguments<'_>) -> StateTrans
             prefix,
         }
     })
+}
+
+fn trace_add_source_result_coverage(
+    arguments: InvocationArguments<'_>,
+) -> Option<crate::source_operation::SourceResultTransitionCoverage> {
+    arguments.dialect()?;
+    if arguments.exact_argv_len() != Some(5)
+        || (0..5).any(|at| {
+            arguments
+                .literal_at(at)
+                .is_none_or(|value| value.contains('\0'))
+        })
+    {
+        return None;
+    }
+    let transitions = trace_add_state_transitions(arguments);
+    let [
+        crate::StateTransitionFact {
+            transition:
+                StateTransition::Trace(TraceTransition::Add {
+                    target: TraceTarget::Variable(target),
+                    operations: TraceOperationSet::Known(operations),
+                    prefix,
+                }),
+            commit: StateTransitionCommit::OnOkOnly,
+        },
+    ] = transitions.facts()
+    else {
+        return None;
+    };
+    if target.literal().is_none() || prefix.literal().is_none() || operations.is_empty() {
+        return None;
+    }
+    // The primitive stores the prefix; the registration result does not enter
+    // it. Dispatch/lookup observers are explicit obligations on the source card.
+    Some(
+        crate::source_operation::SourceResultTransitionCoverage::new(
+            transitions,
+            TRACE_EFFECT_COVERAGE,
+            TRACE_REGISTRATION_SIDE_EFFECTS,
+        ),
+    )
 }
 
 fn trace_remove_state_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
@@ -1125,11 +1178,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arg_values: &[(0, TRACE_TYPE_VALUES), (2, TRACE_OPS_VALUES)],
         closed_value_args: &[0],
         arg_values_accept_prefix: true,
-        side_effects: &[SideEffect {
-            target: SideEffectTarget::InterpState,
-            writes: true,
-            ..SideEffect::DEFAULT
-        }],
+        side_effects: TRACE_REGISTRATION_SIDE_EFFECTS,
         world_effects: Some(TRACE_ADD_EFFECTS),
         state_transitions: Some(TRACE_ADD_TRANSITIONS),
         literal_argument_validator: Some(validate_modern_trace_operations),

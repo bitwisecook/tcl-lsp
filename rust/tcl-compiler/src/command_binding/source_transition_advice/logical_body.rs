@@ -320,6 +320,17 @@ impl AdviceInvocationContext<'_> {
         {
             tape.extend_inventory(retained);
         } else {
+            if (schema.authored_source_lambda_call().is_some()
+                || schema.authored_source_procedure_arguments().is_some()
+                || schema.semantics.traits.contains(Traits::DECLARES_NAMESPACE))
+                && let Some(head) = invocation.native.first()
+            {
+                tape.logical_procedure_catalogue_refusals.insert(
+                    super::LogicalProcedureCatalogueRefusal::SelectedScopeUnavailable(
+                        head.span().start(),
+                    ),
+                );
+            }
             self.withdraw_missing_publication_phase(schema);
         }
     }
@@ -398,7 +409,17 @@ impl LogicalBodyWalk<'_, '_> {
         if depth > MAX_DEPTH {
             return None;
         }
-        let mut prepared = self.prepare_procedure(tape, graph, invocation, schema, parent)?;
+        let Some(mut prepared) = self.prepare_procedure(tape, graph, invocation, schema, parent)
+        else {
+            // This selected declaration attempt exists even when no complete
+            // header card can be issued. Catalogue readers must retain refusal.
+            super::source_class::merge_receipt(
+                &mut tape.logical_procedure_bodies,
+                invocation.native.first()?.span().start(),
+                None,
+            );
+            return None;
+        };
         self.script(
             tape,
             &mut prepared.graph,
@@ -1003,6 +1024,13 @@ impl LogicalBodyWalk<'_, '_> {
             {
                 Self::retain_inventory(tape, retained);
             } else {
+                if let Some(head) = invocation.native.first() {
+                    tape.logical_procedure_catalogue_refusals.insert(
+                        super::LogicalProcedureCatalogueRefusal::SelectedScopeUnavailable(
+                            head.span().start(),
+                        ),
+                    );
+                }
                 self.context.withdraw_missing_publication_phase(schema);
             }
             return Some(());

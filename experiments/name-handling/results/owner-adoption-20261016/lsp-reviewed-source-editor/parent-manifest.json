@@ -1,0 +1,15 @@
+{
+  "unit": "compiler.source.original-formal-reference-observations:3936",
+  "count_advance": 0,
+  "purpose": "reborrow genuine existing allocated or uninstalled original source parent, no new issuer",
+  "base_sha256": {
+    "rust/tcl-compiler/src/command_binding/declaration_layout.rs": "c4d03cb79237428193988fab59878ab9e40e7570d6e4d3e2e7de106b07476ab8"
+  },
+  "edit_sha256": {
+    "rust/tcl-compiler/src/command_binding/declaration_layout.rs": "fea9a87f62ca456461fa335338b41fb7f584c6c82f508a5f38d839178376c425"
+  },
+  "patch_sha256": "ec4c96009df72ca979c24797863d1246ce20c3489327f84220d03ba5ddd3076a",
+  "frozen_diagnosis": "/tmp/compiler-authored-stamp-2fb-diagnosis-v1/manifest.json",
+  "binary_sha256": "546efadf0377e1627284519f2f0191d78e2bb8db0d709bcc9addeb6e8ccdaeb1",
+  "candidate_execution": "not run; Root owns Cargo/main"
+}

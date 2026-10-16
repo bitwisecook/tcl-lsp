@@ -1,0 +1,14 @@
+{
+  "additional_requirement_count": 0,
+  "existing_owner_id": "compiler.owner.report.namespace-variable-name",
+  "existing_caller_id": "runtime:report.selected-command-variable-qualification:132",
+  "new_facet": "checked rooted report of selected whole JimNamespaceCanonical variable key",
+  "rationale": "Existing baseline explicitly covers selected namespace/root/optional-element variable report, protocol/extent and real held parts. Same pure name-report semantic boundary; no new cell/lookup/source/native purpose. Do not count by method/type/file.",
+  "not_a_donor": [
+    "compiler.owner.native.jim-flat-command-report",
+    "runtime:report.native-namespace-parts:serializer-owner",
+    "runtime:native.original-variable-cell-publication:canonical-object-producer",
+    "runtime:native.original-variable-cell-publication:namespace-tail-producer"
+  ],
+  "status": "TMP candidate source review and execution pending; baseline owner broader optional-element facets not claimed complete"
+}

@@ -899,6 +899,32 @@ fn mode_from_side_effect(effect: SideEffect) -> Option<EffectAccessMode> {
 /// different branch.
 pub type WorldEffectResolver = for<'w> fn(InvocationArguments<'w>) -> EffectFootprint;
 
+/// A Registry-selected source purpose, independent of Native effect resolution.
+#[derive(Debug, Clone, Copy)]
+pub enum SourceWorldEffectResolver {
+    /// Ordinary conditional source effects, without continuation coverage.
+    Effects(WorldEffectResolver),
+    /// Audited effects whose writes are conditional result transitions only.
+    /// Existing observers and the original handler remain separate premises.
+    ResultTransitions {
+        /// Complete original primitive footprint before the result hand-off.
+        effects: WorldEffectResolver,
+        /// Exact source grammar and declaration-qualified result coverage.
+        coverage: for<'w> fn(
+            InvocationArguments<'w>,
+        )
+            -> Option<crate::source_operation::SourceResultTransitionCoverage>,
+    },
+}
+
+impl SourceWorldEffectResolver {
+    pub(crate) const fn effects(self) -> WorldEffectResolver {
+        match self {
+            Self::Effects(effects) | Self::ResultTransitions { effects, .. } => effects,
+        }
+    }
+}
+
 /// The conservative effect added when an argument-sensitive resolver receives
 /// a non-literal argument.
 ///
@@ -931,7 +957,7 @@ pub struct WorldEffectDescriptor {
     pub resolver: Option<WorldEffectResolver>,
     /// Conditional source resolver, independent of Native handler admission.
     /// Missing registration keeps the ordinary conservative descriptor.
-    pub source_resolver: Option<WorldEffectResolver>,
+    pub source_resolver: Option<SourceWorldEffectResolver>,
     /// Conservative policy for non-literal arguments supplied to `resolver`.
     pub dynamic_fallback: WorldEffectDynamicFallback,
 }
@@ -1138,7 +1164,10 @@ impl ResolvedWorldEffects {
 
     pub(crate) fn resolve_authored_source(self, args: InvocationArguments<'_>) -> EffectFootprint {
         let source = |descriptor: WorldEffectDescriptor| WorldEffectDescriptor {
-            resolver: descriptor.source_resolver.or(descriptor.resolver),
+            resolver: descriptor
+                .source_resolver
+                .map(SourceWorldEffectResolver::effects)
+                .or(descriptor.resolver),
             ..descriptor
         };
         Self {

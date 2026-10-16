@@ -1,0 +1,6 @@
+
+running 1 test
+test cmd_info::native_jim::variable_inventory_tests::original_jim_variable_inventory_returns_same_keys_and_preserves_top_locals_empty ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2299 filtered out; finished in 0.60s
+

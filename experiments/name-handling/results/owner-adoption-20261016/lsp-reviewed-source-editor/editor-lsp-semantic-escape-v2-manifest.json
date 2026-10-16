@@ -1,0 +1,26 @@
+{
+  "patch": "/tmp/lsp-semantic-escape-v2.patch",
+  "patch_sha256": "c575012c11d4be5a6b6d8fccad3444fb21ae41adefc991fb08ca5a474b8c8ef4",
+  "base_dependency": "Latest current semantic_tokens.rs image includes root-integrated LSP validation patch 43a3f596\u2026; V2 is the immutable corrected V1, with only the positive control made explicitly Tcl9.0.",
+  "baseline_units": [
+    {
+      "id": "lsp-semantic-escape-configuration-transport",
+      "effort": "M",
+      "path": "rust/tcl-lsp-core/src/semantic_tokens.rs",
+      "catalogue_source_sha256": "81fdb59beafb064a971a581d0a9792aa7a5abf27a47d7f793b16a9b245006713",
+      "current_base_sha256": "11058c1546ba379977857d143e27812a9b60f9a4525508c20fbaac22ee9cb6c2"
+    }
+  ],
+  "change_count": 1,
+  "source_changes": [
+    {
+      "path": "rust/tcl-lsp-core/src/semantic_tokens.rs",
+      "current_base_sha256": "11058c1546ba379977857d143e27812a9b60f9a4525508c20fbaac22ee9cb6c2",
+      "new_sha256": "7137300a8b12c86d53fc8c358e57e8c8ac2d92764afa72633acb89728a82817b",
+      "catalogue_baseline_source_sha256": "81fdb59beafb064a971a581d0a9792aa7a5abf27a47d7f793b16a9b245006713"
+    }
+  ],
+  "shared_owner": "tcl_lexer::split_backslash_escapes_in(text, config.escapes); caller passes existing ScriptCtx.config. No new semantic owner or grammar.",
+  "test_control": "Existing Rust unit module gains `escape_subtoken_width_follows_the_selected_release_grammar`: same puts \"\\x4142\" checks width 6 under explicitly resolved Tcl8.4 and width 4 under explicitly resolved Tcl9.0. Existing selectors/assertions retained; new selector is supporting evidence, not a catalogue count.",
+  "validation": "Source review only; no tests/build/Cargo run."
+}
