@@ -1,0 +1,140 @@
+{
+  "test_timeout_seconds": 180,
+  "listing_timeout_seconds": 30,
+  "environment": {
+    "set": {
+      "TCL_LSP_REQUIRE_TCLSH": "9.0,8.6"
+    },
+    "unset": []
+  },
+  "runtime_guards": {
+    "exact_listing_before_execution": true,
+    "expected_singleton_tests_per_selector": 1,
+    "missing_or_multiple_match_is_failure": true,
+    "never_skip_missing_selector": true,
+    "list_timeout_seconds": 30,
+    "test_timeout_seconds": 180,
+    "preserve_exit_status_stdout_stderr_timeout": true,
+    "bind_actual_frozen_elf_before_and_after": true
+  },
+  "validation_note": "Exact current binary listing must confirm each selector once before execution. No new source implementation/semantic completion or ordinary acceptance from this selection. Stronger old guards and original test inputs unchanged.",
+  "host_scope": "Actual Linux native binary only. One Windows SourcePath and two real WASI controls remain unexecuted; no silent singleton removal. Three SpecTcl loader controls require a separate ordinary loader artifact and are not included. Successor adds no real WASI or native Windows-target control; retained platform-spelling pure controls stay present. Paused Runtime/VM/BIG-IP targets remain excluded.",
+  "group": "Additional actual tcl-syntax lib test artifact only; separate from standard native584 successor",
+  "execution_order": [
+    {
+      "target": "tcl_syntax",
+      "selector": "expr::substitution::original_source_expression_tests::original_source_expression_retains_complete_configuration_and_untrimmed_offsets",
+      "purpose": "logical-math-609: actual new owner/adopter or preserved related regression from exact immutable packet; source-only, no efficacy claim."
+    }
+  ],
+  "groups": {
+    "tcl_syntax": [
+      "expr::substitution::original_source_expression_tests::original_source_expression_retains_complete_configuration_and_untrimmed_offsets"
+    ]
+  },
+  "expected_group_counts": {
+    "tcl_syntax": 1
+  },
+  "total_exact_selectors": 1,
+  "source_evidence": [
+    {
+      "target": "tcl_syntax",
+      "selector": "expr::substitution::original_source_expression_tests::original_source_expression_retains_complete_configuration_and_untrimmed_offsets",
+      "source_path": "rust/tcl-syntax/src/expr/substitution.rs",
+      "source_line": 962,
+      "source_sha256": "3d02de57a8e248fa085b18cda31c2bf0bfb4f0819df817205922e1db917be00b",
+      "purpose": "logical-math-609: actual new owner/adopter or preserved related regression from exact immutable packet; source-only, no efficacy claim.",
+      "module_route": [
+        {
+          "source_path": "rust/tcl-syntax/src/lib.rs",
+          "source_sha256": "5bcec95e920cc3b16dcf1b5b034377b32a2816498259522a775ade309e45a1a7",
+          "source_line": 63,
+          "module": "expr"
+        },
+        {
+          "source_path": "rust/tcl-syntax/src/expr/mod.rs",
+          "source_sha256": "57b78bd27df13fdc89fecab60471321c7420a73a1f70e2ef91051fa0edc118a0",
+          "source_line": 35,
+          "module": "substitution"
+        },
+        {
+          "source_path": "rust/tcl-syntax/src/expr/substitution.rs",
+          "source_sha256": "3d02de57a8e248fa085b18cda31c2bf0bfb4f0819df817205922e1db917be00b",
+          "source_line": 958,
+          "module": "original_source_expression_tests"
+        }
+      ],
+      "function_attributes": "#[test]",
+      "cfg_expressions": [
+        "test"
+      ],
+      "current_native_linux_source_eligible": true,
+      "actual_test_function_sha256": "d61d5808ddc627528439724a10a6351ebeffbeadc629ef76542c92d206399f73",
+      "checked_module_route": [
+        {
+          "source_path": "rust/tcl-syntax/src/lib.rs",
+          "source_sha256": "5bcec95e920cc3b16dcf1b5b034377b32a2816498259522a775ade309e45a1a7",
+          "source_line": 63,
+          "module": "expr",
+          "attributes": "",
+          "cfg_expressions": []
+        },
+        {
+          "source_path": "rust/tcl-syntax/src/expr/mod.rs",
+          "source_sha256": "57b78bd27df13fdc89fecab60471321c7420a73a1f70e2ef91051fa0edc118a0",
+          "source_line": 35,
+          "module": "substitution",
+          "attributes": "",
+          "cfg_expressions": []
+        },
+        {
+          "source_path": "rust/tcl-syntax/src/expr/substitution.rs",
+          "source_sha256": "3d02de57a8e248fa085b18cda31c2bf0bfb4f0819df817205922e1db917be00b",
+          "source_line": 958,
+          "module": "original_source_expression_tests",
+          "attributes": "#[cfg(test)]",
+          "cfg_expressions": [
+            "test"
+          ]
+        }
+      ],
+      "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution.",
+      "source_scope": "ACTUAL_CURRENT_SOURCE_ONLY",
+      "capture_key": null
+    }
+  ],
+  "freeze_binding": {
+    "status": "BOUND_ACTUAL_ROOT_SUCCESSFUL_ORDINARY_BUILD",
+    "destination": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/extra-tcl-syntax",
+    "binary_bindings": {
+      "tcl_syntax": {
+        "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/extra-tcl-syntax/frozen-binaries/tcl_syntax-66aefbb9b0043dd6",
+        "bytes": 12016416,
+        "sha256": "931c89d767fbb26c7686f451d78364261c97df014646067c9ebf4bb0b0791a50"
+      }
+    },
+    "full_input_count": 39002,
+    "all_current_inputs_and_selected_routes_match": true,
+    "receipts": {
+      "source_binding": {
+        "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/extra-tcl-syntax/source-binding.json",
+        "sha256": "4fb72a45569b7f88231c1b92913fbda5a7b0534c5c95d3d1f791b299946b12ab"
+      },
+      "inputs": {
+        "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/extra-tcl-syntax/input-before.json",
+        "sha256": "ef2e3595b42a9a67e79cdde284bc7b135764f200bf2ee091b5ae44a811f2f4bb"
+      },
+      "artifacts": {
+        "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/extra-tcl-syntax/artifacts.json",
+        "sha256": "8da5d683fc8eaa9ed8f4fe5d7497602a1870eadd37a46d2b9d2f36b24cc425bd"
+      },
+      "source_diff": {
+        "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/extra-tcl-syntax/source.diff",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "package": "tcl-syntax",
+    "target_kind": "lib"
+  },
+  "source_mode": "CURRENT_SOURCE"
+}

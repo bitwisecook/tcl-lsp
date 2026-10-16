@@ -1,0 +1,20 @@
+Independent portable source-owner selection V5 review — CLEAR
+
+Package: /tmp/lsp-cumulative-source-owners-selection-v5
+Manifest SHA-256: 7c3a36f0acbaf8de9713008fc2275aafb2193baf7a54c7d4249ced01731bc300
+Generator SHA-256: 94c9dcd7c183c0687f6191881a3da90e08a41f84bf5ae367882e7f858036f1c5
+Source plan: source-plan/selection.json SHA-256 fd19f51e3f53ea093503bf266fb2bb1965b23062c9d68655537cf5a873be0519
+
+Static source/data review only. No Cargo, test listing, test execution, binary or main-tree mutation was performed.
+
+Verified:
+- Every package file matches package-manifest.json; no unmanifested files are present.
+- All 584 retained ordered selectors and inherited metadata are verbatim. V5's first 724 selectors match V4 exactly. Budgets remain 180 seconds for tests and 30 seconds for listing.
+- The 142 selected standard additions partition into 47 newly authored fixed controls, 92 pre-existing related regressions, and 3 pre-existing native-purpose regressions (95 pre-existing total). The three extra native artifacts are separate: lexer library 3, syntax library 1, xtask binary 1.
+- The 115-file integrated-source capture matches the current repository bytes, and all 107 distinct source/module-route files cited by main selected evidence are present in that capture. The additional target entries are also captured.
+- `SourceIndex` resolves actual Rust module/file routes, actual test declarations and exact source spans. Its cfg evaluator is fail-closed for unsupported cfg forms and evaluates only recognized Linux/test/unix/windows/wasi forms on Linux.
+- The canonical replay-selection.py and provider-corrected-setup.json are byte-identical across V1–V5. Provider setup retains the same source selection, environment, frozen artifacts and original assertions.
+- Freeze requires successful ordinary five-package receipts, zero input drift, complete current input hashes, selected-source/module-route membership, exact package/artifact membership, artifact bytes under frozen-binaries with matching size/SHA-256 and ELF magic, and source.diff binding. No guessed ELF is present; source-only output binds no binaries.
+- Pending 565 controls remain separate, distinct from the 726 main selectors, and explicitly not freezable by this package. Original 180/30 budgets and actual-root-only acceptance ownership are preserved.
+
+This is a source/selection-package review only. It does not establish a successful build, artifact listing, test pass, or final acceptance.

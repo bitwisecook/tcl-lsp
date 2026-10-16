@@ -1,0 +1,83 @@
+{
+  "status": "PREFLIGHT_PASS_RETAINED726",
+  "utc": "2026-10-16T22:20:40.024330+00:00",
+  "argv": [
+    "python3",
+    "/workspace/tcl-lsp/experiments/name-handling/validation/retained-selections/replay-selection.py",
+    "--manifest",
+    "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/selection-v5-frozen/selection.json",
+    "--manifest-sha256",
+    "237d6e60703bdafb3836a3f1bf8009e578a6da3b9aca367061d0098cde379a80",
+    "--artifacts",
+    "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/artifacts.json",
+    "--root",
+    "/workspace/tcl-lsp",
+    "--out",
+    "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/retained726-results"
+  ],
+  "selected": 726,
+  "all584_ordered_rows_unchanged": true,
+  "actual_successful_binding": {
+    "status": "BOUND_ACTUAL_ROOT_SUCCESSFUL_ORDINARY_BUILD",
+    "destination": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor",
+    "binary_bindings": {
+      "tcl_compiler": {
+        "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+        "sha256": "82460a484bccb9b3a3b9f1470a50f414bca48707f4a8d0bec950038abb1ce0e5",
+        "bytes": 250965376
+      },
+      "tcl_lsp_core": {
+        "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "sha256": "ea99bbc57847477cf743dff3ac662c9f58ed54d8b9c18fd527d1029fefb73d8a",
+        "bytes": 199914656
+      },
+      "tcl_lsp_db": {
+        "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/frozen-binaries/tcl_lsp_db-c55af6efd9493cee",
+        "sha256": "6db51a4cfc472895f44ef359fb3b3891d172a09c8e7390cbbc6755a5dfe435eb",
+        "bytes": 214271472
+      },
+      "tcl_lsp_server": {
+        "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "sha256": "1d3a45c16af9f1435cb808732c77fff324221d8ecad6cb879429941baa20396a",
+        "bytes": 336436176
+      },
+      "tcl_registry": {
+        "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/frozen-binaries/tcl_registry-cd1f97b64f8e3752",
+        "sha256": "9bf7d3ae31939b95b2b6ec1d45948013cdb8395f1087972d8a5ad2bc093d1936",
+        "bytes": 61962720
+      }
+    },
+    "full_input_count": 39002,
+    "all_current_inputs_and_selected_routes_match": true,
+    "receipts": {
+      "source_binding": {
+        "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/source-binding.json",
+        "sha256": "f877794eeb2ac176dbeb315a271ff3b3e6a118fa6e9f4c260163abea99f9f60d"
+      },
+      "inputs": {
+        "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/input-before.json",
+        "sha256": "ef2e3595b42a9a67e79cdde284bc7b135764f200bf2ee091b5ae44a811f2f4bb"
+      },
+      "artifacts": {
+        "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/artifacts.json",
+        "sha256": "e74012d77b4d9a098a74da80f609589d0f846dc2696c52d6580be34d90c1d1cd"
+      },
+      "source_diff": {
+        "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/source.diff",
+        "sha256": "08202bab4ca107b13c95c4d3ff9831472e75e58f85616a56e493b7d0a7bf0484"
+      }
+    }
+  },
+  "all39002_current_inputs_and_five_actual_ELFs_checked": true,
+  "provider_environment": {
+    "TCL_LSP_JIMSH": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "TCL_LSP_TCL_BIN_DIR": "/workspace/.toolchains/tcl/bin",
+    "TCL_LSP_REQUIRE_ALL_TCL_ORACLES": "1",
+    "TCL_LSP_REQUIRE_JIM_ORACLE": "1",
+    "TCL_LSP_REQUIRE_TCLSH": "9.0,8.6",
+    "CARGO_PROFILE_TEST_DEBUG": "0"
+  },
+  "jim_binary_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+  "canonical_runner_sha256": "aaa269431e0a0f3024367d0a2528b4671408e11cf7a57e801caa2429f181e6c3",
+  "scope": "Actual726 complete selection only; no extra Lexer/Syntax/xtask/host or gate acceptance. Native source remains frozen through postflight."
+}

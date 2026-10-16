@@ -1,0 +1,27 @@
+{
+  "tcl_compiler": {
+    "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+    "sha256": "82460a484bccb9b3a3b9f1470a50f414bca48707f4a8d0bec950038abb1ce0e5",
+    "bytes": 250965376
+  },
+  "tcl_lsp_core": {
+    "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+    "sha256": "ea99bbc57847477cf743dff3ac662c9f58ed54d8b9c18fd527d1029fefb73d8a",
+    "bytes": 199914656
+  },
+  "tcl_lsp_db": {
+    "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/frozen-binaries/tcl_lsp_db-c55af6efd9493cee",
+    "sha256": "6db51a4cfc472895f44ef359fb3b3891d172a09c8e7390cbbc6755a5dfe435eb",
+    "bytes": 214271472
+  },
+  "tcl_lsp_server": {
+    "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+    "sha256": "1d3a45c16af9f1435cb808732c77fff324221d8ecad6cb879429941baa20396a",
+    "bytes": 336436176
+  },
+  "tcl_registry": {
+    "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/frozen-binaries/tcl_registry-cd1f97b64f8e3752",
+    "sha256": "9bf7d3ae31939b95b2b6ec1d45948013cdb8395f1087972d8a5ad2bc093d1936",
+    "bytes": 61962720
+  }
+}

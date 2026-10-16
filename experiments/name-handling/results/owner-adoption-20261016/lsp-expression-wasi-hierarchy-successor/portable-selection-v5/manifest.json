@@ -1,0 +1,105 @@
+{
+  "utc": "2026-10-16T22:29:40.091011+00:00",
+  "archive": "portable-selection-v5-compact.tar.zst",
+  "sha256": "5ed04572953e0ad4c58a2e292bcacba952d0f19a658079b27969321f9f798a8b",
+  "bytes": 798866,
+  "original_package_manifest_sha256": "7c3a36f0acbaf8de9713008fc2275aafb2193baf7a54c7d4249ced01731bc300",
+  "omitted_source_capture": {
+    "name": "captured-current-source.json.gz",
+    "sha256": "dae6ab9ee571d608ab013c116a6ba9658b83830025bf5146a3c86d9356e465dd",
+    "bytes": 3475978,
+    "restore": "Run supplied restore-capture-from-git.py against repository with exact3d92614629d1691c3ccde73e731ccef06bf578cf commit; script verifies all115 blob hashes and exact raw/gzip bytes. Full current capture retained outside Git at original TMP package."
+  },
+  "all_archive_members_verified": true,
+  "members": {
+    "v5/ROOT-USAGE.md": {
+      "sha256": "d3983929f1f8c85093a25167c2bf2c9eec666260b3f91c0e6125933426304c5a",
+      "bytes": 6197
+    },
+    "v5/additional-target-definitions.json": {
+      "sha256": "4a98959d491642cf46f2a58db0853f13c9c94d1c1a04f48337ba34d1c9f0c806",
+      "bytes": 1021
+    },
+    "v5/capture-binding.json": {
+      "sha256": "00b63b04cd90bf124ccfa3668ec76e6aad9be2fda353791747eb1c29e849fb92",
+      "bytes": 14388
+    },
+    "v5/generate_selection.py": {
+      "sha256": "94c9dcd7c183c0687f6191881a3da90e08a41f84bf5ae367882e7f858036f1c5",
+      "bytes": 13780
+    },
+    "v5/package-manifest.json": {
+      "sha256": "7c3a36f0acbaf8de9713008fc2275aafb2193baf7a54c7d4249ced01731bc300",
+      "bytes": 4065
+    },
+    "v5/pending-565-sources.json.gz": {
+      "sha256": "5374a2661ce513528e1106fba9526438ccefed66462d79a6c2facdc1bec5efd4",
+      "bytes": 203291
+    },
+    "v5/pending-565.json": {
+      "sha256": "c94b04df15df74f72a9c431c1bedd67189a5508f26058a54b6160534f79c79fc",
+      "bytes": 21075
+    },
+    "v5/provider-corrected-setup.json": {
+      "sha256": "cf57d1f2af60b425a4f7c1cb644af1682118ff8173186d43a8f554068a483396",
+      "bytes": 798
+    },
+    "v5/replay-selection.py": {
+      "sha256": "aaa269431e0a0f3024367d0a2528b4671408e11cf7a57e801caa2429f181e6c3",
+      "bytes": 6972
+    },
+    "v5/requests.json": {
+      "sha256": "b3dd1d193367a15b5281d081fb070e6b69eb8fc021b730e390c931bffc7acc54",
+      "bytes": 126847
+    },
+    "v5/retained584.json.gz": {
+      "sha256": "1eaf4b49c655165a7e25106bc0a11347acf3bc84c5c179118428cc4140b30b66",
+      "bytes": 407324
+    },
+    "v5/retention-verification.json": {
+      "sha256": "8302931b3f996a83e11e70aec0a916f35cb36f14c6e970842c14addca9babfae",
+      "bytes": 969
+    },
+    "v5/source-plan/additional-artifacts.json": {
+      "sha256": "6ac0c2fe7a5411038c9e67d7fb3f3a7530061bbeb4adba37f6bf065bc8c1f381",
+      "bytes": 20875
+    },
+    "v5/source-plan/extra-tcl_lexer-selection.json": {
+      "sha256": "9787454fb28dd0c815f1cdbaf74b4f4a30ff651176b2ead0e93487886668e1f5",
+      "bytes": 9839
+    },
+    "v5/source-plan/extra-tcl_syntax-selection.json": {
+      "sha256": "f0179440ea108b63eb64be8c9e88e270d13fed175f3df880abcd8e906b619e7e",
+      "bytes": 5055
+    },
+    "v5/source-plan/extra-xtask-selection.json": {
+      "sha256": "247fc8a15cb663e935599e161ac17a390ba6cb22802d17bd0036bd50b836e1be",
+      "bytes": 5055
+    },
+    "v5/source-plan/non-native-controls.json": {
+      "sha256": "fe10532cc6bdcb12de42c760044e3a49a41fbd3573ff576b1feeb1dd9258d28e",
+      "bytes": 1719
+    },
+    "v5/source-plan/pending-565-selection.json": {
+      "sha256": "6004c6d7425d725191d8a6f5933b21d605cc9eea82f122923ba28740cf7ecde6",
+      "bytes": 40480
+    },
+    "v5/source-plan/selection.json": {
+      "sha256": "fd19f51e3f53ea093503bf266fb2bb1965b23062c9d68655537cf5a873be0519",
+      "bytes": 8183565
+    },
+    "v5/source-plan/summary.json": {
+      "sha256": "8915057e9ca923f882f2b619398641e70154b29a91375dc9baa3580e046424e5",
+      "bytes": 1991
+    },
+    "v5/source_tools.py": {
+      "sha256": "f3cdd5205b70b11f1854a426bfcbd470c0db04ac443116874d3fe7187ce41498",
+      "bytes": 9938
+    },
+    "restore-capture-from-git.py": {
+      "sha256": "915f985644ed0b598c953eb4b73fb088e62a92ef28edc97eaee8aa999017a61b",
+      "bytes": 1645
+    }
+  },
+  "scope": "Exact existing source-selection dependency package; no execution/acceptance. Pending565 controls explicitly remain unintegrated in V5."
+}

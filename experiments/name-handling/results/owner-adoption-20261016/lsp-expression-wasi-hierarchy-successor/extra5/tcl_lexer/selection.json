@@ -1,0 +1,240 @@
+{
+  "test_timeout_seconds": 180,
+  "listing_timeout_seconds": 30,
+  "environment": {
+    "set": {
+      "TCL_LSP_REQUIRE_TCLSH": "9.0,8.6"
+    },
+    "unset": []
+  },
+  "runtime_guards": {
+    "exact_listing_before_execution": true,
+    "expected_singleton_tests_per_selector": 1,
+    "missing_or_multiple_match_is_failure": true,
+    "never_skip_missing_selector": true,
+    "list_timeout_seconds": 30,
+    "test_timeout_seconds": 180,
+    "preserve_exit_status_stdout_stderr_timeout": true,
+    "bind_actual_frozen_elf_before_and_after": true
+  },
+  "validation_note": "Exact current binary listing must confirm each selector once before execution. No new source implementation/semantic completion or ordinary acceptance from this selection. Stronger old guards and original test inputs unchanged.",
+  "host_scope": "Actual Linux native binary only. One Windows SourcePath and two real WASI controls remain unexecuted; no silent singleton removal. Three SpecTcl loader controls require a separate ordinary loader artifact and are not included. Successor adds no real WASI or native Windows-target control; retained platform-spelling pure controls stay present. Paused Runtime/VM/BIG-IP targets remain excluded.",
+  "group": "Additional actual tcl-lexer lib test artifact only; separate from standard native584 successor",
+  "execution_order": [
+    {
+      "target": "tcl_lexer",
+      "selector": "expr_lexer::original_expression_cursor_tests::original_expression_cursor_keeps_literal_comment_and_script_phases",
+      "purpose": "partial-expression-608: actual new owner/adopter or preserved related regression from exact immutable packet; source-only, no efficacy claim."
+    },
+    {
+      "target": "tcl_lexer",
+      "selector": "expr_lexer::original_expression_cursor_tests::original_expression_cursor_retains_unfinished_bytes_without_a_closer",
+      "purpose": "partial-expression-608: actual new owner/adopter or preserved related regression from exact immutable packet; source-only, no efficacy claim."
+    },
+    {
+      "target": "tcl_lexer",
+      "selector": "expr_lexer::original_expression_cursor_tests::original_expression_cursor_refuses_foreign_image_configuration_and_geometry",
+      "purpose": "partial-expression-608: actual new owner/adopter or preserved related regression from exact immutable packet; source-only, no efficacy claim."
+    }
+  ],
+  "groups": {
+    "tcl_lexer": [
+      "expr_lexer::original_expression_cursor_tests::original_expression_cursor_keeps_literal_comment_and_script_phases",
+      "expr_lexer::original_expression_cursor_tests::original_expression_cursor_retains_unfinished_bytes_without_a_closer",
+      "expr_lexer::original_expression_cursor_tests::original_expression_cursor_refuses_foreign_image_configuration_and_geometry"
+    ]
+  },
+  "expected_group_counts": {
+    "tcl_lexer": 3
+  },
+  "total_exact_selectors": 3,
+  "source_evidence": [
+    {
+      "target": "tcl_lexer",
+      "selector": "expr_lexer::original_expression_cursor_tests::original_expression_cursor_keeps_literal_comment_and_script_phases",
+      "source_path": "rust/tcl-lexer/src/expr_lexer.rs",
+      "source_line": 2129,
+      "source_sha256": "365071e1fa3ee2ac99d5e0058e3db57ac59b7d8fd892a46aa2d5a9e46a04b323",
+      "purpose": "partial-expression-608: actual new owner/adopter or preserved related regression from exact immutable packet; source-only, no efficacy claim.",
+      "module_route": [
+        {
+          "source_path": "rust/tcl-lexer/src/lib.rs",
+          "source_sha256": "9e6ea1af998f20cbd408eb42386f702bc6f7560eebf7f1cbede2fe6aa6159c47",
+          "source_line": 61,
+          "module": "expr_lexer"
+        },
+        {
+          "source_path": "rust/tcl-lexer/src/expr_lexer.rs",
+          "source_sha256": "365071e1fa3ee2ac99d5e0058e3db57ac59b7d8fd892a46aa2d5a9e46a04b323",
+          "source_line": 2105,
+          "module": "original_expression_cursor_tests"
+        }
+      ],
+      "function_attributes": "#[test]",
+      "cfg_expressions": [
+        "test"
+      ],
+      "current_native_linux_source_eligible": true,
+      "actual_test_function_sha256": "8cf87e841fdf1f0ab069ea8067275b584c8d42cccc9063971a1bb7505b5f5a30",
+      "checked_module_route": [
+        {
+          "source_path": "rust/tcl-lexer/src/lib.rs",
+          "source_sha256": "9e6ea1af998f20cbd408eb42386f702bc6f7560eebf7f1cbede2fe6aa6159c47",
+          "source_line": 61,
+          "module": "expr_lexer",
+          "attributes": "",
+          "cfg_expressions": []
+        },
+        {
+          "source_path": "rust/tcl-lexer/src/expr_lexer.rs",
+          "source_sha256": "365071e1fa3ee2ac99d5e0058e3db57ac59b7d8fd892a46aa2d5a9e46a04b323",
+          "source_line": 2105,
+          "module": "original_expression_cursor_tests",
+          "attributes": "#[cfg(test)]",
+          "cfg_expressions": [
+            "test"
+          ]
+        }
+      ],
+      "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution.",
+      "source_scope": "ACTUAL_CURRENT_SOURCE_ONLY",
+      "capture_key": null
+    },
+    {
+      "target": "tcl_lexer",
+      "selector": "expr_lexer::original_expression_cursor_tests::original_expression_cursor_retains_unfinished_bytes_without_a_closer",
+      "source_path": "rust/tcl-lexer/src/expr_lexer.rs",
+      "source_line": 2152,
+      "source_sha256": "365071e1fa3ee2ac99d5e0058e3db57ac59b7d8fd892a46aa2d5a9e46a04b323",
+      "purpose": "partial-expression-608: actual new owner/adopter or preserved related regression from exact immutable packet; source-only, no efficacy claim.",
+      "module_route": [
+        {
+          "source_path": "rust/tcl-lexer/src/lib.rs",
+          "source_sha256": "9e6ea1af998f20cbd408eb42386f702bc6f7560eebf7f1cbede2fe6aa6159c47",
+          "source_line": 61,
+          "module": "expr_lexer"
+        },
+        {
+          "source_path": "rust/tcl-lexer/src/expr_lexer.rs",
+          "source_sha256": "365071e1fa3ee2ac99d5e0058e3db57ac59b7d8fd892a46aa2d5a9e46a04b323",
+          "source_line": 2105,
+          "module": "original_expression_cursor_tests"
+        }
+      ],
+      "function_attributes": "#[test]",
+      "cfg_expressions": [
+        "test"
+      ],
+      "current_native_linux_source_eligible": true,
+      "actual_test_function_sha256": "90218b26e93b80510d819c0056a8cf4374af06bd6222b254099330358d088174",
+      "checked_module_route": [
+        {
+          "source_path": "rust/tcl-lexer/src/lib.rs",
+          "source_sha256": "9e6ea1af998f20cbd408eb42386f702bc6f7560eebf7f1cbede2fe6aa6159c47",
+          "source_line": 61,
+          "module": "expr_lexer",
+          "attributes": "",
+          "cfg_expressions": []
+        },
+        {
+          "source_path": "rust/tcl-lexer/src/expr_lexer.rs",
+          "source_sha256": "365071e1fa3ee2ac99d5e0058e3db57ac59b7d8fd892a46aa2d5a9e46a04b323",
+          "source_line": 2105,
+          "module": "original_expression_cursor_tests",
+          "attributes": "#[cfg(test)]",
+          "cfg_expressions": [
+            "test"
+          ]
+        }
+      ],
+      "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution.",
+      "source_scope": "ACTUAL_CURRENT_SOURCE_ONLY",
+      "capture_key": null
+    },
+    {
+      "target": "tcl_lexer",
+      "selector": "expr_lexer::original_expression_cursor_tests::original_expression_cursor_refuses_foreign_image_configuration_and_geometry",
+      "source_path": "rust/tcl-lexer/src/expr_lexer.rs",
+      "source_line": 2165,
+      "source_sha256": "365071e1fa3ee2ac99d5e0058e3db57ac59b7d8fd892a46aa2d5a9e46a04b323",
+      "purpose": "partial-expression-608: actual new owner/adopter or preserved related regression from exact immutable packet; source-only, no efficacy claim.",
+      "module_route": [
+        {
+          "source_path": "rust/tcl-lexer/src/lib.rs",
+          "source_sha256": "9e6ea1af998f20cbd408eb42386f702bc6f7560eebf7f1cbede2fe6aa6159c47",
+          "source_line": 61,
+          "module": "expr_lexer"
+        },
+        {
+          "source_path": "rust/tcl-lexer/src/expr_lexer.rs",
+          "source_sha256": "365071e1fa3ee2ac99d5e0058e3db57ac59b7d8fd892a46aa2d5a9e46a04b323",
+          "source_line": 2105,
+          "module": "original_expression_cursor_tests"
+        }
+      ],
+      "function_attributes": "#[test]",
+      "cfg_expressions": [
+        "test"
+      ],
+      "current_native_linux_source_eligible": true,
+      "actual_test_function_sha256": "a7b9d16982f576d5c237ff5540c53abeec5f2fdb231af25c8bce1df4de25454c",
+      "checked_module_route": [
+        {
+          "source_path": "rust/tcl-lexer/src/lib.rs",
+          "source_sha256": "9e6ea1af998f20cbd408eb42386f702bc6f7560eebf7f1cbede2fe6aa6159c47",
+          "source_line": 61,
+          "module": "expr_lexer",
+          "attributes": "",
+          "cfg_expressions": []
+        },
+        {
+          "source_path": "rust/tcl-lexer/src/expr_lexer.rs",
+          "source_sha256": "365071e1fa3ee2ac99d5e0058e3db57ac59b7d8fd892a46aa2d5a9e46a04b323",
+          "source_line": 2105,
+          "module": "original_expression_cursor_tests",
+          "attributes": "#[cfg(test)]",
+          "cfg_expressions": [
+            "test"
+          ]
+        }
+      ],
+      "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution.",
+      "source_scope": "ACTUAL_CURRENT_SOURCE_ONLY",
+      "capture_key": null
+    }
+  ],
+  "freeze_binding": {
+    "status": "BOUND_ACTUAL_ROOT_SUCCESSFUL_ORDINARY_BUILD",
+    "destination": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/extra-tcl-lexer",
+    "binary_bindings": {
+      "tcl_lexer": {
+        "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/extra-tcl-lexer/frozen-binaries/tcl_lexer-f732dc7297a6f699",
+        "bytes": 5291208,
+        "sha256": "f7bac44b0c1f566becd59b26207fc6318c3d732953346f0bc4387873d3137e1a"
+      }
+    },
+    "full_input_count": 39002,
+    "all_current_inputs_and_selected_routes_match": true,
+    "receipts": {
+      "source_binding": {
+        "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/extra-tcl-lexer/source-binding.json",
+        "sha256": "f219b613519502c9b649d7c28d2ac69d767e8a59e3c4a482a59f60413984b02a"
+      },
+      "inputs": {
+        "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/extra-tcl-lexer/input-before.json",
+        "sha256": "ef2e3595b42a9a67e79cdde284bc7b135764f200bf2ee091b5ae44a811f2f4bb"
+      },
+      "artifacts": {
+        "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/extra-tcl-lexer/artifacts.json",
+        "sha256": "56ae7ac16617f019f1330c0527791ed8227573bba365719b13043e32e2c59799"
+      },
+      "source_diff": {
+        "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/extra-tcl-lexer/source.diff",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "package": "tcl-lexer",
+    "target_kind": "lib"
+  },
+  "source_mode": "CURRENT_SOURCE"
+}

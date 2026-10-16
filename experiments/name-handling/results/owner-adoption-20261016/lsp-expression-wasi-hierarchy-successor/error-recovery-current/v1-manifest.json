@@ -1,0 +1,20 @@
+{
+  "candidate": "lsp-validation-error-recovery-current-v1",
+  "status": "source proposal; not applied or executed",
+  "baseline_units": ["lsp.validation.03.06.fn0"],
+  "file": "editors/vscode/src/test/errorRecovery.test.ts",
+  "before_sha256": "98b17a7278ed3b47820ef44b5babc88092512a9552873ff6ffabf78689a22920",
+  "after_sha256": "0afa3eaace053711744a3e831d679582fecc4d7834c2091402b6187e9de28cc7",
+  "patch": "/tmp/lsp-validation-error-recovery-current-v1.patch",
+  "patch_sha256": "edaf30c17baca4ad78cb28e8a6ad30b69cffea1a0b190be2aecd6dd5e7314cab",
+  "owner": "existing editors/vscode/src/test/helper.ts waitForCurrentDiagnostics -> activated extension export -> completed current-source diagnostics owner",
+  "change": "After each content replacement, await one complete diagnostic report bound to the exact requested source and open URI/version. Apply the existing predicate to that report and fail if the complete report does not satisfy it; pending, stale, suppressed, and unavailable remain errors, never empty diagnostics.",
+  "preserved": [
+    "All error-recovery fixture bytes, call sites, predicates, and assertions",
+    "C4 next-publication and deep-pass checks remain unchanged",
+    "The existing two sequential 15000ms wait budgets are represented as a single 30000ms current-report deadline; retrying does not reset the deadline",
+    "No new selector or test partition was added"
+  ],
+  "test_selector": "Error-recovery correctness contract / all existing setContentAndWait callers",
+  "validation": "No tests, formatter, typecheck, build, or host execution run; parent owns those checks. Diff and SHA-256 source binding only."
+}

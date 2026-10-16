@@ -1,0 +1,33 @@
+{
+  "ordinary": true,
+  "instrumentation": false,
+  "single_job": true,
+  "test_debug": 0,
+  "packages": [
+    "xtask"
+  ],
+  "target_kind": "bin:xtask",
+  "utc": "2026-10-16T22:20:20.878262+00:00",
+  "source_head": "3d92614629d1691c3ccde73e731ccef06bf578cf",
+  "rust_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "input_before_count": 39002,
+  "status": "PASS_DISTINCT_TEST_ARTIFACT_BUILD",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "--locked",
+    "-p",
+    "xtask",
+    "--bin",
+    "xtask",
+    "--no-run"
+  ],
+  "scope": "Distinct actual unit-test artifact only, no production-dependency substitute or execution acceptance",
+  "exit_code": 0,
+  "build_seconds": 138.008,
+  "input_after_count": 39002,
+  "input_drift_count": 0,
+  "input_drift": [],
+  "completed_utc": "2026-10-16T22:22:38.887851+00:00"
+}

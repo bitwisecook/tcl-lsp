@@ -1,0 +1,17 @@
+{
+  "utc": "2026-10-16T22:23:37.240044+00:00",
+  "source_head": "3d92614629d1691c3ccde73e731ccef06bf578cf",
+  "command": [
+    "cargo",
+    "xtask",
+    "owner-resolution"
+  ],
+  "status": "FAIL",
+  "scope": "Actual current shared-owner gate after reviewed56 LSP union, actualAPI repairs, Case tape and truthful Registry966361/sevenowner-registration corrections; ordinary513.324s build passed, retained726 frozen replay running. Necessary shared dependencies only; Runtime/VM and BIG-IP work deferred. No checker relaxation or blanket proof refresh.",
+  "exit_code": 1,
+  "seconds": 63.482,
+  "input_count": 29364,
+  "input_drift": [],
+  "owner_error_count": 306,
+  "completed_utc": "2026-10-16T22:24:40.786759+00:00"
+}

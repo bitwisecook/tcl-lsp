@@ -23,7 +23,8 @@ import {
   activate,
   setTestContent,
   nextDiagnosticsPublish,
-  waitForDiagnostics,
+  waitForCurrentDiagnostics,
+  scaledTimeout,
   getServerLogSize,
   waitForDeepDiagnostics,
 } from "./helper";
@@ -90,17 +91,9 @@ function symbolNames(
 
 /**
  * Replace the document content and resolve with the resulting diagnostics.
- *
- * `until` is what the caller is actually waiting for. The server publishes
- * diagnostics **progressively**: a first publish can carry the lint pass alone,
- * with the parse-recovery error arriving in a later one. Reading whatever
- * happens to be published first (`predicate: () => true`) therefore races the
- * analysis, and under CI load C1 saw `[W211]` and no recovery error and failed —
- * while passing every time on an idle laptop.
- *
- * A test asserting a diagnostic is *present* must say so, and wait for it.
- * A test asserting *absence* has nothing to wait for, so it keeps the settle
- * behaviour (the default `until`).
+ * The current-diagnostics owner returns only a completed report for the exact
+ * document source/version, so progressive or stale publishes cannot satisfy
+ * the predicate. One load-scaled deadline covers editing plus the report wait.
  */
 async function setContentAndWait(
   editor: vscode.TextEditor,
@@ -108,10 +101,20 @@ async function setContentAndWait(
   content: string,
   until: (diags: vscode.Diagnostic[]) => boolean = () => true,
 ): Promise<vscode.Diagnostic[]> {
-  const fresh = nextDiagnosticsPublish(docUri, { timeout: 15_000 });
+  const deadline = Date.now() + scaledTimeout(30_000);
   await setTestContent(editor, content);
-  await fresh;
-  return waitForDiagnostics(docUri, { timeout: 15_000, predicate: until });
+  const remaining = deadline - Date.now();
+  if (remaining <= 0) {
+    throw new Error("Timed out before a complete current-source diagnostic report was available");
+  }
+  const diagnostics = await waitForCurrentDiagnostics(docUri, {
+    timeout: remaining,
+    expectedSource: content,
+  });
+  if (!until(diagnostics)) {
+    throw new Error("The complete current-source diagnostic report did not satisfy the predicate");
+  }
+  return diagnostics;
 }
 
 async function symbolsFor(docUri: vscode.Uri): Promise<string[]> {

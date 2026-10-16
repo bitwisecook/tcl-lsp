@@ -1,0 +1,33 @@
+{
+  "utc": "2026-10-16T22:29:13.747963+00:00",
+  "source_head": "3d92614629d1691c3ccde73e731ccef06bf578cf",
+  "input_count": 406,
+  "checks": [
+    {
+      "argv": [
+        "npx",
+        "tsc",
+        "--noEmit",
+        "-p",
+        "."
+      ],
+      "exit_code": 0,
+      "log": "typescript.log"
+    },
+    {
+      "argv": [
+        "npx",
+        "prettier",
+        "--check",
+        "src/test/errorRecovery.test.ts"
+      ],
+      "exit_code": 0,
+      "log": "format.log"
+    }
+  ],
+  "source_file_sha256": "00e0012308158e47f6c1051c0553d3f569d8fca2738439aaae029acca90722e4",
+  "scope": "Changed test TypeScript and scopedformat only; prior production bundles unchanged, actual editorhost unexecuted",
+  "input_drift": [],
+  "status": "PASS",
+  "completed_utc": "2026-10-16T22:29:17.767275+00:00"
+}

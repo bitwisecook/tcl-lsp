@@ -1,0 +1,57 @@
+{
+  "utc": "2026-10-16T22:32:26.145459+00:00",
+  "archive": "/workspace/naming-validation/archives/lsp-expression-wasi-hierarchy-extra3-frozen.tar.zst",
+  "sha256": "0137308ef5c4dbc8e43f6977059b7666bd199806cadbe6e12bb74e020b7e6967",
+  "bytes": 49708926,
+  "members": {
+    "extra-tcl-lexer/frozen-binaries/tcl_lexer-f732dc7297a6f699": {
+      "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/extra-tcl-lexer/frozen-binaries/tcl_lexer-f732dc7297a6f699",
+      "bytes": 5291208,
+      "sha256": "f7bac44b0c1f566becd59b26207fc6318c3d732953346f0bc4387873d3137e1a"
+    },
+    "extra-tcl-syntax/frozen-binaries/tcl_syntax-66aefbb9b0043dd6": {
+      "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/extra-tcl-syntax/frozen-binaries/tcl_syntax-66aefbb9b0043dd6",
+      "bytes": 12016416,
+      "sha256": "931c89d767fbb26c7686f451d78364261c97df014646067c9ebf4bb0b0791a50"
+    },
+    "extra-xtask/frozen-binaries/xtask-fcbf3c01b744398a": {
+      "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/extra-xtask/frozen-binaries/xtask-fcbf3c01b744398a",
+      "bytes": 244293896,
+      "sha256": "1be1863589f05334ff3b907e71e6edd5519b2ec73403363c50dd5d8449d84a38"
+    }
+  },
+  "removed_verified_duplicate_payloads": [
+    {
+      "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/extra-tcl-lexer/frozen-binaries/tcl_lexer-f732dc7297a6f699",
+      "bytes": 5291208,
+      "sha256": "f7bac44b0c1f566becd59b26207fc6318c3d732953346f0bc4387873d3137e1a"
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/tcl_lexer-f732dc7297a6f699",
+      "bytes": 5291208,
+      "sha256": "f7bac44b0c1f566becd59b26207fc6318c3d732953346f0bc4387873d3137e1a"
+    },
+    {
+      "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/extra-tcl-syntax/frozen-binaries/tcl_syntax-66aefbb9b0043dd6",
+      "bytes": 12016416,
+      "sha256": "931c89d767fbb26c7686f451d78364261c97df014646067c9ebf4bb0b0791a50"
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/tcl_syntax-66aefbb9b0043dd6",
+      "bytes": 12016416,
+      "sha256": "931c89d767fbb26c7686f451d78364261c97df014646067c9ebf4bb0b0791a50"
+    },
+    {
+      "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/extra-xtask/frozen-binaries/xtask-fcbf3c01b744398a",
+      "bytes": 244293896,
+      "sha256": "1be1863589f05334ff3b907e71e6edd5519b2ec73403363c50dd5d8449d84a38"
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/xtask-fcbf3c01b744398a",
+      "bytes": 244293896,
+      "sha256": "1be1863589f05334ff3b907e71e6edd5519b2ec73403363c50dd5d8449d84a38"
+    }
+  ],
+  "all_member_hashes_verified_before_unlink": true,
+  "scope": "Completed extra5controlsPASS/postflight already preserved; storage only. Ordinary726 live fiveELFs unaffected."
+}

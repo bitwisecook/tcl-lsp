@@ -1,0 +1,1 @@
+This capture preserves successful ordinary build and actual726 preflight only. Complete replay/postflight is pending at capture; no complete726 PASS count or acceptance is claimed. Five extra controls completed separately, and current generated check passed; owner gate remains red306errors.

@@ -1,0 +1,186 @@
+{
+  "utc": "2026-10-16T22:25:01.091262+00:00",
+  "status": "PREFLIGHT_PASS_DISTINCT_EXTRA5",
+  "bindings": {
+    "tcl_lexer": {
+      "manifest": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/selection-v5-all-targets-frozen/extra-tcl_lexer-selection.json",
+      "sha256": "a8cd3f7daf214142c2df10c1068c155d6f0a61298b34ce7c10768353cf268be8",
+      "binding": {
+        "status": "BOUND_ACTUAL_ROOT_SUCCESSFUL_ORDINARY_BUILD",
+        "destination": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/extra-tcl-lexer",
+        "binary_bindings": {
+          "tcl_lexer": {
+            "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/extra-tcl-lexer/frozen-binaries/tcl_lexer-f732dc7297a6f699",
+            "bytes": 5291208,
+            "sha256": "f7bac44b0c1f566becd59b26207fc6318c3d732953346f0bc4387873d3137e1a"
+          }
+        },
+        "full_input_count": 39002,
+        "all_current_inputs_and_selected_routes_match": true,
+        "receipts": {
+          "source_binding": {
+            "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/extra-tcl-lexer/source-binding.json",
+            "sha256": "f219b613519502c9b649d7c28d2ac69d767e8a59e3c4a482a59f60413984b02a"
+          },
+          "inputs": {
+            "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/extra-tcl-lexer/input-before.json",
+            "sha256": "ef2e3595b42a9a67e79cdde284bc7b135764f200bf2ee091b5ae44a811f2f4bb"
+          },
+          "artifacts": {
+            "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/extra-tcl-lexer/artifacts.json",
+            "sha256": "56ae7ac16617f019f1330c0527791ed8227573bba365719b13043e32e2c59799"
+          },
+          "source_diff": {
+            "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/extra-tcl-lexer/source.diff",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        }
+      },
+      "expected": 3,
+      "artifact_manifest": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/extra-tcl-lexer/artifacts.json"
+    },
+    "tcl_syntax": {
+      "manifest": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/selection-v5-all-targets-frozen/extra-tcl_syntax-selection.json",
+      "sha256": "3e4e66f41d70ba372ebaafb3e7aedb6fbc5a0916ddfdcd6db10f39b9f9ff0aae",
+      "binding": {
+        "status": "BOUND_ACTUAL_ROOT_SUCCESSFUL_ORDINARY_BUILD",
+        "destination": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/extra-tcl-syntax",
+        "binary_bindings": {
+          "tcl_syntax": {
+            "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/extra-tcl-syntax/frozen-binaries/tcl_syntax-66aefbb9b0043dd6",
+            "bytes": 12016416,
+            "sha256": "931c89d767fbb26c7686f451d78364261c97df014646067c9ebf4bb0b0791a50"
+          }
+        },
+        "full_input_count": 39002,
+        "all_current_inputs_and_selected_routes_match": true,
+        "receipts": {
+          "source_binding": {
+            "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/extra-tcl-syntax/source-binding.json",
+            "sha256": "4fb72a45569b7f88231c1b92913fbda5a7b0534c5c95d3d1f791b299946b12ab"
+          },
+          "inputs": {
+            "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/extra-tcl-syntax/input-before.json",
+            "sha256": "ef2e3595b42a9a67e79cdde284bc7b135764f200bf2ee091b5ae44a811f2f4bb"
+          },
+          "artifacts": {
+            "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/extra-tcl-syntax/artifacts.json",
+            "sha256": "8da5d683fc8eaa9ed8f4fe5d7497602a1870eadd37a46d2b9d2f36b24cc425bd"
+          },
+          "source_diff": {
+            "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/extra-tcl-syntax/source.diff",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        }
+      },
+      "expected": 1,
+      "artifact_manifest": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/extra-tcl-syntax/artifacts.json"
+    },
+    "xtask": {
+      "manifest": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/selection-v5-all-targets-frozen/extra-xtask-selection.json",
+      "sha256": "795cb9b6d19703ef8454ba84a572c70ab4cd4cc775d8d501148989c6079c3bd3",
+      "binding": {
+        "status": "BOUND_ACTUAL_ROOT_SUCCESSFUL_ORDINARY_BUILD",
+        "destination": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/extra-xtask",
+        "binary_bindings": {
+          "xtask": {
+            "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/extra-xtask/frozen-binaries/xtask-fcbf3c01b744398a",
+            "bytes": 244293896,
+            "sha256": "1be1863589f05334ff3b907e71e6edd5519b2ec73403363c50dd5d8449d84a38"
+          }
+        },
+        "full_input_count": 39002,
+        "all_current_inputs_and_selected_routes_match": true,
+        "receipts": {
+          "source_binding": {
+            "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/extra-xtask/source-binding.json",
+            "sha256": "33df89001a6803910da222e564a9ef511bd067f520e79461bdfb09b24a2e8a01"
+          },
+          "inputs": {
+            "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/extra-xtask/input-before.json",
+            "sha256": "ef2e3595b42a9a67e79cdde284bc7b135764f200bf2ee091b5ae44a811f2f4bb"
+          },
+          "artifacts": {
+            "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/extra-xtask/artifacts.json",
+            "sha256": "94a7038e6cb5f9d3e902202b67ae9a1e22fcad6e6d7b7bf6d4cc869b0afca3a6"
+          },
+          "source_diff": {
+            "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/extra-xtask/source.diff",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        }
+      },
+      "expected": 1,
+      "artifact_manifest": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/extra-xtask/artifacts.json"
+    }
+  },
+  "required_environment": {
+    "TCL_LSP_JIMSH": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "TCL_LSP_TCL_BIN_DIR": "/workspace/.toolchains/tcl/bin",
+    "TCL_LSP_REQUIRE_ALL_TCL_ORACLES": "1",
+    "TCL_LSP_REQUIRE_JIM_ORACLE": "1",
+    "TCL_LSP_REQUIRE_TCLSH": "9.0,8.6",
+    "CARGO_PROFILE_TEST_DEBUG": "0"
+  },
+  "canonical_runner_sha256": "aaa269431e0a0f3024367d0a2528b4671408e11cf7a57e801caa2429f181e6c3",
+  "scope": "Three actual distinct test artifacts; exactly five controls, outside ordinary726. No host/global gate acceptance.",
+  "runs": [
+    {
+      "target": "tcl_lexer",
+      "argv": [
+        "python3",
+        "/workspace/tcl-lsp/experiments/name-handling/validation/retained-selections/replay-selection.py",
+        "--manifest",
+        "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/selection-v5-all-targets-frozen/extra-tcl_lexer-selection.json",
+        "--manifest-sha256",
+        "a8cd3f7daf214142c2df10c1068c155d6f0a61298b34ce7c10768353cf268be8",
+        "--artifacts",
+        "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/extra-tcl-lexer/artifacts.json",
+        "--root",
+        "/workspace/tcl-lsp",
+        "--out",
+        "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/extra5-tcl_lexer-results"
+      ],
+      "exit_code": 0
+    },
+    {
+      "target": "tcl_syntax",
+      "argv": [
+        "python3",
+        "/workspace/tcl-lsp/experiments/name-handling/validation/retained-selections/replay-selection.py",
+        "--manifest",
+        "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/selection-v5-all-targets-frozen/extra-tcl_syntax-selection.json",
+        "--manifest-sha256",
+        "3e4e66f41d70ba372ebaafb3e7aedb6fbc5a0916ddfdcd6db10f39b9f9ff0aae",
+        "--artifacts",
+        "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/extra-tcl-syntax/artifacts.json",
+        "--root",
+        "/workspace/tcl-lsp",
+        "--out",
+        "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/extra5-tcl_syntax-results"
+      ],
+      "exit_code": 0
+    },
+    {
+      "target": "xtask",
+      "argv": [
+        "python3",
+        "/workspace/tcl-lsp/experiments/name-handling/validation/retained-selections/replay-selection.py",
+        "--manifest",
+        "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/selection-v5-all-targets-frozen/extra-xtask-selection.json",
+        "--manifest-sha256",
+        "795cb9b6d19703ef8454ba84a572c70ab4cd4cc775d8d501148989c6079c3bd3",
+        "--artifacts",
+        "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/extra-xtask/artifacts.json",
+        "--root",
+        "/workspace/tcl-lsp",
+        "--out",
+        "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/extra5-xtask-results"
+      ],
+      "exit_code": 0
+    }
+  ],
+  "canonical_exit_code": 0,
+  "all39002_sources_and_all3_extra_ELF_postflight_match": true,
+  "completed_utc": "2026-10-16T22:25:08.465814+00:00"
+}

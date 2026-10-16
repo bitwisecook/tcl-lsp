@@ -1,0 +1,19 @@
+{
+  "candidate": "lsp-validation-error-recovery-current-v2",
+  "status": "source proposal; not applied or executed; supersedes V1 only",
+  "baseline_units": ["lsp.validation.03.06.fn0"],
+  "file": "editors/vscode/src/test/errorRecovery.test.ts",
+  "candidate_base_v1_sha256": "0afa3eaace053711744a3e831d679582fecc4d7834c2091402b6187e9de28cc7",
+  "after_sha256": "00e0012308158e47f6c1051c0553d3f569d8fca2738439aaae029acca90722e4",
+  "patch": "/tmp/lsp-validation-error-recovery-current-v2.patch",
+  "patch_sha256": "3882fb5d4a6c66dd285f42203c29e6417728e41259fa29519ef852c7e91b59b9",
+  "owner": "existing test helper waitForCurrentDiagnostics -> activated extension export -> completed current-source diagnostics owner",
+  "change": "One scaledTimeout(30000) deadline is captured before editing. After the edit, the remaining time is passed once to the existing completed-report owner; expiration before the request is an explicit failure. The result is checked against the original predicate.",
+  "preserved": [
+    "All error-recovery fixture bytes, call sites, predicates, and assertions",
+    "C4 next-publication and deep-pass barriers remain unchanged",
+    "The former two sequential 15000ms scaled wait budgets are combined into one 30000ms load-scaled deadline that includes the edit; the retrying owner receives only remaining time",
+    "No new selector or test partition was added"
+  ],
+  "validation": "No tests, formatter, typecheck, build, or host execution run; parent owns those checks. Diff and SHA-256 source binding only."
+}

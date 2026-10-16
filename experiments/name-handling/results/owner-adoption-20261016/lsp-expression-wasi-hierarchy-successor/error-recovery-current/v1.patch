@@ -1,0 +1,30 @@
+--- a/editors/vscode/src/test/errorRecovery.test.ts
++++ b/editors/vscode/src/test/errorRecovery.test.ts
+@@ -23,7 +23,7 @@
+   activate,
+   setTestContent,
+   nextDiagnosticsPublish,
+-  waitForDiagnostics,
++  waitForCurrentDiagnostics,
+   getServerLogSize,
+   waitForDeepDiagnostics,
+ } from "./helper";
+@@ -108,10 +108,15 @@
+   content: string,
+   until: (diags: vscode.Diagnostic[]) => boolean = () => true,
+ ): Promise<vscode.Diagnostic[]> {
+-  const fresh = nextDiagnosticsPublish(docUri, { timeout: 15_000 });
+   await setTestContent(editor, content);
+-  await fresh;
+-  return waitForDiagnostics(docUri, { timeout: 15_000, predicate: until });
++  const diagnostics = await waitForCurrentDiagnostics(docUri, {
++    timeout: 30_000,
++    expectedSource: content,
++  });
++  if (!until(diagnostics)) {
++    throw new Error("The complete current-source diagnostic report did not satisfy the predicate");
++  }
++  return diagnostics;
+ }
+ 
+ async function symbolsFor(docUri: vscode.Uri): Promise<string[]> {

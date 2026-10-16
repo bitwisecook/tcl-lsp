@@ -1,0 +1,22 @@
+{
+  "previous_reported": 309,
+  "current_reported": 306,
+  "previous_distinct": 306,
+  "current_distinct": 301,
+  "added": [
+    "source owner `Logical completed class/member source declarations` `Backend::readonly_logical_hierarchy_prepare`: declaration, visibility or actual consumer route does not resolve",
+    "source owner `Logical completed class/member source declarations` `Backend::readonly_logical_implementation`: declaration, visibility or actual consumer route does not resolve",
+    "source owner `Original class member source association` `Backend::with_current_readonly_documents`: declaration, visibility or actual consumer route does not resolve"
+  ],
+  "removed": [
+    "owner `SslicTcl editor projection` entry point `CurrentSourceContext::capture` has no public declaration in its source paths",
+    "owner `SslicTcl editor projection` entry point `OriginalRegistryWords::source_script_bodies` has no public declaration in its source paths",
+    "owner `SslicTcl editor projection` entry point `OriginalSourceScriptBody::definition_member_region` has no public declaration in its source paths",
+    "owner `SslicTcl editor projection` entry point `source_registry_words` has no public declaration in its source paths",
+    "owner `authored path constant scope and transport` entry point `OriginalLogicalStaticOperandPrefix` has no public declaration in its source paths",
+    "owner `authored path constant scope and transport` entry point `OriginalRegistryWords::original_logical_static_operand_prefix_before` has no public declaration in its source paths",
+    "source owner `Current editor source inventory` `CurrentSourceContext::capture`: declaration, visibility or actual consumer route does not resolve",
+    "source owner `Registry inherited source method providers` `ResolvedInvocation::new_instance_with_method_provider`: source module route exceeds bound"
+  ],
+  "scope": "Exactgateerrortextsetcomparison; no semanticacceptance or checkerrelaxation"
+}

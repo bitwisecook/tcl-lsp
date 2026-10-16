@@ -1,0 +1,26 @@
+{
+  "source_head": "a2ef3c7396c63fdecb400f2699d3b1a7d57f2585",
+  "rust_diff_sha256": "08202bab4ca107b13c95c4d3ff9831472e75e58f85616a56e493b7d0a7bf0484",
+  "ordinary": true,
+  "instrumentation": false,
+  "single_job": true,
+  "test_debug": 0,
+  "packages": [
+    "tcl-compiler",
+    "tcl-lsp-core",
+    "tcl-lsp-db",
+    "tcl-registry",
+    "tcl-lsp-server"
+  ],
+  "status": "PASS_FIVE_LIBRARY_BUILD",
+  "input_before_count": 39002,
+  "utc": "2026-10-16T22:09:45.190578+00:00",
+  "command": "CARGO_PROFILE_TEST_DEBUG=0 cargo test --offline --locked -p tcl-compiler -p tcl-lsp-core -p tcl-lsp-db -p tcl-registry -p tcl-lsp-server --lib --no-run",
+  "scope": "Reviewed 56-file source union d7542a23 plus exact actual API compile repairs 9a3007/408e2c38 and genuine Native child possible-case tape fcd57b4a. Configured Lexer cursor/Logicalmath/source coverage/WASI host policy/TYPE and implementation final lease/source-owned workspace symbols/original call advice; partial minifier/scaffold/receiver remain explicit. Actual gen-editor-catalogs PASS69.843s39002inputs0drift before case-only additive repair; real URI policy tracked, no manual glue. Full original584 controls, assertions, fixtures and180/30 budgets retained; no traces or stronger Native/edit/absence/Normal grant. Obsolete unused Core config helper removed after real adopter; Runtime/VM/BIGIP dedicated work deferred.",
+  "exit_code": 0,
+  "build_seconds": 513.324,
+  "input_after_count": 39002,
+  "input_drift_count": 0,
+  "input_drift": [],
+  "completed_utc": "2026-10-16T22:18:18.514553+00:00"
+}

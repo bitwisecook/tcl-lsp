@@ -1,0 +1,35 @@
+{
+  "utc": "2026-10-16T22:28:25.114996+00:00",
+  "source_head": "3d92614629d1691c3ccde73e731ccef06bf578cf",
+  "source_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "input_count": 39002,
+  "argv": [
+    "cargo",
+    "run",
+    "--offline",
+    "--locked",
+    "-p",
+    "xtask",
+    "--",
+    "gen-editor-catalogs",
+    "--check"
+  ],
+  "single_job": true,
+  "dev_debug": 0,
+  "status": "PASS",
+  "purpose": "Check all existing generated editor catalogues against actual current Rust owners; no generated writes, manual JSON/glue or host acceptance",
+  "exit_code": 0,
+  "seconds": 2.097,
+  "input_drift": [],
+  "completed_utc": "2026-10-16T22:28:27.218912+00:00",
+  "checked_generated_policy": {
+    "path": "/workspace/tcl-lsp/editors/vscode/src/generated/fileUriPathPolicy.json",
+    "sha256": "55206a06d3442f0726c5de1ae113bfd79e87d9294f707da967b3bb290b9f7fc9",
+    "bytes": 2173
+  },
+  "actual_generator_binary": {
+    "path": "/workspace/tcl-lsp/target/debug/xtask",
+    "sha256": "2164af25ecc85dc4821b22b7d955efff3f3b13d6bd98de4e5cf64ad71bf98e43",
+    "bytes": 254566560
+  }
+}

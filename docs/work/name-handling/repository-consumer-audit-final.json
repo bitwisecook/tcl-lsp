@@ -64478,6 +64478,12 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "ErrorRecovery3882fb5d successor ofedaf30c1",
+        "scope": "Existing test-local source-change waiter consumes activated extension complete current-document diagnostics for exact source/version; original predicate and C4 independent publish/deep barriers preserved. Former two15000ms scaled waits replaced with one combined30000ms scaled ceiling from before edit, remaining-only complete-report wait.",
+        "validation": "Root independent sourceCLEAR, alloriginalfixtures/assertions/predicates preserved, exactbefore/after checks; actual TypeScript/scopedPrettierPASS406trackededitorinputs0drift. No newselectors; editorhost unexecuted."
       }
     },
     {
@@ -132376,9 +132382,9 @@
     "utc": "2026-10-16T22:00:47.293633+00:00",
     "audit_baseline_counts_unchanged": true,
     "total_required_units": 2158,
-    "implemented_pending_validation": 294,
+    "implemented_pending_validation": 295,
     "verified_complete": 0,
-    "not_started": 1864,
+    "not_started": 1863,
     "remaining_unverified_or_unimplemented": 2158,
     "additional_work_not_counted_as_catalogue_completion": [
       "Native variable-expression read/cell/trace/child-body observer producer remains open; pure expression gap receipt grants no such authority.",
@@ -132637,7 +132643,7 @@
       "verified_complete": 0
     },
     "effective_required_units": 2217,
-    "effective_implemented_pending_validation": 352,
+    "effective_implemented_pending_validation": 353,
     "effective_verified_complete": 0,
     "incoming_remote": {
       "checked_utc": "2026-10-16T18:51:00Z",
@@ -132807,7 +132813,7 @@
       "scope": "Selected controls only. Completed99tests are65PASS34FAIL. Preview failure retained separately; no whole-group or gate acceptance.",
       "capture": "experiments/name-handling/results/owner-adoption-20261016/cli-mcp-server-889"
     },
-    "fully_implemented_pending_validation": 281,
+    "fully_implemented_pending_validation": 282,
     "partially_implemented_pending_validation": 13,
     "runtime_report_adoptions": {
       "baseline_units": [
@@ -132973,14 +132979,14 @@
         "validation": 122,
         "documentation": 2
       },
-      "lsp_integrated_pending_validation": 162,
+      "lsp_integrated_pending_validation": 163,
       "lsp_by_kind_integrated": {
         "semantic": 69,
-        "validation": 91,
+        "validation": 92,
         "documentation": 2
       },
       "lsp_verified_complete": 0,
-      "lsp_without_integrated_implementation": 163,
+      "lsp_without_integrated_implementation": 162,
       "shared_dependencies": "Counted under their original Compiler/DB/Registry units or reconciled annex; not counted again as LSP consumers.",
       "deferred": "Runtime174 remaining54,VM133,RuntimeJim execution and BIG-IP source inventory/provider work; retain all existing artifacts.",
       "new_source_alias_caller_annex": "compiler.consumer.logical-source-alias-declaration-observations"
@@ -133827,7 +133833,7 @@
         "known source-order refusal frontier under peer review",
         "member rooted-context refusal under review"
       ],
-      "validation": "OrdinaryNative6PASS350.661s0warnings39001inputs0drift. Actualtargeted12=9PASS3FAIL0TIMEOUT/errors/drift; full584running, source/ELFs frozen. Finaleditorrepair3PASS406inputs0drift. Portable/host/gates remain pending.",
+      "validation": "Completed ordinary584:505PASS77FAIL2TIMEOUT; all460retained6gains0priorPASSregressions/drops, source/all5ELFpostflightmatch. This predates current56batch and running726; no currentsemanticacceptance inferred.",
       "capsule": "experiments/name-handling/results/owner-adoption-20261016/lsp-browser-logical-resource-successor",
       "browser_pack_name": "FinalV3fab317b8 reuses exact Rust mount path owner before actualhostjoin/read. Existingbaseline residual closed;0newunit/annex. ActualWASMgeneratedglue/host tests pending.",
       "native_build": "Sixfailedcapturespreservedall39001inputs0drift; firsttwo profiledeclaration correction retained. Repair6PASS350.661s0warnings explicitTEST_DEBUG0.",
@@ -133924,9 +133930,13 @@
     "current_expression_wasi_hierarchy_validation": {
       "status": "pending",
       "generator": "repair2PASS69.843s39002inputs0drift; actualownerissuedgeneratedpolicy and existingeventmetadata",
-      "ordinary_build": "five-library testbuild running;39002inputs frozen",
+      "ordinary_build": "PASS513.324s1unusedtestimportwarning39002inputs0drift; actualfivefrozenELFs independentlybound",
       "editor": "PASS complete407inputs0drift22:13UTC; Explorer successorPASS407inputs0drift22:16UTC; actualhosts unexecuted",
-      "host_and_gates": "unrun"
+      "host_and_gates": "unrun",
+      "ordinary_replay": "Full726RUNNING; all584previousorderedrows retained,180s test/30s listing budgets; fullsource/ELFpreflightPASS, postflight pending",
+      "extra_artifacts": "ActualdistinctLexer3/Syntax1/xtaskBIN1controls all5PASS; all39002inputs/all3extraELFpostflightmatch, noextra host/gateacceptance",
+      "owner_gate": "FAIL306reportederrors63.482s29364inputs0drift; distinct301 vs306prior,8removed3added; no checkerrelaxation",
+      "generated_drift": "PASS2.097s39002inputs0drift; gen-editor-catalogs --check actualcurrentowners"
     },
     "explorer_readonly_source_adoption": {
       "baseline_new_full": [
@@ -133937,6 +133947,19 @@
       "patch_sha256": "6ac65df73e24866893dbfcfea2f79b2073d095e67b459d0b78c8e80d16b98866",
       "server716": "OPEN actual Registry/project ingress; standalone snapshot doesnotbind it",
       "validation": "Actual editor compilation/format/syntax/bundlesPASS407inputs0drift; hosts unexecuted"
+    },
+    "external_guide_user_decision": {
+      "utc": "2026-10-16T22:24:31.236203+00:00",
+      "user_answer": "Keep progress reports in this chat and repository",
+      "action": "Do not update external guide; reports remain in chat and repository",
+      "earlier_rejection": "Historical approval review rejection retained, no bypass/retry"
+    },
+    "error_recovery_current_report": {
+      "baseline_unit": "lsp.validation.03.06.fn0",
+      "new_annex": 0,
+      "validation": "TypeScript/scopedformatPASS406editorinputs0drift22:29UTC; hostunrun",
+      "source_review": "RootCLEAR final00e00123; V1deadlineHOLD correctedbyincrementalV2",
+      "deferred_multifolder": "FourF5/iRules-relatedunits remainunintegrated by userscope"
     }
   }
 }
