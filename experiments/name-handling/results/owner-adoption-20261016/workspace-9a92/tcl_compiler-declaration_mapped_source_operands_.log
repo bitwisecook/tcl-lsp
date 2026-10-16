@@ -1,0 +1,15 @@
+
+running 1 test
+test command_binding::declaration_layout::tests::declaration_mapped_source_operands_keep_full_vector_owner_and_conflict_refusals ... 
+thread 'command_binding::declaration_layout::tests::declaration_mapped_source_operands_keep_full_vector_owner_and_conflict_refusals' (89836) panicked at rust/tcl-compiler/src/command_binding/declaration_layout.rs:4069:14:
+actual mapped original body source vector
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    command_binding::declaration_layout::tests::declaration_mapped_source_operands_keep_full_vector_owner_and_conflict_refusals
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10230 filtered out; finished in 0.17s
+

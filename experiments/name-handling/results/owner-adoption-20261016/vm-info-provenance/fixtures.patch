@@ -1,0 +1,39 @@
+--- a/rust/tcl-vm/src/cmd_info/native_commands_tests.rs
++++ b/rust/tcl-vm/src/cmd_info/native_commands_tests.rs
+@@ -40,8 +40,9 @@
+     let rows = include_str!("../../../tcl-registry/tests/data/native_info_commands/windows.tsv");
+     let mut count = 0;
+     for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+-        let mut vm = crate::native_fixture::interpreter(
++        let mut vm = crate::native_fixture::interpreter_with_scripted_libraries(
+             tcl_registry::model::ingress::resolve_environment(engine).unit_profile(),
++            &[tcl_registry::native_scripted_distribution::NativeScriptedLibrary::NamespaceInfo],
+         );
+         define_names(&mut vm);
+         let dialect = vm.actual_native_invocation_dialect();
+--- a/rust/tcl-vm/src/cmd_info/native_oo.rs
++++ b/rust/tcl-vm/src/cmd_info/native_oo.rs
+@@ -168,16 +168,16 @@
+             let rename =
+                 vm.invoke_command("rename", &[Value::string("O"), Value::string("renamed")]);
+             assert_eq!(rename.code, Code::Ok, "{version:?}");
++            let moved = Value::new_native_string_bytes(b"renamed".as_slice());
++            assert_eq!(crate::cmd_oo::object_key(&mut vm, &moved).unwrap(), object);
++            let after = crate::cmd_oo::object_namespace_name(&mut vm, object).unwrap();
++            assert_eq!(
++                after.resident_string_bytes(),
++                namespace.resident_string_bytes()
++            );
+             assert!(
+                 crate::cmd_oo::object_key(&mut vm, &original).is_err(),
+                 "{version:?} stale stringless name must refuse"
+-            );
+-            let moved = Value::new_native_string_bytes(b"renamed".as_slice());
+-            assert_eq!(crate::cmd_oo::object_key(&mut vm, &moved).unwrap(), object);
+-            let after = crate::cmd_oo::object_namespace_name(&mut vm, object).unwrap();
+-            assert_eq!(
+-                after.resident_string_bytes(),
+-                namespace.resident_string_bytes()
+             );
+         }
+     }

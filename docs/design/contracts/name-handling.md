@@ -430,6 +430,16 @@ Namespace.which's query purpose cannot certify this presence check across
 providers: Jim can return no query name for an actually callable lone-colon
 command. No pattern result grants Native invocation or allocation identity.
 
+Query CLI binding names use the Query DSL lexer: exactly one `DollarIdent`
+whose value equals the entire supplied name, followed by `Eof`. This applies
+independently to the three binding flag constructors. CSV header suffixes retain
+their separate ASCII grammar because accepting a suffix changes which actual
+path is opened. Native output paths enter `OutputTarget::from_arg` directly,
+preserving filesystem units and the existing `-` stdout convention. Event
+multiplicity reports consume the Registry descriptor; they establish no measured
+TMM firing order. MCP reports transport their actual analysis-context status,
+and extraction schemas expose the shared optional dialect input.
+
 SpecTcl native argument-role hook IDs resolve through
 `CommandRegistry::native_argument_role_hook`. Exact qualified command descriptors
 precede command/member interpretations, even when the selected command lacks
@@ -787,6 +797,10 @@ That frame retains the original member body and its actual parent declaration
 snapshot under the same origin allocation, full input and configuration. It
 supplies no receiver namespace, native formal topology, entered activation or
 state-bearing frame context. Display names cannot recover any of these owners.
+The retained member ledger keeps the Registry-selected body word alongside its
+name word in the same complete original vector. Frame correspondence uses that
+body word's checked content span and exact source, including empty bodies; token
+delimiters and display spans cannot reconstruct the body interior.
 
 `NamedInstanceMap` transports readonly named-instance reports with private
 conditional and compatibility modes. Conditional rows come from
@@ -919,6 +933,17 @@ requires the actual `OriginalSourceScriptBody` to inherit immediate caller
 source context; a fresh or deferred procedure frame cannot donate its formals.
 This source owner creates no evaluated body, Native entry or Normal completion.
 
+Debt-bearing parameter source reports use a separate conditional template.
+`OriginalLogicalParameterSourcePrefix` retains the actual completed body walk,
+ordered original operations, formal reads and selected Registry advice at the
+current operation. Earlier unknown effects, callbacks and source-table changes
+withdraw later templates. The current operation's lookup, observer and
+`UnknownEarlierMutation` debt remains explicit. Dedicated conditional shape,
+invocation and alias-layout accessors feed analyser May reports; generic closed
+candidates, definite facts and caller-template execution advice remain refused.
+The retained body/cache relationship cannot make cache warmth part of identity
+or create a cycle back to its owning body.
+
 Caller-template name data belongs to the retained actual invocation and its
 original words. Literal Written data and captured-prefix values remain distinct
 from source references; their local-scalar shape uses the held variable policy
@@ -983,6 +1008,11 @@ attachment; joins retain it only when both alternatives agree. The configured
 carrier cannot own an ordinary Native read or body recipe. Its variable operand
 and symbolic SSA version serve conditional declaration intervals only, without
 Normal optimisation, lookup, fold-spanning Native occurrence or edit authority.
+Metadata reborrowing comes from that same current sealed source carrier and its
+retained complete input/Registry/configuration. It does not require a reached
+invocation site. The ordinary Native declaration facade keeps its independent
+invocation-owner requirement; a refused carrier cannot retry that facade or
+manufacture a dispatch point.
 
 Readonly source optimisation certificates retain complete actual unit mutation
 and trace dependencies. With those hazards, per-body reuse requires a nonempty

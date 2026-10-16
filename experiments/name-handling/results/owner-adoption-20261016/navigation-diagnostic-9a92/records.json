@@ -1,0 +1,18 @@
+[
+  {
+    "selector": "type_definition::",
+    "exit": 101,
+    "seconds": 8.736173897999834,
+    "log": "type_definition--.log",
+    "log_sha256": "0fcf99ca84f4c8b46533bcf0fbe193a861add37a3db077aadccc5b40c3eb060c",
+    "diagnostic_only": true
+  },
+  {
+    "selector": "conditional_named_instance_reports_",
+    "exit": 101,
+    "seconds": 0.599031202000333,
+    "log": "conditional_named_instance_reports_.log",
+    "log_sha256": "bfc86814d1ae5919d2de9a3ef942a28b7ea91afbaddb114438534e045766b026",
+    "diagnostic_only": true
+  }
+]

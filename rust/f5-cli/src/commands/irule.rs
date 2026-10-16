@@ -510,15 +510,7 @@ fn order_events_for_file(
 
 /// Multiplicity category for a single event.
 fn event_multiplicity(name: &str, events: &tcl_registry::events::EventRegistry) -> &'static str {
-    if name == "RULE_INIT" {
-        "init"
-    } else if events.is_once_per_connection(name) {
-        "once_per_connection"
-    } else if events.is_per_request(name) {
-        "per_request"
-    } else {
-        "unknown"
-    }
+    events.multiplicity(name)
 }
 
 fn run_event_order(input: &IruleInputArgs, json: bool) -> Result<u8, u8> {
@@ -1265,8 +1257,8 @@ fn run_minify(
         } else {
             format!("{joined}\n")
         };
-        let map_str = map_path.to_string_lossy();
-        write_text(&map_str, &text).map_err(|_| 2u8)?;
+        let target = tcl_cli_support::OutputTarget::from_arg(Some(map_path));
+        tcl_cli_support::write_text_output(&target, &text).map_err(|_| 2u8)?;
     }
     Ok(0)
 }

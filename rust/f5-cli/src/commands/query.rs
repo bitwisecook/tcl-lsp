@@ -57,7 +57,9 @@ use std::path::{Path, PathBuf};
 
 use tcl_bigip_io::{read_path_source, resolve_passphrase};
 use tcl_bigip_query::value::Value;
-use tcl_bigip_query::{QueryError, QueryOptions, QueryResult, output, run_query};
+use tcl_bigip_query::{
+    QueryError, QueryOptions, QueryResult, TokenKind, output, run_query, tokenise,
+};
 
 use crate::cli::FormatArgs;
 
@@ -271,19 +273,33 @@ impl OutputModeFlags {
     }
 }
 
+/// Whether `name` is exactly one variable identifier in the query DSL.
+fn is_query_binding_identifier(name: &str) -> bool {
+    let source = format!("${name}");
+    let Ok(tokens) = tokenise(&source) else {
+        return false;
+    };
+    matches!(
+        tokens.as_slice(),
+        [name_token, eof_token]
+            if name_token.kind == TokenKind::DollarIdent
+                && name_token.value == tcl_bigip_query::LitValue::Str(name.to_owned())
+                && eof_token.kind == TokenKind::Eof
+    )
+}
+
 /// Parse `--name NAME=PATH` bindings into a `name -> path` map, validating the
 /// identifier and that the path was supplied as a positional input.
 fn parse_name_bindings(
     raw: &[String],
     paths: &[String],
 ) -> Result<std::collections::HashMap<String, String>, String> {
-    let name_re = regex::Regex::new(r"^[A-Za-z_][A-Za-z0-9_-]*$").expect("valid regex");
     let mut bindings = std::collections::HashMap::new();
     for entry in raw {
         let Some((nm, pth)) = entry.split_once('=') else {
             return Err(format!("--name expects NAME=PATH (got '{entry}')"));
         };
-        if !name_re.is_match(nm) {
+        if !is_query_binding_identifier(nm) {
             return Err(format!(
                 "--name '{entry}': '{nm}' is not a valid DSL identifier \
                  (letters, digits, '_', '-'; cannot start with a digit)"
@@ -364,14 +380,13 @@ fn parse_input_bindings(
     flag: &str,
     allow_csv_headers: bool,
 ) -> Result<Vec<InputBinding>, String> {
-    let name_re = regex::Regex::new(r"^[A-Za-z_][A-Za-z0-9_-]*$").expect("valid regex");
     let mut bindings: Vec<InputBinding> = Vec::new();
     let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
     for entry in raw {
         let Some((nm, pth)) = entry.split_once('=') else {
             return Err(format!("{flag} expects NAME=PATH (got '{entry}')"));
         };
-        if !name_re.is_match(nm) {
+        if !is_query_binding_identifier(nm) {
             return Err(format!(
                 "{flag} '{entry}': '{nm}' is not a valid DSL identifier \
                  (letters, digits, '_', '-'; cannot start with a digit)"
@@ -438,7 +453,6 @@ fn split_csv_path_headers(
 /// `(kind, name, path)` entries. KIND is validated against the registry by
 /// the caller.
 fn parse_custom_input_bindings(raw: &[String]) -> Result<Vec<(String, String, String)>, String> {
-    let name_re = regex::Regex::new(r"^[A-Za-z_][A-Za-z0-9_-]*$").expect("valid regex");
     let mut entries: Vec<(String, String, String)> = Vec::new();
     let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
     // clap delivers the two-value `--input` flag as a flat list of pairs.
@@ -459,7 +473,7 @@ fn parse_custom_input_bindings(raw: &[String]) -> Result<Vec<(String, String, St
                 "--input {kind} expects NAME=PATH (got '{binding}')"
             ));
         };
-        if !name_re.is_match(nm) {
+        if !is_query_binding_identifier(nm) {
             return Err(format!(
                 "--input {kind} '{binding}': '{nm}' is not a valid DSL \
                  identifier (letters, digits, '_', '-'; cannot start with a digit)"
@@ -1127,7 +1141,7 @@ mod certificate_test_fixture;
 
 #[cfg(test)]
 mod ucs_cert_tests {
-    use super::{make_ucs_cert_reader, percent_decode, ucs_uri_to_path};
+    use super::{ProviderSources, make_ucs_cert_reader, percent_decode, ucs_uri_to_path};
     use tcl_bigip_query::value::Value;
 
     // Generate the filestore certificate locally; recover its identity from

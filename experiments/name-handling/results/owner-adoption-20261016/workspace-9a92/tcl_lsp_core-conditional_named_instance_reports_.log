@@ -1,0 +1,17 @@
+
+running 1 test
+test semantic_tokens::original_definition_vocabulary_tests::conditional_named_instance_reports_cannot_enter_legacy_label_classification ... 
+thread 'semantic_tokens::original_definition_vocabulary_tests::conditional_named_instance_reports_cannot_enter_legacy_label_classification' (89957) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:10502:9:
+assertion `left == right` failed
+  left: None
+ right: Some("::C")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    semantic_tokens::original_definition_vocabulary_tests::conditional_named_instance_reports_cannot_enter_legacy_label_classification
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3178 filtered out; finished in 0.59s
+

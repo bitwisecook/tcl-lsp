@@ -1,0 +1,20 @@
+
+running 2 tests
+test registry_invocation::source_structure::project_class_cards::tests::project_constructor_body_coverage_preserves_missing_mro_and_effect_barriers ... 
+thread 'registry_invocation::source_structure::project_class_cards::tests::project_constructor_body_coverage_preserves_missing_mro_and_effect_barriers' (89847) panicked at rust/tcl-compiler/src/registry_invocation/source_structure/project_class_cards.rs:1257:13:
+assertion failed: class.constructor_body_source_coverage(&analysis).is_some()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test registry_invocation::source_structure::project_class_cards::tests::project_constructor_body_coverage_retains_actual_explicit_source_attempt ... 
+thread 'registry_invocation::source_structure::project_class_cards::tests::project_constructor_body_coverage_retains_actual_explicit_source_attempt' (89874) panicked at rust/tcl-compiler/src/registry_invocation/source_structure/project_class_cards.rs:1145:74:
+tcl
+FAILED
+
+failures:
+
+failures:
+    registry_invocation::source_structure::project_class_cards::tests::project_constructor_body_coverage_preserves_missing_mro_and_effect_barriers
+    registry_invocation::source_structure::project_class_cards::tests::project_constructor_body_coverage_retains_actual_explicit_source_attempt
+
+test result: FAILED. 0 passed; 2 failed; 0 ignored; 0 measured; 10229 filtered out; finished in 7.27s
+

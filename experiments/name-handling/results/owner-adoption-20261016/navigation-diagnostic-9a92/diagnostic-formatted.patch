@@ -1,0 +1,209 @@
+--- a/rust/tcl-compiler/src/analyser/original_members.rs
++++ b/rust/tcl-compiler/src/analyser/original_members.rs
+@@ -401,6 +401,19 @@
+         class: &mut ClassDef,
+         scope_path: &[usize],
+     ) {
++        if std::env::var_os("TCL_LSP_TRACE_NAVIGATION_OWNER").is_some() {
++            eprintln!(
++                "NAVIGATION_OWNER member_enter offset={} policy={} origin={} parent={} source_dialect={}",
++                command.span.start(),
++                self.declaration_name_policy().is_some(),
++                self.head_identities
++                    .source_bindings_ref()
++                    .source_origin()
++                    .is_some(),
++                self.original_class_definition_body.is_some(),
++                self.original_member_source_dialect().is_some()
++            );
++        }
+         self.retain_logical_member_name_operand(grammar, command, class);
+         self.retain_logical_member_visibility_operands(grammar, command, class);
+         let Some(policy) = self.declaration_name_policy() else {
+@@ -428,12 +441,20 @@
+         }
+         let config = self.file_lexer_config();
+         let tokens = CommandTokens::from_segmented(&SourceMap::from_image(image), config, command);
+-        let Some(native) = crate::registry_invocation::original_native_compiler_words(
++        let native = crate::registry_invocation::original_native_compiler_words(
+             image,
+             tokens.words(),
+             command.span.start(),
+             config,
+-        ) else {
++        );
++        if std::env::var_os("TCL_LSP_TRACE_NAVIGATION_OWNER").is_some() {
++            eprintln!(
++                "NAVIGATION_OWNER member_native_vector offset={} present={}",
++                command.span.start(),
++                native.is_some()
++            );
++        }
++        let Some(native) = native else {
+             class.original_members.withdraw();
+             class.original_relations.withdraw();
+             class.original_properties.withdraw(MemberSide::Instance);
+@@ -463,16 +484,22 @@
+             source_installer: None,
+             class_relation_body: self.original_class_definition_body.as_deref(),
+         };
+-        if producer
+-            .member(
+-                MemberCommand::new(&native, &command.texts, &command.argv),
+-                MemberSide::Instance,
+-                None,
+-                class,
+-                0,
+-            )
+-            .is_none()
+-        {
++        let produced = producer.member(
++            MemberCommand::new(&native, &command.texts, &command.argv),
++            MemberSide::Instance,
++            None,
++            class,
++            0,
++        );
++        if std::env::var_os("TCL_LSP_TRACE_NAVIGATION_OWNER").is_some() {
++            eprintln!(
++                "NAVIGATION_OWNER member_produced offset={} present={} declarations={}",
++                command.span.start(),
++                produced.is_some(),
++                class.original_members.declarations().count()
++            );
++        }
++        if produced.is_none() {
+             #[cfg(debug_assertions)]
+             if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+                 eprintln!(
+--- a/rust/tcl-compiler/src/analyser/types/logical_members.rs
++++ b/rust/tcl-compiler/src/analyser/types/logical_members.rs
+@@ -17,6 +17,20 @@
+ // SPDX-License-Identifier: AGPL-3.0-or-later
+ 
+ //! Readonly Logical member declarations from the actual completed class walk.
++
++macro_rules! naming_navigation_observe {
++    ($stage:literal, $value:expr) => {{
++        let observed = $value;
++        if std::env::var_os("TCL_LSP_TRACE_NAVIGATION_OWNER").is_some() {
++            eprintln!(
++                "NAVIGATION_OWNER stage={} present={}",
++                $stage,
++                observed.is_some()
++            );
++        }
++        observed?
++    }};
++}
+ 
+ use super::{AnalysisResult, ClassDef, MemberSide, MethodDef};
+ use crate::analyser::ResolvedAnalysisInput;
+@@ -318,13 +332,16 @@
+         cursor: u32,
+         input: &ResolvedAnalysisInput,
+     ) -> Option<&ClassDef> {
+-        let realm = self.retained_command_realm()?;
+-        let registry = self.resolved_registry()?;
++        let realm = naming_navigation_observe!("logical.realm", self.retained_command_realm());
++        let registry = naming_navigation_observe!("logical.registry", self.resolved_registry());
+         let bindings = realm.source_bindings_ref();
+         let contains =
+             |word: &tcl_lexer::NativeWord| word.span().as_range().contains(&(cursor as usize));
+         let mut selected = None;
+-        let frame = bindings.logical_source_member_frame_at_offset(input, image, cursor, config)?;
++        let frame = naming_navigation_observe!(
++            "logical.frame",
++            bindings.logical_source_member_frame_at_offset(input, image, cursor, config)
++        );
+         if !matches!(
+             frame.frame().layout(),
+             crate::var_resolve::VariableExecutionFrame::ReceiverMethod { .. }
+@@ -353,13 +370,15 @@
+                 crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+                     registry, input,
+                 )?;
+-            let resolved =
++            let resolved = naming_navigation_observe!(
++                "logical.resolved",
+                 crate::registry_invocation::logical_structured_invocation_with_metadata_context(
+                     registry,
+                     context,
+                     &tokens,
+                     Some(bindings),
+-                )?;
++                )
++            );
+             if registry.method_dispatch_keyword(resolved.canonical_command())
+                 != Some(tcl_registry::MethodDispatchKind::SelfDispatch)
+                 || resolved.written_argument(0) != Some(0)
+@@ -384,6 +403,16 @@
+                                 .and_then(|source| source.get(method.body_span.as_range()))
+                                 == frame.source().try_text().ok()
+                     });
++                    if std::env::var_os("TCL_LSP_TRACE_NAVIGATION_OWNER").is_some() {
++                        eprintln!(
++                            "NAVIGATION_OWNER logical.has_frame side={side:?} present={has_frame} frame_base={} methods={:?}",
++                            frame.source().base(),
++                            members
++                                .values()
++                                .map(|method| (method.name_span, method.body_span))
++                                .collect::<Vec<_>>()
++                        );
++                    }
+                     if !has_frame {
+                         continue;
+                     }
+--- a/rust/tcl-compiler/src/analyser/class_hierarchy/original_metadata.rs
++++ b/rust/tcl-compiler/src/analyser/class_hierarchy/original_metadata.rs
+@@ -9,6 +9,20 @@
+ //! view retains actual parent-horizon Registry roots. Neither supplies a
+ //! call-point table, maker or native delegate attachment. Missing providers and
+ //! ambiguous joins abstain.
++
++macro_rules! naming_navigation_observe {
++    ($stage:literal, $value:expr) => {{
++        let observed = $value;
++        if std::env::var_os("TCL_LSP_TRACE_NAVIGATION_OWNER").is_some() {
++            eprintln!(
++                "NAVIGATION_OWNER stage={} present={}",
++                $stage,
++                observed.is_some()
++            );
++        }
++        observed?
++    }};
++}
+ 
+ use crate::analyser::types::{MemberSide, OriginalSourceClassRelationKind};
+ use crate::analyser::{AnalysisResult, ClassDef};
+@@ -527,15 +541,25 @@
+         let mut records = analysis
+             .original_class_declarations()
+             .filter(|record| factory.matches_source_declaration(record));
+-        let record = records.next()?;
++        let record = naming_navigation_observe!("class.record", records.next());
+         records.next().is_none().then_some(())?;
+         let metadata = if input.has_logical_source_name_context() {
+-            factory.logical_source_class(analysis)?
++            naming_navigation_observe!(
++                "class.logical_metadata",
++                factory.logical_source_class(analysis)
++            )
+         } else {
+-            factory.source_class(analysis)?.metadata()
++            naming_navigation_observe!("class.native_metadata", factory.source_class(analysis))
++                .metadata()
+         };
+         let logical = if input.has_logical_source_name_context() {
+-            Some(analysis.logical_source_class_declaration(metadata)?.clone())
++            Some(
++                naming_navigation_observe!(
++                    "class.logical_owner",
++                    analysis.logical_source_class_declaration(metadata)
++                )
++                .clone(),
++            )
+         } else {
+             None
+         };

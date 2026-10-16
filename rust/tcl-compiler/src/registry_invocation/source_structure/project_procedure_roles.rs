@@ -213,11 +213,20 @@ pub fn original_project_procedure_arguments<'a>(
     );
     realm.stamp_original_tokens(&mut tokens);
     let binding = tokens.source_binding.as_ref()?;
-    let projection = binding.invocation_site()?.source.original_lexical_command(
-        tokens.words(),
-        offset,
-        config,
-    )?;
+    let projection = if input.has_logical_source_name_context() {
+        // Nested Logical bodies retain their actual complete source vector in
+        // the tape even when no invocation/declaration point exists. Geometry
+        // stays separate from the selected occupancy and formal checks below.
+        realm
+            .source_bindings_ref()
+            .original_logical_source_command_at_in_source(input, &image, offset, config)?
+    } else {
+        binding.invocation_site()?.source.original_lexical_command(
+            tokens.words(),
+            offset,
+            config,
+        )?
+    };
     let actual = projection.command();
     if actual.span != segment.span
         || actual.argv != segment.argv
@@ -484,7 +493,11 @@ mod tests {
             for source in [
                 "puts retained",
                 "proc reader {value} {}; reader retained",
-                "interp alias {} reader {} puts; reader retained",
+                if dialect == "jim" {
+                    "alias reader puts; reader retained"
+                } else {
+                    "interp alias {} reader {} puts; reader retained"
+                },
                 "proc reader {value} {}; rename reader {}; reader retained",
                 "unknown_mutation; reader retained",
                 "reader [unknown_operand]",
@@ -504,6 +517,95 @@ mod tests {
     }
 
     #[test]
+    fn project_procedure_arguments_jim_c_interp_syntax_has_no_alias_descriptor() {
+        let source = "interp alias {} reader {} puts; reader retained";
+        let analysis = Analyser::new().analyse(source, "jim");
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let context = input.context_registry();
+        let arguments =
+            ["alias", "", "reader", "", "puts"].map(tcl_registry::InvocationWord::Literal);
+        let resolution =
+            tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(
+                context.commands(),
+                Some(context.context()),
+                tcl_registry::InvocationWords::structured(
+                    tcl_registry::InvocationWord::Literal("interp"),
+                    &arguments,
+                )
+                .with_dialect(tcl_registry::InvocationDialect::of_profile(
+                    input.unit_profile(),
+                )),
+                tcl_dialect::model::InvocationRealm::RuleLoader,
+            );
+        let selected = resolution
+            .resolved()
+            .expect("actual Jim interp factory descriptor");
+        assert_eq!(
+            selected.facts().arity_accepts_frozen_arguments(),
+            Some(false)
+        );
+        assert!(
+            selected
+                .state_transitions()
+                .command_bindings()
+                .next()
+                .is_none()
+        );
+        assert!(!analysis.command_aliases.contains_key("reader"));
+        assert!(!analysis.command_aliases.contains_key("::reader"));
+        // This malformed attempt is not Jim's alias surface. Its descriptor
+        // cannot manufacture an alias or a source normal-continuation grant.
+        // The separate stronger-occupant test uses actual `alias reader puts`.
+    }
+
+    #[test]
+    fn project_procedure_arguments_logical_nested_body_keeps_occupancy_guards() {
+        let library = Analyser::new().analyse(
+            "namespace eval N {proc reader {name} {upvar 1 $name cell; set cell 1}}; proc reader {name} {upvar 1 $name cell; set cell 1}",
+            "tcl",
+        );
+        let both = OriginalProjectProcedureRoles::capture(&library).unwrap();
+        let local_library = Analyser::new().analyse(
+            "namespace eval N {proc reader {name} {upvar 1 $name cell; set cell 1}}",
+            "tcl",
+        );
+        let local_only = OriginalProjectProcedureRoles::capture(&local_library).unwrap();
+        for (source, provider) in [
+            (
+                "namespace eval N {proc reader {value} {}; proc caller {} {reader retained}}",
+                &both,
+            ),
+            (
+                "namespace eval N {proc reader {value} {}; rename reader {}; proc caller {} {reader retained}}",
+                &local_only,
+            ),
+            (
+                "namespace eval N {proc reader {value} {}; rename reader {}; unknown_effect; proc caller {} {reader retained}}",
+                &both,
+            ),
+        ] {
+            let caller = Analyser::new().analyse(source, "tcl");
+            let offset = u32::try_from(source.rfind("reader retained").unwrap()).unwrap();
+            let command = crate::segmenter::segment_commands_with_offset_and_config(
+                &source[offset as usize..source.len() - 2],
+                offset,
+                caller.body_lexer_config.unwrap().nested(),
+            )
+            .remove(0);
+            assert!(
+                original_project_procedure_arguments(
+                    source,
+                    &caller,
+                    &command,
+                    std::slice::from_ref(provider),
+                )
+                .is_none(),
+                "actual local occupant, deleted local coordinate and earlier unknown remain terminal: {source}"
+            );
+        }
+    }
+
+    #[test]
     fn project_procedure_arguments_keep_priority_ambiguity_and_class_blockers() {
         for dialect in ["tcl", "tcl8.6"] {
             let library = Analyser::new().analyse("namespace eval N {proc reader {name} {upvar 1 $name cell; set cell 1}}; proc reader {name} {upvar 1 $name cell; set cell 1}", dialect);
@@ -519,7 +621,9 @@ mod tests {
             .remove(0);
             let selected =
                 original_project_procedure_arguments(source, &caller, &command, &providers)
-                    .expect("genuine root fallback after local deletion");
+                    .unwrap_or_else(|| {
+                        panic!("{dialect}: genuine root fallback after local deletion")
+                    });
             assert!(selected.declaration().name().slot().namespace.is_root());
             let caller_source = "reader retained";
             let caller = Analyser::new().analyse(caller_source, dialect);

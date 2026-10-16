@@ -1,0 +1,27 @@
+Bounded direct-call classification: exact rg actual_native_execution_profile( in rust/tcl-vm/src gives21 occurrences, comprising1 definition,13 production consumers,7 tests. Source-only classification; no main/build/test changes. Scope excludes485 transitive protocol consumers, which root checks independently.
+Production actual-purpose consumers (all retain actual owner; zero source adapters):
+- command.rs2054 cmd_authored_rule_proc: enter actual embedding execution for authored procedure setter, preserving source ROOT body scope separately. Copy current actual profile only; missing actual must not create measured activation.
+- cmd_string.rs41 register_string: select actual private stock ensemble release surface.
+- cmd_info.rs45 register: actual private stock ensemble release surface.
+- cmd_info.rs211 cmd_info: actual executing info worker subcommand parser/release surface.
+- cmd_file.rs54 register_file: actual private stock ensemble release surface.
+- cmd_dict.rs174 register: actual private stock ensemble release surface.
+- interp.rs3021 actual_native_invocation_dialect: central actual engine projection.
+- interp.rs5280 retain_native_fixed_math_calls: validate actual compiled fixed-function table and immutable registration identity against executing engine.
+- interp.rs11262 native_compiler_policy: engine cache-key facet, already separate from invocation/source-provider fields. Missing engine must stay distinct.
+- interp.rs24733 native_math_function_table: actual fixed-function registrations for native compilation evidence; no source callback-provider substitution.
+- interp.rs25290 native_compilation_builtin: Registry descriptor/hook of actual native implementation registration.
+- interp.rs25311 native_hook_for_registry_identity: actual Native compiler-hook presence (unknown remains distinct from absent).
+- interp.rs25393 native_compiler_registration: actual native ensemble implementation compiler, not source-target configuration.
+Definition: interp.rs3014.
+Seven test observations, all actual-purpose and unchanged: command.rs5516; cmd_info.rs1161; interp/native_control_expression_tests.rs176; interp.rs28740,28747,29136; interp/native_ensemble_objects.rs403.
+No direct caller is a source or requested compilation-target query incorrectly named actual. The existing native compilation entry explicitly separates profile:self.source_profile, execution_point:actual, invocation_policy:native_execution_profile, source String/lexer/provider facets (interp.rs24975+), so compatibility adapters would collapse deliberately separate owners.
+Active profile provenance audit (production assignments only):
+1. embed.rs FrameworkBuiltinCapability::invoke uses capability.profile passed explicitly through register_framework_builtin host API, not source pin. Only external repo caller tcl-irule-test/src/live.rs361 passes host_profile after explicit set_native_engine_profile(host_profile) at327; F5 source remains separate. Unsupported supplied profiles still yield no measured execution_point.
+2. command.rs2054 authored-rule procedure activation copies actual_native_execution_profile, not dialect_profile/source_profile; after fallback repair an absent engine copies plain_tcl and cannot mint Native.
+3. interp.rs2618 refresh_actual_stock_builtins and7649 child constructor replay use actual_engine_profile.or(saved actual activation), then restore. Source pin/availability cannot enter this field.
+4. interp.rs26100 try_eval_native_host_source rejects actual_engine_profile None before replacing active with explicit engine; restores afterward.
+5. All remaining active_native_profile assignments in rg output are #[cfg(test)] controls, not production donors.
+Existing owners/identity: naming.info.loaded-original-interpreter-path (docs/design/analysis/name-resolution-proofs/info-loaded-original-interpreter-path.md) owns the exact failing missing-actual/source-label test; naming.embedding.original-host-publication-and-fact-transport (docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md) owns explicit host/source separation and missing Native refusal. Existing explicit_host_engine_keeps_source_logical_and_availability_axes_separate unit establishes explicit engine, command-surface/source independence, child copying, activation restoration. No distinct new semantic annex is required for this correction: retain old failed ordinary log and attach scoped successor evidence to these existing obligations, without claiming all transitive consumers validated.
+Classification of three proposals: actual-profile-proposal.patch repairs production missing-engine semantics; jim110-fixture.patch corrects original static-extension setup; oo-chronology-proposal.patch corrects original assertion observation order around terminal Host refusal. Neither fixture correction is production acceptance. Original failure log unchanged.
+Documentation consistency: interp.rs field comment at1290 says None retains ordinary profile measured engine. That sentence describes the removed fallback and should be updated with integration to say absent explicit engine supplies no measured Native execution point. No other source-caller adapter is needed.

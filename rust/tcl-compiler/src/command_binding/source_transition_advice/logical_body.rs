@@ -35,8 +35,18 @@ pub struct OriginalLogicalProcedureBody {
     formal_topology: Option<Arc<crate::command_binding::formal_topology::OriginalFormalTopology>>,
     earlier_unknown_mutations: bool,
     module_entry: Option<crate::command_binding::SourceAnalysisEntry>,
+    parameter_source_prefixes: Arc<super::source_parameter_template::ParameterSourcePrefixCache>,
 }
 impl OriginalLogicalProcedureBody {
+    /// Conditional readonly source recipe at an authentic own-body command.
+    /// Cache contents are excluded from this body's semantic equality.
+    pub(crate) fn parameter_source_prefix(
+        &self,
+        original: &[NativeWord],
+    ) -> Option<&super::OriginalLogicalParameterSourcePrefix> {
+        self.parameter_source_prefixes.get(original)
+    }
+
     pub(crate) fn retain_module_entry(
         mut self,
         entry: &crate::command_binding::SourceAnalysisEntry,
@@ -394,7 +404,25 @@ impl LogicalBodyWalk<'_, '_> {
             &mut prepared.graph,
             &prepared.scope,
             depth.checked_add(1)?,
-        )
+        )?;
+        // Only this successful actual walk can populate the derived source
+        // prefix sidecar. Missing/partial walks cannot mint positive receipts.
+        if let Some(card) = tape
+            .logical_procedure_bodies
+            .get(&invocation.native.first()?.span().start())
+            .and_then(Option::as_ref)
+            .cloned()
+        {
+            let prefixes = super::source_parameter_template::capture_prefixes(
+                tape,
+                &card,
+                self.context.context,
+            );
+            if let Some(prefixes) = prefixes {
+                card.parameter_source_prefixes.retain(prefixes);
+            }
+        }
+        Some(())
     }
 
     #[inline(never)]
@@ -497,6 +525,7 @@ impl LogicalBodyWalk<'_, '_> {
             formal_topology,
             earlier_unknown_mutations: !graph.uncertain_operations.is_empty(),
             module_entry: None,
+            parameter_source_prefixes: Arc::default(),
         });
         super::source_class::merge_receipt(
             &mut tape.logical_procedure_bodies,
@@ -1716,5 +1745,42 @@ mod tests {
             };
             assert!(words_at(source, &analysis, fragment).is_none(), "{source}");
         }
+    }
+
+    #[test]
+    fn logical_parameter_source_prefix_cache_warmth_is_not_body_identity() {
+        let source = "proc reader {name} {upvar 1 $name local; set local 1}";
+        let analysis = analyse_source(source);
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let realm = analysis.retained_command_realm().unwrap();
+        let cards = realm.original_logical_procedure_body_cards(input).unwrap();
+        let [body] = cards.as_slice() else {
+            panic!("one actual body");
+        };
+        let offset = u32::try_from(source.find("upvar").unwrap()).unwrap();
+        let words = words_at(
+            source,
+            &analysis,
+            &source[offset as usize..source.len() - 1],
+        )
+        .unwrap();
+        let OriginalRegistrySource::SourceTransitions(advice) = words.source() else {
+            panic!("source advice");
+        };
+        assert!(
+            body.parameter_source_prefix(advice.original_words())
+                .is_some()
+        );
+        let mut cold = body.as_ref().clone();
+        cold.parameter_source_prefixes = std::sync::Arc::default();
+        assert_eq!(body.as_ref(), &cold);
+        assert!(
+            cold.parameter_source_prefix(advice.original_words())
+                .is_none()
+        );
+        assert!(
+            body.parameter_source_prefix(advice.original_words())
+                .is_some()
+        );
     }
 }

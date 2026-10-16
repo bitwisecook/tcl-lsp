@@ -1,0 +1,967 @@
+{
+  "source_ref": "554085e162823ea8bd126898d0c27b7b2a9f8628",
+  "cache_tree": "52f8f1dbfa6b81226ebf44f2137653721fceb513",
+  "files": [
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.4.20/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 386930
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.4.20/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 385780
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.5.19/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 567222
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.5.19/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 565106
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.6.18/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 809038
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/8.6.18/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 807629
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/9.0.4/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 959513
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/9.0.4/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 958303
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/9.1.0/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 1027757
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/9.1.0/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 1025681
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/Jim/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 187599
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/643/Jim/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 102447
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.4.20/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 386994
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.4.20/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 385780
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.5.19/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 567305
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.5.19/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 565106
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.6.18/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 809075
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/8.6.18/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 807629
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.0.4/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 959508
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.0.4/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 958303
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.1.0/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 1027776
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/9.1.0/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 1025681
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/Jim/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 187589
+    },
+    {
+      "path": "runtime/rust/tests/data/native_encoding_original_byte_name_source_order/646/Jim/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 102447
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 387159
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 385780
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 567425
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 565106
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 809306
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 807629
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 959575
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 958303
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 1028026
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 1025681
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.0.4/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 959013
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.0.4/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 958303
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.1.0/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 1027075
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.1.0/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 1025681
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_index_range635/8.4.20/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 387641
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_index_range635/8.4.20/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 385780
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_index_range635/8.5.19/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 567826
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_index_range635/8.5.19/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 565106
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_index_range635/8.6.18/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 809756
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_index_range635/8.6.18/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 807629
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_index_range635/9.0.4/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 959875
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_index_range635/9.0.4/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 958303
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_index_range635/9.1.0/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 1028357
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_index_range635/9.1.0/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 1025681
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_index_range635/Jim/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 105073
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_index_range635/Jim/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 102447
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_list_group_command651/8.4.20/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 389601
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_list_group_command651/8.4.20/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 385780
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_list_group_command651/8.5.19/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 569499
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_list_group_command651/8.5.19/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 565106
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_list_group_command651/8.6.18/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 811872
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_list_group_command651/8.6.18/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 807629
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_list_group_command651/9.0.4/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 961075
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_list_group_command651/9.0.4/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 958303
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_list_group_command651/9.1.0/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 1030298
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_list_group_command651/9.1.0/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 1025681
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_list_group_command651/Jim/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 106917
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_list_group_command651/Jim/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 102447
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_list_numeric645_647/exact647/8.4.20/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 388499
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_list_numeric645_647/exact647/8.4.20/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 385780
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_list_numeric645_647/exact647/8.5.19/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 568576
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_list_numeric645_647/exact647/8.5.19/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 565106
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_list_numeric645_647/exact647/8.6.18/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 810457
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_list_numeric645_647/exact647/8.6.18/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 807629
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_list_numeric645_647/exact647/9.0.4/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 960396
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_list_numeric645_647/exact647/9.0.4/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 958303
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_list_numeric645_647/exact647/9.1.0/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 1029162
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_list_numeric645_647/exact647/9.1.0/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 1025681
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_list_numeric645_647/exact647/Jim/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 105868
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_list_numeric645_647/exact647/Jim/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 102447
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_list_numeric645_647/glob645/8.4.20/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 388512
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_list_numeric645_647/glob645/8.4.20/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 385780
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_list_numeric645_647/glob645/8.5.19/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 568566
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_list_numeric645_647/glob645/8.5.19/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 565106
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_list_numeric645_647/glob645/8.6.18/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 810543
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_list_numeric645_647/glob645/8.6.18/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 807629
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_list_numeric645_647/glob645/9.0.4/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 960396
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_list_numeric645_647/glob645/9.0.4/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 958303
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_list_numeric645_647/glob645/9.1.0/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 1029222
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_list_numeric645_647/glob645/9.1.0/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 1025681
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_list_numeric645_647/glob645/Jim/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 105857
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_list_numeric645_647/glob645/Jim/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 102447
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_list_stride644/8.4.20/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 386926
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_list_stride644/8.4.20/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 385780
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_list_stride644/8.5.19/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 567187
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_list_stride644/8.5.19/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 565106
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_list_stride644/8.6.18/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 808980
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_list_stride644/8.6.18/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 807629
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_list_stride644/9.0.4/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 959336
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_list_stride644/9.0.4/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 958303
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_list_stride644/9.1.0/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 1027665
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_list_stride644/9.1.0/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 1025681
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_list_stride644/Jim/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 104355
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_list_stride644/Jim/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 102447
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_option_index636/8.4.20/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 388043
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_option_index636/8.4.20/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 385780
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_option_index636/8.5.19/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 568104
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_option_index636/8.5.19/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 565106
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_option_index636/8.6.18/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 810075
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_option_index636/8.6.18/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 807629
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_option_index636/9.0.4/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 960052
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_option_index636/9.0.4/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 958303
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_option_index636/9.1.0/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 1028688
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_option_index636/9.1.0/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 1025681
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_option_index636/Jim/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 105340
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_option_index636/Jim/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 102447
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_string_replacement629/8.4.20/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 387442
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_string_replacement629/8.4.20/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 385780
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_string_replacement629/8.5.19/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 567659
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_string_replacement629/8.5.19/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 565106
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_string_replacement629/8.6.18/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 809578
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_string_replacement629/8.6.18/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 807629
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_string_replacement629/9.0.4/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 959768
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_string_replacement629/9.0.4/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 958303
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_string_replacement629/9.1.0/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 1028270
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_string_replacement629/9.1.0/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 1025681
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_string_replacement629/Jim/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 104964
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_string_replacement629/Jim/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 102447
+    },
+    {
+      "path": "runtime/rust/tests/data/native_source_original_counted_filename_extent/648/8.4.20/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 386666
+    },
+    {
+      "path": "runtime/rust/tests/data/native_source_original_counted_filename_extent/648/8.4.20/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 385780
+    },
+    {
+      "path": "runtime/rust/tests/data/native_source_original_counted_filename_extent/648/8.5.19/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 566916
+    },
+    {
+      "path": "runtime/rust/tests/data/native_source_original_counted_filename_extent/648/8.5.19/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 565106
+    },
+    {
+      "path": "runtime/rust/tests/data/native_source_original_counted_filename_extent/648/8.6.18/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 808712
+    },
+    {
+      "path": "runtime/rust/tests/data/native_source_original_counted_filename_extent/648/8.6.18/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 807629
+    },
+    {
+      "path": "runtime/rust/tests/data/native_source_original_counted_filename_extent/648/9.0.4/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 959194
+    },
+    {
+      "path": "runtime/rust/tests/data/native_source_original_counted_filename_extent/648/9.0.4/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 958303
+    },
+    {
+      "path": "runtime/rust/tests/data/native_source_original_counted_filename_extent/648/9.1.0/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 1027348
+    },
+    {
+      "path": "runtime/rust/tests/data/native_source_original_counted_filename_extent/648/9.1.0/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 1025681
+    },
+    {
+      "path": "runtime/rust/tests/data/native_source_original_counted_filename_extent/648/Jim/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 187239
+    },
+    {
+      "path": "runtime/rust/tests/data/native_source_original_counted_filename_extent/648/Jim/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 102447
+    },
+    {
+      "path": "runtime/rust/tests/data/native_source_original_counted_filename_extent/650/8.4.20/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 387187
+    },
+    {
+      "path": "runtime/rust/tests/data/native_source_original_counted_filename_extent/650/8.4.20/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 385780
+    },
+    {
+      "path": "runtime/rust/tests/data/native_source_original_counted_filename_extent/650/8.5.19/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 567419
+    },
+    {
+      "path": "runtime/rust/tests/data/native_source_original_counted_filename_extent/650/8.5.19/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 565106
+    },
+    {
+      "path": "runtime/rust/tests/data/native_source_original_counted_filename_extent/650/8.6.18/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 809363
+    },
+    {
+      "path": "runtime/rust/tests/data/native_source_original_counted_filename_extent/650/8.6.18/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 807629
+    },
+    {
+      "path": "runtime/rust/tests/data/native_source_original_counted_filename_extent/650/9.0.4/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 959509
+    },
+    {
+      "path": "runtime/rust/tests/data/native_source_original_counted_filename_extent/650/9.0.4/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 958303
+    },
+    {
+      "path": "runtime/rust/tests/data/native_source_original_counted_filename_extent/650/9.1.0/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 1028030
+    },
+    {
+      "path": "runtime/rust/tests/data/native_source_original_counted_filename_extent/650/9.1.0/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 1025681
+    },
+    {
+      "path": "runtime/rust/tests/data/native_source_original_counted_filename_extent/650/Jim/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 187649
+    },
+    {
+      "path": "runtime/rust/tests/data/native_source_original_counted_filename_extent/650/Jim/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 102447
+    },
+    {
+      "path": "runtime/rust/tests/data/native_source_original_counted_filename_extent/651/8.4.20/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 387014
+    },
+    {
+      "path": "runtime/rust/tests/data/native_source_original_counted_filename_extent/651/8.4.20/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 385780
+    },
+    {
+      "path": "runtime/rust/tests/data/native_source_original_counted_filename_extent/651/8.5.19/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 567229
+    },
+    {
+      "path": "runtime/rust/tests/data/native_source_original_counted_filename_extent/651/8.5.19/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 565106
+    },
+    {
+      "path": "runtime/rust/tests/data/native_source_original_counted_filename_extent/651/8.6.18/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 809133
+    },
+    {
+      "path": "runtime/rust/tests/data/native_source_original_counted_filename_extent/651/8.6.18/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 807629
+    },
+    {
+      "path": "runtime/rust/tests/data/native_source_original_counted_filename_extent/651/9.0.4/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 959474
+    },
+    {
+      "path": "runtime/rust/tests/data/native_source_original_counted_filename_extent/651/9.0.4/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 958303
+    },
+    {
+      "path": "runtime/rust/tests/data/native_source_original_counted_filename_extent/651/9.1.0/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 1027693
+    },
+    {
+      "path": "runtime/rust/tests/data/native_source_original_counted_filename_extent/651/9.1.0/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 1025681
+    },
+    {
+      "path": "runtime/rust/tests/data/native_source_original_counted_filename_extent/651/Jim/probe.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 187542
+    },
+    {
+      "path": "runtime/rust/tests/data/native_source_original_counted_filename_extent/651/Jim/same-library-version/version.elf.gz",
+      "state": "restored-and-verified",
+      "mode": "0o100644",
+      "bytes": 102447
+    }
+  ],
+  "count": 158,
+  "bytes": 104319313,
+  "verified_against": [
+    "cached Git blob SHA-1",
+    "existing corpus-inventory SHA-256",
+    "existing inventory bytes"
+  ],
+  "execution": "No restored binary was executed.",
+  "index": "No Git index/worktree flags or Git objects were changed; existing skip-worktree flags are untouched.",
+  "inventory": "No corpus-inventory or evidence record was changed.",
+  "mode_source": "Each path mode is read from its existing Git index row and applied to the restored file.",
+  "atomicity": "Each target is installed via same-directory temp file plus os.replace; set is fully staged and verified before first target write.",
+  "apply_requested": true
+}

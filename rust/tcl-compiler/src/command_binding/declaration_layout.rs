@@ -1762,6 +1762,22 @@ impl DeclarationSourceOperandLayoutAdvice {
         }
     }
 
+    fn current_metadata_context(
+        &self,
+        registry: &tcl_registry::CommandRegistry,
+        tokens: &crate::ir::CommandTokens,
+    ) -> Option<Option<crate::registry_invocation::InvocationMetadataContext<'_>>> {
+        self.current_advice(tokens)?;
+        match &self.kind {
+            DeclarationSourceOperandLayoutKind::Original(advice) => advice
+                .original_declaration_metadata_context(registry, tokens)
+                .ok(),
+            DeclarationSourceOperandLayoutKind::Configured { layout, .. } => {
+                layout.source_metadata_context(registry, tokens).ok()
+            }
+        }
+    }
+
     /// Registry candidates under the same original source configuration.
     /// The callback receives conditional schema data, never a Normal handler.
     pub(crate) fn with_conditional_registry_facts<T: PartialEq>(
@@ -1775,9 +1791,7 @@ impl DeclarationSourceOperandLayoutAdvice {
         ) -> Option<T>,
     ) -> Option<T> {
         let advice = self.current_advice(tokens)?;
-        let metadata = advice
-            .original_declaration_metadata_context(registry, tokens)
-            .ok()?;
+        let metadata = self.current_metadata_context(registry, tokens)?;
         let mut selected = None;
         for target in advice.targets() {
             if !target.registry_backed {
@@ -1896,10 +1910,7 @@ impl super::SourceInvocationBinding {
                 cache: Arc::downgrade(&cache),
             },
         };
-        advice
-            .current_advice(tokens)?
-            .original_declaration_metadata_context(registry, tokens)
-            .ok()?;
+        advice.current_metadata_context(registry, tokens)?;
         Some(advice)
     }
 
@@ -4068,6 +4079,15 @@ mod tests {
             .declaration_source_operand_layout_advice(registry, &tokens)
             .expect("actual mapped original body source vector");
         assert!(advice.current_advice(&tokens).is_some());
+        assert!(advice.current_metadata_context(registry, &tokens).is_some());
+        assert!(
+            advice
+                .current_advice(&tokens)
+                .unwrap()
+                .original_declaration_metadata_context(registry, &tokens)
+                .is_err(),
+            "the old Native declaration facade still requires its own invocation owner"
+        );
         assert!(binding.declaration_operand_layout_advice(&tokens).is_none());
 
         let mut withdrawn = bindings.clone();

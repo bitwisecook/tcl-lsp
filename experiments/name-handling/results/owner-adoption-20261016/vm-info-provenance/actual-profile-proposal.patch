@@ -1,0 +1,11 @@
+--- a/rust/tcl-vm/src/interp.rs
++++ b/rust/tcl-vm/src/interp.rs
+@@ -3014,7 +3014,7 @@
+     pub(crate) fn actual_native_execution_profile(&self) -> &'static tcl_dialect::DialectProfile {
+         self.active_native_profile
+             .or(self.actual_engine_profile)
+-            .unwrap_or_else(|| self.native_execution_profile())
++            .unwrap_or_else(tcl_dialect::DialectProfile::plain_tcl)
+     }
+ 
+     pub(crate) fn actual_native_invocation_dialect(&self) -> tcl_registry::InvocationDialect {

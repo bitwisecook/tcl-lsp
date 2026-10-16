@@ -1,0 +1,8 @@
+{
+  "diagnostic_only": true,
+  "ordinary_acceptance": false,
+  "head": "9a92c4049be478e601744065018ec6ab609dc629",
+  "binary_sha256": "bbdb83cc2759c544866dd2f381fb402402491d11c6f98e77b87e97f65554fa68",
+  "manifest": "/tmp/naming-navigation-diagnostic-formatted/manifest.json",
+  "source_diff_sha256": "4586e6d51249077c2a66ef6552aef9bc9387cedf672dc3901b21026c48fb307f"
+}

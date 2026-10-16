@@ -11,6 +11,8 @@ mod interpreter_path;
 pub use interpreter_path::OriginalSourceInterpreterPathBinding;
 mod c_namespace;
 mod logical_body;
+mod source_parameter_template;
+pub(crate) use source_parameter_template::OriginalLogicalParameterSourcePrefix;
 mod logical_declaration;
 mod logical_navigation;
 mod logical_word_geometry;

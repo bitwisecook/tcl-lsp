@@ -361,6 +361,46 @@ impl OriginalDeclarationSourceOperandLayout {
         )
     }
 
+    /// Reborrow metadata of this sealed original source body. Unlike the
+    /// Native declaration facade, this does not require or mint a reached
+    /// invocation site. Its caller retains the exact current source attachment.
+    pub(super) fn source_metadata_context(
+        &self,
+        registry: &tcl_registry::CommandRegistry,
+        tokens: &crate::ir::CommandTokens,
+    ) -> Result<
+        Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+        crate::registry_invocation::RegistryInvocationDecline,
+    > {
+        use crate::registry_invocation::{
+            OwnedInvocationMetadataContext, RegistryInvocationDecline,
+        };
+        let refusal = RegistryInvocationDecline::IncompleteResolution;
+        let state = &self.snapshot.state;
+        if tokens.synthetic.is_some()
+            || !tokens.original_words_match_argv_text()
+            || tokens.words() != self.words.as_ref()
+            || !self.current_original_body()
+            || state.baseline.registry_snapshot.as_ref()
+                != Some(&registry.snapshot().semantic_key())
+            || state.source_variables.invocation_dialect != Some(self.dialect)
+        {
+            return Err(refusal);
+        }
+        let owner = &state.baseline.metadata_context;
+        match owner {
+            OwnedInvocationMetadataContext::SuppliedSource(input) => owner
+                .metadata_context_for_source(registry, self.config, Some(input.unit_profile()))
+                .map(Some)
+                .ok_or(refusal),
+            OwnedInvocationMetadataContext::Standalone => {
+                owner.metadata_context(registry).ok_or(refusal)
+            }
+            OwnedInvocationMetadataContext::Supplied(_)
+            | OwnedInvocationMetadataContext::Unavailable => Err(refusal),
+        }
+    }
+
     fn matches_original_bindings(&self, bindings: &SourceCommandBindings) -> bool {
         let Some(actual) = bindings
             .declaration_layouts

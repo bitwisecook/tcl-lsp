@@ -1,0 +1,17 @@
+{
+  "rust/tcl-compiler/src/analyser/original_members.rs": {
+    "before": "0fd761d5fbeeb488aac8bf598968ea0c6c58c33f078f807bbe8e1cea09b8eee8",
+    "after": "72296e75e7fbbe72cfa3061c1888190808a48e8a0cc8f72395201998144ece42",
+    "formatted_after": "/tmp/naming-navigation-diagnostic-formatted/rust--tcl-compiler--src--analyser--original_members.rs"
+  },
+  "rust/tcl-compiler/src/analyser/types/logical_members.rs": {
+    "before": "ec370bed89a8d068ab9c7c1d0b649fac48fd258791daf91238050208f42dc345",
+    "after": "88f96aac59140e64bed6692d446760200dca1a04a752fe85ea26334ec4fa7da8",
+    "formatted_after": "/tmp/naming-navigation-diagnostic-formatted/rust--tcl-compiler--src--analyser--types--logical_members.rs"
+  },
+  "rust/tcl-compiler/src/analyser/class_hierarchy/original_metadata.rs": {
+    "before": "d87bbc4e76b21918792a468470be8593b2ca70c69e001c76dc89e5e4bd0fd750",
+    "after": "b3a0fc04e7b82463d9bd5abf6fc03ead00dbbb081fc4de22fda60366f43a8055",
+    "formatted_after": "/tmp/naming-navigation-diagnostic-formatted/rust--tcl-compiler--src--analyser--class_hierarchy--original_metadata.rs"
+  }
+}

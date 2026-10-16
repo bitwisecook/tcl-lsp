@@ -1,0 +1,16 @@
+{
+  "unit_ids": [
+    "root:query.binding-identifier-input:229:0",
+    "root:query.binding-identifier-input:229:1",
+    "root:query.binding-identifier-input:229:2"
+  ],
+  "file": "rust/f5-cli/src/commands/query.rs",
+  "old_sha256": "5ee8e21f83429f2fabc508508c9d0c996bee5f8af506860e5c67c993365ec988",
+  "new_sha256": "642dc24ce7271ff5c9555d8d7a8ee2aca2de835ca8aca22eec3dad601dc48516",
+  "patch_path": "/tmp/f5-query-binding-lexer-corrected.patch",
+  "patch_sha256": "875fe05b9c507db1d92fdee3fcd7f3bed8f872072c7e39e1d870d7ae685098d0",
+  "supersedes": "/tmp/f5-query-binding-lexer.patch",
+  "review_correction": "Removed CSV-header predicate migration only. Retains header_re ASCII rule and existing PATH[:headers] disambiguation. Counterexample `report:r\u00e9sum\u00e9`: previous colon splitting identifies `r\u00e9sum\u00e9` as a header; it is not an ASCII header, so existing behavior treats `report:r\u00e9sum\u00e9` as the path. The rejected draft query-lexer predicate accepted Unicode and classified it as a header. Corrected patch preserves this distinction.",
+  "owner_api": "Shared Query tokenise accepts exactly one DollarIdent(name) followed by Eof for the three actual NAME binding inputs. CSV headers retain their independent ASCII/path policy.",
+  "validation_target": "Existing `f5-cli` `query_input` integration selector `err_bad_binding_identifier`, then full `cargo test -p f5-cli --test query_input`; root owns execution. No tests run or added."
+}

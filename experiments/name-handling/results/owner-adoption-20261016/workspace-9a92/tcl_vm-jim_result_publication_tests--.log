@@ -1,0 +1,11 @@
+
+running 6 tests
+test value::jim_result_publication_tests::original_jim_borrowed_result_adoption_adds_only_the_actual_result_reference ... ok
+test value::jim_result_publication_tests::original_jim_info_body_capsule_keeps_only_weak_declaration_and_allocation_handles ... ok
+test value::jim_result_publication_tests::original_jim_info_body_capsule_refuses_foreign_consumer_and_c_keeps_byte_compatibility ... ok
+test value::jim_result_publication_tests::original_jim_info_body_primitive_publication_allows_deletion_and_preserves_first_refusal ... ok
+test value::jim_result_publication_tests::original_jim_info_body_public_caller_keeps_lazy_body_and_warm_original_name ... ok
+test value::jim_result_publication_tests::original_jim_result_publication_retires_old_slot_before_mandatory_publication ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 1378 filtered out; finished in 0.47s
+

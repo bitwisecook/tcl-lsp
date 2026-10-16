@@ -1,0 +1,26 @@
+--- a/rust/tcl-vm/src/cmd_info/native_oo.rs
++++ b/rust/tcl-vm/src/cmd_info/native_oo.rs
+@@ -168,16 +168,16 @@
+             let rename =
+                 vm.invoke_command("rename", &[Value::string("O"), Value::string("renamed")]);
+             assert_eq!(rename.code, Code::Ok, "{version:?}");
++            let moved = Value::new_native_string_bytes(b"renamed".as_slice());
++            assert_eq!(crate::cmd_oo::object_key(&mut vm, &moved).unwrap(), object);
++            let after = crate::cmd_oo::object_namespace_name(&mut vm, object).unwrap();
++            assert_eq!(
++                after.resident_string_bytes(),
++                namespace.resident_string_bytes()
++            );
+             assert!(
+                 crate::cmd_oo::object_key(&mut vm, &original).is_err(),
+                 "{version:?} stale stringless name must refuse"
+-            );
+-            let moved = Value::new_native_string_bytes(b"renamed".as_slice());
+-            assert_eq!(crate::cmd_oo::object_key(&mut vm, &moved).unwrap(), object);
+-            let after = crate::cmd_oo::object_namespace_name(&mut vm, object).unwrap();
+-            assert_eq!(
+-                after.resident_string_bytes(),
+-                namespace.resident_string_bytes()
+             );
+         }
+     }

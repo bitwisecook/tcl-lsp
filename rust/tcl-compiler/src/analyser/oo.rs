@@ -1448,7 +1448,7 @@ impl Analyser {
         class.original_members.retain_logical_name_operand(
             input,
             words,
-            name_ordinal,
+            (name_ordinal, body.0),
             side,
             (name_token.span, body_token.span),
         );

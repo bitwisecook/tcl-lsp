@@ -1,0 +1,6 @@
+
+running 1 test
+test minify::original::tests::native_syntax_compaction_uses_pure_original_expression_gap_receipt ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3178 filtered out; finished in 2.40s
+

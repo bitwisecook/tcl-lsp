@@ -40,8 +40,9 @@ fn original_info_commands_matches_all_110_native_pattern_object_windows() {
     let rows = include_str!("../../../tcl-registry/tests/data/native_info_commands/windows.tsv");
     let mut count = 0;
     for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
-        let mut vm = crate::native_fixture::interpreter(
+        let mut vm = crate::native_fixture::interpreter_with_scripted_libraries(
             tcl_registry::model::ingress::resolve_environment(engine).unit_profile(),
+            &[tcl_registry::native_scripted_distribution::NativeScriptedLibrary::NamespaceInfo],
         );
         define_names(&mut vm);
         let dialect = vm.actual_native_invocation_dialect();

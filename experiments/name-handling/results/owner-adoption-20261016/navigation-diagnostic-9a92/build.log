@@ -1,0 +1,35 @@
+   Compiling syn v3.0.6
+   Compiling thiserror-impl v2.0.21
+   Compiling thiserror v2.0.21
+   Compiling tcl-lexer v0.1.0 (/workspace/tcl-lsp/rust/tcl-lexer)
+   Compiling tcl-syntax v0.1.0 (/workspace/tcl-lsp/rust/tcl-syntax)
+   Compiling tcl-runtime-api v0.1.0 (/workspace/tcl-lsp/rust/tcl-runtime-api)
+   Compiling tcl-cmd-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-cmd-core)
+   Compiling serde_derive v1.0.229
+   Compiling displaydoc v0.2.7
+   Compiling serde_json v1.0.151
+   Compiling asn1-rs v0.7.2
+   Compiling serde v1.0.229
+   Compiling tcl-regex v0.1.0 (/workspace/tcl-lsp/rust/tcl-regex)
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp/rust/tcl-registry)
+   Compiling tcl-bytecode v0.1.0 (/workspace/tcl-lsp/rust/tcl-bytecode)
+   Compiling ref-cast-impl v1.0.27
+   Compiling futures-macro v0.3.34
+   Compiling futures-util v0.3.34
+   Compiling ref-cast v1.0.27
+   Compiling der-parser v10.0.0
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+   Compiling oid-registry v0.8.1
+   Compiling x509-parser v0.18.1
+   Compiling fluent-uri v0.4.1
+   Compiling ls-types v0.0.6
+   Compiling dashmap v6.2.1
+   Compiling tower v0.5.3
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+   Compiling futures v0.3.34
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+   Compiling tower-lsp-server v0.23.0
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3m 42s
+  Executable unittests src/lib.rs (target/debug/deps/tcl_lsp_core-71879b3abc3aea80)

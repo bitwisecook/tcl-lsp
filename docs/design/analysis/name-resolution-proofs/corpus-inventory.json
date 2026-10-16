@@ -2551,6 +2551,54 @@
       "candidate": false
     },
     {
+      "path": "runtime/rust/tests/data/native_c_catch_original_output_names/8.4.20.tsv",
+      "sha256": "815e02e9826da475cf21102dc434e5623f5baa3934f9bf46827fc2771c1132a5",
+      "bytes": 218,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_c_catch_original_output_names/8.5.19.tsv",
+      "sha256": "83f68a7e981e14a989504ef71ade5a95c27d0c51eea8602a2918be663c9ca99e",
+      "bytes": 238,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_c_catch_original_output_names/8.6.18.tsv",
+      "sha256": "7e018fac2394568892441360bf4e801d682b6cd6370095bf1f1eaded24975bf5",
+      "bytes": 238,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_c_catch_original_output_names/9.0.4.tsv",
+      "sha256": "9b7e5c7f4e7e70aca9853f6ac4ceda599acd4bdf4c16ede76641b32092cbffd7",
+      "bytes": 234,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_c_catch_original_output_names/9.1.0.tsv",
+      "sha256": "6423e6b010b1e3c668bc10beaa2755ae8f179d4a2fcda1bcc5848bb092a39b49",
+      "bytes": 234,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_c_try_original_output_names/8.6.18.tsv",
+      "sha256": "96f1366f704a4a77b0c59b0bbd6b940ed9bb8b0a2e5e5606d19b970186477cbe",
+      "bytes": 544,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_c_try_original_output_names/9.0.4.tsv",
+      "sha256": "66a0e4215a46d2a14a7277f1313188b8d68502d533611cd56156ccf9580a4852",
+      "bytes": 538,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_c_try_original_output_names/9.1.0.tsv",
+      "sha256": "bcba4e19f5733615020011be77dc10a1db9dcea59e0ba27a0fcddaa2b23788cb",
+      "bytes": 538,
+      "candidate": false
+    },
+    {
       "path": "runtime/rust/tests/data/native_call_argv/argv-manifest.json",
       "sha256": "dffb571accd4cb468d7a9236a12468733903e1e8b9dc9c6a268a638d484ae9ef",
       "bytes": 5103,
@@ -7312,6 +7360,51 @@
         "naming.invocation.original-constant-captured-cell-after-write-trace"
       ],
       "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_detached_element_write_sites/original-var17.tcl",
+      "sha256": "3d50410f7208e80b2bb57b82243a4b7b8f48e8db46b962c497d036fb5c12f2e0",
+      "bytes": 722,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_detached_element_write_sites/original-var17.txt",
+      "sha256": "88409f926ceefa9c175f2f467170af4fe1a8e308bdbf596a8f9d404c1f22c219",
+      "bytes": 180,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_detached_element_write_sites/provenance.json",
+      "sha256": "c3262ccb8bb499656f2c5fab8205b2c00eaeb6fbc93c9b64133ad5ffbe6e9291",
+      "bytes": 3881,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [],
+      "reason": "Retained provenance sidecar binds three authored Tcl inputs and original C8.6 output fixtures by exact SHA-256; not a fresh execution receipt or a separate proof assertion."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_detached_element_write_sites/root-recreated-current-link.tcl",
+      "sha256": "55279a0554302cf488a39c1629b92196a74bae0977275474ab396dae6bf668e1",
+      "bytes": 615,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_detached_element_write_sites/root-recreated-current-link.txt",
+      "sha256": "17c5e040aba6cfdefc02f491a03bef4558c30c364f450e4873c73aec7cc71f90",
+      "bytes": 128,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_detached_element_write_sites/root-recreated-old-link.tcl",
+      "sha256": "62cbeb3cb0bf444c65e1490f220c5f067942514b264bb486dce99cba9d2434cb",
+      "bytes": 574,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_detached_element_write_sites/root-recreated-old-link.txt",
+      "sha256": "558e7d6c08eaab9a1407330d9f2cc2e69bfb9c2bd64bf190286faf5f89724c1f",
+      "bytes": 198,
+      "candidate": false
     },
     {
       "path": "runtime/rust/tests/data/native_dictionary_receiver/controls.tsv",
@@ -13229,6 +13322,240 @@
       "candidate": false
     },
     {
+      "path": "runtime/rust/tests/data/native_jim_captured_error_code_options/body.tcl",
+      "sha256": "a2c6687a65555f7cc9ebc2889f9d5b895c78442600b818197fecd77ddaea8799",
+      "bytes": 58,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_captured_error_code_options/observations-20261015.tsv",
+      "sha256": "0056dd8a3a959e7eaa9286a298d49a1c29ab0a72f3aef8aa0baff9e73cfb649e",
+      "bytes": 230,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_captured_error_code_options/ok-body.tcl",
+      "sha256": "1b9ce8d8b6acbeff20dac57989bcf1e36c1bfddc6bf96b6354804f61e37250c1",
+      "bytes": 36,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_catch_try_original_output_keys/global-call.tcl",
+      "sha256": "d96a455f5284cf3c87a9649144d524b17b77e549ac1c69378edd15b1d85be1a0",
+      "bytes": 87,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_catch_try_original_output_keys/global-setups.tsv",
+      "sha256": "2c59fbf7b6c5e14bd48c6b094687dba6e6465bee17bf32a8ea722680c2310df3",
+      "bytes": 98,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_catch_try_original_output_keys/observations-20261015.tsv",
+      "sha256": "ee09bf3c0428d8faa1e52019814b266e7b1c8c963fe25a227d2714aa2672a964",
+      "bytes": 822,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_command_inventory/original-key-objects-20261015.tsv",
+      "sha256": "641eb7f38e1ad3ac7b2e713968e02e0c144a102d5fd5ea26beedfcf03f51e8d5",
+      "bytes": 958,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_helper_literal_head/prefix-selection-20261015.tsv",
+      "sha256": "07284058c14a095fe27997aaa15ab7982285f8c94495ce8a2b653ca1271cc98a",
+      "bytes": 11503,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_import_source_completion/alias-report.tcl",
+      "sha256": "ce854beb727fe75410d9d7b044d46066620260f758ac0bf639023eb3a4bc7f6d",
+      "bytes": 172,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_import_source_completion/cases.tsv",
+      "sha256": "3ad6f65b706a9be66d0a0248e1dcefe127ae6178cc2311a54a9ec5cec2863414",
+      "bytes": 264,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_import_source_completion/commands-report.tcl",
+      "sha256": "27aa38d0320b77fdde949320abcf6933c9106b67d9f26975736fae7863ace5c8",
+      "bytes": 76,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_import_source_completion/cycle-input.tcl",
+      "sha256": "174358d48d0f3d747626a3a8ccfd8dde3e6174be2463237bfcbfd5e2830d580b",
+      "bytes": 34,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_import_source_completion/cycle-observation-20261015.tsv",
+      "sha256": "f3846f785b4ccfbb6f1d37b55d7e48db97527e75db98698d67b965f7d51ab6c8",
+      "bytes": 62,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_import_source_completion/cycle-setup.tcl",
+      "sha256": "e8ba76a3db1c043ef6cc3e7e0327384799ec5300db9ff23b28a386159ccee94f",
+      "bytes": 108,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_import_source_completion/observations-20261015.tsv",
+      "sha256": "c2f31974ef0f952fea2c4fac00c6644251ead8cc5f0e48a3a738d4f7fcdbe0df",
+      "bytes": 576,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_import_source_completion/setup.tcl",
+      "sha256": "b78136dd49ee23e5080e5c35f4e58ccb93d243e7db8202e4a504c0ee69d27c08",
+      "bytes": 148,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_import_source_reuse/observations-20261015.tsv",
+      "sha256": "557ef78eec94433e5f70668243e91d954a774a64f0a8759d48707cf98876c0e0",
+      "bytes": 443,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_import_source_reuse/scripts.tsv",
+      "sha256": "4731e1daf78159db7dc25b24ca09326a3d7d8506e37522ff8b638fcacb913017",
+      "bytes": 822,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_info_literal_script_forwarding/observations-20261015.tsv",
+      "sha256": "4702016f87712faa9a53c72a38914e10f86d843985fd84df15fad7f02a2e7c73",
+      "bytes": 1776,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_inventory_stage/getter-order-20261015.tsv",
+      "sha256": "fa3c631f57e92ef81ecf5b6d615c6d20488bade06c776d85cb89168b101d3d01",
+      "bytes": 9742,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_inventory_stage/helper-replacement-20261015.tsv",
+      "sha256": "3604169ba4c0400fd54f898f4463ea94a6ac443ad8b6d6dc187b9a96296f33e4",
+      "bytes": 1098,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_invocation/missing-result-20261015.tsv",
+      "sha256": "de3042f8999a0e4626fdc47a55814386fbe632e787dd63a6c8031e2e73cddc42",
+      "bytes": 1102,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_invocation/result-reset-20261015.tsv",
+      "sha256": "18a855c2c571cf0b6dcf5115f924c61121890a4b25f5851f969b793cce36fb5e",
+      "bytes": 1462,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_namespace_canonical/getter-order-20261015.tsv",
+      "sha256": "d99fa3a70c47f6aab7d77fbb857bbc2120dc197afb46121e5053c2ae1b125644",
+      "bytes": 964,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_namespace_canonical/which-helper-20261015.tsv",
+      "sha256": "4e23abc63da78186323436b20781b827c5e7ce1cc228be1411c1158f6fefc97a",
+      "bytes": 5473,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_namespace_code/getter-identity-20261015.tsv",
+      "sha256": "ff893d748294058cda90df79d445a533e6d2a9f08ba946562a44d2cc5a1fd011",
+      "bytes": 11556,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_namespace_delete/getter-identity-20261015.tsv",
+      "sha256": "fd7cca4286a150538f718a18b18c69eb0b8f8bd47b0bc9767e3688afc7d42ad6",
+      "bytes": 14600,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_namespace_info_local_dictionary/observations-20261015-01.tsv",
+      "sha256": "ba0afca86cf46da9864297363c60c131d998cdfcb760646442a2c6bc5cf43f38",
+      "bytes": 557,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_namespace_info_local_dictionary/observations-20261015-02.tsv",
+      "sha256": "8ab2eb48167a845a33fef08a73ad35e9a7515352ec1d9ca0cae00fa11c773177",
+      "bytes": 659,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_namespace_info_local_dictionary/setup-01.tcl",
+      "sha256": "9ce8414878994fa74cef462cb3d07a293d41814b40c6d390c041fc668d9f2d03",
+      "bytes": 85,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_namespace_info_local_dictionary/setup-02.tcl",
+      "sha256": "ae7ceb5eab2501d09b0d5d93ee0087f04838e5857d0aa930bfe284cbb4135fab",
+      "bytes": 376,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_namespace_info_projection/observations-20261015.tsv",
+      "sha256": "3a820a1b62379e570b39d022e47ce8b16cdc1ad24e30ca064805b21f54a42c52",
+      "bytes": 545,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_namespace_info_projection/setup.tcl",
+      "sha256": "1e58667f8a16911b90068a865266538c5234b219e543aa1e27574d91d05943c0",
+      "bytes": 336,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_namespace_inscope/getter-identity-20261015.tsv",
+      "sha256": "5c9225f3f257fff20b196fd57848184995e34b3f62e4f92b69946bb554098a33",
+      "bytes": 17154,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_namespace_origin/getter-identity-20261015.tsv",
+      "sha256": "a2154092b55b699badd3edf259933a46f4c3d2f62fd10dd25e22e137711125c5",
+      "bytes": 14886,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_namespace_parent/getter-identity-20261015.tsv",
+      "sha256": "2afb2b9e2f1f2ab79b0757c936e59db2a4b2208d2f933873a05ed40458d0f758",
+      "bytes": 9699,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_namespace_subcommand/table-20261015.tsv",
+      "sha256": "1d033b2832075641e9c5f4eea0eedbd983300c1b92417883192ff8c264ec549b",
+      "bytes": 118875,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_namespace_text/getter-identity-20261015.tsv",
+      "sha256": "1ed84b1943183b07a7e760c1dbd4aba84e9ec1e4bfeb10acbe43d2ccaf7cf213",
+      "bytes": 24446,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_namespace_upvar/helper-identity-20261015.tsv",
+      "sha256": "03c6aab9a203ae1cdebc2ec84d89beceb8de311f3dc02424b4cacea627e58f2b",
+      "bytes": 28694,
+      "candidate": false
+    },
+    {
       "path": "runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/8.4.20/receipt.json",
       "sha256": "573c0fcd67329814502c02264d814bc9489dc948a04c55019f989f3bb930ee40",
       "bytes": 4180,
@@ -13423,6 +13750,30 @@
       "candidate": false
     },
     {
+      "path": "runtime/rust/tests/data/native_jim_original_global_error_code_getter/call.tcl",
+      "sha256": "dcd1879733b26af318e1f38855b656d53bdfb03e8d12c18285a998bcead7b9b8",
+      "bytes": 85,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_original_global_error_code_getter/observations-20261015.tsv",
+      "sha256": "d57b3176098521f19a1cb08502159b475714b08b6d84ab7c601161f75bc21b66",
+      "bytes": 330,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_original_global_error_code_getter/setups.tsv",
+      "sha256": "1c1ae5a4223786e4ea0bfc18d4ae041d5f96019cfd75b1ff036176f056d1883e",
+      "bytes": 117,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_output_name_stages/observations-20261015.tsv",
+      "sha256": "75e2f7bcf788c6f55f8b21d26ccccf8c343fbd5aa0699a460e8270316650c484",
+      "bytes": 606,
+      "candidate": false
+    },
+    {
       "path": "runtime/rust/tests/data/native_jim_source_entry/error-frame-windows.json",
       "sha256": "3d9b96a5213219a9ba932288336c535479cb257ed0dedd9672a12cb87084e14c",
       "bytes": 2354,
@@ -13443,6 +13794,51 @@
         "naming.source.jim-original-source-entry"
       ],
       "reason": "Exact Jim source-only windows with independently retained full-source and LF/snippet hashes; no native invocation or source cache authority."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_tailcall/selection-20261015.tsv",
+      "sha256": "84700fc64b90a6e76018d3f18e75baa0013729028a21155465598410f184d6e1",
+      "bytes": 677,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_try_leading_switches/cases-20261015.json",
+      "sha256": "f158bfb1bf6c54fbde66d82a4f301d007438cd81157ca3066901f06a1fb11e55",
+      "bytes": 3100,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [],
+      "reason": "Authored 23-case JSON representation matches every field and row of the active cases-20261015.tsv input table. Rust tests consume the TSV, not this JSON companion. This is retained case data, not original-provider observations, a fresh run receipt or a separate semantic proof assertion."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_try_leading_switches/cases-20261015.tsv",
+      "sha256": "f0ba6ac6da7aecf83cf86ea94d01fdbdb7ee73e86647899798c7903250290eee",
+      "bytes": 544,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_try_leading_switches/observations-20261015.tsv",
+      "sha256": "78869f5035e26b773d25757965a09be799dd96e46fdd5f64b7bfe4f4e685c9f3",
+      "bytes": 8535,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_variable_inventory/getter-order-20261015.tsv",
+      "sha256": "8dab0665e633ef012de5674823c2ecaf8e4164f43626c8bd8e8b4504ec4eaa1d",
+      "bytes": 7718,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_variable_inventory/original-keys-20261015.tsv",
+      "sha256": "7c836bc9f01d9977d705e6d2b599c80eea17e55fff629e25502271a1bbee7b32",
+      "bytes": 652,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_variable_inventory/top-locals-20261015.tsv",
+      "sha256": "bbd22587e2c584e353eae140ce4a80b855f3f69230625ad41f5e36e82db8ee37",
+      "bytes": 326,
+      "candidate": false
     },
     {
       "path": "runtime/rust/tests/data/native_list_assignment_arity/8.4.20.txt",
@@ -65503,6 +65899,18 @@
       "reason": "All24 embedded process/guest outcomes inspected;18 message projections exactly match. Three questions separate noun/ambiguity, prefix resolution and zero-argument upvar surface/usage. Original script hashes remain metadata because presenter bytes are absent."
     },
     {
+      "path": "rust/tcl-cmd-core/tests/data/native_split_c86/README.md",
+      "sha256": "f3864731b2e5c95d9cf818859b7fbc3e23677f74daa16cbad302bd1ff04202c9",
+      "bytes": 620,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-cmd-core/tests/data/native_split_c86/rows.tsv",
+      "sha256": "ae2b22a650c64951940884d4f058edff458c089e6a0d176a8e8346e54edf9ba0",
+      "bytes": 1042,
+      "candidate": false
+    },
+    {
       "path": "rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/replay.py",
       "sha256": "2179bff726ed361014eb41ea0d4a5b26640b6261106e85ac763bbd77bdca6d76",
       "bytes": 1585,
@@ -97369,6 +97777,42 @@
       "candidate": false
     },
     {
+      "path": "rust/tcl-registry/tests/data/native_dying_descendant_physical/8.4.20/stdout.tsv",
+      "sha256": "fe913e6cbe53f45c6d5d5c25dd0a738ece1ca1bce9568e4dadec095bcc84efc8",
+      "bytes": 5223,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dying_descendant_physical/8.5.19/stdout.tsv",
+      "sha256": "55991ebccd18cced0bc85a3a4efaecfac614cea537fdcbb006c2abf1c0987af5",
+      "bytes": 5223,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dying_descendant_physical/8.6.18/stdout.tsv",
+      "sha256": "fdadcd039f56a2bbb9f36284a4213678aadfc8981fa8ee647cdea5e3eec513d4",
+      "bytes": 5223,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dying_descendant_physical/9.0.4/stdout.tsv",
+      "sha256": "1f550d2d251f5a8f06250fea567ee82f1044c565bc41176436d057d5b990869c",
+      "bytes": 5221,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dying_descendant_physical/9.1.0/stdout.tsv",
+      "sha256": "7fadd11dbe9cfe9c028a8e9c3e330bdb85be755c93d3214d9826c0f298a5f4af",
+      "bytes": 5221,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dying_descendant_physical/README.md",
+      "sha256": "766a8876bcb6c0138bc9281859cce4693f3bd11b40cd62e282d28c20719177d4",
+      "bytes": 1254,
+      "candidate": false
+    },
+    {
       "path": "rust/tcl-registry/tests/data/native_each_try_compilation/8.4.20.tsv",
       "sha256": "f36ba33c70fb4b121e481a0009ee28fc2d78037e367b9730a5fbaaa723475b87",
       "bytes": 10852,
@@ -127021,6 +127465,18 @@
       "candidate": false
     },
     {
+      "path": "rust/tcl-registry/tests/data/native_jim_apply_frame_argv/README.md",
+      "sha256": "3fbc080848b026f2692a9875c4405658db3d00a0a2852876414d4e0ef0783024",
+      "bytes": 655,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_apply_frame_argv/jim/stdout.tsv",
+      "sha256": "ca1a6342cf339f3c93a27d8162c49ef4d6550a38c56ca4afa3027462d4ad64f7",
+      "bytes": 1895,
+      "candidate": false
+    },
+    {
       "path": "rust/tcl-registry/tests/data/native_jim_child_object_crossing302/capture.py",
       "sha256": "a9f403c8344404007c3d5acf2033a1cef119f5636c132d2077fe40877f262c1b",
       "bytes": 4038,
@@ -132290,6 +132746,57 @@
       "reason": "Exact original finite input request."
     },
     {
+      "path": "rust/tcl-registry/tests/data/native_jim_exists/README.md",
+      "sha256": "4aa62180fe2404b72565e9e30a1de8d0bb16d9ecf9ae78fca248866c072ec8e4",
+      "bytes": 724,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_exists/driver.tcl",
+      "sha256": "05af6bec6c439ea4710a18d837dcde098041763ac10150a6346de55ad3e8fcdc",
+      "bytes": 2097,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_exists/exists.tcl",
+      "sha256": "6c62ae3ff0f7cb73eb3c1074a27686aba07192540b60f5502b247e9924e43ecc",
+      "bytes": 2075,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_exists/receipt.json",
+      "sha256": "de8068bc29612c5f463a23874d6d318c37c48f74c82f32bd1fc51a34faa19480",
+      "bytes": 1410,
+      "candidate": true,
+      "classification": "provider-scaffolding",
+      "proof_ids": [],
+      "reason": "Pinned original Jim source/driver and output-digest receipt supporting the fixed exists.tcl/stdout fixtures. Not a Rust execution result; no independent proof-manifest association asserted."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_exists/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_exists/stdout",
+      "sha256": "ea11bf58aa3937e016eb59da754671adc23e324c294ce795d65a37bc0910a1ce",
+      "bytes": 874,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_first_substitution/README.md",
+      "sha256": "23cd251521522aa7c985476fecabef5798a3ed1f3cc4e9d531093417dd566436",
+      "bytes": 654,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_first_substitution/jim/stdout.tsv",
+      "sha256": "bc4152608250e0619001ecf4104ebaab902ad8c028ca84cc69e3c0a43b46cfbd",
+      "bytes": 1747,
+      "candidate": false
+    },
+    {
       "path": "rust/tcl-registry/tests/data/native_jim_flat_namespace_original/capture.py",
       "sha256": "ad5af8dadd1e08410aeb5f0b8d0c3bb995130dee5ab57de6c7db9e8aaf579ee1",
       "bytes": 1985,
@@ -134139,6 +134646,30 @@
       "path": "rust/tcl-registry/tests/data/native_jim_info_helper_forwarding258/root-launch.log",
       "sha256": "25d2b20ebb149e2379dfb8d54ec74ae2e9b5df6a6b48a5bffc5013a140e30015",
       "bytes": 5531,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_lambda_deferred_context/README.md",
+      "sha256": "aaa34184c40ffa7e1fb3e1cee786c3efc1b48e2613d213ca6a845fe8d6e7ed15",
+      "bytes": 1154,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_lambda_deferred_context/jim/stdout.tsv",
+      "sha256": "c70842fe561d668083b423a232a307301f97a8830ba5fd107578814bc2c2ee56",
+      "bytes": 1038,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_lambda_deferred_context/probe.c",
+      "sha256": "a23b325f673d16773e3b8e5a4187f1b3e78909fda66c4be3f8ee8033e7f72218",
+      "bytes": 1883,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_lambda_namespace_preflight/jim/stdout.tsv",
+      "sha256": "5c6499933353cd440f5719f437ac19081116f6ef36f38891250624ccba9469a6",
+      "bytes": 798,
       "candidate": false
     },
     {
@@ -136044,6 +136575,18 @@
       "reason": "Exact original finite input request."
     },
     {
+      "path": "rust/tcl-registry/tests/data/native_jim_namespace_helper_sources/original-20261015.tsv",
+      "sha256": "f1ce79078b5b62fa6c242268f930e007b8e4af804cad043a15d83528527255e6",
+      "bytes": 29674,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_namespace_which/nshelper.tcl",
+      "sha256": "97c67e98b1bef86c9564044dbed0d5110b38ba0fd416980663101f65b0066627",
+      "bytes": 3917,
+      "candidate": false
+    },
+    {
       "path": "rust/tcl-registry/tests/data/native_jim_package_hidden_list/probe.tcl",
       "sha256": "fbd0e3c6b630c0bf4dd82a79a7e9b1328f1cd7549d7980106f7975ea3ab76592",
       "bytes": 152,
@@ -137792,6 +138335,36 @@
         "naming.lambda.original-parameter-error-frame"
       ],
       "reason": "Actual immutable original capture receipt with exact source/inputs/provider/streams association. v1/v2 remain distinct; C8.4 converter unavailable and Jim C options unqueried."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_lambda_missing_namespace_report/8.4.20/stdout.tsv",
+      "sha256": "a78abb58a0cf7500e5c3316554d854a28df4d4001d2393ce7c84cff9484dfa33",
+      "bytes": 4501,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_lambda_missing_namespace_report/8.5.19/stdout.tsv",
+      "sha256": "15a052130a36f4ceb33efe0363ca1f37f6054d2aeebe2247e039b404c44c5dec",
+      "bytes": 5224,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_lambda_missing_namespace_report/8.6.18/stdout.tsv",
+      "sha256": "ce878702b8c546659f097646d592bbb2d10edde7a2e4be63a56518df6301f558",
+      "bytes": 5224,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_lambda_missing_namespace_report/9.0.4/stdout.tsv",
+      "sha256": "a2d8190d97cb01f33bc04372d18821d65ac71459235a8ab4e6aeecc4396d8de8",
+      "bytes": 5222,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_lambda_missing_namespace_report/9.1.0/stdout.tsv",
+      "sha256": "e9c602f4b0e1dfb6188ae863d0aad7befc5c1d5ed8918ce9e06609a9651c5640",
+      "bytes": 5222,
+      "candidate": false
     },
     {
       "path": "rust/tcl-registry/tests/data/native_lambda_namespace_source/8.4.20/receipt.json",
@@ -182435,6 +183008,12 @@
       "candidate": false
     },
     {
+      "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/selected-inputs/wasmtime-49.0.2/REDACTION.md",
+      "sha256": "2ed64ad40c960dc9d0985328c85c9bc9608545e263a0c27eceec242cf9f063d0",
+      "bytes": 1808,
+      "candidate": false
+    },
+    {
       "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/selected-inputs/wasmtime-49.0.2/wasmtime.gz",
       "sha256": "17e1908875b27586e59632bc4e5fe54a33242930ecd2ff0f7be069ff0dfe95b4",
       "bytes": 227,
@@ -199392,6 +199971,30 @@
       "candidate": false
     },
     {
+      "path": "rust/tcl-vm/tests/data/native_jim_helper_literal_head/prefix-selection-20261015.tsv",
+      "sha256": "07284058c14a095fe27997aaa15ab7982285f8c94495ce8a2b653ca1271cc98a",
+      "bytes": 11503,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-vm/tests/data/native_jim_namespace_canonical/current-holder-20261015.tsv",
+      "sha256": "85822b1e6ef0f077781585d48d54b49f71fff0c43c7fa1fe0a4c625bf48e9a98",
+      "bytes": 2706,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-vm/tests/data/native_jim_namespace_parent/getter-identity-20261015.tsv",
+      "sha256": "2afb2b9e2f1f2ab79b0757c936e59db2a4b2208d2f933873a05ed40458d0f758",
+      "bytes": 9699,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-vm/tests/data/native_jim_namespace_subcommand/table-20261015.tsv",
+      "sha256": "c95c1754424cf11e9d8c7a613c47fddb5be9f494e429f36add88113fd364a202",
+      "bytes": 92647,
+      "candidate": false
+    },
+    {
       "path": "rust/tcl-vm/tests/data/native_lassign_argv_evaluation/replay.py",
       "sha256": "10c79a67ddbe7b74131091a1ce1b3245f56f9182a8caf2431eb874274c073d62",
       "bytes": 4413,
@@ -204850,6 +205453,18 @@
       "path": "scripts/dev/bigip-probes/resolution-2286/evidence-receiver.py",
       "sha256": "4205747193b60aa096fe152198c2cf3ec1e1e4df6a571f567e381307de076fcd",
       "bytes": 2599,
+      "candidate": false
+    },
+    {
+      "path": "scripts/dev/bigip-probes/resolution-2286/evidence/CURRENT_TRANSPORT_SHA256SUMS",
+      "sha256": "c5b20e97980a7cc03a43f6ea779d207190335ee454f466630f1e53462fd8363c",
+      "bytes": 133293,
+      "candidate": false
+    },
+    {
+      "path": "scripts/dev/bigip-probes/resolution-2286/evidence/TRANSPORT_PROJECTION.md",
+      "sha256": "00ac405e9258f87170a0dc8bc17e1dc025c1989e5162cc2b9a734e933ad8c4a4",
+      "bytes": 787,
       "candidate": false
     },
     {

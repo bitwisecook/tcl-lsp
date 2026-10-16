@@ -826,6 +826,9 @@ fn scan_deep<'p>(
         // arg recurses just like a shipped one.
         let roles = view.as_ref().map_or_else(Vec::new, |view| {
             let mut roles = view.parameter_role_advice().written_roles();
+            if let Some(shape) = view.conditional_parameter_source_shape(ctx.parameters) {
+                roles.extend(shape.written_argument_roles());
+            }
             roles.extend(view.declared_roles.iter().copied());
             roles
         });
@@ -1140,6 +1143,33 @@ fn scan_command<'p>(
         aliases.clear();
         return;
     };
+    if let Some(shape) = view.conditional_parameter_source_shape(ctx.parameters)
+        && let Some(selected) = view.conditional_parameter_source_invocation(ctx.parameters)
+    {
+        // Conditional symbolic source usage is a separate May report. Actual
+        // observer/lookup debt remains on its genuine prefix; no closed,
+        // definite, successful alias or runtime write follows from this path.
+        apply_arg_role_traits(
+            &shape.written_argument_roles(),
+            cmd_args,
+            braced,
+            values,
+            traits,
+        );
+        apply_possible_evaluation_traits(
+            std::slice::from_ref(shape),
+            cmd_args,
+            braced,
+            values,
+            traits,
+        );
+        record_selected_aliases(view, selected, values, traits, aliases);
+        apply_definite_writes(view, selected, values, traits, aliases);
+        if shape.may_execute_parameter_body() {
+            aliases.clear();
+        }
+        return;
+    }
     if !view.parameter_role_advice().is_closed() {
         aliases.clear();
         apply_arg_role_traits(&view.declared_roles, cmd_args, braced, values, traits);
@@ -1150,7 +1180,7 @@ fn scan_command<'p>(
     let advice = view.parameter_role_advice();
     apply_arg_role_traits(&advice.written_roles(), cmd_args, braced, values, traits);
     apply_arg_role_traits(&view.declared_roles, cmd_args, braced, values, traits);
-    apply_possible_evaluation_traits(advice, cmd_args, braced, values, traits);
+    apply_possible_evaluation_traits(advice.candidates(), cmd_args, braced, values, traits);
     if let Some(selected) = view.parameter_invocation(ctx.parameters) {
         record_selected_aliases(view, selected, values, traits, aliases);
         apply_definite_writes(view, selected, values, traits, aliases);
@@ -1163,14 +1193,14 @@ fn scan_command<'p>(
 }
 
 fn apply_possible_evaluation_traits<'p>(
-    advice: &crate::registry_invocation::ParameterRoleAdvice,
+    candidates: &[crate::registry_invocation::RegistryInvocationShape],
     args: &[String],
     braced: &[bool],
     values: &ArgumentValues<'p>,
     traits: &mut HashMap<&'p str, HashSet<ProcArgTrait>>,
 ) {
     use tcl_registry::Traits;
-    for candidate in advice.candidates() {
+    for candidate in candidates {
         for (index, role) in candidate.written_argument_roles() {
             if role == ArgRole::Body
                 && !braced.get(index).copied().unwrap_or(false)
@@ -1250,7 +1280,7 @@ fn record_selected_aliases<'p>(
     traits: &mut HashMap<&'p str, HashSet<ProcArgTrait>>,
     aliases: &mut Aliases<'p>,
 ) {
-    let Some((_, first)) = selected_alias_layout(selected) else {
+    let Some((_, first)) = selected_alias_layout(view, selected) else {
         return;
     };
     for source in (first..selected.arguments.len()).step_by(2) {
@@ -1288,9 +1318,13 @@ fn record_selected_aliases<'p>(
 }
 
 fn selected_alias_layout(
+    view: &crate::registry_invocation::InvocationBodyAssistance,
     selected: &crate::registry_invocation::ResolvedStatementInvocation,
 ) -> Option<(tcl_registry::frame_effect::FrameLevel, usize)> {
     use tcl_registry::frame_effect::{FrameArgLayout, FrameArgumentResolution, FrameLevel};
+    if let Some(layout) = view.conditional_parameter_source_alias_layout(selected) {
+        return layout;
+    }
     let namespace_alias = selected
         .facts
         .state_transitions
@@ -1339,7 +1373,7 @@ fn apply_definite_writes<'p>(
     traits: &mut HashMap<&'p str, HashSet<ProcArgTrait>>,
     aliases: &mut Aliases<'p>,
 ) {
-    if selected_alias_layout(selected).is_some() {
+    if selected_alias_layout(view, selected).is_some() {
         return;
     }
     // Freeze the read-side copy before applying this command's writes.
@@ -1548,10 +1582,13 @@ pub fn caller_frame_upvar_params(
         let Some(view) = ctx.body_assistance(body_source, seg) else {
             continue;
         };
-        let Some(selected) = view.parameter_invocation(params) else {
+        let Some(selected) = view
+            .parameter_invocation(params)
+            .or_else(|| view.conditional_parameter_source_invocation(params))
+        else {
             continue;
         };
-        let Some((level, first)) = selected_alias_layout(selected) else {
+        let Some((level, first)) = selected_alias_layout(&view, selected) else {
             continue;
         };
         if !level.is_caller_frame() {
@@ -1646,7 +1683,7 @@ pub fn caller_frame_literal_targets(
         let Some(selected) = view.caller_name_template_invocation() else {
             continue;
         };
-        if let Some((level, first)) = selected_alias_layout(selected) {
+        if let Some((level, first)) = selected_alias_layout(&view, selected) {
             if !level.is_caller_frame() {
                 continue;
             }
@@ -1766,6 +1803,10 @@ mod tests {
         assert!(traits["name"].contains(&ProcArgTrait::VarWrite));
         assert!(traits["name"].contains(&ProcArgTrait::VarRead));
         assert_eq!(
+            caller_frame_upvar_params(&["name"], text, env),
+            HashSet::from(["name".to_owned()])
+        );
+        assert_eq!(
             analysis
                 .original_procedure_declarations()
                 .next()
@@ -1810,9 +1851,56 @@ mod tests {
             content.start(),
         )
         .unwrap();
-        assert!(view.parameter_role_advice().is_closed());
-        assert!(view.parameter_invocation(&["name"]).is_some());
+        // This current formal read retains real observer/lookup debt. Its
+        // source recipe must never become a closed execution candidate.
+        assert!(!view.parameter_role_advice().is_closed());
+        assert!(view.parameter_role_advice().candidates().is_empty());
+        assert!(view.parameter_invocation(&["name"]).is_none());
         assert!(view.parameter_invocation(&["other"]).is_none());
+        assert!(view.caller_name_template_invocation().is_none());
+        let shape = view.conditional_parameter_source_shape(&["name"]).unwrap();
+        let selected = view
+            .conditional_parameter_source_invocation(&["name"])
+            .unwrap();
+        assert_eq!(shape.command, selected.facts.canonical_command);
+        assert_eq!(
+            shape.written_argument_roles(),
+            selected.written_argument_roles()
+        );
+        assert!(
+            view.conditional_parameter_source_shape(&["other"])
+                .is_none()
+        );
+        assert!(
+            view.conditional_parameter_source_invocation(&["other"])
+                .is_none()
+        );
+        let source_words = crate::registry_invocation::source_structure::source_registry_words_at(
+            source,
+            &analysis,
+            content.start(),
+        )
+        .unwrap();
+        let crate::registry_invocation::source_structure::OriginalRegistrySource::SourceTransitions(
+            advice,
+        ) = source_words.source()
+        else {
+            panic!("actual source advice");
+        };
+        let prefix = body
+            .parameter_source_prefix(advice.original_words())
+            .unwrap();
+        assert!(prefix.matches_body(body, input));
+        assert_eq!(prefix.operations().len(), 1);
+        assert_eq!(prefix.formal_read_count(), 1);
+        assert_eq!(
+            prefix.current().unwrap().original_words(),
+            advice.original_words()
+        );
+        assert!(!prefix.current().unwrap().uncertain_operations().is_empty());
+        assert!(prefix.current().unwrap().obligations().contains(
+            &crate::command_binding::SourceCommandTransitionObligation::UnknownEarlierMutation,
+        ));
         assert!(view.definite_invocation.is_none());
         assert!(view.definite_roles.is_empty());
         assert!(view.definite_traits.is_empty());
@@ -1899,6 +1987,54 @@ mod tests {
                 .find(|record| record.metadata().name == "reader")
                 .unwrap();
             assert!(record.metadata().param_traits.is_empty(), "{source}");
+        }
+    }
+
+    #[test]
+    fn conditional_parameter_source_prefix_keeps_unknown_callbacks_and_scope_mutations_terminal() {
+        for source in [
+            "proc reader {name} {unknown_effect; set $name 1}",
+            "proc reader {name} {eval $name; set $name 1}",
+            "proc reader {name} {set tmp [unknown_effect]; set $name 1}",
+            "proc reader {name} {trace add variable name read callback; set $name 1}",
+            "proc reader {name} {proc set {args} {}; set $name 1}",
+            "proc reader {name} {rename set old; set $name 1}",
+            "proc reader {name} {if 1 {unknown_effect}; set $name 1}",
+        ] {
+            let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
+            let input = analysis.resolved_input.as_ref().unwrap();
+            let realm = analysis.retained_command_realm().unwrap();
+            let cards = realm.original_logical_procedure_body_cards(input).unwrap();
+            let body = cards
+                .iter()
+                .find(|body| body.name() == Some("reader"))
+                .unwrap();
+            let offset = u32::try_from(source.rfind("set $name 1").unwrap()).unwrap();
+            let current = crate::registry_invocation::source_structure::source_registry_words_at(
+                source, &analysis, offset,
+            );
+            if let Some(current) = current {
+                let crate::registry_invocation::source_structure::OriginalRegistrySource::SourceTransitions(advice) = current.source() else { continue; };
+                assert!(
+                    body.parameter_source_prefix(advice.original_words())
+                        .is_none(),
+                    "{source}"
+                );
+            }
+            // An earlier eval can still report Eval at its own source point;
+            // it cannot donate later dynamic-name or alias-write observations.
+            let traits = &analysis
+                .original_procedure_declarations()
+                .find(|row| row.metadata().name == "reader")
+                .unwrap()
+                .metadata()
+                .param_traits;
+            assert!(
+                !traits
+                    .get("name")
+                    .is_some_and(|traits| traits.contains(&ProcArgTrait::DynamicNameLocal)),
+                "{source}"
+            );
         }
     }
 

@@ -1,0 +1,22 @@
+
+running 4 tests
+test analyser::param_traits::tests::original_logical_parameter_roles_keep_authored_body_and_formals_without_entry ... 
+thread 'analyser::param_traits::tests::original_logical_parameter_roles_keep_authored_body_and_formals_without_entry' (89886) panicked at rust/tcl-compiler/src/analyser/param_traits.rs:1766:23:
+no entry found for key
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test analyser::param_traits::tests::original_logical_parameter_roles_keep_nested_frames_separate_from_same_frame_bodies ... ok
+test analyser::param_traits::tests::original_logical_parameter_roles_preserve_actual_body_lookup_barriers ... ok
+test analyser::param_traits::tests::original_logical_parameter_roles_require_original_formal_order_before_role_application ... 
+thread 'analyser::param_traits::tests::original_logical_parameter_roles_require_original_formal_order_before_role_application' (89910) panicked at rust/tcl-compiler/src/analyser/param_traits.rs:1840:62:
+no entry found for key
+FAILED
+
+failures:
+
+failures:
+    analyser::param_traits::tests::original_logical_parameter_roles_keep_authored_body_and_formals_without_entry
+    analyser::param_traits::tests::original_logical_parameter_roles_require_original_formal_order_before_role_application
+
+test result: FAILED. 2 passed; 2 failed; 0 ignored; 0 measured; 10227 filtered out; finished in 20.07s
+

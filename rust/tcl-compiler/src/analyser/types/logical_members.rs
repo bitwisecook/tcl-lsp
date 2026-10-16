@@ -377,12 +377,18 @@ impl AnalysisResult {
                     (MemberSide::ClassObject, &class.class_methods),
                 ] {
                     let has_frame = members.values().any(|method| {
-                        method.body_span.start() == frame.source().base()
-                            && image
-                                .try_text()
-                                .ok()
-                                .and_then(|source| source.get(method.body_span.as_range()))
-                                == frame.source().try_text().ok()
+                        class
+                            .original_members
+                            .logical_body_operand(side, method, input, image)
+                            .and_then(|body| body.content_span().ok())
+                            .is_some_and(|content| {
+                                content.start() == frame.source().base()
+                                    && image
+                                        .try_text()
+                                        .ok()
+                                        .and_then(|source| source.get(content.as_range()))
+                                        == frame.source().try_text().ok()
+                            })
                     });
                     if !has_frame {
                         continue;

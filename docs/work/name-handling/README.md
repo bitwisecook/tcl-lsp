@@ -1,13 +1,13 @@
 # Centralised name handling on work
 
-Implementation has resumed from `554085e`. **103 baseline units** have reviewed
-implementation pending validation: 49 code units and all 54 authored-documentation
+Implementation has resumed from `554085e`. **108 baseline units** have reviewed
+implementation pending validation: 54 code units and all 54 authored-documentation
 units. **Zero units are verified complete**. Baseline counts remain **2,158**;
-2,055 baseline units have no integrated implementation. The bounded
-[owner/caller annex](implementation-owner-annex.json) adds **28 demonstrated
-requirements**, all 28 of which have integrated implementation pending validation.
-Effective scope is **2,186 obligations**, with **131 integrated pending validation**
-and **2,055 not integrated**. These counts establish neither semantic acceptance
+2,050 baseline units have no integrated implementation. The bounded
+[owner/caller annex](implementation-owner-annex.json) adds **29 demonstrated
+requirements**, all 29 of which have integrated implementation pending validation.
+Effective scope is **2,187 obligations**, with **137 integrated pending validation**
+and **2,050 not integrated**. These counts establish neither semantic acceptance
 nor completed gates.
 
 Development checkpoint `2d5823c90` is pushed to `work`. Its fresh ordinary

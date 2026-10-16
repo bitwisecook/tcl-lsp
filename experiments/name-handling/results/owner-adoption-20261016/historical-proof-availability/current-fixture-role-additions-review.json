@@ -1,0 +1,14 @@
+{
+  "utc": "2026-10-16T12:04:13.087217+00:00",
+  "files_added": 101,
+  "all_existing_inventory_rows_unchanged": true,
+  "source_role": "98 nonJSON corpus members;3JSONinput/provider scaffolding; no Native observation assertions",
+  "try_case_json_vs_active_tsv": {
+    "rows": 23,
+    "all_columns_equal": true,
+    "json_loaded_by_rust": false,
+    "classification": "input-fixture"
+  },
+  "semantic_acceptance": false,
+  "restored_binary_execution": false
+}

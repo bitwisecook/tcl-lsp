@@ -1287,8 +1287,8 @@ pub struct InterpState {
     pub(crate) framework_builtins: Vec<crate::embed::FrameworkBuiltinCapability>,
     pub(crate) active_native_profile: Option<&'static tcl_dialect::DialectProfile>,
     /// The actual embedding engine, explicitly selected independently of source
-    /// grammar, logical emulation and command availability. None retains the
-    /// ordinary profile's measured engine; an availability override never sets it.
+    /// grammar, logical emulation and command availability. An absent explicit
+    /// engine supplies no measured Native execution point; availability cannot set it.
     actual_engine_profile: Option<&'static tcl_dialect::DialectProfile>,
     jim_object_context: RefCell<Option<Rc<crate::value::NativeJimObjectContext>>>,
     native_c_result: RefCell<Option<Value>>,
@@ -3014,7 +3014,7 @@ impl InterpState {
     pub(crate) fn actual_native_execution_profile(&self) -> &'static tcl_dialect::DialectProfile {
         self.active_native_profile
             .or(self.actual_engine_profile)
-            .unwrap_or_else(|| self.native_execution_profile())
+            .unwrap_or_else(tcl_dialect::DialectProfile::plain_tcl)
     }
 
     pub(crate) fn actual_native_invocation_dialect(&self) -> tcl_registry::InvocationDialect {

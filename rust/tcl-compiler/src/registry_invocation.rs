@@ -5192,6 +5192,21 @@ pub struct RegistryInvocationShape {
 }
 
 impl RegistryInvocationShape {
+    /// Possible authored body evaluation within this shape. This establishes
+    /// no entered frame, callback execution or closed invocation alternatives.
+    pub(crate) fn may_execute_parameter_body(&self) -> bool {
+        self.possible_traits
+            .contains(tcl_registry::Traits::PERFORMS_SUBSTITUTION)
+            || self.roles.iter().any(|(_, role)| {
+                matches!(
+                    role,
+                    tcl_registry::ArgRole::Body
+                        | tcl_registry::ArgRole::LambdaLiteral
+                        | tcl_registry::ArgRole::CommandPrefix
+                )
+            })
+    }
+
     fn from_hosted_source(
         registry: &CommandRegistry,
         context: InvocationMetadataContext<'_>,
@@ -6173,19 +6188,9 @@ impl ParameterRoleAdvice {
     }
 
     pub(crate) fn may_execute_body(&self) -> bool {
-        self.candidates.iter().any(|candidate| {
-            candidate
-                .possible_traits
-                .contains(tcl_registry::Traits::PERFORMS_SUBSTITUTION)
-                || candidate.roles.iter().any(|(_, role)| {
-                    matches!(
-                        role,
-                        tcl_registry::ArgRole::Body
-                            | tcl_registry::ArgRole::LambdaLiteral
-                            | tcl_registry::ArgRole::CommandPrefix
-                    )
-                })
-        })
+        self.candidates
+            .iter()
+            .any(RegistryInvocationShape::may_execute_parameter_body)
     }
 }
 
@@ -6195,6 +6200,8 @@ struct ReceiverTraitInvocation {
 }
 
 struct LogicalTraitInvocation {
+    /// Separate conditional source recipe; never enters production closed advice.
+    source_parameter_shape: Option<RegistryInvocationShape>,
     input: crate::analyser::ResolvedAnalysisInput,
     body: std::sync::Arc<crate::command_binding::OriginalLogicalProcedureBody>,
     words: source_structure::OriginalRegistryWords,
@@ -6223,7 +6230,13 @@ impl InvocationBodyAssistance {
         selected: &ResolvedStatementInvocation,
         argument: usize,
     ) -> Option<String> {
-        std::ptr::eq(self.caller_name_template_invocation()?, selected).then_some(())?;
+        (self
+            .caller_name_template_invocation()
+            .is_some_and(|actual| std::ptr::eq(actual, selected))
+            || self
+                .conditional_parameter_source()
+                .is_some_and(|owned| std::ptr::eq(&owned.invocation, selected)))
+        .then_some(())?;
         if let Some(owned) = &self.logical_trait_invocation
             && std::ptr::eq(&owned.invocation, selected)
         {
@@ -6272,8 +6285,97 @@ impl InvocationBodyAssistance {
             .or_else(|| {
                 self.logical_trait_invocation
                     .as_ref()
+                    .filter(|owned| owned.source_parameter_shape.is_none())
                     .map(|owned| &owned.invocation)
             })
+    }
+
+    fn conditional_parameter_source(&self) -> Option<&LogicalTraitInvocation> {
+        let owned = self.logical_trait_invocation.as_ref()?;
+        owned.source_parameter_shape.as_ref()?;
+        let source_structure::OriginalRegistrySource::SourceTransitions(advice) =
+            owned.words.source()
+        else {
+            return None;
+        };
+        let prefix = owned
+            .body
+            .parameter_source_prefix(advice.original_words())?;
+        prefix
+            .matches_body(&owned.body, &owned.input)
+            .then_some(())?;
+        (prefix.current() == Some(advice.as_ref())).then_some(owned)
+    }
+
+    /// Exact conditional own-formal source shape. Original observer/lookup
+    /// applicability stays retained on the body prefix, independently of the
+    /// closed execution candidate advice and successful caller operations.
+    pub(crate) fn conditional_parameter_source_shape(
+        &self,
+        parameters: &[&str],
+    ) -> Option<&RegistryInvocationShape> {
+        let owned = self.conditional_parameter_source()?;
+        owned
+            .body
+            .parameters()
+            .iter()
+            .map(|formal| formal.name.as_str())
+            .eq(parameters.iter().copied())
+            .then_some(())?;
+        owned.source_parameter_shape.as_ref()
+    }
+
+    /// Source-only symbolic operand layout. This is never returned by the
+    /// generic parameter/caller-template invocation or definite accessors.
+    pub(crate) fn conditional_parameter_source_invocation(
+        &self,
+        parameters: &[&str],
+    ) -> Option<&ResolvedStatementInvocation> {
+        self.conditional_parameter_source_shape(parameters)?;
+        Some(&self.conditional_parameter_source()?.invocation)
+    }
+
+    /// Conditional source alias layout from the same retained Registry source
+    /// schema. Outer None means this is not that purpose; inner None preserves
+    /// an unavailable layout without falling through to Native success rules.
+    pub(crate) fn conditional_parameter_source_alias_layout(
+        &self,
+        selected: &ResolvedStatementInvocation,
+    ) -> Option<Option<(tcl_registry::FrameLevel, usize)>> {
+        let owned = self.conditional_parameter_source()?;
+        std::ptr::eq(&owned.invocation, selected).then_some(())?;
+        Some(
+            owned
+                .words
+                .with_source_schema(owned.input.borrowed_context_registry(), |schema| {
+                    let aliases = schema.authored_logical_source_variable_aliases()?;
+                    if let Some(first) = aliases
+                        .iter()
+                        .filter_map(|alias| {
+                            matches!(
+                                alias.target,
+                                tcl_registry::VariableAliasTarget::Namespace { .. }
+                            )
+                            .then_some(alias.words.target)
+                        })
+                        .min()
+                    {
+                        return Some((tcl_registry::FrameLevel::Dynamic, first));
+                    }
+                    (schema.semantics.frame_effect?.layout
+                        == tcl_registry::FrameArgLayout::AliasPairs)
+                        .then_some(())?;
+                    match schema.authored_logical_source_frame_argument_layout()? {
+                        tcl_registry::frame_effect::FrameArgumentResolution::Valid {
+                            level,
+                            level_word_len,
+                        } => Some((level, level_word_len)),
+                        tcl_registry::frame_effect::FrameArgumentResolution::Unknown
+                        | tcl_registry::frame_effect::FrameArgumentResolution::Invalid => None,
+                    }
+                })
+                .flatten(),
+        )
     }
 
     /// The actual original descriptor decides whether this script operand
@@ -6321,6 +6423,9 @@ impl InvocationBodyAssistance {
             })
             .or_else(|| {
                 let owned = self.logical_trait_invocation.as_ref()?;
+                if owned.source_parameter_shape.is_some() {
+                    return None;
+                }
                 let formal_names = owned
                     .body
                     .parameters()
@@ -6984,7 +7089,13 @@ pub(crate) fn logical_parameter_body_assistance(
         return None;
     };
     let scope = advice.logical_source_scope()?;
-    if !advice.has_named_only_logical_summary_descriptor()
+    let conditional_source = body
+        .parameter_source_prefix(advice.original_words())
+        .is_some_and(|prefix| {
+            prefix.matches_body(body, input) && prefix.current() == Some(advice.as_ref())
+        });
+    let named_only = advice.has_named_only_logical_summary_descriptor();
+    if (!named_only && !conditional_source)
         || scope.frame_recipe()
             != crate::command_binding::OriginalDeclaredSourceBodyFrame::Procedure
         || scope.scope_body() != body.scope().scope_body()
@@ -7033,14 +7144,22 @@ pub(crate) fn logical_parameter_body_assistance(
         command,
         Some(context),
     )?;
-    view.parameter_advice = ParameterRoleAdvice {
-        candidates: vec![RegistryInvocationShape::from_facts(
-            &invocation.facts,
-            invocation.effective.clone(),
-        )],
-        closed: true,
+    let shape =
+        RegistryInvocationShape::from_facts(&invocation.facts, invocation.effective.clone());
+    let source_parameter_shape = if named_only {
+        view.parameter_advice = ParameterRoleAdvice {
+            candidates: vec![shape],
+            closed: true,
+        };
+        None
+    } else {
+        // This source recipe retains unresolved formal-read/observer debt. It
+        // cannot donate candidates or closed state to execution assistance.
+        view.parameter_advice = ParameterRoleAdvice::default();
+        Some(shape)
     };
     view.logical_trait_invocation = Some(LogicalTraitInvocation {
+        source_parameter_shape,
         input: input.clone(),
         body: std::sync::Arc::clone(body),
         words,

@@ -1,0 +1,353 @@
+   Compiling libc v0.2.190
+    Checking cfg-if v1.0.5
+    Checking zeroize v1.9.0
+    Checking subtle v2.6.1
+    Checking typenum v1.20.1
+    Checking cmov v0.5.4
+    Checking ctutils v0.4.2
+    Checking hybrid-array v0.4.15
+    Checking rand_core v0.10.1
+   Compiling getrandom v0.4.3
+    Checking crypto-common v0.2.2
+    Checking block-buffer v0.12.1
+    Checking const-oid v0.10.2
+   Compiling syn v3.0.6
+   Compiling autocfg v1.5.1
+   Compiling num-traits v0.2.19
+    Checking cpufeatures v0.3.1
+    Checking digest v0.11.3
+   Compiling serde_core v1.0.229
+    Checking block-padding v0.4.2
+    Checking inout v0.2.2
+    Checking cipher v0.5.2
+   Compiling jobserver v0.1.35
+   Compiling cc v1.6.0
+    Checking bitflags v2.13.2
+    Checking sha2 v0.11.0
+    Checking cpubits v0.1.1
+    Checking memchr v2.8.3
+   Compiling thiserror-impl v2.0.21
+    Checking thiserror v2.0.21
+    Checking base64ct v1.8.3
+    Checking pem-rfc7468 v1.0.0
+    Checking chacha20 v0.10.2
+    Checking num-integer v0.1.47
+   Compiling tcl-dialect v0.1.0 (/workspace/tcl-lsp/rust/tcl-dialect)
+    Checking hmac v0.13.0
+    Checking universal-hash v0.6.1
+    Checking bytecount v0.6.9
+    Checking tcl-core-types v0.1.0 (/workspace/tcl-lsp/rust/tcl-core-types)
+    Checking rand v0.10.3
+   Compiling syn v2.0.119
+    Checking num-bigint v0.5.1
+    Checking polyval v0.7.3
+    Checking der v0.8.2
+    Checking aes v0.9.3
+    Checking crypto-bigint v0.7.5
+    Checking ghash v0.6.0
+    Checking libm v0.2.16
+    Checking tcl-lexer v0.1.0 (/workspace/tcl-lsp/rust/tcl-lexer)
+    Checking pbkdf2 v0.13.0
+    Checking ctr v0.10.1
+    Checking aead v0.6.1
+    Checking aes-gcm v0.11.1
+    Checking tcl-syntax v0.1.0 (/workspace/tcl-lsp/rust/tcl-syntax)
+    Checking spki v0.8.0
+    Checking salsa20 v0.11.0
+    Checking scrypt v0.12.0
+    Checking cbc v0.2.1
+    Checking smallvec v1.16.2
+    Checking pkcs5 v0.8.1
+    Checking tcl-platform v0.1.0 (/workspace/tcl-lsp/rust/tcl-platform)
+   Compiling zmij v1.0.23
+    Checking foldhash v0.2.0
+    Checking hashbrown v0.17.1
+    Checking pkcs8 v0.11.0
+    Checking tcl-runtime-api v0.1.0 (/workspace/tcl-lsp/rust/tcl-runtime-api)
+    Checking sha1 v0.11.0
+    Checking ff v0.14.0
+   Compiling serde v1.0.229
+    Checking itoa v1.0.18
+    Checking group v0.14.0
+    Checking aho-corasick v1.1.5
+    Checking signature v3.0.0
+    Checking md-5 v0.11.0
+   Compiling serde_derive v1.0.229
+    Checking regex-syntax v0.8.11
+    Checking base16ct v1.0.0
+    Checking equivalent v1.0.2
+    Checking indexmap v2.14.2
+    Checking sec1 v0.8.1
+    Checking regex-automata v0.4.18
+    Checking tcl-cmd-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-cmd-core)
+    Checking hkdf v0.13.0
+   Compiling ring v0.17.14
+   Compiling serde_json v1.0.151
+    Checking elliptic-curve v0.14.1
+    Checking tcl-regex v0.1.0 (/workspace/tcl-lsp/rust/tcl-regex)
+    Checking regex v1.13.1
+    Checking primefield v0.14.0
+   Compiling unicode-general-category v1.1.0
+    Checking rustc-hash v2.1.3
+    Checking tcl-registry v0.1.0 (/workspace/tcl-lsp/rust/tcl-registry)
+    Checking wnaf v0.14.1
+    Checking tcl-bytecode v0.1.0 (/workspace/tcl-lsp/rust/tcl-bytecode)
+    Checking rfc6979 v0.6.0
+    Checking getrandom v0.2.17
+    Checking untrusted v0.9.0
+   Compiling num-conv v0.2.2
+    Checking minimal-lexical v0.2.1
+   Compiling time-core v0.1.9
+   Compiling time-macros v0.2.32
+    Checking nom v7.1.3
+    Checking ecdsa v0.17.0
+    Checking primeorder v0.14.0
+   Compiling synstructure v0.13.2
+    Checking deranged v0.5.8
+    Checking powerfmt v0.2.0
+    Checking base64 v0.23.1
+    Checking time v0.3.55
+   Compiling asn1-rs-derive v0.6.0
+    Checking tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+    Checking rusticata-macros v4.1.0
+   Compiling asn1-rs-impl v0.2.0
+   Compiling displaydoc v0.2.7
+    Checking asn1-rs v0.7.2
+    Checking pkcs1 v0.8.0-rc.4
+    Checking crypto-primes v0.7.2
+   Compiling oid-registry v0.8.1
+    Checking rsa v0.10.0-rc.18
+    Checking p256 v0.14.0
+    Checking p384 v0.14.0
+    Checking num-bigint v0.4.8
+    Checking data-encoding v2.11.1
+    Checking der-parser v10.0.0
+   Compiling tcl-host-c-abi v0.1.0 (/workspace/tcl-lsp/rust/tcl-host-c-abi)
+    Checking lazy_static v1.5.1
+    Checking x509-parser v0.18.1
+    Checking tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+    Checking tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+    Checking ipnet v2.12.2
+    Checking tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+    Checking tcl-host-native v0.1.0 (/workspace/tcl-lsp/rust/tcl-host-native)
+    Checking tcl-vm v0.1.0 (/workspace/tcl-lsp/rust/tcl-vm)
+   Compiling crossbeam-utils v0.8.23
+    Checking tcl-engine-api v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-api)
+    Checking tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-tclvm)
+    Checking tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+    Checking tcl-pkg-model v0.1.0 (/workspace/tcl-lsp/rust/tcl-pkg-model)
+   Compiling parking_lot_core v0.9.12
+    Checking tcl-userdirs v0.1.0 (/workspace/tcl-lsp/rust/tcl-userdirs)
+    Checking tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-hooks)
+    Checking scopeguard v1.2.0
+    Checking xxhash-rust v0.8.19
+    Checking tcl-spectcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-spectcl)
+    Checking lock_api v0.4.14
+   Compiling crossbeam-epoch v0.9.21
+   Compiling crossbeam-deque v0.8.8
+   Compiling rayon-core v1.13.0
+    Checking parking_lot v0.12.5
+    Checking either v1.18.0
+    Checking rayon v1.12.0
+    Checking temp-env v0.3.6
+    Checking tcl-test-support v0.1.0 (/workspace/tcl-lsp/rust/tcl-test-support)
+   Compiling pkg-config v0.3.34
+    Checking bytes v1.12.1
+   Compiling cmake v0.1.58
+   Compiling dunce v1.0.5
+   Compiling fs_extra v1.3.0
+   Compiling aws-lc-sys v0.45.0
+    Checking log v0.4.34
+   Compiling rustix v1.1.5
+   Compiling crc32fast v1.5.2
+    Checking simd-adler32 v0.3.10
+   Compiling aws-lc-rs v1.18.1
+    Checking once_cell v1.21.4
+    Checking linux-raw-sys v0.12.1
+    Checking pin-project-lite v0.2.17
+    Checking adler2 v2.0.1
+    Checking miniz_oxide v0.9.1
+    Checking rustls-pki-types v1.15.1
+    Checking untrusted v0.7.1
+    Checking zlib-rs v0.6.8
+    Checking flate2 v1.1.10
+    Checking socket2 v0.6.5
+    Checking iana-time-zone v0.1.65
+    Checking futures-sink v0.3.34
+    Checking futures-core v0.3.34
+   Compiling httparse v1.10.1
+    Checking futures-channel v0.3.34
+    Checking chrono v0.4.45
+   Compiling futures-macro v0.3.34
+   Compiling rustls v0.23.45
+   Compiling semver v1.0.28
+    Checking futures-io v0.3.34
+    Checking slab v0.4.12
+    Checking utf8parse v0.2.2
+    Checking futures-task v0.3.34
+    Checking futures-util v0.3.34
+    Checking anstyle-parse v1.0.0
+   Compiling rustc_version v0.4.1
+    Checking rustls-webpki v0.103.15
+    Checking http v1.5.0
+   Compiling tokio-macros v2.7.2
+    Checking mio v1.2.4
+    Checking is_terminal_polyfill v1.70.2
+    Checking anstyle v1.0.14
+    Checking colorchoice v1.0.5
+    Checking anstyle-query v1.1.5
+    Checking anstream v1.0.0
+    Checking tokio v1.53.2
+    Checking ureq-proto v0.6.4
+   Compiling curve25519-dalek v5.0.0
+    Checking webpki-roots v1.0.9
+    Checking xattr v1.6.1
+    Checking filetime v0.2.29
+    Checking bumpalo v3.20.3
+   Compiling version_check v0.9.5
+    Checking utf8-zero v0.8.1
+    Checking percent-encoding v2.3.2
+    Checking winnow v1.0.4
+   Compiling cfg_aliases v0.2.2
+   Compiling nix v0.31.3
+    Checking toml_parser v1.1.3+spec-1.1.0
+    Checking ureq v3.4.2
+   Compiling generic-array v0.14.7
+    Checking zopfli v0.8.3
+    Checking tar v0.4.46
+    Checking terminal_size v0.4.4
+    Checking ssh-encoding v0.3.0
+   Compiling curve25519-dalek-derive v0.1.1
+    Checking serde_spanned v1.1.1
+    Checking toml_datetime v1.1.1+spec-1.1.0
+    Checking keccak v0.2.2
+    Checking wait-timeout v0.2.1
+    Checking fnv v1.0.7
+   Compiling heck v0.5.0
+    Checking strsim v0.11.1
+    Checking toml_writer v1.1.2+spec-1.1.0
+    Checking clap_lex v1.1.1
+    Checking typed-path v0.12.3
+   Compiling rustversion v1.0.23
+    Checking byteorder v1.5.0
+    Checking unicode-width v0.2.2
+    Checking papergrid v0.18.0
+    Checking blowfish v0.10.0
+    Checking zip v8.6.0
+    Checking clap_builder v4.6.7
+    Checking toml v1.1.6+spec-1.1.0
+   Compiling clap_derive v4.6.7
+    Checking tcl-sandbox v0.1.0 (/workspace/tcl-lsp/rust/tcl-sandbox)
+    Checking futures-executor v0.3.34
+    Checking ed25519 v3.0.0
+    Checking poly1305 v0.9.1
+    Checking blake2 v0.11.0
+    Checking rtoolbox v0.0.6
+   Compiling anyhow v1.0.104
+   Compiling tcl-version v0.1.0 (/workspace/tcl-lsp/rust/tcl-version)
+    Checking rpassword v7.5.4
+    Checking argon2 v0.6.0
+    Checking ssh-cipher v0.3.0
+    Checking ed25519-dalek v3.0.0
+    Checking futures v0.3.34
+    Checking tcl-pkg v0.1.0 (/workspace/tcl-lsp/rust/tcl-pkg)
+    Checking clap v4.6.7
+    Checking bcrypt-pbkdf v0.11.0
+    Checking tabled v0.22.0
+    Checking sha3 v0.11.0
+    Checking tokio-util v0.7.19
+    Checking tcl-spec-studio v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-studio)
+    Checking p521 v0.14.0
+    Checking module-lattice v0.2.3
+    Checking kem v0.3.0
+    Checking hex v0.4.3
+    Checking sponge-cursor v0.1.0
+    Checking openssl-probe v0.2.1
+    Checking hashbrown v0.14.5
+   Compiling enum_dispatch v0.3.13
+    Checking dashmap v6.2.1
+    Checking rustls-native-certs v0.8.4
+    Checking sha3 v0.12.0
+    Checking ssh-key v0.7.0-rc.11
+    Checking ml-kem v0.3.2
+    Checking tcl-cli-support v0.1.0 (/workspace/tcl-lsp/rust/tcl-cli-support)
+    Checking generic-array v1.4.5
+    Checking clap_complete v4.6.11
+    Checking russh-cryptovec v0.62.0
+    Checking russh-util v0.52.0
+    Checking dns-lookup v4.0.2
+   Compiling delegate v0.13.5
+    Checking serde_bytes v0.11.19
+    Checking ripemd v0.2.0
+    Checking hex-literal v1.1.0
+    Checking md5 v0.8.1
+    Checking russh v0.64.1
+    Checking tcl-bigip-io v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip-io)
+    Checking russh-sftp v3.0.1
+    Checking tcl-bigip-query v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip-query)
+    Checking tcl-irule-test v0.1.0 (/workspace/tcl-lsp/rust/tcl-irule-test)
+    Checking tcl-f5mku v0.1.0 (/workspace/tcl-lsp/rust/tcl-f5mku)
+    Checking f5-cli v0.1.0 (/workspace/tcl-lsp/rust/f5-cli)
+   Compiling vcpkg v0.2.15
+   Compiling libsqlite3-sys v0.38.2
+   Compiling ident_case v1.0.1
+   Compiling darling_core v0.24.1
+   Compiling hashlink v0.12.2
+   Compiling fallible-iterator v0.3.0
+   Compiling fallible-streaming-iterator v0.1.9
+   Compiling ref-cast v1.0.27
+   Compiling rusqlite v0.40.2
+   Compiling darling_macro v0.24.1
+   Compiling ref-cast-impl v1.0.27
+   Compiling serde_derive_internals v0.30.0
+   Compiling schemars_derive v1.2.2
+   Compiling darling v0.24.1
+   Compiling tcl-cli v0.1.0 (/workspace/tcl-lsp/rust/tcl-cli)
+    Checking tracing-core v0.1.36
+   Compiling tracing-attributes v0.1.31
+    Checking dyn-clone v1.0.20
+   Compiling rmcp v3.5.0
+    Checking schemars v1.2.2
+    Checking tracing v0.1.44
+   Compiling rmcp-macros v3.5.0
+    Checking tcl-explorer v0.1.0 (/workspace/tcl-lsp/rust/tcl-explorer)
+    Checking tcl-diagram v0.1.0 (/workspace/tcl-lsp/rust/tcl-diagram)
+    Checking uuid v1.27.0
+   Compiling pastey v0.2.3
+    Checking f5-xc v0.1.0 (/workspace/tcl-lsp/rust/f5-xc)
+    Checking tcl-mcp v0.1.0 (/workspace/tcl-lsp/rust/tcl-mcp)
+error[E0433]: cannot find type `ProviderSources` in this scope
+    --> rust/f5-cli/src/commands/query.rs:1162:43
+     |
+1162 |         let reader = make_ucs_cert_reader(ProviderSources::default());
+     |                                           ^^^^^^^^^^^^^^^ use of undeclared type `ProviderSources`
+     |
+help: consider importing this type alias
+     |
+1142 +     use crate::commands::query::ProviderSources;
+     |
+
+error[E0433]: cannot find type `ProviderSources` in this scope
+    --> rust/f5-cli/src/commands/query.rs:1190:56
+     |
+1190 |             ucs_cert_reader: Some(make_ucs_cert_reader(ProviderSources::default())),
+     |                                                        ^^^^^^^^^^^^^^^ use of undeclared type `ProviderSources`
+     |
+help: consider importing this type alias
+     |
+1142 +     use crate::commands::query::ProviderSources;
+     |
+
+error[E0433]: cannot find type `ProviderSources` in this scope
+    --> rust/f5-cli/src/commands/query.rs:1219:43
+     |
+1219 |         let reader = make_ucs_cert_reader(ProviderSources::default());
+     |                                           ^^^^^^^^^^^^^^^ use of undeclared type `ProviderSources`
+     |
+help: consider importing this type alias
+     |
+1142 +     use crate::commands::query::ProviderSources;
+     |
+
+For more information about this error, try `rustc --explain E0433`.
+error: could not compile `f5-cli` (lib test) due to 3 previous errors

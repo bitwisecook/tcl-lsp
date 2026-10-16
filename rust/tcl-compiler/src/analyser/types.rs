@@ -589,6 +589,13 @@ pub struct ProcDef {
     /// name.  Populated by ``infer_param_traits`` after the
     /// body walk.  Empty when no traits inferred (parameter
     /// unused, or proc body wasn't statically scannable).
+    ///
+    /// These are conditional May source-usage reports. They retain no actual
+    /// alias, variable cell, quiet observer, entered frame, Native/Normal or
+    /// completion grant. Consumers independently select the original callee,
+    /// formals and caller-source template before navigation or display. This
+    /// analyser type is separate from the IR-produced
+    /// [`crate::interprocedural::ProcArgTrait`] used by optimiser summaries.
     pub param_traits: HashMap<String, std::collections::HashSet<ProcArgTrait>>,
     /// Parameters whose *value* names a variable in the **immediate caller's**
     /// frame — the `upvar 1 $param local` shape, and only that one.
@@ -603,6 +610,8 @@ pub struct ProcDef {
     /// caller-frame variable) must intersect the two rather than trust the
     /// trait alone.  Populated by
     /// [`super::param_traits::caller_frame_upvar_params`].
+    /// A symbolic source recipe only: conditional formal reads and unknown
+    /// observer/caller applicability cannot establish an entered caller alias.
     pub caller_frame_params: std::collections::HashSet<String>,
     /// **Literal** caller-frame names this proc binds in its immediate
     /// caller's frame — spelled in the proc's *own* body (`upvar 1 name
@@ -614,6 +623,7 @@ pub struct ProcDef {
     /// receipt. Populated by
     /// [`super::param_traits::caller_frame_literal_targets`]; empty when
     /// the body binds none.
+    /// Readonly source usage, never a successful caller store or physical cell.
     pub caller_frame_literals: std::collections::HashMap<String, bool>,
 }
 

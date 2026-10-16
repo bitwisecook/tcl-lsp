@@ -394,7 +394,8 @@
       "id": "compiler.source.logical-parameter-trait-body-owner",
       "kind": "shared_owner_extension",
       "baseline_unit_ids": [
-        "lsp-inlay-logical-procedure-formal-argv-transport"
+        "lsp-inlay-logical-procedure-formal-argv-transport",
+        "db.unit.db.project-source-role-hints"
       ],
       "site_anchors": [
         {
@@ -412,13 +413,22 @@
         {
           "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
           "symbol": "logical_source_registry_words"
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/source_parameter_template.rs",
+          "symbol": "OriginalLogicalParameterSourcePrefix; capture_prefixes; ParameterSourcePrefixCache"
+        },
+        {
+          "path": "rust/tcl-compiler/src/registry_invocation.rs",
+          "symbol": "logical_parameter_body_assistance; InvocationBodyAssistance::conditional_parameter_source_shape; conditional_parameter_source_invocation; conditional_parameter_source_alias_layout"
         }
       ],
-      "rationale": "Distinct readonly Logical body/formal/Registry source owner required to infer traits where no executed-source frame exists. It creates no executed body/frame and leaves Native/evaluated paths separate. Do not multiply by scanner entrances.",
+      "rationale": "One readonly Logical body/formal/Registry source owner required to infer conditional May traits where no executed-source frame exists. Its authentic complete own-body/formal/input transport includes actual completed-walk source prefix receipts retaining original selected schema/argv, formal reads and lookup/observer/UnknownEarlierMutation debt. Dedicated conditional source accessors never promote generic closed/candidate/parameter/caller-template/definite advice. This repairs the already counted source-trait issuer, creates no executed body/frame and leaves Native/evaluated/IR-summary paths separate. Count once, not per cache/type/helper/scanner entrance or cross-file display adopter.",
       "implementation": {
         "status": "implemented_pending_validation",
         "verified_complete": false
-      }
+      },
+      "implementation_scope": "Authentic completed-walk conditional source prefix repair8198 integrated; compile/scoped acceptance remains pending. All generic/Native/closed/definite advice remains separate."
     },
     {
       "id": "lsp.minifier.native-original-expression-gap-action-owner",
@@ -577,6 +587,22 @@
         "status": "implemented_pending_validation",
         "verified_complete": false
       }
+    },
+    {
+      "id": "vm.native.actual-engine-provenance-owner",
+      "kind": "shared_owner_repair",
+      "site_anchors": [
+        {
+          "path": "rust/tcl-vm/src/interp.rs",
+          "symbol": "actual_native_execution_profile; actual_engine_profile missing-engine fallback"
+        }
+      ],
+      "rationale": "One actual-engine provenance owner must retain the absence of an explicitly installed engine instead of deriving measured Native execution from source/runtime profile. Explicit active host capability and explicit actual engine remain valid donors. This shared issuer requirement is distinct from existing info/String worker rosters and loaded result caller requirements. Its13 unchanged actual-purpose production consumers are affected dependencies, not additional caller migrations.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false
+      },
+      "implementation_scope": "Missing actual engine remains absent; explicit active host capabilities and actual engine donors retained. Thirteen unchanged actual-purpose consumers source-reviewed; current Rust regression/gates pending."
     }
   ],
   "unverified_or_open": [
@@ -588,27 +614,27 @@
   ],
   "status_note": "Requirements are counted regardless of implementation presence. No additional requirement or baseline unit is verified complete.",
   "status": "accepted_additional_obligations_unverified",
-  "utc": "2026-10-16T11:17:51.297115+00:00",
+  "utc": "2026-10-16T12:02:52.362994+00:00",
   "accepted_delta": {
-    "semantic_code_changes": 28,
+    "semantic_code_changes": 29,
     "validation_code_repairs": 0,
     "authored_documentation": 0,
-    "all_required_changes": 28,
+    "all_required_changes": 29,
     "by_kind": {
-      "shared_owner_repair": 8,
+      "shared_owner_repair": 9,
       "shared_owner_extension": 12,
       "caller_migration": 7,
       "metadata_or_target_schema": 1
     }
   },
   "effective_counts": {
-    "semantic_code_changes": 1827,
+    "semantic_code_changes": 1828,
     "validation_code_repairs": 305,
     "authored_documentation": 54,
-    "all_required_changes": 2186
+    "all_required_changes": 2187
   },
   "implementation_progress": {
-    "implemented_pending_validation": 28,
+    "implemented_pending_validation": 29,
     "not_integrated": 0,
     "verified_complete": 0
   }

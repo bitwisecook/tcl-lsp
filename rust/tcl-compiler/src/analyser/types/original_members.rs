@@ -575,6 +575,7 @@ struct LogicalSourceMemberNameOperand {
     input: crate::analyser::ResolvedAnalysisInput,
     words: Vec<tcl_lexer::NativeWord>,
     name_ordinal: usize,
+    body_ordinal: usize,
     side: MemberSide,
     name_span: tcl_lexer::Span,
     body_span: tcl_lexer::Span,
@@ -604,14 +605,15 @@ impl OriginalSourceMemberLedger {
         &mut self,
         input: crate::analyser::ResolvedAnalysisInput,
         words: Vec<tcl_lexer::NativeWord>,
-        name_ordinal: usize,
+        ordinals: (usize, usize),
         side: MemberSide,
         spans: (tcl_lexer::Span, tcl_lexer::Span),
     ) {
         self.logical_names.push(LogicalSourceMemberNameOperand {
             input,
             words,
-            name_ordinal,
+            name_ordinal: ordinals.0,
+            body_ordinal: ordinals.1,
             side,
             name_span: spans.0,
             body_span: spans.1,
@@ -626,6 +628,30 @@ impl OriginalSourceMemberLedger {
         input: &crate::analyser::ResolvedAnalysisInput,
         image: &tcl_lexer::SourceImage,
     ) -> Option<&tcl_lexer::NativeWord> {
+        let selected = self.logical_member_operands(side, method, input, image)?;
+        selected.words.get(selected.name_ordinal)
+    }
+
+    /// Registry-selected body from the same complete original member vector.
+    pub(crate) fn logical_body_operand(
+        &self,
+        side: MemberSide,
+        method: &MethodDef,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        image: &tcl_lexer::SourceImage,
+    ) -> Option<&tcl_lexer::NativeWord> {
+        let selected = self.logical_member_operands(side, method, input, image)?;
+        let body = selected.words.get(selected.body_ordinal)?;
+        (body.tokens().first()?.span == selected.body_span).then_some(body)
+    }
+
+    fn logical_member_operands(
+        &self,
+        side: MemberSide,
+        method: &MethodDef,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        image: &tcl_lexer::SourceImage,
+    ) -> Option<&LogicalSourceMemberNameOperand> {
         input.has_logical_source_name_context().then_some(())?;
         let mut matching = self.logical_names.iter().filter(|entry| {
             entry.input == *input
@@ -642,7 +668,7 @@ impl OriginalSourceMemberLedger {
         });
         let selected = matching.next()?;
         matching.next().is_none().then_some(())?;
-        selected.words.get(selected.name_ordinal)
+        Some(selected)
     }
 
     pub(crate) fn retain_logical_visibility_operand(

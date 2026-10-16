@@ -9492,12 +9492,12 @@ mod jim_result_publication_tests {
             )));
             let context = vm.borrow().native_jim_object_context().unwrap();
             let operation = NativeOperationScope::enter(&mut vm.borrow_mut()).unwrap();
-            let old = Value::new_native_string_bytes(b"PRIOR");
+            let old = Value::new_native_string_bytes(b"PRIOR".as_slice());
             let old_view = old.native_lifetime_lease();
             context.publish_result(&old);
             drop(old);
             let body = Rc::new(RefCell::new(Some(Value::native_list_constructor(
-                vec![Value::new_native_string_bytes(b"return")],
+                vec![Value::new_native_string_bytes(b"return".as_slice())],
                 NativeStringProtocol::Jim084,
             ))));
             let incoming = body.borrow().as_ref().unwrap().native_lifetime_lease();
@@ -9548,7 +9548,7 @@ mod jim_result_publication_tests {
     fn original_jim_borrowed_result_adoption_adds_only_the_actual_result_reference() {
         let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("jim"));
         let context = vm.native_jim_object_context().unwrap();
-        let old = Value::new_native_string_bytes(b"PRIOR");
+        let old = Value::new_native_string_bytes(b"PRIOR".as_slice());
         let old_view = old.native_lifetime_lease();
         context.publish_result(&old);
         drop(old);
@@ -9579,8 +9579,8 @@ mod jim_result_publication_tests {
         let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("jim"));
         let body = Value::native_list_constructor(
             vec![
-                Value::new_native_string_bytes(b"return"),
-                Value::new_native_string_bytes(b"BODY"),
+                Value::new_native_string_bytes(b"return".as_slice()),
+                Value::new_native_string_bytes(b"BODY".as_slice()),
             ],
             NativeStringProtocol::Jim084,
         );
@@ -9659,7 +9659,7 @@ mod jim_result_publication_tests {
         for mode in 0..=2 {
             let (vm, body, _) = original_body_fixture();
             let context = vm.borrow().native_jim_object_context().unwrap();
-            let prior = Value::new_native_string_bytes(b"PRIOR");
+            let prior = Value::new_native_string_bytes(b"PRIOR".as_slice());
             let prior_view = prior.native_lifetime_lease();
             context.publish_result(&prior);
             drop(prior);

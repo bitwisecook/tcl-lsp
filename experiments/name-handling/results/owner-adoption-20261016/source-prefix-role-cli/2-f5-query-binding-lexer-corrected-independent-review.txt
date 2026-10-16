@@ -1,0 +1,6 @@
+Independent source review: CLEAR corrected patch875fe05b9c507db1d92fdee3fcd7f3bed8f872072c7e39e1d870d7ae685098d0.
+Verified exact SHA and diff against d6c1dd528732d56ced0db59f40b77ca8022781b7d53b12cd9c803a6fe2c5c822: removes only the unsupported CSV header-domain substitution, with corresponding downstream hunk offsets. CSV ASCII PATH[:headers] recognition now stays unchanged; the concrete report:résumé path regression is removed.
+
+The retained three binding migrations are source-clear for existing root:query.binding-identifier-input:229:{0,1,2}. Their thin local adapter consumes existing actual query lexer DollarIdent/Eof with exact full supplied NAME semantic equality, preserving Unicode/hyphen/keyword grammar and refusing ignored comment/whitespace suffixes, extra tokens and invalid sigils. No new semantic owner facet: actual public lexer already owns this domain. CSV header/path disambiguation remains a distinct intentional grammar and is not counted as a fourth binding migration. Full reasoning for the unchanged binding portion is in /tmp/f5-query-binding-lexer-independent-review.txt; that file's d6 CSV blocker is resolved only in this exact corrected patch.
+
+No builds/tests/main/Git by reviewer; root owns Rust acceptance.

@@ -1,0 +1,11 @@
+{
+  "cohorts": 19,
+  "passed": 119,
+  "failed": 18,
+  "no_tests": 0,
+  "acceptance": "selected ordinary controls only; no completed audit units or broad gates",
+  "source_binding": "source-binding.json",
+  "build": "build.log",
+  "build_status": "PASS",
+  "build_elapsed": "5m16s"
+}

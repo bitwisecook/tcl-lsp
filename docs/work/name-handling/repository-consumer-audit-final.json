@@ -50358,7 +50358,12 @@
       ],
       "api": "Public f5_query::lexer::tokenise plus exact one DollarIdent/EOF/value equality; no missing convenience predicate. CLI binding-name role only; CSV PATH[:headers] disambiguation remains intentional distinct purpose.",
       "required_change": "Same regex duplicated three flag constructors plus CSV header helper; selected NAME=PATH and PATH[:headers] transport needs purpose-specific shared parser, retain actual native paths. Do not invent strict CSV duplicate-key contract.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "554085e162823ea8bd126898d0c27b7b2a9f8628",
+        "validation": "Reviewed shared existing owner adoption integrated; exact CLI targets unexecuted. CSV colon-path grammar retained. Required gates remain unpassed."
+      }
     },
     {
       "area": "root",
@@ -50379,7 +50384,12 @@
       ],
       "api": "Public f5_query::lexer::tokenise plus exact one DollarIdent/EOF/value equality; no missing convenience predicate. CLI binding-name role only; CSV PATH[:headers] disambiguation remains intentional distinct purpose.",
       "required_change": "Same regex duplicated three flag constructors plus CSV header helper; selected NAME=PATH and PATH[:headers] transport needs purpose-specific shared parser, retain actual native paths. Do not invent strict CSV duplicate-key contract.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "554085e162823ea8bd126898d0c27b7b2a9f8628",
+        "validation": "Reviewed shared existing owner adoption integrated; exact CLI targets unexecuted. CSV colon-path grammar retained. Required gates remain unpassed."
+      }
     },
     {
       "area": "root",
@@ -50400,7 +50410,12 @@
       ],
       "api": "Public f5_query::lexer::tokenise plus exact one DollarIdent/EOF/value equality; no missing convenience predicate. CLI binding-name role only; CSV PATH[:headers] disambiguation remains intentional distinct purpose.",
       "required_change": "Same regex duplicated three flag constructors plus CSV header helper; selected NAME=PATH and PATH[:headers] transport needs purpose-specific shared parser, retain actual native paths. Do not invent strict CSV duplicate-key contract.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "554085e162823ea8bd126898d0c27b7b2a9f8628",
+        "validation": "Reviewed shared existing owner adoption integrated; exact CLI targets unexecuted. CSV colon-path grammar retained. Required gates remain unpassed."
+      }
     },
     {
       "area": "root",
@@ -51058,7 +51073,12 @@
       ],
       "api": "EventRegistry actual descriptor multiplicity",
       "required_change": "Private RULE_INIT exception duplicates Registry event metadata; rest already shared APIs. Report firing-order advice is not measured TMM execution.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "554085e162823ea8bd126898d0c27b7b2a9f8628",
+        "validation": "Reviewed shared existing owner adoption integrated; exact CLI targets unexecuted. CSV colon-path grammar retained. Required gates remain unpassed."
+      }
     },
     {
       "area": "root",
@@ -52183,7 +52203,12 @@
       ],
       "api": "tcl_cli_support::OutputTarget::File / write_text_output",
       "required_change": "Actual &Path is converted through to_string_lossy and re-opened by String write_text. Consume existing OutputTarget::File(PathBuf) plus write_text_output, retaining exact native target units; symbol map report label does not select a filesystem target.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "554085e162823ea8bd126898d0c27b7b2a9f8628",
+        "validation": "Reviewed shared existing owner adoption integrated; exact CLI targets unexecuted. CSV colon-path grammar retained. Required gates remain unpassed."
+      }
     },
     {
       "area": "root",
@@ -131349,12 +131374,12 @@
   ],
   "implementation_progress": {
     "resumed_from": "554085e162823ea8bd126898d0c27b7b2a9f8628",
-    "utc": "2026-10-16T11:32:31.267011+00:00",
+    "utc": "2026-10-16T11:56:00.927866+00:00",
     "audit_baseline_counts_unchanged": true,
     "total_required_units": 2158,
-    "implemented_pending_validation": 103,
+    "implemented_pending_validation": 108,
     "verified_complete": 0,
-    "not_started": 2055,
+    "not_started": 2050,
     "remaining_unverified_or_unimplemented": 2158,
     "additional_work_not_counted_as_catalogue_completion": [
       "Native variable-expression read/cell/trace/child-body observer producer remains open; pure expression gap receipt grants no such authority.",
@@ -131363,12 +131388,16 @@
       "VM original physical body success transport is integrated, unexecuted; missing/nonprocedure diagnostics and broader dispatch parity remain independently open."
     ],
     "latest_scoped_build": {
-      "status": "RUNNING",
-      "source": "8b5e6b7d2 reviewed successor",
-      "log": "/tmp/naming-workspace-build-post-1adb-repairs.log",
-      "prior_failure": "Two new mapped-source test names were unqualified; now qualified. Three test-only getters now cfg(test), no allow added.",
-      "new_source_repairs": "Checked expression leaf token correspondence and authentic same-frame body descent, Logical alias applicability, Unicode member producer.",
-      "tooling_validation": "Five small CLI/MCP integrations are not included in this seven-library build and remain unexecuted."
+      "status": "PASS",
+      "source": "9a92c4049be478e601744065018ec6ab609dc629 + six new VM test slice conversions",
+      "ordinary": true,
+      "seconds": 316,
+      "warnings": 0,
+      "capture": "experiments/name-handling/results/owner-adoption-20261016/workspace-9a92",
+      "selected_PASS": 119,
+      "selected_FAIL": 18,
+      "zero_test_runs": 0,
+      "scope": "19 selected cohorts only; current source-only successor integrations unexecuted. No broad-gate acceptance."
     },
     "required_gates": "Still not green; no PR acceptance.",
     "report_cadence_minutes": 30,
@@ -131510,7 +131539,7 @@
     "withheld_drafts": [
       "Minifier command/argument alias construction: missing genuine source action/insertion owner; original unknown-command controls remain unchanged."
     ],
-    "owner_facet_reconciliation": "19 additional unverified obligations accepted in separate annex; baseline2158 unchanged;18 additional integrated pending validation. Further demonstrated formatter/preload/Logical source facets still under bounded reconciliation.",
+    "owner_facet_reconciliation": "29 additional unverified requirements accepted; all29 integrated pending validation. Actual engine provenance owner is one distinct requirement; conditional parameter prefix remains existing Logical trait-body owner.",
     "runtime_build": {
       "status": "PASS",
       "seconds": 57.46,
@@ -131568,6 +131597,12 @@
         "log": "experiments/name-handling/results/owner-adoption-20261016/proof-availability-restored/check.log",
         "gate_acceptance": false,
         "limitation": "Source integrations occurred during the run. A stable-source full gate rerun remains necessary."
+      },
+      "census_path_classification": {
+        "tracked_missing_compressed": 158,
+        "present_tracked_without_rows": 101,
+        "availability_restoration_pending": true,
+        "evidence_hash_refresh": false
       }
     },
     "additional_facet_review": {
@@ -131578,13 +131613,13 @@
     },
     "additional_owner_annex": {
       "path": "docs/work/name-handling/implementation-owner-annex.json",
-      "required": 28,
-      "implemented_pending_validation": 28,
+      "required": 29,
+      "implemented_pending_validation": 29,
       "not_integrated": 0,
       "verified_complete": 0
     },
-    "effective_required_units": 2186,
-    "effective_implemented_pending_validation": 131,
+    "effective_required_units": 2187,
+    "effective_implemented_pending_validation": 137,
     "effective_verified_complete": 0,
     "incoming_remote": {
       "rust": "5704753576d9e6d57ba7928c739dcbf726ce6bd1",
@@ -131624,6 +131659,26 @@
     "logical_alias_applicability_reconciliation": {
       "count": "Existing compiler.source.logical-variable-scope-transport:680 applicability requirement; no new annex obligation.",
       "evidence": "/tmp/luna-alias-tooling-reconciliation.json"
+    },
+    "pending_integration_notes": [
+      "Conditional parameter-prefix8198, original memberbody0d740, Logical project geometry bde560 and genuine Jim fixture ea1008 integrated; compile/scoped acceptance pending.",
+      "Two iRule and three Query binding baseline boundaries integrated using existing shared owners; actual CLI target validation pending.",
+      "Temporary navigation overlay reversed byte-exact; diagnostic binary retained separately from ordinary selected controls."
+    ],
+    "latest_successor_check": {
+      "status": "RUNNING",
+      "log": "/tmp/naming-nine-package-check-source-prefix-vm.log",
+      "ordinary": true,
+      "scope": "Nine-package cargo check --tests only; not test execution. Previous compiler/CLI/MCP check failed three unqualified existing test ProviderSources names; import repaired."
+    },
+    "vm_info_successor": {
+      "integrated": "One actual engine provenance owner and two original fixture corrections (Jim actualhelperpairing, OO terminalrefusalchronology).",
+      "prior_ordinary": {
+        "PASS": 21,
+        "FAIL": 3,
+        "capture": "workspace-9a92/tcl_vm-cmd_info--.log"
+      },
+      "acceptance": "Unexecuted successor; original log retained."
     }
   }
 }

@@ -1,0 +1,160 @@
+{
+  "status": "TMP_PROPOSAL_ONLY_NO_MAIN_MUTATION",
+  "question": "Count conditional parameter source-prefix issuer8198 once within existing body/formal/Registry owner, or add a distinct purpose requirement?",
+  "decision": "extend_existing_annex_requirement_no_new_requirement",
+  "existing_annex_id": "compiler.source.logical-parameter-trait-body-owner",
+  "count_contract": "Actual changed integration boundary plus distinct purpose. Genuine missing semantic owner facet once; actual changed callers separate; unchanged dependencies not migrations. Implementation, validation repairs, existing unexecuted validation and docs separate.",
+  "evidence": {
+    "annex": {
+      "path": "/workspace/tcl-lsp/docs/work/name-handling/implementation-owner-annex.json",
+      "sha256": "669b6bc3646b27cbc8de795641c1d62a8c81d66ac7ed2be414e8709f71617d19"
+    },
+    "catalogue": {
+      "path": "/workspace/tcl-lsp/docs/work/name-handling/repository-consumer-audit-final.json",
+      "sha256": "fdea1d512ce6755c86cca623afcfdcd30a2dffea6c01bbc97e0bb52b3b957101",
+      "baseline": "cc24c394004fc187378ba0eefb6c2c5b2615fb00",
+      "unit_count": 2158
+    },
+    "implementation_patch_sha256": "8198c868584c4a91d575b3d8b3149fb740f79c89f88959f5f8ec871d1ddd1eca",
+    "independent_source_review": "/tmp/db-conditional-parameter-source/independent-review.txt",
+    "consumer_proof": "/tmp/db-param-source-protocol/consumer-audit.md"
+  },
+  "basis": [
+    "Existing requirement expressly owns readonly Logical original body/formals and actual Registry source transport for parameter traits without an executed-source frame, so prefix provenance/debt transport is necessary implementation of that same inference purpose.",
+    "Prefix retains narrower conditional source authority under unresolved read/observer/caller debt rather than introducing a Native/evaluated or closed-execution purpose. Native paths and separate IR trait producer/consumers remain unchanged.",
+    "Actual completed walk/cache/prefix and dedicated InvocationBodyAssistance accessors form one existing source-trait issuer boundary. Types, storage helpers, scanner entrances and source-report display adopters are not independent owner requirements.",
+    "Baseline catalogue alone does not enumerate this exact prefix issuer; the existing accepted annex row already supplies the missing grouped Logical trait owner requirement. Do not double count the repair as a second newly missing facet."
+  ],
+  "baseline_links": [
+    {
+      "id": "db.unit.db.project-source-role-hints",
+      "relationship": "Actual baseline downstream cross-file source parameter-role/display requirement; prefix repairs source trait production needed by its genuine formal/call transport. Do not recount the existing DB caller/owner unit or assert it complete."
+    },
+    {
+      "id": "lsp-inlay-logical-procedure-formal-argv-transport",
+      "relationship": "Preserve existing annex baseline association. Separate actual callee/formal/effective-argv source caller requirement; prefix does not migrate or close that caller."
+    },
+    {
+      "id": "compiler.source.logical-variable-scope-transport:680",
+      "relationship": "Existing independent source scope/frame/applicability dependency. Prefix consumes actual retained Logical procedure scope and preserves unknown obligations; this baseline scope owner is not newly created or completed by the prefix."
+    }
+  ],
+  "excluded_from_coverage_claims": [
+    "compiler.source.original-lambda-body-frame:804 is a distinct fresh-lambda caller migration, not closed by this direct own-body prefix.",
+    "compiler.source.selected-alias-operation:119 and :2479 are independent CFG/IR alias-summary caller migrations; analyser May maps do not implement them.",
+    "compiler.source.original-formal-reference-observations:3936 is the separate IR-produced trait/reference-observation caller, not this analyser trait producer."
+  ],
+  "proposed_existing_row_before": {
+    "id": "compiler.source.logical-parameter-trait-body-owner",
+    "kind": "shared_owner_extension",
+    "baseline_unit_ids": [
+      "lsp-inlay-logical-procedure-formal-argv-transport"
+    ],
+    "site_anchors": [
+      {
+        "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs",
+        "symbol": "OriginalLogicalProcedureBody"
+      },
+      {
+        "path": "rust/tcl-compiler/src/analyser/param_traits.rs",
+        "symbol": "TraitScanEnv::original_logical_body"
+      },
+      {
+        "path": "rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs",
+        "symbol": "OriginalSourceScriptBody::matches_original_content"
+      },
+      {
+        "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+        "symbol": "logical_source_registry_words"
+      }
+    ],
+    "rationale": "Distinct readonly Logical body/formal/Registry source owner required to infer traits where no executed-source frame exists. It creates no executed body/frame and leaves Native/evaluated paths separate. Do not multiply by scanner entrances.",
+    "implementation": {
+      "status": "implemented_pending_validation",
+      "verified_complete": false
+    }
+  },
+  "proposed_existing_row_after": {
+    "id": "compiler.source.logical-parameter-trait-body-owner",
+    "kind": "shared_owner_extension",
+    "baseline_unit_ids": [
+      "lsp-inlay-logical-procedure-formal-argv-transport",
+      "db.unit.db.project-source-role-hints"
+    ],
+    "site_anchors": [
+      {
+        "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs",
+        "symbol": "OriginalLogicalProcedureBody"
+      },
+      {
+        "path": "rust/tcl-compiler/src/analyser/param_traits.rs",
+        "symbol": "TraitScanEnv::original_logical_body"
+      },
+      {
+        "path": "rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs",
+        "symbol": "OriginalSourceScriptBody::matches_original_content"
+      },
+      {
+        "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+        "symbol": "logical_source_registry_words"
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/source_parameter_template.rs",
+        "symbol": "OriginalLogicalParameterSourcePrefix; capture_prefixes; ParameterSourcePrefixCache"
+      },
+      {
+        "path": "rust/tcl-compiler/src/registry_invocation.rs",
+        "symbol": "logical_parameter_body_assistance; InvocationBodyAssistance::conditional_parameter_source_shape; conditional_parameter_source_invocation; conditional_parameter_source_alias_layout"
+      }
+    ],
+    "rationale": "One readonly Logical body/formal/Registry source owner required to infer conditional May traits where no executed-source frame exists. Its authentic complete own-body/formal/input transport includes actual completed-walk source prefix receipts retaining original selected schema/argv, formal reads and lookup/observer/UnknownEarlierMutation debt. Dedicated conditional source accessors never promote generic closed/candidate/parameter/caller-template/definite advice. This repairs the already counted source-trait issuer, creates no executed body/frame and leaves Native/evaluated/IR-summary paths separate. Count once, not per cache/type/helper/scanner entrance or cross-file display adopter.",
+    "implementation": {
+      "status": "implemented_pending_validation",
+      "verified_complete": false
+    },
+    "implementation_scope": "Original Logical body/formal source owner is integrated but unverified. Conditional completed-walk prefix repair8198c868584c4a91d575b3d8b3149fb740f79c89f88959f5f8ec871d1ddd1eca is independently source-reviewed, pending root byte-exact diagnostic reversal/integration and compile/scoped regression/gate acceptance; source review establishes no PASS or verified-complete status."
+  },
+  "count_delta": {
+    "semantic_code_changes": 0,
+    "validation_code_repairs": 0,
+    "authored_documentation": 0,
+    "all_required_changes": 0,
+    "additional_unverified_obligations": 0,
+    "verified_complete": 0
+  },
+  "counts_preserved_from_input": {
+    "baseline": {
+      "checkpoint": "554085e162823ea8bd126898d0c27b7b2a9f8628",
+      "semantic_code_changes": 1799,
+      "validation_code_repairs": 305,
+      "authored_documentation": 54,
+      "all_required_changes": 2158,
+      "existing_anchor_units": [
+        "runtime:native.original-procedure-query:270",
+        "runtime:native.original-variable-cell-publication:276",
+        "vm-unit-0133",
+        "db.unit.db.workspace-class-display-cards"
+      ]
+    },
+    "accepted_delta": {
+      "semantic_code_changes": 28,
+      "validation_code_repairs": 0,
+      "authored_documentation": 0,
+      "all_required_changes": 28,
+      "by_kind": {
+        "shared_owner_repair": 8,
+        "shared_owner_extension": 12,
+        "caller_migration": 7,
+        "metadata_or_target_schema": 1
+      }
+    },
+    "effective_counts": {
+      "semantic_code_changes": 1827,
+      "validation_code_repairs": 305,
+      "authored_documentation": 54,
+      "all_required_changes": 2186
+    },
+    "annex_requirement_count": 28
+  },
+  "validation": "Readonly source/receipt/count comparison only. No Cargo/main/Git. All existing requirement and baseline verification statuses remain unchanged."
+}

@@ -1,0 +1,54 @@
+{
+  "classification": "one_distinct_shared_owner_annex_required",
+  "baseline_catalogue": "docs/work/name-handling/repository-consumer-audit-final.json",
+  "existing_annex": "docs/work/name-handling/implementation-owner-annex.json",
+  "baseline_delta": 0,
+  "additional_semantic_obligations_delta": 1,
+  "additional_caller_migrations_delta": 0,
+  "additional_validation_units_delta": 0,
+  "proposed_obligation": {
+    "id": "vm.native.actual-engine-provenance-owner",
+    "kind": "shared_owner_repair",
+    "site_anchors": [
+      {
+        "path": "rust/tcl-vm/src/interp.rs",
+        "symbol": "actual_native_execution_profile; actual_engine_profile missing-engine fallback"
+      }
+    ],
+    "rationale": "One actual-engine provenance owner must retain the absence of an explicitly installed engine instead of deriving measured Native execution from source/runtime profile. Explicit active host capability and explicit actual engine remain valid donors. This shared issuer requirement is distinct from existing info/String worker rosters and loaded result caller requirements. Its13 unchanged actual-purpose production consumers are affected dependencies, not additional caller migrations.",
+    "implementation": {
+      "status": "prepared_for_root_integration",
+      "verified_complete": false
+    },
+    "patch": "/tmp/sol-vm-info-failures/actual-profile-proposal.patch"
+  },
+  "related_existing_units": [
+    {
+      "id": "vm-unit-0201",
+      "purpose": "info member roster and worker publication",
+      "reason_not_covering": "Required change expressly says register already uses actual_native_execution_profile45; remaining owner facet is complete C/info worker roster/address, not missing-engine provenance."
+    },
+    {
+      "id": "vm-unit-0530",
+      "purpose": "physical string member roster and lifecycle",
+      "reason_not_covering": "Required change expressly says native profile already correctly retained41; remaining facet is declaration-to-handler roster/address, not shared absent-engine issuer."
+    },
+    {
+      "id": "vm-unit-0205-a",
+      "purpose": "actual original prefix getter and selected native comparison extent",
+      "reason_not_covering": "Loaded query operand/comparison caller, not actual engine capability issuer."
+    },
+    {
+      "id": "vm-unit-0205-b",
+      "purpose": "loaded file/prefix provider result representation from actual producer",
+      "reason_not_covering": "Loaded result representation/provider caller, not absent-engine provenance."
+    }
+  ],
+  "existing_annex_review": "All28 current additional_unverified_obligations inspected; none names actual engine absence/provenance or this fallback. Jim result-slot owner and physical-body capsule/callers have distinct object publication purposes.",
+  "proof_owner_distinction": "naming.embedding.original-host-publication-and-fact-transport and naming.info.loaded-original-interpreter-path are semantic proof/contract owners, not2158 catalogue units. Their existence does not establish counted coverage. Earlier zero-new-annex statement is corrected by this explicit catalogue reconciliation.",
+  "fixture_repairs": {
+    "jim110": "same existing original control setup correction; no added migration/annex from110 cases",
+    "oo": "same existing original control chronology correction; no added migration/annex from3 provider cases"
+  },
+  "validation": "No main edits/builds/tests/Git mutations. Root owns integration status, aggregate count and validation."
+}
