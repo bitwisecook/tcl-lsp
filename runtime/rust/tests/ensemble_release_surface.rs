@@ -101,7 +101,9 @@ fn string_index_prefix_is_unique_before_tcl9() {
     let (code, message) = run(&mut old, "string insert abc 1 X");
     assert_eq!(code, Code::Error);
     assert!(
-        message.starts_with("unknown or ambiguous subcommand \"insert\": must be cat, compare"),
+        message.starts_with(
+            "unknown or ambiguous subcommand \"insert\": must be bytelength, cat, compare"
+        ),
         "{message}"
     );
 
