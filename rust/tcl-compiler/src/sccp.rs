@@ -4222,7 +4222,9 @@ fn collect_constant_branches(
         if decision.is_some() {
             record_condition_preserves(cfg, ssa, *bn, fold.driver);
         }
-        let cond_text = crate::expr_ast::expr_text(condition);
+        let cond_text = condition
+            .substituted_word_source()
+            .unwrap_or_else(|| crate::expr_ast::expr_text(condition));
         let (true_name, false_name) = (
             cfg.block_name(*true_target).to_owned(),
             cfg.block_name(*false_target).to_owned(),
@@ -4656,6 +4658,12 @@ pub(crate) fn evaluate_branch<S: std::hash::BuildHasher>(
     ssa: &SsaFunction,
     fold: BranchFold<'_>,
 ) -> Option<bool> {
+    // A substituted condition word reads as the word written as the
+    // expression, which agrees with C whenever its value is a number.
+    let written = condition
+        .substituted_word_source()
+        .map(|word| tcl_syntax::expr::parse_expr(&word, None));
+    let condition = written.as_ref().unwrap_or(condition);
     let mut uses: HashMap<Symbol, crate::ssa::Version> = ssa_block
         .exit_versions
         .iter()

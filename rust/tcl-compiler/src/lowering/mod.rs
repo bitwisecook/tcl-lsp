@@ -353,6 +353,16 @@ fn seg_word_is_static_literal(seg: &SegmentedCommand, idx: usize) -> bool {
             .is_some_and(|t| matches!(t.kind, TokenType::Str | TokenType::Esc))
 }
 
+/// Word `idx` is C's `TCL_TOKEN_SIMPLE_WORD`: a [`seg_word_is_static_literal`]
+/// word whose value is its text, so a bareword or quoted word with a
+/// backslash is not (`\"a\"` is `"a"`). A condition or body that is not
+/// simple is substituted and then evaluated by the runtime command.
+fn seg_word_is_simple(seg: &SegmentedCommand, idx: usize) -> bool {
+    seg_word_is_static_literal(seg, idx)
+        && (seg.argv.get(idx).is_some_and(|t| t.kind == TokenType::Str)
+            || seg.texts.get(idx).is_some_and(|text| !text.contains('\\')))
+}
+
 /// Whether word `idx` runs a `$var` / `[cmd]` substitution when it is
 /// evaluated — so its value is run-time data rather than the text as written.
 ///

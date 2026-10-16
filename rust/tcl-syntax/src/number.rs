@@ -57,7 +57,7 @@ use std::borrow::Cow;
 
 mod print_double;
 
-pub use tcl_dialect::{DoubleSpelling, NumberSpelling, NumberSyntax};
+pub use tcl_dialect::{DoubleFormat, DoubleSpelling, NumberSpelling, NumberSyntax};
 
 /// Integer radix (base) for a [`Number::Big`]'s digit string.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -132,8 +132,9 @@ pub struct ParseFlags {
 /// A caller that must be explicit (a test, or a tool handling several dialects
 /// in one process) passes [`ParseFlags::for_syntax`] instead of relying on it.
 mod ambient {
-    use super::NumberSyntax;
+    use super::{DoubleFormat, NumberSyntax};
     use std::cell::Cell;
+    use tcl_dialect::TclVersion;
 
     thread_local! {
         // Spelled out rather than `NumberSyntax::default()` because `Default` is
@@ -146,11 +147,41 @@ mod ambient {
     /// construction, before any script executes.
     pub fn set(syntax: NumberSyntax) {
         SYNTAX.with(|c| c.set(syntax));
+        PRINT.with(|c| c.set(None));
     }
 
     /// The installed grammar (Tcl 9.0 until an embedder says otherwise).
     pub fn get() -> NumberSyntax {
         SYNTAX.with(Cell::get)
+    }
+
+    thread_local! {
+        static PRINT: Cell<Option<DoubleFormat>> = const { Cell::new(None) };
+        static RELEASE: Cell<Option<TclVersion>> = const { Cell::new(None) };
+    }
+
+    pub fn set_release(release: TclVersion) {
+        set(release.number_syntax());
+        RELEASE.with(|c| c.set(Some(release)));
+    }
+
+    pub fn release() -> Option<TclVersion> {
+        RELEASE
+            .with(Cell::get)
+            .filter(|release| release.number_syntax() == get())
+    }
+
+    pub fn set_print(format: DoubleFormat) {
+        PRINT.with(|c| c.set(Some(format)));
+    }
+
+    /// The installed print format, or the grammar's own at its default
+    /// precision until a runtime installs one.
+    pub fn print() -> DoubleFormat {
+        PRINT.with(Cell::get).unwrap_or_else(|| {
+            let syntax = get();
+            syntax.double_format(syntax.default_precision())
+        })
     }
 }
 
@@ -167,6 +198,72 @@ pub fn set_runtime_syntax(syntax: NumberSyntax) {
 #[must_use]
 pub fn runtime_syntax() -> NumberSyntax {
     ambient::get()
+}
+
+/// Install the release this thread's runtime emulates: its numeric grammar
+/// ([`set_runtime_syntax`]) and the release itself, for the facts that
+/// differ between releases sharing a grammar (8.5 and 8.6).
+pub fn set_runtime_release(release: tcl_dialect::TclVersion) {
+    ambient::set_release(release);
+}
+
+/// The release installed by [`set_runtime_release`], while the grammar is
+/// still its own.
+#[must_use]
+pub fn runtime_release() -> Option<tcl_dialect::TclVersion> {
+    ambient::release()
+}
+
+/// Install how this thread's runtime prints a double: C keeps
+/// `tcl_precision` in thread data (`precisionKey`, `tclUtil.c`), so every
+/// interpreter on the thread prints at the one precision. Installing a
+/// grammar resets it to that grammar's default.
+pub fn set_runtime_print(format: DoubleFormat) {
+    ambient::set_print(format);
+}
+
+/// A double's string rep under the runtime's print format (see
+/// [`set_runtime_print`]): `Tcl_PrintDouble`, so `%.12g` under Tcl 8.4 and
+/// the shortest round-trip from 8.5 at the default precision.
+#[must_use]
+pub fn print_double(f: f64) -> String {
+    format_double_with(f, ambient::print())
+}
+
+/// The precision `text` sets through `tcl_precision` under `syntax`, or
+/// `None` when `TclPrecTraceProc` refuses it: a base-10 `strtoul` read on
+/// 8.4 (leading space and a sign allowed, nothing after the digits) and a
+/// Tcl integer from 8.5, inside [`NumberSyntax::precision_range`].
+#[must_use]
+pub fn parse_precision(text: &str, syntax: NumberSyntax) -> Option<u8> {
+    let value = if syntax.precision_reads_decimal() {
+        let body = text.trim_start_matches(|c: char| c.is_ascii_whitespace());
+        let (negative, digits) = match body.as_bytes().first() {
+            Some(b'-') => (true, &body[1..]),
+            Some(b'+') => (false, &body[1..]),
+            _ => (false, body),
+        };
+        if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) || negative {
+            return None;
+        }
+        digits.bytes().try_fold(0_u64, |n, d| {
+            n.checked_mul(10)?.checked_add(u64::from(d - b'0'))
+        })?
+    } else {
+        match parse_whole_with(
+            text,
+            ParseFlags {
+                integer_only: true,
+                ..ParseFlags::for_syntax(syntax)
+            },
+        ) {
+            Some(Number::Int(n)) => u64::try_from(n).ok()?,
+            _ => return None,
+        }
+    };
+    u8::try_from(value)
+        .ok()
+        .filter(|p| syntax.precision_range().contains(p))
 }
 
 impl Default for ParseFlags {
@@ -377,39 +474,44 @@ pub fn is_out_of_range_double(s: &str, syntax: NumberSyntax) -> bool {
 /// same minimal digits as C's `dtoa`) and re-lay it out under Tcl's rule.
 #[must_use]
 pub fn format_double(f: f64) -> String {
-    if f.is_nan() {
-        return "NaN".to_owned();
+    if let Some(special) = non_finite_or_zero(f) {
+        return special;
     }
-    if f.is_infinite() {
-        return if f.is_sign_negative() {
-            "-Inf".to_owned()
-        } else {
-            "Inf".to_owned()
-        };
-    }
-    // Signed zero must keep its sign: `Tcl_PrintDouble` renders `-0.0` as `-0.0`,
-    // and `f == 0.0` is true for both zeros (so the sign bit is the only tell).
-    if f == 0.0 {
-        return if f.is_sign_negative() {
-            "-0.0".to_owned()
-        } else {
-            "0.0".to_owned()
-        };
-    }
-
-    let neg = f < 0.0;
     let (digits, decpt) = shortest_digits(f.abs());
-    let ndigits = digits.len();
+    lay_out_digits(f < 0.0, &digits, decpt, 1)
+}
 
+/// `NaN`, `Inf`/`-Inf` and the signed zeros, which every layout spells alike:
+/// `Tcl_PrintDouble` renders `-0.0` as `-0.0`, and `f == 0.0` is true for
+/// both zeros (so the sign bit is the only tell).
+fn non_finite_or_zero(f: f64) -> Option<String> {
+    let text = if f.is_nan() {
+        "NaN"
+    } else if f.is_infinite() {
+        if f.is_sign_negative() { "-Inf" } else { "Inf" }
+    } else if f == 0.0 {
+        if f.is_sign_negative() { "-0.0" } else { "0.0" }
+    } else {
+        return None;
+    };
+    Some(text.to_owned())
+}
+
+/// `Tcl_PrintDouble`'s layout of the significant `digits` with the decimal
+/// point at `decpt` (the value is `0.<digits> × 10^decpt`): fixed notation
+/// when the point sits in `[-3, 17]`, else scientific with an exponent of at
+/// least `exponent_width` digits (two at a non-zero `tcl_precision`).
+fn lay_out_digits(neg: bool, digits: &str, decpt: i32, exponent_width: usize) -> String {
+    let ndigits = digits.len();
     // Tcl's `%g` cutover: scientific outside `decpt ∈ [-3, 17]`, else fixed.
     let out = if !(-3..=17).contains(&decpt) {
-        // Scientific: the shortest mantissa (a single digit stays bare, no
-        // `.0`), then `e`, an explicit sign, and the natural-width exponent.
+        // Scientific: the mantissa (a single digit stays bare, no `.0`), then
+        // `e`, an explicit sign, and the exponent.
         let (lead, rest) = digits.split_at(1);
         let point = if rest.is_empty() { "" } else { "." };
         let e = decpt - 1;
         let sign = if e < 0 { '-' } else { '+' };
-        format!("{lead}{point}{rest}e{sign}{}", e.abs())
+        format!("{lead}{point}{rest}e{sign}{:0exponent_width$}", e.abs())
     } else if decpt <= 0 {
         // Leading-zero fraction: `0.000<digits>` (`-decpt` is ≥ 0 here).
         let lead = decpt.unsigned_abs() as usize;
@@ -466,16 +568,30 @@ fn shortest_digits(f: f64) -> (String, i32) {
 pub fn format_double_as(f: f64, spelling: DoubleSpelling) -> String {
     match spelling {
         DoubleSpelling::Shortest => format_double(f),
-        DoubleSpelling::Precision12 => print_double::precision_12(f),
+        DoubleSpelling::Precision12 => print_double::printf_g(f, 12),
     }
 }
 
-/// `f`'s string rep under the release this thread runs ([`runtime_syntax`]):
-/// what an engine's double object prints, `%.12g` under Tcl 8.4 and the
-/// shortest round-trip from 8.5 ([`NumberSyntax::double_spelling`]).
+/// `f` as `Tcl_PrintDouble` lays it out under `format`
+/// ([`NumberSyntax::double_format`]).
 #[must_use]
-pub fn format_runtime_double(f: f64) -> String {
-    format_double_as(f, runtime_syntax().double_spelling())
+pub fn format_double_with(f: f64, format: DoubleFormat) -> String {
+    match format {
+        DoubleFormat::Shortest => format_double(f),
+        DoubleFormat::Significant(precision) => {
+            if let Some(special) = non_finite_or_zero(f) {
+                return special;
+            }
+            let sci = format!("{:.*e}", usize::from(precision.max(1) - 1), f.abs());
+            let (mantissa, exp) = sci
+                .split_once('e')
+                .expect("Rust's {:e} always emits an 'e' separator");
+            let exp: i32 = exp.parse().expect("Rust's {:e} exponent is an integer");
+            let digits: String = mantissa.chars().filter(char::is_ascii_digit).collect();
+            lay_out_digits(f < 0.0, digits.trim_end_matches('0'), exp + 1, 2)
+        }
+        DoubleFormat::Printf(precision) => print_double::printf_g(f, precision),
+    }
 }
 
 /// The source text a computed double may be written as for a target that
@@ -779,6 +895,17 @@ pub fn parse(s: &str, flags: ParseFlags) -> Option<Parsed> {
     // overflowing — e.g. magnitudes in `(i64::MAX, u64::MAX]`).
     let number = match (scan.overflow, to_i64(scan.magnitude, negative)) {
         (false, Some(v)) => Number::Int(v),
+        // Only an interpreter wraps: 8.4's reading depends on its host's
+        // `long`, so a static reader with no runtime installed keeps the
+        // value and lets its consumer decline (`runtime_release`).
+        (false, None) if flags.syntax.wraps_wide_integers() && ambient::release().is_some() => {
+            let wrapped = scan.magnitude.cast_signed();
+            Number::Int(if negative {
+                wrapped.wrapping_neg()
+            } else {
+                wrapped
+            })
+        }
         _ => Number::Big {
             negative,
             radix,

@@ -44,6 +44,12 @@ use crate::value::Value;
 /// `dict incr` paths (command and `DICT_INCR_IMM` opcode) share it without
 /// needing the [`ValueOps`] receiver.
 pub(crate) fn int_add(a: Option<&Value>, b: &Value) -> Result<Value, ValueError> {
+    // 8.4's integers are 64 bits and wrap.
+    if tcl_syntax::number::runtime_syntax().wraps_wide_integers() {
+        let read = |v: &Value| v.as_int().map_err(|error| int_refusal(v, &error));
+        let x = a.map_or(Ok(0), read)?;
+        return Ok(Value::int(x.wrapping_add(read(b)?)));
+    }
     // Fast `i128` tier: both operands fit and the sum doesn't overflow.
     let x_small = a.map_or(Some(0), Value::as_i128);
     if let (Some(x), Some(y)) = (x_small, b.as_i128())

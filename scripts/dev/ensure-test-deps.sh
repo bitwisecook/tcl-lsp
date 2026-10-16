@@ -103,7 +103,7 @@ requested_tcl_releases() {
         | awk 'NF && !seen[$0]++ { print }'
 }
 
-WASMTIME_VERSION="49.0.2"
+WASMTIME_VERSION="49.0.3"
 WASI_SDK_VERSION="34.0"
 TCLLIB_TAG="tcllib-2-0"
 TCLLIB_VERSION="2.0"
@@ -111,7 +111,9 @@ TCLLIB_VERSION="2.0"
 # docs/design/contracts/development-environment.md,
 # and the CI `node-version`. Distro apt/dnf packages (Ubuntu 24.04 ships Node
 # 18) fall below this, so install from NodeSource when they would.
-NODE_MIN_MAJOR="24"
+NODE_MIN_MAJOR="26"
+# Node 25+ no longer bundles Corepack, which pins npm via `packageManager`.
+COREPACK_VERSION="0.36.0"
 
 CHECK_ONLY=0
 if [ "${1:-}" = "--check" ]; then
@@ -663,9 +665,24 @@ ensure_node() {
         case "$PKG" in
             apt-get) install_node_from_nodesource deb || run_install "Node.js (apt)" nodejs npm ;;
             dnf|yum) install_node_from_nodesource rpm || run_install "Node.js (dnf)" nodejs npm ;;
-            # Homebrew's `node` formula tracks the current major (>= 24).
+            # Homebrew's `node` formula tracks the current major (>= 26).
             brew)    run_install "Node.js (Homebrew)" node ;;
         esac
+    fi
+
+    # Corepack must sit beside the active node, or its npm shim lands next to
+    # some other install and never takes effect.
+    local node_dir; node_dir="$(dirname "$(command -v node 2>/dev/null || echo /nonexistent/node)")"
+    if [ ! -x "$node_dir/corepack" ]; then
+        if [ "$CHECK_ONLY" -eq 1 ]; then
+            note_missing "corepack ${COREPACK_VERSION}"
+        else
+            info "Installing corepack ${COREPACK_VERSION}"
+            $SUDO "$node_dir/npm" install -g --no-audit --no-fund "corepack@${COREPACK_VERSION}" >/dev/null
+        fi
+    fi
+    if [ "$CHECK_ONLY" -eq 0 ] && [ -x "$node_dir/corepack" ]; then
+        $SUDO "$node_dir/corepack" enable npm
     fi
 
     # Project-local tsc lives in editors/vscode/node_modules/.bin/tsc and
@@ -894,8 +911,8 @@ ensure_wasmtime() {
 
     local wasm_arch expected_sha
     case "$ARCH" in
-        x86_64)  wasm_arch="x86_64-linux"; expected_sha="a4d6e9e3a5a60f527cf7793d674c48930c80c2e8977995b8a275cad3254b9322" ;;
-        aarch64) wasm_arch="aarch64-linux"; expected_sha="ca14988c6da3d92512bd9c3bad6cbd06b1f5743b6911a9e709f1a6fa30637d7f" ;;
+        x86_64)  wasm_arch="x86_64-linux"; expected_sha="4001225413f208345b980525f31c4080e1873808b38d0ddc7918497340667fbb" ;;
+        aarch64) wasm_arch="aarch64-linux"; expected_sha="880fcb026da88ad7fc1713d572b0d03d139758b7da96cd3cb8c9cbf847a521df" ;;
         *) echo "ERROR: unsupported architecture for Wasmtime: $ARCH" >&2; return 1 ;;
     esac
 

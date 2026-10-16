@@ -541,6 +541,20 @@ pub fn parse_expr_for_profile(source: &str, profile: Option<&DialectProfile>) ->
     // which has no catalogue row) and parse under the permissive fallback
     // instead — the one way codegen and the lexer could disagree again.
     let resolved = profile.unwrap_or_else(|| DialectProfile::plain_tcl());
+    // A release that parses with 8.4's `tclParseExpr.c` rejects what that
+    // parser rejects, an out-of-range literal included, so such an
+    // expression is left to the runtime parse that reports it. The F5 word
+    // operators are not in that parser's grammar.
+    if resolved
+        .expr_grammar_base
+        .is_some_and(tcl_dialect::TclVersion::parses_expressions_as_8_4)
+        && resolved.f5_core_expr_grammar().is_none()
+        && super::syntax_84::parse_tcl84(source).is_err()
+    {
+        return ExprNode::Raw {
+            text: source.to_owned(),
+        };
+    }
     let (raw_tokens, has_unknown) = tcl_lexer::tokenise_expr_checked_for_profile(source, resolved);
     parse_raw_tokens(
         source,

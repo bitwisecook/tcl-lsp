@@ -157,7 +157,6 @@ fn coerce_sources(sources: &Bound<'_, PyAny>) -> PyResult<Vec<(String, String)>>
 #[pyfunction]
 #[pyo3(signature = (expr, sources, *, merge=false, partitions=None, enable_probes=false, per_file=false, side_inputs=None))]
 fn query(
-    py: Python<'_>,
     expr: &str,
     sources: &Bound<'_, PyAny>,
     merge: bool,
@@ -169,6 +168,7 @@ fn query(
     // for the query to reference (e.g. `$nat`, `$dns`, `$services`, `$cidrNames`).
     side_inputs: Option<Vec<(String, String, String)>>,
 ) -> PyResult<Py<PyAny>> {
+    let py = sources.py();
     let sources = coerce_sources(sources)?;
     let side = side_inputs
         .unwrap_or_default()

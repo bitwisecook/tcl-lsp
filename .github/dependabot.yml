@@ -67,13 +67,10 @@ updates:
       # Compile against the oldest API declared in engines.vscode. Newer types
       # would allow calls that fail for users on the supported 1.95 floor.
       - dependency-name: "@types/vscode"
-      # typescript-eslint 8.71 supports TypeScript only below 6.1, so the
-      # wall is 6.1.0 and not 7.0.0. Pair this with the `~6.0.3` range in
-      # package.json: the range keeps a plain `npm install` on 6.0.x, and
-      # this keeps Dependabot from proposing the bump the range would
-      # reject. 6.0.x patches still flow.
-      - dependency-name: typescript
-        versions: [">=6.1.0"]
+      # The same floor ships Node.js 20.18 (Electron 32). There is no 20.18
+      # types line, so the extension stays on 20.17.x.
+      - dependency-name: "@types/node"
+        versions: [">=20.18.0"]
 
   # Every npm project in the tree needs its own entry — Dependabot does not
   # walk sub-directories, so an untracked one carries dependency
@@ -92,14 +89,6 @@ updates:
           - "*"
         exclude-patterns:
           - "npm"
-    ignore:
-      # typescript-eslint 8.71 supports TypeScript only below 6.1, so the
-      # wall is 6.1.0 and not 7.0.0. Pair this with the `~6.0.3` range in
-      # package.json: the range keeps a plain `npm install` on 6.0.x, and
-      # this keeps Dependabot from proposing the bump the range would
-      # reject. 6.0.x patches still flow.
-      - dependency-name: typescript
-        versions: [">=6.1.0"]
 
   - package-ecosystem: npm
     directory: /rust/bigip-report-gen/frontend
@@ -114,14 +103,6 @@ updates:
           - "*"
         exclude-patterns:
           - "npm"
-    ignore:
-      # typescript-eslint 8.71 supports TypeScript only below 6.1, so the
-      # wall is 6.1.0 and not 7.0.0. Pair this with the `~6.0.3` range in
-      # package.json: the range keeps a plain `npm install` on 6.0.x, and
-      # this keeps Dependabot from proposing the bump the range would
-      # reject. 6.0.x patches still flow.
-      - dependency-name: typescript
-        versions: [">=6.1.0"]
 
   # Every cargo root in the tree, not just the workspace at `/`.  The root
   # `[workspace] exclude` list (Cargo.toml) holds each target that cannot

@@ -41,6 +41,7 @@ use crate::lowering_hooks::word_content_base;
 use crate::naming::normalise_var_name;
 use crate::registry_invocation::{EffectiveInvocationWord, effective_command_arguments};
 use crate::segmenter::SegmentedCommand;
+use tcl_syntax::expr::ExprNode;
 
 use super::{Lowerer, parse_var_list_names};
 use tcl_syntax::word_rules::WordValueRules;
@@ -376,6 +377,17 @@ fn if_defect_reason(plan: &ClausePlan, defect: ClauseShapeError) -> &'static str
 }
 
 impl Lowerer<'_> {
+    /// The condition of `if`/`while`/`for` from argv word `word`. A simple
+    /// word is the expression itself; any other word is substituted and its
+    /// value evaluated as an expression (`TclCompileExprWords`), so `if $c`
+    /// with `c` holding `1==1` is true ([`ExprNode::substituted_word`]).
+    fn condition_expr(&self, seg: &SegmentedCommand, word: usize, text: &str) -> ExprNode {
+        if super::seg_word_is_simple(seg, word) {
+            return parse_expr_for_profile(text, self.dialect);
+        }
+        ExprNode::substituted_word(text)
+    }
+
     // if
 
     /// The clause walk of `seg` under this lowerer's registry and release:
@@ -456,7 +468,7 @@ impl Lowerer<'_> {
             // script — which the runtime `if` command does. Bail the whole
             // construct to that command rather than mis-parsing the unsubstituted
             // word as a literal script at compile time.
-            if !super::seg_word_is_static_literal(seg, body_idx + 1) {
+            if !super::seg_word_is_simple(seg, body_idx + 1) {
                 return self.barrier(seg, "if with non-literal body");
             }
             let body_tok = arg_tokens.get(body_idx);
@@ -490,7 +502,7 @@ impl Lowerer<'_> {
             let cond_single = arg_single.get(cond_idx).copied().unwrap_or(false);
             let cond_text = condition_source_text(cond_tok, cond_single, &args[cond_idx]);
             clauses.push(IfClause {
-                condition: parse_expr_for_profile(&cond_text, self.dialect),
+                condition: self.condition_expr(seg, cond_idx + 1, &cond_text),
                 condition_span: cond_tok.map_or(seg.span, |t| t.span),
                 condition_base: cond_tok
                     .and_then(|t| word_content_base(t.span, cond_single, &cond_text)),
@@ -543,9 +555,9 @@ impl Lowerer<'_> {
         // but dynamic word (`$body`, `[cmd]`) must barrier rather than be
         // lowered as if it were the literal text.
         if !arg_single[1]
-            || !super::seg_word_is_static_literal(seg, 1)
-            || !super::seg_word_is_static_literal(seg, 3)
-            || !super::seg_word_is_static_literal(seg, 4)
+            || !super::seg_word_is_simple(seg, 1)
+            || !super::seg_word_is_simple(seg, 3)
+            || !super::seg_word_is_simple(seg, 4)
         {
             return self.barrier(seg, "for with dynamic arguments");
         }
@@ -565,9 +577,10 @@ impl Lowerer<'_> {
             span: seg.span,
             init,
             init_span: arg_tokens[0].span,
-            condition: parse_expr_for_profile(
+            condition: self.condition_expr(
+                seg,
+                2,
                 &condition_source_text(arg_tokens.get(1), arg_single[1], &args[1]),
-                self.dialect,
             ),
             condition_span: arg_tokens[1].span,
             condition_base: word_content_base(
@@ -603,7 +616,7 @@ impl Lowerer<'_> {
         // `TCL_TOKEN_SIMPLE_WORD` check on the body). A single-token but
         // dynamic body (`$body`, `[cmd]`) must barrier rather than be lowered
         // as if it were the literal text.
-        if !arg_single[0] || !super::seg_word_is_static_literal(seg, 2) {
+        if !arg_single[0] || !super::seg_word_is_simple(seg, 2) {
             return self.barrier(seg, "while with dynamic arguments");
         }
         // See `lower_for`: a body redefining break/continue must use the runtime
@@ -616,9 +629,10 @@ impl Lowerer<'_> {
 
         Statement::While {
             span: seg.span,
-            condition: parse_expr_for_profile(
+            condition: self.condition_expr(
+                seg,
+                1,
                 &condition_source_text(arg_tokens.first(), arg_single[0], &args[0]),
-                self.dialect,
             ),
             condition_span: arg_tokens[0].span,
             condition_base: word_content_base(

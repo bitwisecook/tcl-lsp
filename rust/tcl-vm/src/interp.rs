@@ -340,8 +340,7 @@ proc unknown {cmd args} {
     # `unknown` is bootstrap Tcl shared by every emulated release.  `throw`
     # did not exist in 8.4/8.5, so using it here recursively invokes `unknown`
     # precisely when an older profile rejects a newer command.
-    return -code error -errorcode [list TCL LOOKUP COMMAND $cmd] \
-        "invalid command name \"$cmd\""
+    return -code error @LOOKUP_ERRORCODE@ "invalid command name \"$cmd\""
 }
 if {![info exists ::auto_path]} { set ::auto_path {}; catch {lappend ::auto_path [info library]} }
 "#;
@@ -548,6 +547,9 @@ pub struct Vm {
     /// sweep time (a stale entry — alias since removed or source dead — is
     /// skipped).
     alias_backrefs: Vec<AliasBackref>,
+    /// The precision `Tcl_PrintDouble` prints at, which `tcl_precision`
+    /// sets: thread data in C, so one value for the whole interpreter tree.
+    precision: u8,
 }
 
 /// The whole storage of a namespace token whose deletion is waiting for its
@@ -1686,7 +1688,10 @@ struct VarTrace {
 
 impl VarTrace {
     fn is_native(&self) -> bool {
-        matches!(self.callback, VarTraceCallback::HostEnv)
+        matches!(
+            self.callback,
+            VarTraceCallback::HostEnv | VarTraceCallback::Precision
+        )
     }
 }
 
@@ -1697,12 +1702,16 @@ struct VarTraceBook {
     next_id: u64,
     /// The `::env` array cell the last bootstrap hooked to the host
     /// environment. Cell ids are never reused, so a stale id names no live
-    /// cell; [`Vm::only_env_hook`] checks the hook is still there.
+    /// cell; [`Vm::only_native_hooks`] checks the hook is still there.
     env_hook: Option<VarId>,
-    /// Set once a link reaches the hooked array, or one of its elements,
-    /// under a name not containing `env`: from then on the spelling of an
-    /// access no longer rules the hook out (see [`Vm::var_trace_may_fire`]).
-    env_hook_aliased: bool,
+    /// Set once a link reaches a hooked cell, or an element of the `env`
+    /// array, under a name [`names_hooked_global`] does not recognise: from
+    /// then on the spelling of an access no longer rules the hooks out (see
+    /// [`Vm::var_trace_may_fire`]).
+    native_hook_aliased: bool,
+    /// The global `tcl_precision` cell [`VarTraceCallback::Precision`] is on,
+    /// on a release that has the variable.
+    precision_hook: Option<VarId>,
 }
 
 /// What a variable trace runs when it fires.
@@ -1720,6 +1729,11 @@ enum VarTraceCallback {
     /// Scripts can neither see nor remove it, and as the oldest trace on the
     /// array it runs after the script traces of its group.
     HostEnv,
+    /// C's `TclPrecTraceProc`: the read/write/unset trace `Tcl_CreateInterp`
+    /// puts on the global `tcl_precision`, which a read refreshes from the
+    /// printing precision and a write sets it from. Hidden like
+    /// [`Self::HostEnv`].
+    Precision,
 }
 
 /// The resolved storage cell used by both trace registration and firing.
@@ -1772,10 +1786,11 @@ struct VarTraceInvocation<'a> {
 }
 
 /// Whether the variable `name` spells (`env`, `::env`, `env(X)`) is named
-/// `env` once its namespace qualifiers and element are set aside.
-fn names_env(name: &str) -> bool {
+/// `env` or `tcl_precision`, the globals carrying a native trace, once its
+/// namespace qualifiers and element are set aside.
+fn names_hooked_global(name: &str) -> bool {
     let base = name.split_once('(').map_or(name, |(base, _)| base);
-    base.rsplit("::").next() == Some("env")
+    matches!(base.rsplit("::").next(), Some("env" | "tcl_precision"))
 }
 
 /// `text` up to its first NUL, as far as C's `environ` keeps it.
@@ -1881,7 +1896,9 @@ impl Vm {
     /// its next entry. Pinned by
     /// `a_second_interpreter_does_not_change_the_first_ones_grammar`.
     pub(crate) fn claim_number_grammar(&self) {
-        tcl_syntax::number::set_runtime_syntax(self.runtime_version.number_syntax());
+        let syntax = self.runtime_version.number_syntax();
+        tcl_syntax::number::set_runtime_release(self.runtime_version);
+        tcl_syntax::number::set_runtime_print(syntax.double_format(self.precision));
     }
 
     pub fn set_runtime_version(&mut self, version: tcl_dialect::TclVersion) {
@@ -1980,6 +1997,10 @@ impl Vm {
         // is not a channel lifecycle event.
         if self.cur == ROOT_INTERP && profile_changed {
             self.reset_standard_channel_configs();
+            self.precision = profile
+                .vm_runtime_version
+                .number_syntax()
+                .default_precision();
         }
         // Install the release's numeric grammar for this runtime: `0755` is 493
         // under 8.6 and 755 under 9.0, `0b`/`0o` exist from 8.5 and `0d` / `_`
@@ -1988,7 +2009,7 @@ impl Vm {
         // `tcl_syntax::number::set_runtime_syntax`. Embedders call this while
         // building the interpreter; the VM does not support switching release
         // mid-execution.
-        tcl_syntax::number::set_runtime_syntax(self.runtime_version.number_syntax());
+        self.claim_number_grammar();
         self.write_release_globals();
         // `package provide Tcl` is a release fact, not an engine constant, and
         // the pre-provided entries were written against the *previous* pin, so
@@ -2193,6 +2214,7 @@ impl Vm {
             standard_channels,
             system_encoding,
             alias_backrefs: Vec::new(),
+            precision: 0,
         };
         register_builtins(&mut vm);
         vm.bootstrap_globals();
@@ -2690,6 +2712,7 @@ impl Vm {
             "tcl_patchLevel",
             Value::string(self.runtime_version.patchlevel()),
         );
+        self.install_precision_hook();
     }
 
     /// Populate the predefined global variables a fresh interpreter exposes:
@@ -2755,7 +2778,13 @@ impl Vm {
     /// name`, matching C's miss. Requires a compiler (uses `eval_source`); call
     /// after [`Self::set_compiler`]. Returns the bootstrap's completion.
     pub fn init_auto_load(&mut self) -> Completion<Value> {
-        match self.eval_source(AUTO_LOAD_BOOTSTRAP) {
+        let errorcode = if self.runtime_version.has_lookup_error_code("COMMAND") {
+            "-errorcode [list TCL LOOKUP COMMAND $cmd]"
+        } else {
+            ""
+        };
+        let bootstrap = AUTO_LOAD_BOOTSTRAP.replace("@LOOKUP_ERRORCODE@", errorcode);
+        match self.eval_source(&bootstrap) {
             Ok(c) => c,
             Err(e) => err(e.message),
         }
@@ -3152,7 +3181,7 @@ impl Vm {
             // The host-environment hook every interpreter carries is not a
             // script trace; counting it would refuse every guard.
             || (domains.contains(GuardDomain::VariableTrace)
-                && !(self.var_traces.is_empty() || self.only_env_hook()))
+                && !(self.var_traces.is_empty() || self.only_native_hooks()))
         {
             return Err(GuardError::PrerequisiteUnsatisfied);
         }
@@ -8808,19 +8837,16 @@ impl Vm {
         }
         self.var_traces.entry(id).or_default().insert(0, trace);
         self.var_trace_book.env_hook = Some(id);
-        self.var_trace_book.env_hook_aliased = false;
+        self.var_trace_book.native_hook_aliased = false;
         self.invalidate_guard_domain(GuardDomain::VariableTrace);
     }
 
-    /// Whether the host-environment hook is the only variable trace
-    /// registered.
-    fn only_env_hook(&self) -> bool {
-        self.var_traces.len() == 1
-            && self.var_trace_book.env_hook.is_some_and(|id| {
-                self.var_traces
-                    .get(&id)
-                    .is_some_and(|list| list.iter().all(VarTrace::is_native))
-            })
+    /// Whether the native hooks (`env`'s and `tcl_precision`'s) are the only
+    /// variable traces registered.
+    fn only_native_hooks(&self) -> bool {
+        self.var_traces
+            .values()
+            .all(|list| list.iter().all(VarTrace::is_native))
     }
 
     /// Whether an access to `name` can reach a variable trace at all, the
@@ -8828,33 +8854,108 @@ impl Vm {
     /// host-environment hook is the only trace, an access reaches it only
     /// through a name whose tail is `env` (`env`, `::env(X)`, a `global env`
     /// link) or through a link made under another name, which
-    /// [`Self::note_env_hook_link`] records; ordinary variables keep the
+    /// [`Self::note_native_hook_link`] records; ordinary variables keep the
     /// untraced fast path.
     fn var_trace_may_fire(&self, name: &str) -> bool {
         if self.var_traces.is_empty() {
             return false;
         }
-        names_env(name) || self.var_trace_book.env_hook_aliased || !self.only_env_hook()
+        names_hooked_global(name)
+            || self.var_trace_book.native_hook_aliased
+            || !self.only_native_hooks()
     }
 
-    /// Record a link to the hooked `env` array or one of its elements made
-    /// under a name the spelling check in [`Self::var_trace_may_fire`] would
-    /// not recognise.
-    fn note_env_hook_link(&mut self, binding: &VarBinding, target: VarId) {
-        let Some(env) = self.var_trace_book.env_hook else {
-            return;
-        };
-        if self.var_trace_book.env_hook_aliased || names_env(&binding.name) {
+    /// Record a link to a hooked cell, or an element of the hooked `env`
+    /// array, made under a name the spelling check in
+    /// [`Self::var_trace_may_fire`] would not recognise.
+    fn note_native_hook_link(&mut self, binding: &VarBinding, target: VarId) {
+        if self.var_trace_book.native_hook_aliased || names_hooked_global(&binding.name) {
             return;
         }
         let Some(target) = self.var_arena.resolve(target) else {
             return;
         };
-        self.var_trace_book.env_hook_aliased = target == env
+        let env = self.var_trace_book.env_hook;
+        self.var_trace_book.native_hook_aliased = Some(target) == env
+            || Some(target) == self.var_trace_book.precision_hook
             || self
                 .var_arena
                 .element_parent(target)
-                .is_some_and(|(array, _)| array == env);
+                .is_some_and(|(array, _)| Some(array) == env);
+    }
+
+    /// Put [`VarTraceCallback::Precision`] on the global `tcl_precision`, as
+    /// `Tcl_CreateInterp` does on a release that has the variable
+    /// ([`tcl_dialect::NumberSyntax::precision_variable`]), and as
+    /// `TclPrecTraceProc` does again when the variable is unset. The
+    /// variable stays undefined until a read creates it. On a release
+    /// without it, a variable left by an earlier pin goes.
+    fn install_precision_hook(&mut self) {
+        let Some(name) = self.runtime_version.number_syntax().precision_variable() else {
+            if self.var_trace_book.precision_hook.take().is_some() {
+                self.unset_global_raw("::tcl_precision");
+            }
+            return;
+        };
+        let name = format!("::{name}");
+        if self.trace_cell(&name).is_none() {
+            let _ = self.ensure_trace_variable(&name);
+        }
+        let Some(id) = self.trace_cell(&name).and_then(|cell| cell.id) else {
+            return;
+        };
+        let existing = self.var_traces.get(&id);
+        if existing.is_some_and(|list| {
+            list.iter()
+                .any(|t| matches!(t.callback, VarTraceCallback::Precision))
+        }) {
+            return;
+        }
+        if existing.is_none() {
+            self.var_arena.pin(id);
+        }
+        self.var_trace_book.next_id += 1;
+        let trace = VarTrace {
+            id: self.var_trace_book.next_id,
+            ops: ["read", "write", "unset"].map(str::to_owned).to_vec(),
+            callback: VarTraceCallback::Precision,
+        };
+        self.var_traces.entry(id).or_default().insert(0, trace);
+        self.var_trace_book.precision_hook = Some(id);
+        self.invalidate_guard_domain(GuardDomain::VariableTrace);
+    }
+
+    /// C's `TclPrecTraceProc` (`tclUtil.c`) on the cell `id`: a read stores
+    /// the printing precision in the variable, a write validates the new
+    /// value and adopts it, and an unset re-installs the trace.
+    fn run_precision_hook(&mut self, op: &str, id: Option<VarId>) -> Result<(), String> {
+        let current = Value::int(i64::from(self.precision));
+        match (op, id) {
+            ("unset", _) => self.install_precision_hook(),
+            ("read", Some(id)) => {
+                let _ = self.var_arena.replace_state(id, Local::Scalar(current));
+            }
+            ("write", Some(id)) => {
+                let refused = if self.is_safe() {
+                    "can't modify precision from a safe interpreter"
+                } else {
+                    let syntax = self.runtime_version.number_syntax();
+                    let parsed = self.read_resolved_cell(id).and_then(|value| {
+                        tcl_syntax::number::parse_precision(&value.to_str(), syntax)
+                    });
+                    if let Some(precision) = parsed {
+                        self.precision = precision;
+                        self.claim_number_grammar();
+                        return Ok(());
+                    }
+                    "improper value for precision"
+                };
+                let _ = self.var_arena.replace_state(id, Local::Scalar(current));
+                return Err(refused.to_owned());
+            }
+            _ => {}
+        }
+        Ok(())
     }
 
     /// C's `EnvTraceProc` (`tclEnv.c`) for the array cell `array`: an
@@ -9512,7 +9613,7 @@ impl Vm {
                     VarTraceCallback::Script { command, .. } => {
                         Some((t.ops.clone(), command.clone()))
                     }
-                    VarTraceCallback::HostEnv => None,
+                    VarTraceCallback::HostEnv | VarTraceCallback::Precision => None,
                 })
                 .collect()
         })
@@ -10010,6 +10111,13 @@ impl Vm {
                 };
                 let (command, old_style) = match callback {
                     VarTraceCallback::Script { command, old_style } => (command, old_style),
+                    VarTraceCallback::Precision => {
+                        let Err(message) = self.run_precision_hook(op, live_key) else {
+                            continue;
+                        };
+                        self.seed_error_info(message.clone());
+                        return Err(self.var_trace_failure(op, name, err(message)));
+                    }
                     VarTraceCallback::HostEnv => {
                         // An element access reaches the hook through its
                         // array's group; a whole-array one through the
@@ -10062,7 +10170,9 @@ impl Vm {
     /// C's `TclCallVarTraces` logs a `(write|read trace on "name")` frame,
     /// then clears `ERR_ALREADY_LOGGED` so the command that triggered the
     /// trace logs its own `invoked from within` frame as the error unwinds
-    /// (set-2.4 / set-4.4). From 8.6 the failed access then sets the bare
+    /// (set-2.4 / set-4.4); 8.4 drops the callback's errorInfo instead
+    /// ([`tcl_dialect::TclVersion::has_var_trace_error_frames`]). From 8.6
+    /// the failed access then sets the bare
     /// `TCL READ|WRITE VARNAME` code (`tclVar.c` 9.0.4:1472, :2073); 8.4 and
     /// 8.5 keep whatever code the callback left.
     fn var_trace_failure(
@@ -10071,7 +10181,12 @@ impl Vm {
         name: &str,
         mut failure: Completion<Value>,
     ) -> Completion<Value> {
-        self.append_var_trace_frame(op, name);
+        if self.runtime_version.has_var_trace_error_frames() {
+            self.append_var_trace_frame(op, name);
+        } else {
+            self.error_info = None;
+            self.error_logged = false;
+        }
         let verb = match op {
             "write" => "set",
             "array" => "trace array",
@@ -11406,7 +11521,7 @@ impl Vm {
     ) -> Option<VarId> {
         let id = self.var_arena.alloc_link(target, origin)?;
         self.install_new_var(binding, id);
-        self.note_env_hook_link(binding, target);
+        self.note_native_hook_link(binding, target);
         Some(id)
     }
 
@@ -15424,7 +15539,7 @@ mod family_b_tests {
     #[test]
     fn the_lone_env_hook_leaves_other_variables_on_the_fast_path() {
         let mut vm = Vm::new();
-        assert!(vm.only_env_hook());
+        assert!(vm.only_native_hooks());
         assert_eq!(vm.var_trace_info("env"), Vec::new());
         assert!(!vm.var_trace_may_fire("x"));
         assert!(!vm.var_trace_may_fire("a(k)"));
@@ -15444,7 +15559,7 @@ mod family_b_tests {
 
         let mut vm = Vm::new();
         vm.add_var_trace("y", vec!["write".to_owned()], "callback".to_owned(), false);
-        assert!(!vm.only_env_hook());
+        assert!(!vm.only_native_hooks());
         assert!(vm.var_trace_may_fire("x"));
     }
 
@@ -15464,7 +15579,7 @@ mod family_b_tests {
         vm.write_scalar_raw("a", Value::string("scalar"));
 
         assert_eq!(vm.get_var("a").unwrap().to_str().as_ref(), "scalar");
-        assert!(vm.only_env_hook());
+        assert!(vm.only_native_hooks());
         assert_eq!(vm.var_arena.len(), baseline + 1);
     }
 
@@ -15482,7 +15597,7 @@ mod family_b_tests {
         vm.push_call_frame(Some("p".to_owned()), vec![Value::string("p")]);
         assert!(vm.unset(GLOBAL_FRAME, "a"));
 
-        assert!(vm.only_env_hook());
+        assert!(vm.only_native_hooks());
         assert_eq!(vm.var_arena.len(), baseline);
         vm.pop_call_frame();
     }
@@ -15501,7 +15616,7 @@ mod family_b_tests {
         vm.push_call_frame(Some("p".to_owned()), vec![Value::string("p")]);
 
         assert!(vm.unset_elem(GLOBAL_FRAME, "a", "k"));
-        assert!(vm.only_env_hook());
+        assert!(vm.only_native_hooks());
         assert_eq!(vm.var_arena.len(), baseline + 1, "the empty array remains");
         assert_eq!(vm.array_keys(GLOBAL_FRAME, "a"), Some(Vec::new()));
         vm.pop_call_frame();
@@ -15523,7 +15638,7 @@ mod family_b_tests {
 
         assert!(!vm.unset(GLOBAL_FRAME, "x"));
         assert!(!vm.unset_elem(GLOBAL_FRAME, "a", "k"));
-        assert!(vm.only_env_hook());
+        assert!(vm.only_native_hooks());
         assert_eq!(vm.var_arena.len(), baseline + 1, "the empty array remains");
         vm.pop_call_frame();
     }

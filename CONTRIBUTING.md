@@ -38,7 +38,8 @@ Models used so far: Claude Opus 4.6, Gemini 3.1 Pro, GPT-5.3-Codex.
 - Comments are plain and minimal, present only where the code does not
   convey the point. No banner comments (`// -----`, `// --- Text ---`) and no
   standalone separator lines; a plain `// Text` line instead.
-- TypeScript style is enforced with ESLint and Prettier. Run `make lint-ts`.
+- TypeScript formatting is enforced with Prettier (`make lint-ts`); unused
+  locals and parameters are `tsc` errors (`make typecheck-ts`).
 - Python style (`f5report`, the repo skills and scripts, the Sublime plugin) is enforced with Ruff. Run `make lint-py` and `make format-py`.
 - Use UK spelling in internal names and comments (for example `normalise`, `optimiser`, `analyse`).
 - Keep names explicit; avoid ambiguous one-letter variables outside tiny local loops.

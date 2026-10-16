@@ -21,9 +21,9 @@
 //! - [`power_of_two_digits`]: `TclDoubleDigits`' shortest mode for a normal
 //!   power of two, a case Tcl 8.5–9.1 get wrong and [`super::format_double`]
 //!   reproduces.
-//! - [`precision_12`]: `%.12g` plus the `.0` rule, the spelling of Tcl 8.4's
-//!   `Tcl_PrintDouble` at its default `tcl_precision` and of Jim's
-//!   `UpdateStringOfDouble`.
+//! - [`printf_g`]: `%.<precision>g` plus the `.0` rule, the spelling of Tcl
+//!   8.4's `Tcl_PrintDouble` (`tcl_precision` 12 by default) and of Jim's
+//!   `UpdateStringOfDouble` (always 12).
 
 /// The significant digits (no trailing zeros) and the decimal-point position
 /// `TclDoubleDigits` produces in shortest mode for the normal double `2^k`.
@@ -117,26 +117,26 @@ pub(super) fn power_of_two_digits(k: i32) -> (Vec<u8>, i32) {
     (digits, decpt)
 }
 
-/// `f` as `sprintf("%.12g")` prints it, with `.0` appended when that output
-/// has neither a `.` nor an exponent: the spelling of Tcl 8.4's
-/// `Tcl_PrintDouble` (`tclUtil.c`, `tcl_precision` 12, which tests for any
-/// alphabetic character) and of Jim's `UpdateStringOfDouble` (`jim.c`, which
-/// tests for `e`). The two tests agree on every finite double. The exponent
-/// keeps C's two-digit minimum (`1e-05`, `1e+16`). A non-finite value is
-/// spelled `Inf`, `-Inf` or `NaN`, as Jim spells it; tclsh 8.4 raises before
-/// an expression can produce one.
-pub(super) fn precision_12(f: f64) -> String {
-    // `%.12g`: twelve significant digits, scientific below 1e-4 or from 1e12.
-    const PRECISION: i32 = 12;
+/// `f` as `sprintf("%.<precision>g")` prints it, with `.0` appended when
+/// that output has neither a `.` nor an exponent: the spelling of Tcl 8.4's
+/// `Tcl_PrintDouble` (`tclUtil.c`, which tests for any alphabetic character)
+/// and of Jim's `UpdateStringOfDouble` (`jim.c`, `%.12g`, which tests for
+/// `e`). The two tests agree on every finite double. The exponent keeps C's
+/// two-digit minimum (`1e-05`, `1e+16`). A non-finite value is spelled `Inf`,
+/// `-Inf` or `NaN`, as Jim spells it; tclsh 8.4 raises before an expression
+/// can produce one.
+pub(super) fn printf_g(f: f64, precision: u8) -> String {
+    // `%.Ng`: N significant digits, scientific below 1e-4 or from 1eN.
+    let precision = precision.max(1);
     if f.is_nan() {
         return "NaN".to_owned();
     }
     if f.is_infinite() {
         return if f < 0.0 { "-Inf" } else { "Inf" }.to_owned();
     }
-    // Rust rounds the exact binary value to 12 significant digits, half to
+    // Rust rounds the exact binary value to N significant digits, half to
     // even — what glibc's `printf` does.
-    let sci = format!("{:.11e}", f.abs());
+    let sci = format!("{:.*e}", usize::from(precision - 1), f.abs());
     let (mantissa, exp) = sci
         .split_once('e')
         .expect("Rust's {:e} always emits an 'e' separator");
@@ -147,7 +147,7 @@ pub(super) fn precision_12(f: f64) -> String {
     } else {
         digits.trim_end_matches('0')
     };
-    let body = if !(-4..PRECISION).contains(&exp) {
+    let body = if !(-4..i32::from(precision)).contains(&exp) {
         let (lead, rest) = digits.split_at(1);
         let point = if rest.is_empty() { "" } else { "." };
         let sign = if exp < 0 { '-' } else { '+' };

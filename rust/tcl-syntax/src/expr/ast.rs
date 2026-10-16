@@ -436,7 +436,64 @@ pub fn fixed_string_operand(text: &str) -> Option<&str> {
     }
 }
 
+/// The prefix of [`ExprNode::substituted_word`]'s command text.
+const SUBSTITUTED_WORD_PREFIX: &str = "[expr \"";
+/// Its suffix.
+const SUBSTITUTED_WORD_SUFFIX: &str = "\"]";
+
 impl ExprNode {
+    /// The condition C compiles for a word that is not a simple word
+    /// (`TclCompileExprWords`): the word is substituted and its value is
+    /// evaluated as an expression, which is `[expr "<word>"]`. `word` is the
+    /// word's spelling without its own quotes; a bare `"` in it is written
+    /// `\x22` so [`Self::substituted_word_source`] can recover the word.
+    #[must_use]
+    pub fn substituted_word(word: &str) -> Self {
+        let mut text = String::with_capacity(word.len() + 10);
+        text.push_str(SUBSTITUTED_WORD_PREFIX);
+        let mut depth = 0usize;
+        let mut chars = word.chars();
+        while let Some(c) = chars.next() {
+            match c {
+                '\\' => {
+                    text.push(c);
+                    if let Some(next) = chars.next() {
+                        text.push(next);
+                    }
+                    continue;
+                }
+                '[' => depth += 1,
+                ']' => depth = depth.saturating_sub(1),
+                '"' if depth == 0 => {
+                    text.push_str("\\x22");
+                    continue;
+                }
+                _ => {}
+            }
+            text.push(c);
+        }
+        text.push_str(SUBSTITUTED_WORD_SUFFIX);
+        let end = ExprOffset::try_from(text.len()).unwrap_or(ExprOffset::MAX);
+        Self::Command {
+            text,
+            start: 0,
+            end,
+        }
+    }
+
+    /// The word a [`Self::substituted_word`] node evaluates, for an analysis
+    /// that reads the condition as written.
+    #[must_use]
+    pub fn substituted_word_source(&self) -> Option<String> {
+        let Self::Command { text, .. } = self else {
+            return None;
+        };
+        let word = text
+            .strip_prefix(SUBSTITUTED_WORD_PREFIX)?
+            .strip_suffix(SUBSTITUTED_WORD_SUFFIX)?;
+        Some(word.replace("\\x22", "\""))
+    }
+
     /// Whether this is an operation C Tcl folds at compile time when its
     /// operands are constant: arithmetic, shift, bitwise, logical, and
     /// numeric comparison, and the standard unary operators. String

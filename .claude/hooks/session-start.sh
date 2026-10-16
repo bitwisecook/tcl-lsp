@@ -42,7 +42,7 @@ REPO_ROOT="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "$0")/../.." && pwd)}"
 tcl_reference_load_toolchains "$REPO_ROOT"
 
 # Pinned toolchain versions. Bump these when new stable releases land.
-WASMTIME_VERSION="49.0.2"
+WASMTIME_VERSION="49.0.3"
 BINARYEN_VERSION="133"
 WASI_SDK_VERSION="34.0"
 # Rust tracks the floating `stable` channel to match `rust-toolchain.toml`
@@ -167,9 +167,9 @@ install_wasmtime() {
     local expected_sha=""
     case "$wasm_arch" in
         x86_64-linux)
-            expected_sha="a4d6e9e3a5a60f527cf7793d674c48930c80c2e8977995b8a275cad3254b9322" ;;
+            expected_sha="4001225413f208345b980525f31c4080e1873808b38d0ddc7918497340667fbb" ;;
         aarch64-linux)
-            expected_sha="ca14988c6da3d92512bd9c3bad6cbd06b1f5743b6911a9e709f1a6fa30637d7f" ;;
+            expected_sha="880fcb026da88ad7fc1713d572b0d03d139758b7da96cd3cb8c9cbf847a521df" ;;
     esac
     if [ -z "$expected_sha" ]; then
         echo "session-start: no pinned wasmtime sha256 for ${wasm_arch}" >&2

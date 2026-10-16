@@ -75,6 +75,10 @@ fn num_or_nan(v: &Value) -> Result<f64, String> {
 const DOMAIN_MSG: &str = "domain error: argument not in valid range";
 const DOMAIN_CODE: &str = "ARITH DOMAIN {domain error: argument not in valid range}";
 
+/// The `-errorcode` of a math function's non-numeric argument
+/// (`expected number but got "x"`), from 8.5.
+const VALUE_NUMBER_CODE: &str = "TCL VALUE NUMBER";
+
 fn domain_err() -> Completion<Value> {
     err_with_code(DOMAIN_MSG, DOMAIN_CODE)
 }
@@ -103,6 +107,8 @@ fn num_err(message: String) -> Completion<Value> {
         err_with_code(message, errors::NAN_CODE)
     } else if message == errors::IOVERFLOW_MESSAGE {
         err_with_code(message, errors::IOVERFLOW_CODE)
+    } else if message.starts_with("expected ") {
+        err_with_code(message, VALUE_NUMBER_CODE)
     } else {
         err(message)
     }
@@ -115,14 +121,7 @@ fn shared_math(name: &str, args: &[Value], release: tcl_dialect::TclVersion) -> 
     let n = args.len();
     let min = usize::from(spec.arity.min);
     if n < min || spec.arity.max.is_some_and(|m| n > usize::from(m)) {
-        return err(format!(
-            "{} for math function \"{name}\"",
-            if n < min {
-                "not enough arguments"
-            } else {
-                "too many arguments"
-            }
-        ));
+        return arity_err(name, n < min);
     }
     let nums: Result<Vec<NumValue<BigInt>>, Completion<Value>> = args
         .iter()
@@ -191,6 +190,9 @@ fn m_mathfunc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let invoked = vm.invoked_name().unwrap_or_default();
     let name = invoked.rsplit("::").next().unwrap_or(invoked).to_owned();
     let int_width = IntWidth::for_tcl_version(vm.runtime_version());
+    if vm.runtime_version().raises_float_range_errors() {
+        return classic_mathfunc(vm, &name, args);
+    }
     match name.as_str() {
         "abs" => m_abs(args),
         "double" => m_double(args),
@@ -199,6 +201,115 @@ fn m_mathfunc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         "rand" => m_rand(vm, args),
         name => m_integer_conversion(name, args, int_width)
             .unwrap_or_else(|| shared_math(name, args, vm.runtime_version())),
+    }
+}
+
+/// One argument of an 8.4 math function (`ExprUnaryFunc` and friends): a
+/// 64-bit integer, a computed double, or text `strtod` reads in range, else
+/// `None`.
+fn classic_argument(v: &Value) -> Option<NumValue<BigInt>> {
+    if let Ok(i) = v.as_int() {
+        return Some(NumValue::Int(i));
+    }
+    // A computed double is used as it is; only text goes through `strtod`'s
+    // range check.
+    if let Some(d) = v.double_rep() {
+        return Some(NumValue::Float(d));
+    }
+    let s = v.to_str();
+    match number::parse_whole(&s) {
+        Some(Number::Double(_))
+            if !number::is_out_of_range_double(&s, number::runtime_syntax()) =>
+        {
+            v.as_double().ok().map(NumValue::Float)
+        }
+        _ => None,
+    }
+}
+
+/// The math functions as 8.4's fixed table runs them (`tclExecute.c`
+/// 8.4): its argument and arity errors, integer conversions bounded to 64
+/// bits, and a double result checked as `TclExprFloatError` checks it.
+fn classic_mathfunc(vm: &mut Vm, name: &str, args: &[Value]) -> Completion<Value> {
+    // 2^63, the `(double) LONG_MAX` C compares against.
+    const LIMIT: f64 = 9_223_372_036_854_775_808.0;
+    let arity = match name {
+        "rand" => 0,
+        "atan2" | "fmod" | "hypot" | "pow" => 2,
+        _ => 1,
+    };
+    if args.len() != arity {
+        return err(if args.len() < arity {
+            "too few arguments for math function"
+        } else {
+            "too many arguments for math function"
+        });
+    }
+    if name == "rand" {
+        return m_rand(vm, args);
+    }
+    let Some(nums) = args
+        .iter()
+        .map(classic_argument)
+        .collect::<Option<Vec<_>>>()
+    else {
+        let bad = args.iter().find(|v| classic_argument(v).is_none());
+        let (message, code) = tcl_syntax::expr::mathfunc::non_numeric_argument_error(
+            name,
+            &bad.map(|v| v.to_str().to_string()).unwrap_or_default(),
+            vm.runtime_version(),
+        );
+        return err_with_code(message, code);
+    };
+    let overflow = || {
+        err_with_code(
+            tcl_syntax::expr::errors::IOVERFLOW_MESSAGE,
+            tcl_syntax::expr::errors::IOVERFLOW_CODE,
+        )
+    };
+    let to_long = |d: f64| {
+        if d < -LIMIT || d > LIMIT {
+            None
+        } else if d >= LIMIT {
+            Some(i64::MIN)
+        } else {
+            #[allow(clippy::cast_possible_truncation)]
+            Some(d as i64)
+        }
+    };
+    match (name, &nums[..]) {
+        ("srand", [NumValue::Int(_)]) => m_srand(vm, args),
+        ("srand", _) => err(format!("expected integer but got \"{}\"", args[0].to_str())),
+        ("abs", [NumValue::Int(i)]) => i
+            .checked_abs()
+            .map_or_else(overflow, |abs| ok(Value::int(abs))),
+        ("int" | "wide" | "round", [NumValue::Int(i)]) => ok(Value::int(*i)),
+        ("int" | "wide", [NumValue::Float(d)]) => {
+            to_long(d.trunc()).map_or_else(overflow, |i| ok(Value::int(i)))
+        }
+        ("round", [NumValue::Float(d)]) => {
+            let rounded = if *d < 0.0 { d - 0.5 } else { d + 0.5 };
+            if rounded <= -LIMIT - 1.0 || rounded >= LIMIT {
+                return overflow();
+            }
+            to_long(rounded.trunc()).map_or_else(overflow, |i| ok(Value::int(i)))
+        }
+        ("double", [NumValue::Int(i)]) =>
+        {
+            #[allow(clippy::cast_precision_loss)]
+            ok(Value::double(*i as f64))
+        }
+        ("double", [NumValue::Float(d)]) => ok(Value::double(*d)),
+        _ => {
+            let floats: Vec<NumValue<BigInt>> =
+                nums.iter().map(|n| NumValue::Float(n.as_f64())).collect();
+            match try_dispatch_for_release(name, &floats, vm.runtime_version()) {
+                Ok(NumValue::Float(f)) => ok(Value::double(f)),
+                Ok(NumValue::Int(i)) => ok(Value::int(i)),
+                Ok(NumValue::Big(b)) => ok(crate::expr::big_value(&b)),
+                Err(e) => math_func_err(e),
+            }
+        }
     }
 }
 
@@ -293,15 +404,22 @@ pub(crate) fn register(vm: &mut Vm) {
 fn one<'a>(args: &'a [Value], name: &str) -> Result<&'a Value, Completion<Value>> {
     match args {
         [x] => Ok(x),
-        _ => Err(err(format!(
-            "{} for math function \"{name}\"",
-            if args.is_empty() {
-                "not enough arguments"
-            } else {
-                "too many arguments"
-            }
-        ))),
+        _ => Err(arity_err(name, args.is_empty())),
     }
+}
+
+/// A math function called with the wrong number of arguments, worded for
+/// the release (`too few`/`not enough`), with `TCL WRONGARGS` from 8.6.
+fn arity_err(name: &str, short: bool) -> Completion<Value> {
+    let words = if short {
+        tcl_syntax::expr::errors::ambient_release().math_arity_shortfall()
+    } else {
+        "too many arguments"
+    };
+    err_with_code(
+        format!("{words} for math function \"{name}\""),
+        "TCL WRONGARGS",
+    )
 }
 
 fn m_abs(args: &[Value]) -> Completion<Value> {
@@ -352,7 +470,7 @@ fn m_double(args: &[Value]) -> Completion<Value> {
             ) {
                 return num_err(tcl_syntax::expr::errors::NAN_MESSAGE.to_string());
             }
-            err(e.message)
+            err_with_code(e.message, VALUE_NUMBER_CODE)
         }
     }
 }
@@ -389,6 +507,9 @@ fn m_srand(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // use 8.6's wording so they agree with each other; 9.0's
     // empty-message quirk is not reproduced here.
     let Ok(seed) = x.as_wide() else {
+        if !vm.runtime_version().srand_reports_conversion_error() {
+            return err("");
+        }
         return err_with_code(
             format!("expected integer but got \"{}\"", x.to_str()),
             if x.as_double().is_ok() {
@@ -409,7 +530,7 @@ fn m_rand(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return refused;
     }
     if !args.is_empty() {
-        return err("too many arguments for math function \"rand\"");
+        return arity_err("rand", false);
     }
     ok(Value::double(vm.rand_next()))
 }

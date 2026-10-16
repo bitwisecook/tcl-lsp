@@ -66,7 +66,7 @@ class SpecStudioSession implements vscode.Disposable {
   private disposed = false;
 
   constructor(
-    private readonly context: vscode.ExtensionContext,
+    context: vscode.ExtensionContext,
     private readonly client: LanguageClient,
     workspaceRoot: vscode.Uri,
   ) {

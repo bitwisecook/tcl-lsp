@@ -186,6 +186,10 @@ fn every_shared_mathop_spelling_is_registered() {
 /// (tclsh 8.4.20: `syntax error in expression "nextafter(0.5)": unexpected
 /// operator ne`).
 ///
+/// 8.4's lexer reads the leading `ne` of `nextafter` as its operator, so
+/// tclsh 8.4.20 reports `unexpected operator ne` for it rather than an
+/// unknown function; the probe accepts that.
+///
 /// The probe is the *message*, not the completion code: several of these
 /// functions have restricted domains (`acosh(0.5)` is a domain error even on
 /// 9.1) or take two or three operands, so a uniform one-operand call still
@@ -195,7 +199,8 @@ fn tip745_functions_are_gated_to_tcl91() {
     let probe = |pattern: &str| {
         format!(
             "foreach f {{{}}} {{ catch {{expr \"${{f}}(0.5)\"}} m; \
-               puts [string match {{{pattern}}} $m] }}\n",
+               puts [expr {{[string match {{{pattern}}} $m] || \
+                 [string match {{syntax error*unexpected operator ne}} $m]}}] }}\n",
             TIP745_BATCH.join(" ")
         )
     };

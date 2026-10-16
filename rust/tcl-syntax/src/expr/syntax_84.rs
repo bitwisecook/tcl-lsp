@@ -506,65 +506,46 @@ fn check_number(text: &str) -> Result<(), (String, Option<&'static str>)> {
     }
 }
 
-/// `Tcl_ParseVarName` from the `$` at `dollar`: the byte after the variable
-/// reference, recording the command substitutions an array index holds.
-fn parse_var_name(src: &[u8], dollar: usize, commands: &mut Vec<String>) -> Result<usize, String> {
-    let mut at = dollar + 1;
-    if at >= src.len() {
-        return Ok(at);
-    }
-    if src[at] == b'{' {
-        let close = src[at..].iter().position(|&byte| byte == b'}');
-        return close.map_or_else(
-            || Err("missing close-brace for variable name".to_owned()),
-            |close| Ok(at + close + 1),
-        );
-    }
-    while at < src.len() {
-        let Some((ch, width)) = utf8_char(&src[at..]) else {
-            break;
-        };
-        let low = ch as u8;
-        if low.is_ascii_alphanumeric() || low == b'_' {
-            at += width;
-        } else if low == b':' && src.get(at + 1) == Some(&b':') {
-            at += 2;
-            while src.get(at) == Some(&b':') {
-                at += 1;
-            }
-        } else {
-            break;
-        }
-    }
-    if src.get(at) == Some(&b'(') {
-        let end = parse_tokens(src, at + 1, Some(b')'), commands)?;
-        if end >= src.len() || src[end] != b')' {
-            return Err("missing )".to_owned());
-        }
-        return Ok(end + 1);
-    }
-    Ok(at)
+/// 8.4's word grammar, which the lexer's scans read `${…}`, array indices
+/// and nested scripts by.
+fn lexer_config() -> tcl_lexer::LexerConfig {
+    tcl_lexer::LexerConfig::for_dialect(tcl_dialect::TclVersion::V8_4.dialect_name())
 }
 
-/// `ParseTokens` from `at` to the byte `term` (or the end): backslash
-/// sequences, variable references and command substitutions, returning
-/// where it stopped.
-fn parse_tokens(
+/// `Tcl_ParseVarName` from the `$` at `dollar`: the byte after the variable
+/// reference, recording the command substitutions an array index holds. A
+/// `$` naming nothing is the text `$`.
+fn parse_var_name(src: &[u8], dollar: usize, commands: &mut Vec<String>) -> Result<usize, String> {
+    match tcl_lexer::scan_var_ref(src, dollar, lexer_config()) {
+        Ok(Some(var)) => {
+            if let Some(index) = var.index {
+                let close = var.next - 1;
+                record_commands(src, close - index.len(), close, commands)?;
+            }
+            Ok(var.next)
+        }
+        Ok(None) => Ok(dollar + 1),
+        Err(message) => Err(message.to_owned()),
+    }
+}
+
+/// The command substitutions in `src[at..end]`, a word the lexer has already
+/// delimited, through its variable references and backslash sequences.
+fn record_commands(
     src: &[u8],
     mut at: usize,
-    term: Option<u8>,
+    end: usize,
     commands: &mut Vec<String>,
-) -> Result<usize, String> {
-    while at < src.len() {
+) -> Result<(), String> {
+    while at < end {
         match src[at] {
-            byte if Some(byte) == term => return Ok(at),
             b'$' => at = parse_var_name(src, at, commands)?,
             b'[' => at = parse_bracketed(src, at + 1, commands)?,
             b'\\' => at += backslash_length(&src[at..]),
             _ => at += 1,
         }
     }
-    Ok(at)
+    Ok(())
 }
 
 /// The bytes a backslash sequence at the start of `src` spans.
@@ -602,13 +583,13 @@ fn backslash_length(src: &[u8]) -> usize {
 }
 
 /// `Tcl_ParseQuotedString` from just after the opening `"`: the byte after
-/// the closing one.
+/// the closing one. A `[` inside starts a nested script, so its words decide
+/// where the string ends.
 fn parse_quoted(src: &[u8], at: usize, commands: &mut Vec<String>) -> Result<usize, String> {
-    let end = parse_tokens(src, at, Some(b'"'), commands)?;
-    if end >= src.len() {
-        return Err("missing \"".to_owned());
-    }
-    Ok(end + 1)
+    let text = std::str::from_utf8(src).map_err(|_| "missing \"".to_owned())?;
+    let close = tcl_lexer::quoted_word_close(text, at - 1).map_err(str::to_owned)?;
+    record_commands(src, at, close, commands)?;
+    Ok(close + 1)
 }
 
 /// `Tcl_ParseBraces` from the opening `{` at `open`: the byte after its
@@ -639,10 +620,13 @@ fn parse_braces(src: &[u8], open: usize) -> Result<usize, String> {
 /// The nested commands of a command substitution, from just after the `[`:
 /// the byte after its closing `]`, recording the script.
 fn parse_bracketed(src: &[u8], at: usize, commands: &mut Vec<String>) -> Result<usize, String> {
-    let after = std::str::from_utf8(src)
-        .ok()
-        .and_then(|text| tcl_lexer::command_substitution_end(text, at - 1))
-        .ok_or_else(|| "missing close-bracket".to_owned())?;
+    let after = tcl_lexer::command_subst_close(
+        src,
+        at - 1,
+        tcl_lexer::SubstFlags::default(),
+        lexer_config(),
+    )
+    .map_err(str::to_owned)?;
     commands.push(String::from_utf8_lossy(&src[at..after - 1]).into_owned());
     Ok(after)
 }
@@ -733,6 +717,209 @@ mod tests {
                 (error.message.as_str(), error.error_code),
                 (message, code),
                 "{expr}"
+            );
+        }
+    }
+
+    /// Expressions 8.4 rejects, with the result and errorCode tclsh 8.4.20
+    /// reports from `expr`.
+    const FAILURES: &[(&str, &str, &str)] = &[
+        (
+            "1e999",
+            "floating-point value too large to represent",
+            "ARITH OVERFLOW {floating-point value too large to represent}",
+        ),
+        (
+            "-1e999",
+            "floating-point value too large to represent",
+            "ARITH OVERFLOW {floating-point value too large to represent}",
+        ),
+        (
+            "0x10000000000000000",
+            "integer value too large to represent",
+            "ARITH IOVERFLOW {integer value too large to represent}",
+        ),
+        (
+            "18446744073709551616",
+            "integer value too large to represent",
+            "ARITH IOVERFLOW {integer value too large to represent}",
+        ),
+        (
+            "01 + 08",
+            r#"expected integer but got "08" (looks like invalid octal number)"#,
+            "NONE",
+        ),
+        (
+            "08",
+            r#"expected integer but got "08" (looks like invalid octal number)"#,
+            "NONE",
+        ),
+        (
+            "0x",
+            r#"syntax error in expression "0x": extra tokens at end of expression"#,
+            "NONE",
+        ),
+        (
+            "1e",
+            r#"syntax error in expression "1e": extra tokens at end of expression"#,
+            "NONE",
+        ),
+        (
+            "1.5e+",
+            r#"syntax error in expression "1.5e+": extra tokens at end of expression"#,
+            "NONE",
+        ),
+        (
+            "2 ** 3",
+            r#"syntax error in expression "2 ** 3": unexpected operator *"#,
+            "NONE",
+        ),
+        (
+            r#""a" in {a b}"#,
+            r#"syntax error in expression ""a" in {a b}": extra tokens at end of expression"#,
+            "NONE",
+        ),
+        (
+            "1 +",
+            r#"syntax error in expression "1 +": premature end of expression"#,
+            "NONE",
+        ),
+        (
+            "(1",
+            r#"syntax error in expression "(1": looking for close parenthesis"#,
+            "NONE",
+        ),
+        (
+            "1 2",
+            r#"syntax error in expression "1 2": extra tokens at end of expression"#,
+            "NONE",
+        ),
+        (
+            "foo",
+            r#"syntax error in expression "foo": variable references require preceding $"#,
+            "NONE",
+        ),
+        (
+            ",",
+            r#"syntax error in expression ",": commas can only separate function arguments"#,
+            "NONE",
+        ),
+        (
+            "=",
+            r#"syntax error in expression "=": single equality character not legal in expressions"#,
+            "NONE",
+        ),
+        (
+            "1 = 2",
+            r#"syntax error in expression "1 = 2": extra tokens at end of expression"#,
+            "NONE",
+        ),
+        (
+            "#",
+            r##"syntax error in expression "#": character not legal in expressions"##,
+            "NONE",
+        ),
+        (
+            "1 ? 2",
+            r#"syntax error in expression "1 ? 2": missing colon from ternary conditional"#,
+            "NONE",
+        ),
+        (
+            ": 1",
+            r#"syntax error in expression ": 1": unexpected ternary 'else' separator"#,
+            "NONE",
+        ),
+        (
+            ")",
+            r#"syntax error in expression ")": unexpected close parenthesis"#,
+            "NONE",
+        ),
+        (
+            "1 eq",
+            r#"syntax error in expression "1 eq": premature end of expression"#,
+            "NONE",
+        ),
+        (
+            "eq 1",
+            r#"syntax error in expression "eq 1": unexpected operator eq"#,
+            "NONE",
+        ),
+        ("[", "missing close-bracket", "NONE"),
+        (r#""abc"#, r#"missing ""#, "NONE"),
+        (
+            "sin(1,",
+            r#"syntax error in expression "sin(1,": premature end of expression"#,
+            "NONE",
+        ),
+        (
+            "sin 1",
+            r#"syntax error in expression "sin 1": expected parenthesis enclosing function arguments"#,
+            "NONE",
+        ),
+        (
+            "sin(1 2)",
+            r#"syntax error in expression "sin(1 2)": missing close parenthesis at end of function call"#,
+            "NONE",
+        ),
+        (
+            "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopq + ",
+            r#"syntax error in expression "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefgh...": variable references require preceding $"#,
+            "NONE",
+        ),
+    ];
+
+    /// Each expression's failure as tclsh 8.4.20 reports it from `expr`.
+    #[test]
+    fn failures_read_as_tclsh_8_4_reports_them() {
+        for &(expr, message, code) in FAILURES {
+            let error = parse_tcl84(expr).expect_err(expr);
+            assert_eq!(error.message, message, "{expr:?}");
+            assert_eq!(error.error_code.unwrap_or("NONE"), code, "{expr:?}");
+        }
+    }
+
+    /// What 8.4 accepts parses clean, including a lone `$`, boolean words
+    /// and `eq`/`ne`.
+    #[test]
+    fn accepted_expressions_pass() {
+        for expr in [
+            "1 + 2",
+            "$a eq {b}",
+            "true",
+            "sin(1) ne [f]",
+            "$",
+            "\"a\" == $b(c)",
+            ".5",
+            "5.",
+            "0x1F",
+        ] {
+            assert!(parse_tcl84(expr).is_ok(), "{expr:?}");
+        }
+    }
+
+    /// A command substitution is a script: a `]` in its comment or inside
+    /// one of its words does not close it (tclsh 8.4.20 evaluates each).
+    #[test]
+    fn substitutions_end_where_their_script_does() {
+        for expr in [
+            "[# ] comment\nexpr 1]",
+            "[set a \"x]y\"] eq \"x]y\"",
+            "\"a[# ]\nset x b]\" eq \"b\"",
+            "$b([# ]\nset k 1]) == 1",
+        ] {
+            assert!(parse_tcl84(expr).is_ok(), "{expr:?}");
+        }
+        for (expr, message) in [
+            ("[set a", "missing close-bracket"),
+            ("\"abc", "missing \""),
+            ("$b(1", "missing )"),
+            ("${a + 1", "missing close-brace for variable name"),
+            ("\"[\"", "missing \""),
+        ] {
+            assert_eq!(
+                parse_tcl84(expr).map_err(|e| e.message),
+                Err(message.to_owned()),
+                "{expr:?}"
             );
         }
     }

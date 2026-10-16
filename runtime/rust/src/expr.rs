@@ -484,7 +484,7 @@ impl ExprOps for TowerOps<'_> {
         };
         let release = tcl_syntax::expr::errors::ambient_release();
         if op == BinOp::Div
-            && tcl_syntax::expr::errors::refuses_double_division_by_zero(release)
+            && release.raises_float_range_errors()
             && bignum::read_double(rp) == Some(0.0)
             && bignum::read_double(lp).is_some()
         {
