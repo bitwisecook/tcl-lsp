@@ -547,6 +547,8 @@ install_node_and_python() {
         (cd "$tmpdir" && grep " ${tarball}\$" SHASUMS256.txt | sha256sum -c --quiet -) || return 1
         rm -rf "$prefix" && mkdir -p "$prefix"
         tar -xJf "${tmpdir}/${tarball}" -C "$prefix" --strip-components=1 || return 1
+    fi
+    if [ "$(PATH="${prefix}/bin:${PATH}" "${prefix}/bin/corepack" --version 2>/dev/null)" != "$corepack" ]; then
         PATH="${prefix}/bin:${PATH}" npm install -g --no-audit --no-fund "corepack@${corepack}" >/dev/null || return 1
     fi
     PATH="${prefix}/bin:${PATH}" "${prefix}/bin/corepack" enable npm || return 1
@@ -561,6 +563,7 @@ install_node_and_python() {
         echo "session-start: $("${bin_dir}/python3" --version) ready"
     else
         echo "session-start: uv missing — keeping the image's $(python3 --version)" >&2
+        return 1
     fi
 }
 

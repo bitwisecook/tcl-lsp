@@ -626,8 +626,11 @@ node_current_major() {
 # The first node that meets the minimum: the one on PATH, then the package
 # manager's, which an older install earlier on PATH can shadow.
 node_meeting_min() {
-    local candidate major
-    for candidate in "$(command -v node 2>/dev/null || true)" /usr/bin/node; do
+    local candidate major brew_node=""
+    if command -v brew >/dev/null 2>&1; then
+        brew_node="$(brew --prefix 2>/dev/null)/bin/node"
+    fi
+    for candidate in "$(command -v node 2>/dev/null || true)" /usr/bin/node "$brew_node"; do
         [ -n "$candidate" ] && [ -x "$candidate" ] || continue
         major="$("$candidate" --version 2>/dev/null | sed -n 's/^v\([0-9]\{1,\}\)\..*/\1/p')"
         if [ -n "$major" ] && [ "$major" -ge "$NODE_MIN_MAJOR" ]; then
@@ -693,7 +696,11 @@ ensure_node() {
     # Corepack must sit beside the node that meets the minimum, or its npm
     # shim lands next to some other install and never takes effect. Its
     # scripts run `env node`, so that node leads PATH for every call below.
-    local node_dir; node_dir="$(dirname "${node_bin:-/nonexistent/node}")"
+    if [ -z "$node_bin" ]; then
+        [ "$CHECK_ONLY" -eq 1 ] || warn "no node >= v${NODE_MIN_MAJOR} found — skipping corepack and npm ci"
+        return 0
+    fi
+    local node_dir; node_dir="$(dirname "$node_bin")"
     local node_path="$node_dir:$PATH"
     if [ ! -x "$node_dir/corepack" ]; then
         if [ "$CHECK_ONLY" -eq 1 ]; then
