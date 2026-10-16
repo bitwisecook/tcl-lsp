@@ -1,0 +1,10 @@
+SOURCE CLEAR — complete V4 bbfb4a9e22c1b6d6b3a41790b639de64fbb4709f2bd70c6e6ac5e8dde406c19e
+Manifest 7efffe655da2a96e079a6a6295211963060d0f3cb4dc2d8989bbddd5448dda09.
+
+All five exact actual-main beforeimages and all five final afterimages verified. V3 fresh independent fuzz0 apply reproduced the full union; V4 differs only by the three-line early incompatible-override rejection. V3/V2 artifacts remain immutable.
+
+Whole source review: actual Rust Complete dialect is emitted inside the existing final joint currentness/provider lease, and selected SourceInput dialect must equal retained DocumentState dialect before projection. Strict proposal-only wire validation requires nonempty dialect; original currentDiagnostics validator is untouched. Missing-field negative remains; producer-shaped positive now carries dialect. Reused initial report authenticates original actual document, current opened document, same transport session, URI/version/full source/proposal and current snapshot. Actual system prompt is rebuilt from that report dialect. Subsequent reports pin dialect and inputsEpoch. V4 rejects both targetDialect and sessionOverrideLease before initial report reuse, closing the awaited-override context donation counterexample. Actual handleFix passes its original full source snapshot and complete report without installing an F5 override.
+
+Original source/document writes, typed write receipt, checked apply sink and session/currentness guards remain in force. Proposal report is analysis evidence, not a Native execution/edit/push-ack grant. Old assertions and time budgets remain; positive fixture gains required dialect field and new refusal controls add coverage without weakening older assertions.
+
+SOURCE ONLY: no Cargo, tests, host execution, gate, main or Git edits. Typecheck and runtime efficacy remain Root validation obligations; no count or completion claim.

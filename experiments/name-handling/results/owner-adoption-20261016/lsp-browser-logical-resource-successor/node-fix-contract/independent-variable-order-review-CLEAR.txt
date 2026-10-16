@@ -1,0 +1,7 @@
+SOURCE CLEAR — exact 795a0a916111418bc6f205c27a5f8f2ca8960785a3a70f16be9fca7697f9d1db
+
+All three beforeimages verified against immutable source-cleared V4 (two source files) and actual current contract; all three afterimages verified. Fresh independent TMP fuzz0 apply reproduced hashes. Delta is comments and existing canonical contract only, no executable change, public/internal entry additions, owner checker waiver, evidence refresh or count change.
+
+Contract matches actual final Complete construction inside joint SourceStore/provider/config/epoch currentness closure; dialect is captured from authentic original document and checked against selected SourceInput before detached projection. Node fix uses that same initial Complete report for diagnostics and actual buildPrompt, later dialect/input epoch continuity, and rejects initial-report reuse with either override option. Missing dialect is terminal. Checked original source/context DocumentWriteReceipt remains sole edit grant; report is historical analysis evidence and supplies no later-click currency, Native dispatch or push acknowledgment authority.
+
+No builds/tests/typecheck/gates/main/Git edits. Scope is documentation/source correspondence only; Root retains validation/count ownership.

@@ -22,6 +22,8 @@ import { activate, getDocUri, scaledTimeout } from "./helper";
 import {
   applyDocumentWrite,
   documentWriteReceipt,
+  isDocumentSourceSnapshotCurrent,
+  resolveTwoIruleSources,
   snapshotDocumentSource,
 } from "../chat/codeUtils";
 
@@ -144,6 +146,40 @@ suite("Command Registration", () => {
       await editor.edit((edit) => {
         edit.replace(new vscode.Range(0, 0, doc.lineCount, 0), original);
       });
+    }
+  });
+
+  test("comparison source resolution retains selected ranges and whole-document currency", async () => {
+    await activate(getDocUri("simple.tcl"));
+    const doc = await vscode.workspace.openTextDocument(getDocUri("simple.tcl"));
+    const original = doc.getText();
+    const firstLine = doc.lineAt(0).text;
+    const selection = new vscode.Range(0, 0, 0, firstLine.length);
+    const context = {
+      request: {
+        references: [{ value: new vscode.Location(doc.uri, selection) }, { value: doc.uri }],
+        prompt: "",
+      },
+    } as unknown as import("../chat/types").CommandContext;
+    const resolved = await resolveTwoIruleSources(context);
+    assert.ok(resolved);
+    const [selected, whole] = resolved;
+    assert.strictEqual(selected.source, doc.getText(selection));
+    assert.strictEqual(selected.snapshot?.fullSource, original);
+    assert.strictEqual(selected.snapshot?.selection, selection);
+    assert.strictEqual(whole.source, original);
+    const selectedSnapshot = selected.snapshot;
+    assert.ok(selectedSnapshot && isDocumentSourceSnapshotCurrent(selectedSnapshot));
+
+    const editor = await vscode.window.showTextDocument(doc);
+    try {
+      const lastLine = doc.lineAt(doc.lineCount - 1);
+      await editor.edit((edit) =>
+        edit.insert(new vscode.Position(doc.lineCount - 1, lastLine.text.length), "\n# changed"),
+      );
+      assert.strictEqual(isDocumentSourceSnapshotCurrent(selectedSnapshot), false);
+    } finally {
+      await editor.edit((edit) => edit.replace(new vscode.Range(0, 0, doc.lineCount, 0), original));
     }
   });
 

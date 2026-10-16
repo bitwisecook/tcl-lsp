@@ -1,0 +1,8 @@
+SOURCE CLEAR — cac26545f642f61c1d97fde29d822b3debf671ef4704594cb6ad4fa4c0c3757b
+Manifest a3533942713779f5df41fc20f949603c7af234cdd842d784fd680041efad7bca.
+
+Both actual current beforeimages, both afterimages and exact patch hash verified. Fresh independent TMP fuzz0 apply reproduced every final hash. Entire preexisting test suffix remains byte-identical. No execution/build/test/typecheck/gate/main/Git activity.
+
+The added guard reads the authentic retained whole original head after unchanged original body/context/source/grammar checks. Expanded/dynamic/non-Unicode heads refuse. The existing shared static-word producer supplies forward Unicode data; full retained ContextRegistry ResolvedContext::resolve_spec selects the actual descriptor. Exact pointer comparison to the schema's authored command descriptor precedes unchanged self-dispatch trait/arity and reissued body/source catalogue equality checks. No rooted-prefix/spelling whitelist, String-to-Native identity inverse, competing resolver or donated helper binding is introduced. Shared Registry availability owns rooted contextual helper refusal. This is catalogue applicability, not a claim that the original head executes that descriptor.
+
+All original HeadV2, member/body/formal/currentness, ordered argument and six applicability debts remain. Strong reference/edit and Native owners are unchanged. New real Tcl8.6/9.0 static bare/braced/quoted vs rooted controls preserve positive selector bytes and body/observer debt; original223 fixture/assertions remain exact. Existing proof append accurately describes bounded metadata authority and unexecuted status. No additional owner/count/completion claim or efficacy assertion.

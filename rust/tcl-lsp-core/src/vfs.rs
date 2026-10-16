@@ -94,7 +94,83 @@
 use std::collections::HashMap;
 use std::io;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, Weak};
+
+/// Whether a source store is backed by native filesystem enumeration or a
+/// host-issued browser census. This distinction never treats missing host data
+/// as filesystem completeness.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WorkspaceSourceInventoryProvider {
+    /// The native store delegates to the actual filesystem enumerator.
+    Filesystem,
+    /// The browser memory store relies on the host's explicit census.
+    HostReported,
+    /// A provider has not established either inventory authority.
+    Untracked,
+}
+
+/// Whether a host's selected workspace-file roster is complete for one root.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WorkspaceSourceInventoryCompleteness {
+    /// The host enumerated every selected file and admitted each source byte sequence.
+    Complete,
+    /// Search, byte admission, read, or budget refusal left the roster partial.
+    Incomplete,
+}
+
+/// One host-issued closed-file inventory receipt. Its session, root, selection, and
+/// source-store revision are compared at the final edit decision; it is not a
+/// freestanding claim that a project has no additional files.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkspaceSourceInventoryReceipt {
+    /// Identity of the source-store session that issued this receipt.
+    pub session_id: u64,
+    /// Admitted provider root whose selected inventory was enumerated.
+    pub root: PathBuf,
+    /// Store revision captured when this root inventory was issued.
+    pub source_revision: u64,
+    /// Opaque host selection identifier retained without interpretation.
+    pub selection: String,
+    /// Whether all selected source files were admitted by this host census.
+    pub completeness: WorkspaceSourceInventoryCompleteness,
+}
+
+/// Current view of the host-issued source inventory for an admitted root.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum WorkspaceSourceInventoryObservation {
+    /// This provider has no host-census protocol; its filesystem owner remains separate.
+    NotTracked,
+    /// The tracked provider has not issued a receipt for this root.
+    Missing {
+        /// Current source-store session lacking a receipt for this root.
+        session_id: u64,
+        /// Admitted provider root for which no receipt is available.
+        root: PathBuf,
+        /// Current store revision at the failed receipt lookup.
+        source_revision: u64,
+    },
+    /// The receipt predates a source-store mutation.
+    Stale {
+        /// Earlier receipt that no longer matches the store revision.
+        receipt: WorkspaceSourceInventoryReceipt,
+        /// Store revision against which the earlier receipt was checked.
+        current_revision: u64,
+    },
+    /// The receipt matches the current session and source-store revision.
+    Current(WorkspaceSourceInventoryReceipt),
+}
+
+impl WorkspaceSourceInventoryObservation {
+    /// Whether the provider receipt is current and complete. Independent index
+    /// scan coverage and final edit-plan currentness are still required.
+    #[must_use]
+    pub fn admits_complete_inventory(&self) -> bool {
+        matches!(self, Self::Current(receipt) if receipt.completeness == WorkspaceSourceInventoryCompleteness::Complete)
+    }
+}
+
+static NEXT_MEMORY_STORE_SESSION: AtomicU64 = AtomicU64::new(1);
 
 /// What a directory listing reports about one entry.
 ///
@@ -401,6 +477,17 @@ pub trait SourceStore: std::fmt::Debug + Send + Sync {
         Err(SourceUriPathUnavailable::ProviderUnavailable)
     }
 
+    /// Identify the source-census authority for this provider.
+    fn workspace_source_inventory_provider(&self) -> WorkspaceSourceInventoryProvider {
+        WorkspaceSourceInventoryProvider::Untracked
+    }
+
+    /// Observe the provider-issued root census against its current session and
+    /// source-store revision. The default makes no completion claim.
+    fn workspace_source_inventory(&self, _root: &Path) -> WorkspaceSourceInventoryObservation {
+        WorkspaceSourceInventoryObservation::NotTracked
+    }
+
     /// Read a file's bytes.
     ///
     /// # Errors
@@ -493,6 +580,10 @@ pub trait SourceStore: std::fmt::Debug + Send + Sync {
 pub struct NativeStore;
 
 impl SourceStore for NativeStore {
+    fn workspace_source_inventory_provider(&self) -> WorkspaceSourceInventoryProvider {
+        WorkspaceSourceInventoryProvider::Filesystem
+    }
+
     fn document_uri_path(
         &self,
         original_uri: &str,
@@ -644,10 +735,25 @@ impl SourceStore for NativeStore {
 /// Directories are implicit: a path is a directory exactly when some stored
 /// file is under it, which is enough for [`SourceStore::read_dir`] and
 /// [`SourceStore::is_dir`] and avoids the host having to declare a tree.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct MemoryStore {
     files: Mutex<HashMap<PathBuf, Vec<u8>>>,
     aliases: Arc<UriAliases>,
+    session_id: u64,
+    source_revision: AtomicU64,
+    source_inventories: Mutex<HashMap<PathBuf, WorkspaceSourceInventoryReceipt>>,
+}
+
+impl Default for MemoryStore {
+    fn default() -> Self {
+        Self {
+            files: Mutex::new(HashMap::new()),
+            aliases: Arc::new(UriAliases::default()),
+            session_id: NEXT_MEMORY_STORE_SESSION.fetch_add(1, Ordering::Relaxed),
+            source_revision: AtomicU64::new(0),
+            source_inventories: Mutex::new(HashMap::new()),
+        }
+    }
 }
 
 impl MemoryStore {
@@ -660,7 +766,9 @@ impl MemoryStore {
     /// Add or replace a file's bytes.
     pub fn upsert(&self, path: impl Into<PathBuf>, contents: impl Into<Vec<u8>>) {
         let path = path.into();
-        Self::lock(&self.files).insert(path, contents.into());
+        let mut files = Self::lock(&self.files);
+        files.insert(path, contents.into());
+        self.source_revision.fetch_add(1, Ordering::Release);
     }
 
     /// Add or replace a file's bytes, and record `uri` as another name for it.
@@ -713,12 +821,46 @@ impl MemoryStore {
                 aliases.insert(name, Arc::clone(&binding));
             }
         }
-        Self::lock(&self.files).insert(path, contents.into());
+        let mut files = Self::lock(&self.files);
+        files.insert(path, contents.into());
+        self.source_revision.fetch_add(1, Ordering::Release);
     }
 
     /// Forget a file. Returns whether anything was stored under `path`.
     pub fn remove(&self, path: &Path) -> bool {
-        Self::lock(&self.files).remove(path).is_some()
+        let mut files = Self::lock(&self.files);
+        let removed = files.remove(path).is_some();
+        if removed {
+            self.source_revision.fetch_add(1, Ordering::Release);
+        }
+        removed
+    }
+
+    /// Record the host's census for one admitted root after all preceding
+    /// byte upserts/deletes. The receipt captures the current session revision.
+    pub fn set_workspace_source_inventory(
+        &self,
+        root: impl Into<PathBuf>,
+        selection: impl Into<String>,
+        completeness: WorkspaceSourceInventoryCompleteness,
+    ) {
+        let files = Self::lock(&self.files);
+        let revision = self.source_revision.load(Ordering::Acquire);
+        let root = root.into();
+        let receipt = WorkspaceSourceInventoryReceipt {
+            session_id: self.session_id,
+            root: root.clone(),
+            source_revision: revision,
+            selection: selection.into(),
+            completeness,
+        };
+        Self::lock(&self.source_inventories).insert(root, receipt);
+        drop(files);
+    }
+
+    /// Drop a root receipt when its workspace folder leaves the session.
+    pub fn clear_workspace_source_inventory(&self, root: &Path) {
+        Self::lock(&self.source_inventories).remove(root);
     }
 
     /// Forget the file registered under `uri`, whatever path it was stored at.
@@ -729,6 +871,9 @@ impl MemoryStore {
             let binding = aliases.remove(uri);
             if let Some(binding) = &binding {
                 aliases.retain(|_, row| !Arc::ptr_eq(row, binding));
+                // URI-to-path membership is part of the host's scanned source
+                // view even when the byte map no longer has that file.
+                self.source_revision.fetch_add(1, Ordering::Release);
             }
             binding
         };
@@ -781,6 +926,37 @@ impl MemoryStore {
 }
 
 impl SourceStore for MemoryStore {
+    fn workspace_source_inventory_provider(&self) -> WorkspaceSourceInventoryProvider {
+        WorkspaceSourceInventoryProvider::HostReported
+    }
+
+    fn workspace_source_inventory(&self, root: &Path) -> WorkspaceSourceInventoryObservation {
+        let files = Self::lock(&self.files);
+        let current_revision = self.source_revision.load(Ordering::Acquire);
+        let receipt = Self::lock(&self.source_inventories).get(root).cloned();
+        drop(files);
+        let Some(receipt) = receipt else {
+            return WorkspaceSourceInventoryObservation::Missing {
+                session_id: self.session_id,
+                root: root.to_path_buf(),
+                source_revision: current_revision,
+            };
+        };
+        if receipt.session_id != self.session_id || receipt.root != root {
+            return WorkspaceSourceInventoryObservation::Stale {
+                receipt,
+                current_revision,
+            };
+        }
+        if receipt.source_revision != current_revision {
+            WorkspaceSourceInventoryObservation::Stale {
+                receipt,
+                current_revision,
+            }
+        } else {
+            WorkspaceSourceInventoryObservation::Current(receipt)
+        }
+    }
     fn document_uri_path(
         &self,
         original_uri: &str,
@@ -948,7 +1124,10 @@ impl SourceStore for MemoryStore {
 
 #[cfg(test)]
 mod tests {
-    use super::{MemoryStore, NativeStore, SourceStore as _};
+    use super::{
+        MemoryStore, NativeStore, SourceStore as _, WorkspaceSourceInventoryCompleteness,
+        WorkspaceSourceInventoryObservation,
+    };
     use std::path::Path;
 
     #[test]
@@ -961,6 +1140,36 @@ mod tests {
         );
         assert!(store.is_file(Path::new("/w/a.tcl")));
         assert!(!store.is_dir(Path::new("/w/a.tcl")));
+    }
+
+    #[test]
+    fn a_host_inventory_receipt_is_bound_to_the_current_store_revision() {
+        let store = MemoryStore::new();
+        let root = Path::new("/workspace");
+        store.upsert("/workspace/a.tcl", b"puts a\n".to_vec());
+        store.set_workspace_source_inventory(
+            root,
+            r#"{"globs":["**/*.tcl"],"maxFiles":8}"#,
+            WorkspaceSourceInventoryCompleteness::Complete,
+        );
+        let first = store.workspace_source_inventory(root);
+        assert!(first.admits_complete_inventory());
+
+        store.upsert("/workspace/b.tcl", b"puts b\n".to_vec());
+        assert!(matches!(
+            store.workspace_source_inventory(root),
+            WorkspaceSourceInventoryObservation::Stale { .. }
+        ));
+        store.set_workspace_source_inventory(
+            root,
+            r#"{"globs":["**/*.tcl"],"maxFiles":8}"#,
+            WorkspaceSourceInventoryCompleteness::Incomplete,
+        );
+        assert!(
+            !store
+                .workspace_source_inventory(root)
+                .admits_complete_inventory()
+        );
     }
 
     #[test]

@@ -20,7 +20,7 @@ import * as vscode from "vscode";
 import { CommandContext } from "../types";
 import { proposalReportEvidence, runAgenticLoop } from "../agenticLoop";
 import { documentWriteReceipt, snapshotDocumentSource } from "../codeUtils";
-import { waitForDiagnostics, renderDiagnosticSection } from "../diagnosticAccess";
+import { waitForProposalDiagnostics, renderDiagnosticSection } from "../diagnosticAccess";
 import { isTclLanguage } from "../../extension";
 
 export async function handleFix(ctx: CommandContext): Promise<vscode.ChatResult> {
@@ -36,8 +36,13 @@ export async function handleFix(ctx: CommandContext): Promise<vscode.ChatResult>
 
   // Check current diagnostics
   ctx.response.progress("Checking current diagnostics...");
-  const diagnostics = await waitForDiagnostics(uri, { timeout: 5000, expectedSource: code });
-  const actionable = diagnostics.filter((d) => d.severity <= vscode.DiagnosticSeverity.Warning);
+  const initialReport = await waitForProposalDiagnostics(uri, code, {
+    timeout: 5000,
+    expectedSource: code,
+  });
+  const actionable = initialReport.diagnostics.filter(
+    (d) => d.severity <= vscode.DiagnosticSeverity.Warning,
+  );
 
   if (actionable.length === 0) {
     ctx.response.markdown("No errors or warnings found in the current document.");
@@ -48,12 +53,14 @@ export async function handleFix(ctx: CommandContext): Promise<vscode.ChatResult>
 
   // Run agentic loop using the existing document
   const result = await runAgenticLoop(ctx, code, editor.document, {
-    targetDialect: "f5-irules",
     sourceSnapshot,
+    initialProposalReport: initialReport,
   });
 
   // Present result
-  ctx.response.markdown(`## Fixed iRule\n\n\`\`\`tcl\n${result.finalCode}\n\`\`\`\n`);
+  ctx.response.markdown(
+    `## Fixed Tcl source (${initialReport.response.dialectId})\n\n\`\`\`tcl\n${result.finalCode}\n\`\`\`\n`,
+  );
 
   if (result.proposalReport) {
     const report = result.proposalReport.response;

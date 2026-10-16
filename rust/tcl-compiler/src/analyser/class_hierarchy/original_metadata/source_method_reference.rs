@@ -244,11 +244,23 @@ fn checked_member_source_schema(
     }
     let source_words =
         source_transition_words_from_advice(source, config, &context, advice.clone())?;
+    // The canonical source schema cannot donate a contextual helper to a
+    // different original spelling. Registry owns rooted/global availability;
+    // the actual full context must select this exact descriptor for the head.
+    let original_head = advice.original_words().first()?;
+    if original_head.group().expand {
+        return None;
+    }
+    let head = tcl_syntax::word_rules::original_static_word_unicode_value(original_head)?;
+    let selected = context
+        .context()
+        .resolve_spec(context.commands(), std::str::from_utf8(&head).ok()?)?;
     if source_words.with_source_schema(&context, |schema| {
-        schema
-            .semantics
-            .traits
-            .contains(tcl_registry::Traits::TCLOO_SELF_DISPATCH)
+        std::ptr::eq(selected, schema.authored_source_descriptors().command)
+            && schema
+                .semantics
+                .traits
+                .contains(tcl_registry::Traits::TCLOO_SELF_DISPATCH)
             && schema.facts().arity_accepts_frozen_arguments() == Some(true)
     }) != Some(true)
     {
@@ -524,7 +536,6 @@ mod original_source_correspondence_tests {
 
 #[cfg(test)]
 mod original_head_correspondence_tests {
-    use super::*;
     use crate::analyser::Analyser;
     use crate::registry_invocation::InvocationWordOrigin;
     use crate::registry_invocation::source_structure::OriginalRegistrySource;
@@ -609,5 +620,54 @@ mod original_head_correspondence_tests {
                 .original_source_correspondence_in_parent(&context, changed_parent)
                 .is_none()
         );
+    }
+}
+
+#[cfg(test)]
+mod original_head_applicability_tests {
+    use super::*;
+    use crate::analyser::Analyser;
+
+    #[test]
+    fn readonly_self_reference_requires_the_selected_descriptor_for_original_head() {
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            // Whole original static words keep their selected spelling. The
+            // shared Registry provider, not a consumer prefix test, decides
+            // which spellings have the contextual self-dispatch descriptor.
+            for (head, expected) in [
+                ("my", 1),
+                ("{my}", 1),
+                ("\"my\"", 1),
+                ("::my", 0),
+                ("{::my}", 0),
+                ("\"::my\"", 0),
+            ] {
+                let source = format!(
+                    "oo::class create C {{method ping {{}} {{}}; method body {{}} {{{head} ping}}}}"
+                );
+                let analysis = Analyser::new().analyse(&source, dialect);
+                let input = analysis.resolved_input.as_ref().unwrap();
+                let context = input.borrowed_context_registry();
+                let expected_head = if expected == 1 { "my" } else { "::my" };
+                let selected = context
+                    .context()
+                    .resolve_spec(context.commands(), expected_head);
+                assert_eq!(selected.is_some(), expected == 1);
+                let references = original_source_self_method_references(&source, &analysis)
+                    .expect("actual retained partial source catalogue");
+                assert_eq!(references.len(), expected, "{dialect}: {source}");
+                for reference in references {
+                    assert_eq!(reference.selector_input().bytes(), b"ping");
+                    assert!(
+                        reference.obligations().contains(
+                            &OriginalSourceSelfMethodReferenceObligation::MemberBodyEntry
+                        )
+                    );
+                    assert!(reference.obligations().contains(
+                        &OriginalSourceSelfMethodReferenceObligation::ObserverApplicability
+                    ));
+                }
+            }
+        }
     }
 }

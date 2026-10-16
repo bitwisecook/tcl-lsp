@@ -1,0 +1,10 @@
+{
+  "purpose": "Explicit actual existing borrowed ClassDef element type prevents pointer-equality call inference from making raw-pointer vector; all predicates/guards/lifetimes/return values unchanged",
+  "files": {
+    "rust/tcl-compiler/src/analyser/types/logical_members.rs": {
+      "before_sha256": "bad3e9218546aea92c9b6580850c464325399b4ab80997ceca92ad4e26912b66",
+      "after_sha256": "d4a8d293175009f7b5172c61bb7aa84d30bfdbd4034d493173a1420276fe1aa0"
+    }
+  },
+  "patch_sha256": "b82242c1e99a542fbabeeb1fe73ec066964d9ee553b3db1681a70ff4dacc2dfd"
+}

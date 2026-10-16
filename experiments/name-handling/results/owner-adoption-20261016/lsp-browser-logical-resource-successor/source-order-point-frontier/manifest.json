@@ -1,0 +1,15 @@
+{
+  "patch_sha256": "f2bb1d1ca04931debdc950a93bfdeb68f2568114acd4c0182a458ddb861b7771",
+  "files": {
+    "docs/design/contracts/shared-utility-contracts-rust.md": {
+      "before_sha256": "42e121594aea9006c1e46dc78ffb10a86e0f446d146eb7a54e80b079a3283190",
+      "after_sha256": "e9cc95bfaf02e436f4dc3e10a61ba40ed00017274c393383a0e245e75b969543"
+    },
+    "rust/tcl-lsp-core/src/source_graph.rs": {
+      "before_sha256": "23f4f4fe8a12f872e7715af87feb16473334918ba4517983c704e3f704f79f88",
+      "after_sha256": "f9f102963b2dfb44f71d97f05ac33dc50d7e7067bfe9dd895d024fec4bb79000"
+    }
+  },
+  "old_test_modules_exact": 4,
+  "status": "TMP source only; no builds/tests/execution; independent review pending"
+}

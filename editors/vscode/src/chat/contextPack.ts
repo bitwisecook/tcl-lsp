@@ -48,6 +48,10 @@ export interface SourceSymbolDefinition {
 export interface PromptContextOptions {
   code?: string;
   document?: vscode.TextDocument;
+  /** Captured source language/version label; this is descriptive, not a dialect authority. */
+  sourceContextLabel?: string;
+  /** Recheck the exact source snapshot after awaits and before each model request. */
+  isSourceCurrent?: () => boolean;
   allowAmbientContext?: boolean;
   includeDiagnostics?: boolean;
   includeSymbolDefinitions?: boolean;
@@ -378,7 +382,12 @@ export async function buildPromptContextBlock(
     return "";
   }
 
-  const summary: string[] = ["Deterministic context (Tcl LSP):", `- Dialect: ${activeDialect()}`];
+  const summary: string[] = ["Deterministic context (Tcl LSP):"];
+  summary.push(
+    options.sourceContextLabel
+      ? `- Captured source: ${options.sourceContextLabel}`
+      : `- Dialect: ${activeDialect()}`,
+  );
   if (document) {
     summary.push(`- File: ${formatDocumentLabel(document)}`);
   }
@@ -483,12 +492,19 @@ export async function sendContextualRequest(
   options: PromptContextOptions = {},
 ): Promise<vscode.LanguageModelChatResponse> {
   const messages = await buildContextualMessages(ctx, prompt, options);
+  const assertSourceCurrent = () => {
+    if (options.isSourceCurrent && !options.isSourceCurrent()) {
+      throw new Error("The captured source changed before the model request could be sent");
+    }
+  };
+  assertSourceCurrent();
   const sendOpts = {
     justification:
       "The iRule Assistant uses the language model to generate, explain, and analyse iRule code.",
   };
 
   const model = await resolveModel(ctx.request.model);
+  assertSourceCurrent();
 
   try {
     return await model.sendRequest(messages, sendOpts, ctx.token);
@@ -500,6 +516,7 @@ export async function sendContextualRequest(
     const models = await vscode.lm.selectChatModels();
     for (const candidate of models) {
       if (candidate.id === model.id) continue;
+      assertSourceCurrent();
       try {
         return await candidate.sendRequest(messages, sendOpts, ctx.token);
       } catch {

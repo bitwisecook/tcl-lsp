@@ -709,6 +709,8 @@ export interface ProposalDiagnosticsResponse {
   readonly version: number;
   readonly source: string;
   readonly proposal: string;
+  /** Server-selected effective resource dialect, bound to this completed report. */
+  readonly dialectId: string;
   readonly revision: string;
   readonly inputsEpoch: string;
   readonly workspaceIndexGeneration: string;
@@ -722,6 +724,32 @@ export interface ProposalDiagnosticsReport {
   readonly diagnostics: readonly vscode.Diagnostic[];
   readonly sessionIdentity: object;
   readonly document: vscode.TextDocument;
+}
+
+/** Verify that a retained report still corresponds to its original open source and session. */
+export function proposalDiagnosticsReportMatches(
+  report: ProposalDiagnosticsReport,
+  expected: {
+    document: vscode.TextDocument;
+    uri: vscode.Uri;
+    version: number;
+    source: string;
+    proposal: string;
+  },
+): boolean {
+  const transport = currentDiagnosticsTransportProvider?.();
+  return (
+    !!transport &&
+    transport.isCurrent() &&
+    transport.sessionIdentity === report.sessionIdentity &&
+    report.document === expected.document &&
+    openedDocument(expected.uri) === expected.document &&
+    report.response.uri === expected.uri.toString() &&
+    report.response.version === expected.version &&
+    report.response.source === expected.source &&
+    report.response.proposal === expected.proposal &&
+    snapshotMatches(expected.uri, expected.document, expected.version, expected.source)
+  );
 }
 
 export async function waitForProposalDiagnostics(
@@ -799,6 +827,8 @@ export async function waitForProposalDiagnostics(
       raw.version !== request.version ||
       raw.source !== request.source ||
       raw.proposal !== request.proposal ||
+      typeof raw.dialectId !== "string" ||
+      raw.dialectId.length === 0 ||
       !isProposalRevision(raw.revision) ||
       !isRevision(raw.inputsEpoch) ||
       !isRevision(raw.workspaceIndexGeneration) ||
@@ -826,6 +856,7 @@ export async function waitForProposalDiagnostics(
       version: raw.version,
       source: raw.source,
       proposal: raw.proposal,
+      dialectId: raw.dialectId,
       revision: raw.revision,
       inputsEpoch: raw.inputsEpoch,
       workspaceIndexGeneration: raw.workspaceIndexGeneration,

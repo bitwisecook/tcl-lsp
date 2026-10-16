@@ -30,6 +30,7 @@ import {
   setUnleasedSessionDialectOverride,
   waitForDiagnostics,
   waitForProposalDiagnostics,
+  proposalDiagnosticsReportMatches,
   type CurrentDiagnosticsTransport,
 } from "../chat/diagnosticAccess";
 import { activate, getDocUri } from "./helper";
@@ -493,6 +494,7 @@ suite("Chat current diagnostic publication adapter", () => {
       return {
         status: "complete",
         ...request,
+        dialectId: "tcl8.6",
         revision: "Revision(4):17",
         inputsEpoch: "2",
         workspaceIndexGeneration: "3",
@@ -516,6 +518,7 @@ suite("Chat current diagnostic publication adapter", () => {
           version: document.version,
           source,
           proposal,
+          dialectId: "tcl8.6",
           revision: "Revision(4):17",
           inputsEpoch: "2",
           workspaceIndexGeneration: "3",
@@ -526,6 +529,36 @@ suite("Chat current diagnostic publication adapter", () => {
       );
       assert.strictEqual(result.sessionIdentity, activeTransport.sessionIdentity);
       assert.strictEqual(result.document, document);
+      assert.strictEqual(
+        proposalDiagnosticsReportMatches(result, {
+          document,
+          uri: document.uri,
+          version: document.version,
+          source,
+          proposal,
+        }),
+        true,
+      );
+      const replacementSession = setCurrentDiagnosticsTransportProvider(() => ({
+        ...activeTransport,
+        sessionIdentity: {},
+        isCurrent: () => true,
+      }));
+      try {
+        assert.strictEqual(
+          proposalDiagnosticsReportMatches(result, {
+            document,
+            uri: document.uri,
+            version: document.version,
+            source,
+            proposal,
+          }),
+          false,
+          "a report from a prior client session must not be reused",
+        );
+      } finally {
+        replacementSession.dispose();
+      }
       assert.deepStrictEqual(seen, {
         uri: document.uri.toString(),
         version: document.version,
@@ -536,6 +569,44 @@ suite("Chat current diagnostic publication adapter", () => {
         document.getText(),
         source,
         "proposal analysis must not mutate the source document",
+      );
+    } finally {
+      lease.dispose();
+    }
+  });
+
+  test("proposal diagnostics require the server-selected resource dialect", async () => {
+    const document = await openFixture("set adapterProposalMissingDialect 1");
+    const source = document.getText();
+    const activeTransport = transport(async () =>
+      complete({ uri: document.uri.toString(), version: document.version, source }, []),
+    ) as CurrentDiagnosticsTransport & {
+      requestProposal(params: {
+        uri: string;
+        version: number;
+        source: string;
+        proposal: string;
+      }): Promise<unknown>;
+    };
+    activeTransport.requestProposal = async (request) => ({
+      status: "complete",
+      ...request,
+      revision: "Revision(4):17",
+      inputsEpoch: "2",
+      workspaceIndexGeneration: "3",
+      resultId: "proposal-missing-dialect",
+      diagnostics: [],
+    });
+    const lease = setCurrentDiagnosticsTransportProvider(() => activeTransport);
+    try {
+      await assert.rejects(
+        waitForProposalDiagnostics(document.uri, "set candidate 1", {
+          timeout: 1_000,
+          expectedSource: source,
+        }),
+        (error: unknown) =>
+          error instanceof CurrentDiagnosticsUnavailableError &&
+          error.reason === "malformedResponse",
       );
     } finally {
       lease.dispose();

@@ -109,35 +109,67 @@ export function snapshotDocumentSource(
   };
 }
 
+/** Whether a retained source selection still names the same document bytes. */
+export function isDocumentSourceSnapshotCurrent(snapshot: DocumentSourceSnapshot): boolean {
+  const document = snapshot.document;
+  return (
+    !document.isClosed &&
+    sameUri(document.uri, snapshot.uri) &&
+    document.version === snapshot.version &&
+    document.getText() === snapshot.fullSource &&
+    document.languageId === snapshot.languageId &&
+    (snapshot.selection === undefined ||
+      document.getText(snapshot.selection) === snapshot.source) &&
+    (snapshot.selection !== undefined || snapshot.source === snapshot.fullSource)
+  );
+}
+
+function inlineSource(source: string): ResolvedIruleSource {
+  return {
+    source,
+    resourceDialectHint: undefined,
+    requestedAnalysisDialect: null,
+    sourceChannel: "inline-code",
+  };
+}
+
+async function resolveDocumentReference(
+  reference: vscode.ChatRequest["references"][number],
+): Promise<ResolvedIruleSource | undefined> {
+  if (reference.value instanceof vscode.Uri) {
+    const document = await vscode.workspace.openTextDocument(reference.value);
+    const snapshot = snapshotDocumentSource(document, undefined, "file-reference");
+    return {
+      source: snapshot.source,
+      snapshot,
+      languageId: snapshot.languageId,
+      resourceDialectHint: snapshot.resourceDialectHint,
+      requestedAnalysisDialect: snapshot.requestedAnalysisDialect,
+      sourceChannel: "file-reference",
+    };
+  }
+  if (reference.value instanceof vscode.Location) {
+    const document = await vscode.workspace.openTextDocument(reference.value.uri);
+    const snapshot = snapshotDocumentSource(document, reference.value.range, "location-reference");
+    return {
+      source: snapshot.source,
+      snapshot,
+      languageId: snapshot.languageId,
+      resourceDialectHint: snapshot.resourceDialectHint,
+      requestedAnalysisDialect: snapshot.requestedAnalysisDialect,
+      sourceChannel: "location-reference",
+    };
+  }
+  return undefined;
+}
+
 /** Resolve source together with its original document and selected extent. */
 export async function resolveIruleSource(
   ctx: CommandContext,
 ): Promise<ResolvedIruleSource | undefined> {
   for (const ref of ctx.request.references) {
-    if (ref.value instanceof vscode.Uri) {
-      const doc = await vscode.workspace.openTextDocument(ref.value);
-      const snapshot = snapshotDocumentSource(doc, undefined, "file-reference");
-      return {
-        source: snapshot.source,
-        snapshot,
-        languageId: snapshot.languageId,
-        resourceDialectHint: snapshot.resourceDialectHint,
-        requestedAnalysisDialect: snapshot.requestedAnalysisDialect,
-        sourceChannel: "file-reference",
-      };
-    }
-    if (ref.value instanceof vscode.Location) {
-      const doc = await vscode.workspace.openTextDocument(ref.value.uri);
-      const snapshot = snapshotDocumentSource(doc, ref.value.range, "location-reference");
-      return {
-        source: snapshot.source,
-        snapshot,
-        languageId: snapshot.languageId,
-        resourceDialectHint: snapshot.resourceDialectHint,
-        requestedAnalysisDialect: snapshot.requestedAnalysisDialect,
-        sourceChannel: "location-reference",
-      };
-    }
+    const resolved = await resolveDocumentReference(ref);
+    if (resolved) return resolved;
   }
 
   const editor = vscode.window.activeTextEditor;
@@ -157,12 +189,7 @@ export async function resolveIruleSource(
 
   const source = extractCodeBlock(ctx.request.prompt);
   if (source) {
-    return {
-      source,
-      resourceDialectHint: undefined,
-      requestedAnalysisDialect: null,
-      sourceChannel: "inline-code",
-    };
+    return inlineSource(source);
   }
   return undefined;
 }
@@ -336,46 +363,50 @@ export async function applyDocumentWrite(replacement: unknown, receipt: unknown)
 }
 
 /**
- * Resolve two code sources for comparison (used by /diff).
- * Tries: 2+ #file refs, 1 #file ref + active editor, or inline code blocks.
+ * Resolve two code sources for comparison without dropping document snapshots,
+ * selected extents, or the whole-source bytes they were read from.
  */
+export async function resolveTwoIruleSources(
+  ctx: CommandContext,
+): Promise<[ResolvedIruleSource, ResolvedIruleSource] | undefined> {
+  const sources: ResolvedIruleSource[] = [];
+  for (const ref of ctx.request.references) {
+    const resolved = await resolveDocumentReference(ref);
+    if (resolved) sources.push(resolved);
+    if (sources.length >= 2) return [sources[0], sources[1]];
+  }
+
+  if (sources.length === 1) {
+    const editor = vscode.window.activeTextEditor;
+    if (editor && isTclLanguage(editor.document.languageId)) {
+      const selection = editor.selection.isEmpty ? undefined : editor.selection;
+      const channel = selection ? "editor-selection" : "editor-document";
+      const snapshot = snapshotDocumentSource(editor.document, selection, channel);
+      const activeSource: ResolvedIruleSource = {
+        source: snapshot.source,
+        snapshot,
+        languageId: snapshot.languageId,
+        resourceDialectHint: snapshot.resourceDialectHint,
+        requestedAnalysisDialect: snapshot.requestedAnalysisDialect,
+        sourceChannel: channel,
+      };
+      return [activeSource, sources[0]];
+    }
+  }
+
+  const blocks = [...ctx.request.prompt.matchAll(/```(?:tcl|irule)?\s*\n([\s\S]+?)```/g)];
+  if (blocks.length >= 2) {
+    return [inlineSource(blocks[0][1].trimEnd()), inlineSource(blocks[1][1].trimEnd())];
+  }
+  return undefined;
+}
+
+/** Compatibility projection for callers that only need the two source strings. */
 export async function resolveTwoCodeSources(
   ctx: CommandContext,
 ): Promise<[string, string] | undefined> {
-  const codes: string[] = [];
-
-  // Collect from #file references
-  for (const ref of ctx.request.references) {
-    if (ref.value instanceof vscode.Uri) {
-      const doc = await vscode.workspace.openTextDocument(ref.value);
-      codes.push(doc.getText());
-    } else if (ref.value instanceof vscode.Location) {
-      const doc = await vscode.workspace.openTextDocument(ref.value.uri);
-      codes.push(doc.getText(ref.value.range));
-    }
-    if (codes.length >= 2) {
-      return [codes[0], codes[1]];
-    }
-  }
-
-  // If we have one ref, try active editor as the other source
-  if (codes.length === 1) {
-    const editor = vscode.window.activeTextEditor;
-    if (editor && isTclLanguage(editor.document.languageId)) {
-      const editorCode = editor.selection.isEmpty
-        ? editor.document.getText()
-        : editor.document.getText(editor.selection);
-      return [editorCode, codes[0]];
-    }
-  }
-
-  // Try inline code blocks (two fenced blocks in the prompt)
-  const blocks = [...ctx.request.prompt.matchAll(/```(?:tcl|irule)?\s*\n([\s\S]+?)```/g)];
-  if (blocks.length >= 2) {
-    return [blocks[0][1].trimEnd(), blocks[1][1].trimEnd()];
-  }
-
-  return undefined;
+  const sources = await resolveTwoIruleSources(ctx);
+  return sources ? [sources[0].source, sources[1].source] : undefined;
 }
 
 /**

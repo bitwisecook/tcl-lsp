@@ -23,17 +23,24 @@ here", so nothing fails loudly and nothing works.
 
 ## The trait and its two implementations
 
-| | `NativeStore` | `MemoryStore` |
-|---|---|---|
-| Backing | `std::fs` | a `PathBuf`-keyed byte map the host fills |
-| Directories | the real tree | implied: a path is a directory when some stored file is under it |
-| A path it does not have | whatever `std::fs` says | `io::ErrorKind::NotFound` |
-| URI aliasing | none | a URI → path table, so a file registered under the client's spelling is found under the server's |
+|                         | `NativeStore`           | `MemoryStore`                                                                                    |
+| ----------------------- | ----------------------- | ------------------------------------------------------------------------------------------------ |
+| Backing                 | `std::fs`               | a `PathBuf`-keyed byte map the host fills                                                        |
+| Directories             | the real tree           | implied: a path is a directory when some stored file is under it                                 |
+| A path it does not have | whatever `std::fs` says | `io::ErrorKind::NotFound`                                                                        |
+| URI aliasing            | none                    | a URI → path table, so a file registered under the client's spelling is found under the server's |
 
 **`NativeStore` is a literal delegation and that is its entire specification.**
 A native server built with this module behaves byte-identically to one built
 without it. Any cleverness added to it — caching, path rewriting, normalisation
 — breaks that, and the native test suite is the only thing that proves it.
+
+`MemoryStore` also issues revision-bound workspace inventory observations for
+host-backed sessions. An observation is `Missing`, `Stale`, or `Current` for one
+session/root/selection. Each upsert or removal advances the store revision; a
+complete receipt is useful only while it still matches that revision. The
+filesystem provider remains a distinct authority and does not acquire a host
+receipt or a synthetic completion claim.
 
 Two details of the trait are load-bearing because they encode what the call
 sites did before it existed:
@@ -41,12 +48,12 @@ sites did before it existed:
 - **`read_dir` skips an unreadable entry rather than failing the listing.**
   Every walk in the tree was written `std::fs::read_dir(dir)?.flatten()`, so a
   mid-listing error costs that one entry and never the whole directory. Only the
-  *open* error propagates.
+  _open_ error propagates.
 - **`DirEntry` carries `is_dir` **and** `is_file`, both false for a symlink** —
   the two questions `std::fs::FileType` answers. The walks asked
   `file_type().is_dir()` / `.is_file()`, so a symlink was neither descended into
   nor indexed. Collapsing them to one flag would silently start indexing
-  symlinked sources. A caller that *wants* the link target's kind asks
+  symlinked sources. A caller that _wants_ the link target's kind asks
   `is_dir(path)` / `is_file(path)`, which go through `metadata` and do follow —
   which is what the package-database subdirectory walk needs, because C Tcl's
   `auto_path` descends a symlinked package directory.
@@ -65,11 +72,11 @@ decoder (`tcl_lsp_core::source_decode`, issue #1326), so a home below this crate
 would split the decode default off the trait. The alternatives were considered
 and rejected:
 
-| Candidate | Why not |
-|---|---|
-| `tcl-core-types` | `#![no_std]` — it cannot name `std::fs`, `std::io`, or `std::path` at all. |
-| `tcl-platform` | Bans syscalls by charter ("only traits + error/capability types"), so the impls could not live there; and it already owns `Filesystem`, the host-capability seam, so a second filesystem trait would put two owners of one axis in one crate. |
-| A new crate | Not needed once `tcl-lsp-core` works, and `tcl-spectcl` already reaches `tcl-compiler`, so the graph gains no new depth. |
+| Candidate        | Why not                                                                                                                                                                                                                                       |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tcl-core-types` | `#![no_std]` — it cannot name `std::fs`, `std::io`, or `std::path` at all.                                                                                                                                                                    |
+| `tcl-platform`   | Bans syscalls by charter ("only traits + error/capability types"), so the impls could not live there; and it already owns `Filesystem`, the host-capability seam, so a second filesystem trait would put two owners of one axis in one crate. |
+| A new crate      | Not needed once `tcl-lsp-core` works, and `tcl-spectcl` already reaches `tcl-compiler`, so the graph gains no new depth.                                                                                                                      |
 
 The cost is the edge `tcl-spectcl → tcl-lsp-core`, which introduces no cycle
 (`tcl-lsp-core` reaches neither `tcl-spectcl` nor anything that does).
@@ -78,15 +85,15 @@ The cost is the edge `tcl-spectcl → tcl-lsp-core`, which introduces no cycle
 
 Routed — every path that reads a closed file:
 
-| Path | Entry point |
-|---|---|
-| Closed-file read behind `read_document`, decode-report comparison, `scan_disk_file` | `Backend::store` |
-| `config.ini` / `.tcl-lsp.ini` layers, the `exportConfig` write, the notice line-range read | `Backend::store` |
-| Workspace folder scan (candidate walk + per-file read) | `collect_tcl_files`, `Backend::build_package_db_and_candidates` |
-| Package database (`pkgIndex.tcl` / `tclIndex`, the `auto_path` config layers) | `PackageResolver::scan_path_in` / `scan_tree_in`, `effective_auto_path` |
-| W120 transitive package scan, W123 package-defined-command scan, the recovery-widening package read | `refine_workspace_w120` / `refine_workspace_w123` |
-| `.tclspec` discovery and pack reading | `tcl_spectcl::discovery::discover_in`, `tcl_spectcl::bundled::load_discovered_in` |
-| The APL sibling-`implementation` lookup | `find_sibling_impl_vars` |
+| Path                                                                                                | Entry point                                                                       |
+| --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Closed-file read behind `read_document`, decode-report comparison, `scan_disk_file`                 | `Backend::store`                                                                  |
+| `config.ini` / `.tcl-lsp.ini` layers, the `exportConfig` write, the notice line-range read          | `Backend::store`                                                                  |
+| Workspace folder scan (candidate walk + per-file read)                                              | `collect_tcl_files`, `Backend::build_package_db_and_candidates`                   |
+| Package database (`pkgIndex.tcl` / `tclIndex`, the `auto_path` config layers)                       | `PackageResolver::scan_path_in` / `scan_tree_in`, `effective_auto_path`           |
+| W120 transitive package scan, W123 package-defined-command scan, the recovery-widening package read | `refine_workspace_w120` / `refine_workspace_w123`                                 |
+| `.tclspec` discovery and pack reading                                                               | `tcl_spectcl::discovery::discover_in`, `tcl_spectcl::bundled::load_discovered_in` |
+| The APL sibling-`implementation` lookup                                                             | `find_sibling_impl_vars`                                                          |
 
 Deliberately still `std::fs`, because each is a capability a byte map does not
 have and a browser has no equivalent of:
@@ -110,6 +117,13 @@ not move, so the store-taking form cannot change native behaviour by accident.
 
 ## The virtual spec-pack mount
 
+Browser hosts validate each manifest entry through the worker's Rust
+`vfs_is_safe_spec_pack_name` owner before joining it to the staged `specs/`
+URI or reading its bytes. The same path-component rule guards the subsequent
+`vfs_upsert_spec_pack`: rooted names and any `..` component are refused, while
+safe nested relative names retain their original spelling. The host does not
+reimplement that path policy.
+
 `tcl_spectcl::discovery::bundled_dir` answers "the `specs/` directory beside the
 running executable". A browser worker has no executable, no `specs/`, and no
 filesystem to hold either.
@@ -128,7 +142,7 @@ The leading NUL is what makes it safe to consult on every session: no real
 filesystem can name a path containing one, so a native `NativeStore` can only
 ever answer "not found" there, and the mount cannot collide with, shadow, or be
 shadowed by anything a user actually has on disk. The `.tcl-lsp` component keeps
-it self-describing in the one place it *is* visible — a pack notice naming a
+it self-describing in the one place it _is_ visible — a pack notice naming a
 file the host supplied.
 
 Two rules govern it:
@@ -139,7 +153,7 @@ Two rules govern it:
 2. **The mount is additive to the shipped loadables, file name by file name.**
    Files found there carry `Origin::HostMount`, and
    `bundled::load_discovered_in` decides its embedded-pack fallback on "no
-   bundled file came from a *shipped directory*" rather than "the bundled tier
+   bundled file came from a _shipped directory_" rather than "the bundled tier
    is empty". A real `specs/` holds the eight shipped EDA loadables, so finding
    one means they are accounted for; a host that upserts one vendor pack has
    said nothing about the EDA libraries and must not silently lose them.
@@ -159,13 +173,22 @@ declaration from the host, at any depth.
 
 ## The host contract
 
-`rust/tcl-lsp-server-wasm/worker.js` speaks raw LSP JSON-RPC, plus three object
+`rust/tcl-lsp-server-wasm/worker.js` speaks raw LSP JSON-RPC, plus four object
 messages that are not protocol traffic:
 
 ```js
-{ tclLsp: "upsert", uri, text }           // a closed file, keyed by file: URI
-{ tclLsp: "delete", uri }                 // forget one
-{ tclLsp: "upsertSpecPack", name, text }  // a .tclspec, under VIRTUAL_PACK_MOUNT
+{
+  tclLsp: ("upsert", uri, bytes);
+} // exact admitted UTF-8 source bytes
+{
+  tclLsp: ("delete", uri);
+} // forget one
+{
+  tclLsp: ("sourceInventory", rootUri, selection, status);
+} // root census receipt
+{
+  tclLsp: ("upsertSpecPack", name, text);
+} // a .tclspec, under VIRTUAL_PACK_MOUNT
 ```
 
 `upsertSpecPack` is separate from `upsert` because it does not key on a URI —
@@ -180,11 +203,15 @@ shadow an unrelated store path. The guard tests `has_root`, not `is_absolute` �
 see the first wasm fault below for why the latter would admit exactly what it
 exists to refuse.
 
-**Ordering is the host's job, and the protocol already says it:** send all three
-before `initialize`, because `initialized` is what loads the pack set and runs
-the workspace scan. A file that appears later needs no new message — upsert it
-and post an ordinary `workspace/didChangeWatchedFiles`, the same notification an
-editor sends for a file changed outside it.
+**Ordering is the host's job, and the protocol already says it:** send the
+closed-file upserts and each root's census before `initialize`, because
+`initialized` is what loads the pack set and runs the workspace scan. The census
+is recorded after the preceding byte mutations and binds the provider session,
+root, exact host selection (globs and limits), and store revision. A later byte
+mutation makes it stale until the host issues a new receipt. A file that appears
+later needs no new message shape — upsert it, reissue affected root receipts,
+and post an ordinary `workspace/didChangeWatchedFiles`, the same notification
+an editor sends for a file changed outside it.
 
 Declaring `workspaceFolders` in `initialize` is what turns the store into a
 workspace: the scan walks each folder through the store exactly as it walks a
@@ -192,12 +219,14 @@ directory natively.
 
 ### What a host must key on
 
-`vfs_upsert` takes a **`file:` URI** and keys the store on the path that URI
-names (`Uri::to_file_path`, the same conversion the server itself uses). A URI
-whose path cannot be recovered is *ignored*, silently and by design — there is
-nothing the store could file it under. A host on any other scheme therefore
-gets a server that answers everything about the documents it opens and knows
-nothing about the files around them.
+`vfs_upsert_bytes` takes a **`file:` URI** and exact source bytes, keys the
+store on the path that URI names, and retains those bytes without decoding and
+re-encoding them at the transport boundary. The browser host admits only valid
+UTF-8 source before upsert; malformed byte sequences are refused and leave the
+root census incomplete. A URI whose path cannot be recovered is ignored: there
+is no store path to register. A host on any other scheme therefore gets a
+server that answers everything about the documents it opens and knows nothing
+about the files around them.
 
 ## The VS Code-web host
 
@@ -229,7 +258,7 @@ server it names.
 **Asset resolution under a cross-origin host.** A browser refuses to start a
 worker from a cross-origin script, so VS Code's web extension host wraps the
 URL in a same-origin blob that `importScripts()`es it. Inside that worker
-`self.location` is the opaque `blob:` URL, and *no* relative name resolves
+`self.location` is the opaque `blob:` URL, and _no_ relative name resolves
 against it — `worker.js` cannot find its own glue and wasm. The host therefore
 passes the directory holding the three files as the worker's name,
 `new Worker(url, { name })`, which VS Code forwards to the real `Worker` (it
@@ -248,14 +277,18 @@ The symptom of getting this wrong is quiet: the server answers `initialize` in
 full, the client logs "Received message which is neither a response nor a
 notification message", and `start()` never resolves.
 
-**Sync shape and budget.** The sweep runs, and every upsert is posted, before
+**Sync shape and budget.** The sweep runs, every exact-byte upsert is posted,
+and one root-scoped census receipt is posted after the sweep, before
 `client.start()` — `postMessage` is FIFO per port and the worker backlogs
 anything arriving before wasm init, so early sends are safe and are the only
 ones that beat `initialized`. After that a `FileSystemWatcher` upserts on
-create/change and deletes on delete, each followed by an ordinary
-`workspace/didChangeWatchedFiles`.
+create/change and deletes on delete, marks the affected root incomplete before
+an asynchronous read, and reissues its receipt after the mutation. Overlapping
+folder sweeps carry unique per-root generations: a sweep closes only roots it
+still owns, and a removed or superseded scan cannot certify a later root state.
+The watcher then posts an ordinary `workspace/didChangeWatchedFiles`.
 
-The globs are *derived*, not restated: the manifest's `workspaceContains:`
+The globs are _derived_, not restated: the manifest's `workspaceContains:`
 activation glob is generated by `cargo xtask gen-vscode-package` from
 `tcl_registry::dialects::TCL_SOURCE_EXTENSIONS` — the same list the server
 indexes and watches, already case-folded per character — plus
@@ -274,10 +307,26 @@ server itself matches the name.
 The sweep is bounded by `tclLsp.web.workspaceSync.maxFiles` (2000),
 `.maxTotalBytes` (32 MiB), and `.maxFileBytes` (2 MiB), and candidates are
 sorted so an over-budget workspace truncates identically every session.
-**Nothing is dropped silently**: every skipped file is named in the output
-channel with the setting that would include it. A workspace the server has only
-part of gives confident single-file answers and quietly incomplete cross-file
-ones, which is the failure mode the budget must never cause without saying so.
+Every skipped file is named in the output channel with the setting that would
+include it, and the host marks that root's receipt incomplete. Search failures,
+read failures, byte-limit refusals, budget skips, and invalid UTF-8 all prevent
+an incomplete roster from authorizing absence-sensitive cross-file rename edits.
+Positive readonly evidence already observed in the index remains available.
+The receipt describes completeness only for its explicit host selection; it is
+not proof that another host policy or arbitrary filesystem path was enumerated.
+
+`WorkspaceIndex` retains the receipt snapshot used for the scan, plus whether
+the server's own directory walk exhausted its independent file cap and readable
+directories. A complete host receipt cannot close a server index that stopped at
+`tclLsp.workspaceScan.maxFiles` or skipped an unreadable directory. Incomplete
+or missing coverage disables absence-sensitive lexical rename advice, while
+already-observed positive readonly rows remain queryable. Before planning a
+workspace rename, the server captures the index and receipt revisions; before
+returning edits it requires those exact revisions still be current and checks
+the store's complete session/root/selection/revision observations. A source
+mutation or a new scan invalidates the old observation; missing and stale
+receipts refuse the edit rather than turning an unobserved file into an absence
+claim. Native filesystem sessions keep their separate provider policy.
 
 The budget is a property of the **session**, not of the startup sweep, so the
 host tracks what the store holds (URI → byte length) and applies the same caps
@@ -334,7 +383,7 @@ one file.
 
 - **`Path::is_absolute` is `false` for every path on
   `wasm32-unknown-unknown`.** `std` requires `unix`, `wasi`, or a Windows path
-  *prefix*, and that target is none of them. `ls_types::Uri::from_file_path`
+  _prefix_, and that target is none of them. `ls_types::Uri::from_file_path`
   gates on it, takes its relative-path branch, and tries to canonicalise against
   a filesystem that is not there — so it returns `None` for every path the
   server derives itself, and the scan would drop each file before reading it.
@@ -345,16 +394,17 @@ one file.
   It percent-encodes the path **unconditionally**, with `ls_types`' own rule
   (keep alphanumeric plus `-._~` and the `/` separator, escape everything else).
   Encoding only when the naive `file://<path>` fails to parse is not enough and
-  cannot be made enough: `#`, `?`, and a literal `%XX` are *valid* URI syntax, so
+  cannot be made enough: `#`, `?`, and a literal `%XX` are _valid_ URI syntax, so
   `/ws/a#1.tcl` parses happily as `file:///ws/a` with a fragment and aliases a
   different file. `repair_uri_string` could never catch it either — `is_uri_legal`
   admits `?` and the gen-delims by design, because its job is repairing a URI a
   client sent, not spelling one from a path. The equivalence test drives `#`, `?`,
   `%20`, `:`, a space, non-ASCII, and `&=;` names and asserts both a round trip
   through `to_file_path` and byte equality with `from_file_path`.
+
 - **`crate::rt`'s browser `JoinSet` must detach each task as it is added.**
   The workspace scan bounds its concurrency by taking a semaphore permit
-  *before* spawning and releasing it *inside* the task, so a set whose tasks
+  _before_ spawning and releasing it _inside_ the task, so a set whose tasks
   only advance during `join_next` deadlocks the moment a workspace holds more
   files than permits. Detaching matches Tokio's own contract, which is what
   every call site assumes — and, because the tasks are detached, the set
@@ -377,7 +427,6 @@ one file.
 - The native suites are the equivalence proof for everything above:
   `cargo test -p tcl-lsp-server` (unit + the `tests/*_e2e.rs` suites),
   `cargo test -p tcl-lsp-core`, `cargo test -p tcl-spectcl`.
-
 
 ## Document URI path admission
 
@@ -429,7 +478,6 @@ source retirement withdraws it. A read's genuine `NotFound` or non-source direct
 other provider/read failures remain unavailable and preserve prior published
 rows. Path admission never supplies Native Tcl authority, source execution,
 lookup absence, an edit grant, or a source freshness proof.
-
 
 `SourceStore::source_path_origin` and `validate_source_path_origin` retain and
 check a separate sealed `SourcePathOrigin` for a Path supplied by an actual

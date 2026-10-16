@@ -96,6 +96,10 @@ enum ProposalDiagnostics {
         version: i32,
         source: String,
         proposal: String,
+        // Serialized from the captured effective resource dialect only after
+        // the producer's final source-store currentness check succeeds.
+        #[serde(rename = "dialectId")]
+        dialect_id: String,
         revision: String,
         #[serde(rename = "inputsEpoch")]
         inputs_epoch: String,
@@ -659,7 +663,8 @@ impl Backend {
                 },
             };
             if uri == &expected.uri {
-                if !Arc::ptr_eq(&published.admission, &admission)
+                if row.dialect != dialect
+                    || !Arc::ptr_eq(&published.admission, &admission)
                     || tcl_lexer::normalise_lone_cr(&row.text).as_ref()
                         != tcl_lexer::normalise_lone_cr(&expected.source).as_ref()
                 {
@@ -1017,6 +1022,9 @@ impl Backend {
                 version: currentness.expected.version,
                 source: currentness.expected.source.clone(),
                 proposal: currentness.expected.proposal.clone(),
+                // This outcome is built inside the same final store-currentness
+                // closure as the diagnostics and their input epoch.
+                dialect_id: currentness.dialect.to_owned(),
                 revision: format!(
                     "{:?}:{}",
                     currentness.database_revision, currentness.document_revision

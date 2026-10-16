@@ -253,6 +253,14 @@ resembles lossy decoding.
 
 ## Editor source actions
 
+Read-only explain and diff commands retain the source document, URI, version,
+whole text, selected range and selected text while preparing a model request.
+They recheck the captured document bytes after asynchronous model selection and
+before sending. A document-backed source uses a dialect-neutral prompt; it does
+not borrow the active editor's prompt or treat a configured hint as resolved
+analysis context. Inline source has no document identity.
+
+
 AI source actions retain the actual `TextDocument`, URI components, full source,
 version, language, resource-scoped dialect hint, selected extent and source
 channel. Source-only discussion can project text; replacing an existing document

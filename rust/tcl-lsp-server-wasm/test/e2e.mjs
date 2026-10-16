@@ -321,6 +321,12 @@ async function workspaceSession(wasmBindgen) {
         "vfs_upsert_spec_pack refuses a name that escapes the mount",
         escapes.every((name) => session.worker.vfs_upsert_spec_pack(name, "speclib bad 1 {}\n") === false),
     );
+    check(
+        "vfs_is_safe_spec_pack_name agrees with pack upsert path admission",
+        [HOST_PACK_NAME, "nested/資料.tclspec"].every((name) =>
+            session.worker.vfs_is_safe_spec_pack_name(name) === true,
+        ) && escapes.every((name) => session.worker.vfs_is_safe_spec_pack_name(name) === false),
+    );
     check("the store holds the workspace before initialize", session.worker.vfs_len() === 5);
 
     await session.request("initialize", {

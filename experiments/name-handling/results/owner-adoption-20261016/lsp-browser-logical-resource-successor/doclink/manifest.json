@@ -1,0 +1,27 @@
+{
+  "baseline_unit": "lsp-source-document-link-selection",
+  "baseline_pointer": "/existing_validation_obligations/lsp/21",
+  "status": "TMP-only source/contract candidate; no build/test/main writes",
+  "purpose": "Restore the existing explicit authored source-simulation route without borrowing or weakening Logical continuity or public Native value authority.",
+  "patch_sha256": "33e83a58ff48daacc135092c28aa84b3b5d1fe8f1beec58d9ca4901fe930d692",
+  "files": [
+    {
+      "path": "rust/tcl-lsp-core/src/document_links.rs",
+      "before_sha256": "f026eb12fd125c6c6cd088ff3b4519722b5eb62ea3b2de0c1c201b334c19f8ab",
+      "after_sha256": "c3123df2732a0871f14dadd81c94225664ace23f2763d946b9730c9be3e3f528",
+      "current_before_matches": true
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/retained-path-source-inventory.md",
+      "before_sha256": "f5588cb8ad382e1a1ac81b0fbf0195644f60812cb4552bf5374ed604c0958b0d",
+      "after_sha256": "7a570c4141fd88041b7bbe005c778232512bbe71d640b53ff766d04f6589c035",
+      "current_before_matches": true
+    }
+  ],
+  "all_existing_test_suffix_bytes_preserved": true,
+  "old_test_suffix_sha256": "c352782bd454a4e3c4de3e15a7ff3eeaa4e1ebab775e2bfda1d069fd3f7a9a05",
+  "new_test": "document_links::authored_source_link_purpose_tests::authored_jim_path_advice_keeps_scope_without_becoming_public_native_value",
+  "original_regression": "document_links::tests::original_namespace_source_links_use_typed_jim_local_scope_without_export",
+  "count_delta": 0,
+  "verification_scope": "Rustfmt isolated TMP; independent peer pending; no Cargo/ELF/oracle/instrumentation execution."
+}

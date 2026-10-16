@@ -263,6 +263,7 @@ impl AdviceInvocationContext<'_> {
         graph: &AdviceGraph,
         schema: &tcl_registry::ResolvedInvocation<'_, '_>,
     ) {
+        self.retain_requested_logical_class_relation(invocation, graph, schema);
         let Some(super::SourceAdviceQuery::ClassRelation(query)) = self.query else {
             return;
         };
@@ -312,18 +313,7 @@ impl AdviceInvocationContext<'_> {
             )?;
             (selected_lookup == query.request.lookup).then_some(())?;
             let slot = graph.lookup_head_key(query.request.input.bytes())?;
-            let provider = match graph.cells.get(&slot)? {
-                AdviceCell::SourceClass(class) => ClassProvider::Source(Arc::clone(class)),
-                AdviceCell::Descriptor(command, _) => {
-                    let descriptor = self
-                        .context
-                        .context()
-                        .resolve_spec(self.context.commands(), command)?;
-                    is_registry_class_root(descriptor).then_some(())?;
-                    ClassProvider::Registry(command.clone())
-                }
-                _ => return None,
-            };
+            let provider = self.class_relation_provider_at(graph, &slot)?;
             Some(OriginalSourceClassRelationProvider {
                 body: query.request.body.clone(),
                 parent: Arc::clone(&query.request.parent),
@@ -333,6 +323,250 @@ impl AdviceInvocationContext<'_> {
                 slot,
                 provider,
                 receiver: self.source_class_declaration(graph, invocation, schema),
+            })
+        })();
+        let mut reply = query.reply.borrow_mut();
+        match &*reply {
+            None => *reply = Some(receipt),
+            Some(previous) if previous != &receipt => *reply = Some(None),
+            _ => {}
+        }
+    }
+}
+
+impl AdviceInvocationContext<'_> {
+    fn class_relation_provider_at(
+        &self,
+        graph: &AdviceGraph,
+        slot: &ByteCommandSlot,
+    ) -> Option<ClassProvider> {
+        match graph.cells.get(slot)? {
+            AdviceCell::SourceClass(class) => Some(ClassProvider::Source(Arc::clone(class))),
+            AdviceCell::Descriptor(command, _) => {
+                let descriptor = self
+                    .context
+                    .context()
+                    .resolve_spec(self.context.commands(), command)?;
+                is_registry_class_root(descriptor).then(|| ClassProvider::Registry(command.clone()))
+            }
+            _ => None,
+        }
+    }
+}
+
+/// A readonly Logical relation selected by the actual conditional source graph.
+/// The original parent and whole member vector remain independent obligations;
+/// this is neither a Native lookup nor an entered definition-worker receipt.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct LogicalSourceClassRelationProvider {
+    body: OriginalSourceScriptBody,
+    parent: Arc<OriginalSourceCommandTransitionAdvice>,
+    member: Arc<[NativeWord]>,
+    input: crate::analyser::ResolvedAnalysisInput,
+    operand: NativeWord,
+    namespace: tcl_core_types::ByteNamespacePath,
+    slot: ByteCommandSlot,
+    provider: ClassProvider,
+    receiver: Arc<OriginalSourceClassDeclaration>,
+}
+impl LogicalSourceClassRelationProvider {
+    pub(crate) fn operand(&self) -> &NativeWord {
+        &self.operand
+    }
+    pub(crate) fn source_slot(&self) -> &ByteCommandSlot {
+        match &self.provider {
+            ClassProvider::Source(class) => class.source_slot(),
+            ClassProvider::Registry(_) => &self.slot,
+        }
+    }
+    pub(crate) fn matches_receiver(
+        &self,
+        analysis: &crate::analyser::AnalysisResult,
+        class: &crate::analyser::ClassDef,
+    ) -> bool {
+        let Some(realm) = analysis.retained_command_realm() else {
+            return false;
+        };
+        let Some(registry) = analysis.resolved_registry() else {
+            return false;
+        };
+        let Some(current) = realm.source_bindings_ref().logical_class_relation_provider(
+            &self.body,
+            &self.member,
+            &self.operand,
+            &self.input,
+            registry,
+        ) else {
+            return false;
+        };
+        current.namespace == self.namespace
+            && current.slot == self.slot
+            && current.provider == self.provider
+            && analysis.resolved_input.as_ref() == Some(&self.input)
+            && self.input.has_logical_source_name_context()
+            && self.parent.logical_source_input() == Some(&self.input)
+            && self
+                .parent
+                .matches_source(self.operand.image(), self.input.lexer_config())
+            && self.parent.matches_context(&self.input.context_registry())
+            && self
+                .body
+                .matches_source(self.operand.image(), self.input.lexer_config())
+            && analysis
+                .matches_original_source_image(self.operand.image(), self.input.lexer_config())
+            && self
+                .receiver
+                .logical_source_class(analysis)
+                .is_some_and(|selected| std::ptr::eq(selected, class))
+    }
+    pub(crate) fn source_class<'a>(
+        &self,
+        analysis: &'a crate::analyser::AnalysisResult,
+    ) -> Option<Option<&'a crate::analyser::ClassDef>> {
+        match &self.provider {
+            ClassProvider::Source(class) => class.logical_source_class(analysis).map(Some),
+            ClassProvider::Registry(_) => Some(None),
+        }
+    }
+}
+struct LogicalClassRelationRequest {
+    body: OriginalSourceScriptBody,
+    parent: Arc<OriginalSourceCommandTransitionAdvice>,
+    member: Arc<[NativeWord]>,
+    input: crate::analyser::ResolvedAnalysisInput,
+    operand: NativeWord,
+    value: Vec<u8>,
+}
+impl LogicalClassRelationRequest {
+    fn capture(
+        body: &OriginalSourceScriptBody,
+        member: &[NativeWord],
+        operand: &NativeWord,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> Option<Self> {
+        input.has_logical_source_name_context().then_some(())?;
+        let context = input.context_registry();
+        let OriginalRegistrySource::SourceTransitions(parent) = body.source_words().source() else {
+            return None;
+        };
+        if parent.logical_source_input() != Some(input)
+            || !parent.matches_source(operand.image(), input.lexer_config())
+            || !parent.matches_context(&context)
+            || !body.matches_context(&context)
+            || !body.matches_source(operand.image(), input.lexer_config())
+        {
+            return None;
+        }
+        let region = body.definition_member_region(&context, body.content_span())?;
+        for command in region.complete_original_commands()? {
+            region.checked_references(&command)?;
+            if !super::body_effects::original_operand_effects(&command).is_empty() {
+                return None;
+            }
+        }
+        if region.original_command_words_at(member.first()?.span().start())? != member {
+            return None;
+        }
+        let references = region.checked_references(member)?;
+        let mut selected = references.iter().filter(|reference| {
+            reference.kind() == tcl_registry::definer::MemberRefKind::Class
+                && reference.original_word() == operand
+        });
+        let reference = selected.next()?;
+        selected.next().is_none().then_some(())?;
+        let value = tcl_syntax::word_rules::original_static_word_unicode_value(operand)?;
+        (value.as_slice() == reference.value() && !value.contains(&0)).then_some(())?;
+        Some(Self {
+            body: body.clone(),
+            parent: Arc::clone(parent),
+            member: Arc::from(member),
+            input: input.clone(),
+            operand: operand.clone(),
+            value,
+        })
+    }
+}
+#[derive(Clone, Copy)]
+pub(super) struct LogicalClassRelationQuery<'a> {
+    request: &'a LogicalClassRelationRequest,
+    reply: &'a RefCell<Option<Option<LogicalSourceClassRelationProvider>>>,
+}
+impl super::super::SourceCommandBindings {
+    pub(crate) fn logical_class_relation_provider(
+        &self,
+        body: &OriginalSourceScriptBody,
+        member: &[NativeWord],
+        operand: &NativeWord,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<LogicalSourceClassRelationProvider> {
+        let seed = self.original_source_transition_seed()?;
+        let context = seed.source_context(registry)?;
+        let request = LogicalClassRelationRequest::capture(body, member, operand, input)?;
+        if request.parent.site().source != seed.origin || request.parent.config != seed.config {
+            return None;
+        }
+        let reply = RefCell::new(None);
+        seed.prepare_for_query(
+            &context,
+            OriginalSourceCataloguePurpose::CompletePrefix,
+            Some(super::SourceAdviceQuery::LogicalClassRelation(
+                LogicalClassRelationQuery {
+                    request: &request,
+                    reply: &reply,
+                },
+            )),
+        )?;
+        reply.into_inner().flatten()
+    }
+}
+impl AdviceInvocationContext<'_> {
+    fn retain_requested_logical_class_relation(
+        &self,
+        invocation: AdviceInvocation<'_>,
+        graph: &AdviceGraph,
+        schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+    ) {
+        let Some(super::SourceAdviceQuery::LogicalClassRelation(query)) = self.query else {
+            return;
+        };
+        if invocation
+            .native
+            .first()
+            .map(NativeWord::span)
+            .map(|span| span.start())
+            != Some(query.request.parent.site().offset)
+        {
+            return;
+        }
+        let receipt = (|| {
+            let current = self.schema_advice(invocation, graph, schema)?;
+            if current != *query.request.parent
+                || !graph.uncertain_operations.is_empty()
+                || !super::body_effects::original_operand_effects(invocation.native).is_empty()
+            {
+                return None;
+            }
+            let AdviceNamingPolicy::Logical(input) = &graph.policy else {
+                return None;
+            };
+            if input != &query.request.input {
+                return None;
+            }
+            let namespace = graph.logical_namespace.clone()?;
+            let slot = graph.lookup_head_key(&query.request.value)?;
+            let provider = self.class_relation_provider_at(graph, &slot)?;
+            let receiver = self.source_class_declaration(graph, invocation, schema)?;
+            Some(LogicalSourceClassRelationProvider {
+                body: query.request.body.clone(),
+                parent: Arc::clone(&query.request.parent),
+                member: Arc::clone(&query.request.member),
+                input: query.request.input.clone(),
+                operand: query.request.operand.clone(),
+                namespace,
+                slot,
+                provider,
+                receiver,
             })
         })();
         let mut reply = query.reply.borrow_mut();

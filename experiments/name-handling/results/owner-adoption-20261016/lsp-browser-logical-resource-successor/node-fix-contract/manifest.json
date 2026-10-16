@@ -1,0 +1,29 @@
+{
+  "candidate": "lsp-fix-resource-context-contract-v1",
+  "status": "TMP-only follow-up to source-cleared Node fix V4; source comments and durable contract only",
+  "dependencies": {
+    "source_v4_patch_sha256": "bbfb4a9e22c1b6d6b3a41790b639de64fbb4709f2bd70c6e6ac5e8dde406c19e"
+  },
+  "files": {
+    "rust/tcl-lsp-server/src/current_diagnostics.rs": {
+      "before_sha256": "9ab2f87ff29b4729ca9e1dbe9d026c950e0aa4f9fe3f3205b984c42c70c935df",
+      "after_sha256": "a9d7c1f0116ebb43ad23c60604da9cb651c2fc033c0ddfd26a0f2ed3899442af"
+    },
+    "editors/vscode/src/chat/agenticLoop.ts": {
+      "before_sha256": "cd9ede3fa8e8c3422f414fa94ef63149a5561e32670ce93db399d09548ec0d70",
+      "after_sha256": "7548e3b4f9b447ebc8ebfa728be3491bbf5c3694e6fb4b3bc27bf5a8d069be6a"
+    },
+    "docs/design/contracts/lsp-proposal-diagnostics.md": {
+      "before_sha256": "cef31d8f09dfc41f231facafa9efa34ae53198c45b7f080f93c7666b2753e0c0",
+      "after_sha256": "77d0436ab3351ac9a0e7891a5971f7db595f9d894674a0874b180bbce3c4d80d"
+    }
+  },
+  "patch_sha256": "795a0a916111418bc6f205c27a5f8f2ca8960785a3a70f16be9fca7697f9d1db",
+  "validation": {
+    "scope": "source comments + contract prose only; no runtime behavior changes",
+    "tests": "not run",
+    "typecheck": "not run",
+    "builds": "not run",
+    "patch_apply_check": "PASS in a temporary overlay initialized from V4 source afterimages and the current contract base"
+  }
+}

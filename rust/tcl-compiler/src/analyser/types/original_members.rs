@@ -590,17 +590,60 @@ struct LogicalSourceMemberVisibilityOperand {
     effect: tcl_registry::definer::MemberVisibility,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct LogicalSourceRelationCommand {
+    pub(crate) input: crate::analyser::ResolvedAnalysisInput,
+    pub(crate) words: Vec<tcl_lexer::NativeWord>,
+    pub(crate) side: Option<MemberSide>,
+    pub(crate) relation: tcl_registry::definer::RelationSlot,
+    pub(crate) slot: Option<tcl_registry::definer::SlotSpec>,
+    pub(crate) operation: Option<tcl_registry::definer::SlotOp>,
+}
+
 /// Ordered original member metadata. Unknown/computed input remains an
 /// explicit coverage gap; the compatibility String table supplies no names.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct OriginalSourceMemberLedger {
     operations: Vec<Operation>,
     logical_names: Vec<LogicalSourceMemberNameOperand>,
+    logical_relations: Vec<LogicalSourceRelationCommand>,
+    logical_relation_coverage_unavailable: bool,
     logical_visibility: Vec<LogicalSourceMemberVisibilityOperand>,
     unavailable: bool,
 }
 
 impl OriginalSourceMemberLedger {
+    pub(crate) fn mark_logical_relation_coverage_unavailable(&mut self) {
+        self.logical_relation_coverage_unavailable = true;
+    }
+    pub(crate) fn logical_relation_coverage_available(&self) -> bool {
+        !self.logical_relation_coverage_unavailable
+    }
+
+    pub(crate) fn retain_logical_relation_command(
+        &mut self,
+        input: crate::analyser::ResolvedAnalysisInput,
+        words: Vec<tcl_lexer::NativeWord>,
+        effect: (
+            Option<MemberSide>,
+            tcl_registry::definer::RelationSlot,
+            Option<tcl_registry::definer::SlotSpec>,
+            Option<tcl_registry::definer::SlotOp>,
+        ),
+    ) {
+        self.logical_relations.push(LogicalSourceRelationCommand {
+            input,
+            words,
+            side: effect.0,
+            relation: effect.1,
+            slot: effect.2,
+            operation: effect.3,
+        });
+    }
+    pub(crate) fn logical_relation_commands(&self) -> &[LogicalSourceRelationCommand] {
+        &self.logical_relations
+    }
+
     pub(crate) fn retain_logical_name_operand(
         &mut self,
         input: crate::analyser::ResolvedAnalysisInput,
@@ -738,9 +781,15 @@ impl OriginalSourceMemberLedger {
     }
     pub(crate) fn absorb(&mut self, other: &Self, other_ran_second: bool) {
         self.unavailable |= other.unavailable;
+        self.logical_relation_coverage_unavailable |= other.logical_relation_coverage_unavailable;
         for visibility in &other.logical_visibility {
             if !self.logical_visibility.contains(visibility) {
                 self.logical_visibility.push(visibility.clone());
+            }
+        }
+        for relation in &other.logical_relations {
+            if !self.logical_relations.contains(relation) {
+                self.logical_relations.push(relation.clone());
             }
         }
         for name in &other.logical_names {

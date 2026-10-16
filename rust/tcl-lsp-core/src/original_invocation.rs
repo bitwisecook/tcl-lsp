@@ -347,6 +347,9 @@ mod source_words_tests {
         );
         match &words.source {
             OriginalRegistrySource::Selected => {}
+            OriginalRegistrySource::ConditionalNativeSource(_) => {
+                panic!("direct invocation acquired conditional case-only syntax")
+            }
             OriginalRegistrySource::Conditional(metadata) => {
                 assert_eq!(metadata.original_words().len(), 3)
             }

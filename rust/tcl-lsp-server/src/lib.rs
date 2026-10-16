@@ -10033,6 +10033,12 @@ fn describe_variable_collision(cell: &str, new_cell: &str, colliding: &[String])
     ))
 }
 
+#[derive(Clone, Copy)]
+struct WorkspaceSourcePlanToken {
+    index_generation: u64,
+    inventory_revision: u64,
+}
+
 impl Backend {
     /// Build a fresh backend wrapping the given client.
     ///
@@ -19518,6 +19524,7 @@ impl Backend {
         pos: Position,
         new_name: &str,
         changes: &mut std::collections::HashMap<Uri, Vec<TextEdit>>,
+        source_plan: &mut WorkspaceSourcePlanToken,
     ) -> DocumentSourceResult<()> {
         let (rehoming_guard, symbols) = self
             .resolved_symbol_index_snapshot(uri, source, analysis, pos)
@@ -19536,7 +19543,18 @@ impl Backend {
         // rather than dependent on scan timing.
         {
             let mut index = self.workspace_index.write().await;
+            // This focused consumer replacement is an intentional input to
+            // the workspace-resolved plan. Admit it only if no unrelated index
+            // or receipt mutation occurred since planning began, then bind the
+            // plan to the resulting exact index generation.
+            if index.generation() != source_plan.index_generation
+                || index.source_inventory_revision() != source_plan.inventory_revision
+            {
+                return Ok(());
+            }
             index.replace_document(uri.as_str(), analysis);
+            source_plan.index_generation = index.generation();
+            source_plan.inventory_revision = index.source_inventory_revision();
         }
         let intents = {
             let index = self.workspace_index.read().await;
@@ -19927,6 +19945,7 @@ impl Backend {
         ctx: RenameContext<'_>,
         local_rejected: bool,
         changes: &mut std::collections::HashMap<Uri, Vec<TextEdit>>,
+        source_plan: &mut WorkspaceSourcePlanToken,
     ) -> DocumentSourceResult<bool> {
         let new_name_safe = core_rename::is_safe_symbol_name(ctx.new_name)
             && !core_rename::is_builtin_command_name(ctx.new_name, ctx.registry);
@@ -19952,6 +19971,7 @@ impl Backend {
             ctx.pos,
             ctx.new_name,
             changes,
+            source_plan,
         )
         .await?;
         Ok(false)
@@ -26021,11 +26041,99 @@ impl Backend {
         unreachable!("the bounded source-snapshot loop always returns")
     }
 
+    /// Rebuild the indexed view before an absence-sensitive rename when the
+    /// browser host has finished a newer complete census but this index still
+    /// carries an older receipt. The scan is the only owner allowed to bind a
+    /// new receipt to indexed bytes; a host marker alone never upgrades the
+    /// previous index. A known incomplete server scan is left refused rather
+    /// than retried on every rename.
+    async fn refresh_stale_complete_host_inventory_for_rename(&self) -> DocumentSourceResult<()> {
+        let provider = self.store.workspace_source_inventory_provider();
+        if provider != vfs::WorkspaceSourceInventoryProvider::HostReported {
+            return Ok(());
+        }
+        let folders = self.workspace_folder_urls().await;
+        let Some(roots) = folders
+            .iter()
+            .map(|folder| folder.to_file_path().map(std::borrow::Cow::into_owned))
+            .collect::<Option<Vec<_>>>()
+        else {
+            return Ok(());
+        };
+        if roots.is_empty() {
+            return Ok(());
+        }
+        let observations = roots
+            .iter()
+            .map(|root| self.store.workspace_source_inventory(root))
+            .collect::<Vec<_>>();
+        if observations.is_empty()
+            || !observations
+                .iter()
+                .all(vfs::WorkspaceSourceInventoryObservation::admits_complete_inventory)
+        {
+            return Ok(());
+        }
+        let index = self.workspace_index.read().await;
+        if index.source_inventory_scan_complete() == Some(false)
+            && index.source_inventory_observations_match(provider, &observations)
+        {
+            return Ok(());
+        }
+        let already_current = index.source_inventory_is_current(provider, &observations)
+            && index.source_inventory_matches_store(self.store.as_ref());
+        drop(index);
+        if !already_current {
+            self.scan_workspace_folders().await?;
+        }
+        Ok(())
+    }
+
+    async fn capture_workspace_source_plan(&self) -> WorkspaceSourcePlanToken {
+        let index = self.workspace_index.read().await;
+        WorkspaceSourcePlanToken {
+            index_generation: index.generation(),
+            inventory_revision: index.source_inventory_revision(),
+        }
+    }
+
+    /// Validate the exact index/receipt generations used by the plan, then
+    /// confirm that receipt still matches the live provider and active roots.
+    async fn workspace_source_plan_is_current(&self, token: WorkspaceSourcePlanToken) -> bool {
+        let provider = self.store.workspace_source_inventory_provider();
+        // Hold the active-root owner through the index/store comparison so a
+        // folder change cannot occur between reading the root set and
+        // validating the exact index snapshot.
+        let folders = self.workspace_folders.lock().await;
+        let Some(mut current_roots) = folders
+            .iter()
+            .map(|folder| folder.to_file_path().map(std::borrow::Cow::into_owned))
+            .collect::<Option<Vec<_>>>()
+        else {
+            return false;
+        };
+        current_roots.sort();
+        current_roots.dedup();
+        let index = self.workspace_index.read().await;
+        let mut indexed_roots = index.source_inventory_roots();
+        indexed_roots.sort();
+        indexed_roots.dedup();
+        index.generation() == token.index_generation
+            && index.source_inventory_revision() == token.inventory_revision
+            && (provider == vfs::WorkspaceSourceInventoryProvider::Filesystem
+                || current_roots == indexed_roots)
+            && index.source_inventory_matches_store(self.store.as_ref())
+    }
+
     async fn scan_workspace_folders(&self) -> DocumentSourceResult<()> {
         // Held for the whole scan so `ensure_autoload_indexed` can wait out
         // an in-flight scan instead of racing it — see the field doc on
         // `workspace_scan_gate`.
         let _scan_guard = self.workspace_scan_gate.lock().await;
+        self.workspace_index
+            .write()
+            .await
+            .invalidate_source_inventory_scan();
         let scan_started = crate::rt::Instant::now();
         let folders = self.workspace_folder_urls().await;
         let roots: Vec<PathBuf> = folders
@@ -26033,6 +26141,14 @@ impl Backend {
             .filter_map(|f| f.to_file_path().map(std::borrow::Cow::into_owned))
             .collect();
         let roots_count = roots.len();
+        // Capture the host's actual source-store census before scanning. Any
+        // byte mutation while the index is assembled makes the receipt stale;
+        // the final rename gate rechecks it against the live store.
+        let source_inventory_provider = self.store.workspace_source_inventory_provider();
+        let source_inventory_observations = roots
+            .iter()
+            .map(|root| self.store.workspace_source_inventory(root))
+            .collect::<Vec<_>>();
         // Note: we deliberately do NOT early-return when `roots.is_empty()`.
         // The package resolver must still be (re)built from the editor library
         // paths + `TCLLIBPATH` + discovered installations so single-file /
@@ -26052,7 +26168,7 @@ impl Backend {
             .collect();
         let folder_dialects = self.folder_dialect_overrides().await;
         let default_dialect = self.session_dialect().await;
-        let (resolver, files) = self.build_package_db_and_candidates(roots).await;
+        let (resolver, files, scan_complete) = self.build_package_db_and_candidates(roots).await;
 
         // Drop the library files the autoload tier merged under the
         // *previous* package database before this scan's own batches add their
@@ -26149,6 +26265,14 @@ impl Backend {
         // with the workspace's subclass evidence already in place.  No peers
         // to wake: nothing has published diagnostics yet.
         sync_workspace_subclass_methods(&scan_handles).await;
+        self.workspace_index
+            .write()
+            .await
+            .set_source_inventory_snapshot_with_scan_status(
+                source_inventory_provider,
+                source_inventory_observations,
+                scan_complete,
+            );
         // In-process readiness signal, released before the log line so a
         // handler waiting on it is not held up by a client round-trip.
         self.workspace_scan_ready.mark_complete();
@@ -26187,7 +26311,7 @@ impl Backend {
     async fn build_package_db_and_candidates(
         &self,
         roots: Vec<PathBuf>,
-    ) -> (PackageResolver, Vec<PathBuf>) {
+    ) -> (PackageResolver, Vec<PathBuf>, bool) {
         // Inputs for the package-database `auto_path`: the editor's
         // `tclLsp.libraryPaths` (config.ini / .tcl-lsp.ini layers are read from
         // the store in the worker) and the discovered-installation cache.
@@ -26227,13 +26351,14 @@ impl Backend {
                 WORKSPACE_SCAN_DIR_CAP,
             );
             let mut files: Vec<PathBuf> = Vec::new();
+            let mut complete = true;
             for root in &roots {
-                collect_tcl_files(scan_store.as_ref(), root, max_files, &mut files);
+                complete &= collect_tcl_files(scan_store.as_ref(), root, max_files, &mut files);
             }
-            (resolver, files)
+            (resolver, files, complete)
         })
         .await
-        .unwrap_or_else(|_| (PackageResolver::new(), Vec::new()))
+        .unwrap_or_else(|_| (PackageResolver::new(), Vec::new(), false))
     }
 
     /// Reads and analyses `files` across a bounded worker pool, as the
@@ -30812,6 +30937,8 @@ impl LanguageServer for Backend {
         {
             return Ok(None);
         }
+        self.refresh_stale_complete_host_inventory_for_rename()
+            .await?;
         let uri = params.text_document_position.text_document.uri.clone();
         let pos = params.text_document_position.position;
         let new_name = params.new_name;
@@ -30830,18 +30957,33 @@ impl LanguageServer for Backend {
         {
             return Ok(None);
         }
+        // Reconcile source-site views before capturing the workspace snapshot
+        // used by rename planning. Any later rehoming/index mutation makes the
+        // exact token fail at publication.
+        self.refresh_source_rehoming().await?;
+        let mut source_plan = self.capture_workspace_source_plan().await;
         // The gated tiers, before any ordinary edit is built: the `TclOO`
         // member safety gate and the workspace namespace-variable rename.
         if let Some(gated) = self
             .gated_rename_tiers(&uri, &doc, &analysis, pos, &new_name)
             .await?
         {
+            if matches!(&gated, Ok(Some(_)))
+                && !self.workspace_source_plan_is_current(source_plan).await
+            {
+                return Ok(None);
+            }
             return gated;
         }
         if let std::ops::ControlFlow::Break(result) = self
             .original_command_rename_tier(&uri, &doc, &analysis, pos, &new_name)
             .await?
         {
+            if matches!(&result, Ok(Some(_)))
+                && !self.workspace_source_plan_is_current(source_plan).await
+            {
+                return Ok(None);
+            }
             return result;
         }
         // Method rename → cross-file override-family path.
@@ -30849,6 +30991,9 @@ impl LanguageServer for Backend {
             .method_family_rename_tier(&uri, &doc, &analysis, pos, &new_name)
             .await?
         {
+            if !self.workspace_source_plan_is_current(source_plan).await {
+                return Ok(None);
+            }
             return Ok(Some(WorkspaceEdit {
                 changes: Some(changes),
                 document_changes: None,
@@ -30882,6 +31027,20 @@ impl LanguageServer for Backend {
         // oracle when the in-document rename found nothing local to
         // resolve against).  Aborts the whole rename when a sibling's
         // provenance isn't fully writable.
+        // The consumer-document fallback can trigger an on-demand library
+        // merge. Complete that selected lookup before binding the index token;
+        // the actual workspace-resolved edit plan below must use this exact
+        // snapshot. A subsequent index change is refused by the guarded
+        // focused replacement or final publication check.
+        if local_rejected
+            && core_rename::is_safe_symbol_name(&new_name)
+            && !core_rename::is_builtin_command_name(&new_name, &registry)
+        {
+            let _ = self
+                .resolve_workspace_symbols(&uri, &doc.text, &analysis, pos)
+                .await?;
+            source_plan = self.capture_workspace_source_plan().await;
+        }
         if self
             .extend_rename_with_cross_document_edits(
                 RenameContext {
@@ -30894,12 +31053,16 @@ impl LanguageServer for Backend {
                 },
                 local_rejected,
                 &mut changes,
+                &mut source_plan,
             )
             .await?
         {
             return Ok(None);
         }
         if changes.is_empty() {
+            return Ok(None);
+        }
+        if !self.workspace_source_plan_is_current(source_plan).await {
             return Ok(None);
         }
         Ok(Some(WorkspaceEdit {
@@ -35157,23 +35320,28 @@ fn tcl_source_watch_glob() -> String {
 
 /// Iteratively walk `root`, appending the paths of Tcl source
 /// files to `out` until `out` reaches `cap` entries.  Skips the
-/// directories [`is_skipped_scan_dir`] rejects and silently
-/// ignores unreadable directories so a single permission error
-/// doesn't abort the whole scan.  Iterative (explicit stack) to
-/// avoid unbounded recursion on deep trees.
+/// directories [`is_skipped_scan_dir`] rejects. Unreadable directories are
+/// omitted from the collected paths and make the returned completeness false,
+/// so absence-sensitive consumers cannot treat a partial walk as exhaustive.
+/// Iterative (explicit stack) to avoid unbounded recursion on deep trees.
 fn collect_tcl_files(
     store: &dyn vfs::SourceStore,
     root: &Path,
     cap: usize,
     out: &mut Vec<PathBuf>,
-) {
+) -> bool {
+    let mut complete = true;
     let mut stack: Vec<PathBuf> = vec![root.to_path_buf()];
     while let Some(dir) = stack.pop() {
         if out.len() >= cap {
-            return;
+            return false;
         }
-        let Ok(entries) = store.read_dir(&dir) else {
-            continue;
+        let entries = match store.read_dir(&dir) {
+            Ok(entries) => entries,
+            Err(_) => {
+                complete = false;
+                continue;
+            }
         };
         for entry in entries {
             if entry.is_dir {
@@ -35182,12 +35350,13 @@ fn collect_tcl_files(
                 }
             } else if entry.is_file && is_tcl_source(&entry.path) {
                 if out.len() >= cap {
-                    return;
+                    return false;
                 }
                 out.push(entry.path);
             }
         }
     }
+    complete
 }
 
 /// `true` when `uri` sits under the workspace folder `folder`.
@@ -50935,10 +51104,11 @@ proc p {} {
             std::fs::write(root.join(format!("f{i}.tcl")), "set x 1\n").unwrap();
         }
         let mut out = Vec::new();
-        collect_tcl_files(&vfs::NativeStore, &root, 3, &mut out);
+        let complete = collect_tcl_files(&vfs::NativeStore, &root, 3, &mut out);
         let got = out.len();
         std::fs::remove_dir_all(&root).ok();
         assert_eq!(got, 3);
+        assert!(!complete, "the capped scan must not authorize absence");
     }
 
     #[tokio::test]

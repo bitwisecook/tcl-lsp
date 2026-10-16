@@ -98,6 +98,7 @@ fn schema_hover(
         .flatten()?;
     match words.source() {
         OriginalRegistrySource::Selected => {}
+        OriginalRegistrySource::ConditionalNativeSource(_) => return None,
         OriginalRegistrySource::Scoped(_) => {
             text.push_str("\n\n_Scoped source documentation from the retained original body; runtime command availability is unresolved._");
         }

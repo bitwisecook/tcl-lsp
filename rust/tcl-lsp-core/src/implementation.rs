@@ -43,7 +43,6 @@ use tcl_compiler::analyser::{AnalysisResult, ClassDef};
 use tcl_lexer::{LineIndex, Span};
 
 use crate::definition::{LspRange, byte_offset_at, span_to_range};
-use crate::hover::find_word_span_at_position;
 
 /// Compute "go-to-implementation" locations for the symbol at the
 /// cursor.  Returns an empty vector when the cursor is not on a class
@@ -55,77 +54,95 @@ pub fn implementation(
     character: u32,
     analysis: &AnalysisResult,
 ) -> Vec<LspRange> {
-    if crate::original_context::CurrentSourceContext::capture(source, analysis).is_none() {
+    let Some(position) =
+        crate::original_context::CurrentSourcePosition::capture(source, analysis, line, character)
+    else {
         return Vec::new();
-    }
+    };
     if !analysis.allows_lexical_declaration_advice() {
         return original_implementation(source, line, character, analysis);
     }
-    let Some((word, _start, _end)) = find_word_span_at_position(source, line, character) else {
+    let image = tcl_lexer::SourceImage::document(source);
+    let config = position.context().config();
+    let index = LineIndex::new_lsp(source);
+    let mut spans = BTreeSet::new();
+    if let Some(target) = analysis.logical_source_class_at(&image, config, position.offset()) {
+        for class in analysis.all_classes.values() {
+            let Some(parents) = analysis.logical_source_direct_classes(class) else {
+                return Vec::new();
+            };
+            if parents.iter().any(|parent| std::ptr::eq(*parent, target)) {
+                spans.insert((class.name_span.start(), class.name_span.end()));
+            }
+        }
+        return finish(source, &index, spans);
+    }
+    let Some(member) = analysis.logical_source_member_at(&image, config, position.offset()) else {
         return Vec::new();
     };
-    let line_index = LineIndex::new(source);
-
-    // Collected target spans, de-duplicated and ordered by start
-    // offset so the response is deterministic.
-    let mut spans: BTreeSet<(u32, u32)> = BTreeSet::new();
-
-    let cursor = byte_offset_at(&line_index, source, line, character);
-
-    // Class targets and direct subclass edges share the namespace-aware
-    // declaration resolver and retained class hierarchy.
-    if let Some((target_qname, _target)) = crate::definition::resolve_class_target_at(
-        analysis,
-        source,
-        crate::definition::CallResolution::document_only(),
-        cursor,
-        &word,
-    ) {
-        if let Some(subs) = analysis.class_hierarchy().subclasses.get(target_qname) {
-            for sub_qname in subs {
-                if let Some(cd) = analysis.all_classes.get(sub_qname) {
-                    spans.insert((cd.name_span.start(), cd.name_span.end()));
-                }
-            }
+    let Some(root) = analysis.logical_source_member_class(&member) else {
+        return Vec::new();
+    };
+    let Some(name) = member
+        .original_name_word()
+        .and_then(tcl_syntax::word_rules::original_static_word_unicode_value)
+    else {
+        return Vec::new();
+    };
+    let classes = analysis.all_classes.values().collect::<Vec<_>>();
+    let mut descendants: Vec<&ClassDef> = Vec::new();
+    if member.side() == tcl_compiler::analyser::MemberSide::Instance {
+        let mut edges = Vec::with_capacity(classes.len());
+        for class in &classes {
+            let Some(parents) = analysis.logical_source_direct_classes(class) else {
+                return Vec::new();
+            };
+            edges.push(parents);
         }
-        return finish(source, &line_index, spans);
-    }
-
-    // Case 2/3: the word names a method
-    let enclosing = crate::definition::enclosing_class_at(analysis, cursor);
-
-    match enclosing {
-        // Outside any class body: every class that defines the method
-        // is an implementation.
-        None => {
-            for cd in analysis.all_classes.values() {
-                if let Some(span) = method_span(cd, &word) {
-                    spans.insert((span.start(), span.end()));
-                }
-            }
-        }
-        // Inside a class body: the enclosing class's own definition plus
-        // the overrides defined in its descendants.  Ancestor
-        // definitions are skipped (go-to-definition reaches those).
-        Some(enclosing_qname) => {
-            let descendants = analysis
-                .class_hierarchy()
-                .transitive_subtypes
-                .get(enclosing_qname);
-            for (class_key, cd) in &analysis.all_classes {
-                let Some(span) = method_span(cd, &word) else {
+        let mut pending = vec![root];
+        while let Some(parent) = pending.pop() {
+            for (class, parents) in classes.iter().zip(&edges) {
+                if std::ptr::eq(*class, root)
+                    || descendants
+                        .iter()
+                        .any(|selected| std::ptr::eq(*selected, *class))
+                {
                     continue;
-                };
-                let is_self = class_key.as_str() == enclosing_qname;
-                let is_descendant = descendants.is_some_and(|classes| classes.contains(class_key));
-                if is_self || is_descendant {
-                    spans.insert((span.start(), span.end()));
+                }
+                if parents
+                    .iter()
+                    .any(|candidate| std::ptr::eq(*candidate, parent))
+                {
+                    descendants.push(*class);
+                    pending.push(*class);
                 }
             }
         }
     }
-
-    finish(source, &line_index, spans)
+    descendants.push(root);
+    for class in descendants {
+        let Some(owner) = analysis.logical_source_class_declaration(class) else {
+            return Vec::new();
+        };
+        let methods = match member.side() {
+            tcl_compiler::analyser::MemberSide::Instance => &class.methods,
+            tcl_compiler::analyser::MemberSide::ClassObject => &class.class_methods,
+        };
+        for method in methods.values() {
+            let Some(candidate) = owner.member(member.side(), method) else {
+                return Vec::new();
+            };
+            if candidate
+                .original_name_word()
+                .and_then(tcl_syntax::word_rules::original_static_word_unicode_value)
+                .as_ref()
+                == Some(&name)
+            {
+                spans.insert((method.name_span.start(), method.name_span.end()));
+            }
+        }
+    }
+    finish(source, &index, spans)
 }
 
 // Native queries use the same declaration/selector owners as navigation.
@@ -303,15 +320,6 @@ fn finish(source: &str, line_index: &LineIndex, spans: BTreeSet<(u32, u32)>) -> 
         .into_iter()
         .map(|(s, e)| span_to_range(source, line_index, Span::new(s, e)))
         .collect()
-}
-
-/// The method `name_span` for `word` on `cd`, checking instance then
-/// class methods.
-fn method_span(cd: &ClassDef, word: &str) -> Option<Span> {
-    cd.methods
-        .get(word)
-        .or_else(|| cd.class_methods.get(word))
-        .map(|m| m.name_span)
 }
 
 #[cfg(test)]
@@ -737,5 +745,61 @@ mod current_source_implementation_tests {
         assert!(implementation(source, 1, 1, &analysis).is_empty());
         analysis.resolved_input = None;
         assert!(implementation(source, 1, 1, &analysis).is_empty());
+    }
+}
+
+#[cfg(test)]
+mod logical_source_selection_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    fn at(source: &str, offset: usize, analysis: &AnalysisResult) -> Vec<LspRange> {
+        let position =
+            LineIndex::new_lsp(source).position_at_utf16(u32::try_from(offset).unwrap(), source);
+        implementation(source, position.line, position.character.get(), analysis)
+    }
+
+    #[test]
+    fn logical_implementation_uses_real_member_operand_and_rejects_equal_spelled_data() {
+        let source = "oo::class create Base {method run {} {}}\noo::class create Child {superclass Base; method run {} {}}\nputs run\nrun\n";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        assert!(analysis.allows_retained_logical_declaration_advice());
+        let locations = at(source, source.find("run").unwrap(), &analysis);
+        assert_eq!(
+            locations
+                .iter()
+                .map(|range| range.start_line)
+                .collect::<Vec<_>>(),
+            vec![0, 1]
+        );
+        assert!(at(source, source.find("puts run").unwrap() + 5, &analysis).is_empty());
+        assert!(at(source, source.rfind("run").unwrap(), &analysis).is_empty());
+    }
+
+    #[test]
+    fn logical_implementation_keeps_unicode_self_selector_and_exact_source_configuration() {
+        let source = "oo::class create C {method 茶 {} {}; method again {} {my 茶}}";
+        let mut analysis = Analyser::new().analyse(source, "tcl");
+        assert_eq!(at(source, source.rfind('茶').unwrap(), &analysis).len(), 1);
+        assert!(
+            at(
+                &format!("{source}\n# changed"),
+                source.rfind('茶').unwrap(),
+                &analysis
+            )
+            .is_empty()
+        );
+        let config = analysis.body_lexer_config.unwrap();
+        analysis.body_lexer_config.as_mut().unwrap().strict_quoting = !config.strict_quoting;
+        assert!(at(source, source.rfind('茶').unwrap(), &analysis).is_empty());
+    }
+    #[test]
+    fn logical_implementation_lifts_lone_cr_source_positions() {
+        let source = "set z 0;\roo::class create C {method run {} {}}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let locations = at(source, source.find("run").unwrap(), &analysis);
+        assert_eq!(locations.len(), 1);
+        assert_eq!(locations[0].start_line, 1);
+        assert_eq!(locations[0].end_line, 1);
     }
 }

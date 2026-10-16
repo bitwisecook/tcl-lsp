@@ -1,0 +1,14 @@
+Independent SOURCE/CONTRACT CLEAR — conditional Native case source V3
+
+Patch /tmp/luna-comment-native-conditional-v3/conditional-native-case-source-v3.patch
+SHA256 3a15e013acb18bcbdb7590fef5bb4b3bb78e9b4a4b7b58246ec6433f2a7c8cfd
+Manifest SHA256 8b6bc0be32104f566792217bfa572393c7f8c6964b52b61aecf320419247306f
+Independent verification /tmp/sol-compiler-comment-native-conditional-v3-review/verification.json
+
+Actual API route checked: OriginalSourceRegistryContext holds its actual image/input/Realm; conditional_native_case_source_words validates exact input/config, original current context pointer and retained image, builds actual source tokens and stamps them through that retained Realm, then retains the existing original_source_registry_barrier. InvocationMetadataContext::for_analysis_input and original_registry_invocation_assistance_with_metadata_context are genuine existing APIs on this exact Registry/input/token path. No fresh root/frame, selected policy, String target inverse, or copied case grammar is introduced. All candidate shapes must agree exactly; absence/unknown lookup remain stored separately. Complete original NativeWord/effective origins/structured argv and operand geometry use the existing producers and actual native source string protocol. Missing representation refuses.
+
+The new OriginalRegistrySource variant is conditional source advice, not Native selection/entry. roles=None, captured_values=None and operands_preserve_source_lookup=false retain independent authority limits. The only newly admitting caller is the comment walker fallback after ordinary source.words fails. For that variant it withholds definition grammar and ordinary body inventory; lambda loop sees no roles. Only existing conditional_source_case_bodies supplies candidate spans, retaining the original whole vector plus Registry CaseBodyOperands and selection_unknown. Both selection values remain data; neither unknown lookup nor case selection becomes definite. Collection lookups explicitly refuse the new variant. Remaining exhaustive source matches are updated without stronger input grants; with_source_schema stays the existing readonly source-descriptor projection.
+
+All four manifest before/after hashes and current main beforeimages match. Exact fuzz0 forward/inverse application matches every after/before byte. Entire existing test-module suffixes in all three Rust files are byte-identical; original232 fixture/assertions remain unchanged. Existing proof contract addition accurately describes this syntax-only purpose and residuals. No visibility widening, checker waiver, new resolver, generic definite role, execution/effect/Normal/edit permission or passing test claim.
+
+No Cargo/build, executable/list/test, native probe, instrumentation, main or Git operation. Root owns integration, current successful build binding and actual ordinary232 efficacy. This review does not demonstrate the fallback is reached or fixes its failure.

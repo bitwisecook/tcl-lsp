@@ -1,0 +1,76 @@
+{
+  "utc": "2026-10-16T20:48:29.588737+00:00",
+  "source_head": "1b45c540eb51d24e1fd89c4a4bf61f43bf77986c",
+  "editor_diff_sha256": "81c1c20b180c6255712bec32aff2b5c55ed711693c8f7e13b863ce47458b79cf",
+  "input_count": 406,
+  "checks": [
+    {
+      "argv": [
+        "npx",
+        "tsc",
+        "--noEmit",
+        "-p",
+        "."
+      ],
+      "exit_code": 0,
+      "seconds": 3.308,
+      "log": "check-0.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "npx",
+        "prettier",
+        "--check",
+        "src/chat/agenticLoop.ts",
+        "src/chat/commands/fix.ts",
+        "src/chat/commands/validate.ts",
+        "src/chat/diagnosticAccess.ts",
+        "src/test/currentDiagnostics.test.ts",
+        "src/test/webWorkspaceSync.test.ts",
+        "src/webWorkspaceSync.ts"
+      ],
+      "exit_code": 0,
+      "seconds": 0.841,
+      "log": "check-1.log",
+      "log_sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20"
+    },
+    {
+      "argv": [
+        "node",
+        "--check",
+        "../../rust/tcl-lsp-server-wasm/worker.js"
+      ],
+      "exit_code": 0,
+      "seconds": 0.024,
+      "log": "check-2.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "npm",
+        "run",
+        "bundle"
+      ],
+      "exit_code": 0,
+      "seconds": 0.315,
+      "log": "check-3.log",
+      "log_sha256": "116a6cf6bdf85752fc1844abbc88a23abfcc5b288fd6a95787cc22fa82be9b09"
+    },
+    {
+      "argv": [
+        "npm",
+        "run",
+        "bundle:browser"
+      ],
+      "exit_code": 0,
+      "seconds": 0.267,
+      "log": "check-4.log",
+      "log_sha256": "c95ae4f4ca2e3bde607eb9d72a0676d53303c4b8b226a4716a900ed485476b27"
+    }
+  ],
+  "status": "PASS",
+  "input_drift": [],
+  "completed_utc": "2026-10-16T20:48:34.403150+00:00",
+  "host_execution": "Compilation, worker syntax and bundle only; actual extension host unexecuted"
+}

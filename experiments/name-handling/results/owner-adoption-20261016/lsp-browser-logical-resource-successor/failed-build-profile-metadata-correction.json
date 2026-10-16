@@ -1,0 +1,15 @@
+{
+  "utc": "2026-10-16T20:59:21.526845+00:00",
+  "status": "FAILED_BUILDS_ONLY_NO_TEST_ACCEPTANCE",
+  "incorrect_fields": [
+    "test_debug:0",
+    "CARGO_PROFILE_TEST_DEBUG=0 command prefix in first two source-binding.json receipts"
+  ],
+  "actual": "The wrapper did not export CARGO_PROFILE_TEST_DEBUG; actual rustc process used -C debuginfo=line-tables-only from Cargo.toml profile.test. No successful ordinary ELF/test acceptance exists for either failed build.",
+  "correction": "Original receipts retained byte-exact; read this correction with both captures. /tmp/naming-env.sh now explicitly exports CARGO_PROFILE_TEST_DEBUG=0 and repair2 asserts its actual value before Cargo.",
+  "source_binding_paths": [
+    "/workspace/naming-validation/lsp-browser-logical-resource-successor/source-binding.json",
+    "/workspace/naming-validation/lsp-browser-logical-resource-successor-repair1/source-binding.json"
+  ],
+  "failed_attempt_to_stop": "Owned Cargo PID had already exited on actual three Core type errors before SIGINT check; no process was signalled."
+}

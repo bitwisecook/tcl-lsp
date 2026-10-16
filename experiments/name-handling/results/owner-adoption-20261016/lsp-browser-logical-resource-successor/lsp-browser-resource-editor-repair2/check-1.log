@@ -1,0 +1,7 @@
+Checking formatting...
+[warn] src/chat/codeUtils.ts
+[warn] src/chat/commands/diff.ts
+[warn] src/chat/commands/explain.ts
+[warn] src/test/commands.test.ts
+[warn] src/test/webWorkspaceSync.test.ts
+[warn] Code style issues found in 5 files. Run Prettier with --write to fix.

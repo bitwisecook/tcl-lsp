@@ -1,0 +1,5 @@
+{
+  "rust_before_after_hashes_exact": true,
+  "contract_union": "Exact reviewed patch applies cleanly over unrelated integrated LogicalV3 contract changes; independently checked current-tree application.",
+  "count_delta": 0
+}

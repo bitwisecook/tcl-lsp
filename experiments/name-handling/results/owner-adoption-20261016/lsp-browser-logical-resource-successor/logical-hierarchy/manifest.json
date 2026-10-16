@@ -1,0 +1,59 @@
+{
+  "candidate": "logical-hierarchy-selection-v3",
+  "status": "TMP source-only, independent review pending; no build/test/gate acceptance",
+  "patch": "logical-hierarchy-selection.e52f35a6b30de7860788d7fa7b2ee28ffa92ec30e2b78f6dc5efe48a151f9358.patch",
+  "patch_sha256": "e52f35a6b30de7860788d7fa7b2ee28ffa92ec30e2b78f6dc5efe48a151f9358",
+  "files": {
+    "docs/design/contracts/name-handling.md": {
+      "before_sha256": "9cefca37dabec7c3873589dca8d6f99ddaf221f76886546ac0447427f67c400b",
+      "after_sha256": "7846781aa1ba414989b2956eab0170fa8f620281ba54aa111145e17fb2ed64e3"
+    },
+    "docs/design/contracts/shared-utility-contracts-rust.md": {
+      "before_sha256": "42e121594aea9006c1e46dc78ffb10a86e0f446d146eb7a54e80b079a3283190",
+      "after_sha256": "c1116edd03146fd60a5955dbccc43ba790f8bbfa7f36f8a0fbd4f0d68d667325"
+    },
+    "rust/tcl-compiler/src/analyser/oo.rs": {
+      "before_sha256": "93501c6ca6c1520b00c79ebca8147616f9e001a196eb478adb694a18a8d10b6d",
+      "after_sha256": "f09f861b78a3cc8741c005ebe8c06c31065b25515df30c6aa1a43f1d0cfc0a28"
+    },
+    "rust/tcl-compiler/src/analyser/types/logical_members.rs": {
+      "before_sha256": "67ab43e491de7d78dc2f5cbe110061d968d0b1a13332ab49012b0301ffe08e53",
+      "after_sha256": "bad3e9218546aea92c9b6580850c464325399b4ab80997ceca92ad4e26912b66"
+    },
+    "rust/tcl-compiler/src/analyser/types/original_members.rs": {
+      "before_sha256": "a75140ff9489e15aebe558d045637164eca7e16cdeabf2b4b260f12b474508d2",
+      "after_sha256": "6941bfbcde82e2aaf6ce266fec0f2b66a882bcd8cbd1e3b5281803150d524aa3"
+    },
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/source_relation_provider.rs": {
+      "before_sha256": "c5e126f6dc03836fd11235daff0d44e7b576ccb807d125e3ff7aaf36535ad733",
+      "after_sha256": "00b28b2e3eec60dd6da4315738baf0afee09947c181fa5a91d1aee45bbc02e12"
+    },
+    "rust/tcl-compiler/src/command_binding/source_transition_advice.rs": {
+      "before_sha256": "1951edb63ffabb7b53e2f51ec8067ab1f9886abbd31a648113053148fff702b3",
+      "after_sha256": "1ba9875089c1c3d871bd7edb3779027d65c56defba704dd747ca444b0dd60464"
+    },
+    "rust/tcl-compiler/src/command_binding.rs": {
+      "before_sha256": "d6371903b6e32558619736114af95873b410947b585fc3e531fa43163d0d1ab6",
+      "after_sha256": "19bea2e019f88c4337adcb2e3e3c984ceb0f8034b001c7ae195a3f780b88a693"
+    },
+    "rust/tcl-lsp-core/src/implementation.rs": {
+      "before_sha256": "a334fbf2051429141022b0c30d9dab46e04816f1cd1f2204e1ed2d0c0541283a",
+      "after_sha256": "0d167d1373a5a9f9158c9ceee5b7c4ff70529028b4593bc3dc7384f01e37eb96"
+    },
+    "rust/tcl-lsp-core/src/type_hierarchy.rs": {
+      "before_sha256": "45eee7ef9a95cade17dc9e12ad58b11909ce827072ff39c3e01bd341a8b9a886",
+      "after_sha256": "f11c159b6f9b969f46f23ced20ad19e6044a7f0d3162eaf06ac401da0352b74e"
+    }
+  },
+  "static_validation": {
+    "all_eight_rust_afterimages_parse": true,
+    "all_preexisting_test_modules_byte_identical": 29,
+    "rustfmt": "all eight source files formatted with skip_children=true; no Cargo"
+  },
+  "baseline_callers": [
+    "lsp-type-hierarchy-logical-report-selection",
+    "lsp-implementation-logical-bare-method"
+  ],
+  "owner_count_scope": "Root reconciliation required: existing compiler.source.typed-member-kind-hierarchy:60 partial membership overlap; distinct unknown-Logical relation parent-horizon facet proposed once if absent required unit; no completion claim",
+  "known_original_control_conflict": "original current_source_implementation_tests::logical_method_implementation_requires_current_source_and_complete_input bare top-level run expects a method and is retained unchanged; expected to fail under authentic selection, separate genuine positives added"
+}

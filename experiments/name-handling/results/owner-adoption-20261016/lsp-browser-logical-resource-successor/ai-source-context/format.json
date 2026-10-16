@@ -1,0 +1,33 @@
+{
+  "before": {
+    "editors/vscode/src/chat/agenticLoop.ts": "bc7fbe8b17fa848b5d6dd504c5acbf9ebb44458ab6581c5a845b5a247f56b6bf",
+    "editors/vscode/src/chat/codeUtils.ts": "ef500b7e1ab096fbaf2356217bffa72006ac9abc476ab8fdea3be5c2aa67223f",
+    "editors/vscode/src/chat/commands/diff.ts": "4e181fdda558f3e8ee53479652316b045cefc17d876ce8e9560139bf55092604",
+    "editors/vscode/src/chat/commands/explain.ts": "399b9b23c25fd4837872da3005924ca8b2ac93f737518780a71702b94713ac97",
+    "editors/vscode/src/chat/commands/fix.ts": "7b6ccbcdbc7326bc1ac3cb0f9f8f8342f8e7ae2b613d93c41e56ad59ed214044",
+    "editors/vscode/src/chat/commands/validate.ts": "171b8f8971706cc5e5ba9a560770a25d1aca6d06cd97537271b3bda5c3e7f300",
+    "editors/vscode/src/chat/contextPack.ts": "a53970befc989acd05f62bcf181ba15fc36d86cf7e06d4aaf3492ffd5c6aabd2",
+    "editors/vscode/src/chat/diagnosticAccess.ts": "3535f6fa1ac84955de5342c851bf9b4c18ee2047350dda81f47c3c2601925a1a",
+    "editors/vscode/src/chat/promptLoader.ts": "644854be16f4e9c1fcfad7952e4e55d510fc136ac382eaa4cb3e2442684c96a5",
+    "editors/vscode/src/test/commands.test.ts": "dc54b0957969a2e04a7535f241b343440b09d8db00cb42c80b5eb151b552f37c",
+    "editors/vscode/src/test/currentDiagnostics.test.ts": "fe2f90bda3940dfd976020a25aa0c91cce7da169e5e93a17bea6c9131c1796aa",
+    "editors/vscode/src/test/webWorkspaceSync.test.ts": "74bf8e15d539a63a1ac1919b603ad9f1b643099725f007e9ff507ee8f704b84d",
+    "editors/vscode/src/webWorkspaceSync.ts": "a6e1838c830071a281376a4241f3906af0381415744bc86bd9fe3f1401b7aa6e"
+  },
+  "after": {
+    "editors/vscode/src/chat/agenticLoop.ts": "bc7fbe8b17fa848b5d6dd504c5acbf9ebb44458ab6581c5a845b5a247f56b6bf",
+    "editors/vscode/src/chat/codeUtils.ts": "9b6cae80a1780467a71eda3972eb224b911f79de33adf83e4ccd73457e75b720",
+    "editors/vscode/src/chat/commands/diff.ts": "f49dd88bcfe0fa7ea34b124c62f1160719f5f3086328565181cf88c91d4ab713",
+    "editors/vscode/src/chat/commands/explain.ts": "6bf5a409dfccc3f507eeae4086f236eeda8385dcac7f8b09643335e400da2afc",
+    "editors/vscode/src/chat/commands/fix.ts": "7b6ccbcdbc7326bc1ac3cb0f9f8f8342f8e7ae2b613d93c41e56ad59ed214044",
+    "editors/vscode/src/chat/commands/validate.ts": "171b8f8971706cc5e5ba9a560770a25d1aca6d06cd97537271b3bda5c3e7f300",
+    "editors/vscode/src/chat/contextPack.ts": "a53970befc989acd05f62bcf181ba15fc36d86cf7e06d4aaf3492ffd5c6aabd2",
+    "editors/vscode/src/chat/diagnosticAccess.ts": "3535f6fa1ac84955de5342c851bf9b4c18ee2047350dda81f47c3c2601925a1a",
+    "editors/vscode/src/chat/promptLoader.ts": "644854be16f4e9c1fcfad7952e4e55d510fc136ac382eaa4cb3e2442684c96a5",
+    "editors/vscode/src/test/commands.test.ts": "8d6cf1f0400527f831fce418063bdeddc51e2741182c106bd582514ded5c9955",
+    "editors/vscode/src/test/currentDiagnostics.test.ts": "fe2f90bda3940dfd976020a25aa0c91cce7da169e5e93a17bea6c9131c1796aa",
+    "editors/vscode/src/test/webWorkspaceSync.test.ts": "fb02442cc0679dd79e61344f837050f59ce2127e86dfc432ae2692be3b32f72e",
+    "editors/vscode/src/webWorkspaceSync.ts": "a6e1838c830071a281376a4241f3906af0381415744bc86bd9fe3f1401b7aa6e"
+  },
+  "original_assertion_predicates_and_fixtures_unchanged": true
+}

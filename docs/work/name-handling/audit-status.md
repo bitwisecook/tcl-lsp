@@ -2,14 +2,14 @@
 
 The source/role audit is complete for **110,709 tracked baseline paths**, with explicit current-source annexes and zero unexamined paths. The reconciled catalogue contains **1,321 caller migrations**, **377 shared-owner repairs/extensions** and **101 metadata/target-schema changes**: **1,799 semantic code changes**. There are separately **305 validation-code repairs** and **54 authored-documentation corrections**, making **2,158 confirmed required changes**. The catalogue records required work; current integrated/partial/verified status is maintained separately below. Examined requirements and original/provider provenance questions remain separate.
 
-Current implementation:269/2,158baseline units integrated pending validation (258full,11partial), plus53/54annex obligations, gives322/2,212effective integrations and zero verified complete. LSP priority is138/325integrated (51semantic,85validation,2docs),187without integration. Runtime/VM/BIG-IP work is deferred. Completed446controls:375PASS/69FAIL/twoTIMEOUTS, all338retained,5gains,1Jimdoclink regression,zero drops; independently cleared repair awaits execution. Completed460controls:389PASS/69FAIL/twoTIMEOUTS, all446retained unchanged,14newPASS,zero regressions/drops and no artifact drift. Source-order/member five-library build passes466.661seconds,39001inputs0drift; one unused test import and scoped formatting require repair. Prior actual editor TypeScript/format/npm Node+browser bundles pass405inputs0drift; new browser and resource-context changes await integration and checks. Last owner gate310errors remains red. The M12 figures below are historical.
+Current implementation:274/2,158baseline units integrated pending validation (264full,10partial), plus55/56annex obligations, gives329/2,214effective integrations and zero verified complete. LSP priority is143/325integrated (56semantic,85validation,2docs),182without integration. Runtime/VM/BIG-IP work is deferred. Completed446controls:375PASS/69FAIL/twoTIMEOUTS, all338retained,5gains,1Jimdoclink regression,zero drops; independently cleared repair awaits execution. Completed460controls:389PASS/69FAIL/twoTIMEOUTS, all446retained unchanged,14newPASS,zero regressions/drops and no artifact drift. Source-order/member five-library build passes466.661seconds,39001inputs0drift; one unused test import and scoped formatting are repaired; fresh compile pending. Prior actual editor TypeScript/format/npm Node+browser bundles pass405inputs0drift; browser and resource-context changes are integrated; fresh checks pending. Last owner gate310errors remains red. The M12 figures below are historical.
 
 [Searchable report](naming-audit.html) · [Full JSON catalogue](repository-consumer-audit-final.json) · [Current validation](current-state.md) · [Implementation obligations](implementation-ledger.md)
 
 | Area | Semantic code | Validation repairs | Authored docs | Total |
 |---|---:|---:|---:|---:|
 | Compiler, analyser, inference and optimisation | 297 | 44 | 0 | 341 |
-| Database, registry and SpecTcl | 177 | 7 | 0 | 184 |
+| Database, registry and SpecTcl | 177 | 7 | 0 | 182 |
 | LSP, server, editors, iRules and MCP | 201 | 122 | 2 | 325 |
 | Runtime, shared Core/API and hosts | 370 | 5 | 1 | 376 |
 | VM, codegen and registered targets | 319 | 9 | 0 | 328 |

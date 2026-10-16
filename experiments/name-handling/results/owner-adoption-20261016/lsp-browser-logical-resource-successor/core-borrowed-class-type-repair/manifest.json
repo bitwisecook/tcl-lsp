@@ -1,0 +1,10 @@
+{
+  "purpose": "Explicit existing borrowed ClassDef vector type, same ptr::eq conditions and targets; no rawpointer dereference/unsafe or guard/assertion change",
+  "files": {
+    "rust/tcl-lsp-core/src/implementation.rs": {
+      "before_sha256": "0d167d1373a5a9f9158c9ceee5b7c4ff70529028b4593bc3dc7384f01e37eb96",
+      "after_sha256": "d17e3507430f2f35e6503ea0e7953d15c094844384a88199b696c9e5f9e5e34f"
+    }
+  },
+  "patch_sha256": "57305d3c07801510af674e41728e6efa58b34a2b4d8750416413104cec858939"
+}

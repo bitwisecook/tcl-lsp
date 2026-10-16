@@ -19,26 +19,50 @@
 import * as vscode from "vscode";
 import { CommandContext } from "../types";
 import { sendContextualRequest } from "../contextPack";
-import { resolveIruleCode } from "../codeUtils";
+import { isDocumentSourceSnapshotCurrent, resolveIruleSource } from "../codeUtils";
+import { buildDialectNeutralSourcePrompt } from "../promptLoader";
 
 export async function handleExplain(ctx: CommandContext): Promise<vscode.ChatResult> {
-  const code = await resolveIruleCode(ctx);
-  if (!code) {
+  const resolved = await resolveIruleSource(ctx);
+  if (!resolved) {
     ctx.response.markdown(
-      "Please open an iRule file, select iRule code, or attach a file with `#file` to explain.",
+      "Open a Tcl source file, select source, or attach a file with `#file` to explain.",
     );
     return {};
   }
 
-  ctx.response.progress("Analysing iRule...");
+  const snapshot = resolved.snapshot;
+  if (snapshot && !isDocumentSourceSnapshotCurrent(snapshot)) {
+    ctx.response.markdown(
+      "The selected source changed before it could be explained. Please retry.",
+    );
+    return {};
+  }
+  const code = resolved.source;
+  const sourceContextLabel = snapshot
+    ? `${snapshot.languageId} document version ${snapshot.version}${snapshot.selection ? " (selected extent)" : ""}`
+    : undefined;
+  const requestContext = snapshot
+    ? { ...ctx, systemPrompt: buildDialectNeutralSourcePrompt() }
+    : ctx;
+
+  ctx.response.progress("Analysing source...");
 
   const llmResponse = await sendContextualRequest(
-    ctx,
-    `Explain what this iRule does. Break down each event handler, ` +
-      `describe the data flow, note any security concerns, and summarise the overall purpose.\n\n` +
+    requestContext,
+    `Explain the captured source. Describe its structure and data flow, and note security or compatibility concerns only where the text supports them.\n\n` +
       `\`\`\`tcl\n${code}\n\`\`\`\n` +
       (ctx.request.prompt.trim() ? `\nThe user specifically asks: ${ctx.request.prompt}` : ""),
-    { code, allowAmbientContext: false },
+    {
+      code,
+      document: snapshot?.document,
+      sourceContextLabel,
+      isSourceCurrent: snapshot ? () => isDocumentSourceSnapshotCurrent(snapshot) : undefined,
+      allowAmbientContext: false,
+      includeDiagnostics: false,
+      includeSymbolDefinitions: false,
+      includeEventMetadata: false,
+    },
   );
   for await (const chunk of llmResponse.text) {
     ctx.response.markdown(chunk);

@@ -37,7 +37,8 @@
  * - **No silent truncation.** A workspace bigger than the budget is common on
  *   github.dev; what is not acceptable is the server quietly analysing a subset
  *   and reporting confident, wrong cross-file answers. Everything skipped is
- *   counted and named in the output channel, and the budget is a setting.
+ *   counted and named in the output channel, and a root-scoped receipt marks
+ *   the retained roster incomplete until a full, current sweep succeeds.
  * - **Event order within a file.** A `FileSystemWatcher` does not wait for one
  *   handler before delivering the next event, so two events for the same file
  *   overlap: a change's read can still be in flight when the delete that
@@ -54,20 +55,61 @@ import * as vscode from "vscode";
 
 /** What the host can do to the server's in-memory store. */
 export interface SourceStoreHost {
-  upsert(uri: string, text: string): void;
+  upsert(uri: string, text: string, originalBytes: Uint8Array): void;
   delete(uri: string): void;
-  /** `name` is relative to the virtual pack mount — bare names only. */
+  /** Retain a typed census for one workspace root after all prior byte messages. */
+  setSourceInventory(rootUri: string, selection: string, status: "complete" | "incomplete"): void;
+  /** Ask the worker's shared Rust path owner before the host joins a manifest name. */
+  isSafeSpecPackName(name: string): Promise<boolean>;
+  /** `name` is the original relative spelling accepted by the virtual mount owner. */
   upsertSpecPack(name: string, text: string): void;
 }
 
-/** Post the three store messages `rust/tcl-lsp-server-wasm/worker.js` accepts. */
+/** Post the store messages `rust/tcl-lsp-server-wasm/worker.js` accepts. */
 export function workerSourceStoreHost(worker: Worker): SourceStoreHost {
   return {
-    upsert: (uri, text) => worker.postMessage({ tclLsp: "upsert", uri, text }),
+    upsert: (uri, _text, originalBytes) =>
+      worker.postMessage({ tclLsp: "upsert", uri, bytes: originalBytes }),
     delete: (uri) => worker.postMessage({ tclLsp: "delete", uri }),
+    setSourceInventory: (rootUri, selection, status) =>
+      worker.postMessage({
+        tclLsp: "sourceInventory",
+        rootUri,
+        selection,
+        status,
+      }),
+    isSafeSpecPackName: (name) =>
+      new Promise<boolean>((resolve, reject) => {
+        const channel = new MessageChannel();
+        const timeout = setTimeout(() => {
+          channel.port1.close();
+          reject(new Error("worker did not validate the spec-pack name"));
+        }, SPEC_PACK_NAME_VALIDATION_TIMEOUT_MS);
+        channel.port1.onmessage = (event: MessageEvent<unknown>) => {
+          clearTimeout(timeout);
+          channel.port1.close();
+          if (typeof event.data === "boolean") {
+            resolve(event.data);
+          } else {
+            reject(new Error("worker returned an invalid spec-pack name verdict"));
+          }
+        };
+        try {
+          worker.postMessage({ tclLsp: "validateSpecPackName", name, replyPort: channel.port2 }, [
+            channel.port2,
+          ]);
+        } catch (err) {
+          clearTimeout(timeout);
+          channel.port1.close();
+          channel.port2.close();
+          reject(err);
+        }
+      }),
     upsertSpecPack: (name, text) => worker.postMessage({ tclLsp: "upsertSpecPack", name, text }),
   };
 }
+
+const SPEC_PACK_NAME_VALIDATION_TIMEOUT_MS = 5_000;
 
 export interface WorkspaceSyncBudget {
   /** Most files to send. */
@@ -186,9 +228,21 @@ export interface SyncReport {
   overBudget: vscode.Uri[];
   /** Files the filesystem provider refused to read. */
   unreadable: vscode.Uri[];
+  /** Files whose original bytes are outside the admitted UTF-8 source policy. */
+  invalidUtf8: vscode.Uri[];
+  /** Globs whose source search failed; every affected root remains incomplete. */
+  searchFailures: string[];
+  /** True only when every selected root and file was completely admitted. */
+  complete: boolean;
 }
 
 const decoder = new TextDecoder("utf-8");
+// Validate sources without replacing malformed bytes or consuming a leading
+// BOM. The exact original Uint8Array is still sent to MemoryStore.
+const sourceDecoder = new TextDecoder("utf-8", {
+  fatal: true,
+  ignoreBOM: true,
+});
 
 /** `FileChangeType` on the wire — the protocol's own numbering. */
 const FileChange = { Created: 1, Changed: 2, Deleted: 3 } as const;
@@ -230,6 +284,22 @@ export class WorkspaceStoreSync {
   /** Live-path budget refusals already logged, so a generated tree cannot spam. */
   private liveSkipsLogged = 0;
 
+  /** Current root-scoped census selection and monotone incomplete state. */
+  private readonly sourceInventories = new Map<
+    string,
+    {
+      rootUri: string;
+      selection: string;
+      complete: boolean;
+      failed: boolean;
+      censusComplete: boolean;
+      pendingPushes: number;
+    }
+  >();
+  /** Monotone owner for each root census; an older overlapping scan cannot close it. */
+  private readonly rootScans = new Map<string, number>();
+  private nextRootScan = 0;
+
   /**
    * Per-URI event sequence numbers, held only while a push for that URI is in
    * flight — which is the only time anything has to be compared against them,
@@ -247,11 +317,91 @@ export class WorkspaceStoreSync {
   ) {}
 
   /** Register (or replace) one file in the store, keeping the running totals exact. */
-  private upsertTracked(uri: vscode.Uri, text: string, byteLength: number): void {
+  private upsertTracked(
+    uri: vscode.Uri,
+    text: string,
+    originalBytes: Uint8Array,
+    byteLength: number,
+  ): void {
     const key = uri.toString();
     this.storedBytes += byteLength - (this.stored.get(key) ?? 0);
     this.stored.set(key, byteLength);
-    this.host.upsert(key, text);
+    this.host.upsert(key, text, originalBytes.slice());
+  }
+
+  private selectionFor(root: vscode.Uri, budget: WorkspaceSyncBudget): string {
+    const workspaceRoots = (vscode.workspace.workspaceFolders ?? [])
+      .map((folder) => folder.uri.toString())
+      .sort();
+    return JSON.stringify({
+      root: root.toString(),
+      workspaceRoots,
+      globs: this.globs,
+      budget,
+    });
+  }
+
+  private refreshRootSelections(budget: WorkspaceSyncBudget): void {
+    for (const inventory of this.sourceInventories.values()) {
+      inventory.selection = this.selectionFor(vscode.Uri.parse(inventory.rootUri), budget);
+    }
+  }
+
+  /** Begin a census owned by this exact root and return its unrepeatable generation. */
+  private beginRootScan(rootUri: string): number {
+    const inventory = this.sourceInventories.get(rootUri);
+    if (!inventory) {
+      return -1;
+    }
+    const generation = ++this.nextRootScan;
+    this.rootScans.set(rootUri, generation);
+    inventory.complete = false;
+    inventory.failed = false;
+    inventory.censusComplete = false;
+    return generation;
+  }
+
+  /** Close only the still-current scan for this root; stale scans cannot certify it. */
+  private finishRootScan(rootUri: string, generation: number): void {
+    if (generation < 0 || this.rootScans.get(rootUri) !== generation) {
+      return;
+    }
+    const inventory = this.sourceInventories.get(rootUri);
+    if (inventory) {
+      inventory.censusComplete = !inventory.failed;
+      inventory.complete = inventory.censusComplete && inventory.pendingPushes === 0;
+    }
+  }
+
+  private publishSourceInventories(): void {
+    for (const inventory of this.sourceInventories.values()) {
+      this.host.setSourceInventory(
+        inventory.rootUri,
+        inventory.selection,
+        inventory.complete ? "complete" : "incomplete",
+      );
+    }
+  }
+
+  private markInventoryIncomplete(uri?: vscode.Uri): void {
+    const root = uri && vscode.workspace.getWorkspaceFolder(uri);
+    if (root) {
+      const inventory = this.sourceInventories.get(root.uri.toString());
+      if (inventory) {
+        inventory.complete = false;
+        inventory.censusComplete = false;
+        inventory.failed = true;
+      }
+    } else {
+      for (const inventory of this.sourceInventories.values()) {
+        inventory.complete = false;
+        inventory.censusComplete = false;
+        inventory.failed = true;
+      }
+    }
+    // Store mutations advance their revision; reissue every root receipt in
+    // the same worker message turn so no stale receipt can authorize an edit.
+    this.publishSourceInventories();
   }
 
   /** Withdraw one file from the store. Returns whether it held anything. */
@@ -340,13 +490,38 @@ export class WorkspaceStoreSync {
    * Must complete before the language client starts: see the module comment.
    */
   async primeWorkspace(budget: WorkspaceSyncBudget): Promise<SyncReport> {
-    const report: SyncReport = { sent: 0, bytes: 0, tooLarge: [], overBudget: [], unreadable: [] };
+    const report: SyncReport = {
+      sent: 0,
+      bytes: 0,
+      tooLarge: [],
+      overBudget: [],
+      unreadable: [],
+      invalidUtf8: [],
+      searchFailures: [],
+      complete: false,
+    };
     const folders = vscode.workspace.workspaceFolders;
     if (!folders?.length) {
       this.log("[web] no workspace folder open — the server sees only the editor's open documents");
       return report;
     }
     this.warnAboutNonFileSchemes(folders);
+    this.sourceInventories.clear();
+    this.rootScans.clear();
+    const scanGenerations = new Map<string, number>();
+    for (const folder of folders) {
+      const rootUri = folder.uri.toString();
+      this.sourceInventories.set(rootUri, {
+        rootUri,
+        selection: this.selectionFor(folder.uri, budget),
+        complete: false,
+        failed: false,
+        censusComplete: false,
+        pendingPushes: 0,
+      });
+      scanGenerations.set(rootUri, this.beginRootScan(rootUri));
+    }
+    this.publishSourceInventories();
 
     const found = new Map<string, vscode.Uri>();
     for (const glob of this.globs) {
@@ -354,6 +529,11 @@ export class WorkspaceStoreSync {
       try {
         matches = await vscode.workspace.findFiles(glob);
       } catch (err) {
+        report.searchFailures.push(glob);
+        for (const inventory of this.sourceInventories.values()) {
+          inventory.complete = false;
+          inventory.failed = true;
+        }
         this.log(`[web] file search failed for ${glob}: ${String(err)}`);
         continue;
       }
@@ -373,6 +553,7 @@ export class WorkspaceStoreSync {
       // Cheap pre-check: no room for even the smallest file left.
       if (this.stored.size >= budget.maxFiles || this.storedBytes >= budget.maxTotalBytes) {
         report.overBudget.push(uri);
+        this.markInventoryIncomplete(uri);
         continue;
       }
       let bytes: Uint8Array;
@@ -380,17 +561,34 @@ export class WorkspaceStoreSync {
         const stat = await vscode.workspace.fs.stat(uri);
         if (stat.size > budget.maxFileBytes) {
           report.tooLarge.push(uri);
+          this.markInventoryIncomplete(uri);
           continue;
         }
         bytes = await vscode.workspace.fs.readFile(uri);
       } catch (err) {
         report.unreadable.push(uri);
+        this.markInventoryIncomplete(uri);
         this.log(`[web] could not read ${uri.toString()}: ${String(err)}`);
         continue;
       }
       if (bytes.byteLength > budget.maxFileBytes) {
         // A provider whose `stat` under-reports (or does not implement `size`).
         report.tooLarge.push(uri);
+        this.markInventoryIncomplete(uri);
+        continue;
+      }
+      let text: string;
+      try {
+        text = sourceDecoder.decode(bytes);
+      } catch {
+        report.invalidUtf8.push(uri);
+        this.log(`[web] refused ${uri.toString()}: source bytes are not valid UTF-8`);
+        this.markInventoryIncomplete(uri);
+        continue;
+      }
+      const currentRootUri = vscode.workspace.getWorkspaceFolder(uri)?.uri.toString();
+      const scanGeneration = currentRootUri ? scanGenerations.get(currentRootUri) : undefined;
+      if (scanGeneration === undefined || this.rootScans.get(currentRootUri!) !== scanGeneration) {
         continue;
       }
       // Checked BEFORE the file is counted, so the total cannot end up over
@@ -399,13 +597,19 @@ export class WorkspaceStoreSync {
       // gets in, and the report names every skip either way.
       if (!this.fits(uri, bytes.byteLength, budget)) {
         report.overBudget.push(uri);
+        this.markInventoryIncomplete(uri);
         continue;
       }
-      this.upsertTracked(uri, decoder.decode(bytes), bytes.byteLength);
+      this.upsertTracked(uri, text, bytes, bytes.byteLength);
       report.sent += 1;
       report.bytes += bytes.byteLength;
     }
 
+    for (const [rootUri, generation] of scanGenerations) {
+      this.finishRootScan(rootUri, generation);
+    }
+    report.complete = [...this.sourceInventories.values()].every((inventory) => inventory.complete);
+    this.publishSourceInventories();
     this.reportBudget(report, uris.length, budget);
     return report;
   }
@@ -465,6 +669,18 @@ export class WorkspaceStoreSync {
           listUris(report.unreadable),
       );
     }
+    if (report.invalidUtf8.length > 0) {
+      this.log(
+        `[web] refused ${report.invalidUtf8.length} source file(s) with invalid UTF-8: ` +
+          listUris(report.invalidUtf8),
+      );
+    }
+    if (report.searchFailures.length > 0) {
+      this.log(
+        `[web] incomplete source inventory: ${report.searchFailures.length} file search(es) failed: ` +
+          report.searchFailures.join(", "),
+      );
+    }
   }
 
   /**
@@ -489,8 +705,6 @@ export class WorkspaceStoreSync {
     for (const name of names) {
       try {
         const bytes = await vscode.workspace.fs.readFile(vscode.Uri.joinPath(specsDir, name));
-        // A bare name: the worker refuses a rooted name or one carrying `..`,
-        // so the mount can never be shadowed by a pack upsert.
         this.host.upsertSpecPack(name, decoder.decode(bytes));
         loaded += 1;
       } catch (err) {
@@ -506,9 +720,22 @@ export class WorkspaceStoreSync {
       const bytes = await vscode.workspace.fs.readFile(vscode.Uri.joinPath(specsDir, "index.json"));
       const parsed: unknown = JSON.parse(decoder.decode(bytes));
       if (Array.isArray(parsed)) {
-        return parsed
+        const candidates = parsed
           .filter((name): name is string => typeof name === "string" && name.endsWith(".tclspec"))
           .sort();
+        const names: string[] = [];
+        for (const name of candidates) {
+          try {
+            if (await this.host.isSafeSpecPackName(name)) {
+              names.push(name);
+            } else {
+              this.log(`[web] refused bundled spec pack name outside the virtual mount: ${name}`);
+            }
+          } catch (err) {
+            this.log(`[web] could not validate bundled spec pack name ${name}: ${String(err)}`);
+          }
+        }
+        return names;
       }
       this.log(`[web] bundled spec pack manifest is not a list of names`);
     } catch (err) {
@@ -562,6 +789,7 @@ export class WorkspaceStoreSync {
   ): void {
     this.supersedeLivePush(uri.toString());
     this.deleteTracked(uri);
+    this.publishSourceInventories();
     notify([{ uri: uri.toString(), type: FileChange.Deleted }]);
   }
 
@@ -580,6 +808,17 @@ export class WorkspaceStoreSync {
     this.watchers.push(
       vscode.workspace.onDidChangeWorkspaceFolders((event) => {
         for (const folder of event.removed) {
+          const rootUri = folder.uri.toString();
+          const oldInventory = this.sourceInventories.get(rootUri);
+          if (oldInventory) {
+            // Invalidate the old root before its rows are withdrawn. The
+            // server may still have the previous index until the folder event
+            // scan finishes, so a current old receipt must not survive removal.
+            this.host.setSourceInventory(rootUri, oldInventory.selection, "incomplete");
+          }
+          this.sourceInventories.delete(rootUri);
+          this.rootScans.delete(rootUri);
+          this.refreshRootSelections(budget);
           const prefix = folder.uri.toString().replace(/\/?$/, "/");
           // Every push still reading a file of this folder, whether or not it
           // has reached the store yet: a sweep of a folder that has since left
@@ -601,6 +840,9 @@ export class WorkspaceStoreSync {
             notify(withdrawn);
           }
         }
+        if (event.removed.length > 0) {
+          this.publishSourceInventories();
+        }
         if (event.added.length > 0) {
           void this.primeFolders(event.added, budget, notify);
         }
@@ -615,25 +857,74 @@ export class WorkspaceStoreSync {
     notify: (changes: Array<{ uri: string; type: number }>) => void,
   ): Promise<void> {
     this.warnAboutNonFileSchemes(folders);
+    this.refreshRootSelections(budget);
+    const scanGenerations = new Map<string, number>();
+    for (const folder of folders) {
+      const rootUri = folder.uri.toString();
+      if (!this.sourceInventories.has(rootUri)) {
+        this.sourceInventories.set(rootUri, {
+          rootUri,
+          selection: this.selectionFor(folder.uri, budget),
+          complete: false,
+          failed: false,
+          censusComplete: false,
+          pendingPushes: 0,
+        });
+      }
+      scanGenerations.set(rootUri, this.beginRootScan(rootUri));
+    }
+    this.publishSourceInventories();
     const found = new Map<string, vscode.Uri>();
     for (const folder of folders) {
+      let complete = true;
+      const rootUri = folder.uri.toString();
+      const generation = scanGenerations.get(rootUri);
       for (const glob of this.globs) {
         try {
-          for (const uri of await vscode.workspace.findFiles(
+          const matches = await vscode.workspace.findFiles(
             new vscode.RelativePattern(folder, glob),
-          )) {
+          );
+          if (generation === undefined || this.rootScans.get(rootUri) !== generation) {
+            complete = false;
+            break;
+          }
+          for (const uri of matches) {
             found.set(uri.toString(), uri);
           }
         } catch (err) {
+          if (generation === undefined || this.rootScans.get(rootUri) !== generation) {
+            complete = false;
+            break;
+          }
+          complete = false;
           this.log(`[web] file search failed for ${glob} in ${folder.name}: ${String(err)}`);
         }
+      }
+      const inventory = this.sourceInventories.get(rootUri);
+      if (
+        !complete &&
+        inventory &&
+        generation !== undefined &&
+        this.rootScans.get(rootUri) === generation
+      ) {
+        inventory.failed = true;
       }
     }
     const added: Array<{ uri: string; type: number }> = [];
     for (const uri of [...found.values()].sort((left, right) =>
       left.toString().localeCompare(right.toString()),
     )) {
-      if (await this.pushFile(uri, FileChange.Created, budget, () => {})) {
+      const rootUri = vscode.workspace.getWorkspaceFolder(uri)?.uri.toString();
+      const generation = rootUri ? scanGenerations.get(rootUri) : undefined;
+      if (generation === undefined || this.rootScans.get(rootUri!) !== generation) {
+        continue;
+      }
+      if (
+        await this.pushFile(uri, FileChange.Created, budget, () => {}, {
+          rootUri: rootUri!,
+          generation,
+        })
+      ) {
         added.push({ uri: uri.toString(), type: FileChange.Created });
       }
     }
@@ -641,6 +932,10 @@ export class WorkspaceStoreSync {
     if (added.length > 0) {
       notify(added);
     }
+    for (const [rootUri, generation] of scanGenerations) {
+      this.finishRootScan(rootUri, generation);
+    }
+    this.publishSourceInventories();
   }
 
   /**
@@ -665,9 +960,17 @@ export class WorkspaceStoreSync {
     changeType: number,
     budget: WorkspaceSyncBudget,
     notify: (changes: Array<{ uri: string; type: number }>) => void,
+    scanOwner?: { rootUri: string; generation: number },
   ): Promise<boolean> {
     const key = uri.toString();
     const generation = this.beginLivePush(key);
+    const rootUri = scanOwner?.rootUri ?? vscode.workspace.getWorkspaceFolder(uri)?.uri.toString();
+    const inventory = rootUri ? this.sourceInventories.get(rootUri) : undefined;
+    if (inventory) {
+      inventory.pendingPushes += 1;
+      inventory.complete = false;
+      this.publishSourceInventories();
+    }
     try {
       const withdraw = (why: string): boolean => {
         const held = this.deleteTracked(uri);
@@ -690,27 +993,52 @@ export class WorkspaceStoreSync {
       // newer push may already have landed this file's current contents, and
       // withdrawing them because an older read failed would delete what is
       // right. Whichever event came last is the one that decides.
-      if (this.livePushSuperseded(key, generation)) {
+      if (
+        this.livePushSuperseded(key, generation) ||
+        (scanOwner && this.rootScans.get(scanOwner.rootUri) !== scanOwner.generation)
+      ) {
         return false;
       }
       if (bytes === undefined) {
-        return withdraw(`could not be read (${String(failure)})`);
+        const result = withdraw(`could not be read (${String(failure)})`);
+        this.markInventoryIncomplete(uri);
+        return result;
       }
 
       if (bytes.byteLength > budget.maxFileBytes) {
-        return withdraw(
+        const result = withdraw(
           `is over tclLsp.web.workspaceSync.maxFileBytes (${bytes.byteLength} bytes)`,
         );
+        this.markInventoryIncomplete(uri);
+        return result;
+      }
+      let text: string;
+      try {
+        text = sourceDecoder.decode(bytes);
+      } catch {
+        const result = withdraw("has source bytes that are not valid UTF-8");
+        this.markInventoryIncomplete(uri);
+        return result;
       }
       if (!this.fits(uri, bytes.byteLength, budget)) {
-        return withdraw("does not fit the workspace budget");
+        const result = withdraw("does not fit the workspace budget");
+        this.markInventoryIncomplete(uri);
+        return result;
       }
 
-      this.upsertTracked(uri, decoder.decode(bytes), bytes.byteLength);
+      this.upsertTracked(uri, text, bytes, bytes.byteLength);
+      this.publishSourceInventories();
       notify([{ uri: key, type: changeType }]);
       return true;
     } finally {
       this.endLivePush(key);
+      if (inventory) {
+        inventory.pendingPushes = Math.max(0, inventory.pendingPushes - 1);
+        if (inventory.pendingPushes === 0 && inventory.censusComplete && !inventory.failed) {
+          inventory.complete = true;
+        }
+        this.publishSourceInventories();
+      }
     }
   }
 
@@ -727,5 +1055,8 @@ export class WorkspaceStoreSync {
     // its worker; nothing should be able to read the accounting back.
     this.stored.clear();
     this.storedBytes = 0;
+    this.rootScans.clear();
+    this.sourceInventories.clear();
+    this.sourceInventories.clear();
   }
 }

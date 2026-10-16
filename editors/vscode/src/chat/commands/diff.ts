@@ -19,42 +19,70 @@
 import * as vscode from "vscode";
 import { CommandContext } from "../types";
 import { sendContextualRequest } from "../contextPack";
-import { resolveTwoCodeSources } from "../codeUtils";
+import { isDocumentSourceSnapshotCurrent, resolveTwoIruleSources } from "../codeUtils";
+import { buildDialectNeutralSourcePrompt } from "../promptLoader";
 
 export async function handleDiff(ctx: CommandContext): Promise<vscode.ChatResult> {
-  const sources = await resolveTwoCodeSources(ctx);
+  const sources = await resolveTwoIruleSources(ctx);
 
   if (!sources) {
     ctx.response.markdown(
-      "Attach two iRule files with `#file` to compare, " +
+      "Attach two Tcl source files with `#file` to compare, " +
         "or have one open in the editor and attach the other with `#file`.\n\n" +
         "**Example:**\n" +
-        "> `@irule /diff #file:old_irule.tcl #file:new_irule.tcl`",
+        "> `@irule /diff #file:old.tcl #file:new.tcl`",
     );
     return {};
   }
 
-  const [codeA, codeB] = sources;
+  const [sourceA, sourceB] = sources;
+  const snapshots = [sourceA.snapshot, sourceB.snapshot].filter(
+    (snapshot): snapshot is NonNullable<typeof snapshot> => snapshot !== undefined,
+  );
+  if (snapshots.some((snapshot) => !isDocumentSourceSnapshotCurrent(snapshot))) {
+    ctx.response.markdown(
+      "One of the selected sources changed before it could be compared. Please retry.",
+    );
+    return {};
+  }
+  const codeA = sourceA.source;
+  const codeB = sourceB.source;
+  const sourceContextLabel = [
+    sourceA.snapshot
+      ? `Version A: ${sourceA.snapshot.languageId} document version ${sourceA.snapshot.version}` +
+        (sourceA.snapshot.selection ? " (selected extent)" : "")
+      : undefined,
+    sourceB.snapshot
+      ? `Version B: ${sourceB.snapshot.languageId} document version ${sourceB.snapshot.version}` +
+        (sourceB.snapshot.selection ? " (selected extent)" : "")
+      : undefined,
+  ]
+    .filter((label): label is string => label !== undefined)
+    .join("; ");
+  const requestContext =
+    snapshots.length > 0 ? { ...ctx, systemPrompt: buildDialectNeutralSourcePrompt() } : ctx;
+  const isSourcesCurrent = () => snapshots.every(isDocumentSourceSnapshotCurrent);
 
-  ctx.response.progress("Comparing iRule versions...");
+  ctx.response.progress("Comparing source versions...");
 
-  ctx.response.markdown("## iRule Diff Analysis\n\n");
+  ctx.response.markdown("## Source Diff Analysis\n\n");
   const llmResponse = await sendContextualRequest(
-    ctx,
-    `Compare these two versions of an iRule and explain the differences.\n\n` +
-      `### Version A (original)\n\`\`\`tcl\n${codeA}\n\`\`\`\n\n` +
-      `### Version B (updated)\n\`\`\`tcl\n${codeB}\n\`\`\`\n\n` +
-      `Provide:\n` +
-      `1. **Semantic changes** — What changed in behaviour (not just line diffs)?\n` +
-      `2. **Events** — Any events added, removed, or reordered?\n` +
-      `3. **Security implications** — Do the changes introduce or fix security issues?\n` +
-      `4. **Performance implications** — Any changes to hot-path efficiency?\n` +
-      `5. **Breaking changes** — Could these changes affect traffic handling?\n\n` +
+    requestContext,
+    `Compare these two source snapshots and explain the differences.\n\n` +
+      `### Version A (original; language ${sourceA.languageId ?? "unspecified"})\n\`\`\`tcl\n${codeA}\n\`\`\`\n\n` +
+      `### Version B (updated; language ${sourceB.languageId ?? "unspecified"})\n\`\`\`tcl\n${codeB}\n\`\`\`\n\n` +
+      `Describe behavior changes rather than only line differences. Identify control-flow, command, variable, or compatibility changes supported by the source. Mention security or performance implications only where the code provides evidence, and call out dialect-specific uncertainty.\n\n` +
       (ctx.request.prompt.trim() ? `The user specifically asks: ${ctx.request.prompt}\n\n` : "") +
-      `Focus on what matters operationally. Be concise.`,
+      `Be concise.`,
     {
       allowAmbientContext: false,
       code: codeB,
+      document: sourceB.snapshot?.document,
+      sourceContextLabel: sourceContextLabel || undefined,
+      isSourceCurrent: snapshots.length > 0 ? isSourcesCurrent : undefined,
+      includeDiagnostics: false,
+      includeSymbolDefinitions: false,
+      includeEventMetadata: false,
     },
   );
   for await (const chunk of llmResponse.text) {

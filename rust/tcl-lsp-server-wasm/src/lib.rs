@@ -75,6 +75,15 @@ use tower_lsp_server::LspService;
 use tower_lsp_server::jsonrpc::{Request, Response};
 use wasm_bindgen::prelude::*;
 
+/// The single path-admission rule shared by host preflight and pack writes.
+fn spec_pack_name_is_within_mount(name: &str) -> bool {
+    let name = std::path::Path::new(name);
+    !name.has_root()
+        && !name
+            .components()
+            .any(|part| matches!(part, std::path::Component::ParentDir))
+}
+
 /// One language-server session, driven over `postMessage`.
 ///
 /// Construct one per worker. It owns the service, the client socket pumps, and
@@ -175,6 +184,13 @@ impl LspWorker {
     /// policy. The original and service-canonical URI select one retained
     /// registration; invalid data is refused before any map or bytes change.
     pub fn vfs_upsert(&self, uri: &str, text: &str) {
+        self.vfs_upsert_bytes(uri, text.as_bytes().to_vec());
+    }
+
+    /// Register exact host-read source bytes for a closed file. The host has
+    /// already admitted UTF-8 before it sends this wire message; the server
+    /// retains these bytes without a second lossy or re-encoding step.
+    pub fn vfs_upsert_bytes(&self, uri: &str, bytes: Vec<u8>) {
         match self.store.document_uri_path(uri) {
             Ok(selected) => {
                 // This is the same URI normaliser the service applies to the
@@ -184,7 +200,7 @@ impl LspWorker {
                 self.store.upsert_uri_aliases(
                     &[uri, canonical.as_ref()],
                     selected.path().to_path_buf(),
-                    text.as_bytes().to_vec(),
+                    bytes,
                 );
             }
             Err(error) => web_log(&format!(
@@ -193,11 +209,41 @@ impl LspWorker {
         }
     }
 
+    /// Record a host's result for one root-scoped source census. The selection
+    /// is an opaque identity of the exact host globs and limits, not a server
+    /// claim that every possible project file was selected.
+    pub fn vfs_set_source_inventory(&self, root_uri: &str, selection: &str, status: &str) {
+        let Ok(root) = self.store.document_uri_path(root_uri) else {
+            web_log(&format!(
+                "tcl-lsp: refused source inventory root {root_uri}"
+            ));
+            return;
+        };
+        let completeness = if status == "complete" {
+            vfs::WorkspaceSourceInventoryCompleteness::Complete
+        } else {
+            vfs::WorkspaceSourceInventoryCompleteness::Incomplete
+        };
+        self.store.set_workspace_source_inventory(
+            root.path().to_path_buf(),
+            selection.to_owned(),
+            completeness,
+        );
+    }
+
     /// Forget a file previously registered with [`Self::vfs_upsert`].
     ///
     /// Returns whether anything was stored under that URI.
     pub fn vfs_delete(&self, uri: &str) -> bool {
         self.store.remove_uri(uri)
+    }
+
+    /// Check the original name against the virtual pack mount's path policy.
+    ///
+    /// This predicate does not register, read or write a pack. The actual
+    /// upsert independently applies the same policy.
+    pub fn vfs_is_safe_spec_pack_name(&self, name: &str) -> bool {
+        spec_pack_name_is_within_mount(name)
     }
 
     /// Register a `.tclspec` pack for the bundled tier.
@@ -227,15 +273,10 @@ impl LspWorker {
     /// `tcl_lsp_server::uri_norm::rooted_file_uri`), so a guard written that
     /// way would admit exactly the names it exists to refuse.
     pub fn vfs_upsert_spec_pack(&self, name: &str, text: &str) -> bool {
-        let name = std::path::Path::new(name);
-        let escapes = name.has_root()
-            || name
-                .components()
-                .any(|part| matches!(part, std::path::Component::ParentDir));
-        if escapes {
+        if !spec_pack_name_is_within_mount(name) {
             web_log(&format!(
                 "tcl-lsp: refused a spec-pack name that leaves the mount: {}",
-                name.display()
+                std::path::Path::new(name).display()
             ));
             return false;
         }

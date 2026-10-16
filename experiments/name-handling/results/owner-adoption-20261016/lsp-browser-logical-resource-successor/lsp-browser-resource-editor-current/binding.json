@@ -1,0 +1,64 @@
+{
+  "utc": "2026-10-16T20:45:11.575567+00:00",
+  "source_head": "1b45c540eb51d24e1fd89c4a4bf61f43bf77986c",
+  "editor_diff_sha256": "493483e3185f5541abcfc15e96e26c11a66f326da1d683c9cdbf0d8f6e7a1dda",
+  "input_count": 405,
+  "checks": [
+    {
+      "argv": [
+        "npx",
+        "tsc",
+        "--noEmit",
+        "-p",
+        "."
+      ],
+      "exit_code": 0,
+      "seconds": 3.058,
+      "log": "check-0.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "npx",
+        "prettier",
+        "--check",
+        "src/chat/agenticLoop.ts",
+        "src/chat/commands/fix.ts",
+        "src/chat/diagnosticAccess.ts",
+        "src/test/currentDiagnostics.test.ts",
+        "src/test/webWorkspaceSync.test.ts",
+        "src/webWorkspaceSync.ts"
+      ],
+      "exit_code": 1,
+      "seconds": 0.743,
+      "log": "check-1.log",
+      "log_sha256": "201b06dc2130781a560e4a203a35a6172056bde6a109eb6bff165bd4ccbe2b4a"
+    },
+    {
+      "argv": [
+        "npm",
+        "run",
+        "bundle"
+      ],
+      "exit_code": 0,
+      "seconds": 0.294,
+      "log": "check-2.log",
+      "log_sha256": "4013a0177c50b5b709aa089afb3183d24a8bf8922d98cbcaba3e76b7452666e2"
+    },
+    {
+      "argv": [
+        "npm",
+        "run",
+        "bundle:browser"
+      ],
+      "exit_code": 0,
+      "seconds": 0.287,
+      "log": "check-3.log",
+      "log_sha256": "243a78fbc506be7f9c5abc485ed3e247c9582dc5bb973d161b5ac0714b02fa08"
+    }
+  ],
+  "status": "FAIL",
+  "input_drift": [],
+  "completed_utc": "2026-10-16T20:45:16.020933+00:00",
+  "host_execution": "Compilation and bundle only; actual extension host unexecuted"
+}

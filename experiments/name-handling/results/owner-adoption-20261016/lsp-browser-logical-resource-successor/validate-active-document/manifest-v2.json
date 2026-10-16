@@ -1,0 +1,24 @@
+{
+  "candidate": "lsp-validate-proposal-v1",
+  "status": "TMP-only active-document caller migration; attachments remain partial",
+  "depends_on": {
+    "source_v4_patch_sha256": "bbfb4a9e22c1b6d6b3a41790b639de64fbb4709f2bd70c6e6ac5e8dde406c19e",
+    "contract_followup_patch_sha256": "795a0a916111418bc6f205c27a5f8f2ca8960785a3a70f16be9fca7697f9d1db"
+  },
+  "baseline_unit": "lsp-editor-ai-validate-generation",
+  "scope": "Active TextDocument only: capture the original snapshot and use its exact-source completed proposal report/dialect/input epoch for diagnostics and clean decisions. Attached/non-open sources retain the existing path and remain partial.",
+  "files": {
+    "editors/vscode/src/chat/commands/validate.ts": {
+      "before_sha256": "1191aecf7736db63c712e1d758e7364cc9b9a905191fe8b38717d2dedd204297",
+      "after_sha256": "171b8f8971706cc5e5ba9a560770a25d1aca6d06cd97537271b3bda5c3e7f300"
+    }
+  },
+  "patch_sha256": "a743ff0a2606f68f7126d65e77cc5e697ba8c8376bf46a7c9571a4885ca6c687",
+  "validation": {
+    "patch_apply_check": "PASS against current validate.ts after V4 integration",
+    "prettier": "PASS for changed TypeScript file",
+    "tests": "not run",
+    "typecheck": "not run",
+    "builds": "not run"
+  }
+}

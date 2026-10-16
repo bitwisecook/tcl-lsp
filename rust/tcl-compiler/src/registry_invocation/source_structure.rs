@@ -211,6 +211,25 @@ impl OriginalSourceRegistryContext {
         }
         native_source_registry_words(source, config, &self.realm, &context, segment, None)
     }
+
+    /// Conditional Native source words for the syntax-only case-body walker.
+    /// This retains command-lookup residuals and grants no
+    /// generic body role, source effect, command selection or edit authority.
+    pub(crate) fn conditional_native_case_words(
+        &self,
+        segment: &crate::segmenter::SegmentedCommand,
+    ) -> Option<OriginalRegistryWords> {
+        let source = self.image.try_text().ok()?;
+        let context = self.input.context_registry();
+        conditional_native_case_source_words(
+            source,
+            self.input.lexer_config(),
+            &self.realm,
+            &self.input,
+            &context,
+            segment,
+        )
+    }
 }
 
 /// One effective operand's original source geometry. Captured prefix operands
@@ -257,8 +276,30 @@ pub enum OriginalRegistrySource {
     ProducedPrefix(std::sync::Arc<crate::command_binding::OriginalSourceProducedCommandPrefix>),
     /// Native source schema with unknown and alternative applicability obligations.
     Conditional(std::sync::Arc<crate::registry_invocation::OriginalConditionalRegistryMetadata>),
+    /// Possible Native schema retained only for conditional case-body source.
+    ConditionalNativeSource(std::sync::Arc<OriginalNativeSourceApplicability>),
     /// Hosted source schema with its independent policy and cell barriers.
     Vendor(std::sync::Arc<crate::registry_invocation::OriginalConditionalVendorRegistryMetadata>),
+}
+
+/// Lookup residuals retained with possible Native source words. This does
+/// not establish command selection, effects, entered body or edit authority.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OriginalNativeSourceApplicability {
+    unknown_residual: bool,
+    may_be_absent: bool,
+}
+impl OriginalNativeSourceApplicability {
+    /// An unresolved or non-Registry lookup alternative remains possible.
+    #[must_use]
+    pub const fn has_unknown_residual(&self) -> bool {
+        self.unknown_residual
+    }
+    /// The source lookup may yield no Registry command.
+    #[must_use]
+    pub const fn may_be_absent(&self) -> bool {
+        self.may_be_absent
+    }
 }
 
 /// Readonly continuity from invocation entry to one genuine Logical Written
@@ -999,6 +1040,105 @@ pub fn selected_registry_words_in_realm(
         config,
         registry: registry.snapshot().semantic_key(),
         context: None,
+    })
+}
+
+/// Conditional original Native argv for the narrow possible-case-body
+/// syntax consumer. The exact full input, image/configuration, stamped source
+/// binding, native vector and all Registry lookup residuals remain retained.
+/// Only one identical possible shape is admitted; this does not select it.
+fn conditional_native_case_source_words(
+    source: &str,
+    config: tcl_lexer::LexerConfig,
+    realm: &crate::realm::CommandBindingRealm,
+    input: &crate::analyser::ResolvedAnalysisInput,
+    context: &tcl_registry::model::ContextRegistry,
+    segment: &crate::segmenter::SegmentedCommand,
+) -> Option<OriginalRegistryWords> {
+    if input.has_hosted_source_name_context()
+        || !realm.matches_resolved_analysis_input(input)
+        || config != input.lexer_config()
+        || !std::ptr::eq(std::sync::Arc::as_ptr(&input.context_registry()), context)
+    {
+        return None;
+    }
+    let image = retained_document_image(source, realm, config)?;
+    let registry = context.commands();
+    let mut tokens = crate::ir::CommandTokens::from_segmented(
+        &tcl_lexer::SourceMap::from_image(&image),
+        config,
+        segment,
+    );
+    realm.stamp_original_tokens(&mut tokens);
+    if realm.original_source_registry_barrier(context, &tokens) {
+        return None;
+    }
+    let metadata = crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+        context.commands(),
+        input,
+    )?;
+    let assistance =
+        crate::registry_invocation::original_registry_invocation_assistance_with_metadata_context(
+            context.commands(),
+            Some(metadata),
+            &tokens,
+        )?;
+    let shape = assistance.candidates.first()?;
+    if assistance
+        .candidates
+        .iter()
+        .any(|candidate| candidate != shape)
+    {
+        return None;
+    }
+    let binding = tokens.source_binding.as_ref()?;
+    let native = crate::registry_invocation::original_native_compiler_words(
+        &image,
+        tokens.words(),
+        segment.argv.first()?.span.start(),
+        config,
+    )?;
+    let dialect = binding.original_source_word_dialect_for_tokens(&tokens)?;
+    let protocol = dialect.native_source_string_protocol()?;
+    let arguments = original_source_argument_words(&tokens, &shape.effective, &native, protocol)?;
+    let registry_words: Vec<_> = arguments
+        .iter()
+        .map(|word| word.as_registry_word())
+        .collect();
+    InvocationArguments::structured(&registry_words).exact_argv_len()?;
+    let operands = effective_operand_sources(
+        segment,
+        &tokens,
+        &shape.effective,
+        &arguments,
+        Some(&native),
+    )?;
+    let head = Some(OriginalOperandSource {
+        span: native.first()?.span(),
+        input: binding.original_written_name_input(&tokens, 0),
+        word: native.first().cloned(),
+    });
+    Some(OriginalRegistryWords {
+        command: shape.command.clone(),
+        dialect: Some(dialect),
+        arguments,
+        operands,
+        origins: shape.effective.origins.clone(),
+        head,
+        // Conditional source words do not supply definite authored roles.
+        roles: None,
+        source: OriginalRegistrySource::ConditionalNativeSource(std::sync::Arc::new(
+            OriginalNativeSourceApplicability {
+                unknown_residual: assistance.unknown_residual,
+                may_be_absent: assistance.may_be_absent,
+            },
+        )),
+        captured_values: None,
+        operands_preserve_source_lookup: false,
+        image,
+        config,
+        registry: registry.snapshot().semantic_key(),
+        context: Some(context.context().clone()),
     })
 }
 
@@ -3013,7 +3153,7 @@ fn conditional_source_operands(
                             word, head.word_value_rules(), head.policy())
                             .map(crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord)
                     },
-                    OriginalRegistrySource::Selected | OriginalRegistrySource::Scoped(_) | OriginalRegistrySource::Vendor(_) | OriginalRegistrySource::SourceTransitions(_) | OriginalRegistrySource::ProducedPrefix(_) => None,
+                    OriginalRegistrySource::Selected | OriginalRegistrySource::ConditionalNativeSource(_) | OriginalRegistrySource::Scoped(_) | OriginalRegistrySource::Vendor(_) | OriginalRegistrySource::SourceTransitions(_) | OriginalRegistrySource::ProducedPrefix(_) => None,
                 },
                 word: Some(word.clone()),
             })
@@ -3060,10 +3200,12 @@ fn conditional_source_registry_words(
         | OriginalRegistrySource::SourceTransitions(_)
         | OriginalRegistrySource::ProducedPrefix(_) => None,
         OriginalRegistrySource::Conditional(metadata) => metadata.original_source_dialect(),
-        OriginalRegistrySource::Selected => tokens
-            .source_binding
-            .as_ref()
-            .and_then(|binding| binding.original_source_word_dialect_for_tokens(&tokens)),
+        OriginalRegistrySource::Selected | OriginalRegistrySource::ConditionalNativeSource(_) => {
+            tokens
+                .source_binding
+                .as_ref()
+                .and_then(|binding| binding.original_source_word_dialect_for_tokens(&tokens))
+        }
     };
     let original = crate::registry_invocation::original_native_compiler_words(
         &image,
@@ -3084,6 +3226,7 @@ fn conditional_source_registry_words(
                 ),
             ),
             OriginalRegistrySource::Selected
+            | OriginalRegistrySource::ConditionalNativeSource(_)
             | OriginalRegistrySource::Scoped(_)
             | OriginalRegistrySource::Vendor(_)
             | OriginalRegistrySource::SourceTransitions(_)

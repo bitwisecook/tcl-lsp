@@ -2,9 +2,9 @@
 
 Active work is all LSP consumers and their required shared Compiler/DB/Registry owners. Runtime/VM and BIG-IP migration work remains deferred. Uncovered BIG-IP behaviour uses the Tcl 8.4 working assumption separately from measured evidence.
 
-The LSP baseline has **325 obligations**:201 semantic,122 validation and2 documentation. **138 have integrated changes pending validation**:51 semantic,85 validation and2 documentation;187 have no integration. None are verified complete. Shared dependencies retain their own purpose/count rather than duplicate LSP credit.
+The LSP baseline has **325 obligations**:201 semantic,122 validation and2 documentation. **143 have integrated changes pending validation**:56 semantic,85 validation and2 documentation;182 have no integration. None are verified complete. Shared dependencies retain their own purpose/count rather than duplicate LSP credit.
 
-Across the immutable2,158 baseline obligations, **269 are integrated pending validation**:215 code and54 documentation, including eleven partial callers;1,889 have none. The [annex](implementation-owner-annex.json) adds54 distinct obligations:53 integrated and one blocked. Effective scope is **2,212 required /322 integrated /1,890 not integrated /zero verified complete**. Partial callers are DB class cards, standalone optimiser purpose pending original-positive execution, validation override lifetime, Tcl AI action currency, project dispatch-example target selection, pack-association external configuration/path policy, project procedure hints after unproved default constructors, AI iteration proposal separation, AI clean reporting, diagnostic context transport and generic fix-resource context.
+Across the immutable2,158 baseline obligations, **274 are integrated pending validation**:220 code and54 documentation, including ten partial callers;1,884 have none. The [annex](implementation-owner-annex.json) adds56 distinct obligations:55 integrated and one blocked. Effective scope is **2,214 required /329 integrated /1,885 not integrated /zero verified complete**. Partial callers are DB class cards, standalone optimiser purpose pending original-positive execution, validation override lifetime, Tcl AI action currency, project dispatch-example target selection, pack-association external configuration/path policy, project procedure hints after unproved default constructors, AI iteration proposal separation, AI clean reporting and diagnostic context transport.
 
 Reviewed LSP batches are pushed on `work`; the460-control native replay is complete (389PASS69FAIL2TIMEOUT, all446retained unchanged,14newPASS). Source repairs continue. Required owner/proof/generated and repository gates remain red or unexecuted. No PR, issue closure or merge is authorised by source review. See [current state](current-state.md), [exact catalogue](repository-consumer-audit-final.json) and [implementation ledger](implementation-ledger.md).
 
@@ -15,7 +15,7 @@ The source/role audit is complete for **110,709 tracked baseline paths**, with e
 | Area | Semantic code | Validation repairs | Authored docs | Total |
 |---|---:|---:|---:|---:|
 | Compiler, analyser, inference and optimisation | 297 | 44 | 0 | 341 |
-| Database, registry and SpecTcl | 177 | 7 | 0 | 184 |
+| Database, registry and SpecTcl | 177 | 7 | 0 | 182 |
 | LSP, server, editors, iRules and MCP | 201 | 122 | 2 | 325 |
 | Runtime, shared Core/API and hosts | 370 | 5 | 1 | 376 |
 | VM, codegen and registered targets | 319 | 9 | 0 | 328 |

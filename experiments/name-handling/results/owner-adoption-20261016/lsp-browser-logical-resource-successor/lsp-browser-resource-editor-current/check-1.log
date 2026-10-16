@@ -1,0 +1,7 @@
+Checking formatting...
+[warn] src/chat/agenticLoop.ts
+[warn] src/chat/diagnosticAccess.ts
+[warn] src/test/currentDiagnostics.test.ts
+[warn] src/test/webWorkspaceSync.test.ts
+[warn] src/webWorkspaceSync.ts
+[warn] Code style issues found in 5 files. Run Prettier with --write to fix.

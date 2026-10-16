@@ -38,6 +38,7 @@ import {
   SyncManifest,
   WorkspaceStoreSync,
   WorkspaceSyncBudget,
+  workerSourceStoreHost,
 } from "../webWorkspaceSync";
 
 /** `FileChangeType` on the wire — the protocol's numbering, not `vscode.FileChangeType`'s. */
@@ -50,10 +51,24 @@ interface StoreCall {
   text?: string;
 }
 
-function recordingHost(calls: StoreCall[]): SourceStoreHost {
+function recordingHost(
+  calls: StoreCall[],
+  byteCalls: Uint8Array[] = [],
+  inventoryCalls: Array<{
+    rootUri: string;
+    selection: string;
+    status: "complete" | "incomplete";
+  }> = [],
+): SourceStoreHost {
   return {
-    upsert: (uri, text) => calls.push({ kind: "upsert", uri, text }),
+    upsert: (uri, text, originalBytes) => {
+      calls.push({ kind: "upsert", uri, text });
+      byteCalls.push(originalBytes.slice());
+    },
     delete: (uri) => calls.push({ kind: "delete", uri }),
+    setSourceInventory: (rootUri, selection, status) =>
+      inventoryCalls.push({ rootUri, selection, status }),
+    isSafeSpecPackName: async (name) => !name.startsWith("../") && !name.startsWith("/"),
     upsertSpecPack: () => {},
   };
 }
@@ -63,6 +78,7 @@ type PushFile = (
   changeType: number,
   budget: WorkspaceSyncBudget,
   notify: (changes: Array<{ uri: string; type: number }>) => void,
+  scanOwner?: { rootUri: string; generation: number },
 ) => Promise<boolean>;
 
 /**
@@ -92,7 +108,9 @@ suite("Web workspace sync", () => {
   test("adds the whole-basename language registrations", () => {
     const globs = deriveSyncGlobs({
       activationEvents: ["workspaceContains:**/*.{tcl}"],
-      contributes: { languages: [{ filenames: ["bigip.conf", "presentation"] }] },
+      contributes: {
+        languages: [{ filenames: ["bigip.conf", "presentation"] }],
+      },
     });
     assert.ok(globs.includes("**/bigip.conf"));
     assert.ok(globs.includes("**/presentation"));
@@ -252,6 +270,96 @@ async function waitForReads(provider: DeferredFileSystem, count: number): Promis
  * refusal under test is a read that fails, and a file that is not there is
  * exactly how one fails.
  */
+suite("Web workspace sync — spec-pack manifest paths", () => {
+  test("worker host returns the WASM path owner's validation verdict", async () => {
+    const requests: string[] = [];
+    const worker = {
+      postMessage(message: { tclLsp?: string; name?: string; replyPort?: MessagePort }) {
+        if (message.tclLsp === "validateSpecPackName" && message.replyPort) {
+          requests.push(message.name ?? "");
+          message.replyPort.postMessage(message.name === "nested/資料.tclspec");
+        }
+      },
+    } as unknown as Worker;
+    const host = workerSourceStoreHost(worker);
+    assert.strictEqual(await host.isSafeSpecPackName("nested/資料.tclspec"), true);
+    assert.strictEqual(await host.isSafeSpecPackName("../資料.tclspec"), false);
+    assert.deepStrictEqual(requests, ["nested/資料.tclspec", "../資料.tclspec"]);
+  });
+
+  test("validates original names through the host owner before joining or reading", async () => {
+    const files = new Map<string, Uint8Array>([
+      [
+        "/bundle/specs/index.json",
+        new TextEncoder().encode(JSON.stringify(["../outside.tclspec", "vendor/資料.tclspec"])),
+      ],
+      ["/bundle/outside.tclspec", new TextEncoder().encode("outside sentinel\n")],
+      ["/bundle/specs/vendor/資料.tclspec", new TextEncoder().encode("speclib valid 1 {}\n")],
+    ]);
+    const reads: string[] = [];
+    const provider: vscode.FileSystemProvider = {
+      onDidChangeFile: new vscode.EventEmitter<vscode.FileChangeEvent[]>().event,
+      readFile: (uri) => {
+        reads.push(uri.path);
+        const bytes = files.get(uri.path);
+        if (!bytes) throw vscode.FileSystemError.FileNotFound(uri);
+        return bytes;
+      },
+      watch: () => new vscode.Disposable(() => {}),
+      stat: () => {
+        throw vscode.FileSystemError.FileNotFound();
+      },
+      readDirectory: () => {
+        throw vscode.FileSystemError.FileNotFound();
+      },
+      createDirectory: () => {
+        throw vscode.FileSystemError.NoPermissions();
+      },
+      writeFile: () => {
+        throw vscode.FileSystemError.NoPermissions();
+      },
+      delete: () => {
+        throw vscode.FileSystemError.NoPermissions();
+      },
+      rename: () => {
+        throw vscode.FileSystemError.NoPermissions();
+      },
+    };
+    const registration = vscode.workspace.registerFileSystemProvider("lsp-pack-test", provider, {
+      isCaseSensitive: true,
+    });
+    const accepted: string[] = [];
+    const upserts: Array<{ name: string; text: string }> = [];
+    const host: SourceStoreHost = {
+      upsert: () => {},
+      delete: () => {},
+      setSourceInventory: () => {},
+      isSafeSpecPackName: async (name) => {
+        accepted.push(name);
+        return name === "vendor/資料.tclspec";
+      },
+      upsertSpecPack: (name, text) => upserts.push({ name, text }),
+    };
+    try {
+      const sync = new WorkspaceStoreSync(host, [], () => {});
+      assert.strictEqual(
+        await sync.primeSpecPacks(vscode.Uri.parse("lsp-pack-test:/bundle/specs")),
+        1,
+      );
+      assert.deepStrictEqual(accepted, ["../outside.tclspec", "vendor/資料.tclspec"]);
+      assert.deepStrictEqual(reads, [
+        "/bundle/specs/index.json",
+        "/bundle/specs/vendor/資料.tclspec",
+      ]);
+      assert.deepStrictEqual(upserts, [
+        { name: "vendor/資料.tclspec", text: "speclib valid 1 {}\n" },
+      ]);
+    } finally {
+      registration.dispose();
+    }
+  });
+});
+
 suite("Web workspace sync — live refusals", () => {
   test("a file that stops being readable is withdrawn, not left stale", async () => {
     const root = tempDir();
@@ -301,6 +409,67 @@ suite("Web workspace sync — live refusals", () => {
     }
   });
 
+  test("a live upsert retains the exact admitted source bytes", async () => {
+    const root = tempDir();
+    const file = path.join(root, "unicode.tcl");
+    const source = "# café\nset value 1\n";
+    const originalBytes = Buffer.from(source, "utf8");
+    fs.writeFileSync(file, originalBytes);
+    const uri = vscode.Uri.file(file);
+    const calls: StoreCall[] = [];
+    const byteCalls: Uint8Array[] = [];
+    const sync = new WorkspaceStoreSync(recordingHost(calls, byteCalls), [], () => {});
+    try {
+      assert.strictEqual(
+        await pushFileOf(sync)(uri, FileChange.Created, DEFAULT_BUDGET, () => {}),
+        true,
+      );
+      assert.deepStrictEqual(Array.from(byteCalls[0] ?? []), Array.from(originalBytes));
+      assert.strictEqual(calls[0]?.text, source);
+    } finally {
+      sync.dispose();
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("invalid UTF-8 is withdrawn and leaves its root inventory incomplete", async () => {
+    const root = tempDir();
+    const file = path.join(root, "invalid.tcl");
+    fs.writeFileSync(file, Buffer.from([0x73, 0x65, 0x74, 0x20, 0xff, 0x0a]));
+    const uri = vscode.Uri.file(file);
+    const calls: StoreCall[] = [];
+    const inventoryCalls: Array<{
+      rootUri: string;
+      selection: string;
+      status: "complete" | "incomplete";
+    }> = [];
+    const sync = new WorkspaceStoreSync(recordingHost(calls, [], inventoryCalls), [], () => {});
+    // Model the active root state created by the startup sweep; the private
+    // live path is exercised through the same host protocol as a watcher.
+    (
+      sync as unknown as {
+        sourceInventories: Map<string, { rootUri: string; selection: string; complete: boolean }>;
+      }
+    ).sourceInventories.set(root, {
+      rootUri: root,
+      selection: "selection-v1",
+      complete: true,
+    });
+    try {
+      assert.strictEqual(
+        await pushFileOf(sync)(uri, FileChange.Created, DEFAULT_BUDGET, () => {}),
+        false,
+      );
+      assert.deepStrictEqual(inventoryCalls, [
+        { rootUri: root, selection: "selection-v1", status: "incomplete" },
+      ]);
+      assert.deepStrictEqual(calls, [{ kind: "delete", uri: uri.toString() }]);
+    } finally {
+      sync.dispose();
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   test("a file the store never held is refused without a spurious deletion", async () => {
     const root = tempDir();
     const uri = vscode.Uri.file(path.join(root, "never-existed.tcl"));
@@ -328,6 +497,164 @@ suite("Web workspace sync — live refusals", () => {
  * The watcher hands each event to a handler and does not wait for it, so with
  * a slow provider the reads finish in an order the events did not.
  */
+suite("Web workspace sync — per-root census ownership", () => {
+  test("only the current scan can close its root, independently of other roots", () => {
+    type Inventory = {
+      rootUri: string;
+      selection: string;
+      complete: boolean;
+      failed: boolean;
+      censusComplete: boolean;
+      pendingPushes: number;
+    };
+    type CensusInternals = {
+      sourceInventories: Map<string, Inventory>;
+      rootScans: Map<string, number>;
+      beginRootScan(rootUri: string): number;
+      finishRootScan(rootUri: string, generation: number): void;
+    };
+    const sync = new WorkspaceStoreSync(recordingHost([]), [], () => {});
+    const state = sync as unknown as CensusInternals;
+    const rootA = "file:///workspace/a";
+    const rootB = "file:///workspace/b";
+    state.sourceInventories.set(rootA, {
+      rootUri: rootA,
+      selection: "A",
+      complete: false,
+      failed: false,
+      censusComplete: false,
+      pendingPushes: 0,
+    });
+    state.sourceInventories.set(rootB, {
+      rootUri: rootB,
+      selection: "B",
+      complete: false,
+      failed: false,
+      censusComplete: false,
+      pendingPushes: 0,
+    });
+
+    const oldA = state.beginRootScan(rootA);
+    const currentA = state.beginRootScan(rootA);
+    const currentB = state.beginRootScan(rootB);
+    state.finishRootScan(rootA, oldA);
+    state.finishRootScan(rootB, currentB);
+    assert.strictEqual(
+      state.sourceInventories.get(rootA)?.complete,
+      false,
+      "a stale overlapping A scan must not certify A",
+    );
+    assert.strictEqual(
+      state.sourceInventories.get(rootB)?.complete,
+      true,
+      "B may close only its own completed scan",
+    );
+
+    state.finishRootScan(rootA, currentA);
+    assert.strictEqual(state.sourceInventories.get(rootA)?.complete, true);
+    sync.dispose();
+  });
+
+  test("a removed root cannot be closed by its outstanding scan", () => {
+    type Inventory = {
+      rootUri: string;
+      selection: string;
+      complete: boolean;
+      failed: boolean;
+      censusComplete: boolean;
+      pendingPushes: number;
+    };
+    type CensusInternals = {
+      sourceInventories: Map<string, Inventory>;
+      rootScans: Map<string, number>;
+      beginRootScan(rootUri: string): number;
+      finishRootScan(rootUri: string, generation: number): void;
+    };
+    const sync = new WorkspaceStoreSync(recordingHost([]), [], () => {});
+    const state = sync as unknown as CensusInternals;
+    const root = "file:///workspace/removed";
+    state.sourceInventories.set(root, {
+      rootUri: root,
+      selection: "removed",
+      complete: false,
+      failed: false,
+      censusComplete: false,
+      pendingPushes: 0,
+    });
+    const pending = state.beginRootScan(root);
+    state.sourceInventories.delete(root);
+    state.rootScans.delete(root);
+    state.finishRootScan(root, pending);
+    assert.strictEqual(state.sourceInventories.has(root), false);
+    sync.dispose();
+  });
+});
+
+suite("Web workspace sync — pending live source reads", () => {
+  test("the complete receipt is withdrawn during a push and restored after its upsert", async () => {
+    type Inventory = {
+      rootUri: string;
+      selection: string;
+      complete: boolean;
+      failed: boolean;
+      censusComplete: boolean;
+      pendingPushes: number;
+    };
+    type CensusInternals = {
+      sourceInventories: Map<string, Inventory>;
+      rootScans: Map<string, number>;
+    };
+    const provider = new DeferredFileSystem();
+    const registration = vscode.workspace.registerFileSystemProvider(
+      "tcl-lsp-census-pending",
+      provider,
+    );
+    const uri = vscode.Uri.parse("tcl-lsp-census-pending:/lib.tcl");
+    const rootUri = "tcl-lsp-census-pending:/";
+    const calls: StoreCall[] = [];
+    const inventoryCalls: Array<{
+      rootUri: string;
+      selection: string;
+      status: "complete" | "incomplete";
+    }> = [];
+    const sync = new WorkspaceStoreSync(recordingHost(calls, [], inventoryCalls), [], () => {});
+    const state = sync as unknown as CensusInternals;
+    state.sourceInventories.set(rootUri, {
+      rootUri,
+      selection: "selected-root",
+      complete: true,
+      failed: false,
+      censusComplete: true,
+      pendingPushes: 0,
+    });
+    state.rootScans.set(rootUri, 7);
+    const pushFile = pushFileOf(sync);
+    try {
+      const pushing = pushFile(uri, FileChange.Changed, DEFAULT_BUDGET, () => {}, {
+        rootUri,
+        generation: 7,
+      });
+      await waitForReads(provider, 1);
+      assert.strictEqual(
+        inventoryCalls[inventoryCalls.length - 1]?.status,
+        "incomplete",
+        "an in-flight source mutation must not leave the old complete receipt current",
+      );
+      provider.settle(0, "set fresh 1\n");
+      assert.strictEqual(await pushing, true);
+      assert.strictEqual(calls[calls.length - 1]?.kind, "upsert");
+      assert.strictEqual(
+        inventoryCalls[inventoryCalls.length - 1]?.status,
+        "complete",
+        "the unchanged completed census may be restored after the new bytes land",
+      );
+    } finally {
+      sync.dispose();
+      registration.dispose();
+    }
+  });
+});
+
 suite("Web workspace sync — overlapping watcher events", () => {
   test("a delete overtaking a slower change does not resurrect the file", async () => {
     const provider = new DeferredFileSystem();

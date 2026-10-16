@@ -665,6 +665,8 @@ pub(crate) struct SourceOrderContext {
     input: tcl_compiler::analyser::ResolvedAnalysisInput,
     realm: tcl_compiler::realm::CommandBindingRealm,
     sites: Vec<OriginalSourceOrderSite>,
+    // Complete only for the retained readonly syntax inventory, never execution.
+    command_spans: Vec<tcl_lexer::Span>,
 }
 
 impl SourceOrderContext {
@@ -684,6 +686,11 @@ impl SourceOrderContext {
         // remains unrepresented; this partial inventory supplies no closure.
         let structure =
             crate::source_structure::SourceStructure::capture(source, Some(analysis), config)?;
+        let command_spans = structure
+            .commands
+            .iter()
+            .map(|command| command.span)
+            .collect();
         let mut sites = Vec::new();
         for command in &structure.commands {
             let at = command.argv.first()?.span.start();
@@ -729,6 +736,7 @@ impl SourceOrderContext {
             input: input.clone(),
             realm: realm.clone(),
             sites,
+            command_spans,
         })
     }
 
@@ -740,10 +748,18 @@ impl SourceOrderContext {
         {
             return None;
         }
+        // Select syntax before admission: an unissued inner command must not
+        // borrow a wider enclosing declaration command's source/body owner.
+        let command_span = self
+            .command_spans
+            .iter()
+            .filter(|span| span.start() <= at && at < span.end())
+            .min_by_key(|span| span.end() - span.start())?;
         self.sites
             .iter()
             .filter(|site| {
-                site.span.start() <= at
+                site.span == *command_span
+                    && site.span.start() <= at
                     && at < site.span.end()
                     && site
                         .words

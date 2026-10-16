@@ -1,0 +1,51 @@
+{
+  "version": 3,
+  "unit_id": "lsp-editor-browser-source-bytes-and-census",
+  "scope": "Existing partial unit: manifest path-admission residual only; broader source byte/census purpose remains open.",
+  "generated_artifacts": "No generated wasm-bindgen glue edited. `make lsp-server-wasm` regenerates bindings from the exported Rust method; not run.",
+  "files": [
+    {
+      "path": "rust/tcl-lsp-server-wasm/src/lib.rs",
+      "before_sha256": "b89b339dacb6ae465819a8fefcdf6747f2f455ab6fb4393aae1e46326193299e",
+      "after_sha256": "539f342ccb3236be7c68d77613faaea862359a39d3cefb15ab4400227f04b466"
+    },
+    {
+      "path": "rust/tcl-lsp-server-wasm/worker.js",
+      "before_sha256": "0d0041cc6f43b2e8985fbee22018b5f36c899ff378266f70fe959d69bd26fd10",
+      "after_sha256": "fbff4236144aad622f61c42f3455c1ec517fa9e59d1aa698c4e8c20d30e0417e"
+    },
+    {
+      "path": "rust/tcl-lsp-server-wasm/test/e2e.mjs",
+      "before_sha256": "425622f3020a675d5c965cbfeb48421446903c5de52b75e879aa01e5518101bc",
+      "after_sha256": "fe139bc6e0c2a017c7622953514e1ec49f0fe61f312716ad71002bf090580def"
+    },
+    {
+      "path": "editors/vscode/src/webWorkspaceSync.ts",
+      "before_sha256": "f6e61a6c4ae39eb3a01a6b0623cbc9276db086207550219462a3f32f56f70737",
+      "after_sha256": "a6e1838c830071a281376a4241f3906af0381415744bc86bd9fe3f1401b7aa6e"
+    },
+    {
+      "path": "editors/vscode/src/test/webWorkspaceSync.test.ts",
+      "before_sha256": "9a0d810921b412a5d46810249e2558afa0af195eb8cfcfc6da61e4d93be1c3c0",
+      "after_sha256": "74bf8e15d539a63a1ac1919b603ad9f1b643099725f007e9ff507ee8f704b84d"
+    },
+    {
+      "path": "docs/design/contracts/lsp-source-store.md",
+      "before_sha256": "14035118ec9f6f16fe51b2f3982fb891d5fea9305173f3923eda83280a1b8941",
+      "after_sha256": "5e2d06305bb52ae40ee9f22d477649227be1af78ba99f08bcc65017a4b399ad8"
+    }
+  ],
+  "controls": [
+    "WASM e2e checks accepted nested Unicode and refused rooted/parent names using the actual exported owner, beside existing upsert controls.",
+    "Browser host bridge control checks request/reply through transferred MessagePort.",
+    "Custom filesystem provider control asserts an escaping sibling is not read while the accepted nested Unicode pack retains spelling and loads."
+  ],
+  "validation": {
+    "tests": "not run by instruction",
+    "builds": "not run by instruction",
+    "independent_review": "pending"
+  },
+  "patch_sha256": "fab317b8adb4d14111708862905e36773be2426b6f2368b4e266206741ab30b2",
+  "parent_patch_sha256": "26fbe2ed4ca9946aa6002e85bb9ec9ea0a8afbc6dbfef717cf5a29265c89414e",
+  "delta": "V2 documentation attachment only: original upsert rustdocs restored; new predicate purpose docs; all executable and test bytes unchanged"
+}

@@ -1,0 +1,10 @@
+SOURCE CLEAR — a743ff0a2606f68f7126d65e77cc5e697ba8c8376bf46a7c9571a4885ca6c687
+Manifest d0a5909e2846355a603be30524b0916e453ef63e03dcd55756b8b079a2599530.
+
+Exact one-file current beforeimage/afterimage and patch hash verified; fresh independent TMP --fuzz=0 apply reproduced after hash. No main, Git, builds, tests, typecheck or execution.
+
+Active actual Tcl document captures its original full-source snapshot before asynchronous work; failure is not redirected into the attachment path. No active-document session F5 override is acquired. Proposal completion uses exact original URI/source/version through shared strict wait owner, then rechecks actual same document/open document/session and full source/proposal. Retained analysis context is checked before and after await. Only strict Complete supplies diagnostics and the clean message; suppressed/unavailable/malformed outcomes propagate, with no empty fallback. Output dialect/input epoch/version/result ID come from that same report, not independent resource config or display spelling. This readonly command issues no write grant.
+
+Attached/non-open code intentionally retains legacy wait/override path and old output; it remains an explicit partial migration, not complete baseline-unit adoption. Existing attachment behavior/restore errors/assertions/budgets are untouched. No new source/Native/execution/absence authority.
+
+Metadata correction required independently: manifest dependency source_v4_patch_sha256 is truncated; actual V4 is bbfb4a9e22c1b6d6b3a41790b639de64fbb4709f2bd70c6e6ac5e8dde406c19e. This does not change reviewed source patch or its hash. Root owns count/validation; no whole-unit completion or runtime efficacy claim.

@@ -1,0 +1,15 @@
+{
+  "cause": "Root numeric count replacement touched hexadecimal substrings in Markdown. Actual source/evidence files were untouched; restore preexisting identifiers against HEAD and retain correction record.",
+  "corrections": [
+    {
+      "path": "/workspace/tcl-lsp/docs/work/name-handling/audit-status.md",
+      "incorrect": "cc24c394004fc182378ba0eefb6c2c5b2615fb00",
+      "restored_from_HEAD": "cc24c394004fc187378ba0eefb6c2c5b2615fb00"
+    },
+    {
+      "file": "current-state.md",
+      "incorrect": "4d6569c6f4f431b27400ac2bc1e2a618bcc9afa856241eab74f5ec98dd6ca811",
+      "restored": "4d6569c6f4f431b27200ac2bc1e2a618bcc9afa856241eab74f5ec98dd6ca811"
+    }
+  ]
+}

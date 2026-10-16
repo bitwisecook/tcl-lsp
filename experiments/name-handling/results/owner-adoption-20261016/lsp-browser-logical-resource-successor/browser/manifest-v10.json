@@ -1,0 +1,130 @@
+{
+  "baseline_units": [
+    "lsp-editor-browser-source-bytes-and-census"
+  ],
+  "purpose": "Complete closed-file bytes and census admission through host, WASM store, server scan and absence-sensitive rename; retain positive readonly evidence.",
+  "status": "TMP-only V10 source candidate for independent review. Not applied to main, not built, not tested, no WASM regeneration.",
+  "v5_review_repairs": [
+    "HostReported and Filesystem provider branches both refuse lexical absence advice when the server scan is incomplete; Native filesystem with no census remains compatible with existing open-only/test indices.",
+    "Restored the existing sha256_digest_hex helper unchanged.",
+    "Rename source-plan capture now follows source-rehoming preparation, preserves the focused consumer replacement only when old index/receipt generations still match under the write lock, and binds final publication to that resulting plan generation.",
+    "Final currentness holds the active workspace-folder owner while checking the exact index receipt and store, closing a folder-set change between clone and validation."
+  ],
+  "v4_review_blockers_addressed": [
+    "Per-root scan generation/pending read ownership; each completion closes only its exact still-current root generation.",
+    "Live push publishes incomplete before async read and restores only after successful upsert and pending work drains.",
+    "Server scan cap and unreadable directory outcomes remain an independent completeness input.",
+    "Rename final check retains the exact index/receipt generations used by its plan."
+  ],
+  "open_review_questions": [
+    "Peer source review should verify that changed complete receipts are compared exactly and the existing full scan is the only route to bind them to the index; same-receipt incomplete scans remain refused without repeated rescans."
+  ],
+  "remaining_limits": [
+    "Completeness does not assert interpretation of non-Tcl files or package-directory semantics beyond the existing scan.",
+    "No tests/build/typecheck were run; host/WASM API and async lock order require source review."
+  ],
+  "source_anchors": {
+    "host": "editors/vscode/src/webWorkspaceSync.ts: per-root scan owner, root completion, pending live pushes",
+    "core": "rust/tcl-lsp-core/src/workspace_index.rs: source_inventory_scan_complete, source_inventory_revision, provider-specific eligibility",
+    "server": "rust/tcl-lsp-server/src/lib.rs: collect_tcl_files, build_package_db_and_candidates, scan_workspace_folders, WorkspaceSourcePlanToken, rename"
+  },
+  "validation": {
+    "formatting": [
+      "rustfmt --edition 2024 --config skip_children=true on staged Rust"
+    ],
+    "verification": [
+      "V5 patch generated from current main beforeimages; fresh temp-copy application and all SHA256s to be verified"
+    ],
+    "not_run": [
+      "Cargo/build",
+      "Rust or TypeScript tests",
+      "WASM generation"
+    ]
+  },
+  "files": [
+    {
+      "path": "docs/design/contracts/lsp-source-store.md",
+      "before_sha256": "c7e66e746876b25472789644a0775483127684f7d80ac70791a7e4ed19a46a58",
+      "after_sha256": "14035118ec9f6f16fe51b2f3982fb891d5fea9305173f3923eda83280a1b8941",
+      "before_bytes": 26489,
+      "after_bytes": 31044
+    },
+    {
+      "path": "editors/vscode/src/test/webWorkspaceSync.test.ts",
+      "before_sha256": "7a3420bb2cdb5f75aa9e9ef2334d947989dcb4a95e8b1aa332da3afaa5c33b6e",
+      "after_sha256": "8208fdd1b4709e80f4931960dd9d15242f293f11aef72c8227a7842ad8f4d52d",
+      "before_bytes": 16100,
+      "after_bytes": 24635
+    },
+    {
+      "path": "editors/vscode/src/webWorkspaceSync.ts",
+      "before_sha256": "fd8b61a80a12518c3997b79863f848012722d0939cc42a812e9ee742a3aa99a3",
+      "after_sha256": "5697e7463b58e987863118f20a7eb01716c9283149fffcd7d7b698323ee867e8",
+      "before_bytes": 29100,
+      "after_bytes": 40270
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/vfs.rs",
+      "before_sha256": "32f5b41f25237700d058611eb53ad6838c5db4758dd52d5fcc981c9a076d4031",
+      "after_sha256": "7c4825eef83094dd36a014152c76116ab3e3ff7ddbf051a0043340fc78494a41",
+      "before_bytes": 47890,
+      "after_bytes": 55661
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+      "before_sha256": "a62ec20c6fca0c6ce27a7ad372c25ebeb316811073e9e5e57fc28a1fe624e85b",
+      "after_sha256": "34dc9d5f5abf957a0cf46096d15be28134ade5b7dc4d1d22d10b4e72d68bc4de",
+      "before_bytes": 677535,
+      "after_bytes": 687561
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "before_sha256": "45a34c32d6803bf9f3c81d0ccc47fef4ea6e3edc46681d681a52b724375e1632",
+      "after_sha256": "9506635a67987f5ae63297f3b16094fd751db870312a8388bf605b7dcd56ca43",
+      "before_bytes": 2712230,
+      "after_bytes": 2719904
+    },
+    {
+      "path": "rust/tcl-lsp-server-wasm/src/lib.rs",
+      "before_sha256": "6a7e2fe65e594b8543fc8bd0404cacf09ca4749974dd83a6ddff569d265be212",
+      "after_sha256": "b89b339dacb6ae465819a8fefcdf6747f2f455ab6fb4393aae1e46326193299e",
+      "before_bytes": 14097,
+      "after_bytes": 15343
+    },
+    {
+      "path": "rust/tcl-lsp-server-wasm/worker.js",
+      "before_sha256": "c2945ee7442600531337bc8f2e84d309ccd10655685f79ba23fc899347a7e836",
+      "after_sha256": "0d0041cc6f43b2e8985fbee22018b5f36c899ff378266f70fe959d69bd26fd10",
+      "before_bytes": 7997,
+      "after_bytes": 8588
+    }
+  ],
+  "patch_path": "/tmp/lsp-browser-census-v10/browser-source-census-v10.patch",
+  "patch_sha256": "bf31fb5628b97716c77172f1912cb68b44d8d8ca93508445fa6fc263d2a6d39e",
+  "supersedes_patch_sha256": "c9ef618af073f78fb88e8f63ee488a41d3341c237bfe7855b5f3f540004f7519",
+  "snapshot_provenance": {
+    "v5": "Released db0142/e34ec bytes were overwritten during formatting; unrecoverable.",
+    "v6": "Formatted snapshot held for unsafe post-symbol token refresh.",
+    "v7": "Removed token rebind; source review found another liveness issue.",
+    "v8": "Recovery was misplaced and retry suppression over-sticky.",
+    "v9": "Corrected callsite and retry identity; peer found oldafterimage reverted SourceRunOrder.",
+    "v10": "Three-way union on current workspace; preserves SourceRunOrder and adds only browser census changes."
+  },
+  "v7_review_repairs": [
+    "Removed the post-symbol-snapshot unconditional token refresh. For the consumer-document fallback, performs the existing selected workspace symbol/autoload lookup before recapturing the plan token; the later guarded focused replacement refuses any generation mismatch. This prevents a concurrent index writer from rebinding identities selected from generation A to generation B."
+  ],
+  "v8_liveness_repair": [
+    "Before absence-sensitive rename, if every active HostReported observation is current+complete and differs from the index receipt, rebuild through the existing full workspace scan owner, then capture the plan token. Never promote the host receipt directly onto an older index. A known incomplete server scan remains refused rather than retried repeatedly."
+  ],
+  "v9_review_repairs": [
+    "Moved complete-host-receipt recovery from the references request to the actual rename entry point, before document/analysis/plan-token capture.",
+    "A known incomplete scan suppresses repeated recovery only when the newly observed complete host receipts are byte-for-byte the same observations retained by that index. A changed current+complete receipt can trigger one fresh full scan."
+  ],
+  "source_callsite_check": {
+    "rename": "rust/tcl-lsp-server/src/lib.rs: LanguageServer::rename, immediately after the rename feature gate and before document read/analysis",
+    "references": "rust/tcl-lsp-server/src/lib.rs: LanguageServer::references contains no recovery call"
+  },
+  "v10_three_way_rebase": [
+    "Rebased the browser census delta onto current workspace files using Git HEAD as the common baseline; the current SourceRunOrder producer remains intact. No Root SourceRunOrder fields, capture/reset paths, RunOrder::for_source_navigation, unconditional run-order/export invalidation, or prior tests are removed."
+  ]
+}

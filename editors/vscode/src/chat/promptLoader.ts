@@ -46,6 +46,19 @@ interface ExtraPrompt {
 }
 
 /**
+ * A truthful fallback for source captured from a document whose effective
+ * dialect is unavailable. It deliberately carries no active/global dialect
+ * instructions and treats dialect-specific meaning as uncertain.
+ */
+export function buildDialectNeutralSourcePrompt(): string {
+  return (
+    "You are analysing the supplied source text. Explain only what follows from that text and its captured source label. " +
+    "Do not borrow a dialect, runtime, or workspace assumption from another active document. " +
+    "Call out dialect-sensitive constructs and state uncertainty instead of assigning them an unsupported meaning."
+  );
+}
+
+/**
  * Build the composite system prompt for the given dialect.
  *
  * 1. Selects all canonical prompts whose manifest entry includes `dialect`.

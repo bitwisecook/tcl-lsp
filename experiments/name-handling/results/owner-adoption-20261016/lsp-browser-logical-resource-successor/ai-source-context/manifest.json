@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "baseline_unit_ids": [
+    "lsp-editor-ai-explain-source-context",
+    "lsp-editor-ai-diff-source-context"
+  ],
+  "scope": "Two audited read-only source-advice callers. Preserve source snapshots, original selected ranges and whole-document currency; no analysis absence, transformation, execution, or edit authority is introduced.",
+  "source_behavior": "Document-backed sources use a dialect-neutral prompt and captured language/version context rather than the active/global dialect prompt. Inline sources retain existing source-only resolution. Stale document bytes stop the model request.",
+  "tests_added": [
+    "commands.test.ts: retained two-reference selected-range/full-source snapshot remains current, then becomes stale after a document edit."
+  ],
+  "existing_assertions_selectors_budgets": "No existing assertion, selector, partition, or budget changed.",
+  "files": [
+    {
+      "path": "editors/vscode/src/chat/codeUtils.ts",
+      "before_sha256": "1010fde769742086aee1715cf1c7379e7fffd9e18b62ea0ffc8f9fbe343f4c3a",
+      "after_sha256": "ef500b7e1ab096fbaf2356217bffa72006ac9abc476ab8fdea3be5c2aa67223f"
+    },
+    {
+      "path": "editors/vscode/src/chat/contextPack.ts",
+      "before_sha256": "163458d99e71130a5bd376b8cd7d9ab5466ca27a5d1c8323c7164aa96ad9e18b",
+      "after_sha256": "a53970befc989acd05f62bcf181ba15fc36d86cf7e06d4aaf3492ffd5c6aabd2"
+    },
+    {
+      "path": "editors/vscode/src/chat/promptLoader.ts",
+      "before_sha256": "d579c6d0f99d3b2f9073fdc3c2bb87a5468ba2a425e3cac0116ff293c9717dab",
+      "after_sha256": "644854be16f4e9c1fcfad7952e4e55d510fc136ac382eaa4cb3e2442684c96a5"
+    },
+    {
+      "path": "editors/vscode/src/chat/commands/explain.ts",
+      "before_sha256": "b0d6ca47ce707ebb3df8325011d31c63399fb011da4ce75b9a45ccbd1b622323",
+      "after_sha256": "399b9b23c25fd4837872da3005924ca8b2ac93f737518780a71702b94713ac97"
+    },
+    {
+      "path": "editors/vscode/src/chat/commands/diff.ts",
+      "before_sha256": "b9ebef5f352d900d38ba9e17e5b32a98dd0b2f1e45cebafb7edf4b10dcd340d6",
+      "after_sha256": "4e181fdda558f3e8ee53479652316b045cefc17d876ce8e9560139bf55092604"
+    },
+    {
+      "path": "editors/vscode/src/test/commands.test.ts",
+      "before_sha256": "91b3924ad7e7ef65817530756f0bf7b0a7a6f08c728ed1a62108879c296e0ef8",
+      "after_sha256": "dc54b0957969a2e04a7535f241b343440b09d8db00cb42c80b5eb151b552f37c"
+    },
+    {
+      "path": "docs/design/contracts/lsp-diagnostics-publication.md",
+      "before_sha256": "0903eed7dc233c6d490a7ecf13396a8f6bd361e901a3886f85c12e89a39c5316",
+      "after_sha256": "3f36576c54735c6a33271779bb8549babe09812b76081d544f7379945f84dbf1"
+    }
+  ],
+  "validation": {
+    "tests": "not run by instruction",
+    "builds": "not run by instruction",
+    "independent_source_review": "pending"
+  }
+}

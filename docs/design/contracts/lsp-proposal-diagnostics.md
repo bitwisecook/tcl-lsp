@@ -14,12 +14,15 @@ The response is one of three distinct outcomes:
 
 | Status | Fields | Meaning |
 | --- | --- | --- |
-| `complete` | `uri`, `version`, `source`, `proposal`, opaque `revision`, `inputsEpoch`, `workspaceIndexGeneration`, `resultId`, `diagnostics` | The exact requested proposal completed against the retained source and analysis inputs. An empty `diagnostics` array is a completed empty result. |
+| `complete` | `uri`, `version`, `source`, `proposal`, opaque `revision`, `inputsEpoch`, `workspaceIndexGeneration`, `resultId`, `dialectId`, `diagnostics` | The exact requested proposal completed against the retained source and analysis inputs. An empty `diagnostics` array is a completed empty result. |
 | `suppressed` | `uri`, `version`, `source`, `proposal`, `reason` (`disabled` or `excluded`) | The source and configuration were revalidated and diagnostics were intentionally suppressed by the current diagnostic policy. It is not a clean result. |
 | `unavailable` | `reason` (`pending`, `stale`, `context`, `providerError`, `cancelled`, `unsupported`, or `notOpen`) | The requested analysis could not establish a current complete result. It is not an empty result. |
 
 The server does not schedule analysis from this command or use push
-publication as completion evidence. The proposal `revision` is opaque
+publication as completion evidence. The `dialectId` is the effective resource
+dialect captured by the producer and is serialized only inside the final
+source-store currentness closure, alongside the matching diagnostics and
+`inputsEpoch`. The proposal `revision` is opaque
 structured metadata; it is not an editor-facing version and is distinct from
 the ordinary current-diagnostics revision contract.
 
@@ -78,6 +81,11 @@ array. A complete empty array is meaningful only for that completed proposal.
 
 For an existing document, the agentic loop edits a separate proposal string
 and analyses that proposal without intermediate writes to the original buffer.
+The Node `/fix` caller uses its first complete report for both its initial
+diagnostics and `buildPrompt(report.dialectId)`. It binds later reports to the
+same dialect and input epoch. A retained initial report cannot be combined
+with a dialect override; the editor does not sample a separate resource hint
+to choose the prompt.
 The retained report is evidence about that proposal as of the captured
 original document version. Its revision is kept in structured data and is not
 presented as a user-facing token.

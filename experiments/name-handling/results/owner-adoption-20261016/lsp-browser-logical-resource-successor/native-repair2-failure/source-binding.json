@@ -1,0 +1,26 @@
+{
+  "source_head": "1b45c540eb51d24e1fd89c4a4bf61f43bf77986c",
+  "rust_diff_sha256": "e0cd0ded8dc0f72375d196a77b8d2c9dbc0ead62a5aad1f0d445e95f7098f64d",
+  "ordinary": true,
+  "instrumentation": false,
+  "single_job": true,
+  "test_debug": 0,
+  "packages": [
+    "tcl-compiler",
+    "tcl-lsp-core",
+    "tcl-lsp-db",
+    "tcl-registry",
+    "tcl-lsp-server"
+  ],
+  "status": "FAIL",
+  "input_before_count": 39001,
+  "utc": "2026-10-16T20:57:05.453477+00:00",
+  "command": "CARGO_PROFILE_TEST_DEBUG=0 cargo test --offline --locked -p tcl-compiler -p tcl-lsp-core -p tcl-lsp-db -p tcl-registry -p tcl-lsp-server --lib --no-run",
+  "scope": "Explicit TEST_DEBUG=0 verified. Two explicit borrowed ClassDef vector type annotations retain all predicates and lifetimes. Genuine conditionalNative source case/comment adviceV3 includes original232 retained and no selected/native/body authority. Current independently source-cleared BrowserV10 census + BrowserpackNameV3 shared actualRustowner + LogicalhierarchyV3 + actualresourceNodefixV4/contract + authoredJimdoclinkpurpose + SourceOrderpointfrontier + memberoriginalheadapplicability223. All original tests/assertions/180/30 budgets and Native/edit/Normal/currentness guards retained. Runtime/VM/BIGIP dedicated migration deferred.",
+  "exit_code": 101,
+  "build_seconds": 101.336,
+  "input_after_count": 39001,
+  "input_drift_count": 0,
+  "input_drift": [],
+  "completed_utc": "2026-10-16T20:58:46.790154+00:00"
+}

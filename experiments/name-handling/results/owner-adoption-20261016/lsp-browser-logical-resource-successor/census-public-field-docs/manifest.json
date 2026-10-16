@@ -1,0 +1,11 @@
+{
+  "purpose": "Document ten new public source-census fields without changing runtime tokens; host-complete predicate docs explicitly retain independent server scan/edit-plan requirements.",
+  "files": {
+    "rust/tcl-lsp-core/src/vfs.rs": {
+      "before_sha256": "7c4825eef83094dd36a014152c76116ab3e3ff7ddbf051a0043340fc78494a41",
+      "after_sha256": "9fd6591848434cdf5e1367b76c68a7067a63c18ca4c7ba010c51b631b91bc577"
+    }
+  },
+  "patch_sha256": "e6c857612e794c71d34d35415a44e83499b92828238fafb654305656ea809a29",
+  "runtime_lines_unchanged": true
+}

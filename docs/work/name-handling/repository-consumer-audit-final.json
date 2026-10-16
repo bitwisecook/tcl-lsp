@@ -16627,11 +16627,10 @@
       ],
       "links": {},
       "implementation": {
-        "status": "partially_implemented_pending_validation",
-        "checkpoint": "Reviewed successor of f46135314",
-        "validation": "Independent full editor chain CLEAR9bb3634a, actual main TypeScript/scopedPrettier/npm Node+browser bundlesPASS405inputs0drift; host unexecuted.",
-        "scope": "Separate proposal buffer/fullsource report and data-only full historical report beside actual checked DocumentWriteReceipt reach existing Apply action. No intermediate original writes.",
-        "remaining": "Generic existing-document fix still forces f5-irules target and initial diagnostics projects array; actual per-resource/dialect join and initial clean-report context remain open. No complete fix/context claim."
+        "status": "implemented_pending_validation",
+        "checkpoint": "Reviewed successor of1b45c540e",
+        "validation": "Independent whole source+contract CLEAR. Actual TypeScript and Node/browser bundles pass before formatting; fresh checks/host controls pending.",
+        "scope": "FinalV4 binds initial full proposal diagnostics and actual system prompt to producer-leased effective resource dialect; later report same epoch/dialect, exact document/session/source currency; initial report refuses override reuse. Full historical proposal data remains beside actual checked write receipt, no intermediate original writes."
       }
     },
     {
@@ -16939,7 +16938,13 @@
       "required_change": [
         "Caller source selection flattens URI/version/config to String (shared codeUtils gap). No direct edit/identity grant in this handler; AI prose is recommendation, not deterministic execution evidence."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Reviewed successor of1b45c540e",
+        "scope": "Actual readonly source capability retains URI/version/language/source channel/selected extent/full source and raw resource metadata rather than String-only projection. Document prompt is explicitly dialect-neutral; no unstamped global dialect/ambient diagnostics/symbol/event context. Original source currency checked after awaits and before every model/fallback dispatch. Inline source remains explicit source-only advice, no completed analysis/identity/absence/edit/Native grant.",
+        "validation": "Exact7file source/contract independent CLEAR364768da. Actualmain TypeScript/Node+browser bundlesPASS406inputs0drift; scopedformatpendingrepair and actualVSCodehost unexecuted."
+      }
     },
     {
       "area": "lsp",
@@ -16967,7 +16972,13 @@
       "required_change": [
         "Caller source selection flattens URI/version/config to String (shared codeUtils gap). No direct edit/identity grant in this handler; AI prose is recommendation, not deterministic execution evidence."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Reviewed successor of1b45c540e",
+        "scope": "Actual readonly source capability retains URI/version/language/source channel/selected extent/full source and raw resource metadata rather than String-only projection. Document prompt is explicitly dialect-neutral; no unstamped global dialect/ambient diagnostics/symbol/event context. Original source currency checked after awaits and before every model/fallback dispatch. Inline source remains explicit source-only advice, no completed analysis/identity/absence/edit/Native grant.",
+        "validation": "Exact7file source/contract independent CLEAR364768da. Actualmain TypeScript/Node+browser bundlesPASS406inputs0drift; scopedformatpendingrepair and actualVSCodehost unexecuted."
+      }
     },
     {
       "area": "lsp",
@@ -16999,8 +17010,9 @@
       "implementation": {
         "status": "partially_implemented_pending_validation",
         "checkpoint": "Source-write V8 successor ofb78612c18",
-        "validation": "Independent source review and workspace compile/bundle checks only; host tests unexecuted.",
-        "remaining": "Owned session lease and current completion adopted. Attachment flattening and global rather than actual resource/provider context remain open."
+        "validation": "Active-document deltaa743 plus corrected metadata independently CLEAR; actual new source typecheck/host controls pending.",
+        "remaining": "Attachment/non-open flattened source retains legacy override/context route; authentic original source snapshot and complete resource report still required there.",
+        "scope": "Active document now captures exact source/version/session and uses strict completed proposal report for actual resource dialect, input epoch and clean/diagnostic claims; no forced active-document F5 override."
       }
     },
     {
@@ -18185,7 +18197,13 @@
       "required_change": [
         "prepare Logical branch selects generic cursor word via resolve_class_target_at, no actual selected class-role operand receipt visible here; public String super/subtype roots use resolve_written_class_name/report map. Need genuine current source declaration/operand identity for selection and typed source relation records; actual downstream resolver full audit still pending."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Reviewed successor of1b45c540e",
+        "scope": "Genuine current class-role/declaration and policy-free Logical relation provider; strict LSP cursor/output geometry; report text cannot recreate selected identity. Existing Server cross-file transport is a separately ongoing adopter.",
+        "validation": "LogicalV3 exact Compiler/Core/contract SOURCE CLEAR; original modules preserved. Fresh native build and controls pending; known old bare run conflict retained."
+      }
     },
     {
       "area": "lsp",
@@ -18213,7 +18231,13 @@
       "required_change": [
         "Any unselected word can fall through to matching all method name map entries (or enclosing-class matches), without genuine selected method declaration/receiver selector role. Need existing typed OriginalMethodCandidate/source method owner for Logical advice, not lexical word->member report-map."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Reviewed successor of1b45c540e",
+        "scope": "Genuine current selected method/member-role and original declaration metadata; bare words/data no longer search report member maps. Unknown wrappers stay unavailable; retained bare run old control unchanged.",
+        "validation": "LogicalV3 exact Compiler/Core/contract SOURCE CLEAR; original modules preserved. Fresh native build and controls pending; known old bare run conflict retained."
+      }
     },
     {
       "area": "lsp",
@@ -18386,7 +18410,13 @@
       "required_change": [
         "Nonfatal UTF8 decoder silently replaces invalid source bytes/name units before original-source channel is retained; original provider byte semantics lost. Budget/unreadable/search failures logged but no typed incomplete-project obligation sent to server, so downstream index uniqueness/absence cannot use partial roster as complete. Need explicit admitted document Unicode/byte policy and source-census incompleteness transport. Pack manifest names only endsWith checked before Uri.joinPath; worker bare-name owner separately rejects unsupported names."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Reviewed successor of1b45c540e",
+        "scope": "Strict original UTF8/BOM source bytes; root/session/selection/store census, independent server scan coverage and exact final index/plan generation/currentness through real host/worker/WASM/store/rename. FinalpackNameV3 delegates host pre-read/join admission to exact existing Rust mount policy through worker response; original safe nested Unicode spelling preserved, failures refuse.",
+        "validation": "BrowserV10 and finalpackNameV3 source/contract peerCLEAR; actual native/WASM/generatedglue/browserhost execution pending. Runtime/testtokens V2-identical after docplacement correction. Existing testcase/assertions retained."
+      }
     },
     {
       "area": "lsp",
@@ -132223,12 +132253,12 @@
   ],
   "implementation_progress": {
     "resumed_from": "554085e162823ea8bd126898d0c27b7b2a9f8628",
-    "utc": "2026-10-16T20:35:40.884821+00:00",
+    "utc": "2026-10-16T21:01:15.629427+00:00",
     "audit_baseline_counts_unchanged": true,
     "total_required_units": 2158,
-    "implemented_pending_validation": 269,
+    "implemented_pending_validation": 274,
     "verified_complete": 0,
-    "not_started": 1889,
+    "not_started": 1884,
     "remaining_unverified_or_unimplemented": 2158,
     "additional_work_not_counted_as_catalogue_completion": [
       "Native variable-expression read/cell/trace/child-body observer producer remains open; pure expression gap receipt grants no such authority.",
@@ -132388,7 +132418,7 @@
     "withheld_drafts": [
       "Minifier command/argument alias construction: missing genuine source action/insertion owner; original unknown-command controls remain unchanged."
     ],
-    "owner_facet_reconciliation": "53 annex obligations:52 integrated/1 blocked. Five genuine producer facets and four separately needed SourceMay reference/highlight/lens/Server-wire adopters counted once. Existing Native validation records are outside remaining baseline; no Logical-lens credit.",
+    "owner_facet_reconciliation": "56annex requirements:55integrated pending validation,1blocked. Logical relation horizon and current host source census distinct owner facets counted once; original selected member/frame/URI/proposal owners not recounted.",
     "runtime_build": {
       "status": "PASS",
       "seconds": 57.46,
@@ -132481,13 +132511,13 @@
     },
     "additional_owner_annex": {
       "path": "docs/work/name-handling/implementation-owner-annex.json",
-      "required": 54,
-      "implemented_pending_validation": 53,
+      "required": 56,
+      "implemented_pending_validation": 55,
       "not_integrated": 1,
       "verified_complete": 0
     },
-    "effective_required_units": 2212,
-    "effective_implemented_pending_validation": 322,
+    "effective_required_units": 2214,
+    "effective_implemented_pending_validation": 329,
     "effective_verified_complete": 0,
     "incoming_remote": {
       "checked_utc": "2026-10-16T18:51:00Z",
@@ -132657,8 +132687,8 @@
       "scope": "Selected controls only. Completed99tests are65PASS34FAIL. Preview failure retained separately; no whole-group or gate acceptance.",
       "capture": "experiments/name-handling/results/owner-adoption-20261016/cli-mcp-server-889"
     },
-    "fully_implemented_pending_validation": 258,
-    "partially_implemented_pending_validation": 11,
+    "fully_implemented_pending_validation": 264,
+    "partially_implemented_pending_validation": 10,
     "runtime_report_adoptions": {
       "baseline_units": [
         "runtime:report.selected-command-variable-qualification:132",
@@ -132823,14 +132853,14 @@
         "validation": 122,
         "documentation": 2
       },
-      "lsp_integrated_pending_validation": 138,
+      "lsp_integrated_pending_validation": 143,
       "lsp_by_kind_integrated": {
-        "semantic": 51,
+        "semantic": 56,
         "validation": 85,
         "documentation": 2
       },
       "lsp_verified_complete": 0,
-      "lsp_without_integrated_implementation": 187,
+      "lsp_without_integrated_implementation": 182,
       "shared_dependencies": "Counted under their original Compiler/DB/Registry units or reconciled annex; not counted again as LSP consumers.",
       "deferred": "Runtime174 remaining54,VM133,RuntimeJim execution and BIG-IP source inventory/provider work; retain all existing artifacts.",
       "new_source_alias_caller_annex": "compiler.consumer.logical-source-alias-declaration-observations"
@@ -133645,6 +133675,39 @@
       "artifact_drift": 0,
       "result_sha256": "17634b993e6b62bb5235b5d251c529995a8269edf6f6dee5cece38950b6d9b5a",
       "capsule": "experiments/name-handling/results/owner-adoption-20261016/lsp-proposal-minifier-successor/completed-460"
+    },
+    "browser_logical_resource_successor": {
+      "baseline_new_full": [
+        "lsp-type-hierarchy-logical-report-selection",
+        "lsp-implementation-logical-bare-method",
+        "lsp-editor-browser-source-bytes-and-census",
+        "lsp-editor-ai-diff-source-context",
+        "lsp-editor-ai-explain-source-context"
+      ],
+      "baseline_new_partial": [],
+      "baseline_partial_to_full": [
+        "lsp-editor-fix-payload"
+      ],
+      "existing_partial_extension": [
+        "lsp-editor-ai-validate-generation"
+      ],
+      "annex_new": [
+        "compiler.source.logical-class-relation-parent-horizon-owner",
+        "lsp.owner.current-host-workspace-source-census"
+      ],
+      "repairs_count0": [
+        "Jim authored doclink purpose",
+        "leased dialect report/contract field",
+        "known source-order refusal frontier under peer review",
+        "member rooted-context refusal under review"
+      ],
+      "validation": "Native5lib currentcombinedsource freeze running. Actualeditorrepair1PASS406inputs0drift: TS/scopedformat/workersyntax/Node+browserbundles; finalpackname changes need freshchecks. Fullportable/host/gates remain pending.",
+      "capsule": "experiments/name-handling/results/owner-adoption-20261016/lsp-browser-logical-resource-successor",
+      "browser_pack_name": "FinalV3fab317b8 reuses exact Rust mount path owner before actualhostjoin/read. Existingbaseline residual closed;0newunit/annex. ActualWASMgeneratedglue/host tests pending.",
+      "native_build": "Fourfailedcapturespreserved:1type74.131s;3Coretype+1unusedimport151.717s;2purposeexhaustiveCorematches101.336s;10missingpublicfielddocs9.811s. All39001inputs0drift. Firsttwodebugmetadata correctedsidecaractualprofileline-tables; subsequentactualdebug0verified. Freshrepair4session1443running, no newfeatureintegration beforepass.",
+      "ai_source_context": "Exact364768da7file actualreadonly source capability+neutraldocumentcontext+finalsourcecurrentness, two existingbaselinecallerpurposes counted once. No newownerannex; unknown context remains source-only.",
+      "conditional_comment": "GenuineNativeassistanceall-shapeconsensusV3 preserves unknown/absent residues and case-only purpose. Nativehover/semanticrole adapters explicitlyrefuse, existingNativewords test adds newvariantpanic, oldassertions/fixturessame. Existingowner/callerrepair count0.",
+      "editor_validation": "Finaleditorrepair3PASS TS/scopedPrettier/workersyntax/Node+browserbundles406inputs0drift, includesfinalpackNameV3/AIexplain-diff. ActualVSCodehostunexecuted."
     }
   }
 }

@@ -1,0 +1,18 @@
+{
+  "purpose": "Explicit purpose refusal arms for conditional case-only source advice; hover/semantic roles gain no generic selection, existing Native direct-schema test explicitly rejects new unsupported variant. Existing assertion predicates and fixtures unchanged.",
+  "files": {
+    "rust/tcl-lsp-core/src/hover/original_registry.rs": {
+      "before_sha256": "0f5ab579df9e4b3ad49f17be922bacc127ae85dbf8c0ac751db8f73d900c4e66",
+      "after_sha256": "2b9a23a053ec91ea373a08e4ca4dbd8796a0da5a331e2d83820aa6ec819d1eab"
+    },
+    "rust/tcl-lsp-core/src/semantic_tokens/original.rs": {
+      "before_sha256": "b5aa23c2c1b51ec42bf499ee65f9e7e5738615f82663c252d6c3c0683f0f541e",
+      "after_sha256": "58263006d464c82b20aad77170ca90e75b17164ab1084e97f78f6daa7ddd9397"
+    },
+    "rust/tcl-lsp-core/src/original_invocation.rs": {
+      "before_sha256": "ccdcd1cde1c4bd5375ca764d3702bbb9e9ea13a3680cef044f06e9208679a2bb",
+      "after_sha256": "612144201df1acc3d6e1e2f2f5e5eff83b1d6ac03481c6471e4a0ea09c37089c"
+    }
+  },
+  "patch_sha256": "9462d1f7f3e067cb775e692acf5910eaf63c9d48cd89439c502fba47b72dd660"
+}

@@ -1672,3 +1672,33 @@ procedure, namespace and structured-script bodies. Mutable reporting scope maps
 and their body spans cannot add regions or replace a missing original body.
 Comment and continuation folds retain their independent source grammars; the
 original source/input/configuration and incomplete-body guards remain required.
+
+
+### Logical type hierarchy and implementation source selection
+
+Logical hierarchy and implementation reports select a genuine original class
+naming operand, retained Registry relation reference, member declaration or
+positioned lexical self selector. The completed Logical class/member owner
+retains the complete actual input, source channel, configuration and metadata;
+the editor position must round-trip exactly through UTF-16. An unrelated equal
+word or method display-map entry cannot select that member. Display labels may
+be rendered after selection, but cannot reconstruct source ownership.
+
+Relation providers use a separate Logical request to the existing conditional
+source graph at the actual class factory parent. The request retains its whole
+Registry-selected member vector and reference operand; the graph retains its
+actual source namespace/path, selected class coordinate and earlier unknown or
+observer barriers. Native SignatureSourceNameInput and Native policy admission
+remain separate. Registry slot operations fold independently selected source
+coordinates through the existing SlotSpec owner. Whole parent syntax and
+reference-role coverage precede a known-empty relation view; dynamic, missing,
+ambiguous or unrepresented inputs are unavailable. Class-object methods do not
+borrow instance descendant edges. These readonly source candidates provide no
+execution, Native dispatch/MRO, entered frame, installed member, lookup closure,
+absence or editing authority.
+
+The compatibility string hierarchy entry interprets an explicit literal root
+query through shared authored-source coordinate construction, then compares
+actual retained factory coordinates. It does not invert a qualified reporting
+label. The original Native declaration/receiver and writable edit owners retain
+their independent inputs and guards.

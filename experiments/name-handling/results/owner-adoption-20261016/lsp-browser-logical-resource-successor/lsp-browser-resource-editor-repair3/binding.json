@@ -1,0 +1,82 @@
+{
+  "utc": "2026-10-16T21:01:16.866763+00:00",
+  "source_head": "1b45c540eb51d24e1fd89c4a4bf61f43bf77986c",
+  "editor_diff_sha256": "725110207d61776f8c749896f4afbe52f32c5649153d3f24ec60fe6e73970c2a",
+  "input_count": 406,
+  "checks": [
+    {
+      "argv": [
+        "npx",
+        "tsc",
+        "--noEmit",
+        "-p",
+        "."
+      ],
+      "exit_code": 0,
+      "seconds": 3.278,
+      "log": "check-0.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "npx",
+        "prettier",
+        "--check",
+        "src/chat/agenticLoop.ts",
+        "src/chat/codeUtils.ts",
+        "src/chat/commands/diff.ts",
+        "src/chat/commands/explain.ts",
+        "src/chat/commands/fix.ts",
+        "src/chat/commands/validate.ts",
+        "src/chat/contextPack.ts",
+        "src/chat/diagnosticAccess.ts",
+        "src/chat/promptLoader.ts",
+        "src/test/commands.test.ts",
+        "src/test/currentDiagnostics.test.ts",
+        "src/test/webWorkspaceSync.test.ts",
+        "src/webWorkspaceSync.ts"
+      ],
+      "exit_code": 0,
+      "seconds": 0.887,
+      "log": "check-1.log",
+      "log_sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20"
+    },
+    {
+      "argv": [
+        "node",
+        "--check",
+        "../../rust/tcl-lsp-server-wasm/worker.js"
+      ],
+      "exit_code": 0,
+      "seconds": 0.058,
+      "log": "check-2.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "npm",
+        "run",
+        "bundle"
+      ],
+      "exit_code": 0,
+      "seconds": 0.298,
+      "log": "check-3.log",
+      "log_sha256": "d79c5fb66368e573927de387e020ac7d577d982f845b4412151fd968227ad9c9"
+    },
+    {
+      "argv": [
+        "npm",
+        "run",
+        "bundle:browser"
+      ],
+      "exit_code": 0,
+      "seconds": 0.29,
+      "log": "check-4.log",
+      "log_sha256": "0aa6b72af84328b7f32ea9eec3f8e5e5d3152813fa5875cad760b4072e93b8e5"
+    }
+  ],
+  "status": "PASS",
+  "input_drift": [],
+  "completed_utc": "2026-10-16T21:01:21.752246+00:00",
+  "host_execution": "Compilation, worker syntax and bundle only; actual extension host unexecuted"
+}

@@ -1,0 +1,210 @@
+{
+  "status": "Source-only recommendation; Root sole counting authority; no tracking edits/count advance/acceptance.",
+  "utc": "2026-10-16T20:45:19.716267+00:00",
+  "count_contract": "Actual changed integration boundary plus distinct purpose. Genuine missing semantic owner facet once; actual changed callers separate; unchanged dependencies not migrations. Implementation, validation repairs, existing unexecuted validation and docs separate.",
+  "inputs": {
+    "catalogue": "/workspace/tcl-lsp/docs/work/name-handling/repository-consumer-audit-final.json",
+    "catalogue_sha256": "6c797fb4386001d6cfa1d1fcc8a265040265f61fa606b4876eca1d7ca22c4104",
+    "catalogue_baseline": "cc24c394004fc187378ba0eefb6c2c5b2615fb00",
+    "annex": "/workspace/tcl-lsp/docs/work/name-handling/implementation-owner-annex.json",
+    "annex_sha256": "02ec91c89db3b06b1e2052e09e6109c08289c28866b8f60820f69303e2166f05",
+    "existing_annex_rows": 54
+  },
+  "packets": {
+    "LogicalV3": {
+      "manifest": "/tmp/lsp-logical-hierarchy-selection-v3/manifest.json",
+      "manifest_sha256": "adf53abf6defb9059e7d86e731a7d0cc98cd6ebbfd9e77087947b41d6588be36",
+      "patch": "/tmp/lsp-logical-hierarchy-selection-v3/logical-hierarchy-selection.e52f35a6b30de7860788d7fa7b2ee28ffa92ec30e2b78f6dc5efe48a151f9358.patch",
+      "patch_sha256": "e52f35a6b30de7860788d7fa7b2ee28ffa92ec30e2b78f6dc5efe48a151f9358"
+    },
+    "BrowserV10": {
+      "manifest": "/tmp/lsp-browser-census-v10/manifest-v10.json",
+      "manifest_sha256": "84a933adeb9d1abc05e3a8c6146da3720a9482e34e11aaee509d68b329f480b8",
+      "patch": "/tmp/lsp-browser-census-v10/browser-source-census-v10.patch",
+      "patch_sha256": "bf31fb5628b97716c77172f1912cb68b44d8d8ca93508445fa6fc263d2a6d39e"
+    },
+    "NodeFixV4": {
+      "manifest": "/tmp/lsp-fix-resource-context-v4/manifest.json",
+      "manifest_sha256": "7efffe655da2a96e079a6a6295211963060d0f3cb4dc2d8989bbddd5448dda09",
+      "patch": "/tmp/lsp-fix-resource-context-v4/lsp-fix-resource-context-v4.patch",
+      "patch_sha256": "bbfb4a9e22c1b6d6b3a41790b639de64fbb4709f2bd70c6e6ac5e8dde406c19e"
+    }
+  },
+  "exact_baseline_rows": [
+    {
+      "id": "lsp-type-hierarchy-logical-report-selection",
+      "pointer": "/units/582",
+      "work_kind": "caller_migration",
+      "purpose": [
+        "Logical hierarchy cursor seed and String-based public super/subtype entry."
+      ],
+      "required_change": [
+        "prepare Logical branch selects generic cursor word via resolve_class_target_at, no actual selected class-role operand receipt visible here; public String super/subtype roots use resolve_written_class_name/report map. Need genuine current source declaration/operand identity for selection and typed source relation records; actual downstream resolver full audit still pending."
+      ],
+      "sites": [
+        {
+          "path": "rust/tcl-lsp-core/src/type_hierarchy.rs",
+          "line": 91,
+          "symbol": "prepare_for_document / resolve_class",
+          "source_sha256": "45eee7ef9a95cade17dc9e12ad58b11909ce827072ff39c3e01bd341a8b9a886",
+          "source_line": "    let Some((word, _start, _end)) = find_word_span_at_position(source, line, character) else {",
+          "purpose": "Logical hierarchy cursor seed and String-based public super/subtype entry."
+        }
+      ]
+    },
+    {
+      "id": "lsp-implementation-logical-bare-method",
+      "pointer": "/units/583",
+      "work_kind": "caller_migration",
+      "purpose": [
+        "Logical implementation provider after generic cursor word does not select a class."
+      ],
+      "required_change": [
+        "Any unselected word can fall through to matching all method name map entries (or enclosing-class matches), without genuine selected method declaration/receiver selector role. Need existing typed OriginalMethodCandidate/source method owner for Logical advice, not lexical word->member report-map."
+      ],
+      "sites": [
+        {
+          "path": "rust/tcl-lsp-core/src/implementation.rs",
+          "line": 94,
+          "symbol": "implementation / method_span",
+          "source_sha256": "a334fbf2051429141022b0c30d9dab46e04816f1cd1f2204e1ed2d0c0541283a",
+          "source_line": "    // Case 2/3: the word names a method",
+          "purpose": "Logical implementation provider after generic cursor word does not select a class."
+        }
+      ]
+    },
+    {
+      "id": "lsp-editor-browser-source-bytes-and-census",
+      "pointer": "/units/589",
+      "work_kind": "caller_migration",
+      "purpose": [
+        "Original closed-file bytes and source inventory completeness transport."
+      ],
+      "required_change": [
+        "Nonfatal UTF8 decoder silently replaces invalid source bytes/name units before original-source channel is retained; original provider byte semantics lost. Budget/unreadable/search failures logged but no typed incomplete-project obligation sent to server, so downstream index uniqueness/absence cannot use partial roster as complete. Need explicit admitted document Unicode/byte policy and source-census incompleteness transport. Pack manifest names only endsWith checked before Uri.joinPath; worker bare-name owner separately rejects unsupported names."
+      ],
+      "sites": [
+        {
+          "path": "editors/vscode/src/webWorkspaceSync.ts",
+          "line": 191,
+          "symbol": "decoder / primeWorkspace / readPackManifest",
+          "source_sha256": "fd8b61a80a12518c3997b79863f848012722d0939cc42a812e9ee742a3aa99a3",
+          "source_line": "const decoder = new TextDecoder(\"utf-8\");",
+          "purpose": "Original closed-file bytes and source inventory completeness transport."
+        }
+      ]
+    },
+    {
+      "id": "lsp-editor-fix-payload",
+      "pointer": "/units/531",
+      "work_kind": "caller_migration",
+      "purpose": [
+        "AI fix route for existing document and subsequent Apply fixes command."
+      ],
+      "required_change": [
+        "Initial document source/version/current dialect not retained in apply payload, while loop already writes same document; invoke genuine checked source action rather than URI+code authority."
+      ],
+      "sites": [
+        {
+          "path": "editors/vscode/src/chat/commands/fix.ts",
+          "line": 71,
+          "symbol": "handleFix",
+          "source_sha256": "ad19cdac9dd88aa661fd5c0a4355e4d6c15a7db00387dc5bc0500f617dbe8ae8",
+          "source_line": "    arguments: [result.finalCode, uri.toString()],",
+          "purpose": "AI fix route for existing document and subsequent Apply fixes command."
+        }
+      ]
+    },
+    {
+      "id": "compiler.source.typed-member-kind-hierarchy:60",
+      "pointer": "/units/136",
+      "work_kind": "shared_owner_repair",
+      "purpose": "Actual MemberSide/Registry MemberKind + original member metadata, distinct constructor/destructor slots",
+      "required_change": "Transport typed member role/name through existing hierarchy/member selection APIs. Preserve instance vs class-side and actual source declaration context; constructor/destructor display text cannot reconstruct role. Shared-owner change with both entrypoints; actual caller adapter counted separately in LSP lane, unchanged downstream users dependencies.",
+      "sites": [
+        {
+          "path": "rust/tcl-compiler/src/analyser/class_hierarchy.rs",
+          "line": 60,
+          "symbol": "class_member_def/member_next_provider",
+          "source_sha256": "280f8af4854b3863c953c0958d41bd6a8ac205b0e2b618548a4618a9cf22d9b8",
+          "git_blob": "34ff65f3e0bda2d3c785066df6bc1b4d6c68442f",
+          "source_line": "pub fn class_member_def<'a>(class_def: &'a ClassDef, member: &str) -> Option<&'a MethodDef> {"
+        },
+        {
+          "path": "rust/tcl-compiler/src/analyser/class_hierarchy.rs",
+          "line": 346,
+          "symbol": "member_next_provider",
+          "source_sha256": "280f8af4854b3863c953c0958d41bd6a8ac205b0e2b618548a4618a9cf22d9b8",
+          "git_blob": "34ff65f3e0bda2d3c785066df6bc1b4d6c68442f",
+          "source_line": "    pub fn member_next_provider("
+        }
+      ]
+    }
+  ],
+  "recommendation": {
+    "unique_existing_baseline_ids_touched": 4,
+    "LogicalV3": {
+      "baseline_callers": [
+        "lsp-type-hierarchy-logical-report-selection",
+        "lsp-implementation-logical-bare-method"
+      ],
+      "eligible_status": "implementation pending validation for each bounded caller purpose; not verified",
+      "compiler60": "Partial overlap only; do not close or recount typed member owner. Actual class_member_def/member_next_provider and constructor/destructor purposes are broader and unchanged by this packet.",
+      "existing_owner_overlap": "annex /additional_unverified_obligations/24 lsp.type-definition.logical-member-source-frame-owner already owns genuine selected Logical member/frame; no second selected-member owner count.",
+      "proposed_new_owner_facet": {
+        "proposed_id": "compiler.source.logical-class-relation-parent-horizon-owner",
+        "kind": "shared_owner_extension",
+        "count_once": 1,
+        "scope": "Policy-free genuine Logical relation provider at exact retained declaration parent horizon, same existing AdviceGraph lookup/kernel; typed relation slot/operation/side/fullvector/body/current input and explicit unavailable-vs-Registry-root.",
+        "why_distinct": "compiler60 is typed MemberKind/member selection, annex12 is retained instance visibility/MRO, annex24 is selected member/frame and receiver Self; none issues this policy-free Logical parent relation query.",
+        "exclude_counts": [
+          "new carrier/helper/query variants",
+          "existing member selection extension",
+          "unchanged Native relation path",
+          "test/output-coordinate fixes"
+        ]
+      }
+    },
+    "BrowserV10": {
+      "baseline_caller": "lsp-editor-browser-source-bytes-and-census",
+      "implemented_scope": "Exact admitted original source bytes and explicit typed root census transport through real provider/index scan/final current plan gate.",
+      "whole_unit_residual": "readPackManifest remains endsWith-only before Uri.joinPath; its explicit baseline anchor/final required_change sentence is unchanged. Worker bare-name rejection is later and is not host filename admission. Recommend partial until Root explicitly reconciles this sentence or implements remaining owner adoption. No new unit for residual.",
+      "proposed_new_owner_facet": {
+        "proposed_id": "lsp.owner.current-host-workspace-source-census",
+        "kind": "shared_owner_extension",
+        "count_once": 1,
+        "scope": "One grouped genuine current complete census owner: session/root/host selection/store revision + independent actual server traversal coverage + retained index/plan revisions and final root/store currentness; host marker alone cannot grant absence.",
+        "why_distinct": "Baseline589 is actual host byte/census transport caller. Annex37 is exact URI/path/provider alias identity and publication, not complete source roster; annex38 vfs-upsert URI adoption is already counted and is not counted again. No other required owner row among exact vfs/workspace_index/host anchors supplies this census issuer.",
+        "exclude_counts": [
+          "enum/helper/public API multiplicity",
+          "each root/failure cause",
+          "each WASM hop",
+          "scan/recovery/token helpers",
+          "already-counted URI upsert adopter",
+          "independent Registry/Native name or edit permissions"
+        ]
+      }
+    },
+    "NodeFixV4": {
+      "baseline_caller": "lsp-editor-fix-payload",
+      "eligible_status": "Recorded partial implementation remainder addressed; recommend implementation pending validation, not new baseline unit or verified completion.",
+      "closed_recorded_remainder": [
+        "removes forced f5-irules target for generic existing-document fix",
+        "initial diagnostics/empty result come from genuine completed full proposal report",
+        "effective resource dialect is producer-bound in report and used for actual prompt",
+        "later report dialect/inputsEpoch pinned and initial report refuses override reuse",
+        "existing checked DocumentWriteReceipt/Apply sink and no intermediate original writes preserved"
+      ],
+      "existing_owner_overlap": "annex53 lsp.owner.isolated-configured-proposal-diagnostics is extended/hardened, not recounted. Node Apply sink unit534 already implemented; do not count sink or agentic-loop dependency again.",
+      "new_owner_facets": 0
+    }
+  },
+  "new_owner_facet_total_proposed_only": 2,
+  "limitations": [
+    "No new tests/builds/host/oracle execution for this recommendation. Independent source reviews are not gate/efficacy acceptance.",
+    "LogicalV3 retains known original top-level bare run fixture conflict; no receiver may be fabricated to satisfy it.",
+    "Compiler60 remains broader partial; no constructors/destructors/Native dispatch complete claim.",
+    "Browser pack manifest filename admission residual remains explicit.",
+    "No partial-to-full or new-annex count is applied here; Root must reconcile actual implementation statuses and global totals."
+  ]
+}

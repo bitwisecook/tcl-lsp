@@ -2483,6 +2483,16 @@ pub struct WorkspaceIndex {
     slots: std::collections::HashMap<String, usize>,
     free_slots: Vec<usize>,
     generation: u64,
+    /// Provider-issued workspace roster captured for the current scan. A
+    /// browser host must retain a current complete receipt before absence can
+    /// authorize cross-document rename; positive readonly rows remain useful.
+    source_inventory_provider: Option<crate::vfs::WorkspaceSourceInventoryProvider>,
+    source_inventory_observations: Vec<crate::vfs::WorkspaceSourceInventoryObservation>,
+    /// Completeness of the server's own bounded directory scan, independent
+    /// of host census completeness.
+    source_inventory_scan_complete: Option<bool>,
+    /// Changes when the scan receipt itself is replaced or invalidated.
+    source_inventory_revision: u64,
     /// Last index-wide document revision allocated. Tokens must not live on a
     /// recyclable slot: remove A, reuse its slot for B, then re-add A in a new
     /// slot would otherwise let A's old and new records share a token.
@@ -3860,12 +3870,147 @@ impl WorkspaceIndex {
             .as_ref()
     }
 
+    /// Install the source-store census captured for a workspace scan. This
+    /// records the actual provider observations, not a detached completion flag.
+    pub fn set_source_inventory_snapshot(
+        &mut self,
+        provider: crate::vfs::WorkspaceSourceInventoryProvider,
+        observations: Vec<crate::vfs::WorkspaceSourceInventoryObservation>,
+    ) {
+        self.set_source_inventory_snapshot_with_scan_status(provider, observations, true);
+    }
+
+    /// Install provider observations together with the server's own file-scan
+    /// result. A complete host census cannot certify a truncated server index.
+    pub fn set_source_inventory_snapshot_with_scan_status(
+        &mut self,
+        provider: crate::vfs::WorkspaceSourceInventoryProvider,
+        observations: Vec<crate::vfs::WorkspaceSourceInventoryObservation>,
+        scan_complete: bool,
+    ) {
+        self.source_inventory_provider = Some(provider);
+        self.source_inventory_observations = observations;
+        self.source_inventory_scan_complete = Some(scan_complete);
+        self.source_inventory_revision = self
+            .source_inventory_revision
+            .checked_add(1)
+            .expect("source inventory revision exhausted");
+    }
+
+    /// Withdraw absence authority while a new workspace scan is in progress.
+    pub fn invalidate_source_inventory_scan(&mut self) {
+        self.source_inventory_scan_complete = Some(false);
+        self.source_inventory_revision = self
+            .source_inventory_revision
+            .checked_add(1)
+            .expect("source inventory revision exhausted");
+    }
+
+    /// Whether the supplied observations exactly match the stored receipt
+    /// snapshot, without interpreting the server's scan-completeness result.
+    /// This is only for deciding whether a known failed scan would be repeated;
+    /// it grants no absence or edit authority.
+    #[must_use]
+    pub fn source_inventory_observations_match(
+        &self,
+        provider: crate::vfs::WorkspaceSourceInventoryProvider,
+        observations: &[crate::vfs::WorkspaceSourceInventoryObservation],
+    ) -> bool {
+        self.source_inventory_provider == Some(provider)
+            && observations == self.source_inventory_observations
+    }
+
+    /// Revision for the exact provider receipt used by a workspace query plan.
+    #[must_use]
+    pub const fn source_inventory_revision(&self) -> u64 {
+        self.source_inventory_revision
+    }
+
+    /// Whether the server's own file scan was complete for this index.
+    #[must_use]
+    pub const fn source_inventory_scan_complete(&self) -> Option<bool> {
+        self.source_inventory_scan_complete
+    }
+
+    /// Roots whose source inventory was captured with this workspace index.
+    #[must_use]
+    pub fn source_inventory_roots(&self) -> Vec<std::path::PathBuf> {
+        self.source_inventory_observations
+            .iter()
+            .map(|observation| match observation {
+                crate::vfs::WorkspaceSourceInventoryObservation::NotTracked => None,
+                crate::vfs::WorkspaceSourceInventoryObservation::Missing { root, .. } => {
+                    Some(root.clone())
+                }
+                crate::vfs::WorkspaceSourceInventoryObservation::Stale { receipt, .. }
+                | crate::vfs::WorkspaceSourceInventoryObservation::Current(receipt) => {
+                    Some(receipt.root.clone())
+                }
+            })
+            .flatten()
+            .collect()
+    }
+
+    /// Whether a new actual provider snapshot is the one this index used and
+    /// still admits every selected root. Used at the final workspace edit gate.
+    #[must_use]
+    pub fn source_inventory_is_current(
+        &self,
+        provider: crate::vfs::WorkspaceSourceInventoryProvider,
+        current: &[crate::vfs::WorkspaceSourceInventoryObservation],
+    ) -> bool {
+        if self.source_inventory_scan_complete == Some(false) {
+            return false;
+        }
+        if provider == crate::vfs::WorkspaceSourceInventoryProvider::Filesystem {
+            return self.source_inventory_provider.is_none()
+                || self.source_inventory_provider == Some(provider);
+        }
+        if self.source_inventory_provider != Some(provider) {
+            return false;
+        }
+        !current.is_empty()
+            && current == self.source_inventory_observations
+            && current
+                .iter()
+                .all(crate::vfs::WorkspaceSourceInventoryObservation::admits_complete_inventory)
+    }
+
+    /// Recheck the scan's receipt against its live source store. A workspace
+    /// edit may use absence only while this exact census still matches.
+    #[must_use]
+    pub fn source_inventory_matches_store(&self, store: &dyn crate::vfs::SourceStore) -> bool {
+        let provider = store.workspace_source_inventory_provider();
+        let roots = self.source_inventory_roots();
+        let current = roots
+            .iter()
+            .map(|root| store.workspace_source_inventory(root))
+            .collect::<Vec<_>>();
+        self.source_inventory_is_current(provider, &current)
+    }
+
     /// Whether every retained provider independently selected lexical advice.
-    /// This compatibility eligibility supplies no lookup or rename permission;
-    /// callers still require complete current source and an independent edit plan.
+    /// A host-tracked source roster and the server's own scan must both be
+    /// complete in this index snapshot; callers with a live store must also
+    /// validate currentness.
     #[must_use]
     pub fn allows_lexical_rename_advice(&self) -> bool {
-        !self.slots.is_empty()
+        let sources_admit_absence = match self.source_inventory_provider {
+            Some(crate::vfs::WorkspaceSourceInventoryProvider::HostReported) => {
+                self.source_inventory_scan_complete != Some(false)
+                    && !self.source_inventory_observations.is_empty()
+                    && self.source_inventory_observations.iter().all(
+                        crate::vfs::WorkspaceSourceInventoryObservation::admits_complete_inventory,
+                    )
+            }
+            Some(crate::vfs::WorkspaceSourceInventoryProvider::Filesystem) => {
+                self.source_inventory_scan_complete != Some(false)
+            }
+            None => true,
+            Some(crate::vfs::WorkspaceSourceInventoryProvider::Untracked) => false,
+        };
+        sources_admit_absence
+            && !self.slots.is_empty()
             && self.slots.iter().all(|(uri, &slot)| {
                 self.docs.get(slot).is_some_and(|document| {
                     document.uri == *uri
@@ -13953,6 +14098,85 @@ mod original_settlement_transport_tests {
     }
 
     #[test]
+    fn host_roster_must_be_complete_before_lexical_rename_advice_is_allowed() {
+        let point =
+            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_79);
+        let profile = tcl_dialect::DialectProfile::projected_from_point(
+            "inventory-logical-jim079",
+            &[],
+            "Logical source advice",
+            point,
+        )
+        .intern();
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::context_for_profile(profile),
+            tcl_lexer::LexerConfig::for_profile(Some(profile)),
+        );
+        let analysis = Analyser::new()
+            .with_resolved_input(input)
+            .analyse("proc lexical {} {}", profile.name);
+        let uri = "file:///workspace/lexical.tcl";
+        let mut index = WorkspaceIndex::from_documents([(uri, &analysis)]);
+        let store = crate::vfs::MemoryStore::new();
+        let root = std::path::Path::new("/workspace");
+
+        store.set_workspace_source_inventory(
+            root,
+            "selection-v1",
+            crate::vfs::WorkspaceSourceInventoryCompleteness::Incomplete,
+        );
+        index.set_source_inventory_snapshot(
+            crate::vfs::WorkspaceSourceInventoryProvider::HostReported,
+            vec![store.workspace_source_inventory(root)],
+        );
+        assert!(!index.allows_lexical_rename_advice());
+        assert!(!index.source_inventory_matches_store(&store));
+
+        store.set_workspace_source_inventory(
+            root,
+            "selection-v1",
+            crate::vfs::WorkspaceSourceInventoryCompleteness::Complete,
+        );
+        index.set_source_inventory_snapshot(
+            crate::vfs::WorkspaceSourceInventoryProvider::HostReported,
+            vec![store.workspace_source_inventory(root)],
+        );
+        assert!(index.allows_lexical_rename_advice());
+        assert!(index.source_inventory_matches_store(&store));
+        index.set_source_inventory_snapshot_with_scan_status(
+            crate::vfs::WorkspaceSourceInventoryProvider::HostReported,
+            vec![store.workspace_source_inventory(root)],
+            false,
+        );
+        assert!(
+            !index.allows_lexical_rename_advice(),
+            "a complete host roster cannot close a truncated server index",
+        );
+        assert!(
+            !index.source_inventory_matches_store(&store),
+            "current host bytes do not prove the server indexed the full roster",
+        );
+        index.set_source_inventory_snapshot_with_scan_status(
+            crate::vfs::WorkspaceSourceInventoryProvider::HostReported,
+            vec![store.workspace_source_inventory(root)],
+            true,
+        );
+        assert!(index.allows_lexical_rename_advice());
+        store.set_workspace_source_inventory(
+            root,
+            "selection-v2",
+            crate::vfs::WorkspaceSourceInventoryCompleteness::Complete,
+        );
+        assert!(index.allows_lexical_rename_advice());
+        assert!(
+            !index.source_inventory_matches_store(&store),
+            "the final gate must reject a new host selection not captured by this index",
+        );
+    }
+
+    #[test]
     fn logical_declaration_source_views_use_original_occurrences_and_current_input() {
         let source = "proc helper {} {}; proc helper {} {}; proc ::fixed {} {}";
         let standalone = Analyser::new().analyse(source, "tcl");
@@ -14496,11 +14720,14 @@ mod logical_navigation_candidate_tests {
             )
             .unwrap();
             assert!(
-                index.logical_command_candidates(&request, "caller").is_empty(),
+                index
+                    .logical_command_candidates(&request, "caller")
+                    .is_empty(),
                 "{source}"
             );
         }
-        let source = "namespace eval A {proc helper {x} {}; rename helper {}; proc caller {} {helper ONE}}";
+        let source =
+            "namespace eval A {proc helper {x} {}; rename helper {}; proc caller {} {helper ONE}}";
         let analysis = Analyser::new().analyse(source, "tcl");
         let request = tcl_compiler::registry_invocation::source_structure::source_logical_command_candidates_at(
             source,
@@ -14881,6 +15108,11 @@ mod original_source_order_transport_tests {
         index.add_document(uri, &other);
         // Accumulation is intentional for source-site views; a foreign source
         // issuer cannot replace the original context of existing rows.
-        assert!(index.run_order().navigation_precedence(first, second).is_none());
+        assert!(
+            index
+                .run_order()
+                .navigation_precedence(first, second)
+                .is_none()
+        );
     }
 }

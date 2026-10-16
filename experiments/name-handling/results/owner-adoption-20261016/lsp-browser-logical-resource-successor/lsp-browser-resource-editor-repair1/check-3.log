@@ -1,0 +1,9 @@
+
+> tcl-lsp@0.0.0-dev bundle
+> esbuild ./src/extension.ts --bundle --platform=node --target=node18 --format=cjs --external:vscode --outfile=out/extension.js --sourcemap --minify --tree-shaking=true --define:__SCREENSHOT_MODE__=false --loader:.md=text
+
+
+  out/extension.js      781.8kb
+  out/extension.js.map    2.5mb
+
+⚡ Done in 63ms

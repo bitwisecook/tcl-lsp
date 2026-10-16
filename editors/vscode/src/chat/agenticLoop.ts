@@ -27,11 +27,13 @@ import {
   snapshotDocumentSource,
 } from "./codeUtils";
 import { sendContextualRequest } from "./contextPack";
+import { buildPrompt } from "./promptLoader";
 import {
   acquireSessionDialectOverride,
   isAnalysisContextCurrent,
   waitForDiagnostics,
   waitForProposalDiagnostics,
+  proposalDiagnosticsReportMatches,
   formatDiagnosticsForLLM,
   SessionDialectOverrideLease,
   ProposalDiagnosticsReport,
@@ -69,6 +71,7 @@ export interface AgenticLoopOptions {
   targetDialect?: string;
   sourceSnapshot?: DocumentSourceSnapshot;
   sessionOverrideLease?: SessionDialectOverrideLease;
+  initialProposalReport?: ProposalDiagnosticsReport;
 }
 
 /**
@@ -99,6 +102,34 @@ export async function runAgenticLoop(
       !isAnalysisContextCurrent(documentSnapshot.analysisContext))
   ) {
     throw new Error("Document or analysis context changed before the source-fix action started");
+  }
+
+  let loopContext = ctx;
+  if (options.initialProposalReport) {
+    if (targetDialect || options.sessionOverrideLease) {
+      throw new Error("A proposal report cannot be reused with a dialect override");
+    }
+    if (
+      !doc ||
+      !documentSnapshot ||
+      !proposalDiagnosticsReportMatches(options.initialProposalReport, {
+        document: doc,
+        uri: documentSnapshot.uri,
+        version: documentSnapshot.version,
+        source: documentSnapshot.fullSource,
+        proposal: initialCode,
+      })
+    ) {
+      throw new Error(
+        "The initial proposal report no longer matches its source document and session",
+      );
+    }
+    // Bind both diagnostic selection and the dialect-specific system prompt to
+    // the same completed server report; do not join a separate resource hint.
+    loopContext = {
+      ...ctx,
+      systemPrompt: buildPrompt(options.initialProposalReport.response.dialectId),
+    };
   }
 
   let overrideLease = options.sessionOverrideLease;
@@ -137,6 +168,7 @@ export async function runAgenticLoop(
       let iteration = 0;
       let previousCount = Infinity;
       let proposalReport: AgenticResult["proposalReport"];
+      let nextProposalReport = options.initialProposalReport;
 
       for (iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
         if (ctx.token.isCancellationRequested) break;
@@ -167,10 +199,23 @@ export async function runAgenticLoop(
         let diagnostics: readonly vscode.Diagnostic[];
         if (analyzeAsProposal) {
           if (!documentSnapshot) throw new Error("Proposal analysis has no source snapshot");
-          const report = await waitForProposalDiagnostics(doc.uri, currentCode, {
-            timeout: DIAGNOSTIC_WAIT_MS,
-            expectedSource: documentSnapshot.fullSource,
-          });
+          const report =
+            nextProposalReport ??
+            (await waitForProposalDiagnostics(doc.uri, currentCode, {
+              timeout: DIAGNOSTIC_WAIT_MS,
+              expectedSource: documentSnapshot.fullSource,
+            }));
+          nextProposalReport = undefined;
+          if (report.response.proposal !== currentCode) {
+            throw new Error("Proposal diagnostics do not match the current Tcl source");
+          }
+          if (
+            proposalReport &&
+            (report.response.dialectId !== proposalReport.response.dialectId ||
+              report.response.inputsEpoch !== proposalReport.response.inputsEpoch)
+          ) {
+            throw new Error("The resource analysis context changed during the source-fix action");
+          }
           proposalReport = Object.freeze({ ...report, sourceSnapshot: documentSnapshot });
           diagnostics = report.diagnostics;
         } else {
@@ -203,9 +248,14 @@ export async function runAgenticLoop(
 
         ctx.response.progress(`Found ${actionable.length} issue(s). Asking LLM to fix...`);
         const diagnosticReport = formatDiagnosticsForLLM(actionable, currentCode);
+        const selectedDialect = proposalReport?.response.dialectId;
+        if (analyzeAsProposal && !selectedDialect) {
+          throw new Error("The server did not provide the selected resource dialect");
+        }
         const llmResponse = await sendContextualRequest(
-          ctx,
-          `Here is the current Tcl code:
+          loopContext,
+          `The language server selected resource dialect ${selectedDialect ?? "Tcl"}.\n` +
+            `Here is the current Tcl code:
 \`\`\`tcl\n${currentCode}\n\`\`\`\n\n` +
             `The Tcl LSP found these issues:\n${diagnosticReport}\n\n` +
             `Fix all the issues listed above. Return ONLY the complete corrected Tcl code in a single \`\`\`tcl code block. Do not include any explanation outside the code block.`,
@@ -243,6 +293,13 @@ export async function runAgenticLoop(
             timeout: DIAGNOSTIC_WAIT_MS,
             expectedSource: documentSnapshot.fullSource,
           });
+          if (
+            proposalReport &&
+            (report.response.dialectId !== proposalReport.response.dialectId ||
+              report.response.inputsEpoch !== proposalReport.response.inputsEpoch)
+          ) {
+            throw new Error("The resource analysis context changed during the source-fix action");
+          }
           proposalReport = Object.freeze({ ...report, sourceSnapshot: documentSnapshot });
           finalDiags = report.diagnostics;
         } else {

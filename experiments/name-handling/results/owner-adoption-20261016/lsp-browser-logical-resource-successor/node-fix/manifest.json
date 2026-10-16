@@ -1,0 +1,35 @@
+{
+  "candidate": "lsp-fix-resource-context-v4",
+  "status": "TMP-only; V3 review follow-up rejects report reuse with override options",
+  "files": {
+    "rust/tcl-lsp-server/src/current_diagnostics.rs": {
+      "before_sha256": "559ff8a1a51ad85afdd71069dac3debf906c1838cde3e0d72d49f2e480c5c6e8",
+      "after_sha256": "9ab2f87ff29b4729ca9e1dbe9d026c950e0aa4f9fe3f3205b984c42c70c935df"
+    },
+    "editors/vscode/src/chat/diagnosticAccess.ts": {
+      "before_sha256": "972a74057ce69f814de8ca6558f58ed361f09f567971b141f130cc868cfe0c5c",
+      "after_sha256": "4c19d0f3af66648a8dc7d61de2f30aa470b1d379bac5527cbb933fb82ddf34ed"
+    },
+    "editors/vscode/src/chat/agenticLoop.ts": {
+      "before_sha256": "0f6813ec2abe7c4e5fd9f16cbc8e3532a3feb1a42f4c31334fd9f390440012b6",
+      "after_sha256": "cd9ede3fa8e8c3422f414fa94ef63149a5561e32670ce93db399d09548ec0d70"
+    },
+    "editors/vscode/src/chat/commands/fix.ts": {
+      "before_sha256": "de86665c1ba370297cca85854c3823439c599069eb9e28905c8053a7b2e51735",
+      "after_sha256": "7b6ccbcdbc7326bc1ac3cb0f9f8f8342f8e7ae2b613d93c41e56ad59ed214044"
+    },
+    "editors/vscode/src/test/currentDiagnostics.test.ts": {
+      "before_sha256": "00608407bf977bbc3ea7f1e26ee6d832bd141bad84703fd2c9c64aed52d1337c",
+      "after_sha256": "462c3e284606ce47857ac4588aa8454b31682901cabec03e30b3aceb9ef84801"
+    }
+  },
+  "patch_sha256": "bbfb4a9e22c1b6d6b3a41790b639de64fbb4709f2bd70c6e6ac5e8dde406c19e",
+  "parent_candidate_patch_sha256": "43aeb339ca40d21ef5cdca8af9f6b35a55d358c55b094d1fafcde489fd61b63c",
+  "validation": {
+    "patch_apply_check": "PASS",
+    "prettier": "PASS for changed TypeScript files",
+    "tests": "not run",
+    "typecheck": "not run",
+    "builds": "not run"
+  }
+}

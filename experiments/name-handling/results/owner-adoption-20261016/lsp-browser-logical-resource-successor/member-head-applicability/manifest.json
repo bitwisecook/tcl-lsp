@@ -1,0 +1,51 @@
+{
+  "schema": 1,
+  "status": "source-only pending independent review; unexecuted",
+  "purpose": "existing partial readonly original-method reference head applicability",
+  "new_owner_count": 0,
+  "patch": {
+    "path": "/tmp/lsp-member-original-head-applicability-v1/repair.patch",
+    "sha256": "cac26545f642f61c1d97fde29d822b3debf671ef4704594cb6ad4fa4c0c3757b"
+  },
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/analyser/class_hierarchy/original_metadata/source_method_reference.rs",
+      "before_sha256": "054f30e18818f4c013855f799b4ed3b3e6e33b0585018441d6d3542622e0afa4",
+      "after_sha256": "b267af4109b08009284813a95603e8f787a8b28bd2d4b2bc5ff8e0238523778e",
+      "before": "/tmp/lsp-member-original-head-applicability-v1/base/rust/tcl-compiler/src/analyser/class_hierarchy/original_metadata/source_method_reference.rs",
+      "after": "/tmp/lsp-member-original-head-applicability-v1/edit/rust/tcl-compiler/src/analyser/class_hierarchy/original_metadata/source_method_reference.rs"
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/original-method-candidates.md",
+      "before_sha256": "b6c9fc74aa50b674ebe28e481b4fe14f53f9ed450483cb0b7d888d2733d2e5d7",
+      "after_sha256": "7eab5b5db2596ff9d10282715061cbae2aa965260210d776cba182ae5cfb33f5",
+      "before": "/tmp/lsp-member-original-head-applicability-v1/base/docs/design/analysis/name-resolution-proofs/original-method-candidates.md",
+      "after": "/tmp/lsp-member-original-head-applicability-v1/edit/docs/design/analysis/name-resolution-proofs/original-method-candidates.md"
+    }
+  ],
+  "source_basis": {
+    "path": "/tmp/lsp-member-original-head-applicability-v1/SOURCE-BASIS.md",
+    "sha256": "28312b107d0cf447a6c341b0ee7f8901840c3d5f58b7d0ffa2e3e88326a07337"
+  },
+  "original_failure": {
+    "path": "/workspace/naming-validation/lsp-source-order-member-head-successor/targeted12-results/test-002.log",
+    "sha256": "f4fb2c6b6f417faed5958b0e0ba0e0020725c90e2dce3ddfeeb2a37c996f2a8e",
+    "selector": "analyser::class_hierarchy::original_metadata::source_method_reference::tests::readonly_self_selectors_refuse_unowned_wrong_context_and_ambiguous_sources",
+    "failure": "source_method_reference.rs:401 ::my ping"
+  },
+  "new_controls": [
+    {
+      "selector": "analyser::class_hierarchy::original_metadata::source_method_reference::original_head_applicability_tests::readonly_self_reference_requires_the_selected_descriptor_for_original_head",
+      "crate": "tcl-compiler",
+      "module_cfg": "#[cfg(test)]",
+      "executed": false
+    }
+  ],
+  "preservation": {
+    "old_test_suffix_sha256": "dca26a12d0dbc67b3649a2fa0b042a1f3c7af8469750b93369c6754100ee90ca",
+    "original_body_owner_and_following_pretest_sha256": "365e7dee5803066690f3f4bb399b1cbfc8fef1e37b253aa0baafad99ce675585",
+    "old_test_suffix_byte_equal": true,
+    "original_body_owner_byte_equal": true
+  },
+  "authorization": "TMP only; no main/Git/Cargo/test/list/trace"
+}

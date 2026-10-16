@@ -787,23 +787,40 @@ impl<'a> CommentLineWalker<'a> {
             return;
         };
         let command = command.clone().shifted_by(base_offset);
-        let Some(words) = source.words(&command) else {
+        let Some(words) = source
+            .words(&command)
+            .or_else(|| source.conditional_native_case_words(&command))
+        else {
             return;
         };
         let context = source.editing_input().context_registry();
-        let grammar = words
-            .with_source_schema(&context, |schema| {
-                context
-                    .context()
-                    .resolve_spec(context.commands(), schema.canonical_command)
-                    .and_then(|spec| spec.definition_body)
+        let conditional_native = matches!(
+            words.source(),
+            crate::registry_invocation::source_structure::OriginalRegistrySource::ConditionalNativeSource(
+                _
+            )
+        );
+        let grammar = (!conditional_native)
+            .then(|| {
+                words
+                    .with_source_schema(&context, |schema| {
+                        context
+                            .context()
+                            .resolve_spec(context.commands(), schema.canonical_command)
+                            .and_then(|spec| spec.definition_body)
+                    })
+                    .flatten()
             })
             .flatten();
-        let mut children = words
-            .source_script_bodies(&context)
-            .into_iter()
-            .map(|body| body.content_span())
-            .collect::<Vec<_>>();
+        let mut children = if conditional_native {
+            Vec::new()
+        } else {
+            words
+                .source_script_bodies(&context)
+                .into_iter()
+                .map(|body| body.content_span())
+                .collect::<Vec<_>>()
+        };
         // Case candidates are syntax-only even when the subject/option
         // selection is unknown; retain that residual while visiting their
         // original spans, without treating any candidate as entered.

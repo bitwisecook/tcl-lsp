@@ -145,6 +145,7 @@ mod source_transition_advice;
 pub use source_catalogue_advice::{
     OriginalCatalogueSourceCandidate, OriginalCatalogueSourceObligation,
 };
+pub(crate) use source_transition_advice::LogicalSourceClassRelationProvider;
 pub(crate) use source_transition_advice::original_single_command_substitution_words;
 pub use source_transition_advice::{
     OriginalLogicalAbsoluteCommandCandidate, OriginalLogicalCallbackCandidates,

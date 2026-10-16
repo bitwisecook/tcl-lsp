@@ -1,0 +1,70 @@
+{
+  "artifact": "conditional-native-case-source-v3",
+  "status": "source-only candidate; no build/test/diagnostic efficacy claim",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "before_sha256": "01a6d2a0cd05edb81cc4c14ade69a5e2b57cd62a788f18a5934122855951447c",
+      "after_sha256": "2565cef885ca1e00075ba96503af9954381b8490977bc5dbfacd3f6aa85ad3b4",
+      "current_sha256": "01a6d2a0cd05edb81cc4c14ade69a5e2b57cd62a788f18a5934122855951447c",
+      "current_matches_before": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/utils.rs",
+      "before_sha256": "c0d8f4c067b56dd1a79267b6941ba3d451e0c2353bf0c7eacf80cfa8bfcf90ce",
+      "after_sha256": "9da1f71ffe0ad68062625eb7e76cc6470ea3b59856ae0d7ff47651b41aab6453",
+      "current_sha256": "c0d8f4c067b56dd1a79267b6941ba3d451e0c2353bf0c7eacf80cfa8bfcf90ce",
+      "current_matches_before": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/object_types/original_collection_sources.rs",
+      "before_sha256": "a1e27fde606278da7a556a870598d688906d3e898aaf69a2d3acdcca8c2eac56",
+      "after_sha256": "88b3a3de7d676164755bf70da2242087805ae3a8075aca4d6cc0953a7f36488b",
+      "current_sha256": "a1e27fde606278da7a556a870598d688906d3e898aaf69a2d3acdcca8c2eac56",
+      "current_matches_before": true
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/original-editor-body-structure.md",
+      "before_sha256": "4372e34776a9aaa300e97031425e6022c46feb4bf93e13c982fb9288f09cd160",
+      "after_sha256": "abe40c51f9f6b90536d1a35c610fb7b81f997ba0139600f5da8313e37968c1c9",
+      "current_sha256": "4372e34776a9aaa300e97031425e6022c46feb4bf93e13c982fb9288f09cd160",
+      "current_matches_before": true
+    }
+  ],
+  "sourceBasis": [
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "symbols": [
+        "OriginalSourceRegistryContext::conditional_native_case_words",
+        "conditional_native_case_source_words",
+        "OriginalRegistrySource::ConditionalNativeSource"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/utils.rs",
+      "symbols": [
+        "CommentLineWalker::visit_source_schema"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/object_types/original_collection_sources.rs",
+      "symbols": [
+        "collection_lookup_is_available"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation.rs",
+      "symbols": [
+        "original_registry_invocation_assistance_with_metadata_context",
+        "RegistryInvocationAssistance::{unknown_residual,may_be_absent}"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs",
+      "symbols": [
+        "conditional_source_case_bodies_for",
+        "OriginalConditionalSourceCaseBodies::selection_unknown"
+      ]
+    }
+  ]
+}

@@ -1567,6 +1567,7 @@ impl Analyser {
         bodies: &mut CollectedDefinitionBodies,
     ) {
         self.retain_original_member_metadata(grammar, cmd, class_def, scope_path);
+        self.retain_logical_relation_command(grammar, cmd, class_def);
         let spliced = splice_static_member_expansions(&self.source, cmd, self.file_lexer_config());
         let (texts, argv) = spliced.as_ref().map_or(
             (cmd.texts.as_slice(), cmd.argv.as_slice()),
@@ -1596,6 +1597,11 @@ impl Analyser {
             argv,
             self.file_lexer_config(),
         );
+        if expanded.is_some() && self.selected_logical_declaration_advice() {
+            class_def
+                .original_members
+                .mark_logical_relation_coverage_unavailable();
+        }
         let member_calls: Vec<(&[String], &[Token])> = expanded.as_ref().map_or_else(
             || vec![(texts, argv)],
             |inner| {
@@ -1648,6 +1654,37 @@ impl Analyser {
             Some(self.analysis_context().context().authoring_query()),
             &mut bodies.accessors,
             &mut bodies.initialisers,
+        );
+    }
+
+    fn retain_logical_relation_command(
+        &self,
+        grammar: &DefinitionBodyGrammar,
+        cmd: &crate::segmenter::SegmentedCommand,
+        class: &mut ClassDef,
+    ) {
+        let Some((statement, input, words)) = self.original_logical_member_words(grammar, cmd)
+        else {
+            return;
+        };
+        if matches!(
+            statement.row.effect,
+            MemberEffect::Configuration | MemberEffect::InitScript { .. }
+        ) {
+            class
+                .original_members
+                .mark_logical_relation_coverage_unavailable();
+            return;
+        }
+        let MemberEffect::Relation { slot: relation } = statement.row.effect else {
+            return;
+        };
+        let side = member_side(statement.row.receiver);
+        let slot = statement.member.slot;
+        class.original_members.retain_logical_relation_command(
+            input,
+            words,
+            (side, relation, slot, statement.row.slot_op),
         );
     }
 

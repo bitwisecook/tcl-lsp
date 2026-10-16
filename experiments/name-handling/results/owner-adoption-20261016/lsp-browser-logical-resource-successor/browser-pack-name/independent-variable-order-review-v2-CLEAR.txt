@@ -1,0 +1,10 @@
+SOURCE CLEAR — final V2 26fbe2ed4ca9946aa6002e85bb9ec9ea0a8afbc6dbfef717cf5a29265c89414e
+Manifest-v2 e76929e906573c40964fe3b0457b1e52bec238196b3e003545982ad79c811098.
+
+All six current beforeimages verified; independent fresh TMP fuzz0 application reproduced every manifest afterimage. V1 remains immutable. No execution/tests/build/typecheck/main/Git activity.
+
+Rust extracts the unchanged existing actual WASM mount component rule, shared directly by exported preflight and actual upsert. No competing TS path resolver: worker calls that export on the exact original string and returns a boolean over its request-specific transferred MessagePort. Host waits for true before joining or reading each manifest name, preserves exact accepted spelling including safe nested Unicode names, and retains the same upsert guard independently. False/nonboolean/throw/worker-unavailable/timeout cannot permit a name. Dedicated per-request channels avoid response/name mismatch. Synchronous postMessage failure closes both ports and clears timer; reply/timeout close host port. This is immutable name policy, no session/source/content currency or file-existence proof.
+
+New real custom FileSystemProvider control records exact reads and proves rejected parent path is never read while accepted nested Unicode spelling reaches upsert unchanged. Worker adapter test exercises actual MessagePort response plumbing; WASM e2e checks shared preflight/upsert policy agreement. Existing test assertions and budgets remain. All actual SourceStoreHost construction sites are adapted; no generated glue is hand-edited. Contract accurately scopes shared mount policy, not the broader browser byte/census owner.
+
+Runtime wasm-bindgen regeneration/export availability and browser/e2e acceptance remain Root build validation obligations. Source clear is not generated artifact/host efficacy acceptance; no completion or new owner count is claimed.

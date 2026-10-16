@@ -566,9 +566,10 @@ fn lexical_navigation_link(
         return None;
     };
     let word = words.operands().get(argument)?.as_ref()?.word()?;
-    segment.argv.get(written)?;
+    let token = segment.argv.get(written)?;
     let content = word.content_span().ok()?;
     let config = inputs.analysis.body_lexer_config?;
+    let logical = inputs.analysis.allows_lexical_declaration_advice();
     let (target, tooltip, anchor) = match navigation {
         SourceNavigationOperand::Package { .. } => {
             let name =
@@ -588,24 +589,31 @@ fn lexical_navigation_link(
                     inputs.analysis,
                     word,
                 )?;
-                // Entry constants reach this filename only when genuine
-                // earlier Written operands cannot execute substitutions/reads.
-                // Alias-bound values retain their separate capture issuer.
-                let _continuity = words.original_logical_static_operand_prefix_before(
-                    inputs
-                        .analysis
-                        .resolved_input
-                        .as_ref()?
-                        .borrowed_context_registry(),
-                    argument,
-                )?;
-                // This operand is read before its invocation's effects. The
-                // shared prefix owner excludes this and later observations;
-                // earlier unknown barriers remain in the retained inventory.
-                let prefix = inputs.assignments.before(segment.span.start());
+                // Logical entry constants require the genuine earlier-Written
+                // continuity receipt. The independent authored source simulation
+                // retains its original typed scope/inventory and grants no
+                // current Native value or public Native link.
+                let _continuity = if logical {
+                    Some(
+                        words.original_logical_static_operand_prefix_before(
+                            inputs
+                                .analysis
+                                .resolved_input
+                                .as_ref()?
+                                .borrowed_context_registry(),
+                            argument,
+                        )?,
+                    )
+                } else {
+                    None
+                };
+                // Logical filename evaluation precedes this invocation's own
+                // effects. All earlier unknown barriers remain. Authored source
+                // simulation keeps its independent complete-inventory fold.
+                let prefix = logical.then(|| inputs.assignments.before(segment.span.start()));
                 let constants =
                     tcl_compiler::auto_path_eval::fold_constant_assignments_with_imports(
-                        &prefix,
+                        prefix.as_ref().unwrap_or(inputs.assignments),
                         inputs.link_context.script_path,
                         inputs.imported_constants,
                     );
@@ -624,7 +632,11 @@ fn lexical_navigation_link(
             (
                 target,
                 value,
-                original_logical_link_anchor(inputs.source, config, word)?,
+                if logical {
+                    original_logical_link_anchor(inputs.source, config, word)?
+                } else {
+                    link_anchor_with_config(inputs.source, config, token)?
+                },
             )
         }
     };
@@ -2095,5 +2107,42 @@ mod original_logical_link_operand_order_tests {
                 "{source}"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod authored_source_link_purpose_tests {
+    use super::*;
+
+    #[test]
+    fn authored_jim_path_advice_keeps_scope_without_becoming_public_native_value() {
+        // naming.navigation.retained-path-source-inventory
+        // docs/design/analysis/name-resolution-proofs/retained-path-source-inventory.md
+        let source = "namespace eval N {set dir /FIRST; source $dir/a.tcl}; namespace eval N {source $dir/b.tcl}; source $dir/c.tcl";
+        let profile = tcl_registry::model::ingress::resolve_environment("jim").analyser_profile();
+        let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+        let analysis = super::tests::path_analysis(source, profile, config);
+        assert!(!analysis.allows_lexical_declaration_advice());
+        let context = LinkContext {
+            workspace_root: Some("/workspace"),
+            ..LinkContext::default()
+        };
+        let links = lexical_document_links_in_context(source, &analysis, &context);
+        assert_eq!(links.len(), 1, "{links:?}");
+        assert_eq!(links[0].target, "file:///FIRST/a.tcl");
+        assert!(document_links_from_analysis(source, &analysis, &context).is_empty());
+        let mut foreign = analysis.clone();
+        let mut changed_config = config;
+        changed_config.leading_bom = match config.leading_bom {
+            tcl_lexer::LeadingBom::Skip => tcl_lexer::LeadingBom::Content,
+            tcl_lexer::LeadingBom::Content => tcl_lexer::LeadingBom::Skip,
+        };
+        assert_ne!(changed_config, config);
+        foreign.body_lexer_config = Some(changed_config);
+        assert!(lexical_document_links_in_context(source, &foreign, &context).is_empty());
+        assert!(
+            lexical_document_links_in_context(&format!("# changed\n{source}"), &analysis, &context)
+                .is_empty()
+        );
     }
 }

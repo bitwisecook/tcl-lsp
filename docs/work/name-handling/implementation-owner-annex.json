@@ -1148,6 +1148,61 @@
         "verified_complete": false
       },
       "implementation_scope": "Exact whole RustV12/provider/recovery/poison source CLEAR plus4 actual endpoint controls and current-main/header union. Native compilation firstFAIL API/type/newtest Debug constraints; sameguard repair under review. Actualendpoint/portable/owner/repository gates pending. Selected original provider and unversioned disk typedunavailable. Syntaxcoverage supplies no graph/Native/Normal/edit grant."
+    },
+    {
+      "id": "compiler.source.logical-class-relation-parent-horizon-owner",
+      "kind": "shared_owner_extension",
+      "baseline_unit_ids": [
+        "lsp-type-hierarchy-logical-report-selection",
+        "lsp-implementation-logical-bare-method"
+      ],
+      "site_anchors": [
+        {
+          "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/source_relation_provider.rs",
+          "symbol": "LogicalSourceClassRelationRequest; logical_source_relation_provider"
+        },
+        {
+          "path": "rust/tcl-compiler/src/analyser/types/logical_members.rs",
+          "symbol": "LogicalSourceClassRelationProvider"
+        }
+      ],
+      "rationale": "One demonstrated missing policy-free Logical relation query at actual retained declaration-parent horizon, reusing AdviceGraph lookup/kernel; actual selected relation operation/slot/member-side/whole operand/body/current input retained; unavailable differs from genuine known Registry root. Existing selected member/frame, visibility/MRO and typed MemberKind obligations do not issue this relation horizon. Count once, not per helper/variant/geometry fix.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false
+      },
+      "implementation_scope": "LogicalV3 independent Compiler and Core contract SOURCE CLEAR; fresh native/portable/gates pending. No Native selection, entered frame, report-name inverse, absence/edit/Normal grant."
+    },
+    {
+      "id": "lsp.owner.current-host-workspace-source-census",
+      "kind": "shared_owner_extension",
+      "baseline_unit_ids": [
+        "lsp-editor-browser-source-bytes-and-census"
+      ],
+      "site_anchors": [
+        {
+          "path": "rust/tcl-lsp-core/src/vfs.rs",
+          "symbol": "WorkspaceSourceCensus; MemoryStore"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+          "symbol": "source_inventory_scan_complete; source_inventory_revision"
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "symbol": "WorkspaceSourcePlanToken; scan_workspace_folders; rename"
+        },
+        {
+          "path": "editors/vscode/src/webWorkspaceSync.ts",
+          "symbol": "per-root census and pending read owners"
+        }
+      ],
+      "rationale": "One genuine grouped current source census owner: actual session/root/host-selection/store revision and independent completed server traversal/coverage retained with exact index/plan revisions through final roots/store lease. Existing SourceStore URI/provider alias identity and upsert callers do not establish complete inventory. Count once, not per hop/root/helper/failure/recovery/token.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false
+      },
+      "implementation_scope": "BrowserV10 whole source/contract CLEAR; original references/source-order/hash helpers retained. Host complete marker alone cannot grant absence or rename authority. Fresh native/WASM/host tests pending."
     }
   ],
   "unverified_or_open": [
@@ -1159,28 +1214,28 @@
   ],
   "status_note": "Requirements are counted regardless of implementation presence. No additional requirement or baseline unit is verified complete.",
   "status": "accepted_additional_obligations_unverified",
-  "utc": "2026-10-16T20:12:41.529602+00:00",
+  "utc": "2026-10-16T20:47:45.059680+00:00",
   "accepted_delta": {
-    "semantic_code_changes": 53,
+    "semantic_code_changes": 55,
     "validation_code_repairs": 1,
     "authored_documentation": 0,
-    "all_required_changes": 54,
+    "all_required_changes": 56,
     "by_kind": {
       "shared_owner_repair": 9,
-      "shared_owner_extension": 29,
+      "shared_owner_extension": 31,
       "caller_migration": 14,
       "metadata_or_target_schema": 1,
       "validation_code_repair": 1
     }
   },
   "effective_counts": {
-    "semantic_code_changes": 1852,
+    "semantic_code_changes": 1854,
     "validation_code_repairs": 306,
     "authored_documentation": 54,
-    "all_required_changes": 2212
+    "all_required_changes": 2214
   },
   "implementation_progress": {
-    "implemented_pending_validation": 53,
+    "implemented_pending_validation": 55,
     "not_integrated": 1,
     "verified_complete": 0
   }

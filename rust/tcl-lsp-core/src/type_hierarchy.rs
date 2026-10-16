@@ -25,17 +25,15 @@
 //! declarations use exact source and namespace geometry; logical-only profiles
 //! retain the reporting hierarchy view.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use crate::original_declaration::OriginalDeclarationIdentity;
 use std::ops::ControlFlow;
 use tcl_compiler::analyser::AnalysisResult;
-use tcl_compiler::analyser::class_hierarchy::build_tail_index;
 use tcl_compiler::analyser::types::ClassDef;
 use tcl_lexer::LineIndex;
 
 use crate::definition::LspRange;
-use crate::hover::find_word_span_at_position;
 
 /// One hierarchy item — class identification plus its name
 /// and definition span for editor display.
@@ -74,38 +72,29 @@ pub fn prepare_for_document(
     character: u32,
     analysis: &AnalysisResult,
 ) -> Vec<TypeHierarchyItem> {
-    let line_index = LineIndex::new(source);
-    let cursor = crate::definition::byte_offset_at(&line_index, source, line, character);
-    match crate::original_oo::class_at_cursor(analysis, source, cursor) {
-        ControlFlow::Break(selected) => {
-            return selected
-                .and_then(|record| original_item_for(uri, source, analysis, record))
-                .into_iter()
-                .collect();
-        }
-        ControlFlow::Continue(()) if !analysis.allows_lexical_declaration_advice() => {
-            return Vec::new();
-        }
-        ControlFlow::Continue(()) => {}
-    }
-    let Some((word, _start, _end)) = find_word_span_at_position(source, line, character) else {
+    let Some(position) =
+        crate::original_context::CurrentSourcePosition::capture(source, analysis, line, character)
+    else {
         return Vec::new();
     };
-    // Resolve the class the cursor denotes namespace-aware (declaration under
-    // the cursor, else the caller-namespace candidate order) rather than by a
-    // namespace-blind name scan that could seed the hierarchy from a same-named
-    // class in another namespace.
-    let cursor_off = crate::definition::byte_offset_at(&line_index, source, line, character);
-    if let Some((_, class_def)) = crate::definition::resolve_class_target_at(
-        analysis,
-        source,
-        crate::definition::CallResolution::document_only(),
-        cursor_off,
-        &word,
-    ) {
-        return vec![item_for(class_def, source, &line_index)];
+    if analysis.allows_lexical_declaration_advice() {
+        return analysis
+            .logical_source_class_at(
+                &tcl_lexer::SourceImage::document(source),
+                position.context().config(),
+                position.offset(),
+            )
+            .and_then(|class| logical_item_for(class, source, analysis))
+            .into_iter()
+            .collect();
     }
-    Vec::new()
+    match crate::original_oo::class_at_cursor(analysis, source, position.offset()) {
+        ControlFlow::Break(selected) => selected
+            .and_then(|record| original_item_for(uri, source, analysis, record))
+            .into_iter()
+            .collect(),
+        ControlFlow::Continue(()) => Vec::new(),
+    }
 }
 
 /// Direct supertypes of `class_name`: its declared superclasses and
@@ -134,25 +123,16 @@ pub fn supertypes(
             },
         );
     }
-    let line_index = LineIndex::new(source);
-    let tail_index = build_tail_index(analysis.all_classes.keys());
-    let Some(cd) = resolve_class(class_name, "", analysis, &tail_index) else {
+    let Some(class) = logical_class_for_literal_name(class_name, source, analysis) else {
         return Vec::new();
     };
-    // Logical-only profiles retain their source relation lookup geometry.
-    // Same-tail names in other namespaces cannot replace that lookup.
-    let owner = cd.qualified_name.clone();
-    let mut out = Vec::new();
-    let mut seen = HashSet::new();
-    for name in cd.superclasses.iter().chain(cd.mixins.iter()) {
-        if let Some(target) = resolve_class(name, &owner, analysis, &tail_index)
-            && target.qualified_name != owner
-            && seen.insert(target.qualified_name.clone())
-        {
-            out.push(item_for(target, source, &line_index));
-        }
-    }
-    out
+    analysis
+        .logical_source_direct_classes(class)
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|target| !std::ptr::eq(*target, class))
+        .filter_map(|target| logical_item_for(target, source, analysis))
+        .collect()
 }
 
 /// Direct subtypes of `class_name`: the classes that declare it as a
@@ -180,51 +160,58 @@ pub fn subtypes(
             },
         );
     }
-    let line_index = LineIndex::new(source);
-    let tail_index = build_tail_index(analysis.all_classes.keys());
-    let Some(cd) = resolve_class(class_name, "", analysis, &tail_index) else {
+    let Some(class) = logical_class_for_literal_name(class_name, source, analysis) else {
         return Vec::new();
     };
-    let target = cd.qualified_name.clone();
-    let hierarchy = analysis.class_hierarchy();
-    let Some(subs) = hierarchy.subclasses.get(&target) else {
-        return Vec::new();
-    };
-    let mut names: Vec<&String> = subs.iter().collect();
-    names.sort();
-    names
-        .into_iter()
-        .filter_map(|s| analysis.all_classes.get(s))
-        .map(|cd| item_for(cd, source, &line_index))
-        .collect()
+    let mut selected = Vec::new();
+    for candidate in analysis.all_classes.values() {
+        if std::ptr::eq(candidate, class) {
+            continue;
+        }
+        let Some(parents) = analysis.logical_source_direct_classes(candidate) else {
+            return Vec::new();
+        };
+        if parents.iter().any(|parent| std::ptr::eq(*parent, class))
+            && let Some(item) = logical_item_for(candidate, source, analysis)
+        {
+            selected.push(item);
+        }
+    }
+    selected.sort_by(|left, right| left.name.cmp(&right.name));
+    selected
 }
 
-/// Resolve logical-only reporting names using retained relation coordinates.
-fn resolve_class<'a>(
+fn logical_class_for_literal_name<'a>(
     name: &str,
-    owner: &str,
+    source: &str,
     analysis: &'a AnalysisResult,
-    tail_index: &HashMap<String, Vec<String>>,
 ) -> Option<&'a ClassDef> {
-    let _ = tail_index;
-    let q = if owner.is_empty() {
-        tcl_compiler::analyser::class_hierarchy::resolve_written_class_name(
-            name,
-            &analysis.all_classes,
-        )?
-    } else {
-        let lookup = analysis
-            .all_classes
-            .get(owner)?
-            .relation_lookups
-            .get(name)?
-            .as_ref()?;
-        tcl_compiler::analyser::class_hierarchy::resolve_class_lookup(
-            lookup,
-            &analysis.all_classes,
-        )?
-    };
-    analysis.all_classes.get(&q)
+    crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+    let query = tcl_syntax::naming::authored_source_command_slot(
+        &tcl_core_types::ByteNamespacePath::root(),
+        name.as_bytes(),
+    )?;
+    let mut selected = analysis.all_classes.values().filter(|class| {
+        analysis
+            .logical_source_class_declaration(class)
+            .and_then(|owner| owner.source_candidate_coordinate())
+            == Some(&query)
+    });
+    let class = selected.next()?;
+    selected.next().is_none().then_some(class)
+}
+
+fn logical_item_for(
+    class: &ClassDef,
+    source: &str,
+    analysis: &AnalysisResult,
+) -> Option<TypeHierarchyItem> {
+    let owner = analysis.logical_source_class_declaration(class)?;
+    let name =
+        tcl_syntax::naming::authored_source_command_spelling(owner.source_candidate_coordinate()?)?;
+    let mut item = item_for(class, source, &LineIndex::new_lsp(source));
+    item.name = name;
+    Some(item)
 }
 
 /// Build a hierarchy item for `class_def` from its spans in `source`.
@@ -258,7 +245,7 @@ fn original_item_for(
     record: &tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata<ClassDef>,
 ) -> Option<TypeHierarchyItem> {
     let identity = OriginalDeclarationIdentity::for_class(uri, source, analysis, record)?;
-    let index = LineIndex::new(source);
+    let index = LineIndex::new_lsp(source);
     let mut item = item_for(record.metadata(), source, &index);
     // Reporting remains optional and follows selection. Opaque native names
     // use the shared source renderer rather than colliding replacement text.
@@ -660,5 +647,107 @@ mod original_hierarchy_tests {
             crate::original_oo::class_at_cursor(&analysis, source, offset),
             ControlFlow::Break(None)
         ));
+    }
+}
+
+#[cfg(test)]
+mod logical_source_selection_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    fn at(source: &str, offset: usize, analysis: &AnalysisResult) -> Vec<TypeHierarchyItem> {
+        let position =
+            LineIndex::new_lsp(source).position_at_utf16(u32::try_from(offset).unwrap(), source);
+        prepare(source, position.line, position.character.get(), analysis)
+    }
+
+    #[test]
+    fn logical_hierarchy_joins_actual_source_operands_and_coordinates_not_report_names() {
+        let source = "namespace eval N {\noo::class create Base {}\noo::class create Child {superclass Base}\n}\nputs Base\n";
+        let mut analysis = Analyser::new().analyse(source, "tcl");
+        assert!(analysis.allows_retained_logical_declaration_advice());
+        let selected = at(
+            source,
+            source.rfind("superclass Base").unwrap() + 11,
+            &analysis,
+        );
+        assert_eq!(
+            selected
+                .iter()
+                .map(|item| item.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["::N::Base"]
+        );
+        assert!(at(source, source.rfind("puts Base").unwrap() + 5, &analysis).is_empty());
+        analysis
+            .all_classes
+            .get_mut("::N::Base")
+            .unwrap()
+            .qualified_name = "report-only".into();
+        let parents = supertypes("::N::Child", source, &analysis);
+        assert_eq!(
+            parents
+                .iter()
+                .map(|item| item.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["::N::Base"]
+        );
+        assert!(supertypes("report-only", source, &analysis).is_empty());
+        assert!(prepare(source, u32::MAX, 0, &analysis).is_empty());
+    }
+
+    #[test]
+    fn logical_hierarchy_withholds_dynamic_or_unrepresented_relation_coverage() {
+        for body in [
+            "superclass $target",
+            "superclass Missing",
+            "superclass Base; mystery",
+        ] {
+            let source = format!("oo::class create Base {{}}\noo::class create Child {{{body}}}\n");
+            let analysis = Analyser::new().analyse(&source, "tcl");
+            assert!(
+                supertypes("::Child", &source, &analysis).is_empty(),
+                "{body}"
+            );
+        }
+    }
+    #[test]
+    fn logical_hierarchy_lifts_lone_cr_source_positions() {
+        let source = "set z 0;\roo::class create C {method run {} {}}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let selected = at(source, source.find("create C").unwrap() + 7, &analysis);
+        assert_eq!(selected.len(), 1);
+        assert_eq!(selected[0].selection_range.start_line, 1);
+        assert_eq!(selected[0].range.start_line, 1);
+        assert_eq!(selected[0].range.end_line, 1);
+    }
+}
+
+#[cfg(test)]
+mod original_lsp_geometry_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn original_hierarchy_lifts_lone_cr_source_positions() {
+        let source = "set z 0;\roo::class create C {method run {} {}}";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+        analysis.all_classes.clear();
+        analysis.superseded_classes.clear();
+        analysis.all_procs.clear();
+        let offset = u32::try_from(source.find("create C").unwrap() + 7).unwrap();
+        let position = LineIndex::new_lsp(source).position_at_utf16(offset, source);
+        let selected = prepare_for_document(
+            "file:///classes.tcl",
+            source,
+            position.line,
+            position.character.get(),
+            &analysis,
+        );
+        assert_eq!(selected.len(), 1);
+        assert!(selected[0].original_declaration.is_some());
+        assert_eq!(selected[0].selection_range.start_line, 1);
+        assert_eq!(selected[0].range.start_line, 1);
+        assert_eq!(selected[0].range.end_line, 1);
     }
 }

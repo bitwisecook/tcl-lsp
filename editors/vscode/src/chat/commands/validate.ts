@@ -18,12 +18,15 @@
 
 import * as vscode from "vscode";
 import { CommandContext } from "../types";
-import { resolveIruleCode, ensureDocumentOpen } from "../codeUtils";
+import { resolveIruleCode, ensureDocumentOpen, snapshotDocumentSource } from "../codeUtils";
 import {
   acquireSessionDialectOverride,
   captureAnalysisContext,
   isAnalysisContextCurrent,
   waitForDiagnostics,
+  waitForProposalDiagnostics,
+  proposalDiagnosticsReportMatches,
+  ProposalDiagnosticsReport,
   SessionDialectOverrideLease,
   categoriseDiagnostics,
   renderDiagnosticSection,
@@ -36,9 +39,13 @@ export async function handleValidate(ctx: CommandContext): Promise<vscode.ChatRe
   let code: string | undefined;
 
   const editor = vscode.window.activeTextEditor;
-  if (editor && isTclLanguage(editor.document.languageId)) {
-    doc = editor.document;
-    code = doc.getText();
+  const sourceSnapshot =
+    editor && isTclLanguage(editor.document.languageId)
+      ? snapshotDocumentSource(editor.document)
+      : undefined;
+  if (sourceSnapshot) {
+    doc = sourceSnapshot.document;
+    code = sourceSnapshot.fullSource;
   } else {
     code = await resolveIruleCode(ctx);
   }
@@ -50,12 +57,10 @@ export async function handleValidate(ctx: CommandContext): Promise<vscode.ChatRe
 
   ctx.response.progress("Running LSP analysis...");
 
-  // Ensure dialect is f5-irules.
-  // Pinned as a *session override*, not a configuration push: a push is
-  // re-applied away by the next `workspace/configuration` pull, which can
-  // land at any time, so a push's effect would last an unpredictable length
-  // of time.
-  const pinnedDialect = getActiveDialect() !== "f5-irules";
+  // Attachments still use the legacy path until their resolver provides an
+  // admitted original document snapshot. An actual open document is analysed
+  // in its resource context and does not acquire a session-wide dialect pin.
+  const pinnedDialect = !sourceSnapshot && getActiveDialect() !== "f5-irules";
   let overrideLease: SessionDialectOverrideLease | undefined;
   if (pinnedDialect) overrideLease = await acquireSessionDialectOverride("f5-irules");
 
@@ -63,22 +68,67 @@ export async function handleValidate(ctx: CommandContext): Promise<vscode.ChatRe
     if (!doc) {
       doc = await ensureDocumentOpen(code);
     }
-    const analysisContext = overrideLease?.analysisContext ?? captureAnalysisContext();
-    if (!isAnalysisContextCurrent(analysisContext)) {
-      throw new Error("Analysis context changed before the iRule analysis started");
+    const analysisContext = sourceSnapshot
+      ? sourceSnapshot.analysisContext
+      : (overrideLease?.analysisContext ?? captureAnalysisContext());
+    if (!analysisContext || !isAnalysisContextCurrent(analysisContext)) {
+      throw new Error("Analysis context changed before validation started");
     }
 
-    const diagnostics = await waitForDiagnostics(doc.uri, { timeout: 5000, expectedSource: code });
+    let proposalReport: ProposalDiagnosticsReport | undefined;
+    let diagnostics: vscode.Diagnostic[];
+    if (sourceSnapshot) {
+      proposalReport = await waitForProposalDiagnostics(doc.uri, code, {
+        timeout: 5000,
+        expectedSource: sourceSnapshot.fullSource,
+      });
+      if (
+        !proposalDiagnosticsReportMatches(proposalReport, {
+          document: sourceSnapshot.document,
+          uri: sourceSnapshot.uri,
+          version: sourceSnapshot.version,
+          source: sourceSnapshot.fullSource,
+          proposal: code,
+        })
+      ) {
+        throw new Error("The validation report no longer matches the captured document source");
+      }
+      diagnostics = [...proposalReport.diagnostics];
+    } else {
+      diagnostics = await waitForDiagnostics(doc.uri, { timeout: 5000, expectedSource: code });
+    }
     if (!isAnalysisContextCurrent(analysisContext)) {
-      throw new Error("Analysis context changed while the iRule analysis was running");
+      throw new Error("Analysis context changed while validation was running");
     }
     const categorised = categoriseDiagnostics(diagnostics);
+    const selectedDialect = proposalReport?.response.dialectId;
+    const sourceVersion = proposalReport?.response.version;
+    const reportContext = selectedDialect
+      ? ` (${selectedDialect}, source version ${sourceVersion})`
+      : "";
 
-    ctx.response.markdown("## iRule Validation Report\n");
+    ctx.response.markdown(
+      `## ${proposalReport ? "Resource" : "iRule"} Validation Report${reportContext}\n`,
+    );
 
     if (categorised.all.length === 0) {
-      ctx.response.markdown("\nNo issues found. The iRule looks clean.\n");
-      return { metadata: { command: "validate", count: 0 } };
+      ctx.response.markdown(
+        proposalReport
+          ? `\nNo issues found in the completed ${selectedDialect} analysis.\n`
+          : "\nNo issues found. The iRule looks clean.\n",
+      );
+      return {
+        metadata: {
+          command: "validate",
+          count: 0,
+          ...(proposalReport && {
+            dialectId: proposalReport.response.dialectId,
+            inputsEpoch: proposalReport.response.inputsEpoch,
+            sourceVersion: proposalReport.response.version,
+            resultId: proposalReport.response.resultId,
+          }),
+        },
+      };
     }
 
     renderDiagnosticSection(ctx.response, "Errors", categorised.errors, code);
@@ -92,7 +142,18 @@ export async function handleValidate(ctx: CommandContext): Promise<vscode.ChatRe
 
     ctx.response.markdown(`\n**Summary**: ${categorised.all.length} issue(s) found.\n`);
 
-    return { metadata: { command: "validate", count: categorised.all.length } };
+    return {
+      metadata: {
+        command: "validate",
+        count: categorised.all.length,
+        ...(proposalReport && {
+          dialectId: proposalReport.response.dialectId,
+          inputsEpoch: proposalReport.response.inputsEpoch,
+          sourceVersion: proposalReport.response.version,
+          resultId: proposalReport.response.resultId,
+        }),
+      },
+    };
   } finally {
     if (overrideLease && !(await overrideLease.restore())) {
       throw new Error("The iRule analysis dialect override was superseded");

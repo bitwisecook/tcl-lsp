@@ -1,0 +1,11 @@
+Independent SOURCE/CONTRACT CLEAR — source-order point frontier V1
+
+Patch: /tmp/lsp-source-order-point-frontier-v1/source-order-point-frontier.patch
+SHA256: f2bb1d1ca04931debdc950a93bfdeb68f2568114acd4c0182a458ddb861b7771
+Verification: /tmp/sol-compiler-source-order-frontier-review-v1/verification.json
+
+Reviewed both complete source owner implementations: SourceOrderContext capture/site/edge_site and the existing SourceStructure capture/capture_region/command_at. The new vector is copied only from the genuine current configured readonly structure's existing segmented commands, before filtering issued sites. The selected innermost span must exactly equal an existing issued site's span. This can only withhold a previously borrowed wider site; it adds no issuer, root fallback, source body, execution frame, Native/Normal permission or package-bound alternative. SourceStructure already chooses its command_at with the identical containment/minimum-span rule and keeps segmented commands when Registry source issuing is unavailable. The genuine declared-body region supplies the failed fixture's inner syntax; its dynamic head still has no issued site. Existing Realm/input/image/Registry validation, source-load/package reference owners and every subsequent comparison/conditional-purpose boundary remain unchanged.
+
+All two-file manifest before/after hashes match. Patch SHA matches. Exact forward patch and inverse with fuzz=0 restore all bytes. Entire existing #[cfg(test)] suffix (all four modules, including original failing deferred/package-bound control) is byte-identical. Actual main source_graph.rs matches frozen before exactly. Main canonical contract has unrelated integrated changes; a separate TMP current-tree application passes fuzz=0, preserves every unrelated current byte and changes only the intended existing owner sentence. No API visibility, gate listing, helper owner or count change.
+
+Frozen failure evidence referenced by the author was read only: targeted12-results/test-012.log SHA256 d0e81a8d2a42443caf885c3714a4471c4cc5e675f71a9f28333416d1df38b2d7. This source review does not establish execution efficacy or ordinary acceptance. No Cargo, executable/test run, main mutation, Git operation or instrumentation was performed. Root owns integration and fresh validation.

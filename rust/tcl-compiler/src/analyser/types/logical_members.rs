@@ -32,6 +32,8 @@ pub struct LogicalSourceClassDeclaration {
     class: Arc<ClassDef>,
     body_word: Option<tcl_lexer::NativeWord>,
     candidate_coordinate: Option<tcl_core_types::ByteCommandSlot>,
+    name_word: Option<tcl_lexer::NativeWord>,
+    relations: Option<Vec<crate::command_binding::LogicalSourceClassRelationProvider>>,
 }
 
 /// One exact side and declaration in the retained Logical class snapshot.
@@ -91,6 +93,8 @@ impl LogicalSourceClassDeclaration {
             class: Arc::new(class.clone()),
             body_word: None,
             candidate_coordinate: None,
+            name_word: None,
+            relations: None,
         })
     }
 
@@ -135,6 +139,12 @@ impl LogicalSourceClassDeclaration {
         self.candidate_coordinate.as_ref()
     }
 
+    /// Actual naming operand of this retained source factory.
+    #[must_use]
+    pub fn original_name_word(&self) -> Option<&tcl_lexer::NativeWord> {
+        self.name_word.as_ref()
+    }
+
     /// Exact retained member metadata on the selected source side.
     #[must_use]
     pub fn member(
@@ -156,6 +166,34 @@ impl LogicalSourceClassDeclaration {
                 side,
                 method: selected.clone(),
             })
+    }
+}
+
+impl LogicalSourceMemberDeclaration {
+    /// Exact retained class snapshot; the completed owner authenticates it.
+    #[must_use]
+    pub const fn class(&self) -> &LogicalSourceClassDeclaration {
+        &self.class
+    }
+    /// Original member side, separate from execution or dispatch.
+    #[must_use]
+    pub const fn side(&self) -> MemberSide {
+        self.side
+    }
+    /// Current snapshot metadata for report geometry only.
+    #[must_use]
+    pub const fn metadata(&self) -> &MethodDef {
+        &self.method
+    }
+    /// Actual whole naming operand from the retained Registry member vector.
+    #[must_use]
+    pub fn original_name_word(&self) -> Option<&tcl_lexer::NativeWord> {
+        self.class.class.original_members.logical_name_operand(
+            self.side,
+            &self.method,
+            &self.class.input,
+            &self.class.image,
+        )
     }
 }
 
@@ -181,7 +219,7 @@ impl AnalysisResult {
                     .map(|source| source.body_word().clone());
                 let source_text = declaration.image.try_text().ok()?;
                 let offset = class.body_span.start();
-                let coordinate = self.command_invocations.iter().find_map(|invocation| {
+                let factory = self.command_invocations.iter().find_map(|invocation| {
                     if invocation.range.start() >= offset {
                         return None;
                     }
@@ -199,18 +237,32 @@ impl AnalysisResult {
                     .as_deref()
                         == Some(original.bytes()))
                     .then_some(())?;
-                    Some(factory.source_slot().clone())
+                    Some(factory)
                 });
-                Some((body, coordinate))
+                let coordinate = factory
+                    .as_ref()
+                    .map(|factory| factory.source_slot().clone());
+                let name_word = factory
+                    .as_ref()
+                    .and_then(|factory| factory.name_input().logical_input())
+                    .map(|name| name.original_word().clone());
+                let relations = factory
+                    .as_ref()
+                    .and_then(|factory| self.logical_relation_providers(class, factory, registry));
+                Some((body, coordinate, name_word, relations))
             })
             .collect::<Vec<_>>();
         for (declaration, source) in self.logical_class_declarations.iter_mut().zip(sources) {
-            if let Some((body, coordinate)) = source {
+            if let Some((body, coordinate, name_word, relations)) = source {
                 declaration.body_word = body;
                 declaration.candidate_coordinate = coordinate;
+                declaration.name_word = name_word;
+                declaration.relations = relations;
             } else {
                 declaration.body_word = None;
                 declaration.candidate_coordinate = None;
+                declaration.name_word = None;
+                declaration.relations = None;
             }
         }
     }
@@ -257,6 +309,19 @@ impl AnalysisResult {
         config: tcl_lexer::LexerConfig,
         cursor: u32,
     ) -> Option<&ClassDef> {
+        let selected = self.logical_source_member_at(image, config, cursor)?;
+        self.logical_source_member_class(&selected)
+    }
+
+    /// A selected original declaration or genuine self selector in the current
+    /// Logical source. The receipt supplies no dispatch, lookup closure or edit.
+    #[must_use]
+    pub fn logical_source_member_at(
+        &self,
+        image: &SourceImage,
+        config: tcl_lexer::LexerConfig,
+        cursor: u32,
+    ) -> Option<LogicalSourceMemberDeclaration> {
         let input = self.resolved_input.as_ref()?;
         if input.lexer_config() != config
             || !self.matches_original_source_image(image, config)
@@ -265,22 +330,22 @@ impl AnalysisResult {
             return None;
         }
         match self
-            .logical_member_declaration_types(image, input, cursor)
+            .logical_member_declarations_at(image, input, cursor)
             .as_slice()
         {
-            [class] => return Some(*class),
+            [selected] => return Some(selected.clone()),
             [] => {}
             _ => return None,
         }
-        self.logical_self_selector_type_at(image, config, cursor, input)
+        self.logical_self_selector_at(image, config, cursor, input)
     }
 
-    fn logical_member_declaration_types(
+    fn logical_member_declarations_at(
         &self,
         image: &SourceImage,
         input: &ResolvedAnalysisInput,
         cursor: u32,
-    ) -> Vec<&ClassDef> {
+    ) -> Vec<LogicalSourceMemberDeclaration> {
         let contains =
             |word: &tcl_lexer::NativeWord| word.span().as_range().contains(&(cursor as usize));
         let mut selected = Vec::new();
@@ -299,11 +364,10 @@ impl AnalysisResult {
                     else {
                         continue;
                     };
-                    if owner.member(side, method).is_none() {
-                        continue;
-                    }
-                    if contains(name) {
-                        selected.push(class);
+                    if let Some(member) = owner.member(side, method)
+                        && contains(name)
+                    {
+                        selected.push(member);
                     }
                 }
             }
@@ -311,13 +375,13 @@ impl AnalysisResult {
         selected
     }
 
-    fn logical_self_selector_type_at(
+    fn logical_self_selector_at(
         &self,
         image: &SourceImage,
         config: tcl_lexer::LexerConfig,
         cursor: u32,
         input: &ResolvedAnalysisInput,
-    ) -> Option<&ClassDef> {
+    ) -> Option<LogicalSourceMemberDeclaration> {
         let realm = self.retained_command_realm()?;
         let registry = self.resolved_registry()?;
         let bindings = realm.source_bindings_ref();
@@ -405,16 +469,216 @@ impl AnalysisResult {
                         {
                             continue;
                         }
-                        owner.member(side, method)?;
+                        let member = owner.member(side, method)?;
                         if selected.is_some() {
                             return None;
                         }
-                        selected = Some(class);
+                        selected = Some(member);
                     }
                 }
             }
         }
         selected
+    }
+
+    fn logical_relation_providers(
+        &self,
+        class: &ClassDef,
+        factory: &crate::command_binding::OriginalSourceClassDeclaration,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<Vec<crate::command_binding::LogicalSourceClassRelationProvider>> {
+        if class.member_set_incomplete
+            || !class.original_members.logical_relation_coverage_available()
+        {
+            return None;
+        }
+        let input = self.resolved_input.as_ref()?;
+        let context = input.context_registry();
+        let source = self
+            .retained_command_realm()?
+            .original_source_image()?
+            .try_text()
+            .ok()?;
+        let words = crate::registry_invocation::source_structure::source_registry_words_at(
+            source,
+            self,
+            factory.factory().site().offset,
+        )?;
+        let mut bodies = words.source_script_bodies(&context).into_iter();
+        let body = bodies.find(|body| {
+            body.original_container()
+                .tokens()
+                .first()
+                .is_some_and(|token| token.span == class.body_span)
+        })?;
+        let region = body.definition_member_region(&context, body.content_span())?;
+        region.complete_original_commands()?;
+        for words in region.original_commands() {
+            region.checked_references(words)?;
+        }
+        let bindings = self.retained_command_realm()?.source_bindings_ref();
+        let mut commands = class
+            .original_members
+            .logical_relation_commands()
+            .iter()
+            .collect::<Vec<_>>();
+        commands.sort_by_key(|command| command.words.first().map(|word| word.span().start()));
+        let mut supers = Vec::<tcl_core_types::ByteCommandSlot>::new();
+        let mut mixins = Vec::<tcl_core_types::ByteCommandSlot>::new();
+        let mut providers = Vec::new();
+        for command in commands {
+            if command.input != *input {
+                return None;
+            }
+            if command.relation == tcl_registry::definer::RelationSlot::Filter {
+                continue;
+            }
+            if command.side? != MemberSide::Instance {
+                continue;
+            }
+            let current = match command.relation {
+                tcl_registry::definer::RelationSlot::Superclass => &mut supers,
+                tcl_registry::definer::RelationSlot::Mixin => &mut mixins,
+                tcl_registry::definer::RelationSlot::Filter => continue,
+            };
+            let operation = command.operation?;
+            let mut slots = Vec::new();
+            for reference in region.checked_references(&command.words)? {
+                if reference.kind() != tcl_registry::definer::MemberRefKind::Class {
+                    return None;
+                }
+                let provider = bindings.logical_class_relation_provider(
+                    &body,
+                    &command.words,
+                    reference.original_word(),
+                    input,
+                    registry,
+                )?;
+                if !provider.matches_receiver(self, class) {
+                    return None;
+                }
+                slots.push(provider.source_slot().clone());
+                providers.push(provider);
+            }
+            command.slot?.apply_values(current, operation, &slots);
+        }
+        supers.extend(mixins);
+        let mut selected = Vec::new();
+        for slot in supers {
+            if let Some(provider) = providers
+                .iter()
+                .find(|provider| provider.source_slot() == &slot)
+                && !selected.iter().any(
+                    |selected: &&crate::command_binding::LogicalSourceClassRelationProvider| {
+                        selected.source_slot() == &slot
+                    },
+                )
+            {
+                selected.push(provider);
+            }
+        }
+        Some(selected.into_iter().cloned().collect())
+    }
+
+    /// Reborrow the actual current class behind a selected readonly member.
+    #[must_use]
+    pub fn logical_source_member_class(
+        &self,
+        member: &LogicalSourceMemberDeclaration,
+    ) -> Option<&ClassDef> {
+        let mut classes = self
+            .all_classes
+            .values()
+            .filter(|class| member.class.matches(self, class));
+        let class = classes.next()?;
+        classes.next().is_none().then_some(class)
+    }
+
+    /// Current typed Logical declaration selected by an actual naming or
+    /// class-reference operand. Display labels supply no selection authority.
+    #[must_use]
+    pub fn logical_source_class_at(
+        &self,
+        image: &SourceImage,
+        config: tcl_lexer::LexerConfig,
+        cursor: u32,
+    ) -> Option<&ClassDef> {
+        let input = self.resolved_input.as_ref()?;
+        if input.lexer_config() != config || !self.matches_original_source_image(image, config) {
+            return None;
+        }
+        let contains =
+            |word: &tcl_lexer::NativeWord| word.span().as_range().contains(&(cursor as usize));
+        let mut selected = Vec::new();
+        for class in self.all_classes.values() {
+            let Some(owner) = self.logical_source_class_declaration(class) else {
+                continue;
+            };
+            if owner.name_word.as_ref().is_some_and(contains) {
+                selected.push(class);
+            }
+            if let Some(relations) = &owner.relations {
+                for relation in relations {
+                    if contains(relation.operand())
+                        && relation.matches_receiver(self, class)
+                        && let Some(Some(target)) = relation.source_class(self)
+                    {
+                        selected.push(target);
+                    }
+                }
+            }
+        }
+        if selected.is_empty() {
+            let source = image.try_text().ok()?;
+            for invocation in &self.command_invocations {
+                let Some(call) =
+                    crate::registry_invocation::source_structure::source_constructor_call_at(
+                        source,
+                        self,
+                        invocation.range.start(),
+                    )
+                else {
+                    continue;
+                };
+                if !call.original_words().first().is_some_and(contains) {
+                    continue;
+                }
+                let class = call.class_declaration().logical_source_class(self)?;
+                self.logical_source_class_declaration(class)?;
+                selected.push(class);
+            }
+        }
+        match selected.as_slice() {
+            [class] => Some(*class),
+            [] => None,
+            _ => None,
+        }
+    }
+
+    /// Source-only direct edges selected by the actual parent-horizon graph.
+    /// Unknown member/provider coverage is unavailable, never a known empty list.
+    #[must_use]
+    pub fn logical_source_direct_classes<'a>(
+        &'a self,
+        class: &ClassDef,
+    ) -> Option<Vec<&'a ClassDef>> {
+        let owner = self.logical_source_class_declaration(class)?;
+        let mut selected: Vec<&'a ClassDef> = Vec::new();
+        for provider in owner.relations.as_ref()? {
+            if !provider.matches_receiver(self, class) {
+                return None;
+            }
+            if let Some(target) = provider.source_class(self)? {
+                self.logical_source_class_declaration(target)?;
+                if !selected
+                    .iter()
+                    .any(|selected| std::ptr::eq(*selected, target))
+                {
+                    selected.push(target);
+                }
+            }
+        }
+        Some(selected)
     }
 
     /// A current actual class must still agree with the completed source walk.
@@ -695,6 +959,85 @@ mod source_navigation_facet_tests {
         assert!(
             native
                 .logical_source_class_declaration(&native.all_classes["::helper"])
+                .is_none()
+        );
+    }
+}
+
+#[cfg(test)]
+mod logical_navigation_receipt_tests {
+    use super::*;
+    use crate::analyser::Analyser;
+
+    #[test]
+    fn logical_member_and_relation_views_keep_the_actual_source_owners() {
+        let source = "oo::class create Base {method run {} {}}\noo::class create Child {superclass Base; method run {} {}}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let image = SourceImage::document(source);
+        let base = &analysis.all_classes["::Base"];
+        let child = &analysis.all_classes["::Child"];
+        let edges = analysis.logical_source_direct_classes(child).unwrap();
+        assert_eq!(edges.len(), 1);
+        assert!(std::ptr::eq(edges[0], base));
+        assert!(
+            analysis
+                .logical_source_direct_classes(base)
+                .unwrap()
+                .is_empty()
+        );
+        let at = u32::try_from(source.find("run").unwrap()).unwrap();
+        let member = analysis
+            .logical_source_member_at(&image, input.lexer_config(), at)
+            .unwrap();
+        assert_eq!(member.side(), MemberSide::Instance);
+        assert!(std::ptr::eq(
+            analysis.logical_source_member_class(&member).unwrap(),
+            base
+        ));
+        assert_eq!(member.original_name_word().unwrap().image(), &image);
+        assert!(
+            analysis
+                .logical_source_member_at(
+                    &SourceImage::document(&format!("{source}\n# changed")),
+                    input.lexer_config(),
+                    at
+                )
+                .is_none()
+        );
+        assert!(
+            analysis
+                .logical_source_direct_classes(&child.clone())
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn logical_relations_do_not_recover_unknown_parent_state_or_changed_metadata() {
+        let source = "oo::class create Base {}\nmystery\noo::class create Child {superclass Base}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        assert!(
+            analysis
+                .logical_source_direct_classes(&analysis.all_classes["::Child"])
+                .is_none()
+        );
+        let source = "oo::class create Base {}\noo::class create Child {superclass Base}";
+        let mut analysis = Analyser::new().analyse(source, "tcl");
+        assert_eq!(
+            analysis
+                .logical_source_direct_classes(&analysis.all_classes["::Child"])
+                .unwrap()
+                .len(),
+            1
+        );
+        analysis
+            .all_classes
+            .get_mut("::Child")
+            .unwrap()
+            .member_set_incomplete = true;
+        assert!(
+            analysis
+                .logical_source_direct_classes(&analysis.all_classes["::Child"])
                 .is_none()
         );
     }

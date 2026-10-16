@@ -1,0 +1,15 @@
+Independent SOURCE CLEAR — AI read-only source context V1
+
+Patch: /tmp/lsp-ai-source-context-v1/lsp-ai-source-context-v1.patch
+SHA-256: 364768da8e680a74f8d0e42e964f2c6d04dda352e07b965cb17d7711841ab04a
+Manifest: /tmp/lsp-ai-source-context-v1/manifest.json
+Manifest SHA-256: 62263bc7bca6b87a89e5b96a18023671e3d76d9a8cb100c6507199b9fa208c9d
+
+Independent source findings:
+- The resolver preserves the actual TextDocument, URI, version, full text, selected range/text, language ID, configured resource hint and source channel. The two-source route preserves the original priority: reference order, active editor paired with one reference, then inline fences.
+- `isDocumentSourceSnapshotCurrent` verifies non-closed document, exact URI components, version, complete bytes, language ID, and selected bytes/whole-source correspondence. Explain checks after source resolution; diff checks both sources after resolving them; `sendContextualRequest` checks after contextual-message construction, after model resolution, and before every retry request. No request is sent from a stale snapshot.
+- Any document-backed explain/diff request replaces the active dialect prompt with a neutral source-only prompt and labels the captured language/version. It does not infer the configured hint as resolved analysis input. The contextual packet disables ambient context, diagnostics, symbol definitions and event metadata; inline-only behavior keeps the prior prompt path.
+- Original test assertions/selectors remain. The added test exercises two references to one document (selected and whole), exact retained source, then staleness after a byte edit. Its cleanup follows the existing editor-test range restoration idiom.
+- The contract addition describes readonly snapshot currency and dialect-neutral prompts without claiming analysis, completeness, or edit authority.
+
+I independently checked all seven current files against manifest before hashes and ran `patch --dry-run` from a fresh TMP copy; all matched and all hunks applied cleanly. No test/build or model request was run. This review does not claim runtime efficacy or send-time cancellation after a model has already accepted the request; it verifies stale-source rejection before each request.

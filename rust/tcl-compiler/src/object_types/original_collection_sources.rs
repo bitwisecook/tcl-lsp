@@ -581,7 +581,9 @@ fn collection_lookup_is_available(words: &OriginalRegistryWords) -> bool {
                 )
             })
         }
-        OriginalRegistrySource::ProducedPrefix(_) | OriginalRegistrySource::Vendor(_) => false,
+        OriginalRegistrySource::ProducedPrefix(_)
+        | OriginalRegistrySource::ConditionalNativeSource(_)
+        | OriginalRegistrySource::Vendor(_) => false,
     }
 }
 

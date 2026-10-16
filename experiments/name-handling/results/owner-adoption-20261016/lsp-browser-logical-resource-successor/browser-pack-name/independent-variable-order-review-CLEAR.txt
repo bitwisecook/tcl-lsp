@@ -1,0 +1,6 @@
+SOURCE CLEAR final V3 fab317b8adb4d14111708862905e36773be2426b6f2368b4e266206741ab30b2.
+V2 executable policy/plumbing source review retained from /tmp/lsp-browser-pack-name-owner-v1/independent-variable-order-review-v2-CLEAR.txt, subject to Root-discovered rustdoc attachment correction now resolved here. V2 remains immutable.
+
+V3 restores exact original upsert documentation immediately above actual vfs_upsert_spec_pack and adds precise predicate-only docs above new vfs_is_safe_spec_pack_name. Independent tree-sitter leaf-token comparison excluding comments proves Rust executable tokens identical V2; every other final file including tests is byte-identical V2. All six current beforeimages and final afterimage hashes bound; independent fresh fuzz0 full apply matches manifest. No runtime/test assertions changed, generated glue edited, count claim or guard weakening.
+
+Whole source admission CLEAR including corrected API purpose documentation. Actual WASM export regeneration/build/browser/e2e/typecheck remains Root validation; no execution, main or Git edits.

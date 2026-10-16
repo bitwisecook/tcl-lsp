@@ -1,0 +1,82 @@
+Independent whole-purpose source and contract review: CLEAR
+
+Exact immutable patch:
+bf31fb5628b97716c77172f1912cb68b44d8d8ca93508445fa6fc263d2a6d39e
+Exact immutable manifest:
+84a933adeb9d1abc05e3a8c6146da3720a9482e34e11aaee509d68b329f480b8
+Baseline: lsp-editor-browser-source-bytes-and-census.
+
+This clearance binds V10 only. Earlier HOLDs and V5 overwrite history remain
+explicit in their immutable records; no review is attributed to lost bytes.
+
+Raw source and host ownership:
+- Fatal UTF-8 validation with ignoreBOM preserves the actual initial BOM and
+  rejects malformed byte sequences. Original Uint8Array bytes pass through the
+  worker/WASM byte API into MemoryStore without String re-encoding. Exact source
+  byte budgets are retained independently from decoded text.
+- Root census selection retains the actual root URI, active workspace root set,
+  globs and budget. Monotone per-root generations and post-await checks ensure
+  stale or removed scans cannot upsert or close another root/generation.
+- Pending live reads publish Incomplete before awaiting. Per-root pending counts,
+  current per-URI event generations and census/failure state prevent another
+  completion from closing an outstanding mutation. Failed reads/budget/UTF-8
+  admission remain explicit incomplete debt. Existing positive readonly rows
+  are not turned into absence by the new gate.
+- MemoryStore observations bind actual session, root, complete selection and
+  store mutation revision. Upsert/remove/alias withdrawal invalidate prior
+  observations. Missing/Stale/Incomplete host receipts do not authorize absence.
+
+Server scan and provider boundaries:
+- Host completeness and the server's actual bounded traversal status remain
+  distinct. maxFiles truncation/read-directory failure and failed scan worker
+  preserve independent incompleteness; scan start withdraws old scan authority.
+- Both HostReported and Filesystem Core eligibility honor an explicitly failed
+  scan. Actual Native Filesystem/open-only indices with no host census retain
+  their preexisting separate authority; no host completion is fabricated.
+  Untracked providers cannot borrow Native policy.
+- After an ordinary live update, actual rename alone owns pre-plan recovery.
+  Current+Complete host observations which differ from the retained index can
+  trigger the existing full scan; no receipt is directly installed over an old
+  index. Same exact observations of a known incomplete scan avoid a futile
+  retry; a changed complete observation can justify a new real scan. References
+  remains byte-identical current main. A source/root mutation during recovery
+  remains stale or mismatched at the final gate. Native path does not trigger
+  browser recovery. Existing scan locking serializes scans; performance or
+  deduplication under multiple simultaneous rename requests is not measured.
+
+Actual plan/publication currency:
+- Initial source rehoming occurs before token capture. Each token retains exact
+  index and inventory revisions. Final checks hold the actual root-set mutex
+  across the exact index/store comparison; relevant production folder-owner and
+  index access source census found no reverse held-index/folder lock cycle.
+- The consumer fallback has no earlier local edits. It performs actual selected
+  autoload preflight before capturing its planning token; the actual symbol
+  helper reissues selection afterward. There is no unconditional post-symbol
+  token refresh. Controlled focused replacement requires both old revisions
+  under the same index write lock and advances the token before intents are
+  derived. Later unrelated index/receipt change cannot donate currency to an
+  older plan. Additional preparation after capture remains refusal, not a donor.
+- Every WorkspaceEdit return from symbol rename checks that exact plan token
+  and actual provider/root/store currency. Original role/name/schema/source,
+  provider, document, lookup, collision and independent edit guards remain.
+  No Source/host census becomes Native execution, physical frame/cell/value,
+  effect closure, Normal completion or general edit permission.
+
+Root source preservation and verification:
+- All eight current main before hashes match the final manifest. Independent
+  fresh TMP --fuzz=0 forward apply produces all eight declared after hashes;
+  inverse --fuzz=0 restores every before hash exactly.
+- Root sha256_hex/sha256_digest_hex helpers and full references handler are
+  byte-identical. SourceRunOrder index_document/run_order/invalidate/
+  set_source_resolver functions are byte-identical; all source_order_context
+  fields/capture/reset and RunOrder::for_source_navigation remain. The browser
+  patch no longer reverts the unrelated typed source-order contract. Existing
+  test assertions/fixtures remain; some inherited formatting is nonsemantic.
+- Evidence: /tmp/sol-compiler-browser-v10-review/verification.json.
+
+No Cargo/build/test/listing/TypeScript/worker/WASM/ELF/Native oracle or
+instrumentation execution, main edits or Git by reviewer. New fixed controls and
+old retained selectors still require Root's real ordinary validation. Source and
+contract clearance is not efficacy, performance, acceptance, binary coverage or
+count completion. Root reconciles the existing audited purpose once; no helper
+or packet-version count is implied.

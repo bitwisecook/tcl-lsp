@@ -36,6 +36,7 @@ mod source_configured_class;
 mod source_publication_proposal;
 pub use source_publication_proposal::OriginalSourcePublicationProposal;
 mod source_relation_provider;
+pub(crate) use source_relation_provider::LogicalSourceClassRelationProvider;
 pub use source_relation_provider::OriginalSourceClassRelationProvider;
 mod source_namespace;
 pub use source_callback::{
@@ -2123,6 +2124,7 @@ struct AdviceTapeInputs<'a> {
 #[derive(Clone, Copy)]
 enum SourceAdviceQuery<'a> {
     ClassRelation(source_relation_provider::ClassRelationQuery<'a>),
+    LogicalClassRelation(source_relation_provider::LogicalClassRelationQuery<'a>),
     Publication(source_publication_proposal::PublicationProposalQuery<'a>),
 }
 

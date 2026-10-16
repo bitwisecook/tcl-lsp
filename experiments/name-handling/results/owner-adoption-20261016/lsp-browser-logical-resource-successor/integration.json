@@ -1,0 +1,33 @@
+{
+  "utc": "2026-10-16T20:44:17.145464+00:00",
+  "base_head": "1b45c540eb51d24e1fd89c4a4bf61f43bf77986c",
+  "packets": [
+    {
+      "packet": "doclink",
+      "patch_sha256": "33e83a58ff48daacc135092c28aa84b3b5d1fe8f1beec58d9ca4901fe930d692",
+      "exact_all_before_after_hashes": true
+    },
+    {
+      "packet": "node-fix",
+      "patch_sha256": "bbfb4a9e22c1b6d6b3a41790b639de64fbb4709f2bd70c6e6ac5e8dde406c19e",
+      "exact_all_before_after_hashes": true
+    },
+    {
+      "packet": "browser",
+      "patch_sha256": "bf31fb5628b97716c77172f1912cb68b44d8d8ca93508445fa6fc263d2a6d39e",
+      "exact_all_before_after_hashes": true
+    },
+    {
+      "packet": "logical-hierarchy",
+      "patch_sha256": "e52f35a6b30de7860788d7fa7b2ee28ffa92ec30e2b78f6dc5efe48a151f9358",
+      "exact_all_before_after_hashes": true
+    },
+    {
+      "packet": "node-fix-contract",
+      "patch_sha256": "795a0a916111418bc6f205c27a5f8f2ca8960785a3a70f16be9fca7697f9d1db",
+      "exact_all_before_after_hashes": true
+    }
+  ],
+  "validation": "Exact source application only; fresh compile/format/runtime checks pending",
+  "count_delta": "Root reconciliation pending"
+}
