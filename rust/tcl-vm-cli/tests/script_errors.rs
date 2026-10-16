@@ -193,6 +193,179 @@ fn a_command_that_does_not_parse_reports_where_in_the_file_it_is() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// The stderr `tclsh` reports for a script on each of some releases.
+type Expectation = (&'static [&'static str], &'static str);
+
+/// Scripts whose error passes through nested commands, each with what every
+/// release reports: tclsh 8.4.20 through 9.1.0's, the path written `PATH`.
+const NESTED_CASES: [(&str, &str, &[Expectation]); 9] = [
+    (
+        "expr.tcl",
+        "proc p {} {error boom}\nset w [expr {[p]}]\n",
+        &[
+            (
+                &["8.4"],
+                "boom\n    while executing\n\"error boom\"\n    \
+                 (procedure \"p\" line 1)\n    invoked from within\n\"p\"\n    \
+                 (file \"PATH\" line 1)\n",
+            ),
+            (
+                &["8.5", "8.6", "9.0", "9.1"],
+                "boom\n    while executing\n\"error boom\"\n    \
+                 (procedure \"p\" line 1)\n    invoked from within\n\"p\"\n    \
+                 invoked from within\n\"expr {[p]}\"\n    \
+                 invoked from within\n\"set w [expr {[p]}]\"\n    \
+                 (file \"PATH\" line 2)\n",
+            ),
+        ],
+    ),
+    (
+        "nested.tcl",
+        "proc p {} {error boom}\nset w [list y [expr {[p]}]]\n",
+        &[
+            (
+                &["8.4"],
+                "boom\n    while executing\n\"error boom\"\n    \
+                 (procedure \"p\" line 1)\n    invoked from within\n\"p\"\n    \
+                 (file \"PATH\" line 1)\n",
+            ),
+            (
+                &["8.5", "8.6", "9.0", "9.1"],
+                "boom\n    while executing\n\"error boom\"\n    \
+                 (procedure \"p\" line 1)\n    invoked from within\n\"p\"\n    \
+                 invoked from within\n\"expr {[p]}\"\n    \
+                 invoked from within\n\"list y [expr {[p]}]\"\n    \
+                 invoked from within\n\"set w [list y [expr {[p]}]]\"\n    \
+                 (file \"PATH\" line 2)\n",
+            ),
+        ],
+    ),
+    (
+        "if.tcl",
+        "proc p {} {error boom}\nif {[p]} {}\n",
+        &[
+            (
+                &["8.4"],
+                "boom\n    while executing\n\"error boom\"\n    \
+                 (procedure \"p\" line 1)\n    invoked from within\n\"p\"\n    \
+                 (file \"PATH\" line 1)\n",
+            ),
+            (
+                &["8.5", "8.6", "9.0", "9.1"],
+                "boom\n    while executing\n\"error boom\"\n    \
+                 (procedure \"p\" line 1)\n    invoked from within\n\"p\"\n    \
+                 invoked from within\n\"if {[p]} {}\"\n    (file \"PATH\" line 2)\n",
+            ),
+        ],
+    ),
+    (
+        "while.tcl",
+        "proc p {} {error boom}\nwhile {[p]} {}\n",
+        &[
+            (
+                &["8.4"],
+                "boom\n    while executing\n\"error boom\"\n    \
+                 (procedure \"p\" line 1)\n    invoked from within\n\"p\"\n    \
+                 (file \"PATH\" line 1)\n",
+            ),
+            (
+                &["8.5", "8.6", "9.0", "9.1"],
+                "boom\n    while executing\n\"error boom\"\n    \
+                 (procedure \"p\" line 1)\n    invoked from within\n\"p\"\n    \
+                 invoked from within\n\"while {[p]} {}\"\n    (file \"PATH\" line 2)\n",
+            ),
+        ],
+    ),
+    (
+        "eval.tcl",
+        "proc p {} {error boom}\neval {set w [list y [p]]}\n",
+        &[
+            (
+                &["8.4", "8.5"],
+                "boom\n    while executing\n\"error boom\"\n    \
+                 (procedure \"p\" line 1)\n    invoked from within\n\"p\"\n    \
+                 invoked from within\n\"list y [p]\"\n    \
+                 invoked from within\n\"set w [list y [p]]\"\n    \
+                 (\"eval\" body line 1)\n    \
+                 invoked from within\n\"eval {set w [list y [p]]}\"\n    \
+                 (file \"PATH\" line 2)\n",
+            ),
+            (
+                &["8.6", "9.0", "9.1"],
+                "boom\n    while executing\n\"error boom\"\n    \
+                 (procedure \"p\" line 1)\n    invoked from within\n\"p\"\n    \
+                 (\"eval\" body line 1)\n    \
+                 invoked from within\n\"eval {set w [list y [p]]}\"\n    \
+                 (file \"PATH\" line 2)\n",
+            ),
+        ],
+    ),
+    (
+        "proc.tcl",
+        "proc p {} {error boom}\nproc q {} {eval {set w [expr {[p]}]}}\nq\n",
+        &[
+            (
+                &["8.4"],
+                "boom\n    while executing\n\"error boom\"\n    \
+                 (procedure \"p\" line 1)\n    invoked from within\n\"p\"\n    \
+                 (\"eval\" body line 1)\n    (procedure \"q\" line 1)\n    \
+                 invoked from within\n\"q\"\n    (file \"PATH\" line 3)\n",
+            ),
+            (
+                &["8.5"],
+                "boom\n    while executing\n\"error boom\"\n    \
+                 (procedure \"p\" line 1)\n    invoked from within\n\"p\"\n    \
+                 invoked from within\n\"expr {[p]}\"\n    \
+                 invoked from within\n\"set w [expr {[p]}]\"\n    \
+                 (\"eval\" body line 1)\n    \
+                 invoked from within\n\"eval {set w [expr {[p]}]}\"\n    \
+                 (procedure \"q\" line 1)\n    invoked from within\n\"q\"\n    \
+                 (file \"PATH\" line 3)\n",
+            ),
+            (
+                &["8.6", "9.0", "9.1"],
+                "boom\n    while executing\n\"error boom\"\n    \
+                 (procedure \"p\" line 1)\n    invoked from within\n\"p\"\n    \
+                 (\"eval\" body line 1)\n    \
+                 invoked from within\n\"eval {set w [expr {[p]}]}\"\n    \
+                 (procedure \"q\" line 1)\n    invoked from within\n\"q\"\n    \
+                 (file \"PATH\" line 3)\n",
+            ),
+        ],
+    ),
+    (
+        "lines.tcl",
+        "proc p {} {error boom}\nproc s {} {\n  set y [list a [set z 1\np]]\n}\ns\n",
+        &[(
+            &["8.4", "8.5", "8.6", "9.0", "9.1"],
+            "boom\n    while executing\n\"error boom\"\n    \
+                 (procedure \"p\" line 1)\n    invoked from within\n\"p\"\n    \
+                 (procedure \"s\" line 3)\n    invoked from within\n\"s\"\n    \
+                 (file \"PATH\" line 6)\n",
+        )],
+    ),
+    (
+        "fold.tcl",
+        "set y [list y [expr {1/0}]]\n",
+        &[(
+            &["8.4", "8.5", "8.6", "9.0", "9.1"],
+            "divide by zero\n    while executing\n\"expr {1/0}\"\n    \
+                 invoked from within\n\"list y [expr {1/0}]\"\n    \
+                 invoked from within\n\"set y [list y [expr {1/0}]]\"\n    \
+                 (file \"PATH\" line 1)\n",
+        )],
+    ),
+    (
+        "foldif.tcl",
+        "if {1/0} {}\n",
+        &[(
+            &["8.4", "8.5", "8.6", "9.0", "9.1"],
+            "divide by zero\n    while executing\n\"if {1/0} {}\"\n    \
+                 (file \"PATH\" line 1)\n",
+        )],
+    ),
+];
+
 /// A command substitution in an expression or a substituted script, and an
 /// expression C folds: each command enclosing it logs as the release
 /// evaluates that command. A statement the release evaluates directly logs
@@ -201,174 +374,7 @@ fn a_command_that_does_not_parse_reports_where_in_the_file_it_is() {
 #[test]
 fn a_nested_error_logs_each_level_the_release_evaluates() {
     let dir = scratch("nested");
-    let cases: [(&str, &str, &[(&[&str], &str)]); 9] = [
-        (
-            "expr.tcl",
-            "proc p {} {error boom}\nset w [expr {[p]}]\n",
-            &[
-                (
-                    &["8.4"],
-                    "boom\n    while executing\n\"error boom\"\n    \
-                     (procedure \"p\" line 1)\n    invoked from within\n\"p\"\n    \
-                     (file \"PATH\" line 1)\n",
-                ),
-                (
-                    &["8.5", "8.6", "9.0", "9.1"],
-                    "boom\n    while executing\n\"error boom\"\n    \
-                     (procedure \"p\" line 1)\n    invoked from within\n\"p\"\n    \
-                     invoked from within\n\"expr {[p]}\"\n    \
-                     invoked from within\n\"set w [expr {[p]}]\"\n    \
-                     (file \"PATH\" line 2)\n",
-                ),
-            ],
-        ),
-        (
-            "nested.tcl",
-            "proc p {} {error boom}\nset w [list y [expr {[p]}]]\n",
-            &[
-                (
-                    &["8.4"],
-                    "boom\n    while executing\n\"error boom\"\n    \
-                     (procedure \"p\" line 1)\n    invoked from within\n\"p\"\n    \
-                     (file \"PATH\" line 1)\n",
-                ),
-                (
-                    &["8.5", "8.6", "9.0", "9.1"],
-                    "boom\n    while executing\n\"error boom\"\n    \
-                     (procedure \"p\" line 1)\n    invoked from within\n\"p\"\n    \
-                     invoked from within\n\"expr {[p]}\"\n    \
-                     invoked from within\n\"list y [expr {[p]}]\"\n    \
-                     invoked from within\n\"set w [list y [expr {[p]}]]\"\n    \
-                     (file \"PATH\" line 2)\n",
-                ),
-            ],
-        ),
-        (
-            "if.tcl",
-            "proc p {} {error boom}\nif {[p]} {}\n",
-            &[
-                (
-                    &["8.4"],
-                    "boom\n    while executing\n\"error boom\"\n    \
-                     (procedure \"p\" line 1)\n    invoked from within\n\"p\"\n    \
-                     (file \"PATH\" line 1)\n",
-                ),
-                (
-                    &["8.5", "8.6", "9.0", "9.1"],
-                    "boom\n    while executing\n\"error boom\"\n    \
-                     (procedure \"p\" line 1)\n    invoked from within\n\"p\"\n    \
-                     invoked from within\n\"if {[p]} {}\"\n    (file \"PATH\" line 2)\n",
-                ),
-            ],
-        ),
-        (
-            "while.tcl",
-            "proc p {} {error boom}\nwhile {[p]} {}\n",
-            &[
-                (
-                    &["8.4"],
-                    "boom\n    while executing\n\"error boom\"\n    \
-                     (procedure \"p\" line 1)\n    invoked from within\n\"p\"\n    \
-                     (file \"PATH\" line 1)\n",
-                ),
-                (
-                    &["8.5", "8.6", "9.0", "9.1"],
-                    "boom\n    while executing\n\"error boom\"\n    \
-                     (procedure \"p\" line 1)\n    invoked from within\n\"p\"\n    \
-                     invoked from within\n\"while {[p]} {}\"\n    (file \"PATH\" line 2)\n",
-                ),
-            ],
-        ),
-        (
-            "eval.tcl",
-            "proc p {} {error boom}\neval {set w [list y [p]]}\n",
-            &[
-                (
-                    &["8.4", "8.5"],
-                    "boom\n    while executing\n\"error boom\"\n    \
-                     (procedure \"p\" line 1)\n    invoked from within\n\"p\"\n    \
-                     invoked from within\n\"list y [p]\"\n    \
-                     invoked from within\n\"set w [list y [p]]\"\n    \
-                     (\"eval\" body line 1)\n    \
-                     invoked from within\n\"eval {set w [list y [p]]}\"\n    \
-                     (file \"PATH\" line 2)\n",
-                ),
-                (
-                    &["8.6", "9.0", "9.1"],
-                    "boom\n    while executing\n\"error boom\"\n    \
-                     (procedure \"p\" line 1)\n    invoked from within\n\"p\"\n    \
-                     (\"eval\" body line 1)\n    \
-                     invoked from within\n\"eval {set w [list y [p]]}\"\n    \
-                     (file \"PATH\" line 2)\n",
-                ),
-            ],
-        ),
-        (
-            "proc.tcl",
-            "proc p {} {error boom}\nproc q {} {eval {set w [expr {[p]}]}}\nq\n",
-            &[
-                (
-                    &["8.4"],
-                    "boom\n    while executing\n\"error boom\"\n    \
-                     (procedure \"p\" line 1)\n    invoked from within\n\"p\"\n    \
-                     (\"eval\" body line 1)\n    (procedure \"q\" line 1)\n    \
-                     invoked from within\n\"q\"\n    (file \"PATH\" line 3)\n",
-                ),
-                (
-                    &["8.5"],
-                    "boom\n    while executing\n\"error boom\"\n    \
-                     (procedure \"p\" line 1)\n    invoked from within\n\"p\"\n    \
-                     invoked from within\n\"expr {[p]}\"\n    \
-                     invoked from within\n\"set w [expr {[p]}]\"\n    \
-                     (\"eval\" body line 1)\n    \
-                     invoked from within\n\"eval {set w [expr {[p]}]}\"\n    \
-                     (procedure \"q\" line 1)\n    invoked from within\n\"q\"\n    \
-                     (file \"PATH\" line 3)\n",
-                ),
-                (
-                    &["8.6", "9.0", "9.1"],
-                    "boom\n    while executing\n\"error boom\"\n    \
-                     (procedure \"p\" line 1)\n    invoked from within\n\"p\"\n    \
-                     (\"eval\" body line 1)\n    \
-                     invoked from within\n\"eval {set w [expr {[p]}]}\"\n    \
-                     (procedure \"q\" line 1)\n    invoked from within\n\"q\"\n    \
-                     (file \"PATH\" line 3)\n",
-                ),
-            ],
-        ),
-        (
-            "lines.tcl",
-            "proc p {} {error boom}\nproc s {} {\n  set y [list a [set z 1\np]]\n}\ns\n",
-            &[(
-                &["8.4", "8.5", "8.6", "9.0", "9.1"],
-                "boom\n    while executing\n\"error boom\"\n    \
-                     (procedure \"p\" line 1)\n    invoked from within\n\"p\"\n    \
-                     (procedure \"s\" line 3)\n    invoked from within\n\"s\"\n    \
-                     (file \"PATH\" line 6)\n",
-            )],
-        ),
-        (
-            "fold.tcl",
-            "set y [list y [expr {1/0}]]\n",
-            &[(
-                &["8.4", "8.5", "8.6", "9.0", "9.1"],
-                "divide by zero\n    while executing\n\"expr {1/0}\"\n    \
-                     invoked from within\n\"list y [expr {1/0}]\"\n    \
-                     invoked from within\n\"set y [list y [expr {1/0}]]\"\n    \
-                     (file \"PATH\" line 1)\n",
-            )],
-        ),
-        (
-            "foldif.tcl",
-            "if {1/0} {}\n",
-            &[(
-                &["8.4", "8.5", "8.6", "9.0", "9.1"],
-                "divide by zero\n    while executing\n\"if {1/0} {}\"\n    \
-                     (file \"PATH\" line 1)\n",
-            )],
-        ),
-    ];
-    for (name, source, expectations) in cases {
+    for (name, source, expectations) in NESTED_CASES {
         let path = write(&dir, name, source);
         for (releases, stderr) in expectations {
             for release in *releases {
