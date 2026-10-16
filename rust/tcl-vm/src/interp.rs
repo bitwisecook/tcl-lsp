@@ -10185,7 +10185,7 @@ impl Vm {
             self.append_var_trace_frame(op, name);
         } else {
             self.error_info = None;
-            self.error_logged = false;
+            self.error_logged = ErrorLogged::No;
         }
         let verb = match op {
             "write" => "set",
