@@ -283,6 +283,15 @@ impl Value {
         (generated, past_cap)
     }
 
+    /// The double this value already holds, with no string read: an object a
+    /// computation made rather than text a conversion has yet to check.
+    pub(crate) fn double_rep(&self) -> Option<f64> {
+        match &*self.0.intrep.borrow() {
+            IntRep::Double(f) => Some(*f),
+            _ => None,
+        }
+    }
+
     /// The value as a wide integer (`Tcl_GetWideIntFromObj`), caching the typed
     /// rep when it parses from the string side. A failure carries C's message
     /// and `-errorcode`: an integer past the wide range is `ARITH IOVERFLOW`, a

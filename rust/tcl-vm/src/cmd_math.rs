@@ -205,10 +205,16 @@ fn m_mathfunc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 }
 
 /// One argument of an 8.4 math function (`ExprUnaryFunc` and friends): a
-/// 64-bit integer or a double `strtod` reads in range, else `None`.
+/// 64-bit integer, a computed double, or text `strtod` reads in range, else
+/// `None`.
 fn classic_argument(v: &Value) -> Option<NumValue<BigInt>> {
     if let Ok(i) = v.as_int() {
         return Some(NumValue::Int(i));
+    }
+    // A computed double is used as it is; only text goes through `strtod`'s
+    // range check.
+    if let Some(d) = v.double_rep() {
+        return Some(NumValue::Float(d));
     }
     let s = v.to_str();
     match number::parse_whole(&s) {
