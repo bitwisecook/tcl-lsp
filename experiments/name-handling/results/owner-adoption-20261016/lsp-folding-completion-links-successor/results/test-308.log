@@ -1,0 +1,17 @@
+
+running 1 test
+test document_links::original_hosted_document_link_tests::original_source_path_links_use_selected_operations_and_authentic_bound_values ... 
+thread 'document_links::original_hosted_document_link_tests::original_source_path_links_use_selected_operations_and_authentic_bound_values' (222396) panicked at rust/tcl-lsp-core/src/document_links.rs:1829:9:
+assertion `left == right` failed: []
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    document_links::original_hosted_document_link_tests::original_source_path_links_use_selected_operations_and_authentic_bound_values
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3224 filtered out; finished in 0.61s
+

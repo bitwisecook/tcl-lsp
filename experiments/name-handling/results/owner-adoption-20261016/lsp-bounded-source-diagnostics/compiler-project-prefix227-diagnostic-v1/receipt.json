@@ -1,0 +1,27 @@
+{
+  "purpose": "DIAGNOSTIC ONLY; not ordinary acceptance; authorized one frozen selector; no source instrumentation or Native oracle",
+  "artifacts": "/workspace/naming-validation/lsp-folding-completion-links-successor/artifacts.json",
+  "artifacts_sha256": "f807f83c80eadc49358e2c10afc76e5596184ee88043dfc0bb0aae89ceceb75a",
+  "elf": "/workspace/naming-validation/lsp-folding-completion-links-successor/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+  "elf_before_sha256": "72e3ac90d2f92c3b4c0d0cc1e52e77c1458f73a32d42ad5af633ac4b8d667b2b",
+  "selector": "registry_invocation::source_structure::project_procedure_roles::arity_prefix_tests::project_roles_keep_original_prefix_arity_applicability_separate_from_mutations",
+  "expected_test_count": 1,
+  "budget_seconds": 180,
+  "environment_override": {
+    "TCL_LSP_TRACE_ORIGINAL_VARIABLE_TRANSFER": "1"
+  },
+  "command": [
+    "/workspace/naming-validation/lsp-folding-completion-links-successor/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+    "--exact",
+    "registry_invocation::source_structure::project_procedure_roles::arity_prefix_tests::project_roles_keep_original_prefix_arity_applicability_separate_from_mutations",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "started_utc": "2026-10-16T18:41:23.369748+00:00",
+  "returncode": 101,
+  "timed_out": false,
+  "elapsed_seconds": 10.110134640002798,
+  "elf_after_sha256": "72e3ac90d2f92c3b4c0d0cc1e52e77c1458f73a32d42ad5af633ac4b8d667b2b",
+  "elf_unchanged": true,
+  "raw_log_sha256": "964bcd8253c6e3287a2145253dff6366ed7cf77683c2b9125d3a1d6d1af4e3a6"
+}

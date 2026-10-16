@@ -1,0 +1,6 @@
+
+running 1 test
+test semantic_tokens::original_proc_role_tests::original_role_lookup_requires_current_full_source_and_own_head_input ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3224 filtered out; finished in 0.62s
+

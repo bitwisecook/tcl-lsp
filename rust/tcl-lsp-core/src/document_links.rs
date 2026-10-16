@@ -747,38 +747,13 @@ fn link_anchor_with_config(
     ))
 }
 
-/// Resolve `path` against `workspace_root` (when provided).
-///
-/// Returns a `file://`-prefixed URI string.  Absolute paths
-/// (starting with `/` on POSIX, drive letter on Windows) pass
-/// through; relative paths are joined to `workspace_root`.
-/// When `workspace_root` is `None`, relative paths return
-/// `None` (no anchor to resolve against).
+/// The shared host navigation policy owns base/home resolution and URI encoding.
+/// This remains independent of source-role selection and SpecTcl sibling links.
 fn resolve_path(path: &str, workspace_root: Option<&str>, home: Option<&str>) -> Option<String> {
-    if path.is_empty() {
-        return None;
-    }
-    // Tilde expansion: `~/...` → `$HOME/...`; `~user/...` is
-    // not supported (would need /etc/passwd parsing).
-    let expanded = if let Some(rest) = path.strip_prefix("~/") {
-        let home = home?;
-        let home_trimmed = home.trim_end_matches('/');
-        format!("{home_trimmed}/{rest}")
-    } else if path == "~" {
-        home?.to_string()
-    } else {
-        path.to_string()
-    };
-    let resolved = if std::path::Path::new(&expanded).is_absolute() {
-        expanded
-    } else {
-        let root = workspace_root?;
-        let root_trimmed = root.trim_end_matches('/');
-        format!("{root_trimmed}/{expanded}")
-    };
-    crate::file_uri::from_path(
-        std::path::Path::new(&resolved),
-        crate::file_uri::FileUriEscaping::PathCharacters,
+    crate::file_uri::document_link_target(
+        path,
+        workspace_root.map(std::path::Path::new),
+        home.map(std::path::Path::new),
     )
 }
 
@@ -1487,6 +1462,38 @@ mod tests {
         );
         assert_eq!(links.len(), 1);
         assert_eq!(links[0].target, "file:///test-home");
+    }
+
+    #[test]
+    fn source_links_keep_shared_host_base_and_literal_parent_path_policy() {
+        let profile = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
+        for root in ["", "relative"] {
+            let links = document_links_with_home("source helper.tcl\n", profile, Some(root), None);
+            assert!(links.is_empty(), "{root}: {links:?}");
+        }
+        let root = std::env::temp_dir().join("document-link-root");
+        let source = "source ./link/../helper.tcl\n";
+        let links = document_links_with_home(source, profile, root.to_str(), None);
+        assert_eq!(links.len(), 1, "{links:?}");
+        assert_eq!(
+            links[0].target,
+            crate::file_uri::from_path(
+                &root.join("./link/../helper.tcl"),
+                crate::file_uri::FileUriEscaping::PathCharacters
+            )
+            .unwrap()
+        );
+        for home in ["", "relative"] {
+            assert!(
+                document_links_with_home(
+                    "source ~/helper.tcl\n",
+                    profile,
+                    root.to_str(),
+                    Some(home)
+                )
+                .is_empty()
+            );
+        }
     }
 
     // URI escaping

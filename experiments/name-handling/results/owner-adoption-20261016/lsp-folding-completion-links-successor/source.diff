@@ -1,0 +1,744 @@
+diff --git a/rust/tcl-lsp-core/src/completion.rs b/rust/tcl-lsp-core/src/completion.rs
+index 7ddfcb9dd..cc7092432 100644
+--- a/rust/tcl-lsp-core/src/completion.rs
++++ b/rust/tcl-lsp-core/src/completion.rs
+@@ -525,7 +525,7 @@ pub fn completions(
+                 &partial,
+                 registry,
+                 current.config(),
+-                current.context().context().authoring_query(),
++                current.context().context(),
+             ),
+         );
+     }
+@@ -2063,8 +2063,11 @@ fn grammar_member_completions(
+     partial: &str,
+     registry: &CommandRegistry,
+     config: tcl_lexer::LexerConfig,
+-    query: tcl_dialect::model::SurfaceQuery<'_>,
++    context: &tcl_registry::model::ResolvedContext,
+ ) -> Vec<CompletionItem> {
++    // naming.consumer.selected-catalogue-completion-provider
++    // docs/design/analysis/name-resolution-proofs/selected-catalogue-completion-provider.md
++    let query = context.authoring_query();
+     grammar
+         .members
+         .iter()
+@@ -2077,7 +2080,7 @@ fn grammar_member_completions(
+         .filter_map(|member| {
+             let insert_text =
+                 tcl_syntax::word_rules::lexical_unicode_source_word(member.keyword, config)?;
+-            let spec = registry.get(member.keyword);
++            let spec = context.resolve_spec(registry, member.keyword);
+             Some(CompletionItem {
+                 label: member.keyword.to_owned(),
+                 insert_text,
+@@ -2345,104 +2348,54 @@ fn builtin_completions(
+     else {
+         return Vec::new();
+     };
+-    let mut names: Vec<&str> = registry
++    // naming.consumer.selected-catalogue-completion-provider
++    // docs/design/analysis/name-resolution-proofs/selected-catalogue-completion-provider.md
++    // Retain one descriptor from the actual document availability context.
++    // A same-name row from another provider cannot decide any later filter.
++    let mut candidates: Vec<_> = registry
+         .command_names()
+-        .filter(|n| partial.is_empty() || n.starts_with(partial))
+-        .filter(|n| {
+-            !registry.get(n).is_some_and(|spec| {
+-                spec.traits
+-                    .contains(tcl_registry::prelude::Traits::OPERATOR_COMMAND)
+-            })
++        .filter(|name| partial.is_empty() || name.starts_with(partial))
++        .filter_map(|name| {
++            context
++                .resolve_spec(registry, name)
++                .map(|spec| (name, spec))
+         })
+-        .filter(|n| context.resolve_spec(registry, n).is_some())
+-        // A declaration word of an authoring dialect exists as a spec so it
+-        // can hover, complete, and arity-check *inside the block that names
+-        // it* — never at an open command position. Which words those are is
+-        // registry data (`Traits::DEFINITION_BODY_MEMBER_ONLY`); the
+-        // grammar-driven path above is where they are offered.
+-        .filter(|n| {
+-            registry.get(n).is_none_or(|spec| {
+-                !spec
++        .filter(|(_, spec)| {
++            !spec.traits.contains(tcl_registry::Traits::OPERATOR_COMMAND)
++                && !spec
+                     .traits
+-                    .contains(tcl_registry::prelude::Traits::DEFINITION_BODY_MEMBER_ONLY)
+-            })
++                    .contains(tcl_registry::Traits::DEFINITION_BODY_MEMBER_ONLY)
+         })
+-        // A command whose *bare* spelling only works inside a `TclOO`
+-        // method context (`link` / `my` / `next` / `nextto` / `self` /
+-        // `classvariable`) is offered only there: completing
+-        // `link` at the top level would insert a call real Tcl rejects with
+-        // `invalid command name`. Which commands those are is registry data
+-        // (`Traits::TCLOO_METHOD_CONTEXT` plus
+-        // `Traits::TCLOO_REQUIRES_METHOD_FRAME`), never a name list here.
+-        // The gate is *callability*, not mere resolution: in a Tcl 9 class
+-        // `initialise` body the family resolves but all of it except `my`
+-        // raises `… may only be called from inside a method`, so only `my`
+-        // is offered there. The separately-registered `oo::Helpers::link`
+-        // spelling is unscoped and stays offered everywhere.
+-        .filter(|n| oo_frame.admits(registry, n))
+-        // Tk catalogue commands require source package advice or ambient
+-        // placement; a written request supplies no installed provider proof — and
+-        // never inside a vendor shell: an F5 / EDA / bpf profile is a closed
+-        // world where a desktop library cannot be `package require`d, even if
+-        // the source says so. An environment can host Tk iff it declares a Tk
+-        // placement (redesign §3.2's placement claims); the EDA
+-        // shells are packaged vendors with no vendor_surface, so this keys off
+-        // the placement (eda-library-packages.md). The resolved context
+-        // answers hosting as one predicate
+-        // over the environment's own placements.
+-        .filter(|n| {
+-            (tk_advice && context.can_host_package("Tk"))
+-                || registry
+-                    .get(n)
+-                    .is_none_or(|spec| spec.required_package != Some("Tk"))
++        .filter(|(_, spec)| oo_frame.admits_selected_spec(spec))
++        .filter(|(_, spec)| {
++            (tk_advice && context.can_host_package("Tk")) || spec.required_package != Some("Tk")
+         })
+-        // Package-version gate: a command introduced in a later package release
+-        // (`ttk::*` needs Tk 8.5) must not be offered when this file's
+-        // `package require <pkg> <req>` guarantees only an older version — the
+-        // same floor W135 checks.  A package required without a version, or not
+-        // required at all, yields no floor and stays permissive.
+-        .filter(|n| {
+-            registry.get(n).is_none_or(|spec| {
+-                let floor = package_version_floor(analysis, spec, profile);
+-                // On a keyed ambient axis (the F5 surfaces) the declared
+-                // range applies: explicit introduction or the 15.0
+-                // baseline, plus any removal release.
+-                match (context.keyed_version_range(spec), floor) {
+-                    (Some((min, max)), Some(floor)) => {
+-                        tcl_registry::version::within_range(floor, min, max)
+-                    }
+-                    _ => spec.available_for_version(floor),
++        .filter(|(_, spec)| {
++            let floor = package_version_floor(analysis, spec, profile);
++            match (context.keyed_version_range(spec), floor) {
++                (Some((min, max)), Some(floor)) => {
++                    tcl_registry::version::within_range(floor, min, max)
+                 }
+-            })
++                _ => spec.available_for_version(floor),
++            }
+         })
+         .collect();
+-    names.sort_unstable();
+-    names
++    candidates.sort_unstable_by_key(|(name, _)| *name);
++    candidates
+         .into_iter()
+-        .filter_map(|name| {
++        .filter_map(|(name, spec)| {
+             let insert_text = tcl_syntax::word_rules::lexical_unicode_source_word(name, config)?;
+             let count = usage.get(name).copied().unwrap_or(0);
+-            // The *profile-resolved* spec, not `registry.get`: a command
+-            // with more than one spec under one name (`link` is 9.0 core
+-            // plus an 8.6 Tcllib `ooutil` entry) would otherwise describe
+-            // itself with whichever duplicate came first — a Tcl 9 buffer
+-            // showed `tcllib (ooutil)` as the detail for a core command.
+-            // This is the same resolution the availability filter above
+-            // already applies, so the item and the decision to offer it
+-            // cannot disagree.
+-            let spec = context.resolve_spec(registry, name);
+             Some(CompletionItem {
+                 label: name.to_owned(),
+                 insert_text,
+                 kind: CompletionKind::Function,
+-                detail: spec.map(|s| command_detail(s, registry)),
++                detail: Some(command_detail(spec, registry)),
+                 sort_text: Some(builtin_sort_text(name, count)),
+                 is_snippet: false,
+                 filter_text: None,
+                 text_edit: None,
+-                documentation: spec
+-                    .and_then(|s| s.hover.as_ref())
+-                    .map(|h| h.summary.to_owned()),
++                documentation: spec.hover.as_ref().map(|hover| hover.summary.to_owned()),
+             })
+         })
+         .collect()
+@@ -7527,3 +7480,250 @@ mod configured_receiver_completion_tests {
+         }
+     }
+ }
++
++#[cfg(test)]
++mod selected_catalogue_provider_tests {
++    use super::*;
++    use tcl_registry::{CommandSpec, Traits};
++
++    const SELECTED_DOC: tcl_registry::hover::HoverSnippet =
++        tcl_registry::hover::HoverSnippet::brief(
++            "selected source provider",
++            &[],
++            "source metadata",
++        );
++    const FOREIGN_DOC: tcl_registry::hover::HoverSnippet = tcl_registry::hover::HoverSnippet::brief(
++        "unavailable foreign provider",
++        &[],
++        "source metadata",
++    );
++
++    #[test]
++    fn builtin_filters_keep_the_actual_selected_provider_through_every_gate() {
++        // naming.consumer.selected-catalogue-completion-provider
++        // docs/design/analysis/name-resolution-proofs/selected-catalogue-completion-provider.md
++        let profile = crate::profile_for_dialect("tcl8.6");
++        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
++        let source = "package require http 2.0\n";
++        let mut registry = CommandRegistry::build_default();
++        for (name, selected_traits, foreign_traits, foreign_package) in [
++            (
++                "catalogue-operator",
++                Traits::empty(),
++                Traits::OPERATOR_COMMAND,
++                None,
++            ),
++            (
++                "catalogue-member",
++                Traits::empty(),
++                Traits::DEFINITION_BODY_MEMBER_ONLY,
++                None,
++            ),
++            (
++                "catalogue-frame",
++                Traits::empty(),
++                Traits::TCLOO_METHOD_CONTEXT | Traits::TCLOO_REQUIRES_METHOD_FRAME,
++                None,
++            ),
++            (
++                "catalogue-package",
++                Traits::empty(),
++                Traits::empty(),
++                Some("Tk"),
++            ),
++            (
++                "catalogue-version",
++                Traits::empty(),
++                Traits::empty(),
++                Some("http"),
++            ),
++            (
++                "catalogue-hidden-member",
++                Traits::DEFINITION_BODY_MEMBER_ONLY,
++                Traits::empty(),
++                None,
++            ),
++            (
++                "catalogue-hidden-frame",
++                Traits::TCLOO_METHOD_CONTEXT | Traits::TCLOO_REQUIRES_METHOD_FRAME,
++                Traits::empty(),
++                None,
++            ),
++        ] {
++            registry.insert(CommandSpec {
++                name,
++                traits: selected_traits,
++                hover: Some(SELECTED_DOC),
++                ..CommandSpec::DEFAULT
++            });
++            registry.insert(CommandSpec {
++                name,
++                traits: foreign_traits,
++                surface: Some(SpecSurface::TCL90),
++                required_package: foreign_package,
++                lifecycle: tcl_registry::lifecycle::Lifecycle {
++                    introduced: Some("99.0"),
++                    ..tcl_registry::lifecycle::Lifecycle::UNSPECIFIED
++                },
++                hover: Some(FOREIGN_DOC),
++                ..CommandSpec::DEFAULT
++            });
++        }
++        let analysis =
++            crate::source_structure::analyse_document(source, profile, &registry, config);
++        let context = crate::document_floor::DocumentFloor::new(&analysis, profile)
++            .context()
++            .unwrap();
++        for name in registry
++            .command_names()
++            .filter(|name| name.starts_with("catalogue-"))
++        {
++            let selected = context.resolve_spec(&registry, name).unwrap();
++            assert!(!std::ptr::eq(selected, registry.get(name).unwrap()));
++            assert_eq!(selected.hover.unwrap().summary, SELECTED_DOC.summary);
++        }
++        let frame = crate::oo_dispatch::OoFrame {
++            resolves: false,
++            method: false,
++        };
++        let items = builtin_completions(
++            &registry,
++            profile,
++            "catalogue-",
++            &FxHashMap::default(),
++            false,
++            &analysis,
++            frame,
++        );
++        let labels = items
++            .iter()
++            .map(|item| item.label.as_str())
++            .collect::<Vec<_>>();
++        assert_eq!(
++            labels,
++            [
++                "catalogue-frame",
++                "catalogue-member",
++                "catalogue-operator",
++                "catalogue-package",
++                "catalogue-version"
++            ]
++        );
++        assert!(
++            items
++                .iter()
++                .all(|item| item.documentation.as_deref() == Some(SELECTED_DOC.summary))
++        );
++        assert!(
++            items
++                .iter()
++                .all(|item| item.detail.as_deref() == Some("built-in"))
++        );
++        let selected_frame = context
++            .resolve_spec(&registry, "catalogue-hidden-frame")
++            .unwrap();
++        assert!(!frame.admits_selected_spec(selected_frame));
++        assert!(
++            !crate::oo_dispatch::OoFrame {
++                resolves: true,
++                method: false
++            }
++            .admits_selected_spec(selected_frame)
++        );
++        assert!(
++            crate::oo_dispatch::OoFrame {
++                resolves: true,
++                method: true
++            }
++            .admits_selected_spec(selected_frame)
++        );
++        let mut missing = analysis.clone();
++        missing.resolved_input = None;
++        assert!(
++            builtin_completions(
++                &registry,
++                profile,
++                "catalogue-",
++                &FxHashMap::default(),
++                false,
++                &missing,
++                frame
++            )
++            .is_empty()
++        );
++        let mut changed = analysis.clone();
++        changed.body_lexer_config = None;
++        assert!(
++            builtin_completions(
++                &registry,
++                profile,
++                "catalogue-",
++                &FxHashMap::default(),
++                false,
++                &changed,
++                frame
++            )
++            .is_empty()
++        );
++    }
++
++    #[test]
++    fn grammar_member_details_use_the_same_current_availability_context() {
++        // naming.consumer.selected-catalogue-completion-provider
++        // docs/design/analysis/name-resolution-proofs/selected-catalogue-completion-provider.md
++        use tcl_registry::definer::{DefinitionBodyGrammar, MemberSpec, TCLOO_GRAMMAR};
++        static MEMBERS: &[MemberSpec] = &[
++            MemberSpec {
++                keyword: "catalogue-member",
++                surface: None,
++                ..TCLOO_GRAMMAR.members[0]
++            },
++            MemberSpec {
++                keyword: "grammar-only",
++                surface: None,
++                ..TCLOO_GRAMMAR.members[0]
++            },
++            MemberSpec {
++                keyword: "hidden-member",
++                surface: Some(SpecSurface::TCL90),
++                ..TCLOO_GRAMMAR.members[0]
++            },
++        ];
++        static GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
++            members: MEMBERS,
++            ..TCLOO_GRAMMAR
++        };
++        let profile = crate::profile_for_dialect("tcl8.6");
++        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
++        let mut registry = CommandRegistry::build_default();
++        registry.insert(CommandSpec {
++            name: "catalogue-member",
++            hover: Some(SELECTED_DOC),
++            ..CommandSpec::DEFAULT
++        });
++        registry.insert(CommandSpec {
++            name: "catalogue-member",
++            surface: Some(SpecSurface::TCL90),
++            hover: Some(FOREIGN_DOC),
++            ..CommandSpec::DEFAULT
++        });
++        let analysis = crate::source_structure::analyse_document("", profile, &registry, config);
++        let context = crate::document_floor::DocumentFloor::new(&analysis, profile)
++            .context()
++            .unwrap();
++        let items = grammar_member_completions(&GRAMMAR, "", &registry, config, context);
++        assert_eq!(
++            items
++                .iter()
++                .map(|item| item.label.as_str())
++                .collect::<Vec<_>>(),
++            ["catalogue-member", "grammar-only"]
++        );
++        assert_eq!(
++            items[0].documentation.as_deref(),
++            Some(SELECTED_DOC.summary)
++        );
++        assert_eq!(items[0].detail.as_deref(), Some("built-in"));
++        assert!(items[1].documentation.is_none() && items[1].detail.is_none());
++    }
++}
+diff --git a/rust/tcl-lsp-core/src/document_links.rs b/rust/tcl-lsp-core/src/document_links.rs
+index 0de8a6bd6..f188b5b96 100644
+--- a/rust/tcl-lsp-core/src/document_links.rs
++++ b/rust/tcl-lsp-core/src/document_links.rs
+@@ -747,38 +747,13 @@ fn link_anchor_with_config(
+     ))
+ }
+ 
+-/// Resolve `path` against `workspace_root` (when provided).
+-///
+-/// Returns a `file://`-prefixed URI string.  Absolute paths
+-/// (starting with `/` on POSIX, drive letter on Windows) pass
+-/// through; relative paths are joined to `workspace_root`.
+-/// When `workspace_root` is `None`, relative paths return
+-/// `None` (no anchor to resolve against).
++/// The shared host navigation policy owns base/home resolution and URI encoding.
++/// This remains independent of source-role selection and SpecTcl sibling links.
+ fn resolve_path(path: &str, workspace_root: Option<&str>, home: Option<&str>) -> Option<String> {
+-    if path.is_empty() {
+-        return None;
+-    }
+-    // Tilde expansion: `~/...` → `$HOME/...`; `~user/...` is
+-    // not supported (would need /etc/passwd parsing).
+-    let expanded = if let Some(rest) = path.strip_prefix("~/") {
+-        let home = home?;
+-        let home_trimmed = home.trim_end_matches('/');
+-        format!("{home_trimmed}/{rest}")
+-    } else if path == "~" {
+-        home?.to_string()
+-    } else {
+-        path.to_string()
+-    };
+-    let resolved = if std::path::Path::new(&expanded).is_absolute() {
+-        expanded
+-    } else {
+-        let root = workspace_root?;
+-        let root_trimmed = root.trim_end_matches('/');
+-        format!("{root_trimmed}/{expanded}")
+-    };
+-    crate::file_uri::from_path(
+-        std::path::Path::new(&resolved),
+-        crate::file_uri::FileUriEscaping::PathCharacters,
++    crate::file_uri::document_link_target(
++        path,
++        workspace_root.map(std::path::Path::new),
++        home.map(std::path::Path::new),
+     )
+ }
+ 
+@@ -1489,6 +1464,38 @@ mod tests {
+         assert_eq!(links[0].target, "file:///test-home");
+     }
+ 
++    #[test]
++    fn source_links_keep_shared_host_base_and_literal_parent_path_policy() {
++        let profile = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
++        for root in ["", "relative"] {
++            let links = document_links_with_home("source helper.tcl\n", profile, Some(root), None);
++            assert!(links.is_empty(), "{root}: {links:?}");
++        }
++        let root = std::env::temp_dir().join("document-link-root");
++        let source = "source ./link/../helper.tcl\n";
++        let links = document_links_with_home(source, profile, root.to_str(), None);
++        assert_eq!(links.len(), 1, "{links:?}");
++        assert_eq!(
++            links[0].target,
++            crate::file_uri::from_path(
++                &root.join("./link/../helper.tcl"),
++                crate::file_uri::FileUriEscaping::PathCharacters
++            )
++            .unwrap()
++        );
++        for home in ["", "relative"] {
++            assert!(
++                document_links_with_home(
++                    "source ~/helper.tcl\n",
++                    profile,
++                    root.to_str(),
++                    Some(home)
++                )
++                .is_empty()
++            );
++        }
++    }
++
+     // URI escaping
+ 
+     #[test]
+diff --git a/rust/tcl-lsp-core/src/file_uri.rs b/rust/tcl-lsp-core/src/file_uri.rs
+index fbca4580c..9ea526d09 100644
+--- a/rust/tcl-lsp-core/src/file_uri.rs
++++ b/rust/tcl-lsp-core/src/file_uri.rs
+@@ -43,6 +43,48 @@ pub fn from_path(path: &Path, escaping: FileUriEscaping) -> Option<String> {
+     from_rooted_spelling(path.to_str()?, cfg!(windows), escaping)
+ }
+ 
++/// Readonly link candidate under the supplied host workspace/home policy.
++/// Only `~` and `~/` use the supplied absolute home; other relative spellings
++/// require the supplied absolute workspace base. This never consults process
++/// cwd, a user database, the filesystem or an incoming URI. Host Path joining
++/// supplies the spelling; encoding uses the same rooted host-path owner.
++#[must_use]
++pub(crate) fn document_link_target(
++    literal: &str,
++    workspace_root: Option<&Path>,
++    home: Option<&Path>,
++) -> Option<String> {
++    if literal.is_empty() {
++        return None;
++    }
++    let expanded = if literal == "~" {
++        home.filter(|path| path.is_absolute())?.to_path_buf()
++    } else if let Some(rest) = literal.strip_prefix("~/") {
++        let home = home.filter(|path| path.is_absolute())?;
++        // Repeated tilde separators remain within the supplied home. They
++        // cannot turn the suffix into an independently rooted host path.
++        let relative = Path::new(rest.trim_start_matches('/'));
++        if relative.has_root()
++            || relative
++                .components()
++                .any(|component| matches!(component, std::path::Component::Prefix(_)))
++        {
++            return None;
++        }
++        home.join(relative)
++    } else {
++        literal.into()
++    };
++    let resolved = if expanded.is_absolute() {
++        expanded
++    } else {
++        workspace_root
++            .filter(|path| path.is_absolute())?
++            .join(expanded)
++    };
++    from_path(&resolved, FileUriEscaping::PathCharacters)
++}
++
+ fn from_rooted_spelling(path: &str, windows: bool, escaping: FileUriEscaping) -> Option<String> {
+     if path.as_bytes().contains(&0) {
+         return None;
+@@ -585,3 +627,67 @@ mod source_namespace_path_tests {
+         }
+     }
+ }
++
++#[cfg(test)]
++mod document_link_path_tests {
++    use super::*;
++
++    #[test]
++    fn document_link_paths_keep_supplied_bases_and_existing_host_encoding() {
++        let root = std::env::temp_dir().join("link-base");
++        let home = std::env::temp_dir().join("link-home");
++        for (literal, expected) in [
++            ("relative é#?.tcl", root.join("relative é#?.tcl")),
++            ("./link/../target.tcl", root.join("./link/../target.tcl")),
++            ("~/lib/a.tcl", home.join("lib/a.tcl")),
++            ("~//lib/a.tcl", home.join("lib/a.tcl")),
++            ("~", home.clone()),
++            ("~other/a.tcl", root.join("~other/a.tcl")),
++        ] {
++            assert_eq!(
++                document_link_target(literal, Some(&root), Some(&home)),
++                from_path(&expected, FileUriEscaping::PathCharacters),
++                "{literal}"
++            );
++        }
++        let absolute = root.join("absolute.tcl");
++        assert_eq!(
++            document_link_target(absolute.to_str().unwrap(), None, None),
++            from_path(&absolute, FileUriEscaping::PathCharacters)
++        );
++    }
++
++    #[test]
++    fn document_link_paths_refuse_missing_or_unrooted_bases_without_cwd() {
++        let root = std::env::temp_dir().join("link-base");
++        for base in [None, Some(Path::new("")), Some(Path::new("relative"))] {
++            assert!(document_link_target("file.tcl", base, None).is_none());
++            assert!(document_link_target("~/file.tcl", Some(&root), base).is_none());
++            assert!(document_link_target("~", Some(&root), base).is_none());
++        }
++        assert!(document_link_target("", Some(&root), Some(&root)).is_none());
++        assert!(document_link_target("bad\0.tcl", Some(&root), None).is_none());
++    }
++
++    #[cfg(not(windows))]
++    #[test]
++    fn document_link_paths_preserve_posix_foreign_drive_and_double_root_data() {
++        for literal in [r"C:\foreign\file.tcl", r"\server\share\file.tcl"] {
++            assert_eq!(
++                document_link_target(literal, Some(Path::new("/work")), None),
++                from_path(
++                    &Path::new("/work").join(literal),
++                    FileUriEscaping::PathCharacters
++                )
++            );
++        }
++        assert_eq!(
++            document_link_target("file.tcl", Some(Path::new("//server/share")), None),
++            Some("file:////server/share/file.tcl".to_owned())
++        );
++        assert_eq!(
++            document_link_target("./link/../target.tcl", Some(Path::new("/work")), None),
++            Some("file:///work/./link/../target.tcl".to_owned())
++        );
++    }
++}
+diff --git a/rust/tcl-lsp-core/src/oo_dispatch.rs b/rust/tcl-lsp-core/src/oo_dispatch.rs
+index 55a3559a2..35ca0cc5e 100644
+--- a/rust/tcl-lsp-core/src/oo_dispatch.rs
++++ b/rust/tcl-lsp-core/src/oo_dispatch.rs
+@@ -93,9 +93,27 @@ impl OoFrame {
+     /// object, so `my new` in an `initialize` body genuinely works.
+     #[must_use]
+     pub(crate) fn admits(self, registry: &CommandRegistry, name: &str) -> bool {
+-        if !registry.resolves_only_in_method_context(name) {
+-            return true;
+-        }
+-        self.resolves && (self.method || !registry.requires_oo_method_frame(name))
++        self.admits_requirements(
++            registry.resolves_only_in_method_context(name),
++            registry.requires_oo_method_frame(name),
++        )
++    }
++
++    /// Apply the same frame rule to the already selected source descriptor.
++    /// This preserves availability selection without making a second name query.
++    #[must_use]
++    pub(crate) fn admits_selected_spec(self, spec: &tcl_registry::CommandSpec) -> bool {
++        // naming.consumer.selected-catalogue-completion-provider
++        // docs/design/analysis/name-resolution-proofs/selected-catalogue-completion-provider.md
++        self.admits_requirements(
++            spec.traits
++                .contains(tcl_registry::Traits::TCLOO_METHOD_CONTEXT),
++            spec.traits
++                .contains(tcl_registry::Traits::TCLOO_REQUIRES_METHOD_FRAME),
++        )
++    }
++
++    fn admits_requirements(self, method_context: bool, method_frame: bool) -> bool {
++        !method_context || self.resolves && (self.method || !method_frame)
+     }
+ }
+diff --git a/rust/tcl-lsp-server/src/lib.rs b/rust/tcl-lsp-server/src/lib.rs
+index b2c244ef5..b5234e2e8 100644
+--- a/rust/tcl-lsp-server/src/lib.rs
++++ b/rust/tcl-lsp-server/src/lib.rs
+@@ -5591,7 +5591,7 @@ struct EvidenceHandles {
+     /// from a disk-backed file that nothing else will ever revisit.
+     documents: Arc<DocumentStore>,
+     /// Serialises that re-index with source-site reconciliation, exactly as
+-    /// [`Backend::merge_workspace_scan_results`] does.
++    /// [`Backend::publish_scanned_disk_results`] does.
+     rehoming_gate: Arc<tokio::sync::Mutex<()>>,
+     /// Keeps admitted membership and its Salsa `Project` input in the same
+     /// generation while cross-file evidence captures both.
+@@ -10929,6 +10929,7 @@ impl Backend {
+     /// held at that check, no new snapshot can start between it and the salsa
+     /// setters; `cancel_others` therefore cannot turn this bounded commit into
+     /// a synchronous multi-second wait.
++    #[cfg(test)]
+     async fn publish_disk_results(
+         &self,
+         replacements: &[(Uri, String, String, AnalysisResult)],
+@@ -10995,6 +10996,7 @@ impl Backend {
+     /// The disk-only guard serialises captured inputs; the owned rehoming guard
+     /// preserves the caller's transaction and can be released around a fair
+     /// dependency wait, then returned for folder-removal cache cleanup.
++    #[cfg(test)]
+     async fn publish_disk_results_while_rehoming_locked<'a>(
+         &'a self,
+         _disk_publication: &tokio::sync::MutexGuard<'_, ()>,
+@@ -13883,6 +13885,7 @@ impl Backend {
+         }))
+     }
+ 
++    #[cfg(test)]
+     async fn original_declaration_reference_locations(
+         &self,
+         identity: &tcl_lsp_core::original_declaration::OriginalDeclarationIdentity,
+@@ -14469,7 +14472,7 @@ impl Backend {
+     /// remain unavailable. The retained absence receipt routes only its actual
+     /// selected mapping through the
+     /// tombstone retire path, exactly like a `DELETED` watched-file event.
+-    /// Shared by [`Self::reindex_index_from_disk`] (the single-file path used
++    /// Shared by [`Self::reindex_index_from_disk_using`] (the single-file path used
+     /// by `did_close` / `didRenameFiles`) and the watched-files batch
+     /// reindex, so both agree on exactly how a disk-backed file is
+     /// turned into an index/salsa entry.
+@@ -14551,6 +14554,7 @@ impl Backend {
+     /// genuinely missing / no-longer-a-file (named by the event but gone by
+     /// its read) is folded into the same batched retire call a
+     /// `DELETED` entry uses, rather than a separate per-file `db_remove_source`.
++    #[cfg(test)]
+     async fn batch_reindex_from_disk(&self, uris: &[Uri]) -> DocumentSourceResult<()> {
+         self.batch_reindex_from_disk_using(uris, None).await
+     }
+@@ -14627,6 +14631,7 @@ impl Backend {
+         Ok(())
+     }
+ 
++    #[cfg(test)]
+     async fn reindex_index_from_disk(&self, uri: &Uri) -> DocumentSourceResult<()> {
+         self.reindex_index_from_disk_using(uri, None).await
+     }
+@@ -14699,7 +14704,7 @@ impl Backend {
+     /// it showed while open, kept accurate against disk.
+     ///
+     /// Callers must have refreshed the on-disk salsa source first (via
+-    /// [`Self::reindex_index_from_disk`]).  When the URI has no readable on-disk
++    /// [`Self::reindex_index_from_disk_using`]).  When the URI has no readable on-disk
+     /// `SourceFile` (an untitled buffer, or a file deleted between the reindex and
+     /// here), there is nothing to analyse and the stale squiggles are cleared
+     /// instead.  The
+@@ -26367,6 +26372,7 @@ impl Backend {
+     /// an editor can open a file while the scan is still running. Recheck
+     /// the live document map at publication time so stale on-disk
+     /// analysis cannot overwrite the open-buffer entry in either store.
++    #[cfg(test)]
+     async fn merge_workspace_scan_results(
+         &self,
+         analysed: &[(Uri, String, String, AnalysisResult)],

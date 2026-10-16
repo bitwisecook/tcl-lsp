@@ -1,0 +1,6 @@
+
+running 1 test
+test file_uri::tests::standalone_windows_geometry_preserves_drive_unc_and_extended_namespace ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3224 filtered out; finished in 0.00s
+

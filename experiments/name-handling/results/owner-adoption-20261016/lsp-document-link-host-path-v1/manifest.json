@@ -1,0 +1,40 @@
+{
+  "patch": "document-link-host-path-v1.patch",
+  "sha256": "3a81f42416d1b8f172596e66b16ae9e01c86133de58f1356aad7383fa23e47cc",
+  "catalogue_unit": "lsp-document-link-host-path-policy",
+  "files": [
+    {
+      "path": "rust/tcl-lsp-core/src/file_uri.rs",
+      "base_sha256": "5fde4827f8a9edd9f98d5aad27ff5c2b7d999c43a0c37fa8070c3cbb92e7660e",
+      "edit_sha256": "3763a3a23b5d4968a4d999d65b9c95c40d44850594d4a742c574123f94ecfaf3"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/document_links.rs",
+      "base_sha256": "6288f729d015a8c60a0ed8c450fd9e10bd89e6bca76da67b508d558fb6f3c40e",
+      "edit_sha256": "306c6a209128b7c4f9d06245a0ed270c0f17e449c6dc66659df1423e6cb138a4"
+    }
+  ],
+  "new_exact_selectors": [
+    "file_uri::document_link_path_tests::document_link_paths_keep_supplied_bases_and_existing_host_encoding",
+    "file_uri::document_link_path_tests::document_link_paths_refuse_missing_or_unrooted_bases_without_cwd",
+    "file_uri::document_link_path_tests::document_link_paths_preserve_posix_foreign_drive_and_double_root_data",
+    "document_links::tests::source_links_keep_shared_host_base_and_literal_parent_path_policy"
+  ],
+  "selector_budget_seconds": 180,
+  "selector_count_guard": 1,
+  "platform_note": "POSIX-only selector count1 on current POSIX host; Windows cfg-excludes it.",
+  "retained_control_groups": [
+    "document_links::tests::",
+    "file_uri::tests::",
+    "file_uri::inverse_tests::",
+    "file_uri::inverse_parser_tests::",
+    "file_uri::source_namespace_path_tests::"
+  ],
+  "validation": "TMP rustfmt; exact main/base hash; all original tests/helpers byte-identical; fuzz0 dryrun; separate TMP apply/hash PASS. No main/Git/Cargo/tests/instrumentation/shared-doc edits.",
+  "contract": {
+    "path": "CONTRACT.md",
+    "sha256": "bb4b02b8a63a683c15afd0c7a1ee6bbe20d8aa44e4f67b332b3ce72572d00883",
+    "scope": "TMP existing owner extension + exact static internal-route proposal; no canonical shared-doc mutation"
+  },
+  "source_basis_sha256": "b9e63fb78ae1a75fed8a9aa4bb593e042406f782dcf9255ae5adc9d7f297f747"
+}

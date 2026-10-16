@@ -1,0 +1,6 @@
+
+running 1 test
+test current_diagnostics::tests::current_diagnostics_requires_an_actual_completed_provider_even_for_empty_reports ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 738 filtered out; finished in 1.24s
+

@@ -1,0 +1,40 @@
+{
+  "lossless": true,
+  "members": [
+    {
+      "path": "tcl_lsp_server.list",
+      "sha256": "1b104115c5f041d66eca2d2e3001f5ae2388f7f42b73737f4ba8dce7122e85fa",
+      "bytes": 52968,
+      "stored": "tcl_lsp_server.list.zst",
+      "stored_sha256": "ab1694844ad8945d9ec4701ceec7cedacf729621458762556f22d987e74594b7"
+    },
+    {
+      "path": "tcl_lsp_db.list",
+      "sha256": "eb3dd32a577d6de205818dc19e31f96660bb04bacb07e807157552bb67f5e0a3",
+      "bytes": 15543,
+      "stored": "tcl_lsp_db.list.zst",
+      "stored_sha256": "8377a7e4895ba2b4fdb256e45e9da8ed7dbdd35c285efc5a2615e3b2e6d5ef9a"
+    },
+    {
+      "path": "tcl_registry.list",
+      "sha256": "edb4b0fdf0a423e37b741d34bb5dad2887e9ca686406927a779b4c071767fdf4",
+      "bytes": 160892,
+      "stored": "tcl_registry.list.zst",
+      "stored_sha256": "78b27afd041a8175bed31a1ef3a2b8820c097409a70834fe804b6fb6aa32230b"
+    },
+    {
+      "path": "tcl_lsp_core.list",
+      "sha256": "c1dc330c3e0fefeca06848a55482db526f68a8b6398bcdc3329a4307d25262ac",
+      "bytes": 277619,
+      "stored": "tcl_lsp_core.list.zst",
+      "stored_sha256": "7c62c48532b8448e43f2fc0948828b401c0a491971d36c86c9bb095b98e8e7cc"
+    },
+    {
+      "path": "tcl_compiler.list",
+      "sha256": "bea6c908ab460d4618206004437684b1099284f437119b1862c61d8667308b87",
+      "bytes": 927693,
+      "stored": "tcl_compiler.list.zst",
+      "stored_sha256": "1a7130ca2b074a0b779f0d553aff19ab4602fbcd6b8941645a9debb843e5a267"
+    }
+  ]
+}

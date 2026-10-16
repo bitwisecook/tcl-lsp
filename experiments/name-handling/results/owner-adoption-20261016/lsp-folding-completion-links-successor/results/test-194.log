@@ -1,0 +1,6 @@
+
+running 1 test
+test original_document_path_admission_tests::virtual_registered_path_reaches_actual_source_and_fresh_analysis ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 738 filtered out; finished in 0.81s
+

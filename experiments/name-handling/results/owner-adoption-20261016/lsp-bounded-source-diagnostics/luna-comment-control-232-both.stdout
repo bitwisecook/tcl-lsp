@@ -1,0 +1,11 @@
+
+running 1 test
+test analyser::utils::tests::script_comment_facts_reaches_nested_command_substitution_case_arms ... FAILED
+
+failures:
+
+failures:
+    analyser::utils::tests::script_comment_facts_reaches_nested_command_substitution_case_arms
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10270 filtered out; finished in 0.26s
+

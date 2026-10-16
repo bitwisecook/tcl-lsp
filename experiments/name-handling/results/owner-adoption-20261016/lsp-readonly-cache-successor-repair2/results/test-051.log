@@ -1,0 +1,19 @@
+
+running 1 test
+test diagnostic_report::tests::a_noqa_reaches_every_line_of_the_command_it_precedes ... 
+thread 'diagnostic_report::tests::a_noqa_reaches_every_line_of_the_command_it_precedes' (213964) panicked at rust/tcl-lsp-core/src/diagnostic_report.rs:1255:9:
+proc p {} {
+    return [expr {1 + 2}]
+}
+puts 3
+
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    diagnostic_report::tests::a_noqa_reaches_every_line_of_the_command_it_precedes
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3216 filtered out; finished in 2.25s
+

@@ -525,7 +525,7 @@ pub fn completions(
                 &partial,
                 registry,
                 current.config(),
-                current.context().context().authoring_query(),
+                current.context().context(),
             ),
         );
     }
@@ -2063,8 +2063,11 @@ fn grammar_member_completions(
     partial: &str,
     registry: &CommandRegistry,
     config: tcl_lexer::LexerConfig,
-    query: tcl_dialect::model::SurfaceQuery<'_>,
+    context: &tcl_registry::model::ResolvedContext,
 ) -> Vec<CompletionItem> {
+    // naming.consumer.selected-catalogue-completion-provider
+    // docs/design/analysis/name-resolution-proofs/selected-catalogue-completion-provider.md
+    let query = context.authoring_query();
     grammar
         .members
         .iter()
@@ -2077,7 +2080,7 @@ fn grammar_member_completions(
         .filter_map(|member| {
             let insert_text =
                 tcl_syntax::word_rules::lexical_unicode_source_word(member.keyword, config)?;
-            let spec = registry.get(member.keyword);
+            let spec = context.resolve_spec(registry, member.keyword);
             Some(CompletionItem {
                 label: member.keyword.to_owned(),
                 insert_text,
@@ -2345,104 +2348,54 @@ fn builtin_completions(
     else {
         return Vec::new();
     };
-    let mut names: Vec<&str> = registry
+    // naming.consumer.selected-catalogue-completion-provider
+    // docs/design/analysis/name-resolution-proofs/selected-catalogue-completion-provider.md
+    // Retain one descriptor from the actual document availability context.
+    // A same-name row from another provider cannot decide any later filter.
+    let mut candidates: Vec<_> = registry
         .command_names()
-        .filter(|n| partial.is_empty() || n.starts_with(partial))
-        .filter(|n| {
-            !registry.get(n).is_some_and(|spec| {
-                spec.traits
-                    .contains(tcl_registry::prelude::Traits::OPERATOR_COMMAND)
-            })
+        .filter(|name| partial.is_empty() || name.starts_with(partial))
+        .filter_map(|name| {
+            context
+                .resolve_spec(registry, name)
+                .map(|spec| (name, spec))
         })
-        .filter(|n| context.resolve_spec(registry, n).is_some())
-        // A declaration word of an authoring dialect exists as a spec so it
-        // can hover, complete, and arity-check *inside the block that names
-        // it* — never at an open command position. Which words those are is
-        // registry data (`Traits::DEFINITION_BODY_MEMBER_ONLY`); the
-        // grammar-driven path above is where they are offered.
-        .filter(|n| {
-            registry.get(n).is_none_or(|spec| {
-                !spec
+        .filter(|(_, spec)| {
+            !spec.traits.contains(tcl_registry::Traits::OPERATOR_COMMAND)
+                && !spec
                     .traits
-                    .contains(tcl_registry::prelude::Traits::DEFINITION_BODY_MEMBER_ONLY)
-            })
+                    .contains(tcl_registry::Traits::DEFINITION_BODY_MEMBER_ONLY)
         })
-        // A command whose *bare* spelling only works inside a `TclOO`
-        // method context (`link` / `my` / `next` / `nextto` / `self` /
-        // `classvariable`) is offered only there: completing
-        // `link` at the top level would insert a call real Tcl rejects with
-        // `invalid command name`. Which commands those are is registry data
-        // (`Traits::TCLOO_METHOD_CONTEXT` plus
-        // `Traits::TCLOO_REQUIRES_METHOD_FRAME`), never a name list here.
-        // The gate is *callability*, not mere resolution: in a Tcl 9 class
-        // `initialise` body the family resolves but all of it except `my`
-        // raises `… may only be called from inside a method`, so only `my`
-        // is offered there. The separately-registered `oo::Helpers::link`
-        // spelling is unscoped and stays offered everywhere.
-        .filter(|n| oo_frame.admits(registry, n))
-        // Tk catalogue commands require source package advice or ambient
-        // placement; a written request supplies no installed provider proof — and
-        // never inside a vendor shell: an F5 / EDA / bpf profile is a closed
-        // world where a desktop library cannot be `package require`d, even if
-        // the source says so. An environment can host Tk iff it declares a Tk
-        // placement (redesign §3.2's placement claims); the EDA
-        // shells are packaged vendors with no vendor_surface, so this keys off
-        // the placement (eda-library-packages.md). The resolved context
-        // answers hosting as one predicate
-        // over the environment's own placements.
-        .filter(|n| {
-            (tk_advice && context.can_host_package("Tk"))
-                || registry
-                    .get(n)
-                    .is_none_or(|spec| spec.required_package != Some("Tk"))
+        .filter(|(_, spec)| oo_frame.admits_selected_spec(spec))
+        .filter(|(_, spec)| {
+            (tk_advice && context.can_host_package("Tk")) || spec.required_package != Some("Tk")
         })
-        // Package-version gate: a command introduced in a later package release
-        // (`ttk::*` needs Tk 8.5) must not be offered when this file's
-        // `package require <pkg> <req>` guarantees only an older version — the
-        // same floor W135 checks.  A package required without a version, or not
-        // required at all, yields no floor and stays permissive.
-        .filter(|n| {
-            registry.get(n).is_none_or(|spec| {
-                let floor = package_version_floor(analysis, spec, profile);
-                // On a keyed ambient axis (the F5 surfaces) the declared
-                // range applies: explicit introduction or the 15.0
-                // baseline, plus any removal release.
-                match (context.keyed_version_range(spec), floor) {
-                    (Some((min, max)), Some(floor)) => {
-                        tcl_registry::version::within_range(floor, min, max)
-                    }
-                    _ => spec.available_for_version(floor),
+        .filter(|(_, spec)| {
+            let floor = package_version_floor(analysis, spec, profile);
+            match (context.keyed_version_range(spec), floor) {
+                (Some((min, max)), Some(floor)) => {
+                    tcl_registry::version::within_range(floor, min, max)
                 }
-            })
+                _ => spec.available_for_version(floor),
+            }
         })
         .collect();
-    names.sort_unstable();
-    names
+    candidates.sort_unstable_by_key(|(name, _)| *name);
+    candidates
         .into_iter()
-        .filter_map(|name| {
+        .filter_map(|(name, spec)| {
             let insert_text = tcl_syntax::word_rules::lexical_unicode_source_word(name, config)?;
             let count = usage.get(name).copied().unwrap_or(0);
-            // The *profile-resolved* spec, not `registry.get`: a command
-            // with more than one spec under one name (`link` is 9.0 core
-            // plus an 8.6 Tcllib `ooutil` entry) would otherwise describe
-            // itself with whichever duplicate came first — a Tcl 9 buffer
-            // showed `tcllib (ooutil)` as the detail for a core command.
-            // This is the same resolution the availability filter above
-            // already applies, so the item and the decision to offer it
-            // cannot disagree.
-            let spec = context.resolve_spec(registry, name);
             Some(CompletionItem {
                 label: name.to_owned(),
                 insert_text,
                 kind: CompletionKind::Function,
-                detail: spec.map(|s| command_detail(s, registry)),
+                detail: Some(command_detail(spec, registry)),
                 sort_text: Some(builtin_sort_text(name, count)),
                 is_snippet: false,
                 filter_text: None,
                 text_edit: None,
-                documentation: spec
-                    .and_then(|s| s.hover.as_ref())
-                    .map(|h| h.summary.to_owned()),
+                documentation: spec.hover.as_ref().map(|hover| hover.summary.to_owned()),
             })
         })
         .collect()
@@ -7525,5 +7478,252 @@ mod configured_receiver_completion_tests {
             );
             assert!(receiver_projection_for_fixture("${箱}suffix", config).is_none());
         }
+    }
+}
+
+#[cfg(test)]
+mod selected_catalogue_provider_tests {
+    use super::*;
+    use tcl_registry::{CommandSpec, Traits};
+
+    const SELECTED_DOC: tcl_registry::hover::HoverSnippet =
+        tcl_registry::hover::HoverSnippet::brief(
+            "selected source provider",
+            &[],
+            "source metadata",
+        );
+    const FOREIGN_DOC: tcl_registry::hover::HoverSnippet = tcl_registry::hover::HoverSnippet::brief(
+        "unavailable foreign provider",
+        &[],
+        "source metadata",
+    );
+
+    #[test]
+    fn builtin_filters_keep_the_actual_selected_provider_through_every_gate() {
+        // naming.consumer.selected-catalogue-completion-provider
+        // docs/design/analysis/name-resolution-proofs/selected-catalogue-completion-provider.md
+        let profile = crate::profile_for_dialect("tcl8.6");
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        let source = "package require http 2.0\n";
+        let mut registry = CommandRegistry::build_default();
+        for (name, selected_traits, foreign_traits, foreign_package) in [
+            (
+                "catalogue-operator",
+                Traits::empty(),
+                Traits::OPERATOR_COMMAND,
+                None,
+            ),
+            (
+                "catalogue-member",
+                Traits::empty(),
+                Traits::DEFINITION_BODY_MEMBER_ONLY,
+                None,
+            ),
+            (
+                "catalogue-frame",
+                Traits::empty(),
+                Traits::TCLOO_METHOD_CONTEXT | Traits::TCLOO_REQUIRES_METHOD_FRAME,
+                None,
+            ),
+            (
+                "catalogue-package",
+                Traits::empty(),
+                Traits::empty(),
+                Some("Tk"),
+            ),
+            (
+                "catalogue-version",
+                Traits::empty(),
+                Traits::empty(),
+                Some("http"),
+            ),
+            (
+                "catalogue-hidden-member",
+                Traits::DEFINITION_BODY_MEMBER_ONLY,
+                Traits::empty(),
+                None,
+            ),
+            (
+                "catalogue-hidden-frame",
+                Traits::TCLOO_METHOD_CONTEXT | Traits::TCLOO_REQUIRES_METHOD_FRAME,
+                Traits::empty(),
+                None,
+            ),
+        ] {
+            registry.insert(CommandSpec {
+                name,
+                traits: selected_traits,
+                hover: Some(SELECTED_DOC),
+                ..CommandSpec::DEFAULT
+            });
+            registry.insert(CommandSpec {
+                name,
+                traits: foreign_traits,
+                surface: Some(SpecSurface::TCL90),
+                required_package: foreign_package,
+                lifecycle: tcl_registry::lifecycle::Lifecycle {
+                    introduced: Some("99.0"),
+                    ..tcl_registry::lifecycle::Lifecycle::UNSPECIFIED
+                },
+                hover: Some(FOREIGN_DOC),
+                ..CommandSpec::DEFAULT
+            });
+        }
+        let analysis =
+            crate::source_structure::analyse_document(source, profile, &registry, config);
+        let context = crate::document_floor::DocumentFloor::new(&analysis, profile)
+            .context()
+            .unwrap();
+        for name in registry
+            .command_names()
+            .filter(|name| name.starts_with("catalogue-"))
+        {
+            let selected = context.resolve_spec(&registry, name).unwrap();
+            assert!(!std::ptr::eq(selected, registry.get(name).unwrap()));
+            assert_eq!(selected.hover.unwrap().summary, SELECTED_DOC.summary);
+        }
+        let frame = crate::oo_dispatch::OoFrame {
+            resolves: false,
+            method: false,
+        };
+        let items = builtin_completions(
+            &registry,
+            profile,
+            "catalogue-",
+            &FxHashMap::default(),
+            false,
+            &analysis,
+            frame,
+        );
+        let labels = items
+            .iter()
+            .map(|item| item.label.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            labels,
+            [
+                "catalogue-frame",
+                "catalogue-member",
+                "catalogue-operator",
+                "catalogue-package",
+                "catalogue-version"
+            ]
+        );
+        assert!(
+            items
+                .iter()
+                .all(|item| item.documentation.as_deref() == Some(SELECTED_DOC.summary))
+        );
+        assert!(
+            items
+                .iter()
+                .all(|item| item.detail.as_deref() == Some("built-in"))
+        );
+        let selected_frame = context
+            .resolve_spec(&registry, "catalogue-hidden-frame")
+            .unwrap();
+        assert!(!frame.admits_selected_spec(selected_frame));
+        assert!(
+            !crate::oo_dispatch::OoFrame {
+                resolves: true,
+                method: false
+            }
+            .admits_selected_spec(selected_frame)
+        );
+        assert!(
+            crate::oo_dispatch::OoFrame {
+                resolves: true,
+                method: true
+            }
+            .admits_selected_spec(selected_frame)
+        );
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        assert!(
+            builtin_completions(
+                &registry,
+                profile,
+                "catalogue-",
+                &FxHashMap::default(),
+                false,
+                &missing,
+                frame
+            )
+            .is_empty()
+        );
+        let mut changed = analysis.clone();
+        changed.body_lexer_config = None;
+        assert!(
+            builtin_completions(
+                &registry,
+                profile,
+                "catalogue-",
+                &FxHashMap::default(),
+                false,
+                &changed,
+                frame
+            )
+            .is_empty()
+        );
+    }
+
+    #[test]
+    fn grammar_member_details_use_the_same_current_availability_context() {
+        // naming.consumer.selected-catalogue-completion-provider
+        // docs/design/analysis/name-resolution-proofs/selected-catalogue-completion-provider.md
+        use tcl_registry::definer::{DefinitionBodyGrammar, MemberSpec, TCLOO_GRAMMAR};
+        static MEMBERS: &[MemberSpec] = &[
+            MemberSpec {
+                keyword: "catalogue-member",
+                surface: None,
+                ..TCLOO_GRAMMAR.members[0]
+            },
+            MemberSpec {
+                keyword: "grammar-only",
+                surface: None,
+                ..TCLOO_GRAMMAR.members[0]
+            },
+            MemberSpec {
+                keyword: "hidden-member",
+                surface: Some(SpecSurface::TCL90),
+                ..TCLOO_GRAMMAR.members[0]
+            },
+        ];
+        static GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
+            members: MEMBERS,
+            ..TCLOO_GRAMMAR
+        };
+        let profile = crate::profile_for_dialect("tcl8.6");
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(CommandSpec {
+            name: "catalogue-member",
+            hover: Some(SELECTED_DOC),
+            ..CommandSpec::DEFAULT
+        });
+        registry.insert(CommandSpec {
+            name: "catalogue-member",
+            surface: Some(SpecSurface::TCL90),
+            hover: Some(FOREIGN_DOC),
+            ..CommandSpec::DEFAULT
+        });
+        let analysis = crate::source_structure::analyse_document("", profile, &registry, config);
+        let context = crate::document_floor::DocumentFloor::new(&analysis, profile)
+            .context()
+            .unwrap();
+        let items = grammar_member_completions(&GRAMMAR, "", &registry, config, context);
+        assert_eq!(
+            items
+                .iter()
+                .map(|item| item.label.as_str())
+                .collect::<Vec<_>>(),
+            ["catalogue-member", "grammar-only"]
+        );
+        assert_eq!(
+            items[0].documentation.as_deref(),
+            Some(SELECTED_DOC.summary)
+        );
+        assert_eq!(items[0].detail.as_deref(), Some("built-in"));
+        assert!(items[1].documentation.is_none() && items[1].detail.is_none());
     }
 }

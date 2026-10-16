@@ -1,0 +1,17 @@
+
+running 1 test
+test document_links::tests::original_source_links_use_actual_selected_navigation_and_decline_shadows_or_stale_input ... 
+thread 'document_links::tests::original_source_links_use_actual_selected_navigation_and_decline_shadows_or_stale_input' (222270) panicked at rust/tcl-lsp-core/src/document_links.rs:1018:13:
+assertion `left == right` failed: rename source load; load /tmp/é.tcl: []
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    document_links::tests::original_source_links_use_actual_selected_navigation_and_decline_shadows_or_stale_input
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3224 filtered out; finished in 0.76s
+

@@ -5591,7 +5591,7 @@ struct EvidenceHandles {
     /// from a disk-backed file that nothing else will ever revisit.
     documents: Arc<DocumentStore>,
     /// Serialises that re-index with source-site reconciliation, exactly as
-    /// [`Backend::merge_workspace_scan_results`] does.
+    /// [`Backend::publish_scanned_disk_results`] does.
     rehoming_gate: Arc<tokio::sync::Mutex<()>>,
     /// Keeps admitted membership and its Salsa `Project` input in the same
     /// generation while cross-file evidence captures both.
@@ -10929,6 +10929,7 @@ impl Backend {
     /// held at that check, no new snapshot can start between it and the salsa
     /// setters; `cancel_others` therefore cannot turn this bounded commit into
     /// a synchronous multi-second wait.
+    #[cfg(test)]
     async fn publish_disk_results(
         &self,
         replacements: &[(Uri, String, String, AnalysisResult)],
@@ -10995,6 +10996,7 @@ impl Backend {
     /// The disk-only guard serialises captured inputs; the owned rehoming guard
     /// preserves the caller's transaction and can be released around a fair
     /// dependency wait, then returned for folder-removal cache cleanup.
+    #[cfg(test)]
     async fn publish_disk_results_while_rehoming_locked<'a>(
         &'a self,
         _disk_publication: &tokio::sync::MutexGuard<'_, ()>,
@@ -13883,6 +13885,7 @@ impl Backend {
         }))
     }
 
+    #[cfg(test)]
     async fn original_declaration_reference_locations(
         &self,
         identity: &tcl_lsp_core::original_declaration::OriginalDeclarationIdentity,
@@ -14469,7 +14472,7 @@ impl Backend {
     /// remain unavailable. The retained absence receipt routes only its actual
     /// selected mapping through the
     /// tombstone retire path, exactly like a `DELETED` watched-file event.
-    /// Shared by [`Self::reindex_index_from_disk`] (the single-file path used
+    /// Shared by [`Self::reindex_index_from_disk_using`] (the single-file path used
     /// by `did_close` / `didRenameFiles`) and the watched-files batch
     /// reindex, so both agree on exactly how a disk-backed file is
     /// turned into an index/salsa entry.
@@ -14551,6 +14554,7 @@ impl Backend {
     /// genuinely missing / no-longer-a-file (named by the event but gone by
     /// its read) is folded into the same batched retire call a
     /// `DELETED` entry uses, rather than a separate per-file `db_remove_source`.
+    #[cfg(test)]
     async fn batch_reindex_from_disk(&self, uris: &[Uri]) -> DocumentSourceResult<()> {
         self.batch_reindex_from_disk_using(uris, None).await
     }
@@ -14627,6 +14631,7 @@ impl Backend {
         Ok(())
     }
 
+    #[cfg(test)]
     async fn reindex_index_from_disk(&self, uri: &Uri) -> DocumentSourceResult<()> {
         self.reindex_index_from_disk_using(uri, None).await
     }
@@ -14699,7 +14704,7 @@ impl Backend {
     /// it showed while open, kept accurate against disk.
     ///
     /// Callers must have refreshed the on-disk salsa source first (via
-    /// [`Self::reindex_index_from_disk`]).  When the URI has no readable on-disk
+    /// [`Self::reindex_index_from_disk_using`]).  When the URI has no readable on-disk
     /// `SourceFile` (an untitled buffer, or a file deleted between the reindex and
     /// here), there is nothing to analyse and the stale squiggles are cleared
     /// instead.  The
@@ -26367,6 +26372,7 @@ impl Backend {
     /// an editor can open a file while the scan is still running. Recheck
     /// the live document map at publication time so stale on-disk
     /// analysis cannot overwrite the open-buffer entry in either store.
+    #[cfg(test)]
     async fn merge_workspace_scan_results(
         &self,
         analysed: &[(Uri, String, String, AnalysisResult)],

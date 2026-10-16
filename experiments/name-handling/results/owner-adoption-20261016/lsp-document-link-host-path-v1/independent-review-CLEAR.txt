@@ -1,0 +1,16 @@
+CLEAR — exact bounded independent source review
+
+Patch SHA256 3a81f42416d1b8f172596e66b16ae9e01c86133de58f1356aad7383fa23e47cc
+Manifest SHA256 0bf6bef2c749e355a780dc55a845d021caf5c19fcd1987736ab4dca974fcc961
+
+Both current/base/after source hashes, CONTRACT.md hash and SOURCE-BASIS.md hash independently verified. Exact patch applied --fuzz=0 to a separate TMP beforeimage and matched both afterimages. Removing only the new file_uri helper/tests restores its entire old source byte-for-byte. Removing the sole new document_links test restores its complete old test module byte-for-byte. No assertion, input, selector or budget rewrite.
+
+The real resolve_path adopter passes its existing decoded literal data and actual supplied root/home views to the same file_uri owner. Shared helper requires independently supplied absolute bases when needed, so an empty workspace cannot fabricate `/literal`; empty/missing/relative home cannot supply `~` expansion or inherit process cwd. Absolute literal paths are independent of optional bases. Only exact ~ and ~/ select home; named-user data remains literal under the workspace. Repeated slash after ~/ is kept a relative suffix; Windows root/prefix suffixes refuse rather than replacing the home. Standard host Path join supplies actual host-relative/rooted-prefix behavior, and unchanged from_path(PathCharacters) performs platform/root/Unicode/NUL and URI encoding checks. No URI inverse, environment/home lookup, filesystem read, canonicalisation or project lexical normalisation is introduced.
+
+POSIX foreign drive/backslash data, double-root spelling, and dot/parent components stay host path data; actual Windows Path joining and the existing encoder alone interpret native drive/UNC/verbatim roots. A navigation URI is not Native identity or a SourceStore publication/admission/currency receipt. Existing Tcl original-word/schema/input/span/anchor consumers are byte-identical. SpecTcl pack/include grammar and sibling-only include-file construction stay independent; in particular literal include ~ continues to name its sibling rather than home.
+
+The new source-link regression exercises the actual source consumer and rejects empty/unrooted supplied bases; helper controls cover supplied absolute root/home, absolute path, named-user data, NUL, repeated tilde slash, POSIX foreign path/root and symlink-sensitive lexical spelling. Several expected host encodings intentionally delegate the already tested encoder; explicit exact POSIX double-root/dot spellings and the actual consumer refusal are separate controls. No platform execution is inferred from source review.
+
+CONTRACT.md correctly extends the existing Host filesystem paths and file URIs owner, with one actual pub(crate) static route file_uri::document_link_target -> document_links::resolve_path. It does not create duplicate per-helper/per-call owner rows or reuse project/source-association/URI inverse authority. Root must integrate the existing canonical owner row/route supplement and reconcile any genuinely additional facet once; this review grants no new count or gate success.
+
+No Cargo/tests/builds/instrumentation/Git/main edits. Ordinary existing document-link, SpecTcl sibling and file-URI controls plus target-specific Native/browser/WASI validation remain Root-owned.

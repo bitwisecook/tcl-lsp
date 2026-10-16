@@ -1,0 +1,26 @@
+{
+  "patch": "publisher-unavailability-precedence-v1.patch",
+  "patch_sha256": "e7bb8721eda76adfe248667a51c61ea8a4369b81106a95041631a0a4cb00d029",
+  "files": [
+    {
+      "path": "rust/tcl-lsp-server/src/current_diagnostics.rs",
+      "before_sha256": "a11b08026167d17ab76281056dc702d6b9b89a3a0f727b4071e09207e252230a",
+      "after_sha256": "4b4bd28eaf531c4c96851b1f451479ef61d19707204fb9755e7c0e25cb4d948d"
+    }
+  ],
+  "actual_failures": [
+    {
+      "selector": "current_diagnostics::tests::cancelled_and_failed_passes_cannot_reuse_a_prior_complete_report",
+      "log": "/workspace/naming-validation/lsp-readonly-cache-successor-repair2/results/test-205.log"
+    },
+    {
+      "selector": "current_diagnostics::tests::actual_failed_lift_worker_cannot_issue_completed_empty_diagnostics",
+      "log": "/workspace/naming-validation/lsp-readonly-cache-successor-repair2/results/test-208.log"
+    }
+  ],
+  "source_cause": "An actual current successor ledger pass is Pending/ProviderError, but the cache still retains predecessor Publisher receipt. The cached-pass Arc check returned Stale before consulting the authentic current pass result. This misclassified genuine provider unavailability.",
+  "repair": "Authenticate current publisher pass through unchanged current_result source/version/epoch/slot guards and return its actual unavailable reason first. Only its successful Complete/Suppressed result proceeds to both exact pass Arc and actual issued report-ID checks. No prior cached report is ever donated on error.",
+  "preserved": "Direct producer/origin and actual legacy handler writer unchanged, PublisherOnly still refuses Direct; real acknowledgement and issued ID remain mandatory for successful publisher reports. All source/config/input/Registry/admission/factory/generation/wholebatch/finalprovider checks unchanged. Entire original test module byte-identical.",
+  "validation": "Exact current beforehash/afterhash, original entire tests equality, separate TMP fuzz0 apply. No main/Git/Cargo/tests/instrumentation. Root owns fresh ordinary singleton validation.",
+  "count": "Existing completed-publication/cache purpose correctness repair; no new owner/caller/count."
+}

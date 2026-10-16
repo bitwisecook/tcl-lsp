@@ -17063,7 +17063,13 @@
       "required_change": [
         "Local trim/format path joining and tilde expansion remain separate consumer policy instead of shared host/project path owner; especially platform/base purpose must remain explicit. No Tcl runtime cwd or filesystem existence is established."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Selected completion/document links successor of9eb66b254",
+        "validation": "Independent source CLEAR; ordinary native successor building; original tests unchanged, new scoped controls prepared.",
+        "remaining": "Existing host file-URI owner now owns supplied absolute workspace/home readonlylink policy. No new annex facet, per independent reconciliation."
+      }
     },
     {
       "area": "lsp",
@@ -20310,7 +20316,13 @@
       "required_change": [
         "Retain the selected descriptor across EVERY purpose-specific filter/detail/projection rather than mixing a selected available provider with first raw same-name spec. Actual Registry receiver class/factory package floor must retain owning package identity across inherited providers (shared owner adaptation tracked by DB). Catalogue advice is not slot occupancy or execution."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "partially_implemented_pending_validation",
+        "checkpoint": "Selected completion/document links successor of9eb66b254",
+        "validation": "Independent source CLEAR; ordinary native successor building; original tests unchanged, new scoped controls prepared.",
+        "remaining": "Builtin and grammar-member filters/details retain one selected descriptor; inherited Registry instance provider/package ownership and registry_method_items remain open."
+      }
     },
     {
       "area": "lsp",
@@ -132138,12 +132150,12 @@
   ],
   "implementation_progress": {
     "resumed_from": "554085e162823ea8bd126898d0c27b7b2a9f8628",
-    "utc": "2026-10-16T18:27:32.474725+00:00",
+    "utc": "2026-10-16T18:52:52.644276+00:00",
     "audit_baseline_counts_unchanged": true,
     "total_required_units": 2158,
-    "implemented_pending_validation": 256,
+    "implemented_pending_validation": 258,
     "verified_complete": 0,
-    "not_started": 1902,
+    "not_started": 1900,
     "remaining_unverified_or_unimplemented": 2158,
     "additional_work_not_counted_as_catalogue_completion": [
       "Native variable-expression read/cell/trace/child-body observer producer remains open; pure expression gap receipt grants no such authority.",
@@ -132402,14 +132414,14 @@
       "verified_complete": 0
     },
     "effective_required_units": 2211,
-    "effective_implemented_pending_validation": 308,
+    "effective_implemented_pending_validation": 310,
     "effective_verified_complete": 0,
     "incoming_remote": {
-      "utc": "2026-10-16T18:11:00Z",
+      "checked_utc": "2026-10-16T18:51:00Z",
       "rust": "fcb7927f02b5395753247b322fdd7be87ae5c731",
-      "work": "e0612d3736aa9a3d170cf207c84b3c85ec1a0118",
+      "merged": false,
       "admitted": false,
-      "merge": false
+      "LSP_assessment": "Querywaitbudget patch doesnotaddressdirectstartup166scanawait; RuntimeVMchangesdeferred."
     },
     "ordinary_workspace_build": {
       "status": "PASS",
@@ -132572,8 +132584,8 @@
       "scope": "Selected controls only. Completed99tests are65PASS34FAIL. Preview failure retained separately; no whole-group or gate acceptance.",
       "capture": "experiments/name-handling/results/owner-adoption-20261016/cli-mcp-server-889"
     },
-    "fully_implemented_pending_validation": 246,
-    "partially_implemented_pending_validation": 10,
+    "fully_implemented_pending_validation": 247,
+    "partially_implemented_pending_validation": 11,
     "runtime_report_adoptions": {
       "baseline_units": [
         "runtime:report.selected-command-variable-qualification:132",
@@ -132738,14 +132750,14 @@
         "validation": 122,
         "documentation": 2
       },
-      "lsp_integrated_pending_validation": 127,
+      "lsp_integrated_pending_validation": 129,
       "lsp_by_kind_integrated": {
-        "semantic": 40,
+        "semantic": 42,
         "documentation": 2,
         "validation": 85
       },
       "lsp_verified_complete": 0,
-      "lsp_without_integrated_implementation": 198,
+      "lsp_without_integrated_implementation": 196,
       "shared_dependencies": "Counted under their original Compiler/DB/Registry units or reconciled annex; not counted again as LSP consumers.",
       "deferred": "Runtime174 remaining54,VM133,RuntimeJim execution and BIG-IP source inventory/provider work; retain all existing artifacts.",
       "new_source_alias_caller_annex": "compiler.consumer.logical-source-alias-declaration-observations"
@@ -132852,24 +132864,12 @@
       "fix": "fluent-uri existing0.4.1 net=[] feature enabled; independent source CLEAR; no dependency/package/version change; retry pending"
     },
     "report": {
-      "last_utc": "2026-10-16T18:06:00Z",
-      "next_utc": "2026-10-16T18:36:00Z",
-      "LSP_integrated": 119,
-      "LSP_required": 325,
-      "LSP_semantic_integrated": 34,
-      "LSP_validation_integrated": 83,
-      "LSP_documentation_integrated": 2,
-      "LSP_without_integrated": 206,
-      "verified_complete": 0,
-      "delta_from_last_report": 4,
-      "effective_integrated": 300,
-      "effective_required": 2211,
-      "source_commit": "e0612d373",
-      "build": "Next ordinary native build preparing for newly integrated readonly/cache/source-owner successor. Earlier e0612 five-library build PASS472.309s/0warnings/38998no drift.",
-      "latest_completed_controls": "220 exact:191PASS/28FAIL/1TIMEOUT,0singletonrejection/0artifactdrift; all old57+120 retained,2gains against120,0priorPASSregressions.",
-      "editor": "Actual e0612 main TypeScript/format PASS; unintegratedsourcewriteV6hasraceHOLD, TS+Node/browserbundlesPASSonly.",
-      "next": "New native replay, current browser/WASI/owner checks and source-write lease races. Existing default constructor/SSA/native-result allocation authorities remain open.",
-      "scope": "Runtime/VM/BIGIP migrations remain deferred; uncoveredBIGIP Tcl8.4 assumption separate from measured evidence."
+      "last_utc": "2026-10-16T18:36:00Z",
+      "next_utc": "2026-10-16T19:06:00Z",
+      "cadence_minutes": 30,
+      "lsp_integrated": 129,
+      "lsp_required": 325,
+      "verified": 0
     },
     "lsp_tk_and_validation29": {
       "baseline_units": [
@@ -133316,6 +133316,55 @@
       "wasi": "LOCKEDstale lockfile thenOFFLINEmissingwasi crate; Cargo-owned lock+fetch repaired, actual compile pending",
       "editor": "ActualmainTypeScript/scopedformat/Node+browserbundlesPASS afterV8+realproviderexport; hostsetupfailsread-onlyapt directories",
       "native": "253exact frozen replay running; sourcebound buildPASS333.212s1unusedhelperwarning, helperremovedinlater source"
+    },
+    "completion_links_batch": {
+      "baseline_new": [
+        "lsp-document-link-host-path-policy",
+        "lsp-completion-catalogue-selected-provider-filter"
+      ],
+      "new_annex": 0,
+      "partial_completion": true,
+      "build": "/workspace/naming-validation/lsp-folding-completion-links-successor",
+      "warning_repair": "Six unused old Server wrappers accurately cfg(test), tests alltargets preserved; freshwarningcheckpending"
+    },
+    "readonly_cache_actual253": {
+      "PASS": 213,
+      "FAIL": 39,
+      "TIMEOUT": 1,
+      "retained220": 220,
+      "gains": 7,
+      "previous_PASS_regressions": 8,
+      "new": {
+        "PASS": 23,
+        "FAIL": 10
+      },
+      "singleton_rejections": 0,
+      "artifact_drift": 0,
+      "capture": "experiments/name-handling/results/owner-adoption-20261016/lsp-readonly-cache-successor-repair2",
+      "limits": "Six oldPASS titleconflicts +two actual publisherstate reason regressions; minimalreviewedfixpendingordinaryexecution. Newreadonly/body/arity/commentfailures remain. No assertion/budget weakening."
+    },
+    "folding_completion_links_actual310": {
+      "build": "PASS401.643s,1test-onlyhelperwarning,39000inputs0drift",
+      "PASS": 262,
+      "FAIL": 47,
+      "TIMEOUT": 1,
+      "retained253": 253,
+      "gains": 0,
+      "previous_PASS_regressions": 0,
+      "new": {
+        "PASS": 49,
+        "FAIL": 8
+      },
+      "capture": "experiments/name-handling/results/owner-adoption-20261016/lsp-folding-completion-links-successor"
+    },
+    "actual_wasi_successor": {
+      "status": "PASS_WASI_CHECK",
+      "seconds": 171.879,
+      "warnings": 0,
+      "input_count": 39000,
+      "input_drift": 0,
+      "scope": "Includes currentpublisherstatepreference andtest-onlycompatibilityhelper fixes; compileonly, noNative/WASIexecutiondonation",
+      "capture": "experiments/name-handling/results/owner-adoption-20261016/lsp-wasi-portable-diagnostics-successor"
     }
   }
 }

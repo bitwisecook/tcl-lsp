@@ -1,0 +1,13 @@
+Independent source review: CLEAR
+
+Candidate patch SHA-256: 522feec71dc0682a153ef75f14461faf9a772f3e9e7672e92cc2cde9e0d6faed
+Manifest SHA-256: 92df334f55551610b05d38f97997724bcee8c8a5cf06dce276928b791a2abb84
+Baseline unit: lsp-completion-catalogue-selected-provider-filter
+Scope: builtin_completions + grammar_member_completions; no completion test execution claimed.
+
+I verified the exact five recorded current beforeimages against the live workspace and independently applied the candidate to a fresh TMP tree. All five resulting hashes match the manifest. The actual retained document `ResolvedContext` now chooses a `CommandSpec` once per name and that reference remains attached while builtin filtering checks operator/member-only traits, TclOO frame requirements, Tk package advice, package/version lifecycle, and final details/documentation. `OoFrame::admits_selected_spec` reads only the selected descriptor traits and delegates to the same private predicate as the existing registry/name adapter, preserving that adapter's behavior. The grammar path retains its full `authoring_query` for grammar membership and uses `resolve_spec` in that same context only for optional descriptor details; grammar-only members remain valid rows without fabricated metadata.
+
+The two controls create real same-name rows where the selected Tcl 8.6 descriptor differs from a later unavailable Tcl 9 row, and exercise competing trait, package, version, and documentation facts. They keep source/input/configuration admission guards and check grammar-only rows. The patch changes no native/runtime/VM behavior, no completion authorization, and no method-frame facts beyond selecting the same descriptor whose traits determine availability. `registry_method_items` and inherited Registry package ownership remain expressly open.
+
+The diff leaves all existing completion test assertions untouched; the new tests are appended after the prior suite. Fresh apply and hash checks were read-only/TMP only. No Cargo, Rust test, native process, oracle, Git operation, or main-checkout write was performed.
+92df334f55551610b05d38f97997724bcee8c8a5cf06dce276928b791a2abb84  /tmp/sol-lsp-selected-catalogue-completion-v1/manifest.json

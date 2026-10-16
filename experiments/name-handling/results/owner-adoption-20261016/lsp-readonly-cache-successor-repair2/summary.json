@@ -1,0 +1,82 @@
+{
+  "recorded_utc": "2026-10-16T18:36:00.225402+00:00",
+  "source_head": "b78612c18f3b00db78c368b3be14fd897cb62f97",
+  "build": "PASS333.212seconds,1unusedhelperwarning,39000inputs0drift",
+  "results": {
+    "PASS": 213,
+    "FAIL": 39,
+    "TIMEOUT": 1
+  },
+  "retained_exact": 220,
+  "gains": [
+    {
+      "target": "tcl_lsp_core",
+      "selector": "inlay_hints::retained_hint_context_tests::logical_parameter_hints_keep_nested_and_prefix_ordinals_without_captured_anchors"
+    },
+    {
+      "target": "tcl_lsp_db",
+      "selector": "project_token_inputs::tests::project_source_roles_select_current_call_declaration_and_formals"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "definition::tests::jump_to_class_definition_disambiguates_same_named_classes_by_cursor"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "parsing::spectcl_source::tests::pack_source_includes_withhold_dynamic_malformed_nested_and_unloaded_rows"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "original_document_path_admission_tests::unregistered_virtual_open_requires_no_native_host_or_vfs_upsert"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "current_diagnostics::tests::current_diagnostics_withdraws_changed_inputs_generation_and_source"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "package_resolver::tests::parse_tcl_index_differential_against_auto_mkindex"
+    }
+  ],
+  "previous_PASS_regressions": [
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_bare_word_in_method_body_is_not_a_self_dispatch"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_reports_zero_for_uncalled_method"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_counts_multiple_external_obj_method_calls"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_counts_obj_method_from_create_instance"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_counts_inherited_method_on_subclass_instance"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_unknown_instance_method_is_not_counted"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "current_diagnostics::tests::cancelled_and_failed_passes_cannot_reuse_a_prior_complete_report"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "current_diagnostics::tests::actual_failed_lift_worker_cannot_issue_completed_empty_diagnostics"
+    }
+  ],
+  "new_controls": {
+    "PASS": 23,
+    "FAIL": 10
+  },
+  "singleton_rejections": 0,
+  "artifact_drift": 0,
+  "limits": "Frozen bounded native source only; later folding/completion/documentlink/cfg changes not in these binaries. Six old PASS lens titles now conflict with conditional lower-bound/unavailable display; two publisher-state reason regressions have reviewed source repair pending ordinary execution. New readonly/body/arity/comment failures remain explicit. No current repository/issue/host acceptance."
+}

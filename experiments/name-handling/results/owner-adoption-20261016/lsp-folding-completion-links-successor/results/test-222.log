@@ -1,0 +1,17 @@
+
+running 1 test
+test analyser::class_hierarchy::original_metadata::source_method_reference::tests::readonly_self_selectors_retain_own_and_inherited_source_members ... 
+thread 'analyser::class_hierarchy::original_metadata::source_method_reference::tests::readonly_self_selectors_retain_own_and_inherited_source_members' (222072) panicked at rust/tcl-compiler/src/analyser/class_hierarchy/original_metadata/source_method_reference.rs:343:17:
+assertion `left == right` failed: tcl8.6: oo::class create C {method ping {} {}; method body {} {my ping; my ping}}
+  left: 0
+ right: 2
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    analyser::class_hierarchy::original_metadata::source_method_reference::tests::readonly_self_selectors_retain_own_and_inherited_source_members
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10270 filtered out; finished in 0.52s
+

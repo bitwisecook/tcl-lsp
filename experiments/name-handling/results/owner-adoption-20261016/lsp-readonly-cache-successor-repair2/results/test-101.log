@@ -1,0 +1,6 @@
+
+running 1 test
+test uri_norm::tests::a_well_formed_uri_needs_no_repair ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 738 filtered out; finished in 0.00s
+

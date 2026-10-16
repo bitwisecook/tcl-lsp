@@ -1,0 +1,26 @@
+{
+  "source_head": "9eb66b254863d98297e2580fb4fb4d6bd927535f",
+  "rust_diff_sha256": "f49a317b28727234259b3a56f8c605bd491ae5718acba1fadee3adc3f734042f",
+  "ordinary": true,
+  "instrumentation": false,
+  "single_job": true,
+  "test_debug": 0,
+  "packages": [
+    "tcl-compiler",
+    "tcl-lsp-core",
+    "tcl-lsp-db",
+    "tcl-registry",
+    "tcl-lsp-server"
+  ],
+  "status": "PASS_FIVE_LIBRARY_BUILD",
+  "input_before_count": 39000,
+  "utc": "2026-10-16T18:30:46.441416+00:00",
+  "command": "CARGO_PROFILE_TEST_DEBUG=0 cargo test --offline -p tcl-compiler -p tcl-lsp-core -p tcl-lsp-db -p tcl-registry -p tcl-lsp-server --lib --no-run",
+  "scope": "Additional current original-body folding, selected catalogue descriptor filters, shared readonly document-link base policy and accurate test-only Server wrappers; reviewed LSP readonly C-class/member Core/Server, semantic comment phase, rename byte-overlap refusal, Logical procedure inlay and source prefix, retained arity applicability debt, purpose-distinct diagnostics with all eight DB configuration fields, malformed SpecTcl navigation and encoded IndexLoader source form, Unicode fixture and portable C ABI source repairs. Runtime/VM/BIG-IP dedicated migrations deferred. No source advice grants Native execution, Normal completion, physical identity or edits.",
+  "exit_code": 0,
+  "build_seconds": 401.643,
+  "input_after_count": 39000,
+  "input_drift_count": 0,
+  "input_drift": [],
+  "completed_utc": "2026-10-16T18:37:28.084347+00:00"
+}

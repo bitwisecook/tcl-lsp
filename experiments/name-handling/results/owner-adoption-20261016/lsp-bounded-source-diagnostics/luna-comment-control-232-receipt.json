@@ -1,0 +1,27 @@
+{
+  "binary": "/workspace/naming-validation/lsp-readonly-cache-successor-repair2/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+  "binary_sha256_before": "72e3ac90d2f92c3b4c0d0cc1e52e77c1458f73a32d42ad5af633ac4b8d667b2b",
+  "binary_sha256_after": "72e3ac90d2f92c3b4c0d0cc1e52e77c1458f73a32d42ad5af633ac4b8d667b2b",
+  "expected_sha256": "72e3ac90d2f92c3b4c0d0cc1e52e77c1458f73a32d42ad5af633ac4b8d667b2b",
+  "selector": "analyser::utils::tests::script_comment_facts_reaches_nested_command_substitution_case_arms",
+  "argv": [
+    "/workspace/naming-validation/lsp-readonly-cache-successor-repair2/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+    "analyser::utils::tests::script_comment_facts_reaches_nested_command_substitution_case_arms",
+    "--exact",
+    "--nocapture"
+  ],
+  "environment": {
+    "PATH": "/workspace/.toolchains/cargo/bin:/usr/local/bin:/usr/bin:/bin",
+    "TCL_LSP_REQUIRE_TCLSH": "9.0,8.6",
+    "TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS": "1"
+  },
+  "timeout_seconds": 180,
+  "started_utc": "2026-10-16T18:37:12.323424+00:00",
+  "completed_utc": "2026-10-16T18:37:13.027756+00:00",
+  "exit_code": 101,
+  "stdout_path": "/tmp/luna-comment-control-232.stdout",
+  "stderr_path": "/tmp/luna-comment-control-232.stderr",
+  "stdout_bytes": 344,
+  "stderr_bytes": 9193,
+  "trace": "TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS=1 only; no instrumentation/source edits"
+}

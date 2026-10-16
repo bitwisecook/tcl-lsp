@@ -1,0 +1,6 @@
+
+running 1 test
+test caller_frame::tests::original_caller_templates_keep_full_input_bom_namespace_and_source_currency ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3216 filtered out; finished in 6.15s
+

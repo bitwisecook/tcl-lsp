@@ -1,0 +1,6 @@
+
+running 1 test
+test file_uri::source_namespace_path_tests::declared_virtual_and_guest_geometry_is_separate_from_native_host_support ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3224 filtered out; finished in 0.00s
+

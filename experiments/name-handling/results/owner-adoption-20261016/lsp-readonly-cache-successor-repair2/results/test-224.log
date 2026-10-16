@@ -1,0 +1,17 @@
+
+running 1 test
+test original_declaration::readonly_source_reference_tests::readonly_member_reports_keep_source_spans_out_of_edit_inventories ... 
+thread 'original_declaration::readonly_source_reference_tests::readonly_member_reports_keep_source_spans_out_of_edit_inventories' (216142) panicked at rust/tcl-lsp-core/src/original_declaration.rs:1269:9:
+assertion `left == right` failed
+  left: 0
+ right: 2
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    original_declaration::readonly_source_reference_tests::readonly_member_reports_keep_source_spans_out_of_edit_inventories
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3216 filtered out; finished in 0.75s
+

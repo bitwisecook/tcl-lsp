@@ -1,0 +1,61 @@
+{
+  "e061_input_manifest": "/workspace/naming-validation/lsp-source-path-diagnostics-repair/input-before.json",
+  "e061_input_manifest_sha256": "e7bf6c283ba0442b43e686c3078cb8b58d0629b96d6c635562483e11f28953c1",
+  "repair2_input_manifest": "/workspace/naming-validation/lsp-readonly-cache-successor-repair2/input-before.json",
+  "repair2_input_manifest_sha256": "e0a4fa33af4905f2726a4cd72691b7e7985a2c87c0da495b063c8d7224ec0fcc",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_command_world.rs",
+      "e061_frozen_sha256": "08d1c794390c6b7a81f4685d04299abd1c0145b3d21f777e5be0dd7150f0a201",
+      "repair2_frozen_sha256": "08d1c794390c6b7a81f4685d04299abd1c0145b3d21f777e5be0dd7150f0a201",
+      "current_sha256": "08d1c794390c6b7a81f4685d04299abd1c0145b3d21f777e5be0dd7150f0a201",
+      "all_equal": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/state.rs",
+      "e061_frozen_sha256": "07a90c753e28fb46ad1a7da3702fd28b0628db7dd6100b51c618645b1c25cf94",
+      "repair2_frozen_sha256": "07a90c753e28fb46ad1a7da3702fd28b0628db7dd6100b51c618645b1c25cf94",
+      "current_sha256": "07a90c753e28fb46ad1a7da3702fd28b0628db7dd6100b51c618645b1c25cf94",
+      "all_equal": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "e061_frozen_sha256": "f7106f0fb33cde0b7ef78255c8d725c0466d80fae114ef47b7d16a7809bbb40a",
+      "repair2_frozen_sha256": "f7106f0fb33cde0b7ef78255c8d725c0466d80fae114ef47b7d16a7809bbb40a",
+      "current_sha256": "f7106f0fb33cde0b7ef78255c8d725c0466d80fae114ef47b7d16a7809bbb40a",
+      "all_equal": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/realm/source_transition_advice.rs",
+      "e061_frozen_sha256": "9a89ee3f6fbc3cb96714441ad0d67e49bffb305af53e0037c75170dd84246136",
+      "repair2_frozen_sha256": "9a89ee3f6fbc3cb96714441ad0d67e49bffb305af53e0037c75170dd84246136",
+      "current_sha256": "9a89ee3f6fbc3cb96714441ad0d67e49bffb305af53e0037c75170dd84246136",
+      "all_equal": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/native_class_factory_roles.rs",
+      "e061_frozen_sha256": "859551e3d034e661b51757a3f7d78e9d894eb47027365401e98a550921daa7e4",
+      "repair2_frozen_sha256": "859551e3d034e661b51757a3f7d78e9d894eb47027365401e98a550921daa7e4",
+      "current_sha256": "859551e3d034e661b51757a3f7d78e9d894eb47027365401e98a550921daa7e4",
+      "all_equal": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/original_class_factory_transfer.rs",
+      "e061_frozen_sha256": "41916169dc2f0582d9f1cb9b9758a3b7e37429c632a06cda8d9db8cbfd2dde5c",
+      "repair2_frozen_sha256": "41916169dc2f0582d9f1cb9b9758a3b7e37429c632a06cda8d9db8cbfd2dde5c",
+      "current_sha256": "41916169dc2f0582d9f1cb9b9758a3b7e37429c632a06cda8d9db8cbfd2dde5c",
+      "all_equal": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/registered_class_factory.rs",
+      "e061_frozen_sha256": "c6f850eda0f16687157e6c553affd528d477e0db9197d6a5c1af2b68434bfa9a",
+      "repair2_frozen_sha256": "c6f850eda0f16687157e6c553affd528d477e0db9197d6a5c1af2b68434bfa9a",
+      "current_sha256": "c6f850eda0f16687157e6c553affd528d477e0db9197d6a5c1af2b68434bfa9a",
+      "all_equal": true
+    }
+  ],
+  "original_e061_command_binding_source_capsule": "/tmp/compiler-logical-source-prefix-words-v1/base/rust/tcl-compiler/src/command_binding.rs",
+  "capsule_sha256": "0e4847c3f84e01ee688d89b422a2e19b4fb17d241c62ca2575a3c47a7b67b481",
+  "complete_command_binding_body_from_registry_descriptor_marker_to_eof_exact": true,
+  "command_binding_diff_scope": "Only original_logical_prepended_name_inputs optional-key adaptation + new readonly Logical source prefix getter at1719. Root Normal issuer and Native class producer code unchanged."
+}

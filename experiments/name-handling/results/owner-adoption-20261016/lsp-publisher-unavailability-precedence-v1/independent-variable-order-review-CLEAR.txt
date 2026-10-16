@@ -1,0 +1,6 @@
+CLEAR source-only exacte7bb8721eda76adfe248667a51c61ea8a4369b81106a95041631a0a4cb00d029.
+Verified patch hash, manifest before/after hashes and entire original tests module byte equality. Only ordering of two existing guards changes.
+
+Publisher receipt route now consults actual selected ledger entry's current_result first. That method authenticates successor original source/version/revision/dialect/input epoch/slot generation and dirty state before returning actual Pending/ProviderError/other unavailable state. Such refusal never returns predecessor cached diagnostics. Successful Complete/Suppressed still must match both same exact pass Arc and actual issued result ID before final complete config/input/SourceFile/provider checks and report projection. Direct receipt route, PublisherOnly purpose, real acknowledgement producer, cache writer and final joint guards unchanged. Missing ledger remains Pending. This corrects unavailable precedence without weakening success provenance or donating cached payload on error.
+
+No further concrete blocker found. No Cargo/main/Git/build/test/gate execution. Original205/208 and success/security controls require Root ordinary replay. No count/owner extension proposed.

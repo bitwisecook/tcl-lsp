@@ -1,0 +1,40 @@
+{
+  "classification": "No distinct additional migration/owner-annex count; progress belongs to existing required baseline unit.",
+  "patch": {
+    "path": "/tmp/lsp-document-link-host-path-v1/document-link-host-path-v1.patch",
+    "sha256": "3a81f42416d1b8f172596e66b16ae9e01c86133de58f1356aad7383fa23e47cc"
+  },
+  "baseline_unit": {
+    "id": "lsp-document-link-host-path-policy",
+    "area": "lsp",
+    "catalogue_sha256": "98e19d4bac2f07038421f2740929f44d9aba5380a4020f1762dcd915d01dd2eb",
+    "original_required_change": "Local trim/format path joining and tilde expansion remain separate consumer policy instead of shared host/project path owner; especially platform/base purpose must remain explicit. No Tcl runtime cwd or filesystem existence is established.",
+    "anchor": "rust/tcl-lsp-core/src/document_links.rs::resolve_path"
+  },
+  "candidate_owner_facet": {
+    "owner": "rust/tcl-lsp-core/src/file_uri.rs::document_link_target",
+    "caller": "rust/tcl-lsp-core/src/document_links.rs::resolve_path",
+    "scope": "forward readonly path candidate policy under caller supplied absolute workspace/home roots; actual host encoder remains from_path; does not establish existence, canonicalization, symlink identity, Tcl cwd, source identity/load, or edit authority."
+  },
+  "existing_annex_overlap": {
+    "id": "lsp.owner.checked-document-file-uri-inverse",
+    "annex_sha256": "7474e7d98d09aa0b67142fedd1b6e8fb976c9897ef439f11c4dece58e03083f8",
+    "baseline_unit_ids": [
+      "lsp-server-path-uri-repair-policy",
+      "lsp-server-host-file-path-unicode",
+      "lsp-editor-wasi-uri-owner"
+    ],
+    "purpose": "Strict incoming protocol URI to host Path inverse; it does not resolve authored link candidates or supplied workspace/home bases."
+  },
+  "non_overlap": {
+    "id": "audit:native-file-uri-owner-exposure",
+    "purpose": "Expose rooted native-path URI encoder below Core dependency layer to BIG-IP IO; unrelated to LSP path resolution policy."
+  },
+  "counting": "The existing lsp-document-link-host-path-policy required_change already expressly budgets shared host/project path policy and its supplied platform/base semantics. Count/adjudicate caller unit once; do not add a distinct owner-facet annex count. A canonical utility API/docs row may be extended to name document_link_target without incrementing units.",
+  "evidence_files": {
+    "/tmp/lsp-document-link-host-path-v1/manifest.json": "0bf6bef2c749e355a780dc55a845d021caf5c19fcd1987736ab4dca974fcc961",
+    "/tmp/lsp-document-link-host-path-v1/SOURCE-BASIS.md": "b9e63fb78ae1a75fed8a9aa4bb593e042406f782dcf9255ae5adc9d7f297f747",
+    "/tmp/lsp-document-link-host-path-v1/CONTRACT.md": "bb4b02b8a63a683c15afd0c7a1ee6bbe20d8aa44e4f67b332b3ce72572d00883"
+  },
+  "current_scope": "Read-only source/count reconciliation. No main, Git, Cargo, build, or test changes."
+}

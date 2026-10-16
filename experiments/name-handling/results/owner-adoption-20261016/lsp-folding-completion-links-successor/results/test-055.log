@@ -1,0 +1,17 @@
+
+running 1 test
+test references::member_metadata::tests::member_hazards_use_retained_custom_schema_and_nested_definition_vocabulary ... 
+thread 'references::member_metadata::tests::member_hazards_use_retained_custom_schema_and_nested_definition_vocabulary' (219667) panicked at rust/tcl-lsp-core/src/references/member_metadata.rs:363:13:
+assertion `left == right` failed: tcl
+  left: [Span { start: 45, end: 46 }, Span { start: 61, end: 62 }, Span { start: 111, end: 112 }]
+ right: [Span { start: 45, end: 46 }, Span { start: 61, end: 62 }, Span { start: 80, end: 81 }, Span { start: 111, end: 112 }]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    references::member_metadata::tests::member_hazards_use_retained_custom_schema_and_nested_definition_vocabulary
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3224 filtered out; finished in 0.95s
+

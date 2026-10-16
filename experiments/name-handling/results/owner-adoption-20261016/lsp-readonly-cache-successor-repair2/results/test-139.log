@@ -1,0 +1,15 @@
+
+running 1 test
+test references::tests::document_highlights_var_records_write_at_definition ... 
+thread 'references::tests::document_highlights_var_records_write_at_definition' (214577) panicked at rust/tcl-lsp-core/src/references.rs:5998:9:
+expected at least one Write for `set x 1`; got []
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    references::tests::document_highlights_var_records_write_at_definition
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3216 filtered out; finished in 0.65s
+

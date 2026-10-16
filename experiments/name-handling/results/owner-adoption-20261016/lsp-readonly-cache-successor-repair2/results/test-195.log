@@ -1,0 +1,6 @@
+
+running 1 test
+test original_document_path_admission_tests::unregistered_virtual_open_requires_no_native_host_or_vfs_upsert ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 738 filtered out; finished in 0.56s
+

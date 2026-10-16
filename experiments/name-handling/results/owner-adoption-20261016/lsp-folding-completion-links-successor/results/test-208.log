@@ -1,0 +1,20 @@
+
+running 1 test
+test current_diagnostics::tests::actual_failed_lift_worker_cannot_issue_completed_empty_diagnostics ... 
+thread 'tokio-rt-worker' (222020) panicked at rust/tcl-lsp-server/src/current_diagnostics.rs:1533:17:
+actual diagnostic lift worker failure control
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'current_diagnostics::tests::actual_failed_lift_worker_cannot_issue_completed_empty_diagnostics' (222018) panicked at rust/tcl-lsp-server/src/current_diagnostics.rs:1553:9:
+assertion failed: matches!(backend.current_diagnostics(&expected).await.unwrap(),
+    CurrentDiagnostics::Unavailable
+    { reason: DiagnosticUnavailable::ProviderError })
+FAILED
+
+failures:
+
+failures:
+    current_diagnostics::tests::actual_failed_lift_worker_cannot_issue_completed_empty_diagnostics
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 738 filtered out; finished in 0.28s
+

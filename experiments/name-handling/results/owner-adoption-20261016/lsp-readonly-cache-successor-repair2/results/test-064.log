@@ -1,0 +1,6 @@
+
+running 1 test
+test semantic_tokens::original_proc_role_tests::original_role_lookup_respects_namespace_shadow_and_ordinary_arguments ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3216 filtered out; finished in 1.17s
+

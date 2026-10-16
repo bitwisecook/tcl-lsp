@@ -1,0 +1,6 @@
+
+running 1 test
+test registry_invocation::declaration_assistance::original_alias_source_schema_tests::logical_alias_declarations_keep_actual_source_frame_and_ordinary_widening ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10270 filtered out; finished in 1.14s
+

@@ -1,0 +1,43 @@
+{
+  "patch": "test-only-server-wrapper-cfg-v1.patch",
+  "patch_sha256": "84f158cc5a289431a21c3746bc55d53a8118116aad8166955215f6e0091328d3",
+  "files": [
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "before_sha256": "2fffa01ad9adcce7d7f1b5d0d7a81aa8b28f5fa872cacce1c60634843303dc43",
+      "after_sha256": "0d568014b2470f758e29dd7e1f9807009ef12ae15c5bf67c24a2d9a818147f5c"
+    }
+  ],
+  "methods": [
+    "publish_disk_results",
+    "publish_disk_results_while_rehoming_locked",
+    "original_declaration_reference_locations",
+    "batch_reindex_from_disk",
+    "reindex_index_from_disk",
+    "merge_workspace_scan_results"
+  ],
+  "scope": "Six existing private compatibility/fixture wrappers are used only by cfg(test) modules or one another on every target. Gate declarations with cfg(test), not Native/browser/WASI target exclusions. All method bodies and tests byte-identical; three production rustdoc links point to existing admitted live producers. No allow or source-semantic/visibility/authority change.",
+  "actual_warning_log": "/workspace/naming-validation/lsp-browser-current-successor/build.log",
+  "warning_log_sha256": "399a3e79561d042a667dda28333424e60961edd2798d54ccfad5028823ac6d83",
+  "caller_source_bindings": [
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "sha256": "2fffa01ad9adcce7d7f1b5d0d7a81aa8b28f5fa872cacce1c60634843303dc43"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+      "sha256": "07dbf6dd417077a5d3c8e0e6800275c2d8bf644ad4554333b431014e0f2e788b"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+      "sha256": "9cd0c8f4ca20d0e893feb3832efa6e816843ddda7ac8c3d5b37d6fc382f4f56c"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/original_document_path_admission_tests.rs",
+      "sha256": "afa94d66304f83c4d9200fac1721da67c831f846c612ecbb23c2fc3b4ad1fcee"
+    }
+  ],
+  "validation": "Static complete Server source reference census, test-module cfg ancestry, real production admitted counterpart calls, exact inverse whole-file byte equality, before/after hashes and separate TMP zero-fuzz apply. No Cargo/Git/main/tests/build execution; no fresh warnings-pass claim.",
+  "counts": "No new baseline/annex owner or consumer requirement. Root owns source admission and target validation.",
+  "source_basis_sha256": "b8ed1414d5d7cffd2eb9a2023dccfa69f1373b206fc042fd3addd356f066dc8c"
+}

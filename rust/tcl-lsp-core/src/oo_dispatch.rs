@@ -22,6 +22,7 @@
 //! callability and applies the registry's command-context requirements.
 
 use tcl_compiler::analyser::AnalysisResult;
+#[cfg(test)]
 use tcl_registry::CommandRegistry;
 
 /// What kind of `TclOO` frame a cursor sits in — the LSP-side half of the
@@ -91,11 +92,30 @@ impl OoFrame {
     /// family member that does not, because it is the object's own dispatch
     /// command rather than an `::oo::Helpers` member and a class is an
     /// object, so `my new` in an `initialize` body genuinely works.
+    #[cfg(test)]
     #[must_use]
     pub(crate) fn admits(self, registry: &CommandRegistry, name: &str) -> bool {
-        if !registry.resolves_only_in_method_context(name) {
-            return true;
-        }
-        self.resolves && (self.method || !registry.requires_oo_method_frame(name))
+        self.admits_requirements(
+            registry.resolves_only_in_method_context(name),
+            registry.requires_oo_method_frame(name),
+        )
+    }
+
+    /// Apply the same frame rule to the already selected source descriptor.
+    /// This preserves availability selection without making a second name query.
+    #[must_use]
+    pub(crate) fn admits_selected_spec(self, spec: &tcl_registry::CommandSpec) -> bool {
+        // naming.consumer.selected-catalogue-completion-provider
+        // docs/design/analysis/name-resolution-proofs/selected-catalogue-completion-provider.md
+        self.admits_requirements(
+            spec.traits
+                .contains(tcl_registry::Traits::TCLOO_METHOD_CONTEXT),
+            spec.traits
+                .contains(tcl_registry::Traits::TCLOO_REQUIRES_METHOD_FRAME),
+        )
+    }
+
+    fn admits_requirements(self, method_context: bool, method_frame: bool) -> bool {
+        !method_context || self.resolves && (self.method || !method_frame)
     }
 }

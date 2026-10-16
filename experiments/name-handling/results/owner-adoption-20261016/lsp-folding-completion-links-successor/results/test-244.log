@@ -1,0 +1,6 @@
+
+running 1 test
+test readonly_reference_reports::tests::readonly_member_wire_rejects_equal_path_provider_republication ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 738 filtered out; finished in 2.34s
+

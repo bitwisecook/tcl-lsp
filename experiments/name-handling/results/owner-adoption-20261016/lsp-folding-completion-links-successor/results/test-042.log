@@ -1,0 +1,15 @@
+
+running 1 test
+test project_token_inputs::tests::project_token_hints_withdraw_when_another_members_source_owner_is_unavailable ... 
+thread 'project_token_inputs::tests::project_token_hints_withdraw_when_another_members_source_owner_is_unavailable' (219274) panicked at rust/tcl-lsp-db/src/project_token_inputs/tests.rs:225:5:
+assertion failed: !project_proc_var_index_for_inputs(&db, project).is_empty()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    project_token_inputs::tests::project_token_hints_withdraw_when_another_members_source_owner_is_unavailable
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 194 filtered out; finished in 1.27s
+

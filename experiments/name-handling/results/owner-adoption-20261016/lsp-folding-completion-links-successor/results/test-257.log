@@ -1,0 +1,6 @@
+
+running 1 test
+test folding::tests::original_folding_keeps_actual_availability_without_native_body_entry ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3224 filtered out; finished in 1.40s
+

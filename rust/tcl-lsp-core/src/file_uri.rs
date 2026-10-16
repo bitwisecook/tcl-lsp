@@ -43,6 +43,48 @@ pub fn from_path(path: &Path, escaping: FileUriEscaping) -> Option<String> {
     from_rooted_spelling(path.to_str()?, cfg!(windows), escaping)
 }
 
+/// Readonly link candidate under the supplied host workspace/home policy.
+/// Only `~` and `~/` use the supplied absolute home; other relative spellings
+/// require the supplied absolute workspace base. This never consults process
+/// cwd, a user database, the filesystem or an incoming URI. Host Path joining
+/// supplies the spelling; encoding uses the same rooted host-path owner.
+#[must_use]
+pub(crate) fn document_link_target(
+    literal: &str,
+    workspace_root: Option<&Path>,
+    home: Option<&Path>,
+) -> Option<String> {
+    if literal.is_empty() {
+        return None;
+    }
+    let expanded = if literal == "~" {
+        home.filter(|path| path.is_absolute())?.to_path_buf()
+    } else if let Some(rest) = literal.strip_prefix("~/") {
+        let home = home.filter(|path| path.is_absolute())?;
+        // Repeated tilde separators remain within the supplied home. They
+        // cannot turn the suffix into an independently rooted host path.
+        let relative = Path::new(rest.trim_start_matches('/'));
+        if relative.has_root()
+            || relative
+                .components()
+                .any(|component| matches!(component, std::path::Component::Prefix(_)))
+        {
+            return None;
+        }
+        home.join(relative)
+    } else {
+        literal.into()
+    };
+    let resolved = if expanded.is_absolute() {
+        expanded
+    } else {
+        workspace_root
+            .filter(|path| path.is_absolute())?
+            .join(expanded)
+    };
+    from_path(&resolved, FileUriEscaping::PathCharacters)
+}
+
 fn from_rooted_spelling(path: &str, windows: bool, escaping: FileUriEscaping) -> Option<String> {
     if path.as_bytes().contains(&0) {
         return None;
@@ -583,5 +625,69 @@ mod source_namespace_path_tests {
                 assert!(to_source_namespace_path(raw, namespace).is_err(), "{raw}");
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod document_link_path_tests {
+    use super::*;
+
+    #[test]
+    fn document_link_paths_keep_supplied_bases_and_existing_host_encoding() {
+        let root = std::env::temp_dir().join("link-base");
+        let home = std::env::temp_dir().join("link-home");
+        for (literal, expected) in [
+            ("relative é#?.tcl", root.join("relative é#?.tcl")),
+            ("./link/../target.tcl", root.join("./link/../target.tcl")),
+            ("~/lib/a.tcl", home.join("lib/a.tcl")),
+            ("~//lib/a.tcl", home.join("lib/a.tcl")),
+            ("~", home.clone()),
+            ("~other/a.tcl", root.join("~other/a.tcl")),
+        ] {
+            assert_eq!(
+                document_link_target(literal, Some(&root), Some(&home)),
+                from_path(&expected, FileUriEscaping::PathCharacters),
+                "{literal}"
+            );
+        }
+        let absolute = root.join("absolute.tcl");
+        assert_eq!(
+            document_link_target(absolute.to_str().unwrap(), None, None),
+            from_path(&absolute, FileUriEscaping::PathCharacters)
+        );
+    }
+
+    #[test]
+    fn document_link_paths_refuse_missing_or_unrooted_bases_without_cwd() {
+        let root = std::env::temp_dir().join("link-base");
+        for base in [None, Some(Path::new("")), Some(Path::new("relative"))] {
+            assert!(document_link_target("file.tcl", base, None).is_none());
+            assert!(document_link_target("~/file.tcl", Some(&root), base).is_none());
+            assert!(document_link_target("~", Some(&root), base).is_none());
+        }
+        assert!(document_link_target("", Some(&root), Some(&root)).is_none());
+        assert!(document_link_target("bad\0.tcl", Some(&root), None).is_none());
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn document_link_paths_preserve_posix_foreign_drive_and_double_root_data() {
+        for literal in [r"C:\foreign\file.tcl", r"\server\share\file.tcl"] {
+            assert_eq!(
+                document_link_target(literal, Some(Path::new("/work")), None),
+                from_path(
+                    &Path::new("/work").join(literal),
+                    FileUriEscaping::PathCharacters
+                )
+            );
+        }
+        assert_eq!(
+            document_link_target("file.tcl", Some(Path::new("//server/share")), None),
+            Some("file:////server/share/file.tcl".to_owned())
+        );
+        assert_eq!(
+            document_link_target("./link/../target.tcl", Some(Path::new("/work")), None),
+            Some("file:///work/./link/../target.tcl".to_owned())
+        );
     }
 }

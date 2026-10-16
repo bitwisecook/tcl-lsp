@@ -1,0 +1,17 @@
+
+running 1 test
+test analyser::class_hierarchy::original_metadata::source_method_reference::tests::readonly_self_selectors_refuse_unowned_wrong_context_and_ambiguous_sources ... 
+thread 'analyser::class_hierarchy::original_metadata::source_method_reference::tests::readonly_self_selectors_refuse_unowned_wrong_context_and_ambiguous_sources' (222074) panicked at rust/tcl-compiler/src/analyser/class_hierarchy/original_metadata/source_method_reference.rs:396:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    analyser::class_hierarchy::original_metadata::source_method_reference::tests::readonly_self_selectors_refuse_unowned_wrong_context_and_ambiguous_sources
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10270 filtered out; finished in 3.35s
+

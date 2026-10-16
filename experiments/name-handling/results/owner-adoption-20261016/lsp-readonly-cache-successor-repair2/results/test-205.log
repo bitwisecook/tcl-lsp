@@ -1,0 +1,17 @@
+
+running 1 test
+test current_diagnostics::tests::cancelled_and_failed_passes_cannot_reuse_a_prior_complete_report ... 
+thread 'current_diagnostics::tests::cancelled_and_failed_passes_cannot_reuse_a_prior_complete_report' (216060) panicked at rust/tcl-lsp-server/src/current_diagnostics.rs:1233:9:
+assertion failed: matches!(backend.current_diagnostics(&expected).await.unwrap(),
+    CurrentDiagnostics::Unavailable
+    { reason: DiagnosticUnavailable::Pending })
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    current_diagnostics::tests::cancelled_and_failed_passes_cannot_reuse_a_prior_complete_report
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 738 filtered out; finished in 0.33s
+

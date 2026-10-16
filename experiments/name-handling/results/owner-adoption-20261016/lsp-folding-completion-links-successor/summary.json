@@ -1,0 +1,16 @@
+{
+  "build": "PASS401.643seconds;1Coretest-wrapperwarning;39000inputs0drift",
+  "results": {
+    "PASS": 262,
+    "FAIL": 47,
+    "TIMEOUT": 1
+  },
+  "retained253": 253,
+  "gains": [],
+  "previous_PASS_regressions": [],
+  "new": {
+    "PASS": 49,
+    "FAIL": 8
+  },
+  "limits": "Frozen ordinary Linux source only. Newer publisher-state and test-only OoFrame repairs are excluded; actualWASIcheck binds their compile source separately. No repository/issue or host-execution acceptance."
+}

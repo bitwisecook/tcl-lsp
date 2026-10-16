@@ -1,0 +1,43 @@
+{
+  "scope": "TMP-only existing selected catalogue descriptor caller adoption; no main/Cargo/Git/build/tests/native oracle.",
+  "baseline_unit": "lsp-completion-catalogue-selected-provider-filter",
+  "caller_facets": [
+    "builtin_completions",
+    "grammar_member_completions"
+  ],
+  "remaining_independent_dependency": "registry_method_items inherited Registry instance-provider/package identity owner remains unchanged and unclosed.",
+  "patch_sha256": "522feec71dc0682a153ef75f14461faf9a772f3e9e7672e92cc2cde9e0d6faed",
+  "files": [
+    {
+      "path": "rust/tcl-lsp-core/src/completion.rs",
+      "before_sha256": "ccd1c0d948b795a62b56e31daf77bb32b67b52790f41d81cf74e20e8af3adb39",
+      "after_sha256": "4a8c66823e671ee4bea7c6d3084319ebbc78656480bf2fb3f1a0a0f52eba747b"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/oo_dispatch.rs",
+      "before_sha256": "507685a2dd6e759f2b8cbd1941ef93d635bf147617df79df70cfc01a2439d8d4",
+      "after_sha256": "16aeea2780075924000c5c1ca132db68371c320cec6973aecb1fdd4abb250b45"
+    },
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "before_sha256": "0c5bd91ba3fcde101b0cdcd147df44a3df91e6e07b96cc4eb0867b5ea034d574",
+      "after_sha256": "91d151fc11687c5c84a45e2ec583a91a067f96c851b39d7300358871a6e5923e"
+    },
+    {
+      "path": "docs/design/contracts/naming-consumer-matrix.md",
+      "before_sha256": "6b58adf19faadd57a3be0dd8821b8396b2642c93a50f798f562574947fe76780",
+      "after_sha256": "0f317e48ccca1a5987365df426676812ba6e21b55786e686926cac0b0d4bb720"
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/selected-catalogue-completion-provider.md",
+      "before_sha256": null,
+      "after_sha256": "3699ed63984124975513064f9967bffaeb3a135b36c707a3d9c5ffd388b46f8e"
+    }
+  ],
+  "new_controls": [
+    "completion::selected_catalogue_provider_tests::builtin_filters_keep_the_actual_selected_provider_through_every_gate",
+    "completion::selected_catalogue_provider_tests::grammar_member_details_use_the_same_current_availability_context"
+  ],
+  "old_completion_test_suffix_sha256": "907de0cebf7c95e50a4e68a953c5f4921611f4ed0e1453a86439cfdde057853c",
+  "review": "Requested; no successor execution."
+}

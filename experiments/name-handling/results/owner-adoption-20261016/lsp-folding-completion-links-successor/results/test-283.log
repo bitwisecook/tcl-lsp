@@ -1,0 +1,17 @@
+
+running 1 test
+test document_links::tests::a_chained_computed_source_path_resolves_775 ... 
+thread 'document_links::tests::a_chained_computed_source_path_resolves_775' (222331) panicked at rust/tcl-lsp-core/src/document_links.rs:1335:9:
+assertion `left == right` failed: []
+  left: []
+ right: ["file:///proj/src/generalClasses.tcl", "file:///proj/src/ngspice/netlistParserClassNgspice.tcl"]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    document_links::tests::a_chained_computed_source_path_resolves_775
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3224 filtered out; finished in 1.35s
+

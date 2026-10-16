@@ -1,0 +1,35 @@
+{
+  "purpose": "ONE Root-authorised diagnostic-only original222; ordinary baseline log remains untouched. No acceptance/ordinary pass claim.",
+  "argv": [
+    "/workspace/naming-validation/lsp-readonly-cache-successor-repair2/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+    "analyser::class_hierarchy::original_metadata::source_method_reference::tests::readonly_self_selectors_retain_own_and_inherited_source_members",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "cwd": "/workspace/tcl-lsp",
+  "selected_count_from_accepted_selection": 1,
+  "environment_set": {
+    "TCL_LSP_REQUIRE_TCLSH": "9.0,8.6",
+    "TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS": "1"
+  },
+  "environment_unset": [],
+  "actual_complete_environment_sha256": "a01fd66feb91fb05a0ae9da80d9c5a260e8f1b01c94000b91f391a95ce9f98b0",
+  "environment_note": "Actual inherited environment plus exact stated set/unset. Values outside authorised diagnostic/provider variables are not displayed.",
+  "budget_seconds": 180,
+  "status": "completed",
+  "exit_code": 101,
+  "elapsed_seconds": 1.0748706389931613,
+  "binary_artifact": {
+    "path": "/workspace/naming-validation/lsp-readonly-cache-successor-repair2/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+    "sha256": "72e3ac90d2f92c3b4c0d0cc1e52e77c1458f73a32d42ad5af633ac4b8d667b2b",
+    "bytes": 249905432
+  },
+  "before_elf_sha256": "72e3ac90d2f92c3b4c0d0cc1e52e77c1458f73a32d42ad5af633ac4b8d667b2b",
+  "after_elf_sha256": "72e3ac90d2f92c3b4c0d0cc1e52e77c1458f73a32d42ad5af633ac4b8d667b2b",
+  "stdout_sha256": "7441f7fe3b0c3a1e30f59b79b06dd49c78e881d9f8f58620173d7e73db7f0107",
+  "stderr_sha256": "7ac220d63a770b985f809213603e008d4c15d9abdef77f2d34fd3b0c3c0a55d6",
+  "ordinary_baseline": "/workspace/naming-validation/lsp-readonly-cache-successor-repair2/results/test-222.log",
+  "source_or_fixture_instrumentation": false,
+  "new_native_oracle": false
+}

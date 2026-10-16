@@ -1,0 +1,24 @@
+import pathlib,hashlib,json,subprocess,datetime,time,re,shutil
+root=pathlib.Path('/workspace/tcl-lsp');out=pathlib.Path('/workspace/naming-validation/lsp-wasi-portable-diagnostics-successor');out.mkdir(exist_ok=False)
+paths=sorted(set([v['path'] for v in json.load(open('/workspace/naming-validation/lsp-reviewed-82e016-retry4/input-before.json'))]+[p for p in subprocess.check_output(['git','ls-files','-z','--','rust','runtime','scripts','specs','Cargo.toml','Cargo.lock','.cargo/config.toml'],cwd=root,text=True).split('\0') if p]))
+def snap():return [{'path':p,'sha256':hashlib.sha256((root/p).read_bytes()).hexdigest()} for p in paths]
+(out/'source.diff').write_bytes(subprocess.check_output(['git','diff','HEAD','--','rust','runtime','Cargo.toml','Cargo.lock'],cwd=root))
+before=snap();(out/'input-before.json').write_text(json.dumps(before,separators=(',',':'))+'\n')
+packages=['tcl-compiler','tcl-lsp-core','tcl-lsp-db','tcl-registry','tcl-lsp-server']
+cmd=['cargo','check','--offline','--locked','--manifest-path','rust/tcl-lsp-server-wasi/Cargo.toml','--target','wasm32-wasip1']
+binding={'source_head':subprocess.check_output(['git','rev-parse','HEAD'],cwd=root,text=True).strip(),'rust_diff_sha256':hashlib.sha256(subprocess.check_output(['git','diff','HEAD','--','rust','runtime','Cargo.toml','Cargo.lock'],cwd=root)).hexdigest(),'ordinary':True,'instrumentation':False,'single_job':True,'test_debug':0,'packages':packages,'status':'running','input_before_count':len(before),'utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),'command':'CARGO_PROFILE_TEST_DEBUG=0 '+' '.join(cmd),'scope':'Reviewed LSP readonly C-class/member Core/Server, semantic comment phase, rename byte-overlap refusal, Logical procedure inlay and source prefix, retained arity applicability debt, purpose-distinct diagnostics with all eight DB configuration fields, malformed SpecTcl navigation and encoded IndexLoader source form, Unicode fixture and portable C ABI source repairs. Runtime/VM/BIG-IP dedicated migrations deferred. No source advice grants Native execution, Normal completion, physical identity or edits.'}
+(out/'source-binding.json').write_text(json.dumps(binding,indent=2)+'\n');start=time.monotonic()
+with (out/'build.log').open('w') as log:
+ p=subprocess.Popen(cmd,cwd=root,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True)
+ for line in p.stdout:log.write(line);log.flush();print(line,end='',flush=True)
+ code=p.wait()
+after=snap();drift=[a['path'] for a,b in zip(before,after) if a!=b]
+binding.update(status='PASS_WASI_CHECK' if code==0 and not drift else 'FAIL',exit_code=code,build_seconds=round(time.monotonic()-start,3),input_after_count=len(after),input_drift_count=len(drift),input_drift=drift,completed_utc=datetime.datetime.now(datetime.timezone.utc).isoformat())
+(out/'source-binding.json').write_text(json.dumps(binding,indent=2)+'\n')
+if False:
+ artifacts={};dest=out/'frozen-binaries';dest.mkdir()
+ for crate,binary in re.findall(r'Executable unittests src/lib.rs \(target/debug/deps/([^-)]+)-([a-f0-9]+)\)',(out/'build.log').read_text()):
+  name=crate+'-'+binary;src=root/'target/debug/deps'/name;tgt=dest/name;shutil.copy2(src,tgt);artifacts[crate]={'path':str(tgt),'sha256':hashlib.sha256(tgt.read_bytes()).hexdigest(),'bytes':tgt.stat().st_size}
+ (out/'artifacts.json').write_text(json.dumps(artifacts,indent=2)+'\n')
+print(json.dumps(binding),flush=True)
+raise SystemExit(code)

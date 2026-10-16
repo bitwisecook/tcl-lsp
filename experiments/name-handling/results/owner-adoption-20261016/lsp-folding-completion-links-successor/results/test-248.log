@@ -1,0 +1,6 @@
+
+running 1 test
+test current_diagnostics::tests::legacy_cache_missing_context_or_closed_owner_cannot_issue_empty_current ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 738 filtered out; finished in 0.25s
+

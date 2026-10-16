@@ -1,0 +1,6 @@
+{
+  "sha256": "605383ecda24af26c0333f27d9056ae5971c3cc43509ca4c592d7733d8139bbf",
+  "before": "16aeea2780075924000c5c1ca132db68371c320cec6973aecb1fdd4abb250b45",
+  "after": "b077052672e8eb0cfb295e369f4244dc852542285a90ea9b11eb947da0fb4bd8",
+  "validation": "source caller census only; no Cargo/main/Git"
+}

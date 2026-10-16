@@ -1,0 +1,17 @@
+
+running 1 test
+test references::member_metadata::tests::member_hazards_follow_original_configured_target_moves_and_captured_operands ... 
+thread 'references::member_metadata::tests::member_hazards_follow_original_configured_target_moves_and_captured_operands' (213999) panicked at rust/tcl-lsp-core/src/references/member_metadata.rs:393:17:
+assertion `left == right` failed: tcl: class-maker create C {method m {} {}}; rename C Held; interp alias {} configure {} configure-class Held; configure {export m}
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    references::member_metadata::tests::member_hazards_follow_original_configured_target_moves_and_captured_operands
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3216 filtered out; finished in 0.82s
+

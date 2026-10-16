@@ -1,0 +1,6 @@
+
+running 1 test
+test document_links::tests::link_range_anchors_at_path_argument ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3224 filtered out; finished in 0.40s
+

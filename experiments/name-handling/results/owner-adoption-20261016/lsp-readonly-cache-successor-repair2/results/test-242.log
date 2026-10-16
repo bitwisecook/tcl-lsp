@@ -1,0 +1,17 @@
+
+running 1 test
+test readonly_reference_reports::tests::readonly_member_wire_retains_owner_and_partial_coverage ... 
+thread 'readonly_reference_reports::tests::readonly_member_wire_retains_owner_and_partial_coverage' (216221) panicked at rust/tcl-lsp-server/src/readonly_reference_reports.rs:519:9:
+assertion `left == right` failed
+  left: 0
+ right: 2
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    readonly_reference_reports::tests::readonly_member_wire_retains_owner_and_partial_coverage
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 738 filtered out; finished in 1.36s
+

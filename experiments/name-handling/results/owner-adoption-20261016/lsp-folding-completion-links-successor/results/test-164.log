@@ -1,0 +1,6 @@
+
+running 1 test
+test original_document_metadata_tests::document_symbols_keep_the_resource_input_and_withdraw_unavailable_overlays ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 738 filtered out; finished in 2.16s
+

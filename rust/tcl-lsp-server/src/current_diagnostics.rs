@@ -556,9 +556,6 @@ impl Backend {
                     let Some(entry) = ledger.get(&source.uri) else {
                         return Ok(Err(DiagnosticUnavailable::Pending));
                     };
-                    if !Arc::ptr_eq(&entry.pass, pass) {
-                        return Ok(Err(DiagnosticUnavailable::Stale));
-                    }
                     let (result_id, suppression) = match entry.current_result(
                         &source.source,
                         source.version,
@@ -569,7 +566,10 @@ impl Backend {
                         Ok(result) => result,
                         Err(reason) => return Ok(Err(reason)),
                     };
-                    if result_id != report.result_id {
+                    // The authentic current publisher pass owns unavailable
+                    // outcomes before any older cached report is considered.
+                    // Success still requires this exact pass and issued ID.
+                    if !Arc::ptr_eq(&entry.pass, pass) || result_id != report.result_id {
                         return Ok(Err(DiagnosticUnavailable::Stale));
                     }
                     suppression

@@ -1,0 +1,15 @@
+
+running 1 test
+test diagnostic_report::tests::supplied_policy_rewrites_keep_actual_source_config_and_refresh_directives ... 
+thread 'diagnostic_report::tests::supplied_policy_rewrites_keep_actual_source_config_and_refresh_directives' (215650) panicked at rust/tcl-lsp-core/src/diagnostic_report.rs:571:14:
+current Logical branch advice reaches the real rewrite loop
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    diagnostic_report::tests::supplied_policy_rewrites_keep_actual_source_config_and_refresh_directives
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3216 filtered out; finished in 18.77s
+

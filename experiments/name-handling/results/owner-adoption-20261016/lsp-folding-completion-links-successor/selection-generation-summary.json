@@ -1,0 +1,61 @@
+{
+  "retained": 253,
+  "new_deduplicated": 57,
+  "total": 310,
+  "by_target": {
+    "tcl_compiler": 60,
+    "tcl_registry": 5,
+    "tcl_lsp_core": 163,
+    "tcl_lsp_db": 6,
+    "tcl_lsp_server": 76
+  },
+  "requested_categories": {
+    "new-folding": 2,
+    "preserved-folding-manifest-controls": 6,
+    "new-completion": 2,
+    "new-document-link-host-path": 4,
+    "preserved-document-link-controls": 50,
+    "preserved-file-uri-controls": 10
+  },
+  "actual_new_categories": {
+    "new-folding": 2,
+    "preserved-folding-manifest-controls": 6,
+    "new-completion": 2,
+    "new-document-link-host-path": 4,
+    "preserved-document-link-controls": 42,
+    "preserved-file-uri-controls": 1
+  },
+  "source_bound_files_and_module_routes": 72,
+  "all253_prior_entries_and_guard_timeout_environment_metadata_unchanged": true,
+  "excluded_target_specific": [
+    {
+      "selector": "file_uri::inverse_tests::actual_windows_document_paths_have_native_drive_or_unc_roots",
+      "source_path": "rust/tcl-lsp-core/src/file_uri.rs",
+      "source_line": 567,
+      "source_sha256": "3763a3a23b5d4968a4d999d65b9c95c40d44850594d4a742c574123f94ecfaf3",
+      "module_source_line": 438,
+      "module_attributes": "#[cfg(test)]",
+      "function_attributes": "#[cfg(windows)]\n    #[test]",
+      "cfg_expressions": [
+        "test",
+        "windows"
+      ],
+      "reason": "Actual function/module cfg excludes the selected native Linux target; retained separately, never silently selected or dropped."
+    }
+  ],
+  "original_document_link_test_modules": [
+    "tests",
+    "original_document_link_tests",
+    "original_hosted_document_link_tests",
+    "original_link_parse_purpose_tests"
+  ],
+  "folding_regression_scope": "Retained six original controls explicitly required by the reviewed folding manifest, alongside its two new controls. No whole folding-suite expansion.",
+  "execution": "Python selection generation and source-only checks. No test execution/listing, Cargo, Git, native process/oracle, or main-source writes.",
+  "selection_path": "/workspace/naming-validation/lsp-folding-completion-links-successor/selection.json",
+  "selection_sha256": "80d9301f8457c948c4427ab11e5d86de01004d67ff1ec162259da7eb60b0e1c6",
+  "generator_sha256": "cbc79387986651329ba3251489b76877d428d058d0fff8d55f3a8715ecaa87a1",
+  "source_index_generator": {
+    "path": "/tmp/lsp-readonly-cache-successor-selection/generate_selection.py",
+    "sha256": "42c01df208f7b135d4bafd4f4474849146cdfe03fda80e7c988013412512a169"
+  }
+}

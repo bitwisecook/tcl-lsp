@@ -1,0 +1,6 @@
+
+running 1 test
+test parsing::spectcl_source::tests::pack_source_major_query_keeps_numeric_and_supported_questions_separate ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10270 filtered out; finished in 0.00s
+

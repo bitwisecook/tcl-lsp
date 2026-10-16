@@ -1,0 +1,6 @@
+
+running 1 test
+test interprocedural::tests::forwarded_to_callee_detected ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10270 filtered out; finished in 0.59s
+

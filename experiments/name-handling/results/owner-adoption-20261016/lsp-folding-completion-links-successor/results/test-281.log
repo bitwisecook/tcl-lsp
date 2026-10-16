@@ -1,0 +1,17 @@
+
+running 1 test
+test document_links::tests::a_computed_source_link_anchors_on_the_file_name_only_775 ... 
+thread 'document_links::tests::a_computed_source_link_anchors_on_the_file_name_only_775' (222312) panicked at rust/tcl-lsp-core/src/document_links.rs:1270:9:
+assertion `left == right` failed: []
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    document_links::tests::a_computed_source_link_anchors_on_the_file_name_only_775
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3224 filtered out; finished in 0.86s
+
