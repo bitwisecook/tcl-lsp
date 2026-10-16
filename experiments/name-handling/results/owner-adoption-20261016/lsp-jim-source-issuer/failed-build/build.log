@@ -1,0 +1,67 @@
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+   Compiling fluent-uri v0.4.1
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+error: missing documentation for a variant
+   --> rust/tcl-lsp-core/src/file_uri.rs:129:5
+    |
+129 |     UnsupportedHost,
+    |     ^^^^^^^^^^^^^^^
+    |
+note: the lint level is defined here
+   --> rust/tcl-lsp-core/src/lib.rs:29:9
+    |
+ 29 | #![deny(missing_docs)]
+    |         ^^^^^^^^^^^^
+
+error: missing documentation for a variant
+   --> rust/tcl-lsp-core/src/file_uri.rs:130:5
+    |
+130 |     InvalidUri,
+    |     ^^^^^^^^^^
+
+error: missing documentation for a variant
+   --> rust/tcl-lsp-core/src/file_uri.rs:131:5
+    |
+131 |     NotFile,
+    |     ^^^^^^^
+
+error: missing documentation for a variant
+   --> rust/tcl-lsp-core/src/file_uri.rs:132:5
+    |
+132 |     QueryOrFragment,
+    |     ^^^^^^^^^^^^^^^
+
+error: missing documentation for a variant
+   --> rust/tcl-lsp-core/src/file_uri.rs:133:5
+    |
+133 |     UnsupportedAuthority,
+    |     ^^^^^^^^^^^^^^^^^^^^
+
+error: missing documentation for a variant
+   --> rust/tcl-lsp-core/src/file_uri.rs:134:5
+    |
+134 |     InvalidUnicode,
+    |     ^^^^^^^^^^^^^^
+
+error: missing documentation for a variant
+   --> rust/tcl-lsp-core/src/file_uri.rs:135:5
+    |
+135 |     Nul,
+    |     ^^^
+
+error: missing documentation for a variant
+   --> rust/tcl-lsp-core/src/file_uri.rs:136:5
+    |
+136 |     EncodedSeparator,
+    |     ^^^^^^^^^^^^^^^^
+
+error: missing documentation for a variant
+   --> rust/tcl-lsp-core/src/file_uri.rs:137:5
+    |
+137 |     UnsupportedNativeGeometry,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: could not compile `tcl-lsp-core` (lib) due to 9 previous errors

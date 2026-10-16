@@ -1,0 +1,19 @@
+{
+  "purpose": "Root-authorized preexisting diagnostic trace on frozen ordinary binary; no candidate/ordinary acceptance",
+  "test": "analyser::param_traits::tests::caller_frame_parameter_templates_reach_navigation_without_entered_caller",
+  "expected_singleton": 1,
+  "per_test_timeout_seconds": 180,
+  "binary": "/workspace/naming-validation/lsp-source-parent-continuation/frozen-binaries/tcl_compiler-787a3baf28c99bc0",
+  "binary_sha256": "8ff854e875572b0c5d860e589679470ecd62719076e71998f57f61c968ac71d1",
+  "source_binding": "/workspace/naming-validation/lsp-source-parent-continuation/source-binding.json",
+  "environment": {
+    "all_TCL_LSP_TRACE_flags_removed_before_set": true,
+    "set": {
+      "TCL_LSP_TRACE_ORIGINAL_DECLARATION": "1",
+      "TCL_LSP_TRACE_ORIGINAL_PARAM_ROLES": "1"
+    }
+  },
+  "returncode": 101,
+  "seconds": 15.15,
+  "log_sha256": "d39af0b70c571d10126143c392f4a6b04282c340788c328b564b995eca84135d"
+}

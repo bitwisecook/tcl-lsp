@@ -1,0 +1,129 @@
+{
+  "purpose": "Original native formal-name acceptance for LSP source-role negative fixture; no Runtime/VM migration or whole-suite acceptance",
+  "utc": "2026-10-16T15:21:17.307805+00:00",
+  "harness_sha256": "90785e79728685ad1d0fd17b10fa84306ff8e6e6224b358ae5a70556cc3192fc",
+  "prior_pairing": "experiments/name-handling/oracles/provider-pairing-20261016T1400/capture.json",
+  "prior_pairing_sha256": "e97f4ebf248b9fd3a2fff4db1679b489b805214d19973ba76733086b23941f67",
+  "jim_upstream_recheck_at_execution": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+  "rows": [
+    {
+      "provider": "C Tcl",
+      "version": "8.4.20",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh"
+      ],
+      "cwd": "/tmp/lsp-qualified-formals-20261016T1520",
+      "utc_start": "2026-10-16T15:21:17.314128+00:00",
+      "exit_code": 0,
+      "timeout_seconds": 45,
+      "executable_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "original_source_support_match": true,
+      "stdout_sha256": "e1df521800a8874e41a9ad1b5eb18d18bbcf5f7250559f2aa0f78284dbd1d747",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "C Tcl",
+      "version": "8.5.19",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh"
+      ],
+      "cwd": "/tmp/lsp-qualified-formals-20261016T1520",
+      "utc_start": "2026-10-16T15:21:17.325610+00:00",
+      "exit_code": 0,
+      "timeout_seconds": 45,
+      "executable_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "original_source_support_match": true,
+      "stdout_sha256": "6464964e12e5526323542322de0ff36694198afbab4ee1ef204147fa26a408fd",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "C Tcl",
+      "version": "8.6.18",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh"
+      ],
+      "cwd": "/tmp/lsp-qualified-formals-20261016T1520",
+      "utc_start": "2026-10-16T15:21:17.341525+00:00",
+      "exit_code": 0,
+      "timeout_seconds": 45,
+      "executable_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "original_source_support_match": true,
+      "stdout_sha256": "f358bac5a005952e1ec1d0065eb681c41157ac8a7e6e37fdc3bf2196c10c1d1f",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "C Tcl",
+      "version": "9.0.4",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh"
+      ],
+      "cwd": "/tmp/lsp-qualified-formals-20261016T1520",
+      "utc_start": "2026-10-16T15:21:17.356374+00:00",
+      "exit_code": 0,
+      "timeout_seconds": 45,
+      "executable_sha256": "bb5493a311eea8879d4aa2fa4817720d008ee03cf88f06aefa4a6d7425857f8c",
+      "original_source_support_match": true,
+      "stdout_sha256": "3ccaccc5879bbdc0dc9ff65723eb2a0efb1d83aab4f84fbab63b6cf610ffb405",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "C Tcl",
+      "version": "9.1.0",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh"
+      ],
+      "cwd": "/tmp/lsp-qualified-formals-20261016T1520",
+      "utc_start": "2026-10-16T15:21:17.376656+00:00",
+      "exit_code": 0,
+      "timeout_seconds": 45,
+      "executable_sha256": "71b428e13bc04578fb9be4aa680915c67a7b7f3a7850f198032d98f363a077ce",
+      "original_source_support_match": true,
+      "stdout_sha256": "df15c12dd06e7ae3a0526d4cdab01fe332beb8bc2199223f8563ac1ca48f7b97",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "Jim",
+      "version": {
+        "repository": "https://github.com/msteveb/jimtcl.git",
+        "revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+        "commit_date": "2026-10-01T08:54:24+10:00",
+        "version": "0.84",
+        "patchlevel": "0.84-9-g5bac7c9"
+      },
+      "argv": [
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "/tmp/lsp-qualified-formals-20261016T1520/probe.tcl"
+      ],
+      "cwd": "/tmp/lsp-qualified-formals-20261016T1520",
+      "utc_start": "2026-10-16T15:21:17.393585+00:00",
+      "exit_code": 0,
+      "timeout_seconds": 45,
+      "executable_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "original_source_support_match": true,
+      "stdout_sha256": "5e15396c8f819a3e4a29345e0c48b4963466a861846f329fa84792ed531564f2",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "limitations": [
+    "Original standalone process procedure creation and invocation controls only; no runtime/VM migration, entered alias operation, namespace variable binding or full naming acceptance.",
+    "C original init/library environment selected as in prior pairing; original Tcltest support hash was checked, not sourced by this probe. Jim file mode uses original embedded bootstrap.",
+    "Jim upstream HEAD rechecked via git ls-remote immediately before execution; raw tool observation retained in task log. Provider stdout/stderr payloads are exact files."
+  ],
+  "environment_policy": {
+    "C": {
+      "TCL_LIBRARY": "{original source_root}/library",
+      "LD_LIBRARY_PATH": "{original source_root}/unix",
+      "TCLLIBPATH": "unset"
+    },
+    "Jim": {
+      "TCL_LIBRARY": "unset",
+      "TCLLIBPATH": "unset",
+      "JIMLIB": "unset"
+    }
+  },
+  "question": "Which original providers accept simple, namespace-qualified or array-spelled formal names when creating proc p?",
+  "observed_summary": {
+    "C8.4.20_8.5.19_8.6.18_9.0.4_9.1.0": "simple n,args accepted/invoked; ::n,ns::n,a(b) rejected at creation, p absent",
+    "Jim_latest5bac": "all five tested formals accepted and procedure invoked; no variable binding observation"
+  }
+}

@@ -35,15 +35,37 @@ impl AnalysisResult {
         // docs/design/analysis/name-resolution-proofs/original-alias-source-template.md
         self.matches_original_source_image(image, config)
             .then_some(())?;
-        if self.original_variable_alias_receipts.is_empty() {
-            return Some(Vec::new());
-        }
         let realm = self.retained_command_realm()?;
         let bindings = realm.source_bindings_ref();
         let input = self.resolved_input.as_ref()?;
+        let source_declarations = if input.has_logical_source_name_context() {
+            self.original_variable_alias_source_operands
+                .iter()
+                .filter_map(|source| source.logical_declarations(input, realm))
+                .flatten()
+                .collect::<Vec<_>>()
+        } else {
+            Vec::new()
+        };
+        let source_templates = source_declarations
+            .iter()
+            .filter_map(|declaration| declaration.template_source())
+            .filter(|source| source.matches_source(image, input))
+            .collect::<Vec<_>>();
+        let mut anchors = self.original_alias_source_anchors();
+        anchors.extend(source_templates.iter().map(|source| {
+            let declaration = OriginalVariableAliasAdvice::from_receipt(source.relation());
+            SourceAliasAnchor {
+                span: declaration.span(),
+                input: declaration.original_name_input().clone(),
+                receiver: OriginalVariableSymbolReceiver::Operand(
+                    tcl_registry::resolved_invocation::VariableReceiverOperandForm::Combined,
+                ),
+            }
+        }));
         let mut direct = HashMap::<SourceOriginalVariableFrame, Option<HashSet<u32>>>::new();
         let mut templates = Vec::new();
-        for anchor in self.original_alias_source_anchors() {
+        for anchor in anchors {
             let logical_scope = if input.has_logical_source_name_context() {
                 let Some(scope) = realm.original_logical_variable_scope_at(
                     input,
@@ -68,6 +90,7 @@ impl AnalysisResult {
             let mut candidates = self
                 .original_variable_alias_receipts
                 .iter()
+                .chain(source_templates.iter().map(|source| source.relation()))
                 .filter(|alias| {
                     alias.frame() == &frame
                         && alias.invocation_offset() <= anchor.span.start()
@@ -96,6 +119,13 @@ impl AnalysisResult {
             if candidates.iter().any(|other| {
                 other.invocation_offset() == alias.invocation_offset() && *other != alias
             }) || self.original_alias_source_has_later_blocker(image, config, alias, anchor.span)
+                || (logical_scope.is_some()
+                    && self
+                        .original_variable_alias_source_operands
+                        .iter()
+                        .any(|source| {
+                            source.blocks_logical_template(input, realm, alias, anchor.span)
+                        }))
             {
                 continue;
             }
@@ -112,8 +142,21 @@ impl AnalysisResult {
             {
                 continue;
             }
-            let template =
-                OriginalVariableAliasTemplate::new(anchor.span, anchor.input, alias.clone());
+            let mut sources = source_templates
+                .iter()
+                .filter(|source| source.relation() == alias);
+            let template = if let Some(source) = sources.next() {
+                if sources.any(|other| other != source) {
+                    continue;
+                }
+                OriginalVariableAliasTemplate::from_logical_source(
+                    anchor.span,
+                    anchor.input,
+                    source.clone(),
+                )
+            } else {
+                OriginalVariableAliasTemplate::new(anchor.span, anchor.input, alias.clone())
+            };
             if !templates.contains(&template) {
                 templates.push(template);
             }
@@ -293,6 +336,80 @@ mod tests {
                 .as_deref(),
             Some("::two")
         );
+    }
+
+    #[test]
+    fn logical_alias_templates_reborrow_source_cards_without_ordinary_alias_authority() {
+        let source = "proc p {i} {upvar ::n::a($i) data; puts $data}; proc q {i} {upvar ::n::b($i) data; puts $data}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let image = SourceImage::document(source);
+        let config = analysis.body_lexer_config.unwrap();
+        assert!(analysis.original_variable_alias_receipts.is_empty());
+        let templates = analysis
+            .original_variable_alias_templates_in_source(&image, config)
+            .unwrap();
+        let reads = [
+            source.find("$data").unwrap(),
+            source.rfind("$data").unwrap(),
+        ]
+        .map(|offset| {
+            templates
+                .iter()
+                .find(|template| template.span().start() == u32::try_from(offset).unwrap())
+                .unwrap()
+        });
+        assert_ne!(reads[0].original_frame(), reads[1].original_frame());
+        for (read, target) in reads.into_iter().zip(["::n::a", "::n::b"]) {
+            assert_eq!(
+                read.target_symbol().checked_c_namespace_key().as_deref(),
+                Some(target)
+            );
+            assert!(read.target_name_input().original_word_key().is_none());
+            assert!(read.target_name_input().produced_value().is_none());
+            assert_eq!(read.obligations().len(), 3);
+            let ordinary = analysis
+                .original_variable_symbol_in_source(&image, config, read.span().start())
+                .unwrap();
+            assert_ne!(ordinary.symbol(), read.target_symbol());
+            assert!(ordinary.original_alias_declaration_span().is_none());
+        }
+        let mut missing_source = analysis.clone();
+        missing_source
+            .original_variable_alias_source_operands
+            .clear();
+        assert!(
+            missing_source
+                .original_variable_alias_templates_in_source(&image, config)
+                .unwrap()
+                .is_empty()
+        );
+        assert_source_guards(source, &analysis, config, &image);
+    }
+
+    #[test]
+    fn logical_alias_templates_veto_newer_unknown_locals_and_dynamic_targets() {
+        for body in [
+            "upvar ::n::a data; upvar ::n::b $which; puts $data",
+            "upvar ::n::a data; upvar $target data; puts $data",
+            "upvar ::n::a data; if 1 {upvar ::n::b data}; puts $data",
+        ] {
+            let source = format!("proc p {{which target}} {{{body}}}");
+            let analysis = Analyser::new().analyse(&source, "tcl");
+            let templates = analysis
+                .original_variable_alias_templates_in_source(
+                    &SourceImage::document(&source),
+                    analysis.body_lexer_config.unwrap(),
+                )
+                .unwrap();
+            let read = u32::try_from(source.find("$data").unwrap()).unwrap();
+            assert!(
+                templates
+                    .iter()
+                    .all(|template| template.span().start() != read),
+                "{body}"
+            );
+            assert!(analysis.original_variable_alias_receipts.is_empty());
+        }
     }
 
     #[test]

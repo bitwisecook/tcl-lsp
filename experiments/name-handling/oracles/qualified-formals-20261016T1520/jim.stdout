@@ -1,0 +1,16 @@
+patchlevel 0.84-9-g5bac7c9
+formal n create_code 0 result p present 1
+formal n retained_formals n
+formal n invoke_code 0 result accepted
+formal ::n create_code 0 result p present 1
+formal ::n retained_formals ::n
+formal ::n invoke_code 0 result accepted
+formal ns::n create_code 0 result p present 1
+formal ns::n retained_formals ns::n
+formal ns::n invoke_code 0 result accepted
+formal a(b) create_code 0 result p present 1
+formal a(b) retained_formals a(b)
+formal a(b) invoke_code 0 result accepted
+formal args create_code 0 result p present 1
+formal args retained_formals args
+formal args invoke_code 0 result accepted

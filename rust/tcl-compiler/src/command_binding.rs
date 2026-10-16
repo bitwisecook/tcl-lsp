@@ -1825,6 +1825,53 @@ impl OriginalCompilationLookupAdvice {
             })
     }
 
+    /// Original procedure-body syntax for a conditional parameter report.
+    /// Actual entry, Native lookup and successful alias operations stay open.
+    pub(crate) fn closed_body_parameter_source_lookup(
+        &self,
+        entry: &SourceConditionalBodyEntry,
+    ) -> bool {
+        let state = &self.snapshot.state;
+        self.closed_lookup()
+            && state.logical_source_name_advice_input().is_none()
+            && entry.owns_source(&self.site.source, self.site.offset)
+            && self.frame() == entry.frame()
+            && Some(self.namespace()) == entry.namespace_context()
+            && !self.targets.is_empty()
+            && !self.has_opaque_handler_alternatives()
+            && !state.source_step_observed()
+            && state.command_observers.is_quiet()
+            && self.targets.iter().all(|target| {
+                target.registry_backed
+                    && target.kind == BindingKind::Builtin
+                    && target.prepended.is_empty()
+                    && !state.source_execution_observed(target.identity.as_ref())
+                    && !state.runtime_execution_observed(target.identity.as_ref())
+            })
+    }
+
+    /// Reborrow complete original words only after the exact declaration row,
+    /// metadata owner and actual body/frame join. No executed read is issued.
+    pub(crate) fn original_body_parameter_source_words(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        entry: &SourceConditionalBodyEntry,
+        config: tcl_lexer::LexerConfig,
+        registry: &CommandRegistry,
+    ) -> Option<Vec<tcl_lexer::NativeWord>> {
+        (self.config == config).then_some(())?;
+        self.closed_body_parameter_source_lookup(entry)
+            .then_some(())?;
+        self.original_declaration_metadata_context(registry, tokens)
+            .ok()?;
+        let original = self.site.source.original_lexical_command(
+            tokens.words(),
+            self.site.offset,
+            self.config,
+        )?;
+        Some(original.native_words().to_vec())
+    }
+
     pub(crate) fn frame(&self) -> &crate::var_resolve::VariableExecutionFrame {
         &self.snapshot.state.variable_frame
     }

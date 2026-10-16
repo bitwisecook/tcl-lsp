@@ -1,0 +1,88 @@
+{
+  "status": "SEPARATE_ORACLE_BACKED_TEST_FIXTURE_CORRECTION_NOT_BUILT_OR_EXECUTED",
+  "patch": "qualified-formal-fixture-v1.patch",
+  "patch_sha256": "6dc4624ccdfb818f656304ca20a8ef017852d5aa213aa3feaac2019a1015d648",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/interprocedural.rs",
+      "base_sha256": "05ba23d1d2d457a32ecd777df568bbb31afb1f1a020dbbba820caec796967f69",
+      "edit_sha256": "dea6f32f89a8dab6833811ca322f358ff28cbdaac0adb5d78c4a2544948fd239",
+      "main_matches_base": true
+    }
+  ],
+  "scope": "One existing test body only; no production changes; original invalid qualified-formal source retained as unavailable-card control; original no-VarWrite(::n) assertion preserved on separate valid C fixture; added no-VarWrite(n) and no ordinary upvar alias assertions. All other original test sources/assertions/budgets unchanged. No Jim inference.",
+  "count": 0,
+  "root_original_probe": {
+    "manifest": "/tmp/lsp-qualified-formals-20261016T1520/manifest.json",
+    "manifest_sha256": "d04ce68878f85fbd7442a4a93c3bbdff871a62c69f7a11ed4425812b93a0ef87",
+    "probe": "/tmp/lsp-qualified-formals-20261016T1520/probe.tcl",
+    "probe_sha256": "90785e79728685ad1d0fd17b10fa84306ff8e6e6224b358ae5a70556cc3192fc",
+    "rows_verified": [
+      {
+        "provider": "C Tcl",
+        "version": "8.4.20",
+        "stdout_path": "/tmp/lsp-qualified-formals-20261016T1520/8.4.20.stdout",
+        "stdout_sha256": "e1df521800a8874e41a9ad1b5eb18d18bbcf5f7250559f2aa0f78284dbd1d747"
+      },
+      {
+        "provider": "C Tcl",
+        "version": "8.5.19",
+        "stdout_path": "/tmp/lsp-qualified-formals-20261016T1520/8.5.19.stdout",
+        "stdout_sha256": "6464964e12e5526323542322de0ff36694198afbab4ee1ef204147fa26a408fd"
+      },
+      {
+        "provider": "C Tcl",
+        "version": "8.6.18",
+        "stdout_path": "/tmp/lsp-qualified-formals-20261016T1520/8.6.18.stdout",
+        "stdout_sha256": "f358bac5a005952e1ec1d0065eb681c41157ac8a7e6e37fdc3bf2196c10c1d1f"
+      },
+      {
+        "provider": "C Tcl",
+        "version": "9.0.4",
+        "stdout_path": "/tmp/lsp-qualified-formals-20261016T1520/9.0.4.stdout",
+        "stdout_sha256": "3ccaccc5879bbdc0dc9ff65723eb2a0efb1d83aab4f84fbab63b6cf610ffb405"
+      },
+      {
+        "provider": "C Tcl",
+        "version": "9.1.0",
+        "stdout_path": "/tmp/lsp-qualified-formals-20261016T1520/9.1.0.stdout",
+        "stdout_sha256": "df15c12dd06e7ae3a0526d4cdab01fe332beb8bc2199223f8563ac1ca48f7b97"
+      },
+      {
+        "provider": "Jim",
+        "version": {
+          "repository": "https://github.com/msteveb/jimtcl.git",
+          "revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+          "commit_date": "2026-10-01T08:54:24+10:00",
+          "version": "0.84",
+          "patchlevel": "0.84-9-g5bac7c9"
+        },
+        "stdout_path": "/tmp/lsp-qualified-formals-20261016T1520/jim.stdout",
+        "stdout_sha256": "5e15396c8f819a3e4a29345e0c48b4963466a861846f329fa84792ed531564f2"
+      }
+    ]
+  },
+  "original_c_source": {
+    "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclProc.c",
+    "sha256": "c1ddd801a69b0e39bf923e97838134489ca4937fb7d081eccc0814b6811f71b3",
+    "lines": [
+      508,
+      529
+    ],
+    "excerpt": "tcl8.6.18-tclProc.c-508-529.txt",
+    "excerpt_sha256": "80f5dc0d59843f810fb089fd033b0b2a62e0b98ed53f85c948973b3ecd7166d9",
+    "source_tag_from_root_provider_pairing": "core-8-6-18",
+    "source_manifest_uuid_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/manifest.uuid",
+    "source_manifest_uuid": "git-554085e162823ea8bd126898d0c27b7b2a9f8628",
+    "prior_pairing": "/workspace/tcl-lsp/experiments/name-handling/oracles/provider-pairing-20261016T1400/capture.json",
+    "prior_pairing_sha256": "e97f4ebf248b9fd3a2fff4db1679b489b805214d19973ba76733086b23941f67"
+  },
+  "checks": {
+    "tmp_rustfmt": "PASS",
+    "tmp_patch_dry_run_exit": 0,
+    "cargo": "NOT RUN",
+    "candidate_tests": "NOT RUN",
+    "main_writes": "NONE",
+    "git": "NONE"
+  }
+}

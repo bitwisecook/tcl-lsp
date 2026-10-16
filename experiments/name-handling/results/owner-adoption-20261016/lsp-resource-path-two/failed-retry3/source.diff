@@ -1,0 +1,732 @@
+diff --git a/rust/tcl-compiler/src/command_binding.rs b/rust/tcl-compiler/src/command_binding.rs
+index b126155e6..990338756 100644
+--- a/rust/tcl-compiler/src/command_binding.rs
++++ b/rust/tcl-compiler/src/command_binding.rs
+@@ -1825,6 +1825,53 @@ impl OriginalCompilationLookupAdvice {
+             })
+     }
+ 
++    /// Original procedure-body syntax for a conditional parameter report.
++    /// Actual entry, Native lookup and successful alias operations stay open.
++    pub(crate) fn closed_body_parameter_source_lookup(
++        &self,
++        entry: &SourceConditionalBodyEntry,
++    ) -> bool {
++        let state = &self.snapshot.state;
++        self.closed_lookup()
++            && state.logical_source_name_advice_input().is_none()
++            && entry.owns_source(&self.site.source, self.site.offset)
++            && self.frame() == entry.frame()
++            && Some(self.namespace()) == entry.namespace_context()
++            && !self.targets.is_empty()
++            && !self.has_opaque_handler_alternatives()
++            && !state.source_step_observed()
++            && state.command_observers.is_quiet()
++            && self.targets.iter().all(|target| {
++                target.registry_backed
++                    && target.kind == BindingKind::Builtin
++                    && target.prepended.is_empty()
++                    && !state.source_execution_observed(target.identity.as_ref())
++                    && !state.runtime_execution_observed(target.identity.as_ref())
++            })
++    }
++
++    /// Reborrow complete original words only after the exact declaration row,
++    /// metadata owner and actual body/frame join. No executed read is issued.
++    pub(crate) fn original_body_parameter_source_words(
++        &self,
++        tokens: &crate::ir::CommandTokens,
++        entry: &SourceConditionalBodyEntry,
++        config: tcl_lexer::LexerConfig,
++        registry: &CommandRegistry,
++    ) -> Option<Vec<tcl_lexer::NativeWord>> {
++        (self.config == config).then_some(())?;
++        self.closed_body_parameter_source_lookup(entry)
++            .then_some(())?;
++        self.original_declaration_metadata_context(registry, tokens)
++            .ok()?;
++        let original = self.site.source.original_lexical_command(
++            tokens.words(),
++            self.site.offset,
++            self.config,
++        )?;
++        Some(original.native_words().to_vec())
++    }
++
+     pub(crate) fn frame(&self) -> &crate::var_resolve::VariableExecutionFrame {
+         &self.snapshot.state.variable_frame
+     }
+diff --git a/rust/tcl-compiler/src/registry_invocation.rs b/rust/tcl-compiler/src/registry_invocation.rs
+index 7d4ac5fb3..34bba8eac 100644
+--- a/rust/tcl-compiler/src/registry_invocation.rs
++++ b/rust/tcl-compiler/src/registry_invocation.rs
+@@ -6155,6 +6155,7 @@ pub(crate) struct InvocationBodyAssistance {
+     /// unavailable, and no definite role or execution projection uses this.
+     receiver_trait_invocation: Option<ReceiverTraitInvocation>,
+     logical_trait_invocation: Option<LogicalTraitInvocation>,
++    body_parameter_source: Option<BodyParameterSourceInvocation>,
+     pub declared_roles: Vec<(usize, tcl_registry::ArgRole)>,
+     pub unknown_residual: bool,
+     pub may_be_absent: bool,
+@@ -6211,6 +6212,29 @@ struct LogicalTraitInvocation {
+     invocation: ResolvedStatementInvocation,
+ }
+ 
++struct BodyParameterSourceInvocation {
++    entry: std::sync::Arc<crate::command_binding::SourceConditionalBodyEntry>,
++    layout: crate::command_binding::OriginalCompilationLookupAdvice,
++    words: Vec<tcl_lexer::NativeWord>,
++    shape: RegistryInvocationShape,
++    invocation: ResolvedStatementInvocation,
++}
++impl BodyParameterSourceInvocation {
++    fn matches_parameters(&self, parameters: &[&str]) -> bool {
++        self.layout.closed_body_parameter_source_lookup(&self.entry)
++            && self
++                .entry
++                .original_formal_topology()
++                .is_some_and(|formals| {
++                    formals
++                        .parameters()
++                        .iter()
++                        .map(|formal| formal.name.as_slice())
++                        .eq(parameters.iter().map(|name| name.as_bytes()))
++                })
++    }
++}
++
+ /// Borrowed conditional source parameter layout from its genuine retained
+ /// body/prefix owner. Ordinary invocation facts retain their own proof purpose.
+ /// This facade supplies no closed advice, Native handler or Normal operation.
+@@ -6263,8 +6287,26 @@ impl InvocationBodyAssistance {
+             .is_some_and(|actual| std::ptr::eq(actual, selected))
+             || self
+                 .conditional_parameter_source()
++                .is_some_and(|owned| std::ptr::eq(&owned.invocation, selected))
++            || self
++                .body_parameter_source
++                .as_ref()
+                 .is_some_and(|owned| std::ptr::eq(&owned.invocation, selected)))
+         .then_some(())?;
++        if let Some(owned) = &self.body_parameter_source
++            && std::ptr::eq(&owned.invocation, selected)
++        {
++            let InvocationWordOrigin::Written(written) =
++                selected.effective.origins.get(argument.checked_add(1)?)?
++            else {
++                return None;
++            };
++            let word = owned.words.get(*written)?;
++            let value = tcl_syntax::word_rules::original_static_word_unicode_value(word)?;
++            return (!value.contains(&0))
++                .then(|| String::from_utf8(value).ok())
++                .flatten();
++        }
+         if let Some(owned) = &self.logical_trait_invocation
+             && std::ptr::eq(&owned.invocation, selected)
+         {
+@@ -6342,6 +6384,10 @@ impl InvocationBodyAssistance {
+         &self,
+         parameters: &[&str],
+     ) -> Option<&RegistryInvocationShape> {
++        if self.logical_trait_invocation.is_none() {
++            let owned = self.body_parameter_source.as_ref()?;
++            return owned.matches_parameters(parameters).then_some(&owned.shape);
++        }
+         let owned = self.conditional_parameter_source()?;
+         owned
+             .body
+@@ -6360,7 +6406,11 @@ impl InvocationBodyAssistance {
+         parameters: &[&str],
+     ) -> Option<ConditionalParameterSourceInvocation<'_>> {
+         let shape = self.conditional_parameter_source_shape(parameters)?;
+-        let invocation = &self.conditional_parameter_source()?.invocation;
++        let invocation = if self.logical_trait_invocation.is_some() {
++            &self.conditional_parameter_source()?.invocation
++        } else {
++            &self.body_parameter_source.as_ref()?.invocation
++        };
+         Some(ConditionalParameterSourceInvocation {
+             facts: &invocation.facts,
+             invocation,
+@@ -6604,6 +6654,7 @@ fn body_assistance_with_entry<'a>(
+         conditional_invocation: None,
+         receiver_trait_invocation: None,
+         logical_trait_invocation: None,
++        body_parameter_source: None,
+         declared_roles: Vec::new(),
+         unknown_residual: prepared.as_ref().is_none_or(|view| view.unknown_residual),
+         may_be_absent: prepared.as_ref().is_none_or(|view| view.may_be_absent),
+@@ -6923,11 +6974,66 @@ pub(crate) fn segmented_body_assistance(
+             closed: true,
+         };
+         view.receiver_trait_invocation = Some(owned);
++    } else {
++        view.body_parameter_source =
++            original_body_parameter_source_invocation(registry, context, &tokens, bindings, config);
+     }
+     view.retain_caller_template_source(&tokens);
+     Some(view)
+ }
+ 
++/// Parameter usage from an authentic original body/declaration row. The
++/// dedicated source facade cannot supply generic closed or executable facts.
++fn original_body_parameter_source_invocation(
++    registry: &CommandRegistry,
++    context: InvocationMetadataContext<'_>,
++    tokens: &CommandTokens,
++    bindings: &crate::command_binding::SourceCommandBindings,
++    config: tcl_lexer::LexerConfig,
++) -> Option<BodyParameterSourceInvocation> {
++    context.matches_registry(registry).then_some(())?;
++    let binding = tokens.source_binding.as_ref()?;
++    let site = binding.invocation_site()?;
++    let entry = bindings.conditional_body_entry_at(&site.source, site.offset)?;
++    let layout = binding.declaration_operand_layout_advice(tokens)?;
++    let metadata = layout
++        .original_declaration_metadata_context(registry, tokens)
++        .ok()??;
++    if metadata.context() != context.context()
++        || context
++            .source_analysis_input()
++            .is_some_and(|input| metadata.source_analysis_input() != Some(input))
++    {
++        return None;
++    }
++    let words = layout.original_body_parameter_source_words(tokens, &entry, config, registry)?;
++    if words.iter().any(|word| word.group().expand) {
++        return None;
++    }
++    let invocation = resolve_original_declared_layout(registry, metadata, tokens, &layout)?;
++    if !invocation.facts.arg_roles_complete
++        || invocation.facts.arity_accepts_frozen_arguments() != Some(true)
++        || invocation
++            .effective
++            .origins
++            .iter()
++            .enumerate()
++            .any(|(ordinal, origin)| *origin != InvocationWordOrigin::Written(ordinal))
++    {
++        return None;
++    }
++    entry.original_formal_topology()?;
++    let shape =
++        RegistryInvocationShape::from_facts(&invocation.facts, invocation.effective.clone());
++    Some(BodyParameterSourceInvocation {
++        entry,
++        layout,
++        words,
++        shape,
++        invocation,
++    })
++}
++
+ /// Conditional traits from the complete original receiver declaration. Its
+ /// source namespace does not claim the future receiver's private namespace.
+ fn receiver_source_trait_invocation<'a>(
+@@ -7252,6 +7358,7 @@ pub(crate) fn unpositioned_body_assistance(
+             conditional_invocation: None,
+             receiver_trait_invocation: None,
+             logical_trait_invocation: None,
++            body_parameter_source: None,
+             unknown_residual: true,
+             may_be_absent: true,
+             parameter_advice: ParameterRoleAdvice::default(),
+@@ -11570,3 +11677,200 @@ mod authored_controls;
+ pub(crate) use authored_controls::{
+     original_authored_control_invocation, original_authored_scalar_invocation,
+ };
++
++#[cfg(test)]
++mod original_body_parameter_source_tests {
++    use super::*;
++
++    #[test]
++    fn original_body_parameter_source_refuses_unknown_lookup_and_replaced_handlers() {
++        for source in [
++            "proc p {name} {unknown_effect; upvar 1 $name cell}",
++            "proc upvar args {}; proc p {name} {upvar 1 $name cell}",
++        ] {
++            let analysis = crate::analyser::Analyser::new().analyse(source, "jimtcl");
++            let input = analysis.resolved_input.as_ref().unwrap();
++            let registry = input.borrowed_context_registry().commands();
++            let realm = analysis.retained_command_realm().unwrap();
++            let commands = crate::segmenter::segment_commands_with_offset_and_config(
++                source,
++                0,
++                input.lexer_config(),
++            );
++            let script = realm
++                .executed_script_for_word(commands.last().unwrap().argv[3].span)
++                .unwrap();
++            let body = script.try_text().unwrap();
++            let segments = crate::segmenter::segment_commands_with_offset_and_config(
++                body,
++                0,
++                input.lexer_config().nested(),
++            );
++            let view = segmented_body_assistance(
++                &tcl_registry::model::DocumentCommandSurface::new(registry, None),
++                realm.source_bindings_ref(),
++                body,
++                input.lexer_config(),
++                segments.last().unwrap(),
++                script.base(),
++                Some(input.borrowed_context_registry()),
++            )
++            .unwrap();
++            assert!(
++                view.conditional_parameter_source_invocation(&["name"])
++                    .is_none(),
++                "{source}"
++            );
++            assert!(view.body_parameter_source.is_none(), "{source}");
++        }
++    }
++
++    #[test]
++    fn original_body_parameter_source_keeps_jim_formals_scope_and_execution_refusals() {
++        let source = "proc p {name spare} {upvar 1 $name cell; set cell VALUE}\nproc q {name spare} {upvar 1 $name cell; set cell VALUE}";
++        let analysis = crate::analyser::Analyser::new().analyse(source, "jimtcl");
++        let input = analysis.resolved_input.as_ref().unwrap();
++        let registry = input.borrowed_context_registry().commands();
++        let realm = analysis.retained_command_realm().unwrap();
++        let bindings = realm.source_bindings_ref();
++        let commands = crate::segmenter::segment_commands_with_offset_and_config(
++            source,
++            0,
++            input.lexer_config(),
++        );
++        let script = realm
++            .executed_script_for_word(commands[0].argv[3].span)
++            .unwrap();
++        let body = script.try_text().unwrap();
++        let segments = crate::segmenter::segment_commands_with_offset_and_config(
++            body,
++            0,
++            input.lexer_config().nested(),
++        );
++        let view = segmented_body_assistance(
++            &tcl_registry::model::DocumentCommandSurface::new(registry, None),
++            bindings,
++            body,
++            input.lexer_config(),
++            &segments[0],
++            script.base(),
++            Some(input.borrowed_context_registry()),
++        )
++        .unwrap();
++        let selected = view
++            .conditional_parameter_source_invocation(&["name", "spare"])
++            .expect("actual original Jim body/formal source template");
++        assert!(!view.parameter_role_advice().is_closed());
++        assert!(view.parameter_invocation(&["name", "spare"]).is_none());
++        assert!(view.caller_name_template_invocation().is_none());
++        assert!(view.definite_invocation.is_none());
++        assert!(view.unknown_residual || view.may_be_absent);
++        assert!(
++            view.conditional_parameter_source_invocation(&["spare", "name"])
++                .is_none()
++        );
++        assert!(
++            view.conditional_parameter_source_invocation(&["name"])
++                .is_none()
++        );
++        assert_eq!(
++            view.caller_template_literal_data(selected.retained_invocation(), 2)
++                .as_deref(),
++            Some("cell")
++        );
++        assert!(
++            selected
++                .written_argument_roles()
++                .contains(&(2, tcl_registry::ArgRole::VarWrite))
++        );
++        let held = view.body_parameter_source.as_ref().unwrap();
++        assert_eq!(held.words.len(), 4);
++        assert!(
++            held.words
++                .iter()
++                .all(|word| word.image().bytes() == source.as_bytes())
++        );
++        assert!(
++            held.words
++                .iter()
++                .all(|word| word.config() == input.lexer_config())
++        );
++        assert!(!bindings.has_actual_procedure_entry(script));
++
++        let segment = segments[0].clone().shifted_by(script.base());
++        let mut tokens = CommandTokens::from_segmented(
++            &tcl_lexer::SourceMap::new(source),
++            input.lexer_config(),
++            &segment,
++        );
++        bindings.stamp_original_tokens(&mut tokens);
++        let metadata = InvocationMetadataContext::for_analysis_input(registry, input).unwrap();
++        assert!(
++            original_body_parameter_source_invocation(
++                registry,
++                metadata,
++                &tokens,
++                bindings,
++                input.lexer_config()
++            )
++            .is_some()
++        );
++        let second_offset = u32::try_from(source.rfind("upvar").unwrap()).unwrap();
++        let second = bindings
++            .conditional_body_entry_at(bindings.source_origin().unwrap(), second_offset)
++            .unwrap();
++        let layout = tokens
++            .source_binding
++            .as_ref()
++            .unwrap()
++            .declaration_operand_layout_advice(&tokens)
++            .unwrap();
++        assert!(
++            layout
++                .original_body_parameter_source_words(
++                    &tokens,
++                    &second,
++                    input.lexer_config(),
++                    registry
++                )
++                .is_none()
++        );
++        let mut changed = tokens.clone();
++        changed.argv_texts[2] = "foreign".to_owned();
++        assert!(
++            original_body_parameter_source_invocation(
++                registry,
++                metadata,
++                &changed,
++                bindings,
++                input.lexer_config()
++            )
++            .is_none()
++        );
++        let mut config = input.lexer_config();
++        config.strict_quoting = !config.strict_quoting;
++        assert!(
++            original_body_parameter_source_invocation(
++                registry, metadata, &tokens, bindings, config,
++            )
++            .is_none()
++        );
++        let changed = crate::analyser::ResolvedAnalysisInput::new(
++            input.analyser_profile(),
++            input.unit_profile(),
++            input.context_registry(),
++            config,
++        );
++        let metadata = InvocationMetadataContext::for_analysis_input(registry, &changed).unwrap();
++        assert!(
++            original_body_parameter_source_invocation(
++                registry,
++                metadata,
++                &tokens,
++                bindings,
++                input.lexer_config()
++            )
++            .is_none()
++        );
++    }
++}
+diff --git a/rust/tcl-lsp-core/src/file_uri.rs b/rust/tcl-lsp-core/src/file_uri.rs
+index 563b0253b..cf2905e1a 100644
+--- a/rust/tcl-lsp-core/src/file_uri.rs
++++ b/rust/tcl-lsp-core/src/file_uri.rs
+@@ -126,14 +126,23 @@ pub(crate) fn escaped_path(path: &str, escaping: FileUriEscaping) -> String {
+ /// Refusal is not evidence that a file, workspace or source provider is absent.
+ #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+ pub enum FileUriPathUnavailable {
++    /// The current host has no supported native path policy.
+     UnsupportedHost,
++    /// The original protocol text is not a valid absolute URI.
+     InvalidUri,
++    /// The URI scheme does not select a filesystem document.
+     NotFile,
++    /// A query or fragment cannot be represented as a native file path.
+     QueryOrFragment,
++    /// The authority contains unsupported host, user, port or separator data.
+     UnsupportedAuthority,
++    /// Strict decoding of the authority or path did not produce valid UTF-8.
+     InvalidUnicode,
++    /// The decoded authority or path contains a NUL byte.
+     Nul,
++    /// A decoded path segment contains a native path separator.
+     EncodedSeparator,
++    /// The path does not have a supported absolute native root.
+     UnsupportedNativeGeometry,
+ }
+ 
+@@ -157,6 +166,11 @@ pub enum FileUriPathPurpose {
+ /// No filesystem canonicalisation, existence, source freshness, file identity,
+ /// load or edit authority follows. Browser virtual paths and host file actions
+ /// retain their separate boundaries. Refusal never proves a file/provider absent.
++///
++/// # Errors
++///
++/// Returns a typed refusal when the URI or its decoded data cannot be represented
++/// under the selected purpose and actual native host policy.
+ pub fn to_path(
+     original_uri: &str,
+     purpose: FileUriPathPurpose,
+diff --git a/rust/tcl-lsp-server/src/lib.rs b/rust/tcl-lsp-server/src/lib.rs
+index 8db7893f9..0a7378629 100644
+--- a/rust/tcl-lsp-server/src/lib.rs
++++ b/rust/tcl-lsp-server/src/lib.rs
+@@ -11471,7 +11471,7 @@ impl Backend {
+         uri: &Uri,
+     ) -> Option<Vec<tcl_lsp_core::document_symbols::DocumentSymbol>> {
+         let file = (*self.db_files.lock().await).get(uri).copied()?;
+-        let config = *self.db_config.lock().await;
++        let config = self.resolved_db_config(uri).await;
+         let snapshot = self.db.snapshot("db_document_symbols").await;
+         crate::rt::spawn_blocking(move || {
+             salsa::Cancelled::catch(|| tcl_lsp_db::document_symbols(&*snapshot, file, config)).ok()
+@@ -21792,13 +21792,29 @@ impl Backend {
+             serde_json::json!({
+                 "installations": installs
+                     .iter()
+-                    .map(|i| serde_json::json!({
+-                        "version": i.version,
+-                        "tclLibrary": i.tcl_library.to_string_lossy(),
+-                        "autoPath": i.auto_path.iter()
+-                            .map(|p| p.to_string_lossy().into_owned())
+-                            .collect::<Vec<_>>(),
+-                    }))
++                    .map(|i| {
++                        let selection = match tcl_installation_selection_paths(i) {
++                            Ok((tcl_library, auto_path)) => serde_json::json!({
++                                "status": "available",
++                                "tclLibrary": tcl_library,
++                                "autoPath": auto_path,
++                            }),
++                            Err(reason) => serde_json::json!({
++                                "status": "unavailable",
++                                "reason": reason.as_str(),
++                            }),
++                        };
++                        serde_json::json!({
++                            "version": i.version,
++                            // These legacy fields are presentation only. The picker
++                            // writes only the explicitly checked `selection` payload.
++                            "tclLibrary": i.tcl_library.to_string_lossy(),
++                            "autoPath": i.auto_path.iter()
++                                .map(|p| p.to_string_lossy().into_owned())
++                                .collect::<Vec<_>>(),
++                            "selection": selection,
++                        })
++                    })
+                     .collect::<Vec<_>>(),
+                 "activeAutoPath": active.iter()
+                     .map(|p| p.to_string_lossy().into_owned())
+@@ -33090,6 +33106,44 @@ fn document_auto_path_dirs(uri: &Uri, analysis: &AnalysisResult) -> Vec<PathBuf>
+     dirs
+ }
+ 
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++enum TclInstallationSelectionUnavailable {
++    NonUnicodeLibraryPath,
++    NonUnicodeAutoPath,
++}
++
++impl TclInstallationSelectionUnavailable {
++    const fn as_str(self) -> &'static str {
++        match self {
++            Self::NonUnicodeLibraryPath => "nonUnicodeLibraryPath",
++            Self::NonUnicodeAutoPath => "nonUnicodeAutoPath",
++        }
++    }
++}
++
++/// Project an actual discovered installation into the exact Unicode paths the
++/// editor can write back to `libraryPaths`. Lossy path strings remain display
++/// fields only and can never be used as selection identity.
++fn tcl_installation_selection_paths(
++    installation: &core_tcl_install::TclInstallation,
++) -> Result<(String, Vec<String>), TclInstallationSelectionUnavailable> {
++    let tcl_library = installation
++        .tcl_library
++        .to_str()
++        .ok_or(TclInstallationSelectionUnavailable::NonUnicodeLibraryPath)?
++        .to_owned();
++    let auto_path = installation
++        .auto_path
++        .iter()
++        .map(|path| {
++            path.to_str()
++                .map(str::to_owned)
++                .ok_or(TclInstallationSelectionUnavailable::NonUnicodeAutoPath)
++        })
++        .collect::<Result<Vec<_>, _>>()?;
++    Ok((tcl_library, auto_path))
++}
++
+ /// The effective `auto_path` for the package database, layering the configured
+ /// sources plus on-disk discovery (deduped, in priority order):
+ ///
+@@ -35645,6 +35699,41 @@ info exists ::N::v\uD800";
+         assert_eq!(*backend.default_dialect.lock().await, "tcl9.0");
+     }
+ 
++    #[test]
++    fn tcl_installation_picker_selection_refuses_unrepresentable_native_paths() {
++        let unicode = core_tcl_install::TclInstallation {
++            version: "9.0".to_owned(),
++            tcl_library: PathBuf::from("/opt/tcl9.0/lib/tcl9.0"),
++            auto_path: vec![PathBuf::from("/opt/tcl9.0/lib")],
++        };
++        assert_eq!(
++            tcl_installation_selection_paths(&unicode),
++            Ok((
++                "/opt/tcl9.0/lib/tcl9.0".to_owned(),
++                vec!["/opt/tcl9.0/lib".to_owned()],
++            )),
++        );
++
++        #[cfg(unix)]
++        {
++            use std::os::unix::ffi::OsStringExt as _;
++            let opaque = PathBuf::from(std::ffi::OsString::from_vec(
++                b"/opt/tcl9.0/lib/\xff".to_vec(),
++            ));
++            let replacement_sibling = PathBuf::from("/opt/tcl9.0/lib/\u{fffd}");
++            assert_ne!(opaque, replacement_sibling);
++            let discovered = core_tcl_install::TclInstallation {
++                version: "9.0".to_owned(),
++                tcl_library: PathBuf::from("/opt/tcl9.0/lib/tcl9.0"),
++                auto_path: vec![opaque],
++            };
++            assert_eq!(
++                tcl_installation_selection_paths(&discovered),
++                Err(TclInstallationSelectionUnavailable::NonUnicodeAutoPath),
++            );
++        }
++    }
++
+     #[test]
+     fn effective_auto_path_layers_editor_project_and_discovery() {
+         // editor libraryPaths → global → project .tcl-lsp.ini → discovered →
+diff --git a/rust/tcl-lsp-server/src/original_document_metadata_tests.rs b/rust/tcl-lsp-server/src/original_document_metadata_tests.rs
+index 1042ca3c7..50331ba56 100644
+--- a/rust/tcl-lsp-server/src/original_document_metadata_tests.rs
++++ b/rust/tcl-lsp-server/src/original_document_metadata_tests.rs
+@@ -900,6 +900,115 @@ async fn optimise_document_keeps_workspace_roles_and_refuses_unavailable_input()
+     assert!(refused["optimisations"].as_array().unwrap().is_empty());
+ }
+ 
++#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
++async fn document_symbols_keep_the_resource_input_and_withdraw_unavailable_overlays() {
++    use salsa::Setter as _;
++    let (backend, registry) = workspace_pack_backend().await;
++    let folder = Uri::from_str("file:///outline-resource392/library").unwrap();
++    let uri = Uri::from_str("file:///outline-resource392/library/outline.tcl").unwrap();
++    let sibling = Uri::from_str("file:///outline-resource392/library-sibling/outline.tcl").unwrap();
++    backend
++        .apply_folder_configs(vec![(
++            folder,
++            FolderConfig {
++                non_ascii_mode: Some(NonAsciiMode::Strict),
++                ..FolderConfig::default()
++            },
++        )])
++        .await;
++    backend
++        .db_set_source(&uri, "proc selected_outline {} {}", "tcl".to_owned())
++        .await;
++    backend
++        .db_set_source(&sibling, "proc sibling_outline {} {}", "tcl".to_owned())
++        .await;
++    let resource_config = backend.resolved_db_config(&uri).await;
++    let global_config = *backend.db_config.lock().await;
++    assert!(resource_config != global_config);
++    assert!(backend.resolved_db_config(&sibling).await == global_config);
++    let file = *backend.db_files.lock().await.get(&uri).unwrap();
++    let valid_pack_key = {
++        let snapshot = backend.db.snapshot("outline_resource_input392").await;
++        let input = tcl_lsp_db::document_analysis_input(&*snapshot, file, resource_config).unwrap();
++        assert_eq!(
++            input
++                .borrowed_context_registry()
++                .commands()
++                .snapshot()
++                .semantic_key(),
++            registry.snapshot().semantic_key()
++        );
++        resource_config.spec_pack_key(&*snapshot)
++    };
++    {
++        let mut db = backend.db.lock().await;
++        global_config.set_spec_pack_key(&mut *db).to(u64::MAX - 392);
++    }
++    {
++        let snapshot = backend.db.snapshot("outline_global_unavailable392").await;
++        assert!(tcl_lsp_db::document_analysis_input(&*snapshot, file, global_config).is_err());
++        assert!(tcl_lsp_db::document_analysis_input(&*snapshot, file, resource_config).is_ok());
++    }
++    let symbols = backend.db_document_symbols(&uri).await.unwrap();
++    assert!(
++        symbols
++            .iter()
++            .any(|symbol| symbol.name == "selected_outline"
++                && symbol.kind == CoreSymbolKind::Function)
++    );
++    assert!(
++        backend
++            .db_document_symbols(&sibling)
++            .await
++            .unwrap()
++            .is_empty()
++    );
++
++    backend
++        .db_set_source(&uri, "proc edited_outline {} {}", "tcl".to_owned())
++        .await;
++    assert!(*backend.db_files.lock().await.get(&uri).unwrap() == file);
++    let symbols = backend.db_document_symbols(&uri).await.unwrap();
++    assert!(symbols.iter().any(|symbol| symbol.name == "edited_outline"));
++    assert!(
++        symbols
++            .iter()
++            .all(|symbol| symbol.name != "selected_outline")
++    );
++    {
++        let mut db = backend.db.lock().await;
++        global_config.set_spec_pack_key(&mut *db).to(valid_pack_key);
++        resource_config
++            .set_spec_pack_key(&mut *db)
++            .to(u64::MAX - 393);
++    }
++    assert!(backend.db_document_symbols(&uri).await.unwrap().is_empty());
++    assert!(
++        backend
++            .db_document_symbols(&sibling)
++            .await
++            .unwrap()
++            .iter()
++            .any(|symbol| symbol.name == "sibling_outline")
++    );
++    {
++        let mut db = backend.db.lock().await;
++        resource_config
++            .set_spec_pack_key(&mut *db)
++            .to(valid_pack_key);
++    }
++    assert!(
++        backend
++            .db_document_symbols(&uri)
++            .await
++            .unwrap()
++            .iter()
++            .any(|symbol| symbol.name == "edited_outline")
++    );
++    backend.db_remove_source(&uri).await;
++    assert!(backend.db_document_symbols(&uri).await.is_none());
++}
++
+ #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+ async fn project_tokens_use_published_folder_inputs_and_refuse_a_missing_generation() {
+     // naming.compiler.original-analysis-metadata-context

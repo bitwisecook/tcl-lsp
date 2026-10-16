@@ -3913,8 +3913,9 @@ impl Analyser {
                         continue;
                     }
                 } else {
-                    self.result.original_variable_symbols.push(original);
+                    self.result.original_variable_symbols.push(original.clone());
                 }
+                self.define_original_namespace_alias_target(&original);
                 // The link's display is attached only after actual original
                 // target geometry. It never supplies symbol identity.
                 if let Some(report) = self.alias_target_report(

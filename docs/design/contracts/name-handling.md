@@ -968,6 +968,26 @@ candidates, definite facts and caller-template execution advice remain refused.
 The retained body/cache relationship cannot make cache warmth part of identity
 or create a cycle back to its owning body.
 
+Original procedure-body parameter source observations use the actual retained
+`SourceConditionalBodyEntry` and `OriginalCompilationLookupAdvice`, separately
+from Logical body inventories. The private `BodyParameterSourceInvocation`
+reborrows the original declaration row, whole source/vector, complete selected
+configuration and metadata input, actual body frame/namespace and counted
+formal topology. Queries require the exact ordered formal names. Original
+source lookup must retain a nonempty Builtin roster without opaque alternatives
+or original step/command/target observers. Only independently Written operands
+are admitted; expansion and captured prefixes remain unavailable.
+
+This closes the immutable original source layout only. The dedicated
+`conditional_parameter_source_shape` and `conditional_parameter_source_invocation`
+facades feed parameter May reports without changing generic closed advice,
+parameter/caller-template invocation, definite facts, Native/Normal admission
+or runtime unknown/absence residuals. Literal data comes from the held original
+word and its selected configuration. Jim retains its own original declaration,
+formal grammar and frame; it borrows no C or Logical policy. Actual body entry,
+lookup, observer applicability, alias continuity and caller read/cell ownership
+remain independent. Missing ownership or observations establish no absence.
+
 Caller-template name data belongs to the retained actual invocation and its
 original words. Literal Written data and captured-prefix values remain distinct
 from source references; their local-scalar shape uses the held variable policy

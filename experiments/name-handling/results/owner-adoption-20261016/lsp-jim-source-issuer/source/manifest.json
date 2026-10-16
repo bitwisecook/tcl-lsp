@@ -1,0 +1,27 @@
+{
+  "purpose": "Retained original declaration-body parameter Source reborrow; actual Body entry/formals/fullconfig/fullvector/metadata/lookup currency, no Logical inventory borrowing",
+  "count_advance": 0,
+  "count_note": "Existing validated-integration owner repair candidate; no new owner/facet or baseline completion count asserted; Root reconciliation required",
+  "existing_catalogue_validation_pointer": "/existing_validation_obligations/compiler/1",
+  "existing_validation_original_row_id": "rust/tcl-compiler/src/analyser/param_traits.rs#caller_frame_upvar_params / caller_frame_literal_targets#conditional caller-frame alias name templates",
+  "affected_baseline_dependency_ids": [
+    "db.unit.db.project-source-role-hints"
+  ],
+  "related_existing_lsp_validation_ids": [
+    "lsp-caller-frame-authentic-callee-template",
+    "lsp-caller-frame-native-read-source-template"
+  ],
+  "distinct_unmodified_owner": "compiler.source.logical-parameter-trait-body-owner",
+  "base_sha256": {
+    "rust/tcl-compiler/src/command_binding.rs": "8e95b00cf743bdc74bcf4474c2f9ac1e6bb2f80fee30c754cedcb2ba24d19951",
+    "rust/tcl-compiler/src/registry_invocation.rs": "1c62db7c8e39e14256dd7d09447bb2ab7f455d4a6a4661a73e43626a36868edf"
+  },
+  "edit_sha256": {
+    "rust/tcl-compiler/src/command_binding.rs": "ea55ef2b4751405d909c1d7d37d738d91d03948e717fa8b6dba0299585ca2be3",
+    "rust/tcl-compiler/src/registry_invocation.rs": "4d020b3ddb97bd2ad1df820ac196b87af50926610fc236eb508f22d3582b4bb2"
+  },
+  "patch_sha256": "53a241d123d6d2f3a6e86be18e5554e4742ad616b13d5951a94b556013f38876",
+  "ordinary_failure": "/workspace/naming-validation/lsp-source-parent-continuation/lsp37/test-002.log",
+  "frozen_trace_diagnosis": "/tmp/compiler-jim-parameter-source-diagnosis-v1/manifest.json",
+  "execution": "No candidate Cargo/test/main/Git; Root owns integration/build"
+}

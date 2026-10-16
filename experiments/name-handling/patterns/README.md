@@ -514,3 +514,5 @@ quotes/comments, adjacent substitutions, quoted separators and an incomplete
 braced tail. The failed8.4 reporting setup is separate. Lexer geometry grants
 no selected command, runtime completion or optimiser authority; Jim/F5 are
 unobserved by this capture.
+
+Original formal-name acceptance is recorded in [the scoped C/Jim probe](../oracles/qualified-formals-20261016T1520/manifest.json): all five pinned C providers reject the tested qualified/array-spelled formals at procedure creation, while the rechecked original Jim provider accepts them. Simple and rest-formal controls succeed. This supports the C-only LSP fixture premise; it observes no alias/cell binding and supplies no cross-provider policy.

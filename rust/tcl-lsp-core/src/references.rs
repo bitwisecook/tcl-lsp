@@ -4159,6 +4159,31 @@ pub fn document_highlights(
     )
 }
 
+/// Convert already selected variable declaration/read spans into highlight
+/// ranges. This is a pure report conversion: source identity and selection are
+/// enforced by the caller before it supplies these spans.
+fn variable_occurrence_highlights(
+    source: &str,
+    line_index: &LineIndex,
+    sites: impl IntoIterator<Item = (tcl_lexer::Span, bool)>,
+) -> Vec<(LspRange, HighlightKind)> {
+    let mut highlights: Vec<_> = sites
+        .into_iter()
+        .map(|(span, is_declaration)| {
+            (
+                span_to_range(source, line_index, span),
+                if is_declaration {
+                    HighlightKind::Write
+                } else {
+                    HighlightKind::Read
+                },
+            )
+        })
+        .collect();
+    highlights.sort_by_key(|(range, _)| (range.start_line, range.start_character));
+    dedup_kinded(highlights)
+}
+
 /// [`document_highlights`] with the caller's whole-program export view
 /// attached — the entry point a host with a workspace index should call.
 ///
@@ -4183,21 +4208,12 @@ pub fn document_highlights_in_program(
         crate::variable_symbol::select(source, analysis, line, character)
     {
         return selected.map_or_else(Vec::new, |occurrence| {
-            let mut highlights: Vec<_> =
+            variable_occurrence_highlights(
+                source,
+                &line_index,
                 crate::variable_symbol::occurrences(analysis, occurrence.symbol())
-                    .map(|site| {
-                        (
-                            span_to_range(source, &line_index, site.span()),
-                            if site.is_declaration() {
-                                HighlightKind::Write
-                            } else {
-                                HighlightKind::Read
-                            },
-                        )
-                    })
-                    .collect();
-            highlights.sort_by_key(|(range, _)| (range.start_line, range.start_character));
-            dedup_kinded(highlights)
+                    .map(|site| (site.span(), site.is_declaration())),
+            )
         });
     }
 
@@ -5972,42 +5988,16 @@ mod tests {
 
     #[test]
     fn document_highlights_var_read_kind_is_correctly_tagged() {
-        // The kind-tagging contract: every span in
-        // `VarDef.references` becomes Read; the definition
-        // span becomes Write.  Whether the analyser actually
-        // populates `references` for a given source depends
-        // on its body-walk heuristics (single-arg `set x`
-        // reads are tracked, `$x` substitutions in arg
-        // positions are not).  This
-        // test injects a synthetic `VarDef` with a known
-        // `references` entry to verify the tagging logic in
-        // isolation from the body-walk gap.
-        use tcl_compiler::analyser::{AnalysisResult as Result, Scope, VarDef};
+        // Pure report conversion contract: selection and current-source
+        // authority belong to the public caller; this helper only maps the
+        // supplied declaration/read spans to Write/Read LSP ranges.
         use tcl_lexer::Span;
-        let mut scope = Scope::default();
-        scope.variables.insert(
-            "x".into(),
-            VarDef {
-                name: "x".into(),
-                definition_span: Span::new(4, 5),
-                references: vec![Span::new(13, 14)],
-                warn_if_unused: false,
-                array_indices: std::collections::BTreeSet::new(),
-                link_target: None,
-                link_target_span: None,
-            },
-        );
-        let mut a = Result::default();
-        a.global_scope = scope;
-        // Source matches the spans we injected so
-        // line/character translation works.
         let src = "set x 1\nputs $x\n";
-        let highlights = document_highlights(
+        let line_index = LineIndex::new(src);
+        let highlights = variable_occurrence_highlights(
             src,
-            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
-            1,
-            6,
-            &a,
+            &line_index,
+            [(Span::new(4, 5), true), (Span::new(13, 14), false)],
         );
         // Write at definition.
         assert!(
@@ -6016,7 +6006,7 @@ mod tests {
                 .any(|(r, k)| r.start_line == 0 && *k == HighlightKind::Write),
             "expected Write at line 0; got {highlights:?}",
         );
-        // Read at the injected reference.
+        // Read at the supplied reference.
         assert!(
             highlights
                 .iter()

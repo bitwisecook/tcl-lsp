@@ -1,19 +1,19 @@
 # Centralised name handling on work
 
-Active priority is **all LSP consumers and their required shared Compiler/DB/Registry owners**. Runtime/VM and BIG-IP work are deferred at their recorded checkpoints. For uncovered BIG-IP behaviour, Tcl8.4 is a working assumption; measured evidence keeps its original scope and provenance. The LSP baseline contains **325 obligations** (201 semantic,122 validation,2 documentation): **83 have integrated changes** (14 semantic,67 validation,2 documentation),242 have none and zero are verified complete. Shared dependencies keep their original counts and are not recounted here.
+Active priority is **all LSP consumers and their required shared Compiler/DB/Registry owners**. Runtime/VM and BIG-IP work are deferred at their recorded checkpoints. For uncovered BIG-IP behaviour, Tcl8.4 is a working assumption; measured evidence keeps its original scope and provenance. The LSP baseline contains **325 obligations** (201 semantic,122 validation,2 documentation): **88 have integrated changes** (16 semantic,70 validation,2 documentation),237 have none and zero are verified complete. Shared dependencies keep their original counts and are not recounted here.
 
-Implementation has resumed from `554085e`. **211 baseline units** have reviewed
-implementation pending validation: 157 code units and all 54 authored-documentation
+Implementation has resumed from `554085e`. **216 baseline units** have reviewed
+implementation pending validation: 162 code units and all 54 authored-documentation
 units. These include one explicitly partial caller (DB class cards).
 **Zero units are verified complete**. Baseline counts remain **2,158**;
-1,947 baseline units have no integrated implementation. The bounded
-[owner/caller annex](implementation-owner-annex.json) adds **35 demonstrated
-requirements**, 34 integrated pending validation and one blocked before integration.
-Effective scope is **2,193 obligations**, with **245 integrated pending validation**
-and **1,948 not integrated**. These counts establish neither semantic acceptance
+1,942 baseline units have no integrated implementation. The bounded
+[owner/caller annex](implementation-owner-annex.json) adds **36 demonstrated
+requirements**, 35 integrated pending validation and one blocked before integration.
+Effective scope is **2,194 obligations**, with **251 integrated pending validation**
+and **1,943 not integrated**. These counts establish neither semantic acceptance
 nor completed gates.
 
-Development checkpoint `5b4d97abe` is pushed to `work`. The
+Development checkpoint `c20c6ed04` is pushed to `work`. The
 [current implementation and validation snapshot](current-state.md) records exact
 ordinary builds, selected failures, source-only limitations, restored evidence
 and pending gates. The [implementation ledger](implementation-ledger.md) retains

@@ -1,0 +1,21 @@
+{
+  "unit": "lsp-server-document-symbol-resource-config",
+  "kind": "existing caller migration",
+  "additional_semantic_count": 0,
+  "additional_owner_count": 0,
+  "new_test": "original_document_metadata_tests::document_symbols_keep_the_resource_input_and_withdraw_unavailable_overlays",
+  "validation": "TMP rustfmt/check and independent TMP apply/hash checks only. No Cargo/compiler/test/main/Git/network.",
+  "files": {
+    "rust/tcl-lsp-server/src/lib.rs": {
+      "before_sha256": "5fe305fe172da54879077b82fd536bb4aa544b842adfaf3b6993ba82d5ff5ff2",
+      "after_sha256": "5be87c500481444221228ca886aa7348ddeca3c928f5181d72422be5d8bbe527",
+      "live_matches_before": true
+    },
+    "rust/tcl-lsp-server/src/original_document_metadata_tests.rs": {
+      "before_sha256": "dd60c091f5821c4a56cf8ba0eae5984eb462ed427f0032fbd2c6781afa24d473",
+      "after_sha256": "279c1618811e4b1d3892550828a391b9c161c00fd5a14be30f49f3042c9f61f1",
+      "live_matches_before": true
+    }
+  },
+  "patch_sha256": "d1dc75a66097bc77abba750b9551fed170f11227fc9e8aeecc66e144765ba1d1"
+}

@@ -1,0 +1,91 @@
+{
+  "scope": "Lossless storage archive of completed frozen executable snapshot only; no execution or semantic status change",
+  "original_directory": "/workspace/naming-validation/reviewed-host-source-uri/frozen-binaries",
+  "archive": "/workspace/naming-validation/archives/reviewed-host-source-uri-frozen.tar.zst",
+  "archive_sha256": "aecd235d478ad0b11a00df16d94467bb311045cddc1cc84efba5748b226f6480",
+  "archive_bytes": 588635870,
+  "uncompressed_bytes": 3361828840,
+  "members": [
+    {
+      "name": "cli-153c8adc63023eef",
+      "bytes": 9078832,
+      "sha256": "3f9978f3962a4c9d5d48b8e20cf1eec099db2c3afc6e371d0e22b9ce4840be8f"
+    },
+    {
+      "name": "e2e-1ecb9bd84d4b0c49",
+      "bytes": 377032896,
+      "sha256": "cce93de1f1b044b1ae3d5810a6dd7886a8aa05c435ab1c5ab2a6f4dee3c42cd3"
+    },
+    {
+      "name": "f5_cli-a62d21fd5d2df66a",
+      "bytes": 348728696,
+      "sha256": "7df85fdebd5884f3063cdfa2193b2dbe945af9e06430ca9887f2f43d6493f50f"
+    },
+    {
+      "name": "grep-1e4f09243ce95374",
+      "bytes": 15146064,
+      "sha256": "da48b2bfc2ed51f815ede85fb4102c98ccffd9a48bd1239dc2716dbfb85d9dd8"
+    },
+    {
+      "name": "preview_tickets_e2e-c2624556c8d0c28b",
+      "bytes": 518847824,
+      "sha256": "4348061d33d1cda1ddb063919c74b584f0ff8074ed574df2c794d871abe314f0"
+    },
+    {
+      "name": "query_input-5d369ceb9235ab40",
+      "bytes": 7431384,
+      "sha256": "7795d73e9257a9beb075c9394b71e3de3df410d821c89e0c44057a8fb82c9afd"
+    },
+    {
+      "name": "remote-fd3baeb892bd73b0",
+      "bytes": 7355456,
+      "sha256": "3c4e7e058698df595600a13c68e202537b0e54ff1dbf4441635f4395507ed5ef"
+    },
+    {
+      "name": "tcl_bigip_io-3651a8164e81ec37",
+      "bytes": 139030896,
+      "sha256": "a3ded2824841551dcfdaf48275a2e8f7738eaf937bb7d201a1f7981c674bf867"
+    },
+    {
+      "name": "tcl_compiler-780a8f18152f691d",
+      "bytes": 411732952,
+      "sha256": "546efadf0377e1627284519f2f0191d78e2bb8db0d709bcc9addeb6e8ccdaeb1"
+    },
+    {
+      "name": "tcl_irules-4cdde57b5a11bc60",
+      "bytes": 244329336,
+      "sha256": "2b26d58885ae4059e1f43ecf6f77d74b9ab32b573214f1066dd79c15b544fdd3"
+    },
+    {
+      "name": "tcl_lsp_server-72608fd1ee45104d",
+      "bytes": 559591312,
+      "sha256": "372eb3cd0ebdb819173d59d456552e1e63f245756067ee6127a4d0bbe8e6a6bf"
+    },
+    {
+      "name": "tcl_mcp-ab2879aae42c0240",
+      "bytes": 441477168,
+      "sha256": "0adea06c86f1eec94591dbe846285b1facb302f79c459c0edecad1af1280ad3e"
+    },
+    {
+      "name": "tcl_vm-a69b616c948cad22",
+      "bytes": 274710568,
+      "sha256": "718a6c53f4952670e62944d16774e9cc92ce5248dac81f1cffe4614d3af93fbf"
+    },
+    {
+      "name": "tmsh-924f254bb1c51389",
+      "bytes": 7335456,
+      "sha256": "fbb87d7582ceddda4fe98daf530a8206f20e782c63755120ca769750f254f4e2"
+    }
+  ],
+  "all_member_payloads_verified_before_release": true,
+  "utc": "2026-10-16T15:27:37.765003+00:00",
+  "restore_argv": [
+    "tar",
+    "--zstd",
+    "-xf",
+    "/workspace/naming-validation/archives/reviewed-host-source-uri-frozen.tar.zst",
+    "-C",
+    "/workspace/naming-validation/reviewed-host-source-uri/frozen-binaries"
+  ],
+  "source_binding_and_execution_receipts": "Unchanged; raw executable payload hashes preserved inside archive. Restore and verify exact member before replay."
+}

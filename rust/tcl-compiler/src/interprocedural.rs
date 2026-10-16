@@ -7230,7 +7230,14 @@ mod tests {
             );
             assert!(facts[&id].upvar_aliases.is_empty(), "{body}");
         }
-        let (context, unit) = original_reference_unit("proc p {::n} {upvar 1 $::n x; set x 1}");
+        let (_, rejected) = original_reference_unit("proc p {::n} {upvar 1 $::n x; set x 1}");
+        assert!(
+            rejected
+                .ir_module
+                .original_authored_declaration_body_units
+                .is_empty()
+        );
+        let (context, unit) = original_reference_unit("proc p {n} {upvar 1 $::n x; set x 1}");
         let (&id, _) = unit
             .ir_module
             .original_authored_declaration_body_units
@@ -7244,6 +7251,13 @@ mod tests {
                 .get("::n")
                 .is_some_and(|traits| traits.contains(&ProcArgTrait::VarWrite))
         );
+        assert!(
+            !facts[&id]
+                .param_trait_flags
+                .get("n")
+                .is_some_and(|traits| traits.contains(&ProcArgTrait::VarWrite))
+        );
+        assert!(facts[&id].upvar_aliases.is_empty());
         let (context, unit) =
             original_reference_unit("proc p {n other} {upvar 1 $n x; upvar 1 $other x; set x 1}");
         let (&id, _) = unit

@@ -1,0 +1,11 @@
+{
+  "node": "v24.19.0",
+  "tsc_noEmit": "PASS",
+  "prettier_scoped": "PASS",
+  "source": "current c20+reviewedinstallation21e09ebc",
+  "commands": [
+    "./node_modules/.bin/tsc --noEmit -p .",
+    "./node_modules/.bin/prettier --check src/extension.ts"
+  ],
+  "gui_execution": "UNEXECUTED"
+}

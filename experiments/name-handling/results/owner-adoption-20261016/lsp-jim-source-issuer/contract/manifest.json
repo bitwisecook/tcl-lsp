@@ -1,0 +1,25 @@
+{
+  "purpose": "Canonical contract and existing owner manifest row extension for reviewed original-body Source parameter facet",
+  "source_patch": "/tmp/compiler-body-parameter-source-v2/body-parameter-source-v2.patch",
+  "source_patch_sha256": "53a241d123d6d2f3a6e86be18e5554e4742ad616b13d5951a94b556013f38876",
+  "proposed_required_owner_extension": "compiler.source.original-body-parameter-trait-source-owner",
+  "proposed_additional_shared_facets": 1,
+  "baseline_dependencies": [
+    "db.unit.db.project-source-role-hints"
+  ],
+  "unchanged_caller_counts": 0,
+  "scope_reconciliation": "Existing validation compiler/1 is not a required migration unit; this original evaluated Body/Jim source purpose is distinct from counted Logical owner21. V2 SOURCE-BASIS count0 default is superseded solely for required-scope classification; no completion or ordinary acceptance asserted. Root owns annex ID/count integration.",
+  "existing_manifest_row": "Original caller-template literal name data",
+  "gate": "cargo xtask owner-resolution (Makefile xtask-owner-resolution); not run by author",
+  "base_sha256": {
+    "docs/design/contracts/name-handling.md": "10dcb23462ac7a10b4e63a6a54de903410bc9bdac7c97c408a45e40da5df1442",
+    "docs/design/contracts/shared-utility-contracts-rust.md": "a76de534f103901ce69b4a78230830bd18419dd22c5d615e10b358a0538f9bb4"
+  },
+  "edit_sha256": {
+    "docs/design/contracts/name-handling.md": "d069aea6d610fd6eb6bc4648f663fba4951d76660cd0d69c99d6f6bf93ce0e06",
+    "docs/design/contracts/shared-utility-contracts-rust.md": "06811962732b29762779f205467e4ba1a6dfaa99fa8bf5da4230e6d1d4e5743a"
+  },
+  "patch_sha256": "5edcde1e077e480e51c7e8e23fc8b5a5b82cb1e28d3c35d9c6472bee6196e8bf",
+  "validation": "TMP exact-base patch dry-run and static table/public-entry correspondence only; no Cargo/main/Git",
+  "owner_gate_registration": "Extend existing main owner row and register its actual private issuer\u2192segmented_body_assistance source route; no new semantic owner row per helper, no visibility changes or checker bypass."
+}

@@ -2178,7 +2178,7 @@ fn dedup_edits(edits: &mut Vec<TextEdit>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tcl_compiler::analyser::Analyser;
+    use tcl_compiler::analyser::{Analyser, ResolvedAnalysisInput};
     use tcl_dialect::model::{Family, SurfaceLayer};
 
     fn analyse(source: &str) -> AnalysisResult {
@@ -3514,6 +3514,9 @@ mod tests {
     fn original_logical_rename_keeps_scalar_parentheses_and_literal_dollar_names() {
         // Implementation contract: naming.core.selected-variable-cursor-syntax
         // docs/design/analysis/name-resolution-proofs/selected-variable-cursor-syntax.md
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let context = tcl_registry::model::ingress::context_for_profile(profile);
         for name in [
             "scalar(open",
             "scalar(open)tail",
@@ -3522,8 +3525,18 @@ mod tests {
             "café🙂",
         ] {
             let source = format!("set {{{name}}} 1\nputs ${{{name}}}\n");
-            let analysis = analyse(&source);
-            let profile = analysis.resolved_profile().unwrap();
+            let input = ResolvedAnalysisInput::new(profile, profile, context.clone(), config);
+            let analysis = Analyser::new()
+                .with_resolved_input(input)
+                .analyse(&source, profile.name)
+                .clone();
+            assert!(
+                analysis
+                    .resolved_input
+                    .as_ref()
+                    .unwrap()
+                    .has_logical_source_name_context()
+            );
             assert!(analysis.allows_lexical_declaration_advice());
             let edits = rename(&source, profile, 1, 7, "new", &analysis, None);
             assert!(!edits.is_empty(), "{name}");

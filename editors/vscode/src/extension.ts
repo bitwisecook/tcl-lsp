@@ -642,10 +642,19 @@ async function selectDialect(): Promise<void> {
   }
 }
 
+type TclInstallationSelection =
+  | { status: "available"; tclLibrary: string; autoPath: string[] }
+  | {
+      status: "unavailable";
+      reason: "nonUnicodeLibraryPath" | "nonUnicodeAutoPath" | "missingCheckedSelection";
+    };
+
 interface TclInstallation {
   version: string;
+  /** Presentation-only strings; selection uses the checked payload below. */
   tclLibrary: string;
   autoPath: string[];
+  selection?: TclInstallationSelection;
 }
 
 interface TclInstallationsResult {
@@ -673,12 +682,21 @@ async function selectTclInstallation(): Promise<void> {
   })) as TclInstallationsResult | null;
 
   const installs = result?.installations ?? [];
-  type Item = vscode.QuickPickItem & { paths?: string[]; custom?: boolean; clear?: boolean };
+  type Item = vscode.QuickPickItem & {
+    paths?: string[];
+    custom?: boolean;
+    clear?: boolean;
+    unselectable?: boolean;
+  };
   const items: Item[] = installs.map((inst) => ({
     label: inst.version ? `Tcl ${inst.version}` : "Tcl",
     description: inst.tclLibrary,
-    detail: inst.autoPath.join("  ·  "),
-    paths: inst.autoPath,
+    detail:
+      inst.selection?.status === "available"
+        ? inst.selection.autoPath.join("  ·  ")
+        : `Unavailable: ${inst.selection?.status === "unavailable" ? inst.selection.reason : "missingCheckedSelection"}; checked native path cannot be written to libraryPaths`,
+    paths: inst.selection?.status === "available" ? inst.selection.autoPath : undefined,
+    unselectable: inst.selection?.status !== "available",
   }));
   items.push({ label: "$(folder) Enter a custom path…", custom: true });
   if ((result?.editorLibraryPaths?.length ?? 0) > 0) {
@@ -697,7 +715,12 @@ async function selectTclInstallation(): Promise<void> {
   }
 
   let paths: string[] | undefined;
-  if (picked.clear) {
+  if (picked.unselectable) {
+    window.showWarningMessage(
+      "This Tcl installation has no checked native path that can be written to tclLsp.libraryPaths.",
+    );
+    return;
+  } else if (picked.clear) {
     paths = [];
   } else if (picked.custom) {
     const entered = await window.showInputBox({

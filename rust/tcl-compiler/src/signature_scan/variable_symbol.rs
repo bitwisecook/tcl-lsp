@@ -481,6 +481,7 @@ pub struct OriginalVariableAliasTemplate {
     span: tcl_lexer::Span,
     input: SignatureSourceNameInput,
     alias: OriginalVariableAliasReceipt,
+    source: Option<crate::registry_invocation::OriginalLogicalAliasTemplateSource>,
 }
 
 impl OriginalVariableAliasTemplate {
@@ -489,7 +490,24 @@ impl OriginalVariableAliasTemplate {
         input: SignatureSourceNameInput,
         alias: OriginalVariableAliasReceipt,
     ) -> Self {
-        Self { span, input, alias }
+        Self {
+            span,
+            input,
+            alias,
+            source: None,
+        }
+    }
+    pub(crate) fn from_logical_source(
+        span: tcl_lexer::Span,
+        input: SignatureSourceNameInput,
+        source: crate::registry_invocation::OriginalLogicalAliasTemplateSource,
+    ) -> Self {
+        Self {
+            span,
+            input,
+            alias: source.relation().clone(),
+            source: Some(source),
+        }
     }
     /// Explicit unresolved source applicability, independent of target naming.
     #[must_use]

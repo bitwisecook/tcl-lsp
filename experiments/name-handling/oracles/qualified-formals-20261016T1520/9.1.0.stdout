@@ -1,0 +1,10 @@
+patchlevel 9.1.0
+formal n create_code 0 result {} present 1
+formal n retained_formals n
+formal n invoke_code 0 result accepted
+formal ::n create_code 1 result {formal parameter "::n" is not a simple name} present 0
+formal ns::n create_code 1 result {formal parameter "ns::n" is not a simple name} present 0
+formal a(b) create_code 1 result {formal parameter "a(b)" is an array element} present 0
+formal args create_code 0 result {} present 1
+formal args retained_formals args
+formal args invoke_code 0 result accepted

@@ -21570,7 +21570,12 @@
       "required_change": [
         "Transport the actual resolved per-document config/pack overlay to outline analysis. Current global handle can differ from the document authoring Registry/source context. No assertion of observed wrong outline or Native identity grant."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor ofc20c6ed04",
+        "validation": "Actual per-resourceconfig or strictNativePath->checkedwire->pickerpayload; originalsourceandpositivecontrols preserved. SourceCLEAR; actualTypeScriptcheckPASS, Rustretry3running."
+      }
     },
     {
       "area": "lsp",
@@ -21934,7 +21939,12 @@
       "required_change": [
         "Picker identity must not be only Path::to_string_lossy report text. Keep actual checked path representation/admission distinct from display; non-Unicode host paths can otherwise become a different selected lookup path. reported_ilx_plugin_roots/report pack files are display-only separately unless downstream selection consumes them."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor ofc20c6ed04",
+        "validation": "Actual per-resourceconfig or strictNativePath->checkedwire->pickerpayload; originalsourceandpositivecontrols preserved. SourceCLEAR; actualTypeScriptcheckPASS, Rustretry3running."
+      }
     },
     {
       "area": "lsp",
@@ -67123,6 +67133,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor ofc20c6ed04",
+        "validation": "Originalasserts/currentowneror explicitpurepresentationconversionpurpose; V2independentCLEAR57501, previousexactHOLDretained, freshbuild/executionpending."
       }
     },
     {
@@ -67599,6 +67614,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor ofc20c6ed04",
+        "validation": "Originalasserts/currentowneror explicitpurepresentationconversionpurpose; V2independentCLEAR57501, previousexactHOLDretained, freshbuild/executionpending."
       }
     },
     {
@@ -67642,6 +67662,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor ofc20c6ed04",
+        "validation": "Originalasserts/currentowneror explicitpurepresentationconversionpurpose; V2independentCLEAR57501, previousexactHOLDretained, freshbuild/executionpending."
       }
     },
     {
@@ -131901,12 +131926,12 @@
   ],
   "implementation_progress": {
     "resumed_from": "554085e162823ea8bd126898d0c27b7b2a9f8628",
-    "utc": "2026-10-16T15:10:36.692987+00:00",
+    "utc": "2026-10-16T15:28:18.489962+00:00",
     "audit_baseline_counts_unchanged": true,
     "total_required_units": 2158,
-    "implemented_pending_validation": 211,
+    "implemented_pending_validation": 216,
     "verified_complete": 0,
-    "not_started": 1947,
+    "not_started": 1942,
     "remaining_unverified_or_unimplemented": 2158,
     "additional_work_not_counted_as_catalogue_completion": [
       "Native variable-expression read/cell/trace/child-body observer producer remains open; pure expression gap receipt grants no such authority.",
@@ -132066,7 +132091,7 @@
     "withheld_drafts": [
       "Minifier command/argument alias construction: missing genuine source action/insertion owner; original unknown-command controls remain unchanged."
     ],
-    "owner_facet_reconciliation": "35 annex requirements:34 integrated pending validation,1 source-blocked. New shared strict document URI inverse counted once; existing forward URI/SourceFile/WASI caller purposes not recounted.",
+    "owner_facet_reconciliation": "36 annex requirements:35 integrated pendingvalidation,1sourceblocked. New originalBody/Jim parameter SourceMay issuer countedonce; prior compiler/1validationpointer not a requiredmigrationunit; existingLogicalowner distinct. UnchangedDB/LSPcallers0.",
     "runtime_build": {
       "status": "PASS",
       "seconds": 57.46,
@@ -132159,13 +132184,13 @@
     },
     "additional_owner_annex": {
       "path": "docs/work/name-handling/implementation-owner-annex.json",
-      "required": 35,
-      "implemented_pending_validation": 34,
+      "required": 36,
+      "implemented_pending_validation": 35,
       "not_integrated": 1,
       "verified_complete": 0
     },
-    "effective_required_units": 2193,
-    "effective_implemented_pending_validation": 245,
+    "effective_required_units": 2194,
+    "effective_implemented_pending_validation": 251,
     "effective_verified_complete": 0,
     "incoming_remote": {
       "rust": "c60f938ddd2a8d92a3bc251c57fa3609d77593c3",
@@ -132339,7 +132364,7 @@
       "scope": "Selected controls only. Completed99tests are65PASS34FAIL. Preview failure retained separately; no whole-group or gate acceptance.",
       "capture": "experiments/name-handling/results/owner-adoption-20261016/cli-mcp-server-889"
     },
-    "fully_implemented_pending_validation": 210,
+    "fully_implemented_pending_validation": 215,
     "partially_implemented_pending_validation": 1,
     "runtime_report_adoptions": {
       "baseline_units": [
@@ -132505,14 +132530,14 @@
         "validation": 122,
         "documentation": 2
       },
-      "lsp_integrated_pending_validation": 83,
+      "lsp_integrated_pending_validation": 88,
       "lsp_by_kind_integrated": {
-        "semantic": 14,
-        "validation": 67,
+        "semantic": 16,
+        "validation": 70,
         "documentation": 2
       },
       "lsp_verified_complete": 0,
-      "lsp_without_integrated_implementation": 242,
+      "lsp_without_integrated_implementation": 237,
       "shared_dependencies": "Counted under their original Compiler/DB/Registry units or reconciled annex; not counted again as LSP consumers.",
       "deferred": "Runtime174 remaining54,VM133,RuntimeJim execution and BIG-IP source inventory/provider work; retain all existing artifacts.",
       "new_source_alias_caller_annex": "compiler.consumer.logical-source-alias-declaration-observations"
@@ -132682,6 +132707,45 @@
       ],
       "status": "integrated_pending_validation",
       "validation": "V1wrongtarget HOLD retained; V3d50b4312 actual per-leg retained input corrected, independently CLEAR. All sources/assertions preserved; execution pending."
-    }
+    },
+    "lsp_tail_uri_retry": {
+      "status": "FAILED_CORE_DENY_MISSING_DOCS_URI_ERROR_VARIANTS",
+      "head": "c20c6ed04445f02dbd11ff55b7be9cf13a401b8d",
+      "source_diff_sha256": "6d1b941f454705f4261d427c4766d839cb8340bcfab0dfc2cf8e90fca15ab74b",
+      "binding": "/workspace/naming-validation/lsp-tail-uri-successor-retry/source-binding.json",
+      "input_count_before": 38995,
+      "single_job": true,
+      "test_debug": 0,
+      "input_after_drift": 0
+    },
+    "lsp_resource_and_path_two": {
+      "baseline_units": [
+        "lsp-server-document-symbol-resource-config",
+        "lsp-server-installation-selection-path-wire"
+      ],
+      "status": "integrated_pending_validation",
+      "new_owner_delta": 0,
+      "validation": "Both independently source-CLEAR; TypeScriptnoEmit+scopedPrettierPASS with Node24.19.0 foractualpickerchange. Rustordinaryretry3running; GUIandnewactualRustcontrols pending."
+    },
+    "lsp_tail_uri_retry3": {
+      "status": "FAILED_NEW_TK_TEST_DOUBLE_ARC_CONSTRUCTOR",
+      "head": "c20c6ed04445f02dbd11ff55b7be9cf13a401b8d",
+      "source_diff_sha256": "8b06be7567409eaa84b0a62724f53c64cabbb23042f538a18dcecbbcdb55e2a6",
+      "binding": "/workspace/naming-validation/lsp-tail-uri-successor-retry3/source-binding.json",
+      "input_count_before": 38995,
+      "single_job": true,
+      "test_debug": 0,
+      "input_after_drift": 0
+    },
+    "lsp_three_owner_validations": {
+      "baseline_units": [
+        "lsp.validation.21.00.fn0",
+        "lsp.validation.22.02.fn0",
+        "lsp.validation.22.03.fn0"
+      ],
+      "status": "integrated_pending_validation",
+      "validation": "Independent V2CLEAR; genuineLogicalrenameinput/dollarcase and pureReadWriteconversion distinctfromsource-selectionauthority; no newowner. Freshbuild/executionpending."
+    },
+    "pending_retry4": "Existing context Arc passed directly in newTkcontrol; source-clearedLogicalaliasreborrow fe536 and oracle-backedCfixture6dc plus3validations57501 integrated. Newordinarybuildpending."
   }
 }

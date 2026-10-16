@@ -779,6 +779,29 @@
         "verified_complete": false
       },
       "implementation_scope": "Independent source CLEAR exactc1951cf0 integrated; actual production SourceFile adopters not yet integrated and not counted. Pure platform tests are not Windows execution."
+    },
+    {
+      "id": "compiler.source.original-body-parameter-trait-source-owner",
+      "kind": "shared_owner_extension",
+      "baseline_unit_ids": [
+        "db.unit.db.project-source-role-hints"
+      ],
+      "site_anchors": [
+        {
+          "path": "rust/tcl-compiler/src/registry_invocation.rs",
+          "symbol": "BodyParameterSourceInvocation; original_body_parameter_source_invocation; dedicated conditional parameter Source facade"
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding.rs",
+          "symbol": "OriginalCompilationLookupAdvice::original_body_parameter_source_words"
+        }
+      ],
+      "rationale": "One distinct genuine originalBody/Jim parameter SourceMay issuer absent exact required-unit baseline. existing_validation_obligations/compiler/1 records a previously examined integration and is not a counted required migration unit. The separately counted Logical parameter-body owner explicitly excludes this original retained SourceConditionalBodyEntry/Jim purpose; do not relabel it. Extend the existing invocation/caller-template literal owner with actual original body/declaration/frame/namespace/formals/fullconfig/wholevector/metadata/quiet source lookup. Dedicated source shape is independent of generic closed, definite, actual alias/caller cell, Native and Normal admission. Count once; unchanged DB/LSP consumers and helper/test/manifest multiplicity add zero.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false
+      },
+      "implementation_scope": "Source53a241d1 and canonicalcontract/gate5edcde1e independently CLEAR and integrated afterc20. Fresh ordinary build running; originalCompiler002/DB036 and new2controls unexecuted on candidate. Source-card and earlier-class/instance-prefix gaps remain open."
     }
   ],
   "unverified_or_open": [
@@ -790,27 +813,27 @@
   ],
   "status_note": "Requirements are counted regardless of implementation presence. No additional requirement or baseline unit is verified complete.",
   "status": "accepted_additional_obligations_unverified",
-  "utc": "2026-10-16T14:57:09.194974+00:00",
+  "utc": "2026-10-16T15:14:41.182622+00:00",
   "accepted_delta": {
-    "semantic_code_changes": 35,
+    "semantic_code_changes": 36,
     "validation_code_repairs": 0,
     "authored_documentation": 0,
-    "all_required_changes": 35,
+    "all_required_changes": 36,
     "by_kind": {
       "shared_owner_repair": 9,
-      "shared_owner_extension": 16,
+      "shared_owner_extension": 17,
       "caller_migration": 9,
       "metadata_or_target_schema": 1
     }
   },
   "effective_counts": {
-    "semantic_code_changes": 1834,
+    "semantic_code_changes": 1835,
     "validation_code_repairs": 305,
     "authored_documentation": 54,
-    "all_required_changes": 2193
+    "all_required_changes": 2194
   },
   "implementation_progress": {
-    "implemented_pending_validation": 34,
+    "implemented_pending_validation": 35,
     "not_integrated": 1,
     "verified_complete": 0
   }

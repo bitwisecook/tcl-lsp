@@ -1,0 +1,22 @@
+
+	/*
+	 * Check that the formal parameter name is a scalar.
+	 */
+
+	p = argname = TclGetStringFromObj(fieldValues[0], &nameLength);
+	last = argname + nameLength;
+	while (p < last) {
+	    if (*p == '(') {
+		if (last[-1] == ')') { /* We have an array element. */
+		    Tcl_SetObjResult(interp, Tcl_ObjPrintf(
+			    "formal parameter \"%s\" is an array element",
+			    TclGetString(fieldValues[0])));
+		    Tcl_SetErrorCode(interp, "TCL", "OPERATION", "PROC",
+			    "FORMALARGUMENTFORMAT", (char *)NULL);
+		    goto procError;
+		}
+	    } else if (p[0] == ':' && p[1] == ':') {
+		Tcl_Obj *errorObj = Tcl_NewStringObj(
+		    "formal parameter \"", -1);
+		Tcl_AppendObjToObj(errorObj, fieldValues[0]);
+		Tcl_AppendToObj(errorObj, "\" is not a simple name", -1);

@@ -901,6 +901,115 @@ async fn optimise_document_keeps_workspace_roles_and_refuses_unavailable_input()
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn document_symbols_keep_the_resource_input_and_withdraw_unavailable_overlays() {
+    use salsa::Setter as _;
+    let (backend, registry) = workspace_pack_backend().await;
+    let folder = Uri::from_str("file:///outline-resource392/library").unwrap();
+    let uri = Uri::from_str("file:///outline-resource392/library/outline.tcl").unwrap();
+    let sibling = Uri::from_str("file:///outline-resource392/library-sibling/outline.tcl").unwrap();
+    backend
+        .apply_folder_configs(vec![(
+            folder,
+            FolderConfig {
+                non_ascii_mode: Some(NonAsciiMode::Strict),
+                ..FolderConfig::default()
+            },
+        )])
+        .await;
+    backend
+        .db_set_source(&uri, "proc selected_outline {} {}", "tcl".to_owned())
+        .await;
+    backend
+        .db_set_source(&sibling, "proc sibling_outline {} {}", "tcl".to_owned())
+        .await;
+    let resource_config = backend.resolved_db_config(&uri).await;
+    let global_config = *backend.db_config.lock().await;
+    assert!(resource_config != global_config);
+    assert!(backend.resolved_db_config(&sibling).await == global_config);
+    let file = *backend.db_files.lock().await.get(&uri).unwrap();
+    let valid_pack_key = {
+        let snapshot = backend.db.snapshot("outline_resource_input392").await;
+        let input = tcl_lsp_db::document_analysis_input(&*snapshot, file, resource_config).unwrap();
+        assert_eq!(
+            input
+                .borrowed_context_registry()
+                .commands()
+                .snapshot()
+                .semantic_key(),
+            registry.snapshot().semantic_key()
+        );
+        resource_config.spec_pack_key(&*snapshot)
+    };
+    {
+        let mut db = backend.db.lock().await;
+        global_config.set_spec_pack_key(&mut *db).to(u64::MAX - 392);
+    }
+    {
+        let snapshot = backend.db.snapshot("outline_global_unavailable392").await;
+        assert!(tcl_lsp_db::document_analysis_input(&*snapshot, file, global_config).is_err());
+        assert!(tcl_lsp_db::document_analysis_input(&*snapshot, file, resource_config).is_ok());
+    }
+    let symbols = backend.db_document_symbols(&uri).await.unwrap();
+    assert!(
+        symbols
+            .iter()
+            .any(|symbol| symbol.name == "selected_outline"
+                && symbol.kind == CoreSymbolKind::Function)
+    );
+    assert!(
+        backend
+            .db_document_symbols(&sibling)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+
+    backend
+        .db_set_source(&uri, "proc edited_outline {} {}", "tcl".to_owned())
+        .await;
+    assert!(*backend.db_files.lock().await.get(&uri).unwrap() == file);
+    let symbols = backend.db_document_symbols(&uri).await.unwrap();
+    assert!(symbols.iter().any(|symbol| symbol.name == "edited_outline"));
+    assert!(
+        symbols
+            .iter()
+            .all(|symbol| symbol.name != "selected_outline")
+    );
+    {
+        let mut db = backend.db.lock().await;
+        global_config.set_spec_pack_key(&mut *db).to(valid_pack_key);
+        resource_config
+            .set_spec_pack_key(&mut *db)
+            .to(u64::MAX - 393);
+    }
+    assert!(backend.db_document_symbols(&uri).await.unwrap().is_empty());
+    assert!(
+        backend
+            .db_document_symbols(&sibling)
+            .await
+            .unwrap()
+            .iter()
+            .any(|symbol| symbol.name == "sibling_outline")
+    );
+    {
+        let mut db = backend.db.lock().await;
+        resource_config
+            .set_spec_pack_key(&mut *db)
+            .to(valid_pack_key);
+    }
+    assert!(
+        backend
+            .db_document_symbols(&uri)
+            .await
+            .unwrap()
+            .iter()
+            .any(|symbol| symbol.name == "edited_outline")
+    );
+    backend.db_remove_source(&uri).await;
+    assert!(backend.db_document_symbols(&uri).await.is_none());
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn project_tokens_use_published_folder_inputs_and_refuse_a_missing_generation() {
     // naming.compiler.original-analysis-metadata-context
     // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md

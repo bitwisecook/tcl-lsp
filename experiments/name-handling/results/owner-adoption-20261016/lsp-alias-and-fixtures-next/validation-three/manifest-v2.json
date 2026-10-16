@@ -1,0 +1,39 @@
+{
+  "mode": "TMP-only candidate; no repository/Cargo/Git changes",
+  "base": "current checkout supplied by parent (c20c6ed04; source files unchanged at preparation)",
+  "units": [
+    {
+      "id": "lsp.validation.21.00.fn0",
+      "status": "candidate",
+      "rationale": "Keeps the original ::a ::b case and assertions, then adds an independently authored braced ::$ns literal-path case. The dollar spelling now genuinely discriminates braced literal handling."
+    },
+    {
+      "id": "lsp.validation.22.02.fn0",
+      "status": "candidate",
+      "rationale": "Uses ResolvedAnalysisInput built from plain_tcl Logical profile, context_for_profile, and file-grammar config; asserts has_logical_source_name_context. Existing edit, exact output, and stale-source refusal checks are preserved."
+    },
+    {
+      "id": "lsp.validation.22.03.fn0",
+      "status": "candidate; independent review requested",
+      "rationale": "Factors the existing inline span-to-Write/Read conversion into production helper variable_occurrence_highlights, which the public typed-occurrence branch calls. The test now explicitly exercises only that pure conversion helper with the same original spans and assertions; it makes no source selection/currentness claim and cannot false-pass via an injected report bypassing a public source gate."
+    }
+  ],
+  "files": [
+    {
+      "path": "rust/tcl-lsp-core/src/namespace_rename.rs",
+      "before_sha256": "adbf7244cbc0c11ce5b41f1e521213fe453bef5bc16716dea405d4ca7f51f1f6",
+      "after_sha256": "56b6985faf4a679aba6ff9496f5658b76a1ce7e1432e7ab962f0e49b42bc55d3"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/rename.rs",
+      "before_sha256": "e8f16916de4022b8e4785b3957ad9a675f64dd00f6af517b1f4c07b9f2d5c761",
+      "after_sha256": "0091c7616a1323f48c1e3a699f453d9eea9c6249dd3cb4d068ea71f97c9c7022"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/references.rs",
+      "before_sha256": "bbc6964b014d2f3dad652dac3bf1b7571139b758cae533039b95c2c6ac2e2026",
+      "after_sha256": "9a7931fe475d6e3e2508c48ff75ce5b0c28a84c78e52e25905ab607938bb64b0"
+    }
+  ],
+  "validation": "Read-only source review; rustfmt --check passes on TMP copies. No Cargo/test run."
+}

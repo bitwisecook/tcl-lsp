@@ -1030,6 +1030,17 @@ mod tests {
             "a braced literal list records no abstention",
         );
         assert!(renamed(src, "::old", "new").is_ok());
+
+        // Preserve the original control and add the discriminating literal
+        // spelling: the braced `$` belongs to the namespace name, not a read.
+        let dollar_src = "namespace eval ::old { proc p {} {} }\n\
+                          namespace eval ::user { namespace path {::$ns ::a} }\n";
+        let dollar_analysis = analyse(dollar_src);
+        assert!(
+            dollar_analysis.namespace_path_computed.is_empty(),
+            "a braced dollar-spelled literal list records no abstention",
+        );
+        assert!(renamed(dollar_src, "::old", "new").is_ok());
     }
 
     /// TP — import patterns follow the namespace.

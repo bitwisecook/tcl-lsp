@@ -1,0 +1,57 @@
+{
+  "status": "SOURCE_CANDIDATE_ONLY_NOT_BUILT_OR_EXECUTED",
+  "patch": "logical-alias-template-reborrow-v1.patch",
+  "patch_sha256": "fe5362547e2b7c74761900066a19c54cc1174f48a324003ad52ded804f7b0527",
+  "files": [
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/original-alias-source-template.md",
+      "base_sha256": "c0b1e8333411a436325bc4b1336fce96f5e72afc6a7180eb12bde2a34c362395",
+      "edit_sha256": "997d975ae9ff83b1c3a3ac93f7fa6a9de266673ce084776e3ffc96d87dd8c4a7",
+      "main_matches_base": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/commands.rs",
+      "base_sha256": "d1da81ea17c90e974cbf9367cfb77cb9d4c1f63dff40ee1dd917ed593d5f6917",
+      "edit_sha256": "5a9d6bcf8f28450c4be8a5520ffd7fc12a72358a43d5493414745b52416db73c",
+      "main_matches_base": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/variable_alias_templates.rs",
+      "base_sha256": "d1c2a2aaada90ed864aab5e5fc75d1583f274e1089f4cb1c14b1cae0abcfac61",
+      "edit_sha256": "35acd70d5008ec92d9810ba546513a0cffee9be0fb9db113723547ef0f99bde3",
+      "main_matches_base": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/declaration_assistance.rs",
+      "base_sha256": "8fe4866fb758f209c5341271ab03deceaf3b020fcc4ae5a8acc7131ac4cec087",
+      "edit_sha256": "1100569000324861b06e02eb8db5999aa8bb5c8f3dfcd133b7de51da295616b1",
+      "main_matches_base": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation.rs",
+      "base_sha256": "4d020b3ddb97bd2ad1df820ac196b87af50926610fc236eb508f22d3582b4bb2",
+      "edit_sha256": "2546da7dc7131352083a59aebf48049123fbcce726277f5556263eaf3bf99629",
+      "main_matches_base": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/signature_scan/variable_symbol.rs",
+      "base_sha256": "ff2e859390deb4ea18602d5da4ad054f52c2c710fedc5307d1d533f325223478",
+      "edit_sha256": "c5c5aa157afbfa999e2ebfbb2344007f3d4db2e2376e5402521cc4c945fa1743",
+      "main_matches_base": true
+    }
+  ],
+  "tmp_dry_run_exit": 0,
+  "validation_scope": "Only TMP rustfmt and patch dry-run; no Cargo/main/Git/candidate execution",
+  "ordinary_failure_basis": {
+    "root": "/workspace/naming-validation/lsp-source-parent-continuation",
+    "source_head": "da6735cf4d545132a43ffb3729c497c4a29fa2d8",
+    "source_diff_sha256": "704c0bbe523ed9ad17edcd87f8cb4c76ca87e3ae4ec4a33c3755991529201c76",
+    "compiler_binary_sha256": "8ff854e875572b0c5d860e589679470ecd62719076e71998f57f61c968ac71d1",
+    "failures": [
+      "repairs65/test-004.log",
+      "repairs65/test-005.log"
+    ],
+    "separate_fixture_failure": "lsp37/test-012.log qualified formal negative missing authored body card; NOT fixed/claimed by this candidate"
+  },
+  "count": "0 additional. Current SourceAlias adopter annex already counted once; this repairs its existing readonly template/report transport. Root owns reconciliation."
+}

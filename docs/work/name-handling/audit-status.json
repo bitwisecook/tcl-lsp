@@ -401,12 +401,12 @@
   "incoming_rust": "Incoming `origin/rust` is now `ca698d87c824da24053c7abe279bb505a0acd9cb` (#2477 compiled/direct evaluation, literal-index and error-reporting changes), unmerged and unadmitted. The audit counts are for work at the recorded baseline plus explicit work-source annexes. Recheck and reconcile incoming source before integration; no acceptance is donated from the incoming branch.",
   "implementation_progress": {
     "resumed_from": "554085e162823ea8bd126898d0c27b7b2a9f8628",
-    "utc": "2026-10-16T15:10:36.638766+00:00",
+    "utc": "2026-10-16T15:28:18.434308+00:00",
     "audit_baseline_counts_unchanged": true,
     "total_required_units": 2158,
-    "implemented_pending_validation": 211,
+    "implemented_pending_validation": 216,
     "verified_complete": 0,
-    "not_started": 1947,
+    "not_started": 1942,
     "remaining_unverified_or_unimplemented": 2158,
     "additional_work_not_counted_as_catalogue_completion": [
       "Native variable-expression read/cell/trace/child-body observer producer remains open; pure expression gap receipt grants no such authority.",
@@ -566,7 +566,7 @@
     "withheld_drafts": [
       "Minifier command/argument alias construction: missing genuine source action/insertion owner; original unknown-command controls remain unchanged."
     ],
-    "owner_facet_reconciliation": "35 annex requirements:34 integrated pending validation,1 source-blocked. New shared strict document URI inverse counted once; existing forward URI/SourceFile/WASI caller purposes not recounted.",
+    "owner_facet_reconciliation": "36 annex requirements:35 integrated pendingvalidation,1sourceblocked. New originalBody/Jim parameter SourceMay issuer countedonce; prior compiler/1validationpointer not a requiredmigrationunit; existingLogicalowner distinct. UnchangedDB/LSPcallers0.",
     "runtime_build": {
       "status": "PASS",
       "seconds": 57.46,
@@ -659,13 +659,13 @@
     },
     "additional_owner_annex": {
       "path": "docs/work/name-handling/implementation-owner-annex.json",
-      "required": 35,
-      "implemented_pending_validation": 34,
+      "required": 36,
+      "implemented_pending_validation": 35,
       "not_integrated": 1,
       "verified_complete": 0
     },
-    "effective_required_units": 2193,
-    "effective_implemented_pending_validation": 245,
+    "effective_required_units": 2194,
+    "effective_implemented_pending_validation": 251,
     "effective_verified_complete": 0,
     "incoming_remote": {
       "rust": "c60f938ddd2a8d92a3bc251c57fa3609d77593c3",
@@ -839,7 +839,7 @@
       "scope": "Selected controls only. Completed99tests are65PASS34FAIL. Preview failure retained separately; no whole-group or gate acceptance.",
       "capture": "experiments/name-handling/results/owner-adoption-20261016/cli-mcp-server-889"
     },
-    "fully_implemented_pending_validation": 210,
+    "fully_implemented_pending_validation": 215,
     "partially_implemented_pending_validation": 1,
     "runtime_report_adoptions": {
       "baseline_units": [
@@ -1005,14 +1005,14 @@
         "validation": 122,
         "documentation": 2
       },
-      "lsp_integrated_pending_validation": 83,
+      "lsp_integrated_pending_validation": 88,
       "lsp_by_kind_integrated": {
-        "semantic": 14,
-        "validation": 67,
+        "semantic": 16,
+        "validation": 70,
         "documentation": 2
       },
       "lsp_verified_complete": 0,
-      "lsp_without_integrated_implementation": 242,
+      "lsp_without_integrated_implementation": 237,
       "shared_dependencies": "Counted under their original Compiler/DB/Registry units or reconciled annex; not counted again as LSP consumers.",
       "deferred": "Runtime174 remaining54,VM133,RuntimeJim execution and BIG-IP source inventory/provider work; retain all existing artifacts.",
       "new_source_alias_caller_annex": "compiler.consumer.logical-source-alias-declaration-observations"
@@ -1182,6 +1182,45 @@
       ],
       "status": "integrated_pending_validation",
       "validation": "V1wrongtarget HOLD retained; V3d50b4312 actual per-leg retained input corrected, independently CLEAR. All sources/assertions preserved; execution pending."
-    }
+    },
+    "lsp_tail_uri_retry": {
+      "status": "FAILED_CORE_DENY_MISSING_DOCS_URI_ERROR_VARIANTS",
+      "head": "c20c6ed04445f02dbd11ff55b7be9cf13a401b8d",
+      "source_diff_sha256": "6d1b941f454705f4261d427c4766d839cb8340bcfab0dfc2cf8e90fca15ab74b",
+      "binding": "/workspace/naming-validation/lsp-tail-uri-successor-retry/source-binding.json",
+      "input_count_before": 38995,
+      "single_job": true,
+      "test_debug": 0,
+      "input_after_drift": 0
+    },
+    "lsp_resource_and_path_two": {
+      "baseline_units": [
+        "lsp-server-document-symbol-resource-config",
+        "lsp-server-installation-selection-path-wire"
+      ],
+      "status": "integrated_pending_validation",
+      "new_owner_delta": 0,
+      "validation": "Both independently source-CLEAR; TypeScriptnoEmit+scopedPrettierPASS with Node24.19.0 foractualpickerchange. Rustordinaryretry3running; GUIandnewactualRustcontrols pending."
+    },
+    "lsp_tail_uri_retry3": {
+      "status": "FAILED_NEW_TK_TEST_DOUBLE_ARC_CONSTRUCTOR",
+      "head": "c20c6ed04445f02dbd11ff55b7be9cf13a401b8d",
+      "source_diff_sha256": "8b06be7567409eaa84b0a62724f53c64cabbb23042f538a18dcecbbcdb55e2a6",
+      "binding": "/workspace/naming-validation/lsp-tail-uri-successor-retry3/source-binding.json",
+      "input_count_before": 38995,
+      "single_job": true,
+      "test_debug": 0,
+      "input_after_drift": 0
+    },
+    "lsp_three_owner_validations": {
+      "baseline_units": [
+        "lsp.validation.21.00.fn0",
+        "lsp.validation.22.02.fn0",
+        "lsp.validation.22.03.fn0"
+      ],
+      "status": "integrated_pending_validation",
+      "validation": "Independent V2CLEAR; genuineLogicalrenameinput/dollarcase and pureReadWriteconversion distinctfromsource-selectionauthority; no newowner. Freshbuild/executionpending."
+    },
+    "pending_retry4": "Existing context Arc passed directly in newTkcontrol; source-clearedLogicalaliasreborrow fe536 and oracle-backedCfixture6dc plus3validations57501 integrated. Newordinarybuildpending."
   }
 }

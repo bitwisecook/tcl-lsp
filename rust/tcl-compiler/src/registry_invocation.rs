@@ -152,7 +152,8 @@ pub use declaration_assistance::{
     DeclarationArgument, DeclarationVariableAliasPurpose, OriginalDeclarationAssistance,
 };
 pub(crate) use declaration_assistance::{
-    OriginalSourceVariableAliasOperands, original_declaration_assistance,
+    OriginalLogicalAliasTemplateSource, OriginalSourceVariableAliasOperands,
+    original_declaration_assistance,
 };
 
 mod declaration_flow;
@@ -6155,6 +6156,7 @@ pub(crate) struct InvocationBodyAssistance {
     /// unavailable, and no definite role or execution projection uses this.
     receiver_trait_invocation: Option<ReceiverTraitInvocation>,
     logical_trait_invocation: Option<LogicalTraitInvocation>,
+    body_parameter_source: Option<BodyParameterSourceInvocation>,
     pub declared_roles: Vec<(usize, tcl_registry::ArgRole)>,
     pub unknown_residual: bool,
     pub may_be_absent: bool,
@@ -6211,6 +6213,29 @@ struct LogicalTraitInvocation {
     invocation: ResolvedStatementInvocation,
 }
 
+struct BodyParameterSourceInvocation {
+    entry: std::sync::Arc<crate::command_binding::SourceConditionalBodyEntry>,
+    layout: crate::command_binding::OriginalCompilationLookupAdvice,
+    words: Vec<tcl_lexer::NativeWord>,
+    shape: RegistryInvocationShape,
+    invocation: ResolvedStatementInvocation,
+}
+impl BodyParameterSourceInvocation {
+    fn matches_parameters(&self, parameters: &[&str]) -> bool {
+        self.layout.closed_body_parameter_source_lookup(&self.entry)
+            && self
+                .entry
+                .original_formal_topology()
+                .is_some_and(|formals| {
+                    formals
+                        .parameters()
+                        .iter()
+                        .map(|formal| formal.name.as_slice())
+                        .eq(parameters.iter().map(|name| name.as_bytes()))
+                })
+    }
+}
+
 /// Borrowed conditional source parameter layout from its genuine retained
 /// body/prefix owner. Ordinary invocation facts retain their own proof purpose.
 /// This facade supplies no closed advice, Native handler or Normal operation.
@@ -6263,8 +6288,26 @@ impl InvocationBodyAssistance {
             .is_some_and(|actual| std::ptr::eq(actual, selected))
             || self
                 .conditional_parameter_source()
+                .is_some_and(|owned| std::ptr::eq(&owned.invocation, selected))
+            || self
+                .body_parameter_source
+                .as_ref()
                 .is_some_and(|owned| std::ptr::eq(&owned.invocation, selected)))
         .then_some(())?;
+        if let Some(owned) = &self.body_parameter_source
+            && std::ptr::eq(&owned.invocation, selected)
+        {
+            let InvocationWordOrigin::Written(written) =
+                selected.effective.origins.get(argument.checked_add(1)?)?
+            else {
+                return None;
+            };
+            let word = owned.words.get(*written)?;
+            let value = tcl_syntax::word_rules::original_static_word_unicode_value(word)?;
+            return (!value.contains(&0))
+                .then(|| String::from_utf8(value).ok())
+                .flatten();
+        }
         if let Some(owned) = &self.logical_trait_invocation
             && std::ptr::eq(&owned.invocation, selected)
         {
@@ -6342,6 +6385,10 @@ impl InvocationBodyAssistance {
         &self,
         parameters: &[&str],
     ) -> Option<&RegistryInvocationShape> {
+        if self.logical_trait_invocation.is_none() {
+            let owned = self.body_parameter_source.as_ref()?;
+            return owned.matches_parameters(parameters).then_some(&owned.shape);
+        }
         let owned = self.conditional_parameter_source()?;
         owned
             .body
@@ -6360,7 +6407,11 @@ impl InvocationBodyAssistance {
         parameters: &[&str],
     ) -> Option<ConditionalParameterSourceInvocation<'_>> {
         let shape = self.conditional_parameter_source_shape(parameters)?;
-        let invocation = &self.conditional_parameter_source()?.invocation;
+        let invocation = if self.logical_trait_invocation.is_some() {
+            &self.conditional_parameter_source()?.invocation
+        } else {
+            &self.body_parameter_source.as_ref()?.invocation
+        };
         Some(ConditionalParameterSourceInvocation {
             facts: &invocation.facts,
             invocation,
@@ -6604,6 +6655,7 @@ fn body_assistance_with_entry<'a>(
         conditional_invocation: None,
         receiver_trait_invocation: None,
         logical_trait_invocation: None,
+        body_parameter_source: None,
         declared_roles: Vec::new(),
         unknown_residual: prepared.as_ref().is_none_or(|view| view.unknown_residual),
         may_be_absent: prepared.as_ref().is_none_or(|view| view.may_be_absent),
@@ -6923,9 +6975,64 @@ pub(crate) fn segmented_body_assistance(
             closed: true,
         };
         view.receiver_trait_invocation = Some(owned);
+    } else {
+        view.body_parameter_source =
+            original_body_parameter_source_invocation(registry, context, &tokens, bindings, config);
     }
     view.retain_caller_template_source(&tokens);
     Some(view)
+}
+
+/// Parameter usage from an authentic original body/declaration row. The
+/// dedicated source facade cannot supply generic closed or executable facts.
+fn original_body_parameter_source_invocation(
+    registry: &CommandRegistry,
+    context: InvocationMetadataContext<'_>,
+    tokens: &CommandTokens,
+    bindings: &crate::command_binding::SourceCommandBindings,
+    config: tcl_lexer::LexerConfig,
+) -> Option<BodyParameterSourceInvocation> {
+    context.matches_registry(registry).then_some(())?;
+    let binding = tokens.source_binding.as_ref()?;
+    let site = binding.invocation_site()?;
+    let entry = bindings.conditional_body_entry_at(&site.source, site.offset)?;
+    let layout = binding.declaration_operand_layout_advice(tokens)?;
+    let metadata = layout
+        .original_declaration_metadata_context(registry, tokens)
+        .ok()??;
+    if metadata.context() != context.context()
+        || context
+            .source_analysis_input()
+            .is_some_and(|input| metadata.source_analysis_input() != Some(input))
+    {
+        return None;
+    }
+    let words = layout.original_body_parameter_source_words(tokens, &entry, config, registry)?;
+    if words.iter().any(|word| word.group().expand) {
+        return None;
+    }
+    let invocation = resolve_original_declared_layout(registry, metadata, tokens, &layout)?;
+    if !invocation.facts.arg_roles_complete
+        || invocation.facts.arity_accepts_frozen_arguments() != Some(true)
+        || invocation
+            .effective
+            .origins
+            .iter()
+            .enumerate()
+            .any(|(ordinal, origin)| *origin != InvocationWordOrigin::Written(ordinal))
+    {
+        return None;
+    }
+    entry.original_formal_topology()?;
+    let shape =
+        RegistryInvocationShape::from_facts(&invocation.facts, invocation.effective.clone());
+    Some(BodyParameterSourceInvocation {
+        entry,
+        layout,
+        words,
+        shape,
+        invocation,
+    })
 }
 
 /// Conditional traits from the complete original receiver declaration. Its
@@ -7252,6 +7359,7 @@ pub(crate) fn unpositioned_body_assistance(
             conditional_invocation: None,
             receiver_trait_invocation: None,
             logical_trait_invocation: None,
+            body_parameter_source: None,
             unknown_residual: true,
             may_be_absent: true,
             parameter_advice: ParameterRoleAdvice::default(),
@@ -11570,3 +11678,200 @@ mod authored_controls;
 pub(crate) use authored_controls::{
     original_authored_control_invocation, original_authored_scalar_invocation,
 };
+
+#[cfg(test)]
+mod original_body_parameter_source_tests {
+    use super::*;
+
+    #[test]
+    fn original_body_parameter_source_refuses_unknown_lookup_and_replaced_handlers() {
+        for source in [
+            "proc p {name} {unknown_effect; upvar 1 $name cell}",
+            "proc upvar args {}; proc p {name} {upvar 1 $name cell}",
+        ] {
+            let analysis = crate::analyser::Analyser::new().analyse(source, "jimtcl");
+            let input = analysis.resolved_input.as_ref().unwrap();
+            let registry = input.borrowed_context_registry().commands();
+            let realm = analysis.retained_command_realm().unwrap();
+            let commands = crate::segmenter::segment_commands_with_offset_and_config(
+                source,
+                0,
+                input.lexer_config(),
+            );
+            let script = realm
+                .executed_script_for_word(commands.last().unwrap().argv[3].span)
+                .unwrap();
+            let body = script.try_text().unwrap();
+            let segments = crate::segmenter::segment_commands_with_offset_and_config(
+                body,
+                0,
+                input.lexer_config().nested(),
+            );
+            let view = segmented_body_assistance(
+                &tcl_registry::model::DocumentCommandSurface::new(registry, None),
+                realm.source_bindings_ref(),
+                body,
+                input.lexer_config(),
+                segments.last().unwrap(),
+                script.base(),
+                Some(input.borrowed_context_registry()),
+            )
+            .unwrap();
+            assert!(
+                view.conditional_parameter_source_invocation(&["name"])
+                    .is_none(),
+                "{source}"
+            );
+            assert!(view.body_parameter_source.is_none(), "{source}");
+        }
+    }
+
+    #[test]
+    fn original_body_parameter_source_keeps_jim_formals_scope_and_execution_refusals() {
+        let source = "proc p {name spare} {upvar 1 $name cell; set cell VALUE}\nproc q {name spare} {upvar 1 $name cell; set cell VALUE}";
+        let analysis = crate::analyser::Analyser::new().analyse(source, "jimtcl");
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let registry = input.borrowed_context_registry().commands();
+        let realm = analysis.retained_command_realm().unwrap();
+        let bindings = realm.source_bindings_ref();
+        let commands = crate::segmenter::segment_commands_with_offset_and_config(
+            source,
+            0,
+            input.lexer_config(),
+        );
+        let script = realm
+            .executed_script_for_word(commands[0].argv[3].span)
+            .unwrap();
+        let body = script.try_text().unwrap();
+        let segments = crate::segmenter::segment_commands_with_offset_and_config(
+            body,
+            0,
+            input.lexer_config().nested(),
+        );
+        let view = segmented_body_assistance(
+            &tcl_registry::model::DocumentCommandSurface::new(registry, None),
+            bindings,
+            body,
+            input.lexer_config(),
+            &segments[0],
+            script.base(),
+            Some(input.borrowed_context_registry()),
+        )
+        .unwrap();
+        let selected = view
+            .conditional_parameter_source_invocation(&["name", "spare"])
+            .expect("actual original Jim body/formal source template");
+        assert!(!view.parameter_role_advice().is_closed());
+        assert!(view.parameter_invocation(&["name", "spare"]).is_none());
+        assert!(view.caller_name_template_invocation().is_none());
+        assert!(view.definite_invocation.is_none());
+        assert!(view.unknown_residual || view.may_be_absent);
+        assert!(
+            view.conditional_parameter_source_invocation(&["spare", "name"])
+                .is_none()
+        );
+        assert!(
+            view.conditional_parameter_source_invocation(&["name"])
+                .is_none()
+        );
+        assert_eq!(
+            view.caller_template_literal_data(selected.retained_invocation(), 2)
+                .as_deref(),
+            Some("cell")
+        );
+        assert!(
+            selected
+                .written_argument_roles()
+                .contains(&(2, tcl_registry::ArgRole::VarWrite))
+        );
+        let held = view.body_parameter_source.as_ref().unwrap();
+        assert_eq!(held.words.len(), 4);
+        assert!(
+            held.words
+                .iter()
+                .all(|word| word.image().bytes() == source.as_bytes())
+        );
+        assert!(
+            held.words
+                .iter()
+                .all(|word| word.config() == input.lexer_config())
+        );
+        assert!(!bindings.has_actual_procedure_entry(script));
+
+        let segment = segments[0].clone().shifted_by(script.base());
+        let mut tokens = CommandTokens::from_segmented(
+            &tcl_lexer::SourceMap::new(source),
+            input.lexer_config(),
+            &segment,
+        );
+        bindings.stamp_original_tokens(&mut tokens);
+        let metadata = InvocationMetadataContext::for_analysis_input(registry, input).unwrap();
+        assert!(
+            original_body_parameter_source_invocation(
+                registry,
+                metadata,
+                &tokens,
+                bindings,
+                input.lexer_config()
+            )
+            .is_some()
+        );
+        let second_offset = u32::try_from(source.rfind("upvar").unwrap()).unwrap();
+        let second = bindings
+            .conditional_body_entry_at(bindings.source_origin().unwrap(), second_offset)
+            .unwrap();
+        let layout = tokens
+            .source_binding
+            .as_ref()
+            .unwrap()
+            .declaration_operand_layout_advice(&tokens)
+            .unwrap();
+        assert!(
+            layout
+                .original_body_parameter_source_words(
+                    &tokens,
+                    &second,
+                    input.lexer_config(),
+                    registry
+                )
+                .is_none()
+        );
+        let mut changed = tokens.clone();
+        changed.argv_texts[2] = "foreign".to_owned();
+        assert!(
+            original_body_parameter_source_invocation(
+                registry,
+                metadata,
+                &changed,
+                bindings,
+                input.lexer_config()
+            )
+            .is_none()
+        );
+        let mut config = input.lexer_config();
+        config.strict_quoting = !config.strict_quoting;
+        assert!(
+            original_body_parameter_source_invocation(
+                registry, metadata, &tokens, bindings, config,
+            )
+            .is_none()
+        );
+        let changed = crate::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            input.context_registry(),
+            config,
+        );
+        let metadata = InvocationMetadataContext::for_analysis_input(registry, &changed).unwrap();
+        assert!(
+            original_body_parameter_source_invocation(
+                registry,
+                metadata,
+                &tokens,
+                bindings,
+                input.lexer_config()
+            )
+            .is_none()
+        );
+    }
+}

@@ -11471,7 +11471,7 @@ impl Backend {
         uri: &Uri,
     ) -> Option<Vec<tcl_lsp_core::document_symbols::DocumentSymbol>> {
         let file = (*self.db_files.lock().await).get(uri).copied()?;
-        let config = *self.db_config.lock().await;
+        let config = self.resolved_db_config(uri).await;
         let snapshot = self.db.snapshot("db_document_symbols").await;
         crate::rt::spawn_blocking(move || {
             salsa::Cancelled::catch(|| tcl_lsp_db::document_symbols(&*snapshot, file, config)).ok()
@@ -21792,13 +21792,29 @@ impl Backend {
             serde_json::json!({
                 "installations": installs
                     .iter()
-                    .map(|i| serde_json::json!({
-                        "version": i.version,
-                        "tclLibrary": i.tcl_library.to_string_lossy(),
-                        "autoPath": i.auto_path.iter()
-                            .map(|p| p.to_string_lossy().into_owned())
-                            .collect::<Vec<_>>(),
-                    }))
+                    .map(|i| {
+                        let selection = match tcl_installation_selection_paths(i) {
+                            Ok((tcl_library, auto_path)) => serde_json::json!({
+                                "status": "available",
+                                "tclLibrary": tcl_library,
+                                "autoPath": auto_path,
+                            }),
+                            Err(reason) => serde_json::json!({
+                                "status": "unavailable",
+                                "reason": reason.as_str(),
+                            }),
+                        };
+                        serde_json::json!({
+                            "version": i.version,
+                            // These legacy fields are presentation only. The picker
+                            // writes only the explicitly checked `selection` payload.
+                            "tclLibrary": i.tcl_library.to_string_lossy(),
+                            "autoPath": i.auto_path.iter()
+                                .map(|p| p.to_string_lossy().into_owned())
+                                .collect::<Vec<_>>(),
+                            "selection": selection,
+                        })
+                    })
                     .collect::<Vec<_>>(),
                 "activeAutoPath": active.iter()
                     .map(|p| p.to_string_lossy().into_owned())
@@ -33090,6 +33106,44 @@ fn document_auto_path_dirs(uri: &Uri, analysis: &AnalysisResult) -> Vec<PathBuf>
     dirs
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TclInstallationSelectionUnavailable {
+    NonUnicodeLibraryPath,
+    NonUnicodeAutoPath,
+}
+
+impl TclInstallationSelectionUnavailable {
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::NonUnicodeLibraryPath => "nonUnicodeLibraryPath",
+            Self::NonUnicodeAutoPath => "nonUnicodeAutoPath",
+        }
+    }
+}
+
+/// Project an actual discovered installation into the exact Unicode paths the
+/// editor can write back to `libraryPaths`. Lossy path strings remain display
+/// fields only and can never be used as selection identity.
+fn tcl_installation_selection_paths(
+    installation: &core_tcl_install::TclInstallation,
+) -> Result<(String, Vec<String>), TclInstallationSelectionUnavailable> {
+    let tcl_library = installation
+        .tcl_library
+        .to_str()
+        .ok_or(TclInstallationSelectionUnavailable::NonUnicodeLibraryPath)?
+        .to_owned();
+    let auto_path = installation
+        .auto_path
+        .iter()
+        .map(|path| {
+            path.to_str()
+                .map(str::to_owned)
+                .ok_or(TclInstallationSelectionUnavailable::NonUnicodeAutoPath)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok((tcl_library, auto_path))
+}
+
 /// The effective `auto_path` for the package database, layering the configured
 /// sources plus on-disk discovery (deduped, in priority order):
 ///
@@ -35643,6 +35697,41 @@ info exists ::N::v\uD800";
             config_ini::merge_settings(&config_ini::merge_settings(&global, &editor), &project);
         backend.apply_global_config(&merged).await;
         assert_eq!(*backend.default_dialect.lock().await, "tcl9.0");
+    }
+
+    #[test]
+    fn tcl_installation_picker_selection_refuses_unrepresentable_native_paths() {
+        let unicode = core_tcl_install::TclInstallation {
+            version: "9.0".to_owned(),
+            tcl_library: PathBuf::from("/opt/tcl9.0/lib/tcl9.0"),
+            auto_path: vec![PathBuf::from("/opt/tcl9.0/lib")],
+        };
+        assert_eq!(
+            tcl_installation_selection_paths(&unicode),
+            Ok((
+                "/opt/tcl9.0/lib/tcl9.0".to_owned(),
+                vec!["/opt/tcl9.0/lib".to_owned()],
+            )),
+        );
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::ffi::OsStringExt as _;
+            let opaque = PathBuf::from(std::ffi::OsString::from_vec(
+                b"/opt/tcl9.0/lib/\xff".to_vec(),
+            ));
+            let replacement_sibling = PathBuf::from("/opt/tcl9.0/lib/\u{fffd}");
+            assert_ne!(opaque, replacement_sibling);
+            let discovered = core_tcl_install::TclInstallation {
+                version: "9.0".to_owned(),
+                tcl_library: PathBuf::from("/opt/tcl9.0/lib/tcl9.0"),
+                auto_path: vec![opaque],
+            };
+            assert_eq!(
+                tcl_installation_selection_paths(&discovered),
+                Err(TclInstallationSelectionUnavailable::NonUnicodeAutoPath),
+            );
+        }
     }
 
     #[test]

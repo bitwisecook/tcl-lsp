@@ -1,0 +1,8 @@
+{
+  "status": "STATIC_SOURCE_ROUTE_CORRESPONDENCE_ONLY_NOT_XTASK_EXECUTION",
+  "source_patch_sha256": "53a241d123d6d2f3a6e86be18e5554e4742ad616b13d5951a94b556013f38876",
+  "existing_owner_row": "Original caller-template literal name data",
+  "registered_private_issuer": "crate::registry_invocation::original_body_parameter_source_invocation",
+  "actual_static_consumer": "crate::registry_invocation::segmented_body_assistance",
+  "gate": "xtask-owner-resolution unchanged; Root execution required"
+}

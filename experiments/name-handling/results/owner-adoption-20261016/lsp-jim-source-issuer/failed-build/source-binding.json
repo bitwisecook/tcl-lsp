@@ -1,0 +1,14 @@
+{
+  "source_head": "c20c6ed04445f02dbd11ff55b7be9cf13a401b8d",
+  "source_diff_sha256": "6d1b941f454705f4261d427c4766d839cb8340bcfab0dfc2cf8e90fca15ab74b",
+  "ordinary": true,
+  "single_job": true,
+  "profile_test_debug": 0,
+  "status": "ordinary_build_FAILED_CORE_DENY_MISSING_DOCS_URI_ERROR_VARIANTS",
+  "source_scope": "Committed c20 LSP batch + independent CLEAR originalBody/Jim parameter Source issuer + existing owner contract/gate extension. No instrumentation. All source/path/config/positive fixture tests unchanged after committed reviewed corrections.",
+  "input_before_count": 38995,
+  "input_before_sha256": "fa284f488fa546d9a99f41cbd4684eabe7b7fd2c1f0c3cbb8c3850677e3cb998",
+  "input_scope": "Git-tracked rust, runtime/rust, specs, scripts and root Cargo/toolchain/.cargo inputs before build; external provider pairing separate.",
+  "utc": "2026-10-16T15:13:52.301216+00:00",
+  "input_after_drift": []
+}

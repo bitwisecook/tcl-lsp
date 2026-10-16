@@ -126,14 +126,23 @@ pub(crate) fn escaped_path(path: &str, escaping: FileUriEscaping) -> String {
 /// Refusal is not evidence that a file, workspace or source provider is absent.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FileUriPathUnavailable {
+    /// The current host has no supported native path policy.
     UnsupportedHost,
+    /// The original protocol text is not a valid absolute URI.
     InvalidUri,
+    /// The URI scheme does not select a filesystem document.
     NotFile,
+    /// A query or fragment cannot be represented as a native file path.
     QueryOrFragment,
+    /// The authority contains unsupported host, user, port or separator data.
     UnsupportedAuthority,
+    /// Strict decoding of the authority or path did not produce valid UTF-8.
     InvalidUnicode,
+    /// The decoded authority or path contains a NUL byte.
     Nul,
+    /// A decoded path segment contains a native path separator.
     EncodedSeparator,
+    /// The path does not have a supported absolute native root.
     UnsupportedNativeGeometry,
 }
 
@@ -157,6 +166,11 @@ pub enum FileUriPathPurpose {
 /// No filesystem canonicalisation, existence, source freshness, file identity,
 /// load or edit authority follows. Browser virtual paths and host file actions
 /// retain their separate boundaries. Refusal never proves a file/provider absent.
+///
+/// # Errors
+///
+/// Returns a typed refusal when the URI or its decoded data cannot be represented
+/// under the selected purpose and actual native host policy.
 pub fn to_path(
     original_uri: &str,
     purpose: FileUriPathPurpose,

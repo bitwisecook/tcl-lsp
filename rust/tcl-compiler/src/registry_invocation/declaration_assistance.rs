@@ -340,6 +340,48 @@ impl OriginalSourceVariableAliasOperands {
             })
     }
 
+    /// A newer source alias with an unavailable local cannot prove that an
+    /// older relationship survives. This is a veto, never alias continuity.
+    pub(crate) fn blocks_logical_template(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        realm: &crate::realm::CommandBindingRealm,
+        alias: &crate::signature_scan::variable_symbol::OriginalVariableAliasReceipt,
+        anchor: tcl_lexer::Span,
+    ) -> bool {
+        let Some(offset) = self.invocation_offset() else {
+            return true;
+        };
+        if offset <= alias.invocation_offset() || offset > anchor.start() {
+            return false;
+        }
+        let Some(scope) = self.logical_scope(input, realm) else {
+            return true;
+        };
+        if scope.alias_frame().as_ref() != Some(alias.frame()) {
+            return false;
+        }
+        let frame = logical_alias_frame(Some(&scope));
+        self.words
+            .with_source_schema(input.borrowed_context_registry(), |schema| {
+                self.logical_declarations.as_ref().map_or(
+                    !self.logical_name_obligations.is_empty(),
+                    |declarations| {
+                        declarations.iter().any(|declaration| {
+                            schema.authored_logical_source_alias_destination_is_active_in_frame(
+                                declaration.destination,
+                                frame,
+                            ) != Some(false)
+                                && declaration.local.literal().is_none_or(|local| {
+                                    local.as_bytes() == alias.local().as_bytes()
+                                })
+                        })
+                    },
+                )
+            })
+            .unwrap_or(true)
+    }
+
     fn logical_scope(
         &self,
         input: &crate::analyser::ResolvedAnalysisInput,
@@ -580,6 +622,7 @@ enum AliasNamespacePurpose {
 
 /// Source declaration geometry only. Its whole vector and independent frame
 /// remain held; no ordinary alias receipt or completed link is issued.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct OriginalLogicalAliasDeclaration {
     source: OriginalSourceVariableAliasOperands,
     input: crate::analyser::ResolvedAnalysisInput,
@@ -620,6 +663,70 @@ impl OriginalLogicalAliasDeclaration {
         )
     }
 
+    /// Readonly template geometry. The relation remains inside this source
+    /// carrier and never enters the ordinary alias receipt inventory.
+    pub(crate) fn template_source(&self) -> Option<OriginalLogicalAliasTemplateSource> {
+        use crate::signature_scan::scope::{SignatureSourceNameInput, SignatureSourceNameValue};
+        use crate::signature_scan::variable_symbol::{
+            OriginalVariableAliasReceipt, original_variable_alias_local_name,
+        };
+        let super::source_structure::OriginalRegistrySource::SourceTransitions(advice) =
+            self.source.words.source()
+        else {
+            return None;
+        };
+        let policy = advice.dialect().authored_name_policy()?;
+        let purpose =
+            crate::signature_scan::original_name::OriginalSourceNamePurpose::for_analysis_input(
+                &self.input,
+                None,
+                policy,
+            );
+        let rules = tcl_syntax::word_rules::WordValueRules::from_config(&self.input.lexer_config());
+        let local_input = SignatureSourceNameInput::OriginalWord(purpose.key(&self.local, rules)?);
+        let target_word = self.target()?;
+        let target_input = purpose
+            .key(target_word, rules)
+            .map(SignatureSourceNameInput::OriginalWord)
+            .or_else(|| {
+                SignatureSourceNameValue::from_original_variable_operand_root(
+                    target_word,
+                    rules,
+                    policy,
+                )
+                .map(SignatureSourceNameInput::OriginalValue)
+            })?;
+        let target = self.target_occurrence(&self.input, target_input, purpose)?;
+        let alias_purpose = match &self.alias.target {
+            tcl_registry::VariableAliasTarget::Global { .. } => {
+                DeclarationVariableAliasPurpose::Global
+            }
+            tcl_registry::VariableAliasTarget::CurrentNamespace { .. } => {
+                DeclarationVariableAliasPurpose::NamespaceVariable
+            }
+            tcl_registry::VariableAliasTarget::CallerSelectedFrame { .. } => {
+                DeclarationVariableAliasPurpose::Upvar
+            }
+            tcl_registry::VariableAliasTarget::Namespace { .. } => {
+                DeclarationVariableAliasPurpose::NamespaceUpvar
+            }
+        };
+        let local = original_variable_alias_local_name(&local_input, alias_purpose)?;
+        let relation = OriginalVariableAliasReceipt::new(
+            self.scope.alias_frame()?,
+            local,
+            target.symbol().clone(),
+            target.original_name_input().clone(),
+            local_input,
+            false,
+            (self.source.invocation_offset()?, self.local.span()),
+        );
+        Some(OriginalLogicalAliasTemplateSource {
+            declaration: self.clone(),
+            relation,
+        })
+    }
+
     fn target_namespace(
         &self,
         input: &crate::analyser::ResolvedAnalysisInput,
@@ -637,6 +744,33 @@ impl OriginalLogicalAliasDeclaration {
             &self.scope.namespace(),
             AliasNamespacePurpose::LogicalDeclaration(purpose),
         )
+    }
+}
+
+/// Full source declaration ownership for a conditional alias template only.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct OriginalLogicalAliasTemplateSource {
+    declaration: OriginalLogicalAliasDeclaration,
+    relation: crate::signature_scan::variable_symbol::OriginalVariableAliasReceipt,
+}
+impl OriginalLogicalAliasTemplateSource {
+    pub(crate) fn matches_source(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> bool {
+        &self.declaration.input == input
+            && self.declaration.scope.matches_source(image, input)
+            && self.declaration.source.matches_source_context(
+                image,
+                input.lexer_config(),
+                input.borrowed_context_registry(),
+            )
+    }
+    pub(crate) fn relation(
+        &self,
+    ) -> &crate::signature_scan::variable_symbol::OriginalVariableAliasReceipt {
+        &self.relation
     }
 }
 

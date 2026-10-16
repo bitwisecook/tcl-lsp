@@ -1,0 +1,17 @@
+{
+  "baseline_unit_ids": ["lsp-server-installation-selection-path-wire"],
+  "baseline_unit_count": 1,
+  "patch": "/tmp/lsp-installation-selection-wire/published/v1.patch",
+  "patch_sha256": "21e09ebcf590c911c5d5517c8b67042a44a2984eed05c7f7c9e73cf3deddc919",
+  "base_images": {
+    "rust/tcl-lsp-server/src/lib.rs": "5fe305fe172da54879077b82fd536bb4aa544b842adfaf3b6993ba82d5ff5ff2",
+    "editors/vscode/src/extension.ts": "4df81b7214ebffc896fe04bad1da420be19e568944ff376b52ecbbce1ea54b17"
+  },
+  "candidate_images": {
+    "rust/tcl-lsp-server/src/lib.rs": "b58ccce51bfb6b7c58c8b2f35393f5ce6f26720c899dd23af91ddd00c4303d9f",
+    "editors/vscode/src/extension.ts": "18cbf56f40a4ecdedc656a2c1adb7909874e42e48a8ef7ff7ce4e2f60b444a9f"
+  },
+  "shared_owner": "core_tcl_install::TclInstallation actual PathBuf fields, admitted by Path::to_str() at server selection projection; VS Code consumes only the checked selection payload for picker writeback",
+  "behavior": "Preserves legacy lossy fields for display and existing response shape. Adds a typed available/unavailable selection object. The picker writes only available checked autoPath strings; unrepresentable native paths and older responses without a checked payload are refused without writing a replacement alias. Existing configured paths remain untouched unless the user explicitly chooses clear/custom.",
+  "validation": "No Cargo, test, or build executed. Existing relevant selector: server unit tests::tcl_installation_picker_selection_refuses_unrepresentable_native_paths (new meaningful Unix opaque-vs-U+FFFD adversary and Unicode positive control); existing extension test: tcl-lsp.listTclInstallations reports discovered installs + auto_path (original assertions unchanged)."
+}

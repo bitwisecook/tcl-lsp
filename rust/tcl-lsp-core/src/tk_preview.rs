@@ -1600,7 +1600,7 @@ pack .w -\x69n \x2e"#;
             let input = ResolvedAnalysisInput::new(
                 profile,
                 profile,
-                std::sync::Arc::new(tcl_registry::model::context_for_profile(profile)),
+                tcl_registry::model::context_for_profile(profile),
                 config,
             );
             let analysis = Analyser::new()
