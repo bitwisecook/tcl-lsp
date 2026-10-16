@@ -498,5 +498,55 @@
     "file": "repository-audit-runtime374-seal-20261016T0303.tar.gz",
     "sha256": "bde443892655f9c2c0d1c13528c6f5503709c6df86c45a7b5a69444785d1ebcd",
     "status": "Runtime374 final local catalogue/required-owner/raw/coverage sealed, actual DB161 final crossowner map pin and Root19/29 actual whole maintained source peer receipts. Eight verified members. Local scale only; full repository source-role/canonical QA remains active; no execution acceptance."
+  },
+  {
+    "file": "repository-audit-deep-delta-20261016T031956Z.tar.gz",
+    "sha256": "b788358ef8f0caecf49404e6ca6c3649b61013c6ae56c3b57bd6cc40738b5fa9",
+    "status": "Exact nested audit delta against repository-audit-deep-progress-20261015T220906Z.tar.gz SHA8813dc50abbc84c6c55a0ca2563df708c80ce8d8f8fcb7c60ad2bb092122d4fa; 1007 changed/new verified members,0 deletions; source retention only, no review/execution acceptance."
+  },
+  {
+    "file": "repository-audit-progress-20261016T032020Z.tar.gz.part-01",
+    "sha256": "0426bde29a779224f3ae88c34953d929f943313c3aa9798325eb2a70b3a90206",
+    "status": "Ordered part1 of exact audit checkpoint archive repository-audit-progress-20261016T032020Z.tar.gz, concatenated SHA256 defabce0ce674ac5538518a195d434188dbc7a90481eb3c6fc4bb79408733494; concatenate all numbered parts before extraction. 9147 provisional records/1977 verified members, audit INCOMPLETE/no repository migration total; no tests/providers/gates acceptance."
+  },
+  {
+    "file": "repository-audit-progress-20261016T032020Z.tar.gz.part-02",
+    "sha256": "6182dca634ccef1b9696ae00f20a08241471e749840358c4925dbf7ce9f8e90c",
+    "status": "Ordered part2 of exact audit checkpoint archive repository-audit-progress-20261016T032020Z.tar.gz, concatenated SHA256 defabce0ce674ac5538518a195d434188dbc7a90481eb3c6fc4bb79408733494; concatenate all numbered parts before extraction. 9147 provisional records/1977 verified members, audit INCOMPLETE/no repository migration total; no tests/providers/gates acceptance."
+  },
+  {
+    "file": "repository-audit-progress-20261016T032020Z.tar.gz.part-03",
+    "sha256": "ce289417406aa150a9849006a273f295f37cae5c88064a931f1d85207bfb323b",
+    "status": "Ordered part3 of exact audit checkpoint archive repository-audit-progress-20261016T032020Z.tar.gz, concatenated SHA256 defabce0ce674ac5538518a195d434188dbc7a90481eb3c6fc4bb79408733494; concatenate all numbered parts before extraction. 9147 provisional records/1977 verified members, audit INCOMPLETE/no repository migration total; no tests/providers/gates acceptance."
+  },
+  {
+    "file": "repository-audit-progress-20261016T032020Z.tar.gz.part-04",
+    "sha256": "90880420cf7631d42589e0a607dbbf5ca8ea2835efd8eb1db62c7f093403fdd6",
+    "status": "Ordered part4 of exact audit checkpoint archive repository-audit-progress-20261016T032020Z.tar.gz, concatenated SHA256 defabce0ce674ac5538518a195d434188dbc7a90481eb3c6fc4bb79408733494; concatenate all numbered parts before extraction. 9147 provisional records/1977 verified members, audit INCOMPLETE/no repository migration total; no tests/providers/gates acceptance."
+  },
+  {
+    "file": "repository-audit-progress-20261016T032020Z.tar.gz.part-05",
+    "sha256": "cd1fb7f4d5aa97e6b3b38fa18e2f8f7460556a136ba2f7bb12d7070fb5145a06",
+    "status": "Ordered part5 of exact audit checkpoint archive repository-audit-progress-20261016T032020Z.tar.gz, concatenated SHA256 defabce0ce674ac5538518a195d434188dbc7a90481eb3c6fc4bb79408733494; concatenate all numbered parts before extraction. 9147 provisional records/1977 verified members, audit INCOMPLETE/no repository migration total; no tests/providers/gates acceptance."
+  },
+  {
+    "file": "repository-audit-progress-20261016T032020Z.tar.gz.part-06",
+    "sha256": "0ff96e0cb0cf54cdcc07dda133bd415dbb5e1259fad0c7b182b1ec992213bb14",
+    "status": "Ordered part6 of exact audit checkpoint archive repository-audit-progress-20261016T032020Z.tar.gz, concatenated SHA256 defabce0ce674ac5538518a195d434188dbc7a90481eb3c6fc4bb79408733494; concatenate all numbered parts before extraction. 9147 provisional records/1977 verified members, audit INCOMPLETE/no repository migration total; no tests/providers/gates acceptance."
+  },
+  {
+    "file": "repository-audit-progress-20261016T032020Z.tar.gz.part-07",
+    "sha256": "57d08e35abb2da191b0ba9cd3b0c95c8bf6fdb17f7a7d54a875a9969f580583f",
+    "status": "Ordered part7 of exact audit checkpoint archive repository-audit-progress-20261016T032020Z.tar.gz, concatenated SHA256 defabce0ce674ac5538518a195d434188dbc7a90481eb3c6fc4bb79408733494; concatenate all numbered parts before extraction. 9147 provisional records/1977 verified members, audit INCOMPLETE/no repository migration total; no tests/providers/gates acceptance."
+  },
+  {
+    "file": "repository-audit-progress-20261016T032020Z.tar.gz.part-08",
+    "sha256": "b8f244151f5a5e51713bbe052ba6ed0a50df428ad87df5d02fdf174ad02d1ab6",
+    "status": "Ordered part8 of exact audit checkpoint archive repository-audit-progress-20261016T032020Z.tar.gz, concatenated SHA256 defabce0ce674ac5538518a195d434188dbc7a90481eb3c6fc4bb79408733494; concatenate all numbered parts before extraction. 9147 provisional records/1977 verified members, audit INCOMPLETE/no repository migration total; no tests/providers/gates acceptance."
+  },
+  {
+    "file": "repository-audit-progress-20261016T032020Z.tar.gz.part-09",
+    "sha256": "ada432668b3c31f5fbac754a16d23fdcf80818f0be516799bcf0ed5936098b77",
+    "status": "Ordered part9 of exact audit checkpoint archive repository-audit-progress-20261016T032020Z.tar.gz, concatenated SHA256 defabce0ce674ac5538518a195d434188dbc7a90481eb3c6fc4bb79408733494; concatenate all numbered parts before extraction. 9147 provisional records/1977 verified members, audit INCOMPLETE/no repository migration total; no tests/providers/gates acceptance."
   }
 ]
