@@ -401,12 +401,12 @@
   "incoming_rust": "Incoming `origin/rust` is now `ca698d87c824da24053c7abe279bb505a0acd9cb` (#2477 compiled/direct evaluation, literal-index and error-reporting changes), unmerged and unadmitted. The audit counts are for work at the recorded baseline plus explicit work-source annexes. Recheck and reconcile incoming source before integration; no acceptance is donated from the incoming branch.",
   "implementation_progress": {
     "resumed_from": "554085e162823ea8bd126898d0c27b7b2a9f8628",
-    "utc": "2026-10-16T21:14:17.392674+00:00",
+    "utc": "2026-10-16T21:37:26.161690+00:00",
     "audit_baseline_counts_unchanged": true,
     "total_required_units": 2158,
-    "implemented_pending_validation": 279,
+    "implemented_pending_validation": 280,
     "verified_complete": 0,
-    "not_started": 1879,
+    "not_started": 1878,
     "remaining_unverified_or_unimplemented": 2158,
     "additional_work_not_counted_as_catalogue_completion": [
       "Native variable-expression read/cell/trace/child-body observer producer remains open; pure expression gap receipt grants no such authority.",
@@ -665,7 +665,7 @@
       "verified_complete": 0
     },
     "effective_required_units": 2214,
-    "effective_implemented_pending_validation": 334,
+    "effective_implemented_pending_validation": 335,
     "effective_verified_complete": 0,
     "incoming_remote": {
       "checked_utc": "2026-10-16T18:51:00Z",
@@ -835,7 +835,7 @@
       "scope": "Selected controls only. Completed99tests are65PASS34FAIL. Preview failure retained separately; no whole-group or gate acceptance.",
       "capture": "experiments/name-handling/results/owner-adoption-20261016/cli-mcp-server-889"
     },
-    "fully_implemented_pending_validation": 269,
+    "fully_implemented_pending_validation": 270,
     "partially_implemented_pending_validation": 10,
     "runtime_report_adoptions": {
       "baseline_units": [
@@ -1001,14 +1001,14 @@
         "validation": 122,
         "documentation": 2
       },
-      "lsp_integrated_pending_validation": 148,
+      "lsp_integrated_pending_validation": 149,
       "lsp_by_kind_integrated": {
-        "semantic": 56,
+        "semantic": 57,
         "validation": 90,
         "documentation": 2
       },
       "lsp_verified_complete": 0,
-      "lsp_without_integrated_implementation": 177,
+      "lsp_without_integrated_implementation": 176,
       "shared_dependencies": "Counted under their original Compiler/DB/Registry units or reconciled annex; not counted again as LSP consumers.",
       "deferred": "Runtime174 remaining54,VM133,RuntimeJim execution and BIG-IP source inventory/provider work; retain all existing artifacts.",
       "new_source_alias_caller_annex": "compiler.consumer.logical-source-alias-declaration-observations"
@@ -1648,19 +1648,23 @@
       "conditional_comment": "e6c39377 actual retained CaseBodyOperands allcandidate syntax, unknown state retained; original strong inventory and232 unchanged"
     },
     "last_30_minute_report": {
-      "utc": "2026-10-16T21:06:00Z",
-      "lsp_integrated": 143,
+      "utc": "2026-10-16T21:36:00Z",
+      "lsp_integrated": 148,
       "lsp_required": 325,
       "lsp_semantic": 56,
-      "lsp_validation": 85,
+      "lsp_validation": 90,
       "lsp_documentation": 2,
-      "lsp_without_integration": 182,
-      "effective_integrated": 329,
+      "lsp_without_integration": 177,
+      "effective_integrated": 334,
       "effective_required": 2214,
       "verified": 0,
-      "next_report_utc": "2026-10-16T21:36:00Z",
-      "validation": "Completed460389PASS69FAIL2TIMEOUT all446retainedunchanged,14newPASS0regressions/drops/errors/artifactdrift. Targeted12previous10PASS2FAIL withoriginal222/224/242gains; fixes223/deferred-sitependingfreshreplay. Finaleditorrepair3TS/format/workersyntax/Node+browserbundlesPASS406inputs0drift. Nativecombined5compilefailuresretainedall39001inputs0drift, repair5running22478. Cumulative584sourcepreparedunexecuted;lastownergate310red/globalgatesred.",
-      "scope": "LSP and necessarysharedowners; Runtime/VM/BIGIPdedicatedworkdeferred"
+      "next_report_utc": "2026-10-16T22:06:00Z",
+      "validation": "Native6buildPASS350.661s0warnings39001inputs0drift. Currenttargeted12=9PASS3FAIL0TIMEOUT/errors/drift. Full584running, source/ELFs frozen. ContinuationeditorTS/format/workersyntax/Node+browserbundlesPASS406inputs0drift; hostunrun. Freshactualownergate309reportederrors270.651s29363inputs0drift; globalrequiredgatesred/pending.",
+      "scope": "LSP and necessary sharedowners; Runtime/VM/BIG-IP dedicatedworkdeferred",
+      "delta_since_previous_report": {
+        "lsp_integrated": 5,
+        "effective_integrated": 5
+      }
     },
     "source_geometry_successor": {
       "baseline_new": [
@@ -1850,10 +1854,10 @@
         "known source-order refusal frontier under peer review",
         "member rooted-context refusal under review"
       ],
-      "validation": "Native5lib currentcombinedsource freeze running. Actualeditorrepair1PASS406inputs0drift: TS/scopedformat/workersyntax/Node+browserbundles; finalpackname changes need freshchecks. Fullportable/host/gates remain pending.",
+      "validation": "OrdinaryNative6PASS350.661s0warnings39001inputs0drift. Actualtargeted12=9PASS3FAIL0TIMEOUT/errors/drift; full584running, source/ELFs frozen. Finaleditorrepair3PASS406inputs0drift. Portable/host/gates remain pending.",
       "capsule": "experiments/name-handling/results/owner-adoption-20261016/lsp-browser-logical-resource-successor",
       "browser_pack_name": "FinalV3fab317b8 reuses exact Rust mount path owner before actualhostjoin/read. Existingbaseline residual closed;0newunit/annex. ActualWASMgeneratedglue/host tests pending.",
-      "native_build": "Fourfailedcapturespreserved:1type74.131s;3Coretype+1unusedimport151.717s;2purposeexhaustiveCorematches101.336s;10missingpublicfielddocs9.811s. All39001inputs0drift. Firsttwodebugmetadata correctedsidecaractualprofileline-tables; subsequentactualdebug0verified. Freshrepair4session1443running, no newfeatureintegration beforepass.",
+      "native_build": "Sixfailedcapturespreservedall39001inputs0drift; firsttwo profiledeclaration correction retained. Repair6PASS350.661s0warnings explicitTEST_DEBUG0.",
       "ai_source_context": "Exact364768da7file actualreadonly source capability+neutraldocumentcontext+finalsourcecurrentness, two existingbaselinecallerpurposes counted once. No newownerannex; unknown context remains source-only.",
       "conditional_comment": "GenuineNativeassistanceall-shapeconsensusV3 preserves unknown/absent residues and case-only purpose. Nativehover/semanticrole adapters explicitlyrefuse, existingNativewords test adds newvariantpanic, oldassertions/fixturessame. Existingowner/callerrepair count0.",
       "editor_validation": "Finaleditorrepair3PASS TS/scopedPrettier/workersyntax/Node+browserbundles406inputs0drift, includesfinalpackNameV3/AIexplain-diff. ActualVSCodehostunexecuted."
@@ -1872,7 +1876,43 @@
         "lsp-editor-ai-clean-claim"
       ],
       "tclfix": "Actual completedproposal+source/sessioncontextandreport-boundloop prompt; otherpartialcallersremainopen,0count.",
-      "validation": "Independent sourceCLEAR; Native6runningonpriorRustfreeze. TheseTS/contracts checkeddisjointall39001Nativeinputs. Actualeditor/host execution pending."
+      "validation": "Independent sourceCLEAR; actualeditorTS/scopedformat/workersyntax/Node+browserbundlesPASS406inputs0drift. TSdelta verifieddisjoint39001Nativeinputs. Actualhostunrun."
+    },
+    "current_owner_gate_563": {
+      "reported_errors": 309,
+      "seconds": 270.651,
+      "input_count": 29363,
+      "input_drift": 0,
+      "status": "FAIL",
+      "actual_source_parent": "563983f1114ddeea155bc7146cf2be9acb75e30a",
+      "scope": "Before pending Registry966361 route repair; sourcebytes nowcommitted77f4ae6a7",
+      "external_evidence": "/workspace/naming-validation/lsp-current-owners-gates-563"
+    },
+    "screenshot_source_currentness": {
+      "baseline_new_full": [
+        "lsp-screenshot-whole-source-edit-currentness"
+      ],
+      "annex_new": 0,
+      "source_patch_sha256": "d3cbf6bc325b7f3ed934dc9d0b95d3754971245f8cf9351f704d9ac3d90d567e",
+      "native_freeze": "Both source and contract changes checked disjoint all39001 Native inputs; owner gate finished before mutation",
+      "validation": "ActualeditorPASS406inputs0drift; hostunrun"
+    },
+    "ordinary_cumulative584": {
+      "PASS": 505,
+      "FAIL": 77,
+      "TIMEOUT": 2,
+      "retained": 460,
+      "gains": 6,
+      "prior_PASS_regressions": 0,
+      "drops": 0,
+      "selected_additions": 124,
+      "addition_PASS": 110,
+      "addition_FAIL": 14,
+      "errors": 0,
+      "source_or_artifact_drift": 0,
+      "result_sha256": "582b4d545f1860491735828f4e43a20ec813c621b19147f2a635217f01e5175f",
+      "capsule": "experiments/name-handling/results/owner-adoption-20261016/lsp-browser-logical-resource-successor/ordinary-repair6/completed-584",
+      "frozen_storage_archive_sha256": "79082356744f93f6b2b7b0b03a3ca938042d73181260a875c52936e5941e6322"
     }
   }
 }

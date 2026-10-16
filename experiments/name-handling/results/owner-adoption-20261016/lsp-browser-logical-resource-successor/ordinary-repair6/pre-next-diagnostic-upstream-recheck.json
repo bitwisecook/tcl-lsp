@@ -1,0 +1,8 @@
+{
+  "utc": "2026-10-16T21:46:59.144306+00:00",
+  "actual_upstream_jim": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+  "actual_remote_rust": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+  "actual_remote_work": "77f4ae6a79eab00f8ef5d8ee8e3f267d65ee8487",
+  "read": "git ls-remote actual calls exit0; remote rust unmerged/unadmitted; original Jim binary rehashed",
+  "binary_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891"
+}

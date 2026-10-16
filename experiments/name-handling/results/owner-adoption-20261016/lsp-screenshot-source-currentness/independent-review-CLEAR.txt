@@ -1,0 +1,7 @@
+Source review: CLEAR
+
+Reviewed repair.patch SHA-256 d3cbf6bc325b7f3ed934dc9d0b95d3754971245f8cf9351f704d9ac3d90d567e and manifest file hashes against the immutable base/edit trees. All four listed source/contract hashes match. The patch is limited to the two screenshot transformation callers and the contract paragraph.
+
+The callers capture the exact editor document snapshot before sending the async command, derive the request URI from that snapshot, and pass the returned full source to the existing replaceDocumentFromSnapshot owner. That helper refuses partial snapshots, checks URI/version/full bytes/language/resource dialect/analysis context before opening the editor and again before edit, checks the edit result and resulting source/version/context afterward, and only returns a receipt on successful application (or an unchanged-source no-op). Both callers return zero and withhold the returned source when replacement is refused. The optimizer summary is also withheld on refusal. No transformations, grammar, or BIG-IP behavior changed.
+
+The contract correctly leaves server transformation-report source association as a separate obligation; this patch proves caller-side write currentness, not that the server computed its response from the captured bytes. Existing tests and selectors are unchanged. No tests/build/host execution performed or claimed.

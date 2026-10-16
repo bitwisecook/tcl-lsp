@@ -46,6 +46,7 @@ import { buildIruleEventSkeleton } from "./iruleSkeleton";
 import { isTclLanguage } from "./languageIds";
 import { loadTemplateSnippets, renderTemplateSnippet } from "./templateSnippets";
 import { getClient } from "./extension";
+import { snapshotDocumentSource, replaceDocumentFromSnapshot } from "./chat/codeUtils";
 import {
   switchCompilerExplorerTab,
   closeCompilerExplorer,
@@ -983,7 +984,8 @@ async function applyAllOptimisations(editor: vscode.TextEditor): Promise<ApplyOp
     return { count: 0, source: undefined, optimisations: [] };
   }
 
-  const uri = editor.document.uri.toString();
+  const snapshot = snapshotDocumentSource(editor.document);
+  const uri = snapshot.uri.toString();
   const result = (await client.sendRequest("workspace/executeCommand", {
     command: "tcl-lsp.optimiseDocument",
     arguments: [uri],
@@ -1012,13 +1014,10 @@ async function applyAllOptimisations(editor: vscode.TextEditor): Promise<ApplyOp
     };
   });
 
-  const fullRange = new vscode.Range(
-    editor.document.positionAt(0),
-    editor.document.positionAt(editor.document.getText().length),
-  );
-  await editor.edit((editBuilder) => {
-    editBuilder.replace(fullRange, source);
-  });
+  const appliedSnapshot = await replaceDocumentFromSnapshot(snapshot, source);
+  if (!appliedSnapshot) {
+    return { count: 0, source: undefined, optimisations: [] };
+  }
   return {
     count: optimisations.length,
     source,
@@ -1032,7 +1031,8 @@ async function applyAllSafeFixes(editor: vscode.TextEditor): Promise<number> {
     return 0;
   }
 
-  const uri = editor.document.uri.toString();
+  const snapshot = snapshotDocumentSource(editor.document);
+  const uri = snapshot.uri.toString();
   const result = (await client.sendRequest("workspace/executeCommand", {
     command: "tcl-lsp.fixAllSafeIssues",
     arguments: [uri],
@@ -1044,13 +1044,10 @@ async function applyAllSafeFixes(editor: vscode.TextEditor): Promise<number> {
     return 0;
   }
 
-  const fullRange = new vscode.Range(
-    editor.document.positionAt(0),
-    editor.document.positionAt(editor.document.getText().length),
-  );
-  await editor.edit((editBuilder) => {
-    editBuilder.replace(fullRange, source);
-  });
+  const appliedSnapshot = await replaceDocumentFromSnapshot(snapshot, source);
+  if (!appliedSnapshot) {
+    return 0;
+  }
   return applied.length;
 }
 

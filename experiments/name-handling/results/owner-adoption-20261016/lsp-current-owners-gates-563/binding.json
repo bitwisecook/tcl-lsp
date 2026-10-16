@@ -1,0 +1,17 @@
+{
+  "utc": "2026-10-16T21:31:03.143420+00:00",
+  "source_head": "563983f1114ddeea155bc7146cf2be9acb75e30a",
+  "command": [
+    "cargo",
+    "xtask",
+    "owner-resolution"
+  ],
+  "status": "FAIL",
+  "scope": "Actual current shared-owner gate on repair6 ordinary LSP source; before pending Registry966361 route repair. Necessary shared dependencies only; Runtime/VM and BIG-IP work deferred. No checker relaxation or blanket proof refresh.",
+  "exit_code": 1,
+  "seconds": 270.651,
+  "input_count": 29363,
+  "input_drift": [],
+  "owner_error_count": 309,
+  "completed_utc": "2026-10-16T21:35:33.877949+00:00"
+}

@@ -1,0 +1,74 @@
+{
+  "scope": "Exact full584 actual ordinary capture, all460 ordered rows unchanged; test outcomes are scoped observations, not repository acceptance",
+  "old_count": 460,
+  "current_count": 584,
+  "retained": 460,
+  "drops": 0,
+  "old_outcomes": {
+    "PASS": 389,
+    "FAIL": 69,
+    "TIMEOUT": 2
+  },
+  "current_outcomes": {
+    "PASS": 505,
+    "FAIL": 77,
+    "TIMEOUT": 2
+  },
+  "selected_additions": 124,
+  "addition_outcomes": {
+    "FAIL": 14,
+    "PASS": 110
+  },
+  "gains": 6,
+  "prior_PASS_regressions": 0,
+  "changes": [
+    {
+      "number": 222,
+      "target": "tcl_compiler",
+      "selector": "analyser::class_hierarchy::original_metadata::source_method_reference::tests::readonly_self_selectors_retain_own_and_inherited_source_members",
+      "before": "FAIL",
+      "after": "PASS"
+    },
+    {
+      "number": 223,
+      "target": "tcl_compiler",
+      "selector": "analyser::class_hierarchy::original_metadata::source_method_reference::tests::readonly_self_selectors_refuse_unowned_wrong_context_and_ambiguous_sources",
+      "before": "FAIL",
+      "after": "PASS"
+    },
+    {
+      "number": 224,
+      "target": "tcl_lsp_core",
+      "selector": "original_declaration::readonly_source_reference_tests::readonly_member_reports_keep_source_spans_out_of_edit_inventories",
+      "before": "FAIL",
+      "after": "PASS"
+    },
+    {
+      "number": 242,
+      "target": "tcl_lsp_server",
+      "selector": "readonly_reference_reports::tests::readonly_member_wire_retains_owner_and_partial_coverage",
+      "before": "FAIL",
+      "after": "PASS"
+    },
+    {
+      "number": 270,
+      "target": "tcl_lsp_core",
+      "selector": "document_links::tests::original_namespace_source_links_use_typed_jim_local_scope_without_export",
+      "before": "FAIL",
+      "after": "PASS"
+    },
+    {
+      "number": 311,
+      "target": "tcl_compiler",
+      "selector": "analyser::class_hierarchy::original_metadata::source_method_reference::original_source_correspondence_tests::readonly_member_correspondence_retains_both_issuers_and_strong_query_result",
+      "before": "FAIL",
+      "after": "PASS"
+    }
+  ],
+  "result_sha256": "582b4d545f1860491735828f4e43a20ec813c621b19147f2a635217f01e5175f",
+  "manifest_sha256": "833008f2e3a53e29a408019cb46c75b02b299ea5508b4716932bc4122102ef03",
+  "all39001_and_all5_ELFs_postflight_match": true,
+  "unchanged_180s_test_30s_listing_singleton_provider_guards": true,
+  "errors": 0,
+  "artifact_drift": 0
+}

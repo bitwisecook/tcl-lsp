@@ -1,0 +1,80 @@
+--- a/editors/vscode/src/screenshotDemo.ts
++++ b/editors/vscode/src/screenshotDemo.ts
+@@ -46,6 +46,7 @@
+ import { isTclLanguage } from "./languageIds";
+ import { loadTemplateSnippets, renderTemplateSnippet } from "./templateSnippets";
+ import { getClient } from "./extension";
++import { snapshotDocumentSource, replaceDocumentFromSnapshot } from "./chat/codeUtils";
+ import {
+   switchCompilerExplorerTab,
+   closeCompilerExplorer,
+@@ -983,7 +984,8 @@
+     return { count: 0, source: undefined, optimisations: [] };
+   }
+ 
+-  const uri = editor.document.uri.toString();
++  const snapshot = snapshotDocumentSource(editor.document);
++  const uri = snapshot.uri.toString();
+   const result = (await client.sendRequest("workspace/executeCommand", {
+     command: "tcl-lsp.optimiseDocument",
+     arguments: [uri],
+@@ -1012,13 +1014,10 @@
+     };
+   });
+ 
+-  const fullRange = new vscode.Range(
+-    editor.document.positionAt(0),
+-    editor.document.positionAt(editor.document.getText().length),
+-  );
+-  await editor.edit((editBuilder) => {
+-    editBuilder.replace(fullRange, source);
+-  });
++  const appliedSnapshot = await replaceDocumentFromSnapshot(snapshot, source);
++  if (!appliedSnapshot) {
++    return { count: 0, source: undefined, optimisations: [] };
++  }
+   return {
+     count: optimisations.length,
+     source,
+@@ -1032,7 +1031,8 @@
+     return 0;
+   }
+ 
+-  const uri = editor.document.uri.toString();
++  const snapshot = snapshotDocumentSource(editor.document);
++  const uri = snapshot.uri.toString();
+   const result = (await client.sendRequest("workspace/executeCommand", {
+     command: "tcl-lsp.fixAllSafeIssues",
+     arguments: [uri],
+@@ -1044,13 +1044,10 @@
+     return 0;
+   }
+ 
+-  const fullRange = new vscode.Range(
+-    editor.document.positionAt(0),
+-    editor.document.positionAt(editor.document.getText().length),
+-  );
+-  await editor.edit((editBuilder) => {
+-    editBuilder.replace(fullRange, source);
+-  });
++  const appliedSnapshot = await replaceDocumentFromSnapshot(snapshot, source);
++  if (!appliedSnapshot) {
++    return 0;
++  }
+   return applied.length;
+ }
+ 
+--- a/docs/design/contracts/name-handling.md
++++ b/docs/design/contracts/name-handling.md
+@@ -1714,3 +1714,11 @@
+ actual retained factory coordinates. It does not invert a qualified reporting
+ label. The original Native declaration/receiver and writable edit owners retain
+ their independent inputs and guards.
++
++Screenshot transformation commands retain the actual whole-document source
++snapshot before requesting optimisation or safe fixes. They apply returned
++source through the existing checked document replacement owner, which rechecks
++the same document, original source/version/language, resource dialect and
++analysis session around the asynchronous editor operation. A refused or failed
++write returns zero applied changes and no successful replacement source. Server
++transformation reports retain their separate source-association obligations.

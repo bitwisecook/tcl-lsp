@@ -1,0 +1,17 @@
+{
+  "purpose": "lsp-screenshot-whole-source-edit-currentness",
+  "scope": "Two actual demo transformation callers adopt existing checked whole-document replacement owner; no new owner or BIG-IP provider semantics",
+  "files": {
+    "editors/vscode/src/screenshotDemo.ts": {
+      "before_sha256": "f7f5164ccc6a4cc2dd7361c431123292cc909ccf8d1ca0979d8abee39d6d0d6b",
+      "after_sha256": "ff412ad537f75b7181d1f16e2aa1fbc01043e8e112123edbc0150bd095f384a7"
+    },
+    "docs/design/contracts/name-handling.md": {
+      "before_sha256": "db1d8da8dc543c55a0d5cf2f20d4b0b11a6d8abc9ddc1f29762d93668c3f6683",
+      "after_sha256": "923ef8084d4d2db382b100c1a2139bb150d78ac6108885e7870ef518b3d26cca"
+    }
+  },
+  "original_tests": "No tests/assertions/fixtures changed",
+  "execution": "none; no main edits/build/test/host execution",
+  "patch_sha256": "d3cbf6bc325b7f3ed934dc9d0b95d3754971245f8cf9351f704d9ac3d90d567e"
+}

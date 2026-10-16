@@ -1714,3 +1714,11 @@ query through shared authored-source coordinate construction, then compares
 actual retained factory coordinates. It does not invert a qualified reporting
 label. The original Native declaration/receiver and writable edit owners retain
 their independent inputs and guards.
+
+Screenshot transformation commands retain the actual whole-document source
+snapshot before requesting optimisation or safe fixes. They apply returned
+source through the existing checked document replacement owner, which rechecks
+the same document, original source/version/language, resource dialect and
+analysis session around the asynchronous editor operation. A refused or failed
+write returns zero applied changes and no successful replacement source. Server
+transformation reports retain their separate source-association obligations.
