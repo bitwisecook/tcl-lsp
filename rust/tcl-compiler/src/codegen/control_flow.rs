@@ -1350,7 +1350,9 @@ impl CodegenCtx<'_> {
             Some(InlineCodegenHookId::Continue) => {
                 self.emit(Op::CONTINUE, vec![]);
             }
-            Some(InlineCodegenHookId::Expr) if body_args.len() == 1 => {
+            Some(InlineCodegenHookId::Expr)
+                if super::cmd_subst::lone_spelled_expression(body_args) =>
+            {
                 let expr_text = &body_args[0].0;
                 // Parsed under the compile's dialect, as lowering parses a
                 // statement-position `expr`.

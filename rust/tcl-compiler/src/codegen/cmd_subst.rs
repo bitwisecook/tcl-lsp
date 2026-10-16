@@ -556,6 +556,15 @@ pub fn is_single_command_body(body: &str, config: tcl_lexer::LexerConfig) -> boo
     matches!(segments.as_slice(), [only] if !only.is_partial)
 }
 
+/// Whether `args` is one `expr` word that is its own expression text: braced,
+/// or free of substitutions. Any other word is substituted first and its value
+/// is what `expr` evaluates (C's `TclCompileExprWords`), so `[expr $c]` with
+/// `c` set to `1+2` is `3`, not the text of `c`.
+pub(super) fn lone_spelled_expression(args: &[(String, bool)]) -> bool {
+    matches!(args, [(word, braced)]
+        if *braced || !(tcl_syntax::naming::word_is_dynamic(word, false) || word.contains('\\')))
+}
+
 /// Parse a command-substitution body into `(text, braced)` parts.
 /// `braced=true` means the text was a `{...}` literal — the caller
 /// should not interpolate it.  Strips the outer `[...]` if present.
@@ -855,8 +864,9 @@ impl CodegenCtx<'_> {
             let inner_parts = parse_cmd_parts(arg);
             let needs_sc = self.is_proc
                 && !inner_parts.is_empty()
-                && self.inline_cmd_subst_hook(&inner_parts[0].0, &inner_parts[1..])
-                    != Some(InlineCodegenHookId::Expr);
+                && (self.inline_cmd_subst_hook(&inner_parts[0].0, &inner_parts[1..])
+                    != Some(InlineCodegenHookId::Expr)
+                    || (inner_parts.len() == 2 && !lone_spelled_expression(&inner_parts[1..])));
             if needs_sc {
                 let sc_end = self.fresh_label("cmd_end");
                 self.emit_comment(
@@ -1739,7 +1749,7 @@ impl CodegenCtx<'_> {
         // when the subcommand word matched exactly, so those arms need
         // no re-check of the subcommand text.
         match self.inline_cmd_subst_resolution(cmd, args) {
-            Some((InlineCodegenHookId::Expr, _)) if args.len() == 1 => {
+            Some((InlineCodegenHookId::Expr, _)) if lone_spelled_expression(args) => {
                 let expr_body = &args[0].0;
                 // Re-parsed under the compile's own dialect, exactly as the
                 // lowering pass parses a statement-position `expr` — parsing

@@ -818,6 +818,9 @@ pub(crate) fn extract_single_expr_arg_with_config(
     // `Var`/`Cmd` token has its sigil/brackets stripped in `token_text`, so the
     // reconstructed word would lose them (`$e` → `e`); such an arg also needs the
     // second round of evaluation the runtime `expr` performs, so it must not fuse.
+    // A backslash sequence is a substitution too: C compiles only a word of one
+    // text component as the expression (`TclCompileExprWords`), and evaluates
+    // `expr 1\u002b2` by its value `1+2`.
     let mut literal = Vec::new();
     let mut prev_is_sep = true;
     for tok in &tokens {
@@ -827,7 +830,8 @@ pub(crate) fn extract_single_expr_arg_with_config(
             }
             _ => {
                 let t = sm.token_text(*tok);
-                let is_lit = matches!(tok.kind, TokenType::Esc | TokenType::Str);
+                let is_lit =
+                    tok.kind == TokenType::Str || (tok.kind == TokenType::Esc && !t.contains('\\'));
                 if prev_is_sep {
                     words.push(t.to_owned());
                     single.push(true);
