@@ -862,6 +862,9 @@ pub(crate) struct PendingControl {
     /// The command being dispatched is invoked from the top-level script's
     /// own activation, with no other command active (C's `numLevels == 1`).
     pub(crate) top_level_command: bool,
+    /// The line of the enclosing body before the one the command
+    /// substitution `EVAL_STK` is about to run starts on.
+    pub(crate) script_line_base: u32,
     /// Next `package unknown` or `package ifneeded` script of a require.
     pub(crate) package: Option<crate::cmd_package::PackageReq>,
     /// The procedure body unwinding now failed to compile
@@ -1297,6 +1300,12 @@ pub struct InterpState {
     /// real frame boundary (a nested `eval`/`[subst]`, a proc/control body) so
     /// the enclosing command logs its own `invoked from within` frame.
     error_logged: bool,
+    /// The current error stays logged across those frame boundaries until a
+    /// procedure boundary: 8.4's `Tcl_ExprObj` leaves `ERR_ALREADY_LOGGED` set
+    /// after an error in a command substitution
+    /// ([`tcl_dialect::TclVersion::keeps_expression_substitution_errors_logged`]),
+    /// and only `TclCompEvalObj`, which runs a procedure body, clears it.
+    error_logged_through_frames: bool,
     /// TIP 348's interpreter-local structured error stack. Its lazy reset
     /// keeps the last caught stack introspectable until a new error is logged.
     error_stack: ErrorStack<Value>,
@@ -2352,6 +2361,7 @@ impl InterpState {
             script_caches: ScriptCaches::default(),
             error_info: None,
             error_logged: false,
+            error_logged_through_frames: false,
             error_stack: ErrorStack::default(),
             error_line: 1,
             invoked_name: None,
@@ -12676,7 +12686,7 @@ impl Vm {
         info.push_str("\n    (");
         info.push_str(text);
         info.push(')');
-        self.error_logged = false;
+        self.error_logged = self.error_logged_through_frames;
     }
 
     /// Append a `("<label>" body line N)` frame with an explicit `line` — for an
@@ -12691,7 +12701,7 @@ impl Vm {
         info.push_str("\" body line ");
         info.push_str(&line.to_string());
         info.push(')');
-        self.error_logged = false;
+        self.error_logged = self.error_logged_through_frames;
     }
 
     /// Seed `errorInfo` for an error that *originates* in a command (not from a
@@ -12788,6 +12798,7 @@ impl Vm {
         info.push_str(&line.to_string());
         info.push(')');
         self.error_logged = false;
+        self.error_logged_through_frames = false;
     }
 
     /// The lambda expression of the `apply` lambda whose body the current call
@@ -12838,12 +12849,19 @@ impl Vm {
     /// Clear `ERR_ALREADY_LOGGED` at a frame boundary (a nested `eval`/`[subst]`
     /// returned an error), so the enclosing command logs its own frame.
     pub(crate) fn clear_error_logged(&mut self) {
-        self.error_logged = false;
+        self.error_logged = self.error_logged_through_frames;
     }
 
     /// Mark the current error's command logged (C's `ERR_ALREADY_LOGGED`).
     pub(crate) fn mark_error_logged(&mut self) {
         self.error_logged = true;
+    }
+
+    /// Mark the current error logged until a procedure boundary
+    /// ([`Self::error_logged_through_frames`]).
+    pub(crate) fn mark_error_logged_through_frames(&mut self) {
+        self.error_logged = true;
+        self.error_logged_through_frames = true;
     }
 
     /// Whether the current error's command is already logged (C's
@@ -12968,6 +12986,7 @@ impl Vm {
         self.error_stack.mark_reset();
         self.error_info = None;
         self.error_logged = false;
+        self.error_logged_through_frames = false;
         self.error_line = 1;
     }
 
@@ -12975,6 +12994,7 @@ impl Vm {
     /// error — used when `catch` reports an error.
     pub(crate) fn take_error_info(&mut self) -> Option<String> {
         self.error_logged = false;
+        self.error_logged_through_frames = false;
         self.error_stack.mark_reset();
         self.error_info.take()
     }

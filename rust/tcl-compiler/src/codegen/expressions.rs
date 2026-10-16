@@ -438,8 +438,13 @@ impl CodegenCtx<'_> {
         }
         // A constant operator subexpression left unfolded may still be one C
         // folds and fails to: mark its operations so an error they raise is
-        // reported as that fold failure.
-        if foldable && self.vm_release().raises_folded_expr_errors() && node.is_constant() {
+        // reported as that fold failure. A statement evaluated directly
+        // evaluates its expressions as it runs, with no fold to fail.
+        if foldable
+            && self.vm_release().raises_folded_expr_errors()
+            && node.is_constant()
+            && !self.in_direct_statement()
+        {
             let start = self.instructions.len();
             let emitted = self.emit_expr_operation(node, depth);
             for instruction in &mut self.instructions[start..] {

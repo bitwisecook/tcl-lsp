@@ -901,7 +901,16 @@ impl ExprOps for ExprEval<'_> {
         let c = self.vm.eval_source(script)?;
         match c.code {
             Code::Ok => Ok(c.result),
-            Code::Error => Err(TclError::new(c.result.to_str().to_string())),
+            Code::Error => {
+                if self
+                    .vm
+                    .runtime_version()
+                    .keeps_expression_substitution_errors_logged()
+                {
+                    self.vm.mark_error_logged_through_frames();
+                }
+                Err(TclError::new(c.result.to_str().to_string()))
+            }
             code => Err(TclError::with_code(c.result.to_str().to_string(), code)),
         }
     }

@@ -679,6 +679,19 @@ impl TclVersion {
         !matches!(self, Self::V8_4)
     }
 
+    /// Whether an error leaving a command substitution in an expression the
+    /// release evaluates as it runs (`Tcl_ExprObj`) stays logged
+    /// (`ERR_ALREADY_LOGGED`) through every command enclosing the
+    /// expression, so none of them logs and `errorLine` keeps the line the
+    /// command inside logged. 8.4's `Tcl_ExprObj` runs the expression's
+    /// bytecode without the clear `Tcl_EvalObjEx` ends with
+    /// (`tclExecute.c`); a procedure boundary still logs its call. Measured
+    /// on tclsh 8.4.20 and 8.5.19.
+    #[must_use]
+    pub const fn keeps_expression_substitution_errors_logged(self) -> bool {
+        matches!(self, Self::V8_4)
+    }
+
     /// Whether the error a completion code becomes where it cannot be taken
     /// (`invoked "break" outside of a loop`, `command returned bad code`)
     /// sets an errorCode: `TCL RESULT UNEXPECTED` at a procedure boundary,
