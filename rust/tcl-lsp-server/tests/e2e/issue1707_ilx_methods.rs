@@ -119,7 +119,9 @@ impl Drop for Fixture {
 }
 
 fn uri_of(path: &Path) -> String {
-    format!("file://{}", path.to_string_lossy())
+    tcl_lsp_server::canonical_file_uri(path)
+        .expect("fixture path has a representable file URI")
+        .to_string()
 }
 
 /// The `(line, character)` start of the first location in a result.

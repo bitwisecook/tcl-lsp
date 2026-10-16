@@ -1,0 +1,6 @@
+
+running 1 test
+test file_uri::tests::unsupported_windows_verbatim_subtypes_do_not_lose_their_native_root ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3184 filtered out; finished in 0.00s
+

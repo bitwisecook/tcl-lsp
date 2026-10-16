@@ -1,0 +1,14 @@
+{
+  "source_head": "5b4d97abecd42cdd09d849d1e92dfa1f49662af8",
+  "source_diff_sha256": "dedc2afdc589ce4389adec07e8d482f699d8254a51c5b2c98b3de4bb2318b666",
+  "ordinary": true,
+  "single_job": true,
+  "profile_test_debug": 0,
+  "status": "ordinary_build_FAILED_E0603_fluent_uri_ipv4_requires_net_feature",
+  "source_scope": "Reviewed complete member hazard+procedure fatal-tail+Core checked URI inverse+11 native URI fixture caller adoptions+new-test trace ownership premise correction. No instrumentation. SourceFile ingress/Tk/Jim candidates not integrated.",
+  "input_before_count": 38995,
+  "input_before_sha256": "b3d9f71a1f893d819ed8699ecbcf903bf131379154800142423ef675b6c5e6c0",
+  "input_scope": "All Git-tracked rust, runtime/rust, specs, scripts and root Cargo/toolchain/.cargo inputs before build; external provider pairing separately bound.",
+  "utc": "2026-10-16T15:02:55.452533+00:00",
+  "input_after_drift": []
+}

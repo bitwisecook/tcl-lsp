@@ -777,7 +777,8 @@ impl OriginalSourceDefinitionMemberRegion {
     /// Complete original vectors only when the retained lexical plan covers
     /// the entire genuine parent definition body without a fatal tail.
     /// An empty complete vector is source coverage, never lifecycle absence.
-    pub(crate) fn complete_original_commands(&self) -> Option<Vec<Vec<NativeWord>>> {
+    #[must_use]
+    pub fn complete_original_commands(&self) -> Option<Vec<Vec<NativeWord>>> {
         // The complete-plan caller must retain the whole parent extent; a
         // subregion cannot certify the rest of a class definition.
         let complete = self.region == self.parent.content_span();
@@ -866,6 +867,24 @@ impl OriginalSourceDefinitionMemberRegion {
         &self,
         original: &[NativeWord],
     ) -> Option<Vec<OriginalSourceDefinitionMemberReference>> {
+        self.project_references(original, false)
+    }
+
+    /// Complete selected reference-role projection. Missing dynamic names
+    /// remain unavailable; known members without reference roles yield empty.
+    #[must_use]
+    pub fn checked_references(
+        &self,
+        original: &[NativeWord],
+    ) -> Option<Vec<OriginalSourceDefinitionMemberReference>> {
+        self.project_references(original, true)
+    }
+
+    fn project_references(
+        &self,
+        original: &[NativeWord],
+        complete: bool,
+    ) -> Option<Vec<OriginalSourceDefinitionMemberReference>> {
         // naming.core.original-member-reference-hazard
         // docs/design/analysis/name-resolution-proofs/core-original-member-reference-hazard.md
         let values = self.member_values(original)?;
@@ -885,31 +904,37 @@ impl OriginalSourceDefinitionMemberRegion {
                 }
             })
             .collect::<Vec<_>>();
-        let (kind, indices) = self.grammar.source_member_ref_indices_in(
+        let selected = self.grammar.checked_source_member_ref_indices_in(
             keyword,
             tcl_registry::InvocationArguments::structured(&arguments),
             Some(self.context.authoring_query()),
         )?;
+        let Some((kind, indices)) = selected else {
+            return complete.then(Vec::new);
+        };
         let protocol = self
             .parent
             .source
             .dialect()
             .and_then(tcl_registry::InvocationDialect::authored_name_policy)
             .map(|policy| policy.string_protocol());
-        Some(
-            indices
-                .into_iter()
-                .filter_map(|index| {
-                    let ordinal = index.checked_add(1)?;
-                    Some(OriginalSourceDefinitionMemberReference {
-                        original: original.get(ordinal)?.clone(),
-                        kind,
-                        value: values.get(ordinal)?.as_ref()?.clone(),
-                        protocol,
-                    })
+        let references = indices
+            .into_iter()
+            .map(|index| {
+                let ordinal = index.checked_add(1)?;
+                Some(OriginalSourceDefinitionMemberReference {
+                    original: original.get(ordinal)?.clone(),
+                    kind,
+                    value: values.get(ordinal)?.as_ref()?.clone(),
+                    protocol,
                 })
-                .collect(),
-        )
+            })
+            .collect::<Vec<_>>();
+        if complete {
+            references.into_iter().collect()
+        } else {
+            Some(references.into_iter().flatten().collect())
+        }
     }
 
     /// Source member scripts through genuine parent vocabulary and whole words.
@@ -920,6 +945,24 @@ impl OriginalSourceDefinitionMemberRegion {
     pub fn script_bodies(
         &self,
         original: &[NativeWord],
+    ) -> Option<Vec<OriginalSourceDefinitionMemberScriptBody>> {
+        self.project_script_bodies(original, false)
+    }
+
+    /// Complete selected member-body geometry through the same source grammar.
+    /// Missing or cooked bodies cannot certify full source coverage.
+    #[must_use]
+    pub fn checked_script_bodies(
+        &self,
+        original: &[NativeWord],
+    ) -> Option<Vec<OriginalSourceDefinitionMemberScriptBody>> {
+        self.project_script_bodies(original, true)
+    }
+
+    fn project_script_bodies(
+        &self,
+        original: &[NativeWord],
+        complete: bool,
     ) -> Option<Vec<OriginalSourceDefinitionMemberScriptBody>> {
         let values = self.member_values(original)?;
         let keyword = values.first()?.as_deref()?;
@@ -975,29 +1018,33 @@ impl OriginalSourceDefinitionMemberRegion {
             tcl_registry::InvocationArguments::structured(&member_words),
             Some(self.context.authoring_query()),
         );
-        Some(
-            selected
-                .into_iter()
-                .filter_map(|selected| {
-                    let word = original.get(selected.argument().checked_add(1)?)?;
-                    let geometry = original_word_script_body_geometry(word)?;
-                    Some(OriginalSourceDefinitionMemberScriptBody {
-                        parent: self.parent.clone(),
-                        original: original.to_vec(),
-                        argument: selected.argument(),
-                        container: geometry.container,
-                        content: geometry.content,
-                        retains_definition_grammar: selected.retains_definition_grammar(),
-                        presentation: selected.presentation(),
-                        member_row: member_row.clone().filter(|row| {
-                            selected.argument().checked_add(1).is_some_and(|ordinal| {
-                                row.body.is_some_and(|body| body.0 == ordinal)
-                            })
-                        }),
-                    })
+        let bodies = selected
+            .into_iter()
+            .map(|selected| {
+                let word = original.get(selected.argument().checked_add(1)?)?;
+                let geometry = original_word_script_body_geometry(word)?;
+                Some(OriginalSourceDefinitionMemberScriptBody {
+                    parent: self.parent.clone(),
+                    original: original.to_vec(),
+                    argument: selected.argument(),
+                    container: geometry.container,
+                    content: geometry.content,
+                    retains_definition_grammar: selected.retains_definition_grammar(),
+                    presentation: selected.presentation(),
+                    member_row: member_row.clone().filter(|row| {
+                        selected
+                            .argument()
+                            .checked_add(1)
+                            .is_some_and(|ordinal| row.body.is_some_and(|body| body.0 == ordinal))
+                    }),
                 })
-                .collect(),
-        )
+            })
+            .collect::<Vec<_>>();
+        if complete {
+            bodies.into_iter().collect()
+        } else {
+            Some(bodies.into_iter().flatten().collect())
+        }
     }
 
     /// Source keyword selected from complete original argv in this genuine

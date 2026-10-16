@@ -78,7 +78,9 @@ fn project_ini_exclude_live_reloads() {
     let doc_path = root.join("docs").join("gen.tcl");
     std::fs::write(&doc_path, WARNY_SRC).expect("write fixture");
     let mut lsp = Lsp::at_workspace_root(&root);
-    let uri = format!("file://{}", doc_path.to_string_lossy());
+    let uri = tcl_lsp_server::canonical_file_uri(&doc_path)
+        .expect("document fixture has a representable file URI")
+        .to_string();
 
     // Baseline: no project config yet, the document diagnoses normally.
     assert!(
@@ -87,7 +89,9 @@ fn project_ini_exclude_live_reloads() {
     );
 
     let ini_path = root.join(".tcl-lsp.ini");
-    let ini_uri = format!("file://{}", ini_path.to_string_lossy());
+    let ini_uri = tcl_lsp_server::canonical_file_uri(&ini_path)
+        .expect("project config fixture has a representable file URI")
+        .to_string();
     let since = lsp.notification_cursor();
     std::fs::write(&ini_path, "[diagnostics]\nexclude =\n    docs/**\n").expect("write ini");
     lsp.notify(

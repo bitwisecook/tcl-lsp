@@ -259,28 +259,37 @@ fn unproved_definition_member_reference(
     target: MethodRenameTarget<'_>,
     line_index: &LineIndex,
 ) -> Option<RenameRefusal> {
-    let span = target
-        .family
-        .iter()
-        .filter_map(|name| analysis.all_classes.get(name))
-        .find_map(|class| {
-            crate::references::member_reference_spans(
+    let mut unproved = None;
+    for name in target.family.iter() {
+        let inventory = analysis.all_classes.get(name).and_then(|class| {
+            crate::references::member_reference_inventory(
                 source,
                 analysis,
                 dialect,
                 class,
                 target.method,
             )
-            .into_iter()
-            .find(|span| {
-                crate::receiver_identity::definition_reference_at_cursor(
-                    analysis,
-                    source,
-                    span.start(),
-                )
+        });
+        let Some(inventory) = inventory else {
+            return Some(RenameRefusal::new(
+                format!(
+                    "cannot rename `{}`: the original definition metadata reference inventory is unavailable.",
+                    target.method
+                ),
+                source,
+                line_index,
+                None,
+            ));
+        };
+        if let Some(span) = inventory.into_iter().find(|span| {
+            crate::receiver_identity::definition_reference_at_cursor(analysis, source, span.start())
                 .is_none()
-            })
-        })?;
+        }) {
+            unproved = Some(span);
+            break;
+        }
+    }
+    let span = unproved?;
     Some(RenameRefusal::new(
         format!(
             "cannot rename `{}`: a definition metadata reference lacks its original selected worker and class allocation receipt.",

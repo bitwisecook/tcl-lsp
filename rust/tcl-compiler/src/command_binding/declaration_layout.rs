@@ -4468,11 +4468,39 @@ mod tests {
                     expected,
                     "{brace:?}: {source}"
                 );
-                assert!(
-                    binding
-                        .declaration_variable_operand_advice(registry, &tokens, &tokens.words()[1])
-                        .is_none()
+                let source_layout = binding
+                    .declaration_source_operand_layout_advice(registry, &tokens)
+                    .expect("actual selected source owner");
+                let original_operand = binding.declaration_variable_operand_advice(
+                    registry,
+                    &tokens,
+                    &tokens.words()[1],
                 );
+                match brace {
+                    tcl_dialect::BraceBackslashNewline::Folds => {
+                        assert!(matches!(
+                            source_layout.kind,
+                            super::DeclarationSourceOperandLayoutKind::Configured { .. }
+                        ));
+                        assert!(original_operand.is_none());
+                    }
+                    tcl_dialect::BraceBackslashNewline::Literal => {
+                        // No body transform occurred: its genuine original
+                        // owner keeps the ordinary trace-name veto, just as in
+                        // the unchanged-body controls above.
+                        assert!(matches!(
+                            source_layout.kind,
+                            super::DeclarationSourceOperandLayoutKind::Original(_)
+                        ));
+                        assert_eq!(
+                            original_operand
+                                .as_ref()
+                                .map(super::DeclarationVariableOperandAdvice::name),
+                            expected,
+                            "unchanged original body: {source}"
+                        );
+                    }
+                }
             }
         }
     }

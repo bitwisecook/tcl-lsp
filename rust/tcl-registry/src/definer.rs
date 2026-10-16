@@ -3405,6 +3405,19 @@ impl DefinitionBodyGrammar {
         args: crate::InvocationArguments<'_>,
         dialect: Option<SurfaceQuery<'_>>,
     ) -> Option<(MemberRefKind, Vec<usize>)> {
+        self.checked_source_member_ref_indices_in(keyword, args, dialect)?
+    }
+
+    /// Complete selected source reference-role inventory. The outer `None`
+    /// retains unavailable argv/selector grammar; `Some(None)` is a selected
+    /// member with no reference role. Neither result selects a live worker.
+    #[must_use]
+    pub fn checked_source_member_ref_indices_in(
+        &self,
+        keyword: &[u8],
+        args: crate::InvocationArguments<'_>,
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Option<Option<(MemberRefKind, Vec<usize>)>> {
         // naming.core.original-member-reference-hazard
         // docs/design/analysis/name-resolution-proofs/core-original-member-reference-hazard.md
         let count = args.exact_argv_len()?;
@@ -3438,14 +3451,23 @@ impl DefinitionBodyGrammar {
                 } else {
                     0
                 };
-                Some((member.all_args_ref?, (start..count).collect()))
+                Some(
+                    member
+                        .all_args_ref
+                        .map(|kind| (kind, (start..count).collect())),
+                )
             }
             MemberKind::Wrapper => {
-                let (kind, indices) =
-                    self.source_member_ref_indices_in(value(0)?, args.slice_from(1), dialect)?;
-                Some((kind, indices.into_iter().map(|index| index + 1).collect()))
+                let selected = self.checked_source_member_ref_indices_in(
+                    value(0)?,
+                    args.slice_from(1),
+                    dialect,
+                )?;
+                Some(selected.map(|(kind, indices)| {
+                    (kind, indices.into_iter().map(|index| index + 1).collect())
+                }))
             }
-            MemberKind::FlagKeyed => None,
+            MemberKind::FlagKeyed => Some(None),
         }
     }
 

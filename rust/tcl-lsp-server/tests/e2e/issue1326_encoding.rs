@@ -61,7 +61,9 @@ fn malformed_file(bytes: &[u8], suffix: &str) -> (String, std::path::PathBuf, St
     let path =
         std::env::temp_dir().join(format!("tcl-lsp-issue1326-{}-{suffix}", std::process::id()));
     std::fs::write(&path, bytes).expect("write encoding fixture");
-    let uri = format!("file://{}", path.display());
+    let uri = tcl_lsp_server::canonical_file_uri(&path)
+        .expect("encoding fixture path has a representable file URI")
+        .to_string();
     (uri, path, String::from_utf8_lossy(bytes).into_owned())
 }
 

@@ -1,0 +1,27 @@
+{
+  "purpose": "Permitted existing trace diagnostic on frozen original selector; no ordinary or candidate acceptance",
+  "source_binding": "/workspace/naming-validation/lsp-source-parent-continuation/source-binding.json",
+  "source_binding_sha256": "7476e4192a04b46f077be85722b25f9b9dccc7910de63cab6bcfb2c0a88a3bc7",
+  "artifact": {
+    "path": "/workspace/naming-validation/lsp-source-parent-continuation/frozen-binaries/tcl_lsp_db-75275b30127e725a",
+    "sha256": "2e31a352aa0b0035ac73896676db526031e8f3b6b165fc3d1afb67cc2461eb70",
+    "bytes": 213118856
+  },
+  "argv": [
+    "/workspace/naming-validation/lsp-source-parent-continuation/frozen-binaries/tcl_lsp_db-75275b30127e725a",
+    "project_token_inputs::tests::project_token_hints_withdraw_when_another_members_source_owner_is_unavailable",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "flag": "TCL_LSP_TRACE_ORIGINAL_PARAM_ROLES=1",
+  "timeout_seconds": 180,
+  "seconds": 0.9115263690000575,
+  "returncode": 101,
+  "timed_out": false,
+  "running_counts": [
+    "1"
+  ],
+  "log": "/tmp/db-project-source-role-diagnostic-v1/db034-original-param-roles.log",
+  "log_sha256": "59a071bf7da7bdeee044e1983b3137503c9625e4b77ec91772b56201d06402fe"
+}

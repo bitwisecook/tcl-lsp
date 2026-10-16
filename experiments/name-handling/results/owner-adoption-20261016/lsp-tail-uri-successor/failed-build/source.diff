@@ -1,0 +1,1320 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index 1161cae84..3fe2f6f1d 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -4496,6 +4496,7 @@ dependencies = [
+ name = "tcl-lsp-core"
+ version = "0.1.0"
+ dependencies = [
++ "fluent-uri",
+  "regex",
+  "rustc-hash",
+  "serde",
+diff --git a/rust/tcl-compiler/src/command_binding/declaration_layout.rs b/rust/tcl-compiler/src/command_binding/declaration_layout.rs
+index cb2ce2d10..c990badc8 100644
+--- a/rust/tcl-compiler/src/command_binding/declaration_layout.rs
++++ b/rust/tcl-compiler/src/command_binding/declaration_layout.rs
+@@ -4468,11 +4468,39 @@ mod tests {
+                     expected,
+                     "{brace:?}: {source}"
+                 );
+-                assert!(
+-                    binding
+-                        .declaration_variable_operand_advice(registry, &tokens, &tokens.words()[1])
+-                        .is_none()
++                let source_layout = binding
++                    .declaration_source_operand_layout_advice(registry, &tokens)
++                    .expect("actual selected source owner");
++                let original_operand = binding.declaration_variable_operand_advice(
++                    registry,
++                    &tokens,
++                    &tokens.words()[1],
+                 );
++                match brace {
++                    tcl_dialect::BraceBackslashNewline::Folds => {
++                        assert!(matches!(
++                            source_layout.kind,
++                            super::DeclarationSourceOperandLayoutKind::Configured { .. }
++                        ));
++                        assert!(original_operand.is_none());
++                    }
++                    tcl_dialect::BraceBackslashNewline::Literal => {
++                        // No body transform occurred: its genuine original
++                        // owner keeps the ordinary trace-name veto, just as in
++                        // the unchanged-body controls above.
++                        assert!(matches!(
++                            source_layout.kind,
++                            super::DeclarationSourceOperandLayoutKind::Original(_)
++                        ));
++                        assert_eq!(
++                            original_operand
++                                .as_ref()
++                                .map(super::DeclarationVariableOperandAdvice::name),
++                            expected,
++                            "unchanged original body: {source}"
++                        );
++                    }
++                }
+             }
+         }
+     }
+diff --git a/rust/tcl-compiler/src/command_binding/source_transition_advice.rs b/rust/tcl-compiler/src/command_binding/source_transition_advice.rs
+index 5dd4ee97a..a838f3e2a 100644
+--- a/rust/tcl-compiler/src/command_binding/source_transition_advice.rs
++++ b/rust/tcl-compiler/src/command_binding/source_transition_advice.rs
+@@ -689,6 +689,7 @@ struct OriginalLogicalSummaryScope {
+ #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+ enum LogicalProcedureCatalogueRefusal {
+     SelectedScopeUnavailable(u32),
++    RootLexicalTailUnavailable(u32),
+ }
+ 
+ #[derive(Debug, Default)]
+@@ -2755,6 +2756,15 @@ impl OriginalSourceTransitionSeed {
+         } = self.prepare_source_advice_tape(context, purpose)?;
+         let mut graph = self.initial_source_advice_graph(context, &policy)?;
+         let mut tape = OriginalSourceTransitionAdviceTape::default();
++        if matches!(policy, AdviceNamingPolicy::Logical(_))
++            && let Some(tail) = plan.fatal_tail
++        {
++            // CompletePrefix retains positive source cards, but its malformed
++            // remainder cannot certify a whole-document catalogue or emptiness.
++            tape.logical_procedure_catalogue_refusals.insert(
++                LogicalProcedureCatalogueRefusal::RootLexicalTailUnavailable(tail.command_start),
++            );
++        }
+         let advice_context = AdviceInvocationContext {
+             origin,
+             context,
+diff --git a/rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs b/rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs
+index 55bbb8289..43c491ff3 100644
+--- a/rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs
++++ b/rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs
+@@ -777,7 +777,8 @@ impl OriginalSourceDefinitionMemberRegion {
+     /// Complete original vectors only when the retained lexical plan covers
+     /// the entire genuine parent definition body without a fatal tail.
+     /// An empty complete vector is source coverage, never lifecycle absence.
+-    pub(crate) fn complete_original_commands(&self) -> Option<Vec<Vec<NativeWord>>> {
++    #[must_use]
++    pub fn complete_original_commands(&self) -> Option<Vec<Vec<NativeWord>>> {
+         // The complete-plan caller must retain the whole parent extent; a
+         // subregion cannot certify the rest of a class definition.
+         let complete = self.region == self.parent.content_span();
+@@ -865,6 +866,24 @@ impl OriginalSourceDefinitionMemberRegion {
+     pub fn references(
+         &self,
+         original: &[NativeWord],
++    ) -> Option<Vec<OriginalSourceDefinitionMemberReference>> {
++        self.project_references(original, false)
++    }
++
++    /// Complete selected reference-role projection. Missing dynamic names
++    /// remain unavailable; known members without reference roles yield empty.
++    #[must_use]
++    pub fn checked_references(
++        &self,
++        original: &[NativeWord],
++    ) -> Option<Vec<OriginalSourceDefinitionMemberReference>> {
++        self.project_references(original, true)
++    }
++
++    fn project_references(
++        &self,
++        original: &[NativeWord],
++        complete: bool,
+     ) -> Option<Vec<OriginalSourceDefinitionMemberReference>> {
+         // naming.core.original-member-reference-hazard
+         // docs/design/analysis/name-resolution-proofs/core-original-member-reference-hazard.md
+@@ -885,31 +904,37 @@ impl OriginalSourceDefinitionMemberRegion {
+                 }
+             })
+             .collect::<Vec<_>>();
+-        let (kind, indices) = self.grammar.source_member_ref_indices_in(
++        let selected = self.grammar.checked_source_member_ref_indices_in(
+             keyword,
+             tcl_registry::InvocationArguments::structured(&arguments),
+             Some(self.context.authoring_query()),
+         )?;
++        let Some((kind, indices)) = selected else {
++            return complete.then(Vec::new);
++        };
+         let protocol = self
+             .parent
+             .source
+             .dialect()
+             .and_then(tcl_registry::InvocationDialect::authored_name_policy)
+             .map(|policy| policy.string_protocol());
+-        Some(
+-            indices
+-                .into_iter()
+-                .filter_map(|index| {
+-                    let ordinal = index.checked_add(1)?;
+-                    Some(OriginalSourceDefinitionMemberReference {
+-                        original: original.get(ordinal)?.clone(),
+-                        kind,
+-                        value: values.get(ordinal)?.as_ref()?.clone(),
+-                        protocol,
+-                    })
++        let references = indices
++            .into_iter()
++            .map(|index| {
++                let ordinal = index.checked_add(1)?;
++                Some(OriginalSourceDefinitionMemberReference {
++                    original: original.get(ordinal)?.clone(),
++                    kind,
++                    value: values.get(ordinal)?.as_ref()?.clone(),
++                    protocol,
+                 })
+-                .collect(),
+-        )
++            })
++            .collect::<Vec<_>>();
++        if complete {
++            references.into_iter().collect()
++        } else {
++            Some(references.into_iter().flatten().collect())
++        }
+     }
+ 
+     /// Source member scripts through genuine parent vocabulary and whole words.
+@@ -920,6 +945,24 @@ impl OriginalSourceDefinitionMemberRegion {
+     pub fn script_bodies(
+         &self,
+         original: &[NativeWord],
++    ) -> Option<Vec<OriginalSourceDefinitionMemberScriptBody>> {
++        self.project_script_bodies(original, false)
++    }
++
++    /// Complete selected member-body geometry through the same source grammar.
++    /// Missing or cooked bodies cannot certify full source coverage.
++    #[must_use]
++    pub fn checked_script_bodies(
++        &self,
++        original: &[NativeWord],
++    ) -> Option<Vec<OriginalSourceDefinitionMemberScriptBody>> {
++        self.project_script_bodies(original, true)
++    }
++
++    fn project_script_bodies(
++        &self,
++        original: &[NativeWord],
++        complete: bool,
+     ) -> Option<Vec<OriginalSourceDefinitionMemberScriptBody>> {
+         let values = self.member_values(original)?;
+         let keyword = values.first()?.as_deref()?;
+@@ -975,29 +1018,33 @@ impl OriginalSourceDefinitionMemberRegion {
+             tcl_registry::InvocationArguments::structured(&member_words),
+             Some(self.context.authoring_query()),
+         );
+-        Some(
+-            selected
+-                .into_iter()
+-                .filter_map(|selected| {
+-                    let word = original.get(selected.argument().checked_add(1)?)?;
+-                    let geometry = original_word_script_body_geometry(word)?;
+-                    Some(OriginalSourceDefinitionMemberScriptBody {
+-                        parent: self.parent.clone(),
+-                        original: original.to_vec(),
+-                        argument: selected.argument(),
+-                        container: geometry.container,
+-                        content: geometry.content,
+-                        retains_definition_grammar: selected.retains_definition_grammar(),
+-                        presentation: selected.presentation(),
+-                        member_row: member_row.clone().filter(|row| {
+-                            selected.argument().checked_add(1).is_some_and(|ordinal| {
+-                                row.body.is_some_and(|body| body.0 == ordinal)
+-                            })
+-                        }),
+-                    })
++        let bodies = selected
++            .into_iter()
++            .map(|selected| {
++                let word = original.get(selected.argument().checked_add(1)?)?;
++                let geometry = original_word_script_body_geometry(word)?;
++                Some(OriginalSourceDefinitionMemberScriptBody {
++                    parent: self.parent.clone(),
++                    original: original.to_vec(),
++                    argument: selected.argument(),
++                    container: geometry.container,
++                    content: geometry.content,
++                    retains_definition_grammar: selected.retains_definition_grammar(),
++                    presentation: selected.presentation(),
++                    member_row: member_row.clone().filter(|row| {
++                        selected
++                            .argument()
++                            .checked_add(1)
++                            .is_some_and(|ordinal| row.body.is_some_and(|body| body.0 == ordinal))
++                    }),
+                 })
+-                .collect(),
+-        )
++            })
++            .collect::<Vec<_>>();
++        if complete {
++            bodies.into_iter().collect()
++        } else {
++            Some(bodies.into_iter().flatten().collect())
++        }
+     }
+ 
+     /// Source keyword selected from complete original argv in this genuine
+diff --git a/rust/tcl-lsp-core/src/file_uri.rs b/rust/tcl-lsp-core/src/file_uri.rs
+index 4e78db53c..563b0253b 100644
+--- a/rust/tcl-lsp-core/src/file_uri.rs
++++ b/rust/tcl-lsp-core/src/file_uri.rs
+@@ -16,8 +16,9 @@
+ //
+ // SPDX-License-Identifier: AGPL-3.0-or-later
+ 
+-//! File URI source construction from the host's original filesystem paths.
++//! File URI construction and checked native document/workspace path conversion.
+ 
++use std::borrow::Cow;
+ use std::fmt::Write as _;
+ use std::path::Path;
+ 
+@@ -121,6 +122,142 @@ pub(crate) fn escaped_path(path: &str, escaping: FileUriEscaping) -> String {
+     out
+ }
+ 
++/// A file document URI cannot be represented under the selected host policy.
++/// Refusal is not evidence that a file, workspace or source provider is absent.
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub enum FileUriPathUnavailable {
++    UnsupportedHost,
++    InvalidUri,
++    NotFile,
++    QueryOrFragment,
++    UnsupportedAuthority,
++    InvalidUnicode,
++    Nul,
++    EncodedSeparator,
++    UnsupportedNativeGeometry,
++}
++
++/// Select the explicit incoming file-URI purpose before native path admission.
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub enum FileUriPathPurpose {
++    /// LSP document/workspace interoperability with VS Code's authority spelling.
++    /// This supplies neither a host file-action policy nor a browser virtual path.
++    VsCodeDocument,
++}
++
++/// Parse an original document/workspace URI and retain its counted native path.
++///
++/// Under [`FileUriPathPurpose::VsCodeDocument`], POSIX `file://host/share`
++/// retains `//host/share`, including a literal `localhost` authority. Windows
++/// alone constructs drive or UNC paths. The actual URI parser strictly decodes
++/// complete authority/path data; invalid Unicode, NUL, encoded native separators
++/// and unsupported native namespace geometries refuse.
++///
++/// The input is the original protocol URI, not a displayed path or name report.
++/// No filesystem canonicalisation, existence, source freshness, file identity,
++/// load or edit authority follows. Browser virtual paths and host file actions
++/// retain their separate boundaries. Refusal never proves a file/provider absent.
++pub fn to_path(
++    original_uri: &str,
++    purpose: FileUriPathPurpose,
++) -> Result<std::path::PathBuf, FileUriPathUnavailable> {
++    if !cfg!(any(unix, windows)) {
++        return Err(FileUriPathUnavailable::UnsupportedHost);
++    }
++    let uri =
++        fluent_uri::Uri::parse(original_uri).map_err(|_| FileUriPathUnavailable::InvalidUri)?;
++    let spelling = match purpose {
++        FileUriPathPurpose::VsCodeDocument => document_file_path_spelling(&uri, cfg!(windows))?,
++    };
++    let path = std::path::PathBuf::from(spelling);
++    if !path.is_absolute() {
++        return Err(FileUriPathUnavailable::UnsupportedNativeGeometry);
++    }
++    Ok(path)
++}
++
++// Pure platform spelling recipe. Only to_path selects the actual
++// host and admits a native Path; foreign-platform tests grant no host access.
++fn document_file_path_spelling(
++    uri: &fluent_uri::Uri<&str>,
++    windows: bool,
++) -> Result<String, FileUriPathUnavailable> {
++    use FileUriPathUnavailable as Unavailable;
++    if !uri.scheme().as_str().eq_ignore_ascii_case("file") {
++        return Err(Unavailable::NotFile);
++    }
++    if uri.query().is_some() || uri.fragment().is_some() {
++        return Err(Unavailable::QueryOrFragment);
++    }
++    let authority = match uri.authority() {
++        None => Cow::Borrowed(""),
++        Some(authority) => {
++            if authority.userinfo().is_some() || authority.port().is_some() {
++                return Err(Unavailable::UnsupportedAuthority);
++            }
++            match authority.host_parsed() {
++                fluent_uri::component::Host::RegName(name) => name
++                    .decode()
++                    .to_string()
++                    .map_err(|_| Unavailable::InvalidUnicode)?,
++                fluent_uri::component::Host::Ipv4(..) => Cow::Borrowed(authority.host()),
++                _ => return Err(Unavailable::UnsupportedAuthority),
++            }
++        }
++    };
++    if authority.contains('\0') {
++        return Err(Unavailable::Nul);
++    }
++    if authority.contains('/')
++        || windows
++            && (authority.contains(['\\', ':']) || matches!(authority.as_ref(), "." | ".." | "?"))
++    {
++        return Err(Unavailable::UnsupportedAuthority);
++    }
++    let segments = uri
++        .path()
++        .segments_if_absolute()
++        .ok_or(Unavailable::UnsupportedNativeGeometry)?;
++    for segment in segments {
++        let decoded = segment
++            .decode()
++            .to_string()
++            .map_err(|_| Unavailable::InvalidUnicode)?;
++        if decoded.contains('\0') {
++            return Err(Unavailable::Nul);
++        }
++        if decoded.contains('/') || windows && decoded.contains('\\') {
++            return Err(Unavailable::EncodedSeparator);
++        }
++    }
++    let path = uri
++        .path()
++        .decode()
++        .to_string()
++        .map_err(|_| Unavailable::InvalidUnicode)?;
++    if !authority.is_empty() {
++        let mut spelling = String::from(if windows { "\\\\" } else { "//" });
++        spelling.push_str(&authority);
++        if windows {
++            spelling.push_str(&path.replace('/', "\\"));
++        } else {
++            spelling.push_str(&path);
++        }
++        return Ok(spelling);
++    }
++    if windows {
++        let local = path
++            .strip_prefix('/')
++            .filter(|local| {
++                matches!(local.as_bytes(), [drive, b':', b'/', ..] if drive.is_ascii_alphabetic())
++            })
++            .ok_or(Unavailable::UnsupportedNativeGeometry)?;
++        Ok(local.replace('/', "\\"))
++    } else {
++        Ok(path.into_owned())
++    }
++}
++
+ #[cfg(test)]
+ pub(crate) fn standalone_windows_path(path: &str, escaping: FileUriEscaping) -> Option<String> {
+     from_rooted_spelling(path, true, escaping)
+@@ -204,3 +341,165 @@ mod tests {
+         assert!(from_path(&path, FileUriEscaping::Unreserved).is_none());
+     }
+ }
++
++#[cfg(test)]
++mod inverse_tests {
++    use super::*;
++    use fluent_uri::Uri;
++
++    #[cfg(unix)]
++    #[test]
++    fn actual_posix_document_paths_keep_the_whole_authority_and_counted_path() {
++        for (raw, expected) in [
++            ("file://srv/share/a.tcl", "//srv/share/a.tcl"),
++            ("file://localhost/share/a.tcl", "//localhost/share/a.tcl"),
++            ("file://Srv/share//tail/", "//Srv/share//tail/"),
++            (
++                "file://m%C3%BCnchen/share/%CE%BB.tcl",
++                "//münchen/share/λ.tcl",
++            ),
++            ("file://ho%40st/share/a.tcl", "//ho@st/share/a.tcl"),
++            ("file://127.0.0.1/share/a.tcl", "//127.0.0.1/share/a.tcl"),
++            ("file://%3F/foo.tcl", "//?/foo.tcl"),
++            ("file:////srv/share/a.tcl", "//srv/share/a.tcl"),
++            ("file://///srv/share/a.tcl", "///srv/share/a.tcl"),
++            (
++                "file:///tmp/literal%252F%5C%EF%BF%BD.tcl",
++                "/tmp/literal%2F\\�.tcl",
++            ),
++            ("file:///C%3A/data.tcl", "/C:/data.tcl"),
++            ("file:///", "/"),
++        ] {
++            let path = to_path(raw, FileUriPathPurpose::VsCodeDocument).unwrap();
++            // Path equality may hide duplicate separators; preserve the actual
++            // native spelling as data, with no component normalisation.
++            assert_eq!(path.to_str(), Some(expected), "{raw}");
++            assert!(path.is_absolute(), "{raw}");
++        }
++    }
++
++    #[test]
++    fn unsupported_document_uri_data_is_a_typed_refusal() {
++        use FileUriPathUnavailable as Unavailable;
++        for (raw, expected) in [
++            ("untitled:buffer", Unavailable::NotFile),
++            ("https://srv/share/a.tcl", Unavailable::NotFile),
++            ("file:///tmp/a.tcl?query", Unavailable::QueryOrFragment),
++            ("file:///tmp/a.tcl#fragment", Unavailable::QueryOrFragment),
++            (
++                "file://user@srv/share/a.tcl",
++                Unavailable::UnsupportedAuthority,
++            ),
++            (
++                "file://srv:80/share/a.tcl",
++                Unavailable::UnsupportedAuthority,
++            ),
++            (
++                "file://[::1]/share/a.tcl",
++                Unavailable::UnsupportedAuthority,
++            ),
++            (
++                "file://srv%2Fother/share/a.tcl",
++                Unavailable::UnsupportedAuthority,
++            ),
++            ("file://%FF/share/a.tcl", Unavailable::InvalidUnicode),
++            ("file:///tmp/%FF.tcl", Unavailable::InvalidUnicode),
++            ("file://srv%00/share/a.tcl", Unavailable::Nul),
++            ("file:///tmp/%00.tcl", Unavailable::Nul),
++            ("file:///tmp/a%2Fb.tcl", Unavailable::EncodedSeparator),
++            ("file:relative.tcl", Unavailable::UnsupportedNativeGeometry),
++            ("file://srv", Unavailable::UnsupportedNativeGeometry),
++        ] {
++            let uri = Uri::parse(raw).unwrap();
++            assert_eq!(
++                document_file_path_spelling(&uri, false),
++                Err(expected),
++                "{raw}"
++            );
++            #[cfg(any(unix, windows))]
++            assert_eq!(
++                to_path(raw, FileUriPathPurpose::VsCodeDocument),
++                Err(expected),
++                "{raw}"
++            );
++        }
++    }
++
++    #[test]
++    fn windows_document_recipe_keeps_drive_case_unc_and_whole_path() {
++        for (raw, expected) in [
++            (
++                "file:///C%3A/Users/Me/a%20%CE%BB.tcl",
++                r"C:\Users\Me\a λ.tcl",
++            ),
++            ("file:///c:/Users/Me/a.tcl", r"c:\Users\Me\a.tcl"),
++            ("file://Srv/share//tail/", "\\\\Srv\\share\\\\tail\\"),
++            ("file://ho%40st/share/a.tcl", r"\\ho@st\share\a.tcl"),
++        ] {
++            let uri = Uri::parse(raw).unwrap();
++            assert_eq!(
++                document_file_path_spelling(&uri, true).as_deref(),
++                Ok(expected),
++                "{raw}"
++            );
++        }
++        use FileUriPathUnavailable as Unavailable;
++        for (raw, expected) in [
++            ("file:///tmp/a.tcl", Unavailable::UnsupportedNativeGeometry),
++            (
++                "file://///%3F/Volume%7B1234%7D/a.tcl",
++                Unavailable::UnsupportedNativeGeometry,
++            ),
++            (
++                "file://%3F/Volume%7B1234%7D/a.tcl",
++                Unavailable::UnsupportedAuthority,
++            ),
++            ("file://./pipe/a", Unavailable::UnsupportedAuthority),
++            (
++                "file://srv%5Cother/share/a.tcl",
++                Unavailable::UnsupportedAuthority,
++            ),
++            ("file:///C:/a%5Cb.tcl", Unavailable::EncodedSeparator),
++        ] {
++            let uri = Uri::parse(raw).unwrap();
++            assert_eq!(
++                document_file_path_spelling(&uri, true),
++                Err(expected),
++                "{raw}"
++            );
++        }
++    }
++
++    #[cfg(windows)]
++    #[test]
++    fn actual_windows_document_paths_have_native_drive_or_unc_roots() {
++        for (raw, expected) in [
++            ("file:///C%3A/Users/Me/a.tcl", r"C:\Users\Me\a.tcl"),
++            ("file://Srv/share/a.tcl", r"\\Srv\share\a.tcl"),
++        ] {
++            let path = to_path(raw, FileUriPathPurpose::VsCodeDocument).unwrap();
++            assert!(path.is_absolute());
++            assert_eq!(path.to_str(), Some(expected));
++        }
++    }
++}
++
++#[cfg(all(test, any(unix, windows)))]
++mod inverse_parser_tests {
++    use super::*;
++
++    #[test]
++    fn malformed_original_uris_do_not_reach_native_path_construction() {
++        for original in [
++            "not a URI",
++            "file:///tmp/raw space.tcl",
++            "file:///tmp/%GG.tcl",
++        ] {
++            assert_eq!(
++                to_path(original, FileUriPathPurpose::VsCodeDocument),
++                Err(FileUriPathUnavailable::InvalidUri),
++                "{original}"
++            );
++        }
++    }
++}
+diff --git a/rust/tcl-lsp-core/src/procedure_symbol.rs b/rust/tcl-lsp-core/src/procedure_symbol.rs
+index cc926732e..7e67bbe16 100644
+--- a/rust/tcl-lsp-core/src/procedure_symbol.rs
++++ b/rust/tcl-lsp-core/src/procedure_symbol.rs
+@@ -162,6 +162,40 @@ mod tests {
+         }
+     }
+ 
++    #[test]
++    fn checked_logical_procedure_catalogue_refuses_unparsed_root_tail() {
++        for (source, prefix_count) in [
++            ("proc good {} {}; \"unterminated", 1),
++            ("proc good {} {}; \"unterminated; proc after {} {}", 1),
++            ("\"unterminated; proc after {} {}", 0),
++        ] {
++            let analysis = Analyser::new().analyse(source, "tcl");
++            let config = analysis.body_lexer_config.unwrap();
++            let plan = tcl_lexer::native_script_words_in(
++                SourceImage::document(source),
++                tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
++                config,
++            )
++            .unwrap();
++            assert!(plan.fatal_tail.is_some(), "{source}");
++            assert_eq!(plan.commands.len(), prefix_count, "{source}");
++            assert_eq!(
++                analysis.logical_source_procedure_declarations().count(),
++                prefix_count,
++                "the positive prefix API remains independent: {source}"
++            );
++            assert!(declarations(source, &analysis).is_none(), "{source}");
++            assert!(
++                for_literal_name(source, &analysis, "good").is_none(),
++                "{source}"
++            );
++            assert!(
++                for_literal_name(source, &analysis, "after").is_none(),
++                "{source}"
++            );
++        }
++    }
++
+     #[test]
+     fn original_procedure_tool_queries_keep_declarations_and_refuse_scope_guesses() {
+         let source = "namespace eval a {proc duplicate {first} {}}\nnamespace eval z {proc duplicate {second} {}}\nproc p {} {}\nproc p {value} {}\n";
+diff --git a/rust/tcl-lsp-core/src/references.rs b/rust/tcl-lsp-core/src/references.rs
+index 19fbc6b46..fa74b4a5a 100644
+--- a/rust/tcl-lsp-core/src/references.rs
++++ b/rust/tcl-lsp-core/src/references.rs
+@@ -4053,6 +4053,18 @@ pub(crate) fn member_reference_spans(
+     member_metadata::spans(source, analysis, dialect, class_def, method)
+ }
+ 
++/// Complete readonly source hazard inventory. `None` retains unavailable
++/// class/body/selector coverage; it cannot license a rename through emptiness.
++pub(crate) fn member_reference_inventory(
++    source: &str,
++    analysis: &AnalysisResult,
++    dialect: &'static tcl_dialect::DialectProfile,
++    class_def: &tcl_compiler::analyser::types::ClassDef,
++    method: &str,
++) -> Option<Vec<tcl_lexer::Span>> {
++    member_metadata::checked_spans(source, analysis, dialect, class_def, method)
++}
++
+ /// Project a whole configured source reference to its metadata name.
+ /// The caller separately selects a sole variable word. An absent configuration
+ /// is the explicit standalone decoration convention, without source admission.
+diff --git a/rust/tcl-lsp-core/src/references/member_metadata.rs b/rust/tcl-lsp-core/src/references/member_metadata.rs
+index 1837caa37..0ebf1ce3f 100644
+--- a/rust/tcl-lsp-core/src/references/member_metadata.rs
++++ b/rust/tcl-lsp-core/src/references/member_metadata.rs
+@@ -25,10 +25,33 @@ pub(super) fn spans(
+     class: &ClassDef,
+     method: &str,
+ ) -> Vec<Span> {
++    inventory(source, analysis, dialect, class, method)
++        .map(|(spans, _)| spans)
++        .unwrap_or_default()
++}
++
++pub(super) fn checked_spans(
++    source: &str,
++    analysis: &AnalysisResult,
++    dialect: &'static tcl_dialect::DialectProfile,
++    class: &ClassDef,
++    method: &str,
++) -> Option<Vec<Span>> {
++    let (spans, complete) = inventory(source, analysis, dialect, class, method)?;
++    complete.then_some(spans)
++}
++
++fn inventory(
++    source: &str,
++    analysis: &AnalysisResult,
++    dialect: &'static tcl_dialect::DialectProfile,
++    class: &ClassDef,
++    method: &str,
++) -> Option<(Vec<Span>, bool)> {
+     // naming.core.original-member-reference-hazard
+     // docs/design/analysis/name-resolution-proofs/core-original-member-reference-hazard.md
+     let Some(input) = analysis.resolved_input.as_ref() else {
+-        return Vec::new();
++        return None;
+     };
+     let config = input.lexer_config();
+     if analysis
+@@ -40,7 +63,7 @@ pub(super) fn spans(
+             .retained_command_realm()
+             .is_none_or(|realm| !realm.matches_resolved_analysis_input(input))
+     {
+-        return Vec::new();
++        return None;
+     }
+     let scan = MemberReferenceScan {
+         source,
+@@ -49,7 +72,7 @@ pub(super) fn spans(
+         method,
+         context: input.context_registry(),
+     };
+-    scan.collect(config)
++    Some(scan.collect(config))
+ }
+ 
+ impl MemberReferenceScan<'_> {
+@@ -66,25 +89,27 @@ impl MemberReferenceScan<'_> {
+         }
+     }
+ 
+-    fn names_class(&self, offset: u32) -> bool {
++    fn names_class(&self, offset: u32) -> Option<bool> {
+         if let Some(class) =
+             source_structure::source_class_declaration_at(self.source, self.analysis, offset)
+         {
+-            return self.class_matches(&class);
++            return Some(self.class_matches(&class));
+         }
+         source_structure::source_configured_class_at(self.source, self.analysis, offset)
+-            .is_some_and(|target| self.class_matches(target.class_declaration()))
++            .map(|target| self.class_matches(target.class_declaration()))
+     }
+ 
+-    fn collect(&self, config: LexerConfig) -> Vec<Span> {
++    fn collect(&self, config: LexerConfig) -> (Vec<Span>, bool) {
+         let Some(structure) = crate::source_structure::SourceStructure::capture(
+             self.source,
+             Some(self.analysis),
+             config,
+         ) else {
+-            return Vec::new();
++            return (Vec::new(), false);
+         };
+         let mut pending = VecDeque::new();
++        let mut complete = true;
++        let mut selected_root = false;
+         for command in &structure.commands {
+             let Some(head) = command.argv.first() else {
+                 continue;
+@@ -92,31 +117,50 @@ impl MemberReferenceScan<'_> {
+             let Some(words) =
+                 source_structure::source_registry_words(self.source, self.analysis, command)
+             else {
++                complete = false;
+                 continue;
+             };
+-            if !self.names_class(head.span.start()) {
+-                continue;
++            let target = self.names_class(head.span.start());
++            if words
++                .source_script_bodies_for_mutation_coverage(&self.context)
++                .is_none()
++            {
++                complete = false;
+             }
+             for body in words.source_script_bodies(&self.context) {
+                 if let Some(parent) = body.definition_parent_for(&self.context, None) {
+-                    pending.push_back((parent, body.content_span(), 0));
++                    match target {
++                        Some(true) => {
++                            selected_root = true;
++                            pending.push_back((parent, body.content_span(), 0));
++                        }
++                        Some(false) => {}
++                        None => complete = false,
++                    }
++                } else if target == Some(true) {
++                    complete = false;
+                 }
+             }
+         }
+         let mut visited = BTreeSet::new();
+         let mut spans = BTreeSet::new();
+         while let Some((parent, region, depth)) = pending.pop_front() {
+-            if super::MAX_DISPATCH_SCAN_DEPTH.exceeded(depth)
+-                || !visited.insert((region.start(), region.end()))
+-            {
++            if super::MAX_DISPATCH_SCAN_DEPTH.exceeded(depth) {
++                complete = false;
++                continue;
++            }
++            if !visited.insert((region.start(), region.end())) {
+                 continue;
+             }
+-            self.collect_region(&parent, region, depth, &mut pending, &mut spans);
++            complete &= self.collect_region(&parent, region, depth, &mut pending, &mut spans);
+         }
+-        spans
+-            .into_iter()
+-            .map(|(start, end)| Span::new(start, end))
+-            .collect()
++        (
++            spans
++                .into_iter()
++                .map(|(start, end)| Span::new(start, end))
++                .collect(),
++            complete && selected_root,
++        )
+     }
+ 
+     fn collect_region(
+@@ -126,10 +170,13 @@ impl MemberReferenceScan<'_> {
+         depth: u32,
+         pending: &mut VecDeque<(OriginalSourceScriptBody, Span, u32)>,
+         spans: &mut BTreeSet<(u32, u32)>,
+-    ) {
++    ) -> bool {
+         let Some(members) = parent.definition_member_region(&self.context, region) else {
+-            return;
++            return false;
+         };
++        // Preserve partial positive spans below, but only the genuine whole
++        // parent lexical plan can close omitted or malformed source regions.
++        let mut complete = members.complete_original_commands().is_some();
+         for command in members.original_commands() {
+             for reference in members.references(command).into_iter().flatten() {
+                 if reference.kind() == tcl_registry::definer::MemberRefKind::Method
+@@ -139,7 +186,15 @@ impl MemberReferenceScan<'_> {
+                     spans.insert((span.start(), span.end()));
+                 }
+             }
++            if members.member_keyword(command).is_some()
++                && members.checked_references(command).is_none()
++            {
++                complete = false;
++            }
+             if let Some(scripts) = members.script_bodies(command) {
++                if members.checked_script_bodies(command).is_none() {
++                    complete = false;
++                }
+                 for body in scripts {
+                     if let Some(parent) = body.definition_parent() {
+                         pending.push_back((parent.clone(), body.content_span(), depth + 1));
+@@ -149,13 +204,24 @@ impl MemberReferenceScan<'_> {
+                 && let Some(words) =
+                     source_structure::source_registry_words_at(self.source, self.analysis, offset)
+             {
++                if words
++                    .source_script_bodies_for_mutation_coverage(&self.context)
++                    .is_none()
++                {
++                    complete = false;
++                }
+                 for body in words.source_script_bodies(&self.context) {
+                     if let Some(parent) = body.definition_parent_for(&self.context, Some(parent)) {
+                         pending.push_back((parent, body.content_span(), depth + 1));
++                    } else {
++                        complete = false;
+                     }
+                 }
++            } else {
++                complete = false;
+             }
+         }
++        complete
+     }
+ }
+ 
+@@ -199,6 +265,81 @@ mod tests {
+         )
+     }
+ 
++    #[test]
++    fn checked_member_hazards_keep_unknown_coverage_separate_from_partial_spans() {
++        let source = "class-maker create C {method m {} {}; export m; export $computed}";
++        for dialect in ["tcl", "tcl8.6"] {
++            let plain = "class-maker create C {method m {} {}}";
++            let plain_analysis = analyse(plain, dialect);
++            let plain_class = plain_analysis.all_classes.get("::C").unwrap();
++            assert_eq!(
++                checked_spans(
++                    plain,
++                    &plain_analysis,
++                    plain_analysis.resolved_profile().unwrap(),
++                    plain_class,
++                    "m"
++                ),
++                Some(Vec::new())
++            );
++            let analysis = analyse(source, dialect);
++            let class = analysis.all_classes.get("::C").unwrap();
++            let original = member_spans(source, &analysis, class);
++            assert_eq!(original.len(), 1, "{dialect}");
++            assert_eq!(&source[original[0].as_range()], "m");
++            assert!(
++                checked_spans(
++                    source,
++                    &analysis,
++                    analysis.resolved_profile().unwrap(),
++                    class,
++                    "m"
++                )
++                .is_none()
++            );
++            assert!(
++                checked_spans(
++                    &source.replace("export m", "export n"),
++                    &analysis,
++                    analysis.resolved_profile().unwrap(),
++                    class,
++                    "m"
++                )
++                .is_none()
++            );
++        }
++    }
++
++    #[test]
++    fn checked_member_hazards_refuse_fatal_member_tail_without_losing_prefix_spans() {
++        for dialect in ["tcl", "tcl8.6"] {
++            for (source, count) in [
++                (
++                    "class-maker create C {method m {} {}; export m; \"unterminated}",
++                    1,
++                ),
++                ("class-maker create C {\"unterminated}", 0),
++            ] {
++                let analysis = analyse(source, dialect);
++                let class = analysis.all_classes.get("::C").unwrap();
++                let partial = member_spans(source, &analysis, class);
++                assert_eq!(partial.len(), count, "{dialect}: {source}");
++                assert!(partial.iter().all(|span| &source[span.as_range()] == "m"));
++                assert!(
++                    checked_spans(
++                        source,
++                        &analysis,
++                        analysis.resolved_profile().unwrap(),
++                        class,
++                        "m"
++                    )
++                    .is_none(),
++                    "{dialect}: {source}"
++                );
++            }
++        }
++    }
++
+     #[test]
+     fn member_hazards_use_retained_custom_schema_and_nested_definition_vocabulary() {
+         // naming.core.original-member-reference-hazard
+diff --git a/rust/tcl-lsp-core/src/rename_safety.rs b/rust/tcl-lsp-core/src/rename_safety.rs
+index 57a800b22..1750b1f4e 100644
+--- a/rust/tcl-lsp-core/src/rename_safety.rs
++++ b/rust/tcl-lsp-core/src/rename_safety.rs
+@@ -259,28 +259,37 @@ fn unproved_definition_member_reference(
+     target: MethodRenameTarget<'_>,
+     line_index: &LineIndex,
+ ) -> Option<RenameRefusal> {
+-    let span = target
+-        .family
+-        .iter()
+-        .filter_map(|name| analysis.all_classes.get(name))
+-        .find_map(|class| {
+-            crate::references::member_reference_spans(
++    let mut unproved = None;
++    for name in target.family.iter() {
++        let inventory = analysis.all_classes.get(name).and_then(|class| {
++            crate::references::member_reference_inventory(
+                 source,
+                 analysis,
+                 dialect,
+                 class,
+                 target.method,
+             )
+-            .into_iter()
+-            .find(|span| {
+-                crate::receiver_identity::definition_reference_at_cursor(
+-                    analysis,
+-                    source,
+-                    span.start(),
+-                )
++        });
++        let Some(inventory) = inventory else {
++            return Some(RenameRefusal::new(
++                format!(
++                    "cannot rename `{}`: the original definition metadata reference inventory is unavailable.",
++                    target.method
++                ),
++                source,
++                line_index,
++                None,
++            ));
++        };
++        if let Some(span) = inventory.into_iter().find(|span| {
++            crate::receiver_identity::definition_reference_at_cursor(analysis, source, span.start())
+                 .is_none()
+-            })
+-        })?;
++        }) {
++            unproved = Some(span);
++            break;
++        }
++    }
++    let span = unproved?;
+     Some(RenameRefusal::new(
+         format!(
+             "cannot rename `{}`: a definition metadata reference lacks its original selected worker and class allocation receipt.",
+diff --git a/rust/tcl-lsp-server/src/lib.rs b/rust/tcl-lsp-server/src/lib.rs
+index 25af61ccf..8db7893f9 100644
+--- a/rust/tcl-lsp-server/src/lib.rs
++++ b/rust/tcl-lsp-server/src/lib.rs
+@@ -49347,7 +49347,7 @@ proc p {} {
+         std::fs::write(&path, "proc onDisk {} { return 1 }\n").expect("write fixture");
+ 
+         let backend = test_backend();
+-        let uri = Uri::from_str(&format!("file://{}", path.display())).expect("uri");
++        let uri = canonical_file_uri(&path).expect("fixture path has a representable file URI");
+ 
+         assert!(backend.documents.lock("test").await.is_empty());
+         let snap = backend.read_document(&uri).await.expect("disk fallback");
+diff --git a/rust/tcl-lsp-server/src/uri_norm.rs b/rust/tcl-lsp-server/src/uri_norm.rs
+index 781534e24..d634bf3c4 100644
+--- a/rust/tcl-lsp-server/src/uri_norm.rs
++++ b/rust/tcl-lsp-server/src/uri_norm.rs
+@@ -274,6 +274,20 @@ pub fn rooted_file_uri(path: &std::path::Path) -> Option<Uri> {
+         .ok()
+ }
+ 
++/// A document/workspace URI was unavailable under the selected native policy.
++/// The result supplies no file/provider absence, source freshness or edit grant.
++pub use tcl_lsp_core::file_uri::FileUriPathUnavailable as DocumentFilePathUnavailable;
++
++/// Decode the original parsed LSP URI using the shared native document owner.
++/// VS Code authority interoperability is explicit and distinct from host file
++/// actions; this does not widen [`file_action_path`]'s nonlocal refusal.
++pub fn document_file_path(uri: &Uri) -> Result<std::path::PathBuf, DocumentFilePathUnavailable> {
++    tcl_lsp_core::file_uri::to_path(
++        uri.as_str(),
++        tcl_lsp_core::file_uri::FileUriPathPurpose::VsCodeDocument,
++    )
++}
++
+ /// Strict incoming file-URI boundary for host file actions. URI repair and
+ /// display normalization cannot establish a path. Decode with the protocol
+ /// provider, rejecting its lossy Unicode fallback and unsupported authorities.
+@@ -768,3 +782,19 @@ mod file_action_path_tests {
+         }
+     }
+ }
++
++#[cfg(test)]
++mod document_file_path_tests {
++    use super::*;
++
++    #[cfg(unix)]
++    #[test]
++    fn document_authority_support_does_not_widen_file_action_authority() {
++        let uri: Uri = "file://srv/share/a.tcl".parse().unwrap();
++        assert_eq!(
++            document_file_path(&uri).unwrap().to_str(),
++            Some("//srv/share/a.tcl")
++        );
++        assert!(file_action_path(&uri).is_none());
++    }
++}
+diff --git a/rust/tcl-lsp-server/tests/e2e/config.rs b/rust/tcl-lsp-server/tests/e2e/config.rs
+index 0110d5d39..4e26eb4f6 100644
+--- a/rust/tcl-lsp-server/tests/e2e/config.rs
++++ b/rust/tcl-lsp-server/tests/e2e/config.rs
+@@ -581,16 +581,24 @@ fn folder_scoped_dialect_reaches_documents_in_that_folder() {
+ 
+     // The folder URIs themselves resolve through the folder chain: this is what
+     // the VS Code suite polls to know the per-folder pull has settled.
+-    let uri_a = format!("file://{}", root_a.to_string_lossy());
+-    let uri_b = format!("file://{}", root_b.to_string_lossy());
++    let uri_a = tcl_lsp_server::canonical_file_uri(&root_a)
++        .expect("project A root has a representable file URI")
++        .to_string();
++    let uri_b = tcl_lsp_server::canonical_file_uri(&root_b)
++        .expect("project B root has a representable file URI")
++        .to_string();
+     settle(&mut lsp, "per-folder dialects", |lsp| {
+         lsp.effective_config(&uri_a).get("dialect") == Some(&json!("tcl8.4"))
+             && lsp.effective_config(&uri_b).get("dialect") == Some(&json!("f5-irules"))
+     });
+ 
+     // …and so do documents inside them, which is what actually changes analysis.
+-    let doc_a = format!("file://{}", file_a.to_string_lossy());
+-    let doc_b = format!("file://{}", file_b.to_string_lossy());
++    let doc_a = tcl_lsp_server::canonical_file_uri(&file_a)
++        .expect("project A document has a representable file URI")
++        .to_string();
++    let doc_b = tcl_lsp_server::canonical_file_uri(&file_b)
++        .expect("project B document has a representable file URI")
++        .to_string();
+     let diags_a = lsp.open_ready(&doc_a, src);
+     let diags_b = lsp.open_ready(&doc_b, src);
+     assert_eq!(
+diff --git a/rust/tcl-lsp-server/tests/e2e/diagnostics.rs b/rust/tcl-lsp-server/tests/e2e/diagnostics.rs
+index d7485c6e1..b2bea1e4d 100644
+--- a/rust/tcl-lsp-server/tests/e2e/diagnostics.rs
++++ b/rust/tcl-lsp-server/tests/e2e/diagnostics.rs
+@@ -4220,7 +4220,9 @@ fn consumer_rename_resolves_through_a_real_workspace_folder_m8() {
+     let mut lsp = Lsp::tcl();
+     // Attach the real folder (the fake `initialize` root indexes nothing) and
+     // let the rescan index rbclib/graph.tcl from disk.
+-    let folder_uri = format!("file://{}", root.to_string_lossy());
++    let folder_uri = tcl_lsp_server::canonical_file_uri(&root)
++        .expect("workspace fixture has a representable file URI")
++        .to_string();
+     lsp.notify(
+         "workspace/didChangeWorkspaceFolders",
+         serde_json::json!({
+@@ -4231,7 +4233,9 @@ fn consumer_rename_resolves_through_a_real_workspace_folder_m8() {
+         }),
+     );
+ 
+-    let uri = format!("file://{}", consumer_path.to_string_lossy());
++    let uri = tcl_lsp_server::canonical_file_uri(&consumer_path)
++        .expect("consumer fixture has a representable file URI")
++        .to_string();
+     lsp.open_document(&uri, "Rbc_ActiveLegend .g\nRbc_ZoomStack .g\n");
+ 
+     // The folder scan runs asynchronously; poll the rename until the library
+@@ -5042,7 +5046,9 @@ fn a_cross_file_upvar_helper_draws_no_false_read_before_set_end_to_end() {
+     std::fs::write(&options, text).expect("write options.tcl");
+ 
+     let mut lsp = Lsp::at_workspace_root(&root);
+-    let uri = format!("file://{}", options.to_string_lossy());
++    let uri = tcl_lsp_server::canonical_file_uri(&options)
++        .expect("options fixture has a representable file URI")
++        .to_string();
+     let diags = lsp.open_ready(&uri, text);
+     assert!(
+         !has_code(&diags, "W210"),
+@@ -5055,7 +5061,9 @@ fn a_cross_file_upvar_helper_draws_no_false_read_before_set_end_to_end() {
+     let control = root.join("control.tcl");
+     let control_text = "proc demo::build2 {} {\n    setdef options name -default nothing\n    return $neverPassed\n}\n";
+     std::fs::write(&control, control_text).expect("write control.tcl");
+-    let control_uri = format!("file://{}", control.to_string_lossy());
++    let control_uri = tcl_lsp_server::canonical_file_uri(&control)
++        .expect("control fixture has a representable file URI")
++        .to_string();
+     let control_diags = lsp.open_ready(&control_uri, control_text);
+     let hits = with_code(&control_diags, "W210");
+     assert_eq!(
+diff --git a/rust/tcl-lsp-server/tests/e2e/document_symbols.rs b/rust/tcl-lsp-server/tests/e2e/document_symbols.rs
+index ff59facc8..99add3c82 100644
+--- a/rust/tcl-lsp-server/tests/e2e/document_symbols.rs
++++ b/rust/tcl-lsp-server/tests/e2e/document_symbols.rs
+@@ -706,7 +706,9 @@ fn workspace_symbol_finds_a_just_opened_documents_proc() {
+     std::fs::write(&path, src).expect("write fixture");
+ 
+     let mut lsp = Lsp::at_workspace_root(&root);
+-    let uri = format!("file://{}", path.to_string_lossy());
++    let uri = tcl_lsp_server::canonical_file_uri(&path)
++        .expect("document fixture has a representable file URI")
++        .to_string();
+     // `open_document`, not `open_ready`: do not wait for the publish that
+     // re-adds the index entry.
+     lsp.open_document(&uri, src);
+diff --git a/rust/tcl-lsp-server/tests/e2e/issue1137_call_site_resolution.rs b/rust/tcl-lsp-server/tests/e2e/issue1137_call_site_resolution.rs
+index ebde489c1..cbb98d237 100644
+--- a/rust/tcl-lsp-server/tests/e2e/issue1137_call_site_resolution.rs
++++ b/rust/tcl-lsp-server/tests/e2e/issue1137_call_site_resolution.rs
+@@ -194,7 +194,9 @@ fn a_bare_helper_call_in_a_method_body_resolves_across_files() {
+     .expect("write esnap.tcl");
+ 
+     let mut lsp = Lsp::at_workspace_root(&root);
+-    let uri = format!("file://{}", esnap.to_string_lossy());
++    let uri = tcl_lsp_server::canonical_file_uri(&esnap)
++        .expect("source fixture has a representable file URI")
++        .to_string();
+     lsp.open_ready(&uri, &std::fs::read_to_string(&esnap).expect("read"));
+     // `utils.tcl` is written straight to disk and never opened, so the
+     // cross-file target is only known once the background workspace scan has
+@@ -216,7 +218,10 @@ fn a_bare_helper_call_in_a_method_body_resolves_across_files() {
+     // the helper's own declaration must reach the method-body call site in
+     // the other file. The two providers have to agree — a definition that
+     // resolves while references does not is a real inconsistency.
+-    let utils_uri = format!("file://{}", root.join("utils.tcl").to_string_lossy());
++    let utils_path = root.join("utils.tcl");
++    let utils_uri = tcl_lsp_server::canonical_file_uri(&utils_path)
++        .expect("helper fixture has a representable file URI")
++        .to_string();
+     lsp.open_ready(
+         &utils_uri,
+         &std::fs::read_to_string(root.join("utils.tcl")).expect("read utils"),
+diff --git a/rust/tcl-lsp-server/tests/e2e/issue1296_metaclass_chain.rs b/rust/tcl-lsp-server/tests/e2e/issue1296_metaclass_chain.rs
+index 227edf3a2..e5da8759e 100644
+--- a/rust/tcl-lsp-server/tests/e2e/issue1296_metaclass_chain.rs
++++ b/rust/tcl-lsp-server/tests/e2e/issue1296_metaclass_chain.rs
+@@ -391,7 +391,9 @@ fn unopened_factory_documents_feed_an_open_consumer() {
+     std::fs::write(&call, call_src).expect("write consumer");
+ 
+     let mut lsp = Lsp::at_workspace_root(&root);
+-    let call_uri = format!("file://{}", call.to_string_lossy());
++    let call_uri = tcl_lsp_server::canonical_file_uri(&call)
++        .expect("consumer fixture has a representable file URI")
++        .to_string();
+     lsp.open_ready(&call_uri, call_src);
+     let found = definition_settled(&mut lsp, &call_uri, 1, 10);
+     assert_eq!(found.len(), 1, "{found:?}");
+diff --git a/rust/tcl-lsp-server/tests/e2e/issue1556_diagnostics_exclude.rs b/rust/tcl-lsp-server/tests/e2e/issue1556_diagnostics_exclude.rs
+index 15c811364..aa1ef2e4d 100644
+--- a/rust/tcl-lsp-server/tests/e2e/issue1556_diagnostics_exclude.rs
++++ b/rust/tcl-lsp-server/tests/e2e/issue1556_diagnostics_exclude.rs
+@@ -78,7 +78,9 @@ fn project_ini_exclude_live_reloads() {
+     let doc_path = root.join("docs").join("gen.tcl");
+     std::fs::write(&doc_path, WARNY_SRC).expect("write fixture");
+     let mut lsp = Lsp::at_workspace_root(&root);
+-    let uri = format!("file://{}", doc_path.to_string_lossy());
++    let uri = tcl_lsp_server::canonical_file_uri(&doc_path)
++        .expect("document fixture has a representable file URI")
++        .to_string();
+ 
+     // Baseline: no project config yet, the document diagnoses normally.
+     assert!(
+@@ -87,7 +89,9 @@ fn project_ini_exclude_live_reloads() {
+     );
+ 
+     let ini_path = root.join(".tcl-lsp.ini");
+-    let ini_uri = format!("file://{}", ini_path.to_string_lossy());
++    let ini_uri = tcl_lsp_server::canonical_file_uri(&ini_path)
++        .expect("project config fixture has a representable file URI")
++        .to_string();
+     let since = lsp.notification_cursor();
+     std::fs::write(&ini_path, "[diagnostics]\nexclude =\n    docs/**\n").expect("write ini");
+     lsp.notify(
+diff --git a/rust/tcl-lsp-server/tests/e2e/issue1707_ilx_methods.rs b/rust/tcl-lsp-server/tests/e2e/issue1707_ilx_methods.rs
+index 89fcdf792..fdd574ff7 100644
+--- a/rust/tcl-lsp-server/tests/e2e/issue1707_ilx_methods.rs
++++ b/rust/tcl-lsp-server/tests/e2e/issue1707_ilx_methods.rs
+@@ -119,7 +119,9 @@ impl Drop for Fixture {
+ }
+ 
+ fn uri_of(path: &Path) -> String {
+-    format!("file://{}", path.to_string_lossy())
++    tcl_lsp_server::canonical_file_uri(path)
++        .expect("fixture path has a representable file URI")
++        .to_string()
+ }
+ 
+ /// The `(line, character)` start of the first location in a result.
+diff --git a/rust/tcl-lsp-server/tests/e2e/issue2021_exit_watchdog.rs b/rust/tcl-lsp-server/tests/e2e/issue2021_exit_watchdog.rs
+index b466b6c0c..f581b08a6 100644
+--- a/rust/tcl-lsp-server/tests/e2e/issue2021_exit_watchdog.rs
++++ b/rust/tcl-lsp-server/tests/e2e/issue2021_exit_watchdog.rs
+@@ -203,7 +203,9 @@ fn handshake(child: &mut Child, root: &Path) -> (ChildStdin, BufReader<std::proc
+     let mut stdin = child.stdin.take().expect("child stdin");
+     let mut reader = BufReader::new(child.stdout.take().expect("child stdout"));
+ 
+-    let root_uri = format!("file://{}", root.to_string_lossy());
++    let root_uri = tcl_lsp_server::canonical_file_uri(root)
++        .expect("workspace fixture has a representable file URI")
++        .to_string();
+     write_message(
+         &mut stdin,
+         &json!({
+diff --git a/rust/tcl-lsp-server/tests/e2e/issue923_idx80_mathfunc.rs b/rust/tcl-lsp-server/tests/e2e/issue923_idx80_mathfunc.rs
+index 915c063a0..f4ce195a3 100644
+--- a/rust/tcl-lsp-server/tests/e2e/issue923_idx80_mathfunc.rs
++++ b/rust/tcl-lsp-server/tests/e2e/issue923_idx80_mathfunc.rs
+@@ -220,7 +220,9 @@ fn workspace_scan_clears_w123_for_a_cross_file_mathfunc() {
+     std::fs::write(&vector_path, VECTOR).expect("write vector.tcl");
+ 
+     let mut lsp = Lsp::at_workspace_root(&root);
+-    let vector = format!("file://{}", vector_path.to_string_lossy());
++    let vector = tcl_lsp_server::canonical_file_uri(&vector_path)
++        .expect("vector fixture has a representable file URI")
++        .to_string();
+     lsp.open_ready(&vector, VECTOR);
+     // The genuine unknown is present both before and after the startup scan,
+     // so it is not a scan-completion barrier by itself. Wait for that control
+diff --git a/rust/tcl-registry/src/definer.rs b/rust/tcl-registry/src/definer.rs
+index 2bf3703d1..c4dc3fc68 100644
+--- a/rust/tcl-registry/src/definer.rs
++++ b/rust/tcl-registry/src/definer.rs
+@@ -3405,6 +3405,19 @@ impl DefinitionBodyGrammar {
+         args: crate::InvocationArguments<'_>,
+         dialect: Option<SurfaceQuery<'_>>,
+     ) -> Option<(MemberRefKind, Vec<usize>)> {
++        self.checked_source_member_ref_indices_in(keyword, args, dialect)?
++    }
++
++    /// Complete selected source reference-role inventory. The outer `None`
++    /// retains unavailable argv/selector grammar; `Some(None)` is a selected
++    /// member with no reference role. Neither result selects a live worker.
++    #[must_use]
++    pub fn checked_source_member_ref_indices_in(
++        &self,
++        keyword: &[u8],
++        args: crate::InvocationArguments<'_>,
++        dialect: Option<SurfaceQuery<'_>>,
++    ) -> Option<Option<(MemberRefKind, Vec<usize>)>> {
+         // naming.core.original-member-reference-hazard
+         // docs/design/analysis/name-resolution-proofs/core-original-member-reference-hazard.md
+         let count = args.exact_argv_len()?;
+@@ -3438,14 +3451,23 @@ impl DefinitionBodyGrammar {
+                 } else {
+                     0
+                 };
+-                Some((member.all_args_ref?, (start..count).collect()))
++                Some(
++                    member
++                        .all_args_ref
++                        .map(|kind| (kind, (start..count).collect())),
++                )
+             }
+             MemberKind::Wrapper => {
+-                let (kind, indices) =
+-                    self.source_member_ref_indices_in(value(0)?, args.slice_from(1), dialect)?;
+-                Some((kind, indices.into_iter().map(|index| index + 1).collect()))
++                let selected = self.checked_source_member_ref_indices_in(
++                    value(0)?,
++                    args.slice_from(1),
++                    dialect,
++                )?;
++                Some(selected.map(|(kind, indices)| {
++                    (kind, indices.into_iter().map(|index| index + 1).collect())
++                }))
+             }
+-            MemberKind::FlagKeyed => None,
++            MemberKind::FlagKeyed => Some(None),
+         }
+     }
+ 

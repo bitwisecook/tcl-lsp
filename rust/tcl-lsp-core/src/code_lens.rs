@@ -685,12 +685,12 @@ mod tests {
     fn lens_per_class() {
         let src = "oo::class create Greeter {}\noo::class create Helper {}\n";
         let analysis = analyse(src);
-        // Skip if the analyser doesn't track classes for this
-        // tcl version / shape — the assertion below should still
-        // succeed when the analyser does record them.
-        if analysis.all_classes.is_empty() {
-            return;
-        }
+        // This is a positive class-source control: missing class inventory
+        // must fail rather than silently skip the lens assertions.
+        assert!(
+            !analysis.all_classes.is_empty(),
+            "positive class lens fixture must produce class metadata"
+        );
         let lenses = code_lenses(
             src,
             tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
@@ -716,9 +716,10 @@ mod tests {
             "MyClass create instance\n",
         );
         let analysis = analyse(src);
-        if analysis.all_classes.is_empty() {
-            return;
-        }
+        assert!(
+            !analysis.all_classes.is_empty(),
+            "positive class lens fixture must produce class metadata"
+        );
         let lenses = code_lenses(
             src,
             tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
@@ -747,9 +748,10 @@ mod tests {
         // object's method).  `greet` is dispatched twice from `twice`.
         let src = "oo::class create C {\n    method greet {} {}\n    method twice {} { my greet ; my greet }\n}\n";
         let analysis = analyse(src);
-        if analysis.all_classes.is_empty() {
-            return;
-        }
+        assert!(
+            !analysis.all_classes.is_empty(),
+            "positive class lens fixture must produce class metadata"
+        );
         let lenses = code_lenses(
             src,
             tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
@@ -774,9 +776,10 @@ mod tests {
         // head-token heuristic wrongly counted these.
         let src = "oo::class create C {\n    method greet {} {}\n    method other {} { greet ; greet }\n}\n";
         let analysis = analyse(src);
-        if analysis.all_classes.is_empty() {
-            return;
-        }
+        assert!(
+            !analysis.all_classes.is_empty(),
+            "positive class lens fixture must produce class metadata"
+        );
         let lenses = code_lenses(
             src,
             tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
@@ -795,9 +798,10 @@ mod tests {
     fn lens_reports_zero_for_uncalled_method() {
         let src = "oo::class create C {\n    method orphan {} {}\n}\n";
         let analysis = analyse(src);
-        if analysis.all_classes.is_empty() {
-            return;
-        }
+        assert!(
+            !analysis.all_classes.is_empty(),
+            "positive class lens fixture must produce class metadata"
+        );
         let lenses = code_lenses(
             src,
             tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
@@ -914,9 +918,10 @@ mod tests {
         // twice-dispatched method would (`lens_counts_method_calls_within_class_body`).
         let src = "oo::class create Widget {\n    property size -get {return $mySize} -set {set mySize $value}\n    method bump {} { my size ; my size }\n}\n";
         let analysis = analyse90(src);
-        if analysis.all_classes.is_empty() {
-            return;
-        }
+        assert!(
+            !analysis.all_classes.is_empty(),
+            "positive class lens fixture must produce class metadata"
+        );
         let lenses = code_lenses(
             src,
             tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
@@ -935,9 +940,10 @@ mod tests {
     fn lens_reports_zero_for_unused_property() {
         let src = "oo::class create Widget {\n    property size\n}\n";
         let analysis = analyse90(src);
-        if analysis.all_classes.is_empty() {
-            return;
-        }
+        assert!(
+            !analysis.all_classes.is_empty(),
+            "positive class lens fixture must produce class metadata"
+        );
         let lenses = code_lenses(
             src,
             tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
@@ -1411,9 +1417,10 @@ mod tests {
             "puts [$b bark]\n",
         );
         let analysis = analyse(src);
-        if analysis.all_classes.is_empty() {
-            return;
-        }
+        assert!(
+            !analysis.all_classes.is_empty(),
+            "positive class lens fixture must produce class metadata"
+        );
         let lenses = code_lenses(
             src,
             tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
@@ -1440,9 +1447,10 @@ mod tests {
             "rex bark\n",
         );
         let analysis = analyse(src);
-        if analysis.all_classes.is_empty() {
-            return;
-        }
+        assert!(
+            !analysis.all_classes.is_empty(),
+            "positive class lens fixture must produce class metadata"
+        );
         let lenses = code_lenses(
             src,
             tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
@@ -1473,9 +1481,10 @@ mod tests {
             "$d speak\n",
         );
         let analysis = analyse(src);
-        if analysis.all_classes.is_empty() {
-            return;
-        }
+        assert!(
+            !analysis.all_classes.is_empty(),
+            "positive class lens fixture must produce class metadata"
+        );
         let lenses = code_lenses(
             src,
             tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
@@ -1509,9 +1518,10 @@ mod tests {
             "$d speak\n",
         );
         let analysis = analyse(src);
-        if analysis.all_classes.is_empty() {
-            return;
-        }
+        assert!(
+            !analysis.all_classes.is_empty(),
+            "positive class lens fixture must produce class metadata"
+        );
         let lenses = code_lenses(
             src,
             tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
@@ -1542,9 +1552,10 @@ mod tests {
             "$w render\n",
         );
         let analysis = analyse(src);
-        if analysis.all_classes.is_empty() {
-            return;
-        }
+        assert!(
+            !analysis.all_classes.is_empty(),
+            "positive class lens fixture must produce class metadata"
+        );
         let lenses = code_lenses(
             src,
             tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
@@ -1576,9 +1587,10 @@ mod tests {
             "}\n",
         );
         let analysis = analyse(src);
-        if analysis.all_classes.is_empty() {
-            return;
-        }
+        assert!(
+            !analysis.all_classes.is_empty(),
+            "positive class lens fixture must produce class metadata"
+        );
         let lenses = code_lenses(
             src,
             tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
@@ -1604,9 +1616,10 @@ mod tests {
             "$x bark\n",
         );
         let analysis = analyse(src);
-        if analysis.all_classes.is_empty() {
-            return;
-        }
+        assert!(
+            !analysis.all_classes.is_empty(),
+            "positive class lens fixture must produce class metadata"
+        );
         let lenses = code_lenses(
             src,
             tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
@@ -1661,9 +1674,10 @@ mod tests {
     #[test]
     fn lens_qname_exists_finds_a_plain_class() {
         let analysis = analyse("oo::class create Widget {}\n");
-        if analysis.all_classes.is_empty() {
-            return;
-        }
+        assert!(
+            !analysis.all_classes.is_empty(),
+            "positive class lens fixture must produce class metadata"
+        );
         assert!(lens_qname_exists(&analysis, "::Widget"));
         assert!(!lens_qname_exists(&analysis, "::Other"));
     }

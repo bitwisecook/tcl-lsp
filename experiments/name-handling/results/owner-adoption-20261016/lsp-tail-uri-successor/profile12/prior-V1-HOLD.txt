@@ -1,0 +1,28 @@
+HOLD — test-current-input V1 source review
+Exact patch SHA256: e3c6d6cf2f30c65bb734a56cea71e9875312fc32c2b96e2299b7ac101f05492b
+
+P1: An older-analysis replacement hit the wrong test. switch_completion_gates_options_by_package_version now calls analyse_for(older,"tcl8.4") although this leg is the Tk8.6 / Tcl8.6 case and its supplied profile remains tcl8.6. The original same-target8.6 setup was valid; changing to8.4 can satisfy the negative assertion for the wrong target. In the intended command_completion_gates_commands_by_package_version first leg, a1=analyse(older) remains unchanged and actually prepares8.6 despite the expected8.4 host. Correct the actual retained analyses for both legs, retaining original fixtures/assertions/availability outcomes.
+
+Actual APIs are stronger than compatibility parameters: completions names them _registry/_dialect and exclusively reborrows CurrentSourceContext's real retained Registry/profile. hover_with_profile forwards to hover_in_program whose _registry/_profile are likewise ignored for real context. Therefore standalone build_default registries still present in the fixtures neither need to match nor donate source validity; changing compatibility arguments cannot repair an incorrect analysis. V2 must prepare the intended actual environment, not merely align labels. Existing prepare_analysis_input + with_resolved_input supplies a genuine complete source context and does not fabricate Native/Logical authority. No production guard change is involved.
+
+The diff otherwise changes only test helpers and matrix setup (including the event completion compatibility label corrected to its actual F5 source environment), retaining original test source/assertions/outcomes. Exact twelve existing baseline IDs22.00fn0..9 and22.01fn0/fn1 are pending in baseline and remain validation repairs, with no new helper/owner count. These exact changes are not already in current main: both full live beforeimages still match the candidate beforeimages and no analyse_for helper exists there. Adjacent earlier setup repairs are not counted again.
+
+Separate fluent-uri net feature is source CLEAR in fluent-uri-net-independent-review.txt. No tests, Cargo, main or Git action by reviewer.
+
+{
+  "patch_digest_matches": true,
+  "before_edit_live_checks": [
+    [
+      "rust/tcl-lsp-core/src/completion.rs",
+      true,
+      false,
+      true
+    ],
+    [
+      "rust/tcl-lsp-core/src/hover.rs",
+      true,
+      true,
+      false
+    ]
+  ]
+}

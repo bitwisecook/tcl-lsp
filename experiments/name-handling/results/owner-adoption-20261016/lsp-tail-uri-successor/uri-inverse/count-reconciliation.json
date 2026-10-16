@@ -1,0 +1,59 @@
+{
+  "recommendation": "one genuinely new shared checked native document/workspace URI-to-Path requirement; zero newly counted callers and zero completed units",
+  "proposed_additional_owner": {
+    "id": "lsp.uri.checked-native-document-path-owner",
+    "kind": "shared_owner_extension",
+    "site_anchors": [
+      {
+        "path": "rust/tcl-lsp-core/src/file_uri.rs",
+        "symbol": "to_path; FileUriPathPurpose; FileUriPathUnavailable"
+      },
+      {
+        "path": "rust/tcl-lsp-server/src/uri_norm.rs",
+        "symbol": "document_file_path (thin actualUri product-purpose selector)"
+      }
+    ],
+    "boundary": "The same single missing checked native document/workspace URI inverse purpose, now implemented in existing Core file_uri owner with thin Server purpose selection. No second count for relocation.",
+    "implementation": {
+      "status": "TMP_candidate_not_integrated_or_executed",
+      "verified_complete": false
+    }
+  },
+  "existing_baseline_consumer": {
+    "id": "lsp-server-path-uri-repair-policy",
+    "original_work_kind": "consumer_integration",
+    "role": "Explicitly identifies Unix authority-dropping inverse risk while requiring production constructor owner migration. Its existing counted consumer stays partial/open; this is not an existing enumerated shared inverse issuer."
+  },
+  "distinct_existing_requirements": [
+    {
+      "id": "lsp-browser-vfs-uri-path",
+      "role": "Explicit unresolved virtual-file registration purpose. Its required_change states native file-action Path::is_absolute cannot substitute blindly on wasm32-unknown-unknown; this candidate refuses that host target and does not close that requirement."
+    },
+    {
+      "id": "lsp-core-memory-uri-alias-transport",
+      "role": "Exact registered host URI alias-to-Path association and actual read correspondence; it is not a URI protocol decoder and must remain independent."
+    }
+  ],
+  "existing_owner_noncoverage": [
+    {
+      "api": "Core file_uri::from_path",
+      "reason": "Shared producer expressly states it does not parse incoming URIs. Existing checked Path-to-URI axis does not implement the new reverse protocol purpose."
+    },
+    {
+      "api": "uri_norm::file_action_path",
+      "reason": "Strict host action subset refuses nonlocal authority. Widening it would cross an independent action purpose; implementation/assertions remain byte-identical."
+    },
+    {
+      "api": "ls-types0.0.6 Uri::to_file_path",
+      "reason": "Installed implementation lossily decodes path, ignores Unix authority and constructs wrong Windows authority roots; not a faithful checked inverse owner."
+    },
+    {
+      "api": "fluent-uri0.4.1",
+      "reason": "Actual parser/typed components/strict decoder reused, but no native host path policy or Document/Workspace issuer exists in it."
+    }
+  ],
+  "annex_search": "Current implementation-owner-annex has no native/document URI inverse requirement. Count one purpose boundary, not one function, enum, file, helper, dependency, platform arm or adopter.",
+  "caller_reconciliation": "No production inverse callers changed; their exact roster and existing/new baseline IDs need separate audit before migration counting. Do not duplicate the already-counted producer or browser/MemoryStore units.",
+  "acceptance": "Requirement recommendation only. Candidate is unintegrated, uncompiled and unexecuted; no accepted provider/Native/source/edit authority claimed.",
+  "architecture": "V1 generic algorithm source-clear but placement held. V2 moves byte-identical typed component conversion into existing Core owner; only direct Core dependency/lock edge. No Server URI decoder or second resolver."
+}

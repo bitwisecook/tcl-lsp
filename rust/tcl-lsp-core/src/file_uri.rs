@@ -16,8 +16,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! File URI source construction from the host's original filesystem paths.
+//! File URI construction and checked native document/workspace path conversion.
 
+use std::borrow::Cow;
 use std::fmt::Write as _;
 use std::path::Path;
 
@@ -121,6 +122,142 @@ pub(crate) fn escaped_path(path: &str, escaping: FileUriEscaping) -> String {
     out
 }
 
+/// A file document URI cannot be represented under the selected host policy.
+/// Refusal is not evidence that a file, workspace or source provider is absent.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FileUriPathUnavailable {
+    UnsupportedHost,
+    InvalidUri,
+    NotFile,
+    QueryOrFragment,
+    UnsupportedAuthority,
+    InvalidUnicode,
+    Nul,
+    EncodedSeparator,
+    UnsupportedNativeGeometry,
+}
+
+/// Select the explicit incoming file-URI purpose before native path admission.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FileUriPathPurpose {
+    /// LSP document/workspace interoperability with VS Code's authority spelling.
+    /// This supplies neither a host file-action policy nor a browser virtual path.
+    VsCodeDocument,
+}
+
+/// Parse an original document/workspace URI and retain its counted native path.
+///
+/// Under [`FileUriPathPurpose::VsCodeDocument`], POSIX `file://host/share`
+/// retains `//host/share`, including a literal `localhost` authority. Windows
+/// alone constructs drive or UNC paths. The actual URI parser strictly decodes
+/// complete authority/path data; invalid Unicode, NUL, encoded native separators
+/// and unsupported native namespace geometries refuse.
+///
+/// The input is the original protocol URI, not a displayed path or name report.
+/// No filesystem canonicalisation, existence, source freshness, file identity,
+/// load or edit authority follows. Browser virtual paths and host file actions
+/// retain their separate boundaries. Refusal never proves a file/provider absent.
+pub fn to_path(
+    original_uri: &str,
+    purpose: FileUriPathPurpose,
+) -> Result<std::path::PathBuf, FileUriPathUnavailable> {
+    if !cfg!(any(unix, windows)) {
+        return Err(FileUriPathUnavailable::UnsupportedHost);
+    }
+    let uri =
+        fluent_uri::Uri::parse(original_uri).map_err(|_| FileUriPathUnavailable::InvalidUri)?;
+    let spelling = match purpose {
+        FileUriPathPurpose::VsCodeDocument => document_file_path_spelling(&uri, cfg!(windows))?,
+    };
+    let path = std::path::PathBuf::from(spelling);
+    if !path.is_absolute() {
+        return Err(FileUriPathUnavailable::UnsupportedNativeGeometry);
+    }
+    Ok(path)
+}
+
+// Pure platform spelling recipe. Only to_path selects the actual
+// host and admits a native Path; foreign-platform tests grant no host access.
+fn document_file_path_spelling(
+    uri: &fluent_uri::Uri<&str>,
+    windows: bool,
+) -> Result<String, FileUriPathUnavailable> {
+    use FileUriPathUnavailable as Unavailable;
+    if !uri.scheme().as_str().eq_ignore_ascii_case("file") {
+        return Err(Unavailable::NotFile);
+    }
+    if uri.query().is_some() || uri.fragment().is_some() {
+        return Err(Unavailable::QueryOrFragment);
+    }
+    let authority = match uri.authority() {
+        None => Cow::Borrowed(""),
+        Some(authority) => {
+            if authority.userinfo().is_some() || authority.port().is_some() {
+                return Err(Unavailable::UnsupportedAuthority);
+            }
+            match authority.host_parsed() {
+                fluent_uri::component::Host::RegName(name) => name
+                    .decode()
+                    .to_string()
+                    .map_err(|_| Unavailable::InvalidUnicode)?,
+                fluent_uri::component::Host::Ipv4(..) => Cow::Borrowed(authority.host()),
+                _ => return Err(Unavailable::UnsupportedAuthority),
+            }
+        }
+    };
+    if authority.contains('\0') {
+        return Err(Unavailable::Nul);
+    }
+    if authority.contains('/')
+        || windows
+            && (authority.contains(['\\', ':']) || matches!(authority.as_ref(), "." | ".." | "?"))
+    {
+        return Err(Unavailable::UnsupportedAuthority);
+    }
+    let segments = uri
+        .path()
+        .segments_if_absolute()
+        .ok_or(Unavailable::UnsupportedNativeGeometry)?;
+    for segment in segments {
+        let decoded = segment
+            .decode()
+            .to_string()
+            .map_err(|_| Unavailable::InvalidUnicode)?;
+        if decoded.contains('\0') {
+            return Err(Unavailable::Nul);
+        }
+        if decoded.contains('/') || windows && decoded.contains('\\') {
+            return Err(Unavailable::EncodedSeparator);
+        }
+    }
+    let path = uri
+        .path()
+        .decode()
+        .to_string()
+        .map_err(|_| Unavailable::InvalidUnicode)?;
+    if !authority.is_empty() {
+        let mut spelling = String::from(if windows { "\\\\" } else { "//" });
+        spelling.push_str(&authority);
+        if windows {
+            spelling.push_str(&path.replace('/', "\\"));
+        } else {
+            spelling.push_str(&path);
+        }
+        return Ok(spelling);
+    }
+    if windows {
+        let local = path
+            .strip_prefix('/')
+            .filter(|local| {
+                matches!(local.as_bytes(), [drive, b':', b'/', ..] if drive.is_ascii_alphabetic())
+            })
+            .ok_or(Unavailable::UnsupportedNativeGeometry)?;
+        Ok(local.replace('/', "\\"))
+    } else {
+        Ok(path.into_owned())
+    }
+}
+
 #[cfg(test)]
 pub(crate) fn standalone_windows_path(path: &str, escaping: FileUriEscaping) -> Option<String> {
     from_rooted_spelling(path, true, escaping)
@@ -202,5 +339,167 @@ mod tests {
             std::path::PathBuf::from(std::ffi::OsString::from_vec(b"/work/\xff.tcl".to_vec()));
         assert!(from_path(&path, FileUriEscaping::PathCharacters).is_none());
         assert!(from_path(&path, FileUriEscaping::Unreserved).is_none());
+    }
+}
+
+#[cfg(test)]
+mod inverse_tests {
+    use super::*;
+    use fluent_uri::Uri;
+
+    #[cfg(unix)]
+    #[test]
+    fn actual_posix_document_paths_keep_the_whole_authority_and_counted_path() {
+        for (raw, expected) in [
+            ("file://srv/share/a.tcl", "//srv/share/a.tcl"),
+            ("file://localhost/share/a.tcl", "//localhost/share/a.tcl"),
+            ("file://Srv/share//tail/", "//Srv/share//tail/"),
+            (
+                "file://m%C3%BCnchen/share/%CE%BB.tcl",
+                "//münchen/share/λ.tcl",
+            ),
+            ("file://ho%40st/share/a.tcl", "//ho@st/share/a.tcl"),
+            ("file://127.0.0.1/share/a.tcl", "//127.0.0.1/share/a.tcl"),
+            ("file://%3F/foo.tcl", "//?/foo.tcl"),
+            ("file:////srv/share/a.tcl", "//srv/share/a.tcl"),
+            ("file://///srv/share/a.tcl", "///srv/share/a.tcl"),
+            (
+                "file:///tmp/literal%252F%5C%EF%BF%BD.tcl",
+                "/tmp/literal%2F\\�.tcl",
+            ),
+            ("file:///C%3A/data.tcl", "/C:/data.tcl"),
+            ("file:///", "/"),
+        ] {
+            let path = to_path(raw, FileUriPathPurpose::VsCodeDocument).unwrap();
+            // Path equality may hide duplicate separators; preserve the actual
+            // native spelling as data, with no component normalisation.
+            assert_eq!(path.to_str(), Some(expected), "{raw}");
+            assert!(path.is_absolute(), "{raw}");
+        }
+    }
+
+    #[test]
+    fn unsupported_document_uri_data_is_a_typed_refusal() {
+        use FileUriPathUnavailable as Unavailable;
+        for (raw, expected) in [
+            ("untitled:buffer", Unavailable::NotFile),
+            ("https://srv/share/a.tcl", Unavailable::NotFile),
+            ("file:///tmp/a.tcl?query", Unavailable::QueryOrFragment),
+            ("file:///tmp/a.tcl#fragment", Unavailable::QueryOrFragment),
+            (
+                "file://user@srv/share/a.tcl",
+                Unavailable::UnsupportedAuthority,
+            ),
+            (
+                "file://srv:80/share/a.tcl",
+                Unavailable::UnsupportedAuthority,
+            ),
+            (
+                "file://[::1]/share/a.tcl",
+                Unavailable::UnsupportedAuthority,
+            ),
+            (
+                "file://srv%2Fother/share/a.tcl",
+                Unavailable::UnsupportedAuthority,
+            ),
+            ("file://%FF/share/a.tcl", Unavailable::InvalidUnicode),
+            ("file:///tmp/%FF.tcl", Unavailable::InvalidUnicode),
+            ("file://srv%00/share/a.tcl", Unavailable::Nul),
+            ("file:///tmp/%00.tcl", Unavailable::Nul),
+            ("file:///tmp/a%2Fb.tcl", Unavailable::EncodedSeparator),
+            ("file:relative.tcl", Unavailable::UnsupportedNativeGeometry),
+            ("file://srv", Unavailable::UnsupportedNativeGeometry),
+        ] {
+            let uri = Uri::parse(raw).unwrap();
+            assert_eq!(
+                document_file_path_spelling(&uri, false),
+                Err(expected),
+                "{raw}"
+            );
+            #[cfg(any(unix, windows))]
+            assert_eq!(
+                to_path(raw, FileUriPathPurpose::VsCodeDocument),
+                Err(expected),
+                "{raw}"
+            );
+        }
+    }
+
+    #[test]
+    fn windows_document_recipe_keeps_drive_case_unc_and_whole_path() {
+        for (raw, expected) in [
+            (
+                "file:///C%3A/Users/Me/a%20%CE%BB.tcl",
+                r"C:\Users\Me\a λ.tcl",
+            ),
+            ("file:///c:/Users/Me/a.tcl", r"c:\Users\Me\a.tcl"),
+            ("file://Srv/share//tail/", "\\\\Srv\\share\\\\tail\\"),
+            ("file://ho%40st/share/a.tcl", r"\\ho@st\share\a.tcl"),
+        ] {
+            let uri = Uri::parse(raw).unwrap();
+            assert_eq!(
+                document_file_path_spelling(&uri, true).as_deref(),
+                Ok(expected),
+                "{raw}"
+            );
+        }
+        use FileUriPathUnavailable as Unavailable;
+        for (raw, expected) in [
+            ("file:///tmp/a.tcl", Unavailable::UnsupportedNativeGeometry),
+            (
+                "file://///%3F/Volume%7B1234%7D/a.tcl",
+                Unavailable::UnsupportedNativeGeometry,
+            ),
+            (
+                "file://%3F/Volume%7B1234%7D/a.tcl",
+                Unavailable::UnsupportedAuthority,
+            ),
+            ("file://./pipe/a", Unavailable::UnsupportedAuthority),
+            (
+                "file://srv%5Cother/share/a.tcl",
+                Unavailable::UnsupportedAuthority,
+            ),
+            ("file:///C:/a%5Cb.tcl", Unavailable::EncodedSeparator),
+        ] {
+            let uri = Uri::parse(raw).unwrap();
+            assert_eq!(
+                document_file_path_spelling(&uri, true),
+                Err(expected),
+                "{raw}"
+            );
+        }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn actual_windows_document_paths_have_native_drive_or_unc_roots() {
+        for (raw, expected) in [
+            ("file:///C%3A/Users/Me/a.tcl", r"C:\Users\Me\a.tcl"),
+            ("file://Srv/share/a.tcl", r"\\Srv\share\a.tcl"),
+        ] {
+            let path = to_path(raw, FileUriPathPurpose::VsCodeDocument).unwrap();
+            assert!(path.is_absolute());
+            assert_eq!(path.to_str(), Some(expected));
+        }
+    }
+}
+
+#[cfg(all(test, any(unix, windows)))]
+mod inverse_parser_tests {
+    use super::*;
+
+    #[test]
+    fn malformed_original_uris_do_not_reach_native_path_construction() {
+        for original in [
+            "not a URI",
+            "file:///tmp/raw space.tcl",
+            "file:///tmp/%GG.tcl",
+        ] {
+            assert_eq!(
+                to_path(original, FileUriPathPurpose::VsCodeDocument),
+                Err(FileUriPathUnavailable::InvalidUri),
+                "{original}"
+            );
+        }
     }
 }

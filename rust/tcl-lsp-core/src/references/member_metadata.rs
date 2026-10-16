@@ -25,10 +25,33 @@ pub(super) fn spans(
     class: &ClassDef,
     method: &str,
 ) -> Vec<Span> {
+    inventory(source, analysis, dialect, class, method)
+        .map(|(spans, _)| spans)
+        .unwrap_or_default()
+}
+
+pub(super) fn checked_spans(
+    source: &str,
+    analysis: &AnalysisResult,
+    dialect: &'static tcl_dialect::DialectProfile,
+    class: &ClassDef,
+    method: &str,
+) -> Option<Vec<Span>> {
+    let (spans, complete) = inventory(source, analysis, dialect, class, method)?;
+    complete.then_some(spans)
+}
+
+fn inventory(
+    source: &str,
+    analysis: &AnalysisResult,
+    dialect: &'static tcl_dialect::DialectProfile,
+    class: &ClassDef,
+    method: &str,
+) -> Option<(Vec<Span>, bool)> {
     // naming.core.original-member-reference-hazard
     // docs/design/analysis/name-resolution-proofs/core-original-member-reference-hazard.md
     let Some(input) = analysis.resolved_input.as_ref() else {
-        return Vec::new();
+        return None;
     };
     let config = input.lexer_config();
     if analysis
@@ -40,7 +63,7 @@ pub(super) fn spans(
             .retained_command_realm()
             .is_none_or(|realm| !realm.matches_resolved_analysis_input(input))
     {
-        return Vec::new();
+        return None;
     }
     let scan = MemberReferenceScan {
         source,
@@ -49,7 +72,7 @@ pub(super) fn spans(
         method,
         context: input.context_registry(),
     };
-    scan.collect(config)
+    Some(scan.collect(config))
 }
 
 impl MemberReferenceScan<'_> {
@@ -66,25 +89,27 @@ impl MemberReferenceScan<'_> {
         }
     }
 
-    fn names_class(&self, offset: u32) -> bool {
+    fn names_class(&self, offset: u32) -> Option<bool> {
         if let Some(class) =
             source_structure::source_class_declaration_at(self.source, self.analysis, offset)
         {
-            return self.class_matches(&class);
+            return Some(self.class_matches(&class));
         }
         source_structure::source_configured_class_at(self.source, self.analysis, offset)
-            .is_some_and(|target| self.class_matches(target.class_declaration()))
+            .map(|target| self.class_matches(target.class_declaration()))
     }
 
-    fn collect(&self, config: LexerConfig) -> Vec<Span> {
+    fn collect(&self, config: LexerConfig) -> (Vec<Span>, bool) {
         let Some(structure) = crate::source_structure::SourceStructure::capture(
             self.source,
             Some(self.analysis),
             config,
         ) else {
-            return Vec::new();
+            return (Vec::new(), false);
         };
         let mut pending = VecDeque::new();
+        let mut complete = true;
+        let mut selected_root = false;
         for command in &structure.commands {
             let Some(head) = command.argv.first() else {
                 continue;
@@ -92,31 +117,50 @@ impl MemberReferenceScan<'_> {
             let Some(words) =
                 source_structure::source_registry_words(self.source, self.analysis, command)
             else {
+                complete = false;
                 continue;
             };
-            if !self.names_class(head.span.start()) {
-                continue;
+            let target = self.names_class(head.span.start());
+            if words
+                .source_script_bodies_for_mutation_coverage(&self.context)
+                .is_none()
+            {
+                complete = false;
             }
             for body in words.source_script_bodies(&self.context) {
                 if let Some(parent) = body.definition_parent_for(&self.context, None) {
-                    pending.push_back((parent, body.content_span(), 0));
+                    match target {
+                        Some(true) => {
+                            selected_root = true;
+                            pending.push_back((parent, body.content_span(), 0));
+                        }
+                        Some(false) => {}
+                        None => complete = false,
+                    }
+                } else if target == Some(true) {
+                    complete = false;
                 }
             }
         }
         let mut visited = BTreeSet::new();
         let mut spans = BTreeSet::new();
         while let Some((parent, region, depth)) = pending.pop_front() {
-            if super::MAX_DISPATCH_SCAN_DEPTH.exceeded(depth)
-                || !visited.insert((region.start(), region.end()))
-            {
+            if super::MAX_DISPATCH_SCAN_DEPTH.exceeded(depth) {
+                complete = false;
                 continue;
             }
-            self.collect_region(&parent, region, depth, &mut pending, &mut spans);
+            if !visited.insert((region.start(), region.end())) {
+                continue;
+            }
+            complete &= self.collect_region(&parent, region, depth, &mut pending, &mut spans);
         }
-        spans
-            .into_iter()
-            .map(|(start, end)| Span::new(start, end))
-            .collect()
+        (
+            spans
+                .into_iter()
+                .map(|(start, end)| Span::new(start, end))
+                .collect(),
+            complete && selected_root,
+        )
     }
 
     fn collect_region(
@@ -126,10 +170,13 @@ impl MemberReferenceScan<'_> {
         depth: u32,
         pending: &mut VecDeque<(OriginalSourceScriptBody, Span, u32)>,
         spans: &mut BTreeSet<(u32, u32)>,
-    ) {
+    ) -> bool {
         let Some(members) = parent.definition_member_region(&self.context, region) else {
-            return;
+            return false;
         };
+        // Preserve partial positive spans below, but only the genuine whole
+        // parent lexical plan can close omitted or malformed source regions.
+        let mut complete = members.complete_original_commands().is_some();
         for command in members.original_commands() {
             for reference in members.references(command).into_iter().flatten() {
                 if reference.kind() == tcl_registry::definer::MemberRefKind::Method
@@ -139,7 +186,15 @@ impl MemberReferenceScan<'_> {
                     spans.insert((span.start(), span.end()));
                 }
             }
+            if members.member_keyword(command).is_some()
+                && members.checked_references(command).is_none()
+            {
+                complete = false;
+            }
             if let Some(scripts) = members.script_bodies(command) {
+                if members.checked_script_bodies(command).is_none() {
+                    complete = false;
+                }
                 for body in scripts {
                     if let Some(parent) = body.definition_parent() {
                         pending.push_back((parent.clone(), body.content_span(), depth + 1));
@@ -149,13 +204,24 @@ impl MemberReferenceScan<'_> {
                 && let Some(words) =
                     source_structure::source_registry_words_at(self.source, self.analysis, offset)
             {
+                if words
+                    .source_script_bodies_for_mutation_coverage(&self.context)
+                    .is_none()
+                {
+                    complete = false;
+                }
                 for body in words.source_script_bodies(&self.context) {
                     if let Some(parent) = body.definition_parent_for(&self.context, Some(parent)) {
                         pending.push_back((parent, body.content_span(), depth + 1));
+                    } else {
+                        complete = false;
                     }
                 }
+            } else {
+                complete = false;
             }
         }
+        complete
     }
 }
 
@@ -197,6 +263,81 @@ mod tests {
             class,
             "m",
         )
+    }
+
+    #[test]
+    fn checked_member_hazards_keep_unknown_coverage_separate_from_partial_spans() {
+        let source = "class-maker create C {method m {} {}; export m; export $computed}";
+        for dialect in ["tcl", "tcl8.6"] {
+            let plain = "class-maker create C {method m {} {}}";
+            let plain_analysis = analyse(plain, dialect);
+            let plain_class = plain_analysis.all_classes.get("::C").unwrap();
+            assert_eq!(
+                checked_spans(
+                    plain,
+                    &plain_analysis,
+                    plain_analysis.resolved_profile().unwrap(),
+                    plain_class,
+                    "m"
+                ),
+                Some(Vec::new())
+            );
+            let analysis = analyse(source, dialect);
+            let class = analysis.all_classes.get("::C").unwrap();
+            let original = member_spans(source, &analysis, class);
+            assert_eq!(original.len(), 1, "{dialect}");
+            assert_eq!(&source[original[0].as_range()], "m");
+            assert!(
+                checked_spans(
+                    source,
+                    &analysis,
+                    analysis.resolved_profile().unwrap(),
+                    class,
+                    "m"
+                )
+                .is_none()
+            );
+            assert!(
+                checked_spans(
+                    &source.replace("export m", "export n"),
+                    &analysis,
+                    analysis.resolved_profile().unwrap(),
+                    class,
+                    "m"
+                )
+                .is_none()
+            );
+        }
+    }
+
+    #[test]
+    fn checked_member_hazards_refuse_fatal_member_tail_without_losing_prefix_spans() {
+        for dialect in ["tcl", "tcl8.6"] {
+            for (source, count) in [
+                (
+                    "class-maker create C {method m {} {}; export m; \"unterminated}",
+                    1,
+                ),
+                ("class-maker create C {\"unterminated}", 0),
+            ] {
+                let analysis = analyse(source, dialect);
+                let class = analysis.all_classes.get("::C").unwrap();
+                let partial = member_spans(source, &analysis, class);
+                assert_eq!(partial.len(), count, "{dialect}: {source}");
+                assert!(partial.iter().all(|span| &source[span.as_range()] == "m"));
+                assert!(
+                    checked_spans(
+                        source,
+                        &analysis,
+                        analysis.resolved_profile().unwrap(),
+                        class,
+                        "m"
+                    )
+                    .is_none(),
+                    "{dialect}: {source}"
+                );
+            }
+        }
     }
 
     #[test]

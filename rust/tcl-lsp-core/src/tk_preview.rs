@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 use tcl_compiler::analyser::{Analyser, AnalysisResult, ResolvedAnalysisInput};
 use tcl_compiler::registry_invocation::segmented_command_arguments;
 use tcl_compiler::segmenter::SegmentedCommand;
-use tcl_lexer::{LexerConfig, Span, TokenType};
+use tcl_lexer::{LexerConfig, NativeWord, Span};
 use tcl_registry::hooks::AnalyserHookId;
 use tcl_registry::hover::OptionSpec;
 use tcl_registry::spec::resolve_option_prefix;
@@ -321,6 +321,49 @@ struct TkAnalysis {
     uncertainties: Vec<TkUiUncertainty>,
 }
 
+/// One visited command and its whole original source words. Lexical values
+/// stay independent of the Registry's conditional command selection.
+struct TkSourceCommand<'a> {
+    command: &'a SegmentedCommand,
+    original_words: Option<Vec<NativeWord>>,
+}
+
+impl<'a> TkSourceCommand<'a> {
+    fn capture(source: &str, analysis: &AnalysisResult, command: &'a SegmentedCommand) -> Self {
+        let original_words = crate::original_context::CurrentSourceContext::capture(
+            source, analysis,
+        )
+        .and_then(|current| {
+            if command.is_partial || !command.word_views_aligned() {
+                return None;
+            }
+            let image = analysis.retained_command_realm()?.original_source_image()?;
+            let tokens = tcl_compiler::ir::CommandTokens::from_segmented(
+                &tcl_lexer::SourceMap::from_image(image),
+                current.config(),
+                command,
+            );
+            tcl_compiler::registry_invocation::original_native_compiler_words(
+                image,
+                tokens.words(),
+                command.argv.first()?.span.start(),
+                tokens.native_lexer_config(current.config()),
+            )
+        });
+        Self {
+            command,
+            original_words,
+        }
+    }
+}
+
+impl std::ops::Deref for TkSourceCommand<'_> {
+    type Target = SegmentedCommand;
+    fn deref(&self) -> &Self::Target {
+        self.command
+    }
+}
+
 /// Analyse `source` into a conservative, static Tk UI model.
 ///
 /// The caller supplies the resolved document `dialect` and its `registry` so
@@ -369,11 +412,12 @@ pub fn analyse_tk_ui_with_analysis(source: &str, retained: &AnalysisResult) -> T
         .map(tcl_dialect::model::Version::as_str);
 
     visit_analysis_executable_commands(source, retained, &mut |command, _, region| {
-        let Some(head) = tk_source_head(source, retained, command) else {
+        let command = TkSourceCommand::capture(source, retained, command);
+        let Some(head) = tk_source_head(source, retained, &command) else {
             return false;
         };
         collect_tk_command(
-            command,
+            &command,
             &head,
             registry,
             Some(context.context().authoring_query()),
@@ -495,7 +539,7 @@ fn finish_tk_analysis(analysis: TkAnalysis) -> TkUiModel {
 }
 
 fn collect_tk_command(
-    command: &SegmentedCommand,
+    command: &TkSourceCommand<'_>,
     resolved_head: &str,
     registry: &CommandRegistry,
     dialect: Option<SurfaceQuery<'_>>,
@@ -600,7 +644,7 @@ fn tk_source_analysis(
 fn tk_source_head(
     source: &str,
     analysis: &AnalysisResult,
-    command: &SegmentedCommand,
+    command: &TkSourceCommand<'_>,
 ) -> Option<String> {
     if let Some(words) = tcl_compiler::registry_invocation::source_structure::source_registry_words(
         source, analysis, command,
@@ -632,30 +676,31 @@ fn source_requires_tk(source: &str, analysis: &AnalysisResult) -> bool {
         if region != ExecutableContext::Direct {
             return false;
         }
+        let command = TkSourceCommand::capture(source, analysis, command);
         let Some(words) =
             tcl_compiler::registry_invocation::source_structure::source_registry_words(
-                source, analysis, command,
+                source, analysis, &command,
             )
         else {
             return false;
         };
-        if tk_source_head(source, analysis, command).is_none()
+        if tk_source_head(source, analysis, &command).is_none()
             || words.with_source_schema(&context, |schema| schema.semantics.analyser_hook)
                 != Some(Some(AnalyserHookId::PackageRequire))
         {
             return false;
         }
-        let exact = literal_word(command, 2).is_some_and(|(word, _)| word == "-exact");
+        let exact = literal_word(&command, 2).is_some_and(|(word, _)| word == "-exact");
         let package_index = if exact { 3 } else { 2 };
-        active = literal_word(command, package_index).is_some_and(|(word, _)| word == "Tk")
-            && tk_requirement_is_satisfied(command, package_index + 1, exact, available_tk);
+        active = literal_word(&command, package_index).is_some_and(|(word, _)| word == "Tk")
+            && tk_requirement_is_satisfied(&command, package_index + 1, exact, available_tk);
         active
     });
     active
 }
 
 fn tk_requirement_is_satisfied(
-    command: &SegmentedCommand,
+    command: &TkSourceCommand<'_>,
     requirement_start: usize,
     exact: bool,
     available_tk: Option<&str>,
@@ -691,7 +736,7 @@ fn tk_requirement_is_satisfied(
 // outputs would obscure which limit or fact each write affects.
 #[allow(clippy::too_many_arguments)]
 fn collect_widget(
-    command: &SegmentedCommand,
+    command: &TkSourceCommand<'_>,
     constructor: &str,
     spec: &CommandSpec,
     dialect: Option<SurfaceQuery<'_>>,
@@ -767,7 +812,7 @@ fn collect_widget(
 
 #[allow(clippy::too_many_arguments)]
 fn collect_known_widget_mutation(
-    command: &SegmentedCommand,
+    command: &TkSourceCommand<'_>,
     resolved_head: &str,
     registry: &CommandRegistry,
     dialect: Option<SurfaceQuery<'_>>,
@@ -835,7 +880,7 @@ fn collect_known_widget_mutation(
 }
 
 fn apply_pending_widget_calls(
-    command: &SegmentedCommand,
+    command: &TkSourceCommand<'_>,
     constructor: &CommandSpec,
     registry: &CommandRegistry,
     dialect: Option<SurfaceQuery<'_>>,
@@ -896,7 +941,7 @@ fn apply_pending_widget_calls(
 }
 
 fn collect_registry_lifecycle_effect(
-    command: &SegmentedCommand,
+    command: &TkSourceCommand<'_>,
     resolved_head: &str,
     spec: &CommandSpec,
     registry: &CommandRegistry,
@@ -976,7 +1021,7 @@ fn collect_registry_lifecycle_effect(
 }
 
 fn apply_pending_lifecycle(
-    command: &SegmentedCommand,
+    command: &TkSourceCommand<'_>,
     constructor: &CommandSpec,
     analysis: &mut TkAnalysis,
 ) {
@@ -1013,7 +1058,7 @@ fn apply_pending_lifecycle(
 // keep conflict invalidation beside the registry-derived placement facts.
 #[allow(clippy::too_many_arguments, clippy::too_many_lines)]
 fn collect_placement(
-    command: &SegmentedCommand,
+    command: &TkSourceCommand<'_>,
     manager: &str,
     spec: &CommandSpec,
     dialect: Option<SurfaceQuery<'_>>,
@@ -1114,10 +1159,7 @@ fn collect_placement(
     }
     let mut targets = vec![(first_path, first_target)];
     let mut index = target_start + 1;
-    while let Some(word) = command.texts.get(index) {
-        if declared_option(word, &option_specs).is_some() {
-            break;
-        }
+    while index < command.argv.len() {
         let Some((path, target)) = literal_word(command, index) else {
             uncertainties.push(uncertainty(
                 TkUncertaintyKind::DynamicGeometryTarget,
@@ -1130,6 +1172,9 @@ fn collect_placement(
             index += 1;
             continue;
         };
+        if declared_option(&path, &option_specs).is_some() {
+            break;
+        }
         if !tcl_registry::tk_geometry::is_widget_path(&path) {
             uncertainties.push(uncertainty(
                 TkUncertaintyKind::UnsupportedGeometryForm,
@@ -1252,7 +1297,7 @@ fn record_potential_execution(
 }
 
 fn effective_geometry_container(
-    command: &SegmentedCommand,
+    command: &TkSourceCommand<'_>,
     option_start: usize,
     target: &str,
     container_option: Option<&str>,
@@ -1263,8 +1308,11 @@ fn effective_geometry_container(
     let Some(container_option) = container_option else {
         return Some(parent_path(target).to_owned());
     };
-    let option_was_written = command.texts.iter().skip(option_start).any(|word| {
-        declared_option(word, option_specs).is_some_and(|option| option.name == container_option)
+    let option_was_written = (option_start..command.argv.len()).any(|index| {
+        literal_word(command, index).is_some_and(|(word, _)| {
+            declared_option(&word, option_specs)
+                .is_some_and(|option| option.name == container_option)
+        })
     });
     if !option_was_written {
         return Some(parent_path(target).to_owned());
@@ -1285,15 +1333,19 @@ fn effective_geometry_container(
 }
 
 fn literal_options(
-    command: &SegmentedCommand,
+    command: &TkSourceCommand<'_>,
     start: usize,
     specs: &[OptionSpec],
     uncertainties: &mut Vec<TkUiUncertainty>,
 ) -> BTreeMap<String, TkLiteralOption> {
     let mut result = BTreeMap::new();
     let mut index = start;
-    while let Some(word) = command.texts.get(index) {
-        let Some(option) = declared_option(word, specs) else {
+    while index < command.argv.len() {
+        let Some((word, option_source)) = literal_word(command, index) else {
+            index += 1;
+            continue;
+        };
+        let Some(option) = declared_option(&word, specs) else {
             index += 1;
             continue;
         };
@@ -1302,7 +1354,7 @@ fn literal_options(
                 option.name.to_owned(),
                 TkLiteralOption {
                     value: "true".to_owned(),
-                    source: command.argv[index].span.into(),
+                    source: option_source,
                 },
             );
             index += 1;
@@ -1311,10 +1363,7 @@ fn literal_options(
         let Some((value, source)) = literal_word(command, index + 1) else {
             uncertainties.push(uncertainty(
                 TkUncertaintyKind::NonLiteralOption,
-                command
-                    .argv
-                    .get(index)
-                    .map_or(command.span, |token| token.span),
+                option_source,
                 format!(
                     "The value of option '{}' is not a static literal.",
                     option.name
@@ -1347,33 +1396,13 @@ fn declared_option<'a>(word: &str, specs: &'a [OptionSpec]) -> Option<&'a Option
     resolve_option_prefix(specs, word)
 }
 
-fn literal_word(command: &SegmentedCommand, index: usize) -> Option<(String, TkSourceSpan)> {
-    if !command.word_views_aligned()
-        || !command
-            .single_token_word
-            .get(index)
-            .copied()
-            .unwrap_or(false)
-        || command
-            .expand_word
-            .as_ref()
-            .is_some_and(|expanded| expanded.get(index).copied().unwrap_or(false))
-    {
+fn literal_word(command: &TkSourceCommand<'_>, index: usize) -> Option<(String, TkSourceSpan)> {
+    let word = command.original_words.as_ref()?.get(index)?;
+    if word.group().expand {
         return None;
     }
-    let fragment = command.word_fragments.get(index)?.as_slice();
-    let [fragment] = fragment else { return None };
-    match fragment.token.kind {
-        TokenType::Str => Some((
-            command.texts.get(index)?.clone(),
-            fragment.token.span.into(),
-        )),
-        TokenType::Esc if !fragment.text.contains('$') && !fragment.text.contains('[') => Some((
-            command.texts.get(index)?.clone(),
-            fragment.token.span.into(),
-        )),
-        _ => None,
-    }
+    let value = tcl_syntax::word_rules::original_static_word_unicode_value(word)?;
+    Some((String::from_utf8(value).ok()?, word.span().into()))
 }
 
 fn parent_path(path: &str) -> &str {
@@ -1523,6 +1552,107 @@ mod tests {
             dialect,
             crate::registry_for_dialect_profile(dialect),
         )
+    }
+
+    #[test]
+    fn original_tk_literals_decode_escapes_and_retain_complete_word_spans() {
+        let source = r#"label \x2ew -te\x78t "snow \u2603 \$cash \[literal\]"
+pack .w -\x69n \x2e"#;
+        let ui = model(source);
+        let widget = &ui.root.as_ref().unwrap().children[0];
+        assert_eq!(widget.path, ".w");
+        let text = &widget.options["-text"];
+        assert_eq!(text.value, "snow ☃ $cash [literal]");
+        assert_eq!(
+            &source[text.source.start as usize..text.source.end as usize],
+            r#""snow \u2603 \$cash \[literal\]""#,
+        );
+        assert_eq!(
+            &source[widget.source.path.start as usize..widget.source.path.end as usize],
+            r"\x2ew",
+        );
+        let geometry = widget.geometry.as_ref().unwrap();
+        assert_eq!(geometry.container.as_deref(), Some("."));
+        assert_eq!(geometry.options["-in"].value, ".");
+    }
+
+    #[test]
+    fn original_tk_literals_keep_braced_data_and_the_actual_full_configuration() {
+        let source = r"label .w -text {literal $name [data] \u2603}";
+        let ui = model(source);
+        assert_eq!(
+            ui.root.as_ref().unwrap().children[0].options["-text"].value,
+            r"literal $name [data] \u2603",
+        );
+        let source = concat!("label .w -text {first\\", "\n", "  second}");
+        let profile = crate::profile_for_dialect("tk");
+        for (style, expected) in [
+            (tcl_dialect::BraceBackslashNewline::Folds, "first second"),
+            (
+                tcl_dialect::BraceBackslashNewline::Literal,
+                "first\\\n  second",
+            ),
+        ] {
+            let config = LexerConfig {
+                brace_backslash_newline: style,
+                ..LexerConfig::for_file_grammar(profile.grammar)
+            };
+            let input = ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                std::sync::Arc::new(tcl_registry::model::context_for_profile(profile)),
+                config,
+            );
+            let analysis = Analyser::new()
+                .with_resolved_input(input)
+                .analyse(source, profile.name);
+            let command =
+                tcl_compiler::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+                    .remove(0);
+            let original = TkSourceCommand::capture(source, &analysis, &command);
+            assert_eq!(literal_word(&original, 3).unwrap().0, expected);
+        }
+    }
+
+    #[test]
+    fn original_tk_literals_refuse_substitution_expansion_and_foreign_source() {
+        let profile = crate::profile_for_dialect("tk");
+        let registry = crate::registry_for_dialect_profile(profile);
+        for source in [
+            "label .w -text $name",
+            "label .w -text [value]",
+            "label .w -text prefix$name",
+            "label .w -text {*}{value}",
+            r"label .w -text \uD800",
+        ] {
+            let analysis = tk_source_analysis(source, profile, registry);
+            let command = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+                source,
+                0,
+                analysis.body_lexer_config.unwrap(),
+            )
+            .remove(0);
+            let original = TkSourceCommand::capture(source, &analysis, &command);
+            assert!(literal_word(&original, 3).is_none(), "{source}");
+        }
+        let source = "label .w -text kept";
+        let analysis = tk_source_analysis(source, profile, registry);
+        let command = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+            source,
+            0,
+            analysis.body_lexer_config.unwrap(),
+        )
+        .remove(0);
+        let changed = TkSourceCommand::capture("label .w -text lost", &analysis, &command);
+        assert!(literal_word(&changed, 3).is_none());
+        let mut incomplete = command.clone();
+        incomplete.is_partial = true;
+        let incomplete = TkSourceCommand::capture(source, &analysis, &incomplete);
+        assert!(literal_word(&incomplete, 3).is_none());
+        let mut unavailable = analysis;
+        unavailable.resolved_input = None;
+        let unavailable = TkSourceCommand::capture(source, &unavailable, &command);
+        assert!(literal_word(&unavailable, 3).is_none());
     }
 
     #[test]

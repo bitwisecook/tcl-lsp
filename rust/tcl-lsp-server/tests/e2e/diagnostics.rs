@@ -2740,7 +2740,7 @@ fn autoload_library_command_not_unknown_issue_832() {
     // startup, so its `tclIndex` enters the package database.
     let mut lsp = Lsp::with_config(serde_json::json!({
         "features": { "linkedEditingRange": true },
-        "libraryPaths": [ libdir.to_string_lossy() ],
+        "libraryPaths": [ libdir.to_str().expect("libraryPaths requires a UTF-8 path") ],
     }));
 
     let uri = unique_uri("tcl");
@@ -2806,7 +2806,7 @@ fn autoload_library_command_go_to_definition_m8() {
     .expect("write tclIndex");
 
     let mut lsp = Lsp::with_config(serde_json::json!({
-        "libraryPaths": [ libdir.to_string_lossy() ],
+        "libraryPaths": [ libdir.to_str().expect("libraryPaths requires a UTF-8 path") ],
     }));
 
     let uri = unique_uri("tcl");
@@ -2900,7 +2900,7 @@ fn pkg_libdir_with_index(index: &str) -> std::path::PathBuf {
 fn guarded_pkg_child_diagnostics(dialect: &str, libdir: &std::path::Path) -> Vec<Value> {
     let mut lsp = Lsp::with_config(serde_json::json!({
         "dialect": dialect,
-        "libraryPaths": [ libdir.to_string_lossy() ],
+        "libraryPaths": [ libdir.to_str().expect("libraryPaths requires a UTF-8 path") ],
     }));
     let child = unique_uri("tcl");
     let child_name = child.rsplit('/').next().expect("child basename").to_owned();
@@ -3096,7 +3096,7 @@ fn a_load_only_package_does_not_suppress_unrelated_w120s_923_idx72() {
     .expect("write pkgIndex.tcl");
 
     let mut lsp = Lsp::with_config(serde_json::json!({
-        "libraryPaths": [ libdir.to_string_lossy() ],
+        "libraryPaths": [ libdir.to_str().expect("libraryPaths requires a UTF-8 path") ],
     }));
     let baseline_uri = unique_uri("tcl");
     lsp.open_ready(&baseline_uri, "http::register https 443 ::tls::socket\n");
@@ -3211,7 +3211,7 @@ fn autoload_library_command_references_and_rename_m8() {
     .expect("write tclIndex");
 
     let mut lsp = Lsp::with_config(serde_json::json!({
-        "libraryPaths": [ libdir.to_string_lossy() ],
+        "libraryPaths": [ libdir.to_str().expect("libraryPaths requires a UTF-8 path") ],
     }));
 
     let uri = unique_uri("tcl");
@@ -4220,7 +4220,9 @@ fn consumer_rename_resolves_through_a_real_workspace_folder_m8() {
     let mut lsp = Lsp::tcl();
     // Attach the real folder (the fake `initialize` root indexes nothing) and
     // let the rescan index rbclib/graph.tcl from disk.
-    let folder_uri = format!("file://{}", root.to_string_lossy());
+    let folder_uri = tcl_lsp_server::canonical_file_uri(&root)
+        .expect("workspace fixture has a representable file URI")
+        .to_string();
     lsp.notify(
         "workspace/didChangeWorkspaceFolders",
         serde_json::json!({
@@ -4231,7 +4233,9 @@ fn consumer_rename_resolves_through_a_real_workspace_folder_m8() {
         }),
     );
 
-    let uri = format!("file://{}", consumer_path.to_string_lossy());
+    let uri = tcl_lsp_server::canonical_file_uri(&consumer_path)
+        .expect("consumer fixture has a representable file URI")
+        .to_string();
     lsp.open_document(&uri, "Rbc_ActiveLegend .g\nRbc_ZoomStack .g\n");
 
     // The folder scan runs asynchronously; poll the rename until the library
@@ -5042,7 +5046,9 @@ fn a_cross_file_upvar_helper_draws_no_false_read_before_set_end_to_end() {
     std::fs::write(&options, text).expect("write options.tcl");
 
     let mut lsp = Lsp::at_workspace_root(&root);
-    let uri = format!("file://{}", options.to_string_lossy());
+    let uri = tcl_lsp_server::canonical_file_uri(&options)
+        .expect("options fixture has a representable file URI")
+        .to_string();
     let diags = lsp.open_ready(&uri, text);
     assert!(
         !has_code(&diags, "W210"),
@@ -5055,7 +5061,9 @@ fn a_cross_file_upvar_helper_draws_no_false_read_before_set_end_to_end() {
     let control = root.join("control.tcl");
     let control_text = "proc demo::build2 {} {\n    setdef options name -default nothing\n    return $neverPassed\n}\n";
     std::fs::write(&control, control_text).expect("write control.tcl");
-    let control_uri = format!("file://{}", control.to_string_lossy());
+    let control_uri = tcl_lsp_server::canonical_file_uri(&control)
+        .expect("control fixture has a representable file URI")
+        .to_string();
     let control_diags = lsp.open_ready(&control_uri, control_text);
     let hits = with_code(&control_diags, "W210");
     assert_eq!(

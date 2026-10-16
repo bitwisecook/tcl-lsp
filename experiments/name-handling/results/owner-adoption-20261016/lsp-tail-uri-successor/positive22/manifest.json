@@ -1,0 +1,595 @@
+{
+  "status": "TMP-only validation repair proposal; no tests/builds/Cargo/Git/main/tracking changes",
+  "patch": "/tmp/lsp-positive-owners/positive-provider-prerequisites.patch",
+  "patch_sha256": "686302381df0ef8e481e462c1f58ed195cbb20ccc20c27dae1a6424fdd0849db",
+  "patch_bytes": 12638,
+  "selected_existing_catalogue_units": [
+    {
+      "id": "lsp.validation.20.00.fn0",
+      "purpose": "Required positive provider/source-result premise",
+      "family": "lsp-test-positive-owner-prerequisite",
+      "required_change": "positive lens/reference/class provider controls skip when actual class source inventory is empty",
+      "sites": [
+        {
+          "path": "rust/tcl-lsp-core/src/code_lens.rs",
+          "line": 691,
+          "source_sha256": "f244c87327e75f144a04964df4c6c8ea0ea7f1382e545a2c9c0c6aa67020e163",
+          "symbol_or_region": "lens_per_class",
+          "source_statement": "        if analysis.all_classes.is_empty() {",
+          "scope": "Actual retained change anchor; adjacent unchanged assertions/callers are not extra units.",
+          "enclosing_function": {
+            "symbol": "lens_per_class",
+            "start_line": 685,
+            "end_line": 706
+          }
+        }
+      ],
+      "source_annex": {
+        "source_annex": "lsp-audit-validation-boundary-units.json",
+        "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      }
+    },
+    {
+      "id": "lsp.validation.20.00.fn1",
+      "purpose": "Required positive provider/source-result premise",
+      "family": "lsp-test-positive-owner-prerequisite",
+      "required_change": "positive lens/reference/class provider controls skip when actual class source inventory is empty",
+      "sites": [
+        {
+          "path": "rust/tcl-lsp-core/src/code_lens.rs",
+          "line": 719,
+          "source_sha256": "f244c87327e75f144a04964df4c6c8ea0ea7f1382e545a2c9c0c6aa67020e163",
+          "symbol_or_region": "lens_counts_class_constructor_calls",
+          "source_statement": "        if analysis.all_classes.is_empty() {",
+          "scope": "Actual retained change anchor; adjacent unchanged assertions/callers are not extra units.",
+          "enclosing_function": {
+            "symbol": "lens_counts_class_constructor_calls",
+            "start_line": 709,
+            "end_line": 739
+          }
+        }
+      ],
+      "source_annex": {
+        "source_annex": "lsp-audit-validation-boundary-units.json",
+        "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      }
+    },
+    {
+      "id": "lsp.validation.20.00.fn2",
+      "purpose": "Required positive provider/source-result premise",
+      "family": "lsp-test-positive-owner-prerequisite",
+      "required_change": "positive lens/reference/class provider controls skip when actual class source inventory is empty",
+      "sites": [
+        {
+          "path": "rust/tcl-lsp-core/src/code_lens.rs",
+          "line": 750,
+          "source_sha256": "f244c87327e75f144a04964df4c6c8ea0ea7f1382e545a2c9c0c6aa67020e163",
+          "symbol_or_region": "lens_counts_method_calls_within_class_body",
+          "source_statement": "        if analysis.all_classes.is_empty() {",
+          "scope": "Actual retained change anchor; adjacent unchanged assertions/callers are not extra units.",
+          "enclosing_function": {
+            "symbol": "lens_counts_method_calls_within_class_body",
+            "start_line": 744,
+            "end_line": 767
+          }
+        }
+      ],
+      "source_annex": {
+        "source_annex": "lsp-audit-validation-boundary-units.json",
+        "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      }
+    },
+    {
+      "id": "lsp.validation.20.00.fn3",
+      "purpose": "Required positive provider/source-result premise",
+      "family": "lsp-test-positive-owner-prerequisite",
+      "required_change": "positive lens/reference/class provider controls skip when actual class source inventory is empty",
+      "sites": [
+        {
+          "path": "rust/tcl-lsp-core/src/code_lens.rs",
+          "line": 777,
+          "source_sha256": "f244c87327e75f144a04964df4c6c8ea0ea7f1382e545a2c9c0c6aa67020e163",
+          "symbol_or_region": "lens_bare_word_in_method_body_is_not_a_self_dispatch",
+          "source_statement": "        if analysis.all_classes.is_empty() {",
+          "scope": "Actual retained change anchor; adjacent unchanged assertions/callers are not extra units.",
+          "enclosing_function": {
+            "symbol": "lens_bare_word_in_method_body_is_not_a_self_dispatch",
+            "start_line": 770,
+            "end_line": 792
+          }
+        }
+      ],
+      "source_annex": {
+        "source_annex": "lsp-audit-validation-boundary-units.json",
+        "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      }
+    },
+    {
+      "id": "lsp.validation.20.00.fn4",
+      "purpose": "Required positive provider/source-result premise",
+      "family": "lsp-test-positive-owner-prerequisite",
+      "required_change": "positive lens/reference/class provider controls skip when actual class source inventory is empty",
+      "sites": [
+        {
+          "path": "rust/tcl-lsp-core/src/code_lens.rs",
+          "line": 798,
+          "source_sha256": "f244c87327e75f144a04964df4c6c8ea0ea7f1382e545a2c9c0c6aa67020e163",
+          "symbol_or_region": "lens_reports_zero_for_uncalled_method",
+          "source_statement": "        if analysis.all_classes.is_empty() {",
+          "scope": "Actual retained change anchor; adjacent unchanged assertions/callers are not extra units.",
+          "enclosing_function": {
+            "symbol": "lens_reports_zero_for_uncalled_method",
+            "start_line": 795,
+            "end_line": 813
+          }
+        }
+      ],
+      "source_annex": {
+        "source_annex": "lsp-audit-validation-boundary-units.json",
+        "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      }
+    },
+    {
+      "id": "lsp.validation.20.00.fn5",
+      "purpose": "Required positive provider/source-result premise",
+      "family": "lsp-test-positive-owner-prerequisite",
+      "required_change": "positive lens/reference/class provider controls skip when actual class source inventory is empty",
+      "sites": [
+        {
+          "path": "rust/tcl-lsp-core/src/code_lens.rs",
+          "line": 917,
+          "source_sha256": "f244c87327e75f144a04964df4c6c8ea0ea7f1382e545a2c9c0c6aa67020e163",
+          "symbol_or_region": "lens_counts_property_my_dispatch_within_class_body",
+          "source_statement": "        if analysis.all_classes.is_empty() {",
+          "scope": "Actual retained change anchor; adjacent unchanged assertions/callers are not extra units.",
+          "enclosing_function": {
+            "symbol": "lens_counts_property_my_dispatch_within_class_body",
+            "start_line": 910,
+            "end_line": 932
+          }
+        }
+      ],
+      "source_annex": {
+        "source_annex": "lsp-audit-validation-boundary-units.json",
+        "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      }
+    },
+    {
+      "id": "lsp.validation.20.00.fn6",
+      "purpose": "Required positive provider/source-result premise",
+      "family": "lsp-test-positive-owner-prerequisite",
+      "required_change": "positive lens/reference/class provider controls skip when actual class source inventory is empty",
+      "sites": [
+        {
+          "path": "rust/tcl-lsp-core/src/code_lens.rs",
+          "line": 938,
+          "source_sha256": "f244c87327e75f144a04964df4c6c8ea0ea7f1382e545a2c9c0c6aa67020e163",
+          "symbol_or_region": "lens_reports_zero_for_unused_property",
+          "source_statement": "        if analysis.all_classes.is_empty() {",
+          "scope": "Actual retained change anchor; adjacent unchanged assertions/callers are not extra units.",
+          "enclosing_function": {
+            "symbol": "lens_reports_zero_for_unused_property",
+            "start_line": 935,
+            "end_line": 953
+          }
+        }
+      ],
+      "source_annex": {
+        "source_annex": "lsp-audit-validation-boundary-units.json",
+        "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      }
+    },
+    {
+      "id": "lsp.validation.20.00.fn7",
+      "purpose": "Required positive provider/source-result premise",
+      "family": "lsp-test-positive-owner-prerequisite",
+      "required_change": "positive lens/reference/class provider controls skip when actual class source inventory is empty",
+      "sites": [
+        {
+          "path": "rust/tcl-lsp-core/src/code_lens.rs",
+          "line": 1414,
+          "source_sha256": "f244c87327e75f144a04964df4c6c8ea0ea7f1382e545a2c9c0c6aa67020e163",
+          "symbol_or_region": "lens_counts_multiple_external_obj_method_calls",
+          "source_statement": "        if analysis.all_classes.is_empty() {",
+          "scope": "Actual retained change anchor; adjacent unchanged assertions/callers are not extra units.",
+          "enclosing_function": {
+            "symbol": "lens_counts_multiple_external_obj_method_calls",
+            "start_line": 1402,
+            "end_line": 1429
+          }
+        }
+      ],
+      "source_annex": {
+        "source_annex": "lsp-audit-validation-boundary-units.json",
+        "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      }
+    },
+    {
+      "id": "lsp.validation.20.00.fn8",
+      "purpose": "Required positive provider/source-result premise",
+      "family": "lsp-test-positive-owner-prerequisite",
+      "required_change": "positive lens/reference/class provider controls skip when actual class source inventory is empty",
+      "sites": [
+        {
+          "path": "rust/tcl-lsp-core/src/code_lens.rs",
+          "line": 1443,
+          "source_sha256": "f244c87327e75f144a04964df4c6c8ea0ea7f1382e545a2c9c0c6aa67020e163",
+          "symbol_or_region": "lens_counts_obj_method_from_create_instance",
+          "source_statement": "        if analysis.all_classes.is_empty() {",
+          "scope": "Actual retained change anchor; adjacent unchanged assertions/callers are not extra units.",
+          "enclosing_function": {
+            "symbol": "lens_counts_obj_method_from_create_instance",
+            "start_line": 1432,
+            "end_line": 1458
+          }
+        }
+      ],
+      "source_annex": {
+        "source_annex": "lsp-audit-validation-boundary-units.json",
+        "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      }
+    },
+    {
+      "id": "lsp.validation.20.00.fn9",
+      "purpose": "Required positive provider/source-result premise",
+      "family": "lsp-test-positive-owner-prerequisite",
+      "required_change": "positive lens/reference/class provider controls skip when actual class source inventory is empty",
+      "sites": [
+        {
+          "path": "rust/tcl-lsp-core/src/code_lens.rs",
+          "line": 1476,
+          "source_sha256": "f244c87327e75f144a04964df4c6c8ea0ea7f1382e545a2c9c0c6aa67020e163",
+          "symbol_or_region": "lens_counts_inherited_method_on_subclass_instance",
+          "source_statement": "        if analysis.all_classes.is_empty() {",
+          "scope": "Actual retained change anchor; adjacent unchanged assertions/callers are not extra units.",
+          "enclosing_function": {
+            "symbol": "lens_counts_inherited_method_on_subclass_instance",
+            "start_line": 1461,
+            "end_line": 1491
+          }
+        }
+      ],
+      "source_annex": {
+        "source_annex": "lsp-audit-validation-boundary-units.json",
+        "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      }
+    },
+    {
+      "id": "lsp.validation.20.00.fn10",
+      "purpose": "Required positive provider/source-result premise",
+      "family": "lsp-test-positive-owner-prerequisite",
+      "required_change": "positive lens/reference/class provider controls skip when actual class source inventory is empty",
+      "sites": [
+        {
+          "path": "rust/tcl-lsp-core/src/code_lens.rs",
+          "line": 1512,
+          "source_sha256": "f244c87327e75f144a04964df4c6c8ea0ea7f1382e545a2c9c0c6aa67020e163",
+          "symbol_or_region": "lens_matches_peek_for_inherited_method_with_subclass_my_dispatch",
+          "source_statement": "        if analysis.all_classes.is_empty() {",
+          "scope": "Actual retained change anchor; adjacent unchanged assertions/callers are not extra units.",
+          "enclosing_function": {
+            "symbol": "lens_matches_peek_for_inherited_method_with_subclass_my_dispatch",
+            "start_line": 1494,
+            "end_line": 1529
+          }
+        }
+      ],
+      "source_annex": {
+        "source_annex": "lsp-audit-validation-boundary-units.json",
+        "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      }
+    },
+    {
+      "id": "lsp.validation.20.00.fn11",
+      "purpose": "Required positive provider/source-result premise",
+      "family": "lsp-test-positive-owner-prerequisite",
+      "required_change": "positive lens/reference/class provider controls skip when actual class source inventory is empty",
+      "sites": [
+        {
+          "path": "rust/tcl-lsp-core/src/code_lens.rs",
+          "line": 1545,
+          "source_sha256": "f244c87327e75f144a04964df4c6c8ea0ea7f1382e545a2c9c0c6aa67020e163",
+          "symbol_or_region": "lens_counts_namespaced_class_method",
+          "source_statement": "        if analysis.all_classes.is_empty() {",
+          "scope": "Actual retained change anchor; adjacent unchanged assertions/callers are not extra units.",
+          "enclosing_function": {
+            "symbol": "lens_counts_namespaced_class_method",
+            "start_line": 1532,
+            "end_line": 1562
+          }
+        }
+      ],
+      "source_annex": {
+        "source_annex": "lsp-audit-validation-boundary-units.json",
+        "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      }
+    },
+    {
+      "id": "lsp.validation.20.00.fn12",
+      "purpose": "Required positive provider/source-result premise",
+      "family": "lsp-test-positive-owner-prerequisite",
+      "required_change": "positive lens/reference/class provider controls skip when actual class source inventory is empty",
+      "sites": [
+        {
+          "path": "rust/tcl-lsp-core/src/code_lens.rs",
+          "line": 1579,
+          "source_sha256": "f244c87327e75f144a04964df4c6c8ea0ea7f1382e545a2c9c0c6aa67020e163",
+          "symbol_or_region": "lens_counts_obj_method_call_inside_proc_body",
+          "source_statement": "        if analysis.all_classes.is_empty() {",
+          "scope": "Actual retained change anchor; adjacent unchanged assertions/callers are not extra units.",
+          "enclosing_function": {
+            "symbol": "lens_counts_obj_method_call_inside_proc_body",
+            "start_line": 1565,
+            "end_line": 1594
+          }
+        }
+      ],
+      "source_annex": {
+        "source_annex": "lsp-audit-validation-boundary-units.json",
+        "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      }
+    },
+    {
+      "id": "lsp.validation.20.00.fn13",
+      "purpose": "Required positive provider/source-result premise",
+      "family": "lsp-test-positive-owner-prerequisite",
+      "required_change": "positive lens/reference/class provider controls skip when actual class source inventory is empty",
+      "sites": [
+        {
+          "path": "rust/tcl-lsp-core/src/code_lens.rs",
+          "line": 1607,
+          "source_sha256": "f244c87327e75f144a04964df4c6c8ea0ea7f1382e545a2c9c0c6aa67020e163",
+          "symbol_or_region": "lens_unknown_instance_method_is_not_counted",
+          "source_statement": "        if analysis.all_classes.is_empty() {",
+          "scope": "Actual retained change anchor; adjacent unchanged assertions/callers are not extra units.",
+          "enclosing_function": {
+            "symbol": "lens_unknown_instance_method_is_not_counted",
+            "start_line": 1597,
+            "end_line": 1622
+          }
+        }
+      ],
+      "source_annex": {
+        "source_annex": "lsp-audit-validation-boundary-units.json",
+        "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      }
+    },
+    {
+      "id": "lsp.validation.20.00.fn14",
+      "purpose": "Required positive provider/source-result premise",
+      "family": "lsp-test-positive-owner-prerequisite",
+      "required_change": "positive lens/reference/class provider controls skip when actual class source inventory is empty",
+      "sites": [
+        {
+          "path": "rust/tcl-lsp-core/src/code_lens.rs",
+          "line": 1664,
+          "source_sha256": "f244c87327e75f144a04964df4c6c8ea0ea7f1382e545a2c9c0c6aa67020e163",
+          "symbol_or_region": "lens_qname_exists_finds_a_plain_class",
+          "source_statement": "        if analysis.all_classes.is_empty() {",
+          "scope": "Actual retained change anchor; adjacent unchanged assertions/callers are not extra units.",
+          "enclosing_function": {
+            "symbol": "lens_qname_exists_finds_a_plain_class",
+            "start_line": 1662,
+            "end_line": 1669
+          }
+        }
+      ],
+      "source_annex": {
+        "source_annex": "lsp-audit-validation-boundary-units.json",
+        "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      }
+    },
+    {
+      "id": "lsp.validation.20.01.fn0",
+      "purpose": "Required positive provider/source-result premise",
+      "family": "lsp-test-positive-owner-prerequisite",
+      "required_change": "positive hover controls succeed without asserting required original hover/card exists",
+      "sites": [
+        {
+          "path": "rust/tcl-lsp-core/src/hover.rs",
+          "line": 3808,
+          "source_sha256": "c036363de6bddafb9c551422fe1efb0ca5cde6325c7c80c224c114b93a72effb",
+          "symbol_or_region": "hover_on_proc_qualified_name",
+          "source_statement": "        if let Some(h) = h {",
+          "scope": "Actual retained change anchor; adjacent unchanged assertions/callers are not extra units.",
+          "enclosing_function": {
+            "symbol": "hover_on_proc_qualified_name",
+            "start_line": 3801,
+            "end_line": 3811
+          }
+        }
+      ],
+      "source_annex": {
+        "source_annex": "lsp-audit-validation-boundary-units.json",
+        "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      }
+    },
+    {
+      "id": "lsp.validation.20.01.fn1",
+      "purpose": "Required positive provider/source-result premise",
+      "family": "lsp-test-positive-owner-prerequisite",
+      "required_change": "positive hover controls succeed without asserting required original hover/card exists",
+      "sites": [
+        {
+          "path": "rust/tcl-lsp-core/src/hover.rs",
+          "line": 3873,
+          "source_sha256": "c036363de6bddafb9c551422fe1efb0ca5cde6325c7c80c224c114b93a72effb",
+          "symbol_or_region": "hover_on_class_name_returns_metaclass_signature",
+          "source_statement": "        if let Some(h) = h {",
+          "scope": "Actual retained change anchor; adjacent unchanged assertions/callers are not extra units.",
+          "enclosing_function": {
+            "symbol": "hover_on_class_name_returns_metaclass_signature",
+            "start_line": 3869,
+            "end_line": 3881
+          }
+        }
+      ],
+      "source_annex": {
+        "source_annex": "lsp-audit-validation-boundary-units.json",
+        "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      }
+    },
+    {
+      "id": "lsp.validation.20.01.fn2",
+      "purpose": "Required positive provider/source-result premise",
+      "family": "lsp-test-positive-owner-prerequisite",
+      "required_change": "positive hover controls succeed without asserting required original hover/card exists",
+      "sites": [
+        {
+          "path": "rust/tcl-lsp-core/src/hover.rs",
+          "line": 3889,
+          "source_sha256": "c036363de6bddafb9c551422fe1efb0ca5cde6325c7c80c224c114b93a72effb",
+          "symbol_or_region": "hover_on_dollar_var_returns_var_text",
+          "source_statement": "        if let Some(h) = h {",
+          "scope": "Actual retained change anchor; adjacent unchanged assertions/callers are not extra units.",
+          "enclosing_function": {
+            "symbol": "hover_on_dollar_var_returns_var_text",
+            "start_line": 3884,
+            "end_line": 3893
+          }
+        }
+      ],
+      "source_annex": {
+        "source_annex": "lsp-audit-validation-boundary-units.json",
+        "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      }
+    },
+    {
+      "id": "lsp.validation.20.01.fn3",
+      "purpose": "Required positive provider/source-result premise",
+      "family": "lsp-test-positive-owner-prerequisite",
+      "required_change": "positive hover controls succeed without asserting required original hover/card exists",
+      "sites": [
+        {
+          "path": "rust/tcl-lsp-core/src/hover.rs",
+          "line": 4172,
+          "source_sha256": "c036363de6bddafb9c551422fe1efb0ca5cde6325c7c80c224c114b93a72effb",
+          "symbol_or_region": "irules_command_hover_lists_valid_events",
+          "source_statement": "        if let Some(text) =",
+          "scope": "Actual retained change anchor; adjacent unchanged assertions/callers are not extra units.",
+          "enclosing_function": {
+            "symbol": "irules_command_hover_lists_valid_events",
+            "start_line": 4169,
+            "end_line": 4179
+          }
+        }
+      ],
+      "source_annex": {
+        "source_annex": "lsp-audit-validation-boundary-units.json",
+        "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      }
+    },
+    {
+      "id": "lsp.validation.20.01.fn4",
+      "purpose": "Required positive provider/source-result premise",
+      "family": "lsp-test-positive-owner-prerequisite",
+      "required_change": "positive hover controls succeed without asserting required original hover/card exists",
+      "sites": [
+        {
+          "path": "rust/tcl-lsp-core/src/hover.rs",
+          "line": 4310,
+          "source_sha256": "c036363de6bddafb9c551422fe1efb0ca5cde6325c7c80c224c114b93a72effb",
+          "symbol_or_region": "class_hover_text_lists_methods_alphabetically",
+          "source_statement": "        if let (Some(a), Some(b)) = (alpha_pos, beta_pos) {",
+          "scope": "Actual retained change anchor; adjacent unchanged assertions/callers are not extra units.",
+          "enclosing_function": {
+            "symbol": "class_hover_text_lists_methods_alphabetically",
+            "start_line": 4292,
+            "end_line": 4313
+          }
+        }
+      ],
+      "source_annex": {
+        "source_annex": "lsp-audit-validation-boundary-units.json",
+        "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      }
+    },
+    {
+      "id": "lsp.validation.20.02.fn0",
+      "purpose": "Required positive provider/source-result premise",
+      "family": "lsp-test-positive-owner-prerequisite",
+      "required_change": "positive definition controls need original provider/result prerequisite instead of silently skipped assertions",
+      "sites": [
+        {
+          "path": "rust/tcl-lsp-core/src/definition.rs",
+          "line": 6518,
+          "source_sha256": "96c9e407e2bcead0d40ce71e3f83092cd8f5460a2652f987b034566ad5107b8a",
+          "symbol_or_region": "jump_to_class_definition_disambiguates_same_named_classes_by_cursor",
+          "source_statement": "        if analysis.all_classes.len() < 2 {",
+          "scope": "Actual retained change anchor; adjacent unchanged assertions/callers are not extra units.",
+          "enclosing_function": {
+            "symbol": "jump_to_class_definition_disambiguates_same_named_classes_by_cursor",
+            "start_line": 6503,
+            "end_line": 6527
+          }
+        }
+      ],
+      "source_annex": {
+        "source_annex": "lsp-audit-validation-boundary-units.json",
+        "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      }
+    },
+    {
+      "id": "lsp.validation.20.02.fn1",
+      "purpose": "Required positive provider/source-result premise",
+      "family": "lsp-test-positive-owner-prerequisite",
+      "required_change": "positive definition controls need original provider/result prerequisite instead of silently skipped assertions",
+      "sites": [
+        {
+          "path": "rust/tcl-lsp-core/src/definition.rs",
+          "line": 6830,
+          "source_sha256": "96c9e407e2bcead0d40ce71e3f83092cd8f5460a2652f987b034566ad5107b8a",
+          "symbol_or_region": "alias_lookup_accepts_qualified_form",
+          "source_statement": "        if !locs.is_empty() {",
+          "scope": "Actual retained change anchor; adjacent unchanged assertions/callers are not extra units.",
+          "enclosing_function": {
+            "symbol": "alias_lookup_accepts_qualified_form",
+            "start_line": 6821,
+            "end_line": 6833
+          }
+        }
+      ],
+      "source_annex": {
+        "source_annex": "lsp-audit-validation-boundary-units.json",
+        "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      }
+    }
+  ],
+  "files": {
+    "rust/tcl-lsp-core/src/code_lens.rs": {
+      "before_sha256": "f244c87327e75f144a04964df4c6c8ea0ea7f1382e545a2c9c0c6aa67020e163",
+      "after_sha256": "570ff78a84fdf0d85a6c9d39177b3056e18560dcf60b85912c783b89ba6e66e8",
+      "before_bytes": 70079,
+      "after_bytes": 71072,
+      "live_matches_before": true
+    },
+    "rust/tcl-lsp-core/src/hover.rs": {
+      "before_sha256": "c036363de6bddafb9c551422fe1efb0ca5cde6325c7c80c224c114b93a72effb",
+      "after_sha256": "d1a1874d373ab5b2f7ad91287218550cb04e15a883c4425e7e72123d4ef0e2ed",
+      "before_bytes": 269664,
+      "after_bytes": 269821,
+      "live_matches_before": true
+    },
+    "rust/tcl-lsp-core/src/definition.rs": {
+      "before_sha256": "96c9e407e2bcead0d40ce71e3f83092cd8f5460a2652f987b034566ad5107b8a",
+      "after_sha256": "34e14818a30f7dc5f6530b93fd1d1989ba2bafe2512405779727aaa3f68d05f6",
+      "before_bytes": 419501,
+      "after_bytes": 419661,
+      "live_matches_before": true
+    }
+  },
+  "change_summary": "Make 15 class/code-lens source inventory guards fail closed, require hover results for five positive hover controls, require two positive class/alias definition results. Existing fixture sources, cursor positions, dialect profiles, assertions, expected lens/hover/location text and negative controls remain unchanged. No semantic implementation change or result is claimed.",
+  "review_notes": {
+    "lens": "Each selected test contains an existing positive class source and a later result assertion. The old early return skipped that result assertion if analysis.all_classes was empty. The existing assertion body runs unchanged after a required non-empty class inventory check.",
+    "hover": "The five selected tests have explicit positive subject comments or expected symbol/command content. Existing content assertions are retained after replacing Option bypasses with expect.",
+    "definition": "The class test has two explicit class definitions and cursor-local expected locations. The qualified alias test has an explicit target-proc expectation; it now fails if no location is returned, while preserving its target-line assertion.",
+    "scope": "Only exact baseline IDs .20.00.fn0\u2013fn14, .20.01.fn0\u2013fn4, .20.02.fn0\u2013fn1 are touched."
+  },
+  "formatting": "TMP copies formatted with pinned rustfmt stable --edition 2024 --config skip_children=true.",
+  "scope_limits": [
+    "No new tests or assertions beyond fail-closed positive prerequisite assertions.",
+    "No source fixture, cursor/selector, expected response, or negative expectation changed.",
+    "A failure after integration would expose the current provider/analyser result; no semantic workaround is included.",
+    "No runtime/build validation performed."
+  ]
+}

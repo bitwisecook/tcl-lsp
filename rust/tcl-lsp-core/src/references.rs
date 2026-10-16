@@ -4053,6 +4053,18 @@ pub(crate) fn member_reference_spans(
     member_metadata::spans(source, analysis, dialect, class_def, method)
 }
 
+/// Complete readonly source hazard inventory. `None` retains unavailable
+/// class/body/selector coverage; it cannot license a rename through emptiness.
+pub(crate) fn member_reference_inventory(
+    source: &str,
+    analysis: &AnalysisResult,
+    dialect: &'static tcl_dialect::DialectProfile,
+    class_def: &tcl_compiler::analyser::types::ClassDef,
+    method: &str,
+) -> Option<Vec<tcl_lexer::Span>> {
+    member_metadata::checked_spans(source, analysis, dialect, class_def, method)
+}
+
 /// Project a whole configured source reference to its metadata name.
 /// The caller separately selects a sole variable word. An absent configuration
 /// is the explicit standalone decoration convention, without source admission.

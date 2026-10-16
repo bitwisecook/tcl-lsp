@@ -163,6 +163,40 @@ mod tests {
     }
 
     #[test]
+    fn checked_logical_procedure_catalogue_refuses_unparsed_root_tail() {
+        for (source, prefix_count) in [
+            ("proc good {} {}; \"unterminated", 1),
+            ("proc good {} {}; \"unterminated; proc after {} {}", 1),
+            ("\"unterminated; proc after {} {}", 0),
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl");
+            let config = analysis.body_lexer_config.unwrap();
+            let plan = tcl_lexer::native_script_words_in(
+                SourceImage::document(source),
+                tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+                config,
+            )
+            .unwrap();
+            assert!(plan.fatal_tail.is_some(), "{source}");
+            assert_eq!(plan.commands.len(), prefix_count, "{source}");
+            assert_eq!(
+                analysis.logical_source_procedure_declarations().count(),
+                prefix_count,
+                "the positive prefix API remains independent: {source}"
+            );
+            assert!(declarations(source, &analysis).is_none(), "{source}");
+            assert!(
+                for_literal_name(source, &analysis, "good").is_none(),
+                "{source}"
+            );
+            assert!(
+                for_literal_name(source, &analysis, "after").is_none(),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
     fn original_procedure_tool_queries_keep_declarations_and_refuse_scope_guesses() {
         let source = "namespace eval a {proc duplicate {first} {}}\nnamespace eval z {proc duplicate {second} {}}\nproc p {} {}\nproc p {value} {}\n";
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {

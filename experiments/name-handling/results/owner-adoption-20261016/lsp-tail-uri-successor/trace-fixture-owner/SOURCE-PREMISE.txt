@@ -1,0 +1,45 @@
+Fixture-only source owner correction; no production change
+
+Frozen test-010 fails the newly authored trace test's unconditional ordinary
+operand None assertion at4471. Original source trace same-name/dynamic vetoes,
+other-name positives, configured source name equality and all earlier original
+Native controls must remain unchanged.
+
+Exact provenance: /tmp/compiler-trace-source-exclusion/trace-source-exclusion-7c42f3f82ab4.patch
+SHA7c42f3f82ab4d1f040e8dbdac980d2bc11f23a8a87762d49d91d7ee54c7ade19
+adds the entire declaration_scalar_trace_exclusions_retain_other_names_and_mapped_source_configurations
+test, including the unconditional ordinary None on both BraceBackslashNewline
+configurations. Retained exact beforeimage lacks this test. Root owns Git intro
+inspection; no Git commit provenance is fabricated here.
+
+Independent original expectations already distinguish genuine owners:
+- declaration_variable_operands_use_the_original_selected_word_configuration
+  requires original_layout/operand None for Folds, but Some(name) for Literal.
+- The trace test's unchanged trace_other fixture requires ordinary Some("l").
+- declaration_preview::original_source_operand_layout_for_declaration refuses
+  raw == header.value: unchanged Native bodies retain their original owner
+  terminally; ConfiguredSourceWord is issued only when the actual body transforms.
+- Folds turns backslash-newline into space; Literal retains original bytes.
+  Trace registration veto is independently name-specific under both purposes.
+
+The original new assertion conflated a written backslash-newline with an actual
+folded body under Literal config. Adding an arbitrary production config/trace
+ban would conflict with genuine unchanged-body positives and is not authorised.
+The correction explicitly asserts Configured for Folds and Original for Literal.
+Folds retains ordinary None. Literal retains the original exact expected name
+for an unrelated trace and None for the same-name trace, alongside both existing
+configured-source veto/equality controls. No test source/config/selector/budget
+changes. All text outside this one post-baseline test is byte-identical.
+
+Validation: isolated rustfmt and patch dry-run PASS; no Cargo/build/main/Git or
+fresh Rust execution. This does not establish a fresh passing test result.
+
+Separate failure observations, not fixed by this patch:
+- test-009 line5237 is missing original_authored_declaration_body_units card
+  before any reborrow; the test uses a versioned tcl8.6 registry + standalone
+  build_for_with_config, and original_authored_procedure_body requires genuine
+  closed authored source grammar. Unknown earlier rename may withdraw that
+  issuer; further exact producer diagnosis is required, not guessed reborrow.
+- test-012 reaches all original_authored_scalar_invocation controls, then fails
+  original_analysis_definition_at_unit. Its actual SSA/source definition route
+  requires separate diagnosis; no Native/Normal/observer guard was changed.

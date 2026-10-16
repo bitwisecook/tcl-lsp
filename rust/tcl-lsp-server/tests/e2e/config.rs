@@ -581,16 +581,24 @@ fn folder_scoped_dialect_reaches_documents_in_that_folder() {
 
     // The folder URIs themselves resolve through the folder chain: this is what
     // the VS Code suite polls to know the per-folder pull has settled.
-    let uri_a = format!("file://{}", root_a.to_string_lossy());
-    let uri_b = format!("file://{}", root_b.to_string_lossy());
+    let uri_a = tcl_lsp_server::canonical_file_uri(&root_a)
+        .expect("project A root has a representable file URI")
+        .to_string();
+    let uri_b = tcl_lsp_server::canonical_file_uri(&root_b)
+        .expect("project B root has a representable file URI")
+        .to_string();
     settle(&mut lsp, "per-folder dialects", |lsp| {
         lsp.effective_config(&uri_a).get("dialect") == Some(&json!("tcl8.4"))
             && lsp.effective_config(&uri_b).get("dialect") == Some(&json!("f5-irules"))
     });
 
     // …and so do documents inside them, which is what actually changes analysis.
-    let doc_a = format!("file://{}", file_a.to_string_lossy());
-    let doc_b = format!("file://{}", file_b.to_string_lossy());
+    let doc_a = tcl_lsp_server::canonical_file_uri(&file_a)
+        .expect("project A document has a representable file URI")
+        .to_string();
+    let doc_b = tcl_lsp_server::canonical_file_uri(&file_b)
+        .expect("project B document has a representable file URI")
+        .to_string();
     let diags_a = lsp.open_ready(&doc_a, src);
     let diags_b = lsp.open_ready(&doc_b, src);
     assert_eq!(

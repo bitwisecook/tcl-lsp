@@ -3551,6 +3551,15 @@ mod tests {
         a.analyse(source, "tcl8.6").clone()
     }
 
+    fn analyse_for(source: &str, environment: &str) -> AnalysisResult {
+        let mut analyser = Analyser::new();
+        let input = analyser
+            .prepare_analysis_input(environment)
+            .expect("test environment has a complete analysis input");
+        analyser = analyser.with_resolved_input(input);
+        analyser.analyse(source, environment).clone()
+    }
+
     #[test]
     fn standalone_reference_cursor_uses_explicit_selected_grammar_and_utf16_geometry() {
         // Implementation contract: naming.core.selected-variable-cursor-syntax
@@ -3805,9 +3814,8 @@ mod tests {
         let h = hover(src, 0, 28, &analysis, None);
         // Either matches via simple name or qualified name; the
         // contract is that hover surfaces the proc when present.
-        if let Some(h) = h {
-            assert!(h.value.contains("helper"), "{}", h.value);
-        }
+        let h = h.expect("qualified proc declaration should have hover");
+        assert!(h.value.contains("helper"), "{}", h.value);
     }
 
     // namespace-aware proc resolution (C Tcl `Tcl_FindCommand` order)
@@ -3870,14 +3878,13 @@ mod tests {
         let src = "oo::class create Greeter {}\n";
         let analysis = analyse(src);
         let h = hover(src, 0, 18, &analysis, None);
-        if let Some(h) = h {
-            assert!(h.value.contains("Greeter"), "{}", h.value);
-            assert!(
-                h.value.contains("oo::class create"),
-                "expected metaclass declaration, got {}",
-                h.value,
-            );
-        }
+        let h = h.expect("class name should have a metaclass hover");
+        assert!(h.value.contains("Greeter"), "{}", h.value);
+        assert!(
+            h.value.contains("oo::class create"),
+            "expected metaclass declaration, got {}",
+            h.value,
+        );
     }
 
     #[test]
@@ -3886,10 +3893,9 @@ mod tests {
         let src = "set x 1\nset y $x\n";
         let analysis = analyse(src);
         let h = hover(src, 1, 7, &analysis, None);
-        if let Some(h) = h {
-            assert!(h.value.contains("Variable"), "{}", h.value);
-            assert!(h.value.contains("`x`"), "{}", h.value);
-        }
+        let h = h.expect("referenced variable should have hover");
+        assert!(h.value.contains("Variable"), "{}", h.value);
+        assert!(h.value.contains("`x`"), "{}", h.value);
     }
 
     #[test]
@@ -4169,13 +4175,12 @@ mod tests {
     fn irules_command_hover_lists_valid_events() {
         let mut registry = CommandRegistry::build_default();
         registry.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
-        if let Some(text) =
+        let text =
             builtin_command_hover_text(&registry, "ASM::is_authenticated", &analyse(""), u32::MAX)
-        {
-            assert!(text.contains("**Valid events**"), "{text}");
-            assert!(text.contains("ASM_REQUEST_BLOCKING"), "{text}");
-            assert!(text.contains("**Requires**: profile ASM"), "{text}");
-        }
+                .expect("registered iRules command should have hover");
+        assert!(text.contains("**Valid events**"), "{text}");
+        assert!(text.contains("ASM_REQUEST_BLOCKING"), "{text}");
+        assert!(text.contains("**Requires**: profile ASM"), "{text}");
     }
 
     #[test]
@@ -4307,9 +4312,9 @@ mod tests {
         // Methods listed in sorted order.
         let alpha_pos = text.find("alpha");
         let beta_pos = text.find("beta");
-        if let (Some(a), Some(b)) = (alpha_pos, beta_pos) {
-            assert!(a < b, "expected alpha before beta in: {text}");
-        }
+        let a = alpha_pos.expect("hover should list the alpha method");
+        let b = beta_pos.expect("hover should list the beta method");
+        assert!(a < b, "expected alpha before beta in: {text}");
     }
 
     #[test]
@@ -4449,7 +4454,7 @@ mod tests {
 
     #[test]
     fn special_var_hover_is_dialect_aware() {
-        let analysis = analyse("puts $auto_path\n");
+        let analysis = analyse_for("puts $auto_path\n", "f5-irules");
         let mut registry = CommandRegistry::build_default();
         registry.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
         // iRules provides no `auto_path`, so no special-var hover fires there.
@@ -4468,7 +4473,7 @@ mod tests {
         // `tcl_platform` exists under iRules and is CMP-unsafe as a plain
         // global — the hover surfaces the `static::` guidance.
         let src = "set x $tcl_platform(os)\n";
-        let analysis = analyse(src);
+        let analysis = analyse_for(src, "f5-irules");
         let h = hover_with_profile(
             src,
             0,
@@ -5875,8 +5880,8 @@ mod tests {
         // The registry lookup is the only method-specific input here, so this
         // proves an older profile cannot render an impossible method hover.
         let src = "ttk::treeview .tree\n.tree current\n";
-        let analysis = analyse(src);
         for (dialect, expected) in [("tcl9.0", false), ("tcl9.1", true)] {
+            let analysis = analyse_for(src, dialect);
             let profile =
                 tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
             let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
@@ -5893,7 +5898,7 @@ mod tests {
         // floor to the same registry lookup instead of baking Tk knowledge
         // into the provider.
         let raised = "package require Tk 9.1\nttk::treeview .tree\n.tree current\n";
-        let raised_analysis = analyse(raised);
+        let raised_analysis = analyse_for(raised, "tcl9.0");
         let tcl90 = tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
         let raised_hover = hover_with_profile(
             raised,

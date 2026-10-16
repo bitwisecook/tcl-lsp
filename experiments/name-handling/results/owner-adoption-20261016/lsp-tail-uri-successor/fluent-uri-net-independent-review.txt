@@ -1,0 +1,11 @@
+CLEAR — fluent-uri 0.4.1 net feature source review
+
+Root change: fluent-uri = "0.4.1" becomes fluent-uri = { version = "0.4.1", features = ["net"] } in rust/tcl-lsp-core/Cargo.toml. Version/package unchanged.
+
+Actual retained fluent-uri0.4.1 src/component.rs Host::Ipv4 is #[cfg_attr(not(feature="net"), non_exhaustive)], with its address field exposed only under net. Core file_uri.rs203 matches Host::Ipv4(..); enabling the dependency's own feature makes that existing public variant usable, correcting the reported E0603 without changing Core URI logic or loosening a guard. Actual dependency Cargo.toml defines net=[]; it adds no dependencies or versions. parse.rs parse_v4_or_reg_name and read_ip_literal use the same actual address parsers/acceptance with either feature selection, adding only retained IP address payload when net is enabled. Core preserves the original authority.host spelling on IPv4. No network action is invoked by enabling this API feature.
+
+Source review only; Root owns Cargo/build/tests. No main/Git/Cargo/network mutation by reviewer. This is the existing URI adopter build fix, not another semantic migration or owner count.
+Current Core Cargo.toml SHA256: 590aa239528d33bb36c73d693ee64e1bc30409ec97865e81e3488cc85578d28a
+Core file_uri.rs SHA256: b5a54b8437262506f6bec1878a816c85070867e9e2170631c217681e44608dd5
+Dependency component.rs SHA256: a33c2b2104d19358bc7abd572719f26880eb77a718d8ee00379be1577f62b8db
+Dependency Cargo.toml SHA256: 101e006126e55922ee07e2aa270b74baad175b417a4a12f6116110def6045b0a

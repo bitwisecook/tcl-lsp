@@ -706,7 +706,9 @@ fn workspace_symbol_finds_a_just_opened_documents_proc() {
     std::fs::write(&path, src).expect("write fixture");
 
     let mut lsp = Lsp::at_workspace_root(&root);
-    let uri = format!("file://{}", path.to_string_lossy());
+    let uri = tcl_lsp_server::canonical_file_uri(&path)
+        .expect("document fixture has a representable file URI")
+        .to_string();
     // `open_document`, not `open_ready`: do not wait for the publish that
     // re-adds the index entry.
     lsp.open_document(&uri, src);

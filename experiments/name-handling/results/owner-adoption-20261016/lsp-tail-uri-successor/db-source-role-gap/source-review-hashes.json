@@ -1,0 +1,9 @@
+{
+  "rust/tcl-lsp-db/src/project_token_inputs.rs": "d7fb3c9a857fb226e7ce21019160c5cd8252dd135e92e23844d0857aa4b8b767",
+  "rust/tcl-lsp-db/src/project_token_inputs/tests.rs": "f1eea79f9594e929b20e664505e205ccabc344ec8f98231f226ea23283ad13ff",
+  "rust/tcl-compiler/src/registry_invocation/source_structure/project_procedure_roles.rs": "5e5bb8837d2c2422a5d94e2ffc383220c7d853e3ce14af8b56be633cb9fcfe11",
+  "rust/tcl-compiler/src/command_binding/source_transition_advice/source_parameter_template.rs": "6d4c0e697ff6b9b6bfadae8fed99689552e1ba396ac99319dfc198a791393bab",
+  "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs": "a350059b39a77f94e4c246d355212b6104976ba59fc2d56632d4f1ed204455a5",
+  "rust/tcl-compiler/src/registry_invocation.rs": "1c62db7c8e39e14256dd7d09447bb2ab7f455d4a6a4661a73e43626a36868edf",
+  "rust/tcl-registry/src/world_effect.rs": "209f06dbf23215d4360c8cdd7312d34d4964ed762ce467fb56f249029322f629"
+}

@@ -1,0 +1,25 @@
+{
+  "patch_sha256": "5a9ba4585f8ec91b5aed0abe7991eace61a8e9661b5f31acc735e6b99e13a0a0",
+  "status": "fixture-only premise repair; independent review/execution pending",
+  "path": "rust/tcl-compiler/src/command_binding/declaration_layout.rs",
+  "before_sha256": "0d1859edbba05c77fa3c95a8dbda542619a675f7687f68db1b17ece6cdf042b8",
+  "after_sha256": "969cc388863b916417bc9b249fa6fec8db9d76d11814af9ece300458a214ccbe",
+  "original_assertions": "All text outside this newly authored test unchanged byte-for-byte. All sources, configs, selectors and budgets unchanged. Existing source trace same/other-name assertions retained. Ordinary Folds None retained; Literal now explicitly asserts Original owner and same exact trace-name expectation as source and original unchanged-body controls.",
+  "production_changes": false,
+  "count_delta": 0,
+  "introduction_patch": {
+    "path": "/tmp/compiler-trace-source-exclusion/trace-source-exclusion-7c42f3f82ab4.patch",
+    "sha256": "7c42f3f82ab4d1f040e8dbdac980d2bc11f23a8a87762d49d91d7ee54c7ade19",
+    "full_test_is_added_in_patch": true,
+    "retained_beforeimage_lacks_test": true,
+    "retained_beforeimage_sha256": "91e555c3ce72b1fd8cb238d4c46f8fc2a5991407b36f4a368b1162433c79f557",
+    "git_introduction_commit": "pending root-owned Git inspection"
+  },
+  "frozen_failure": {
+    "path": "/workspace/naming-validation/lsp-source-parent-continuation/repairs65/test-010.log",
+    "binary_sha256": "8ff854e875572b0c5d860e589679470ecd62719076e71998f57f61c968ac71d1",
+    "selector": "command_binding::declaration_layout::tests::declaration_scalar_trace_exclusions_retain_other_names_and_mapped_source_configurations",
+    "observed": "assertion at4471 ordinary None fails; no modified binary executed"
+  },
+  "validation": "Isolated rustfmt, unchanged outside-test byte check, and patch --dry-run PASS. No Cargo/main/Git/build/Rust tests run."
+}

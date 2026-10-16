@@ -3171,6 +3171,15 @@ mod tests {
         a.analyse(source, "tcl8.6").clone()
     }
 
+    fn analyse_for(source: &str, environment: &str) -> AnalysisResult {
+        let mut analyser = Analyser::new();
+        let input = analyser
+            .prepare_analysis_input(environment)
+            .expect("test environment has a complete analysis input");
+        analyser = analyser.with_resolved_input(input);
+        analyser.analyse(source, environment).clone()
+    }
+
     /// [`analyse`] under Tcl 9.0 — for sources using 9.0-only class
     /// machinery (`oo::configurable`, `property`), which the 8.6 analysis
     /// the rest of this module uses does not model.
@@ -3712,7 +3721,7 @@ mod tests {
     #[test]
     fn widget_method_completion_follows_the_document_tk_floor() {
         fn labels(source: &str, dialect: &'static str, line: u32) -> Vec<String> {
-            let analysis = analyse(source);
+            let analysis = analyse_for(source, dialect);
             let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
             completions(
                 source,
@@ -4522,12 +4531,12 @@ mod tests {
         // must once the document's dialect supports it.
         let registry = CommandRegistry::build_default();
         let src = "lsearch -s {a b} x\n";
-        let a = analyse(src);
+        let old_analysis = analyse_for(src, "tcl8.6");
         let old: Vec<String> = completions(
             src,
             0,
             10,
-            &a,
+            &old_analysis,
             Some(&registry),
             None,
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
@@ -4539,11 +4548,12 @@ mod tests {
             !old.iter().any(|l| l == "-stride"),
             "tcl8.6 must not offer -stride: {old:?}",
         );
+        let new_analysis = analyse_for(src, "tcl9.0");
         let new: Vec<String> = completions(
             src,
             0,
             10,
-            &a,
+            &new_analysis,
             Some(&registry),
             None,
             tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
@@ -4566,12 +4576,12 @@ mod tests {
         // dialect exactly like W004 does.
         let registry = CommandRegistry::build_default();
         let src = "chan configure $chan -i\n";
-        let a = analyse(src);
+        let old_analysis = analyse_for(src, "tcl8.6");
         let old: Vec<String> = completions(
             src,
             0,
             23,
-            &a,
+            &old_analysis,
             Some(&registry),
             None,
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
@@ -4583,11 +4593,12 @@ mod tests {
             !old.iter().any(|l| l == "-inputmode"),
             "tcl8.6 must not offer -inputmode: {old:?}",
         );
+        let new_analysis = analyse_for(src, "tcl9.0");
         let new: Vec<String> = completions(
             src,
             0,
             23,
-            &a,
+            &new_analysis,
             Some(&registry),
             None,
             tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
@@ -4610,7 +4621,7 @@ mod tests {
         // downgrade) — offered; the old require-only floor wrongly hid it.
         let registry = CommandRegistry::build_default();
         let older = "package require Tk 8.4\nttk::b\n";
-        let a1 = analyse(older);
+        let a1 = analyse_for(older, "tcl8.4");
         let l1: Vec<String> = completions(
             older,
             1,
@@ -4628,11 +4639,12 @@ mod tests {
             "a tcl8.4 host (Tk 8.4) must not offer ttk::button: {l1:?}",
         );
 
+        let a1_86 = analyse_for(older, "tcl8.6");
         let l1_86: Vec<String> = completions(
             older,
             1,
             6,
-            &a1,
+            &a1_86,
             Some(&registry),
             None,
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
@@ -4646,7 +4658,7 @@ mod tests {
         );
 
         let newer = "package require Tk 8.5\nttk::b\n";
-        let a2 = analyse(newer);
+        let a2 = analyse_for(newer, "tcl8.6");
         let l2: Vec<String> = completions(
             newer,
             1,
@@ -4683,7 +4695,7 @@ mod tests {
         // `when HT` inside iRules — should list every event
         // starting with `HT` (HTTP_REQUEST, HTTP_RESPONSE, …).
         let src = "when HT\n";
-        let analysis = analyse(src);
+        let analysis = analyse_for(src, "f5-irules");
         let registry = irules_registry();
         let items = completions(
             src,
@@ -4692,7 +4704,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+            tcl_registry::model::ingress::resolve_environment("f5-irules").analyser_profile(),
         );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
@@ -4915,7 +4927,7 @@ mod tests {
         // A `wish`-labelled document (`tk` dialect) is implicitly Tk-loaded.
         let registry = CommandRegistry::build_default();
         let src = "butt\n";
-        let analysis = analyse(src);
+        let analysis = analyse_for(src, "tk");
         let items = completions(
             src,
             0,
@@ -4941,7 +4953,7 @@ mod tests {
     fn tk_completion_follows_the_placement_not_the_environment_name() {
         let registry = CommandRegistry::build_default();
         let offers = |src: &str, line: u32, character: u32, dialect: &str| {
-            let analysis = analyse(src);
+            let analysis = analyse_for(src, dialect);
             completions(
                 src,
                 line,
@@ -5672,7 +5684,7 @@ mod tests {
     #[test]
     fn subcommand_completion_is_version_gated_by_the_profile() {
         let src = "dict \n";
-        let analysis = analyse(src);
+        let analysis = analyse_for(src, "tcl8.6");
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         // 8.6 buffer: 9.0-only subcommands are not offered.
         let items = completions(
@@ -5692,11 +5704,12 @@ mod tests {
         );
         // 9.0 buffer: it is offered.
         let registry90 = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
+        let analysis90 = analyse_for(src, "tcl9.0");
         let items90 = completions(
             src,
             0,
             5,
-            &analysis,
+            &analysis90,
             Some(registry90),
             None,
             tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
@@ -5708,7 +5721,7 @@ mod tests {
     #[test]
     fn command_completion_uses_profile_availability() {
         let src = "dic\n";
-        let analysis = analyse(src);
+        let analysis = analyse_for(src, "f5-iapps");
         // iApps ride the `f5-tcl` trunk — a fork of Tcl at 8.4.6
         // (measured, bigip-irule-parser-measurements.md §4a: `dict` fails
         // in `IAppImplementation`) — so `dict` is NOT offered there…
@@ -5729,7 +5742,7 @@ mod tests {
         // …while the banned iRules commands never surface there.
         let irules_reg = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
         let exec_src = "exe\n";
-        let exec_analysis = analyse(exec_src);
+        let exec_analysis = analyse_for(exec_src, "f5-irules");
         let irules_items = completions(
             exec_src,
             0,
@@ -5756,7 +5769,7 @@ mod tests {
         // -command` stays out. The 8.4-real `-exact` is offered, so
         // the composed vendor mask keeps working.
         let src = "switch -\n";
-        let analysis = analyse(src);
+        let analysis = analyse_for(src, "f5-iapps");
         let registry = tcl_registry::model::ingress::static_context_for("f5-iapps").commands();
         let items = completions(
             src,
@@ -5778,7 +5791,7 @@ mod tests {
         );
 
         let src9 = "regsub -\n";
-        let analysis9 = analyse(src9);
+        let analysis9 = analyse_for(src9, "f5-iapps");
         let items9 = completions(
             src9,
             0,

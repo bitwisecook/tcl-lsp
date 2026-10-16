@@ -274,6 +274,20 @@ pub fn rooted_file_uri(path: &std::path::Path) -> Option<Uri> {
         .ok()
 }
 
+/// A document/workspace URI was unavailable under the selected native policy.
+/// The result supplies no file/provider absence, source freshness or edit grant.
+pub use tcl_lsp_core::file_uri::FileUriPathUnavailable as DocumentFilePathUnavailable;
+
+/// Decode the original parsed LSP URI using the shared native document owner.
+/// VS Code authority interoperability is explicit and distinct from host file
+/// actions; this does not widen [`file_action_path`]'s nonlocal refusal.
+pub fn document_file_path(uri: &Uri) -> Result<std::path::PathBuf, DocumentFilePathUnavailable> {
+    tcl_lsp_core::file_uri::to_path(
+        uri.as_str(),
+        tcl_lsp_core::file_uri::FileUriPathPurpose::VsCodeDocument,
+    )
+}
+
 /// Strict incoming file-URI boundary for host file actions. URI repair and
 /// display normalization cannot establish a path. Decode with the protocol
 /// provider, rejecting its lossy Unicode fallback and unsupported authorities.
@@ -766,5 +780,21 @@ mod file_action_path_tests {
                 Some(std::path::Path::new(expected))
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod document_file_path_tests {
+    use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn document_authority_support_does_not_widen_file_action_authority() {
+        let uri: Uri = "file://srv/share/a.tcl".parse().unwrap();
+        assert_eq!(
+            document_file_path(&uri).unwrap().to_str(),
+            Some("//srv/share/a.tcl")
+        );
+        assert!(file_action_path(&uri).is_none());
     }
 }

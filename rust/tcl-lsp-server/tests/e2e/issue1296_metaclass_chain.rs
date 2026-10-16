@@ -391,7 +391,9 @@ fn unopened_factory_documents_feed_an_open_consumer() {
     std::fs::write(&call, call_src).expect("write consumer");
 
     let mut lsp = Lsp::at_workspace_root(&root);
-    let call_uri = format!("file://{}", call.to_string_lossy());
+    let call_uri = tcl_lsp_server::canonical_file_uri(&call)
+        .expect("consumer fixture has a representable file URI")
+        .to_string();
     lsp.open_ready(&call_uri, call_src);
     let found = definition_settled(&mut lsp, &call_uri, 1, 10);
     assert_eq!(found.len(), 1, "{found:?}");

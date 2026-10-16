@@ -1,0 +1,68 @@
+{
+  "sha256": "c1951cf074417ba94792318354c47f00cb30a0aba92b26883522b3f54ae4252f",
+  "immutable_patch": "/tmp/lsp-document-file-path-owner-v2/document-file-path-owner-v2.c1951cf074417ba94792318354c47f00cb30a0aba92b26883522b3f54ae4252f.patch",
+  "status": "Independent source review CLEAR for exact c1951cf0 bytes; root integration/build/test pending",
+  "supersedes_architecture_hold": "V1 9a5d724da895385e36eb1f434a18c13c38372b7e0b12eff577196f56b801cce0",
+  "base": "Current main after integrated partial Path adoption V2; exact beforeimage bindings below",
+  "core_api": "file_uri::to_path(&str, FileUriPathPurpose::VsCodeDocument) -> Result<PathBuf, FileUriPathUnavailable>",
+  "server_api": "uri_norm::document_file_path(&ls_types::Uri) -> Result<PathBuf, DocumentFilePathUnavailable> (reexported Core error alias)",
+  "error_variants": [
+    "UnsupportedHost",
+    "InvalidUri",
+    "NotFile",
+    "QueryOrFragment",
+    "UnsupportedAuthority",
+    "InvalidUnicode",
+    "Nul",
+    "EncodedSeparator",
+    "UnsupportedNativeGeometry"
+  ],
+  "dependency": "Already-locked fluent-uri0.4.1 added directly to Core; Cargo.lock only tcl-lsp-core package edge, no new package/version or Server dependency",
+  "source_bindings": {
+    "rust/tcl-lsp-core/src/file_uri.rs": {
+      "before": "60016b8d5ce957f46cb0bcd2a525b1ea9ad4f618e322f3d57664246b346f7643",
+      "after": "b5a54b8437262506f6bec1878a816c85070867e9e2170631c217681e44608dd5",
+      "current_main_matches_before": true
+    },
+    "rust/tcl-lsp-core/Cargo.toml": {
+      "before": "8aec30f4645c0a5a4854cf58bbd77c545a85e288486d50798526d6b70d2744b9",
+      "after": "ddd8d30a23d437c49e4da2ee3227fdcd5068b2c1a9f1ad9cce1409b60a068cae",
+      "current_main_matches_before": true
+    },
+    "rust/tcl-lsp-server/src/uri_norm.rs": {
+      "before": "2977fc8ea57b78b784296af79dd80afee74049ee5085c054be34cc981ebe27e5",
+      "after": "7460a8581cdbde81bc74a4b0934b4f0b2a1066471adb7fa5dea742bd969d1911",
+      "current_main_matches_before": true
+    },
+    "Cargo.lock": {
+      "before": "fdecde34c5abdaa3d43fdf3611cb65fb203e9707e4c3e809e758ea64cc9a7716",
+      "after": "9ff955a18e4ba53cf2abe746d97c72eb390337fddd207a3fb6e0c836455a956d",
+      "current_main_matches_before": true
+    },
+    "docs/design/contracts/shared-utility-contracts-rust.md": {
+      "before": "b667c4551b55df009ff7f9b737b685816e485a6d356d58b81480c15861841d07",
+      "after": "a76de534f103901ce69b4a78230830bd18419dd22c5d615e10b358a0538f9bb4",
+      "current_main_matches_before": true
+    }
+  },
+  "server_lib_for_luna_current_sha256": "10ea12a7da923a579e54801290b36dfc8e313daf3194ff5cd91e4868cb31013c",
+  "algorithm": "Source-cleared V1 private conversion helper byte-identical after type/error rename; public Core wrapper adds actual URI parse and explicit purpose dispatch",
+  "preserved": "file_action_path function and complete original Core/Server test blocks authenticated unchanged",
+  "count": "Same one missing inverse purpose requirement proposed before; architecture relocation adds zero further requirements. No production inverse adopter/caller changes or completed baseline units.",
+  "contract_gate": "Existing URI owner row extended in shared-utility-contracts-rust.md, canonical owner-resolution manifest; no new per-helper row. Gate execution pending root.",
+  "validation": "Isolated rustfmt PASS; patch --dry-run against exact current-main beforeimages PASS; TOML parsing and Cargo.lock only-Core-edge assertion PASS; unchanged original test/action blocks and relocated helper body authenticated. No Cargo/build/main/Git/Rust tests or Windows execution.",
+  "node_diagnostic_proof": {
+    "node-context-proof.cjs": "7b4b6cdcffc725bd064513273dfa9a09c16deb69446d37e03856a7357100df57",
+    "node-context-proof.stdout.jsonl": "2f429ec574af2eefb415383c8d934153eea771312359ee6e11e1999ef6b94e95",
+    "node-context-proof.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "new_test_selectors": [
+    "file_uri::inverse_tests::actual_posix_document_paths_keep_the_whole_authority_and_counted_path",
+    "file_uri::inverse_tests::unsupported_document_uri_data_is_a_typed_refusal",
+    "file_uri::inverse_tests::windows_document_recipe_keeps_drive_case_unc_and_whole_path",
+    "file_uri::inverse_tests::actual_windows_document_paths_have_native_drive_or_unc_roots (Windows only)",
+    "file_uri::inverse_parser_tests::malformed_original_uris_do_not_reach_native_path_construction",
+    "uri_norm::document_file_path_tests::document_authority_support_does_not_widen_file_action_authority"
+  ],
+  "independent_review": "independent-variable-order-review.txt"
+}

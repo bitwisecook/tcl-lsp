@@ -1,0 +1,23 @@
+
+running 1 test
+test project_token_inputs::tests::project_token_hints_withdraw_when_another_members_source_owner_is_unavailable ... ORIGINAL_PARAM_ROLES begin body=100..131 parameters=1 executed_source=false deep=false
+ORIGINAL_PARAM_ROLES command local_offset=0 base=Some(101) executed_source=false parameters=1 full_values=1 components=1 assistance=false roles=0
+ORIGINAL_PARAM_ROLES command local_offset=20 base=Some(101) executed_source=false parameters=1 full_values=0 components=0 assistance=false roles=0
+ORIGINAL_PARAM_ROLES end body=100 traits=0 caller_parameters=0 caller_literals=0
+ORIGINAL_PARAM_ROLES begin body=100..131 parameters=1 executed_source=false deep=false
+ORIGINAL_PARAM_ROLES command local_offset=0 base=Some(101) executed_source=false parameters=1 full_values=1 components=1 assistance=false roles=0
+ORIGINAL_PARAM_ROLES command local_offset=20 base=Some(101) executed_source=false parameters=1 full_values=0 components=0 assistance=false roles=0
+ORIGINAL_PARAM_ROLES end body=100 traits=0 caller_parameters=0 caller_literals=0
+
+thread 'project_token_inputs::tests::project_token_hints_withdraw_when_another_members_source_owner_is_unavailable' (151189) panicked at rust/tcl-lsp-db/src/project_token_inputs/tests.rs:225:5:
+assertion failed: !project_proc_var_index_for_inputs(&db, project).is_empty()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    project_token_inputs::tests::project_token_hints_withdraw_when_another_members_source_owner_is_unavailable
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 194 filtered out; finished in 0.90s
+

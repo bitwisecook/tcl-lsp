@@ -1,0 +1,21 @@
+{
+  "patch_sha256": "504804b8b6b2dfd968d921b33db36cbb0f9d8030fdd368db8689328cea86b0c5",
+  "units": [
+    "lsp-procedure-declaration-catalogue",
+    "lsp-procedure-literal-tool-query"
+  ],
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "before_sha256": "70e1028ff26df2f2c89dc25f9be539bc807fd046c29e3b678f314c8aeb926d74",
+      "after_sha256": "de82dd046a27e054cd34b18b949f33fdbb85bb6f1d765e388eb07d721790349b",
+      "live_matches_before": true
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/procedure_symbol.rs",
+      "before_sha256": "de773f000ec82753906453d4f5a49dabf4159f66d95ecd6128fceff89bbd7828",
+      "after_sha256": "256367676ea1ae64f1a748d6fdeeedac4ff388b87424cab68e52a30d530b1184",
+      "live_matches_before": true
+    }
+  ]
+}

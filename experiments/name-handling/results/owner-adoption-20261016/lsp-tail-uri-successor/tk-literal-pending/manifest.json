@@ -1,0 +1,19 @@
+{
+  "unit": "lsp-tk-original-literal-word-value",
+  "work_kind": "existing caller migration",
+  "additional_owner_count": 0,
+  "patch_sha256": "e06f54e9380172a46cb5a1ea14a7e385f40f4d69e40a5af15fe1d29f5513d924",
+  "files": {
+    "rust/tcl-lsp-core/src/tk_preview.rs": {
+      "before_sha256": "972a15a4d21f7b042e8c48f5c13ee90c54a8c7942ef9ecd4bdb24696f1909162",
+      "after_sha256": "389aed11d41393361077517977419afe303190d3a0f0dfe325225a746f5d5259",
+      "live_matches_before": true
+    }
+  },
+  "validation": "TMP rustfmt/check; exact independent TMP apply/afterimage; no Cargo/compiler/tests/Git/main/network",
+  "new_tests": [
+    "tk_preview::tests::original_tk_literals_decode_escapes_and_retain_complete_word_spans",
+    "tk_preview::tests::original_tk_literals_keep_braced_data_and_the_actual_full_configuration",
+    "tk_preview::tests::original_tk_literals_refuse_substitution_expansion_and_foreign_source"
+  ]
+}

@@ -1,0 +1,344 @@
+{
+  "status": "TMP-only proposed patch; no checkout, test, build, Cargo, Git, or tracking changes",
+  "patch": "/tmp/lsp-uri-caller-next/native-path-uri-callers.patch",
+  "patch_sha256": "ce28caa64f09b34429b88c99949d5cc9cd9f5f5521b4cfd1bd930de341609a50",
+  "patch_bytes": 6911,
+  "selected_existing_catalogue_units": [
+    {
+      "id": "lsp.validation.07.04.fn0",
+      "purpose": "Actual native filesystem Path to protocol URI",
+      "family": "validation.native-path-uri",
+      "required_change": "actual filesystem Path to URI source in operational fixture",
+      "sites": [
+        {
+          "path": "rust/tcl-lsp-server/tests/e2e/issue1556_diagnostics_exclude.rs",
+          "line": 81,
+          "source_sha256": "e76ef9105b0c511d0a140bd87d9615123ecc5fc7db7ac7d272c2dd29b4f52f97",
+          "symbol_or_region": "project_ini_exclude_live_reloads",
+          "source_statement": "    let uri = format!(\"file://{}\", doc_path.to_string_lossy());",
+          "scope": "Actual retained change anchor; adjacent unchanged assertions/callers are not extra units.",
+          "enclosing_function": {
+            "symbol": "project_ini_exclude_live_reloads",
+            "start_line": 71,
+            "end_line": 112
+          }
+        },
+        {
+          "path": "rust/tcl-lsp-server/tests/e2e/issue1556_diagnostics_exclude.rs",
+          "line": 90,
+          "source_sha256": "e76ef9105b0c511d0a140bd87d9615123ecc5fc7db7ac7d272c2dd29b4f52f97",
+          "symbol_or_region": "project_ini_exclude_live_reloads",
+          "source_statement": "    let ini_uri = format!(\"file://{}\", ini_path.to_string_lossy());",
+          "scope": "Actual retained change anchor; adjacent unchanged assertions/callers are not extra units.",
+          "enclosing_function": {
+            "symbol": "project_ini_exclude_live_reloads",
+            "start_line": 71,
+            "end_line": 112
+          }
+        }
+      ],
+      "source_annex": {
+        "source_annex": "lsp-audit-validation-boundary-units.json",
+        "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      }
+    },
+    {
+      "id": "lsp.validation.07.05.fn0",
+      "purpose": "Actual native filesystem Path to protocol URI",
+      "family": "validation.native-path-uri",
+      "required_change": "actual host workspace root Path to initialize URI",
+      "sites": [
+        {
+          "path": "rust/tcl-lsp-server/tests/e2e/issue2021_exit_watchdog.rs",
+          "line": 206,
+          "source_sha256": "b16fd22f9c69d73e6e1d5454656196cd5e5275ef140500246f667f2c8020f318",
+          "symbol_or_region": "handshake",
+          "source_statement": "    let root_uri = format!(\"file://{}\", root.to_string_lossy());",
+          "scope": "Actual retained change anchor; adjacent unchanged assertions/callers are not extra units.",
+          "enclosing_function": {
+            "symbol": "handshake",
+            "start_line": 202,
+            "end_line": 234
+          }
+        }
+      ],
+      "source_annex": {
+        "source_annex": "lsp-audit-validation-boundary-units.json",
+        "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      }
+    },
+    {
+      "id": "lsp.validation.07.06.fn0",
+      "purpose": "Actual native filesystem Path to protocol URI",
+      "family": "validation.native-path-uri",
+      "required_change": "actual native temporary source fixture Path to document URI",
+      "sites": [
+        {
+          "path": "rust/tcl-lsp-server/tests/e2e/issue1137_call_site_resolution.rs",
+          "line": 197,
+          "source_sha256": "5c14d48cd6b5c2d6830c0e6c98e1bd4df35d212956d96a2ef856024522115825",
+          "symbol_or_region": "a_bare_helper_call_in_a_method_body_resolves_across_files",
+          "source_statement": "    let uri = format!(\"file://{}\", esnap.to_string_lossy());",
+          "scope": "Actual retained change anchor; adjacent unchanged assertions/callers are not extra units.",
+          "enclosing_function": {
+            "symbol": "a_bare_helper_call_in_a_method_body_resolves_across_files",
+            "start_line": 168,
+            "end_line": 238
+          }
+        },
+        {
+          "path": "rust/tcl-lsp-server/tests/e2e/issue1137_call_site_resolution.rs",
+          "line": 219,
+          "source_sha256": "5c14d48cd6b5c2d6830c0e6c98e1bd4df35d212956d96a2ef856024522115825",
+          "symbol_or_region": "a_bare_helper_call_in_a_method_body_resolves_across_files",
+          "source_statement": "    let utils_uri = format!(\"file://{}\", root.join(\"utils.tcl\").to_string_lossy());",
+          "scope": "Actual retained change anchor; adjacent unchanged assertions/callers are not extra units.",
+          "enclosing_function": {
+            "symbol": "a_bare_helper_call_in_a_method_body_resolves_across_files",
+            "start_line": 168,
+            "end_line": 238
+          }
+        }
+      ],
+      "source_annex": {
+        "source_annex": "lsp-audit-validation-boundary-units.json",
+        "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      }
+    },
+    {
+      "id": "lsp.validation.07.07.fn0",
+      "purpose": "Actual native filesystem Path to protocol URI",
+      "family": "validation.native-path-uri",
+      "required_change": "actual native temporary source fixture Path to document URI",
+      "sites": [
+        {
+          "path": "rust/tcl-lsp-server/tests/e2e/issue1296_metaclass_chain.rs",
+          "line": 394,
+          "source_sha256": "37dee11856846ac439ebe2eb9e22644256e31adeb0fa78cff1d9985df8dadbe5",
+          "symbol_or_region": "unopened_factory_documents_feed_an_open_consumer",
+          "source_statement": "    let call_uri = format!(\"file://{}\", call.to_string_lossy());",
+          "scope": "Actual retained change anchor; adjacent unchanged assertions/callers are not extra units.",
+          "enclosing_function": {
+            "symbol": "unopened_factory_documents_feed_an_open_consumer",
+            "start_line": 373,
+            "end_line": 401
+          }
+        }
+      ],
+      "source_annex": {
+        "source_annex": "lsp-audit-validation-boundary-units.json",
+        "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      }
+    },
+    {
+      "id": "lsp.validation.07.08.fn0",
+      "purpose": "Actual native filesystem Path to protocol URI",
+      "family": "validation.native-path-uri",
+      "required_change": "actual native startup-scanned vector fixture Path to document URI",
+      "sites": [
+        {
+          "path": "rust/tcl-lsp-server/tests/e2e/issue923_idx80_mathfunc.rs",
+          "line": 223,
+          "source_sha256": "d03bec18afa8d5d1b416e7f248fa39fcfb094c3b9077d30f967452dad0496f68",
+          "symbol_or_region": "workspace_scan_clears_w123_for_a_cross_file_mathfunc",
+          "source_statement": "    let vector = format!(\"file://{}\", vector_path.to_string_lossy());",
+          "scope": "Actual retained change anchor; adjacent unchanged assertions/callers are not extra units.",
+          "enclosing_function": {
+            "symbol": "workspace_scan_clears_w123_for_a_cross_file_mathfunc",
+            "start_line": 203,
+            "end_line": 251
+          }
+        }
+      ],
+      "source_annex": {
+        "source_annex": "lsp-audit-validation-boundary-units.json",
+        "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      }
+    },
+    {
+      "id": "lsp.validation.07.09.fn0",
+      "purpose": "Actual native filesystem Path to protocol URI",
+      "family": "validation.native-path-uri",
+      "required_change": "actual native filesystem fixture Path to URI association",
+      "sites": [
+        {
+          "path": "rust/tcl-lsp-server/tests/e2e/document_symbols.rs",
+          "line": 709,
+          "source_sha256": "c2189ceff00743751888e62cc30a45e90e8851bdab123502d33da4a9fe267a44",
+          "symbol_or_region": "workspace_symbol_finds_a_just_opened_documents_proc",
+          "source_statement": "    let uri = format!(\"file://{}\", path.to_string_lossy());",
+          "scope": "Actual retained change anchor; adjacent unchanged assertions/callers are not extra units.",
+          "enclosing_function": {
+            "symbol": "workspace_symbol_finds_a_just_opened_documents_proc",
+            "start_line": 697,
+            "end_line": 721
+          }
+        }
+      ],
+      "source_annex": {
+        "source_annex": "lsp-audit-validation-boundary-units.json",
+        "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      }
+    },
+    {
+      "id": "lsp.validation.07.10.fn0",
+      "purpose": "Actual native filesystem Path to protocol URI",
+      "family": "validation.native-path-uri",
+      "required_change": "actual native filesystem fixture Path to URI association",
+      "sites": [
+        {
+          "path": "rust/tcl-lsp-server/tests/e2e/issue1707_ilx_methods.rs",
+          "line": 122,
+          "source_sha256": "f69f96855bc95a5c5ab39a4a0e44d31101f0edcc5b243433bdefac2b027306d9",
+          "symbol_or_region": "uri_of",
+          "source_statement": "    format!(\"file://{}\", path.to_string_lossy())",
+          "scope": "Actual retained change anchor; adjacent unchanged assertions/callers are not extra units.",
+          "enclosing_function": {
+            "symbol": "uri_of",
+            "start_line": 121,
+            "end_line": 123
+          }
+        }
+      ],
+      "source_annex": {
+        "source_annex": "lsp-audit-validation-boundary-units.json",
+        "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      }
+    },
+    {
+      "id": "lsp.validation.07.11.fn0",
+      "purpose": "Actual native filesystem Path to protocol URI",
+      "family": "validation.native-path-uri",
+      "required_change": "actual native multi-root folder/config/watch fixture path to URI association",
+      "sites": [
+        {
+          "path": "rust/tcl-lsp-server/tests/e2e/config.rs",
+          "line": 584,
+          "source_sha256": "0fb33c1fb56842fc659577a834df34e1dff41aaa7aadaddc1ffe7b253928cb95",
+          "symbol_or_region": "folder_scoped_dialect_reaches_documents_in_that_folder",
+          "source_statement": "    let uri_a = format!(\"file://{}\", root_a.to_string_lossy());",
+          "scope": "Actual retained change anchor; adjacent unchanged assertions/callers are not extra units.",
+          "enclosing_function": {
+            "symbol": "folder_scoped_dialect_reaches_documents_in_that_folder",
+            "start_line": 551,
+            "end_line": 643
+          }
+        },
+        {
+          "path": "rust/tcl-lsp-server/tests/e2e/config.rs",
+          "line": 585,
+          "source_sha256": "0fb33c1fb56842fc659577a834df34e1dff41aaa7aadaddc1ffe7b253928cb95",
+          "symbol_or_region": "folder_scoped_dialect_reaches_documents_in_that_folder",
+          "source_statement": "    let uri_b = format!(\"file://{}\", root_b.to_string_lossy());",
+          "scope": "Actual retained change anchor; adjacent unchanged assertions/callers are not extra units.",
+          "enclosing_function": {
+            "symbol": "folder_scoped_dialect_reaches_documents_in_that_folder",
+            "start_line": 551,
+            "end_line": 643
+          }
+        },
+        {
+          "path": "rust/tcl-lsp-server/tests/e2e/config.rs",
+          "line": 592,
+          "source_sha256": "0fb33c1fb56842fc659577a834df34e1dff41aaa7aadaddc1ffe7b253928cb95",
+          "symbol_or_region": "folder_scoped_dialect_reaches_documents_in_that_folder",
+          "source_statement": "    let doc_a = format!(\"file://{}\", file_a.to_string_lossy());",
+          "scope": "Actual retained change anchor; adjacent unchanged assertions/callers are not extra units.",
+          "enclosing_function": {
+            "symbol": "folder_scoped_dialect_reaches_documents_in_that_folder",
+            "start_line": 551,
+            "end_line": 643
+          }
+        },
+        {
+          "path": "rust/tcl-lsp-server/tests/e2e/config.rs",
+          "line": 593,
+          "source_sha256": "0fb33c1fb56842fc659577a834df34e1dff41aaa7aadaddc1ffe7b253928cb95",
+          "symbol_or_region": "folder_scoped_dialect_reaches_documents_in_that_folder",
+          "source_statement": "    let doc_b = format!(\"file://{}\", file_b.to_string_lossy());",
+          "scope": "Actual retained change anchor; adjacent unchanged assertions/callers are not extra units.",
+          "enclosing_function": {
+            "symbol": "folder_scoped_dialect_reaches_documents_in_that_folder",
+            "start_line": 551,
+            "end_line": 643
+          }
+        }
+      ],
+      "source_annex": {
+        "source_annex": "lsp-audit-validation-boundary-units.json",
+        "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      }
+    }
+  ],
+  "files": {
+    "rust/tcl-lsp-server/tests/e2e/issue1556_diagnostics_exclude.rs": {
+      "before_sha256": "e76ef9105b0c511d0a140bd87d9615123ecc5fc7db7ac7d272c2dd29b4f52f97",
+      "after_sha256": "5ee16c0345403d71900cdaaec3a794a405c8720673bc524aacadb8bc59de40b4",
+      "before_bytes": 4751,
+      "after_bytes": 4923
+    },
+    "rust/tcl-lsp-server/tests/e2e/issue2021_exit_watchdog.rs": {
+      "before_sha256": "b16fd22f9c69d73e6e1d5454656196cd5e5275ef140500246f667f2c8020f318",
+      "after_sha256": "3a2ccac6486d4df837f4aa3c0a6d945dfd3add4802638c55da3c475babffd1b9",
+      "before_bytes": 13734,
+      "after_bytes": 13817
+    },
+    "rust/tcl-lsp-server/tests/e2e/issue1137_call_site_resolution.rs": {
+      "before_sha256": "5c14d48cd6b5c2d6830c0e6c98e1bd4df35d212956d96a2ef856024522115825",
+      "after_sha256": "29b7d2afac46459552a47cd429046b99ebce36f81085ee032ae703ef8672be2c",
+      "before_bytes": 11139,
+      "after_bytes": 11334
+    },
+    "rust/tcl-lsp-server/tests/e2e/issue1296_metaclass_chain.rs": {
+      "before_sha256": "37dee11856846ac439ebe2eb9e22644256e31adeb0fa78cff1d9985df8dadbe5",
+      "after_sha256": "a74520258bd8384f02f07836c9afafdbdae8fc9d59cabc6d8e8646b136abaf68",
+      "before_bytes": 15845,
+      "after_bytes": 15928
+    },
+    "rust/tcl-lsp-server/tests/e2e/issue923_idx80_mathfunc.rs": {
+      "before_sha256": "d03bec18afa8d5d1b416e7f248fa39fcfb094c3b9077d30f967452dad0496f68",
+      "after_sha256": "c86def477ab89efb8bce34ce667afabda074cf88ee13befa4c203859726883e2",
+      "before_bytes": 15270,
+      "after_bytes": 15351
+    },
+    "rust/tcl-lsp-server/tests/e2e/document_symbols.rs": {
+      "before_sha256": "c2189ceff00743751888e62cc30a45e90e8851bdab123502d33da4a9fe267a44",
+      "after_sha256": "3e61a19a733fcd776ab4644fe6e5b137e18cdaf1f0db690d7a9ff936a1ccb59a",
+      "before_bytes": 24537,
+      "after_bytes": 24620
+    },
+    "rust/tcl-lsp-server/tests/e2e/issue1707_ilx_methods.rs": {
+      "before_sha256": "f69f96855bc95a5c5ab39a4a0e44d31101f0edcc5b243433bdefac2b027306d9",
+      "after_sha256": "22359dfb46cc97d0cf88caf7d208483ea13e251c498c6e10db8ce71db9bb06a8",
+      "before_bytes": 27962,
+      "after_bytes": 28040
+    },
+    "rust/tcl-lsp-server/tests/e2e/config.rs": {
+      "before_sha256": "0fb33c1fb56842fc659577a834df34e1dff41aaa7aadaddc1ffe7b253928cb95",
+      "after_sha256": "71e658321e376192ce6a3dd88fe281ee8d5265f74de6a07115a1837ada81da66",
+      "before_bytes": 43597,
+      "after_bytes": 43929
+    }
+  },
+  "owner_api": {
+    "symbol": "tcl_lsp_server::canonical_file_uri",
+    "source": "rust/tcl-lsp-server/src/lib.rs",
+    "semantics": "checked actual Path to canonical URI, returning Option<Uri>; requires the bounded owner representability patch for opaque native-path refusal."
+  },
+  "dependency": {
+    "patch": "/tmp/lsp-uri-owner-representability/uri-owner-representability.patch",
+    "sha256": "dedce74292277c41a03c174abf752662f0454881b878f2a1b064e60a356d5109"
+  },
+  "change_summary": "Replace lossy display/raw file URI creation at eight distinct audited Rust test caller purposes: diagnostics exclusion document+INI; watchdog initialization root; cross-file OO method source and helper; metaclass consumer; vector fixture; opened-document workspace-symbol fixture; ILX path helper; two-root/two-document folder dialect fixture. Preserve existing fixture contents, protocol methods, selectors, assertions, and time budgets.",
+  "exclusions": [
+    "lsp.validation.07.01.fn0 remains untouched because its raw space URI is the intentional malformed-URI input under test.",
+    "Already implemented/pending-validation units .07.00.fn0-fn2, .07.02.fn0, .07.03.fn0 and .07.13.fn0 excluded; previous prepared .07.14.fn0/fn1 and .07.15.fn0 excluded.",
+    "No preview_tickets_e2e or editor URI analogues touched."
+  ],
+  "formatting": "TMP copies formatted with pinned rustfmt stable --edition 2024 --config skip_children=true; patch contains only intended caller substitutions.",
+  "scope_limits": [
+    "Exactly eight existing validation_code_repair units; no new unit count.",
+    "No assertion, expected result, input payload, selector, malformed-URI control, or budget changed.",
+    "Patch is unexecuted; parent owns formatting/build/test validation."
+  ]
+}

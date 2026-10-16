@@ -17472,7 +17472,12 @@
       "required_change": [
         "Unavailable source/member/body regions and depth exhaustion collapse to empty/skipped spans. Existing caller unproved_definition_member_reference only examines returned hazards; needs completeness/unavailable transport or independent closed coverage proof before absence of hazards supports rename. unlocatable_member_reference catches recorded metadata gaps only; whole rename safety still unexamined, so no blanket unsafe-rename claim."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of5b4d97abe",
+        "validation": "Actual whole-parent no-fatal plan gates checked hazard inventory; partial positive spans independent. Independent CLEAR4b518ea2; fresh build/rename original positives pending."
+      }
     },
     {
       "area": "lsp",
@@ -19898,7 +19903,12 @@
       "required_change": [
         "Replace representative command.texts and one-token Esc(no $/[) heuristic with actual retained whole original word/static value+source geometry. Current raw/stripped spelling loses escape evaluation and refuses escaped literal metacharacters; dynamic/expanded remain unavailable. No cooked byte-offset inverse or fabricated child word allowed."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of5b4d97abe",
+        "validation": "Reviewed genuine Tk whole-source word caller or exact validation owner prerequisite/path admission. All original fixtures/assertions/budgets retained. Fresh retry and targeted execution pending."
+      }
     },
     {
       "area": "lsp",
@@ -64540,6 +64550,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of5b4d97abe",
+        "validation": "Reviewed genuine Tk whole-source word caller or exact validation owner prerequisite/path admission. All original fixtures/assertions/budgets retained. Fresh retry and targeted execution pending."
       }
     },
     {
@@ -64653,6 +64668,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of5b4d97abe",
+        "validation": "Actual native fixturePaths through shared checked canonical_file_uri, original assertions/source/budgets unchanged. Independent CLEARce28caa6; execution pending."
       }
     },
     {
@@ -64683,6 +64703,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of5b4d97abe",
+        "validation": "Actual native fixturePaths through shared checked canonical_file_uri, original assertions/source/budgets unchanged. Independent CLEARce28caa6; execution pending."
       }
     },
     {
@@ -64726,6 +64751,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of5b4d97abe",
+        "validation": "Actual native fixturePaths through shared checked canonical_file_uri, original assertions/source/budgets unchanged. Independent CLEARce28caa6; execution pending."
       }
     },
     {
@@ -64756,6 +64786,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of5b4d97abe",
+        "validation": "Actual native fixturePaths through shared checked canonical_file_uri, original assertions/source/budgets unchanged. Independent CLEARce28caa6; execution pending."
       }
     },
     {
@@ -64786,6 +64821,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of5b4d97abe",
+        "validation": "Actual native fixturePaths through shared checked canonical_file_uri, original assertions/source/budgets unchanged. Independent CLEARce28caa6; execution pending."
       }
     },
     {
@@ -64816,6 +64856,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of5b4d97abe",
+        "validation": "Actual native fixturePaths through shared checked canonical_file_uri, original assertions/source/budgets unchanged. Independent CLEARce28caa6; execution pending."
       }
     },
     {
@@ -64846,6 +64891,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of5b4d97abe",
+        "validation": "Actual native fixturePaths through shared checked canonical_file_uri, original assertions/source/budgets unchanged. Independent CLEARce28caa6; execution pending."
       }
     },
     {
@@ -64915,6 +64965,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of5b4d97abe",
+        "validation": "Actual native fixturePaths through shared checked canonical_file_uri, original assertions/source/budgets unchanged. Independent CLEARce28caa6; execution pending."
       }
     },
     {
@@ -65242,6 +65297,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of5b4d97abe",
+        "validation": "Actual fixture Path through existing checked canonical_file_uri. Original assertions/source/budgets unchanged; fresh target execution pending."
       }
     },
     {
@@ -65285,6 +65345,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of5b4d97abe",
+        "validation": "Actual fixture Path through existing checked canonical_file_uri. Original assertions/source/budgets unchanged; fresh target execution pending."
       }
     },
     {
@@ -65328,6 +65393,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of5b4d97abe",
+        "validation": "Actual fixture Path through existing checked canonical_file_uri. Original assertions/source/budgets unchanged; fresh target execution pending."
       }
     },
     {
@@ -65943,6 +66013,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of5b4d97abe",
+        "validation": "Reviewed genuine Tk whole-source word caller or exact validation owner prerequisite/path admission. All original fixtures/assertions/budgets retained. Fresh retry and targeted execution pending."
       }
     },
     {
@@ -65973,6 +66048,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of5b4d97abe",
+        "validation": "Reviewed genuine Tk whole-source word caller or exact validation owner prerequisite/path admission. All original fixtures/assertions/budgets retained. Fresh retry and targeted execution pending."
       }
     },
     {
@@ -66003,6 +66083,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of5b4d97abe",
+        "validation": "Reviewed genuine Tk whole-source word caller or exact validation owner prerequisite/path admission. All original fixtures/assertions/budgets retained. Fresh retry and targeted execution pending."
       }
     },
     {
@@ -66033,6 +66118,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of5b4d97abe",
+        "validation": "Reviewed genuine Tk whole-source word caller or exact validation owner prerequisite/path admission. All original fixtures/assertions/budgets retained. Fresh retry and targeted execution pending."
       }
     },
     {
@@ -66063,6 +66153,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of5b4d97abe",
+        "validation": "Reviewed genuine Tk whole-source word caller or exact validation owner prerequisite/path admission. All original fixtures/assertions/budgets retained. Fresh retry and targeted execution pending."
       }
     },
     {
@@ -66258,6 +66353,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of5b4d97abe",
+        "validation": "Reviewed genuine Tk whole-source word caller or exact validation owner prerequisite/path admission. All original fixtures/assertions/budgets retained. Fresh retry and targeted execution pending."
       }
     },
     {
@@ -66288,6 +66388,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of5b4d97abe",
+        "validation": "Reviewed genuine Tk whole-source word caller or exact validation owner prerequisite/path admission. All original fixtures/assertions/budgets retained. Fresh retry and targeted execution pending."
       }
     },
     {
@@ -66318,6 +66423,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of5b4d97abe",
+        "validation": "Reviewed genuine Tk whole-source word caller or exact validation owner prerequisite/path admission. All original fixtures/assertions/budgets retained. Fresh retry and targeted execution pending."
       }
     },
     {
@@ -66348,6 +66458,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of5b4d97abe",
+        "validation": "Reviewed genuine Tk whole-source word caller or exact validation owner prerequisite/path admission. All original fixtures/assertions/budgets retained. Fresh retry and targeted execution pending."
       }
     },
     {
@@ -66378,6 +66493,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of5b4d97abe",
+        "validation": "Reviewed genuine Tk whole-source word caller or exact validation owner prerequisite/path admission. All original fixtures/assertions/budgets retained. Fresh retry and targeted execution pending."
       }
     },
     {
@@ -66408,6 +66528,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of5b4d97abe",
+        "validation": "Reviewed genuine Tk whole-source word caller or exact validation owner prerequisite/path admission. All original fixtures/assertions/budgets retained. Fresh retry and targeted execution pending."
       }
     },
     {
@@ -66438,6 +66563,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of5b4d97abe",
+        "validation": "Reviewed genuine Tk whole-source word caller or exact validation owner prerequisite/path admission. All original fixtures/assertions/budgets retained. Fresh retry and targeted execution pending."
       }
     },
     {
@@ -66468,6 +66598,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of5b4d97abe",
+        "validation": "Reviewed genuine Tk whole-source word caller or exact validation owner prerequisite/path admission. All original fixtures/assertions/budgets retained. Fresh retry and targeted execution pending."
       }
     },
     {
@@ -66498,6 +66633,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of5b4d97abe",
+        "validation": "Reviewed genuine Tk whole-source word caller or exact validation owner prerequisite/path admission. All original fixtures/assertions/budgets retained. Fresh retry and targeted execution pending."
       }
     },
     {
@@ -66528,6 +66668,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of5b4d97abe",
+        "validation": "Reviewed genuine Tk whole-source word caller or exact validation owner prerequisite/path admission. All original fixtures/assertions/budgets retained. Fresh retry and targeted execution pending."
       }
     },
     {
@@ -66558,6 +66703,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of5b4d97abe",
+        "validation": "Reviewed genuine Tk whole-source word caller or exact validation owner prerequisite/path admission. All original fixtures/assertions/budgets retained. Fresh retry and targeted execution pending."
       }
     },
     {
@@ -66588,6 +66738,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of5b4d97abe",
+        "validation": "Reviewed genuine Tk whole-source word caller or exact validation owner prerequisite/path admission. All original fixtures/assertions/budgets retained. Fresh retry and targeted execution pending."
       }
     },
     {
@@ -66618,6 +66773,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of5b4d97abe",
+        "validation": "Reviewed genuine Tk whole-source word caller or exact validation owner prerequisite/path admission. All original fixtures/assertions/budgets retained. Fresh retry and targeted execution pending."
       }
     },
     {
@@ -66648,6 +66808,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of5b4d97abe",
+        "validation": "Reviewed genuine Tk whole-source word caller or exact validation owner prerequisite/path admission. All original fixtures/assertions/budgets retained. Fresh retry and targeted execution pending."
       }
     },
     {
@@ -66678,6 +66843,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of5b4d97abe",
+        "validation": "Reviewed genuine Tk whole-source word caller or exact validation owner prerequisite/path admission. All original fixtures/assertions/budgets retained. Fresh retry and targeted execution pending."
       }
     },
     {
@@ -66708,6 +66878,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of5b4d97abe",
+        "validation": "Reviewed genuine Tk whole-source word caller or exact validation owner prerequisite/path admission. All original fixtures/assertions/budgets retained. Fresh retry and targeted execution pending."
       }
     },
     {
@@ -66738,6 +66913,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of5b4d97abe",
+        "validation": "Reviewed genuine Tk whole-source word caller or exact validation owner prerequisite/path admission. All original fixtures/assertions/budgets retained. Fresh retry and targeted execution pending."
       }
     },
     {
@@ -66768,6 +66948,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of5b4d97abe",
+        "validation": "Reviewed genuine Tk whole-source word caller or exact validation owner prerequisite/path admission. All original fixtures/assertions/budgets retained. Fresh retry and targeted execution pending."
       }
     },
     {
@@ -66798,6 +66983,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of5b4d97abe",
+        "validation": "Reviewed genuine Tk whole-source word caller or exact validation owner prerequisite/path admission. All original fixtures/assertions/budgets retained. Fresh retry and targeted execution pending."
       }
     },
     {
@@ -66828,6 +67018,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of5b4d97abe",
+        "validation": "Reviewed genuine Tk whole-source word caller or exact validation owner prerequisite/path admission. All original fixtures/assertions/budgets retained. Fresh retry and targeted execution pending."
       }
     },
     {
@@ -66858,6 +67053,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of5b4d97abe",
+        "validation": "Reviewed genuine Tk whole-source word caller or exact validation owner prerequisite/path admission. All original fixtures/assertions/budgets retained. Fresh retry and targeted execution pending."
       }
     },
     {
@@ -66888,6 +67088,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of5b4d97abe",
+        "validation": "Reviewed genuine Tk whole-source word caller or exact validation owner prerequisite/path admission. All original fixtures/assertions/budgets retained. Fresh retry and targeted execution pending."
       }
     },
     {
@@ -66948,6 +67153,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of5b4d97abe",
+        "validation": "Actual per-leg prepared analysis input, compatibility API profile labels cannot replace it. Independent V3 CLEAR, original assertions retained; target execution pending."
       }
     },
     {
@@ -66978,6 +67188,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of5b4d97abe",
+        "validation": "Actual per-leg prepared analysis input, compatibility API profile labels cannot replace it. Independent V3 CLEAR, original assertions retained; target execution pending."
       }
     },
     {
@@ -67008,6 +67223,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of5b4d97abe",
+        "validation": "Actual per-leg prepared analysis input, compatibility API profile labels cannot replace it. Independent V3 CLEAR, original assertions retained; target execution pending."
       }
     },
     {
@@ -67038,6 +67258,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of5b4d97abe",
+        "validation": "Actual per-leg prepared analysis input, compatibility API profile labels cannot replace it. Independent V3 CLEAR, original assertions retained; target execution pending."
       }
     },
     {
@@ -67068,6 +67293,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of5b4d97abe",
+        "validation": "Actual per-leg prepared analysis input, compatibility API profile labels cannot replace it. Independent V3 CLEAR, original assertions retained; target execution pending."
       }
     },
     {
@@ -67098,6 +67328,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of5b4d97abe",
+        "validation": "Actual per-leg prepared analysis input, compatibility API profile labels cannot replace it. Independent V3 CLEAR, original assertions retained; target execution pending."
       }
     },
     {
@@ -67128,6 +67363,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of5b4d97abe",
+        "validation": "Actual per-leg prepared analysis input, compatibility API profile labels cannot replace it. Independent V3 CLEAR, original assertions retained; target execution pending."
       }
     },
     {
@@ -67158,6 +67398,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of5b4d97abe",
+        "validation": "Actual per-leg prepared analysis input, compatibility API profile labels cannot replace it. Independent V3 CLEAR, original assertions retained; target execution pending."
       }
     },
     {
@@ -67188,6 +67433,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of5b4d97abe",
+        "validation": "Actual per-leg prepared analysis input, compatibility API profile labels cannot replace it. Independent V3 CLEAR, original assertions retained; target execution pending."
       }
     },
     {
@@ -67218,6 +67468,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of5b4d97abe",
+        "validation": "Actual per-leg prepared analysis input, compatibility API profile labels cannot replace it. Independent V3 CLEAR, original assertions retained; target execution pending."
       }
     },
     {
@@ -67248,6 +67503,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of5b4d97abe",
+        "validation": "Actual per-leg prepared analysis input, compatibility API profile labels cannot replace it. Independent V3 CLEAR, original assertions retained; target execution pending."
       }
     },
     {
@@ -67278,6 +67538,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of5b4d97abe",
+        "validation": "Actual per-leg prepared analysis input, compatibility API profile labels cannot replace it. Independent V3 CLEAR, original assertions retained; target execution pending."
       }
     },
     {
@@ -131636,12 +131901,12 @@
   ],
   "implementation_progress": {
     "resumed_from": "554085e162823ea8bd126898d0c27b7b2a9f8628",
-    "utc": "2026-10-16T14:53:32.987204+00:00",
+    "utc": "2026-10-16T15:10:36.692987+00:00",
     "audit_baseline_counts_unchanged": true,
     "total_required_units": 2158,
-    "implemented_pending_validation": 158,
+    "implemented_pending_validation": 211,
     "verified_complete": 0,
-    "not_started": 2000,
+    "not_started": 1947,
     "remaining_unverified_or_unimplemented": 2158,
     "additional_work_not_counted_as_catalogue_completion": [
       "Native variable-expression read/cell/trace/child-body observer producer remains open; pure expression gap receipt grants no such authority.",
@@ -131801,7 +132066,7 @@
     "withheld_drafts": [
       "Minifier command/argument alias construction: missing genuine source action/insertion owner; original unknown-command controls remain unchanged."
     ],
-    "owner_facet_reconciliation": "34 annex requirements:33 integrated pendingvalidation,1sourceblocked. New Source alias declaration VarDef adopter counted once; existing680 owner not recounted.",
+    "owner_facet_reconciliation": "35 annex requirements:34 integrated pending validation,1 source-blocked. New shared strict document URI inverse counted once; existing forward URI/SourceFile/WASI caller purposes not recounted.",
     "runtime_build": {
       "status": "PASS",
       "seconds": 57.46,
@@ -131894,13 +132159,13 @@
     },
     "additional_owner_annex": {
       "path": "docs/work/name-handling/implementation-owner-annex.json",
-      "required": 34,
-      "implemented_pending_validation": 33,
+      "required": 35,
+      "implemented_pending_validation": 34,
       "not_integrated": 1,
       "verified_complete": 0
     },
-    "effective_required_units": 2192,
-    "effective_implemented_pending_validation": 191,
+    "effective_required_units": 2193,
+    "effective_implemented_pending_validation": 245,
     "effective_verified_complete": 0,
     "incoming_remote": {
       "rust": "c60f938ddd2a8d92a3bc251c57fa3609d77593c3",
@@ -132074,7 +132339,7 @@
       "scope": "Selected controls only. Completed99tests are65PASS34FAIL. Preview failure retained separately; no whole-group or gate acceptance.",
       "capture": "experiments/name-handling/results/owner-adoption-20261016/cli-mcp-server-889"
     },
-    "fully_implemented_pending_validation": 157,
+    "fully_implemented_pending_validation": 210,
     "partially_implemented_pending_validation": 1,
     "runtime_report_adoptions": {
       "baseline_units": [
@@ -132240,14 +132505,14 @@
         "validation": 122,
         "documentation": 2
       },
-      "lsp_integrated_pending_validation": 30,
+      "lsp_integrated_pending_validation": 83,
       "lsp_by_kind_integrated": {
-        "semantic": 12,
-        "validation": 16,
+        "semantic": 14,
+        "validation": 67,
         "documentation": 2
       },
       "lsp_verified_complete": 0,
-      "lsp_without_integrated_implementation": 295,
+      "lsp_without_integrated_implementation": 242,
       "shared_dependencies": "Counted under their original Compiler/DB/Registry units or reconciled annex; not counted again as LSP consumers.",
       "deferred": "Runtime174 remaining54,VM133,RuntimeJim execution and BIG-IP source inventory/provider work; retain all existing artifacts.",
       "new_source_alias_caller_annex": "compiler.consumer.logical-source-alias-declaration-observations"
@@ -132287,7 +132552,15 @@
         "capture": "experiments/name-handling/results/owner-adoption-20261016/lsp-source-parent-continuation/lsp37/result.json",
         "scope": "Selected existing LSP dependencies only; 0 completed audit units or gate acceptance"
       },
-      "prior_failed_builds": "initial SideEffect import and new test enum namespace; both retained; warning fix independently CLEAR"
+      "prior_failed_builds": "initial SideEffect import and new test enum namespace; both retained; warning fix independently CLEAR",
+      "additional_controls": {
+        "selected": 63,
+        "PASS": 57,
+        "FAIL": 6,
+        "TIMEOUT": 0,
+        "zero_test_runs": 0,
+        "capture": "experiments/name-handling/results/owner-adoption-20261016/lsp-source-parent-continuation/repairs63/result.json"
+      }
     },
     "lsp_procedure_two": {
       "baseline_units": [
@@ -132298,6 +132571,117 @@
       "new_owner_delta": 0,
       "existing_owner": "compiler.owner.source.logical-procedure-declaration-catalogue:204",
       "status": "integrated_pending_validation"
+    },
+    "lsp_tail_and_uri_successor": {
+      "baseline_units": [
+        "lsp-member-reference-hazard-inventory"
+      ],
+      "baseline_delta": 1,
+      "existing_procedure_units_repaired": 2,
+      "new_shared_inverse_annex": "lsp.owner.checked-document-file-uri-inverse",
+      "source_reviews": "Hazard4b518ea2 + ProcTail504804b8 + URIc1951cf0 independently CLEAR; fresh build/tests pending",
+      "counts": "No verified completion"
+    },
+    "lsp_uri_validation_three": {
+      "baseline_units": [
+        "lsp.validation.07.14.fn0",
+        "lsp.validation.07.14.fn1",
+        "lsp.validation.07.15.fn0"
+      ],
+      "status": "integrated_pending_validation",
+      "patch": "d3d6dace56ecc28f617e319ad1e816301f3d0993678224db0edfaf6d1b0c4fa5",
+      "validation": "Independent source CLEAR; original fixture/assertion/budget preserved. Build and execution pending."
+    },
+    "lsp_uri_validation_eight": {
+      "baseline_units": [
+        "lsp.validation.07.04.fn0",
+        "lsp.validation.07.05.fn0",
+        "lsp.validation.07.06.fn0",
+        "lsp.validation.07.07.fn0",
+        "lsp.validation.07.08.fn0",
+        "lsp.validation.07.09.fn0",
+        "lsp.validation.07.10.fn0",
+        "lsp.validation.07.11.fn0"
+      ],
+      "status": "integrated_pending_validation",
+      "patch": "ce28caa64f09b34429b88c99949d5cc9cd9f5f5521b4cfd1bd930de341609a50",
+      "validation": "Independent source CLEAR; all originals preserved. New scoped build running; e2e execution pending."
+    },
+    "lsp_tail_uri_successor_build": {
+      "status": "FAILED_E0603_IPV4_NET_FEATURE_REQUIRED",
+      "source_head": "5b4d97abecd42cdd09d849d1e92dfa1f49662af8",
+      "rust_diff_sha256": "dedc2afdc589ce4389adec07e8d482f699d8254a51c5b2c98b3de4bb2318b666",
+      "binding": "/workspace/naming-validation/lsp-tail-uri-successor/source-binding.json",
+      "input_count_before": 38995,
+      "test_debug": 0,
+      "single_job": true,
+      "input_after_drift": 0,
+      "fix": "fluent-uri existing0.4.1 net=[] feature enabled; independent source CLEAR; no dependency/package/version change; retry pending"
+    },
+    "report": {
+      "last_utc": "2026-10-16T15:06:00Z",
+      "next_utc": "2026-10-16T15:36:00Z",
+      "LSP_integrated": 42,
+      "LSP_required": 325,
+      "verified_complete": 0,
+      "selected": 100,
+      "PASS": 89,
+      "FAIL": 11,
+      "scope": "Two disjoint exact focused selections; no whole-repository acceptance"
+    },
+    "lsp_tk_and_validation29": {
+      "baseline_units": [
+        "lsp.validation.07.01.fn0",
+        "lsp.validation.18.02.fn0",
+        "lsp.validation.18.02.fn1",
+        "lsp.validation.18.02.fn2",
+        "lsp.validation.18.02.fn3",
+        "lsp.validation.18.02.fn4",
+        "lsp.validation.20.00.fn0",
+        "lsp.validation.20.00.fn1",
+        "lsp.validation.20.00.fn2",
+        "lsp.validation.20.00.fn3",
+        "lsp.validation.20.00.fn4",
+        "lsp.validation.20.00.fn5",
+        "lsp.validation.20.00.fn6",
+        "lsp.validation.20.00.fn7",
+        "lsp.validation.20.00.fn8",
+        "lsp.validation.20.00.fn9",
+        "lsp.validation.20.00.fn10",
+        "lsp.validation.20.00.fn11",
+        "lsp.validation.20.00.fn12",
+        "lsp.validation.20.00.fn13",
+        "lsp.validation.20.00.fn14",
+        "lsp.validation.20.01.fn0",
+        "lsp.validation.20.01.fn1",
+        "lsp.validation.20.01.fn2",
+        "lsp.validation.20.01.fn3",
+        "lsp.validation.20.01.fn4",
+        "lsp.validation.20.02.fn0",
+        "lsp.validation.20.02.fn1",
+        "lsp-tk-original-literal-word-value"
+      ],
+      "status": "integrated_pending_validation",
+      "new_owner_delta": 0,
+      "validation": "Tk+6strictpath+22positiveprerequisites source CLEAR. All original assertions retained; first build failed E0603 before these controls were integrated; feature correction source CLEAR, retry pending."
+    },
+    "lsp_profile_validation12": {
+      "baseline_units": [
+        "lsp.validation.22.00.fn0",
+        "lsp.validation.22.00.fn1",
+        "lsp.validation.22.00.fn2",
+        "lsp.validation.22.00.fn3",
+        "lsp.validation.22.00.fn4",
+        "lsp.validation.22.00.fn5",
+        "lsp.validation.22.00.fn6",
+        "lsp.validation.22.00.fn7",
+        "lsp.validation.22.00.fn8",
+        "lsp.validation.22.00.fn9",
+        "lsp.validation.22.01.fn0",
+        "lsp.validation.22.01.fn1"
+      ],
+      "status": "integrated_pending_validation",
+      "validation": "V1wrongtarget HOLD retained; V3d50b4312 actual per-leg retained input corrected, independently CLEAR. All sources/assertions preserved; execution pending."
     }
   }
 }

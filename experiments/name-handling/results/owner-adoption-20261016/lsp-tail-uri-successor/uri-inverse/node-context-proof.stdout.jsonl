@@ -1,0 +1,9 @@
+{"kind":"actual-provider-context","node":"v24.19.0","platform":"linux","arch":"x64","provider":"vscode-uri","version":"3.2.0"}
+{"kind":"actual-provider-result","raw":"file://srv/share/a.tcl","authority":"srv","path":"/share/a.tcl","fsPath":"//srv/share/a.tcl"}
+{"kind":"actual-provider-result","raw":"file://localhost/share/a.tcl","authority":"localhost","path":"/share/a.tcl","fsPath":"//localhost/share/a.tcl"}
+{"kind":"actual-provider-result","raw":"file://Srv/share//tail/","authority":"Srv","path":"/share//tail/","fsPath":"//Srv/share//tail/"}
+{"kind":"actual-provider-result","raw":"file://m%C3%BCnchen/share/%CE%BB.tcl","authority":"münchen","path":"/share/λ.tcl","fsPath":"//münchen/share/λ.tcl"}
+{"kind":"actual-provider-result","raw":"file://ho%40st/share/a.tcl","authority":"ho@st","path":"/share/a.tcl","fsPath":"//ho@st/share/a.tcl"}
+{"kind":"actual-provider-result","raw":"file://127.0.0.1/share/a.tcl","authority":"127.0.0.1","path":"/share/a.tcl","fsPath":"//127.0.0.1/share/a.tcl"}
+{"kind":"actual-provider-result","raw":"file://%3F/foo.tcl","authority":"?","path":"/foo.tcl","fsPath":"//?/foo.tcl"}
+{"kind":"actual-provider-result","raw":"file:///tmp/literal%252F%5C%EF%BF%BD.tcl","authority":"","path":"/tmp/literal%2F\\�.tcl","fsPath":"/tmp/literal%2F\\�.tcl"}

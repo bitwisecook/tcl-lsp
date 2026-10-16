@@ -1,0 +1,31 @@
+{
+  "name": "lsp-test-current-input-profile-v3",
+  "baseline": "repository-consumer-audit-final.json fixed baseline; no new unit count",
+  "source_images": {
+    "rust/tcl-lsp-core/src/completion.rs": {
+      "before_sha256": "ee09270142dd3d7dfdd91745db71b18e2682db9cf25cdc85eeb8c9fabd58efe8",
+      "after_sha256": "ccd1c0d948b795a62b56e31daf77bb32b67b52790f41d81cf74e20e8af3adb39"
+    },
+    "rust/tcl-lsp-core/src/hover.rs": {
+      "before_sha256": "d1a1874d373ab5b2f7ad91287218550cb04e15a883c4425e7e72123d4ef0e2ed",
+      "after_sha256": "b27ff62b2412bfb7e83c843fb3ad7085a9eb9a8f4885085f601a022144cd5b6f"
+    }
+  },
+  "baseline_unit_ids": [
+    "lsp.validation.22.00.fn0",
+    "lsp.validation.22.00.fn1",
+    "lsp.validation.22.00.fn2",
+    "lsp.validation.22.00.fn3",
+    "lsp.validation.22.00.fn4",
+    "lsp.validation.22.00.fn5",
+    "lsp.validation.22.00.fn6",
+    "lsp.validation.22.00.fn7",
+    "lsp.validation.22.00.fn8",
+    "lsp.validation.22.00.fn9",
+    "lsp.validation.22.01.fn0",
+    "lsp.validation.22.01.fn1"
+  ],
+  "change": "Only the twelve existing controls now call Analyser::prepare_analysis_input(environment), retain that ResolvedAnalysisInput with with_resolved_input, and analyze the test source under the same actual environment whose profile/context is passed to completion or hover. Matrix legs use separate source analyses per target environment. Existing assertions, selectors, fixture source, expected target availability, and Root's current positive assertion changes are preserved. The unrelated switch_completion_gates_options_by_package_version test remains unchanged.",
+  "validation": "No tests/builds/typechecks run. Source-reviewed diff only; the patch is against current beforeimages listed above.",
+  "patch_sha256": "d50b43127088288deaf7a2a19f3750933b026e7c5ab24d08cb62e87821627761"
+}

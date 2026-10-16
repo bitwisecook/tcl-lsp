@@ -6515,9 +6515,10 @@ c\uD800";
             "}\n",
         );
         let analysis = analyse(src);
-        if analysis.all_classes.len() < 2 {
-            return;
-        }
+        assert!(
+            analysis.all_classes.len() >= 2,
+            "both positive class definitions must be present in the analysis"
+        );
         let locs_ab = definition(src, 2, 26, &analysis);
         assert_eq!(locs_ab.len(), 1, "{locs_ab:?}");
         assert_eq!(locs_ab[0].start_line, 2, "must resolve to ::a::b::Widget");
@@ -6827,9 +6828,11 @@ c\uD800";
         // Whether find_word_span_at_position includes leading
         // `::` depends on the implementation; both should
         // jump to the target proc when matched.
-        if !locs.is_empty() {
-            assert_eq!(locs[0].start_line, 0);
-        }
+        assert!(
+            !locs.is_empty(),
+            "qualified alias form should resolve to the target proc"
+        );
+        assert_eq!(locs[0].start_line, 0);
     }
 
     #[test]

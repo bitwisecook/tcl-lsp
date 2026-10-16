@@ -1,0 +1,25 @@
+CLEAR — V3 independent source review; executable validation pending
+Exact patch SHA256: d50b43127088288deaf7a2a19f3750933b026e7c5ab24d08cb62e87821627761
+Manifest SHA256: 4070ee043bf4d8d7c0e3f01c20b8c35d082e9b83d36422ee6d4cab2eb3a6393a
+
+V3 closes V1's wrong-target replacement. The complete unrelated switch_completion_gates_options_by_package_version function is byte-identical to its retained beforeimage. The intended command_completion_gates_commands_by_package_version now has an actual tcl8.4 first analysis, separate tcl8.6 analysis of the same older source for its positive second leg, and actual tcl8.6 analysis of its newer source. All original source strings and expected assertions remain.
+
+Full function context reviewed for exact twelve existing baseline targets:
+22.00fn0 widget method labels prepare their actual loop dialect (9.0,9.1 and explicit package-floor source).
+22.00fn1 lsearch options retain independent8.6/9.0 analyses.
+22.00fn2 chan options retain independent8.6/9.0 analyses.
+22.00fn3 command/package matrix retains actual8.4/8.6 analyses as above.
+22.00fn4 event completion prepares actual f5-irules source and aligns the ignored compatibility label.
+22.00fn5 wish/Tk command source prepares tk.
+22.00fn6 each placement-shell matrix leg prepares its actual supplied tk/wish/Tcl/vendor environment, preserving both bare and required-package assertions.
+22.00fn7 dict subcommands retain actual8.6/9.0 analyses.
+22.00fn8 iApps and iRules availability legs each prepare their actual environment.
+22.00fn9 both switch/regsub iApps sources prepare f5-iapps.
+22.01fn0 both special-variable sources prepare f5-irules.
+22.01fn1 each widget hover lifecycle leg prepares9.0/9.1 and the explicit raised source prepares9.0. Root's current positive/negative hover assertions from beforeimage d1a1874d373ab5b2f7ad91287218550cb04e15a883c4425e7e72123d4ef0e2ed are preserved.
+
+The real public APIs use CurrentSourceContext's actual retained input, registry and profile. Compatibility optional registry/profile parameters are ignored by completions/hover_in_program, so remaining build_default compatibility arguments supply no context, authority or foreign store. Genuine prepare_analysis_input plus with_resolved_input fixes the actual test input; it does not create a Native entry, Logical proof, quiet observer, Normal or absence guarantee. All production code is unchanged.
+
+All original assertion, fixture source, expected availability and budget lines remain unchanged. Only the exact twelve controls plus two test setup helpers change; the helpers are not extra units. Exact changes are not already present in current main and do not recount prior different setup repairs. Existing twelve pending validation baseline IDs advance implementation only, no new semantic/owner/helper count or executable acceptance.
+
+Integrity PASS: exact patch/manifest digests; both retained base/edit hashes; both full current main beforeimages; actual immutable patch application to independent TMP copy; both resulting after hashes. No Cargo/test/compiler/main/Git/network operation by this reviewer. Root must execute all original controls and required checks on fresh binaries.

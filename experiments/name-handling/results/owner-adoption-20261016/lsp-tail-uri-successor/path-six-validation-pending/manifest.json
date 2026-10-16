@@ -1,0 +1,196 @@
+{
+  "status": "TMP-only proposed patch; not integrated, no source checkout/tests/builds/Cargo/Git/tracking changes",
+  "patch": "/tmp/lsp-validation-path-string/validation-path-string.patch",
+  "patch_sha256": "6f36d7f2588a2e2c3a747d62224b8590120e7ed5969b4b8eb20cbf9f4b87f0e3",
+  "patch_bytes": 2553,
+  "selected_existing_catalogue_units": [
+    {
+      "id": "lsp.validation.07.01.fn0",
+      "purpose": "Actual native filesystem Path to protocol URI",
+      "family": "validation.native-path-uri",
+      "required_change": "Raw file:// plus Path display does not retain the exact host path/URI escaping/Unicode/platform association. Adopt actual shared checked Path\u2192URI construction at this independent test ingress while preserving exact raw fixture bytes/didOpen pairing and original assertions/budgets. No provider/test execution or false-positive finding observed.",
+      "sites": [
+        {
+          "path": "rust/tcl-lsp-server/tests/e2e/issue1326_encoding.rs",
+          "line": 64,
+          "source_sha256": "c45e4139352e109d0554fecd72494cd53e83d3ac1b39b162fd14c5b42aec192f",
+          "symbol_or_region": "malformed_file",
+          "source_statement": "    let uri = format!(\"file://{}\", path.display());",
+          "scope": "Actual retained change anchor; adjacent unchanged assertions/callers are not extra units.",
+          "enclosing_function": {
+            "symbol": "malformed_file",
+            "start_line": 60,
+            "end_line": 66
+          }
+        }
+      ],
+      "source_annex": {
+        "source_annex": "lsp-audit-validation-boundary-units.json",
+        "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      }
+    },
+    {
+      "id": "lsp.validation.18.02.fn0",
+      "purpose": "Actual native Path to Unicode-only project configuration",
+      "family": "validation.native-path-unicode-config",
+      "required_change": "actual temp native library Paths encoded into libraryPaths by lossy Unicode conversion",
+      "sites": [
+        {
+          "path": "rust/tcl-lsp-server/tests/e2e/diagnostics.rs",
+          "line": 2743,
+          "source_sha256": "68faaed4afcbe5970b56afe637a31a9839265e8c999a790e66f81bd767d06f6a",
+          "symbol_or_region": "autoload_library_command_not_unknown_issue_832",
+          "source_statement": "        \"libraryPaths\": [ libdir.to_string_lossy() ],",
+          "scope": "Actual retained change anchor; adjacent unchanged assertions/callers are not extra units.",
+          "enclosing_function": {
+            "symbol": "autoload_library_command_not_unknown_issue_832",
+            "start_line": 2713,
+            "end_line": 2775
+          }
+        }
+      ],
+      "source_annex": {
+        "source_annex": "lsp-audit-validation-boundary-units.json",
+        "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      }
+    },
+    {
+      "id": "lsp.validation.18.02.fn1",
+      "purpose": "Actual native Path to Unicode-only project configuration",
+      "family": "validation.native-path-unicode-config",
+      "required_change": "actual temp native library Paths encoded into libraryPaths by lossy Unicode conversion",
+      "sites": [
+        {
+          "path": "rust/tcl-lsp-server/tests/e2e/diagnostics.rs",
+          "line": 2809,
+          "source_sha256": "68faaed4afcbe5970b56afe637a31a9839265e8c999a790e66f81bd767d06f6a",
+          "symbol_or_region": "autoload_library_command_go_to_definition_m8",
+          "source_statement": "        \"libraryPaths\": [ libdir.to_string_lossy() ],",
+          "scope": "Actual retained change anchor; adjacent unchanged assertions/callers are not extra units.",
+          "enclosing_function": {
+            "symbol": "autoload_library_command_go_to_definition_m8",
+            "start_line": 2781,
+            "end_line": 2849
+          }
+        }
+      ],
+      "source_annex": {
+        "source_annex": "lsp-audit-validation-boundary-units.json",
+        "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      }
+    },
+    {
+      "id": "lsp.validation.18.02.fn2",
+      "purpose": "Actual native Path to Unicode-only project configuration",
+      "family": "validation.native-path-unicode-config",
+      "required_change": "actual temp native library Paths encoded into libraryPaths by lossy Unicode conversion",
+      "sites": [
+        {
+          "path": "rust/tcl-lsp-server/tests/e2e/diagnostics.rs",
+          "line": 2903,
+          "source_sha256": "68faaed4afcbe5970b56afe637a31a9839265e8c999a790e66f81bd767d06f6a",
+          "symbol_or_region": "guarded_pkg_child_diagnostics",
+          "source_statement": "        \"libraryPaths\": [ libdir.to_string_lossy() ],",
+          "scope": "Actual retained change anchor; adjacent unchanged assertions/callers are not extra units.",
+          "enclosing_function": {
+            "symbol": "guarded_pkg_child_diagnostics",
+            "start_line": 2900,
+            "end_line": 2928
+          }
+        }
+      ],
+      "source_annex": {
+        "source_annex": "lsp-audit-validation-boundary-units.json",
+        "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      }
+    },
+    {
+      "id": "lsp.validation.18.02.fn3",
+      "purpose": "Actual native Path to Unicode-only project configuration",
+      "family": "validation.native-path-unicode-config",
+      "required_change": "actual temp native library Paths encoded into libraryPaths by lossy Unicode conversion",
+      "sites": [
+        {
+          "path": "rust/tcl-lsp-server/tests/e2e/diagnostics.rs",
+          "line": 3099,
+          "source_sha256": "68faaed4afcbe5970b56afe637a31a9839265e8c999a790e66f81bd767d06f6a",
+          "symbol_or_region": "a_load_only_package_does_not_suppress_unrelated_w120s_923_idx72",
+          "source_statement": "        \"libraryPaths\": [ libdir.to_string_lossy() ],",
+          "scope": "Actual retained change anchor; adjacent unchanged assertions/callers are not extra units.",
+          "enclosing_function": {
+            "symbol": "a_load_only_package_does_not_suppress_unrelated_w120s_923_idx72",
+            "start_line": 3081,
+            "end_line": 3134
+          }
+        }
+      ],
+      "source_annex": {
+        "source_annex": "lsp-audit-validation-boundary-units.json",
+        "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      }
+    },
+    {
+      "id": "lsp.validation.18.02.fn4",
+      "purpose": "Actual native Path to Unicode-only project configuration",
+      "family": "validation.native-path-unicode-config",
+      "required_change": "actual temp native library Paths encoded into libraryPaths by lossy Unicode conversion",
+      "sites": [
+        {
+          "path": "rust/tcl-lsp-server/tests/e2e/diagnostics.rs",
+          "line": 3214,
+          "source_sha256": "68faaed4afcbe5970b56afe637a31a9839265e8c999a790e66f81bd767d06f6a",
+          "symbol_or_region": "autoload_library_command_references_and_rename_m8",
+          "source_statement": "        \"libraryPaths\": [ libdir.to_string_lossy() ],",
+          "scope": "Actual retained change anchor; adjacent unchanged assertions/callers are not extra units.",
+          "enclosing_function": {
+            "symbol": "autoload_library_command_references_and_rename_m8",
+            "start_line": 3188,
+            "end_line": 3272
+          }
+        }
+      ],
+      "source_annex": {
+        "source_annex": "lsp-audit-validation-boundary-units.json",
+        "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      }
+    }
+  ],
+  "files": {
+    "rust/tcl-lsp-server/tests/e2e/issue1326_encoding.rs": {
+      "before_sha256": "c45e4139352e109d0554fecd72494cd53e83d3ac1b39b162fd14c5b42aec192f",
+      "after_sha256": "09f5cd748aaf12b9231ed63bfd594b123f03a77b21d87b8fff827dda8d2dbea9",
+      "before_bytes": 12584,
+      "after_bytes": 12680,
+      "live_matches_before": true
+    },
+    "rust/tcl-lsp-server/tests/e2e/diagnostics.rs": {
+      "before_sha256": "9966cd5be4745842cbcca11ed98940a5b76346b16a02b17c82b624195005b688",
+      "after_sha256": "29ad3a6765571a2f5cdac5f13e22a6ffe3eab84b2aa3e0b57d304da7ade425ab",
+      "before_bytes": 208620,
+      "after_bytes": 208800,
+      "live_matches_before": true
+    }
+  },
+  "owner_apis": [
+    {
+      "symbol": "tcl_lsp_server::canonical_file_uri",
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "purpose": "Checked actual Path\u2192URI construction; returns existing None for a selected path not representable by the current URI contract. Used for the actual encoding fixture path."
+    },
+    {
+      "symbol": "Path::to_str plus serde_json::json!",
+      "path": "rust/tcl-lsp-server/tests/e2e/diagnostics.rs",
+      "purpose": "Strict admission to the existing Unicode-only `libraryPaths` JSON string field; preserve the real path or fail fixture setup, without replacing opaque native units."
+    }
+  ],
+  "issue1326_disposition": "Migration remains required. The malformed input is the on-disk byte payload under test; the path/URI is ordinary operational JSON-RPC fixture identity, not a deliberately malformed URI control. Existing bytes, String::from_utf8_lossy didOpen pair, assertions and budgets remain unchanged.",
+  "config_path_disposition": "Five existing libraryPaths validation callers now require actual UTF-8 path representation at this Unicode-only JSON field boundary. No lossy substitute or extra path encoder is introduced. A non-UTF-8 temp root fails setup explicitly rather than tests running against a replacement path.",
+  "change_summary": "One canonical URI caller fix for `malformed_file` plus strict path admission for the five previously catalogued `.18.02.fn0`\u2013`.18.02.fn4` libraryPaths callers in diagnostics.rs.",
+  "formatting": "TMP copies formatted with pinned rustfmt stable --edition 2024 --config skip_children=true.",
+  "scope_limits": [
+    "Exactly six existing validation_code_repair IDs; no unit count added.",
+    "No test assertions, expected output, malformed-byte payload, didOpen text, selector, or time budget altered.",
+    "No other profile/escape/config family selected because no additional straightforward shared-owner caller was verified in this bounded pass.",
+    "No build/test acceptance claim."
+  ]
+}

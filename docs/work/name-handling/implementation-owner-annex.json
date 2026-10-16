@@ -754,6 +754,31 @@
         "verified_complete": false
       },
       "implementation_scope": "Reviewed e4bab... integrated in current LSP source batch; unchanged source upvar local declaration control and new source/ordinary-Widen/target/currency controls pending ordinary execution."
+    },
+    {
+      "id": "lsp.owner.checked-document-file-uri-inverse",
+      "kind": "shared_owner_extension",
+      "baseline_unit_ids": [
+        "lsp-server-path-uri-repair-policy",
+        "lsp-server-host-file-path-unicode",
+        "lsp-editor-wasi-uri-owner"
+      ],
+      "site_anchors": [
+        {
+          "path": "rust/tcl-lsp-core/src/file_uri.rs",
+          "symbol": "to_path; FileUriPathPurpose::VsCodeDocument"
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/uri_norm.rs",
+          "symbol": "document_file_path thin actual Uri adapter"
+        }
+      ],
+      "rationale": "One demonstrated missing reverse URI purpose in the existing Core file URI owner: strict original protocol authority/path decode before ls-types lossy conversion, explicit VSCode document/workspace and actual native host policy. Exact baseline path-to-URI repair is forward construction, SourceFile Unicode row is its caller, and WASI virtual mount mapping is a distinct purpose. None supplies this inverse owner facet. Count once; helper/parser/error/platform/test/relocation multiplicity adds zero. No source identity, file-action authority, existence or Native execution grant.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false
+      },
+      "implementation_scope": "Independent source CLEAR exactc1951cf0 integrated; actual production SourceFile adopters not yet integrated and not counted. Pure platform tests are not Windows execution."
     }
   ],
   "unverified_or_open": [
@@ -765,27 +790,27 @@
   ],
   "status_note": "Requirements are counted regardless of implementation presence. No additional requirement or baseline unit is verified complete.",
   "status": "accepted_additional_obligations_unverified",
-  "utc": "2026-10-16T14:42:48.865959+00:00",
+  "utc": "2026-10-16T14:57:09.194974+00:00",
   "accepted_delta": {
-    "semantic_code_changes": 34,
+    "semantic_code_changes": 35,
     "validation_code_repairs": 0,
     "authored_documentation": 0,
-    "all_required_changes": 34,
+    "all_required_changes": 35,
     "by_kind": {
       "shared_owner_repair": 9,
-      "shared_owner_extension": 15,
+      "shared_owner_extension": 16,
       "caller_migration": 9,
       "metadata_or_target_schema": 1
     }
   },
   "effective_counts": {
-    "semantic_code_changes": 1833,
+    "semantic_code_changes": 1834,
     "validation_code_repairs": 305,
     "authored_documentation": 54,
-    "all_required_changes": 2192
+    "all_required_changes": 2193
   },
   "implementation_progress": {
-    "implemented_pending_validation": 33,
+    "implemented_pending_validation": 34,
     "not_integrated": 1,
     "verified_complete": 0
   }

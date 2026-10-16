@@ -689,6 +689,7 @@ struct OriginalLogicalSummaryScope {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum LogicalProcedureCatalogueRefusal {
     SelectedScopeUnavailable(u32),
+    RootLexicalTailUnavailable(u32),
 }
 
 #[derive(Debug, Default)]
@@ -2755,6 +2756,15 @@ impl OriginalSourceTransitionSeed {
         } = self.prepare_source_advice_tape(context, purpose)?;
         let mut graph = self.initial_source_advice_graph(context, &policy)?;
         let mut tape = OriginalSourceTransitionAdviceTape::default();
+        if matches!(policy, AdviceNamingPolicy::Logical(_))
+            && let Some(tail) = plan.fatal_tail
+        {
+            // CompletePrefix retains positive source cards, but its malformed
+            // remainder cannot certify a whole-document catalogue or emptiness.
+            tape.logical_procedure_catalogue_refusals.insert(
+                LogicalProcedureCatalogueRefusal::RootLexicalTailUnavailable(tail.command_start),
+            );
+        }
         let advice_context = AdviceInvocationContext {
             origin,
             context,

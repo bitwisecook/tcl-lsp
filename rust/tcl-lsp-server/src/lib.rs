@@ -49347,7 +49347,7 @@ proc p {} {
         std::fs::write(&path, "proc onDisk {} { return 1 }\n").expect("write fixture");
 
         let backend = test_backend();
-        let uri = Uri::from_str(&format!("file://{}", path.display())).expect("uri");
+        let uri = canonical_file_uri(&path).expect("fixture path has a representable file URI");
 
         assert!(backend.documents.lock("test").await.is_empty());
         let snap = backend.read_document(&uri).await.expect("disk fallback");
