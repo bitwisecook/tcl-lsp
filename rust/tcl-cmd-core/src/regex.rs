@@ -745,7 +745,8 @@ fn wrong_args(usage: &[u8]) -> RegexError {
 /// Wrap a provider compile-error detail in `version`'s standard prefix, with
 /// `TclRegError`'s `REGEXP <name> <detail>` code when the detail is one of
 /// `regerror`'s.
-fn compile_error(version: TclVersion, detail: &[u8]) -> RegexError {
+#[must_use]
+pub fn compile_error(version: TclVersion, detail: &[u8]) -> RegexError {
     let mut m = version.regex_compile_error_prefix().as_bytes().to_vec();
     m.extend_from_slice(detail);
     let text = String::from_utf8_lossy(detail);

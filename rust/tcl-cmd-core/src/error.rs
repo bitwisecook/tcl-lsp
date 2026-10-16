@@ -183,9 +183,60 @@ impl From<HostError> for CmdError {
     }
 }
 
+/// The error the `return` option word `name` raises under `release`: before
+/// TIP 90 (8.4) `return` reads its words as `-code`, `-errorinfo` and
+/// `-errorcode` pairs and refuses any other name.
+#[must_use]
+pub fn return_option_error(name: &[u8], release: tcl_dialect::TclVersion) -> Option<String> {
+    let known = matches!(name, b"-code" | b"-errorinfo" | b"-errorcode");
+    (!release.has_return_options_dictionary() && !known).then(|| {
+        format!(
+            "bad option \"{}\": must be -code, -errorcode, or -errorinfo",
+            String::from_utf8_lossy(name)
+        )
+    })
+}
+
+/// The text of the `(file "PATH" line N)` frame an error leaving a sourced
+/// file adds, before ` line N`: the path cut at 150 bytes, with `...` after a
+/// cut from 8.5 (`Tcl_FSEvalFileEx`; 8.4's `%.150s` adds none).
+#[must_use]
+pub fn file_frame_text(path: &[u8], release: tcl_dialect::TclVersion) -> Vec<u8> {
+    const LIMIT: usize = 150;
+    let mut text = b"file \"".to_vec();
+    if path.len() > LIMIT {
+        text.extend_from_slice(&path[..LIMIT]);
+        if release.marks_truncated_file_path() {
+            text.extend_from_slice(b"...");
+        }
+    } else {
+        text.extend_from_slice(path);
+    }
+    text.push(b'"');
+    text
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_file_frame_cuts_a_long_path_as_the_release_does() {
+        let long = vec![b'a'; 151];
+        let cut = |release| String::from_utf8(file_frame_text(&long, release)).expect("utf-8");
+        assert_eq!(
+            cut(tcl_dialect::TclVersion::V8_4),
+            format!("file \"{}\"", "a".repeat(150))
+        );
+        assert_eq!(
+            cut(tcl_dialect::TclVersion::V8_5),
+            format!("file \"{}...\"", "a".repeat(150))
+        );
+        assert_eq!(
+            file_frame_text(b"x.tcl", tcl_dialect::TclVersion::V9_0),
+            b"file \"x.tcl\"".to_vec()
+        );
+    }
 
     #[test]
     fn canonical_tcl_error_message_formats() {

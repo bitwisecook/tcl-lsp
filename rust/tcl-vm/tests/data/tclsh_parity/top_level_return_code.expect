@@ -1,0 +1,55 @@
+==== 8.4 file ====
+a
+command returned bad code: 7
+    while executing
+"return -code 7 x"
+    (file "parity.tcl" line 3)
+==== 8.4 stdin ====
+a
+b
+--- stderr
+command returned bad code: 7
+==== 8.5 file ====
+a
+command returned bad code: 7
+    while executing
+"return -code 7 x"
+    (file "parity.tcl" line 3)
+==== 8.5 stdin ====
+a
+b
+--- stderr
+command returned bad code: 7
+==== 8.6 file ====
+a
+command returned bad code: 7
+    while executing
+"return -code 7 x"
+    (file "parity.tcl" line 3)
+==== 8.6 stdin ====
+a
+b
+--- stderr
+command returned bad code: 7
+==== 9.0 file ====
+a
+command returned bad code: 7
+    while executing
+"return -code 7 x"
+    (file "parity.tcl" line 3)
+==== 9.0 stdin ====
+a
+b
+--- stderr
+command returned bad code: 7
+==== 9.1 file ====
+a
+command returned bad code: 7
+    while executing
+"return -code 7 x"
+    (file "parity.tcl" line 3)
+==== 9.1 stdin ====
+a
+b
+--- stderr
+command returned bad code: 7

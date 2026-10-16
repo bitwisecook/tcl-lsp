@@ -115,7 +115,7 @@ pub(crate) struct TryReq {
 /// [`advance_try`]): either move on to the next phase (push a new try
 /// activation for it) or the whole `try` is done.
 pub(crate) enum TryOutcome {
-    Push(TryReq),
+    Push(Box<TryReq>),
     Deliver(Completion<Value>),
 }
 
@@ -311,10 +311,8 @@ fn cmd_try(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         finally,
         compiled,
     });
-    match vm.prepare_script_commands_as(
-        &body.to_str(),
-        crate::value::script_evaluation(std::slice::from_ref(body)),
-    ) {
+    let evaluation = vm.script_evaluation(std::slice::from_ref(body));
+    match vm.prepare_script_commands_as(&body.to_str(), evaluation) {
         Ok(prepared) if prepared.prefix.is_some() => {
             vm.pending.try_phase = Some(TryReq {
                 script: prepared.prefix.expect("checked above"),
@@ -332,7 +330,7 @@ fn cmd_try(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 .map_or_else(|| ok(Value::empty()), |tail| vm.raise_fatal_tail(tail));
             match advance_after_body(vm, &plan, body_completion) {
                 TryOutcome::Push(req) => {
-                    vm.pending.try_phase = Some(req);
+                    vm.pending.try_phase = Some(*req);
                     ok(Value::empty())
                 }
                 TryOutcome::Deliver(c) => c,
@@ -345,7 +343,7 @@ fn cmd_try(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         // failure that skips it (try-body-parse-error tclsh-pinned test).
         Err(e) => match advance_after_body(vm, &plan, err(e.message)) {
             TryOutcome::Push(req) => {
-                vm.pending.try_phase = Some(req);
+                vm.pending.try_phase = Some(*req);
                 ok(Value::empty())
             }
             TryOutcome::Deliver(c) => c,
@@ -380,7 +378,7 @@ fn advance_after_body(vm: &mut Vm, plan: &Rc<TryPlan>, body_comp: Completion<Val
         return TryOutcome::Deliver(body_comp);
     }
     let errorcode = if body_comp.code == Code::Error {
-        crate::command::resolved_error_code(&body_comp)
+        crate::command::resolved_error_code(&body_comp, vm.runtime_version())
     } else {
         Value::empty()
     };
@@ -422,18 +420,16 @@ fn advance_after_body(vm: &mut Vm, plan: &Rc<TryPlan>, body_comp: Completion<Val
                 });
                 vm.publish_error(&einfo, &errorcode);
             }
-            match vm.prepare_script_commands_as(
-                &plan.handlers[b].script.to_str(),
-                crate::value::script_evaluation(std::slice::from_ref(&plan.handlers[b].script)),
-            ) {
-                Ok(prepared) if prepared.prefix.is_some() => TryOutcome::Push(TryReq {
+            let evaluation = vm.script_evaluation(std::slice::from_ref(&plan.handlers[b].script));
+            match vm.prepare_script_commands_as(&plan.handlers[b].script.to_str(), evaluation) {
+                Ok(prepared) if prepared.prefix.is_some() => TryOutcome::Push(Box::new(TryReq {
                     script: prepared.prefix.expect("checked above"),
                     state: TryState {
                         plan: Rc::clone(plan),
                         phase: TryPhase::Handler { body_opts },
                         fatal_tail: prepared.fatal_tail,
                     },
-                }),
+                })),
                 Ok(prepared) => {
                     let completion = prepared
                         .fatal_tail
@@ -490,10 +486,8 @@ fn finish_body_or_handler(
     // never runs before this point, so a
     // body/handler compile error is reported before `finally`'s own grammar
     // is ever touched.
-    let prepared = match vm.prepare_script_commands_as(
-        &fin.to_str(),
-        crate::value::script_evaluation(std::slice::from_ref(&fin)),
-    ) {
+    let evaluation = vm.script_evaluation(std::slice::from_ref(&fin));
+    let prepared = match vm.prepare_script_commands_as(&fin.to_str(), evaluation) {
         Ok(prepared) => prepared,
         // A `finally` parse error is `finally`'s own exception overriding the
         // prior outcome, same as a runtime error in `finally` would (chains
@@ -506,14 +500,14 @@ fn finish_body_or_handler(
             .map_or_else(|| ok(Value::empty()), |tail| vm.raise_fatal_tail(tail));
         return advance_after_finally(vm, outcome, completion);
     };
-    TryOutcome::Push(TryReq {
+    TryOutcome::Push(Box::new(TryReq {
         script,
         state: TryState {
             plan: Rc::clone(plan),
             phase: TryPhase::Finally { outcome },
             fatal_tail: prepared.fatal_tail,
         },
-    })
+    }))
 }
 
 /// `finally` just completed as `fc`: only its own non-`Ok` completion

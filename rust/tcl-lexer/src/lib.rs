@@ -96,7 +96,7 @@ pub use source_map::SourceMap;
 pub use span::Span;
 pub use structural_index::{
     BraceIndex, BracketIndex, ExprParenIndex, ParenBalance, command_boundaries, reparse_window,
-    script_is_complete,
+    script_is_complete, stdin_chunk_ends,
 };
 pub use substitution::{
     EscapeSegment, backslash_continuation_end, backslash_escape_end, backslash_escape_end_in,

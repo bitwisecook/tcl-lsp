@@ -155,6 +155,20 @@ model. The full exception state is a **return-options dictionary** with keys:
   `"\n    (procedure \"<name>\" line <N>)"`, where `<N>` is
   `Tcl_GetErrorLine(interp)` — the line **within the proc body**.
 - The `ERR_ALREADY_LOGGED` interp flag prevents a frame from logging twice.
+- 8.4 compiles a script whole before any of it runs (a procedure body when
+  it is first called, a script a command evaluates, each command stdin
+  feeds it), and a compile procedure's error or a parse error anywhere
+  fails that compile: nothing in the script runs, `LogCompilationInfo`
+  (`tclCompile.c`) appends `"\n    while compiling\n\"<cmd>\""` for the
+  failing command of each nested script, a compile procedure that compiled
+  a body or test with its command adds its own line (`("if" then script
+  line N)`, `("while" test expression)`), and `TclProcCompileProc` appends
+  `"\n    (compiling body of proc \"<name>\", line <N>)"` in place of the
+  procedure frame. The bytecode VM asks its compile service for that
+  refusal (`CompileService::compile_failure_for_profile`) wherever 8.4
+  compiles, and evaluates `eval`/`uplevel` scripts and the script file's
+  commands directly, as 8.4 does. From 8.5 a compile procedure that cannot
+  compile a command leaves it to run.
 
 **Therefore the runtime must know, at every unwinding step: the command string,
 its source line, and (for procs) the proc name + the body-relative line.** That

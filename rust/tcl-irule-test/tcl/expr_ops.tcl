@@ -358,7 +358,7 @@ this harness refuses to guess one. Parenthesise the intended grouping."
                     set rewritten [::tmm::expr_ops::rewrite_expr $joined]
                     set _result [uplevel 1 [list ::tmm::expr_ops::_orig_expr $rewritten]]
                 }
-            } result opts]
+            } result]
             set _in_rewrite 0
             if {$code} {
                 return -code $code $result

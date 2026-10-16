@@ -150,7 +150,7 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             };
             match tcl_cmd_core::info::level(vm, number) {
                 Ok(v) => ok(v),
-                Err(e) => crate::command::completion_from_cmd_error(e),
+                Err(e) => vm.cmd_error(e),
             }
         }
         // commands/procs route through the shared namespace-aware core (over the
@@ -181,14 +181,14 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         "body" => match rest {
             [name] => match tcl_cmd_core::info::body(vm, name) {
                 Ok(v) => ok(v),
-                Err(e) => crate::command::completion_from_cmd_error(e),
+                Err(e) => vm.cmd_error(e),
             },
             _ => err("wrong # args: should be \"info body procname\""),
         },
         "args" => match rest {
             [name] => match tcl_cmd_core::info::args(vm, name) {
                 Ok(v) => ok(v),
-                Err(e) => crate::command::completion_from_cmd_error(e),
+                Err(e) => vm.cmd_error(e),
             },
             _ => err("wrong # args: should be \"info args procname\""),
         },
@@ -200,7 +200,7 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                     }
                     ok(Value::bool(has))
                 }
-                Err(e) => crate::command::completion_from_cmd_error(e),
+                Err(e) => vm.cmd_error(e),
             },
             _ => err("wrong # args: should be \"info default procname arg varname\""),
         },

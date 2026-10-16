@@ -63,6 +63,7 @@ pub mod command_prefix_target;
 pub mod command_snapshot;
 pub mod command_table;
 pub mod commands;
+pub mod compile_84;
 pub mod completion;
 pub mod const_fold;
 pub mod definer;

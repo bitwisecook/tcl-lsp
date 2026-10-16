@@ -73,6 +73,58 @@ pub(crate) struct CompiledUnit {
     /// again whenever the unit is re-checked. `None` for a unit no compiler
     /// stated a manifest for: plain-dispatch children, scanner activations.
     pub(crate) manifest: Option<Arc<ArtefactIdentityManifest>>,
+    /// The objects this unit has pushed for its literal words, kept while it
+    /// lives as C's bytecode keeps its literals.
+    pub(crate) literal_values: Rc<LiteralValues>,
+}
+
+/// A unit's literal objects by literal index: its strings, which every unit
+/// shares through [`crate::value::LiteralTable`], and the lists the compiler
+/// built from literal words, which C keeps with the one unit.
+#[derive(Default)]
+pub(crate) struct LiteralValues {
+    pub(crate) strings: std::cell::RefCell<Vec<Option<crate::value::Value>>>,
+    pub(crate) lists: std::cell::RefCell<Vec<Option<crate::value::Value>>>,
+    /// The values a script evaluated directly runs as its words, which a push
+    /// of a word with the same text pushes (`Tcl_EvalObjv` over a canonical
+    /// list's elements).
+    pub(crate) words: std::cell::RefCell<Vec<crate::value::Value>>,
+}
+
+impl LiteralValues {
+    /// Run the unit's words as `words`.
+    pub(crate) fn bind_words(&self, words: Vec<crate::value::Value>) {
+        *self.words.borrow_mut() = words;
+    }
+
+    /// The bound word a push of the literal `raw` pushes, where the unit runs
+    /// bound words.
+    pub(crate) fn word(&self, raw: &str, verbatim: bool) -> Option<crate::value::Value> {
+        let words = self.words.borrow();
+        if words.is_empty() {
+            return None;
+        }
+        let text = crate::subst::literal_word_value(raw, verbatim)?;
+        words.iter().find(|word| &*word.to_str() == text).cloned()
+    }
+
+    /// The object in `slots` at `index`, made by `make` the first time.
+    pub(crate) fn get_or(
+        slots: &std::cell::RefCell<Vec<Option<crate::value::Value>>>,
+        index: usize,
+        make: impl FnOnce() -> crate::value::Value,
+    ) -> crate::value::Value {
+        if let Some(Some(value)) = slots.borrow().get(index) {
+            return value.clone();
+        }
+        let value = make();
+        let mut slots = slots.borrow_mut();
+        if slots.len() <= index {
+            slots.resize(index + 1, None);
+        }
+        slots[index] = Some(value.clone());
+        value
+    }
 }
 
 impl CompiledUnit {
@@ -91,6 +143,7 @@ impl CompiledUnit {
             compiler,
             fatal_tail: None,
             manifest: None,
+            literal_values: Rc::default(),
         }
     }
 

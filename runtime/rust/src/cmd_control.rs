@@ -489,14 +489,21 @@ fn if_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             .set_error(b"wrong # args: extra words after \"else\" clause in \"if\" command");
     }
 
-    match then_body {
-        Some(body) => interp.eval_control_body(body),
-        None if i < objc => interp.eval_control_body(argv[i]),
+    let compiled = interp.release_compiles_control(argv);
+    let code = match then_body {
+        Some(body) => interp.eval_compiled_control_body(body, compiled),
+        None if i < objc => interp.eval_compiled_control_body(argv[i], compiled),
         None => {
             interp.set_result_bytes(b"");
             Code::Ok
         }
+    };
+    // The `if` the release runs evaluates its body as a script of its own,
+    // after which the `if` logs itself; one it compiles shares the body's.
+    if code == Code::Error && !compiled {
+        interp.clear_error_logged();
     }
+    code
 }
 
 /// `wrong # args: no script following "<token>" argument` (C's `missingScript`).
@@ -517,6 +524,7 @@ fn while_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 3 {
         return interp.wrong_args(b"while test command");
     }
+    let compiled = interp.release_compiles_control(argv);
     let cond = argv[1];
     let body = argv[2];
     loop {
@@ -528,14 +536,13 @@ fn while_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Ok(false) => break,
             Err(code) => return code,
         }
-        match interp.eval_control_body(body) {
+        match interp.eval_compiled_control_body(body, compiled) {
             Code::Ok | Code::Continue => {}
             Code::Break => break,
             Code::Error => {
-                // `("while" body line N)` — the interpreted `Tcl_WhileObjCmd`
-                // frame, added only outside a proc (Tcl inlines `while` when it
-                // compiles a proc body, so no frame there; see `foreach`).
-                if !interp.in_proc() {
+                // `("while" body line N)`, the frame of the `while` the release
+                // runs rather than compiles.
+                if !compiled {
                     interp.append_body_frame(b"while");
                 }
                 return Code::Error;
@@ -555,15 +562,24 @@ fn for_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 5 {
         return interp.wrong_args(b"for start test next command");
     }
+    let compiled = interp.release_compiles_control(argv);
     let (init, cond, next, body) = (argv[1], argv[2], argv[3], argv[4]);
+    // `TclCompileForCmd` compiles a substituted start with the command
+    // beside literal clauses (`INST_EVAL_STK`), the value with it.
+    if interp
+        .compiled_words(argv)
+        .is_some_and(|literal| !literal[1] && literal[2..].iter().all(|&word| word))
+    {
+        crate::list::read_as_other_type(init);
+    }
     // `start`/`next` are scripts too — run them through `eval_control_body` so a
     // located literal reports `type source` at its own line (TIP 280), matching
     // the body. (Their result is discarded; only their completion code matters.)
-    match interp.eval_control_body(init) {
+    match interp.eval_compiled_control_body(init, compiled) {
         Code::Ok => {}
         Code::Error => {
             // `("for" initial command)` (no line) — interpreted `Tcl_ForObjCmd`.
-            if !interp.in_proc() {
+            if !compiled {
                 interp.append_frame_noline(b"\"for\" initial command");
             }
             return Code::Error;
@@ -579,20 +595,19 @@ fn for_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Ok(false) => break,
             Err(code) => return code,
         }
-        match interp.eval_control_body(body) {
+        match interp.eval_compiled_control_body(body, compiled) {
             Code::Ok | Code::Continue => {} // `continue` still runs `next`
             Code::Break => break,
             Code::Error => {
-                // `("for" body line N)` (interpreted `Tcl_ForObjCmd`), outside a
-                // proc only — as for `while`/`foreach`.
-                if !interp.in_proc() {
+                // `("for" body line N)` (interpreted `Tcl_ForObjCmd`).
+                if !compiled {
                     interp.append_body_frame(b"for");
                 }
                 return Code::Error;
             }
             other => return other,
         }
-        match interp.eval_control_body(next) {
+        match interp.eval_compiled_control_body(next, compiled) {
             Code::Ok => {}
             // A `break` in the step clause ends the loop cleanly (C's
             // `Tcl_ForObjCmd`: `case TCL_BREAK: result = TCL_OK`), unlike
@@ -600,7 +615,7 @@ fn for_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Code::Break => break,
             Code::Error => {
                 // `("for" loop-end command)` (no line) — interpreted `Tcl_ForObjCmd`.
-                if !interp.in_proc() {
+                if !compiled {
                     interp.append_frame_noline(b"\"for\" loop-end command");
                 }
                 return Code::Error;
@@ -637,6 +652,7 @@ fn each_loop(interp: &mut Interp, argv: &[*mut TclObj], collect: bool) -> Code {
     use tcl_runtime_api::completion_options::ControlOptionPolicy;
 
     let name: &[u8] = if collect { b"lmap" } else { b"foreach" };
+    let compiled = interp.release_compiles_control(argv);
     // [cmd] + N×(varlist, list) pairs + body ⇒ an even arg count ≥ 4.
     if argv.len() < 4 || argv.len() % 2 != 0 {
         let usage: &[u8] = if collect {
@@ -706,7 +722,7 @@ fn each_loop(interp: &mut Interp, argv: &[*mut TclObj], collect: bool) -> Code {
                 }
             }
         }
-        match interp.eval_control_body(body) {
+        match interp.eval_compiled_control_body(body, compiled) {
             Code::Ok => {
                 if collect {
                     collected.push(obj_bytes(interp.get_obj_result()));
@@ -715,13 +731,10 @@ fn each_loop(interp: &mut Interp, argv: &[*mut TclObj], collect: bool) -> Code {
             Code::Continue => {} // skip collection, keep looping
             Code::Break => break,
             Code::Error => {
-                // `("<cmd>" body line N)` — only at top level. Tcl inlines
-                // `foreach`/`lmap` when it compiles the enclosing script (a proc
-                // body), so no body-frame appears there; an uncompiled top-level
-                // form runs its command form, which does add the frame. A
-                // tree-walker has no bytecode, so `!in_proc()` approximates the
-                // compilation boundary — matches tclsh 9.0 for both cases.
-                if !interp.in_proc() {
+                // `("<cmd>" body line N)`, the frame of the loop the release
+                // runs rather than compiles (it compiles one in a procedure
+                // body only).
+                if !compiled {
                     interp.append_body_frame(name);
                 }
                 return Code::Error;

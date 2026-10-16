@@ -18,7 +18,7 @@
 
 //! `variable` — create and initialise a namespace variable.
 
-use crate::hooks::LoweringHookId;
+use crate::hooks::{CodegenHookId, LoweringHookId};
 use crate::prelude::*;
 use crate::state_transition::{AliasWords, local_alias_name};
 use tcl_dialect::model::Family;
@@ -187,6 +187,7 @@ pub fn spec() -> CommandSpec {
             return_value: "The empty string.",
         }),
         lowering_hook: Some(LoweringHookId::Variable),
+        codegen_hook: Some(CodegenHookId::Variable),
         native_lowering: Some(NativeLowering::Scope(ScopeKind::NamespaceVariable)),
         forms: FORMS,
         // A value-bearing `variable name value` can run variable traces;

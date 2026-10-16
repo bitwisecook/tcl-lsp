@@ -1748,6 +1748,18 @@ impl CommandRegistry {
         self.profile
     }
 
+    /// `spec`'s signature shape at this registry's release
+    /// ([`CommandSpec::arity_at`]); the unversioned shape where the profile
+    /// names no release.
+    #[must_use]
+    pub fn release_arity(&self, spec: &CommandSpec) -> Arity {
+        let release = self
+            .profile
+            .and_then(tcl_dialect::TclVersion::from_profile)
+            .map(tcl_dialect::TclVersion::version_string);
+        spec.arity_at(release)
+    }
+
     /// The point a consumer resolves hooks and calls at when honouring
     /// **this registry's own** dialect: the attached profile's, or `None`
     /// — surface-blind — for a profile-less registry.

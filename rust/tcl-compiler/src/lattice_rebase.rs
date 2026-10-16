@@ -75,6 +75,10 @@ pub(crate) fn rebase_function_unit(fu: &mut FunctionUnit, delta: i64) {
     // mapping and explorer views.
     for site in &mut fu.cfg.inline_body_error_sites {
         shift(&mut site.span, delta);
+        shift(&mut site.region, delta);
+        if let crate::cfg::BodyErrorContext::Arm(pattern) = &mut site.context {
+            shift(pattern, delta);
+        }
     }
     for site in &mut fu.cfg.command_binding_sites {
         shift(&mut site.span, delta);
@@ -82,6 +86,14 @@ pub(crate) fn rebase_function_unit(fu: &mut FunctionUnit, delta: i64) {
     for site in fu.cfg.command_boundary_sites.values_mut() {
         shift(&mut site.span, delta);
     }
+    fu.cfg.condition_owners = std::mem::take(&mut fu.cfg.condition_owners)
+        .into_iter()
+        .map(|(mut condition, mut owner)| {
+            shift(&mut condition, delta);
+            shift(&mut owner.command, delta);
+            (condition, owner)
+        })
+        .collect();
     // SSA holds its own clones of the IR statements; some emitters read spans
     // from them (`stmt.statement.span()`), so rebase those too.
     for block in fu.ssa.blocks.values_mut() {

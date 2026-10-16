@@ -21,7 +21,7 @@
 use tcl_runtime_api::completion_options::ControlOptionPolicy;
 use tcl_runtime_api::{Code, Completion};
 
-use crate::command::{BuiltinFn, completion_from_cmd_error, settle_control_options};
+use crate::command::{BuiltinFn, settle_control_options};
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
 
@@ -280,9 +280,7 @@ fn unset_path(vm: &mut Vm, cur: &Value, keys: &[Value]) -> Result<Value, Complet
             parent_was_copied = copied;
             i += 1;
         } else {
-            return Err(completion_from_cmd_error(
-                tcl_cmd_core::dict::key_not_known(&k),
-            ));
+            return Err(vm.cmd_error(tcl_cmd_core::dict::key_not_known(&k)));
         }
     }
     for (mut ps, k, bucket_count) in frames.into_iter().rev() {
@@ -311,9 +309,7 @@ fn get_path(vm: &mut Vm, cur: &Value, keys: &[Value]) -> Result<Value, Completio
         match lookup(&ps, &ks) {
             Some(found) => v = found.clone(),
             None => {
-                return Err(completion_from_cmd_error(
-                    tcl_cmd_core::dict::key_not_known(&ks),
-                ));
+                return Err(vm.cmd_error(tcl_cmd_core::dict::key_not_known(&ks)));
             }
         }
     }
@@ -337,7 +333,7 @@ fn dict_op(vm: &mut Vm, sub: &str, rest: &[Value], invoked: &str) -> Completion<
             // A *value-parse* failure is re-worded to C's dict spelling and
             // given its `TCL VALUE DICTIONARY …` code; anything else (wrong #
             // args, unknown key) passes through unchanged.
-            Err(e) if e.error_code().is_some() => crate::command::completion_from_cmd_error(e),
+            Err(e) if e.error_code().is_some() => vm.cmd_error(e),
             Err(e) => crate::exec::dict_parse_err(&e.into_message()),
         };
     }
@@ -479,10 +475,8 @@ fn cmd_dict_with(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     // variable below observes actual Tcl aliases rather than our own handles.
     drop(leaf);
     drop(root_dict);
-    let outcome = vm.eval_source_as(
-        &body.to_str(),
-        crate::value::script_evaluation(std::slice::from_ref(body)),
-    );
+    let evaluation = vm.script_evaluation(std::slice::from_ref(body));
+    let outcome = vm.eval_source_as(&body.to_str(), evaluation);
 
     // Reflect the mapped variables back into the dictionary. Re-read the
     // variable first (the body may have replaced it outright); if the body
@@ -525,6 +519,7 @@ fn cmd_dict_with(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
 }
 
 fn cmd_dict_for(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+    let compiled = vm.pending.release_compiled.take().is_some();
     let [vars, dict, body] = rest else {
         return err("wrong # args: should be \"dict for {keyVar valueVar} dictionary script\"");
     };
@@ -540,7 +535,7 @@ fn cmd_dict_for(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         Err(c) => return c,
     };
     let body_src = body.to_str();
-    let evaluation = crate::value::script_evaluation(std::slice::from_ref(body));
+    let evaluation = vm.script_evaluation(std::slice::from_ref(body));
     for (k, v) in ps {
         if let Err(e) = vm.set_var(&kvar.to_str(), Value::string(k)) {
             return e;
@@ -552,6 +547,7 @@ fn cmd_dict_for(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
             Ok(c) => match c.code {
                 Code::Ok | Code::Continue => {}
                 Code::Break => break,
+                Code::Error => return each_body_error(vm, compiled, "dict for", c),
                 _ => return c,
             },
             Err(e) => return err(e.message),
@@ -560,11 +556,28 @@ fn cmd_dict_for(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     settle_control_options(ok(Value::empty()), ControlOptionPolicy::FRESH_SETTLED)
 }
 
+/// A `dict for` or `dict map` body's error: the command the release runs adds
+/// its `("dict for" body line N)` frame, and one it compiled logs nothing.
+fn each_body_error(
+    vm: &mut Vm,
+    compiled: bool,
+    command: &'static str,
+    c: Completion<Value>,
+) -> Completion<Value> {
+    if compiled {
+        vm.mark_error_logged();
+    } else {
+        vm.append_body_frame(command);
+    }
+    c
+}
+
 /// `dict map {keyVar valueVar} dictionary body` — like `dict for`, but collect
 /// each iteration's body result into a new dictionary keyed by the (possibly
 /// body-modified) `keyVar`. `continue` drops the pair, `break` stops, and an
 /// error/`return` propagates.
 fn cmd_dict_map(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+    let compiled = vm.pending.release_compiled.take().is_some();
     let [vars, dict, body] = rest else {
         return err(
             "wrong # args: should be \"dict map {keyVarName valueVarName} dictionary script\"",
@@ -583,7 +596,7 @@ fn cmd_dict_map(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     };
     let (kname, vname) = (kvar.to_str(), vvar.to_str());
     let body_src = body.to_str();
-    let evaluation = crate::value::script_evaluation(std::slice::from_ref(body));
+    let evaluation = vm.script_evaluation(std::slice::from_ref(body));
     let mut out: Vec<(String, Value)> = Vec::new();
     let mut last_options = Value::empty();
     for (k, v) in ps {
@@ -610,6 +623,7 @@ fn cmd_dict_map(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
                         ControlOptionPolicy::FRESH_SETTLED,
                     );
                 }
+                Code::Error => return each_body_error(vm, compiled, "dict map", c),
                 _ => return c,
             },
             Err(e) => return err(e.message),
@@ -668,10 +682,8 @@ fn cmd_dict_update(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     // Tcl-level aliases. Release them before the post-body COW decision.
     drop(ps);
     drop(cur);
-    let comp = match vm.eval_source_as(
-        &body.to_str(),
-        crate::value::script_evaluation(std::slice::from_ref(body)),
-    ) {
+    let evaluation = vm.script_evaluation(std::slice::from_ref(body));
+    let comp = match vm.eval_source_as(&body.to_str(), evaluation) {
         Ok(c) => c,
         Err(e) => return err(e.message),
     };
@@ -723,7 +735,7 @@ fn cmd_dict_filter(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         return err("must have exactly two variable names");
     };
     let body_src = body.to_str();
-    let evaluation = crate::value::script_evaluation(std::slice::from_ref(body));
+    let evaluation = vm.script_evaluation(std::slice::from_ref(body));
     let mut kept: Vec<(String, Value)> = Vec::new();
     for (k, v) in ps {
         if let Err(e) = vm.set_var(&kvar.to_str(), Value::string(k.as_str())) {

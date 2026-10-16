@@ -204,6 +204,13 @@ pub enum MathFuncError {
     /// (`square root of negative argument`) with the ordinary domain
     /// `-errorcode`.
     NegativeSqrt,
+    /// Tcl 8.4: a result past the double range (`floating-point value too
+    /// large to represent`, `-errorcode ARITH OVERFLOW …`).
+    FloatOverflow,
+    /// Tcl 8.4: a zero result where the exact value is not zero
+    /// (`floating-point value too small to represent`, `-errorcode ARITH
+    /// UNDERFLOW …`).
+    FloatUnderflow,
     /// **Not a Tcl error.** There is no answer *this caller* can carry: its
     /// backend has no arbitrary-precision rung ([`Num`], the const-folder's
     /// shape) or it did not resolve a release and `int()`'s width is
@@ -224,6 +231,8 @@ impl MathFuncError {
             MathFuncError::NotANumber => super::errors::NAN_MESSAGE,
             MathFuncError::Domain => super::errors::DOMAIN_MESSAGE,
             MathFuncError::NegativeSqrt => "square root of negative argument",
+            MathFuncError::FloatOverflow => super::errors::FLOAT_OVERFLOW_MESSAGE,
+            MathFuncError::FloatUnderflow => super::errors::FLOAT_UNDERFLOW_MESSAGE,
             _ => "",
         }
     }
@@ -237,6 +246,8 @@ impl MathFuncError {
             MathFuncError::IntegerOverflow => super::errors::IOVERFLOW_CODE,
             MathFuncError::NotANumber => super::errors::NAN_CODE,
             MathFuncError::Domain | MathFuncError::NegativeSqrt => super::errors::DOMAIN_CODE,
+            MathFuncError::FloatOverflow => super::errors::FLOAT_OVERFLOW_CODE,
+            MathFuncError::FloatUnderflow => super::errors::FLOAT_UNDERFLOW_CODE,
             _ => "",
         }
     }
@@ -355,6 +366,78 @@ pub fn try_dispatch_with_backend_int_width<B: super::super::number_tower::BigInt
     })
 }
 
+/// [`try_dispatch_with_backend_int_width`] under `release`: its `int()` width,
+/// and the checks Tcl 8.4 makes after each call. 8.4 refuses a double past the
+/// integer range in `int`, `wide` and `round` (`ExprIntFunc`, `ExprWideFunc`,
+/// `ExprRoundFunc`), and checks `errno` and the result of every other function
+/// (`ExprUnaryFunc`, `ExprBinaryFunc`).
+///
+/// # Errors
+/// As [`try_dispatch_with_backend_int_width`], and under 8.4
+/// [`MathFuncError::IntegerOverflow`], [`MathFuncError::FloatOverflow`],
+/// [`MathFuncError::FloatUnderflow`] or [`MathFuncError::Domain`].
+pub fn try_dispatch_for_release<B: super::super::number_tower::BigIntOps>(
+    name: &str,
+    args: &[NumValue<B>],
+    release: tcl_dialect::TclVersion,
+) -> Result<NumValue<B>, MathFuncError> {
+    let checks = super::errors::checks_float_range(release);
+    if checks && matches!(args, [NumValue::Float(x)] if integer_conversion_overflows_84(name, *x)) {
+        return Err(MathFuncError::IntegerOverflow);
+    }
+    let result =
+        try_dispatch_with_backend_int_width(name, args, IntWidth::for_tcl_version(release))?;
+    match result {
+        NumValue::Float(value) if checks => {
+            let operands: Vec<f64> = args.iter().map(NumValue::as_f64).collect();
+            float_function_error(name, &operands, value).map_or(Ok(result), Err)
+        }
+        _ => Ok(result),
+    }
+}
+
+/// What 8.4 makes of `value`, the double `name` computed from `args`
+/// (`TclExprFloatError` after the `errno` check): a NaN is a domain error, an
+/// infinity too large, and a zero where the exact value is not zero too small.
+/// The C library reports `ERANGE` only for a result that overflows or
+/// underflows to zero, so a subnormal one passes (tclsh 8.4.20: `exp(-745)` is
+/// `4.94065645841e-324`, `exp(-746)` is too small).
+fn float_function_error(name: &str, args: &[f64], value: f64) -> Option<MathFuncError> {
+    if value.is_nan() {
+        Some(MathFuncError::Domain)
+    } else if value.is_infinite() {
+        Some(MathFuncError::FloatOverflow)
+    } else if value == 0.0 && exact_value_is_non_zero(name, args) {
+        Some(MathFuncError::FloatUnderflow)
+    } else {
+        None
+    }
+}
+
+/// Whether the exact value of `name` over the finite `args` is non-zero, so a
+/// zero result is an underflow rather than the answer.
+fn exact_value_is_non_zero(name: &str, args: &[f64]) -> bool {
+    match (name, args) {
+        ("exp", _) => true,
+        ("pow" | "atan2", [first, _]) => *first != 0.0,
+        ("sin" | "tan" | "asin" | "atan" | "sinh" | "tanh", [x]) => *x != 0.0,
+        _ => false,
+    }
+}
+
+/// Whether 8.4 refuses the double `x` in the integer conversion `name`: `int`
+/// and `wide` beyond ±2^63, `round` once rounded to ±2^63 or beyond (tclsh
+/// 8.4.20: `int(9.3e18)` and `round(9223372036854775807.0)` are `integer value
+/// too large to represent`, `int(9223372036854775807.0)` is not).
+fn integer_conversion_overflows_84(name: &str, x: f64) -> bool {
+    const LIMIT: f64 = 9_223_372_036_854_775_808.0;
+    match name {
+        "int" | "wide" => x.abs() > LIMIT,
+        "round" => x.round().abs() >= LIMIT,
+        _ => false,
+    }
+}
+
 /// Whether `v` is negative (`isqrt`'s own refusal, which C words specially).
 fn is_negative<B: super::super::number_tower::BigIntOps>(v: &NumValue<B>) -> bool {
     match v {
@@ -471,6 +554,33 @@ pub fn dispatch_with_backend_int_width<B: super::super::number_tower::BigIntOps>
 #[must_use]
 pub fn accepts_boolean_operand(name: &str) -> bool {
     name == "bool"
+}
+
+/// The message and `-errorcode` `release` gives an argument of the math
+/// function `name` that is no number: 8.4's `ExprUnaryFunc` and kin one
+/// message and no code, from 8.5 the reader's own words with `TCL VALUE
+/// NUMBER`.
+#[must_use]
+pub fn non_numeric_argument_error(
+    name: &str,
+    value: &str,
+    release: tcl_dialect::TclVersion,
+) -> (String, &'static str) {
+    if release == tcl_dialect::TclVersion::V8_4 {
+        return (
+            "argument to math function didn't have numeric value".to_owned(),
+            "NONE",
+        );
+    }
+    let expected = if expects_floating_operand_error(name) {
+        "floating-point number"
+    } else {
+        "number"
+    };
+    (
+        format!("expected {expected} but got \"{value}\""),
+        "TCL VALUE NUMBER",
+    )
 }
 
 /// Whether a failed operand parse uses Tcl's floating-point error wording.
@@ -1322,6 +1432,45 @@ mod tests {
             MathResultClass::Any,
             "lookup is verbatim"
         );
+    }
+
+    /// Tcl 8.4 checks each result as tclsh 8.4.20 does; 8.5 on keep it.
+    #[test]
+    fn release_range_checks() {
+        use tcl_dialect::TclVersion::{V8_4, V8_6};
+        let call = |name: &str, args: &[f64], release| {
+            let args: Vec<Num> = args.iter().map(|&f| Num::Float(f)).collect();
+            try_dispatch_for_release(name, &args, release)
+        };
+        let refused = [
+            ("exp", vec![-1000.0], MathFuncError::FloatUnderflow),
+            ("exp", vec![710.0], MathFuncError::FloatOverflow),
+            ("pow", vec![10.0, -400.0], MathFuncError::FloatUnderflow),
+            ("pow", vec![0.0, -1.0], MathFuncError::FloatOverflow),
+            ("atan2", vec![1e-300, 1e300], MathFuncError::FloatUnderflow),
+            ("log", vec![0.0], MathFuncError::FloatOverflow),
+            ("cosh", vec![1000.0], MathFuncError::FloatOverflow),
+            ("sqrt", vec![-1.0], MathFuncError::Domain),
+            ("int", vec![9.3e18], MathFuncError::IntegerOverflow),
+            ("wide", vec![-9.3e18], MathFuncError::IntegerOverflow),
+            ("round", vec![9.3e18], MathFuncError::IntegerOverflow),
+        ];
+        for (name, args, error) in refused {
+            assert_eq!(call(name, &args, V8_4), Err(error), "{name}{args:?}");
+        }
+        let kept = [
+            ("exp", vec![-745.0]),
+            ("pow", vec![0.0, 0.0]),
+            ("atan2", vec![0.0, 0.0]),
+            ("fmod", vec![0.0, 1.0]),
+            ("tanh", vec![1000.0]),
+            ("round", vec![9.2e18]),
+        ];
+        for (name, args) in kept {
+            assert!(call(name, &args, V8_4).is_ok(), "{name}{args:?}");
+        }
+        assert_eq!(call("exp", &[-1000.0], V8_6), Ok(Num::Float(0.0)));
+        assert_eq!(call("cosh", &[1000.0], V8_6), Ok(Num::Float(f64::INFINITY)));
     }
 
     #[test]

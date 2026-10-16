@@ -157,10 +157,8 @@ impl From<index::IndexPathError> for LsearchError {
 const BADSTRIDE: &[u8] = b"TCL OPERATION LSEARCH BADSTRIDE";
 
 fn bad_index(spec: &[u8]) -> LsearchError {
-    let mut m = b"bad index \"".to_vec();
-    m.extend_from_slice(spec);
-    m.extend_from_slice(b"\": must be integer?[+-]integer? or end?[+-]integer?");
-    LsearchError::coded(m, b"TCL VALUE INDEX")
+    let (message, code) = index::bad_index_parts(spec);
+    LsearchError { message, code }
 }
 
 fn not_real(s: &[u8]) -> LsearchError {

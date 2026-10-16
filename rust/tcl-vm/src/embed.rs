@@ -333,7 +333,8 @@ impl Vm {
             |value| value.to_str().to_string(),
         );
         let _ = self.take_error_info();
-        self.publish_error(&info, &resolved_error_code(completion));
+        let code = resolved_error_code(completion, self.runtime_version());
+        self.publish_error(&info, &code);
     }
 
     /// The return options of `completion`, as C's `Tcl_GetReturnOptions`

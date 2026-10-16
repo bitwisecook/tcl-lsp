@@ -29,10 +29,15 @@
 //!   and have no separate "a list" branch at all — a multi-element list is
 //!   just a non-numeric string there. Both engines used to emit the 9.0 form
 //!   at every `--tcl-version` (issue #1581).
-//! * The **`-errorcode` is invariant**: `ARITH DOMAIN {<description>}` in
-//!   every release, with `list` as the description for 9.0's list branch.
+//! * The **`-errorcode`** is `ARITH DOMAIN {<description>}` from 8.5, with
+//!   `list` as the description for 9.0's list branch; 8.4 sets none but for
+//!   a formal integer it could not hold.
+//! * The **description** of a value that is no number is a release axis too:
+//!   8.4-8.6 single out an empty string and a numeral with a leading zero and
+//!   a digit octal lacks (`TclCheckBadOctal`), and 8.4 a formal integer past
+//!   the wide range.
 //!
-//! Measured against tclsh 9.0.4 and tclsh 8.6.16.
+//! Measured against tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0.
 
 use tcl_dialect::TclVersion;
 
@@ -42,6 +47,12 @@ use tcl_dialect::TclVersion;
 pub enum OperandDesc {
     /// A string that is not a number at all.
     NonNumericString,
+    /// An empty string, before 9.0.
+    EmptyString,
+    /// A numeral with a leading zero and a digit octal lacks, before 9.0.
+    InvalidOctalNumber,
+    /// 8.4 only: a formal integer past the wide range.
+    IntegerTooLarge,
     /// A double handed to an integer-only operator (`~`, `&`, `%`, `<<`, …).
     FloatingPointValue,
     /// A NaN — numeric in shape, unusable as an operand.
@@ -58,6 +69,9 @@ impl OperandDesc {
     pub fn as_str(self) -> &'static str {
         match self {
             OperandDesc::NonNumericString => "non-numeric string",
+            OperandDesc::EmptyString => "empty string",
+            OperandDesc::InvalidOctalNumber => "invalid octal number",
+            OperandDesc::IntegerTooLarge => IOVERFLOW_MESSAGE,
             OperandDesc::FloatingPointValue => "floating-point value",
             OperandDesc::NonNumericFloatingPointValue => "non-numeric floating-point value",
             OperandDesc::List => "a list",
@@ -85,6 +99,69 @@ impl OperandDesc {
             self
         }
     }
+
+    /// The description `release` gives `value`, which this describes: before
+    /// 9.0 a non-numeric string that is empty or a bad octal numeral is
+    /// described as such, and 8.4 describes a formal integer it could not
+    /// hold as too large.
+    #[must_use]
+    pub fn of_value(self, value: &str, release: TclVersion) -> Self {
+        let desc = self.for_release(release);
+        if desc != OperandDesc::NonNumericString || release >= TclVersion::V9_0 {
+            return desc;
+        }
+        if value.is_empty() {
+            return OperandDesc::EmptyString;
+        }
+        let octal_prefix = release > TclVersion::V8_4;
+        if release == TclVersion::V8_4 && !looks_like_integer_84(value) {
+            OperandDesc::NonNumericString
+        } else if check_bad_octal(value, octal_prefix) {
+            OperandDesc::InvalidOctalNumber
+        } else if release == TclVersion::V8_4 {
+            OperandDesc::IntegerTooLarge
+        } else {
+            OperandDesc::NonNumericString
+        }
+    }
+}
+
+/// C's `TclCheckBadOctal`: whether `value` is a numeral with a leading zero
+/// (after any space and sign, and from 8.5 an `0o` prefix) whose digits run
+/// to its end, the shape a leading-zero octal with an 8 or 9 takes.
+#[must_use]
+pub fn check_bad_octal(value: &str, octal_prefix: bool) -> bool {
+    let rest = value.trim_start_matches(is_c_space);
+    let rest = rest.strip_prefix(['+', '-']).unwrap_or(rest);
+    let Some(rest) = rest.strip_prefix('0') else {
+        return false;
+    };
+    let rest = if octal_prefix {
+        rest.strip_prefix(['o', 'O']).unwrap_or(rest)
+    } else {
+        rest
+    };
+    rest.trim_start_matches(|c: char| c.is_ascii_digit())
+        .trim_start_matches(is_c_space)
+        .is_empty()
+}
+
+/// 8.4's `IllegalExprOperandType` test for a value that looks formally like
+/// an integer ([`tcl_dialect::tcl84_formal_integer_end`]): after any space
+/// and sign, the integer's text, then only space.
+fn looks_like_integer_84(value: &str) -> bool {
+    let rest = value.trim_start_matches(is_c_space);
+    let rest = rest.strip_prefix(['+', '-']).unwrap_or(rest);
+    if rest.is_empty() {
+        return false;
+    }
+    let end = tcl_dialect::tcl84_formal_integer_end(rest.as_bytes(), 0);
+    rest[end..].trim_start_matches(is_c_space).is_empty()
+}
+
+/// C's `isspace` in the "C" locale.
+fn is_c_space(c: char) -> bool {
+    matches!(c, ' ' | '\t' | '\n' | '\x0b' | '\x0c' | '\r')
 }
 
 /// Which operand of the operator was at fault. Tcl 9.0 names it; earlier
@@ -163,7 +240,7 @@ pub fn illegal_operand_message(
     op: &str,
     release: TclVersion,
 ) -> String {
-    let desc = desc.for_release(release);
+    let desc = desc.of_value(value, release);
     if release >= TclVersion::V9_0 {
         if desc == OperandDesc::List {
             format!("cannot use a list as {}operand of \"{op}\"", side.prefix())
@@ -179,11 +256,18 @@ pub fn illegal_operand_message(
     }
 }
 
-/// The `-errorcode` C stamps on an operand-type error, in every release:
-/// `ARITH DOMAIN <detail>`.
+/// The `-errorcode` C stamps on an operand-type error for `value`:
+/// `ARITH DOMAIN <detail>` from 8.5, and in 8.4 `NONE` but for a formal
+/// integer too large, `ARITH IOVERFLOW`.
 #[must_use]
-pub fn illegal_operand_error_code(desc: OperandDesc, release: TclVersion) -> String {
-    let desc = desc.for_release(release);
+pub fn illegal_operand_error_code(desc: OperandDesc, value: &str, release: TclVersion) -> String {
+    let desc = desc.of_value(value, release);
+    if desc == OperandDesc::IntegerTooLarge {
+        return IOVERFLOW_CODE.to_owned();
+    }
+    if release == TclVersion::V8_4 {
+        return "NONE".to_owned();
+    }
     let detail = desc.error_code_detail();
     if detail.contains(' ') {
         format!("ARITH DOMAIN {{{detail}}}")
@@ -221,6 +305,67 @@ pub const DOMAIN_MESSAGE: &str = "domain error: argument not in valid range";
 /// See [`DOMAIN_MESSAGE`]. `isqrt` of a negative operand keeps its own
 /// message but reuses this code (tclsh verified).
 pub const DOMAIN_CODE: &str = "ARITH DOMAIN {domain error: argument not in valid range}";
+
+/// The message and `-errorcode` for a double past the double range, which
+/// 8.4 refuses wherever one arises (`TclExprFloatError`).
+pub const FLOAT_OVERFLOW_MESSAGE: &str = "floating-point value too large to represent";
+/// See [`FLOAT_OVERFLOW_MESSAGE`].
+pub const FLOAT_OVERFLOW_CODE: &str =
+    "ARITH OVERFLOW {floating-point value too large to represent}";
+/// The message and `-errorcode` for a numeral 8.4 reads as a non-zero double
+/// that rounds to zero.
+pub const FLOAT_UNDERFLOW_MESSAGE: &str = "floating-point value too small to represent";
+/// See [`FLOAT_UNDERFLOW_MESSAGE`].
+pub const FLOAT_UNDERFLOW_CODE: &str =
+    "ARITH UNDERFLOW {floating-point value too small to represent}";
+
+/// The message and `-errorcode` for a division by zero.
+pub const DIVZERO_MESSAGE: &str = "divide by zero";
+/// See [`DIVZERO_MESSAGE`].
+pub const DIVZERO_CODE: &str = "ARITH DIVZERO {divide by zero}";
+
+/// The error `release` raises for `value`, a double an operator, a math
+/// function or an operand's conversion produced: 8.4 refuses any that is not
+/// finite (`TclExprFloatError`), a NaN as a domain error and an infinity as
+/// too large, where later releases keep it. `None` where it is kept.
+#[must_use]
+pub fn float_result_error(value: f64, release: TclVersion) -> Option<(&'static str, &'static str)> {
+    if !checks_float_range(release) || value.is_finite() {
+        None
+    } else if value.is_nan() {
+        Some((DOMAIN_MESSAGE, DOMAIN_CODE))
+    } else {
+        Some(float_range_error(value))
+    }
+}
+
+/// Whether `release` checks each double an operator, a math function or a
+/// numeral produces (`TclExprFloatError`): 8.4 does, later releases keep an
+/// infinity, a NaN or an underflow.
+#[must_use]
+pub fn checks_float_range(release: TclVersion) -> bool {
+    release == TclVersion::V8_4
+}
+
+/// The message and `-errorcode` 8.4 gives a double C reported with `ERANGE`
+/// (`TclExprFloatError`): too small where it came back zero, too large
+/// otherwise, a subnormal included (tclsh 8.4.20: `expr {1e-320}` is
+/// `floating-point value too large to represent`).
+#[must_use]
+pub fn float_range_error(value: f64) -> (&'static str, &'static str) {
+    if value == 0.0 {
+        (FLOAT_UNDERFLOW_MESSAGE, FLOAT_UNDERFLOW_CODE)
+    } else {
+        (FLOAT_OVERFLOW_MESSAGE, FLOAT_OVERFLOW_CODE)
+    }
+}
+
+/// Whether `release` refuses a double divided by zero as it does an integer
+/// one: 8.4 does, where later releases give an infinity or a NaN.
+#[must_use]
+pub fn refuses_double_division_by_zero(release: TclVersion) -> bool {
+    release == TclVersion::V8_4
+}
 
 #[cfg(test)]
 mod tests {
@@ -312,28 +457,90 @@ mod tests {
         );
     }
 
-    /// The `-errorcode` is release-invariant except that 8.6 has no list
-    /// branch to report.
+    /// The `-errorcode` from 8.5 is the description's, but for the list
+    /// branch 8.6 lacks.
     #[test]
-    fn the_error_code_is_release_invariant_apart_from_the_list_branch() {
+    fn the_error_code_follows_the_description_from_eight_five() {
         use OperandDesc::{FloatingPointValue, List, NonNumericString};
         for release in [TclVersion::V8_6, TclVersion::V9_0] {
             assert_eq!(
-                illegal_operand_error_code(NonNumericString, release),
+                illegal_operand_error_code(NonNumericString, "abc", release),
                 "ARITH DOMAIN {non-numeric string}"
             );
             assert_eq!(
-                illegal_operand_error_code(FloatingPointValue, release),
+                illegal_operand_error_code(FloatingPointValue, "1.5", release),
                 "ARITH DOMAIN {floating-point value}"
             );
         }
         assert_eq!(
-            illegal_operand_error_code(List, TclVersion::V9_0),
+            illegal_operand_error_code(List, "a b", TclVersion::V9_0),
             "ARITH DOMAIN list"
         );
         assert_eq!(
-            illegal_operand_error_code(List, TclVersion::V8_6),
+            illegal_operand_error_code(List, "a b", TclVersion::V8_6),
             "ARITH DOMAIN {non-numeric string}"
+        );
+    }
+
+    /// tclsh 8.4.20, 8.6.18 and 9.0.4: `catch {expr {$v + 1}} m o` for each
+    /// value.
+    #[test]
+    fn a_value_that_is_no_number_is_described_as_each_release_describes_it() {
+        use OperandDesc::NonNumericString;
+        use OperandSide::Left;
+        let v84 = TclVersion::V8_4;
+        let v86 = TclVersion::V8_6;
+        let v90 = TclVersion::V9_0;
+        let message = |value, release| {
+            (
+                illegal_operand_message(NonNumericString, value, Left, "+", release),
+                illegal_operand_error_code(NonNumericString, value, release),
+            )
+        };
+        let pair = |m: &str, c: &str| (m.to_owned(), c.to_owned());
+        assert_eq!(
+            message("", v84),
+            pair("can't use empty string as operand of \"+\"", "NONE")
+        );
+        assert_eq!(
+            message("", v86),
+            pair(
+                "can't use empty string as operand of \"+\"",
+                "ARITH DOMAIN {empty string}"
+            )
+        );
+        assert_eq!(
+            message("", v90),
+            pair(
+                "cannot use non-numeric string \"\" as left operand of \"+\"",
+                "ARITH DOMAIN {non-numeric string}"
+            )
+        );
+        assert_eq!(
+            message(" -08 ", v84),
+            pair("can't use invalid octal number as operand of \"+\"", "NONE")
+        );
+        assert_eq!(
+            message("0o8", v84),
+            pair("can't use non-numeric string as operand of \"+\"", "NONE")
+        );
+        assert_eq!(
+            message("0o8", v86),
+            pair(
+                "can't use invalid octal number as operand of \"+\"",
+                "ARITH DOMAIN {invalid octal number}"
+            )
+        );
+        assert_eq!(
+            message("0x", v84),
+            pair(
+                "can't use integer value too large to represent as operand of \"+\"",
+                IOVERFLOW_CODE
+            )
+        );
+        assert_eq!(
+            message("abc", v84),
+            pair("can't use non-numeric string as operand of \"+\"", "NONE")
         );
     }
 }

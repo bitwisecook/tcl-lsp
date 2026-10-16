@@ -29,8 +29,8 @@
 //! is invoked for `-glob`/`-regexp`/`-integer`/`-nocase`/dynamic cases.
 
 use tcl_cmd_core::switch::{self as core_switch, Selection};
-use tcl_runtime_api::Completion;
 use tcl_runtime_api::completion_options::ControlOptionPolicy;
+use tcl_runtime_api::{Code, Completion};
 
 use crate::cmd_regexp::CrateEngine;
 use crate::command::settle_control_options;
@@ -44,11 +44,13 @@ pub(crate) fn register(vm: &mut Vm) {
 const USAGE_LIST: &str = "switch ?-option ...? string {?pattern body ...? ?default body?}";
 
 fn cmd_switch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    // A `switch` the release compiles runs its body with no frame of its own.
+    let compiled = vm.pending.release_compiled.take().is_some();
     // Options + the `string` index are shared (the VM's argv is name-stripped).
     let version = vm.runtime_version();
     let opts = match core_switch::parse_options(vm, args, version) {
         Ok(o) => o,
-        Err(e) => return crate::command::completion_from_cmd_error(e),
+        Err(e) => return vm.cmd_error(e),
     };
     let value = args[opts.value_index].clone();
     let rest = &args[opts.value_index + 1..];
@@ -96,7 +98,7 @@ fn cmd_switch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         vm, &opts, &value, &patterns, version,
     ) {
         Ok(s) => s,
-        Err(e) => return crate::command::completion_from_cmd_error(e),
+        Err(e) => return vm.cmd_error(e),
     };
     let Selection::Matched { index, writes } = sel else {
         return settle_control_options(ok(Value::empty()), ControlOptionPolicy::FRESH_FORWARDED);
@@ -114,10 +116,19 @@ fn cmd_switch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         b += 1;
     }
     let body = &pairs[b].1;
-    let evaluation = crate::value::script_evaluation(std::slice::from_ref(body));
+    let evaluation = vm.script_evaluation(std::slice::from_ref(body));
     let completion = match vm.eval_source_as(&body.to_str(), evaluation) {
         Ok(c) => c,
         Err(e) => err(e.message),
     };
+    if completion.code == Code::Error {
+        if compiled {
+            vm.mark_error_logged();
+        } else {
+            let text =
+                tcl_cmd_core::switch::arm_frame_text(pairs[index].0.to_str().as_bytes(), version);
+            vm.append_frame_line(&String::from_utf8_lossy(&text));
+        }
+    }
     settle_control_options(completion, ControlOptionPolicy::FRESH_FORWARDED)
 }

@@ -45,12 +45,24 @@ use crate::error::CmdError;
 ///
 /// `values` is assumed non-empty — the no-argument `append x` form is a read,
 /// handled by the adapter.
+///
+/// As C's `TclPtrSetVarIdx` and `Tcl_AppendObjToObj`, an unset variable takes
+/// the first value itself and an empty value appends nothing, so where nothing
+/// else is appended the variable holds that same value (a list stays the list
+/// it was).
 pub fn append_bytes<O, V>(ops: &mut O, cur: Option<V>, values: &[V]) -> V
 where
     O: ValueOps<Value = V>,
     V: Clone,
 {
+    let appends =
+        |ops: &mut O, values: &[V]| values.iter().any(|val| !ops.as_bytes(val).is_empty());
     let Some(mut v) = cur else {
+        if let Some((first, rest)) = values.split_first()
+            && !appends(ops, rest)
+        {
+            return first.clone();
+        }
         // Unset variable: build a fresh value from the appended bytes.
         let mut buf = Vec::new();
         for val in values {
@@ -58,6 +70,9 @@ where
         }
         return ops.new_bytes(&buf);
     };
+    if !appends(ops, values) {
+        return v;
+    }
     // Grow `v` in place for as many leading values as the runtime allows. The
     // capability is all-or-nothing in practice (it depends on `v`'s shared/typed
     // state, which appending doesn't change), but the loop tolerates a partial

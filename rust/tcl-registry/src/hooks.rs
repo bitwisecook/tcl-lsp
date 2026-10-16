@@ -200,6 +200,23 @@ pub enum CodegenHookId {
     Global,
     /// `upvar ?level? otherVar localVar ?otherVar localVar ...?`.
     Upvar,
+    /// `set varName` — the one-word form, a load of the variable
+    /// (`TclCompileSetCmd`).
+    Set,
+    /// `array set arrayName list` — the command runs, its array a compiled
+    /// local (`TclCompileArraySetCmd`; subcommand-keyed).
+    ArraySet,
+    /// `array unset arrayName` — the command runs, its array a compiled
+    /// local; with a pattern `TclCompileArrayUnsetCmd` makes none
+    /// (subcommand-keyed).
+    ArrayUnset,
+    /// `variable name ?value name value ...?` — the command runs, the tail of
+    /// each name a compiled local (`TclCompileVariableCmd`).
+    Variable,
+    /// `namespace upvar ns otherVar myVar ...` — the command runs, each
+    /// `myVar` a compiled local (`TclCompileNamespaceUpvarCmd`;
+    /// subcommand-keyed).
+    NamespaceUpvar,
 }
 
 /// Typed identifier for an *inline* (value-position) bytecode codegen
@@ -228,6 +245,9 @@ pub enum InlineCodegenHookId {
     Expr,
     /// `incr varName ?increment?` — LVT / stack increment.
     Incr,
+    /// `set varName` — the one-word form, a load of the variable
+    /// (`TclCompileSetCmd`).
+    Set,
     /// `info exists varName` — `existScalar` / `existStk`
     /// (subcommand-keyed: stamped on `info`'s `exists` subcommand).
     InfoExists,
@@ -267,6 +287,26 @@ pub enum InlineCodegenHookId {
     /// `try body on error {var} handler` inside a catch body —
     /// inline two-range catch/handler sequence.
     Try,
+    /// `string is class ?-strict? string` — `strclass` and the numeric
+    /// checks `TclCompileStringIsCmd` compiles (subcommand-keyed).
+    StringIs,
+    /// `string match ?-nocase? pattern string` — `streq` for a literal
+    /// pattern with no glob character, else `strmatch`
+    /// (`TclCompileStringMatchCmd`; subcommand-keyed).
+    StringMatch,
+    /// `string replace string first last ?newString?` — the forms
+    /// `TclCompileStringReplaceCmd` settles on literal indices, else
+    /// `strreplace` (subcommand-keyed).
+    StringReplace,
+    /// `string trim string ?chars?` — `strtrim` (`TclCompileStringTrimCmd`;
+    /// subcommand-keyed).
+    StringTrim,
+    /// `string trimleft string ?chars?` — `strtrimLeft`
+    /// (`TclCompileStringTrimLCmd`; subcommand-keyed).
+    StringTrimLeft,
+    /// `string trimright string ?chars?` — `strtrimRight`
+    /// (`TclCompileStringTrimRCmd`; subcommand-keyed).
+    StringTrimRight,
 }
 
 /// Typed identifier for an analyser per-command handler family.

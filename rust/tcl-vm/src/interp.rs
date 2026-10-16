@@ -45,8 +45,8 @@ use tcl_runtime_api::guard::{
 use tcl_runtime_api::{
     ArrayElementRead, ArrayInvalidation, ArrayReadFailure, ArrayReadMiss, ArrayTarget,
     ArtefactIdentityManifest, Code, CommandEvaluation, CommandId, Commands, CompileService,
-    Completion, FatalTail, FrameId, FrameLinkOrigin, Frames, Introspect, Namespaces, NsId,
-    ProcInfo, ProcParam, ProcedureCompileTarget, ProcedureDispatch, Procs, ROOT_NS,
+    CompileUnit, Completion, FatalTail, FrameId, FrameLinkOrigin, Frames, Introspect, Namespaces,
+    NsId, ProcInfo, ProcParam, ProcedureCompileTarget, ProcedureDispatch, Procs, ROOT_NS,
     RegisteredBacking, Rung, RuntimeContext, ScriptCompileTarget, Traces, VarId, VarStore,
     VarUnsetError,
 };
@@ -817,6 +817,16 @@ enum CommandSemantics {
     Tracking,
 }
 
+/// Whether the invocation being dispatched is one the release compiled into
+/// a procedure body ([`PendingControl::procedure_body`]).
+#[derive(Debug, Default, Clone, Copy)]
+pub(crate) struct ProcedureBodyDispatch {
+    /// For the activations the command runs its body in as it runs.
+    pub(crate) dispatch: bool,
+    /// For the activation the command deferred to the explicit stack.
+    pub(crate) deferred: bool,
+}
+
 /// Deferred control requests handed from builtins to the explicit VM stack.
 #[derive(Default)]
 pub(crate) struct PendingControl {
@@ -838,6 +848,9 @@ pub(crate) struct PendingControl {
     /// The same unit, for the activation the dispatched invocation deferred
     /// to the explicit stack.
     pub(crate) release_unit: Option<crate::release_units::InheritedUnit>,
+    /// Whether the invocation being dispatched is one the release compiled
+    /// into a procedure body, whose body it then compiled as part of it.
+    pub(crate) procedure_body: ProcedureBodyDispatch,
     /// How the emulated release compiles the command the invoke dispatching
     /// now runs ([`tcl_bytecode::Instruction::release_compiled`]); a control
     /// builtin that reads its words as that compiled command does takes it
@@ -851,6 +864,15 @@ pub(crate) struct PendingControl {
     pub(crate) top_level_command: bool,
     /// Next `package unknown` or `package ifneeded` script of a require.
     pub(crate) package: Option<crate::cmd_package::PackageReq>,
+    /// The procedure body unwinding now failed to compile
+    /// ([`FatalTail::compile_info`]), so its frame reads `compiling body`.
+    pub(crate) body_compile_failed: bool,
+    /// The next unit run is a chunk `tclsh` records in its history
+    /// ([`Vm::eval_source_commands`]).
+    pub(crate) record_history: bool,
+    /// The script a builtin is about to evaluate directly, as the text it
+    /// compiles and the values its words are ([`Vm::script_evaluation`]).
+    pub(crate) direct_script: Option<(String, Vec<Value>)>,
 }
 
 /// One interpreter's complete state: command table, namespaces, call frames,
@@ -901,6 +923,50 @@ struct GuardedCommands {
     /// as it is not over a native command or a procedure. It follows its token
     /// through rename and hide, as an attestation does.
     host: HashSet<u64>,
+}
+
+/// The scripts runtime evaluation has compiled, both forms.
+#[derive(Default)]
+struct ScriptCaches {
+    /// Cache of compiled scripts for the runtime-`eval` / command-substitution
+    /// path (`eval_source`), keyed by constructed namespace and source text.
+    /// Compilation is a pure function of those values and the currently
+    /// selected profile, so a script
+    /// re-evaluated every loop iteration — a `switch`/`if`/`while` body, a
+    /// `[subst]`ed command, a tcltest `-body` — compiles once instead of each
+    /// time. This is the dominant cost in the tcltest workload. The key also
+    /// carries [`ScriptCompileTarget::evaluation`].
+    fast: HashMap<(String, String, CommandEvaluation), Rc<ModuleAsm>>,
+    /// Plain-dispatch counterpart of [`Self::fast`] — the SAME source
+    /// text compiled with [`CompileService::compile_plain_dispatch_for_profile`]
+    /// instead of
+    /// [`compile`](CompileService::compile), used whenever
+    /// [`Self::requires_plain_command_dispatch`] is true. A step-traced proc's
+    /// `if`/`while`/`foreach`/`eval`/`uplevel`/`catch`/`try`/… bodies all funnel through
+    /// `eval_source`/`compile_source_cached` (their runtime builtins evaluate
+    /// bodies that way), so gating the cache choice here — rather than at
+    /// each call site — makes every one of them trace-visible with one change.
+    /// Kept as a wholly separate map (not a mode-keyed
+    /// entry in `fast`) so the two compiled forms of the same source
+    /// never collide or get served to the wrong mode. Both maps are cleared
+    /// when the profile changes.
+    plain: HashMap<(String, String, CommandEvaluation), Rc<ModuleAsm>>,
+    /// What a release that compiles a script whole made of each script it
+    /// was asked about, keyed by source text and how it compiles it
+    /// ([`Vm::release_compile_failure`]).
+    refusals: HashMap<(String, CompileUnit), Option<FatalTail>>,
+    /// The literal objects of the stdin chunks `tclsh`'s history still
+    /// keeps ([`Vm::record_history`]).
+    history: std::collections::VecDeque<Rc<crate::compiled::LiteralValues>>,
+}
+
+impl ScriptCaches {
+    /// Forget every compiled script, as a profile or compiler change must.
+    fn clear(&mut self) {
+        self.fast.clear();
+        self.plain.clear();
+        self.refusals.clear();
+    }
 }
 
 /// The seams a debugger or embedder watches execution through
@@ -1218,29 +1284,8 @@ pub struct InterpState {
     /// debugger, `tcl-irule-test`, `f5 explain-flow --simulate`) sees the
     /// unwinding completion and survives. `None` until `exit` runs.
     pending_exit: Option<i32>,
-    /// Cache of compiled scripts for the runtime-`eval` / command-substitution
-    /// path (`eval_source`), keyed by constructed namespace and source text.
-    /// Compilation is a pure function of those values and the currently
-    /// selected profile, so a script
-    /// re-evaluated every loop iteration — a `switch`/`if`/`while` body, a
-    /// `[subst]`ed command, a tcltest `-body` — compiles once instead of each
-    /// time. This is the dominant cost in the tcltest workload. The key also
-    /// carries [`ScriptCompileTarget::evaluation`].
-    eval_cache: HashMap<(String, String, CommandEvaluation), Rc<ModuleAsm>>,
-    /// Plain-dispatch counterpart of [`Self::eval_cache`] — the SAME source
-    /// text compiled with [`CompileService::compile_plain_dispatch_for_profile`]
-    /// instead of
-    /// [`compile`](CompileService::compile), used whenever
-    /// [`Self::requires_plain_command_dispatch`] is true. A step-traced proc's
-    /// `if`/`while`/`foreach`/`eval`/`uplevel`/`catch`/`try`/… bodies all funnel through
-    /// `eval_source`/`compile_source_cached` (their runtime builtins evaluate
-    /// bodies that way), so gating the cache choice here — rather than at
-    /// each call site — makes every one of them trace-visible with one change.
-    /// Kept as a wholly separate map (not a mode-keyed
-    /// entry in `eval_cache`) so the two compiled forms of the same source
-    /// never collide or get served to the wrong mode. Both maps are cleared
-    /// when the profile changes.
-    eval_cache_plain: HashMap<(String, String, CommandEvaluation), Rc<ModuleAsm>>,
+    /// Compiled runtime-`eval` scripts ([`ScriptCaches`]).
+    script_caches: ScriptCaches,
     /// The accumulating `errorInfo` source trace (C's `iPtr->errorInfo`): the
     /// error message followed by `while executing` / `invoked from within`
     /// frames, built up as the error unwinds through commands. `None` until the
@@ -1371,6 +1416,9 @@ pub struct InterpState {
     pub(crate) coro: crate::cmd_coro::CoroSystem,
     /// Requests staged by control builtins and drained into stack ticks.
     pub(crate) pending: PendingControl,
+    /// The objects compiled code pushes for its literal words, shared by
+    /// every unit that pushes the same text (C's interp literal table).
+    pub(crate) literals: crate::value::LiteralTable,
     /// The event loop's pending timer/idle events (`after`/`vwait`/`update`).
     /// The scheduler half of the coroutine subsystem. See [`crate::cmd_event`].
     pub(crate) events: crate::cmd_event::EventQueue,
@@ -1888,8 +1936,7 @@ impl Vm {
             // rebuilt lazily; these cache-only forms do not, so discard them.
             // Active frames carry this generation and fail closed at the
             // trampoline seam if a native callback changes profile mid-run.
-            self.eval_cache.clear();
-            self.eval_cache_plain.clear();
+            self.script_caches.clear();
             self.module_procs.clear();
         }
         self.command_surface_profile = profile;
@@ -1954,8 +2001,7 @@ impl Vm {
         }
         self.bump_cmd_epoch();
         self.profile_generation = self.profile_generation.wrapping_add(1);
-        self.eval_cache.clear();
-        self.eval_cache_plain.clear();
+        self.script_caches.clear();
         self.module_procs.clear();
         self.command_surface_profile = profile;
         self.command_surface_point = Some(crate::environment::surface_point(profile));
@@ -2303,8 +2349,7 @@ impl InterpState {
             debug: DebugSeams::default(),
             script_command: None,
             pending_exit: None,
-            eval_cache: HashMap::new(),
-            eval_cache_plain: HashMap::new(),
+            script_caches: ScriptCaches::default(),
             error_info: None,
             error_logged: false,
             error_stack: ErrorStack::default(),
@@ -2335,6 +2380,7 @@ impl InterpState {
             oo: crate::cmd_oo::OoState::default(),
             coro: crate::cmd_coro::CoroSystem::default(),
             pending: PendingControl::default(),
+            literals: crate::value::LiteralTable::default(),
             events: crate::cmd_event::EventQueue::default(),
             thread: crate::cmd_thread::ThreadSystem::default(),
         }
@@ -2838,8 +2884,7 @@ impl Vm {
     pub fn set_compiler(&mut self, compiler: Box<dyn CompileService<Module = ModuleAsm>>) {
         self.compiler = Some(Rc::from(compiler));
         self.compiler_generation = self.compiler_generation.wrapping_add(1);
-        self.eval_cache.clear();
-        self.eval_cache_plain.clear();
+        self.script_caches.clear();
         self.module_procs.clear();
     }
 
@@ -5569,10 +5614,9 @@ impl Vm {
         let usage = tcl_syntax::list::join_list(
             std::iter::once(ens_name).chain(parameters.iter().map(String::as_str)),
         );
-        err_with_code(
-            format!("wrong # args: should be \"{usage} subcommand ?arg ...?\""),
-            "TCL WRONGARGS",
-        )
+        err(format!(
+            "wrong # args: should be \"{usage} subcommand ?arg ...?\""
+        ))
     }
 
     pub(crate) fn dispatch_ensemble(
@@ -5778,7 +5822,8 @@ impl Vm {
                     .map(|v| v.to_str().to_string())
                     .collect::<Vec<_>>()
                     .join(" ");
-                self.eval_in_interp(id, &script, crate::value::script_evaluation(rest))
+                let evaluation = self.script_evaluation(rest);
+                self.eval_in_interp(id, &script, evaluation)
             }
             "issafe" => ok(Value::bool(self.st_of(id).is_some_and(|st| st.is_safe))),
             "delete" => {
@@ -10045,7 +10090,13 @@ impl Vm {
         // later commands do not parse must neither refuse the definition nor
         // run with the lenient lowering's invented meaning: compile the clean
         // prefix and carry the error for the unit to raise on entry (#1829).
-        let (body_src, fatal_tail, _) = self.script_prefix_and_fatal_tail(src);
+        // A release that compiles the body whole refuses it before any of it
+        // runs, the error raised on entry all the same.
+        let (body_src, fatal_tail, _) =
+            match self.release_compile_failure(src, CompileUnit::ProcedureBody) {
+                Some(tail) => ("", Some(tail), 0),
+                None => self.script_prefix_and_fatal_tail(src),
+            };
         // The AOT admission path returns assembly the *enclosing module*
         // lowered, and that lowering is the lenient one — it would hand back a
         // body that quietly means something C never means. Only a body that
@@ -10211,12 +10262,12 @@ impl Vm {
             target.source.to_owned(),
             target.evaluation,
         );
-        if let Some(module) = self.eval_cache_plain.get(&key) {
+        if let Some(module) = self.script_caches.plain.get(&key) {
             Self::validate_module_namespace(module, target.namespace)?;
             return Ok(Rc::clone(module));
         }
         let module = Rc::new(self.compile_plain_module(target)?);
-        self.eval_cache_plain.insert(key, Rc::clone(&module));
+        self.script_caches.plain.insert(key, Rc::clone(&module));
         Ok(module)
     }
 
@@ -10440,6 +10491,24 @@ impl Vm {
         self.frames.len() - 1
     }
 
+    /// Whether each of `words` that `mask` marks, one bit per index, names a
+    /// compiled local of the procedure the current frame activates
+    /// ([`tcl_bytecode::ReleaseCompiled::frame_local_words`]).
+    pub(crate) fn frame_compiled_locals_named(&self, mask: u8, words: &[Value]) -> bool {
+        if mask == 0 {
+            return true;
+        }
+        let Some(body) = self.frames.last().and_then(|f| f.compiled_body.as_ref()) else {
+            return false;
+        };
+        (0..u8::BITS).filter(|bit| mask >> bit & 1 == 1).all(|bit| {
+            usize::try_from(bit)
+                .ok()
+                .and_then(|index| words.get(index))
+                .is_some_and(|word| body.lvt.is_source_local(&word.to_str()))
+        })
+    }
+
     /// Whether the current frame is a **procedure** activation.
     ///
     /// A proc frame carries its name; the global frame and a `namespace eval`
@@ -10460,6 +10529,13 @@ impl Vm {
             .push(CallFrame::new(level, ROOT_NS, proc_name, call_argv));
         self.recursion_depth += 1;
         level
+    }
+
+    /// Record the compiled body of the procedure the current frame activates.
+    pub(crate) fn set_frame_compiled_body(&mut self, body: Rc<tcl_bytecode::FunctionAsm>) {
+        if let Some(frame) = self.frames.last_mut() {
+            frame.compiled_body = Some(body);
+        }
     }
 
     pub(crate) fn pop_call_frame(&mut self) {
@@ -12586,6 +12662,23 @@ impl Vm {
         self.append_body_frame_line(label, self.error_line);
     }
 
+    /// Append a `(<text> line N)` frame, `N` the innermost logged command's
+    /// line, and clear `error_logged` so the enclosing command then logs its
+    /// own `invoked from within` frame.
+    pub(crate) fn append_frame_line(&mut self, text: &str) {
+        self.append_frame_text(&format!("{text} line {}", self.error_line));
+    }
+
+    /// Append a `(<text>)` frame and clear `error_logged` so the enclosing
+    /// command then logs its own `invoked from within` frame.
+    pub(crate) fn append_frame_text(&mut self, text: &str) {
+        let info = self.error_info.get_or_insert_with(String::new);
+        info.push_str("\n    (");
+        info.push_str(text);
+        info.push(')');
+        self.error_logged = false;
+    }
+
     /// Append a `("<label>" body line N)` frame with an explicit `line` — for an
     /// *inlined* body (`FunctionAsm::error_regions`), whose body-relative line is
     /// the innermost command's line minus the body's `line_base` (the uncompiled
@@ -12623,6 +12716,25 @@ impl Vm {
             .and_then(|f| f.proc_name.as_ref())
             // `proc_name` is an unrooted key: construction-inverse tail.
             .map(|q| key_holder_and_tail_unrooted(q).1)
+    }
+
+    /// Append a `(compiling body of proc "<name>", line N)` frame — the frame
+    /// a procedure whose body failed to compile adds (`TclProcCompileProc`),
+    /// its name cut at 50 bytes.
+    pub(crate) fn append_compile_body_frame(&mut self, name: &str, line: u32) {
+        use std::fmt::Write as _;
+        let mut cut = name.len().min(50);
+        while !name.is_char_boundary(cut) {
+            cut -= 1;
+        }
+        let ellipsis = if cut < name.len() { "..." } else { "" };
+        let info = self.error_info.get_or_insert_with(String::new);
+        let _ = write!(
+            info,
+            "\n    (compiling body of proc \"{}{ellipsis}\", line {line})",
+            &name[..cut]
+        );
+        self.error_logged = false;
     }
 
     /// Append a `(procedure "<name>" line N)` frame — the frame a proc body adds
@@ -12755,12 +12867,21 @@ impl Vm {
     /// A tail with no recorded command text falls back to seeding the bare
     /// message: an empty pair of quotes would be a visible wrong answer.
     pub(crate) fn raise_fatal_tail(&mut self, tail: FatalTail) -> Completion<Value> {
-        if tail.command_text.is_empty() {
+        if let Some(info) = &tail.compile_info {
+            self.error_info = Some(format!("{}{info}", tail.message));
+            self.error_logged = false;
+            if tail.line != 0 {
+                self.error_line = tail.line;
+            }
+        } else if tail.command_text.is_empty() {
             self.seed_error_info(tail.message.clone());
         } else {
             self.log_command_info_only(&tail.command_text, &tail.message, tail.line);
         }
-        err(tail.message)
+        match tail.error_code {
+            Some(code) => err_with_code(tail.message, &code),
+            None => err(tail.message),
+        }
     }
 
     pub(crate) fn seed_error_info(&mut self, info: String) {
@@ -13003,6 +13124,18 @@ impl Vm {
         // under that release's grammar rather than the permissive default: a
         // 8.6 interpreter must reject `1.0_2` and an expression `#` comment,
         // both of which are valid only from 9.0.
+        // 8.4 parses with its own parser first, which also refuses a numeral
+        // past the wide or double range, unless a vendor fork added operators
+        // to it (F5's word operators).
+        if self.runtime_version.parses_expressions_as_8_4()
+            && self.pin.profile.f5_core_expr_grammar().is_none()
+            && let Err(error) = tcl_syntax::expr::syntax_84::parse_tcl84(src)
+        {
+            return Err(match error.error_code {
+                Some(code) => TclError::with_error_code(error.message, code),
+                None => TclError::new(error.message),
+            });
+        }
         let node = parse_expr(src, Some(self.runtime_version.dialect_name()));
         if matches!(node, tcl_syntax::expr::ExprNode::Raw { .. }) {
             return Err(self.expr_syntax_error(src));
@@ -13012,7 +13145,11 @@ impl Vm {
         if let Err(error) = surface.validate(&node) {
             let message = error.message(src);
             self.seed_parsing_expression_frame(src, &message);
-            return Err(TclError::with_error_code(message, error.error_code()));
+            return Err(if self.runtime_version.tags_expression_parse_errors() {
+                TclError::with_error_code(message, error.error_code())
+            } else {
+                TclError::new(message)
+            });
         }
         let mut ops = ExprEval { vm: self };
         eval(&node, &mut ops)
@@ -13045,7 +13182,10 @@ impl Vm {
         );
         let message = error.message(src);
         self.seed_parsing_expression_frame(src, &message);
-        TclError::with_error_code(message, error.error_code())
+        match error.error_code_in(self.runtime_version) {
+            Some(code) => TclError::with_error_code(message, code),
+            None => TclError::new(message),
+        }
     }
 
     /// Add C's `(parsing expression "…")` `errorInfo` frame for a rejected
@@ -13059,7 +13199,7 @@ impl Vm {
     /// possible — the shared body of [`eval_source`](Self::eval_source) and
     /// [`compile_script_cached`](Self::compile_script_cached). Picks
     /// [`CompileService::compile_plain_dispatch_for_profile`] and
-    /// [`Self::eval_cache_plain`] instead of the fast pair whenever
+    /// [`ScriptCaches::plain`] instead of the fast pair whenever
     /// [`Self::requires_plain_command_dispatch`] is true,
     /// so a step-traced proc's `if`/`while`/`foreach`/`eval`/`uplevel`/
     /// `catch`/`try`/… bodies — every one of which funnels through this
@@ -13084,7 +13224,12 @@ impl Vm {
         namespace: &str,
         evaluation: CommandEvaluation,
     ) -> Result<Rc<ModuleAsm>, TclError> {
-        let plain = self.requires_plain_command_dispatch();
+        // A release whose compiles fail whole runs a script it evaluates
+        // directly one command at a time, each command compiling its own
+        // scripts as it runs them: the plain dispatch of every command.
+        let plain = self.requires_plain_command_dispatch()
+            || (evaluation == CommandEvaluation::Direct
+                && self.runtime_version().compile_errors_fail_scripts());
         let target = ScriptCompileTarget {
             source: src,
             namespace,
@@ -13094,7 +13239,7 @@ impl Vm {
             return self.compile_plain_cached_module(target);
         }
         let key = (namespace.to_owned(), src.to_owned(), evaluation);
-        if let Some(m) = self.eval_cache.get(&key) {
+        if let Some(m) = self.script_caches.fast.get(&key) {
             let m = Rc::clone(m);
             Self::validate_module_namespace(&m, namespace)?;
             if !self.function_command_bindings_match(&m.top_level, m.manifest.as_deref()) {
@@ -13114,7 +13259,7 @@ impl Vm {
         if !self.function_command_bindings_match(&m.top_level, m.manifest.as_deref()) {
             return self.compile_plain_cached_module(target);
         }
-        self.eval_cache.insert(key, Rc::clone(&m));
+        self.script_caches.fast.insert(key, Rc::clone(&m));
         Ok(m)
     }
 
@@ -13153,30 +13298,42 @@ impl Vm {
         completion
     }
 
-    /// How the emulated release evaluates the script `words` make for an
-    /// invocation of `command`: directly where it evaluates that command's
-    /// script without compiling it
-    /// ([`tcl_registry::release_compilation::evaluates_script_directly`]),
-    /// otherwise as [`crate::value::script_evaluation`] says.
-    pub(crate) fn script_evaluation_for(
-        &self,
-        command: &str,
-        words: &[Value],
-    ) -> CommandEvaluation {
-        if tcl_registry::release_compilation::evaluates_script_directly(
-            self.runtime_version,
-            command,
-        ) {
-            CommandEvaluation::Direct
-        } else {
-            crate::value::script_evaluation(words)
-        }
-    }
-
     /// Compile and run a Tcl source string via the injected [`CompileService`]
     /// (the runtime-`eval` / command-substitution path) in the *current* frame.
     pub fn eval_source(&mut self, src: &str) -> Result<Completion<Value>, TclError> {
         self.eval_source_as(src, CommandEvaluation::Compiled)
+    }
+
+    /// The commands `tclsh` reads from its stdin, as `tclvm` reads them: line
+    /// by line until the lines read form complete commands, each such chunk
+    /// evaluated by [`Self::eval_interactive`]. A chunk that does not complete
+    /// normally publishes its error and hands its result to `report`, and the
+    /// next runs, as `tclsh` prints the error and reads on; an `exit` ends the
+    /// run, and an incomplete last chunk never runs.
+    pub fn eval_source_commands(&mut self, src: &str, mut report: impl FnMut(&mut Self, &str)) {
+        for chunk in stdin_chunks(src) {
+            let completion = self.eval_interactive(chunk);
+            if self.exit_pending() {
+                return;
+            }
+            if !completion.code.is_ok() {
+                self.publish_caught_error(&completion);
+                report(self, &completion.result.to_str());
+            }
+        }
+    }
+
+    /// Keep the literal objects of a chunk `tclsh` read from its stdin alive
+    /// while its history keeps the command: `Tcl_RecordAndEvalObj` adds the
+    /// command object, its bytecode with it, as an event, and `history`
+    /// keeps the last 20.
+    pub(crate) fn record_history(&mut self, literals: Rc<crate::compiled::LiteralValues>) {
+        const HISTORY_KEEP: usize = 20;
+        let history = &mut self.script_caches.history;
+        if history.len() == HISTORY_KEEP {
+            history.pop_front();
+        }
+        history.push_back(literals);
     }
 
     /// [`Self::eval_source`] for the script file `tclsh` is given, whose own
@@ -13189,22 +13346,21 @@ impl Vm {
 
     /// Evaluate a command `tclsh` reads from its input, with no command
     /// active: a completion leaving it is settled as C settles one at
-    /// `numLevels == 0`.
+    /// `numLevels == 0`. Its literals stay alive while `tclsh`'s history
+    /// keeps the command ([`Self::record_history`]).
     pub fn eval_interactive(&mut self, src: &str) -> Completion<Value> {
-        self.eval_source_in_role(
-            src,
-            CommandEvaluation::Compiled,
-            crate::exec::ActivationRole::TopLevel { direct: false },
-        )
-        .unwrap_or_else(|e| err(e.message))
+        self.pending.record_history = true;
+        let completion = self
+            .eval_source_in_role(
+                src,
+                CommandEvaluation::Compiled,
+                crate::exec::ActivationRole::TopLevel { direct: false },
+            )
+            .unwrap_or_else(|e| err(e.message));
+        self.pending.record_history = false;
+        completion
     }
 
-    /// Run a script file's contents as C's `Tcl_FSEvalFileEx` does: a
-    /// `return` reaching the file is settled as at a procedure boundary, and
-    /// an error adds the `(file "…" line N)` frame. `top_level` runs the file
-    /// `tclsh` is given, with no command active: its own commands are
-    /// evaluated as [`Self::eval_source_directly`] does, and a completion
-    /// leaving one is settled as C settles one at `numLevels == 0`.
     /// Note that a directly evaluated script is running the command that
     /// `asm`'s instruction `pc` starts.
     pub(crate) fn enter_script_command(&mut self, asm: &Rc<FunctionAsm>, pc: usize) {
@@ -13219,12 +13375,27 @@ impl Vm {
         Some((instruction.source_cmd_text.clone(), instruction.source_line))
     }
 
+    /// Run a script file's contents as C's `Tcl_FSEvalFileEx` does: a
+    /// `return` reaching the file is settled as at a procedure boundary, and
+    /// an error adds the `(file "…" line N)` frame. `top_level` runs the file
+    /// `tclsh` is given, with no command active: its own commands are
+    /// evaluated as [`Self::eval_source_directly`] does, and a completion
+    /// leaving one is settled as C settles one at `numLevels == 0`.
     pub fn eval_file(&mut self, path: &str, src: &str, top_level: bool) -> Completion<Value> {
-        self.script_command = None;
         let (evaluation, role) = if top_level {
+            self.script_command = None;
             (
                 CommandEvaluation::Direct,
                 crate::exec::ActivationRole::TopLevel { direct: true },
+            )
+        } else if tcl_registry::release_compilation::evaluates_script_directly(
+            self.runtime_version,
+            "source",
+            1,
+        ) {
+            (
+                CommandEvaluation::Direct,
+                crate::exec::ActivationRole::Plain,
             )
         } else {
             (
@@ -13239,24 +13410,13 @@ impl Vm {
         if c.code == Code::Return {
             self.update_return_info(&mut c);
         } else if c.code == Code::Error {
-            const LIMIT: usize = 150;
-            let mut shown = path;
-            let mut marker = "";
-            if path.len() > LIMIT {
-                let mut end = LIMIT;
-                while !path.is_char_boundary(end) {
-                    end -= 1;
-                }
-                shown = &path[..end];
-                if self.runtime_version().marks_truncated_file_path() {
-                    marker = "...";
-                }
-            }
+            let text =
+                tcl_cmd_core::error::file_frame_text(path.as_bytes(), self.runtime_version());
             let line = self.error_line();
             let message = c.result.to_str().to_string();
             self.seed_error_info_frame(
                 &message,
-                &format!("\n    (file \"{shown}{marker}\" line {line})"),
+                &format!("\n    ({} line {line})", String::from_utf8_lossy(&text)),
             );
         }
         c
@@ -13283,8 +13443,15 @@ impl Vm {
         self.reset_error_state_for_eval();
         // C parses one command immediately before evaluating it, so every
         // command ahead of a malformed one runs before the parse error is
-        // raised (#1603). Compile and run that prefix, then raise.
-        let (prefix, fatal_tail, prefix_commands) = self.script_prefix_and_fatal_tail(src);
+        // raised (#1603). Compile and run that prefix, then raise. A release
+        // whose compiles fail whole raises the failure before any of it runs.
+        let refusal = (evaluation == CommandEvaluation::Compiled)
+            .then(|| self.release_compile_failure(src, CompileUnit::Script))
+            .flatten();
+        let (prefix, fatal_tail, prefix_commands) = match refusal {
+            Some(tail) => ("", Some(tail), 0),
+            None => self.script_prefix_and_fatal_tail(src),
+        };
         // No command parsed, so none ran and there is no prefix completion to
         // carry: report the error on the channel this entry point has always
         // used for a script it could not compile at all. Only a script that
@@ -13298,13 +13465,19 @@ impl Vm {
             && let Some(tail) = fatal_tail
         {
             // Nothing ran, but C still names the command that failed to parse.
-            if !tail.command_text.is_empty() {
+            let message = tail.message.clone();
+            if tail.compile_info.is_some() {
+                let _ = self.raise_fatal_tail(tail);
+            } else if !tail.command_text.is_empty() {
                 self.log_command_info_only(&tail.command_text, &tail.message, tail.line);
             }
-            return Err(TclError::new(tail.message));
+            return Err(TclError::new(message));
         }
         let module = self.compile_cached(prefix, evaluation)?;
-        let mut comp = self.run_current_module_as(&module, role);
+        let words = (evaluation == CommandEvaluation::Direct)
+            .then(|| self.take_direct_words(prefix))
+            .flatten();
+        let mut comp = self.run_current_module_as(&module, role, words);
         // Only a prefix that ran to completion reaches the parse error: an
         // error (or any non-`ok` completion) in an earlier command is what C
         // reports, the malformed tail never being parsed at all.
@@ -13320,6 +13493,26 @@ impl Vm {
             self.clear_error_logged();
         }
         Ok(comp)
+    }
+
+    /// What a release that compiles a script whole
+    /// ([`tcl_dialect::TclVersion::compile_errors_fail_scripts`]) makes of
+    /// `src` compiled as `unit`: the tail it raises in place of running it.
+    fn release_compile_failure(&mut self, src: &str, unit: CompileUnit) -> Option<FatalTail> {
+        if !self.runtime_version().compile_errors_fail_scripts() {
+            return None;
+        }
+        let key = (src.to_owned(), unit);
+        if let Some(refusal) = self.script_caches.refusals.get(&key) {
+            return refusal.clone();
+        }
+        let refusal = self
+            .compiler
+            .as_ref()?
+            .compile_failure_for_profile(src, self.pin.profile, unit)
+            .map(FatalTail::compile_failure);
+        self.script_caches.refusals.insert(key, refusal.clone());
+        refusal
     }
 
     /// Split `src` into the leading commands that parse and the parse error C
@@ -13358,6 +13551,57 @@ impl Vm {
         self.compile_script_cached_as(src, CommandEvaluation::Compiled)
     }
 
+    /// How `TclEvalObjEx` evaluates `words` as one script
+    /// ([`crate::value::script_evaluation`]). Where it runs them directly the
+    /// values its words are carry to the unit compiled from their text
+    /// ([`Self::take_direct_words`]), so the command receives those values
+    /// themselves rather than ones read again from the text.
+    pub(crate) fn script_evaluation(&mut self, words: &[Value]) -> CommandEvaluation {
+        let direct = crate::value::direct_script_words(words);
+        let evaluation = if direct.is_some() {
+            CommandEvaluation::Direct
+        } else {
+            CommandEvaluation::Compiled
+        };
+        self.pending.direct_script = direct.map(|values| {
+            let text = words
+                .iter()
+                .map(|word| word.to_str().to_string())
+                .collect::<Vec<_>>()
+                .join(" ");
+            (text, values)
+        });
+        evaluation
+    }
+
+    /// How the emulated release evaluates the script `words` make for an
+    /// invocation of `command`: as [`Self::script_evaluation`] says, or
+    /// directly where it evaluates that command's script without compiling it
+    /// ([`tcl_registry::release_compilation::evaluates_script_directly`]).
+    pub(crate) fn script_evaluation_for(
+        &mut self,
+        command: &str,
+        words: &[Value],
+    ) -> CommandEvaluation {
+        let evaluation = self.script_evaluation(words);
+        if tcl_registry::release_compilation::evaluates_script_directly(
+            self.runtime_version,
+            command,
+            words.len(),
+        ) {
+            CommandEvaluation::Direct
+        } else {
+            evaluation
+        }
+    }
+
+    /// The values [`Self::script_evaluation`] noted for the direct script
+    /// `src`, if it is that script.
+    pub(crate) fn take_direct_words(&mut self, src: &str) -> Option<Vec<Value>> {
+        let (text, values) = self.pending.direct_script.take()?;
+        (text == src).then_some(values)
+    }
+
     /// [`Self::compile_script_cached`], the script's own commands evaluated as
     /// `evaluation` says ([`crate::value::script_evaluation`]).
     pub(crate) fn compile_script_cached_as(
@@ -13390,12 +13634,18 @@ impl Vm {
         self.validate_module_profile(&module)?;
         Self::validate_module_namespace(&module, namespace)?;
         self.merge_procs(&module);
-        Ok(self
+        let unit = self
             .compiled_unit(
                 Rc::new(module.top_level.clone()),
                 module.source_namespace.clone(),
             )
-            .with_manifest(module.manifest.clone()))
+            .with_manifest(module.manifest.clone());
+        if evaluation == CommandEvaluation::Direct
+            && let Some(words) = self.take_direct_words(src)
+        {
+            unit.literal_values.bind_words(words);
+        }
+        Ok(unit)
     }
 
     /// Prepare a catchable/handleable script without rejecting a valid command
@@ -13428,6 +13678,14 @@ impl Vm {
         namespace: &str,
         evaluation: CommandEvaluation,
     ) -> Result<PreparedScript, TclError> {
+        if evaluation == CommandEvaluation::Compiled
+            && let Some(tail) = self.release_compile_failure(src, CompileUnit::Script)
+        {
+            return Ok(PreparedScript {
+                prefix: None,
+                fatal_tail: Some(tail),
+            });
+        }
         let Some(compiler) = self.compiler.as_ref() else {
             return Err(TclError::new(
                 "eval / command substitution requires a CompileService",
@@ -13453,6 +13711,19 @@ impl Vm {
             fatal_tail: plan.fatal_tail,
         })
     }
+}
+
+/// The chunks `tclsh` evaluates from its stdin
+/// ([`tcl_lexer::stdin_chunk_ends`]).
+fn stdin_chunks(src: &str) -> impl Iterator<Item = &str> {
+    let mut start = 0;
+    tcl_lexer::stdin_chunk_ends(src.as_bytes())
+        .into_iter()
+        .map(move |end| {
+            let chunk = &src[start..end];
+            start = end;
+            chunk
+        })
 }
 
 impl Default for Vm {

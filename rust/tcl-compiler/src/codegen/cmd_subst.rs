@@ -23,13 +23,14 @@
 //! common Tcl commands (expr, incr, string, list, dict, etc.).
 
 use tcl_bytecode::EnteredCommandSite;
+use tcl_cmd_core::index::IndexCompiler;
 use tcl_registry::hooks::InlineCodegenHookId;
 
 use crate::ir::CommandTokens;
 use crate::registry_invocation::compiled_local_name_value;
 
 use super::emitter::bytecoded::applicable_codegen_binding;
-use super::helpers::{SubstPart, parse_subst_template, regexp_to_glob};
+use super::helpers::{SubstPart, parse_subst_template};
 use super::values::{is_qualified, parse_simple_var_ref, split_array_ref};
 use super::{CodegenCtx, INDEX_END, Op, Operand, bytecode_imm, end_relative_imm, str_class_id};
 
@@ -52,12 +53,6 @@ impl CodegenCtx<'_> {
         }
     }
 
-    /// Whether the release compiles the literal index word `word` apart from
-    /// the reading its command makes as it runs (8.6's `TclIndexEncode`).
-    fn literal_index_reads_apart(&self, word: &str) -> bool {
-        !self.in_direct_command() && tcl_cmd_core::index::encodes_apart(word, self.vm_release())
-    }
-
     /// The release the VM runs this compile under.
     pub(super) fn vm_release(&self) -> tcl_dialect::TclVersion {
         self.dialect
@@ -66,25 +61,43 @@ impl CodegenCtx<'_> {
             })
     }
 
-    /// The literal index word `word` respelt as the release compiles it,
-    /// where that reading is apart from the one its command makes as it runs:
-    /// `2147483647` after the end and `-1` before the first element, which
-    /// every release's command reads so whatever the length.
-    pub(super) fn compiled_index_word(&self, word: &str) -> Option<String> {
-        self.literal_index_reads_apart(word)
-            .then(|| self.literal_index_imm(word))
-            .flatten()
-            .map(|index| index.to_string())
+    /// The index words of a command `compiler` compiles, each respelt where
+    /// the release compiles it to a reading apart from its command's
+    /// ([`tcl_cmd_core::index::compiled_index_words`]), `None` where it is
+    /// pushed as written. A command the release evaluates without compiling
+    /// it reads every word as written.
+    pub(super) fn compiled_index_words(
+        &self,
+        compiler: IndexCompiler,
+        words: &[&str],
+    ) -> Vec<Option<&'static str>> {
+        if self.in_direct_command() {
+            return vec![None; words.len()];
+        }
+        let words: Vec<Option<&str>> = words.iter().copied().map(Some).collect();
+        tcl_cmd_core::index::compiled_index_words(compiler, &words, self.vm_release())
     }
 
-    /// Push the index word `word` of a command whose opcode reads it at run
-    /// time, respelt where the release compiles it apart
-    /// ([`Self::compiled_index_word`]).
-    pub(super) fn emit_index_word(&mut self, word: &str, braced: bool) {
-        match self.compiled_index_word(word) {
-            Some(compiled) => self.push_lit_exact(&compiled),
-            None => self.emit_cmd_subst_arg(word, braced),
+    /// Push the index words of a command whose opcode reads them at run time,
+    /// as the release compiles them ([`Self::compiled_index_words`]).
+    fn emit_index_words(&mut self, compiler: IndexCompiler, words: &[(String, bool)]) {
+        let texts: Vec<&str> = words.iter().map(|(word, _)| word.as_str()).collect();
+        let respelt = self.compiled_index_words(compiler, &texts);
+        for ((word, braced), respelt) in words.iter().zip(respelt) {
+            match respelt {
+                Some(spelling) => self.push_lit_exact(spelling),
+                None => self.emit_cmd_subst_arg(word, *braced),
+            }
         }
+    }
+
+    /// Whether any of `words`, the index words of a command `compiler`
+    /// compiles, is respelt ([`Self::compiled_index_words`]).
+    fn respells_index_words(&self, compiler: IndexCompiler, words: &[(String, bool)]) -> bool {
+        let texts: Vec<&str> = words.iter().map(|(word, _)| word.as_str()).collect();
+        self.compiled_index_words(compiler, &texts)
+            .iter()
+            .any(Option::is_some)
     }
 
     /// Emit `string range`, `string replace`, `lrange`, `linsert` or
@@ -98,30 +111,40 @@ impl CodegenCtx<'_> {
         args: &[(String, bool)],
     ) -> bool {
         let apart = |ctx: &Self, words: &[(String, bool)]| {
-            words
-                .iter()
-                .any(|(word, _)| ctx.literal_index_reads_apart(word))
+            !ctx.in_direct_command()
+                && words
+                    .iter()
+                    .any(|(word, _)| tcl_cmd_core::index::encodes_apart(word, ctx.vm_release()))
         };
         let emitted = match (self.inline_cmd_subst_hook_candidate(cmd, args), args) {
             (Some(InlineCodegenHookId::String), [_, _, indices @ ..]) if apart(self, indices) => {
                 // The hook's own subcommand dispatch settles which opcode.
+                let Some(canonical) = self.canonical_subcommand_args(cmd, args) else {
+                    return false;
+                };
                 let Some((_, binding)) = self.inline_cmd_subst_resolution(cmd, args) else {
                     return false;
                 };
-                self.emit_inline_string(cmd, &binding, args);
+                self.emit_inline_string(cmd, &binding, &canonical);
                 return true;
+            }
+            (Some(InlineCodegenHookId::StringReplace), [_, _, indices @ ..])
+                if apart(self, indices) =>
+            {
+                self.try_emit_string_replace(args)
             }
             (Some(InlineCodegenHookId::Lrange), [_, indices @ ..]) if apart(self, indices) => {
                 self.try_emit_lrange_imm(args)
             }
             (Some(InlineCodegenHookId::Linsert), [_, index, _, ..])
-                if apart(self, std::slice::from_ref(index)) =>
+                if self
+                    .respells_index_words(IndexCompiler::Linsert, std::slice::from_ref(index)) =>
             {
                 self.emit_inline_linsert(args);
                 true
             }
-            (Some(InlineCodegenHookId::Lreplace), [_, indices @ ..])
-                if indices.len() >= 2 && apart(self, &indices[..2]) =>
+            (Some(InlineCodegenHookId::Lreplace), [_, _, _, ..])
+                if self.respells_index_words(IndexCompiler::Lreplace, &args[1..3]) =>
             {
                 self.emit_inline_lreplace(args);
                 true
@@ -134,69 +157,113 @@ impl CodegenCtx<'_> {
         emitted
     }
 
-    /// Emit `string replace s first last ?new?` as `STR_REPLACE` over its
-    /// indices respelt as the release compiles them, where one reads apart
-    /// and 8.6's `TclCompileStringReplaceCmd` settles the command on its
-    /// encoded indices. Where it does not (a replacement string, `first` not
-    /// before the first element and `last` not after the end), it emits
-    /// `INST_STR_REPLACE` over the words as written, which read as at run time.
-    fn try_emit_compiled_string_replace(&mut self, sargs: &[(String, bool)]) -> bool {
-        if !(3..=4).contains(&sargs.len()) {
-            return false;
-        }
-        let (first, last) = (&sargs[1], &sargs[2]);
-        if !(self.literal_index_reads_apart(&first.0) || self.literal_index_reads_apart(&last.0)) {
-            return false;
-        }
-        let release = self.vm_release();
-        let encoded = |word: &str| tcl_cmd_core::index::encode(word, release, true);
-        let (Some(first_at), Some(last_at)) = (encoded(&first.0), encoded(&last.0)) else {
+    /// `string replace string first last ?newString?` as 8.6's
+    /// `TclCompileStringReplaceCmd` compiles it. With both indices literal it
+    /// settles a no-op to the string itself, and some ranges to slices of it
+    /// joined with the replacement; anything else is `INST_STR_REPLACE` over
+    /// the words as written. Emits nothing for another count, or where the
+    /// release evaluates the command directly.
+    fn try_emit_string_replace(&mut self, args: &[(String, bool)]) -> bool {
+        const BEFORE: i32 = -1;
+        const AFTER: i32 = i32::MAX;
+        let ([_, string, first, last] | [_, string, first, last, _]) = args else {
             return false;
         };
-        if !string_replace_compiles_encoded(first_at, last_at, sargs.len() == 4) {
+        if self.in_direct_command() {
             return false;
         }
-        self.emit_cmd_subst_arg(&sargs[0].0, sargs[0].1);
-        self.emit_index_word(&first.0, first.1);
-        self.emit_index_word(&last.0, last.1);
-        match sargs.get(3) {
-            Some((new, braced)) => self.emit_cmd_subst_arg(new, *braced),
-            None => self.push_lit_exact(""),
+        let replacement = args.get(4);
+        self.used_inline_cmd_subst = true;
+        self.emit_cmd_subst_arg(&string.0, string.1);
+        let settled = self
+            .literal_index_imm(&first.0)
+            .zip(self.literal_index_imm(&last.0))
+            .and_then(|(first, last)| {
+                let at_end = |index: i32| index <= INDEX_END;
+                let no_op = last == BEFORE
+                    || first == AFTER
+                    || (at_end(first) && at_end(last) && last < first)
+                    || (first >= 0 && last >= 0 && last < first);
+                if no_op {
+                    if let Some((word, braced)) = replacement {
+                        self.emit_cmd_subst_arg(word, *braced);
+                        self.emit(Op::POP, vec![]);
+                    }
+                    return Some(());
+                }
+                match replacement {
+                    Some((word, braced)) if first == BEFORE && last >= 0 => {
+                        self.emit_cmd_subst_arg(word, *braced);
+                        self.emit(Op::REVERSE, vec![Operand::Imm(2)]);
+                        if last == AFTER {
+                            self.emit(Op::POP, vec![]);
+                        } else {
+                            self.emit_str_range_imm(last + 1, INDEX_END);
+                            self.emit(Op::STR_CONCAT1, vec![Operand::Imm(2)]);
+                        }
+                    }
+                    Some((word, braced)) if last == AFTER && at_end(first) => {
+                        self.emit_str_range_imm(0, first - 1);
+                        self.emit_cmd_subst_arg(word, *braced);
+                        self.emit(Op::STR_CONCAT1, vec![Operand::Imm(2)]);
+                    }
+                    Some(_) => return None,
+                    None if first == BEFORE || first == 0 => {
+                        if last == INDEX_END || last == AFTER {
+                            self.emit(Op::POP, vec![]);
+                            self.push_lit("");
+                        } else {
+                            self.emit_str_range_imm(last + 1, INDEX_END);
+                        }
+                    }
+                    None if last == INDEX_END || last == AFTER => {
+                        self.emit_str_range_imm(0, first - 1);
+                    }
+                    None => {
+                        self.emit(Op::DUP, vec![]);
+                        self.emit_str_range_imm(0, first - 1);
+                        self.emit(Op::REVERSE, vec![Operand::Imm(2)]);
+                        self.emit_str_range_imm(last + 1, INDEX_END);
+                        self.emit(Op::STR_CONCAT1, vec![Operand::Imm(2)]);
+                    }
+                }
+                Some(())
+            });
+        if settled.is_none() {
+            self.emit_cmd_subst_arg(&first.0, first.1);
+            self.emit_cmd_subst_arg(&last.0, last.1);
+            match replacement {
+                Some((word, braced)) => self.emit_cmd_subst_arg(word, *braced),
+                None => self.push_lit(""),
+            }
+            self.emit(Op::STR_REPLACE, vec![]);
         }
-        self.emit(Op::STR_REPLACE, vec![]);
         true
+    }
+
+    fn emit_str_range_imm(&mut self, first: i32, last: i32) {
+        self.emit(
+            Op::STR_RANGE_IMM,
+            vec![Operand::Imm(first), Operand::Imm(last)],
+        );
     }
 }
 
-/// Whether 8.6's `TclCompileStringReplaceCmd` compiles `string replace` on
-/// its encoded indices, rather than falling through to `INST_STR_REPLACE`
-/// over the words as written: always without a replacement string, and with
-/// one only for a no-op it can prove, `first` before the first element, or
-/// `last` after the end with `first` relative to `end`.
-fn string_replace_compiles_encoded(
-    first: tcl_cmd_core::index::Encoded,
-    last: tcl_cmd_core::index::Encoded,
-    replacing: bool,
-) -> bool {
-    use tcl_cmd_core::index::Encoded;
-    // `TclIndexEncode`'s spaces: `TCL_INDEX_END` is -2 with `end-N` below it,
-    // `TCL_INDEX_BEFORE` -1, `TCL_INDEX_AFTER` `INT_MAX`.
-    const BEFORE: i64 = -1;
-    const END: i64 = -2;
-    const START: i64 = 0;
-    const AFTER: i64 = i32::MAX as i64;
-    let c = |encoded: Encoded| match encoded {
-        Encoded::Index(index) => index.min(AFTER),
-        Encoded::FromEnd(offset) => END + offset,
-        Encoded::Before => BEFORE,
-        Encoded::After => AFTER,
-    };
-    let (first, last) = (c(first), c(last));
-    let no_op = last == BEFORE
-        || first == AFTER
-        || (first <= END && last <= END && last < first)
-        || (first >= START && last >= START && last < first);
-    no_op || !replacing || (first == BEFORE && last >= START) || (last == AFTER && first <= END)
+/// Whether a word is a literal the compiler reads as written: braced, or
+/// with nothing to substitute (C's `TCL_TOKEN_SIMPLE_WORD`).
+fn is_literal_word((word, braced): &(String, bool)) -> bool {
+    *braced || !word.contains(['$', '[', '\\'])
+}
+
+/// How the `string` dispatcher handled a subcommand
+/// ([`CodegenCtx::emit_string_op`]).
+enum StringEmission {
+    /// It emitted the subcommand's opcode.
+    Op,
+    /// The command runs it, through its `::tcl::string::` implementation.
+    Command,
+    /// The command runs `string is`, keeping its subcommand word.
+    IsCommand,
 }
 
 // Free functions — pure parsing, no emission state needed
@@ -489,6 +556,15 @@ pub fn is_single_command_body(body: &str, config: tcl_lexer::LexerConfig) -> boo
     matches!(segments.as_slice(), [only] if !only.is_partial)
 }
 
+/// Whether `args` is one `expr` word that is its own expression text: braced,
+/// or free of substitutions. Any other word is substituted first and its value
+/// is what `expr` evaluates (C's `TclCompileExprWords`), so `[expr $c]` with
+/// `c` set to `1+2` is `3`, not the text of `c`.
+pub(super) fn lone_spelled_expression(args: &[(String, bool)]) -> bool {
+    matches!(args, [(word, braced)]
+        if *braced || !(tcl_syntax::naming::word_is_dynamic(word, false) || word.contains('\\')))
+}
+
 /// Parse a command-substitution body into `(text, braced)` parts.
 /// `braced=true` means the text was a `{...}` literal — the caller
 /// should not interpolate it.  Strips the outer `[...]` if present.
@@ -542,6 +618,51 @@ pub fn parse_cmd_parts(text: &str) -> Vec<(String, bool)> {
         }
     }
     parts
+}
+
+/// The words of a command once the parser expands its `{*}` words, as
+/// `Tcl_ParseCommand` expands a word of literal text whose list elements are
+/// all literal into a word per element (an empty list into none). `None`
+/// where a `{*}` word is left to expand at run time, or an element or braced
+/// word would read as a substitution where a word is emitted (`$`, `[`,
+/// `\`). `words` are `(text, braced, expanded)`.
+pub(crate) fn parse_time_expansion<'w>(
+    words: impl IntoIterator<Item = (&'w str, bool, bool)>,
+) -> Option<Vec<(String, bool)>> {
+    let substitutes = |text: &str| text.contains(['$', '[', '\\']);
+    let mut out = Vec::new();
+    let mut expanded_any = false;
+    for (text, braced, expanded) in words {
+        if !expanded {
+            // A braced word keeps its bracedness only where its text could
+            // not read otherwise.
+            if braced && substitutes(text) {
+                return None;
+            }
+            out.push((text.to_owned(), braced));
+            continue;
+        }
+        if !braced && substitutes(text) {
+            return None;
+        }
+        expanded_any = true;
+        let mut at = 0;
+        while let Some(element) = tcl_syntax::list::find_element(text, at).ok()? {
+            let value = &text[element.value.clone()];
+            if !element.literal || substitutes(value) {
+                return None;
+            }
+            out.push((value.to_owned(), true));
+            at = element.next;
+        }
+    }
+    expanded_any.then_some(out)
+}
+
+/// Whether the command word `cmd` names the builtin `name`: its own spelling,
+/// or the global one, which a release compiles alike.
+pub(super) fn names_builtin(cmd: &str, name: &str) -> bool {
+    cmd == name || (cmd.strip_prefix("::") == Some(name) && !name.contains("::"))
 }
 
 /// Like [`parse_cmd_parts`] but also flags `{*}`-expansion words. Each tuple is
@@ -743,8 +864,9 @@ impl CodegenCtx<'_> {
             let inner_parts = parse_cmd_parts(arg);
             let needs_sc = self.is_proc
                 && !inner_parts.is_empty()
-                && self.inline_cmd_subst_hook(&inner_parts[0].0, &inner_parts[1..])
-                    != Some(InlineCodegenHookId::Expr);
+                && (self.inline_cmd_subst_hook(&inner_parts[0].0, &inner_parts[1..])
+                    != Some(InlineCodegenHookId::Expr)
+                    || (inner_parts.len() == 2 && !lone_spelled_expression(&inner_parts[1..])));
             if needs_sc {
                 let sc_end = self.fresh_label("cmd_end");
                 self.emit_comment(
@@ -802,7 +924,13 @@ impl CodegenCtx<'_> {
         let words: Vec<&str> = args.iter().map(|(arg, _)| arg.as_str()).collect();
         let shape = self.invocation_shape(&words, |index| args[index].1);
         let args: Vec<String> = args.iter().map(|(arg, _)| arg.clone()).collect();
-        let site = applicable_codegen_binding(self, command, &args)?;
+        let (site, locals) = applicable_codegen_binding(self, command, &args)?;
+        // The command C compiles in its place makes these locals.
+        for name in locals.entries() {
+            if locals.is_source_local(name) {
+                self.intern_compiled_local(name);
+            }
+        }
         self.require_site_binding(&site, &shape);
         Some(site.binding)
     }
@@ -1275,7 +1403,40 @@ impl CodegenCtx<'_> {
         let resolved =
             self.registry
                 .resolve_call(cmd, &arg_refs, self.registry.own_surface_query())?;
-        (resolved.spec.name == cmd).then_some(resolved.inline_codegen_hook?)
+        names_builtin(cmd, resolved.spec.name).then_some(resolved.inline_codegen_hook?)
+    }
+
+    /// `args` with the subcommand word of `cmd`, an ensemble, spelt as the
+    /// subcommand it selects in the emulated release: an ensemble compiles a
+    /// unique prefix as the subcommand itself (`TclCompileEnsemble`). `None`
+    /// where the word is not literal or selects no one subcommand, which
+    /// leaves the command to run.
+    fn canonical_subcommand_args(
+        &self,
+        cmd: &str,
+        args: &[(String, bool)],
+    ) -> Option<Vec<(String, bool)>> {
+        let ((word, braced), rest) = args.split_first()?;
+        if tcl_syntax::naming::word_is_dynamic(word, *braced) {
+            return None;
+        }
+        let arg_refs: Vec<&str> = args.iter().map(|(a, _)| a.as_str()).collect();
+        let resolved =
+            self.registry
+                .resolve_call(cmd, &arg_refs, self.registry.own_surface_query())?;
+        if resolved.spec.subcommands.is_empty() {
+            return Some(args.to_vec());
+        }
+        let sub = resolved.sub.or_else(|| {
+            resolved
+                .spec
+                .resolve_subcommand_for_dialect(word, self.registry.own_surface_query())
+        })?;
+        Some(
+            std::iter::once((sub.name.to_owned(), true))
+                .chain(rest.iter().cloned())
+                .collect(),
+        )
     }
 
     /// Resolve and retain the hook together with the exact entered command
@@ -1328,7 +1489,7 @@ impl CodegenCtx<'_> {
         let resolved = self
             .registry
             .resolve_call(cmd, args, self.registry.own_surface_query())?;
-        if resolved.spec.name != cmd {
+        if !names_builtin(cmd, resolved.spec.name) {
             return None;
         }
         let hook = resolved.inline_codegen_hook?;
@@ -1456,17 +1617,22 @@ impl CodegenCtx<'_> {
             }
             InlineCodegenHookId::String => {
                 let previous_inline = self.used_inline_cmd_subst;
+                let Some(canonical) = self.canonical_subcommand_args(cmd, &inline_args) else {
+                    return false;
+                };
                 if !self.try_emit_inline_string_invoke_replace(
                     previous_inline,
                     cmd,
                     &site.binding,
-                    &inline_args,
+                    &canonical,
                     false,
                 ) && !self.try_emit_compiled_index_command(cmd, &inline_args)
                 {
                     return false;
                 }
             }
+            InlineCodegenHookId::Regexp if self.try_emit_compiled_regexp(&inline_args) => {}
+            hook if self.try_emit_string_subcommand(hook, &inline_args) => {}
             InlineCodegenHookId::Lreplace
                 if self.try_emit_compiled_index_command(cmd, &inline_args) => {}
             _ => return false,
@@ -1523,6 +1689,26 @@ impl CodegenCtx<'_> {
         }
     }
 
+    /// The words of the substituted script `text`, and whether a `{*}` of a
+    /// literal word was expanded as the parser expands it; `None` once a
+    /// run-time expansion has been emitted as the expanded generic form.
+    fn cmd_subst_parts(&mut self, text: &str) -> Option<(Vec<(String, bool)>, bool)> {
+        if self.recognises_expand_syntax() && text.contains("{*}") {
+            let expand_parts = parse_cmd_parts_expand(text);
+            if expand_parts.iter().any(|(_, _, expand)| *expand) {
+                let words = expand_parts
+                    .iter()
+                    .map(|(word, braced, expand)| (word.as_str(), *braced, *expand));
+                if let Some(expanded) = parse_time_expansion(words) {
+                    return Some((expanded, true));
+                }
+                self.emit_expanded_cmd_subst(&expand_parts);
+                return None;
+            }
+        }
+        Some((parse_cmd_parts(text), false))
+    }
+
     fn emit_inline_cmd_subst_with_tokens_unstamped(
         &mut self,
         text: &str,
@@ -1542,15 +1728,10 @@ impl CodegenCtx<'_> {
             self.emit(Op::EVAL_STK, vec![]);
             return;
         }
-        if self.recognises_expand_syntax() && text.contains("{*}") {
-            let parts = parse_cmd_parts_expand(text);
-            if parts.iter().any(|(_, _, expand)| *expand) {
-                self.emit_expanded_cmd_subst(&parts);
-                return;
-            }
-        }
-
-        let mut parts = parse_cmd_parts(text);
+        let Some((mut parts, expanded)) = self.cmd_subst_parts(text) else {
+            return;
+        };
+        let tokens = if expanded { None } else { tokens };
         if parts.is_empty() {
             self.push_lit("");
             return;
@@ -1568,7 +1749,7 @@ impl CodegenCtx<'_> {
         // when the subcommand word matched exactly, so those arms need
         // no re-check of the subcommand text.
         match self.inline_cmd_subst_resolution(cmd, args) {
-            Some((InlineCodegenHookId::Expr, _)) if args.len() == 1 => {
+            Some((InlineCodegenHookId::Expr, _)) if lone_spelled_expression(args) => {
                 let expr_body = &args[0].0;
                 // Re-parsed under the compile's own dialect, exactly as the
                 // lowering pass parses a statement-position `expr` — parsing
@@ -1583,8 +1764,23 @@ impl CodegenCtx<'_> {
             Some((InlineCodegenHookId::InfoExists, _)) if args.len() == 2 => {
                 self.emit_inline_info_exists(args);
             }
+            Some((InlineCodegenHookId::Set, _))
+                if matches!(args, [(name, braced)]
+                    if !self.in_direct_command()
+                        && !tcl_syntax::naming::word_is_dynamic(name, *braced)
+                        && !name.contains('\\')) =>
+            {
+                // `TclCompileSetCmd`: the one-word form is a load.
+                self.used_inline_cmd_subst = true;
+                self.load_var(&args[0].0);
+            }
             Some((InlineCodegenHookId::String, binding)) if args.len() >= 2 => {
-                self.emit_inline_string(cmd, &binding, args);
+                if let Some(canonical) = self.canonical_subcommand_args(cmd, args) {
+                    self.emit_inline_string(cmd, &binding, &canonical);
+                } else {
+                    self.used_inline_cmd_subst = false;
+                    self.emit_generic_cmd_subst(cmd, args);
+                }
             }
             Some((InlineCodegenHookId::Lindex, _)) if args.len() >= 2 => {
                 self.emit_inline_lindex(args);
@@ -1601,6 +1797,10 @@ impl CodegenCtx<'_> {
             Some((InlineCodegenHookId::Regexp, _)) if args.len() >= 2 => {
                 self.emit_inline_regexp(args);
             }
+            Some((hook, _)) if self.try_emit_string_subcommand(hook, args) => {}
+            Some((InlineCodegenHookId::StringIs, binding)) if args.len() >= 3 => {
+                self.emit_string_is_generic(cmd, &binding, &args[1..]);
+            }
             Some((InlineCodegenHookId::List, _)) if !args.is_empty() && !text.contains("{*}") => {
                 self.used_inline_cmd_subst = true;
                 for (a, b) in args {
@@ -1616,7 +1816,7 @@ impl CodegenCtx<'_> {
             }
             Some((InlineCodegenHookId::Catch, _))
                 if self.is_proc
-                    && (1..=3).contains(&args.len())
+                    && self.release_admits_arity(cmd, args.len())
                     && Self::catch_inline_args_are_static(args) =>
             {
                 self.used_inline_cmd_subst = true;
@@ -1731,7 +1931,20 @@ impl CodegenCtx<'_> {
     fn emit_inline_info_exists(&mut self, args: &[(String, bool)]) {
         self.used_inline_cmd_subst = true;
         let var_name = &args[1].0;
-        if self.compiles_locals() && !is_qualified(var_name) {
+        if self.compiles_locals()
+            && !is_qualified(var_name)
+            && let Some((base, key)) = split_array_ref(var_name)
+        {
+            // `TclCompileInfoExistsCmd` names the array's compiled local and
+            // pushes the key.
+            let slot = bytecode_imm(self.lvt.intern(base));
+            self.push_array_key(key);
+            self.emit_comment(
+                Op::EXIST_ARRAY,
+                vec![Operand::Imm(slot)],
+                &format!("var \"{base}\""),
+            );
+        } else if self.compiles_locals() && !is_qualified(var_name) {
             let slot = bytecode_imm(self.lvt.intern(var_name));
             self.emit_comment(
                 Op::EXIST_SCALAR,
@@ -1892,11 +2105,14 @@ impl CodegenCtx<'_> {
         }
     }
 
-    /// Fall-through path: invoke `::tcl::string::<subcmd>` via
-    /// `INVOKE_STK1`/`STK4`.
-    fn emit_inline_string_fqn_invoke(
+    /// Fall-through path: invoke `entered_command` with the subcommand it
+    /// resolved to and its words, via `INVOKE_STK1`/`STK4`. The ensemble's
+    /// implementation commands (`::tcl::string::<subcmd>`) are not every
+    /// release's, so the command itself runs the subcommand.
+    fn emit_inline_string_command_invoke(
         &mut self,
         prev_inline: bool,
+        entered_command: &str,
         subcmd: &str,
         sargs: &[(String, bool)],
     ) {
@@ -1907,12 +2123,12 @@ impl CodegenCtx<'_> {
             vec![Operand::Label(sc_end.clone()), Operand::Imm(1)],
             "",
         );
-        let fqn = format!("::tcl::string::{subcmd}");
-        self.push_lit(&fqn);
+        self.push_lit(entered_command);
+        self.push_lit(subcmd);
         for (a, b) in sargs {
             self.emit_cmd_subst_arg(a, *b);
         }
-        let argc = bytecode_imm(1 + sargs.len());
+        let argc = bytecode_imm(2 + sargs.len());
         let invoke_op = if argc < 256 {
             Op::INVOKE_STK1
         } else {
@@ -1944,6 +2160,26 @@ impl CodegenCtx<'_> {
             return;
         }
 
+        match self.emit_string_op(args, prev_inline) {
+            StringEmission::Op => {}
+            StringEmission::Command => {
+                self.emit_inline_string_command_invoke(prev_inline, entered_command, subcmd, sargs);
+            }
+            StringEmission::IsCommand => {
+                self.emit_string_is_generic(entered_command, entered_binding, sargs);
+            }
+        }
+    }
+
+    /// Emit the opcode the release compiles `string`'s subcommand in `args`
+    /// to, or nothing where the command runs it: a command the release
+    /// evaluates directly runs every form whose opcode reads its words apart
+    /// from the command (`string is`'s class test and `string replace`).
+    fn emit_string_op(&mut self, args: &[(String, bool)], prev_inline: bool) -> StringEmission {
+        let Some((subcmd, _)) = args.first() else {
+            return StringEmission::Command;
+        };
+        let sargs = &args[1..];
         match subcmd.as_str() {
             "index" if sargs.len() == 2 => {
                 self.emit_cmd_subst_arg(&sargs[0].0, sargs[0].1);
@@ -1953,8 +2189,7 @@ impl CodegenCtx<'_> {
             "range" if sargs.len() == 3 => {
                 if !self.try_emit_string_range_imm(sargs) {
                     self.emit_cmd_subst_arg(&sargs[0].0, sargs[0].1);
-                    self.emit_cmd_subst_arg(&sargs[1].0, sargs[1].1);
-                    self.emit_cmd_subst_arg(&sargs[2].0, sargs[2].1);
+                    self.emit_index_words(IndexCompiler::StringRange, &sargs[1..]);
                     self.emit(Op::STR_RANGE, vec![]);
                 }
             }
@@ -1964,63 +2199,19 @@ impl CodegenCtx<'_> {
             "compare" if sargs.len() == 2 => {
                 self.emit_inline_string_2arg_op(prev_inline, sargs, Op::STR_CMP);
             }
-            "replace" => {
-                if !self.try_emit_compiled_string_replace(sargs) {
-                    if sargs.len() == 4 {
-                        self.emit_inline_string_replace(sargs);
-                    } else {
-                        self.emit_inline_string_fqn_invoke(prev_inline, subcmd, sargs);
-                    }
-                }
-            }
             "length" if sargs.len() == 1 => {
                 self.emit_cmd_subst_arg(&sargs[0].0, sargs[0].1);
                 self.emit(Op::STR_LEN, vec![]);
             }
-            "is" if sargs.len() >= 2 => {
-                self.emit_inline_string_is(entered_command, entered_binding, sargs);
-            }
-            _ => {
-                self.emit_inline_string_fqn_invoke(prev_inline, subcmd, sargs);
-            }
+            "is" => return StringEmission::IsCommand,
+            _ => return StringEmission::Command,
         }
+        StringEmission::Op
     }
 
-    fn emit_inline_string_replace(&mut self, sargs: &[(String, bool)]) {
-        let first_lit = &sargs[1].0;
-        let last_lit = &sargs[2].0;
-        if first_lit == "0"
-            && let Ok(last_int) = last_lit.parse::<i32>()
-            && last_int >= 0
-            // `last_int + 1` is the start index; guard the i32::MAX
-            // overflow (which would wrap to a negative garbage index) with a
-            // checked add and fall back to `strreplace` when it doesn't fit.
-            && let Some(start) = last_int.checked_add(1)
-        {
-            self.emit_cmd_subst_arg(&sargs[0].0, sargs[0].1);
-            self.emit_cmd_subst_arg(&sargs[3].0, sargs[3].1);
-            self.emit(Op::REVERSE, vec![Operand::Imm(2)]);
-            self.emit(
-                Op::STR_RANGE_IMM,
-                vec![Operand::Imm(start), Operand::Imm(INDEX_END)],
-            );
-            self.emit(Op::STR_CONCAT1, vec![Operand::Imm(2)]);
-            return;
-        }
-        // Fallback: strreplace
-        self.emit_cmd_subst_arg(&sargs[0].0, sargs[0].1);
-        self.emit_cmd_subst_arg(&sargs[1].0, sargs[1].1);
-        self.emit_cmd_subst_arg(&sargs[2].0, sargs[2].1);
-        self.emit_cmd_subst_arg(&sargs[3].0, sargs[3].1);
-        self.emit(Op::STR_REPLACE, vec![]);
-    }
-
-    fn emit_inline_string_is(
-        &mut self,
-        entered_command: &str,
-        entered_binding: &tcl_runtime_api::CommandBindingIdentity,
-        sargs: &[(String, bool)],
-    ) {
+    /// Emit `string is` as the release compiles it, or nothing where the
+    /// command runs it.
+    fn try_emit_inline_string_is(&mut self, sargs: &[(String, bool)]) -> bool {
         // Only two shapes can be specialised inline: `CLASS value` and
         // `CLASS -strict value`. Anything else carries an option this path does
         // not model — above all `-failindex var`, which has to *write a
@@ -2036,8 +2227,7 @@ impl CodegenCtx<'_> {
             _ => false,
         };
         if !specialisable {
-            self.emit_string_is_generic(entered_command, entered_binding, sargs);
-            return;
+            return false;
         }
         let class_name = &sargs[0].0;
         // Detect -strict flag and value
@@ -2048,15 +2238,15 @@ impl CodegenCtx<'_> {
         };
 
         if let Some(class_id) = str_class_id(class_name) {
-            if strict {
-                // `STR_CLASS` reports the empty string as a member, so it cannot
-                // honour `-strict` (under which the empty string is a non-member
-                // for character classes); defer to the generic command.
-                self.emit_string_is_generic(entered_command, entered_binding, sargs);
-            } else {
-                self.emit_cmd_subst_arg(&val_arg.0, val_arg.1);
-                self.emit(Op::STR_CLASS, vec![Operand::Imm(i32::from(class_id))]);
+            // `STR_CLASS` reports the empty string as a member, so it cannot
+            // honour `-strict` (under which the empty string is a non-member
+            // for character classes), and it reads the value by character,
+            // which the command evaluated directly does not.
+            if strict || self.in_direct_command() {
+                return false;
             }
+            self.emit_cmd_subst_arg(&val_arg.0, val_arg.1);
+            self.emit(Op::STR_CLASS, vec![Operand::Imm(i32::from(class_id))]);
         } else if class_name == "integer" {
             self.emit_cmd_subst_arg(&val_arg.0, val_arg.1);
             if strict {
@@ -2129,8 +2319,9 @@ impl CodegenCtx<'_> {
             self.push_lit("1");
             self.place_label(&end_lbl);
         } else {
-            self.emit_string_is_generic(entered_command, entered_binding, sargs);
+            return false;
         }
+        true
     }
 
     /// `string is CLASS ?args…?` via the generic command path, **keeping** the
@@ -2208,12 +2399,10 @@ impl CodegenCtx<'_> {
     fn emit_inline_lreplace(&mut self, args: &[(String, bool)]) {
         self.used_inline_cmd_subst = true;
         self.emit_cmd_subst_arg(&args[0].0, args[0].1);
-        for (i, a) in args.iter().enumerate().skip(1) {
-            if i <= 2 && args.len() >= 3 {
-                self.emit_index_word(&a.0, a.1);
-            } else {
-                self.emit_cmd_subst_arg(&a.0, a.1);
-            }
+        let indices = args.len().min(3);
+        self.emit_index_words(IndexCompiler::Lreplace, &args[1..indices]);
+        for a in &args[indices..] {
+            self.emit_cmd_subst_arg(&a.0, a.1);
         }
         self.emit(
             Op::LREPLACE4,
@@ -2224,12 +2413,10 @@ impl CodegenCtx<'_> {
     fn emit_inline_linsert(&mut self, args: &[(String, bool)]) {
         self.used_inline_cmd_subst = true;
         self.emit_cmd_subst_arg(&args[0].0, args[0].1);
-        for (i, a) in args.iter().enumerate().skip(1) {
-            if i == 1 {
-                self.emit_index_word(&a.0, a.1);
-            } else {
-                self.emit_cmd_subst_arg(&a.0, a.1);
-            }
+        let indices = args.len().min(2);
+        self.emit_index_words(IndexCompiler::Linsert, &args[1..indices]);
+        for a in &args[indices..] {
+            self.emit_cmd_subst_arg(&a.0, a.1);
         }
         self.emit(
             Op::LREPLACE4,
@@ -2237,41 +2424,158 @@ impl CodegenCtx<'_> {
         );
     }
 
+    /// `regexp ?switches? pattern string` in a value, compiled where the
+    /// release compiles it ([`Self::try_emit_compiled_regexp`]) and the
+    /// command's otherwise.
     fn emit_inline_regexp(&mut self, args: &[(String, bool)]) {
-        let mut rargs: Vec<&(String, bool)> = args.iter().collect();
-        let mut nocase = false;
-        if !rargs.is_empty() && rargs[0].0 == "-nocase" {
-            nocase = true;
-            rargs.remove(0);
-        }
-        if !rargs.is_empty() && rargs[0].0 == "--" {
-            rargs.remove(0);
-        }
-        if rargs.len() == 2 && nocase {
-            if let Some(glob) = regexp_to_glob(&rargs[0].0) {
-                self.used_inline_cmd_subst = true;
-                self.push_lit(&glob);
-                self.emit_cmd_subst_arg(&rargs[1].0, rargs[1].1);
-                self.emit(Op::STR_MATCH, vec![Operand::Imm(1)]);
-            } else {
-                self.used_inline_cmd_subst = false;
-                self.emit_generic_cmd_subst("regexp", args);
-            }
-        } else if rargs.len() == 2 && !nocase {
-            // Push only the cleaned pattern + subject (the `--` / `-nocase`
-            // option words are consumed at compile time); the `REGEXP` opcode
-            // pops exactly those two. Operand is the compile flags: tclsh's
-            // default `TCL_REG_ADVANCED` (3). `-nocase` is handled by the glob
-            // path above, so the NOCASE bit is never set here.
-            self.used_inline_cmd_subst = true;
-            for arg in &rargs {
-                self.emit_cmd_subst_arg(&arg.0, arg.1);
-            }
-            self.emit(Op::REGEXP, vec![Operand::Imm(3)]);
-        } else {
+        if !self.try_emit_compiled_regexp(args) {
             self.used_inline_cmd_subst = false;
             self.emit_generic_cmd_subst("regexp", args);
         }
+    }
+
+    /// `regexp ?switches? pattern string` as `TclCompileRegexpCmd` compiles
+    /// it: only `-nocase` (or a prefix of it of two characters or more) and
+    /// `--` may precede the two words, each a literal; a literal pattern that
+    /// is no switch, unless `--` came first, and that `TclReToGlob` converts
+    /// becomes `INST_STR_EQ` (an exact comparison, without `-nocase`) or
+    /// `INST_STR_MATCH` over the glob, and any other pattern `INST_REGEXP`.
+    /// Emits nothing where the command runs it, as it does every command the
+    /// release evaluates directly.
+    fn try_emit_compiled_regexp(&mut self, args: &[(String, bool)]) -> bool {
+        const TCL_REG_ADVANCED: i32 = 3;
+        const TCL_REG_NOCASE: i32 = 0o10;
+        if self.in_direct_command() {
+            return false;
+        }
+        let mut nocase = false;
+        let mut saw_last = false;
+        let mut i = 0;
+        while i + 2 < args.len() {
+            let word = &args[i];
+            if !is_literal_word(word) {
+                return false;
+            }
+            if word.0 == "--" {
+                saw_last = true;
+                i += 1;
+                break;
+            }
+            if !(word.0.len() > 1 && "-nocase".starts_with(word.0.as_str())) {
+                return false;
+            }
+            nocase = true;
+            i += 1;
+        }
+        let [pattern, subject] = &args[i..] else {
+            return false;
+        };
+        let glob = if is_literal_word(pattern) {
+            if pattern.0.starts_with('-') && !saw_last {
+                return false;
+            }
+            tcl_syntax::glob::re_to_glob(pattern.0.as_bytes())
+        } else {
+            None
+        };
+        self.used_inline_cmd_subst = true;
+        if let Some((glob, exact)) = glob {
+            self.push_lit_exact(&String::from_utf8_lossy(&glob));
+            self.emit_cmd_subst_arg(&subject.0, subject.1);
+            if exact && !nocase {
+                self.emit(Op::STR_EQ, vec![]);
+            } else {
+                self.emit(Op::STR_MATCH, vec![Operand::Imm(i32::from(nocase))]);
+            }
+        } else {
+            self.emit_cmd_subst_arg(&pattern.0, pattern.1);
+            self.emit_cmd_subst_arg(&subject.0, subject.1);
+            let cflags = TCL_REG_ADVANCED | if nocase { TCL_REG_NOCASE } else { 0 };
+            self.emit(Op::REGEXP, vec![Operand::Imm(cflags)]);
+        }
+        true
+    }
+
+    /// Emit a `string` subcommand whose own hook says how the release
+    /// compiles it, or nothing where the command runs it.
+    fn try_emit_string_subcommand(
+        &mut self,
+        hook: InlineCodegenHookId,
+        args: &[(String, bool)],
+    ) -> bool {
+        match hook {
+            InlineCodegenHookId::StringIs if args.len() >= 3 => {
+                self.used_inline_cmd_subst = true;
+                self.try_emit_inline_string_is(&args[1..])
+            }
+            InlineCodegenHookId::StringMatch => self.try_emit_string_match(args),
+            InlineCodegenHookId::StringReplace => self.try_emit_string_replace(args),
+            InlineCodegenHookId::StringTrim => self.try_emit_string_trim(args, Op::STR_TRIM),
+            InlineCodegenHookId::StringTrimLeft => {
+                self.try_emit_string_trim(args, Op::STR_TRIM_LEFT)
+            }
+            InlineCodegenHookId::StringTrimRight => {
+                self.try_emit_string_trim(args, Op::STR_TRIM_RIGHT)
+            }
+            _ => false,
+        }
+    }
+
+    /// `string match ?-nocase? pattern string` as `TclCompileStringMatchCmd`
+    /// compiles it: `INST_STR_EQ` for a literal pattern with no glob
+    /// character (without `-nocase`), else `INST_STR_MATCH`. A first word
+    /// that is no literal prefix of `-nocase`, or another count, is the
+    /// command's, as is every command the release evaluates directly.
+    fn try_emit_string_match(&mut self, args: &[(String, bool)]) -> bool {
+        if self.in_direct_command() {
+            return false;
+        }
+        let (nocase, pattern, string) = match args {
+            [_, pattern, string] => (false, pattern, string),
+            [_, option, pattern, string]
+                if is_literal_word(option)
+                    && option.0.len() > 1
+                    && "-nocase".starts_with(option.0.as_str()) =>
+            {
+                (true, pattern, string)
+            }
+            _ => return false,
+        };
+        let exact =
+            !nocase && is_literal_word(pattern) && !pattern.0.contains(['*', '?', '[', '\\']);
+        self.used_inline_cmd_subst = true;
+        self.emit_cmd_subst_arg(&pattern.0, pattern.1);
+        self.emit_cmd_subst_arg(&string.0, string.1);
+        if exact {
+            self.emit(Op::STR_EQ, vec![]);
+        } else {
+            self.emit(Op::STR_MATCH, vec![Operand::Imm(i32::from(nocase))]);
+        }
+        true
+    }
+
+    /// `string trim|trimleft|trimright string ?chars?` as
+    /// `TclCompileStringTrimCmd` and its one-sided siblings compile it, to
+    /// `op` over the string and the characters, or the default set where none
+    /// are given. Emits nothing for another count, or where the release
+    /// evaluates the command directly.
+    fn try_emit_string_trim(&mut self, args: &[(String, bool)], op: Op) -> bool {
+        if self.in_direct_command() {
+            return false;
+        }
+        let (string, chars) = match args {
+            [_, string] => (string, None),
+            [_, string, chars] => (string, Some(chars)),
+            _ => return false,
+        };
+        self.used_inline_cmd_subst = true;
+        self.emit_cmd_subst_arg(&string.0, string.1);
+        match chars {
+            Some((chars, braced)) => self.emit_cmd_subst_arg(chars, *braced),
+            None => self.push_lit_exact(&tcl_cmd_core::string::default_trim_set()),
+        }
+        self.emit(op, vec![]);
+        true
     }
 
     fn emit_inline_array(&mut self, args: &[(String, bool)]) {
@@ -2611,7 +2915,10 @@ mod tests {
 
     #[test]
     fn registry_selected_string_generic_fallback_keeps_entered_identity() {
-        let registry = registry_with_custom_string_command();
+        // `string is`'s compile procedure is a fact of 8.6 on, so the call is
+        // compiled against a registry pinned there.
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").expect("tcl9.0 profile");
+        let registry = registry_with_custom_string_command().project_for_profile(profile);
 
         let mut ctx = CodegenCtx::new(true, &[], &registry);
         ctx.emit_inline_cmd_subst("[text is integer -failindex fi 1.5]");
@@ -2998,33 +3305,6 @@ mod tests {
         }
     }
 
-    /// `TclCompileStringReplaceCmd` (8.6.18) settles the command on its encoded
-    /// indices without a replacement string, for a no-op it proves, for
-    /// `first` before the first element, and for `last` after the end with
-    /// `first` relative to `end`; otherwise `INST_STR_REPLACE` reads the words
-    /// at run time. Measured in a proc on `abcdefghijkl`: `string replace $s
-    /// end+2147483647 end X` is unchanged (the run-time reading replaces it
-    /// all), and so is `string replace $s 0 end+2147483647 X`, as at run time.
-    #[test]
-    fn string_replace_settles_on_its_encoded_indices_where_8_6_does() {
-        use tcl_cmd_core::index::Encoded::{After, Before, FromEnd, Index};
-        for (first, last, replacing, encoded) in [
-            (After, FromEnd(0), true, true),
-            (Index(0), After, true, false),
-            (Index(0), After, false, true),
-            (Before, After, true, true),
-            (FromEnd(-1), After, true, true),
-            (Index(2), Before, true, true),
-            (Index(2), FromEnd(-1), true, false),
-        ] {
-            assert_eq!(
-                string_replace_compiles_encoded(first, last, replacing),
-                encoded,
-                "{first:?} {last:?} replacing: {replacing}"
-            );
-        }
-    }
-
     /// 8.6 compiles a literal `end` offset past `INT_MAX` after the end, which
     /// tclsh 8.6.18 shows as `lrange {a b c} 0 end+2147483647` in a proc
     /// ranging the whole list; 8.5.19 wraps it before the first element
@@ -3072,6 +3352,7 @@ mod tests {
         let expected: &[(&str, H)] = &[
             ("expr", H::Expr),
             ("incr", H::Incr),
+            ("set", H::Set),
             ("string", H::String),
             ("lindex", H::Lindex),
             ("lrange", H::Lrange),
@@ -3109,6 +3390,33 @@ mod tests {
                 .and_then(|s| s.inline_codegen_hook),
             Some(H::DictGet)
         );
+        assert_eq!(
+            registry
+                .get("string")
+                .and_then(|s| s.subcommand("match"))
+                .and_then(|s| s.inline_codegen_hook),
+            Some(H::StringMatch)
+        );
+        // The `string` subcommands 8.6 gave compile procedures carry their
+        // hooks as windows from that release.
+        for (sub, hook) in [
+            ("is", H::StringIs),
+            ("replace", H::StringReplace),
+            ("trim", H::StringTrim),
+            ("trimleft", H::StringTrimLeft),
+            ("trimright", H::StringTrimRight),
+        ] {
+            let windows = registry
+                .get("string")
+                .and_then(|s| s.subcommand(sub))
+                .map(|s| s.inline_codegen_hook_windows)
+                .unwrap_or_default();
+            assert_eq!(
+                windows.iter().map(|w| w.value).collect::<Vec<_>>(),
+                [hook],
+                "string {sub}"
+            );
+        }
         // …and nothing else: stamping an inline hook on any further
         // spec or subcommand must fail here first.
         let expected_cmds: std::collections::HashSet<&str> =
@@ -3128,7 +3436,8 @@ mod tests {
                 if sub.inline_codegen_hook.is_some() {
                     assert!(
                         (name == "info" && sub.name == "exists")
-                            || (name == "dict" && sub.name == "get"),
+                            || (name == "dict" && sub.name == "get")
+                            || (name == "string" && sub.name == "match"),
                         "unexpected subcommand-level inline hook on {name} {}",
                         sub.name
                     );
@@ -3137,19 +3446,22 @@ mod tests {
         }
     }
 
-    /// A `::`-qualified head word keeps the generic-invoke path — the
-    /// retired dispatch keyed on the raw word, so `[::expr …]` never
-    /// took the inline expression emitter and must not start to.
+    /// A `::`-qualified head word naming a global builtin compiles as the
+    /// builtin does: C's compiler finds `::expr` and compiles it with
+    /// `TclCompileExprCmd`.
     #[test]
-    fn qualified_head_word_stays_generic() {
+    fn qualified_head_word_compiles_as_the_builtin() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(true, &[], &registry);
         ctx.emit_inline_cmd_subst("[::expr {$x+2}]");
         let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
-        assert!(!ops.contains(&Op::ADD), "qualified ::expr must not inline");
         assert!(
-            ops.contains(&Op::INVOKE_STK1),
-            "qualified ::expr must invoke generically, got {ops:?}"
+            ops.contains(&Op::ADD),
+            "qualified ::expr inlines, got {ops:?}"
+        );
+        assert!(
+            !ops.contains(&Op::INVOKE_STK1),
+            "qualified ::expr compiles, got {ops:?}"
         );
     }
 

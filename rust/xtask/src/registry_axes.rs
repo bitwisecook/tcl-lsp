@@ -175,7 +175,7 @@ const RATCHET: &[(&str, usize)] = &[
     ("rust/tcl-compiler/src/analyser/tk_checks.rs", 2),
     ("rust/tcl-compiler/src/auto_path_eval.rs", 6),
     ("rust/tcl-compiler/src/cfg_builder/upvar_info.rs", 1),
-    ("rust/tcl-compiler/src/codegen/cmd_subst.rs", 21),
+    ("rust/tcl-compiler/src/codegen/cmd_subst.rs", 19),
     ("rust/tcl-compiler/src/codegen/control_flow.rs", 3),
     ("rust/tcl-compiler/src/codegen/emitter/bytecoded.rs", 13),
     ("rust/tcl-compiler/src/codegen/emitter/loop_blocks.rs", 2),

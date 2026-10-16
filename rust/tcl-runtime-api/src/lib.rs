@@ -683,6 +683,40 @@ pub struct FatalTail {
     /// One-based line of the malformed command's first byte, for the
     /// enclosing `(procedure …)` / `("eval" body line N)` frames.
     pub line: u32,
+    /// The `while compiling` frames of a script the release refused to
+    /// compile whole ([`CompileFailure`]), which run nothing at all and
+    /// replace the `while executing` frame `command_text` would log.
+    pub compile_info: Option<String>,
+    /// The `-errorcode` the error carries, where it carries one.
+    pub error_code: Option<String>,
+}
+
+/// What a release that compiles a script whole compiles at once.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CompileUnit {
+    /// A procedure body, compiled when the procedure is first called.
+    ProcedureBody,
+    /// A script a command evaluates, or a chunk of commands `tclsh` reads
+    /// from its stdin, compiled whole.
+    Script,
+}
+
+/// Why a release that compiles a script whole refused it: the error, the
+/// `-errorinfo` frames after the message (a `while compiling` frame per
+/// script the failure is nested in, and the context line each compile
+/// procedure adds), and the line of the failing command in the script.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CompileFailure {
+    /// The error message.
+    pub message: String,
+    /// The `-errorinfo` text that follows the message.
+    pub error_info: String,
+    /// One-based line of the outermost failing command (C's
+    /// `iPtr->errorLine`).
+    pub line: u32,
+    /// The `-errorcode` the error carries, where it carries one (a numeral
+    /// 8.4's expression parser cannot read).
+    pub error_code: Option<String>,
 }
 
 impl FatalTail {
@@ -696,6 +730,20 @@ impl FatalTail {
             message,
             command_text: String::new(),
             line: 0,
+            compile_info: None,
+            error_code: None,
+        }
+    }
+
+    /// The tail a refused compile raises before anything runs.
+    #[must_use]
+    pub fn compile_failure(failure: CompileFailure) -> Self {
+        Self {
+            message: failure.message,
+            command_text: String::new(),
+            line: failure.line,
+            compile_info: Some(failure.error_info),
+            error_code: failure.error_code,
         }
     }
 }
@@ -878,6 +926,19 @@ pub trait CompileService {
         _profile: &'static tcl_dialect::DialectProfile,
     ) -> ScriptCommandPlan {
         ScriptCommandPlan::complete(src.len())
+    }
+
+    /// Why a release that compiles a script whole
+    /// (`TclVersion::compile_errors_fail_scripts`) refuses `src`, compiled as
+    /// `unit`; `None` when it compiles. The default knows of no refusal.
+    fn compile_failure_for_profile(
+        &self,
+        src: &str,
+        profile: &'static tcl_dialect::DialectProfile,
+        unit: CompileUnit,
+    ) -> Option<CompileFailure> {
+        let _ = (src, profile, unit);
+        None
     }
 
     /// Compile a procedure body for an exact dialect profile and dispatch

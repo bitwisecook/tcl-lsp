@@ -1,0 +1,170 @@
+==== 8.4 file ====
+1 <bad index "x": must be integer or end?-integer?> <NONE>
+1 <bad index "x": must be integer or end?-integer?> <NONE>
+1 <bad index "x": must be integer or end?-integer?> <NONE>
+1 <bad index "x": must be integer or end?-integer?> <NONE>
+1 <bad index "x": must be integer or end?-integer?> <NONE>
+1 <syntax error in expression "1 +": premature end of expression> <NONE>
+1 <syntax error in expression "(1": looking for close parenthesis> <NONE>
+1 <syntax error in expression "1 ? 2": missing colon from ternary conditional> <NONE>
+1 <syntax error in expression "nosuch": variable references require preceding $> <NONE>
+1 <syntax error in expression "0x": extra tokens at end of expression> <NONE>
+1 <syntax error in expression "1 +": premature end of expression> <NONE>
+1 <syntax error in expression "1 ** 2": unexpected operator *> <NONE>
+1 <bad index "x": must be integer or end?-integer?> <NONE>
+1 <bad index "x": must be integer or end?-integer?> <NONE>
+1 <syntax error in expression "1 +": premature end of expression> <NONE>
+1 <syntax error in expression "(1": looking for close parenthesis> <NONE>
+==== 8.4 stdin ====
+1 <bad index "x": must be integer or end?-integer?> <NONE>
+1 <bad index "x": must be integer or end?-integer?> <NONE>
+1 <bad index "x": must be integer or end?-integer?> <NONE>
+1 <bad index "x": must be integer or end?-integer?> <NONE>
+1 <bad index "x": must be integer or end?-integer?> <NONE>
+1 <syntax error in expression "1 +": premature end of expression> <NONE>
+1 <syntax error in expression "(1": looking for close parenthesis> <NONE>
+1 <syntax error in expression "1 ? 2": missing colon from ternary conditional> <NONE>
+1 <syntax error in expression "nosuch": variable references require preceding $> <NONE>
+1 <syntax error in expression "0x": extra tokens at end of expression> <NONE>
+1 <syntax error in expression "1 +": premature end of expression> <NONE>
+1 <syntax error in expression "1 ** 2": unexpected operator *> <NONE>
+1 <bad index "x": must be integer or end?-integer?> <NONE>
+1 <bad index "x": must be integer or end?-integer?> <NONE>
+1 <syntax error in expression "1 +": premature end of expression> <NONE>
+1 <syntax error in expression "(1": looking for close parenthesis> <NONE>
+==== 8.5 file ====
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <NONE>
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <NONE>
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <NONE>
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <NONE>
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <NONE>
+1 <missing operand at _@_ | in expression "1 +_@_"> <NONE>
+1 <unbalanced open paren | in expression "(1"> <NONE>
+1 <missing operator ":" at _@_ | in expression "1 ? 2_@_"> <NONE>
+1 <invalid bareword "nosuch" | in expression "nosuch"; | should be "$nosuch" or "{nosuch}" or "nosuch(...)" or ...> <NONE>
+1 <invalid bareword "0x" | in expression "0x"; | should be "$0x" or "{0x}" or "0x(...)" or ...> <NONE>
+1 <missing operand at _@_ | in expression "1 +_@_"> <NONE>
+0 <1> <NONE>
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <NONE>
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <NONE>
+1 <missing operand at _@_ | in expression "1 +_@_"> <NONE>
+1 <unbalanced open paren | in expression "(1"> <NONE>
+==== 8.5 stdin ====
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <NONE>
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <NONE>
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <NONE>
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <NONE>
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <NONE>
+1 <missing operand at _@_ | in expression "1 +_@_"> <NONE>
+1 <unbalanced open paren | in expression "(1"> <NONE>
+1 <missing operator ":" at _@_ | in expression "1 ? 2_@_"> <NONE>
+1 <invalid bareword "nosuch" | in expression "nosuch"; | should be "$nosuch" or "{nosuch}" or "nosuch(...)" or ...> <NONE>
+1 <invalid bareword "0x" | in expression "0x"; | should be "$0x" or "{0x}" or "0x(...)" or ...> <NONE>
+1 <missing operand at _@_ | in expression "1 +_@_"> <NONE>
+0 <1> <NONE>
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <NONE>
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <NONE>
+1 <missing operand at _@_ | in expression "1 +_@_"> <NONE>
+1 <unbalanced open paren | in expression "(1"> <NONE>
+==== 8.6 file ====
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+1 <missing operand at _@_ | in expression "1 +_@_"> <TCL PARSE EXPR MISSING>
+1 <unbalanced open paren | in expression "(1"> <TCL PARSE EXPR UNBALANCED>
+1 <missing operator ":" at _@_ | in expression "1 ? 2_@_"> <TCL PARSE EXPR MISSING>
+1 <invalid bareword "nosuch" | in expression "nosuch"; | should be "$nosuch" or "{nosuch}" or "nosuch(...)" or ...> <TCL PARSE EXPR BAREWORD>
+1 <invalid bareword "0x" | in expression "0x"; | should be "$0x" or "{0x}" or "0x(...)" or ...> <TCL PARSE EXPR BAREWORD>
+1 <missing operand at _@_ | in expression "1 +_@_"> <TCL PARSE EXPR MISSING>
+0 <1> <NONE>
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+1 <missing operand at _@_ | in expression "1 +_@_"> <TCL PARSE EXPR MISSING>
+1 <unbalanced open paren | in expression "(1"> <TCL PARSE EXPR UNBALANCED>
+==== 8.6 stdin ====
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+1 <missing operand at _@_ | in expression "1 +_@_"> <TCL PARSE EXPR MISSING>
+1 <unbalanced open paren | in expression "(1"> <TCL PARSE EXPR UNBALANCED>
+1 <missing operator ":" at _@_ | in expression "1 ? 2_@_"> <TCL PARSE EXPR MISSING>
+1 <invalid bareword "nosuch" | in expression "nosuch"; | should be "$nosuch" or "{nosuch}" or "nosuch(...)" or ...> <TCL PARSE EXPR BAREWORD>
+1 <invalid bareword "0x" | in expression "0x"; | should be "$0x" or "{0x}" or "0x(...)" or ...> <TCL PARSE EXPR BAREWORD>
+1 <missing operand at _@_ | in expression "1 +_@_"> <TCL PARSE EXPR MISSING>
+0 <1> <NONE>
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+1 <missing operand at _@_ | in expression "1 +_@_"> <TCL PARSE EXPR MISSING>
+1 <unbalanced open paren | in expression "(1"> <TCL PARSE EXPR UNBALANCED>
+==== 9.0 file ====
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+1 <missing operand at _@_ | in expression "1 +_@_"> <TCL PARSE EXPR MISSING>
+1 <unbalanced open paren | in expression "(1"> <TCL PARSE EXPR UNBALANCED>
+1 <missing operator ":" at _@_ | in expression "1 ? 2_@_"> <TCL PARSE EXPR MISSING>
+1 <invalid bareword "nosuch" | in expression "nosuch"; | should be "$nosuch" or "{nosuch}" or "nosuch(...)" or ...> <TCL PARSE EXPR BAREWORD>
+1 <invalid bareword "0x" | in expression "0x"; | should be "$0x" or "{0x}" or "0x(...)" or ...> <TCL PARSE EXPR BAREWORD>
+1 <missing operand at _@_ | in expression "1 +_@_"> <TCL PARSE EXPR MISSING>
+0 <1> <NONE>
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+1 <missing operand at _@_ | in expression "1 +_@_"> <TCL PARSE EXPR MISSING>
+1 <unbalanced open paren | in expression "(1"> <TCL PARSE EXPR UNBALANCED>
+==== 9.0 stdin ====
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+1 <missing operand at _@_ | in expression "1 +_@_"> <TCL PARSE EXPR MISSING>
+1 <unbalanced open paren | in expression "(1"> <TCL PARSE EXPR UNBALANCED>
+1 <missing operator ":" at _@_ | in expression "1 ? 2_@_"> <TCL PARSE EXPR MISSING>
+1 <invalid bareword "nosuch" | in expression "nosuch"; | should be "$nosuch" or "{nosuch}" or "nosuch(...)" or ...> <TCL PARSE EXPR BAREWORD>
+1 <invalid bareword "0x" | in expression "0x"; | should be "$0x" or "{0x}" or "0x(...)" or ...> <TCL PARSE EXPR BAREWORD>
+1 <missing operand at _@_ | in expression "1 +_@_"> <TCL PARSE EXPR MISSING>
+0 <1> <NONE>
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+1 <missing operand at _@_ | in expression "1 +_@_"> <TCL PARSE EXPR MISSING>
+1 <unbalanced open paren | in expression "(1"> <TCL PARSE EXPR UNBALANCED>
+==== 9.1 file ====
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+1 <missing operand at _@_ | in expression "1 +_@_"> <TCL PARSE EXPR MISSING>
+1 <unbalanced open paren | in expression "(1"> <TCL PARSE EXPR UNBALANCED>
+1 <missing operator ":" at _@_ | in expression "1 ? 2_@_"> <TCL PARSE EXPR MISSING>
+1 <invalid bareword "nosuch" | in expression "nosuch"; | should be "$nosuch" or "{nosuch}" or "nosuch(...)" or ...> <TCL PARSE EXPR BAREWORD>
+1 <invalid bareword "0x" | in expression "0x"; | should be "$0x" or "{0x}" or "0x(...)" or ...> <TCL PARSE EXPR BAREWORD>
+1 <missing operand at _@_ | in expression "1 +_@_"> <TCL PARSE EXPR MISSING>
+0 <1> <NONE>
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+1 <missing operand at _@_ | in expression "1 +_@_"> <TCL PARSE EXPR MISSING>
+1 <unbalanced open paren | in expression "(1"> <TCL PARSE EXPR UNBALANCED>
+==== 9.1 stdin ====
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+1 <missing operand at _@_ | in expression "1 +_@_"> <TCL PARSE EXPR MISSING>
+1 <unbalanced open paren | in expression "(1"> <TCL PARSE EXPR UNBALANCED>
+1 <missing operator ":" at _@_ | in expression "1 ? 2_@_"> <TCL PARSE EXPR MISSING>
+1 <invalid bareword "nosuch" | in expression "nosuch"; | should be "$nosuch" or "{nosuch}" or "nosuch(...)" or ...> <TCL PARSE EXPR BAREWORD>
+1 <invalid bareword "0x" | in expression "0x"; | should be "$0x" or "{0x}" or "0x(...)" or ...> <TCL PARSE EXPR BAREWORD>
+1 <missing operand at _@_ | in expression "1 +_@_"> <TCL PARSE EXPR MISSING>
+0 <1> <NONE>
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL VALUE INDEX>
+1 <missing operand at _@_ | in expression "1 +_@_"> <TCL PARSE EXPR MISSING>
+1 <unbalanced open paren | in expression "(1"> <TCL PARSE EXPR UNBALANCED>

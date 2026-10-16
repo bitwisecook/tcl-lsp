@@ -225,7 +225,8 @@ time:
   reports a wrong-arity error counts as compiled. An invocation's
   `InvocationShape` (its words, literal or not) rides on its
   `CommandBindingSite` and on each codegen requirement. `eval` and `uplevel`
-  scripts are evaluated directly (`TCL_EVAL_DIRECT`).
+  scripts are evaluated directly (`TCL_EVAL_DIRECT`), as is a `source`d file
+  (`Tcl_EvalEx`).
 * **Which script bodies exist** — `cfg::Function::body_scripts`: each body a
   structured command evaluates (loop bodies, `for` steps, `if`/`switch` arms,
   `catch` bodies, an inline `eval` block), with its owner and blocks.

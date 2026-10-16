@@ -491,6 +491,16 @@ fn parse_var_ref_parts(
 /// words return the underlying value (type-preserving); mixed words build a
 /// string. `evaluation` is how the emulated release evaluates the command the
 /// word belongs to, and so its command substitutions.
+/// The value a pushed word is without substituting anything: a verbatim
+/// word's text, a whole braced word's content, or a word with no `${…}` or
+/// `[…]` left in it ([`subst_word`]'s own rules); `None` where it substitutes.
+pub(crate) fn literal_word_value(word: &str, verbatim: bool) -> Option<&str> {
+    if verbatim {
+        return Some(word);
+    }
+    whole_braced(word).or_else(|| (!word.contains("${") && !word.contains('[')).then_some(word))
+}
+
 pub fn subst_word(
     word: &str,
     vm: &mut Vm,

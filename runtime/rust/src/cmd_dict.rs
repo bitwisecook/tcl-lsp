@@ -835,6 +835,7 @@ fn for_(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return interp.set_error(b"must have exactly two variable names");
     }
     let (kvar, vvar) = (vars[0].clone(), vars[1].clone());
+    let compiled = interp.release_compiles_control(argv);
     let pairs = match dict::dict_pairs(argv[3]) {
         Ok(p) => p,
         Err(e) => return bad_dict(interp, e),
@@ -850,11 +851,11 @@ fn for_(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         if interp.var_set(&vvar, v).is_err() {
             return cant_set(interp, &vvar);
         }
-        match interp.eval_control_body(argv[4]) {
+        match interp.eval_compiled_control_body(argv[4], compiled) {
             Code::Ok | Code::Continue => {}
             Code::Break => break,
             Code::Error => {
-                if !interp.in_proc() {
+                if !compiled {
                     interp.append_body_frame(b"dict for");
                 }
                 return Code::Error;
@@ -887,6 +888,7 @@ fn map(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Ok(p) => p,
         Err(e) => return bad_dict(interp, e),
     };
+    let compiled = interp.release_compiles_control(argv);
     let acc = dict::new_dict_obj(&[]);
     unsafe { obj::incr_ref_count(acc) };
     let policy = ControlOptionPolicy::FRESH_FORWARDED;
@@ -897,7 +899,7 @@ fn map(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             unsafe { obj::decr_ref_count(acc) };
             return cant_set(interp, &vars[0]);
         }
-        match interp.eval_control_body(argv[4]) {
+        match interp.eval_compiled_control_body(argv[4], compiled) {
             Code::Ok => {
                 let _ = dict::dict_set(acc, k, interp.get_obj_result());
             }
@@ -905,7 +907,7 @@ fn map(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Code::Break => break,
             Code::Error => {
                 unsafe { obj::decr_ref_count(acc) };
-                if !interp.in_proc() {
+                if !compiled {
                     interp.append_body_frame(b"dict map");
                 }
                 return Code::Error;

@@ -29,9 +29,7 @@ use tcl_runtime_api::completion_options::{
 };
 use tcl_runtime_api::{ArrayTarget, Code, Completion, VarStore};
 
-use crate::command::{
-    completion_from_cmd_error, completion_from_tcl_error, settle_control_options,
-};
+use crate::command::{completion_from_tcl_error, settle_control_options};
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
 
@@ -136,7 +134,7 @@ fn array_op_after_trace(
                 );
                 Completion::new(Code::Ok, result.value, options)
             }
-            Err(e) => completion_from_cmd_error(e),
+            Err(e) => vm.cmd_error(e),
         };
     }
     // Per-runtime: `array set` (its per-element write traces must fail the
@@ -180,7 +178,7 @@ fn array_op_after_trace(
                     Err(e) => return completion_from_tcl_error(e),
                 };
                 if items.len() % 2 != 0 {
-                    return completion_from_cmd_error(tcl_cmd_core::CmdError::argument_format(
+                    return vm.cmd_error(tcl_cmd_core::CmdError::argument_format(
                         "list must have an even number of elements",
                     ));
                 }
@@ -365,7 +363,7 @@ mod tests {
             r#"can't unset "a": variable is a constant"#
         );
         assert_eq!(
-            crate::command::resolved_error_code(&completion)
+            crate::command::resolved_error_code(&completion, vm.runtime_version())
                 .to_str()
                 .as_ref(),
             "TCL UNSET CONST"

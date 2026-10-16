@@ -1210,6 +1210,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // *local* name of each pair, from index 2 after the subcommand word
         repeated_args: &[RepeatedArgLayout::strided(ArgRole::VarWrite, 2, 2)],
         subcommand_forms: NAMESPACE_UPVAR_FORMS,
+        codegen_hook: Some(crate::hooks::CodegenHookId::NamespaceUpvar),
         creates_scope_alias: true,
         surface: Some(SpecSurface::TCL85_PLUS),
         world_effects: Some(WorldEffectDescriptor::EMPTY),

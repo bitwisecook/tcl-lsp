@@ -56,7 +56,7 @@ fn body_entries(asm: &FunctionAsm) -> Vec<(u32, ReleaseBodyEntry)> {
         .collect()
 }
 
-const NESTED: &str = "proc p {} {switch a {a {foreach i {1 2} {puts [expr {1+1}]}}}; \
+const NESTED: &str = "proc p {c} {if \"$c\" {foreach i {1 2} {puts [expr {1+1}]}}; \
                       puts [string length $i]; catch {puts b} m}";
 
 #[test]
@@ -83,13 +83,14 @@ fn eight_four_stamps_how_it_binds_each_command_and_where_bodies_start() {
         "no command of it is specialised"
     );
 
-    // The `switch` arm encloses the `foreach` body; whether either is a unit
-    // of its own is the activation's to decide.
+    // The body of the `if` 8.4 runs (its test is substituted) encloses the
+    // `foreach` body; whether either is a unit of its own is the activation's
+    // to decide.
     let entries = body_entries(&asm);
     let arm = entries
         .iter()
         .find(|(_, entry)| entry.owner == ReleaseBinding::Invoked)
-        .expect("the switch arm starts");
+        .expect("the if body starts");
     assert_eq!(arm.1.parent, 0);
     let loop_body = entries
         .iter()

@@ -22,10 +22,10 @@
 use num_bigint::BigInt;
 use num_traits::Signed;
 use tcl_runtime_api::Completion;
-use tcl_syntax::expr::mathfunc::{IntWidth, NumValue, try_dispatch_with_backend_int_width};
+use tcl_syntax::expr::mathfunc::{IntWidth, NumValue, try_dispatch_for_release};
 use tcl_syntax::number::{self, Number};
 
-use crate::command::err_with_code;
+use crate::command::{completion_from_tcl_error, err_with_code};
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
 
@@ -108,7 +108,7 @@ fn num_err(message: String) -> Completion<Value> {
     }
 }
 
-fn shared_math(name: &str, args: &[Value], int_width: IntWidth) -> Completion<Value> {
+fn shared_math(name: &str, args: &[Value], release: tcl_dialect::TclVersion) -> Completion<Value> {
     let Some(spec) = tcl_syntax::expr::mathfunc::spec(name) else {
         return err(format!("invalid command name \"tcl::mathfunc::{name}\""));
     };
@@ -142,22 +142,24 @@ fn shared_math(name: &str, args: &[Value], int_width: IntWidth) -> Completion<Va
             ) {
                 return Ok(NumValue::Float(f64::NAN));
             }
-            let message = if tcl_syntax::expr::mathfunc::expects_floating_operand_error(name) {
-                format!("expected floating-point number but got \"{}\"", v.to_str())
-            } else {
-                format!("expected number but got \"{}\"", v.to_str())
-            };
-            Err(err(message))
+            let (message, code) = tcl_syntax::expr::mathfunc::non_numeric_argument_error(
+                name,
+                &v.to_str(),
+                tcl_syntax::expr::errors::ambient_release(),
+            );
+            Err(err_with_code(message, code))
         })
         .collect();
     let nums = match nums {
         Ok(nums) => nums,
         Err(e) => return e,
     };
-    match try_dispatch_with_backend_int_width(name, &nums, int_width) {
+    match try_dispatch_for_release(name, &nums, release) {
         Ok(NumValue::Int(i)) => ok(Value::int(i)),
         Ok(NumValue::Big(b)) => ok(crate::expr::big_value(&b)),
-        Ok(NumValue::Float(f)) => ok(Value::double(f)),
+        Ok(NumValue::Float(f)) => {
+            crate::expr::double_result(f).map_or_else(completion_from_tcl_error, ok)
+        }
         Err(e) => math_func_err(e),
     }
 }
@@ -196,7 +198,7 @@ fn m_mathfunc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         "srand" => m_srand(vm, args),
         "rand" => m_rand(vm, args),
         name => m_integer_conversion(name, args, int_width)
-            .unwrap_or_else(|| shared_math(name, args, int_width)),
+            .unwrap_or_else(|| shared_math(name, args, vm.runtime_version())),
     }
 }
 
@@ -321,7 +323,14 @@ fn m_abs(args: &[Value]) -> Completion<Value> {
     match num_or_nan(x) {
         Ok(f) if f.is_nan() => num_err(tcl_syntax::expr::errors::NAN_MESSAGE.to_string()),
         Ok(f) => ok(Value::double(f.abs())),
-        Err(m) => num_err(m),
+        Err(_) => {
+            let (message, code) = tcl_syntax::expr::mathfunc::non_numeric_argument_error(
+                "abs",
+                &x.to_str(),
+                tcl_syntax::expr::errors::ambient_release(),
+            );
+            err_with_code(message, code)
+        }
     }
 }
 

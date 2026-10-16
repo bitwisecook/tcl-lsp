@@ -1,0 +1,90 @@
+==== 8.4 file ====
+--------------------
+x |     while executing | "error x" |     ("a" arm line 1) |     invoked from within | "switch a a {error x} " |     (procedure "q1" line 1) |     invoked from within | "q1" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+y |     while executing | "error y" |     ("a" arm line 1) |     invoked from within | "switch -- a {a {error y}} " |     (procedure "q2" line 1) |     invoked from within | "q2" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+w |     while executing | "error w" |     ("a*" arm line 1) |     invoked from within | "switch -glob -- abc {a* {error w}} " |     (procedure "q3" line 1) |     invoked from within | "q3" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+v |     while executing | "error v" |     ("a" arm line 1) |     invoked from within | "switch -exact a a {error v} " |     (procedure "q4" line 1) |     invoked from within | "q4" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+u |     while executing | "error u" |     ("b" arm line 1) |     invoked from within | "switch b a - b - c {error u} " |     (procedure "q5" line 1) |     invoked from within | "q5" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+z |     while executing | "error z" |     ("a" arm line 1) |     invoked from within | "switch a a {error z}" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+t |     while executing | "error t" |     ("a" arm line 1) |     invoked from within | "switch -- a {a {error t}}" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+==== 8.4 stdin ====
+--------------------
+x |     while executing | "error x" |     ("a" arm line 1) |     invoked from within | "switch a a {error x} " |     (procedure "q1" line 1) |     invoked from within | "q1" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+y |     while executing | "error y" |     ("a" arm line 1) |     invoked from within | "switch -- a {a {error y}} " |     (procedure "q2" line 1) |     invoked from within | "q2" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+w |     while executing | "error w" |     ("a*" arm line 1) |     invoked from within | "switch -glob -- abc {a* {error w}} " |     (procedure "q3" line 1) |     invoked from within | "q3" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+v |     while executing | "error v" |     ("a" arm line 1) |     invoked from within | "switch -exact a a {error v} " |     (procedure "q4" line 1) |     invoked from within | "q4" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+u |     while executing | "error u" |     ("b" arm line 1) |     invoked from within | "switch b a - b - c {error u} " |     (procedure "q5" line 1) |     invoked from within | "q5" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+z |     while executing | "error z" |     ("a" arm line 1) |     invoked from within | "switch a a {error z}" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+t |     while executing | "error t" |     ("a" arm line 1) |     invoked from within | "switch -- a {a {error t}}" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+==== 8.5 file ====
+--------------------
+x |     while executing | "error x" |     ("a" arm line 1) |     invoked from within | "switch a a {error x} " |     (procedure "q1" line 1) |     invoked from within | "q1" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+y |     while executing | "error y" |     (procedure "q2" line 1) |     invoked from within | "q2" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+w |     while executing | "error w" |     (procedure "q3" line 1) |     invoked from within | "q3" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+v |     while executing | "error v" |     ("a" arm line 1) |     invoked from within | "switch -exact a a {error v} " |     (procedure "q4" line 1) |     invoked from within | "q4" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+u |     while executing | "error u" |     ("b" arm line 1) |     invoked from within | "switch b a - b - c {error u} " |     (procedure "q5" line 1) |     invoked from within | "q5" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+z |     while executing | "error z" |     ("a" arm line 1) |     invoked from within | "switch a a {error z}" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+t |     while executing | "error t" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+==== 8.5 stdin ====
+--------------------
+x |     while executing | "error x" |     ("a" arm line 1) |     invoked from within | "switch a a {error x} " |     (procedure "q1" line 1) |     invoked from within | "q1" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+y |     while executing | "error y" |     (procedure "q2" line 1) |     invoked from within | "q2" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+w |     while executing | "error w" |     (procedure "q3" line 1) |     invoked from within | "q3" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+v |     while executing | "error v" |     ("a" arm line 1) |     invoked from within | "switch -exact a a {error v} " |     (procedure "q4" line 1) |     invoked from within | "q4" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+u |     while executing | "error u" |     ("b" arm line 1) |     invoked from within | "switch b a - b - c {error u} " |     (procedure "q5" line 1) |     invoked from within | "q5" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+z |     while executing | "error z" |     ("a" arm line 1) |     invoked from within | "switch a a {error z}" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+t |     while executing | "error t" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+==== 8.6 file ====
+-C-CC---C---C-CCCCCC
+x |     while executing | "error x" |     ("a" arm line 1) |     invoked from within | "switch a a {error x} " |     (procedure "q1" line 1) |     invoked from within | "q1" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+y |     while executing | "error y" |     (procedure "q2" line 1) |     invoked from within | "q2" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+w |     while executing | "error w" |     (procedure "q3" line 1) |     invoked from within | "q3" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+v |     while executing | "error v" |     ("a" arm line 1) |     invoked from within | "switch -exact a a {error v} " |     (procedure "q4" line 1) |     invoked from within | "q4" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+u |     while executing | "error u" |     ("b" arm line 1) |     invoked from within | "switch b a - b - c {error u} " |     (procedure "q5" line 1) |     invoked from within | "q5" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+z |     while executing | "error z" |     ("a" arm line 1) |     invoked from within | "switch a a {error z}" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+t |     while executing | "error t" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+==== 8.6 stdin ====
+-C-CC---C---C-CCCCCC
+x |     while executing | "error x" |     ("a" arm line 1) |     invoked from within | "switch a a {error x} " |     (procedure "q1" line 1) |     invoked from within | "q1" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+y |     while executing | "error y" |     (procedure "q2" line 1) |     invoked from within | "q2" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+w |     while executing | "error w" |     (procedure "q3" line 1) |     invoked from within | "q3" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+v |     while executing | "error v" |     ("a" arm line 1) |     invoked from within | "switch -exact a a {error v} " |     (procedure "q4" line 1) |     invoked from within | "q4" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+u |     while executing | "error u" |     ("b" arm line 1) |     invoked from within | "switch b a - b - c {error u} " |     (procedure "q5" line 1) |     invoked from within | "q5" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+z |     while executing | "error z" |     ("a" arm line 1) |     invoked from within | "switch a a {error z}" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+t |     while executing | "error t" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+==== 9.0 file ====
+--------------------
+x |     while executing | "error x" |     ("a" arm line 1) |     invoked from within | "switch a a {error x} " |     (procedure "q1" line 1) |     invoked from within | "q1" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+y |     while executing | "error y" |     (procedure "q2" line 1) |     invoked from within | "q2" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+w |     while executing | "error w" |     (procedure "q3" line 1) |     invoked from within | "q3" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+v |     while executing | "error v" |     ("a" arm line 1) |     invoked from within | "switch -exact a a {error v} " |     (procedure "q4" line 1) |     invoked from within | "q4" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+u |     while executing | "error u" |     ("b" arm line 1) |     invoked from within | "switch b a - b - c {error u} " |     (procedure "q5" line 1) |     invoked from within | "q5" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+z |     while executing | "error z" |     ("a" arm line 1) |     invoked from within | "switch a a {error z}" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+t |     while executing | "error t" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+==== 9.0 stdin ====
+--------------------
+x |     while executing | "error x" |     ("a" arm line 1) |     invoked from within | "switch a a {error x} " |     (procedure "q1" line 1) |     invoked from within | "q1" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+y |     while executing | "error y" |     (procedure "q2" line 1) |     invoked from within | "q2" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+w |     while executing | "error w" |     (procedure "q3" line 1) |     invoked from within | "q3" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+v |     while executing | "error v" |     ("a" arm line 1) |     invoked from within | "switch -exact a a {error v} " |     (procedure "q4" line 1) |     invoked from within | "q4" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+u |     while executing | "error u" |     ("b" arm line 1) |     invoked from within | "switch b a - b - c {error u} " |     (procedure "q5" line 1) |     invoked from within | "q5" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+z |     while executing | "error z" |     ("a" arm line 1) |     invoked from within | "switch a a {error z}" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+t |     while executing | "error t" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+==== 9.1 file ====
+--------------------
+x |     while executing | "error x" |     ("a" arm line 1) |     invoked from within | "switch a a {error x} " |     (procedure "q1" line 1) |     invoked from within | "q1" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+y |     while executing | "error y" |     (procedure "q2" line 1) |     invoked from within | "q2" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+w |     while executing | "error w" |     (procedure "q3" line 1) |     invoked from within | "q3" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+v |     while executing | "error v" |     ("a" arm line 1) |     invoked from within | "switch -exact a a {error v} " |     (procedure "q4" line 1) |     invoked from within | "q4" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+u |     while executing | "error u" |     ("b" arm line 1) |     invoked from within | "switch b a - b - c {error u} " |     (procedure "q5" line 1) |     invoked from within | "q5" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+z |     while executing | "error z" |     ("a" arm line 1) |     invoked from within | "switch a a {error z}" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+t |     while executing | "error t" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+==== 9.1 stdin ====
+--------------------
+x |     while executing | "error x" |     ("a" arm line 1) |     invoked from within | "switch a a {error x} " |     (procedure "q1" line 1) |     invoked from within | "q1" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+y |     while executing | "error y" |     (procedure "q2" line 1) |     invoked from within | "q2" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+w |     while executing | "error w" |     (procedure "q3" line 1) |     invoked from within | "q3" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+v |     while executing | "error v" |     ("a" arm line 1) |     invoked from within | "switch -exact a a {error v} " |     (procedure "q4" line 1) |     invoked from within | "q4" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+u |     while executing | "error u" |     ("b" arm line 1) |     invoked from within | "switch b a - b - c {error u} " |     (procedure "q5" line 1) |     invoked from within | "q5" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+z |     while executing | "error z" |     ("a" arm line 1) |     invoked from within | "switch a a {error z}" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+t |     while executing | "error t" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"

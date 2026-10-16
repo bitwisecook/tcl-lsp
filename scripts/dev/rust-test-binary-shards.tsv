@@ -191,6 +191,7 @@
 3	tcl-vm::error_info_text_e2e	test	tcl-vm	error_info_text_e2e
 3	tcl-vm::legacy_variable_traces_e2e	test	tcl-vm	legacy_variable_traces_e2e
 3	tcl-vm::literal_index_encoding_e2e	test	tcl-vm	literal_index_encoding_e2e
+3	tcl-vm::tclsh_parity_e2e	test	tcl-vm	tclsh_parity_e2e
 3	tcl-vm::mathfunc_derivation_e2e	test	tcl-vm	mathfunc_derivation_e2e
 3	tcl-vm::namespace_surface_e2e	test	tcl-vm	namespace_surface_e2e
 3	tcl-vm::release_running_bytecode_e2e	test	tcl-vm	release_running_bytecode_e2e

@@ -36,6 +36,7 @@
 //! thread last installed. `string range abcdefghijkl 010 end` is `ijkl` on
 //! tclsh 8.4.20 to 8.6.18 and `kl` from 9.0.4.
 
+use tcl_dialect::TclVersion;
 use tcl_syntax::number::NumberSyntax;
 use tcl_syntax::value::ValueOps;
 
@@ -49,6 +50,117 @@ pub fn length<O: ValueOps>(ops: &mut O, s: &O::Value) -> O::Value {
     ops.new_int(i64::try_from(n).unwrap_or(i64::MAX))
 }
 
+/// `string bytelength str` (8.4 to 8.6) — the bytes of the string's internal
+/// form, Tcl's modified UTF-8, which spells a NUL in two.
+pub fn bytelength<O: ValueOps>(ops: &mut O, s: &O::Value) -> O::Value {
+    let text = ops.as_chars(s);
+    let n: usize = text
+        .chars()
+        .map(|c| if c == '\0' { 2 } else { c.len_utf8() })
+        .sum();
+    ops.new_int(i64::try_from(n).unwrap_or(i64::MAX))
+}
+
+/// Every subcommand `string` has in some release, in the order the `string`
+/// ensemble lists them (8.5 on); a release's own are those its registry spec
+/// admits.
+pub const SUBCOMMANDS: &[&str] = &[
+    "bytelength",
+    "cat",
+    "compare",
+    "equal",
+    "first",
+    "index",
+    "insert",
+    "is",
+    "last",
+    "length",
+    "map",
+    "match",
+    "range",
+    "repeat",
+    "replace",
+    "reverse",
+    "tolower",
+    "totitle",
+    "toupper",
+    "trim",
+    "trimleft",
+    "trimright",
+    "wordend",
+    "wordstart",
+];
+
+/// Tcl 8.4's `string` options in `Tcl_StringObjCmd`'s table order, which its
+/// error lists them in.
+const OPTIONS_8_4: &[&str] = &[
+    "bytelength",
+    "compare",
+    "equal",
+    "first",
+    "index",
+    "is",
+    "last",
+    "length",
+    "map",
+    "match",
+    "range",
+    "repeat",
+    "replace",
+    "tolower",
+    "toupper",
+    "totitle",
+    "trim",
+    "trimleft",
+    "trimright",
+    "wordend",
+    "wordstart",
+];
+
+/// The usage error `string` alone raises under `release`: 8.4's
+/// `Tcl_StringObjCmd`, 8.5's ensemble, and 8.6's.
+#[must_use]
+pub fn usage_error(release: TclVersion) -> CmdError {
+    CmdError::wrong_args(match release {
+        TclVersion::V8_4 => "string option arg ?arg ...?",
+        TclVersion::V8_5 => "string subcommand ?argument ...?",
+        _ => "string subcommand ?arg ...?",
+    })
+}
+
+/// The index in `subs`, the release's `string` subcommands in
+/// [`SUBCOMMANDS`] order, of the one `word` selects, as `release`'s `string`
+/// selects it: 8.4's option table, whose miss is `bad option` or
+/// `ambiguous option` and sets no error code, or from 8.5 the ensemble's
+/// unique prefix, whose miss is `unknown or ambiguous subcommand` with
+/// `TCL LOOKUP SUBCOMMAND`.
+///
+/// # Errors
+/// The release's error for a word that selects no one subcommand.
+pub fn select_subcommand<T: AsRef<[u8]>>(
+    subs: &[T],
+    word: &[u8],
+    release: TclVersion,
+) -> Result<usize, CmdError> {
+    if release == TclVersion::V8_4 {
+        let table = crate::prefix::OptionTable::abbreviating("option", OPTIONS_8_4);
+        let name = table.index_of_in(word, release)?;
+        return subs
+            .iter()
+            .position(|sub| sub.as_ref() == OPTIONS_8_4[name].as_bytes())
+            .ok_or_else(|| CmdError::new(format!("bad option \"{}\"", OPTIONS_8_4[name])));
+    }
+    crate::ensemble::resolve_subcommand(subs, word, true).ok_or_else(|| {
+        let message =
+            crate::ensemble::unknown_subcommand_message(subs, word, true, b"::tcl::string");
+        let word = String::from_utf8_lossy(word);
+        CmdError::with_error_code(
+            String::from_utf8_lossy(&message).into_owned(),
+            tcl_syntax::list::join_list(["TCL", "LOOKUP", "SUBCOMMAND", word.as_ref()]),
+        )
+    })
+}
+
 /// `string index str charIndex` — the one-character string at `idx`, or empty
 /// when out of range.
 pub fn index<O: ValueOps>(
@@ -57,7 +169,7 @@ pub fn index<O: ValueOps>(
     idx: &O::Value,
     numbers: NumberSyntax,
 ) -> Result<O::Value, CmdError> {
-    let chars: Vec<char> = ops.as_str(s).chars().collect();
+    let chars: Vec<char> = ops.as_chars(s).chars().collect();
     let i = index::resolve_with(&ops.as_str(idx), chars.len(), numbers)?;
     if i < 0 {
         return Ok(ops.empty());
@@ -76,7 +188,7 @@ pub fn range<O: ValueOps>(
     last: &O::Value,
     numbers: NumberSyntax,
 ) -> Result<O::Value, CmdError> {
-    let chars: Vec<char> = ops.as_str(s).chars().collect();
+    let chars: Vec<char> = ops.as_chars(s).chars().collect();
     let len = chars.len();
     let lo = index::resolve_with(&ops.as_str(first), len, numbers)?.max(0);
     let hi = index::resolve_with(&ops.as_str(last), len, numbers)?;
@@ -93,7 +205,7 @@ pub fn range<O: ValueOps>(
 
 /// `string reverse str`.
 pub fn reverse<O: ValueOps>(ops: &mut O, s: &O::Value) -> O::Value {
-    let out: String = ops.as_str(s).chars().rev().collect();
+    let out: String = ops.as_chars(s).chars().rev().collect();
     ops.new_string(out)
 }
 
@@ -123,6 +235,10 @@ pub fn repeat<O: ValueOps>(
     count: &O::Value,
 ) -> Result<O::Value, CmdError> {
     let n = ops.as_int(count)?;
+    // One copy is the value itself (`StringReptCmd`).
+    if n == 1 {
+        return Ok(s.clone());
+    }
     if n <= 0 {
         return Ok(ops.empty());
     }
@@ -474,14 +590,14 @@ pub fn replace<O: ValueOps>(
             "string replace string first last ?string?",
         ));
     }
-    let chars: Vec<char> = ops.as_str(&args[0]).chars().collect();
+    let chars: Vec<char> = ops.as_chars(&args[0]).chars().collect();
     let len = chars.len();
     let end = i64::try_from(len).unwrap_or(i64::MAX) - 1;
     let first = index::resolve_with(&ops.as_str(&args[1]), len, numbers)?;
     let last = index::resolve_with(&ops.as_str(&args[2]), len, numbers)?;
+    // A range outside the string leaves the value itself (`StringRplcCmd`).
     if last < 0 || first > end || last < first {
-        let unchanged: String = chars.iter().collect();
-        return Ok(ops.new_string(unchanged));
+        return Ok(args[0].clone());
     }
     let first = first.max(0);
     let last = last.min(end);
@@ -527,6 +643,10 @@ pub fn insert<O: ValueOps>(
 /// # Errors
 /// The value-size limit, when the concatenation would be over it.
 pub fn cat<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Value, CmdError> {
+    // One word is the value itself (`StringCatCmd`).
+    if let [only] = args {
+        return Ok(only.clone());
+    }
     value_size::charge(ops, |ops, cap| value_size::joined(ops, args, 0, cap))?;
     let mut out = String::new();
     for a in args {
@@ -543,6 +663,13 @@ const DEFAULT_TRIM_SET: &[char] = &[
     '\u{2006}', '\u{2007}', '\u{2008}', '\u{2009}', '\u{200a}', '\u{200b}', '\u{2028}', '\u{2029}',
     '\u{202f}', '\u{205f}', '\u{2060}', '\u{3000}', '\u{feff}',
 ];
+
+/// The characters `string trim` strips without a set of its own, as one
+/// string (C's `tclDefaultTrimSet`, which the compiled trim pushes).
+#[must_use]
+pub fn default_trim_set() -> String {
+    DEFAULT_TRIM_SET.iter().collect()
+}
 
 /// `string trim`/`trimleft`/`trimright` — strip `chars` (default the TIP #413
 /// whitespace set) from the requested ends.
@@ -577,8 +704,8 @@ pub fn first<O: ValueOps>(
     start: Option<&O::Value>,
     numbers: NumberSyntax,
 ) -> Result<O::Value, CmdError> {
-    let hay: Vec<char> = ops.as_str(haystack).chars().collect();
-    let needle: Vec<char> = ops.as_str(needle).chars().collect();
+    let hay: Vec<char> = ops.as_chars(haystack).chars().collect();
+    let needle: Vec<char> = ops.as_chars(needle).chars().collect();
     let start = match start {
         None => 0,
         Some(s) => usize::try_from(index::resolve_with(&ops.as_str(s), hay.len(), numbers)?.max(0))
@@ -608,8 +735,8 @@ pub fn last<O: ValueOps>(
     last_index: Option<&O::Value>,
     numbers: NumberSyntax,
 ) -> Result<O::Value, CmdError> {
-    let hay: Vec<char> = ops.as_str(haystack).chars().collect();
-    let needle: Vec<char> = ops.as_str(needle).chars().collect();
+    let hay: Vec<char> = ops.as_chars(haystack).chars().collect();
+    let needle: Vec<char> = ops.as_chars(needle).chars().collect();
     let last: i64 = match last_index {
         None => i64::try_from(hay.len()).unwrap_or(i64::MAX) - 1,
         Some(s) => index::resolve_with(&ops.as_str(s), hay.len(), numbers)?,
@@ -662,8 +789,13 @@ pub fn string_match<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Va
             ));
         }
     };
-    let pattern = ops.as_str(pat).to_string();
-    let text = ops.as_str(s).to_string();
+    // `TclStringMatchObj` reads both by character where the string has no
+    // type or is a string, converting the pattern too.
+    let (pattern, text) = if ops.is_untyped_or_string(s) {
+        (ops.as_chars(pat), ops.as_chars(s))
+    } else {
+        (ops.as_str(pat), ops.as_str(s))
+    };
     Ok(ops.new_bool(tcl_syntax::glob::string_case_match(&pattern, &text, nocase)))
 }
 
@@ -708,11 +840,30 @@ pub fn map<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Value, CmdE
     if items.len() % 2 != 0 {
         return Err(CmdError::new("char map list unbalanced"));
     }
+    // As `StringMapCmd`: an empty map leaves the value itself, any other reads
+    // the string by character, and an empty string stops there; a single pair
+    // reads its key by character and its value only where the key could match
+    // (non-empty and no longer than the string), while several pairs read
+    // every key and value so.
+    if items.is_empty() {
+        return Ok(text.clone());
+    }
+    let string = ops.as_chars(text).to_string();
+    if string.is_empty() {
+        return Ok(ops.empty());
+    }
     let mut map: Vec<(String, String)> = Vec::with_capacity(items.len() / 2);
     for c in items.as_chunks::<2>().0 {
-        map.push((ops.as_str(&c[0]).to_string(), ops.as_str(&c[1]).to_string()));
+        let key = ops.as_chars(&c[0]).to_string();
+        let reads_value =
+            items.len() > 2 || (!key.is_empty() && key.chars().count() <= string.chars().count());
+        let value = if reads_value {
+            ops.as_chars(&c[1])
+        } else {
+            ops.as_str(&c[1])
+        };
+        map.push((key, value.to_string()));
     }
-    let string = ops.as_str(text).to_string();
 
     // Case-insensitive matching folds full Unicode case (like `string equal
     // -nocase` and `tolower`), not just ASCII, and matches/advances by
@@ -803,6 +954,9 @@ pub fn dispatch_canon<O: ValueOps>(
     };
     match sub {
         "length" => arity(1, "string length string").or_else(|| Some(Ok(length(ops, &rest[0])))),
+        "bytelength" => {
+            arity(1, "string bytelength string").or_else(|| Some(Ok(bytelength(ops, &rest[0]))))
+        }
         "index" => arity(2, "string index string charIndex")
             .or_else(|| Some(index(ops, &rest[0], &rest[1], numbers))),
         "range" => arity(3, "string range string first last")
@@ -966,6 +1120,28 @@ fn is_connector_punct(c: char) -> bool {
     )
 }
 
+/// [`dispatch_canon`] as `release`'s `string` runs `sub`: its numerals, and
+/// the usage `first` and `last` give, whose words 8.4 names `subString
+/// string` and whose last index 9.0 names `lastIndex`.
+pub fn dispatch_canon_in<O: ValueOps>(
+    ops: &mut O,
+    sub: &str,
+    rest: &[O::Value],
+    release: TclVersion,
+) -> Option<Result<O::Value, CmdError>> {
+    if matches!(sub, "first" | "last") && !matches!(rest.len(), 2 | 3) {
+        let usage = match release {
+            TclVersion::V8_4 => format!("string {sub} subString string ?startIndex?"),
+            TclVersion::V9_0 | TclVersion::V9_1 if sub == "last" => {
+                "string last needleString haystackString ?lastIndex?".to_owned()
+            }
+            _ => format!("string {sub} needleString haystackString ?startIndex?"),
+        };
+        return Some(Err(CmdError::wrong_args(&usage)));
+    }
+    dispatch_canon(ops, sub, rest, release.number_syntax())
+}
+
 /// Dispatch a `string` subcommand from the raw argument vector (`args[0]` is the
 /// subcommand). Convenience over [`dispatch_canon`] for a runtime that does not
 /// pre-resolve abbreviations; exact subcommand names only.
@@ -1056,7 +1232,8 @@ mod tests {
         // the thread's installed grammar, so a caller under a stated profile
         // got whichever release the process last pinned. Measured with
         // LANG=C.UTF-8 on tclsh 8.4.20, 8.5.19 and 8.6.18 (the 8.x column,
-        // identical on all three) and 9.0.4 and 9.1.0 (the 9.x column):
+        // identical on all three but 8.4's wording of `bad index`) and 9.0.4
+        // and 9.1.0 (the 9.x column):
         //   string range abcdefghijkl 010 end           ijkl | kl
         //   string range abcdefghijkl 0 end-010         abcd | ab
         //   string range abcdefghijkl 1_0 end           bad index | kl
@@ -1136,14 +1313,24 @@ mod tests {
                 "abcdefghijKl".into(),
             ),
         ];
+        // 8.4 words its `bad index` for its own grammar.
+        let tcl84 = |tcl8: &str| {
+            tcl8.replace(
+                "must be integer?[+-]integer? or end?[+-]integer?",
+                "must be integer or end?-integer?",
+            )
+        };
         for (words, tcl8, tcl9) in rows {
-            for tcl8_numbers in [NumberSyntax::Tcl84, NumberSyntax::Tcl85] {
-                assert_eq!(
-                    &string_under(words, tcl8_numbers, NumberSyntax::Tcl90),
-                    tcl8,
-                    "{words:?} under {tcl8_numbers:?}"
-                );
-            }
+            assert_eq!(
+                string_under(words, NumberSyntax::Tcl84, NumberSyntax::Tcl90),
+                tcl84(tcl8),
+                "{words:?} under Tcl84"
+            );
+            assert_eq!(
+                &string_under(words, NumberSyntax::Tcl85, NumberSyntax::Tcl90),
+                tcl8,
+                "{words:?} under Tcl85"
+            );
             assert_eq!(
                 &string_under(words, NumberSyntax::Tcl90, NumberSyntax::Tcl85),
                 tcl9,
